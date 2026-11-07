@@ -1390,6 +1390,25 @@ export function foldWorkspaceFrame(): void {
 }
 
 /**
+ * A FINISHED FLOW HANDS ITS FRAME TO THE QUESTION STANDING ON IT (`shellTaskSurface.ts` law 2): the flow's stage is
+ * released (no carried object, no stage, no source) and the frame stands at its browse layer — the surface the live
+ * question is answered on. Its proof of life becomes the browse layer's own (`always`): the object the flow carried
+ * (a card played out of the hand) is gone, and the frame no longer exists because of it.
+ */
+export function handFrameToQuestion(kind: WorkspaceFrameKind): void {
+  traceVerb('handFrameToQuestion:' + kind);
+  const frame = workspaceStackState.frames.find((f) => f.kind === kind);
+  if (frame === undefined) {
+    return;
+  }
+  frame.subject = '';
+  frame.stage = '';
+  frame.sourceCard = '';
+  frame.phase = 'browse';
+  frame.anchor = {type: 'always'};
+}
+
+/**
  * Close the SHEET-shaped frames sitting on top — the quick screens (the action
  * centre, standard projects, milestones/awards, the hydro card pick) — and
  * leave whatever full screen stands beneath them.

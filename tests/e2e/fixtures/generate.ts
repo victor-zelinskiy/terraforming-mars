@@ -13331,6 +13331,35 @@ wgProjectFixture('wg-project-short-deck', {
   megacredits: 20,
 });
 
+// ── THE PRELUDE THAT PLAYS A CARD FROM THE HAND, MID-GAME (the owner's bug, 2026-11-07): WG Project deals a prelude whose
+//    play asks the server's bare `projectCard` («play a card from your hand») — the hand that played WG Project must
+//    serve it as the next step of the same flow, never refuse it with «Сначала завершите текущее действие».
+//      · `eccentric-sponsor-wg` — P11 Eccentric Sponsor first: Space Elevator (27) is playable ONLY through its −25;
+//      · `ecology-experts-wg`   — P10 Ecology Experts first: Grass (−16 °C) is playable ONLY by ignoring the global
+//        requirement. ──
+for (const [name, prelude, card, megacredits] of [
+  ['eccentric-sponsor-wg', CardName.ECCENTRIC_SPONSOR, CardName.SPACE_ELEVATOR, 20],
+  ['ecology-experts-wg', CardName.ECOLOGY_EXPERTS, CardName.GRASS, 30],
+] as const) {
+  wgProjectFixture(name, {
+    top: [prelude, CardName.DONATION, CardName.SUPPLIER],
+    under: [CardName.LOAN],
+    megacredits,
+    also: (game) => {
+      const blue = game.players[0];
+      blue.cardsInHand.push(newProjectCard(card)!, newProjectCard(CardName.POWER_PLANT)!);
+    },
+    dry: {
+      pick: prelude,
+      expect: (blue) => {
+        const wf = blue.getWaitingFor();
+        return blue.tableau.has(prelude) && wf instanceof SelectProjectCardToPlay && wf.cards.some((c) => c.name === card) ?
+          undefined : `expected ${prelude} played and its play-from-hand asked with ${card} — got ${wf?.type} [${wf instanceof SelectProjectCardToPlay ? wf.cards.map((c) => c.name).join(', ') : ''}]`;
+      },
+    },
+  });
+}
+
 // ── PL-1468 · valley-trust-burn: THE START'S DREW-N PICK READS THE SAME VERDICT AS THE MID-GAME ONE. A solo table at
 //    Valley Trust's mandatory first action («draw 3 preludes, play 1»), the prelude deck seeded — Huge Asteroid on top
 //    (it pays 5 M€: with 0 M€ it BURNS), Donation and Supplier under it. A dry run takes the first action on a copy and

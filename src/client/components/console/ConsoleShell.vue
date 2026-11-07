@@ -1860,6 +1860,7 @@ import {
   descendWorkspaceFrame,
   enterWorkspace,
   foldWorkspaceFrame,
+  handFrameToQuestion,
   frameServing,
   goBoardHome,
   leaveWorkspace,
@@ -2112,6 +2113,7 @@ import {
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {revealSourcePeekState} from '@/client/console/revealSourcePeek';
+import {destinationServesShellTask, navigationDefersShellTask, questionKeepsFrame, ShellTaskDestination} from '@/client/console/shellTaskSurface';
 import {endPreludePlayChain, preludeChainHoldsClaim, preludeChainOn, preludeChainOwesHand, preludeChainYieldsToBoard, preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
 import {closeWorkspaceOutcomeChain, workspaceClaimsColonyRevealBatch, workspaceClaimsVenusBonus, workspaceClaimsDrawRevealBatch, workspaceClaimsRevealBatch, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending, boardBeatParkState, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
@@ -13896,7 +13898,7 @@ export default defineComponent({
           submitInput(deltaEspionageStepResponse(projection, undefined) as InputResponse);
           return;
         }
-        this.deferShellTask();
+        this.deferShellTask('hydro');
         enterDeltaEspionagePick({
           source: projection.source,
           projection,
@@ -13926,7 +13928,7 @@ export default defineComponent({
           return;
         }
         const projection = raw.projection;
-        this.deferShellTask();
+        this.deferShellTask('hydro');
         enterDeltaBlockadePick({
           source: projection.source,
           projection,
@@ -16846,7 +16848,7 @@ export default defineComponent({
       // choreography) is exactly the same, which is the point: the player
       // gets the hand opening they already know.
       if (opts?.keepTask !== true) {
-        this.deferShellTask(); // navigation-away (the RT path's contract)
+        this.deferShellTask('hand'); // navigation-away (the RT path's contract)
       }
       // ARM THE ART FIRST — before the section mounts, before the two
       // measuring frames. Every proxy mounts a premium face, and a face whose
@@ -17005,7 +17007,7 @@ export default defineComponent({
         this.openSheet('card-actions');
         break;
       case 'trading':
-        this.deferShellTask();
+        this.deferShellTask('colonies');
         // The player's OWN visit: the default `always` anchor is what says «this
         // screen stays when the prompt is answered» (a prompt-pushed frame
         // carries a `prompt` anchor and hands the screen back instead).
@@ -17166,7 +17168,7 @@ export default defineComponent({
               this.collapseWorkspace();
               return;
             }
-            this.deferShellTask();
+            this.deferShellTask('board');
             leaveWorkspace();
           }
         }
@@ -17245,7 +17247,7 @@ export default defineComponent({
             if (!this.awardFundingActive) {
               discardMaFocusDraft();
             }
-            this.deferShellTask();
+            this.deferShellTask('board');
             leaveWorkspace();
             break;
           default:
@@ -17653,7 +17655,7 @@ export default defineComponent({
       if (workspaceKindSpec(kind).parkOwnsFlow === true && this.restoreParkedWorkspace(kind)) {
         return false;
       }
-      this.deferShellTask();
+      this.deferShellTask(kind);
       enterWorkspace(kind);
       return true;
     },
@@ -17725,7 +17727,7 @@ export default defineComponent({
      * nest inside the action workspace as they do from the menu.
      */
     openParliamentPartyAction(party: ReduxParty): void {
-      this.deferShellTask();
+      this.deferShellTask('card-actions');
       resetCardActionsFilter();
       consoleCardActionsUi.openWith = {party};
       pushWorkspaceFrame({
@@ -17745,7 +17747,7 @@ export default defineComponent({
      * ending back in the Parliament.
      */
     openParliamentResolutionAction(target: {resolution: string, party: ReduxParty}): void {
-      this.deferShellTask();
+      this.deferShellTask('card-actions');
       resetCardActionsFilter();
       consoleCardActionsUi.openWith = {party: target.party, resolution: target.resolution};
       pushWorkspaceFrame({
@@ -18229,7 +18231,7 @@ export default defineComponent({
     /** B in the first-action modal: the MANDATORY prompt is DEFERRED to the
      *  amber chip (B returns to it) — never just swallowed. */
     onCorpFirstActionDefer(): void {
-      this.deferShellTask();
+      this.deferShellTask('board');
     },
     // ── P27: BOARD INSPECTION MODE (L3) ──────────────────────────────────
     toggleInspection(): void {
@@ -18338,11 +18340,11 @@ export default defineComponent({
       if (sheet === 'card-actions') {
         resetCardActionsFilter();
       }
-      const isTaskSurface = !parkOwed && ((sheet === 'standard-projects' &&
-        this.shellTask?.kind === 'projectCard' && this.shellTask.mode === 'standardProject') ||
-        (sheet === 'awards' && this.shellTask?.kind === 'awardFunding'));
+      // The sheet IS the question's surface (a prompt's standard project, the free award funding) — the one predicate
+      // every defer asks (`shellTaskSurface.ts`).
+      const isTaskSurface = !parkOwed && destinationServesShellTask(this.shellTask, sheet);
       if (!isTaskSurface) {
-        this.deferShellTask();
+        this.deferShellTask(sheet);
       } else {
         this.consoleState.task.deferred = false;
       }
@@ -20381,7 +20383,7 @@ export default defineComponent({
         return;
       }
       if (action === 'open') {
-        this.deferShellTask();
+        this.deferShellTask('hydro');
         enterWorkspace('hydro', {anchor: {type: 'prompt', promptType: 'or'}});
         // REMEMBER that WE opened it. The offer is a visit the player did not
         // ask for, so answering it must hand the screen back — but a player who
@@ -22278,6 +22280,28 @@ export default defineComponent({
       }
       lastConclusionHold = undefined;
       resetConsoleActionComposerUi();
+      // THE QUESTION KEEPS ITS SURFACE (`shellTaskSurface.ts` law 2). The flow is over, but the server already asks the
+      // next thing ON this frame — a prelude WG Project dealt (Eccentric Sponsor, Ecology Experts) asks «play a card
+      // from your hand» while the play's own conclusion is still owed. Closing here left the prompt seated on a surface
+      // that no longer existed (the stranded guard over the board); the frame instead hands its browse layer to the
+      // question, and a chain it ran ends with the flow.
+      if (questionKeepsFrame({
+        task,
+        kind,
+        deferred: this.consoleState.task.deferred,
+        hosted: workspaceFrameHost(kind) !== undefined,
+        phaseRoot: workspaceFrameAnchor(kind)?.type === 'phase',
+      }) && workspaceStackTop()?.kind === kind) {
+        handFrameToQuestion(kind);
+        if (preludePlayChainState.live && preludePlayChainState.host === kind) {
+          endPreludePlayChain();
+        }
+        if (kind === 'hand') {
+          const firstPlayable = this.handEntries.findIndex((e) => e.playable);
+          this.consoleState.handIndex = firstPlayable !== -1 ? firstPlayable : 0;
+        }
+        return true;
+      }
       // The workspace goes and takes everything standing in it. `closeConsoleLayers`
       // is what clears the transient shell state that rode with it (quick
       // selector, sale mode, sheet cursor) and pops the sheet-shaped frames;
@@ -23458,9 +23482,14 @@ export default defineComponent({
       });
     },
     /** Navigating away from a shell task's surface DEFERS it (the prompt card
-     *  flips to its «Вернуться к решению» state). */
-    deferShellTask(): void {
-      if (this.shellTask !== undefined && !this.consoleState.task.deferred) {
+     *  flips to its «Вернуться к решению» state). The DESTINATION is required:
+     *  a navigation TO the question's own surface is the opposite of «away»
+     *  and never defers it (`shellTaskSurface.ts` law 1 — the hand opened for
+     *  Eccentric Sponsor's play-from-hand deferred the very prompt it opened
+     *  for, and refused every A with «сначала завершите текущее действие»). */
+    deferShellTask(destination: ShellTaskDestination): void {
+      if (this.shellTask !== undefined && !this.consoleState.task.deferred &&
+        navigationDefersShellTask(this.shellTask, destination)) {
         this.consoleState.task.deferred = true;
       }
     },
