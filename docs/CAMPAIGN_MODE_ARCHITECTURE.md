@@ -23,6 +23,17 @@
 > one-shot seal at the reveal), named in full in the mission inspect. Specs: `tests/campaign/missionModifiers.spec.ts`,
 > e2e `console-campaign-modifiers`.
 >
+> **Addendum 2026-11-07 — the second modifier, «Случайные места для тайлов» (`shuffleMap`):** the same shape at its
+> own chance (default **10 %**, `options.shuffleMapChance`, `generator.shuffleMapChance`; no board carries it by
+> itself), deciding the mission's `shuffleMapOption` (`missionShuffleMap`). Each slot draws BOTH rolls, always, in the
+> fixed order randomMA → shuffleMap; the legacy reader is per modifier (a route rolled for the random set but not the
+> shuffle keeps the frozen shuffle rule everywhere). The creator's dials are ONE row kind over a table
+> (`consoleCreateModel.CAMPAIGN_CHANCE_RULES`: rule → modifier → state field → hook), each standing right under its
+> rule in its own column; the badge «СЛУЧАЙНЫЕ КЛЕТКИ» (shuffle glyph); the inspect of a shuffled mission never
+> promises the printed bonuses. **Adding the next modifier:** a `MissionModifierId`, a roll + a reader term in
+> `server/campaign/missionModifiers.ts`, a row in `CAMPAIGN_CHANCE_RULES` (if the creator dials it) and a row in
+> `missionModifierMeta.ts` — the compiler refuses a modifier with no badge.
+>
 > Shipped: the server campaign domain (`src/server/campaign/` — manager, standings,
 > mission setup; `IDatabase` ×3 backends; routes `api/campaign[/create|/launch|
 > /carryover|/dev]`; rollback guards; purge exemption; durable create-idempotency via
