@@ -10,6 +10,19 @@
 > (`foundation/ConsoleCardAlbum` + the spine + `ConsoleWsHead`; keeping is a toggle in place; the entry a deal from the
 > seat row, the confirm a flight into the next mission's card) — `docs/claude/console/card-album.md`.
 >
+> **Addendum 2026-11-07 — THE LENGTH is the creator's choice: 3 · 4 · 5 · 6 missions (default 4), the LAST always the
+> finale.** `CAMPAIGN_MISSION_COUNTS` / `isCampaignMissionCount` (`common/campaign/CampaignTypes.ts`), sent as the
+> create body's `options.missionCount` (never in the frozen `NewGameConfig`; off the ladder → 4); the route is drawn at
+> that length and `missions.length` is the one truth every reader asks (final = the last slot, titles on every other,
+> «Миссия N из M»). Two rules scale with it: the corporation floor — `humans × startingCorporations + humans ×
+> (N − 2)` lineage bans + the bot's primary and holdings (`validateCorporationPool`, refused by name) — and the bot's
+> rhythm, `holdingsForSlot(slot, N) = min(slot, N − 2)` (one holding more per mission, none added by the finale). The
+> creator's campaign map deck IS the length dial (the route briefing: ◄ ► / A, a lane of unknown boards that grows with
+> it, the finale's stop marked); the launch panel and confirm name the length. A finale deploys `N − 1` corporations;
+> the final count stands three charters behind the face and names the rest «+N» (`LINEAGE_VISIBLE`). Specs:
+> `tests/campaign/campaignLength.spec.ts`; e2e `console-campaign-length` (creator dial · six-card map · the six-mission
+> finale's five-corporation «Наследие»).
+>
 > **Addendum 2026-11-06 — the first MISSION MODIFIER (the roguelike layer, §4.6 filled):** «Случайные цели и
 > награды» is ROLLED per mission. The creator (campaign mode, the rule on) shows the sub-setting «Шанс на миссию»
 > (10 · 15 · 20 · 30 · 40 · 50 %, default 20 — `common/campaign/missionModifiers.ts`), sent as the create body's

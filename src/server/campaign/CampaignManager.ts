@@ -31,6 +31,7 @@ import {drawBotHoldings, holdingsForSlot} from './botPortfolio';
 import {
   CAMPAIGN_GENERATOR_VERSION,
   CAMPAIGN_MISSION_COUNT,
+  isCampaignMissionCount,
   CampaignSeat,
   MissionResult,
   MissionSlotState,
@@ -75,6 +76,8 @@ export type CampaignCreateOptions = {
   randomMAChance?: number;
   /** Percent; one of `CAMPAIGN_MODIFIER_CHANCES` (anything else → the default). */
   shuffleMapChance?: number;
+  /** The route's length; one of `CAMPAIGN_MISSION_COUNTS` (anything else → `CAMPAIGN_MISSION_COUNT`). The last is the finale. */
+  missionCount?: number;
 };
 import {carryoverLimitFor, carryoverLimitOf} from './carryoverLimit';
 
@@ -258,15 +261,18 @@ export class CampaignManager {
     // single game's random board, drawn WEIGHTED with a finale favourite
     // (`campaignRoute.ts` — generator version 2). The concrete snapshot below
     // is what is authoritative forever; seed/pool/version are provenance.
+    // The route's LENGTH is the creator's choice (3–6, the last the finale) —
+    // every reader downstream asks `missions.length`, never a constant.
+    const missionCount = isCampaignMissionCount(options.missionCount) ? options.missionCount : CAMPAIGN_MISSION_COUNT;
     const pool = boardOptions(RandomBoardOption.ALL, {automa: hasBot});
-    if (pool.length < CAMPAIGN_MISSION_COUNT) {
-      throw new Error(`Not enough unique boards for a campaign: ${pool.length} of ${CAMPAIGN_MISSION_COUNT} required`);
+    if (pool.length < missionCount) {
+      throw new Error(`Not enough unique boards for a campaign: ${pool.length} of ${missionCount} required`);
     }
     const seed = Math.random();
     const rng = new SeededRandom(seed);
-    const boards = drawCampaignRoute(pool, CAMPAIGN_MISSION_COUNT, rng);
+    const boards = drawCampaignRoute(pool, missionCount, rng);
 
-    this.validateCorporationPool(config);
+    this.validateCorporationPool(config, missionCount);
 
     const seats: Array<CampaignSeat> = humans.map((p, i) => ({
       seat: i,
@@ -331,14 +337,16 @@ export class CampaignManager {
   /**
    * The corporation pool must survive the whole campaign: each mission deals
    * `startingCorporations` per human while every previously-acquired corp
-   * (up to 2 per human by mission 3) + the bot's frozen original AND its two
-   * holdings' originals (the portfolio) are banned.
+   * (up to `missionCount - 2` per human by the last mission that still picks
+   * one) + the bot's frozen original AND its holdings' originals (the
+   * portfolio) are banned.
    */
-  private validateCorporationPool(config: NewGameConfig): void {
+  private validateCorporationPool(config: NewGameConfig, missionCount: number): void {
     const options = gameOptionsFromNewGameConfig({...config, board: BoardName.THARSIS}, BoardName.THARSIS);
     const poolSize = new GameCards(options).getCorporationCards().length;
     const humans = config.players.length;
-    const worstCaseBans = humans * 2 + (config.automa !== undefined ? 1 + holdingsForSlot(CAMPAIGN_MISSION_COUNT - 1) : 0);
+    const worstCaseBans = humans * Math.max(missionCount - 2, 0) +
+      (config.automa !== undefined ? 1 + holdingsForSlot(missionCount - 1, missionCount) : 0);
     const required = humans * config.startingCorporations + worstCaseBans;
     if (poolSize < required) {
       throw new Error(`Not enough unique corporations for a campaign: ${poolSize} available, ${required} required`);
@@ -520,8 +528,8 @@ export class CampaignManager {
   }
 
   /**
-   * Grow the bot's portfolio to this mission's count (one holding on mission
-   * 2, two on missions 3–4) and return it. The draw is the pure
+   * Grow the bot's portfolio to this mission's count (one more per mission
+   * after the first, none added on the finale — `holdingsForSlot`) and return it. The draw is the pure
    * `drawBotHoldings` over the campaign's own seed, so a relaunch draws
    * nothing new and a failed launch redraws the same. A campaign created
    * before the portfolio (`botHoldings` absent — D7) and one whose primary is
@@ -542,6 +550,7 @@ export class CampaignManager {
     const expansions = gameOptionsFromNewGameConfig({...campaign.settings, board: slot.board}, slot.board).expansions;
     progression.botHoldings = drawBotHoldings({
       slot: slot.slot,
+      missionCount: campaign.missions.length,
       primary,
       holdings: progression.botHoldings,
       expansions,

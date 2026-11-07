@@ -12,7 +12,20 @@ import {Color} from '../Color';
 import {DifficultyLevel, MarsBotCorpId} from '../automa/AutomaTypes';
 import {GameId} from '../Types';
 
+/**
+ * The DEFAULT length of a campaign route. The creator may choose any length of
+ * `CAMPAIGN_MISSION_COUNTS`; the LAST mission is always the finale (titles and
+ * corporations count into its VP). Everything downstream reads the route's
+ * own `missions.length`, never this constant.
+ */
 export const CAMPAIGN_MISSION_COUNT = 4;
+/** The lengths a campaign may be created with — 3 is the floor (two missions to earn titles, then the finale). */
+export const CAMPAIGN_MISSION_COUNTS = [3, 4, 5, 6] as const;
+export type CampaignMissionCount = typeof CAMPAIGN_MISSION_COUNTS[number];
+
+export function isCampaignMissionCount(value: unknown): value is CampaignMissionCount {
+  return typeof value === 'number' && (CAMPAIGN_MISSION_COUNTS as ReadonlyArray<number>).includes(value);
+}
 /** 2 (2026-11-07): the route is a WEIGHTED draw with a finale favourite (`campaignRoute.ts`); 1 was a plain shuffle. */
 export const CAMPAIGN_GENERATOR_VERSION = 2;
 /**

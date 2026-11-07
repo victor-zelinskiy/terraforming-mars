@@ -23,11 +23,12 @@
           @click="pickMode(i)"
         >
           <!-- THE ILLUSTRATION (TR68): the mode is SHOWN before it is read — one real board for a single party, the
-               route of four boards on one lane for a campaign (the campaign map's grammar, in small). -->
+               route of boards on one lane for a campaign (as many as the chosen length; the campaign map's grammar,
+               in small). -->
           <span class="cm-mode__art" aria-hidden="true">
             <template v-if="opt.id === 'campaign'">
-              <span class="cm-mode__lane"></span>
-              <span v-for="(board, n) in modeRouteBoards" :key="board" class="cm-mode__stop" :class="{'cm-mode__stop--final': n === modeRouteBoards.length - 1}">
+              <span class="cm-mode__lane" :style="{'--cm-route-n': String(modeRouteBoards.length)}"></span>
+              <span v-for="(board, n) in modeRouteBoards" :key="board" class="cm-mode__stop" :style="{'--cm-route-n': String(modeRouteBoards.length)}" :class="{'cm-mode__stop--final': n === modeRouteBoards.length - 1}">
                 <PremiumMapFingerprint :map-id="board" variant="thumb" />
               </span>
             </template>
@@ -93,13 +94,31 @@
           @hover="setCursor('expansions', $event)"
           @activate="activateExpansions($event)"
         />
-        <!-- Campaign: no manual map pick — the route briefing replaces the deck. -->
-        <div v-else-if="isCampaign" class="cm-routebrief" :class="{'cm-routebrief--cursor': true}">
-          <div class="cm-routebrief__ghost" aria-hidden="true">
-            <PremiumMapFingerprint :random="true" variant="card" />
-          </div>
+        <!-- Campaign: no manual map pick — the route briefing replaces the deck, and it IS the route's length dial
+             (◄ ► / A — 3…6 missions, the last the finale): the lane of unknown boards grows and shrinks with it. -->
+        <div v-else-if="isCampaign" class="cm-routebrief" :class="{'cm-routebrief--cursor': true}" data-route-length>
           <div class="cm-routebrief__title" v-i18n>Mission route</div>
-          <div class="cm-routebrief__body" v-i18n>Four unique boards are generated when the campaign is assembled. The route never changes afterwards.</div>
+          <TransitionGroup tag="div" name="cm-routestop" class="cm-routebrief__route" aria-hidden="true">
+            <span
+              v-for="n in missionCount"
+              :key="n"
+              class="cm-routebrief__stop"
+              :class="{'cm-routebrief__stop--final': n === missionCount}"
+            >
+              <PremiumMapFingerprint :random="true" variant="thumb" />
+              <span v-if="n === missionCount" class="cm-routebrief__final">{{ $t('Finale') }}</span>
+            </span>
+          </TransitionGroup>
+          <div class="cm-routebrief__dial">
+            <span class="cm-routebrief__dial-label">{{ $t('Missions') }}</span>
+            <span class="cm-field__value cm-field__value--stepper" aria-hidden="true">
+              <span class="cm-field__arrow">◄</span>
+              <span class="cm-field__stepval cm-routebrief__dial-value" data-route-length-value>{{ missionCount }}</span>
+              <span class="cm-field__arrow">►</span>
+            </span>
+          </div>
+          <div class="cm-routebrief__body" v-i18n>Unique boards are generated when the campaign is assembled, one per mission. The route never changes afterwards.</div>
+          <div class="cm-routebrief__note" v-i18n>The last mission is the finale: titles and corporations count into its VP.</div>
           <div class="cm-routebrief__note" v-if="botSeated" v-i18n>With the MarsBot seated, the route draws only from the boards it supports.</div>
           <div class="cm-routebrief__note" v-i18n>Corporations merge between missions; Merger itself is excluded from the campaign prelude pool.</div>
         </div>
@@ -226,6 +245,7 @@ import {
   toggleRule,
   setCreateLayoutWide,
   stepCampaignChance,
+  stepCampaignMissionCount,
   unseatBot,
 } from '@/client/console/menu/consoleCreateModel';
 import {
@@ -312,8 +332,15 @@ export default defineComponent({
       return BoardName.THARSIS;
     },
     /** The campaign's illustration — a route of four boards (the last one the finale). */
+    /** The mode tile's little route — as long as the campaign the player has chosen. */
     modeRouteBoards(): ReadonlyArray<BoardName> {
-      return [BoardName.TERRA_CIMMERIA, BoardName.THARSIS, BoardName.VASTITAS_BOREALIS, BoardName.HELLAS];
+      return [
+        BoardName.TERRA_CIMMERIA, BoardName.THARSIS, BoardName.VASTITAS_BOREALIS,
+        BoardName.ELYSIUM, BoardName.UTOPIA_PLANITIA, BoardName.HELLAS,
+      ].slice(-this.missionCount);
+    },
+    missionCount(): number {
+      return createGameState.config.campaignMissionCount;
     },
     modeOptions(): ReadonlyArray<SessionModeOption> {
       return SESSION_MODE_OPTIONS;
@@ -483,7 +510,7 @@ export default defineComponent({
         return {label: 'Toggle', enabled: true};
       case 'map': {
         if (this.isCampaign) {
-          return {label: 'The route is generated at assembly', enabled: false};
+          return {label: 'Change', enabled: true};
         }
         const row = this.maps[this.ui.cursor.map];
         return {label: 'Select map', enabled: row !== undefined && !row.selected};
@@ -603,6 +630,11 @@ export default defineComponent({
       // ── Deck level ──
       if (intent.kind === 'nav') {
         const deck = this.ui.deck;
+        // The campaign's route briefing is the route's LENGTH dial: ◄ ► move it.
+        if (deck === 'map' && this.isCampaign && (intent.dir === 'left' || intent.dir === 'right')) {
+          stepCampaignMissionCount(intent.dir === 'right' ? 1 : -1, false);
+          return true;
+        }
         // A campaign chance row is a DIAL: ◄ ► move its value (the console
         // settings stepper idiom), not the section ring.
         const dial = deck === 'rules' ? this.rules[this.ui.cursor.rules] : undefined;
@@ -739,7 +771,9 @@ export default defineComponent({
     },
     activateMap(i: number): void {
       if (this.isCampaign) {
-        return; // The route is generated — there is nothing to select.
+        // The boards are generated at assembly — A steps the route's length (cycling).
+        stepCampaignMissionCount(1, true);
+        return;
       }
       this.setCursor('map', i);
       const row = this.maps[i];

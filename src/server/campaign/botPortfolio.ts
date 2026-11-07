@@ -3,11 +3,13 @@ import {Expansion} from '../../common/cards/GameModule';
 import {MARS_BOT_CORP_IDS, MarsBotCorpId, isExtraMarsBotCorp, marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
 import {SeededRandom} from '../../common/utils/Random';
 import {AutomaCorporations} from '../automa/corps/AutomaCorporations';
+import {CAMPAIGN_MISSION_COUNT} from '../../common/campaign/CampaignTypes';
 
 /**
  * THE BOT'S CAMPAIGN PORTFOLIO (docs/claude/prompts/marsbot-portfolio-dividends.md §3).
  *
- * The humans acquire a corporation on missions 2 and 3; the bot does too —
+ * The humans acquire a corporation on every mission between the first and the
+ * finale (missions 2 and 3 of the default four-mission route); the bot does too —
  * but its new corporations are HOLDINGS: their printed boxes stay switched
  * off and each pays only an end-game dividend, so the bot catches up in
  * points without terraforming one step faster. The primary is the mission-1
@@ -17,14 +19,21 @@ import {AutomaCorporations} from '../automa/corps/AutomaCorporations';
  * by row without a campaign.
  */
 
-/** How many holdings the bot owns when mission `slot` (0-based) starts — the humans' rhythm (the owner's D1). */
-export function holdingsForSlot(slot: number): number {
-  return Math.min(Math.max(slot, 0), 2);
+/**
+ * How many holdings the bot owns when mission `slot` (0-based) starts — the
+ * humans' rhythm (the owner's D1): one more per mission until the finale, which
+ * adds none (a human enters the finale with `missionCount - 1` corporations;
+ * the bot with its primary + `missionCount - 2` holdings).
+ */
+export function holdingsForSlot(slot: number, missionCount: number = CAMPAIGN_MISSION_COUNT): number {
+  return Math.min(Math.max(slot, 0), Math.max(missionCount - 2, 0));
 }
 
 export type DrawHoldingsInput = {
   /** The mission being launched (0-based). */
   slot: number;
+  /** The route's length (`missions.length`) — absent reads the default four-mission route. */
+  missionCount?: number;
   /** The bot's primary corporation (fixed after mission 1). */
   primary: MarsBotCorpId;
   /** The holdings already acquired, in acquisition order — never redrawn. */
@@ -50,7 +59,7 @@ export type DrawHoldingsInput = {
  */
 export function drawBotHoldings(input: DrawHoldingsInput): Array<MarsBotCorpId> {
   const holdings = [...input.holdings];
-  const target = holdingsForSlot(input.slot);
+  const target = holdingsForSlot(input.slot, input.missionCount);
   if (holdings.length >= target) {
     return holdings;
   }

@@ -10,6 +10,7 @@ import {Expansion} from '@/common/cards/GameModule';
 import {BoardName} from '@/common/boards/BoardName';
 import {RandomBoardOption} from '@/common/boards/RandomBoardOption';
 import {RandomMAOptionType} from '@/common/ma/RandomMAOptionType';
+import {CAMPAIGN_MISSION_COUNT, CampaignMissionCount, isCampaignMissionCount} from '@/common/campaign/CampaignTypes';
 import {
   CampaignModifierChance,
   DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE,
@@ -107,6 +108,8 @@ export type PremiumCreateGameState = {
   campaignRandomMAChance: CampaignModifierChance;
   /** CAMPAIGN ONLY: the same for «Случайные места для тайлов» (default 10 %). */
   campaignShuffleMapChance: CampaignModifierChance;
+  /** CAMPAIGN ONLY: the route's length — 3…6 missions, the last the finale (default 4). */
+  campaignMissionCount: CampaignMissionCount;
   /** Only reachable while `rules.testMode` is on for the admin seat. */
   guaranteedCards: GuaranteedCardPicks;
 };
@@ -170,6 +173,7 @@ export function defaultPremiumState(): PremiumCreateGameState {
     },
     campaignRandomMAChance: DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE,
     campaignShuffleMapChance: DEFAULT_CAMPAIGN_SHUFFLE_MAP_CHANCE,
+    campaignMissionCount: CAMPAIGN_MISSION_COUNT,
     guaranteedCards: {corporations: [], preludes: [], projects: []},
   };
 }
@@ -714,6 +718,7 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
     // A setup saved before the chance existed (or a stray value) keeps the default.
     campaignRandomMAChance: isCampaignModifierChance(saved.campaignRandomMAChance) ? saved.campaignRandomMAChance : base.campaignRandomMAChance,
     campaignShuffleMapChance: isCampaignModifierChance(saved.campaignShuffleMapChance) ? saved.campaignShuffleMapChance : base.campaignShuffleMapChance,
+    campaignMissionCount: isCampaignMissionCount(saved.campaignMissionCount) ? saved.campaignMissionCount : base.campaignMissionCount,
     guaranteedCards: sanitizeGuaranteedCards(saved.guaranteedCards),
   };
 }

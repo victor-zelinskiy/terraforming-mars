@@ -5,7 +5,7 @@
       <span class="cm-launch__corner cm-launch__corner--tr" aria-hidden="true"></span>
       <div class="cm-launchc__kicker">{{ $t('Mission control') }}</div>
       <div class="cm-launchc__title">{{ $t(campaign ? 'Assemble the campaign' : 'Launch the party') }}</div>
-      <div v-if="campaign" class="cm-launchc__note" v-i18n>The roster, rules and expansions freeze for all four missions; the route of four unique boards is generated once.</div>
+      <div v-if="campaign" class="cm-launchc__note">{{ freezeNote }}</div>
 
       <!-- THE MISSION (TR68): the board the party will be played on is the plate's hero — the same miniature a
            campaign's mission card draws — with the crew and the expansions beside it. -->
@@ -31,7 +31,7 @@
           <div class="cm-launch__label">{{ $t(campaign ? 'Mission route' : 'Map') }}</div>
           <!-- The board itself is the plate's hero (left); here it is named. -->
           <div class="cm-launch__map">
-            <span class="cm-launch__map-name">{{ $t(campaign ? '4 unique boards, generated at assembly' : mapLabel) }}</span>
+            <span class="cm-launch__map-name">{{ campaign ? routeLine : $t(mapLabel) }}</span>
           </div>
         </div>
         <div class="cm-launchc__block">
@@ -101,6 +101,14 @@ export default defineComponent({
   computed: {
     campaign(): boolean {
       return isCampaignMode();
+    },
+    freezeNote(): string {
+      return translateTextWithParams('The roster, rules and expansions freeze for the whole campaign (missions: ${0}); its route of unique boards is generated once.',
+        [String(createGameState.config.campaignMissionCount)]);
+    },
+    /** The campaign's route in one line — its length (the creator's dial) and how the boards come. */
+    routeLine(): string {
+      return translateTextWithParams('Missions: ${0} · unique boards, generated at assembly', [String(createGameState.config.campaignMissionCount)]);
     },
     humanChips(): ReadonlyArray<{index: number, name: string, color: Color}> {
       return createGameState.config.players.map((p, index) => ({index, name: p.name.trim(), color: p.color}));

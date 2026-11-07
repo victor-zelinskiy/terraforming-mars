@@ -28,7 +28,7 @@
           <span class="cm-launch__map-thumb" aria-hidden="true">
             <premium-map-fingerprint :map-id="campaign ? undefined : mapBoardId" :random="campaign || mapRandom" :accent="mapAccent" variant="card" />
           </span>
-          <span class="cm-launch__map-name">{{ $t(campaign ? '4 unique boards, generated at assembly' : mapLabel) }}</span>
+          <span class="cm-launch__map-name">{{ campaign ? routeLine : $t(mapLabel) }}</span>
         </div>
       </div>
 
@@ -106,6 +106,7 @@ import {
   mapMeta,
 } from '@/client/components/create/premium/createGameMeta';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
+import {translateTextWithParams} from '@/client/directives/i18n';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleDeckMeter from '@/client/components/console/menu/ConsoleDeckMeter.vue';
@@ -118,6 +119,10 @@ export default defineComponent({
   computed: {
     campaign(): boolean {
       return isCampaignMode();
+    },
+    /** The campaign's route in one line — its length (the creator's dial) and how the boards come. */
+    routeLine(): string {
+      return translateTextWithParams('Missions: ${0} · unique boards, generated at assembly', [String(createGameState.config.campaignMissionCount)]);
     },
     humanChips(): ReadonlyArray<{index: number, name: string, color: Color}> {
       return createGameState.config.players.map((p, index) => ({index, name: p.name.trim(), color: p.color}));

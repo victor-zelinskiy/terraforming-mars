@@ -72,7 +72,7 @@ import {
 } from '@/client/components/create/premium/createGameMeta';
 import {secondShiftMaxCap, secondShiftRuleApplies} from '@/common/automa/SecondShift';
 import {CAMPAIGN_MODIFIER_CHANCES, CampaignModifierChance} from '@/common/campaign/missionModifiers';
-import {MissionModifierId} from '@/common/campaign/CampaignTypes';
+import {CAMPAIGN_MISSION_COUNTS, MissionModifierId} from '@/common/campaign/CampaignTypes';
 
 // ── Decks (LB/RB ring) ──────────────────────────────────────────────────────
 
@@ -117,7 +117,7 @@ export const SESSION_MODE_OPTIONS: ReadonlyArray<SessionModeOption> = [
   {
     id: 'campaign',
     labelKey: 'Campaign',
-    descKey: 'Four linked missions on one generated route: corporations merge, titles accumulate, the finale crowns the champion.',
+    descKey: 'Linked missions on one generated route: corporations merge, titles accumulate, the finale crowns the champion.',
   },
 ];
 
@@ -517,6 +517,19 @@ export function stepCampaignChance(id: MissionModifierId, step: 1 | -1, wrap: bo
   const at = Math.max(0, values.indexOf(config[field]));
   const next = wrap ? (at + step + values.length) % values.length : Math.min(values.length - 1, Math.max(0, at + step));
   config[field] = values[next];
+}
+
+/**
+ * CAMPAIGN ONLY: the route's LENGTH (3…6 missions, the last the finale) — the
+ * campaign's map deck is the route briefing, and that briefing is this dial.
+ * `wrap` cycles (A), else clamps (◄ ►).
+ */
+export function stepCampaignMissionCount(step: 1 | -1, wrap: boolean): void {
+  const config = createGameState.config;
+  const values = CAMPAIGN_MISSION_COUNTS;
+  const at = Math.max(0, values.indexOf(config.campaignMissionCount));
+  const next = wrap ? (at + step + values.length) % values.length : Math.min(values.length - 1, Math.max(0, at + step));
+  config.campaignMissionCount = values[next];
 }
 
 /** True while the test-mode sub-setting is reachable at all. */

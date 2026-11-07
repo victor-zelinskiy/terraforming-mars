@@ -24,7 +24,7 @@ const BASE = {
 describe('the bot\'s campaign portfolio', () => {
   describe('the draw (pure)', () => {
     it('the humans\' rhythm: none on mission 1, one on mission 2, two from mission 3 on (D1)', () => {
-      expect([0, 1, 2, 3].map(holdingsForSlot)).deep.eq([0, 1, 2, 2]);
+      expect([0, 1, 2, 3].map((slot) => holdingsForSlot(slot))).deep.eq([0, 1, 2, 2]);
     });
 
     it('a new holding is never the primary, a human\'s corporation or one this campaign cannot use', () => {

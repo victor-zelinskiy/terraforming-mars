@@ -42,6 +42,7 @@ import {
   seatBotNeedsConfirm,
   selectMap,
   stepCampaignChance,
+  stepCampaignMissionCount,
   campaignChanceAvailable,
   setCreateLayoutWide,
   toggleBotSecondShift,
@@ -364,6 +365,26 @@ describe('consoleCreateModel', () => {
       const payload = buildCreateGamePayloadFromPremiumState(createGameState.config);
       expect(payload.randomMA).to.eq(RandomMAOptionType.ALL);
       expect(payload.shuffleMapOption).to.eq(true);
+    });
+
+    it('CAMPAIGN: the route length dials 3 · 4 · 5 · 6 (four by default) — ◄ ► clamp, A cycles; never the game config', () => {
+      setSessionMode('campaign');
+      expect(createGameState.config.campaignMissionCount).to.eq(4);
+      const seen: Array<number> = [];
+      for (let i = 0; i < 4; i++) {
+        stepCampaignMissionCount(1, false);
+        seen.push(createGameState.config.campaignMissionCount);
+      }
+      expect(seen).to.deep.eq([5, 6, 6, 6]);
+      stepCampaignMissionCount(1, true);
+      expect(createGameState.config.campaignMissionCount).to.eq(3);
+      stepCampaignMissionCount(-1, false);
+      expect(createGameState.config.campaignMissionCount).to.eq(3);
+      stepCampaignMissionCount(-1, true);
+      expect(createGameState.config.campaignMissionCount).to.eq(6);
+      // The campaign's map deck stays ONE row (the route briefing IS the dial).
+      expect(deckRowCount('map')).to.eq(1);
+      expect(buildCreateGamePayloadFromPremiumState(createGameState.config)).to.not.have.property('campaignMissionCount');
     });
 
     it('counts the picks across all three target lists', () => {

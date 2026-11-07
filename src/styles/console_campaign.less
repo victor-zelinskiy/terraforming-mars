@@ -746,7 +746,8 @@
   &__stop {
     position: relative;
     flex: 0 0 auto;
-    width: 22%;
+    /* As many stops as the chosen route (`--cm-route-n`), never larger than the four-stop size. */
+    width: min(22%, calc(88% / var(--cm-route-n, 4)));
     aspect-ratio: 1;
     margin: 0 1%;
     border-radius: 0.45rem;
@@ -830,7 +831,72 @@
   padding: 1rem 2rem;
   text-align: center;
 
-  &__ghost { opacity: 0.85; }
+  /* The route of UNKNOWN boards — one stop per mission, the last the finale's; it grows and shrinks with the dial
+     (a calm scale + fade per stop, transform/opacity only). */
+  &__route {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.9rem;
+    width: 100%;
+    max-width: 44rem;
+    padding: 1.3rem 0 0.4rem;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      top: calc(50% + 0.45rem);
+      height: 0.12rem;
+      background: repeating-linear-gradient(90deg, rgba(214, 178, 106, 0.55) 0 0.5rem, transparent 0.5rem 1rem);
+    }
+  }
+  &__stop {
+    position: relative;
+    flex: 0 1 5.6rem;
+    min-width: 0;
+    aspect-ratio: 1;
+    padding: 0.3rem;
+    box-sizing: border-box;
+    border-radius: 0.45rem;
+    background: rgba(8, 13, 20, 0.92);
+    box-shadow: inset 0 0 0 1px rgba(154, 176, 202, 0.4);
+
+    &--final { box-shadow: inset 0 0 0 0.12rem rgba(240, 208, 130, 0.75); }
+    .map-fp { width: 100%; height: 100%; }
+  }
+  &__final {
+    position: absolute;
+    left: 50%;
+    top: -1.25rem;
+    transform: translateX(-50%);
+    color: #ecd39a;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.14rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  &__dial {
+    display: inline-flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  &__dial-label {
+    font-size: 0.8rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #a8b8cc;
+  }
+  &__dial-value {
+    min-width: 2rem;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #ecd39a;
+    font-variant-numeric: tabular-nums;
+  }
   &__title {
     font-size: 1.2rem;
     letter-spacing: 0.18em;
@@ -845,6 +911,20 @@
     line-height: 1.5;
   }
   &__note { color: #8fa2b8; font-size: 0.85rem; }
+}
+
+.cm-routestop-enter-active,
+.cm-routestop-leave-active {
+  transition:
+    opacity calc(200ms * var(--motion-scale, 1)) ease,
+    transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.cm-routestop-move { transition: transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1); }
+.cm-routestop-leave-active { position: absolute; }
+.cm-routestop-enter-from,
+.cm-routestop-leave-to { opacity: 0; transform: scale(0.85); }
+@media (prefers-reduced-motion: reduce) {
+  .cm-routestop-enter-active, .cm-routestop-leave-active, .cm-routestop-move { transition: none; }
 }
 
 /* «Мои партии»: the campaign row chip. */

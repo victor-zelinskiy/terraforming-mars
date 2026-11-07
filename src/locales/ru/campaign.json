@@ -175,5 +175,11 @@
   "Each mission of the route rolls a shuffled board layout at this chance.": "С этим шансом каждая миссия маршрута получает случайное расположение бонусов на поле.",
   "Shuffled cells": "Случайные клетки",
   "The bonuses on this mission’s board are shuffled at the launch — the printed layout does not hold.": "Бонусы на поле этой миссии перемешаются при запуске — печатная раскладка не действует.",
-  "The board is known ahead — its bonuses are shuffled at the launch, the outcome is not": "Поле известно заранее — его бонусы перемешаются при запуске, исход ещё нет"
+  "The board is known ahead — its bonuses are shuffled at the launch, the outcome is not": "Поле известно заранее — его бонусы перемешаются при запуске, исход ещё нет",
+  "Linked missions on one generated route: corporations merge, titles accumulate, the finale crowns the champion.": "Связанные миссии на одном сгенерированном маршруте: корпорации сливаются, титулы копятся, финал коронует чемпиона.",
+  "Missions": "Миссий",
+  "Unique boards are generated when the campaign is assembled, one per mission. The route never changes afterwards.": "Уникальные карты генерируются при сборке кампании — по одной на миссию. Дальше маршрут не меняется.",
+  "The last mission is the finale: titles and corporations count into its VP.": "Последняя миссия — финал: в её ПО входят титулы и корпорации.",
+  "Missions: ${0} · unique boards, generated at assembly": "Миссий: ${0} · уникальные карты, генерируются при сборке",
+  "The roster, rules and expansions freeze for the whole campaign (missions: ${0}); its route of unique boards is generated once.": "Состав, правила и дополнения фиксируются на всю кампанию (миссий: ${0}); маршрут из уникальных карт генерируется один раз."
 }
