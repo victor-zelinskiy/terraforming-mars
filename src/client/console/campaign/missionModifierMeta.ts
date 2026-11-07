@@ -15,7 +15,7 @@ export type MissionModifierMeta = {
   /** What the modifier changes, one sentence (English i18n key). */
   descKey: string;
   /** The glyph the badge draws (`CampaignModifierBadge`). */
-  glyph: 'dice';
+  glyph: 'dice' | 'shuffle';
 };
 
 const MISSION_MODIFIER_META: Record<MissionModifierId, MissionModifierMeta> = {
@@ -25,6 +25,13 @@ const MISSION_MODIFIER_META: Record<MissionModifierId, MissionModifierMeta> = {
     labelKey: 'Random milestones and awards',
     descKey: 'Milestones and awards of this mission are drawn at random instead of the board’s printed row.',
     glyph: 'dice',
+  },
+  shuffleMap: {
+    id: 'shuffleMap',
+    shortKey: 'Shuffled cells',
+    labelKey: 'Random tile placement',
+    descKey: 'The bonuses on this mission’s board are shuffled at the launch — the printed layout does not hold.',
+    glyph: 'shuffle',
   },
 };
 

@@ -7,7 +7,7 @@
 import {BoardName} from '../../common/boards/BoardName';
 import {RandomMAOptionType} from '../../common/ma/RandomMAOptionType';
 import {MissionModifier} from '../../common/campaign/CampaignTypes';
-import {RANDOM_MA_MODIFIER, hasMissionModifier} from '../../common/campaign/missionModifiers';
+import {RANDOM_MA_MODIFIER, SHUFFLE_MAP_MODIFIER, hasMissionModifier} from '../../common/campaign/missionModifiers';
 import {milestoneManifest} from '../milestones/Milestones';
 import {SerializedCampaign, SerializedMissionSlot} from './Campaign';
 
@@ -16,32 +16,48 @@ export function boardAlwaysDrawsMA(board: BoardName): boolean {
   return (milestoneManifest.boards[board]?.length ?? 0) === 0;
 }
 
+/** The per-modifier chances (percent; 0 = the modifier's rule is off) of one route. */
+export type SlotModifierChances = {randomMA: number, shuffleMap: number};
+/** One float in [0, 1) per modifier, drawn by the caller from the route's seeded stream. */
+export type SlotModifierRolls = {randomMA: number, shuffleMap: number};
+
 /**
- * Roll the modifiers of ONE slot. `chance` is a percent (0 when the
- * campaign's «Случайные цели и награды» is off); `roll` is a float in [0, 1)
- * drawn by the caller from the route's seeded stream — drawn for EVERY slot,
- * so the stream never depends on which boards came up.
+ * Roll the modifiers of ONE slot. The caller draws EVERY roll for EVERY slot
+ * (in the fixed order randomMA → shuffleMap), so the stream never depends on
+ * which boards came up or which rules are on.
  */
-export function rollSlotModifiers(board: BoardName, chance: number, roll: number): Array<MissionModifier> {
-  const randomMA = boardAlwaysDrawsMA(board) || roll * 100 < chance;
-  return randomMA ? [{id: RANDOM_MA_MODIFIER}] : [];
+export function rollSlotModifiers(board: BoardName, chances: SlotModifierChances, rolls: SlotModifierRolls): Array<MissionModifier> {
+  const modifiers: Array<MissionModifier> = [];
+  if (boardAlwaysDrawsMA(board) || rolls.randomMA * 100 < chances.randomMA) {
+    modifiers.push({id: RANDOM_MA_MODIFIER});
+  }
+  if (rolls.shuffleMap * 100 < chances.shuffleMap) {
+    modifiers.push({id: SHUFFLE_MAP_MODIFIER});
+  }
+  return modifiers;
 }
 
 /**
- * THE reader of a slot's modifiers. A campaign generated before the roll
- * existed (`generator.randomMAChance` absent) played «Случайные цели и
- * награды» on EVERY mission when the rule was on — derived here so its map
- * tells the truth too, without rewriting the saved document.
+ * THE reader of a slot's modifiers. Each modifier is ROLLED only on a route
+ * that recorded its chance (`generator.randomMAChance` / `.shuffleMapChance`);
+ * on an older route that modifier followed the frozen rule on EVERY mission —
+ * derived here, so the map tells the truth without rewriting the document.
  */
 export function slotModifiersOf(campaign: SerializedCampaign, slot: SerializedMissionSlot): ReadonlyArray<MissionModifier> {
-  if (campaign.generator.randomMAChance !== undefined) {
-    return slot.modifiers;
+  const out = [...slot.modifiers];
+  if (campaign.generator.randomMAChance === undefined) {
+    const rule = campaign.settings.randomMA;
+    const legacy = (rule !== undefined && rule !== RandomMAOptionType.NONE) || boardAlwaysDrawsMA(slot.board);
+    if (legacy && !hasMissionModifier(out, RANDOM_MA_MODIFIER)) {
+      out.push({id: RANDOM_MA_MODIFIER});
+    }
   }
-  const rule = campaign.settings.randomMA;
-  const legacyRandom = (rule !== undefined && rule !== RandomMAOptionType.NONE) || boardAlwaysDrawsMA(slot.board);
-  return legacyRandom && !hasMissionModifier(slot.modifiers, RANDOM_MA_MODIFIER) ?
-    [...slot.modifiers, {id: RANDOM_MA_MODIFIER}] :
-    slot.modifiers;
+  if (campaign.generator.shuffleMapChance === undefined) {
+    if (campaign.settings.shuffleMapOption === true && !hasMissionModifier(out, SHUFFLE_MAP_MODIFIER)) {
+      out.push({id: SHUFFLE_MAP_MODIFIER});
+    }
+  }
+  return out.length === slot.modifiers.length ? slot.modifiers : out;
 }
 
 /** The mission game's `randomMA` option — decided by the slot's modifier alone. */
@@ -51,4 +67,9 @@ export function missionRandomMA(campaign: SerializedCampaign, slot: SerializedMi
   }
   const frozen = campaign.settings.randomMA;
   return frozen !== undefined && frozen !== RandomMAOptionType.NONE ? frozen : RandomMAOptionType.ALL;
+}
+
+/** The mission game's `shuffleMapOption` — decided by the slot's modifier alone. */
+export function missionShuffleMap(campaign: SerializedCampaign, slot: SerializedMissionSlot): boolean {
+  return hasMissionModifier(slotModifiersOf(campaign, slot), SHUFFLE_MAP_MODIFIER);
 }

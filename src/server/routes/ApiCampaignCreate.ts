@@ -45,7 +45,10 @@ export class ApiCampaignCreate extends Handler {
         return;
       }
       const manager = CampaignManager.getInstance();
-      const campaign = await manager.createCampaign(parsed.key, parsed.config, {randomMAChance: parsed.options?.randomMAChance});
+      const campaign = await manager.createCampaign(parsed.key, parsed.config, {
+        randomMAChance: parsed.options?.randomMAChance,
+        shuffleMapChance: parsed.options?.shuffleMapChance,
+      });
       responses.writeJson(res, ctx, manager.getModel(campaign, creatorName));
     } catch (err) {
       responses.badRequest(req, res, err instanceof Error ? err.message : 'invalid request');

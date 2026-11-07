@@ -28,15 +28,16 @@
       </button>
 
       <!--
-        CAMPAIGN ONLY — the «Случайные цели и награды» SUB-setting: the chance
-        each mission of the route rolls the rule. A dial (◄ ► / A cycles), not
-        a switch; indented under its parent rule like every sub-setting.
+        CAMPAIGN ONLY — a rolled rule's SUB-setting («Случайные цели и награды»,
+        «Случайные места для тайлов»): the chance each mission of the route
+        rolls the rule. A dial (◄ ► / A cycles), not a switch; indented under
+        its parent rule like every sub-setting.
       -->
       <button
-        v-else-if="row.kind === 'maChance'"
+        v-else-if="row.kind === 'chance'"
         type="button"
         class="cm-row cm-rule cm-rule--sub cm-rule--on"
-        data-rule-sub="maChance"
+        :data-rule-sub="chanceRule(row.id).sub"
         :class="{'cm-row--cursor': i === cursor, 'cm-row--shake': i === shakeRow}"
         @click="$emit('activate', i)"
         @mousemove="$emit('hover', i)"
@@ -44,7 +45,7 @@
         <span class="cm-row__main">
           <span class="cm-row__name">{{ $t('Chance per mission') }}</span>
           <span class="cm-row__sub">
-            <span class="cm-rule__desc">{{ $t('Each mission of the route rolls random milestones and awards at this chance. Hollandia always plays with them.') }}</span>
+            <span class="cm-rule__desc">{{ $t(chanceRule(row.id).descKey) }}</span>
           </span>
         </span>
         <span class="cm-field__value cm-field__value--stepper cm-rule__dial" aria-hidden="true">
@@ -98,10 +99,11 @@
  * for the blocker reason and carries the red conflict rim. Pure presentation.
  */
 import {defineComponent, PropType} from 'vue';
-import {RulesDeckRow} from '@/client/console/menu/consoleCreateModel';
+import {CampaignChanceRule, RulesDeckRow, campaignChanceRule} from '@/client/console/menu/consoleCreateModel';
+import {MissionModifierId} from '@/common/campaign/CampaignTypes';
 import {automaBlockerText} from '@/client/components/create/premium/createGameState';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import {CAMPAIGN_RANDOM_MA_CHANCES} from '@/common/campaign/missionModifiers';
+import {CAMPAIGN_MODIFIER_CHANCES, CampaignModifierChance} from '@/common/campaign/missionModifiers';
 
 export default defineComponent({
   name: 'ConsoleRulesDeck',
@@ -114,15 +116,21 @@ export default defineComponent({
   emits: ['activate', 'hover'],
   computed: {
     chances(): ReadonlyArray<number> {
-      return CAMPAIGN_RANDOM_MA_CHANCES;
+      return CAMPAIGN_MODIFIER_CHANCES;
     },
   },
   methods: {
     rowKey(row: RulesDeckRow): string {
-      return row.kind === 'rule' ? `rule:${row.rule.meta.id}` : row.kind;
+      if (row.kind === 'rule') {
+        return `rule:${row.rule.meta.id}`;
+      }
+      return row.kind === 'chance' ? `chance:${row.id}` : row.kind;
+    },
+    chanceRule(id: MissionModifierId): CampaignChanceRule {
+      return campaignChanceRule(id);
     },
     chanceIndex(chance: number): number {
-      return CAMPAIGN_RANDOM_MA_CHANCES.indexOf(chance as typeof CAMPAIGN_RANDOM_MA_CHANCES[number]);
+      return CAMPAIGN_MODIFIER_CHANCES.indexOf(chance as CampaignModifierChance);
     },
     blockerText(key: string): string {
       return automaBlockerText(key);

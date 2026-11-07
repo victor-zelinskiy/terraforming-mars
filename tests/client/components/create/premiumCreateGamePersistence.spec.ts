@@ -73,7 +73,7 @@ describe('premium create — settings persistence', () => {
 
     expect(saved).is.not.undefined;
     expect(Object.keys(saved!).sort()).deep.eq(
-      ['botDifficulty', 'botExtraCorporations', 'botSecondShift', 'campaignRandomMAChance', 'gameMode', 'guaranteedCards', 'mapId', 'mapMode', 'players', 'rules', 'seatMarsBot', 'selectedExpansions', 'sessionMode'].sort());
+      ['botDifficulty', 'botExtraCorporations', 'botSecondShift', 'campaignRandomMAChance', 'campaignShuffleMapChance', 'gameMode', 'guaranteedCards', 'mapId', 'mapMode', 'players', 'rules', 'seatMarsBot', 'selectedExpansions', 'sessionMode'].sort());
     expect(saved).to.not.have.property('creating');
     expect(saved).to.not.have.property('error');
     expect(saved).to.not.have.property('mapPickerOpen');
@@ -94,6 +94,20 @@ describe('premium create — settings persistence', () => {
     resetCreateGameState();
     expect(restoreCreateGameState(storage)).is.true;
     expect(createGameState.config.campaignRandomMAChance).eq(20);
+  });
+
+  it('round-trips the campaign shuffled-layout chance (default 10); a stray saved value falls back to it', () => {
+    expect(createGameState.config.campaignShuffleMapChance).eq(10);
+    createGameState.config.campaignShuffleMapChance = 30;
+    saveCreateGameState(storage);
+    resetCreateGameState();
+    expect(restoreCreateGameState(storage)).is.true;
+    expect(createGameState.config.campaignShuffleMapChance).eq(30);
+
+    storage.saveSettings({...storage.loadSettings()!, campaignShuffleMapChance: 7});
+    resetCreateGameState();
+    expect(restoreCreateGameState(storage)).is.true;
+    expect(createGameState.config.campaignShuffleMapChance).eq(10);
   });
 
   it('round-trips the dev guaranteed-card picks', () => {

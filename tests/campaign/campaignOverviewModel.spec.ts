@@ -88,6 +88,7 @@ describe('campaignOverviewModel', () => {
     expect(cards[0].modifiers).deep.eq([]);
     expect(cards[1].modifiers).deep.eq([{id: 'randomMA'}]);
     expect(missionModifierMetas(cards[1].modifiers).map((m) => m.shortKey)).deep.eq(['Random goals']);
+    expect(missionModifierMetas([{id: 'randomMA'}, {id: 'shuffleMap'}]).map((m) => m.shortKey)).deep.eq(['Random goals', 'Shuffled cells']);
     expect(missionModifierMetas([{id: 'fromTheFuture' as any}, {id: 'randomMA'}, {id: 'randomMA'}]).map((m) => m.id)).deep.eq(['randomMA']);
   });
 

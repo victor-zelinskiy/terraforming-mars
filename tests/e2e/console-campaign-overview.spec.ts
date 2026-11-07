@@ -186,10 +186,16 @@ for (const preset of PRESETS) {
       await press(page, 'Enter', 900);
       const overview = page.locator('.con-cmpov');
       await expect(overview).toBeVisible();
-      // Four REAL board miniatures (61 hexes each) + both participant rows.
+      // Four REAL board miniatures + both participant rows. A board's hex count is its own (61 on the classic
+      // nine-row maps, 91 on the eleven-row Amazonis Planitia — the route is random), so every card carries a
+      // whole board, never a fixed total.
       await expect(page.locator('.con-cmpov .ccard')).toHaveCount(4);
       await expect(page.locator('.con-cmpov__seat')).toHaveCount(2);
-      expect(await page.locator('.con-cmpov .map-fp__hex').count()).toBe(4 * 61);
+      const hexesPerCard = await page.locator('.con-cmpov .ccard').evaluateAll(
+        (cards) => cards.map((card) => card.querySelectorAll('.map-fp__hex').length));
+      for (const hexes of hexesPerCard) {
+        expect([61, 91], `a whole board on every card: ${hexesPerCard.join(', ')}`).toContain(hexes);
+      }
       // The crumb tail names the place.
       const head = (await page.locator('.con-wshead').innerText()).toLowerCase();
       expect(/кампания|campaign/.test(head), `crumb: ${head}`).toBeTruthy();

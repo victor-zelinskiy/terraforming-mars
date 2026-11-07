@@ -87,9 +87,10 @@ export type SerializedCampaign = {
    * authoritative. `randomMAChance` (percent, 0 = the rule was off) marks a
    * route whose «Случайные цели и награды» was ROLLED per slot; ABSENT on a
    * campaign generated before the roll — every mission then followed the
-   * frozen rule (`slotModifiersOf`).
+   * frozen rule (`slotModifiersOf`). `shuffleMapChance` is the same for
+   * «Случайные места для тайлов» (absent on a route generated before 2026-11-07).
    */
-  generator: {seed: number, version: number, pool: Array<BoardName>, randomMAChance?: number};
+  generator: {seed: number, version: number, pool: Array<BoardName>, randomMAChance?: number, shuffleMapChance?: number};
   missions: Array<SerializedMissionSlot>;
   /** Index of the current slot (the active mission, or the next to launch). */
   pointer: number;

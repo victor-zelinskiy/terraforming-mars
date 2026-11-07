@@ -7,6 +7,11 @@
         <circle cx="8" cy="8" r="1.25" class="cmod__pip" />
         <circle cx="10.8" cy="10.8" r="1.25" class="cmod__pip" />
       </svg>
+      <svg v-else-if="meta.glyph === 'shuffle'" viewBox="0 0 16 16" class="cmod__svg">
+        <path d="M1.8 4.6h2.6c1.6 0 2.5.7 3.4 2.1l1.2 2.6c.9 1.4 1.8 2.1 3.4 2.1h1.6" class="cmod__stroke" />
+        <path d="M1.8 11.4h2.6c1.6 0 2.5-.7 3.4-2.1l1.2-2.6c.9-1.4 1.8-2.1 3.4-2.1h1.6" class="cmod__stroke" />
+        <path d="M12.4 2.8l1.8 1.8-1.8 1.8M12.4 9.4l1.8 1.8-1.8 1.8" class="cmod__stroke" />
+      </svg>
     </span>
     <span class="cmod__label">{{ $t(meta.shortKey) }}</span>
   </span>

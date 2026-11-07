@@ -71,7 +71,8 @@ import {
   PremiumRuleMeta,
 } from '@/client/components/create/premium/createGameMeta';
 import {secondShiftMaxCap, secondShiftRuleApplies} from '@/common/automa/SecondShift';
-import {CAMPAIGN_RANDOM_MA_CHANCES, CampaignRandomMAChance} from '@/common/campaign/missionModifiers';
+import {CAMPAIGN_MODIFIER_CHANCES, CampaignModifierChance} from '@/common/campaign/missionModifiers';
+import {MissionModifierId} from '@/common/campaign/CampaignTypes';
 
 // ── Decks (LB/RB ring) ──────────────────────────────────────────────────────
 
@@ -459,33 +460,63 @@ export function ruleRows(): ReadonlyArray<RuleRow> {
 }
 
 /**
- * The rules DECK is the toggles plus two SUB-settings: in a campaign with
- * «Случайные цели и награды» on, the per-mission CHANCE (a dial, right under
- * its rule); when «Тестовый режим» is on for the admin seat, a dev card picker
- * (a count and a drill-in, appended). Jump-to-issue resolves a rule's row by
- * its id (`automaConflictTarget`), never by a fixed index.
+ * The rules DECK is the toggles plus SUB-settings: in a campaign, every rule
+ * that is ROLLED per mission (`CAMPAIGN_CHANCE_RULES`) carries its CHANCE
+ * dial right under it while it is on; when «Тестовый режим» is on for the
+ * admin seat, a dev card picker (a count and a drill-in, appended).
+ * Jump-to-issue resolves a rule's row by its id (`automaConflictTarget`),
+ * never by a fixed index.
  */
 export type RulesDeckRow =
   | {kind: 'rule', rule: RuleRow}
-  | {kind: 'maChance', chance: CampaignRandomMAChance}
+  | {kind: 'chance', id: MissionModifierId, chance: CampaignModifierChance}
   | {kind: 'devCards', count: number};
 
-/**
- * CAMPAIGN ONLY: «Случайные цели и награды» is ROLLED per mission at a chosen
- * chance — the rule's one sub-setting, reachable while the rule is on.
- */
-export function maChanceAvailable(): boolean {
-  const config = createGameState.config;
-  return isCampaignMode() && config.rules.randomMilestonesAwards;
+/** A rule a campaign ROLLS per mission — the mission modifier it becomes, and where its chance lives. */
+export type CampaignChanceRule = {
+  id: MissionModifierId;
+  rule: PremiumRuleMeta['id'];
+  /** The creator state field the chance is kept in. */
+  field: 'campaignRandomMAChance' | 'campaignShuffleMapChance';
+  /** The row's e2e hook (`data-rule-sub`). */
+  sub: string;
+  /** The dial's one sentence (English i18n key). */
+  descKey: string;
+};
+
+export const CAMPAIGN_CHANCE_RULES: ReadonlyArray<CampaignChanceRule> = [
+  {
+    id: 'randomMA', rule: 'randomMilestonesAwards', field: 'campaignRandomMAChance', sub: 'maChance',
+    descKey: 'Each mission of the route rolls random milestones and awards at this chance. Hollandia always plays with them.',
+  },
+  {
+    id: 'shuffleMap', rule: 'randomBoardTiles', field: 'campaignShuffleMapChance', sub: 'shuffleChance',
+    descKey: 'Each mission of the route rolls a shuffled board layout at this chance.',
+  },
+];
+
+export function campaignChanceRule(id: MissionModifierId): CampaignChanceRule {
+  const found = CAMPAIGN_CHANCE_RULES.find((c) => c.id === id);
+  if (found === undefined) {
+    throw new Error(`No campaign chance for ${id}`);
+  }
+  return found;
 }
 
-/** Step the campaign chance along `CAMPAIGN_RANDOM_MA_CHANCES`; `wrap` cycles (A), else clamps (◄ ►). */
-export function stepMaChance(step: 1 | -1, wrap: boolean): void {
+/** CAMPAIGN ONLY: the rule is ROLLED per mission at a chosen chance — its dial stands while the rule is on. */
+export function campaignChanceAvailable(id: MissionModifierId): boolean {
   const config = createGameState.config;
-  const values = CAMPAIGN_RANDOM_MA_CHANCES;
-  const at = Math.max(0, values.indexOf(config.campaignRandomMAChance));
+  return isCampaignMode() && config.rules[campaignChanceRule(id).rule];
+}
+
+/** Step a campaign chance along `CAMPAIGN_MODIFIER_CHANCES`; `wrap` cycles (A), else clamps (◄ ►). */
+export function stepCampaignChance(id: MissionModifierId, step: 1 | -1, wrap: boolean): void {
+  const config = createGameState.config;
+  const field = campaignChanceRule(id).field;
+  const values = CAMPAIGN_MODIFIER_CHANCES;
+  const at = Math.max(0, values.indexOf(config[field]));
   const next = wrap ? (at + step + values.length) % values.length : Math.min(values.length - 1, Math.max(0, at + step));
-  config.campaignRandomMAChance = values[next];
+  config[field] = values[next];
 }
 
 /** True while the test-mode sub-setting is reachable at all. */
@@ -501,13 +532,17 @@ export function devCardsCount(): number {
 
 export function rulesDeckRows(): ReadonlyArray<RulesDeckRow> {
   const rows: Array<RulesDeckRow> = ruleRows().map((rule) => ({kind: 'rule' as const, rule}));
-  if (maChanceAvailable()) {
-    // The sub-setting stands RIGHT UNDER its parent rule — in the wide
-    // creator's grid that is one whole row of columns further, so the dial
-    // shares its parent's column (the d-pad's grid walk reads the same order).
-    const parent = rows.findIndex((r) => r.kind === 'rule' && r.rule.meta.id === 'randomMilestonesAwards');
-    const step = createLayout.wide ? RULES_WIDE_GRID_COLS : 1;
-    rows.splice(Math.min(rows.length, parent + step), 0, {kind: 'maChance', chance: createGameState.config.campaignRandomMAChance});
+  // Each chance dial stands RIGHT UNDER its parent rule — in the wide
+  // creator's grid that is one whole row of columns further, so the dial
+  // shares its parent's column (the d-pad's grid walk reads the same order).
+  // Dials go in in their parents' order: a later insertion lands past every
+  // earlier dial, so no dial is pushed out of its column.
+  const step = createLayout.wide ? RULES_WIDE_GRID_COLS : 1;
+  const parentAt = (c: CampaignChanceRule) => rows.findIndex((r) => r.kind === 'rule' && r.rule.meta.id === c.rule);
+  const dials = CAMPAIGN_CHANCE_RULES.filter((c) => campaignChanceAvailable(c.id) && parentAt(c) >= 0)
+    .sort((a, b) => parentAt(a) - parentAt(b));
+  for (const c of dials) {
+    rows.splice(Math.min(rows.length, parentAt(c) + step), 0, {kind: 'chance', id: c.id, chance: createGameState.config[c.field]});
   }
   if (devCardsAvailable()) {
     rows.push({kind: 'devCards', count: devCardsCount()});

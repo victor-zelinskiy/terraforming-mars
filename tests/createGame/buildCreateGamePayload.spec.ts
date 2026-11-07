@@ -37,6 +37,7 @@ function baseState(): PremiumCreateGameState {
       testMode: false,
     },
     campaignRandomMAChance: 20,
+    campaignShuffleMapChance: 10,
     guaranteedCards: {corporations: [], preludes: [], projects: []},
   };
 }

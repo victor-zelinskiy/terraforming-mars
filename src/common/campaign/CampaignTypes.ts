@@ -49,7 +49,7 @@ export type TitleEntry = {
  * (`missionModifiers.ts`). Generated with the route, frozen with it, shown on
  * the map before the mission is played. Never rendered when empty.
  */
-export type MissionModifierId = 'randomMA';
+export type MissionModifierId = 'randomMA' | 'shuffleMap';
 export type MissionModifier = {id: MissionModifierId};
 
 export type CampaignSeatKind = 'human' | 'bot';

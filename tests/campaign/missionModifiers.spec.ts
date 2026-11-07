@@ -7,14 +7,18 @@ import {BoardName} from '../../src/common/boards/BoardName';
 import {
   CAMPAIGN_RANDOM_MA_CHANCES,
   DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE,
+  DEFAULT_CAMPAIGN_SHUFFLE_MAP_CHANCE,
   RANDOM_MA_MODIFIER,
+  SHUFFLE_MAP_MODIFIER,
   hasMissionModifier,
   isCampaignRandomMAChance,
 } from '../../src/common/campaign/missionModifiers';
-import {boardAlwaysDrawsMA, missionRandomMA, rollSlotModifiers, slotModifiersOf} from '../../src/server/campaign/missionModifiers';
+import {boardAlwaysDrawsMA, missionRandomMA, missionShuffleMap, rollSlotModifiers, slotModifiersOf} from '../../src/server/campaign/missionModifiers';
+
+const ma = (chance: number, roll: number) => ({chances: {randomMA: chance, shuffleMap: 0}, rolls: {randomMA: roll, shuffleMap: 0.99}});
 import {campaignTestConfig} from './CampaignManager.spec';
 
-describe('Campaign mission modifiers («Случайные цели и награды» per mission)', () => {
+describe('Campaign mission modifiers («Случайные цели и награды», «Случайные места для тайлов» per mission)', () => {
   let db: InMemoryDatabase;
   let manager: CampaignManager;
   let keySeq = 0;
@@ -43,22 +47,66 @@ describe('Campaign mission modifiers («Случайные цели и нагр�
   it('a board with no printed row (Hollandia) always carries the modifier — whatever the roll, rule on or off', () => {
     expect(boardAlwaysDrawsMA(BoardName.HOLLANDIA)).is.true;
     expect(boardAlwaysDrawsMA(BoardName.THARSIS)).is.false;
-    expect(rollSlotModifiers(BoardName.HOLLANDIA, 0, 0.99)).deep.eq([{id: RANDOM_MA_MODIFIER}]);
-    expect(rollSlotModifiers(BoardName.THARSIS, 0, 0)).deep.eq([]);
+    expect(rollSlotModifiers(BoardName.HOLLANDIA, ma(0, 0.99).chances, ma(0, 0.99).rolls)).deep.eq([{id: RANDOM_MA_MODIFIER}]);
+    expect(rollSlotModifiers(BoardName.THARSIS, ma(0, 0).chances, ma(0, 0).rolls)).deep.eq([]);
   });
 
   it('a printed board rolls against the chance', () => {
-    expect(rollSlotModifiers(BoardName.THARSIS, 20, 0.19)).deep.eq([{id: RANDOM_MA_MODIFIER}]);
-    expect(rollSlotModifiers(BoardName.THARSIS, 20, 0.2)).deep.eq([]);
-    expect(rollSlotModifiers(BoardName.THARSIS, 50, 0.49)).deep.eq([{id: RANDOM_MA_MODIFIER}]);
+    expect(rollSlotModifiers(BoardName.THARSIS, ma(20, 0.19).chances, ma(20, 0.19).rolls)).deep.eq([{id: RANDOM_MA_MODIFIER}]);
+    expect(rollSlotModifiers(BoardName.THARSIS, ma(20, 0.2).chances, ma(20, 0.2).rolls)).deep.eq([]);
+    expect(rollSlotModifiers(BoardName.THARSIS, ma(50, 0.49).chances, ma(50, 0.49).rolls)).deep.eq([{id: RANDOM_MA_MODIFIER}]);
   });
 
-  it('rule OFF: no roll — only a row-less board is marked, and the chance is recorded as 0', async () => {
-    const campaign = await manager.createCampaign(key(), campaignTestConfig(), {randomMAChance: 50});
+  it('the shuffled layout rolls on its OWN roll and chance — never forced by a board, both modifiers may stand', () => {
+    expect(DEFAULT_CAMPAIGN_SHUFFLE_MAP_CHANCE).eq(10);
+    expect(rollSlotModifiers(BoardName.THARSIS, {randomMA: 0, shuffleMap: 10}, {randomMA: 0, shuffleMap: 0.09})).deep.eq([{id: SHUFFLE_MAP_MODIFIER}]);
+    expect(rollSlotModifiers(BoardName.THARSIS, {randomMA: 0, shuffleMap: 10}, {randomMA: 0, shuffleMap: 0.1})).deep.eq([]);
+    expect(rollSlotModifiers(BoardName.HOLLANDIA, {randomMA: 0, shuffleMap: 0}, {randomMA: 0.5, shuffleMap: 0})).deep.eq([{id: RANDOM_MA_MODIFIER}]);
+    expect(rollSlotModifiers(BoardName.HOLLANDIA, {randomMA: 0, shuffleMap: 50}, {randomMA: 0.5, shuffleMap: 0.2}))
+      .deep.eq([{id: RANDOM_MA_MODIFIER}, {id: SHUFFLE_MAP_MODIFIER}]);
+  });
+
+  it('rules OFF: no roll — only a row-less board is marked, and both chances are recorded as 0', async () => {
+    const campaign = await manager.createCampaign(key(), campaignTestConfig(), {randomMAChance: 50, shuffleMapChance: 50});
     expect(campaign.generator.randomMAChance).eq(0);
+    expect(campaign.generator.shuffleMapChance).eq(0);
     for (const slot of campaign.missions) {
       expect(hasMissionModifier(slot.modifiers, RANDOM_MA_MODIFIER)).eq(boardAlwaysDrawsMA(slot.board));
+      expect(hasMissionModifier(slot.modifiers, SHUFFLE_MAP_MODIFIER)).is.false;
     }
+  });
+
+  it('«Случайные места для тайлов» ON: the chosen chance is recorded (default 10); over many routes ≈ half roll at 50 %', async () => {
+    const absent = await manager.createCampaign(key(), campaignTestConfig({shuffleMapOption: true}));
+    expect(absent.generator.shuffleMapChance).eq(DEFAULT_CAMPAIGN_SHUFFLE_MAP_CHANCE);
+    const stray = await manager.createCampaign(key(), campaignTestConfig({shuffleMapOption: true}), {shuffleMapChance: 25});
+    expect(stray.generator.shuffleMapChance).eq(DEFAULT_CAMPAIGN_SHUFFLE_MAP_CHANCE);
+    let slots = 0;
+    let rolled = 0;
+    for (let i = 0; i < 60; i++) {
+      const campaign = await manager.createCampaign(key(), campaignTestConfig({shuffleMapOption: true}), {shuffleMapChance: 50});
+      expect(campaign.generator.shuffleMapChance).eq(50);
+      for (const slot of campaign.missions) {
+        slots++;
+        rolled += hasMissionModifier(slot.modifiers, SHUFFLE_MAP_MODIFIER) ? 1 : 0;
+      }
+    }
+    expect(rolled / slots).within(0.3, 0.7);
+  });
+
+  it('the launched mission shuffles its board exactly when its slot carries the modifier', async () => {
+    const campaign = await manager.createCampaign(key(), campaignTestConfig({shuffleMapOption: true}), {shuffleMapChance: 10});
+    const slot = campaign.missions[0];
+    slot.modifiers = slot.modifiers.filter((m) => m.id !== SHUFFLE_MAP_MODIFIER);
+    expect(missionShuffleMap(campaign, slot)).is.false;
+    const first = await manager.launchMission(campaign.id, 'Alice');
+    expect((await db.getGame(first.gameId)).gameOptions.shuffleMapOption).is.false;
+
+    const other = await manager.createCampaign(key(), campaignTestConfig(), {});
+    other.missions[0].modifiers = [{id: SHUFFLE_MAP_MODIFIER}];
+    expect(missionShuffleMap(other, other.missions[0])).is.true;
+    const launched = await manager.launchMission(other.id, 'Alice');
+    expect((await db.getGame(launched.gameId)).gameOptions.shuffleMapOption).is.true;
   });
 
   it('rule ON: the chosen chance is recorded; a value off the ladder falls back to the default', async () => {
@@ -119,8 +167,17 @@ describe('Campaign mission modifiers («Случайные цели и нагр�
       expect(slotModifiersOf(campaign, slot)).deep.eq([{id: RANDOM_MA_MODIFIER}]);
       expect(missionRandomMA(campaign, slot)).eq(RandomMAOptionType.ALL);
     }
+    // A route rolled for the random set but generated before the shuffle roll: the frozen shuffle rule stands everywhere.
+    const halfway = await manager.createCampaign(key(), campaignTestConfig({shuffleMapOption: true}), {shuffleMapChance: 10});
+    delete halfway.generator.shuffleMapChance;
+    for (const slot of halfway.missions) {
+      slot.modifiers = [];
+      expect(missionShuffleMap(halfway, slot)).is.true;
+    }
+
     const off = await manager.createCampaign(key(), campaignTestConfig(), {});
     delete off.generator.randomMAChance;
+    delete off.generator.shuffleMapChance;
     off.missions[0].board = BoardName.THARSIS;
     off.missions[0].modifiers = [];
     expect(slotModifiersOf(off, off.missions[0])).deep.eq([]);

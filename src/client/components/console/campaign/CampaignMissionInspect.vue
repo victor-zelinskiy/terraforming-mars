@@ -67,7 +67,8 @@
             <span class="cminsp__fact-note">{{ $t('Titles and corporations count into this mission’s VP') }}</span>
           </div>
         </div>
-        <div class="cminsp__note">{{ $t('The board and its printed bonuses are known ahead — the outcome is not') }}</div>
+        <!-- A shuffled mission's printed bonuses do NOT hold — the note never promises them. -->
+        <div class="cminsp__note">{{ $t(shuffled ? 'The board is known ahead — its bonuses are shuffled at the launch, the outcome is not' : 'The board and its printed bonuses are known ahead — the outcome is not') }}</div>
       </template>
     </div>
   </div>
@@ -113,6 +114,9 @@ export default defineComponent({
   computed: {
     modifiers(): ReadonlyArray<MissionModifierMeta> {
       return missionModifierMetas(this.mission.modifiers);
+    },
+    shuffled(): boolean {
+      return this.modifiers.some((m) => m.id === 'shuffleMap');
     },
     accent(): string {
       return mapMeta(this.mission.board).accent;

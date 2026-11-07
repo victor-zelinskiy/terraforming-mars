@@ -225,7 +225,7 @@ import {
   toggleExpansion,
   toggleRule,
   setCreateLayoutWide,
-  stepMaChance,
+  stepCampaignChance,
   unseatBot,
 } from '@/client/console/menu/consoleCreateModel';
 import {
@@ -474,7 +474,7 @@ export default defineComponent({
       }
       case 'rules': {
         const row = this.rules[this.ui.cursor.rules];
-        if (row?.kind === 'maChance') {
+        if (row?.kind === 'chance') {
           return {label: 'Change', enabled: true};
         }
         return {label: row?.kind === 'devCards' ? 'Open' : 'Toggle', enabled: true};
@@ -603,11 +603,11 @@ export default defineComponent({
       // ── Deck level ──
       if (intent.kind === 'nav') {
         const deck = this.ui.deck;
-        // The campaign chance row is a DIAL: ◄ ► move its value (the console
+        // A campaign chance row is a DIAL: ◄ ► move its value (the console
         // settings stepper idiom), not the section ring.
-        if (deck === 'rules' && (intent.dir === 'left' || intent.dir === 'right') &&
-          this.rules[this.ui.cursor.rules]?.kind === 'maChance') {
-          stepMaChance(intent.dir === 'right' ? 1 : -1, false);
+        const dial = deck === 'rules' ? this.rules[this.ui.cursor.rules] : undefined;
+        if (dial?.kind === 'chance' && (intent.dir === 'left' || intent.dir === 'right')) {
+          stepCampaignChance(dial.id, intent.dir === 'right' ? 1 : -1, false);
           return true;
         }
         const next = deckNavStep(deck, this.ui.cursor[deck], intent.dir, deckRowCount(deck), {wide: this.creatorWide, mapCols: this.mapCols});
@@ -721,8 +721,8 @@ export default defineComponent({
         this.ui.overlay = {kind: 'devCards'};
         return;
       }
-      if (row.kind === 'maChance') {
-        stepMaChance(1, true);
+      if (row.kind === 'chance') {
+        stepCampaignChance(row.id, 1, true);
         return;
       }
       toggleRule(row.rule.meta.id);

@@ -59,19 +59,22 @@ import {Player} from '../Player';
 import {generateRandomId} from '../utils/server-ids';
 import {CarryoverSeatState, SerializedCampaign, SerializedMissionSlot} from './Campaign';
 import {computeMissionStandings} from './missionStandings';
-import {boardAlwaysDrawsMA, missionRandomMA, rollSlotModifiers, slotModifiersOf} from './missionModifiers';
+import {boardAlwaysDrawsMA, missionRandomMA, missionShuffleMap, rollSlotModifiers, slotModifiersOf} from './missionModifiers';
 import {RandomMAOptionType} from '../../common/ma/RandomMAOptionType';
 import {
   DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE,
+  DEFAULT_CAMPAIGN_SHUFFLE_MAP_CHANCE,
   RANDOM_MA_MODIFIER,
   hasMissionModifier,
-  isCampaignRandomMAChance,
+  isCampaignModifierChance,
 } from '../../common/campaign/missionModifiers';
 
 /** Campaign-only creation choices — never part of the frozen game settings. */
 export type CampaignCreateOptions = {
-  /** Percent; one of `CAMPAIGN_RANDOM_MA_CHANCES` (anything else → the default). */
+  /** Percent; one of `CAMPAIGN_MODIFIER_CHANCES` (anything else → the default). */
   randomMAChance?: number;
+  /** Percent; one of `CAMPAIGN_MODIFIER_CHANCES` (anything else → the default). */
+  shuffleMapChance?: number;
 };
 import {carryoverLimitFor, carryoverLimitOf} from './carryoverLimit';
 
@@ -292,18 +295,20 @@ export class CampaignManager {
 
     const frozen: NewGameConfig = {...config, clonedGamedId: undefined, customProjectCards: config.customProjectCards ?? []};
 
-    // The roguelike layer: each slot rolls its «Случайные цели и награды»
-    // from the same seeded stream (a roll per slot, always), at the chosen
-    // chance — 0 when the rule is off. A board with no printed row carries
-    // the modifier whatever the roll.
-    const randomMAChance = config.randomMA !== undefined && config.randomMA !== RandomMAOptionType.NONE ?
-      (isCampaignRandomMAChance(options.randomMAChance) ? options.randomMAChance : DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE) :
-      0;
-    const missions: Array<SerializedMissionSlot> = boards.map((board, slot) => ({
-      slot,
-      board,
-      modifiers: rollSlotModifiers(board, randomMAChance, rng.next()),
-    }));
+    // The roguelike layer: each slot rolls its modifiers — «Случайные цели и
+    // награды», «Случайные места для тайлов» — from the same seeded stream
+    // (every roll for every slot, always), each at its chosen chance; 0 when
+    // its rule is off. A board with no printed row carries the random set
+    // whatever the roll.
+    const chanceOf = (on: boolean, chosen: number | undefined, fallback: number): number =>
+      on ? (isCampaignModifierChance(chosen) ? chosen : fallback) : 0;
+    const randomMAChance = chanceOf(config.randomMA !== undefined && config.randomMA !== RandomMAOptionType.NONE,
+      options.randomMAChance, DEFAULT_CAMPAIGN_RANDOM_MA_CHANCE);
+    const shuffleMapChance = chanceOf(config.shuffleMapOption === true, options.shuffleMapChance, DEFAULT_CAMPAIGN_SHUFFLE_MAP_CHANCE);
+    const missions: Array<SerializedMissionSlot> = boards.map((board, slot) => {
+      const rolls = {randomMA: rng.next(), shuffleMap: rng.next()};
+      return {slot, board, modifiers: rollSlotModifiers(board, {randomMA: randomMAChance, shuffleMap: shuffleMapChance}, rolls)};
+    });
 
     return {
       version: 1,
@@ -313,7 +318,7 @@ export class CampaignManager {
       createdTimeMs: Date.now(),
       seats,
       settings: frozen,
-      generator: {seed, version: CAMPAIGN_GENERATOR_VERSION, pool: [...pool], randomMAChance},
+      generator: {seed, version: CAMPAIGN_GENERATOR_VERSION, pool: [...pool], randomMAChance, shuffleMapChance},
       missions,
       pointer: 0,
       phase: 'generated',
@@ -459,6 +464,7 @@ export class CampaignManager {
       board: slot.board,
       // The slot's rolled modifier decides — never the frozen rule alone.
       randomMA: missionRandomMA(campaign, slot),
+      shuffleMapOption: missionShuffleMap(campaign, slot),
       seed: Math.random(),
       clonedGamedId: undefined,
       bannedCards: [...banned],

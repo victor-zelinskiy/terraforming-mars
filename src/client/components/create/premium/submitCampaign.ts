@@ -57,9 +57,12 @@ export async function submitPremiumCreateCampaign(): Promise<boolean> {
         key,
         name: createGameState.config.players[0]?.name ?? '',
         config,
-        // Campaign-only: the per-mission roll of «Случайные цели и награды»
-        // (ignored by the server while the rule is off).
-        options: {randomMAChance: createGameState.config.campaignRandomMAChance},
+        // Campaign-only: the per-mission rolls of «Случайные цели и награды»
+        // and «Случайные места для тайлов» (each ignored while its rule is off).
+        options: {
+          randomMAChance: createGameState.config.campaignRandomMAChance,
+          shuffleMapChance: createGameState.config.campaignShuffleMapChance,
+        },
       }),
       headers: {'Content-Type': 'application/json'},
     });

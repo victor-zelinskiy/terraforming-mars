@@ -171,5 +171,9 @@
   "Chance per mission": "Шанс на миссию",
   "Each mission of the route rolls random milestones and awards at this chance. Hollandia always plays with them.": "С этим шансом каждая миссия маршрута получает случайные цели и награды. Голландия играется с ними всегда.",
   "Random goals": "Случайные цели",
-  "Milestones and awards of this mission are drawn at random instead of the board’s printed row.": "Цели и награды этой миссии выпадают случайно вместо напечатанных на поле."
+  "Milestones and awards of this mission are drawn at random instead of the board’s printed row.": "Цели и награды этой миссии выпадают случайно вместо напечатанных на поле.",
+  "Each mission of the route rolls a shuffled board layout at this chance.": "С этим шансом каждая миссия маршрута получает случайное расположение бонусов на поле.",
+  "Shuffled cells": "Случайные клетки",
+  "The bonuses on this mission’s board are shuffled at the launch — the printed layout does not hold.": "Бонусы на поле этой миссии перемешаются при запуске — печатная раскладка не действует.",
+  "The board is known ahead — its bonuses are shuffled at the launch, the outcome is not": "Поле известно заранее — его бонусы перемешаются при запуске, исход ещё нет"
 }
