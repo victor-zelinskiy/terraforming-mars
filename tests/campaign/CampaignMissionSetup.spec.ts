@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {campaignFinalePicksCorporation} from '../../src/common/campaign/CampaignTypes';
 import {Game} from '../../src/server/Game';
 import {Player} from '../../src/server/Player';
 import {GameOptions} from '../../src/server/game/GameOptions';
@@ -63,7 +64,7 @@ describe('CampaignMissionSetup', () => {
     expect(p2.dealtProjectCards.map((c) => c.name)).not.includes(CARRIED);
   });
 
-  it('expected corporation counts: lineage + pick for missions 2-3, lineage only for the final', () => {
+  it('expected corporation counts: lineage + pick for missions 2-3, lineage only for a final that deploys a full company', () => {
     const m2 = newMissionGame(missionOptions());
     expect(expectedCorporationCount(m2.p1)).eq(2);
     expect(expectedCorporationCount(m2.p2)).eq(1);
@@ -257,6 +258,24 @@ describe('CampaignMissionSetup', () => {
     // All three starting M€ stacks (D4) + the 5 M€ bonus − TWO merge fees.
     expect(p1.megaCredits).eq(57 + 48 + 23 + 5 - 2 * 42);
     expect(p1.campaignMergeFeesPaid).eq(2);
+  });
+
+  it('a THREE-mission finale (a lineage of two) still DRAFTS its third corporation: corps dealt, the corp step kept, three expected', () => {
+    // The owner, 2026-11-07: the finale's company is THREE corporations; a route of three missions grows only two.
+    const lineage = [CardName.CREDICOR, CardName.THORGATE];
+    const options = missionOptions({final: true}, lineage);
+    (options.campaign as any).missionSlot = 2;
+    (options.campaign as any).missionCount = 3;
+    (options.campaign!.grants[1] as any).corporations = [CardName.HELION, CardName.TERACTOR];
+    const {p1, p2} = newMissionGame(options);
+    expect(campaignFinalePicksCorporation(lineage.length)).is.true;
+    expect(campaignFinalePicksCorporation(3)).is.false;
+    expect(p1.dealtCorporationCards).is.not.empty;
+    expect(p2.dealtCorporationCards).is.not.empty;
+    const selection = new SelectInitialCards(p1, () => undefined);
+    expect(selection.inputs.corp).is.not.undefined;
+    // Lineage of two + the pick = the company of three; the pick merges like every additional corporation.
+    expect(expectedCorporationCount(p1)).eq(3);
   });
 
   it('an ordinary game is untouched: no reservation, no bonus, expected count 1', () => {

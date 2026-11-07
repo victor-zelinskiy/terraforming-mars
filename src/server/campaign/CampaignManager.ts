@@ -36,6 +36,7 @@ import {
   MissionResult,
   MissionSlotState,
   TitleEntry,
+  campaignFinalePicksCorporation,
 } from '../../common/campaign/CampaignTypes';
 import {FINAL_MISSION_AWARDS_TITLES, TITLE_TABLE, bonusForPlace, titleForPlace} from '../../common/campaign/campaignConfig';
 import {CampaignCarryoverModel, CampaignMissionModel, CampaignModel, MissionResultModel} from '../../common/campaign/CampaignModel';
@@ -452,7 +453,10 @@ export class CampaignManager {
     const options = gameOptionsFromNewGameConfig({...config, board: BoardName.THARSIS}, BoardName.THARSIS);
     const poolSize = new GameCards(options).getCorporationCards().length;
     const humans = config.players.length;
-    const worstCaseBans = humans * Math.max(missionCount - 2, 0) +
+    // The missions that DEAL corporations: every one but the finale — and the finale too when the lineage it meets
+    // is still short of the company of three (the three-mission route). Every earlier deal banned one per human.
+    const dealingMissions = campaignFinalePicksCorporation(missionCount - 1) ? missionCount : missionCount - 1;
+    const worstCaseBans = humans * Math.max(dealingMissions - 1, 0) +
       (config.automa !== undefined ? 1 + holdingsForSlot(missionCount - 1, missionCount) : 0);
     const required = humans * config.startingCorporations + worstCaseBans;
     if (poolSize < required) {

@@ -24,7 +24,7 @@
 
 import {reactive} from 'vue';
 import * as constants from '@/common/constants';
-import {CAMPAIGN_MERGE_COST} from '@/common/campaign/CampaignTypes';
+import {CAMPAIGN_MERGE_COST, campaignFinalePicksCorporation} from '@/common/campaign/CampaignTypes';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
@@ -610,8 +610,10 @@ export function campaignWizardExtra(view: PlayerViewModel): {megaCredits: number
     }
   }
   // ONE fee per ADDITIONAL corporation, EVERY mission (missions 3–4 pay for
-  // corp №3 again): lineage[1..] + the fresh pick (absent on the final).
-  const additional = (grant.corporations.length - 1) + (contract.final ? 0 : 1);
+  // corp №3 again): lineage[1..] + the fresh pick (absent on a final that
+  // deploys a full company; a three-mission finale still drafts its third).
+  const picks = contract.final !== true || campaignFinalePicksCorporation(grant.corporations.length);
+  const additional = (grant.corporations.length - 1) + (picks ? 1 : 0);
   const mergeFee = additional * CAMPAIGN_MERGE_COST;
   return {megaCredits: megaCredits - mergeFee, cardCostDelta, mergeFee};
 }

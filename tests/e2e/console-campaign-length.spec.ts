@@ -155,3 +155,43 @@ test('C — the finale of a six-mission campaign: five corporations per seat, al
   // terraformer that drives a table to the count can loop on what a five-corporation deal offers (the deal is not
   // seeded — a mission rolls its own), and a journey that may never arrive is a flake, not a check.
 });
+
+test('D — the finale of a THREE-mission campaign DRAFTS its third corporation: a lineage of two, the corp step dealt', async ({page, request}) => {
+  test.setTimeout(240_000);
+  // The owner, 2026-11-07: the finale's company is THREE corporations — a route of three missions grows only two,
+  // so its finale keeps the ordinary corporation pick (`campaignFinalePicksCorporation`); a longer route deploys
+  // what it grew with no pick (test C).
+  const names = ['Alice', 'Bruno'];
+  const lineages: Record<number, Array<string>> = {0: ['Ecoline', 'Mining Guild'], 1: ['Helion', 'Saturn Systems']};
+  const {id} = await createCampaign(request, {
+    testMode: true,
+    players: names.map((name, i) => ({name, color: ['blue', 'red'][i], beginner: false, handicap: 0, first: i === 0})),
+    expansions: EXPANSIONS,
+  }, {missionCount: 3});
+  for (let slot = 0; slot < 2; slot++) {
+    await devCommit(request, id, slot % 2 === 0 ? [0, 1] : [1, 0], {
+      lineages: {0: lineages[0].slice(0, slot + 1), 1: lineages[1].slice(0, slot + 1)},
+    });
+  }
+  await launchMission(request, id);
+  const pid = (await campaignModelAs(request, id, 'Alice')).missions[2]?.yourPlayerId;
+  expect(pid, 'no finale seat for Alice').toBeTruthy();
+
+  // ── The server: the finale's selection carries a CORPORATION step with a real deal. ──
+  const model = await (await request.get(`/api/player?id=${pid}`)).json();
+  expect(model.game.gameOptions.campaign?.final, 'the third mission IS the finale').toBe(true);
+  expect(model.waitingFor?.type).toBe('initialCards');
+  const steps: Array<{title: string | {message: string}, cards?: Array<unknown>}> = model.waitingFor?.options ?? [];
+  const titleOf = (t: string | {message: string}) => typeof t === 'string' ? t : t.message;
+  const corpStep = steps.find((o) => titleOf(o.title).startsWith('Select corporation'));
+  expect(corpStep, 'the finale deals a corporation to pick').toBeTruthy();
+  expect((corpStep!.cards ?? []).length, 'two corporations dealt').toBeGreaterThanOrEqual(2);
+
+  // ── The screen: the start opens on the selection, the «Наследие» strip carries the lineage of two. ──
+  await openConsole(page, pid!, TV.query);
+  await page.waitForSelector('.con-start__frame', {timeout: 90_000});
+  await waitWithFrames(page, async () => (await page.locator('[data-legacy-dock]').count()) >= 2, 60_000, 'the lineage strip');
+  expect(await page.locator('[data-legacy-dock]').evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.legacyDock)))
+    .toEqual(lineages[0]);
+  await shot(page, 'd-start-three-mission-finale-corp-pick');
+});

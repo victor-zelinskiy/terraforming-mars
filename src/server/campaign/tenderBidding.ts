@@ -19,6 +19,7 @@ import {
   biddingPickerCount,
   biddingTurnSeat,
   botTenderPick,
+  tenderDef,
 } from '../../common/campaign/tenders';
 
 /**
@@ -62,10 +63,13 @@ export function buildTenderRegister(applicable: (id: TenderId) => boolean, rng: 
 /**
  * THE DEAL — `size` cards off the top of the Register onto the table, every
  * kind DISTINCT within the offer (the owner's rule: no duplicates in one
- * bidding; duplicates across missions stack). A copy whose kind already lies
- * on the table — or whose kind this slot does not admit — goes under the
- * Register and is drawn again later. Exhausted → a second printing joins the
- * bottom. Returns the dealt offer and the Register as it stands after.
+ * bidding; duplicates across missions stack) and AT MOST ONE DECISIVE tender
+ * among them (the owner, 2026-11-07: «Продление программы» and «Дополнительный
+ * пролог» never lie on one table — a player may still collect both by winning
+ * two missions). A copy whose kind already lies on the table, a second decisive
+ * — or a kind this slot does not admit — goes under the Register and is drawn
+ * again later. Exhausted → a second printing joins the bottom. Returns the
+ * dealt offer and the Register as it stands after.
  */
 export function dealTenderOffer(
   register: TenderRegister,
@@ -78,6 +82,7 @@ export function dealTenderOffer(
   let drawn = register.drawn;
   const offer: Array<BiddingOfferCard> = [];
   const onTable = new Set<TenderId>();
+  let decisiveOnTable = false;
   // A bound on the walk: every copy inspected at most twice plus one printing.
   let budget = order.length * 2 + 1;
   while (offer.length < size && budget > 0) {
@@ -95,13 +100,16 @@ export function dealTenderOffer(
       order.splice(drawn, 1); // a kind this campaign can never use leaves the Register
       continue;
     }
-    if (onTable.has(id)) {
+    if (onTable.has(id) || (decisiveOnTable && tenderDef(id).tier === 'decisive')) {
       order.splice(drawn, 1);
       order.push(id); // under the Register — drawn again later
       continue;
     }
     drawn++;
     onTable.add(id);
+    if (tenderDef(id).tier === 'decisive') {
+      decisiveOnTable = true;
+    }
     offer.push({instance: `t${slot}-${offer.length}`, id});
   }
   return {offer, register: {order, drawn}};

@@ -172,10 +172,19 @@ test.describe('campaign finale — five players at 4K TV scale', () => {
         pathfinders: false, ceo: false, starwars: false, underworld: false, deltaProject: false,
       },
     });
-    const lineages = {0: ['Ecoline'], 1: ['Helion'], 2: ['CrediCor'], 3: ['Thorgate'], 4: ['Mining Guild']};
-    await devCommit(request, id, [0, 1, 2, 3, 4], {lineages});
-    await devCommit(request, id, [1, 0, 2, 3, 4]);
-    await devCommit(request, id, [0, 1, 2, 3, 4]);
+    // Every seat grows the full company of THREE by the finale (a real four-mission route's lineage — a seat short of
+    // three would DRAFT its third at the finale instead: `campaignFinalePicksCorporation`).
+    const lineages: Record<number, Array<string>> = {
+      0: ['Ecoline', 'Inventrix', 'Arcadian Communities'],
+      1: ['Helion', 'Saturn Systems', 'Recyclon'],
+      2: ['CrediCor', 'Teractor', 'Splice'],
+      3: ['Thorgate', 'Interplanetary Cinematics', 'PhoboLog'],
+      4: ['Mining Guild', 'Tharsis Republic', 'United Nations Mars Initiative'],
+    };
+    const grown = (upTo: number) => Object.fromEntries(Object.entries(lineages).map(([seat, l]) => [seat, l.slice(0, upTo)]));
+    await devCommit(request, id, [0, 1, 2, 3, 4], {lineages: grown(1)});
+    await devCommit(request, id, [1, 0, 2, 3, 4], {lineages: grown(2)});
+    await devCommit(request, id, [0, 1, 2, 3, 4], {lineages: grown(3)});
     await launchMission(request, id);
     const ids: Array<string> = [];
     for (const name of names) {
@@ -299,7 +308,7 @@ function expectHonoursClear(rows: Awaited<ReturnType<typeof seatCoverage>>): voi
 test.describe('campaign podium — the honours and the lineage (tv4k)', () => {
   test.use({viewport: {width: 3840, height: 2160}, deviceScaleFactor: 1});
 
-  test('final mission, lineages of 4 / 3 / 2 / 1: the first corporation is the face, the rest stand behind it — every nameplate whole, the faces level', async ({page, request}) => {
+  test('final mission, lineages of 4 / 3 / 3 / 3: the first corporation is the face, the rest stand behind it — every nameplate whole, the faces level', async ({page, request}) => {
     test.setTimeout(600_000);
     const names = ['Alice', 'Bruno', 'Clara', 'Dmitri'];
     const colors = ['blue', 'red', 'green', 'yellow'];
@@ -313,9 +322,11 @@ test.describe('campaign podium — the honours and the lineage (tv4k)', () => {
       },
     });
     // The dev fast-forward grows each seat's lineage in acquisition order; mission 4 deploys it («Штаб»).
+    // Every seat reaches the finale with the company of THREE (a four-mission route grows one per mission; a seat
+    // short of three would DRAFT its third there — `campaignFinalePicksCorporation`); the blue seat stands one deeper.
     await devCommit(request, id, [0, 1, 2, 3], {lineages: {0: ['Ecoline'], 1: ['Helion'], 2: ['Teractor'], 3: ['Point Luna']}});
-    await devCommit(request, id, [1, 0, 3, 2], {lineages: {0: ['Ecoline', 'Mining Guild'], 1: ['Helion', 'Saturn Systems'], 2: ['Teractor', 'Thorgate']}});
-    await devCommit(request, id, [0, 2, 1, 3], {lineages: {0: ['Ecoline', 'Mining Guild', 'Tharsis Republic', 'CrediCor'], 1: ['Helion', 'Saturn Systems', 'Inventrix']}});
+    await devCommit(request, id, [1, 0, 3, 2], {lineages: {0: ['Ecoline', 'Mining Guild'], 1: ['Helion', 'Saturn Systems'], 2: ['Teractor', 'Thorgate'], 3: ['Point Luna', 'Interplanetary Cinematics']}});
+    await devCommit(request, id, [0, 2, 1, 3], {lineages: {0: ['Ecoline', 'Mining Guild', 'Tharsis Republic', 'CrediCor'], 1: ['Helion', 'Saturn Systems', 'Inventrix'], 2: ['Teractor', 'Thorgate', 'PhoboLog'], 3: ['Point Luna', 'Interplanetary Cinematics', 'United Nations Mars Initiative']}});
     await launchMission(request, id);
     const ids: Array<string> = [];
     for (const name of names) {
@@ -340,8 +351,8 @@ test.describe('campaign podium — the honours and the lineage (tv4k)', () => {
     expect(Object.fromEntries(count.map((r) => [r.color, r.plates.map((p) => p.name)]))).toEqual({
       blue: ['CrediCor', 'Tharsis Republic', 'Mining Guild'],
       red: ['Inventrix', 'Saturn Systems'],
-      green: ['ThorGate'],
-      yellow: [],
+      green: ['PhoboLog', 'ThorGate'],
+      yellow: ['United Nations Mars Initiative', 'Interplanetary Cinematics'],
     });
     await expect(page.locator('[data-eg-row="blue"] .con-eg__face .pcard'), 'the face is the base corporation alone').toHaveCount(1);
     await shoot(page, SHOT_DIR, '4p-4k-final-lineage-count');

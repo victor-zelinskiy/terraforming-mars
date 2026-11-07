@@ -3,15 +3,22 @@
        :class="[`con-tender--${size}`, `con-tender--${state}`, `con-tender--tier-${tier}`, {'con-tender--focused': focused}]"
        :data-tender="id" :data-tender-state="state">
     <!--
-      A TENDER — the Committee's LOT, a document, never a playing card (the owner, 2026-11-07: «свой узнаваемый визуал,
-      а не рескин проектов»). Cool paper with ruled hairlines, an oxide-red Committee band with the lot number, a notched
-      corner, the tier as chevrons, the family glyph as the emblem, the rule in prose, a perforated coupon printing the
-      compensation floor, and a diagonal STAMP for its state (taken by a seat / withdrawn / executed / bought back).
-      Three sizes: `table` (the bidding's row), `reader` (X — the full text and the lore), `plaque` (a seat's crest on
-      the podium / the campaign rail: the band and the name only). Every state is drawn by MATERIAL — a kant, a stamp,
-      a word — never a glow.
+      A TENDER — the Committee's LOT: a CERTIFICATE on dark glass, never a playing card and never a notebook page (the
+      owner, 2026-11-07: «свой узнаваемый визуал», «страницы тетради выглядят непремиально»). A slate plate with a
+      double hairline frame in the TIER's metal (gold · steel · copper · oxide — the rank read by material, with the
+      chevrons for form), the Committee's seal and a riveted lot tag on the head, the name in the display face, the
+      window as a tracked label, the rule in prose over the family's glyph engraved as a watermark, the compensation
+      floor on a perforated stub, a diagonal STAMP for its state (taken by a seat / withdrawn / executed / bought
+      back). Three sizes: `table` (the bidding's row), `reader` (X — the full text and the lore), `plaque` (a seat's
+      crest on the podium / the campaign rail: the head and the name only). Every state is drawn by MATERIAL — a
+      kant, a stamp, a word — never a glow.
     -->
-    <div class="con-tender__band">
+    <i class="con-tender__frame" aria-hidden="true"></i>
+    <svg v-if="size !== 'plaque'" class="con-tender__watermark" viewBox="0 0 24 24" aria-hidden="true"><path :d="glyphPath" /></svg>
+    <div class="con-tender__head">
+      <span class="con-tender__seal" aria-hidden="true">
+        <svg viewBox="0 0 24 24" class="con-tender__seal-glyph"><path :d="glyphPath" /></svg>
+      </span>
       <span class="con-tender__committee">{{ $t(committeeKey) }}</span>
       <span class="con-tender__lot">{{ lotText }}</span>
     </div>
@@ -24,9 +31,6 @@
     </template>
     <div class="con-tender__name">{{ $t(meta.nameKey) }}</div>
     <template v-if="size !== 'plaque'">
-      <div class="con-tender__emblem" aria-hidden="true">
-        <svg viewBox="0 0 24 24" class="con-tender__glyph"><path :d="glyphPath" /></svg>
-      </div>
       <div class="con-tender__window">{{ $t(windowKey) }}</div>
       <div class="con-tender__rule">{{ $t(meta.ruleKey) }}</div>
       <div v-if="size === 'reader'" class="con-tender__lore">{{ $t(meta.loreKey) }}</div>
@@ -65,10 +69,10 @@ export default defineComponent({
     focused: {type: Boolean, default: false},
   },
   computed: {
-    /** The band names the Committee — the short form on the table's narrow band (the full name is cut there), the
-     *  full name on the reader and the plaque. */
+    /** The head names the Committee — the full name wraps on two lines on the table and the reader; the plaque's
+     *  one-line strip carries the short form. */
     committeeKey(): string {
-      return this.size === 'table' ? 'Committee' : 'Terraforming Committee';
+      return this.size === 'plaque' ? 'Committee' : 'Terraforming Committee';
     },
     meta() {
       return tenderMeta(this.id);

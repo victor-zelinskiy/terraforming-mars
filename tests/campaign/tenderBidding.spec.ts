@@ -104,6 +104,28 @@ describe('the Register', () => {
     expect(next.register.drawn).eq(4);
   });
 
+  it('AT MOST ONE DECISIVE per offer: the second decisive goes under the Register and is dealt at a later table', () => {
+    // The owner, 2026-11-07: «Продление программы» and «Дополнительный пролог» never lie on one table.
+    const register = {order: ['programExtension', 'additionalPrelude', 'restructuring', 'openCall'] as Array<TenderId>, drawn: 0};
+    const dealt = dealTenderOffer(register, 2, 1, ALL, new SeededRandom(0.5));
+    expect(dealt.offer.map((c) => c.id)).deep.eq(['programExtension', 'restructuring']);
+    expect(dealt.register.order).deep.eq(['programExtension', 'restructuring', 'openCall', 'additionalPrelude']);
+    // The next table gets the deferred decisive — a player can still collect both across two missions.
+    const next = dealTenderOffer(dealt.register, 2, 2, ALL, new SeededRandom(0.5));
+    expect(next.offer.map((c) => c.id)).deep.eq(['openCall', 'additionalPrelude']);
+    // A full Register never deals two decisives together, whatever the shuffle.
+    for (const seed of [0.05, 0.3, 0.62, 0.9]) {
+      const full = buildTenderRegister(ALL, new SeededRandom(seed));
+      let reg = full;
+      for (let slot = 0; slot < 5; slot++) {
+        const table = dealTenderOffer(reg, 4, slot, ALL, new SeededRandom(seed));
+        const decisive = table.offer.filter((c) => tenderDef(c.id).tier === 'decisive').length;
+        expect(decisive, `seed ${seed} slot ${slot}`).lte(1);
+        reg = table.register;
+      }
+    }
+  });
+
   it('an exhausted Register appends a second printing; a kind that is never applicable leaves it', () => {
     const register = {order: ['openCall'] as Array<TenderId>, drawn: 0};
     const applicable = (id: TenderId) => id !== 'openCall';

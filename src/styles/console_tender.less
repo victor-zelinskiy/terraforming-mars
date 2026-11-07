@@ -5,170 +5,226 @@
    keyframes that end on their own.
    ───────────────────────────────────────────────────────────────────────────── */
 
-@tender-paper: #dfe4ea;
-@tender-paper-deep: #c9d0d9;
-@tender-ink: #141b25;
-@tender-ink-soft: rgba(20, 27, 37, 0.66);
-@tender-rule-line: rgba(20, 27, 37, 0.08);
-@tender-oxide: #9b3b2e;
-@tender-oxide-ink: #f6e9e5;
+@tender-plate: #182230;
+@tender-plate-mid: #0f151d;
+@tender-plate-deep: #0a0f16;
+@tender-text: #edf2f7;
+@tender-text-soft: rgba(214, 223, 233, 0.74);
+@tender-text-dim: rgba(214, 223, 233, 0.5);
+@tender-oxide: #b5472f;
+@tender-stamp-paper: rgba(236, 240, 245, 0.94);
+@tender-gold: #d9b86a;
+@tender-steel: #aeb9c6;
+@tender-copper: #b58a63;
 
-/* ── THE DOCUMENT ───────────────────────────────────────────────────────── */
+/* The plate every lot, the Register's stack and the dealt back share — slate glass with a faint brushed grain. */
+.tender-plate() {
+  background:
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.014) 0 2px, transparent 2px 5px),
+    linear-gradient(165deg, @tender-plate 0%, @tender-plate-mid 58%, @tender-plate-deep 100%);
+  border-radius: 0.35rem;
+  clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%);
+}
+
+/* ── THE DOCUMENT — a certificate on dark glass ──────────────────────────── */
 .con-tender {
   --tender-w: 14rem;
+  --tender-metal: @tender-steel;
+  --tender-metal-rgb: 174, 185, 198;
   position: relative;
   box-sizing: border-box;
   width: var(--tender-w);
   aspect-ratio: 1 / 1.42;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  padding: 0 0.9rem 0.8rem;
-  color: @tender-ink;
+  gap: 0.34rem;
+  padding: 0.95rem 1.05rem 0.85rem;
+  color: @tender-text;
   font-family: @con-font-read;
-  background:
-    repeating-linear-gradient(180deg, transparent 0 1.05rem, @tender-rule-line 1.05rem calc(1.05rem + 1px)),
-    linear-gradient(180deg, @tender-paper 0%, @tender-paper-deep 100%);
-  border-radius: 0.3rem;
-  /* The notched corner — the one silhouette no playing card has. */
-  clip-path: polygon(0 0, calc(100% - 1.1rem) 0, 100% 1.1rem, 100% 100%, 0 100%);
-  box-shadow: inset 0 0 0 0.06rem rgba(20, 27, 37, 0.38);
+  .tender-plate();
+  box-shadow: inset 0 0 0 0.05rem rgba(0, 0, 0, 0.55);
   overflow: hidden;
   user-select: none;
 
-  /* The Committee's band — the lot's provenance, printed, never translated by tone. */
-  &__band {
+  /* The TIER's metal — the rank read by material (the chevrons give it form). */
+  &--tier-decisive { --tender-metal: @tender-gold; --tender-metal-rgb: 217, 184, 106; }
+  &--tier-notable { --tender-metal: @tender-steel; --tender-metal-rgb: 174, 185, 198; }
+  &--tier-minor { --tender-metal: @tender-copper; --tender-metal-rgb: 181, 138, 99; }
+  &--tier-gamble { --tender-metal: @tender-oxide; --tender-metal-rgb: 181, 71, 47; }
+
+  /* The DOUBLE HAIRLINE FRAME — a certificate's border: one line in the metal, a fainter one inside it. */
+  &__frame {
+    position: absolute;
+    inset: 0.36rem;
+    border: 0.06rem solid rgba(var(--tender-metal-rgb), 0.78);
+    box-shadow: inset 0 0 0 0.22rem @tender-plate-deep, inset 0 0 0 0.27rem rgba(var(--tender-metal-rgb), 0.3);
+    border-radius: 0.2rem;
+    pointer-events: none;
+    z-index: 0;
+  }
+  /* The family's glyph ENGRAVED behind the body — a watermark, faint and sharp, never a glow. */
+  &__watermark {
+    position: absolute;
+    right: -14%;
+    bottom: 14%;
+    width: 72%;
+    height: 72%;
+    fill: none;
+    stroke: @tender-text;
+    stroke-width: 0.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.07;
+    pointer-events: none;
+    z-index: 0;
+  }
+  > :not(.con-tender__frame):not(.con-tender__watermark) { position: relative; z-index: 1; }
+
+  /* THE HEAD — the Committee's seal, its name in two tracked lines, the riveted lot tag. */
+  &__head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.6rem;
-    margin: 0 -0.9rem;
-    padding: 0.42rem 0.9rem 0.38rem;
-    background: @tender-oxide;
-    color: @tender-oxide-ink;
+    gap: 0.5rem;
+    min-height: 2rem;
+  }
+  &__seal {
+    flex: 0 0 auto;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 50%;
+    border: 0.07rem solid rgba(var(--tender-metal-rgb), 0.85);
+    box-shadow: inset 0 0 0 0.2rem @tender-plate-deep, inset 0 0 0 0.25rem rgba(var(--tender-metal-rgb), 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  &__seal-glyph {
+    width: 52%;
+    height: 52%;
+    fill: none;
+    stroke: var(--tender-metal);
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  &__committee {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: @con-font;
+    font-size: 0.5rem;
+    line-height: 1.25;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: @tender-text-dim;
+    white-space: normal;
+  }
+  &__lot {
+    flex: 0 0 auto;
+    padding: 0.14rem 0.42rem 0.12rem;
+    border-radius: 0.16rem;
+    background: linear-gradient(180deg, rgba(var(--tender-metal-rgb), 1) 0%, rgba(var(--tender-metal-rgb), 0.72) 100%);
+    box-shadow: inset 0 0.05rem 0 rgba(255, 255, 255, 0.35), inset 0 -0.05rem 0 rgba(0, 0, 0, 0.35);
+    color: @tender-plate-deep;
     font-family: @con-font;
     font-size: 0.56rem;
     font-weight: 700;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  &__committee { overflow: hidden; text-overflow: ellipsis; }
-  &__lot { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 
-  /* The rank — chevrons by tier (three · two · one), a die for the gamble. Form, never colour alone. */
+  /* The rank — chevrons by tier (three · two · one), a die for the gamble — on a kant in the metal. */
   &__rank {
     display: flex;
     align-items: center;
-    gap: 0.28rem;
+    gap: 0.26rem;
+    padding-left: 0.45rem;
+    border-left: 0.12rem solid var(--tender-metal);
     font-family: @con-font;
-    font-size: 0.6rem;
-    letter-spacing: 0.16em;
+    font-size: 0.56rem;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: @tender-ink-soft;
+    color: @tender-text-dim;
   }
   &__chev {
     display: inline-block;
-    width: 0.5rem;
-    height: 0.5rem;
-    border-right: 0.12rem solid @tender-ink;
-    border-bottom: 0.12rem solid @tender-ink;
+    width: 0.46rem;
+    height: 0.46rem;
+    border-right: 0.12rem solid var(--tender-metal);
+    border-bottom: 0.12rem solid var(--tender-metal);
     transform: translateY(-0.12rem) rotate(45deg);
   }
   &__die {
     display: inline-block;
-    width: 0.62rem;
-    height: 0.62rem;
-    border: 0.12rem solid @tender-ink;
+    width: 0.6rem;
+    height: 0.6rem;
+    border: 0.12rem solid var(--tender-metal);
     border-radius: 0.14rem;
     background:
-      radial-gradient(circle at 30% 30%, @tender-ink 0.07rem, transparent 0.09rem),
-      radial-gradient(circle at 70% 70%, @tender-ink 0.07rem, transparent 0.09rem);
+      radial-gradient(circle at 30% 30%, var(--tender-metal) 0.07rem, transparent 0.09rem),
+      radial-gradient(circle at 70% 70%, var(--tender-metal) 0.07rem, transparent 0.09rem);
   }
   &__tier { margin-left: 0.2rem; }
 
   &__name {
     font-family: @con-font;
-    font-size: 1.05rem;
+    font-size: 1.08rem;
     font-weight: 700;
-    line-height: 1.12;
+    line-height: 1.1;
     letter-spacing: 0.02em;
     text-transform: uppercase;
-    color: @tender-ink;
+    color: @tender-text;
   }
-
-  /* The emblem — a hairline ring with the family glyph, the one picture the document has (the owner's arts arrive
-     later into the same ring). */
-  &__emblem {
-    align-self: center;
-    width: 4.6rem;
-    height: 4.6rem;
-    margin: 0.3rem 0;
-    border-radius: 50%;
-    border: 0.08rem solid rgba(20, 27, 37, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.35) 0%, transparent 70%);
-  }
-  &__glyph {
-    width: 62%;
-    height: 62%;
-    fill: none;
-    stroke: @tender-ink;
-    stroke-width: 1.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
   &__window {
     font-family: @con-font;
-    font-size: 0.58rem;
-    letter-spacing: 0.18em;
+    font-size: 0.54rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: @tender-oxide;
+    color: var(--tender-metal);
   }
   &__rule {
     flex: 1 1 auto;
     font-size: 0.74rem;
-    line-height: 1.32;
+    line-height: 1.36;
+    color: @tender-text-soft;
   }
   &__lore {
     font-size: 0.7rem;
     line-height: 1.3;
     font-style: italic;
-    color: @tender-ink-soft;
+    color: @tender-text-dim;
     padding-top: 0.3rem;
-    border-top: 0.05rem solid rgba(20, 27, 37, 0.25);
+    border-top: 0.05rem solid rgba(214, 223, 233, 0.2);
   }
 
-  /* The coupon — the compensation floor, printed on a perforated stub. */
+  /* The STUB — the compensation floor on a perforated tear-off line. */
   &__coupon {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.5rem;
-    margin: 0.2rem -0.9rem 0;
-    padding: 0.45rem 0.9rem 0;
-    border-top: 0.07rem dashed rgba(20, 27, 37, 0.5);
+    margin: 0.3rem -0.5rem 0;
+    padding: 0.42rem 0.5rem 0;
+    border-top: 0.06rem dashed rgba(214, 223, 233, 0.4);
     font-family: @con-font;
-    font-size: 0.6rem;
-    letter-spacing: 0.12em;
+    font-size: 0.56rem;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: @tender-ink-soft;
+    color: @tender-text-dim;
   }
   &__coupon-value {
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     letter-spacing: 0.06em;
-    color: @tender-ink;
+    color: @tender-text;
     font-variant-numeric: tabular-nums;
   }
 
-  /* THE STAMP — a state in ink, diagonal, never a glow. The owner's stamp carries the seat's cube. */
+  /* THE STAMP — a paper tag in oxide ink, diagonal, never a glow. The owner's stamp carries the seat's cube. */
   &__stamp {
     position: absolute;
     left: 50%;
-    top: 46%;
+    top: 50%;
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
@@ -182,7 +238,7 @@
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: @tender-oxide;
-    background: rgba(223, 228, 234, 0.82);
+    background: @tender-stamp-paper;
     white-space: nowrap;
     max-width: 95%;
     overflow: hidden;
@@ -197,46 +253,60 @@
   }
   &__stamp--withdrawn,
   &__stamp--cashed {
-    border-color: @tender-ink-soft;
-    color: @tender-ink-soft;
+    border-color: #5c6775;
+    color: #5c6775;
   }
   &__stamp--executed {
     border-color: #2f6b4a;
     color: #2f6b4a;
   }
 
-  /* A taken / withdrawn / bought-back lot recedes by MATERIAL: the paper dims, the ink stays legible. */
+  /* A taken / withdrawn / bought-back lot RECEDES by material: the metal dulls, the text dims, the plate stays. */
   &--taken,
   &--withdrawn,
   &--cashed {
-    background:
-      repeating-linear-gradient(180deg, transparent 0 1.05rem, @tender-rule-line 1.05rem calc(1.05rem + 1px)),
-      linear-gradient(180deg, #c3c9d1 0%, #aeb5be 100%);
+    --tender-metal: #6a7684;
+    --tender-metal-rgb: 106, 118, 132;
+    color: @tender-text-soft;
+    .con-tender__rule,
+    .con-tender__name { color: @tender-text-dim; }
+    .con-tender__watermark { opacity: 0.04; }
   }
-  &--withdrawn .con-tender__name,
-  &--withdrawn .con-tender__rule { color: @tender-ink-soft; }
 
-  /* The cursor — a kant inside the paper's edge (the focus material of the console), the host's own transition. */
+  /* The cursor — a kant inside the plate's edge (the console's focus material), the host's own transition. */
   &--focused {
-    box-shadow: inset 0 0 0 0.16rem @con-cyan, inset 0 0 0 0.06rem rgba(20, 27, 37, 0.38);
+    box-shadow: inset 0 0 0 0.16rem @con-cyan, inset 0 0 0 0.05rem rgba(0, 0, 0, 0.55);
   }
 
   /* ── sizes ── */
   &--reader {
     --tender-w: 22rem;
-    .con-tender__rule { font-size: 0.92rem; }
-    .con-tender__name { font-size: 1.35rem; }
-    .con-tender__emblem { width: 6rem; height: 6rem; }
+    padding: 1.3rem 1.5rem 1.2rem;
+    gap: 0.5rem;
+    .con-tender__head { min-height: 2.6rem; }
+    .con-tender__seal { width: 2.5rem; height: 2.5rem; }
+    .con-tender__committee { font-size: 0.6rem; }
+    .con-tender__lot { font-size: 0.66rem; }
+    .con-tender__rank,
+    .con-tender__window { font-size: 0.64rem; }
+    .con-tender__name { font-size: 1.45rem; }
+    .con-tender__rule { font-size: 0.94rem; }
+    .con-tender__lore { font-size: 0.82rem; }
+    .con-tender__coupon { font-size: 0.64rem; }
+    .con-tender__coupon-value { font-size: 0.95rem; }
   }
   &--plaque {
     --tender-w: auto;
     aspect-ratio: auto;
     width: auto;
     max-width: 14rem;
-    padding: 0 0.6rem 0.35rem;
-    gap: 0.15rem;
-    clip-path: polygon(0 0, calc(100% - 0.6rem) 0, 100% 0.6rem, 100% 100%, 0 100%);
-    .con-tender__band { margin: 0 -0.6rem; padding: 0.22rem 0.6rem 0.2rem; font-size: 0.46rem; }
+    padding: 0.45rem 0.7rem 0.4rem;
+    gap: 0.22rem;
+    .con-tender__frame { inset: 0.22rem; box-shadow: none; }
+    .con-tender__head { min-height: 0; gap: 0.4rem; }
+    .con-tender__seal { width: 1.3rem; height: 1.3rem; box-shadow: none; }
+    .con-tender__committee { font-size: 0.42rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .con-tender__lot { font-size: 0.46rem; padding: 0.08rem 0.3rem 0.06rem; }
     .con-tender__name { font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .con-tender__stamp { display: none; }
   }
@@ -349,12 +419,8 @@
     i {
       position: absolute;
       inset: 0;
-      border-radius: 0.3rem;
-      clip-path: polygon(0 0, calc(100% - 0.6rem) 0, 100% 0.6rem, 100% 100%, 0 100%);
-      background:
-        repeating-linear-gradient(135deg, rgba(20, 27, 37, 0.14) 0 0.35rem, transparent 0.35rem 0.7rem),
-        linear-gradient(180deg, #4a5663 0%, #2f3842 100%);
-      box-shadow: inset 0 0 0 0.06rem rgba(20, 27, 37, 0.6);
+      .tender-plate();
+      box-shadow: inset 0 0 0 0.06rem rgba(174, 185, 198, 0.4), inset 0 0 0 0.3rem @tender-plate-deep, inset 0 0 0 0.35rem rgba(174, 185, 198, 0.18);
     }
     i:nth-child(1) { transform: translate(0.5rem, 0.5rem); opacity: 0.6; }
     i:nth-child(2) { transform: translate(0.25rem, 0.25rem); opacity: 0.8; }
@@ -391,12 +457,8 @@
   &__back {
     position: absolute;
     inset: 0;
-    border-radius: 0.3rem;
-    clip-path: polygon(0 0, calc(100% - 1.1rem) 0, 100% 1.1rem, 100% 100%, 0 100%);
-    background:
-      repeating-linear-gradient(135deg, rgba(20, 27, 37, 0.14) 0 0.35rem, transparent 0.35rem 0.7rem),
-      linear-gradient(180deg, #4a5663 0%, #2f3842 100%);
-    box-shadow: inset 0 0 0 0.06rem rgba(20, 27, 37, 0.6);
+    .tender-plate();
+    box-shadow: inset 0 0 0 0.06rem rgba(174, 185, 198, 0.4), inset 0 0 0 0.3rem @tender-plate-deep, inset 0 0 0 0.35rem rgba(174, 185, 198, 0.18);
     transform: rotateY(0deg);
     opacity: 0;
   }

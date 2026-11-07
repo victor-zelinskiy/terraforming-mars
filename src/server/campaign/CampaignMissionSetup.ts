@@ -10,6 +10,7 @@ import {CardName} from '../../common/cards/CardName';
 import {Resource} from '../../common/Resource';
 import {CampaignGameContract, CampaignGrant} from '../game/GameOptions';
 import {contractRewardMode} from '../../common/campaign/CampaignGameContract';
+import {campaignFinalePicksCorporation} from '../../common/campaign/CampaignTypes';
 import {
   CampaignRewardMode,
   PlayerTender,
@@ -68,21 +69,24 @@ export function campaignLineageOf(player: IPlayer): ReadonlyArray<CardName> {
 
 /**
  * Does this player still CHOOSE a new corporation this mission?
- * Missions 1–3: yes (mission 1 has an empty lineage — the ordinary flow).
- * The final mission: no — the player deploys the accumulated lineage («Штаб»).
+ * Every mission but the final: yes (mission 1 has an empty lineage — the ordinary flow).
+ * The final mission: only when the lineage is still short of the finale's company of three
+ * (`campaignFinalePicksCorporation` — the three-mission route); otherwise the player deploys the
+ * accumulated lineage («Штаб») with no pick.
  */
 export function campaignPicksNewCorporation(player: IPlayer): boolean {
   const contract = campaignContractOf(player.game);
   if (contract === undefined || player.isMarsBot) {
     return false;
   }
-  return contract.final !== true;
+  return contract.final !== true || campaignFinalePicksCorporation(campaignLineageOf(player).length);
 }
 
-/** True for a human seat of a FINAL campaign mission: no corp step is dealt or shown. */
+/** True for a human seat of a FINAL campaign mission that deploys a full company: no corp step is dealt or shown. */
 export function campaignSelectionSkipsCorpStep(player: IPlayer): boolean {
   const contract = campaignContractOf(player.game);
-  return contract?.final === true && !player.isMarsBot && campaignGrantFor(player) !== undefined;
+  return contract?.final === true && !player.isMarsBot && campaignGrantFor(player) !== undefined &&
+    !campaignFinalePicksCorporation(campaignLineageOf(player).length);
 }
 
 /**
@@ -94,7 +98,7 @@ export function expectedCorporationCount(player: IPlayer): number {
   if (contract === undefined || player.isMarsBot) {
     return 1;
   }
-  return campaignLineageOf(player).length + (contract.final === true ? 0 : 1);
+  return campaignLineageOf(player).length + (campaignPicksNewCorporation(player) ? 1 : 0);
 }
 
 /** Has this player completed the initial-cards selection (campaign-aware)? */

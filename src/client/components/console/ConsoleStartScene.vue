@@ -1159,6 +1159,7 @@
 </template>
 
 <script lang="ts">
+import {campaignFinalePicksCorporation} from '@/common/campaign/CampaignTypes';
 import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 /**
  * CONSOLE START SCENE — CTS T5 (docs/CONSOLE_MODE_CONCEPT.md §CTS-1). The
@@ -5267,8 +5268,12 @@ export default defineComponent({
     // mission's no-pick deployment of the accumulated trio. Missions 2–3 keep
     // «Корпорация» for the lineage base: the MERGE is its own deployment
     // chapter now (the `corporationMerge` press), never a relabel of the base.
+    // A three-mission finale still DRAFTS its third corporation — that is an ordinary «Корпорация» pick, the
+    // lineage merging by its own chapters; «Штаб» is the no-pick deployment only.
     const contract = this.playerView.game.gameOptions.campaign;
-    setStartCampaignCorpStage(contract === undefined ? undefined : (contract.final ? 'hq' : undefined));
+    const lineageLength = contract?.grants.find((g) => g.color === this.playerView.thisPlayer.color)?.corporations.length ?? 0;
+    setStartCampaignCorpStage(contract === undefined ? undefined :
+      (contract.final && !campaignFinalePicksCorporation(lineageLength) ? 'hq' : undefined));
     // THE «ФОРА» GAINS THIS WORKSPACE CAME BACK TO PAY. The window's
     // auto-resolve is seeded by the transport while this scene does not exist
     // (the bonus turn owns the whole screen), so its edge is THIS mount and no

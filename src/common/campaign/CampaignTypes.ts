@@ -41,6 +41,17 @@ export const CARRYOVER_MAX_CARDS = 2;
  */
 export const CAMPAIGN_MERGE_COST = 42;
 
+/**
+ * The finale deploys a company of THREE corporations. A route whose lineage is shorter when the finale comes — the
+ * three-mission campaign grows only two — DRAFTS the third at the finale's start (the ordinary corporation step,
+ * merged by the Merger rule like every pick); a longer route deploys what it grew (the owner, 2026-11-07: «3
+ * корпорации — тот набор, который нужен»).
+ */
+export const CAMPAIGN_FINALE_CORPORATIONS = 3;
+export function campaignFinalePicksCorporation(lineageLength: number): boolean {
+  return lineageLength < CAMPAIGN_FINALE_CORPORATIONS;
+}
+
 export type CampaignPhase =
   | 'generated'     // route exists, mission 1 not launched
   | 'missionActive' // missions[pointer] has a live game without a committed result

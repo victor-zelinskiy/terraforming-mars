@@ -65,13 +65,13 @@ export type TenderDef = {
 export const TENDER_CATALOG: Readonly<Record<TenderId, TenderDef>> = {
   programExtension: {id: 'programExtension', tier: 'decisive', window: 'legacy', copies: 2, botPriority: 1, needsPreludes: true},
   additionalPrelude: {id: 'additionalPrelude', tier: 'decisive', window: 'start', copies: 2, botPriority: 2, needsPreludes: true},
-  restructuring: {id: 'restructuring', tier: 'notable', window: 'start', copies: 3, botPriority: 3, needsPreludes: false},
-  extendedLegacy: {id: 'extendedLegacy', tier: 'notable', window: 'legacy', copies: 3, botPriority: 4, needsPreludes: false},
+  restructuring: {id: 'restructuring', tier: 'notable', window: 'start', copies: 3, botPriority: 4, needsPreludes: false},
+  extendedLegacy: {id: 'extendedLegacy', tier: 'notable', window: 'legacy', copies: 3, botPriority: 6, needsPreludes: false},
   preludeReview: {id: 'preludeReview', tier: 'notable', window: 'start', copies: 3, botPriority: 5, needsPreludes: true},
-  projectReview: {id: 'projectReview', tier: 'notable', window: 'start', copies: 3, botPriority: 6, needsPreludes: false},
-  researchSubsidy: {id: 'researchSubsidy', tier: 'notable', window: 'start', copies: 3, botPriority: 7, needsPreludes: false},
+  projectReview: {id: 'projectReview', tier: 'notable', window: 'start', copies: 3, botPriority: 7, needsPreludes: false},
+  researchSubsidy: {id: 'researchSubsidy', tier: 'notable', window: 'start', copies: 3, botPriority: 9, needsPreludes: false},
   gamble: {id: 'gamble', tier: 'gamble', window: 'start', copies: 2, botPriority: 8, needsPreludes: true},
-  openCall: {id: 'openCall', tier: 'notable', window: 'start', copies: 3, botPriority: 9, needsPreludes: true},
+  openCall: {id: 'openCall', tier: 'notable', window: 'start', copies: 3, botPriority: 3, needsPreludes: true},
   broadPortfolio: {id: 'broadPortfolio', tier: 'minor', window: 'start', copies: 2, botPriority: 10, needsPreludes: false},
 };
 

@@ -44,8 +44,9 @@ test.describe('campaign «Тендеры» — the bidding', () => {
     const cards = page.locator('[data-bidding-card]');
     expect(await cards.count(), 'two seats, two lots (D2)').toBe(2);
     expect(await page.locator('[data-bidding-seat]').count(), 'both seats in the pick order').toBe(2);
-    // Every lot is a DOCUMENT: the Committee's band, the lot number, the rule, the coupon.
-    expect(await page.locator('[data-bidding-card] .con-tender__band').count()).toBe(2);
+    // Every lot is a CERTIFICATE: the Committee's head (seal + lot tag), the metal frame, the rule, the stub.
+    expect(await page.locator('[data-bidding-card] .con-tender__head').count()).toBe(2);
+    expect(await page.locator('[data-bidding-card] .con-tender__frame').count()).toBe(2);
     expect(await page.locator('[data-bidding-card] .con-tender__coupon').count()).toBe(2);
 
     // ── the first of the order picks ──────────────────────────────────────

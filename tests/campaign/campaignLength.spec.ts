@@ -102,5 +102,9 @@ describe('Campaign length (3…6 missions, the last the finale)', () => {
     expect(refusal?.message).eq('Not enough unique corporations for a campaign: 12 available, 15 required');
     const shorter = await manager.createCampaign(key(), config, {missionCount: 4});
     expect(shorter.missions).has.length(4);
+    // A THREE-mission route deals corporations on the finale too (its lineage is two short of the company of
+    // three), so it asks for the same 12: 6 dealt + 3 humans × 2 banned before the finale's deal.
+    const three = await manager.createCampaign(key(), config, {missionCount: 3});
+    expect(three.missions).has.length(3);
   });
 });
