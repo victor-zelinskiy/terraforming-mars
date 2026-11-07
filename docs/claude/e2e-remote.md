@@ -46,7 +46,7 @@ What it does, in order:
    when that snapshot exists, else the shared `build/` — minus `build/tests` and the source maps
    (190 MB nobody opens in a run). Extraneous files under those roots are deleted. `node_modules` is
    never touched; it is re-installed inside the container only when `package-lock.json`'s hash changed.
-3. **run** — holding as many **WORKER TOKENS** as it runs workers, out of a **BUDGET of 6**
+3. **run** — holding as many **WORKER TOKENS** as it runs workers, out of a **BUDGET of 8 — 6 while the game runs on the box** (the owner, 2026-11-07; `--exclusive` always takes all 8)
    (`~/tm-e2e/slots/<i>`, one `flock` each; `TM_E2E_BUDGET` overrides; 2026-10-25): three default runs
    of two workers go SIDE BY SIDE, a one-worker storyboard costs one token, and a run that cannot get its
    tokens waits (all-or-nothing, never sitting on a partial grab; up to 30 min, and says so).

@@ -29,7 +29,7 @@
  *      deleted; `node_modules` is never touched — re-installed only when
  *      `package-lock.json` changed;
  *   3. run — holding as many WORKER TOKENS as it runs workers, out of a
- *      BUDGET of 6 (`~/tm-e2e/slots/<i>`, one `flock` each; `TM_E2E_BUDGET`
+ *      BUDGET of 8 — 6 while the game runs on the box (`~/tm-e2e/slots/<i>`, one `flock` each; `TM_E2E_BUDGET`
  *      overrides) — so three default runs of two go SIDE BY SIDE and a
  *      one-worker storyboard costs one token; or — `--exclusive` — holding
  *      EVERY token, for a timing / storyboard claim whose numbers a
@@ -116,24 +116,33 @@ if (!pwArgs.some((a) => a.startsWith('--workers'))) {
  */
 const twoPasses = !pwArgs.some((a) => a === '--project' || a.startsWith('--project=') || a === '--list');
 /**
- * THE BOX'S WORKER BUDGET: a run holds as many TOKENS as it runs workers (`--workers=N` / `-j N`), so three
- * default runs of two go side by side and a one-worker storyboard costs one. 6 of 12 threads: 4 workers
- * measured load 3–12 (2026-10-22), 8 measured load 23 — past the knee. A worker count the wrapper cannot
- * read (a percentage) takes the whole budget.
+ * THE BOX'S WORKER BUDGET: a run holds as many TOKENS as it runs workers (`--workers=N` / `-j N`), so the default
+ * runs of two go side by side and a one-worker storyboard costs one. 12 threads: 4 workers measured load 3–12
+ * (2026-10-22), 8 measured load 23 — past the knee. The budget is 6 while the GAME runs on the box (it holds the GPU and
+ * ~2 GB) and 8 when it does not (the owner, 2026-11-07: «a powerful machine must carry parallel runs when the game is
+ * not running»); an EXCLUSIVE run always takes the larger set, so no shared run can stand beside it. `TM_E2E_BUDGET`
+ * overrides. A worker count the wrapper cannot read (a percentage) takes the whole budget. Decided after the preflight.
  */
-const BUDGET = Math.max(1, Number(process.env.TM_E2E_BUDGET ?? 6) || 6);
-const workersAsked = (() => {
-  for (let i = 0; i < pwArgs.length; i++) {
-    const a = pwArgs[i];
-    const m = /^(?:--workers|-j)=(.+)$/.exec(a);
-    const v = m ? m[1] : (a === '--workers' || a === '-j') ? pwArgs[i + 1] : undefined;
-    if (v !== undefined) {
-      return /^\d+$/.test(v) ? Number(v) : BUDGET;
+const BUDGET_WITH_GAME = 6;
+const BUDGET_FREE = 8;
+let BUDGET = BUDGET_FREE;
+let NEED = 1;
+function decideBudget(gameRunning) {
+  const env = Number(process.env.TM_E2E_BUDGET);
+  BUDGET = env > 0 ? env : exclusive || !gameRunning ? BUDGET_FREE : BUDGET_WITH_GAME;
+  const workersAsked = (() => {
+    for (let i = 0; i < pwArgs.length; i++) {
+      const a = pwArgs[i];
+      const m = /^(?:--workers|-j)=(.+)$/.exec(a);
+      const v = m ? m[1] : (a === '--workers' || a === '-j') ? pwArgs[i + 1] : undefined;
+      if (v !== undefined) {
+        return /^\d+$/.test(v) ? Number(v) : BUDGET;
+      }
     }
-  }
-  return BUDGET;
-})();
-const NEED = Math.min(BUDGET, Math.max(1, workersAsked));
+    return BUDGET;
+  })();
+  NEED = Math.min(BUDGET, Math.max(1, workersAsked));
+}
 /** This task's own build + output + report dirs on the host — never shared with another session's run. */
 const TASK_DIR = `${REMOTE_BUILDS}/${task}`;
 
@@ -178,6 +187,7 @@ if (flags.has('DND')) {
 // A running game is NOT a refusal (the owner, 2026-10-23: «можно гонять e2e на steam machine даже когда игра
 // запущена»): the run goes beside it. It shares the GPU with the game, so whoever reports a TIMING taken now
 // must say so beside its numbers; the owner's one opt-out is the DO_NOT_DISTURB marker above.
+decideBudget(flags.has('GAME-RUNNING'));
 if (flags.has('GAME-RUNNING')) {
   log(`the game is RUNNING on ${HOST} — running beside it${exclusive ? '; this TIMING shares the GPU with the game — say so with its numbers' : ''}`);
 }
