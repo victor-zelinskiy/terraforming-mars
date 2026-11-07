@@ -53,16 +53,17 @@ export function resetReactionTold(): void {
 // says the same thing with no clock: a resolution record under this chain, for this seat and this law, with a share
 // the scene flies — and the ingest holds a chain the applied view still lists as open, so by the time a card can be
 // built the view carries the record. Whether the scene PLAYS at all (the layer mounted, motion not reduced) is the
-// director's to say: it registers the probe; without one (a spec) nothing plays.
-let scenePlays: () => boolean = () => false;
+// director's to say: it registers the probe; without one (a spec) nothing plays. Asked with a seat, it also says
+// whether the scene plays THAT seat's reactor (the «only me» scope skips a rival's — `cardReactionScope.ts`).
+let scenePlays: (owner?: Color) => boolean = () => false;
 
-/** The director: can a reaction be played on this client right now? */
-export function registerReactionScenePlays(probe: () => boolean): void {
+/** The director: can a reaction (of `owner`'s reactor, when named) be played on this client right now? */
+export function registerReactionScenePlays(probe: (owner?: Color) => boolean): void {
   scenePlays = probe;
 }
 
-export function reactionScenePlays(): boolean {
-  return scenePlays();
+export function reactionScenePlays(owner?: Color): boolean {
+  return scenePlays(owner);
 }
 
 /** The server's ring names a reaction of `source` to `owner` under this chain root that the scene flies (a draw / a global step alone is not flown). */
@@ -76,5 +77,5 @@ export function ringTellsReaction(ring: ReadonlyArray<CardReactionRecord> | unde
 
 /** ONE answer for the feed: the director's mark, or the ring while the scene plays. */
 export function reactionTold(ring: ReadonlyArray<CardReactionRecord> | undefined, correlationId: number | undefined, owner: Color | undefined, source: string): boolean {
-  return reactionToldOnStage(correlationId, owner, source) || (scenePlays() && ringTellsReaction(ring, correlationId, owner, source));
+  return reactionToldOnStage(correlationId, owner, source) || (scenePlays(owner) && ringTellsReaction(ring, correlationId, owner, source));
 }

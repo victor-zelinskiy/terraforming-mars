@@ -63,6 +63,7 @@ import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProf
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {markReactionTold, registerReactionScenePlays} from '@/client/console/cardReaction/reactionToldOnStage';
+import {cardReactionScopeState, rivalReactionShown} from '@/client/console/cardReaction/cardReactionScope';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {acceptSeatIntake, foldSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/statusIntake';
 import {CardResource} from '@/common/CardResource';
@@ -214,6 +215,8 @@ type Rival = {group: CardReactionGroup; owner: Color; specs: Array<ResourceTrans
 const rivalQueue: Array<Rival> = [];
 /** The last applied view — a rival's face is read off ITS seat's tableau, its caption off its seat's name. */
 let lastView: PlayerViewModel | undefined;
+/** The seat this screen shows (every seed's view) — the scope's «does it reach me» is asked of it. */
+let viewerSeat: Color | undefined;
 /** The standalone chain plays after every BLOCKING scene (a sitting's beats, a landing) — bounded; then it plays anyway. */
 const BLOCKING_QUIET_MAX_MS = 12000;
 /** The sitting's beats are each bounded by their own ceiling — a longer wait on them than the generic one is safe. */
@@ -295,8 +298,11 @@ registerAnimationHoldSupplier('card-reaction', () => cardReactionState.phase !==
 // a second hurry, or the registry's ceiling above.
 registerRewardHoldKeeper(() => [...running, ...standaloneQueue].flatMap((entry) => entry.held));
 
-// The feed's order-independent half (PL-1090): the server's ring tells a reaction only while THIS client can play it.
-registerReactionScenePlays(() => cardReactionStageMounted() && !consoleReducedMotionActive());
+// The feed's order-independent half (PL-1090): the server's ring tells a reaction only while THIS client can play it —
+// and, for a seat named, only while the scope plays THAT seat's reactor (a rival's reactor the «only me» scope skips
+// keeps its feed card: never told by a scene that did not play).
+registerReactionScenePlays((owner) => cardReactionStageMounted() && !consoleReducedMotionActive() &&
+  (owner === undefined || owner === viewerSeat || cardReactionScopeState.scope === 'all'));
 
 /** The viewer's own LIVE model of a card (the capsule's count) — the pristine print when the tableau does not hold it. */
 function liveModelOf(view: PlayerViewModel | undefined, card: CardName): CardModel | undefined {
@@ -324,6 +330,7 @@ export function seedCardReactionHolds(
     return;
   }
   const viewer = after.thisPlayer?.color;
+  viewerSeat = viewer;
   const sameSeat = before !== undefined && before.thisPlayer?.color === viewer;
   // A PARTIAL seed (a staged MarsBot turn's delivery — `opts.only` its own records) claims only what it names: the rest
   // stays fresh for the run's full commit.
@@ -345,7 +352,9 @@ export function seedCardReactionHolds(
   // A group whose whole impact is a REFUSED unit (P57's skipped rating — `skips`) still rises: nothing flies, the card
   // is seen answering and its printed struck icon is marked.
   const groups = all.filter((g) => g.own && (g.rail.length > 0 || g.cards.length > 0 || g.skips.length > 0));
-  const rivals: Array<Rival> = all.filter((g) => !g.own && g.record.owner !== viewer)
+  // THE SCOPE (the players' report, 2026-11-07): by default a rival's reactor rises only when its record reaches the
+  // viewer — one paying only its own seat ticks with the view and keeps its feed card (`cardReactionScope.ts`).
+  const rivals: Array<Rival> = all.filter((g) => !g.own && g.record.owner !== viewer && rivalReactionShown(g.record, viewer))
     .map((g) => ({group: g, owner: g.record.owner, specs: rivalSpecsOf(g)}))
     .filter((r) => r.specs.length > 0);
   if ((groups.length === 0 && rivals.length === 0) || consoleReducedMotionActive() || typeof document === 'undefined') {

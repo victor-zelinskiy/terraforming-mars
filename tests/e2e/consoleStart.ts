@@ -1297,6 +1297,21 @@ export async function forceSwiftPlacement(page: Page): Promise<void> {
 }
 
 /**
+ * Play EVERY seat's card reactions on this page («Графика › Срабатывания эффектов: Все игроки») — a spec whose
+ * subject is a RIVAL's reactor rising on the viewer's screen. The product default plays only the reactions that
+ * reach the viewer (`cardReactionScope.ts`). Must run BEFORE the boot navigation — the scope is read at module load.
+ */
+export async function showAllCardReactions(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    try {
+      window.localStorage.setItem('tm_card_reactions', 'all');
+    } catch (err) {
+      // storage unavailable — the spec will see the default scope instead
+    }
+  });
+}
+
+/**
  * Place a pending tile: the seeded cursor is often on a LEGAL cell, but not
  * always («Нельзя разместить здесь» — the panel says so and A is refused),
  * so this walks the board until a press actually resolves the placement.

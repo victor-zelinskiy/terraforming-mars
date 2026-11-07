@@ -689,6 +689,22 @@ trade registry (`tradeFlatBonuses`), paid by a bare `stock.add` outside any effe
     spec). `recede` captures the epoch and leaves without the settle check when a cut took it. jsdom paints no face (zero
     rects), so the witness is the e2e (B / B2 / H red «before», green «after»).
 
+## THE SCOPE — whose reactions the board plays (2026-11-07, the players' report)
+
+46. **BY DEFAULT THE SCENE PLAYS ONLY WHAT REACHES THE VIEWER.** Players asked not to watch another seat's card rise and
+    pay into that seat's chip. «Настройки › Графика › Срабатывания эффектов» (`cardReactionScope.ts`, localStorage
+    `tm_card_reactions`): **`mine` (default)** — the viewer's own groups (already only those with a share for the
+    viewer) and a RIVAL's reactor only when its record REACHES the viewer (`reactionReachesViewer`: any impact addressed
+    to them — a gain, a loss, a refused unit); **`all`** — every seat's, the rivals' at the stage under their caption
+    (the behaviour before the setting). Filtered ONCE, at the seed (`rivalReactionShown` in `seedCardReactionHolds`): a
+    skipped rival is never queued, warmed or preloaded; its counters tick with the view. **No silent loss**: the
+    feed's ring answer asks the scene ABOUT THE SEAT (`reactionScenePlays(owner)` — the director's probe answers «no»
+    for a rival the scope skips), so a rival's law payout the scene did not play keeps its «Сработал эффект» card.
+    A reaction of the viewer's own card to a rival's move (P46's rival build, Pets on a foreign city) is the viewer's
+    and always plays. Guards: `tests/console/cardReactionScope.spec.ts`, `cardReactionDirector.spec` § THE SCOPE,
+    `consoleSettingsModel.spec`; e2e `console-card-reaction` RIVAL (`showAllCardReactions` — the rival's rise is its
+    subject) and RIVAL · DEFAULT SCOPE (red's Tharsis Republic never rises on the viewer's screen, red still paid).
+
 ## Files
 
 Server: `common/models/CardReactionModel.ts`, `server/events/EventRecorder.ts` (`recordReaction`, the `cause`

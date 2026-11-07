@@ -60,6 +60,12 @@ import {
   setMotionSpeedPreset,
 } from '@/client/components/motion/motionTokens';
 import {consoleFxLiteState, setConsoleFxLite} from '@/client/console/consoleFxLite';
+import {
+  CARD_REACTION_SCOPE_CHOICES,
+  CARD_REACTION_SCOPE_LABELS,
+  cardReactionScopeState,
+  setCardReactionScope,
+} from '@/client/console/cardReaction/cardReactionScope';
 import {reduceMotionOverrideState, setReduceMotionOverride} from '@/client/utils/reducedMotion';
 import {READING_SCALE_CHOICES, readingScaleState, setConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {ALBUM_LAYOUT_CHOICES, ALBUM_LAYOUT_LABELS, albumLayoutState, setConsoleAlbumLayout} from '@/client/console/consoleAlbumLayout';
@@ -93,7 +99,7 @@ export type ConsoleSettingsCategoryId =
 export type ConsoleSettingId =
   'shell' | 'display' | 'textScale' | 'albumLayout' | 'dockCards' | 'cardNumbers' | 'eventCounter' | 'notifications' | 'notificationContent' | 'controller' | 'buttons' | 'wheelControl' |
   'placeConfirm' |
-  'motionSpeed' | 'motionRate' | 'fxLite' | 'reduceMotion' | 'privateScore' | 'gameServer' | 'lanVisible';
+  'motionSpeed' | 'motionRate' | 'cardReactions' | 'fxLite' | 'reduceMotion' | 'privateScore' | 'gameServer' | 'lanVisible';
 
 /** One dialable preference: a ring of options plus where we are in it. */
 export type ConsoleSettingRow = {
@@ -405,6 +411,18 @@ function graphicsCategory(): ConsoleSettingsCategory {
       MOTION_FPS_CHOICES, motionFpsCap(),
       (v) => translateText(MOTION_FPS_LABELS[v === 'auto' ? 'auto' : (String(v) as '30' | '60')]),
       (v) => setMotionFpsCap(v),
+    ),
+    // WHOSE card reactions the board plays (cardReactionScope.ts — the players' report of 2026-11-07): by default only
+    // those that reach the viewer; «Все игроки» brings back the rivals' reactors rising under their seat's caption.
+    // A skipped rival's reaction is never lost — its counters tick with the view and the feed keeps its card.
+    ringRow(
+      'cardReactions', 'Card effect triggers',
+      cardReactionScopeState.scope === 'all' ?
+        'Card effects of every player rise on the board when they trigger' :
+        'Only card effects that give you something or affect you rise on the board',
+      CARD_REACTION_SCOPE_CHOICES, cardReactionScopeState.scope,
+      (v) => translateText(CARD_REACTION_SCOPE_LABELS[v]),
+      (v) => setCardReactionScope(v),
     ),
     // Reduced GRAPHICS — the opt-in second tier over the permanent paint
     // baseline: ambient loops stop, the wheel halo / shade vignette go, card

@@ -23,9 +23,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixture, commitFocusedSpace, fetchPlayerModel, focusCard, openActionFocus, openCardActions, placeTile, press, pressUntil, settle, waitForBoardHome,
+  bootFixture, commitFocusedSpace, fetchPlayerModel, focusCard, openActionFocus, openCardActions, placeTile, press, pressUntil, settle, showAllCardReactions, waitForBoardHome,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {readTransient, recordTransient} from './transientRecorder';
 
 const OUT = path.resolve('screenshots', 'hartlan');
 const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
@@ -405,6 +406,8 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     test.setTimeout(600_000);
     const errors: Array<string> = [];
     page.on('pageerror', (e) => errors.push(String(e)));
+    // The rival's reactor is the subject: the product default plays only reactions that reach the viewer.
+    await showAllCardReactions(page);
     const playerId = await bootFixture(page, request, 'card-reaction-rival', {query: PRESET.query});
     await settle(page, {timeoutMs: 30_000});
     const before = await wireOf(request, playerId);
@@ -449,6 +452,29 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     const redAfter = after.players.find((p) => p.color === 'red');
     expect(redAfter?.megacreditProduction, 'the server: red\'s +1 M€ production').toBe((redBefore?.megacreditProduction ?? 0) + 1);
     expect(after.thisPlayer.megacredits, 'the viewer paid the city — no cash of red\'s').toBe(before.thisPlayer.megacredits - 25);
+    expect(errors, 'no page errors').toEqual([]);
+  });
+
+  test('RIVAL · DEFAULT SCOPE · «Срабатывания эффектов: Только связанные со мной» — red\'s Tharsis Republic pays only red, so its face never rises on the viewer\'s screen; red still gets its income', async ({page, request}) => {
+    test.setTimeout(600_000);
+    const errors: Array<string> = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    const playerId = await bootFixture(page, request, 'card-reaction-rival', {query: PRESET.query});
+    await settle(page, {timeoutMs: 30_000});
+    const before = await wireOf(request, playerId);
+    const redBefore = before.players.find((p) => p.color === 'red');
+    expect(redBefore?.tableau.map((c) => c.name), 'red holds Tharsis Republic').toContain(THARSIS);
+    // Every face the layer paints, recorded off the product's own writes (never a sampler that could sleep through it).
+    await recordTransient(page, 'rival-faces', () => Array.from(document.querySelectorAll<HTMLElement>('.con-reaction__face[data-reaction-card]'))
+      .map((el) => el.getAttribute('data-reaction-card') ?? '').join('|'));
+    await playStandardCity(page);
+    await settle(page, {timeoutMs: 60_000});
+    await waitForBoardHome(page, 40);
+    const after = await wireOf(request, playerId);
+    const redAfter = after.players.find((p) => p.color === 'red');
+    expect(redAfter?.megacreditProduction, 'the server: Tharsis Republic did answer — red\'s +1 M€ production').toBe((redBefore?.megacreditProduction ?? 0) + 1);
+    const faces = (await readTransient<string>(page, 'rival-faces')).map((s) => s.v);
+    expect(faces.some((v) => v.split('|').includes(THARSIS)), `red's reactor never rose on the viewer's screen — faces seen: ${JSON.stringify(faces)}`).toBe(false);
     expect(errors, 'no page errors').toEqual([]);
   });
 

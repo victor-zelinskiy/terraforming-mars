@@ -19,6 +19,7 @@ import {reactionToldOnStage, resetReactionTold} from '@/client/console/cardReact
 import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
 import {reactionIdentitySnapshot, resetReactionIdentity} from '@/client/console/cardReaction/reactionIdentity';
 import {registerReactorPlace, resetReactorPlaces} from '@/client/console/cardReaction/reactorPlaces';
+import {cardReactionScopeState} from '@/client/console/cardReaction/cardReactionScope';
 
 /*
  * «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК» — the director's two shapes without a stage: a record whose rows a host
@@ -52,6 +53,7 @@ function standFaceOnStage(seq: number, card: CardName = CardName.HARTLAN_HEATING
 describe('cardReactionDirector — attached to a host, or standalone', () => {
   afterEach(() => {
     reduceMotionOverrideState.enabled = false;
+    cardReactionScopeState.scope = 'mine';
     resetCardReactions();
     resetReactionTold();
     resetReactionIdentity();
@@ -355,6 +357,7 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
   });
 
   it('a RIVAL\'s record (PL-1057): nothing of the viewer\'s is held, its compact rise beside the seat chip is OWED — the gains addressed to that seat as its tokens; A / B lets it go', () => {
+    cardReactionScopeState.scope = 'all';
     const before = snapshotRailHolds();
     const rival = record(50, {owner: 'red', card: CardName.THARSIS_REPUBLIC, impacts: [
       {kind: 'production', resource: Resource.MEGACREDITS, amount: 1, to: 'red'}, {kind: 'stock', resource: Resource.MEGACREDITS, amount: 3, to: 'red'},
@@ -371,6 +374,20 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     cutCardReactions();
     expect(rivalReactionPending()).is.false;
     expect(cardReactionPending()).is.false;
+  });
+
+  it('THE SCOPE (2026-11-07): by default a rival\'s reactor paying only its own seat is NOT owed; one whose record reaches the viewer still is', () => {
+    expect(cardReactionScopeState.scope, 'the default scope').eq('mine');
+    const before = snapshotRailHolds();
+    const own: CardReactionRecord['impacts'] = [{kind: 'stock', resource: Resource.MEGACREDITS, amount: 3, to: 'red'}];
+    seedCardReactionHolds(view([]), view([record(60, {owner: 'red', card: CardName.THARSIS_REPUBLIC, impacts: own})]), before);
+    expect(rivalReactionPending(), 'red\'s own gain does not rise on the viewer\'s screen').is.false;
+    expect(cardReactionPending()).is.false;
+    seedCardReactionHolds(view([]), view([record(61, {owner: 'red', card: CardName.THARSIS_REPUBLIC, impacts: [
+      ...own, {kind: 'stock', resource: Resource.MEGACREDITS, amount: -2, to: BLUE},
+    ]})]), before);
+    expect(rivalReactionPending(), 'a reactor that reaches the viewer still rises').is.true;
+    cutCardReactions();
   });
 
   it('reduced motion claims the record and holds nothing', () => {

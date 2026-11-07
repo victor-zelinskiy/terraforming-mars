@@ -8,6 +8,7 @@ import {DesktopAppModeInfo, DesktopLanState} from '@/client/components/desktop/d
 import {placementFlowState, setPlacementTwoStep} from '@/client/console/tilePlacement/placementFlow';
 import {cardNumberDisplayState, setCardNumberDisplay} from '@/client/components/premiumCard/cardNumberDisplay';
 import {statusEventCounterState} from '@/client/components/notifications/statusEventCounter';
+import {cardReactionScopeState, setCardReactionScope} from '@/client/console/cardReaction/cardReactionScope';
 
 /**
  * The settings MODEL — the grouping + the option rings the settings console
@@ -23,6 +24,7 @@ describe('consoleSettingsModel', () => {
     setConsoleProfileOverride('auto');
     setConsoleReadingScale(100);
     setCardNumberDisplay(false);
+    setCardReactionScope('mine');
   });
 
   function ids(context: 'menu' | 'game'): Array<string> {
@@ -128,6 +130,22 @@ describe('consoleSettingsModel', () => {
     expect(statusEventCounterState.enabled).to.eq(true);
     row()?.step(-1);
     expect(statusEventCounterState.enabled).to.eq(false);
+  });
+
+  it('card effect triggers live in GRAPHICS in both contexts: only the viewer\'s by default, a two-option ring that flips the scope (2026-11-07)', () => {
+    for (const context of ['menu', 'game'] as const) {
+      expect(buildConsoleSettings({context}).find((c) => c.id === 'graphics')?.rows.map((r) => r.id), context).to.include('cardReactions');
+    }
+    const row = () => buildConsoleSettings({context: 'game'}).find((c) => c.id === 'graphics')?.rows.find((r) => r.id === 'cardReactions');
+    expect(cardReactionScopeState.scope, 'only what reaches the viewer, by default').to.eq('mine');
+    expect(row()?.count).to.eq(2);
+    expect(row()?.index).to.eq(0);
+    expect(row()?.desc).to.eq('Only card effects that give you something or affect you rise on the board');
+    row()?.step(1);
+    expect(cardReactionScopeState.scope).to.eq('all');
+    expect(row()?.desc).to.eq('Card effects of every player rise on the board when they trigger');
+    row()?.step(1); // wraps
+    expect(cardReactionScopeState.scope).to.eq('mine');
   });
 
   it('a toggle is a two-option ring — stepping either way flips it', () => {
