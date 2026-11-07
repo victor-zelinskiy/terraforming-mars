@@ -70,6 +70,10 @@ test.describe('campaign «Тендеры» — the bidding', () => {
     await expect.poll(() => page.locator('[data-bidding-card][data-bidding-taken]').count()).toBe(1);
     await expect.poll(() => page.locator('[data-bidding-card][data-bidding-withdrawn="yes"]').count(), {message: 'the untaken lot is WITHDRAWN, never gone'}).toBe(1);
     await expect.poll(() => page.locator('[data-bidding-card][data-bidding-taken] .con-tender__stamp--owner').count(), {message: 'the taker\'s stamp lands'}).toBe(1);
+    // …and is SEEN — painted inside its lot, never laid out of the clip (the 2026-11-07 frame: a body rule had turned
+    // the stamp relative and pushed it under the stub).
+    await expect(page.locator('[data-bidding-card][data-bidding-taken] .con-tender__stamp--owner')).toBeInViewport();
+    await expect(page.locator('[data-bidding-card][data-bidding-withdrawn="yes"] .con-tender__stamp--withdrawn')).toBeInViewport();
     await shoot(page, SHOT_DIR, 'done');
 
     const after = await campaignModelAs(request, id, 'Alice');

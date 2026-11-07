@@ -92,8 +92,10 @@ export default defineComponent({
     glyphPath(): string {
       return TENDER_GLYPH_PATH[this.meta.glyph];
     },
+    /** The lot tag — «№ 04» on the table and the plaque (the Register's context names the lot), «Лот № 04» in the reader. */
     lotText(): string {
-      return translateTextWithParams('Lot ${0}', [String(this.meta.lot).padStart(2, '0')]);
+      const num = String(this.meta.lot).padStart(2, '0');
+      return this.size === 'reader' ? translateTextWithParams('Lot ${0}', [num]) : translateTextWithParams('No. ${0}', [num]);
     },
     compensation(): number {
       return TENDER_COMPENSATION_MC;

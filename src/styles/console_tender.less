@@ -78,7 +78,8 @@
     pointer-events: none;
     z-index: 0;
   }
-  > :not(.con-tender__frame):not(.con-tender__watermark) { position: relative; z-index: 1; }
+  /* The body stands over the frame and the watermark; the STAMP keeps its own absolute place over everything. */
+  > :not(.con-tender__frame):not(.con-tender__watermark):not(.con-tender__stamp) { position: relative; z-index: 1; }
 
   /* THE HEAD — the Committee's seal, its name in two tracked lines, the riveted lot tag. */
   &__head {
@@ -111,12 +112,13 @@
     flex: 1 1 auto;
     min-width: 0;
     font-family: @con-font;
-    font-size: 0.5rem;
+    font-size: 0.46rem;
     line-height: 1.25;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     color: @tender-text-dim;
     white-space: normal;
+    overflow-wrap: anywhere; /* the last resort only — at this size the long word holds one line beside the «№» tag */
   }
   &__lot {
     flex: 0 0 auto;
