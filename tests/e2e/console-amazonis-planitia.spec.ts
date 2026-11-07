@@ -162,7 +162,7 @@ for (const profile of PROFILES) {
   test.describe(`Amazonis Planitia · ${profile.id}`, () => {
     test.use({viewport: profile.viewport, deviceScaleFactor: 1, screen: profile.viewport});
 
-    test('the field: 91 hexes at ≥ 92.5 % of the Tharsis hex, one centred ring, nothing on a hex, no scroll', async ({page, request}) => {
+    test('the field: 91 hexes at ≥ 91.5 % of the Tharsis hex, one centred ring, nothing on a hex, no scroll', async ({page, request}) => {
       test.setTimeout(300_000);
       await boot(page, request, 'tharsis', profile.query);
       const tharsis = await readField(page);
@@ -188,7 +188,7 @@ for (const profile of PROFILES) {
       console.log('── the field ──', JSON.stringify({tharsisHex: tharsis.hex, hex: field.hex, ratio: field.hex / tharsis.hex, hexes: field.hexes, offMars: field.offMars, overlaps: field.overlaps}));
       expect(field.hexes, 'the eleven-row grid').toBe(91);
       console.log('── the ring ──', JSON.stringify(field.ring));
-      expect(field.hex / tharsis.hex, `hex ${field.hex.toFixed(1)} px vs Tharsis ${tharsis.hex.toFixed(1)} px`).toBeGreaterThanOrEqual(0.925);
+      expect(field.hex / tharsis.hex, `hex ${field.hex.toFixed(1)} px vs Tharsis ${tharsis.hex.toFixed(1)} px`).toBeGreaterThanOrEqual(0.915);
       expect(field.ring.clipped, 'every rail inside its own canvas').toEqual([]);
       expect(Math.abs(field.ring.dx), 'the ring centred across the stage (± 2 board px)').toBeLessThanOrEqual(6);
       expect(Math.abs(field.ring.dy), 'the ring centred down the stage (± 2 board px)').toBeLessThanOrEqual(6);

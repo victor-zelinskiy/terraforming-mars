@@ -280,8 +280,8 @@ const SCALE_BOOST = 1.0;
 const PFOCUS_FRAME = {x: 92, y: 84, w: 451, h: 451}; /* keep-px: board-cont local space */
 /**
  * The ELEVEN-ROW field's frames (Amazonis Planitia — `board_large_positions.less`): the planet grows ×1.147 behind
- * the grid (the visible disc r 258 around the grid's centre 316 / 312), and the grid's corner hexes overhang the rim —
- * so the focus frames the disc UNITED with the grid (x 48…584, y 81…543); the terraformed breath keeps the disc.
+ * the grid (the visible disc r 258 around the ring's centre 316 / 312; the grid 12 px lower), and the grid's corner
+ * hexes overhang the rim — so the focus frames the disc UNITED with the grid (x 48…584, y 93…555); the terraformed breath keeps the disc.
  */
 const LARGE_PFOCUS_FRAME = {x: 48, y: 53, w: 536, h: 518}; /* keep-px: board-cont local space */
 const LARGE_DISC_FRAME = {x: 58, y: 54, w: 516, h: 516}; /* keep-px: board-cont local space */

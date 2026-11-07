@@ -77,9 +77,9 @@ const GAP = 2;
 /** Base connector length (px) for a radial chip; fan-out lengthens it. */
 const CONNECTOR = 7;
 /** The eleven-row field's Venus chip (see `scaleBonusZoneViews`). */
-const LARGE_VENUS_CHIP = 15;
+const LARGE_VENUS_CHIP = 14;
 /** …its connector (a hair shorter — the row stands nearer its band, clear of the top row's corner hexes). */
-const LARGE_VENUS_CONNECTOR = 5;
+const LARGE_VENUS_CONNECTOR = 4;
 /** …and its fan's breathing room (ten chips round the corner hexes). */
 const LARGE_VENUS_BREATHING = 3;
 /** Extra breathing room (px) added to the chip size for the fan-out min-gap. */
@@ -310,8 +310,8 @@ export function scaleBonusZoneViews(v: ScaleBonusVisibility, boardName: BoardNam
   const arcs = arcConfigsFor(boardName);
   const configs: Record<BonusScale, DynamicArcConfig> = {venus: arcs.venus, oxygen: arcs.oxygen, temperature: arcs.temperature};
   const large = boardLayoutKind(boardName) === 'large';
-  // The large field's Venus chips are a size smaller (15 px — ≈ 45 px at 4K): ten chips (the card, the colony, the TR
-  // and the alternative board's seven cells) share the ring's inner side with the top row's corner hexes.
+  // The large field's Venus chips are a size smaller (14 px — ≈ 42 px at 4K, a 4 px connector): ten chips (the card,
+  // the colony, the TR and the alternative board's seven cells) stand at their values between the band and the grid.
   const defs = (boardName === BoardName.THARSIS ? ANCHOR_DEFS : anchorDefsFor(boardName))
     .map((d) => (large && d.scale === 'venus' ? {...d, size: LARGE_VENUS_CHIP, pointer: LARGE_VENUS_CONNECTOR} : d));
   const out: Array<ScaleBonusZoneView> = [];

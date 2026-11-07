@@ -163,18 +163,21 @@ export const STANDARD_ARCS: BoardArcConfigs = {temperature: TEMPERATURE_ARC, oxy
  * § the field). ONE RING, like the classic board's (the owner, 2026-11-07: «each scale looks at the next one by its
  * EDGES»): the four dials stand on ONE circle around the grid's centre (the dials' own (300, 301)), each end facing
  * its neighbour's end across the same gap, Venus centred over the top and the oceans under the bottom, oxygen and
- * temperature down the sides. The radius is the smallest that clears the grid's two farthest points — the middle row's
- * end hexes (≈ 268 px) — so the hexes get every pixel of height the ring can spare (the content is 594 px tall against
- * the classic 556, never more). Every dimension is a ROLE:
- *  · `LARGE_RING_RADIUS` 286 — the band's inner edge 275, ≥ 6 px off every hex;
+ * temperature down the sides. The radius is the smallest that clears the grid and leaves the Venus row its place —
+ * so the hexes get every pixel of height the ring can spare (the content is 602 px tall against the classic 556,
+ * never more). Every dimension is a ROLE:
+ *  · `LARGE_RING_RADIUS` 290 — the band's inner edge 279, ≥ 6 px off every hex; the grid stands 12 px under the
+ *    ring's centre (`LARGE_GRID_DROP`), so the top row's corner hexes leave the Venus row its room: every chip at its
+ *    own value, radially, as on the classic board (a ring round the centred grid made the row step around them);
  *  · Venus 0 … 30 % in 2 % steps, 31 · 32 · 33 % in 1 % (18 steps) at 4.95° (25 px) — centred on 12 o'clock;
  *  · the oceans 1 … 11 (10 steps) at 4.45° (22 px) — centred on 6 o'clock;
  *  · `LARGE_RING_GAP` 8° between two dials' ends (18 px of open space between the bands);
  *  · oxygen 0 … 18 % and temperature −30 … +14 °C share what is left, one side each (97.2° — 22 px per temperature
  *    step, the densest dial, 27 px per oxygen one).
- * The Venus chips stand inside the ring and step around the corner hexes (`scaleBonusZones` — the grid's keep-out).
+ * The Venus chips stand inside the ring (`scaleBonusZones`; the grid's keep-out `largeChipKeepOut` is empty there by
+ * construction — guarded).
  */
-export const LARGE_RING_RADIUS = 286;
+export const LARGE_RING_RADIUS = 290;
 export const LARGE_RING_GAP = 8;
 const LARGE_RING_CENTER: Point = {x: 300, y: 301};
 const LARGE_VENUS_STEP = 4.95;

@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
   HEX_H, HEX_PITCH_X, HEX_PITCH_Y, HEX_W, LARGE_BOARD_ROWS, LARGE_CHIP_CLEARANCE, arcConfigsFor, boardLayoutKind, largeBoardGridPolygons,
-  largeBoardHexMargins, largeChipClearance, largeGridClearance,
+  largeBoardHexMargins, largeChipClearance, largeChipKeepOut, largeGridClearance,
 } from '../../src/client/components/board/largeBoardLayout';
 import {DynamicArcConfig, LARGE_ARCS, LARGE_RING_GAP, LARGE_RING_RADIUS, STANDARD_ARCS} from '../../src/client/components/board/arcScaleConfigs';
 import {scaleBonusZoneViews} from '../../src/client/components/board/scaleBonusZones';
@@ -98,7 +98,14 @@ describe('the eleven-row field (Amazonis Planitia) — a construction', function
       // …and the row stays on its own track: no chip past half a step beyond the 0 % / 33 % ends.
       const angle = Math.atan2(centre.y - venus.center.y, centre.x - venus.center.x) * 180 / Math.PI;
       expect(angle, `${chip.key} within the track`).within(venus.startAngle - step / 2, venus.endAngle + step / 2);
+      // …and every chip stands AT its own value, radially, as on the classic board (the owner, 2026-11-07: a row that
+      // stepped around the corner hexes left a hole and slanted stems) — never fanned off its threshold.
+      const threshold = venus.digits.find((d) => d.value === chip.step)!.angle;
+      expect(Math.abs(angle - threshold), `${chip.key} radial at ${chip.step} %`).lt(0.5);
     }
+    const chipRadius = venus.bandRadius - venus.bandWidth / 2 - 2 - 4 - chips[0].size / 2;
+    expect(largeChipKeepOut(venus.center, chipRadius, chips[0].size, venus.startAngle - 5, venus.endAngle + 5),
+      'the grid leaves the whole Venus row free (the grid 12 px under the ring\'s centre)').deep.eq([]);
     for (let i = 0; i < chips.length; i++) {
       for (let j = i + 1; j < chips.length; j++) {
         const d = Math.hypot(chips[i].left - chips[j].left, chips[i].top - chips[j].top);

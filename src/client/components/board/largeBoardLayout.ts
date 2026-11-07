@@ -24,8 +24,8 @@ export function arcConfigsFor(boardName: BoardName | undefined): BoardArcConfigs
 /**
  * THE ELEVEN-ROW GRID IN BOARD PX — the ONE construction behind `board_large_positions.less` (its guard recomputes
  * every margin from here): the standard hex (46 × 51) at the standard pitch (49 across, 41 down), every row centred
- * on the planet's axis, the whole grid centred on the dials' centre — `.global-numbers` (300, 301), i.e. (223, 227)
- * in `.board`'s own space (`.board` stands at 93 / 85 in `.board-cont`, `.global-numbers` at 16 / 11). The hexes keep
+ * on the planet's axis, the whole grid centred under the dials' centre — `.global-numbers` (300, 301 + 12), i.e.
+ * (223, 239) in `.board`'s own space (`.board` at 93 / 85 in `.board-cont`, `.global-numbers` at 16 / 11). The hexes keep
  * their Tharsis size on purpose (the owner, 2026-11-06: «гексы предельно крупные»); the planet grows behind them.
  */
 export const LARGE_BOARD_ROWS: ReadonlyArray<number> = [6, 7, 8, 9, 10, 11, 10, 9, 8, 7, 6];
@@ -33,7 +33,13 @@ export const HEX_W = 46;
 export const HEX_H = 51;
 export const HEX_PITCH_X = 49;
 export const HEX_PITCH_Y = 41;
-const GRID_CENTRE = {x: 223, y: 227};
+/**
+ * 12 px BELOW the dials' centre (the owner, 2026-11-07): the top row's corner hexes then stand clear of the Venus row
+ * inside the ring — every chip at its own value, evenly, as on the classic board — while the flat bottom row has room
+ * to spare above the oceans. The planet stays on the ring's centre.
+ */
+export const LARGE_GRID_DROP = 12;
+const GRID_CENTRE = {x: 223, y: 227 + LARGE_GRID_DROP};
 
 /** Every Mars cell of the eleven-row grid in id order ('03' …), with its `.board`-space margin (top-left). */
 export function largeBoardHexMargins(): Array<{id: string, top: number, left: number}> {

@@ -5,109 +5,109 @@
  * never touches the standard layout.
  *
  * EVERY MARGIN IS CONSTRUCTED, never placed by eye: `largeBoardLayout.largeBoardHexMargins()` — the standard hex
- * (46 × 51) at the standard pitch (49 × 41), each row centred on the planet's axis, the grid centred on the dials'
- * centre. The guard `tests/client/components/board/largeBoardLayout.spec.ts` recomputes every line below.
+ * (46 × 51) at the standard pitch (49 × 41), each row centred on the planet's axis, the grid 12 px under the dials'
+ * centre (`LARGE_GRID_DROP` — the Venus row's room inside the ring). The guard `tests/client/components/board/largeBoardLayout.spec.ts` recomputes every line below.
  *
- * THE PLANET GROWS behind the grid (×1.147: the visible disc r 225 → 258, centred on the grid): the hexes keep
+ * THE PLANET GROWS behind the grid (×1.147: the visible disc r 225 → 258, centred on the RING — the grid 12 px lower): the hexes keep
  * their Tharsis size (the owner, 2026-11-06: «гексы предельно крупные; допустимо, что крайние гексы слегка выходят
  * за край диска»), so the grid's six corner hexes overhang the rim by ≈ 10–14 px — on purpose.
  */
 .board-cont--large.board-with-venus,
 .board-cont--large.board-without-venus {
   background-size: 712px 689px; // keep-px: 620 × 600 × 1.147 — board px-space
-  background-position: -48px -43px; // keep-px: the disc's centre (317, 309 × 1.147) onto the grid's (316, 312)
+  background-position: -48px -43px; // keep-px: the disc's centre (317, 309 × 1.147) onto the ring's (316, 312)
 }
 
 .board-cont--large {
-  .board-space-03 { margin: -3.5px 0 0 77.5px; }
-  .board-space-04 { margin: -3.5px 0 0 126.5px; }
-  .board-space-05 { margin: -3.5px 0 0 175.5px; }
-  .board-space-06 { margin: -3.5px 0 0 224.5px; }
-  .board-space-07 { margin: -3.5px 0 0 273.5px; }
-  .board-space-08 { margin: -3.5px 0 0 322.5px; }
-  .board-space-09 { margin: 37.5px 0 0 53px; }
-  .board-space-10 { margin: 37.5px 0 0 102px; }
-  .board-space-11 { margin: 37.5px 0 0 151px; }
-  .board-space-12 { margin: 37.5px 0 0 200px; }
-  .board-space-13 { margin: 37.5px 0 0 249px; }
-  .board-space-14 { margin: 37.5px 0 0 298px; }
-  .board-space-15 { margin: 37.5px 0 0 347px; }
-  .board-space-16 { margin: 78.5px 0 0 28.5px; }
-  .board-space-17 { margin: 78.5px 0 0 77.5px; }
-  .board-space-18 { margin: 78.5px 0 0 126.5px; }
-  .board-space-19 { margin: 78.5px 0 0 175.5px; }
-  .board-space-20 { margin: 78.5px 0 0 224.5px; }
-  .board-space-21 { margin: 78.5px 0 0 273.5px; }
-  .board-space-22 { margin: 78.5px 0 0 322.5px; }
-  .board-space-23 { margin: 78.5px 0 0 371.5px; }
-  .board-space-24 { margin: 119.5px 0 0 4px; }
-  .board-space-25 { margin: 119.5px 0 0 53px; }
-  .board-space-26 { margin: 119.5px 0 0 102px; }
-  .board-space-27 { margin: 119.5px 0 0 151px; }
-  .board-space-28 { margin: 119.5px 0 0 200px; }
-  .board-space-29 { margin: 119.5px 0 0 249px; }
-  .board-space-30 { margin: 119.5px 0 0 298px; }
-  .board-space-31 { margin: 119.5px 0 0 347px; }
-  .board-space-32 { margin: 119.5px 0 0 396px; }
-  .board-space-33 { margin: 160.5px 0 0 -20.5px; }
-  .board-space-34 { margin: 160.5px 0 0 28.5px; }
-  .board-space-35 { margin: 160.5px 0 0 77.5px; }
-  .board-space-36 { margin: 160.5px 0 0 126.5px; }
-  .board-space-37 { margin: 160.5px 0 0 175.5px; }
-  .board-space-38 { margin: 160.5px 0 0 224.5px; }
-  .board-space-39 { margin: 160.5px 0 0 273.5px; }
-  .board-space-40 { margin: 160.5px 0 0 322.5px; }
-  .board-space-41 { margin: 160.5px 0 0 371.5px; }
-  .board-space-42 { margin: 160.5px 0 0 420.5px; }
-  .board-space-43 { margin: 201.5px 0 0 -45px; }
-  .board-space-44 { margin: 201.5px 0 0 4px; }
-  .board-space-45 { margin: 201.5px 0 0 53px; }
-  .board-space-46 { margin: 201.5px 0 0 102px; }
-  .board-space-47 { margin: 201.5px 0 0 151px; }
-  .board-space-48 { margin: 201.5px 0 0 200px; }
-  .board-space-49 { margin: 201.5px 0 0 249px; }
-  .board-space-50 { margin: 201.5px 0 0 298px; }
-  .board-space-51 { margin: 201.5px 0 0 347px; }
-  .board-space-52 { margin: 201.5px 0 0 396px; }
-  .board-space-53 { margin: 201.5px 0 0 445px; }
-  .board-space-54 { margin: 242.5px 0 0 -20.5px; }
-  .board-space-55 { margin: 242.5px 0 0 28.5px; }
-  .board-space-56 { margin: 242.5px 0 0 77.5px; }
-  .board-space-57 { margin: 242.5px 0 0 126.5px; }
-  .board-space-58 { margin: 242.5px 0 0 175.5px; }
-  .board-space-59 { margin: 242.5px 0 0 224.5px; }
-  .board-space-60 { margin: 242.5px 0 0 273.5px; }
-  .board-space-61 { margin: 242.5px 0 0 322.5px; }
-  .board-space-62 { margin: 242.5px 0 0 371.5px; }
-  .board-space-63 { margin: 242.5px 0 0 420.5px; }
-  .board-space-64 { margin: 283.5px 0 0 4px; }
-  .board-space-65 { margin: 283.5px 0 0 53px; }
-  .board-space-66 { margin: 283.5px 0 0 102px; }
-  .board-space-67 { margin: 283.5px 0 0 151px; }
-  .board-space-68 { margin: 283.5px 0 0 200px; }
-  .board-space-69 { margin: 283.5px 0 0 249px; }
-  .board-space-70 { margin: 283.5px 0 0 298px; }
-  .board-space-71 { margin: 283.5px 0 0 347px; }
-  .board-space-72 { margin: 283.5px 0 0 396px; }
-  .board-space-73 { margin: 324.5px 0 0 28.5px; }
-  .board-space-74 { margin: 324.5px 0 0 77.5px; }
-  .board-space-75 { margin: 324.5px 0 0 126.5px; }
-  .board-space-76 { margin: 324.5px 0 0 175.5px; }
-  .board-space-77 { margin: 324.5px 0 0 224.5px; }
-  .board-space-78 { margin: 324.5px 0 0 273.5px; }
-  .board-space-79 { margin: 324.5px 0 0 322.5px; }
-  .board-space-80 { margin: 324.5px 0 0 371.5px; }
-  .board-space-81 { margin: 365.5px 0 0 53px; }
-  .board-space-82 { margin: 365.5px 0 0 102px; }
-  .board-space-83 { margin: 365.5px 0 0 151px; }
-  .board-space-84 { margin: 365.5px 0 0 200px; }
-  .board-space-85 { margin: 365.5px 0 0 249px; }
-  .board-space-86 { margin: 365.5px 0 0 298px; }
-  .board-space-87 { margin: 365.5px 0 0 347px; }
-  .board-space-88 { margin: 406.5px 0 0 77.5px; }
-  .board-space-89 { margin: 406.5px 0 0 126.5px; }
-  .board-space-90 { margin: 406.5px 0 0 175.5px; }
-  .board-space-91 { margin: 406.5px 0 0 224.5px; }
-  .board-space-92 { margin: 406.5px 0 0 273.5px; }
-  .board-space-93 { margin: 406.5px 0 0 322.5px; }
+  .board-space-03 { margin: 8.5px 0 0 77.5px; }
+  .board-space-04 { margin: 8.5px 0 0 126.5px; }
+  .board-space-05 { margin: 8.5px 0 0 175.5px; }
+  .board-space-06 { margin: 8.5px 0 0 224.5px; }
+  .board-space-07 { margin: 8.5px 0 0 273.5px; }
+  .board-space-08 { margin: 8.5px 0 0 322.5px; }
+  .board-space-09 { margin: 49.5px 0 0 53px; }
+  .board-space-10 { margin: 49.5px 0 0 102px; }
+  .board-space-11 { margin: 49.5px 0 0 151px; }
+  .board-space-12 { margin: 49.5px 0 0 200px; }
+  .board-space-13 { margin: 49.5px 0 0 249px; }
+  .board-space-14 { margin: 49.5px 0 0 298px; }
+  .board-space-15 { margin: 49.5px 0 0 347px; }
+  .board-space-16 { margin: 90.5px 0 0 28.5px; }
+  .board-space-17 { margin: 90.5px 0 0 77.5px; }
+  .board-space-18 { margin: 90.5px 0 0 126.5px; }
+  .board-space-19 { margin: 90.5px 0 0 175.5px; }
+  .board-space-20 { margin: 90.5px 0 0 224.5px; }
+  .board-space-21 { margin: 90.5px 0 0 273.5px; }
+  .board-space-22 { margin: 90.5px 0 0 322.5px; }
+  .board-space-23 { margin: 90.5px 0 0 371.5px; }
+  .board-space-24 { margin: 131.5px 0 0 4px; }
+  .board-space-25 { margin: 131.5px 0 0 53px; }
+  .board-space-26 { margin: 131.5px 0 0 102px; }
+  .board-space-27 { margin: 131.5px 0 0 151px; }
+  .board-space-28 { margin: 131.5px 0 0 200px; }
+  .board-space-29 { margin: 131.5px 0 0 249px; }
+  .board-space-30 { margin: 131.5px 0 0 298px; }
+  .board-space-31 { margin: 131.5px 0 0 347px; }
+  .board-space-32 { margin: 131.5px 0 0 396px; }
+  .board-space-33 { margin: 172.5px 0 0 -20.5px; }
+  .board-space-34 { margin: 172.5px 0 0 28.5px; }
+  .board-space-35 { margin: 172.5px 0 0 77.5px; }
+  .board-space-36 { margin: 172.5px 0 0 126.5px; }
+  .board-space-37 { margin: 172.5px 0 0 175.5px; }
+  .board-space-38 { margin: 172.5px 0 0 224.5px; }
+  .board-space-39 { margin: 172.5px 0 0 273.5px; }
+  .board-space-40 { margin: 172.5px 0 0 322.5px; }
+  .board-space-41 { margin: 172.5px 0 0 371.5px; }
+  .board-space-42 { margin: 172.5px 0 0 420.5px; }
+  .board-space-43 { margin: 213.5px 0 0 -45px; }
+  .board-space-44 { margin: 213.5px 0 0 4px; }
+  .board-space-45 { margin: 213.5px 0 0 53px; }
+  .board-space-46 { margin: 213.5px 0 0 102px; }
+  .board-space-47 { margin: 213.5px 0 0 151px; }
+  .board-space-48 { margin: 213.5px 0 0 200px; }
+  .board-space-49 { margin: 213.5px 0 0 249px; }
+  .board-space-50 { margin: 213.5px 0 0 298px; }
+  .board-space-51 { margin: 213.5px 0 0 347px; }
+  .board-space-52 { margin: 213.5px 0 0 396px; }
+  .board-space-53 { margin: 213.5px 0 0 445px; }
+  .board-space-54 { margin: 254.5px 0 0 -20.5px; }
+  .board-space-55 { margin: 254.5px 0 0 28.5px; }
+  .board-space-56 { margin: 254.5px 0 0 77.5px; }
+  .board-space-57 { margin: 254.5px 0 0 126.5px; }
+  .board-space-58 { margin: 254.5px 0 0 175.5px; }
+  .board-space-59 { margin: 254.5px 0 0 224.5px; }
+  .board-space-60 { margin: 254.5px 0 0 273.5px; }
+  .board-space-61 { margin: 254.5px 0 0 322.5px; }
+  .board-space-62 { margin: 254.5px 0 0 371.5px; }
+  .board-space-63 { margin: 254.5px 0 0 420.5px; }
+  .board-space-64 { margin: 295.5px 0 0 4px; }
+  .board-space-65 { margin: 295.5px 0 0 53px; }
+  .board-space-66 { margin: 295.5px 0 0 102px; }
+  .board-space-67 { margin: 295.5px 0 0 151px; }
+  .board-space-68 { margin: 295.5px 0 0 200px; }
+  .board-space-69 { margin: 295.5px 0 0 249px; }
+  .board-space-70 { margin: 295.5px 0 0 298px; }
+  .board-space-71 { margin: 295.5px 0 0 347px; }
+  .board-space-72 { margin: 295.5px 0 0 396px; }
+  .board-space-73 { margin: 336.5px 0 0 28.5px; }
+  .board-space-74 { margin: 336.5px 0 0 77.5px; }
+  .board-space-75 { margin: 336.5px 0 0 126.5px; }
+  .board-space-76 { margin: 336.5px 0 0 175.5px; }
+  .board-space-77 { margin: 336.5px 0 0 224.5px; }
+  .board-space-78 { margin: 336.5px 0 0 273.5px; }
+  .board-space-79 { margin: 336.5px 0 0 322.5px; }
+  .board-space-80 { margin: 336.5px 0 0 371.5px; }
+  .board-space-81 { margin: 377.5px 0 0 53px; }
+  .board-space-82 { margin: 377.5px 0 0 102px; }
+  .board-space-83 { margin: 377.5px 0 0 151px; }
+  .board-space-84 { margin: 377.5px 0 0 200px; }
+  .board-space-85 { margin: 377.5px 0 0 249px; }
+  .board-space-86 { margin: 377.5px 0 0 298px; }
+  .board-space-87 { margin: 377.5px 0 0 347px; }
+  .board-space-88 { margin: 418.5px 0 0 77.5px; }
+  .board-space-89 { margin: 418.5px 0 0 126.5px; }
+  .board-space-90 { margin: 418.5px 0 0 175.5px; }
+  .board-space-91 { margin: 418.5px 0 0 224.5px; }
+  .board-space-92 { margin: 418.5px 0 0 273.5px; }
+  .board-space-93 { margin: 418.5px 0 0 322.5px; }
 }
