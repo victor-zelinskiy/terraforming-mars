@@ -575,3 +575,180 @@
     animation: none;
   }
 }
+
+/* ── THE START's «НАСЛЕДИЕ» stage hosts the TENDERS (the finale of a «Тендеры» campaign) ─────────────────────────
+   A third zone beside the corporations and the carried projects — the certificates at the stage's shared zoom (a
+   tender's face stands at a card's width); a tender's STEP takes the zones' place one level deeper. States are
+   kants and bands, never light. */
+.con-legview__zone--tenders {
+  border-left: .05rem solid rgba(214, 178, 106, 0.28);
+  padding-left: 2.8rem;
+}
+.con-legview__slot--tender {
+  > .con-tender {
+    --tender-w: 8rem;
+    zoom: ~"var(--con-legview-zoom, 0.9)";
+  }
+  &.con-legview__slot--busy > .con-tender { opacity: .72; }
+}
+.con-legstep {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .8rem;
+  animation: con-legview-rise calc(260ms * var(--motion-scale, 1)) ease both;
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    max-width: 90%;
+  }
+  &__ask {
+    font-size: .86rem;
+    line-height: 1.35;
+    color: #d6f3ff;
+  }
+  &__zones {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2.8rem;
+    min-width: 0;
+  }
+  &__zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .6rem;
+    min-width: 0;
+  }
+  &__zone--lineage {
+    border-left: .05rem solid rgba(214, 178, 106, 0.28);
+    padding-left: 2.8rem;
+  }
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 1.1rem;
+    max-width: 100%;
+  }
+  &__slot {
+    > :is(.card-container, .pcard) { zoom: ~"calc(var(--con-legview-zoom, 0.9) * 0.72)"; }
+  }
+  &__slot--picked {
+    box-shadow: inset 0 0 0 .08rem fade(@con-mint, 85%);
+  }
+  &__band {
+    position: absolute;
+    left: .3rem;
+    right: .3rem;
+    bottom: .3rem;
+    padding: .14rem .3rem;
+    border-radius: .25rem;
+    background: rgba(14, 22, 33, 0.88);
+    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 80%);
+    color: #d8fbe9;
+    font-family: @con-font;
+    font-size: .5rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    &.con-cards__pickband--discard { box-shadow: inset 0 0 0 .05rem rgba(224, 164, 139, 0.85); color: #f1c7b3; }
+  }
+  &__status {
+    flex-shrink: 0;
+    font-size: .74rem;
+    letter-spacing: .06em;
+    color: rgba(214, 223, 233, 0.78);
+    min-height: 1.2rem;
+  }
+}
+/* The «КОМПЕНСАЦИЯ» plate — the bonus plate's chassis with one more line (what is bought back). */
+.con-start__bonusplate--tenders {
+  .con-start__bonusplate-sub {
+    display: block;
+    font-size: .62rem;
+    letter-spacing: .06em;
+    color: rgba(214, 223, 233, 0.7);
+    max-width: 22rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+/* A prelude carried by «Продление программы» wears a quiet band on its queue card (never a warning's amber). */
+.con-cards__pickband--legacy {
+  background: rgba(14, 22, 33, 0.9);
+  box-shadow: inset 0 0 0 .05rem rgba(214, 178, 106, 0.7);
+  color: #ecd39a;
+}
+
+/* ── THE TENDER CHIP — a holding's index entry where a title's emblem stood (the rail, a podium row, the overview,
+   the dossier): the name on a kant in the tier's metal, the status a word. Never a glow. ── */
+.con-tchip {
+  --tchip-metal: @tender-steel;
+  display: inline-flex;
+  align-items: center;
+  gap: .32rem;
+  max-width: 100%;
+  padding: .12rem .5rem .12rem .4rem;
+  border-radius: .3rem;
+  background: rgba(14, 22, 33, 0.6);
+  box-shadow: inset 0 0 0 .05rem rgba(174, 185, 198, 0.3);
+  font-family: @con-font;
+  font-size: .62rem;
+  letter-spacing: .06em;
+  color: #e6edf4;
+  white-space: nowrap;
+  vertical-align: middle;
+  &--tier-decisive { --tchip-metal: @tender-gold; }
+  &--tier-minor { --tchip-metal: @tender-copper; }
+  &--tier-gamble { --tchip-metal: @tender-oxide; }
+  &__mark {
+    flex: 0 0 auto;
+    width: .14rem;
+    height: .9em;
+    border-radius: .07rem;
+    background: var(--tchip-metal);
+  }
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 700;
+  }
+  &__status {
+    flex: 0 0 auto;
+    padding-left: .4rem;
+    border-left: .05rem solid rgba(174, 185, 198, 0.3);
+    font-size: .54rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: rgba(214, 223, 233, 0.7);
+  }
+  &--executed { box-shadow: inset 0 0 0 .05rem rgba(47, 107, 74, 0.8); }
+  &--executed &__status { color: #9fc3a4; }
+  &--cashed { color: rgba(214, 223, 233, 0.6); }
+  &--cashed &__mark { opacity: .5; }
+}
+.cmap__seat-tenders,
+.con-cmpov__seat-tenders {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: .3rem;
+  min-width: 0;
+}
+.cmap__seat-tp--none { color: rgba(214, 223, 233, 0.5); }
+.cmres__tender, .ccard__result-tender { max-width: 11rem; }
+.cleg__tender { display: inline-flex; align-items: center; gap: .45rem; }
+.con-dcmp__tenders { display: flex; flex-wrap: wrap; gap: .3rem; }

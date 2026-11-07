@@ -359,7 +359,7 @@
                  'con-legview--live': legacyView.phase === 'open',
                  'con-legview--leaving': legacyView.phase === 'leaving',
                }">
-            <div class="con-legview__zones">
+            <div v-show="tenderStep === undefined" class="con-legview__zones">
               <section v-if="legacyOverviewCorpCount > 0" class="con-legview__zone">
                 <div class="con-legview__cap">{{ $t('Corporations') }}</div>
                 <div class="con-legview__row">
@@ -395,13 +395,82 @@
                   </div>
                 </div>
               </section>
+              <!-- ── «ТЕНДЕРЫ» (the «Тендеры» mode, the finale's start): the viewer's held tenders as the Committee's
+                   certificates. A START-window tender EXECUTES from here — A sends its answer on the very selection
+                   prompt, the deal changes in place and the picks that survive it stay (`armStartRedealRestore`); a
+                   KEEP kind and the restructuring open their STEP inside this stage; a LEGACY-window tender only
+                   reads its status (it is realized on the carryover). Never a modal, never a second screen. -->
+              <section v-if="legacyTenders.length > 0" class="con-legview__zone con-legview__zone--tenders" data-legview-tenders>
+                <div class="con-legview__cap">{{ $t('Tenders') }}</div>
+                <div class="con-legview__row con-legview__row--tenders">
+                  <div v-for="(t, i) in legacyTenders" :key="t.instance"
+                       class="con-legview__slot con-legview__slot--tender"
+                       :class="{
+                         'con-legview__slot--focused': legacyView.phase === 'open' && legacyView.focus === legacyOverviewCards.length + i,
+                         'con-legview__slot--busy': state.tenderBusy === t.instance,
+                       }"
+                       :data-legview-tender="t.instance" :data-legview-tender-kind="t.id" :data-legview-tender-status="t.status">
+                    <ConsoleTenderCard :id="tenderKindOf(t)" size="table" :state="tenderCardStateOf(t.status)" />
+                  </div>
+                </div>
+              </section>
+            </div>
+            <!-- ── THE TENDER'S STEP — the stage one level deeper (the crumb's tail names the tender): a KEEP over the
+                 current deal of that pool, or the restructuring's two zones (the dealt candidates · the lineage). The
+                 cards stand in the stage's own seats; A is the toggle in place, RT the one commit, B back to the stage
+                 with nothing sent. -->
+            <div v-if="tenderStep !== undefined" class="con-legstep" data-tender-step :data-tender-step-kind="tenderStep.kind">
+              <div class="con-legstep__head">
+                <ConsoleTenderCard :id="tenderStep.id" size="plaque" state="held" />
+                <span class="con-legstep__ask" data-tender-step-ask>{{ $t(tenderStepAskKey) }}</span>
+              </div>
+              <template v-if="tenderStep.kind === 'keep'">
+                <div class="con-legstep__row">
+                  <div v-for="(card, i) in tenderStepCards" :key="card.name"
+                       class="con-legview__slot con-legstep__slot"
+                       :class="{'con-legview__slot--focused': tenderStepFocus === i, 'con-legstep__slot--picked': tenderStep.keep === card.name}"
+                       :data-tender-step-card="card.name" :data-tender-step-picked="tenderStep.keep === card.name ? 'yes' : undefined">
+                    <Card :card="card" :key="card.name" lightweight />
+                    <span v-if="tenderStep.keep === card.name" class="con-cards__pickband con-legstep__band" aria-hidden="true">{{ $t('Kept') }}</span>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <div class="con-legstep__zones">
+                  <section class="con-legstep__zone" data-tender-step-zone="offer">
+                    <div class="con-legview__cap">{{ $t('Dealt corporations') }}</div>
+                    <div class="con-legstep__row">
+                      <div v-for="(card, i) in tenderStepOfferCards" :key="card.name"
+                           class="con-legview__slot con-legstep__slot"
+                           :class="{'con-legview__slot--focused': tenderStepFocus === i, 'con-legstep__slot--picked': tenderStep.take === card.name}"
+                           :data-tender-step-card="card.name" :data-tender-step-picked="tenderStep.take === card.name ? 'yes' : undefined">
+                        <Card :card="card" :key="card.name" lightweight />
+                        <span v-if="tenderStep.take === card.name" class="con-cards__pickband con-legstep__band" aria-hidden="true">{{ $t('Taken in') }}</span>
+                      </div>
+                    </div>
+                  </section>
+                  <section class="con-legstep__zone con-legstep__zone--lineage" data-tender-step-zone="lineage">
+                    <div class="con-legview__cap">{{ $t('In place of') }}</div>
+                    <div class="con-legstep__row">
+                      <div v-for="(card, i) in tenderStepLineageCards" :key="card.name"
+                           class="con-legview__slot con-legstep__slot"
+                           :class="{'con-legview__slot--focused': tenderStepFocus === tenderStepOfferCards.length + i, 'con-legstep__slot--picked': tenderStep.replace === card.name}"
+                           :data-tender-step-card="card.name" :data-tender-step-picked="tenderStep.replace === card.name ? 'yes' : undefined">
+                        <Card :card="card" :key="card.name" lightweight />
+                        <span v-if="tenderStep.replace === card.name" class="con-cards__pickband con-cards__pickband--discard con-legstep__band" aria-hidden="true">{{ $t('Leaves the lineage') }}</span>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </template>
+              <div class="con-legstep__status" data-tender-step-status>{{ tenderStepStatusText }}</div>
             </div>
             <!-- READ-ONLY, said in one quiet line: what these cards are and
                  that nothing here changes the picks. Provenance + state —
                  never a duplicated button hint (the ONE command bar owns
                  every verb). -->
-            <div class="con-legview__note">
-              {{ $t('Carried from the previous mission') }} · {{ $t('View only') }}
+            <div v-if="tenderStep === undefined" class="con-legview__note">
+              {{ $t('Carried from the previous mission') }} · {{ legacyTenders.length > 0 ? $t('Tenders execute from here') : $t('View only') }}
             </div>
           </div>
         </div>
@@ -592,6 +661,24 @@
                        until their press, then flown into the hand dock by
                        the exact same delivery flight — the only difference
                        from the purchase is that nothing is deducted. -->
+                  <!-- CAMPAIGN «ТЕНДЕРЫ» — «КОМПЕНСАЦИЯ»: the Committee buys back every tender left unexecuted, 3 M€
+                       each, as the LAST stage of the deployment. Pre-laid from the first ceremony frame (the held
+                       count is the self model's), dimmed until its press; the press flies the M€ chip into the rail
+                       (the bonus plate's own language). -->
+                  <div v-if="compensationPlateShown" key="#compensation" class="con-start__bonusplate con-start__bonusplate--tenders"
+                       :style="{order: 5}"
+                       data-tender-compensation
+                       :class="{
+                         'con-start__bonusplate--focused': isFocused('compensation', COMPENSATION_KEY),
+                         'con-start__bonusplate--awaiting': compensationPrompt === undefined,
+                       }">
+                    <span class="con-start__bonusplate-cap">{{ $t('Tender compensation') }}</span>
+                    <span class="con-start__bonusplate-amount">+{{ compensationAmount }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
+                    <span class="con-start__bonusplate-sub" data-tender-compensation-sub>{{ compensationSubText }}</span>
+                    <div v-if="isFocused('compensation', COMPENSATION_KEY)" class="con-start__slot-a con-start__slot-a--inline">
+                      <GamepadGlyph control="confirm" /><span>{{ $t('Receive') }}</span>
+                    </div>
+                  </div>
                   <div v-if="legacyRowShown" key="#legacy" class="con-start__buy con-start__legacy"
                        :style="{order: 4}"
                        :class="{
@@ -1219,6 +1306,7 @@ import {
   StartLaunchState, StartParticipant, startDockPiles, startJourneyItems, startLaunchState, startRailCommitted,
   sponsorCrumb, startCardAvailability, startParticipants, StartWizardStep, stepComplete,
   stepShowsAvailability, wizardCrumb, wizardSteps,
+  armStartRedealRestore, restoreStartPicksAfterRedeal, startCardPrice,
 } from '@/client/console/consoleStartState';
 import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/startStatusPreview';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -1238,7 +1326,7 @@ import {PreludeOutlook} from '@/common/cards/PreludeOutlook';
 import {
   corpActionOptionIndexFor, corporationCardNames, PreludeEntry, preludeEntries, recordDrawChoice,
   startFlowBonusPrompt, startFlowCorpPayPrompt, startFlowCorpPlayPrompt, startFlowCorpPrompt, startFlowCorpSelectPrompt,
-  startFlowLegacyPrompt, startFlowMergePrompt,
+  startFlowLegacyPrompt, startFlowCompensationPrompt, startFlowMergePrompt,
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {
@@ -1341,6 +1429,14 @@ import {applyDiscardExit, runHeroPick} from '@/client/console/cardDeal/cardExitD
 import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {StartQueueFxLane, StartQueueReading, startQueueFxLane, startQueueLayout, startQueueReading} from '@/client/console/startQueueLayout';
+import ConsoleTenderCard from '@/client/components/console/campaign/ConsoleTenderCard.vue';
+import {
+  StartTenderStep, pickRestructure, startTenderName, startTenderVerb, tenderCardStateOf, tenderPressResponse, tenderStepAskKey,
+  tenderStepCommit, tenderStepDecline, tenderStepFor, tenderStepStatus, toggleKeep,
+} from '@/client/console/startTenders';
+import {TenderInSelectionModel} from '@/common/models/PlayerInputModel';
+import {TenderResponse} from '@/common/inputs/InputResponse';
+import {TENDER_COMPENSATION_MC, TenderId} from '@/common/campaign/tenders';
 import {candidateOutlook} from '@/client/console/deckPick/preludePick';
 import {readingText} from '@/client/console/readingText';
 import {nearestInDirection, rowFitZoom, gridFitPlan} from '@/client/console/consoleStartNav';
@@ -1360,7 +1456,7 @@ function textOf(v: string | Message | undefined): string {
 }
 
 
-type Focusable = {kind: 'corp' | 'prelude' | 'candidate' | 'pay' | 'bonus' | 'legacy', name: CardName, disabled: boolean};
+type Focusable = {kind: 'corp' | 'prelude' | 'candidate' | 'pay' | 'bonus' | 'legacy' | 'compensation', name: CardName, disabled: boolean};
 
 /**
  * WHO OWNS THE SOURCE SEAT (docs/claude/console/start-first-action.md § THE
@@ -1397,6 +1493,8 @@ const LEGACY_KEY = '#legacy' as CardName;
 
 /** The campaign comeback-bonus beat's synthetic focus key. */
 const BONUS_KEY = '#bonus' as CardName;
+/** The «КОМПЕНСАЦИЯ» plate's focus key (the «Тендеры» mode's last deployment stage). */
+const COMPENSATION_KEY = '#compensation' as CardName;
 
 /**
  * The initial-setup input remap: STEP navigation lives on LT / RT (the
@@ -1493,7 +1591,7 @@ const START_PRESS_ABSORBER = 'start-press-refusal';
 export default defineComponent({
   name: 'ConsoleStartScene',
   directives: {embedZone: vEmbedZone},
-  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip, ConsoleForecastRow, ConsoleForecastLayer, ConsolePreludeVariantStep},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip, ConsoleForecastRow, ConsoleForecastLayer, ConsolePreludeVariantStep, ConsoleTenderCard},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
@@ -1554,6 +1652,7 @@ export default defineComponent({
       PAY_KEY,
       LEGACY_KEY,
       BONUS_KEY,
+      COMPENSATION_KEY,
       /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
       deal: createCardDealSequence(),
       dealLaunchTimer: undefined as number | undefined,
@@ -1647,6 +1746,9 @@ export default defineComponent({
        *  returns to the exact page (picks/focus untouched by construction:
        *  the pages are parked v-show layers and this never writes them). */
       legacyView: {phase: 'closed' as LegacyViewPhase, focus: 0},
+      /** CAMPAIGN «ТЕНДЕРЫ»: the tender step open inside the legacy stage (a keep / the restructuring's picks). */
+      tenderStep: undefined as StartTenderStep | undefined,
+      tenderStepFocus: 0,
       /** Shelf tiles whose card is UP in the overview (held empty — the tile
        *  stays the flight's measured home; the shelf never re-lays out).
        *  Filled per-card at its DEPART (the take's end), emptied per-card at
@@ -1887,7 +1989,8 @@ export default defineComponent({
         // the stage). B returns and the tail walks back the moment the PAGE
         // is what the player sees again (the convoy may still be landing).
         if (this.legacyStageOwnsScreen) {
-          return {subject: page.subject, stage: 'Legacy'};
+          // Inside a tender's step the tail names the tender («… › НАСЛЕДИЕ» → «… › РЕСТРУКТУРИЗАЦИЯ»): one level deeper.
+          return {subject: page.subject, stage: this.tenderStep !== undefined ? startTenderName(this.tenderStep.id) : 'Legacy'};
         }
         return page;
       }
@@ -3434,13 +3537,15 @@ export default defineComponent({
         // it wears the tie. EVERY one, equally: singling one out would be the
         // screen choosing the player's order for them.
         const enabler = playable && isPreludeEnabler(focusedOutlook, e.name);
+        // «Продление программы»: a prelude carried from the previous mission says so (a quiet band, never a warning).
+        const carried = this.carriedPreludeNames.has(e.name) && badge === undefined && !enabler;
         out.push({
           name: e.name, kind: 'prelude',
           verb: playable ? 'Play now' : undefined,
-          badge: enabler && badge === undefined ? preludeEnablerBadge(focusedOutlook) : badge,
+          badge: enabler && badge === undefined ? preludeEnablerBadge(focusedOutlook) : (carried ? translateText('Legacy') : badge),
           badgeClass: enabler && badge === undefined ?
             'con-cards__pickband--enabler' :
-            (badge !== undefined ? 'con-cards__pickband--warn' : undefined),
+            (badge !== undefined ? 'con-cards__pickband--warn' : (carried ? 'con-cards__pickband--legacy' : undefined)),
           enabler,
           dimmed: !playable,
           dealIdx: -1,
@@ -3785,7 +3890,7 @@ export default defineComponent({
       return campaignWizardExtra(this.playerView);
     },
     cardCost(): number {
-      return cardCostForCorp(this.state.corp) + this.campaignExtra.cardCostDelta;
+      return startCardPrice(cardCostForCorp(this.state.corp), this.campaignExtra.cardCostDelta);
     },
     /** Who set a non-default `cardCost` — the pick and the campaign lineage (`purchasePriceSource.ts`); '' at 3 M€. */
     startPriceHint(): string {
@@ -3861,7 +3966,9 @@ export default defineComponent({
     campaignLineage(): ReadonlyArray<CardName> {
       const contract = this.playerView.game.gameOptions.campaign;
       const color = this.playerView.thisPlayer.color;
-      return contract?.grants.find((g) => g.color === color)?.corporations ?? [];
+      // The self model names the lineage this mission DEPLOYS (a «Реструктуризация» at the finale's start rewrites
+      // it); the frozen grant is the fallback.
+      return this.playerView.campaignLineage ?? contract?.grants.find((g) => g.color === color)?.corporations ?? [];
     },
     /**
      * The ADDITIONAL corporations of this mission, in deployment order:
@@ -3875,7 +3982,8 @@ export default defineComponent({
         return []; // ordinary game / mission 1 (the pick is the base)
       }
       const out: Array<CardName> = [...lineage.slice(1)];
-      if (!contract.final) {
+      // A three-mission finale still drafts its third — that pick merges like every pick.
+      if (!contract.final || campaignFinalePicksCorporation(lineage.length)) {
         for (const c of this.playerView.pickedCorporationCard) {
           out.push(c.name);
         }
@@ -3979,11 +4087,115 @@ export default defineComponent({
     legacyOverviewCorpCount(): number {
       return this.lineageDock.length;
     },
+    /** CAMPAIGN «ТЕНДЕРЫ»: the viewer's tenders as the finale's selection shows them (empty elsewhere). */
+    legacyTenders(): ReadonlyArray<TenderInSelectionModel> {
+      return this.mode === 'wizard' ? (this.wizardInput?.tenders ?? []) : [];
+    },
+    /** The flat focus walk of the stage: the cards, then the tenders. */
+    legacyOverviewCount(): number {
+      return this.legacyOverviewCards.length + this.legacyTenders.length;
+    },
+    legacyFocusTender(): TenderInSelectionModel | undefined {
+      const at = this.legacyView.focus - this.legacyOverviewCards.length;
+      return at >= 0 ? this.legacyTenders[at] : undefined;
+    },
+    legacyFocusTenderVerb(): {label: string, enabled: boolean} | undefined {
+      const t = this.legacyFocusTender;
+      if (t === undefined || this.legacyView.phase !== 'open') {
+        return undefined;
+      }
+      const verb = startTenderVerb(t, this.state.tenderBusy !== undefined);
+      return verb === undefined ? undefined : {label: verb.label, enabled: verb.enabled};
+    },
+    tenderStepFacts(): {kind: 'keep' | 'restructure', commitLabel: string, canCommit: boolean, pickLabel: string} | undefined {
+      const step = this.tenderStep;
+      if (step === undefined) {
+        return undefined;
+      }
+      const busy = this.state.tenderBusy !== undefined;
+      if (step.kind === 'keep') {
+        const focused = this.tenderStepCards[this.tenderStepFocus]?.name;
+        return {kind: 'keep', commitLabel: 'Redeal the rest', canCommit: !busy,
+          pickLabel: focused !== undefined && step.keep === focused ? 'Let it go' : 'Keep this card'};
+      }
+      const inOffer = this.tenderStepFocus < this.tenderStepOfferCards.length;
+      const focused = inOffer ? this.tenderStepOfferCards[this.tenderStepFocus]?.name :
+        this.tenderStepLineageCards[this.tenderStepFocus - this.tenderStepOfferCards.length]?.name;
+      const picked = focused !== undefined && (inOffer ? step.take === focused : step.replace === focused);
+      return {kind: 'restructure', commitLabel: 'Replace', canCommit: !busy && tenderStepCommit(step) !== undefined,
+        pickLabel: picked ? 'Unpick' : (inOffer ? 'Take this corporation' : 'Replace this one')};
+    },
+    tenderStepAskKey(): string {
+      return this.tenderStep === undefined ? '' : tenderStepAskKey(this.tenderStep);
+    },
+    tenderStepStatusText(): string {
+      if (this.tenderStep === undefined) {
+        return '';
+      }
+      if (this.state.tenderBusy !== undefined) {
+        return translateText('Executing…');
+      }
+      const st = tenderStepStatus(this.tenderStep, (n) => translateText(n));
+      return translateTextWithParams(st.key, [...st.params]);
+    },
+    /** A KEEP step's cards — the live deal of its pool (the prelude / project step's own cards). */
+    tenderStepCards(): ReadonlyArray<CardModel> {
+      const step = this.tenderStep;
+      if (step === undefined || step.kind !== 'keep') {
+        return [];
+      }
+      const input = this.wizardInput;
+      if (input === undefined) {
+        return [];
+      }
+      return wizardSteps(input).find((st) => st.id === step.pool)?.input.cards ?? [];
+    },
+    tenderStepOfferCards(): ReadonlyArray<CardModel> {
+      const step = this.tenderStep;
+      return step !== undefined && step.kind === 'restructure' ? step.offer.map((name) => ({name}) as CardModel) : [];
+    },
+    tenderStepLineageCards(): ReadonlyArray<CardModel> {
+      return this.tenderStep?.kind === 'restructure' ? this.campaignLineage.map((name) => ({name}) as CardModel) : [];
+    },
+    /** The names the step's focus walks (keep: the pool; restructure: the offer, then the lineage). */
+    tenderStepCount(): number {
+      const step = this.tenderStep;
+      if (step === undefined) {
+        return 0;
+      }
+      return step.kind === 'keep' ? this.tenderStepCards.length : this.tenderStepOfferCards.length + this.tenderStepLineageCards.length;
+    },
+    // ── «КОМПЕНСАЦИЯ» — the «Тендеры» mode's last deployment stage ──
+    heldTenderCount(): number {
+      return (this.playerView.campaignTenders ?? []).filter((t) => t.status === 'held').length;
+    },
+    compensationPrompt(): {tenders: number, megaCredits: number} | undefined {
+      return this.mode === 'ceremony' ? startFlowCompensationPrompt(this.playerView) : undefined;
+    },
+    compensationAmount(): number {
+      return this.compensationPrompt?.megaCredits ?? this.heldTenderCount * TENDER_COMPENSATION_MC;
+    },
+    /** The plate stands PRE-LAID while any tender is still held in the ceremony, and leaves with its press (the
+     *  statuses turn «cashed» in the same answer). */
+    compensationPlateShown(): boolean {
+      return this.mode === 'ceremony' && (this.compensationPrompt !== undefined || this.heldTenderCount > 0);
+    },
+    compensationSubText(): string {
+      const held = (this.playerView.campaignTenders ?? []).filter((t) => t.status === 'held');
+      const count = this.compensationPrompt?.tenders ?? held.length;
+      const names = held.map((t) => translateText(startTenderName(t.id as TenderId))).join(' · ');
+      return translateTextWithParams('Unexecuted tenders: ${0} × ${1} M€', [String(count), String(TENDER_COMPENSATION_MC)]) +
+        (names !== '' ? ' — ' + names : '');
+    },
+    /** The preludes «Продление программы» carried into this finale — the queue marks them. */
+    carriedPreludeNames(): Set<CardName> {
+      return new Set((this.playerView.campaignCarriedPreludes ?? []).map((c) => c.name));
+    },
     /** R3 opens the overview from EVERY wizard page — corp step through the
      *  summary, the sent-and-awaiting summary included (the read is exactly
      *  what informs the picks still being made). */
     legacyOverviewAvailable(): boolean {
-      return this.mode === 'wizard' && this.legacyOverviewCards.length > 0;
+      return this.mode === 'wizard' && (this.legacyOverviewCards.length > 0 || this.legacyTenders.length > 0);
     },
     /** The overview stage exists (any phase past closed) — input routes to
      *  it, the rail holds. */
@@ -4252,6 +4464,11 @@ export default defineComponent({
         out.push({kind: 'legacy', name: LEGACY_KEY, disabled: false});
         return out;
       }
+      // …and the «КОМПЕНСАЦИЯ» press (the «Тендеры» mode's last stage).
+      if (this.compensationPrompt !== undefined) {
+        out.push({kind: 'compensation', name: COMPENSATION_KEY, disabled: false});
+        return out;
+      }
       if (this.candidatePrompt !== undefined) {
         for (const c of this.candidateCards) {
           out.push({kind: 'candidate', name: c.name, disabled: c.isDisabled === true});
@@ -4395,7 +4612,7 @@ export default defineComponent({
         // The bar carries the FOCUSED item's own verb: a candidate pick's, «Получить» on the campaign's bonus plate and
         // its carried-cards row (the rows' inline hints say the same — the bar never contradicts them with «Разыграть»).
         ceremonyVerb: this.candidatePrompt !== undefined ? this.candidateVerb :
-          (this.focusedItem?.kind === 'legacy' || this.focusedItem?.kind === 'bonus') ? 'Receive' : 'Play now',
+          (this.focusedItem?.kind === 'legacy' || this.focusedItem?.kind === 'bonus' || this.focusedItem?.kind === 'compensation') ? 'Receive' : 'Play now',
         hasFocusables: this.focusables.length > 0,
         pressBlocked: this.pressBlockedNow,
         firstAction: this.firstActionBarState,
@@ -4410,6 +4627,8 @@ export default defineComponent({
         riskHold: this.riskStage !== undefined,
         legacyAvailable: this.legacyOverviewAvailable,
         legacyOverview: this.legacyView.phase === 'open',
+        legacyTender: this.legacyFocusTenderVerb,
+        tenderStep: this.tenderStepFacts,
       });
     },
     /**
@@ -4549,6 +4768,22 @@ export default defineComponent({
           // (`ensureStartWizard` clears the first-action stage with the rest
           // of the module state on a FRESH deal identity — a rematch cannot
           // inherit the previous game's stage.)
+          // A tender's redeal served the same selection again: the picks that survived the deal come back, the busy
+          // tender lets go; a restructuring whose candidates just arrived opens its step on the stage.
+          restoreStartPicksAfterRedeal(input);
+          this.state.tenderBusy = undefined;
+          if (this.state.restructureOpening !== undefined) {
+            const entry = (input.tenders ?? []).find((t) => t.instance === this.state.restructureOpening);
+            this.state.restructureOpening = undefined;
+            const step = entry === undefined ? undefined : tenderStepFor(entry);
+            if (step !== undefined && this.legacyView.phase === 'open') {
+              this.tenderStep = step;
+              this.tenderStepFocus = 0;
+            }
+          }
+          if (this.tenderStep !== undefined && !(input.tenders ?? []).some((t) => t.instance === this.tenderStep?.instance && t.status === 'held')) {
+            this.tenderStep = undefined; // its tender is executed / gone
+          }
         }
       },
     },
@@ -6482,6 +6717,7 @@ export default defineComponent({
       this.legacyFlight = undefined;
       this.legacyDockHeld = [];
       this.legacyStageHeld = new Set();
+      this.tenderStep = undefined;
       const wasUp = this.legacyView.phase !== 'closed';
       const pageBack = this.legacyPageRestored;
       this.legacyView.phase = 'closed';
@@ -6503,8 +6739,12 @@ export default defineComponent({
       if (this.legacyView.phase !== 'open') {
         return; // a motion beat — absorb (no double-open, no mid-flight tear)
       }
+      if (this.tenderStep !== undefined) {
+        this.handleTenderStepIntent(intent);
+        return;
+      }
       if (intent.kind === 'nav') {
-        const count = this.legacyOverviewCards.length;
+        const count = this.legacyOverviewCount;
         if (count === 0) {
           return;
         }
@@ -6516,14 +6756,139 @@ export default defineComponent({
         return;
       }
       if (intent.button === 'stickR' || intent.button === 'back') {
+        if (this.state.tenderBusy !== undefined) {
+          return; // the answer is on the wire — the stage stands until the deal comes back
+        }
         void this.closeLegacyOverview();
         return;
       }
+      if (intent.button === 'confirm' && this.legacyFocusTender !== undefined) {
+        this.executeFocusedTender();
+        return;
+      }
       if (intent.button === 'secondary') {
-        this.zoomLegacyFocused();
+        if (this.legacyFocusTender === undefined) {
+          this.zoomLegacyFocused();
+        }
+        return;
       }
       // Everything else is deliberately absorbed: the pages underneath must
       // not move while the player reads their legacy.
+    },
+    // ── CAMPAIGN «ТЕНДЕРЫ» — execution from the stage ─────────────────────
+    tenderCardStateOf,
+    /** The wire's id is a string; the face wants the catalog's kind. */
+    tenderKindOf(t: TenderInSelectionModel): TenderId {
+      return t.id as TenderId;
+    },
+    /** A on a focused tender: a one-press kind (and the restructuring's deal) goes to the server; a keep kind and a
+     *  dealt restructuring open their step. */
+    executeFocusedTender(): void {
+      const entry = this.legacyFocusTender;
+      if (entry === undefined || this.state.tenderBusy !== undefined) {
+        return;
+      }
+      const verb = startTenderVerb(entry, false);
+      if (verb === undefined || !verb.enabled) {
+        return;
+      }
+      const step = tenderStepFor(entry);
+      if (step !== undefined) {
+        this.tenderStep = step;
+        this.tenderStepFocus = 0;
+        return;
+      }
+      const response = tenderPressResponse(entry);
+      if (response === undefined) {
+        return;
+      }
+      if (entry.id === 'restructuring') {
+        this.state.restructureOpening = entry.instance;
+      }
+      this.submitTender(response);
+    },
+    /** ONE door for every tender answer: the picks are armed to survive the redeal, the instance goes busy. */
+    submitTender(response: TenderResponse): void {
+      armStartRedealRestore();
+      this.state.tenderBusy = response.instance;
+      this.$emit('submit', response);
+    },
+    handleTenderStepIntent(intent: GamepadIntent): void {
+      const step = this.tenderStep;
+      if (step === undefined) {
+        return;
+      }
+      if (intent.kind === 'nav') {
+        const count = this.tenderStepCount;
+        if (count === 0) {
+          return;
+        }
+        const d = intent.dir === 'right' || intent.dir === 'down' ? 1 : -1;
+        this.tenderStepFocus = Math.min(count - 1, Math.max(0, this.tenderStepFocus + d));
+        return;
+      }
+      if (intent.kind !== 'press' || this.state.tenderBusy !== undefined) {
+        return;
+      }
+      switch (intent.button) {
+      case 'confirm': {
+        if (step.kind === 'keep') {
+          const name = this.tenderStepCards[this.tenderStepFocus]?.name;
+          if (name !== undefined) {
+            this.tenderStep = toggleKeep(step, name);
+          }
+          return;
+        }
+        const offerN = this.tenderStepOfferCards.length;
+        const inOffer = this.tenderStepFocus < offerN;
+        const name = inOffer ? this.tenderStepOfferCards[this.tenderStepFocus]?.name : this.tenderStepLineageCards[this.tenderStepFocus - offerN]?.name;
+        if (name !== undefined) {
+          this.tenderStep = pickRestructure(step, name, inOffer ? 'offer' : 'lineage');
+        }
+        return;
+      }
+      case 'triggerR': {
+        const response = tenderStepCommit(step);
+        if (response !== undefined) {
+          this.submitTender(response);
+        }
+        return;
+      }
+      case 'triggerL': {
+        const response = tenderStepDecline(step);
+        if (response !== undefined) {
+          this.submitTender(response);
+          this.tenderStep = undefined;
+        }
+        return;
+      }
+      case 'back':
+      case 'stickR':
+        // One level back to the stage — nothing sent; a dealt restructuring keeps its candidates (A reopens).
+        this.tenderStep = undefined;
+        return;
+      case 'secondary': {
+        const cards = step.kind === 'keep' ? this.tenderStepCards : [...this.tenderStepOfferCards, ...this.tenderStepLineageCards];
+        if (cards.length > 0) {
+          openConsoleCardZoom([...cards], Math.min(this.tenderStepFocus, cards.length - 1), undefined, undefined, {contextLabel: startTenderName(step.id)});
+        }
+        return;
+      }
+      default:
+        return;
+      }
+    },
+    /** «КОМПЕНСАЦИЯ»: the M€ chip flies from the plate into the rail (the bonus plate's own language). */
+    launchCompensationFlight(): void {
+      const amount = this.compensationPrompt?.megaCredits ?? this.heldTenderCount * TENDER_COMPENSATION_MC;
+      if (amount <= 0) {
+        return;
+      }
+      void runResourceTransfers({
+        specs: [{channel: 'stock', resource: 'megacredits', amount}],
+        source: {selectors: ['[data-tender-compensation]']},
+        arrival: 'auto',
+      });
     },
     /** X: the focused legacy card fullscreen — lifting out of (and returning
      *  into) its STAGE seat; LB/RB browse the whole legacy set and the seat
@@ -6553,9 +6918,10 @@ export default defineComponent({
       if (pane === undefined) {
         return;
       }
-      const n = Math.max(1, this.legacyOverviewCards.length);
+      const n = Math.max(1, this.legacyOverviewCount);
       const zones = (this.legacyOverviewCorpCount > 0 ? 1 : 0) +
-        (this.legacyOverviewCards.length > this.legacyOverviewCorpCount ? 1 : 0);
+        (this.legacyOverviewCards.length > this.legacyOverviewCorpCount ? 1 : 0) +
+        (this.legacyTenders.length > 0 ? 1 : 0);
       const s = conUiScale();
       const capH = 30 * s; // the zone caption row
       const noteH = 34 * s; // the read-only note line
@@ -7922,6 +8288,12 @@ export default defineComponent({
       // nothing is deducted).
       if (item.kind === 'legacy') {
         this.launchLegacyDelivery();
+        this.$emit('submit', {type: 'option'});
+        return;
+      }
+      // CAMPAIGN «КОМПЕНСАЦИЯ»: the Committee's buy-back — the M€ chip flies from the plate into the rail.
+      if (item.kind === 'compensation') {
+        this.launchCompensationFlight();
         this.$emit('submit', {type: 'option'});
         return;
       }

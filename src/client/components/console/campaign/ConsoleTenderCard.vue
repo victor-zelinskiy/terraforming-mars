@@ -53,10 +53,10 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {TENDER_COMPENSATION_MC, TenderId, tenderDef} from '@/common/campaign/tenders';
-import {TENDER_GLYPH_PATH, tenderChevrons, tenderMeta, tenderTierKey, tenderWindowKey} from '@/client/console/campaign/tenderMeta';
+import {TENDER_GLYPH_PATH, TenderCardState, tenderChevrons, tenderMeta, tenderTierKey, tenderWindowKey} from '@/client/console/campaign/tenderMeta';
 import {translateTextWithParams} from '@/client/directives/i18n';
 
-export type TenderCardState = 'open' | 'taken' | 'withdrawn' | 'held' | 'executed' | 'cashed';
+export type {TenderCardState};
 
 export default defineComponent({
   name: 'ConsoleTenderCard',

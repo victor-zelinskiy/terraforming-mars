@@ -155,6 +155,17 @@ export type StartSceneCommandState = {
    */
   legacyOverview?: boolean,
   /**
+   * CAMPAIGN «ТЕНДЕРЫ» (the finale's start): the focused object on the open legacy stage is a TENDER — its A verb
+   * («Исполнить» for a held start-window tender, a named disabled status otherwise). `undefined` = a card is focused.
+   */
+  legacyTender?: {label: string, enabled: boolean},
+  /**
+   * …and a tender's STEP is open inside the stage: a KEEP (A toggles the one kept card, RT redeals the rest) or the
+   * RESTRUCTURING (A picks in either zone, RT replaces once both are chosen, LT declines). B is one level back to the
+   * stage.
+   */
+  tenderStep?: {kind: 'keep' | 'restructure', commitLabel: string, canCommit: boolean, pickLabel: string},
+  /**
    * The press on the focused item WOULD BE REFUSED right now (`startPressRefusal` over the live signals) — the bar
    * dims A and names the wait, so a press that does nothing is never advertised.
    */
@@ -176,10 +187,24 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
     // sub-stage: X inspects, B goes ONE level back to the page the player
     // descended from (picks and focus untouched by construction).
     if (s.legacyOverview === true) {
-      return [
-        {control: 'secondary', label: 'Inspect'},
-        {control: 'back', label: 'Back'},
-      ];
+      if (s.tenderStep !== undefined) {
+        const step: Array<StartCommand> = [
+          {control: 'confirm', label: s.tenderStep.pickLabel},
+          {control: 'triggerR', label: s.tenderStep.commitLabel, enabled: s.tenderStep.canCommit, highlight: s.tenderStep.canCommit},
+        ];
+        if (s.tenderStep.kind === 'restructure') {
+          step.push({control: 'triggerL', label: 'Decline the restructuring'});
+        }
+        step.push({control: 'back', label: 'Back'});
+        return step;
+      }
+      const stage: Array<StartCommand> = [];
+      if (s.legacyTender !== undefined) {
+        stage.push({control: 'confirm', label: s.legacyTender.label, enabled: s.legacyTender.enabled, highlight: s.legacyTender.enabled});
+      }
+      stage.push({control: 'secondary', label: 'Inspect'});
+      stage.push({control: 'back', label: 'Back'});
+      return stage;
     }
     if (s.awaiting) {
       // The player's part is done — an A here would advertise a press that

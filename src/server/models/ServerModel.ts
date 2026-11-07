@@ -1,3 +1,4 @@
+import {campaignLineageOf} from '../campaign/CampaignMissionSetup';
 import {CardModel} from '../../common/models/CardModel';
 import {ratingSkipMarkOf} from './skippedRating';
 import {Color} from '../../common/Color';
@@ -291,6 +292,8 @@ export class Server {
           return card === undefined ? [] : [card];
         })) :
         undefined,
+      campaignLineage: player.game.gameOptions.campaign !== undefined && !player.isMarsBot ?
+        [...campaignLineageOf(player)] : undefined,
       campaignTenders: player.campaignTenders !== undefined && player.campaignTenders.length > 0 ?
         player.campaignTenders.map((t) => ({instance: t.instance, id: t.id, status: t.status})) :
         undefined,

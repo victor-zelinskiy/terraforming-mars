@@ -127,3 +127,6 @@ export const TENDER_GLYPH_PATH: Readonly<Record<TenderGlyph, string>> = {
 export function tenderMetaIds(): ReadonlyArray<TenderId> {
   return Object.keys(TENDER_CATALOG) as Array<TenderId>;
 }
+
+/** The certificate's drawn state — open on the table, taken by a seat, withdrawn, held / executed / bought back. */
+export type TenderCardState = 'open' | 'taken' | 'withdrawn' | 'held' | 'executed' | 'cashed';

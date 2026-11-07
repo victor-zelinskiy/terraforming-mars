@@ -1471,6 +1471,8 @@ export class CampaignManager {
     tenders?: Record<number, Array<TenderId>>,
     /** The «Тендеры» mode: seat → the preludes the fabricated mission recorded as PLAYED (a «Продление» candidate set). */
     finalPreludes?: Record<number, Array<CardName>>,
+    /** The «Тендеры» mode: seat → the played preludes a CONFIRMED carryover carries («Продление программы» realized by the stand). */
+    carryoverPreludes?: Record<number, Array<CardName>>,
   }): Promise<SerializedCampaign> {
     const campaign = await this.load(id);
     if (campaign === undefined) {
@@ -1564,9 +1566,11 @@ export class CampaignManager {
           slot.finalPreludes[seat] = [...(fixture?.finalPreludes?.[seat] ?? [])];
         }
         const limit = fixture?.carryoverLimits?.[seat] ?? carryoverLimitFor(campaign, seat, slot.modifiers);
+        const carriedPreludes = fixture?.carryoverPreludes?.[seat] ?? [];
         bySeat[seat] = fixture?.carryoverPending === true ?
           {status: 'pending', cards: [], consumed: false, limit} :
-          {status: 'confirmed', cards: carried.slice(0, limit), consumed: false, limit};
+          {status: 'confirmed', cards: carried.slice(0, limit), consumed: false, limit,
+            ...(carriedPreludes.length > 0 ? {preludes: [...carriedPreludes]} : {})};
       }
       campaign.carryover = {sourceSlot: slot.slot, bySeat};
       campaign.pointer = slot.slot + 1;

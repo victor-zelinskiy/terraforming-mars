@@ -198,7 +198,74 @@ export const consoleStartState = reactive({
    * scene, read by the shell's start watchdog. `undefined` while no scene is mounted.
    */
   serves: undefined as StartServes | undefined,
+  /**
+   * CAMPAIGN «ТЕНДЕРЫ» — the instance whose answer is on the wire (the stage absorbs a second press until the deal
+   * comes back) and a restructuring whose FIRST answer (the deal of candidates) is out (its step opens on the answer).
+   * MODULE state, not the scene's: a server «no» changes no view, so no watcher would let them go — the transport's
+   * refusal battery does (`abortStartTender`), or the stage would read «Выполняется…» for the rest of the start.
+   */
+  tenderBusy: undefined as string | undefined,
+  restructureOpening: undefined as string | undefined,
 });
+
+/**
+ * CAMPAIGN «ТЕНДЕРЫ»: a tender executed from the «НАСЛЕДИЕ» stage changes the DEAL — the server serves the same
+ * selection again under a new identity, and `ensureStartWizard` would reset every pick. The scene ARMS this record
+ * before the tender's answer goes out; the restore (`restoreStartPicksAfterRedeal`) re-applies every pick the new
+ * deal still holds, clamps to the new limits and puts the player back on the page they were reading.
+ */
+let pendingRedealRestore: {corp?: CardName, preludes: Array<CardName>, ceo?: CardName, projects: Array<CardName>, stepIdx: number} | undefined;
+
+export function armStartRedealRestore(): void {
+  pendingRedealRestore = {
+    corp: consoleStartState.corp,
+    preludes: [...consoleStartState.preludes],
+    ceo: consoleStartState.ceo,
+    projects: [...consoleStartState.projects],
+    stepIdx: consoleStartState.stepIdx,
+  };
+}
+
+export function startRedealRestoreArmed(): boolean {
+  return pendingRedealRestore !== undefined;
+}
+
+/** Tests / a teardown: forget an armed restore. */
+export function clearStartRedealRestore(): void {
+  pendingRedealRestore = undefined;
+}
+
+/**
+ * The transport's refusal battery: a tender's answer was REFUSED (a bad request, a network failure — «No corporation
+ * is left to deal») — the busy instance, the opening restructuring and the armed pick restore let go, so the stage
+ * takes the next press and the picks are not re-applied over a deal that never changed.
+ */
+export function abortStartTender(): void {
+  consoleStartState.tenderBusy = undefined;
+  consoleStartState.restructureOpening = undefined;
+  pendingRedealRestore = undefined;
+}
+
+/** After `ensureStartWizard` on the re-served deal: the surviving picks come back, the page too. */
+export function restoreStartPicksAfterRedeal(input: SelectInitialCardsModel): void {
+  const saved = pendingRedealRestore;
+  if (saved === undefined) {
+    return;
+  }
+  pendingRedealRestore = undefined;
+  const steps = wizardSteps(input);
+  const dealt = (id: StartWizardStepId) => new Set((steps.find((st) => st.id === id)?.input.cards ?? []).map((c) => c.name));
+  const limit = (id: StartWizardStepId) => steps.find((st) => st.id === id)?.input.max ?? 0;
+  const corps = dealt('corp');
+  consoleStartState.corp = saved.corp !== undefined && corps.has(saved.corp) ? saved.corp : undefined;
+  const ceos = dealt('ceo');
+  consoleStartState.ceo = saved.ceo !== undefined && ceos.has(saved.ceo) ? saved.ceo : undefined;
+  const preludes = dealt('prelude');
+  consoleStartState.preludes = saved.preludes.filter((n) => preludes.has(n)).slice(0, Math.max(0, limit('prelude')));
+  const projects = dealt('projects');
+  consoleStartState.projects = saved.projects.filter((n) => projects.has(n)).slice(0, Math.max(0, limit('projects')));
+  consoleStartState.stepIdx = Math.min(saved.stepIdx, Math.max(0, steps.length)); // the summary sits past the last step
+}
 
 /** Reset picks when the prompt identity (player / deal) changes. */
 export function ensureStartWizard(
@@ -233,6 +300,8 @@ export function ensureStartWizard(
   consoleStartState.bonusAct = {stage: 'idle', source: undefined, corpDone: false};
   consoleStartState.bonusActionSeen = false;
   consoleStartState.legacySeen = false;
+  consoleStartState.tenderBusy = undefined;
+  consoleStartState.restructureOpening = undefined;
   resetStartTransition();
 }
 
@@ -602,7 +671,9 @@ export function campaignWizardExtra(view: PlayerViewModel): {megaCredits: number
   }
   let megaCredits = grant.bonusMegaCredits;
   let cardCostDelta = 0;
-  for (const name of grant.corporations) {
+  // The lineage this mission DEPLOYS — a «Реструктуризация» at the finale's start rewrites it (the self model says).
+  const lineage = view.campaignLineage ?? grant.corporations;
+  for (const name of lineage) {
     const corp = getCard(name);
     megaCredits += corp?.startingMegaCredits ?? 0;
     if (corp?.cardCost !== undefined) {
@@ -612,10 +683,19 @@ export function campaignWizardExtra(view: PlayerViewModel): {megaCredits: number
   // ONE fee per ADDITIONAL corporation, EVERY mission (missions 3–4 pay for
   // corp №3 again): lineage[1..] + the fresh pick (absent on a final that
   // deploys a full company; a three-mission finale still drafts its third).
-  const picks = contract.final !== true || campaignFinalePicksCorporation(grant.corporations.length);
-  const additional = (grant.corporations.length - 1) + (picks ? 1 : 0);
+  const picks = contract.final !== true || campaignFinalePicksCorporation(lineage.length);
+  const additional = (lineage.length - 1) + (picks ? 1 : 0);
   const mergeFee = additional * CAMPAIGN_MERGE_COST;
-  return {megaCredits: megaCredits - mergeFee, cardCostDelta, mergeFee};
+  // «Субсидия на исследования» (the «Тендеры» mode): every EXECUTED copy takes 1 M€ off each starting-hand card — the
+  // server's `campaignStartingHandDiscount`, mirrored off the self model's tender statuses (never below 0 at the
+  // readers: `startCardPrice`).
+  const subsidies = (view.campaignTenders ?? []).filter((t) => t.id === 'researchSubsidy' && t.status === 'executed').length;
+  return {megaCredits: megaCredits - mergeFee, cardCostDelta: cardCostDelta - subsidies, mergeFee};
+}
+
+/** The price of ONE starting-hand card — the corporation's own price plus the campaign delta, never below zero. */
+export function startCardPrice(base: number, cardCostDelta: number): number {
+  return Math.max(0, base + cardCostDelta);
 }
 
 export function startCorpStageLabel(): string {

@@ -214,6 +214,7 @@ import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardC
 import {abortConsoleActionCommit} from '@/client/console/consoleActionCommit';
 import {resetColonyBonusPayout, seedColonyBonusPayoutHolds} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {abortBotAttackCommit} from '@/client/console/botAttack/botAttackState';
+import {abortStartTender} from '@/client/console/consoleStartState';
 import {clearDecisionPickAnswered} from '@/client/console/effectDecision/effectDecisionState';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {registerBotTurnApplied} from '@/client/components/marsbot/marsBotStagedCommits';
@@ -1748,6 +1749,7 @@ function abortAllConsoleTransactions(): void {
   // …and the ledger payout that press armed (TR23): the activation never happened — nothing is owed, nothing is held.
   resetColonyBonusPayout();
   abortBotAttackCommit(); // …and the MarsBot attack — the commit row re-opens
+  abortStartTender(); // …and a campaign tender answered from the start's «НАСЛЕДИЕ» stage: the busy instance, the opening restructuring and the armed pick restore let go
   clearDecisionPickAnswered(); // …and an album that IS a decision: the answer was refused, the album re-opens
 }
 

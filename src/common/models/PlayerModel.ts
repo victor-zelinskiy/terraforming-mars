@@ -277,6 +277,12 @@ export interface PlayerViewModel extends ViewModel {
   // finale with their status (held / executed / cashed) — the start's
   // «НАСЛЕДИЕ › ТЕНДЕРЫ» page and the compensation row read it.
   campaignTenders?: ReadonlyArray<{instance: string, id: string, status: 'held' | 'executed' | 'cashed'}>;
+  /**
+   * CAMPAIGN: the lineage this mission DEPLOYS for the viewer — the contract's grant, or the one a «Реструктуризация»
+   * rewrote during the finale's start (`campaignLineageOverride`). The start scene's shelf, overview and money mirror
+   * read THIS, never the frozen grant alone. Undefined outside campaigns.
+   */
+  campaignLineage?: ReadonlyArray<CardName>;
   preludeCardsInHand: ReadonlyArray<CardModel>;
   // Corporations whose MANDATORY first action this player still owes (server's
   // `pendingInitialActions`, projected to names). Self-only — corp identity is

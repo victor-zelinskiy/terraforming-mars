@@ -11,6 +11,7 @@
  * (the exact corp × prelude × buy-count pairs the desktop start screen and
  * the server agree on). Nothing speculative, nothing re-implemented.
  */
+import {startCardPrice} from '@/client/console/consoleStartState';
 import {CardName} from '@/common/cards/CardName';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
 import type {InitialCardsPicks} from '@/client/console/consoleStartState';
@@ -48,7 +49,7 @@ export function buildStartStatusPreview(picks: InitialCardsPicks, extra: Campaig
   }
   const buys = picks.projects.length;
   const start = (startingMegacredits(corp, 0) ?? 0) + extra.megaCredits;
-  const cardCost = cardCostForCorp(corp) + extra.cardCostDelta;
+  const cardCost = startCardPrice(cardCostForCorp(corp), extra.cardCostDelta);
   const preludeDelta = afterPreludes(corp, picks.preludes, buys);
   return {
     corp,

@@ -1,11 +1,43 @@
 import {expect} from 'chai';
 import {
-  buildInitialCardsResponse, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, driftDockPile,
-  ensureStartWizard, holdStartScene, initialCardsSignature, picksForStep, releaseStartScene,
-  startFlowBusy, startHeroPlaying, startLaunchState, startParticipants, startSceneHeld, setStartHeroPlaying, stepComplete, wizardCrumb,
-  wizardSteps, startJourneyItems, deploymentJourneyItems, startDockPiles, campaignWizardExtra,
-  startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startDeploymentBegun,
-  markStartDeploymentBegun, startCardAvailability, startRailCommitted, stepShowsAvailability,
+  abortStartTender,
+  armStartRedealRestore,
+  buildInitialCardsResponse,
+  campaignWizardExtra,
+  clearDockDrift,
+  clearStartRedealRestore,
+  committedStartJourneyItems,
+  consoleStartState,
+  deploymentCrumb,
+  deploymentJourneyItems,
+  driftDockPile,
+  ensureStartWizard,
+  holdStartScene,
+  initialCardsSignature,
+  markStartDeploymentBegun,
+  picksForStep,
+  releaseStartScene,
+  restoreStartPicksAfterRedeal,
+  setStartHeroPlaying,
+  startAwaitingOthers,
+  startCardAvailability,
+  startCardPrice,
+  startCorporationPlayed,
+  startDeferredSummary,
+  startDeploymentBegun,
+  startDockPiles,
+  startFlowBusy,
+  startHeroPlaying,
+  startJourneyItems,
+  startLaunchState,
+  startParticipants,
+  startRailCommitted,
+  startRedealRestoreArmed,
+  startSceneHeld,
+  stepComplete,
+  stepShowsAvailability,
+  wizardCrumb,
+  wizardSteps,
 } from '@/client/console/consoleStartState';
 import {FORWARD_PHASES, StartTransitionPhase} from '@/client/console/startStageDirector';
 import {SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
@@ -89,6 +121,60 @@ describe('consoleStartState (T5 wizard logic)', () => {
       grants: [{seat: 0, color: 'red', bonusMegaCredits: 0, corporations: [], titlePoints: []}],
     };
     expect(campaignWizardExtra(viewOf(mission1))).to.deep.eq({megaCredits: 0, cardCostDelta: 0, mergeFee: 0});
+  });
+
+  it('«Тендеры»: an ARMED restore carries the picks the redeal still holds across the new deal identity, clamps to the new limits and keeps the page', () => {
+    const before = input(true);
+    ensureStartWizard('p1', initialCardsSignature(before), wizardSteps(before).map((st) => st.id));
+    consoleStartState.corp = CardName.CREDICOR;
+    consoleStartState.preludes = [CardName.LOAN, CardName.DONATION];
+    consoleStartState.projects = [CardName.ANTS];
+    consoleStartState.stepIdx = 2;
+    expect(startRedealRestoreArmed()).to.eq(false);
+    armStartRedealRestore();
+    expect(startRedealRestoreArmed()).to.eq(true);
+    // The server redealt the preludes (a «Пересмотр прологов» that kept Loan) and served the selection again.
+    const after = {
+      ...before,
+      options: [
+        cardOption(titles.SELECT_CORPORATION_TITLE, [CardName.THARSIS_REPUBLIC, CardName.CREDICOR], 1, 1),
+        cardOption(titles.SELECT_PRELUDE_TITLE, [CardName.LOAN, CardName.BUSINESS_EMPIRE, CardName.ECCENTRIC_SPONSOR, CardName.GALILEAN_MINING], 2, 2),
+        cardOption(titles.SELECT_PROJECTS_TITLE, [CardName.BIRDS, CardName.ANTS, CardName.FISH], 0, 10),
+      ],
+    } as unknown as SelectInitialCardsModel;
+    ensureStartWizard('p1', initialCardsSignature(after), wizardSteps(after).map((st) => st.id));
+    expect(consoleStartState.corp, 'a fresh identity reset everything…').to.eq(undefined);
+    restoreStartPicksAfterRedeal(after);
+    expect(consoleStartState.corp, '…and the restore brought back what the deal still holds').to.eq(CardName.CREDICOR);
+    expect(consoleStartState.preludes).to.deep.eq([CardName.LOAN]);
+    expect(consoleStartState.projects).to.deep.eq([CardName.ANTS]);
+    expect(consoleStartState.stepIdx).to.eq(2);
+    expect(startRedealRestoreArmed(), 'one restore per arm').to.eq(false);
+    // A restore with nothing armed changes nothing.
+    consoleStartState.corp = undefined;
+    restoreStartPicksAfterRedeal(after);
+    expect(consoleStartState.corp).to.eq(undefined);
+    clearStartRedealRestore();
+  });
+
+  it('«Субсидия на исследования»: every EXECUTED copy takes 1 M€ off the starting-hand card in the money mirror; the reader never goes below zero', () => {
+    const viewOf = (tenders: unknown) => ({
+      thisPlayer: {color: 'red'},
+      game: {gameOptions: {campaign: {
+        final: true, missionSlot: 3, rewardMode: 'tenders',
+        grants: [{seat: 0, color: 'red', bonusMegaCredits: 0, corporations: [CardName.CREDICOR, CardName.THORGATE, CardName.HELION], titlePoints: []}],
+      }}},
+      campaignTenders: tenders,
+    } as unknown as PlayerViewModel);
+    expect(campaignWizardExtra(viewOf(undefined)).cardCostDelta).to.eq(0);
+    expect(campaignWizardExtra(viewOf([{instance: 'a', id: 'researchSubsidy', status: 'held'}])).cardCostDelta, 'held is not executed').to.eq(0);
+    expect(campaignWizardExtra(viewOf([{instance: 'a', id: 'researchSubsidy', status: 'executed'}, {instance: 'b', id: 'researchSubsidy', status: 'executed'}])).cardCostDelta).to.eq(-2);
+    expect(startCardPrice(3, -2)).to.eq(1);
+    expect(startCardPrice(1, -2), 'never below zero').to.eq(0);
+    // The effective lineage (a restructuring rewrote it) outranks the frozen grant in the money mirror.
+    const view = viewOf(undefined) as unknown as {campaignLineage?: ReadonlyArray<CardName>};
+    view.campaignLineage = [CardName.ECOLINE, CardName.THORGATE, CardName.HELION];
+    expect(campaignWizardExtra(view as unknown as PlayerViewModel).megaCredits).to.eq(36 + 48 + 42 - 2 * 42);
   });
 
   it('stepComplete honors the SERVER min/max per step', () => {
@@ -785,5 +871,18 @@ describe('consoleStartState (startRailCommitted — the rail focus commit)', () 
     // …unless the deal is still dealing (the projects step): then the deal's
     // own end is the release edge.
     expect(committed(true, 'stabilizing-focus')).is.false;
+  });
+});
+
+describe('consoleStartState (abortStartTender — a refused tender answer lets go)', () => {
+  it('the busy instance, the opening restructuring and the armed pick restore are cleared by the refusal battery of the transport', () => {
+    armStartRedealRestore();
+    consoleStartState.tenderBusy = 't-1';
+    consoleStartState.restructureOpening = 't-1';
+    expect(startRedealRestoreArmed()).to.be.true;
+    abortStartTender();
+    expect(startRedealRestoreArmed(), 'a deal that never changed restores nothing').to.be.false;
+    expect(consoleStartState.tenderBusy).to.be.undefined;
+    expect(consoleStartState.restructureOpening).to.be.undefined;
   });
 });

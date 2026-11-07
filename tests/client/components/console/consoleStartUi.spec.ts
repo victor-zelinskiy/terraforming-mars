@@ -163,6 +163,23 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(fromAwait.map((c) => c.control)).to.deep.eq(['secondary', 'back']);
   });
 
+  it('«Тендеры»: a focused tender puts its verb on the stage\'s bar; a tender STEP owns the bar (toggle · RT commit · LT decline for the restructuring · B back)', () => {
+    const onTender = startSceneCommands(state({legacyAvailable: true, legacyOverview: true, legacyTender: {label: 'Execute', enabled: true}}));
+    expect(onTender.map((c) => c.control)).to.deep.eq(['confirm', 'secondary', 'back']);
+    expect(labelOf(onTender, 'confirm')).to.eq('Execute');
+    const legacyKind = startSceneCommands(state({legacyAvailable: true, legacyOverview: true, legacyTender: {label: 'Execute', enabled: false}}));
+    expect(legacyKind.find((c) => c.control === 'confirm')?.enabled, 'a legacy-window tender: the verb stands DISABLED, never hidden').to.eq(false);
+    const keep = startSceneCommands(state({legacyAvailable: true, legacyOverview: true,
+      tenderStep: {kind: 'keep', commitLabel: 'Redeal the rest', canCommit: true, pickLabel: 'Keep this card'}}));
+    expect(keep.map((c) => c.control)).to.deep.eq(['confirm', 'triggerR', 'back']);
+    expect(labelOf(keep, 'triggerR')).to.eq('Redeal the rest');
+    const restructure = startSceneCommands(state({legacyAvailable: true, legacyOverview: true,
+      tenderStep: {kind: 'restructure', commitLabel: 'Replace', canCommit: false, pickLabel: 'Take this corporation'}}));
+    expect(restructure.map((c) => c.control)).to.deep.eq(['confirm', 'triggerR', 'triggerL', 'back']);
+    expect(restructure.find((c) => c.control === 'triggerR')?.enabled, 'RT waits for both picks').to.eq(false);
+    expect(labelOf(restructure, 'triggerL')).to.eq('Decline the restructuring');
+  });
+
   /**
    * THE FIRST-ACTION STAGE — the deployment's conditional last stage. The
    * waiting state must never advertise an active CTA (the action cannot be

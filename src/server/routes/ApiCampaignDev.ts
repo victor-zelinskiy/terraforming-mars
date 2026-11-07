@@ -39,6 +39,8 @@ export class ApiCampaignDev extends Handler {
         // The «Тендеры» mode: leave the bidding open for the humans (the real regime), resolve their picks, or grant tenders outright.
         biddingPending?: boolean, tenderPicks?: Record<number, TenderId>, tenders?: Record<number, Array<TenderId>>,
         finalPreludes?: Record<number, Array<CardName>>,
+        /** Confirmed carryovers may name the played preludes carried («Продление программы» realized by the fixture). */
+        carryoverPreludes?: Record<number, Array<CardName>>,
       };
       if (typeof parsed.campaignId !== 'string' || !isCampaignId(parsed.campaignId)) {
         responses.badRequest(req, res, 'invalid campaign id');
@@ -54,6 +56,7 @@ export class ApiCampaignDev extends Handler {
         carryoverLimits: parsed.carryoverLimits,
         biddingPending: parsed.biddingPending === true, tenderPicks: parsed.tenderPicks, tenders: parsed.tenders,
         finalPreludes: parsed.finalPreludes,
+        carryoverPreludes: parsed.carryoverPreludes,
       });
       responses.writeJson(res, ctx, manager.getModel(campaign, undefined));
     } catch (err) {

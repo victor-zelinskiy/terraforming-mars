@@ -780,6 +780,13 @@ export function grantTenderCompensation(player: IPlayer): void {
   for (const tender of campaignTendersOf(player)) {
     if (tender.status === 'held') {
       tender.status = 'cashed';
+      // A restructuring left with its candidates dealt gives them back to the deck — nothing leaks out of the pool.
+      for (const name of tender.offer ?? []) {
+        const card = newCorporationCard(name);
+        if (card !== undefined) {
+          player.game.corporationDeck.discard(card);
+        }
+      }
       tender.offer = undefined;
     }
   }
