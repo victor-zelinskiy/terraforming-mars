@@ -22,6 +22,8 @@ import * as path from 'path';
 import {expect, Page, APIRequestContext} from '@playwright/test';
 import {cinematicBeat, openConsole, soloGameConfig, CORP_WITH_FIRST_ACTION} from './consoleStart';
 import {SPENDABLE_RESOURCES} from '../../src/common/inputs/Spendable';
+import {BoardName} from '../../src/common/boards/BoardName';
+import {getGlobalParameterMaximums, GlobalParameterMaximums} from '../../src/common/boards/GlobalParameterMaximums';
 
 export type WirePrompt = {
   type: string,
@@ -39,7 +41,8 @@ export type WirePrompt = {
 };
 export type WireModel = {
   waitingFor?: WirePrompt & {finalGreeneryPrompt?: unknown},
-  game: {phase: string, temperature: number, oxygenLevel: number, oceans: number, finalGreenery?: {done: Array<string>}},
+  game: {phase: string, temperature: number, oxygenLevel: number, oceans: number, finalGreenery?: {done: Array<string>},
+    gameOptions?: {boardName?: string}},
   thisPlayer: {victoryPointsBreakdown?: {total: number}},
   players: Array<{color: string, name: string, victoryPointsBreakdown?: {total: number}}>,
 };
@@ -50,6 +53,17 @@ export type WireModel = {
 // that — «payment is not a valid type», 400, on every drive of this harness).
 export const NO_PAYMENT: Readonly<Record<string, number>> =
   Object.fromEntries(SPENDABLE_RESOURCES.map((key) => [key, 0]));
+
+/**
+ * THE BOARD'S OWN MAXIMA, never the standard 8 / 14 / 9 as literals: Amazonis Planitia ends at +14 °C / 18 % /
+ * 11 oceans, and a campaign's finale lands there about one route in three (`CAMPAIGN_FINALE_FAVOURITE`). A
+ * terraformer that stops at the standard ceiling leaves such a game unfinished — it then passes every generation
+ * for ever while the drive waits for a final greenery that cannot come (500 rounds, three finale journeys red,
+ * 2026-11-07). The engine's one table answers for every board the random pool can deal.
+ */
+export function maximaOf(m: WireModel): Readonly<GlobalParameterMaximums> {
+  return getGlobalParameterMaximums((m.game.gameOptions?.boardName ?? BoardName.THARSIS) as BoardName);
+}
 
 export function titleOf(prompt: WirePrompt | undefined): string {
   if (prompt === undefined) {
@@ -169,20 +183,22 @@ export function terraformAnswer(m: WireModel): Record<string, unknown> | undefin
       return answerAt(firstAction);
     }
     // Availability is server-authoritative: an option is answered because it
-    // is PRESENT; the parameter checks only stop us re-doing a finished axis.
-    if (m.game.temperature < 8) {
+    // is PRESENT; the parameter checks only stop us re-doing a finished axis —
+    // against THIS board's ceiling (Amazonis Planitia's is higher).
+    const max = maximaOf(m);
+    if (m.game.temperature < max.temperature) {
       const heat = findByTitle(/heat into temperature/i);
       if (heat >= 0) {
         return answerAt(heat);
       }
     }
-    if (m.game.oxygenLevel < 14) {
+    if (m.game.oxygenLevel < max.oxygen) {
       const plants = findByTitle(/plants into greenery/i);
       if (plants >= 0) {
         return answerAt(plants);
       }
     }
-    if (m.game.oceans < 9) {
+    if (m.game.oceans < max.oceans) {
       // «Standard projects» is a PROJECT-CARD prompt (the fork's console flow
       // serves it as one) — Aquifer is bought with the card+payment shape.
       const stdIdx = options.findIndex((o) =>
@@ -296,8 +312,10 @@ export async function createTable(
   return body.players.map((p: {id: string}) => p.id);
 }
 
-export const terraformed = (m: WireModel) =>
-  m.game.temperature >= 8 && m.game.oxygenLevel >= 14 && m.game.oceans >= 9;
+export const terraformed = (m: WireModel) => {
+  const max = maximaOf(m);
+  return m.game.temperature >= max.temperature && m.game.oxygenLevel >= max.oxygen && m.game.oceans >= max.oceans;
+};
 
 /** A tiny screenshot IS a BeginFrame — the rAF pump for headless Chromium. */
 export async function forceFrame(page: Page): Promise<void> {
