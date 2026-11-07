@@ -128,6 +128,11 @@ export function isVikingSite(space: Space): boolean {
   return space.bonus.includes(SpaceBonus.DELEGATE);
 }
 
+/** How many delegates the hex prints (Vastitas Nova's Viking sites one; Amazonis Planitia's Olympus Mons two). */
+export function vikingDelegateCount(space: Space): number {
+  return space.bonus.filter((b) => b === SpaceBonus.DELEGATE).length;
+}
+
 /**
  * Can the Viking hex hand MarsBot its delegate RIGHT NOW? The official rule
  * pays the bot 1 M€ under classic Turmoil; this fork plays Turmoil Redux, and
@@ -168,9 +173,10 @@ export function botRewardIcons(game: IGame, bot: IPlayer, space: Space): number 
     return vastitasNorthPoleUsable(game, bot) ? PAY_TO_USE_PRIORITY : 0;
   }
   if (isVikingSite(space)) {
-    // ONE printed icon — worth what any other icon is worth when the delegate
-    // can land, nothing when it cannot («considered empty»).
-    return vikingDelegateUsable(game, bot) ? 1 : 0;
+    // A printed delegate icon is worth what any other icon is worth when the
+    // delegate can land, nothing when it cannot («considered empty») — one per
+    // printed icon (Amazonis Planitia's Olympus Mons prints two).
+    return vikingDelegateUsable(game, bot) ? vikingDelegateCount(space) : 0;
   }
   return space.bonus.length;
 }

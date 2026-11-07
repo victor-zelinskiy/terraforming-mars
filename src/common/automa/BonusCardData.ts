@@ -137,6 +137,11 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     name: 'Corporate Competition (Arabia Terra)',
     text: 'With 5+ M€, MarsBot pushes the Arabia Terra award race it is closest to being ahead on, then loses 5 M€.',
   },
+  [BonusCardId.BF5_CORPORATE_COMPETITION_AMAZONIS_PLANITIA]: {
+    // «· large map» — the creator's own label for the OFFICIAL eleven-row board; the fan «Amazonis Planitia» (BF2) owns the bare name.
+    name: 'Corporate Competition (Amazonis Planitia · large map)',
+    text: 'With 5+ M€, MarsBot pushes the award race of the official eleven-row Amazonis Planitia it is closest to being ahead on, then loses 5 M€.',
+  },
   // ── The fork's own corporations' cards (BC-prefix) ──
   [BonusCardId.BC1_FIELD_PRACTICE]: {
     name: 'Field Practice',
@@ -498,6 +503,26 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
         {icon: 'tile', text: 'Botanist and Zoologist advance the animal track; Promoter the event track'},
         {icon: 'cards', text: 'A. Manufacturer reveals project cards until a blue one and resolves it', muted: true},
         {icon: 'city', text: 'Cosmic Settler has no push — MarsBot moves on to the next award', muted: true},
+        ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
+        {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
+        {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},
+      ],
+      fate: FATE_DISCARD,
+    };
+  case BonusCardId.BF5_CORPORATE_COMPETITION_AMAZONIS_PLANITIA:
+    // The fork's own face for the official eleven-row Amazonis Planitia (§24.6): Collector → the least-advanced track
+    // (the module's own helper), Physicist → the lower of the science and space tracks, Manufacturer → the lower of
+    // building and power (RB-C p.15), Innovator → the deck's top card resolved (one more card in its pile),
+    // Constructor → a city (RB-C p.14).
+    return {
+      name,
+      lines: [
+        {icon: 'award', text: 'With 5+ M€: MarsBot pushes the award race it is closest to leading'},
+        {icon: 'tile', text: 'Collector advances its least-advanced track (the topmost one if tied)', muted: true},
+        {icon: 'tile', text: 'Physicist advances the science track or the space track, whichever is behind', muted: true},
+        {icon: 'tile', text: 'Manufacturer advances the building track or the power track, whichever is behind', muted: true},
+        {icon: 'cards', text: 'Innovator reveals the top project card and resolves it', muted: true},
+        {icon: 'city', text: 'Constructor places a city', muted: true},
         ...(ctx.venus ? [{icon: 'venus', text: 'Venuphile advances the Venus track', muted: true}] : []),
         {icon: 'megacredits', text: 'Then it pays ${0} M€', params: ['5']},
         {icon: 'deck', text: 'With no funded award it can help, it draws another bonus card instead', muted: true},

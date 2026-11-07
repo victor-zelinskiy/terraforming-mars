@@ -329,6 +329,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       [BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS]: touchesHumans, // Tourist city (tile fan-out) + A. Engineer reveals → human reactors
       [BonusCardId.BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN]: touchesHumans, // Urbanist greenery (tile fan-out) + Warmonger / Incorporator reveals → human reactors
       [BonusCardId.BF4_CORPORATE_COMPETITION_ARABIA_TERRA]: touchesHumans, // A. Manufacturer reveals → human reactors
+      [BonusCardId.BF5_CORPORATE_COMPETITION_AMAZONIS_PLANITIA]: touchesHumans, // Innovator reveals → human reactors; Constructor city (tile fan-out)
       [BonusCardId.B14_CORPORATE_COMPETITION_MA]: botOnly, // unreachable (no resolver)
       [BonusCardId.B15_LOBBYISTS_VENUS]: touchesHumans, // + venus → human Aphrodite payout
       [BonusCardId.B16_GOVERNMENT_INTERVENTION]: touchesHumans, // ocean/venus branches

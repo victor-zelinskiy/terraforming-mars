@@ -39,5 +39,13 @@ Full write-up: `docs/claude/marsbot-dynamic-ma-framework.md` (architecture + dec
    it for; a «weakest of several tracks» milestone is outside it, as the official boards print it (guard
    `tests/automa/ma/botMAReview.spec.ts` § scope). **The briefing states what the MAT plays** (`mat.placement`), never
    a rule's declared form.
+5c. **A map with LONGER parameters prints an EXTENDED board, and the law knows the format** (Amazonis Planitia,
+   2026-11-07 — `docs/claude/amazonis-planitia-marsbot.md`): 25-cell rows = the law's 19-cell BODY (`matLaw.matBody`,
+   memoized — the assembly cache compares rows by identity) + the map's LATE RESERVE (`matTail`, its own law
+   `tailViolations`: no empty cell, opens with `advance`, ends on a TR). The row library holds BODIES; the generator
+   assembles the body and hands the reserve back by row index; the distance is measured against the PRINTED row; a
+   map's Venus row comes from `MarsBotMapProfile.venusTrackFor` (the mat's Microbe track). `matViolations` rejects a
+   mixed-format mat. The module's colony cubes a printed row needs are PRINTED on the body (`colony5`) exactly where the
+   generator would repair them — the golden test demands zero repairs.
 6. **The client re-derives nothing**: the rule lines, the threshold marks, the tokens and the briefing ride
    `MarsBotModel` (`maRules` · `thresholds` · `tokens` · `briefing`), messages with STRING params translated client-side.

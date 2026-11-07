@@ -115,7 +115,7 @@ export function criterionValue(criterion: BotCriterion, game: IGame): number | u
     let value: number;
     if ('count' in criterion) {
       const matches = pilePredicate(criterion.count);
-      value = cards.filter(matches).length;
+      value = Math.floor(cards.filter(matches).length * (criterion.times ?? 1) / (criterion.div ?? 1));
     } else if ('sum' in criterion) {
       const amount = pileAmount(criterion.sum);
       value = cards.reduce((sum, card) => sum + amount(card), 0);

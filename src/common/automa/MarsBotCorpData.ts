@@ -1,7 +1,7 @@
 import {CardName} from '../cards/CardName';
 import {Expansion} from '../cards/GameModule';
 import {Tag} from '../cards/Tag';
-import {BonusCardId, MARSBOT_MAX_TRACK_POSITION, MARS_BOT_CORP_IDS, MarsBotCorpId, MarsBotCubeType} from './AutomaTypes';
+import {BonusCardId, MARSBOT_EXTENDED_TRACK_POSITION, MARS_BOT_CORP_IDS, MarsBotCorpId, MarsBotCubeType} from './AutomaTypes';
 import {BonusCardEffectLine} from './BonusCardData';
 
 export {MARS_BOT_CORP_IDS, MarsBotCorpId} from './AutomaTypes';
@@ -181,10 +181,12 @@ export type MarsBotCorpInfo = {
  */
 /**
  * C13's setup box: «Place silver resource cube on every space of the building
- * track starting with space #4» — every space to the end of the track.
+ * track starting with space #4» — every space to the end of the track. Declared
+ * to the EXTENDED end (Amazonis Planitia's 24); a printed 18-cell track keeps
+ * the cubes it has room for (`AutomaCorporations.cubesOf` drops the rest).
  */
 const CHEUNG_SILVER_CUBES: ReadonlyArray<MarsBotTrackCube> =
-  Array.from({length: MARSBOT_MAX_TRACK_POSITION - 3}, (_, i) => ({
+  Array.from({length: MARSBOT_EXTENDED_TRACK_POSITION - 3}, (_, i) => ({
     tag: Tag.BUILDING,
     position: i + 4,
     cubeType: 'credit' as const,

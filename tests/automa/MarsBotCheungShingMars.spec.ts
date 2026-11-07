@@ -1,7 +1,8 @@
 import {expect} from 'chai';
 import {CardName} from '../../src/common/cards/CardName';
 import {Tag} from '../../src/common/cards/Tag';
-import {MARSBOT_MAX_TRACK_POSITION, MARSBOT_SILVER_CUBE_MC, MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
+import {MARSBOT_EXTENDED_TRACK_POSITION, MARSBOT_MAX_TRACK_POSITION, MARSBOT_SILVER_CUBE_MC, MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
+import {BoardName} from '../../src/common/boards/BoardName';
 import {marsBotCorpInfo} from '../../src/common/automa/MarsBotCorpData';
 import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
@@ -38,9 +39,10 @@ describe('MarsBot Cheung Shing Mars (C13)', () => {
       expect(info.draftPriority).deep.eq({type: 'tags', tags: [Tag.BUILDING]});
       const cubes = info.trackCubes ?? [];
       expect(cubes.every((c) => c.cubeType === 'credit' && c.tag === Tag.BUILDING)).is.true;
-      // «Every space starting with #4» — 4 … 18, nothing before, nothing after.
+      // «Every space starting with #4» — to the end of the LONGEST track any board prints (Amazonis Planitia's 24,
+      // 2026-11-07); a printed 18-cell track seats the cubes it has room for (`cubesOf` — the setup box below).
       expect(cubes.map((c) => c.position)).deep.eq(
-        Array.from({length: MARSBOT_MAX_TRACK_POSITION - 3}, (_, i) => i + 4));
+        Array.from({length: MARSBOT_EXTENDED_TRACK_POSITION - 3}, (_, i) => i + 4));
       expect(info.resource).is.undefined;
       expect(info.corpBonusCards).is.empty;
       expect(info.sections.map((s) => s.kind)).deep.eq(['draftPriority', 'setup', 'effect']);
@@ -55,6 +57,16 @@ describe('MarsBot Cheung Shing Mars (C13)', () => {
       expect(cubes.every((c) => c.trackIndex === THARSIS_TRACK.BUILDING && c.cubeType === 'credit')).is.true;
       expect(Math.min(...cubes.map((c) => c.position))).eq(4);
       expect(Math.max(...cubes.map((c) => c.position))).eq(MARSBOT_MAX_TRACK_POSITION);
+    });
+
+    it('on the EXTENDED Amazonis Planitia board the cubes run to #24 — «every space to the end» reads the board', () => {
+      const [game, human] = testAutomaGame({corporation: MarsBotCorpId.C13_CHEUNG_SHING_MARS, boardName: BoardName.AMAZONIS_PLANITIA}, '-cs-amz');
+      game.playerIsFinishedWithResearchPhase(human); // the corporation is seated at the research → action gate
+      const cubes = AutomaCorporations.cubesOf(game);
+      expect(cubes).has.length(MARSBOT_EXTENDED_TRACK_POSITION - 3);
+      expect(Math.min(...cubes.map((c) => c.position))).eq(4);
+      expect(Math.max(...cubes.map((c) => c.position))).eq(MARSBOT_EXTENDED_TRACK_POSITION);
+      expect(cubes.every((c) => c.trackIndex === THARSIS_TRACK.BUILDING), 'the body is the Tharsis one — the building row is row 0').is.true;
     });
 
     it('the starting building tag never reaches a cube — the first three spaces are bare', () => {

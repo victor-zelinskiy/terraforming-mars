@@ -20,14 +20,21 @@ Not part of the switch: every game with the bot. The final-scoring reference car
 
 > While at least one player is still acting in the generation, MarsBot does not pass when its action deck runs out: it draws an extra project card off the project deck and resolves it exactly as any other action card — up to the difficulty's cap per generation.
 
-The cap is a LADDER of five generation bands (the owner, 2026-10-29 — `SECOND_SHIFT_CAP_LADDER` + `SECOND_SHIFT_BAND_STARTS`; Hard is the owner's own row, the others one step around it), read LIVE at every bot turn from the game's generation, so a game already under way with the switch on takes a new ladder up the moment the server does (no migration, no stored cap):
+The cap is a LADDER of seven generation bands (five until 2026-11-07 — the long-game bands below) (the owner, 2026-10-29 — `SECOND_SHIFT_CAP_LADDER` + `SECOND_SHIFT_BAND_STARTS`; Hard is the owner's own row, the others one step around it), read LIVE at every bot turn from the game's generation, so a game already under way with the switch on takes a new ladder up the moment the server does (no migration, no stored cap):
 
-| Difficulty | 1–4 | 5–6 | 7–8 | 9 | 10+ |
-| --- | --- | --- | --- | --- | --- |
-| Easy | 0 | 0 | 1 | 1 | 2 |
-| Normal | 0 | 1 | 1 | 2 | 3 |
-| Hard | 0 | 1 | 2 | 3 | 4 |
-| Brutal | 0 | 2 | 3 | 4 | 4 |
+| Difficulty | 1–4 | 5–6 | 7–8 | 9 | 10–12 | 13–15 | 16+ |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Easy | 0 | 0 | 1 | 1 | 2 | 2 | 3 |
+| Normal | 0 | 1 | 1 | 2 | 3 | 3 | 4 |
+| Hard | 0 | 1 | 2 | 3 | 4 | 4 | 5 |
+| Brutal | 0 | 2 | 3 | 4 | 4 | 4 | 4 |
+
+**THE LONG GAME (2026-11-07, with Amazonis Planitia's longer parameters — `docs/claude/amazonis-planitia-marsbot.md` §4):** the
+ladder used to end at «10+», designed for games that end by the 13th generation; two bands were added FOR EVERY MAP (the
+rule is the game's, not the map's — a long Tharsis game needs them too). The bot that earned four extra cards in the 10th
+generation earns no fewer in the 16th; Brutal stays at 4 (its +1 VP a card compounds). Through the 12th the ladder is
+byte-identical to the shipped one. Beside it, and NOT part of the switch: a map's **pace offset** (`botPace.ts` —
+Amazonis Planitia 3) moves the M€ → VP ladder and the instant win that many generations later; see §24.4 of the audit.
 
 Why: before the rule the bot passed LAST in 100 / 100 / 96 / 68 % of the 1st–4th generations and FIRST in 32–44 % of the 5th–6th, 75–90 % of the 7th–8th, 91 % of the 9th — an extra card early only widened a lead it already had. Brutal stays at 4 because its +1 VP per played card compounds with every extra card. (The first ladder, 2026-10-28: Easy 0/1/1 · Normal 1/1/2 · Hard 2/3/4 · Brutal 3/4/4 over 1–6 / 7–9 / 10+.)
 

@@ -122,6 +122,9 @@ export const AUTOMA_SUPPORTED_BOARDS: ReadonlyArray<BoardName> = [
   // base, with the B14 «Corporate Competition · this game's set» (docs/claude/marsbot-dynamic-ma-framework.md). With it
   // every board of the game is covered — the `board` rule below now stands for a map a future sync brings.
   BoardName.HOLLANDIA,
+  // The OFFICIAL eleven-row Amazonis Planitia — the first EXTENDED MarsBot board (25-cell tracks for the map's longer
+  // global parameters, 2026-11-07; §2k / §24, docs/claude/amazonis-planitia-marsbot.md).
+  BoardName.AMAZONIS_PLANITIA,
 ];
 
 /** «tharsis, hellas and elysium» — the list read out in the rejection reason. */

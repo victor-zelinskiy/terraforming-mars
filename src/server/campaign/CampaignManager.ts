@@ -43,6 +43,7 @@ import {Color} from '../../common/Color';
 import {isAdminName} from '../../common/utils/adminName';
 import {Phase} from '../../common/Phase';
 import {boardOptions} from '../boards/randomBoard';
+import {drawCampaignRoute} from './campaignRoute';
 import {newProjectCard} from '../createCard';
 import {Database} from '../database/Database';
 import {GameLoader} from '../database/GameLoader';
@@ -251,20 +252,16 @@ export class CampaignManager {
     }
 
     // The board route: same canonical pool + the same MarsBot narrowing as a
-    // single game's random board. The concrete snapshot below is what is
-    // authoritative forever; seed/pool/version are provenance.
+    // single game's random board, drawn WEIGHTED with a finale favourite
+    // (`campaignRoute.ts` — generator version 2). The concrete snapshot below
+    // is what is authoritative forever; seed/pool/version are provenance.
     const pool = boardOptions(RandomBoardOption.ALL, {automa: hasBot});
     if (pool.length < CAMPAIGN_MISSION_COUNT) {
       throw new Error(`Not enough unique boards for a campaign: ${pool.length} of ${CAMPAIGN_MISSION_COUNT} required`);
     }
     const seed = Math.random();
     const rng = new SeededRandom(seed);
-    const shuffled = [...pool];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = rng.nextInt(i + 1);
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    const boards = shuffled.slice(0, CAMPAIGN_MISSION_COUNT);
+    const boards = drawCampaignRoute(pool, CAMPAIGN_MISSION_COUNT, rng);
 
     this.validateCorporationPool(config);
 

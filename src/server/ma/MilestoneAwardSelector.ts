@@ -72,16 +72,11 @@ const UNIFIED_POOL_EXCLUSIONS: ReadonlySet<string> = new Set<MilestoneName | Awa
   'Merchant3', // -> Merchant (the same six standard resources, 3 of each instead of 2 — Amazonis Planitia's printed clone)
 ]);
 
-// vize1215 fork: the milestones / awards that arrived with Amazonis Planitia (upstream fc8bd8e0e1, 2026-11-06). Phase 1
-// of the board's adaptation (2026-11-06) dealt them through the board's OWN printed set (the NONE branch) with their RU
-// names and faces; no RANDOM mode offers them yet, because a random set reaches MarsBot's games and the bot has no row
-// for them (`botMARules.ts`, `PENDING` in botMARegistry.spec) — their pool entry lands with phase 2 (the bot's rows).
-// Merchant3 never joins a pool at all: it clones Merchant (UNIFIED_POOL_EXCLUSIONS — two «Торговец» in one game).
-const PENDING_ADAPTATION_MA: ReadonlySet<string> = new Set<MilestoneName | AwardName>([
-  'Merchant3',
-  'Innovator',
-  'Physicist',
-]);
+// vize1215 fork: the milestones / awards that arrived with Amazonis Planitia (upstream fc8bd8e0e1, 2026-11-06) stood
+// out of every RANDOM pool through phase 1 of the board's adaptation (a random set reaches MarsBot's games and the bot
+// had no row for them); phase 2 (2026-11-07, docs/claude/amazonis-planitia-marsbot.md) gave Innovator and Physicist
+// their bot rows (`botMARules.ts`), and they joined the pools. Merchant3 never joins one: it clones Merchant
+// (UNIFIED_POOL_EXCLUSIONS above — two «Негоциант» in one game).
 
 /**
  * vize1215 fork: Amazonis Planitia's milestone with NO Redux Parliament in the game — the owner's FIXED substitute for
@@ -227,10 +222,6 @@ export function getCandidates(gameOptions: GameOptions, context: MASelectionCont
     if (manifest.all[name].deprecated) {
       return false;
     }
-    if (PENDING_ADAPTATION_MA.has(name)) {
-      return false;
-    }
-
     // vize1215 fork: Geologist needs tiles ON or ADJACENT to volcanic areas, so on a board with
     // no volcanic spaces it can never be claimed — never offer it there (the former kberg TODO).
     if (name === 'Geologist' && context.hasVolcanicSpaces === false) {

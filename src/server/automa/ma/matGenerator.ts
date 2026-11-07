@@ -8,7 +8,7 @@ import {PlacementRegionId} from './placementRegions';
 import {cellArrivals, DeckTagMix} from './matPressure';
 import {botAwardRule, botMilestoneRule} from './botMAInterpreter';
 import {libraryRows, rowDistance, rowKey} from './matRowLibrary';
-import {MAT_ROLE_ORDER, matViolations} from './matLaw';
+import {MAT_ROLE_ORDER, matBody, matTail, matViolations} from './matLaw';
 
 /**
  * THE MAT GENERATOR — `generateBotMat(context) → GeneratedMat` (docs/claude/marsbot-dynamic-ma-framework.md §3.3, the
@@ -481,7 +481,10 @@ const COLONY_CELLS: ReadonlyArray<{role: MarsBotTrackRole, at: number}> = [{role
 const TOKEN_ROW_ORDER: ReadonlyArray<MarsBotTrackRole> = ['science', 'power', 'earth', 'bio', 'event', 'space', 'building'];
 
 export function generateBotMat(context: MatContext): GeneratedMat {
-  const {profile: base, fallback} = matBase(context.boardName);
+  const {profile: printed, fallback} = matBase(context.boardName);
+  // An EXTENDED base (Amazonis Planitia) is assembled by its law-formed BODY; the map's late reserve is handed back
+  // to every row at the end, whatever row the topology chose for it (`matLaw.matBody` / `matTail`).
+  const base: MarsBotMapProfile = {...printed, tracks: printed.tracks.map(matBody)};
   const baseTopology = topologyOf(base.tracks);
   const rules = setRules(context.milestones, context.awards);
 
@@ -685,12 +688,17 @@ export function generateBotMat(context: MatContext): GeneratedMat {
       }
     }
   }
-  const tracks: Array<TrackDefinition> = assembly.tracks.map((track, i) => ({...track, layout: layouts[i]}));
+  const tracks: Array<TrackDefinition> = assembly.tracks.map((track, i) => {
+    const tail = matTail(printed.tracks[i]);
+    return tail.length === 0 ?
+      {...track, layout: layouts[i]} :
+      {...track, layout: [...layouts[i], ...tail], maxPosition: printed.tracks[i].maxPosition};
+  });
   const violations = matViolations(tracks);
   if (violations.length > 0) {
     throw new Error(`The generator built an unlawful mat for ${context.boardName}: ${violations.join('; ')}`);
   }
-  const distance = tracks.reduce((d, track, i) => d + rowDistance(track, base.tracks[i]), 0);
+  const distance = tracks.reduce((d, track, i) => d + rowDistance(track, printed.tracks[i]), 0);
   const {shares} = topologyPenalty(rules, t);
   return {
     version: MAT_GENERATOR_VERSION,

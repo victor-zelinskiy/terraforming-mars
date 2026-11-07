@@ -2,6 +2,7 @@ import {MaPrice} from '../common/ma/MaPrice';
 import * as constants from '../common/constants';
 import {altVenusBonusFor, altVenusResourceCells} from '../common/venus/altVenusBonus';
 import {automaModeFor, getAutomaMaxGeneration} from '../common/automa/AutomaTypes';
+import {botPaceOffset} from '../common/automa/botPace';
 import {AutomaController} from './automa/AutomaController';
 import {AutomaCorporations} from './automa/corps/AutomaCorporations';
 import {BotTurnScheduler} from './automa/BotTurnScheduler';
@@ -1430,8 +1431,9 @@ export class Game implements IGame, Logger {
     // The solo instant-loss deadline is an OFFICIAL-SOLO rule only — in the
     // multiplayer house-rule mode the game ends by ordinary terraforming
     // (docs/AUTOMA_PROMO_MULTIPLAYER_FRAME.md §12 Q3).
+    // …and a map with longer parameters runs that clock later (Amazonis Planitia — `botPaceOffset`).
     if (this.automa !== undefined && this.gameOptions.automa?.mode !== 'multiplayer' &&
-        this.generation >= getAutomaMaxGeneration(this.gameOptions.preludeExtension)) {
+        this.generation >= getAutomaMaxGeneration(this.gameOptions.preludeExtension, botPaceOffset(this.gameOptions.boardName))) {
       this.automa.instantWin = true;
       this.log('${0} instantly wins — the game entered generation ${1}',
         (b) => b.player(marsBotOf(this)).number(this.generation));

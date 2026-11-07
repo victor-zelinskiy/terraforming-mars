@@ -110,7 +110,7 @@ describe('CampaignManager', () => {
     for (const board of boards) {
       expect(campaign.generator.pool).includes(board);
     }
-    expect(campaign.generator.version).eq(1);
+    expect(campaign.generator.version).eq(2); // the weighted route with a finale favourite (campaignRoute.ts)
     expect(campaign.phase).eq('generated');
     expect(campaign.pointer).eq(0);
     expect(campaign.rev).greaterThan(0);

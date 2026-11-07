@@ -8459,6 +8459,62 @@ parliamentFixture('receive-board', {
   write(name, game);
 }
 
+// ── AMAZONIS PLANITIA · MARSBOT — a solo table vs MarsBot (Credicor) on the OFFICIAL eleven-row map with Venus + Colonies
+//    (phase 2, docs/claude/amazonis-planitia-marsbot.md): the EXTENDED board — seven 25-cell rows and the 16-cell Venus
+//    row — the building row already standing IN THE LATE RESERVE (cell 20: the city cell, the end TR ahead of it), the
+//    printed mat (no random set), BF5 «Корпоративная конкуренция (Большая Амазония)» moved onto the discard pile so its
+//    face is on the bonus piles screen. The round blue hands over is proven on a copy: the bot plays it to the end and
+//    the next generation begins. For console-amazonis-planitia-marsbot. ──
+{
+  const name = 'amazonis-planitia-marsbot';
+  const pinned = [CardName.TERACTOR];
+  const [game, human, bot] = testAutomaGame({
+    boardName: BoardName.AMAZONIS_PLANITIA, venusNextExtension: true, coloniesExtension: true,
+    startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [human], pinned);
+  answerStartFlow(game, [human]);
+  human.megaCredits = 80;
+  bot.megaCredits = 20;
+  const automa = game.automa!;
+  automa.board.getTrackOfRole('building')!.position = 20;
+  const bf5 = BonusCardId.BF5_CORPORATE_COMPETITION_AMAZONIS_PLANITIA;
+  const deckIndex = automa.bonusDeck.findIndex((c) => c.kind === 'bonus' && c.id === bf5);
+  if (deckIndex >= 0) {
+    automa.bonusDeck.splice(deckIndex, 1);
+  } else {
+    const actionIndex = automa.actionDeck.findIndex((c) => c.kind === 'bonus' && c.id === bf5);
+    if (actionIndex >= 0) {
+      automa.actionDeck.splice(actionIndex, 1);
+    }
+  }
+  automa.bonusDiscard.push(bf5);
+  runAllActions(game);
+  const tracks = automa.board.tracks;
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions) ||
+      tracks.length !== 8 || tracks.slice(0, 7).some((t) => t.maxPosition !== 24 || t.definition.layout.length !== 25) ||
+      tracks[7].maxPosition !== 15 || tracks[7].definition.layout.length !== 16 || automa.mat !== undefined ||
+      tracks[0].position !== 20 || !automa.bonusDiscard.includes(bf5)) {
+    throw new Error(`${name}: expected blue on the move on Amazonis Planitia with the extended board (7 × 25 + the 16-cell Venus row), the printed mat, building at 20 and BF5 on the discard — got phase=${game.phase} wf=${human.getWaitingFor()?.constructor.name} max=${tracks.map((t) => t.maxPosition).join(',')} mat=${automa.mat !== undefined} building=${tracks[0].position}`);
+  }
+  // THE DRY RUN — blue's pass on a copy: the bot's whole round resolves on the extended board and the next generation stands.
+  const copy = Game.deserialize(structuredClone(game.serialize()));
+  const blue = copy.getPlayerById(human.id);
+  const menu = blue.getWaitingFor();
+  const titleOf = (o: {title: unknown}) => typeof o.title === 'string' ? o.title : (o.title as {message?: string} | undefined)?.message ?? '';
+  const passIndex = menu instanceof OrOptions ? menu.options.findIndex((o) => titleOf(o) === 'Pass for this generation') : -1;
+  if (passIndex < 0) {
+    throw new Error(`${name}: blue holds no pass option (wf=${menu?.constructor.name})`);
+  }
+  blue.process({type: 'or', index: passIndex, response: {type: 'option'}});
+  runAllActions(copy);
+  if (copy.generation !== game.generation + 1) {
+    throw new Error(`${name}: the dry run's bot round should end the generation — generation ${copy.generation}, phase ${copy.phase}`);
+  }
+  console.log(`${name}: building at ${tracks[0].position}/${tracks[0].maxPosition}; dry run → generation ${copy.generation}, the copy's tracks ${copy.automa!.board.tracks.map((t) => t.position).join(',')}`);
+  write(name, game);
+}
+
 // ── RECEIVE · THE COLONY — «somebody traded on my colony: which card takes the floater?» (the TR53 iteration, case 3,
 //    decision 3). A Venus table: blue owns a cube on Titan and TWO floater holders (Dirigibles 1, Aerial Mappers 0);
 //    RED IS ON THE MOVE with 3 energy and a free fleet — red's trade with Titan pays blue's owner bonus (one floater)

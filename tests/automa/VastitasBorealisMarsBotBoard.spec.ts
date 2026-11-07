@@ -228,7 +228,12 @@ describe('VASTITAS BOREALIS — the Venus row follows the MICROBE', () => {
     expect(VENUS_TRACK.layout[9]).eq(`tag_${VENUS_CELL9_TARGET_TRACK}`);
     for (const board of MARSBOT_BOARDS.filter((b) => b !== BoardName.VASTITAS_BOREALIS_NOVA)) {
       const profile = marsBotMapProfile(board);
-      expect(profile.venusTrack, board).is.undefined;
+      if (board === BoardName.AMAZONIS_PLANITIA) {
+        // Its own 16-cell row for a Venus that runs to 33 % (2026-11-07) — the printed cells kept, the microbe on bio.
+        expect(profile.venusTrack?.layout[9], board).eq(`tag_${VENUS_CELL9_TARGET_TRACK}`);
+      } else {
+        expect(profile.venusTrack, board).is.undefined;
+      }
       expect(profile.tracks[VENUS_CELL9_TARGET_TRACK].tags, board).to.include(Tag.MICROBE);
     }
   });

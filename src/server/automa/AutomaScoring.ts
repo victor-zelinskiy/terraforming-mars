@@ -1,5 +1,6 @@
 import {hasNonNegativeVictoryPointsIcon} from '../../common/cards/victoryPointsIcon';
 import {getAutomaMaxGeneration} from '../../common/automa/AutomaTypes';
+import {botPaceOffset} from '../../common/automa/botPace';
 import {AutomaVictoryPoints} from '../../common/game/VictoryPointsBreakdown';
 import {GOAL_TERM_LABELS} from '../../common/automa/MarsBotDividend';
 import {AutomaCorporations} from './corps/AutomaCorporations';
@@ -37,9 +38,13 @@ export class AutomaScoring {
    * human beyond the first (a solo game is the rulebook's); every game with the
    * bot, whatever the switches. Measured on those games: +2.5 VP a game for the
    * bot on average. The instant win is untouched (it reads the generation).
+   *
+   * A MAP WITH LONGER PARAMETERS (Amazonis Planitia — `botPaceOffset`, 2026-11-07): the ladder is the clock of a
+   * standard-map game, and a game on that map runs about a quarter longer, so its clock reads the generation LESS
+   * the map's offset — the 15th generation there is the 12th of the reference card (8 M€ a VP), not the 5 M€ rung.
    */
-  public static mcPerVp(generation: number, preludeExtension: boolean, humanCount: number = 1): number {
-    const normalized = generation + (preludeExtension ? 2 : 0) + MC_LADDER_SHIFT_PER_EXTRA_HUMAN * Math.max(0, humanCount - 1);
+  public static mcPerVp(generation: number, preludeExtension: boolean, humanCount: number = 1, paceOffset: number = 0): number {
+    const normalized = generation - paceOffset + (preludeExtension ? 2 : 0) + MC_LADDER_SHIFT_PER_EXTRA_HUMAN * Math.max(0, humanCount - 1);
     if (normalized <= 12) {
       return 8;
     }
@@ -64,7 +69,7 @@ export class AutomaScoring {
     const bot = marsBotOf(game);
 
     const humanCount = game.players.filter((p) => p !== bot).length;
-    const mcPerVp = AutomaScoring.mcPerVp(game.generation, game.gameOptions.preludeExtension, humanCount);
+    const mcPerVp = AutomaScoring.mcPerVp(game.generation, game.gameOptions.preludeExtension, humanCount, botPaceOffset(game.gameOptions.boardName));
     const mcToVp = Math.floor(bot.megaCredits / mcPerVp);
 
     // Neural Instance: +1 VP per adjacent space that is empty or holds a
@@ -107,8 +112,8 @@ export class AutomaScoring {
     return result;
   }
 
-  /** True when entering `generation` instantly ends the game with a MarsBot win. */
-  public static isInstantLossGeneration(generation: number, preludeExtension: boolean): boolean {
-    return generation >= getAutomaMaxGeneration(preludeExtension);
+  /** True when entering `generation` instantly ends the game with a MarsBot win (`paceOffset` — the map's, `botPaceOffset`). */
+  public static isInstantLossGeneration(generation: number, preludeExtension: boolean, paceOffset: number = 0): boolean {
+    return generation >= getAutomaMaxGeneration(preludeExtension, paceOffset);
   }
 }

@@ -81,7 +81,7 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
     expect(conflicts).has.length(1);
     expect(conflicts[0].key).eq('board');
     expect(conflicts[0].reason)
-      .eq('the Nowhere Planitia board yet — MarsBot covers tharsis, hellas, elysium, utopia planitia, terra cimmeria nova, vastitas borealis nova, vastitas borealis, amazonis p., t. cimmeria, arabia terra and Hollandia');
+      .eq('the Nowhere Planitia board yet — MarsBot covers tharsis, hellas, elysium, utopia planitia, terra cimmeria nova, vastitas borealis nova, vastitas borealis, amazonis p., t. cimmeria, arabia terra, Hollandia and amazonis planitia');
   });
 
   it('Hollandia — the map with no milestone row of its own — is covered, with and without the random-set box', () => {

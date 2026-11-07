@@ -2,6 +2,7 @@ import {BoardName} from '../../../common/boards/BoardName';
 import {Tag} from '../../../common/cards/Tag';
 import {MarsBotTrackRole, TrackDefinition} from '../../../common/automa/AutomaTypes';
 import {MARSBOT_BOARDS, marsBotMapProfile} from '../boards/MarsBotMapProfile';
+import {matBody} from './matLaw';
 
 /**
  * THE ROW LIBRARY — every Martian track row of the ten static MarsBot boards, keyed by ROLE + TAG SET. A row is taken
@@ -34,7 +35,9 @@ export function libraryRows(key: string): ReadonlyArray<LibraryRow> {
         // A map that prints no board lends nothing: its rows are the lender's, already in the library under its name.
         continue;
       }
-      for (const definition of profile.tracks) {
+      for (const track of profile.tracks) {
+        // An EXTENDED board lends its law-formed BODY — the reserve is the map's own and never travels.
+        const definition = matBody(track);
         const key = rowKey(definition.role, definition.tags);
         const rows = library.get(key) ?? [];
         const same = rows.find((r) => JSON.stringify(r.definition.layout) === JSON.stringify(definition.layout));

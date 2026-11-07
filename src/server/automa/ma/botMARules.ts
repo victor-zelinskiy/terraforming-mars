@@ -150,6 +150,10 @@ export const BOT_MILESTONE_RULES: Partial<Record<MilestoneName, BotMilestoneRule
   ]}, target: 3, provenance: {source: 'RB-C', page: 13}},
   // «Reached space 2 on every track except [Venus]»; the human row is a 0 / 1 flag, so is the bot's.
   'Merchant': {criterion: {kind: 'tracks', op: 'min', of: 'martian'}, target: 2, display: 'flag', provenance: {source: 'RB-C', page: 13}},
+  // Amazonis Planitia's printed clone of Merchant — «3 of each standard resource»: the module's reading at 3 (the human
+  // row is a 0 / 1 flag, so is the bot's). Never in a random pool (a clone); the map's fixed row deals it.
+  'Merchant3': {criterion: {kind: 'tracks', op: 'min', of: 'martian'}, target: 3, display: 'flag',
+    provenance: {source: 'home', analog: 'Merchant — reached space 2 on every track except Venus (RB-C p.13), read at 3 for the 3-of-each clone', law: 'tags-single'}},
   // «As usual (5 cards with non-negative VP in played pile)» — the milestone's own predicate on the pile.
   'Philantropist': {criterion: {kind: 'pile', count: 'philanthropic'}, target: 'printed', printedFallback: 5, provenance: {source: 'RB-C', page: 13}},
   // «Any three tracks (except [Venus]) combined at 16+».
@@ -275,6 +279,21 @@ export const BOT_AWARD_RULES: Partial<Record<AwardName, BotAwardRule>> = {
   // «As usual (cities and colonies owned)»; helper «MarsBot places a city tile». (The module's colony cubes are the
   // generator's job — a random-set mat prints them as colony cells.)
   'Constructor': {criterion: {kind: 'player'}, helper: {kind: 'city'}, provenance: {source: 'RB-C', page: 14}},
+  // ── Amazonis Planitia, the official eleven-row map (home — docs/AUTOMA_DATA_AUDIT.md §24.3) ─────────────────────
+  // «Most played cards (event cards also count!)» — the bot's played pile, events included (the pile law: Celebrity /
+  // Incorporator count their piles the same way, events in) — at TWO THIRDS: the bot resolves every card it draws and
+  // pays for none, so its pile outruns a human's table by about a third (three a generation, the bonus cards' reveals
+  // and the second shift's extras on top — ~57 cards by the 13th generation against a strong human's 35–45; the bench
+  // read 48 of 48 at 16 generations); the handicap law (`award-offset`: a handicap where the measure is wider than
+  // the criterion — Botanist −2). Helper: it plays ONE more — the deck's top project card (B03's shape).
+  'Innovator': {criterion: {kind: 'pile', count: 'any', times: 2, div: 3}, helper: {kind: 'reveal', predicate: 'any'},
+    provenance: {source: 'home', analog: 'Celebrity / Incorporator — cards in the played pile (B10, B11), the measure wider than a human\'s table (Botanist −2); Research & Development resolves the top card (B03)', law: 'award-offset'}},
+  // «Most science and space tags» — the Science-tag and the Space-tag tracks summed (Planetologist's shape, B12: two
+  // tag tracks summed, no offset); on this mat the science row carries no Jovian, so the sum is the two tags alone.
+  // Helper: the lower of the two tracks moves (Naturalist's form).
+  'Physicist': {criterion: {kind: 'tracks', op: 'sum', of: [SCIENCE_TAG, SPACE_TAG]},
+    helper: {kind: 'advance', track: {pick: 'least', of: [SCIENCE_TAG, SPACE_TAG]}},
+    provenance: {source: 'home', analog: 'Planetologist — the Earth- and Venus-tag tracks summed (B12); Scientist / Space Baron advance the tag\'s track (RB-A, RB-C p.15)', law: 'tags-single'}},
   // «Sum of [building] and [power] tracks combined» — the original names the two rows (heat ↔ power: Thermalist's
   // association); helper «advance the [building] or [power], whichever is least advanced, building if tied».
   'Manufacturer': {criterion: {kind: 'tracks', op: 'sum', of: [BUILDING, POWER]},

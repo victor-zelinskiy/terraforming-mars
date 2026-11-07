@@ -17,6 +17,97 @@ const END_TR: Record<string, ReadonlyArray<number>> = {
   building: [5], space: [6], event: [5], science: [7, 5], power: [8], earth: [7], bio: [6, 8],
 };
 
+/** The law's track: 19 cells (0–18). An EXTENDED track (Amazonis Planitia) is this body plus a late reserve. */
+export const MAT_BODY_LENGTH = 19;
+
+/** A track in the EXTENDED format — longer than the body, its `maxPosition` its own last cell. */
+export function isExtendedTrack(track: TrackDefinition): boolean {
+  return track.layout.length > MAT_BODY_LENGTH && track.maxPosition === track.layout.length - 1;
+}
+
+const bodies = new WeakMap<TrackDefinition, TrackDefinition>();
+
+/**
+ * The law's 19-cell BODY of a track — the track itself when it is not extended (the printed boards). ONE object per
+ * printed track (memoized): the generator's assembly cache and its «replaced» report compare rows by IDENTITY.
+ */
+export function matBody(track: TrackDefinition): TrackDefinition {
+  if (!isExtendedTrack(track)) {
+    return track;
+  }
+  const cached = bodies.get(track);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const {maxPosition: _max, ...rest} = track;
+  const body: TrackDefinition = {...rest, layout: track.layout.slice(0, MAT_BODY_LENGTH)};
+  bodies.set(track, body);
+  return body;
+}
+
+/** The late reserve of an extended track (cells 19…), empty for a printed one. */
+export function matTail(track: TrackDefinition): ReadonlyArray<TrackAction | undefined> {
+  return isExtendedTrack(track) ? track.layout.slice(MAT_BODY_LENGTH) : [];
+}
+
+/**
+ * THE LAW OF THE LATE RESERVE (Amazonis Planitia — docs/claude/amazonis-planitia-marsbot.md): every row's reserve has
+ * the same length, no cell is empty, it opens with an «advance» (the push into the reserve) and ends on a TR of the
+ * ends' pattern; it carries terraforming and TR only — never a milestone / award / token / colony cell (those belong
+ * to the body, where the human's thresholds are); its totals stay in the designed bands.
+ */
+export function tailViolations(tracks: ReadonlyArray<TrackDefinition>): Array<string> {
+  const violations: Array<string> = [];
+  const tails = tracks.map(matTail);
+  const length = tails[0]?.length ?? 0;
+  if (length === 0) {
+    return ['no reserve'];
+  }
+  const counts: Record<string, number> = {};
+  let tr = 0;
+  tails.forEach((tail, i) => {
+    const role = tracks[i].role;
+    if (tail.length !== length) {
+      violations.push(`${role}: reserve of ${tail.length} cells (${length} on the first row)`);
+    }
+    if (tail[0] !== 'advance') {
+      violations.push(`${role}: the reserve opens with ${tail[0]}`);
+    }
+    const end = tail[tail.length - 1];
+    if (end === undefined || !/^tr[5-8]$/.test(end)) {
+      violations.push(`${role}: the reserve ends on ${end}`);
+    }
+    tail.forEach((action, k) => {
+      if (action === undefined) {
+        violations.push(`${role}: reserve cell ${MAT_BODY_LENGTH + k} is empty`);
+        return;
+      }
+      if (action === 'milestone' || action === 'award' || action.startsWith('colony') || isTokenCell(action) || action.startsWith('tag_')) {
+        violations.push(`${role}: ${action} in the reserve`);
+      }
+      if (/^tr\d$/.test(action)) {
+        tr += Number(action.substring(2));
+        counts.tr = (counts.tr ?? 0) + 1;
+      } else {
+        counts[action] = (counts[action] ?? 0) + 1;
+      }
+    });
+  });
+  const bands: Array<[string, number, number]> = [
+    ['ocean', 3, 5], ['greenery', 5, 7], ['city', 1, 3], ['temperature', 6, 8], ['temperature2', 1, 3], ['advance', 7, 9],
+  ];
+  for (const [key, min, max] of bands) {
+    const n = counts[key] ?? 0;
+    if (n < min || n > max) {
+      violations.push(`reserve ${key} ${n} outside ${min}…${max}`);
+    }
+  }
+  if (tr < 60 || tr > 80) {
+    violations.push(`reserve ΣTR ${tr} outside 60…80`);
+  }
+  return violations;
+}
+
 export function isTokenCell(action: TrackAction | undefined): boolean {
   return action !== undefined && action.startsWith('token');
 }
@@ -56,6 +147,13 @@ export function matCounts(tracks: ReadonlyArray<TrackDefinition>): Record<string
  * row is a separate board and is not part of the law).
  */
 export function matViolations(tracks: ReadonlyArray<TrackDefinition>): Array<string> {
+  // The EXTENDED format: the law judges the body, the reserve has a law of its own; a mix of formats is no mat.
+  if (tracks.some(isExtendedTrack)) {
+    if (!tracks.every(isExtendedTrack)) {
+      return [`mixed formats: ${tracks.map((t) => `${t.role} ${t.layout.length}`).join(', ')}`];
+    }
+    return [...matViolations(tracks.map(matBody)), ...tailViolations(tracks)];
+  }
   const violations: Array<string> = [];
   const roles = tracks.map((t) => t.role);
   if (roles.join(',') !== MAT_ROLE_ORDER.join(',')) {

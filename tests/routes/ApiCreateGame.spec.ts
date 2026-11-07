@@ -60,11 +60,13 @@ describe('ApiCreateGame', () => {
       BoardName.UTOPIA_PLANITIA,
       BoardName.VASTITAS_BOREALIS_NOVA,
       BoardName.TERRA_CIMMERIA_NOVA,
+      // The official eleven-row board — the first EXTENDED MarsBot board (2026-11-07, §2k / §24).
+      BoardName.AMAZONIS_PLANITIA,
       BoardName.ARABIA_TERRA,
       BoardName.VASTITAS_BOREALIS,
       BoardName.AMAZONIS,
       BoardName.TERRA_CIMMERIA,
-      // The last one (2026-11-06): no row of its own, a generated mat on a borrowed Tharsis base (§2j / §23) — with it
+      // Hollandia (2026-11-06): no row of its own, a generated mat on a borrowed Tharsis base (§2j / §23) — with it
       // the bot's pool IS the whole pool.
       BoardName.HOLLANDIA,
     ]);

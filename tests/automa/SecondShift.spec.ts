@@ -57,8 +57,8 @@ function expectNothingAnnounced(game: IGame): void {
 }
 
 describe('SecondShift — «вторая смена», the bot\'s late-game pace rule (hidden balance)', () => {
-  it('the cap is a LADDER of five generation bands (1–4 · 5–6 · 7–8 · 9 · 10+): nothing early, Hard 1 / 2 / 3 / 4 after', () => {
-    expect(SECOND_SHIFT_CAP_LADDER).deep.eq({easy: [0, 0, 1, 1, 2], normal: [0, 1, 1, 2, 3], hard: [0, 1, 2, 3, 4], brutal: [0, 2, 3, 4, 4]});
+  it('the cap is a LADDER of seven generation bands (1–4 · 5–6 · 7–8 · 9 · 10–12 · 13–15 · 16+): nothing early, Hard 1 / 2 / 3 / 4 / 4 / 5 after', () => {
+    expect(SECOND_SHIFT_CAP_LADDER).deep.eq({easy: [0, 0, 1, 1, 2, 2, 3], normal: [0, 1, 1, 2, 3, 3, 4], hard: [0, 1, 2, 3, 4, 4, 5], brutal: [0, 2, 3, 4, 4, 4, 4]});
     const row = (gen: number) => [secondShiftCap('easy', gen), secondShiftCap('normal', gen), secondShiftCap('hard', gen), secondShiftCap('brutal', gen)];
     for (const gen of [1, 2, 3, 4]) {
       expect(row(gen), `gen ${gen} — the bot outlasts these anyway`).deep.eq([0, 0, 0, 0]);
@@ -70,11 +70,19 @@ describe('SecondShift — «вторая смена», the bot\'s late-game pace
       expect(row(gen), `gen ${gen}`).deep.eq([1, 1, 2, 3]);
     }
     expect(row(9), 'gen 9').deep.eq([1, 2, 3, 4]);
-    for (const gen of [10, 11, 14]) {
+    for (const gen of [10, 11, 12]) {
       expect(row(gen), `gen ${gen}`).deep.eq([2, 3, 4, 4]);
     }
+    // THE LONG GAME (2026-11-07, with Amazonis Planitia's longer parameters): two more bands — the bot that earned four
+    // extra cards in the 10th generation earns no fewer in the 16th; Brutal stays at 4 (its +1 VP a card compounds).
+    for (const gen of [13, 14, 15]) {
+      expect(row(gen), `gen ${gen}`).deep.eq([2, 3, 4, 4]);
+    }
+    for (const gen of [16, 17, 22]) {
+      expect(row(gen), `gen ${gen}`).deep.eq([3, 4, 5, 4]);
+    }
     expect(secondShiftRuleApplies('easy')).is.true;
-    expect([secondShiftMaxCap('easy'), secondShiftMaxCap('normal'), secondShiftMaxCap('hard'), secondShiftMaxCap('brutal')]).deep.eq([2, 3, 4, 4]);
+    expect([secondShiftMaxCap('easy'), secondShiftMaxCap('normal'), secondShiftMaxCap('hard'), secondShiftMaxCap('brutal')]).deep.eq([3, 4, 5, 4]);
   });
 
   it('the ladder is read LIVE from the game\'s generation — a game already under way takes it up without any migration', () => {

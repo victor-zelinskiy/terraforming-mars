@@ -64,7 +64,9 @@ export type BotCriterion =
    * MarsBot's PLAYED PILE — it has no tableau, so every «cards in play» criterion reads the pile. `count` = cards
    * matching a predicate; `sum` = a per-card amount summed; `minOf` = the weakest of several counts (complete sets).
    */
-  | {readonly kind: 'pile', readonly count: PilePredicateId, readonly plus?: number}
+  | {readonly kind: 'pile', readonly count: PilePredicateId, readonly plus?: number,
+     /** A SHARE of the count — `floor(count × times ÷ div)` before `plus` (Innovator reads two thirds of the pile). */
+     readonly times?: number, readonly div?: number}
   | {readonly kind: 'pile', readonly sum: PileAmountId, readonly plus?: number}
   | {readonly kind: 'pile', readonly minOf: ReadonlyArray<PilePredicateId>, readonly plus?: number}
   /** «As usual» — the PLAYER's own metric read on the bot, because it honestly has that quantity where it looks. */

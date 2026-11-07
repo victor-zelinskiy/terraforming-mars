@@ -5,6 +5,7 @@
 // Commit-time COPIES these values into MissionResult snapshots, so later
 // tuning never rewrites an existing campaign's history.
 
+import {BoardName} from '../boards/BoardName';
 import {TitleName} from './CampaignTypes';
 
 /**
@@ -33,6 +34,24 @@ export const PLACE_TITLES: Record<number, ReadonlyArray<TitleName | null>> = {
  * Same ladder for every seat count; places beyond the table take the last row.
  */
 export const PLACE_BONUS_MC: ReadonlyArray<number> = [0, 5, 10, 15, 15];
+
+/**
+ * THE ROUTE'S WEIGHTS (the owner, 2026-11-07): a board absent here weighs 1 in the route draw; Amazonis Planitia —
+ * the official large map with the longer global parameters — twice that, so it is on about half the routes rather
+ * than a third (`server/campaign/campaignRoute.ts`).
+ */
+export const CAMPAIGN_BOARD_WEIGHTS: Readonly<Partial<Record<BoardName, number>>> = {
+  [BoardName.AMAZONIS_PLANITIA]: 2,
+};
+
+/**
+ * THE FINALE FAVOURITE: when this board is on the route, a seeded roll at `chance` moves it to the LAST slot — the
+ * campaign's finale on the longest map, more often than its slot's share, never certain.
+ */
+export const CAMPAIGN_FINALE_FAVOURITE: {readonly board: BoardName, readonly chance: number} = {
+  board: BoardName.AMAZONIS_PLANITIA,
+  chance: 0.5,
+};
 
 /** Approved D2: the final mission awards no new titles/TP/bonus — it crowns the champion. */
 export const FINAL_MISSION_AWARDS_TITLES = false;

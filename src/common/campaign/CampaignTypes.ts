@@ -13,7 +13,8 @@ import {DifficultyLevel, MarsBotCorpId} from '../automa/AutomaTypes';
 import {GameId} from '../Types';
 
 export const CAMPAIGN_MISSION_COUNT = 4;
-export const CAMPAIGN_GENERATOR_VERSION = 1;
+/** 2 (2026-11-07): the route is a WEIGHTED draw with a finale favourite (`campaignRoute.ts`); 1 was a plain shuffle. */
+export const CAMPAIGN_GENERATOR_VERSION = 2;
 /**
  * The DEFAULT carry limit of a human seat. The limit itself is a variable of the
  * seat (`CarryoverSeatState.limit`, written by the server's `carryoverLimitFor`);

@@ -37,7 +37,9 @@ const TOKENS: Readonly<Record<string, ReadonlyArray<string>>> = {
 const RAIL_RULE = '\n.con-res {\n';
 
 function read(file: string): string {
-  return fs.readFileSync(path.join(STYLES, file), 'utf8');
+  // Line endings normalized: an `autocrlf` working copy reads the stylesheet with CRLF after git touches it, and the
+  // `\n`-anchored rule heads below then match nothing (2026-11-07 — red on the Windows clone, green on CI).
+  return fs.readFileSync(path.join(STYLES, file), 'utf8').replace(/\r\n/g, '\n');
 }
 
 /** The body of the top-level rule that starts with `head` (balanced braces). */

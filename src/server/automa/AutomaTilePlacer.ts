@@ -27,6 +27,7 @@ import {
   settleMslCuriosity,
   settleVastitasNorthPole,
   vastitasNorthPoleUsable,
+  vikingDelegateCount,
   vikingDelegateUsable,
 } from './AutomaPlacementBonus';
 import {AutomaTerraformer} from './AutomaTerraformer';
@@ -342,9 +343,11 @@ export class AutomaTilePlacer {
       // lobbying mandate (never counted against it). The Parliament's own grant
       // primitive — the bot's chooser picks the resolution, the journal and the
       // turn step are its. Read before the tile lands, like every hex above.
+      // One delegate per PRINTED icon (Amazonis Planitia's Olympus Mons prints two) — each needs a delegate in the
+      // reserve, so the second is asked again once the first has left it.
       const usable = vikingDelegateUsable(game, bot);
       place();
-      if (usable) {
+      for (let i = 0; i < vikingDelegateCount(space) && (i === 0 ? usable : vikingDelegateUsable(game, bot)); i++) {
         placeBotGrantDelegate(game, bot);
       }
       return;

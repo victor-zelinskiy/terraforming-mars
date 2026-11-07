@@ -17,6 +17,7 @@ import {VASTITAS_FAN_MARSBOT_BOARD} from './VastitasBorealisFanMarsBot';
 import {AMAZONIS_MARSBOT_BOARD} from './AmazonisMarsBot';
 import {TERRA_CIMMERIA_FAN_MARSBOT_BOARD} from './TerraCimmeriaFanMarsBot';
 import {ARABIA_TERRA_MARSBOT_BOARD} from './ArabiaTerraMarsBot';
+import {AMAZONIS_PLANITIA_MARSBOT_BOARD, AMAZONIS_PLANITIA_VENUS_TRACK, amazonisPlanitiaVenusTrackFor} from './AmazonisPlanitiaMarsBot';
 
 /**
  * THE MAP PROFILE — everything that differs between MarsBot boards, and nothing
@@ -197,6 +198,12 @@ export type MarsBotMapProfile = {
    * own, because «advance the track that tag belongs to» follows the tag.
    */
   readonly venusTrack?: TrackDefinition;
+  /**
+   * The map's OWN Venus row for a given Microbe track (the random-set generator may move the Microbe tag to the
+   * science row; the row's cell 9 must follow it). Declared by a map whose Venus row is not the printed component
+   * (Amazonis Planitia's 16-cell row); absent = the shared row, or Vastitas Nova's for a microbe on science.
+   */
+  readonly venusTrackFor?: (microbeTrackIndex: number) => TrackDefinition;
   /**
    * A map that PRINTS NO MarsBot board: its tracks are the named map's — the Awards & Milestones module's rule («use
    * the Tharsis board», RB-C p.12), which is the only official word on a map with no row of its own. Such a map never
@@ -401,6 +408,26 @@ const HOLLANDIA_PROFILE: MarsBotMapProfile = {
 };
 
 /**
+ * AMAZONIS PLANITIA (`AMAZONIS_PLANITIA`) — the OFFICIAL eleven-row map, the sixth HOME-MADE profile and the first
+ * EXTENDED one (2026-11-07; docs/claude/amazonis-planitia-marsbot.md, docs/AUTOMA_DATA_AUDIT.md §2k / §24): the Tharsis
+ * body by the law of the six boards, a six-cell late reserve on every row (25 cells, 0–24) for the map's longer
+ * global parameters, a 16-cell Venus row for a Venus that runs to 33 %. Its row (Terran · Landshaper · Merchant ·
+ * Sponsor · Activist / Collector · Innovator · Constructor · Manufacturer · Physicist) counts tags, productions, piles
+ * and tiles — never WHERE a tile stands — so the map adds no placement step: the base rulebook's pair. The map's
+ * special cells for the bot: the delegate cells (B2, H7 ×2, H9) by the Viking rule (a delegate per printed icon, the
+ * Redux house rule), the «standard resource» cells one icon = 1 M€ like any icon, the five volcanoes ordinary land.
+ * The map's clock runs three generations later (`botPaceOffset`).
+ */
+const AMAZONIS_PLANITIA_PROFILE: MarsBotMapProfile = {
+  boardName: BoardName.AMAZONIS_PLANITIA,
+  tracks: AMAZONIS_PLANITIA_MARSBOT_BOARD,
+  corporateCompetition: BonusCardId.BF5_CORPORATE_COMPETITION_AMAZONIS_PLANITIA,
+  placementTiebreakers: [OCEAN_ADJACENCY, REWARD_ICONS],
+  venusTrack: AMAZONIS_PLANITIA_VENUS_TRACK,
+  venusTrackFor: amazonisPlanitiaVenusTrackFor,
+};
+
+/**
  * The map layer's vocabulary (the random-set generator): the base steps and every region step a rule may ask for, by
  * its stable id — what a generated mat SERIALIZES (functions do not survive a save; ids do).
  */
@@ -424,7 +451,7 @@ export function tiebreakerById(id: MarsBotPlacementTiebreaker['id']): MarsBotPla
 
 const PROFILES: ReadonlyArray<MarsBotMapProfile> =
   [THARSIS_PROFILE, HELLAS_PROFILE, ELYSIUM_PROFILE, UTOPIA_PROFILE, TERRA_CIMMERIA_PROFILE, VASTITAS_BOREALIS_PROFILE, VASTITAS_FAN_PROFILE, AMAZONIS_PROFILE,
-    TERRA_CIMMERIA_FAN_PROFILE, ARABIA_TERRA_PROFILE, HOLLANDIA_PROFILE];
+    TERRA_CIMMERIA_FAN_PROFILE, ARABIA_TERRA_PROFILE, HOLLANDIA_PROFILE, AMAZONIS_PLANITIA_PROFILE];
 
 /** Every board MarsBot can be played on. */
 export const MARSBOT_BOARDS: ReadonlyArray<BoardName> = PROFILES.map((p) => p.boardName);

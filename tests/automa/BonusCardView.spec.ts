@@ -163,6 +163,19 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(base.fate.kind).eq('discard');
   });
 
+  it('Corporate Competition (BF5) shows the official Amazonis Planitia helper list — its five awards, Venuphile only with Venus', () => {
+    const base = buildBonusCardView(BonusCardId.BF5_CORPORATE_COMPETITION_AMAZONIS_PLANITIA, BASE);
+    expect(base.name).eq('Corporate Competition (Amazonis Planitia · large map)');
+    const texts = base.lines.map((l) => l.text);
+    for (const head of ['Collector advances', 'Physicist advances the science track or the space track', 'Manufacturer advances the building track or the power track',
+      'Innovator reveals the top project card', 'Constructor places a city', 'Then it pays']) {
+      expect(texts.some((t) => t.startsWith(head)), head).is.true;
+    }
+    expect(texts.some((t) => t.startsWith('Venuphile')), 'no Venus line without Venus Next').is.false;
+    expect(buildBonusCardView(BonusCardId.BF5_CORPORATE_COMPETITION_AMAZONIS_PLANITIA, VENUS).lines.some((l) => l.text.startsWith('Venuphile'))).is.true;
+    expect(base.fate.kind).eq('discard');
+  });
+
   it('Corporate Competition (B12) shows the TERRA CIMMERIA helper list and its ONE free option', () => {
     const base = buildBonusCardView(BonusCardId.B12_CORPORATE_COMPETITION_CIMMERIA, BASE);
     // Renamed with the fan map's own card (2026-11-03, the Vastitas precedent): the official one wears «Nova».

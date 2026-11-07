@@ -337,6 +337,9 @@ export enum BonusCardId {
   BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN = 'BF3',
   // The fork's own Corporate Competition for the fan-made Arabia Terra (`BoardName.ARABIA_TERRA`), 2026-11-05 — §21.6.
   BF4_CORPORATE_COMPETITION_ARABIA_TERRA = 'BF4',
+  // The fork's own Corporate Competition for the OFFICIAL eleven-row Amazonis Planitia (`BoardName.AMAZONIS_PLANITIA`),
+  // 2026-11-07 — §24.6; the map's extended MarsBot board: docs/claude/amazonis-planitia-marsbot.md.
+  BF5_CORPORATE_COMPETITION_AMAZONIS_PLANITIA = 'BF5',
   // THE FORK'S OWN CORPORATIONS' cards (BC-prefix — BF is the fan MAPS' series): CF1 Ferrus Academy's recurring card.
   BC1_FIELD_PRACTICE = 'BC1',
   // CF2 Veynon Dynamics' third fleet's voyage.
@@ -372,12 +375,21 @@ export const FAILED_ACTION_MC = 5;
 export const FAILED_ACTION_MC_EASY = 3;
 
 export const MARSBOT_MAX_TRACK_POSITION = 18;
+/**
+ * The last cell of an EXTENDED track (Amazonis Planitia's 25-cell rows, 0–24): the law's 19-cell body plus a six-cell
+ * «late reserve» for a map whose global parameters run a quarter longer (docs/claude/amazonis-planitia-marsbot.md).
+ * A track's own `maxPosition` says which format it is; the default stays the printed 18.
+ */
+export const MARSBOT_EXTENDED_TRACK_POSITION = 24;
 export const MARSBOT_STARTING_TR = 20;
 export const MARSBOT_MAX_GENERATION = 20;
 export const MARSBOT_MAX_GENERATION_PRELUDE = 18;
 
-/** Get the max generation for an automa game. */
-export function getAutomaMaxGeneration(preludeExtension: boolean): number {
-  return preludeExtension ? MARSBOT_MAX_GENERATION_PRELUDE : MARSBOT_MAX_GENERATION;
+/**
+ * The generation whose START is MarsBot's instant win. `paceOffset` is the map's (`botPaceOffset` — Amazonis
+ * Planitia's longer parameters run the clock three generations later; 0 everywhere else).
+ */
+export function getAutomaMaxGeneration(preludeExtension: boolean, paceOffset: number = 0): number {
+  return (preludeExtension ? MARSBOT_MAX_GENERATION_PRELUDE : MARSBOT_MAX_GENERATION) + paceOffset;
 }
 

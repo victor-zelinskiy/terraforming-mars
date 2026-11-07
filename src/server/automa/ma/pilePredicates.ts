@@ -31,7 +31,8 @@ export type PilePredicateId =
   | 'cityOffMars' // Cosmic Settler
   | 'philanthropic' // Philantropist — non-negative VP (`Philantropist.counts`)
   | 'noTags' // Administrator — no tags (`Administrator.untagged`)
-  | 'partyRequirement'; // Politologist — a party requirement (`hasPartyRequirement`, events included)
+  | 'partyRequirement' // Politologist — a party requirement (`hasPartyRequirement`, events included)
+  | 'any'; // Innovator — every card of the pile (events included — «most played cards (event cards also count!)»)
 
 const PREDICATES: Record<PilePredicateId, (card: IProjectCard) => boolean> = {
   green: (card) => card.type === CardType.AUTOMATED,
@@ -47,6 +48,7 @@ const PREDICATES: Record<PilePredicateId, (card: IProjectCard) => boolean> = {
   philanthropic: (card) => Philantropist.counts(card),
   noTags: (card) => Administrator.untagged(card),
   partyRequirement: (card) => hasPartyRequirement(card),
+  any: () => true,
 };
 
 export function pilePredicate(id: PilePredicateId): (card: IProjectCard) => boolean {

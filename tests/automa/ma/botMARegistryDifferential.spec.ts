@@ -50,6 +50,9 @@ const NEW_IN_STAGE_2: ReadonlySet<string> = new Set([
   'Terran5', 'Dataminer', 'Aeronaut', 'Administrator', 'Collector', 'Manufacturer', 'Politologist',
   // A helper of their own where the legacy switch had none (the score stays the player's):
   'Constructor', 'Suburbian',
+  // Amazonis Planitia's names (phase 2, 2026-11-07 — docs/claude/amazonis-planitia-marsbot.md): the legacy switch never
+  // had them (the map was adapted after the migration).
+  'Merchant3', 'Innovator', 'Physicist',
 ]);
 
 /**

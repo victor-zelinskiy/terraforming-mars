@@ -264,6 +264,7 @@ function resolveBonusCardEffect(game: IGame, id: BonusCardId): BonusCardOutcome 
   case BonusCardId.BF2_CORPORATE_COMPETITION_AMAZONIS:
   case BonusCardId.BF3_CORPORATE_COMPETITION_TERRA_CIMMERIA_FAN:
   case BonusCardId.BF4_CORPORATE_COMPETITION_ARABIA_TERRA:
+  case BonusCardId.BF5_CORPORATE_COMPETITION_AMAZONIS_PLANITIA:
     // One card, one resolver: the map only swaps the helper-action list.
     return corporateCompetition(game);
   case BonusCardId.B16_GOVERNMENT_INTERVENTION: return governmentIntervention(game);

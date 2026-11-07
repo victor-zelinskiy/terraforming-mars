@@ -28,8 +28,15 @@ import {DifficultyLevel} from './AutomaTypes';
  * THE CAP LADDER (the owner, 2026-10-29, after the «Cold Carbon Mass» campaign
  * played with the rule on: «бот хорошо скейлится в лейт, но откалибровать
  * сильнее — в 1–4 поколении доп. карта не нужна, Hard: 5–6 — одна, 7–8 — две,
- * 9 — три, 10+ — четыре»). Five generation BANDS, a cap per difficulty in each;
- * Hard is the owner's own row, the others one step around it. Measured: before
+ * 9 — три, 10+ — четыре»). SEVEN generation BANDS, a cap per difficulty in each;
+ * Hard is the owner's own row, the others one step around it. The last two
+ * bands (13–15 · 16+) are the LONG game's — added 2026-11-07 with Amazonis
+ * Planitia, whose longer parameters run a game a quarter longer: the ladder
+ * had been written for games that end by the 13th generation, and a bot that
+ * had earned four extra cards in the 10th deserves no fewer in the 16th, when
+ * the human's engine is at its widest (the owner: «расширить скейлы
+ * динамического баланса на более поздние поколения»). Brutal stays at 4 to the
+ * end — its +1 VP per played card compounds with every extra card. Measured: before
  * the rule the bot passed first in 32–44 % of the 5th–6th generations, 75–90 %
  * of the 7th–8th, 91 % of the 9th; through the 1st–4th it never did (it passed
  * LAST in 100 / 100 / 96 / 68 %), so a card there only widened its lead. Brutal
@@ -37,14 +44,14 @@ import {DifficultyLevel} from './AutomaTypes';
  * READ LIVE at every bot turn from the game's generation: a game already under
  * way with the switch on takes a new ladder up the moment the server does.
  */
-export const SECOND_SHIFT_CAP_LADDER: Readonly<Record<DifficultyLevel, readonly [number, number, number, number, number]>> = {
-  easy: [0, 0, 1, 1, 2],
-  normal: [0, 1, 1, 2, 3],
-  hard: [0, 1, 2, 3, 4],
-  brutal: [0, 2, 3, 4, 4],
+export const SECOND_SHIFT_CAP_LADDER: Readonly<Record<DifficultyLevel, readonly [number, number, number, number, number, number, number]>> = {
+  easy: [0, 0, 1, 1, 2, 2, 3],
+  normal: [0, 1, 1, 2, 3, 3, 4],
+  hard: [0, 1, 2, 3, 4, 4, 5],
+  brutal: [0, 2, 3, 4, 4, 4, 4],
 };
-/** The first generation of each band after the first: 1–4 · 5–6 · 7–8 · 9 · 10+. */
-export const SECOND_SHIFT_BAND_STARTS: readonly [number, number, number, number] = [5, 7, 9, 10];
+/** The first generation of each band after the first: 1–4 · 5–6 · 7–8 · 9 · 10–12 · 13–15 · 16+. */
+export const SECOND_SHIFT_BAND_STARTS: readonly [number, number, number, number, number, number] = [5, 7, 9, 10, 13, 16];
 
 /** Whether the difficulty has the rule at all — any rung above zero (every difficulty today); the creator's generation-free reading. */
 export function secondShiftRuleApplies(difficulty: DifficultyLevel): boolean {

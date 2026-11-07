@@ -29,7 +29,7 @@ const OUT_OF_SCOPE: ReadonlyMap<string, string> = new Map([
  * (`PENDING_ADAPTATION_MA` in MilestoneAwardSelector), so no bot can meet them. Their rows land with the board's full
  * adaptation — then this list is empty again.
  */
-const PENDING: ReadonlySet<string> = new Set(['Merchant3', 'Innovator', 'Physicist']);
+const PENDING: ReadonlySet<string> = new Set([]);
 
 /** The ONE honest zero (decision R5). */
 const ZERO: ReadonlySet<string> = new Set(['Entrepreneur']);

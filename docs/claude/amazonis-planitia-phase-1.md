@@ -2,7 +2,7 @@
 
 Prompt: `docs/claude/prompts/amazonis-planitia-full-adaptation.md`. Done 2026-11-06. The board left
 `BOARDS_PENDING_PREMIUM_ADAPTATION` (the list is empty): the creator offers it, «Случайная» deals it, every premium
-guard walks it. MarsBot stays phase 2 — the board is not in `AUTOMA_SUPPORTED_BOARDS`; the creator's `board` rule names
+guard walks it. (Phase 2 — MarsBot — shipped 2026-11-07, `amazonis-planitia-marsbot.md`; the sentence below describes phase 1's state.) MarsBot stayed phase 2 — the board was not in `AUTOMA_SUPPORTED_BOARDS`; the creator's `board` rule named
 it in words with the bot seated («MarsBot does not cover …»), the bot-seated map deck marks the tile `no`.
 
 ## Owner's decisions taken during the work (2026-11-06)
@@ -124,4 +124,5 @@ to build); the finish (Venus 30 → 31 → 32 → 33 hosted in the standard proj
   visible here with test-mode money) — not specific to this board.
 - H7's two delegates are pinned by the board spec (`AmazonisPlanitiaBoard.spec` § double delegate) — the Parliament's
   grant step is the shared one (Vastitas Borealis Nova's Viking e2e plays it); no Amazonis-specific e2e.
-- MarsBot on the board — phase 2.
+- MarsBot on the board — phase 2, SHIPPED 2026-11-07: `docs/claude/amazonis-planitia-marsbot.md` (the extended board, the
+  bot's clock, the map's rules, BF5, the random set, the campaign weight).

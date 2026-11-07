@@ -225,12 +225,12 @@ describe('consoleCreateModel', () => {
       expect(crewRows().find((r) => r.kind === 'bot')).to.include({secondShift: false});
       toggleBotSecondShift();
       expect(createGameState.config.botSecondShift).to.eq(true);
-      expect(botSecondShiftCap()).to.eq(3); // the ladder's top rung — Normal reaches 3 in a long game
+      expect(botSecondShiftCap()).to.eq(4); // the ladder's top rung — Normal reaches 4 in a long game (the 16+ band, 2026-11-07)
       createGameState.config.botDifficulty = 'brutal';
       expect(botSecondShiftCap()).to.eq(4);
       // Easy has the rule too (one card from the 7th generation): the row names it.
       createGameState.config.botDifficulty = 'easy';
-      expect(botSecondShiftCap()).to.eq(2);
+      expect(botSecondShiftCap()).to.eq(3);
       expect(crewRows().find((r) => r.kind === 'bot')).to.include({secondShift: true});
     });
 
@@ -456,6 +456,12 @@ describe('consoleCreateModel', () => {
       const decks = issues.map((i) => i.target.deck);
       expect(decks).to.include('rules');
       expect(decks).to.include('map');
+    });
+
+    it('the official Amazonis Planitia is a bot map (phase 2, 2026-11-07): the bot seated, no map issue', () => {
+      seatBot();
+      selectMap(BoardName.AMAZONIS_PLANITIA);
+      expect(launchIssues().map((i) => i.target.deck)).to.not.include('map');
     });
 
     it('jump-to-issue lands the cursor on the first problem', () => {

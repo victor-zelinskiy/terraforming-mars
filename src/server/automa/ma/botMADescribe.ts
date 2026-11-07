@@ -72,6 +72,7 @@ const PILE_PLURAL: Record<PilePredicateId, string> = {
   philanthropic: 'cards with non-negative VP',
   noTags: 'cards without tags',
   partyRequirement: 'cards with a party requirement (events count)',
+  any: 'cards (events count)',
 };
 
 const PILE_SINGULAR: Record<PilePredicateId, string> = {
@@ -88,6 +89,7 @@ const PILE_SINGULAR: Record<PilePredicateId, string> = {
   philanthropic: 'a card with non-negative VP',
   noTags: 'a card without tags',
   partyRequirement: 'a card with a party requirement',
+  any: 'a card',
 };
 
 const PILE_AMOUNT: Record<PileAmountId, string> = {
@@ -281,6 +283,10 @@ function awardText(criterion: BotCriterion): Message {
     const plus = criterion.plus ?? 0;
     const what = 'count' in criterion ? PILE_PLURAL[criterion.count] :
       'sum' in criterion ? PILE_AMOUNT[criterion.sum] : 'sets of green, blue and event cards';
+    if ('count' in criterion && (criterion.times !== undefined || criterion.div !== undefined)) {
+      // A share of the pile (Innovator: two thirds) — the fraction is said as such.
+      return msg('MarsBot: ${0} in its played pile × ${1} ÷ ${2}', label(what), num(criterion.times ?? 1), num(criterion.div ?? 1));
+    }
     return plus > 0 ?
       msg('MarsBot: ${0} in its played pile + ${1}', label(what), num(plus)) :
       msg('MarsBot: ${0} in its played pile', label(what));
@@ -326,6 +332,10 @@ export function describeHelper(helper: BotHelper): Message {
       msg('places a city') :
       msg('places a city ${0}', label(REGION_LABEL[helper.restrict]));
   case 'reveal':
+    if (helper.predicate === 'any' && helper.gainMegacredits === undefined) {
+      // «Until a card» is the deck's top card — said as such (Innovator).
+      return msg('reveals the top project card and resolves it');
+    }
     return helper.gainMegacredits === undefined ?
       msg('reveals cards until ${0} and resolves it', label(PILE_SINGULAR[helper.predicate])) :
       msg('reveals cards until ${0}, resolves it and gains ${1} M€', label(PILE_SINGULAR[helper.predicate]), num(helper.gainMegacredits));
