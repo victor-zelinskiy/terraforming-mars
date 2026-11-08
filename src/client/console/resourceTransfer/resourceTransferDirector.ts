@@ -17,6 +17,7 @@
 
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {fullscreenCoverAt} from '@/client/console/resourceTransfer/transferEndVisible';
 import {
   TransferArcPlan, TransferCover, TransferLaunch, TransferPaintLayer, TransferPaintPlan, TransferPoint, TransferRect, transferArcPlan, transferArcPoint,
   transferCeilingFor, transferChipScaleAt, transferEndMoved, transferLiftBias, transferRetargetWeight, transferTurnDue,
@@ -517,6 +518,13 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
   }, () => {
     // THE BIRTH FRAME: the source as painted NOW — moved since the plan → the arc starts from where it IS; gone → no chip.
     if (opts.liveFrom === undefined) {
+      // A BARE POINT is judged by the one cover it can be: a full-screen overlay over the whole frame (ledger HC).
+      if (fullscreenCoverAt(opts.from) !== undefined) {
+        report.born = 'unpainted';
+        unborn = true;
+        done();
+        return false;
+      }
       report.born = 'painted';
       report.bornAt = opts.from;
       planPaint(opts.from);
@@ -728,6 +736,12 @@ export function runDetachedTransferFlight(piece: TransferStagePiece, opts: Detac
   }, () => {
     // THE BIRTH FRAME (T06): the same live source as an ordinary flight — gone → no chip, moved → born where it is.
     if (opts.liveFrom === undefined) {
+      if (fullscreenCoverAt(from) !== undefined) {
+        report.born = 'unpainted';
+        unborn = true;
+        done();
+        return false;
+      }
       report.born = 'painted';
       report.bornAt = from;
       return true;

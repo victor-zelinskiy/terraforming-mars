@@ -145,12 +145,19 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
       test.info().annotations.push({type: 'monkey-seed', description: seed});
       // A third of the walks start IN the opening (the start's own flows); the rest on the board.
       const landing = r() < 0.34 ? 'prompt' : 'board';
-      let seats: Array<string>;
-      try {
-        ({seats} = await bootFixtureSeats(page, request, fixture as FixtureName, {landing}));
-      } catch (err) {
-        // A fixture whose own opening the API cannot answer is the fixture's spec's business, not a freeze.
-        test.skip(true, `the fixture did not boot for a walk (${String(err).slice(0, 160)})`);
+      let seats: Array<string> | undefined;
+      // A table whose standing question the API cannot answer for a board landing (a sitting's close, an enactment)
+      // is walked from its PROMPT instead — a skip is coverage lost, so it is the last resort, never the first.
+      for (const how of landing === 'board' ? ['board', 'prompt'] as const : ['prompt'] as const) {
+        try {
+          ({seats} = await bootFixtureSeats(page, request, fixture as FixtureName, {landing: how}));
+          break;
+        } catch (err) {
+          test.info().annotations.push({type: 'monkey-boot', description: `${how}: ${String(err).slice(0, 160)}`});
+        }
+      }
+      if (seats === undefined) {
+        test.skip(true, 'the fixture did not boot for a walk on either landing');
         return;
       }
       // The console's own account of the walk (the last lines), filed beside the press log — a red names WHAT the screen

@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {firstVisibleEnd, transferEndVerdict, TransferEndVerdict, TRANSFER_END_MIN_OPACITY} from '@/client/console/resourceTransfer/transferEndVisible';
+import {firstVisibleEnd, fullscreenCoverAt, transferEndVerdict, TransferEndVerdict, TRANSFER_END_MIN_OPACITY} from '@/client/console/resourceTransfer/transferEndVisible';
 
 /**
  * THE ENDS OF A FLIGHT ARE VISIBLE (the polish remediation iteration № 1, 2026-10-11).
@@ -81,6 +81,30 @@ describe('transferEndVerdict — a place a token may be born on or land on', () 
     section.style.display = '';
     el.remove();
     expect(transferEndVerdict(el, {lenient: true}), 'unmounted is gone').to.deep.eq({visible: false, why: 'unmounted'});
+  });
+
+  it('a FULL-SCREEN overlay covers too (ledger HC — the monkey, day2): an end under the card viewer\'s veil or the system menu is refused, and so is one INSIDE it', () => {
+    const veil = document.createElement('div');
+    veil.className = 'con-zoom-veil con-zoom-veil--lifted';
+    const shown = document.createElement('div');
+    veil.appendChild(shown);
+    const sys = document.createElement('div');
+    sys.className = 'con-sys con-sys--menu';
+    const capsule = document.createElement('div');
+    root.append(veil, sys, capsule);
+    for (const el of [veil, shown, sys, capsule]) {
+      box(el, {left: 200, top: 200, width: 100, height: 60});
+    }
+    stack(veil);
+    expect(transferEndVerdict(capsule)).to.deep.eq({visible: false, why: 'covered', by: 'con-zoom-veil.con-zoom-veil--lifted'});
+    expect(transferEndVerdict(shown), 'an end INSIDE the viewer is no flight end — the flight layer stands under it').to.deep.eq({visible: false, why: 'covered', by: 'con-zoom-veil.con-zoom-veil--lifted'});
+    stack(sys);
+    expect(transferEndVerdict(capsule)).to.deep.eq({visible: false, why: 'covered', by: 'con-sys.con-sys--menu'});
+    // …and a BARE point (no object to ask) is judged by the same overlays: the birth of a point source under them refuses.
+    stack(veil);
+    expect(fullscreenCoverAt({x: 250, y: 230})).eq('con-zoom-veil.con-zoom-veil--lifted');
+    stack(capsule);
+    expect(fullscreenCoverAt({x: 250, y: 230}), 'nothing over the frame — the point is painted').eq(undefined);
   });
 
   it('COVERED BY PAINT: a foreign .con-ws over the centre refuses; the element\'s own .con-ws, the board, a transfer chip do not', () => {

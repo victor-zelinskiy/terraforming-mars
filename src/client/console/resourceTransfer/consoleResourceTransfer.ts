@@ -50,7 +50,7 @@ import {
   TransferWaveSlot, createTransferWaveGate, releaseWaveSlot,
 } from '@/client/console/resourceTransfer/resourceTransferDirector';
 import {probeTick} from '@/client/console/probeTick';
-import {firstVisibleEnd, TransferEndOptions, TransferEndVerdict, transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
+import {effectiveOpacity, firstVisibleEnd, TRANSFER_END_MIN_OPACITY, TransferEndOptions, TransferEndVerdict, transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 
 export type TransferFlight = {
   id: number,
@@ -1357,7 +1357,10 @@ export function tokenPaintedUnder(chip: HTMLElement): string | undefined {
   chip.style.pointerEvents = 'auto';
   let top: Element | undefined;
   try {
-    top = document.elementsFromPoint(cx, cy)[0];
+    // COVERED BY PAINT means by PAINT (the verdict's own law, ledger HC — the monkey's day2 table): a surface on its way
+    // out, faded below the half (the card viewer's veil lifting), covers nothing the eye can see — the first element
+    // that really paints over the token is the one named, or none.
+    top = document.elementsFromPoint(cx, cy).find((e) => e === chip || chip.contains(e) || effectiveOpacity(e) >= TRANSFER_END_MIN_OPACITY);
   } finally {
     chip.style.pointerEvents = before;
   }

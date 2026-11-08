@@ -39,12 +39,34 @@ export type TransferEndVerdict =
 /** The opacity below which an end is a ghost, not a place (a leaving surface mid-fade). */
 export const TRANSFER_END_MIN_OPACITY = 0.5;
 
+/**
+ * What COVERS an end: a band surface — and a FULL-SCREEN overlay standing over the whole frame (ledger HC, the monkey's
+ * day2 finding on `parliament-aquifer-enact`: X opened the card viewer mid-payout and an animal token for Fish was born
+ * UNDER its veil). The viewer and the system menu stand above the flight layer by contract; an end under them is not
+ * painted for the eye, so the flight degrades to its counter's tick instead of a token nobody can see.
+ */
+const COVERING_SURFACES = '.con-ws, .con-zoom-veil, .con-sys';
+
+/**
+ * A BARE POINT under a full-screen overlay (the card viewer's veil, the system menu) — the one cover a point can be
+ * judged by without knowing its object: such an overlay stands over the WHOLE frame (ledger HC, the monkey's day2
+ * table). The name of the overlay, or undefined.
+ */
+export function fullscreenCoverAt(p: {x: number, y: number}): string | undefined {
+  if (typeof document === 'undefined' || typeof document.elementsFromPoint !== 'function') {
+    return undefined;
+  }
+  const top = document.elementsFromPoint(p.x, p.y).find((e) => e.closest('.con-transfer') === null);
+  const overlay = top?.closest('.con-zoom-veil, .con-sys');
+  return overlay === null || overlay === undefined ? undefined : surfaceName(overlay);
+}
+
 function surfaceName(surface: Element): string {
   return Array.from(surface.classList).filter((c) => c !== 'con-ws').slice(0, 2).join('.') || 'con-ws';
 }
 
 /** The effective opacity of an element down its ancestor chain (1 when nothing fades it). */
-function effectiveOpacity(el: Element): number {
+export function effectiveOpacity(el: Element): number {
   let opacity = 1;
   for (let n: Element | null = el; n !== null; n = n.parentElement) {
     const op = Number(getComputedStyle(n).opacity);
@@ -91,6 +113,13 @@ export function transferEndVerdict(el: Element | null | undefined, opts: Transfe
       opacity *= op;
     }
   }
+  // AN END INSIDE A FULL-SCREEN OVERLAY is never a flight end (ledger HC, the monkey's day2 table: X lifted Fish into
+  // the card viewer mid-payout, and its capsule — visible, INSIDE the viewer — was the token's birth). The flight
+  // layer stands under every scene that takes the screen by contract, so a token there is painted under the veil.
+  const screenTaker = el.closest('.con-zoom, .con-zoom-veil, .con-zoom-flight-layer, .con-sys');
+  if (screenTaker !== null) {
+    return {visible: false, why: 'covered', by: surfaceName(screenTaker)};
+  }
   if (opts.lenient === true) {
     return {visible: true};
   }
@@ -111,7 +140,7 @@ export function transferEndVerdict(el: Element | null | undefined, opts: Transfe
     // The transfer layer itself (a chip already in the air over the point) is never «cover».
     const top = document.elementsFromPoint(cx, cy).find((e) => e.closest('.con-transfer') === null);
     if (top !== undefined && top !== el && !el.contains(top) && !top.contains(el)) {
-      const surface = top.closest('.con-ws');
+      const surface = top.closest(COVERING_SURFACES);
       // COVERED BY PAINT means by PAINT: a foreign surface that is LEAVING (its fade below the same half — the hand
       // dissolving over the board while a tile's payout measures its satellite) still answers the hit test and
       // covers nothing the eye can see; it is the standing, opaque glass that makes an end «пустота».
