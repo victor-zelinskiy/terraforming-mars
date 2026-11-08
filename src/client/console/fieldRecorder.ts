@@ -94,6 +94,35 @@ export const FIELD_BATCH_MS = 1500;
  * flight, the whole ring goes to the server ONCE per quiet episode — a line is not needed to make a freeze evidence.
  */
 export const FIELD_QUIET_POST_S = 15;
+/** What a `pagehide` beacon may carry (the platform's keepalive budget is 64 KiB — a margin under it, in UTF-8 bytes). */
+export const FIELD_BEACON_MAX_BYTES = 60 * 1024;
+
+function utf8Bytes(s: string): number {
+  return typeof TextEncoder === 'function' ? new TextEncoder().encode(s).length : s.length * 3;
+}
+
+/**
+ * The post as JSON within `maxBytes` — the OLDEST heartbeats go first, then the oldest lines: the seconds right before
+ * the page left are what names its cause. Pure.
+ */
+export function fieldPostWithin(body: FieldPost, maxBytes: number): string {
+  let json = JSON.stringify(body);
+  if (utf8Bytes(json) <= maxBytes) {
+    return json;
+  }
+  const heartbeats = [...body.record.heartbeats];
+  const lines = [...body.record.lines];
+  while (utf8Bytes(json) > maxBytes && (heartbeats.length > 0 || lines.length > 0)) {
+    if (heartbeats.length > 0) {
+      heartbeats.shift();
+    } else {
+      lines.shift();
+    }
+    json = JSON.stringify({...body, record: {...body.record, heartbeats, lines}});
+  }
+  return json;
+}
+
 /** The diagnostic convention: a tagged line. Anything else the console prints is not ours to ship. */
 const TAGGED = /^\[[a-z][a-z0-9-]*\]/i;
 
@@ -263,14 +292,18 @@ function pageIdentity(): FieldRecorderDeps['page'] {
  * CORS-safelisted type needs no preflight, which a beacon cannot make across origins.
  */
 function browserPost(body: FieldPost, final: boolean): void {
-  const json = JSON.stringify(body);
   const url = apiUrl(paths.API_FIELD_LOG);
   try {
     if (final && typeof navigator.sendBeacon === 'function') {
-      navigator.sendBeacon(url, new Blob([json], {type: 'text/plain'}));
+      // A beacon carries at most `FIELD_BEACON_MAX_BYTES` — the ring is trimmed to fit, never refused whole.
+      navigator.sendBeacon(url, new Blob([fieldPostWithin(body, FIELD_BEACON_MAX_BYTES)], {type: 'text/plain'}));
       return;
     }
-    void fetch(url, {method: 'POST', headers: {'Content-Type': 'text/plain'}, body: json, keepalive: true}).catch(() => undefined);
+    // A LIVE post is a plain request — never `keepalive` (the owner's field export of 2026-11-08: ten posts refused
+    // in 0 ms, «Failed to fetch», exactly the ones sent right after a `[wait-graph]` line — the evidence of those very
+    // episodes lost). A keepalive body shares one 64 KiB budget across every keepalive request in flight; the page is
+    // alive here, so nothing needs to outlive it.
+    void fetch(url, {method: 'POST', headers: {'Content-Type': 'text/plain'}, body: JSON.stringify(body)}).catch(() => undefined);
   } catch {
     // The recorder never throws into the console it records.
   }

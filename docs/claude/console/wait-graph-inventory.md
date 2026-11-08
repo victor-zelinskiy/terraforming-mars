@@ -69,3 +69,12 @@ Status: `open` · `fixed <commit>`.
   `firstAct.submitting`, chairman `sent`, the deck-pick rollback.
 - R12 `fixed (wait-graph Э1)` — `firstAct.submitting` waits for ANY view change; a plain 400 refusal leaves A dead until the next view.
 - R13 `fixed (wait-graph Э1)` — deck pick `dealing` has no ceiling.
+- R14 `fixed (field 2026-11-08)` — the played hero's «an event pays before its lift» ran INSIDE a staged play's landing ritual
+  (`runStagedPlayedLanding`): it let a commit through that the board's cell had not sent yet and waited for its pay-back —
+  the card stood 9 s in the composer (Flooding: −1 VP + the Greens). The ritual is the pre-commit half (`stagedCeremony`);
+  the pay-back wait is a declared node (`flow:played-hero-payback#nonce`, target the server) — a lift waiting for an answer
+  nobody sends is a dead end the shadow names. e2e `console-staged-event-handoff` (red on the old build: `paying → late`).
+- R15 `open` (monkey wg2, `field-start-sbp-triton`, 3/3) — the start's play-from-hand step (Ecology Experts): the server asks
+  `projectCard`, the start knows it is owed (`sponsorPending`) but hosts no hand and has YIELDED; nothing opens the task
+  surface and every liveness rung has nothing to release. Plain B / X / V / B·A in the step are fine (probe) — the walk's
+  path to it is longer.

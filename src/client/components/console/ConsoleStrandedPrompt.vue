@@ -10,7 +10,7 @@
       <div class="con-stranded__body">{{ $t('This prompt is not available in console mode yet.') }}</div>
       <div class="con-stranded__hint">
         <GamepadGlyph control="menu" />
-        <span>{{ $t('Hold: switch interface mode') }}</span>
+        <span>{{ $t('System menu → «To main menu»: the game is saved — open it again to continue') }}</span>
       </div>
       <div v-if="debug" class="con-stranded__debug">waitingFor: {{ stranded.inputType }} → task: {{ stranded.taskKind }}</div>
     </div>
@@ -22,9 +22,10 @@
  * The honest STRANDED-PROMPT guard panel — CTS T0 (§CTS-7.3). Shown when
  * the leak detector finds a server prompt with NO serving surface in
  * console mode (the class behind the "only a pill" field bugs). The
- * player is told WHAT is pending and HOW to proceed (hold Menu → the
- * desktop shell serves the prompt), instead of staring at a dead
- * notification. Removed prompt-by-prompt as CTS phases land task bodies.
+ * player is told WHAT is pending and HOW to proceed (the system menu →
+ * «В главное меню»: the game is saved, and opening it again re-primes the
+ * prompt — the desktop shell this hint once pointed to is deleted), instead
+ * of staring at a dead notification.
  */
 import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';

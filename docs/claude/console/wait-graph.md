@@ -74,6 +74,11 @@ beats the conclusion; a fresh record beats the stale one.» A member with no doo
   TYPE (`waitGraphShellBounds.ts` — a new block / reason does not compile without its entry); `waitGraphLaw.spec` fails
   on a flow-state module (`live:` / `active:`) that neither declares a source nor a hold, unless listed with its reason.
 
+- **The shadow's first field read (2026-11-08, the owner's export):** two model noises fixed — a plate / a nested step
+  pointing at a frame in `browse` read `dangling` (every top frame is a node now: a reversible one is the player's time),
+  and a claim whose answer was already IN read `dead-end` (it waits for its presentation, a motion). The freeze of the
+  evening was a wait nobody had declared (R14 of the inventory) — declared now.
+
 ## 3. Phases
 
 - **Э0** inventory — done (§0).

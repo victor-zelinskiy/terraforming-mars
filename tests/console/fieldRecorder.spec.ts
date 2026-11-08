@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  FIELD_HEARTBEATS_MAX, FIELD_LINES_MAX, FIELD_QUIET_POST_S, FieldPost, FieldRecorder, FieldRecorderDeps, FieldStorage,
+  FIELD_HEARTBEATS_MAX, FIELD_LINES_MAX, FIELD_QUIET_POST_S, FieldPost, FieldRecorder, FieldRecorderDeps, FieldStorage, fieldPostWithin,
 } from '../../src/client/console/fieldRecorder';
 
 /**
@@ -202,5 +202,17 @@ describe('fieldRecorder — the console\'s flight recorder', () => {
     expect(last.body.record.lines).length(1);
     expect(last.body.record.heartbeats).length(1);
     expect(h.storage.value, 'persisted synchronously — the debounce cannot be relied on while the page leaves').to.contain('workspace-stall');
+  });
+  it('a beacon is TRIMMED to its budget — the oldest heartbeats first, then the oldest lines; a post that fits is untouched (the field export of 2026-11-08)', () => {
+    const beats = Array.from({length: 45}, (_, i) => ({prompt: `or|Выберите следующее действие#${i}`, accepting: true, inFlight: [], frames: ['hand:committed'], section: 'hand/', quietS: 1, presses: 0, at: i}));
+    const body: FieldPost = {kind: 'pagehide', record: {game: 'g', player: 'p', profile: '', build: '', ua: '', startedAt: 0,
+      lines: [{at: 1, text: '[wait-graph] old'}, {at: 2, text: '[wait-graph] new'}], heartbeats: beats} as unknown as FieldPost['record']};
+    const whole = JSON.stringify(body);
+    expect(fieldPostWithin(body, whole.length * 3)).eq(whole);
+    const cut = JSON.parse(fieldPostWithin(body, 1_500)) as FieldPost;
+    expect(new TextEncoder().encode(JSON.stringify(cut)).length).to.be.at.most(1_500);
+    expect(cut.record.heartbeats.length).to.be.below(45);
+    expect(cut.record.heartbeats.map((h) => (h as unknown as {at: number}).at).every((at) => at >= 45 - cut.record.heartbeats.length), 'the NEWEST heartbeats kept').eq(true);
+    expect(cut.record.lines.map((l) => (l as {text: string}).text)).to.deep.eq(['[wait-graph] old', '[wait-graph] new']);
   });
 });

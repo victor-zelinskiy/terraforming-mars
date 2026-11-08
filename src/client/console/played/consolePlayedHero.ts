@@ -83,6 +83,7 @@ import {armedEffectsChange, releaseArmedEffectHolds, releaseStagedArmedSpends, s
 import {Tag} from '@/common/cards/Tag';
 import {VpShare} from '@/common/game/vpAttribution';
 import {claimVpShares, dropVpClaim, flyVpShares, holdsVpShares, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
+import {declareWait} from '@/client/console/waitGraph/waitGraph';
 
 /**
  * The score cell's ledger owner of this scene (TR55 — docs/claude/console/score-cell.md): the played card's own
@@ -2032,9 +2033,18 @@ const PAYBACK_FLIGHT_GRACE_MS = 3000;
 /** How long a flight waits for a pay-back that never comes (the commit lost — the event lifts anyway). */
 const PAYBACK_WAIT_MAX_MS = 8000;
 
+/**
+ * THE STAGED LANDING CEREMONY is running (`runStagedPlayedLanding`) — the PRE-COMMIT half of a play whose commit is the
+ * board's cell, later. Nothing will be submitted while it runs, so nothing can pay before its lift: waiting for a pay-back
+ * there waited for a commit that waits for this very lift (the owner's field freeze of 2026-11-08 — Flooding, −1 VP on its
+ * face: the card stood 9 s in the composer, the board opened only past `PAYBACK_WAIT_MAX_MS`). The staged play's gains fly
+ * from the placed tile after the real commit (`runStagedSealWave`).
+ */
+let stagedCeremony = false;
+
 /** Does this play pay before its lift? An EVENT with something to pay, standing in the composer, full motion. */
 function eventPaysBeforeLift(): boolean {
-  if (!playedHeroState.isEvent || consoleReducedMotionActive()) {
+  if (!playedHeroState.isEvent || stagedCeremony || consoleReducedMotionActive()) {
     return false;
   }
   const standing = standingSourceEl();
@@ -2060,7 +2070,18 @@ async function openGateForPayBack(mine: () => boolean): Promise<void> {
   });
   capturePlayedCardReturnSource();
   freeRunGate();
-  await Promise.race([go, wait(PAYBACK_WAIT_MAX_MS)]);
+  // THE WAIT GRAPH (Э4): the lift waits for the play's ANSWER — a node with that target, so a lift waiting for a commit
+  // nobody sends is a dead end the shadow names (no request on the wire, nothing owed) instead of 8 s of a still card.
+  const node = declareWait({
+    id: `flow:played-hero-payback#${playedHeroState.nonce}`, family: 'flow', owner: 'playedHero',
+    targets: [{kind: 'server', what: 'the play\'s answer (the pay-back off the standing card)'}],
+    boundMs: PAYBACK_WAIT_MAX_MS, detail: playedHeroState.card ?? '',
+  });
+  try {
+    await Promise.race([go, wait(PAYBACK_WAIT_MAX_MS)]);
+  } finally {
+    node.end();
+  }
   if (liftGo !== undefined && mine()) {
     // The pay-back never came: lift with nothing paid here (the landing's half pays off the pile, the old road).
     liftGo = undefined;
@@ -2172,7 +2193,12 @@ export async function runStagedPlayedLanding(): Promise<boolean> {
     // which restores the composer for an honest retry.
     abortPlayedHero();
   }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000);
-  await executeFlight();
+  stagedCeremony = true;
+  try {
+    await executeFlight();
+  } finally {
+    stagedCeremony = false;
+  }
   if (sceneSafety !== undefined) {
     window.clearTimeout(sceneSafety);
     sceneSafety = undefined;

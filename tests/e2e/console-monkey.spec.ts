@@ -124,7 +124,8 @@ async function walk(page: Page, request: APIRequestContext, others: ReadonlyArra
       await moveOthers(request, others, log);
     }
     const key = pick(r);
-    log.push(key);
+    // The press with its moment (the console tail's clock) — a red is read press by press against the lines.
+    log.push(`${Date.now() % 1_000_000}:${key}`);
     await page.keyboard.press(key);
     // A player's rhythm: mostly quick, sometimes reading, now and then watching a scene play out.
     const roll = r();
@@ -178,8 +179,8 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
           const n = ++shots;
           evidence.push(page.screenshot({path: test.info().outputPath(`net-${n}.png`)}).catch(() => undefined));
           evidence.push(page.evaluate(() => {
-            const w = window as unknown as {__conWaitGraph?: () => unknown, __conReady?: () => unknown};
-            return {graph: w.__conWaitGraph?.(), ready: w.__conReady?.()};
+            const w = window as unknown as {__conWaitGraph?: () => unknown, __conReady?: () => unknown, __conStartDiag?: () => unknown};
+            return {graph: w.__conWaitGraph?.(), ready: w.__conReady?.(), startDiag: w.__conStartDiag?.()};
           }).then((s) => fs.writeFileSync(test.info().outputPath(`net-${n}.json`), JSON.stringify({line: text, ...s as object}, null, 1)))
             .catch(() => undefined));
         }

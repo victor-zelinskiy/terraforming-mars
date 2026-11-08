@@ -11871,6 +11871,27 @@ wildlifeDomeTable('wildlife-dome-noroom', ({game, p1, p2}) => {
     }
   }
 }, false);
+// ── THE STAGED EVENT HANDS THE BOARD OVER AT ONCE (the owner's field freeze of 2026-11-08, game g245a35e2022f): Flooding
+//    — an EVENT whose commit is the board's cell (a staged play: the ocean), −1 VP printed on its face and the GREENS
+//    ruling (their quiet law enacted — the table answers the ocean) — MOVED out of the dealt pool into blue's hand, 40 M€,
+//    blue's action phase. An event with something to pay waited in its landing ritual for a pay-back whose commit the
+//    board's cell had not sent yet: the card stood 9 s in the composer, the board opened only past the 8 s ceiling. ──
+parliamentFixture('flooding-staged', {
+  stopAt: 'vote',
+  megacredits: [40, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.GREENS));
+    gmoToHand(game, p1, [CardName.FLOODING]);
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.FLOODING);
+    if (card === undefined || !p1.canPlay(card) || parliament.rulingParty() !== PartyName.GREENS || game.activePlayer.id !== p1.id) {
+      throw new Error(`the flooding-staged fixture expected Flooding playable with the Greens ruling and blue on the move — got card=${card !== undefined} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
 // ── T03 · CULTURAL METROPOLIS — the first classic card with a political EFFECT on the facade, and the first play with
 //    TWO DOORS (ledger CF): the city's staged cell, THEN the live grant «2 delegates to one resolution» (the vote mode,
 //    hosted in the hand's own zone). Cultural Metropolis MOVED out of the dealt pool into blue's hand, 40 M€, 1 energy

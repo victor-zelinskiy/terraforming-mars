@@ -22981,12 +22981,17 @@ export default defineComponent({
           targets: this.mandatoryDeferredActive ? [{kind: 'player', what: 'the restore card'}] : [{kind: 'node', id: 'surface:restore-card'}],
         });
       }
-      // THE STANDING FRAME — past its commit it waits for its ending, a transient beat for its motion.
-      if (top !== undefined && (isTransientBeat(top.phase) || top.phase === 'committed')) {
+      // THE STANDING FRAME — past its commit it waits for its ending, a transient beat for its motion; a reversible
+      // frame (browse / configure) is the player's own time. EVERY top frame is a node: a plate or a nested step that
+      // waits for «the frame to leave» points at a frame that IS there (the field export of 2026-11-08 read five false
+      // `dangling … surface:card-actions — not there` while the player browsed «Действия карт» over a pending plate).
+      if (top !== undefined) {
+        const reversible = !isTransientBeat(top.phase) && top.phase !== 'committed';
         const targets: Array<WaitTarget> = owed?.kind === top.kind ? [{kind: 'node', id: `conclusion:${top.kind}`}] :
           isTransientBeat(top.phase) ? [{kind: 'motion', what: `${top.kind}:${top.phase}`}] :
             questionId !== undefined && task !== undefined && frameServing(task.kind)?.kind === top.kind ? [{kind: 'node', id: questionId}] :
-              [{kind: 'player', what: 'B collapses / A continues'}];
+              reversible ? [{kind: 'player', what: 'the player browses — B leaves'}] :
+                [{kind: 'player', what: 'B collapses / A continues'}];
         out.push({
           id: `surface:${top.kind}`, family: 'surface', owner: `workspace:${top.kind}`, targets,
           ...(isTransientBeat(top.phase) && owed?.kind !== top.kind ? {boundMs: WORKSPACE_BEAT_STALL_MS} : {}),
@@ -23016,9 +23021,13 @@ export default defineComponent({
       // A CLAIM — awaiting its answer (bounded by its safety), or presenting its outcome to the player.
       if (workspaceOutcomeClaimed()) {
         const awaiting = workspaceOutcomeState.stage === 'awaiting';
+        // An answer already IN waits for its presentation (the reconciler's tick, the arrival), never for the server —
+        // read as the server's, every optimistic play claim was a false `dead-end` (the field export of 2026-11-08).
+        const answered = awaiting && workspaceOutcomeState.answerIn;
         out.push({
           id: `claim:${workspaceOutcomeState.host}`, family: 'claim', owner: 'consoleWorkspaceOutcome',
-          targets: awaiting ? [{kind: 'server', what: 'the claimed answer'}] : [{kind: 'player', what: 'take the claimed outcome'}],
+          targets: answered ? [{kind: 'motion', what: 'the claimed outcome presents (or the reconciler lets it go)'}] :
+            awaiting ? [{kind: 'server', what: 'the claimed answer'}] : [{kind: 'player', what: 'take the claimed outcome'}],
           ...(awaiting ? {boundMs: 20_000} : {}), recovery: 'workspace-outcome',
           detail: `${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ${workspaceOutcomeState.stage}`,
         });

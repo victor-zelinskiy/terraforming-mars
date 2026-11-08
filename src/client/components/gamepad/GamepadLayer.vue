@@ -152,7 +152,7 @@ const CONSOLE_LEGEND_ROWS: ReadonlyArray<LegendRow> = [
   {control: 'stickR', label: 'Scale inspection'},
   {control: 'stickScroll', label: 'Scroll'},
   {control: 'view', label: 'Log'},
-  {control: 'menu', label: 'Hold: switch interface mode'},
+  {control: 'menu', label: 'System menu'},
 ];
 
 export default defineComponent({
