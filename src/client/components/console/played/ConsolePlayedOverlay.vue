@@ -552,7 +552,7 @@ export default defineComponent({
     },
   },
   mounted() {
-    const body = this.$refs.body as HTMLElement | undefined;
+    const body = (this.$refs.body ?? undefined) as HTMLElement | undefined;
     if (body !== undefined && typeof ResizeObserver !== 'undefined') {
       this.ro = markRaw(new ResizeObserver(() => this.measure()));
       this.ro.observe(body);
@@ -571,7 +571,7 @@ export default defineComponent({
   methods: {
     /** The body box — OFFSET dimensions (a materializing panel's transform never shrinks the plan). */
     measure(): void {
-      const body = this.$refs.body as HTMLElement | undefined;
+      const body = (this.$refs.body ?? undefined) as HTMLElement | undefined;
       if (body === undefined) {
         return;
       }
@@ -587,7 +587,7 @@ export default defineComponent({
     /** The body's box inside the root (rests: no transform runs while a category opens) — the category view's room. */
     measureCatInset(): void {
       const root = this.$el as HTMLElement | undefined;
-      const body = this.$refs.body as HTMLElement | undefined;
+      const body = (this.$refs.body ?? undefined) as HTMLElement | undefined;
       if (root === undefined || body === undefined || typeof root.getBoundingClientRect !== 'function') {
         return;
       }
@@ -720,7 +720,7 @@ export default defineComponent({
      *  one page — nothing to scroll there. */
     stickScroll(dy: number, dx = 0): void {
       if (this.categoryUp) {
-        (this.$refs.catView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.({kind: 'scroll', dx, dy});
+        ((this.$refs.catView ?? undefined) as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.({kind: 'scroll', dx, dy});
       }
     },
     // ── the pad grammar (delegated by the shell) ────────────────────────
@@ -728,7 +728,7 @@ export default defineComponent({
       // The category view owns the pad for its whole episode (incl. the
       // flights — B there reverses/snaps; the table is scenery beneath).
       if (this.categoryUp) {
-        (this.$refs.catView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
+        ((this.$refs.catView ?? undefined) as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
         return;
       }
       if (intent.kind === 'scroll') {

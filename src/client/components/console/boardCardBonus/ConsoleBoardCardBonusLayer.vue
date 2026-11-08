@@ -414,7 +414,7 @@ export default defineComponent({
         }
         return;
       }
-      const cover = this.$refs.cover as HTMLElement | undefined;
+      const cover = (this.$refs.cover ?? undefined) as HTMLElement | undefined;
       if (cover === undefined || cover === null) {
         abortBoardCardBonus('instant', 'no-cover-el');
         return;
@@ -516,7 +516,7 @@ export default defineComponent({
       const rect = ctx.coverHandle?.rect();
       ctx.coverHandle?.kill();
       ctx.coverHandle = undefined;
-      const cover = this.$refs.cover as HTMLElement | undefined;
+      const cover = (this.$refs.cover ?? undefined) as HTMLElement | undefined;
       if (cover !== undefined && cover !== null) {
         gsap.set(cover, {autoAlpha: 0});
       }
@@ -718,7 +718,7 @@ export default defineComponent({
      * honest degrade, never a stranded invisible UI.
      */
     degradeToInstant(): void {
-      const cover = this.$refs.cover as HTMLElement | undefined;
+      const cover = (this.$refs.cover ?? undefined) as HTMLElement | undefined;
       const els = [...(cover !== undefined && cover !== null ? [cover] : []), ...this.proxyEls()];
       ctx.abortHandle = runBonusAbortVisual({
         els,
@@ -756,7 +756,7 @@ export default defineComponent({
       ctx.abortHandle?.kill();
       ctx.abortHandle = undefined;
       this.restoreLifted();
-      const cover = this.$refs.cover as HTMLElement | undefined;
+      const cover = (this.$refs.cover ?? undefined) as HTMLElement | undefined;
       const els = [...(cover !== undefined && cover !== null ? [cover] : []), ...this.proxyEls()];
       ctx.abortHandle = runBonusAbortVisual({
         els,
@@ -782,7 +782,7 @@ export default defineComponent({
       }
     },
     clearSceneDom(): void {
-      const cover = this.$refs.cover as HTMLElement | undefined;
+      const cover = (this.$refs.cover ?? undefined) as HTMLElement | undefined;
       if (cover !== undefined && cover !== null) {
         gsap.set(cover, {autoAlpha: 0});
       }

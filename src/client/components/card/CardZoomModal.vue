@@ -833,7 +833,7 @@ export default defineComponent({
      * (JSDOM under test), so behaviour is unchanged there.
      */
     runSlide(dir: SlideDir) {
-      const host = (this.$refs.stageCard as {$el?: HTMLElement} | undefined)?.$el;
+      const host = ((this.$refs.stageCard ?? undefined) as {$el?: HTMLElement} | undefined)?.$el;
       if (host === undefined || host === null || typeof host.animate !== 'function') {
         this.releaseAnimGuard();
         this.refreshPreload();
@@ -1100,7 +1100,7 @@ export default defineComponent({
       // it (measured: the two-row footer's plate stood 32 px over the card at 1080), and the band
       // being fixed per scene keeps the card's position rock-solid across LB/RB exactly as before.
       // Desktop instances measure nothing (byte-identical).
-      const actionsEl = this.consoleMotion ? (this.$refs.dialog as HTMLElement | undefined)?.querySelector<HTMLElement>('.card-zoom-actions') ?? null : null;
+      const actionsEl = this.consoleMotion ? ((this.$refs.dialog ?? undefined) as HTMLElement | undefined)?.querySelector<HTMLElement>('.card-zoom-actions') ?? null : null;
       const actionsReserve = actionsEl !== null && actionsEl.offsetHeight > 0 ? actionsEl.offsetHeight + 8 * s : (96 + 8) * s;
       const chromeVertical = (48 + 20 + (this.navEnabled && this.navCounter ? 64 : 0)) * s + actionsReserve;
       // The 200 is the two TOUCH CHEVRONS' gutters. The console instance hides

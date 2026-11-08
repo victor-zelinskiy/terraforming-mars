@@ -602,7 +602,7 @@ import type {DeferPlateModel} from '@/client/console/tableQuestionRow';
 import {setWorkspaceFrameSlot, workspaceFrameHost, workspaceFrameParked} from '@/client/console/consoleWorkspaceStack';
 import {offerColonyFleetBerth, retractColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {
-  releaseWorkspaceOutcome, setWorkspaceOutcomeSlot, workspaceOutcomeState,
+  releaseWorkspaceOutcome, retractWorkspaceOutcomeSlot, setWorkspaceOutcomeSlot, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
 import {rehomePlayOutcome} from '@/client/console/played/consolePlayOutcomeClaim';
 import {
@@ -1483,9 +1483,9 @@ export default defineComponent({
       handler(on: boolean) {
         if (on) {
           setWorkspaceOutcomeSlot('[data-embed-slot="hand-outcome"]');
-        } else if (this.outcome.embedSlot === '[data-embed-slot="hand-outcome"]') {
+        } else {
           // Only OUR selector: the claim may already have moved to another host.
-          setWorkspaceOutcomeSlot('');
+          retractWorkspaceOutcomeSlot('[data-embed-slot="hand-outcome"]');
         }
       },
     },
@@ -1768,7 +1768,7 @@ export default defineComponent({
     /** A scroll on the album is always programmatic (see the template note) —
      *  pin it back so a stray `scrollIntoView` can never shift the strip. */
     pinScroll(): void {
-      const album = this.$refs.album as HTMLElement | undefined;
+      const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
       if (album !== undefined && (album.scrollLeft !== 0 || album.scrollTop !== 0)) {
         album.scrollLeft = 0;
         album.scrollTop = 0;
@@ -1812,7 +1812,7 @@ export default defineComponent({
      * viewport edge — partially visible rows are gone with the scroll).
      */
     transitionTargets(): {pairs: Array<{name: CardName, rect: {left: number, top: number, width: number, height: number}, visible: boolean, clip?: {top: number, bottom: number, left?: number, right?: number}}>, scrollTop: number, stage?: {left: number, right: number}} {
-      const album = this.$refs.album as HTMLElement | undefined;
+      const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
       if (album === undefined || (this.entries.length === 0 && this.packetExtras.length === 0)) {
         return {pairs: [], scrollTop: 0};
       }
@@ -1880,7 +1880,7 @@ export default defineComponent({
      */
     packetHomeRects(names: ReadonlyArray<string>, side: PacketSide = 'right'): Map<string, {left: number, top: number, width: number, height: number}> {
       const out = new Map<string, {left: number, top: number, width: number, height: number}>();
-      const album = this.$refs.album as HTMLElement | undefined;
+      const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
       if (album === undefined) {
         return out;
       }
@@ -1893,7 +1893,7 @@ export default defineComponent({
       return out;
     },
     measure(): void {
-      const album = this.$refs.album as HTMLElement | undefined;
+      const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
       if (album === undefined) {
         return;
       }
@@ -1914,7 +1914,7 @@ export default defineComponent({
     },
   },
   mounted() {
-    const album = this.$refs.album as HTMLElement | undefined;
+    const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
     if (album !== undefined && typeof ResizeObserver !== 'undefined') {
       this.ro = markRaw(new ResizeObserver(() => this.scheduleMeasure()));
       this.ro.observe(album);
@@ -1959,9 +1959,8 @@ export default defineComponent({
     // that CHANGE is what makes the teleport look the target up again. Guards
     // all four consumers of the zone at once — the embedded reveal, the deck
     // pick, the buy prompt and the effect decision.
-    if (this.outcome.host === 'hand') {
-      setWorkspaceOutcomeSlot('');
-    }
+    // Only OUR zone (ledger HC) — never a slot another host published meanwhile.
+    retractWorkspaceOutcomeSlot('[data-embed-slot="hand-outcome"]');
     // A CLAIM CAN NEVER OUTLIVE ITS FLOW: an orphaned one is worse than a leak
     // (it suppresses the standalone presenters, so the artifact shows NOWHERE).
     // …unless the workspace was PARKED — «свернуть» keeps the whole decision

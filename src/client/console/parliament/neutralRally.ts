@@ -90,6 +90,12 @@ function freshFlow() {
     winnerShown: undefined as {instance: ResolutionInstanceId | undefined} | undefined,
     /** Why a flight could not be flown ('' when every one flew) — CONFESSED on the section root, never silent. */
     degraded: '',
+    /**
+     * RALLIES THAT ARRIVED WHILE ONE WAS OWED OR PLAYING (ledger HC — two Prelude campaigns played back to back: the
+     * second answer carried a second rally while the first was mid-flight). They wait their turn and play IN PLACE
+     * after it, on the same stage — a record never resets the one in front of it.
+     */
+    queued: [] as Array<OwedNeutralRally>,
   };
 }
 
@@ -185,21 +191,20 @@ export function seedNeutralRallyHolds(before: PlayerViewModel | undefined, after
   if (host === undefined || consoleReducedMotionActive()) {
     return;
   }
-  releaseNeutralRallyHolds('re-seed');
   const flow = neutralRallyFlow;
-  for (const vote of rally.votes) {
-    parliamentHolds.hiddenCubes.add(`${vote.instance}#${vote.seq}`);
+  // A RALLY IN FRONT OF IT — owed and not opened yet, or playing (ledger HC): the new record WAITS ITS TURN. Resetting
+  // the flow here (the old `re-seed`) cut the first rally mid-flight: its run's end found the flow no longer live and
+  // ended nothing, its hold stood to the ceiling and the frame stood `executing` with nothing in flight. Its cubes are
+  // hidden NOW (the view already carries them) and its counts join the display holds the first rally is consuming —
+  // each touchdown takes its own — so neither rally's pieces show early. Its recount M€ is not held on the rail (the
+  // row has one owner key): it ticks with its answer, honestly early.
+  if (flow.owed !== undefined && flow.beat !== 'done') {
+    hideRallyPieces(rally);
+    flow.queued = [...flow.queued, {...rally, host}];
+    return;
   }
-  const incoming = new Map<ReduxParty, number>();
-  let landing = 0;
-  for (const entry of rally.support) {
-    if (entry.gained > 0) {
-      incoming.set(entry.party, entry.gained);
-      landing += entry.gained;
-    }
-  }
-  flow.supportIncoming = incoming;
-  flow.poolHeld = rally.votes.length + landing;
+  releaseNeutralRallyHolds('re-seed');
+  hideRallyPieces(rally);
   flow.winnerShown = {instance: rally.winnerBefore};
   if (rally.recount && rally.megacredits > 0) {
     // The M€ of the recount, held on the rail until the coin lands; the play's own price is the known move
@@ -218,6 +223,48 @@ export function seedNeutralRallyHolds(before: PlayerViewModel | undefined, after
   flow.marked = new Set();
   flow.counted = 0;
   flow.degraded = '';
+}
+
+/** Hide a record's new pieces: its ribbon cubes, its plaques' gains and its pool cubes ride the display holds. */
+function hideRallyPieces(rally: ParliamentRallyModel): void {
+  const flow = neutralRallyFlow;
+  for (const vote of rally.votes) {
+    parliamentHolds.hiddenCubes.add(`${vote.instance}#${vote.seq}`);
+  }
+  const incoming = new Map<ReduxParty, number>(flow.supportIncoming);
+  let landing = 0;
+  for (const entry of rally.support) {
+    if (entry.gained > 0) {
+      incoming.set(entry.party, (incoming.get(entry.party) ?? 0) + entry.gained);
+      landing += entry.gained;
+    }
+  }
+  flow.supportIncoming = incoming;
+  flow.poolHeld += rally.votes.length + landing;
+}
+
+/**
+ * THE NEXT RALLY'S TURN (ledger HC): the one in front of it is over — the next queued record becomes the owed one, in
+ * place (its pieces are already hidden, its counts already in the display holds). `true` = a rally is owed again and
+ * the host plays it on the same stage; `false` = the queue is empty.
+ */
+export function takeQueuedNeutralRally(): boolean {
+  const flow = neutralRallyFlow;
+  const [next, ...rest] = flow.queued;
+  if (next === undefined) {
+    return false;
+  }
+  flow.queued = rest;
+  flow.owed = next;
+  flow.winnerShown = {instance: next.winnerBefore};
+  flow.live = false;
+  flow.beat = '';
+  flow.landedVotes = [];
+  flow.readSupport = [];
+  flow.marked = new Set();
+  flow.counted = 0;
+  flow.degraded = '';
+  return true;
 }
 
 // ── what the beats release, one touchdown at a time ────────────────────────
@@ -276,7 +323,7 @@ export function rallyCounted(key: string): void {
 /** Every hold this flow seeded, released at once (the flow ends, the section unmounts, the motion is cut). */
 export function releaseNeutralRallyHolds(why: string): void {
   const flow = neutralRallyFlow;
-  for (const vote of flow.owed?.votes ?? []) {
+  for (const vote of [flow.owed, ...flow.queued].flatMap((rally) => rally?.votes ?? [])) {
     parliamentHolds.hiddenCubes.delete(`${vote.instance}#${vote.seq}`);
   }
   releaseRailReward(NEUTRAL_RALLY_RAIL_KEY, why);
@@ -354,7 +401,9 @@ export function rallyCountedPlaces(party: ReduxParty): number {
 export function neutralRallyOwedTo(host: NeutralRallyHost): boolean {
   const flow = neutralRallyFlow;
   return (flow.promised?.host === host && flow.owed === undefined) ||
-    (flow.owed?.host === host && !flow.live);
+    (flow.owed?.host === host && !flow.live) ||
+    // …and a rally waiting its turn behind the one playing (ledger HC).
+    flow.queued.some((rally) => rally.host === host);
 }
 
 /** The rally is PLAYING inside this workspace — a cube in the air, the recount, the coin, the read: the conclusion's `live-outcome`. */

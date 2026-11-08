@@ -67,7 +67,7 @@
   </div>
 </template>
 <script lang="ts">
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, markRaw, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -341,7 +341,22 @@ export default defineComponent({
       f.supportBeat = 'discard';
       setWorkspaceFramePhase('parliament', 'executing');
       this.outcomeHold?.release();
-      this.outcomeHold = beginAnimationHold('parliament-support-discard', {maxHoldMs: 4000 + 900 * (supportDiscardFlow.owed?.count ?? 0)});
+      const hold = beginAnimationHold('parliament-support-discard', {
+        maxHoldMs: 4000 + 900 * (supportDiscardFlow.owed?.count ?? 0),
+        // THE CEILING ENDS THE DISCARD, not only its count: the cubes still in the air are dropped where the model has
+        // them and the flow goes on by its own hand (`afterDiscard` — the Agenda step of the card, or the read).
+        expire: () => {
+          if (this.outcomeHold !== hold || parliamentFlow.supportBeat !== 'discard') {
+            return;
+          }
+          console.warn('[parliament] support discard: outlived its ceiling — ended');
+          this.flights.forEach((id) => dropFlight(id, {silent: true}));
+          this.flights = [];
+          settleSupportDiscard();
+          this.afterDiscard();
+        },
+      });
+      this.outcomeHold = markRaw(hold);
       void this.$nextTick(() => probeTick(() => this.flyDiscard()));
     },
     flyDiscard(): void {
@@ -401,7 +416,8 @@ export default defineComponent({
     stopOutcome(): void {
       this.beat?.kill();
       this.beat = undefined;
-      this.flights.forEach((id) => dropFlight(id));
+      // SILENT: their touchdowns would play the rest of the discard on a mode that is going (settled below by name).
+      this.flights.forEach((id) => dropFlight(id, {silent: true}));
       this.flights = [];
       this.outcomeHold?.release();
       this.outcomeHold = undefined;

@@ -276,7 +276,7 @@ export default defineComponent({
       this.hoverIndex = Math.max(0, Math.min(n - 1, idx));
     },
     measure(): void {
-      const el = this.$refs.root as HTMLElement | undefined;
+      const el = (this.$refs.root ?? undefined) as HTMLElement | undefined;
       if (el !== undefined && el.clientWidth > 0) {
         this.width = el.clientWidth;
       }

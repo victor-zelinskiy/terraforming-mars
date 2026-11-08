@@ -25,6 +25,9 @@ import {reactive} from 'vue';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {CardModel} from '@/common/models/CardModel';
 import {createCursorArrival, trackCursorArrival} from '@/client/console/cursorArrival';
+// A cycle by design (the director writes this state): only the hold's RECOVERY reads it, at call time — never at
+// module evaluation — so either module may load first.
+import {finishInstant, isHandRevealEpisodeRunning, resetHandReveal} from '@/client/console/handDock/handRevealDirector';
 
 /**
  * THE ALBUM'S CURSOR ARRIVAL (TR58). The album mounts with its focused card already logically cursored, but the POSE
@@ -124,4 +127,25 @@ export function handRevealBusy(): boolean {
  * «is the console quiet?» — the feed popped a card over the flying copies, and a driver's press landed in the swallowed
  * window. The opening is a notification-only hold for exactly its own phase; the ceiling guards a phase that sticks.
  */
-registerAnimationHoldSupplier('hand-open', () => handRevealState.phase === 'opening', {scope: 'notification-only', maxHoldMs: 6000});
+registerAnimationHoldSupplier('hand-open', () => handRevealState.phase === 'opening', {
+  scope: 'notification-only',
+  maxHoldMs: 6000,
+  expire: expireHandOpen,
+});
+
+/**
+ * THE OWNER'S RECOVERY for the `hand-open` hold. A running episode snaps to its own end (`finishInstant` — the
+ * episode's safety snap: the album OPEN, the cards in their slots, the cursor arriving). An `opening` with NO episode
+ * behind it (a build superseded mid-measure that left the phase behind) has no flight to finish: the director's
+ * non-choreographed reconcile (`resetHandReveal`) seats every body — never a phase nobody will ever move.
+ */
+function expireHandOpen(): void {
+  if (handRevealState.phase !== 'opening') {
+    return;
+  }
+  console.warn(`[hand-reveal] opening (episode running: ${String(isHandRevealEpisodeRunning())}): outlived its ceiling — ended`);
+  finishInstant();
+  if (handRevealState.phase === 'opening' && !isHandRevealEpisodeRunning()) {
+    resetHandReveal();
+  }
+}

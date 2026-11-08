@@ -336,6 +336,7 @@ import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament
 import {
   armChairmanQuestFlow, chairmanQuestFlow, chairmanQuestGateOf, chairmanQuestStageKey, releaseChairmanQuestHolds, resetChairmanQuestFlow,
 } from '@/client/console/parliament/consoleChairmanQuest';
+import {registerFrameQuestionDoor} from '@/client/console/frameQuestionDoor';
 import {
   chairmanQuestBeatActive, finishChairmanQuestBeats, killChairmanQuestBeats, noteChairmanQuestAnswer, playChairHandover, startChairmanQuestBeats, CHAIRMAN_QUEST_BUDGET,
   chairmanQuestAwaitsReaction, noteChairmanQuestReactionAnswered, chairmanQuestStalled, settleChairmanQuestBeats,
@@ -347,9 +348,10 @@ import {
 } from '@/client/console/parliament/sittingDirector';
 import {probeTick} from '@/client/console/probeTick';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
-import {agendaWalkFlow, releaseAgendaWalkHolds, releaseAgendaWalkQuest} from '@/client/console/parliament/agendaWalk';
+import {agendaWalkFlow, releaseAgendaWalkHolds, releaseAgendaWalkQuest, takeQueuedAgendaWalk} from '@/client/console/parliament/agendaWalk';
 import {
   NEUTRAL_RALLY_RAIL_KEY, neutralRallyFlow, rallyCounted, rallyCubeLifted, rallySupportLanded, rallySupportRead, rallyVoteLanded, releaseNeutralRallyHolds,
+  takeQueuedNeutralRally,
 } from '@/client/console/parliament/neutralRally';
 import {NeutralRallyHandle, neutralRallyHoldMs, runNeutralRally} from '@/client/console/parliament/neutralRallyDirector';
 import {flyRailReward} from '@/client/console/resourceTransfer/railReward';
@@ -487,6 +489,10 @@ export default defineComponent({
       /** The answer key a prompt-reconcile last ran for — one pass per server position, never a loop. */
       reconciledKey: '',
       stopFitObs: undefined as (() => void) | undefined,
+      /** The shell's question door for this section (`frameQuestionDoor.ts`) — retracted with the section. */
+      stopQuestionDoor: undefined as (() => void) | undefined,
+      /** The running walk's ONE end (`playOwedWalk`) — what its hold's ceiling calls (ledger HC). */
+      walkExpire: undefined as (() => void) | undefined,
       /** The chairman-seat pick: the cube's rect on the card at the submit (the flight's source). */
       seatFrom: undefined as Rect | undefined,
       /** The parties tier's rect at the press — the seat / sitting stage unfolds from it. */
@@ -1587,7 +1593,7 @@ export default defineComponent({
       if (!up) {
         return;
       }
-      const tier = this.$refs.tableTierEl as HTMLElement | undefined;
+      const tier = (this.$refs.tableTierEl ?? undefined) as HTMLElement | undefined;
       const rect = tier?.getBoundingClientRect();
       if (rect !== undefined && rect.width > 0) {
         this.stageFromRect = {left: rect.left, top: rect.top, width: rect.width, height: rect.height};
@@ -1772,7 +1778,7 @@ export default defineComponent({
     },
     'sittingField'(on: boolean): void {
       parliamentFlow.sittingField = on;
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const cardFrom = enactCarryRect(root);
       this.publishMidOffsets();
       void this.$nextTick(() => {
@@ -1914,7 +1920,7 @@ export default defineComponent({
         this.walkHold?.release();
         this.walkHold = undefined;
       } else if (this.walkHold === undefined) {
-        this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(owed)});
+        this.raiseWalkHold(agendaWalkHoldMs(owed));
       }
     },
     /**
@@ -2116,12 +2122,14 @@ export default defineComponent({
     resetParliamentFlow();
   },
   mounted() {
-    setParliamentRootEl(this.$refs.rootEl as HTMLElement | undefined);
+    setParliamentRootEl((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
     // «САНКЦИИ» (TR12): the apply block seeds a discard's holds only while this section's support-area mode
     // stands to fly them.
     registerSupportDiscardHost(() => parliamentSupportUp());
     // «ИЗГНАНИЕ» (TR72): the apply block owes a removal's flight only while the delegate mode stands to fly it.
     registerDelegateRemovalHost(() => parliamentDelegateUp());
+    // A finished flow held for a question THIS screen serves hands the screen to it in place (ledger HC).
+    this.stopQuestionDoor = registerFrameQuestionDoor('parliament', () => this.serveStandingQuestion());
     // A sitting already holding the field at mount (a reload, a restore) has
     // no entrance to play — the overview is parked at once.
     parliamentFlow.sittingField = this.sittingField;
@@ -2131,10 +2139,10 @@ export default defineComponent({
     this.stepOpenMirror = this.sittingStepOpen;
     this.publishMidOffsets();
     if (this.sittingField) {
-      parkParliamentForEnact(this.$refs.rootEl as HTMLElement | undefined);
+      parkParliamentForEnact((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
     }
     fitParliamentCards();
-    const field = this.$refs.fieldEl as HTMLElement | undefined;
+    const field = (this.$refs.fieldEl ?? undefined) as HTMLElement | undefined;
     if (field !== undefined) {
       this.stopFitObs = useResizeObserver(field, () => {
         this.publishMidOffsets();
@@ -2151,6 +2159,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.stopFitObs?.();
+    this.stopQuestionDoor?.();
     this.clearSubmitTimer();
     this.parkedSubmit = undefined;
     resetSittingDirector();
@@ -2169,7 +2178,7 @@ export default defineComponent({
       this.walkReadBeat = undefined;
       this.walkHold?.release();
       this.walkHold = undefined;
-      (this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined)?.stopAgendaGlide();
+      ((this.$refs.agenda ?? undefined) as InstanceType<typeof ConsoleParliamentAgenda> | undefined)?.stopAgendaGlide();
       releaseAgendaWalkHolds('unmount');
     }
     // «ДЕЛЕГАТЫ» ends with its section too (TR31): the beats are cut, every hold the rally seeded is released (the
@@ -2195,8 +2204,8 @@ export default defineComponent({
     // A rival's cube still queued or in the air settles where the model says: the table is leaving.
     settleRivalVotes();
     killParliamentFlights();
-    killParliamentVoteMotion(this.$refs.rootEl as HTMLElement | undefined);
-    killParliamentEnactMotion(this.$refs.rootEl as HTMLElement | undefined);
+    killParliamentVoteMotion((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
+    killParliamentEnactMotion((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
     freezeParliamentFit(false);
     consoleParliamentUi.commands = [];
     consoleParliamentUi.hall = false;
@@ -2246,6 +2255,48 @@ export default defineComponent({
         return this.embedded;
       }
       return host === 'start' && this.sceneStepOfStartLive && workspaceFrameStage('parliament') === stage;
+    },
+    /**
+     * A STANDING PROMPT ONE OF THE OVERVIEW'S DOORS OPENS — the same set `reconcileStandingPrompts` asks (a staged
+     * door the player walked back out of is theirs to reopen, never a debt).
+     */
+    standingDoorOwed(): boolean {
+      const b = this.bridge;
+      return this.questGate !== undefined || b.seat !== undefined || (b.grant !== undefined && b.grant.staged !== true) ||
+        (b.supportPick !== undefined && b.supportPick.staged !== true) || b.bannerPick !== undefined ||
+        (b.delegatePick !== undefined && b.delegatePick.staged !== true);
+    },
+    /**
+     * THE QUESTION DOOR (`frameQuestionDoor.ts`, ledger HC — the field lock of 2026-11-07): the shell's guarded
+     * conclusion HELD this Parliament for a question it serves. The vote that completed the chairman's quest reported
+     * its flow finished from `landed` — and the quest's stage opens only from the OVERVIEW, which the finished vote
+     * never folded back to: the conclusion waited for the answer, the door waited for the conclusion. So the flow does
+     * not leave, it goes on IN PLACE: a finished stage folds back (the vote's own leave), the overview's doors open the
+     * question's stage. A stage still at work (a submit on the wire, a bill, the quest's own beats) serves already —
+     * `true`, nothing done.
+     */
+    serveStandingQuestion(): boolean {
+      if (this.warm || this.leaving || this.embedded || !this.standingDoorOwed()) {
+        return false;
+      }
+      const stage = parliamentFlow.stage;
+      if (stage === 'browse') {
+        this.reconciledKey = '';
+        this.reconcileStandingPrompts();
+        return true;
+      }
+      if (stage === 'landed' || stage === 'access') {
+        // The vote is over and read: its own leave brings the overview back, and the overview's doors are asked at once
+        // (never only through the stage watcher — a pass already spent on this server position would skip it).
+        this.voteMode()?.closeVote();
+        if (parliamentFlow.stage !== 'browse') {
+          this.closeStage();
+        }
+        this.reconciledKey = '';
+        void this.$nextTick(() => this.reconcileStandingPrompts());
+        return true;
+      }
+      return true;
     },
     /**
      * THE OVERVIEW IS BACK — does a MANDATORY prompt stand that nothing opened? Each door opens its stage from browse,
@@ -2326,15 +2377,15 @@ export default defineComponent({
           return;
         }
         if (f.stageBeforeSubmit === 'support') {
-          (this.$refs.supportMode as InstanceType<typeof ConsoleParliamentSupportMode> | undefined)?.answerAfterSubmit();
+          ((this.$refs.supportMode ?? undefined) as InstanceType<typeof ConsoleParliamentSupportMode> | undefined)?.answerAfterSubmit();
           return;
         }
         if (f.stageBeforeSubmit === 'banner') {
-          (this.$refs.bannerMode as InstanceType<typeof ConsoleParliamentBannerMode> | undefined)?.answerAfterSubmit();
+          ((this.$refs.bannerMode ?? undefined) as InstanceType<typeof ConsoleParliamentBannerMode> | undefined)?.answerAfterSubmit();
           return;
         }
         if (f.stageBeforeSubmit === 'delegate') {
-          (this.$refs.delegateMode as InstanceType<typeof ConsoleParliamentDelegateMode> | undefined)?.answerAfterSubmit();
+          ((this.$refs.delegateMode ?? undefined) as InstanceType<typeof ConsoleParliamentDelegateMode> | undefined)?.answerAfterSubmit();
           return;
         }
         if (f.stageBeforeSubmit === 'quest') {
@@ -2374,14 +2425,14 @@ export default defineComponent({
           void this.$nextTick(() => {
             const from = this.seatFrom;
             this.seatFrom = undefined;
-            flySeatDelegate(this.$refs.rootEl as HTMLElement | undefined, this.viewerColor, from, () => pulseParliamentChair());
+            flySeatDelegate((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, this.viewerColor, from, () => pulseParliamentChair());
           });
         }
         this.$emit('flow-complete', f.stageBeforeSubmit);
       }
     },
     voteMode(): InstanceType<typeof ConsoleParliamentVoteMode> | undefined {
-      return this.$refs.voteMode as InstanceType<typeof ConsoleParliamentVoteMode> | undefined;
+      return (this.$refs.voteMode ?? undefined) as InstanceType<typeof ConsoleParliamentVoteMode> | undefined;
     },
     /**
      * THE STEP'S DOOR, published (see the `sittingStepOpen` watcher): the shell's teleports read
@@ -2400,8 +2451,8 @@ export default defineComponent({
      * the grid's own answer.
      */
     publishMidOffsets(): void {
-      const field = this.$refs.fieldEl as HTMLElement | undefined;
-      const mid = this.$refs.midEl as HTMLElement | undefined;
+      const field = (this.$refs.fieldEl ?? undefined) as HTMLElement | undefined;
+      const mid = (this.$refs.midEl ?? undefined) as HTMLElement | undefined;
       const zone = mid?.querySelector<HTMLElement>('.con-parl__bodyzone') ?? undefined;
       if (field === undefined || zone === undefined) {
         return;
@@ -2479,7 +2530,7 @@ export default defineComponent({
           this.careerDossierOpen = true;
           return;
         }
-        const request = parliamentBrowseInspectRequest(this.view, this.$refs.rootEl as HTMLElement | undefined);
+        const request = parliamentBrowseInspectRequest(this.view, (this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
         if (request !== undefined) {
           this.$emit('inspect', request);
         }
@@ -2615,16 +2666,16 @@ export default defineComponent({
         this.voteMode()?.handleIntent(intent);
         return;
       case 'support':
-        (this.$refs.supportMode as InstanceType<typeof ConsoleParliamentSupportMode> | undefined)?.handleIntent(intent);
+        ((this.$refs.supportMode ?? undefined) as InstanceType<typeof ConsoleParliamentSupportMode> | undefined)?.handleIntent(intent);
         return;
       case 'delegate':
-        (this.$refs.delegateMode as InstanceType<typeof ConsoleParliamentDelegateMode> | undefined)?.handleIntent(intent);
+        ((this.$refs.delegateMode ?? undefined) as InstanceType<typeof ConsoleParliamentDelegateMode> | undefined)?.handleIntent(intent);
         return;
       case 'banner':
-        (this.$refs.bannerMode as InstanceType<typeof ConsoleParliamentBannerMode> | undefined)?.handleIntent(intent);
+        ((this.$refs.bannerMode ?? undefined) as InstanceType<typeof ConsoleParliamentBannerMode> | undefined)?.handleIntent(intent);
         return;
       case 'seat':
-        (this.$refs.seatPick as InstanceType<typeof ConsoleParliamentSeatPick> | undefined)?.handleIntent(intent);
+        ((this.$refs.seatPick ?? undefined) as InstanceType<typeof ConsoleParliamentSeatPick> | undefined)?.handleIntent(intent);
         return;
       case 'walk':
         // A beat in flight: nothing to confirm, nothing to go back to — the flow leaves by its own hand. A = «дожать»
@@ -2702,7 +2753,7 @@ export default defineComponent({
      */
     handlePayoutDetailsIntent(intent: GamepadIntent): boolean {
       const details = sittingPayoutDetails;
-      const sitting = this.$refs.sitting as {scrollDetails?: (dy: number) => void} | undefined;
+      const sitting = (this.$refs.sitting ?? undefined) as {scrollDetails?: (dy: number) => void} | undefined;
       if (intent.kind === 'press' && intent.button === 'stickL') {
         this.inspectSitting();
         return true;
@@ -2799,7 +2850,7 @@ export default defineComponent({
         if (!chairmanQuestFlow.live) {
           return;
         }
-        const root = this.$refs.rootEl as HTMLElement | undefined;
+        const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
         if (root === undefined) {
           if (tries > 1) {
             this.startQuestBeatsWhenMounted(tries - 1);
@@ -2813,7 +2864,7 @@ export default defineComponent({
           viewer: this.viewerColor,
           generation: this.pv.game.generation,
           playAgendaWalk: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => {
-            const agenda = this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
+            const agenda = (this.$refs.agenda ?? undefined) as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
             if (agenda === undefined) {
               hooks.onLanded();
               return;
@@ -2869,7 +2920,7 @@ export default defineComponent({
      * hurriable clock (A = «дожать»); a section with nothing to measure lets the beat go and walks at once.
      */
     playWalkSeat(onSeated: () => void): void {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const owed = agendaWalkFlow.owed;
       const seat = owed?.seat;
       const beat = (ms: number, fn: () => void): void => {
@@ -2889,8 +2940,7 @@ export default defineComponent({
         seated();
         return;
       }
-      this.walkHold?.release();
-      this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(owed) + CHAIRMAN_QUEST_BUDGET.seatRead + CHAIRMAN_QUEST_BUDGET.seat + CHAIRMAN_QUEST_BUDGET.gap});
+      this.raiseWalkHold(agendaWalkHoldMs(owed) + CHAIRMAN_QUEST_BUDGET.seatRead + CHAIRMAN_QUEST_BUDGET.seat + CHAIRMAN_QUEST_BUDGET.gap);
       setParliamentFlightsHurried(false);
       // THE LEAD: the chair is READ with its holder before anything moves — the pose rises through its own entry, and a
       // cube lifting off inside that fade is a beat the player never saw start (the law «ни один такт не начинается,
@@ -2916,6 +2966,8 @@ export default defineComponent({
       this.startOwedWalk();
       this.playOwedWalk(() => {
         this.finishOwedWalk();
+        // A walk queued behind this one is owed now; the overview's door opens it once the support mode is done.
+        takeQueuedAgendaWalk();
         done();
       });
     },
@@ -2926,16 +2978,25 @@ export default defineComponent({
      * ends its flow, the support-area mode its own).
      */
     playOwedWalk(onDone: () => void): void {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
-      const agenda = this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
+      const agenda = (this.$refs.agenda ?? undefined) as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
       const owed = agendaWalkFlow.owed;
       if (root === undefined || agenda === undefined || owed === undefined || !agendaWalkFlow.live) {
         onDone();
         return;
       }
-      this.walkHold?.release();
+      // ONE end for this run, whoever reaches it first — its own last beat or the hold's ceiling (ledger HC).
+      let ended = false;
+      const finish = (): void => {
+        if (!ended) {
+          ended = true;
+          this.walkExpire = undefined;
+          onDone();
+        }
+      };
+      this.walkExpire = finish;
       // …the table's answer to the walk (TR78 — «ОТВЕТ СТОЛА») adds its own budget to the walk's hold.
-      this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(owed) + (tableAnswerOwedTo('walk') ? TABLE_ANSWER_BUDGET_MS : 0)});
+      this.raiseWalkHold(agendaWalkHoldMs(owed) + (tableAnswerOwedTo('walk') ? TABLE_ANSWER_BUDGET_MS : 0));
       const generation = owed.generation;
       // «ДОЖАТЬ» (К-W1, the owner's decision 2026-10-10): the walk's own WAITS — the lead before each leg, the gap
       // after each landed reward, the read — ride the sitting's hurriable clock, so A during the walk pose moves the
@@ -2962,7 +3023,7 @@ export default defineComponent({
               this.walkReadBeat = undefined;
               if (agendaWalkFlow.live) {
                 // «ОТВЕТ СТОЛА» (TR78): the table's receipt of the walk plays on the section's own stage before the end.
-                this.playWalkAnswer(onDone);
+                this.playWalkAnswer(finish);
               }
             });
           });
@@ -3013,6 +3074,30 @@ export default defineComponent({
       setParliamentFlightsHurried(true);
       finishParliamentFlights();
     },
+    /**
+     * THE WALK'S HOLD, with its owner's recovery (ledger HC): a run that outlives its ceiling ENDS through the run's own
+     * end (`walkExpire` — the walk pose's flow ending, the support mode's continuation), or — before the run took its
+     * end (the КРЕСЛО beat) — the walk pose's ending. Never a hold dropped from the count over a frame left `executing`.
+     */
+    raiseWalkHold(maxHoldMs: number): void {
+      this.walkHold?.release();
+      const seq = agendaWalkFlow.owed?.seq;
+      this.walkHold = beginAnimationHold('parliament-agenda-walk', {
+        maxHoldMs,
+        expire: () => {
+          if (!agendaWalkFlow.live || agendaWalkFlow.owed?.seq !== seq) {
+            return;
+          }
+          console.warn(`[parliament] walk #${seq ?? '?'}: outlived its ceiling — ended`);
+          const end = this.walkExpire;
+          if (end !== undefined) {
+            end();
+          } else {
+            this.endWalkFlow();
+          }
+        },
+      });
+    },
     /** The owed walk is over: its hold lets go, its read beat is cut, the flow reads «done». */
     finishOwedWalk(): void {
       setParliamentFlightsHurried(false);
@@ -3023,11 +3108,17 @@ export default defineComponent({
       this.walkReadBeat = undefined;
       this.walkHold?.release();
       this.walkHold = undefined;
+      this.walkExpire = undefined;
       agendaWalkFlow.beat = 'done';
     },
     /** The walk is over (or could not play): the hold lets go, and the workspace's ONE guarded ending is asked. */
     endWalkFlow(): void {
       this.finishOwedWalk();
+      // THE NEXT WALK PLAYS IN PLACE (ledger HC): a record that arrived while this one played waited its turn.
+      if (takeQueuedAgendaWalk()) {
+        this.openWalkFlow();
+        return;
+      }
       this.$emit('flow-complete', 'walk');
     },
     /**
@@ -3050,14 +3141,24 @@ export default defineComponent({
     },
     /** THE ONE RALLY of an owed card record, on the mounted DOM. */
     playOwedRally(): void {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const owed = neutralRallyFlow.owed;
       if (owed === undefined || !neutralRallyFlow.live) {
         this.endRallyFlow();
         return;
       }
       this.rallyHold?.release();
-      this.rallyHold = beginAnimationHold('parliament-neutral-rally', {maxHoldMs: neutralRallyHoldMs(owed)});
+      // The owner's recovery (ledger HC): a run that outlives its ceiling ENDS — the flow's own ending, never a hold
+      // dropped from the count while the frame stands `executing` with nothing left to play.
+      this.rallyHold = beginAnimationHold('parliament-neutral-rally', {
+        maxHoldMs: neutralRallyHoldMs(owed),
+        expire: () => {
+          if (neutralRallyFlow.owed?.seq === owed.seq) {
+            console.warn(`[parliament] rally #${owed.seq}: outlived its ceiling — ended`);
+            this.endRallyFlow();
+          }
+        },
+      });
       const measure = (selector: string) => (root === undefined ? undefined : placeFigureRect(root, selector));
       this.rallyHandle?.skip();
       this.rallyHandle = runNeutralRally(owed, {
@@ -3088,8 +3189,10 @@ export default defineComponent({
             console.warn(`[parliament] rally: ${why} — settled without a flight`);
           }
         },
+        // THE RUN OWNS ITS END (ledger HC): keyed on its own record, never on the global flag — a second record
+        // arriving mid-run waits in the queue and plays after this one ends.
         onDone: () => {
-          if (neutralRallyFlow.live) {
+          if (neutralRallyFlow.live && neutralRallyFlow.owed?.seq === owed.seq) {
             this.endRallyFlow();
           }
         },
@@ -3106,6 +3209,14 @@ export default defineComponent({
     /** The rally is over (or could not play): the hold lets go, and the workspace's ONE guarded ending is asked. */
     endRallyFlow(): void {
       this.finishOwedRally();
+      // THE NEXT RALLY PLAYS IN PLACE (ledger HC — two Prelude campaigns back to back): same stage, same frame, its
+      // pieces already hidden; the flow ends only after the last one.
+      if (takeQueuedNeutralRally()) {
+        neutralRallyFlow.live = true;
+        neutralRallyFlow.beat = 'votes';
+        void this.$nextTick(() => probeTick(() => this.playOwedRally()));
+        return;
+      }
       this.$emit('flow-complete', 'rally');
     },
     /** The flow is over: the holds are gone with their beats, and the workspace concludes. */
@@ -3122,7 +3233,7 @@ export default defineComponent({
       if (id === undefined) {
         return;
       }
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const request: ParliamentInspectRequest = {
         kind: 'resolution', ids: [id], index: 0,
         origin: () => root?.querySelector<HTMLElement>('.con-parl__gov-card .pcard') ?? root?.querySelector<HTMLElement>('.con-parl__gov-card') ?? null,
@@ -3147,7 +3258,7 @@ export default defineComponent({
     },
     /** The DOM tile of an action group of the step — the descent's origin and the inspector's lift. */
     effectsTileOf(key: string): HTMLElement | undefined {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       return root?.querySelector<HTMLElement>('[data-parl-fx-entry="' + key + '"]') ?? undefined;
     },
     /**
@@ -3161,7 +3272,7 @@ export default defineComponent({
       const groups = this.effectsHostGroups;
       const entries = this.effectsHostEntries;
       if (host.zone === 'effects') {
-        const explorer = (this.$refs.effectsStep as InstanceType<typeof ConsoleParliamentEffectsStep> | undefined)?.explorer();
+        const explorer = ((this.$refs.effectsStep ?? undefined) as InstanceType<typeof ConsoleParliamentEffectsStep> | undefined)?.explorer();
         if (consoleActionOf(intent) === 'back') {
           if (explorer?.consumeEffectsBack() !== true) {
             this.closeEffectsStep();
@@ -3229,7 +3340,7 @@ export default defineComponent({
         this.$emit('notice', refusal);
         return;
       }
-      armPartyActionDescent(this.$refs.rootEl as HTMLElement | undefined, party, from);
+      armPartyActionDescent((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, party, from);
       this.$emit('open-action', party);
     },
     /**
@@ -3250,12 +3361,12 @@ export default defineComponent({
         this.$emit('notice', refusal);
         return;
       }
-      armResolutionActionDescent(this.$refs.rootEl as HTMLElement | undefined);
+      armResolutionActionDescent((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
       this.$emit('open-resolution-action', {resolution: action.resolution, party: action.party});
     },
     // ── the seat / sitting stage phrase ─────────────────────────────────
     openStage(stage: ParliamentStage): void {
-      const tier = this.$refs.tableTierEl as HTMLElement | undefined;
+      const tier = (this.$refs.tableTierEl ?? undefined) as HTMLElement | undefined;
       const rect = tier?.getBoundingClientRect();
       this.stageFromRect = rect !== undefined && rect.width > 0 ? {left: rect.left, top: rect.top, width: rect.width, height: rect.height} : undefined;
       parliamentFlow.stage = stage;
@@ -3413,7 +3524,7 @@ export default defineComponent({
       }));
     },
     directorContext(): SittingDirectorContext | undefined {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const summary = this.model?.phase?.summary;
       if (root === undefined || summary === undefined) {
         return undefined;
@@ -3426,7 +3537,7 @@ export default defineComponent({
         agendaTold: careerAgendaTold(key),
         onCareerTold: () => noteCareerAgendaTold(key),
         playAgendaWalk: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => {
-          const agenda = this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
+          const agenda = (this.$refs.agenda ?? undefined) as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
           if (agenda === undefined) {
             hooks.onLanded();
             return;
@@ -3640,7 +3751,7 @@ export default defineComponent({
       this.stageEntering = true;
       pulseCarrier(this.$refs.rootEl instanceof HTMLElement ?
         this.$refs.rootEl.querySelector<HTMLElement>('[data-parl-gov-carry] .con-parl__gov-card') ?? undefined : undefined);
-      playBodyUnfold(el as HTMLElement, this.$refs.tableTierEl as HTMLElement | undefined, this.stageFromRect, () => {
+      playBodyUnfold(el as HTMLElement, (this.$refs.tableTierEl ?? undefined) as HTMLElement | undefined, this.stageFromRect, () => {
         this.stageEntering = false;
         done();
         if (parliamentFlow.stage === 'sitting') {
@@ -3658,7 +3769,7 @@ export default defineComponent({
     },
     onStageLeave(el: Element, done: () => void): void {
       this.stageLeaving = true;
-      playBodyFold(el as HTMLElement, this.$refs.tableTierEl as HTMLElement | undefined, () => {
+      playBodyFold(el as HTMLElement, (this.$refs.tableTierEl ?? undefined) as HTMLElement | undefined, () => {
         this.stageLeaving = false;
         done();
         // The row is back: a beat whose objects live in it can play now.
@@ -3669,11 +3780,11 @@ export default defineComponent({
     },
     onStageEnterCancelled(el: Element): void {
       (el as HTMLElement).style.clipPath = '';
-      settleRow(this.$refs.tableTierEl as HTMLElement | undefined, !this.stagePanelUp);
+      settleRow((this.$refs.tableTierEl ?? undefined) as HTMLElement | undefined, !this.stagePanelUp);
     },
     onStageLeaveCancelled(): void {
       this.stageLeaving = false;
-      settleRow(this.$refs.tableTierEl as HTMLElement | undefined, !this.stagePanelUp);
+      settleRow((this.$refs.tableTierEl ?? undefined) as HTMLElement | undefined, !this.stagePanelUp);
     },
     /** A layer of the STANDING stage rises from inside (the zone's layer phrase); its end is the pane's readiness. */
     onStageLayerEnter(el: Element, done: () => void): void {

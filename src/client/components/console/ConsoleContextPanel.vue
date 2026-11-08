@@ -441,7 +441,7 @@ export default defineComponent({
   },
   mounted() {
     this.measureScroll();
-    const root = this.$refs.root as HTMLElement | undefined;
+    const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
     if (root !== undefined && typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.measureScroll());
       this.resizeObserver.observe(root);
@@ -704,7 +704,7 @@ export default defineComponent({
      * the preview watcher — the three moments the answer can change.
      */
     measureScroll(): void {
-      const root = this.$refs.root as HTMLElement | undefined;
+      const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
       if (root === undefined || root === null) {
         return;
       }
@@ -724,7 +724,7 @@ export default defineComponent({
       this.scrolledDown = root.scrollTop > 2;
     },
     resetScroll(): void {
-      (this.$refs.root as HTMLElement | undefined)?.scrollTo?.({top: 0});
+      ((this.$refs.root ?? undefined) as HTMLElement | undefined)?.scrollTo?.({top: 0});
       this.$nextTick(() => this.measureScroll());
     },
   },

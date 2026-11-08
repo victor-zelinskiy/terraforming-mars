@@ -348,7 +348,7 @@ export default defineComponent({
           if (this.consoleCardZoom.card === undefined) {
             return; // closed before it ever opened
           }
-          const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+          const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
           const el = zoom?.$el as HTMLElement | undefined;
           if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
             if (attempt < 10) {
@@ -395,8 +395,8 @@ export default defineComponent({
         }
         return true;
       }
-      const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
-      const rules = this.$refs.zoomRulesPanel as {scrollBody?: (dy: number) => boolean} | undefined;
+      const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
+      const rules = (this.$refs.zoomRulesPanel ?? undefined) as {scrollBody?: (dy: number) => boolean} | undefined;
       if (intent.kind === 'nav') {
         if (intent.dir === 'left') {
           zoom?.prev();
@@ -479,7 +479,7 @@ export default defineComponent({
       if (token !== this.zoomOpenToken) {
         return;
       }
-      const proxyEl = this.$refs.zoomFlightProxy as HTMLElement | undefined;
+      const proxyEl = (this.$refs.zoomFlightProxy ?? undefined) as HTMLElement | undefined;
       playZoomOpenFlight(proxyEl, index, source, landing.rect, {
         onShow: () => {
           if (token === this.zoomOpenToken && this.consoleCardZoom.card !== undefined) {
@@ -506,7 +506,7 @@ export default defineComponent({
     /** Choreographed close: chrome hides, the card flies back into the CURRENT
      *  card's slot (physical origin) or dives away, THEN the dialog closes. */
     async closeViewer(): Promise<void> {
-      const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
       if (zoom === undefined) {
         return;
       }

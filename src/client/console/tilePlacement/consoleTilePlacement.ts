@@ -440,7 +440,21 @@ export function tilePlacementHolding(): boolean {
 
 // The flight + the post-commit reward beat hold the presentation; releases
 // the instant the phase drops on end/abort (the scene's completion signal).
-registerAnimationHoldSupplier('tile-placement', tilePlacementHolding);
+// THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: a landing / reward beat that
+// never reached `finish` runs the transaction's own abort (the safety timers'
+// path) — the stage dropped, every held reward / price / VP share released to
+// the applied view, the hidden cell and cube restored, the commit gate free.
+registerAnimationHoldSupplier('tile-placement', tilePlacementHolding, {
+  diagnose: () => ({phase: tilePlacementState.phase, space: tilePlacementState.spaceId,
+    tile: tilePlacementState.tileType, gatePending: runResolve !== undefined}),
+  expire: () => {
+    if (!tilePlacementHolding()) {
+      return;
+    }
+    console.warn(`[consoleTilePlacement] tile placement (${tilePlacementState.phase}): outlived its ceiling — ended`);
+    abortTilePlacement();
+  },
+});
 
 /**
  * Resource rewards of the LIVE placement are still OWED or PAYING OUT —

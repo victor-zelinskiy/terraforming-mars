@@ -156,7 +156,7 @@ export default defineComponent({
             tokens.push(el);
           }
         }
-        const card = this.$refs.card as HTMLElement | undefined;
+        const card = (this.$refs.card ?? undefined) as HTMLElement | undefined;
         return {wakes, tokens, card: card && card.isConnected ? card : undefined};
       },
     });

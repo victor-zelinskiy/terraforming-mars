@@ -176,7 +176,7 @@ export default defineComponent({
     },
     /** The right stick / ↑↓ scroll a long breakdown — the host drives it (`ConsoleScrollArea.scrollByPx`). */
     scrollBy(dy: number): void {
-      (this.$refs.scroll as {scrollByPx?: (dy: number) => void} | undefined)?.scrollByPx?.(dy);
+      ((this.$refs.scroll ?? undefined) as {scrollByPx?: (dy: number) => void} | undefined)?.scrollByPx?.(dy);
     },
   },
 });

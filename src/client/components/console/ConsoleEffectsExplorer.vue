@@ -1474,7 +1474,7 @@ export default defineComponent({
     },
     // ── geometry ───────────────────────────────────────────────────────────
     tileEl(key: string): HTMLElement | null {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       if (root === undefined || key === '') {
         return null;
       }
@@ -1482,7 +1482,7 @@ export default defineComponent({
       return root.querySelector<HTMLElement>(`[data-effect-key="${esc}"]`);
     },
     scrollFocusedIntoView(): void {
-      const list = this.$refs.list as ScrollAreaRef | undefined;
+      const list = (this.$refs.list ?? undefined) as ScrollAreaRef | undefined;
       const el = this.tileEl(this.ui.focusKey);
       if (list === undefined || el === null) {
         return;
@@ -1512,17 +1512,17 @@ export default defineComponent({
       }
       this.fitFrame = requestAnimationFrame(() => {
         this.fitFrame = undefined;
-        fitActionCanvases(this.$refs.rootEl as HTMLElement | undefined, {
+        fitActionCanvases((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, {
           graphicSelector: '.con-efx__graphic',
           canvasClass: 'con-efx__canvas',
           varName: '--efx-fit',
         });
         // The caption's tier is the column's to decide (PL-123): this column is ~20% narrower than the action centre's.
-        fitDescTiers(this.$refs.rootEl as HTMLElement | undefined, {selector: '.con-efx__desc', classPrefix: 'con-efx__desc'});
+        fitDescTiers((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, {selector: '.con-efx__desc', classPrefix: 'con-efx__desc'});
         // The dossier column composes rather than scrolls (no reachable
         // scroll context there) — the measured ladder steps it down only as
         // far as a real overflow demands.
-        const detail = this.$refs.detailEl as HTMLElement | undefined;
+        const detail = (this.$refs.detailEl ?? undefined) as HTMLElement | undefined;
         if (detail !== undefined) {
           resolveDetailFit(detail, detail, (level) => detail.setAttribute('data-fit', String(level)));
         }
@@ -1532,8 +1532,8 @@ export default defineComponent({
     handleIntent(intent: GamepadIntent): void {
       if (intent.kind === 'scroll') {
         const target = this.detailUp ?
-          (this.$refs.stageScroll as ScrollAreaRef | undefined) :
-          (this.$refs.list as ScrollAreaRef | undefined);
+          ((this.$refs.stageScroll ?? undefined) as ScrollAreaRef | undefined) :
+          ((this.$refs.list ?? undefined) as ScrollAreaRef | undefined);
         target?.scrollByPx(intent.dy * 22 * conUiScale());
         return;
       }
@@ -1569,7 +1569,7 @@ export default defineComponent({
     onNav(dir: 'up' | 'down' | 'left' | 'right'): void {
       if (this.detailUp) {
         // The dossier's own reading scroll (its list cursor lives in browse).
-        const stage = this.$refs.stageScroll as ScrollAreaRef | undefined;
+        const stage = (this.$refs.stageScroll ?? undefined) as ScrollAreaRef | undefined;
         if (dir === 'up' || dir === 'down') {
           stage?.scrollByPx((dir === 'down' ? 1 : -1) * 90 * conUiScale());
         }
@@ -1614,7 +1614,7 @@ export default defineComponent({
         armEffectsSlot(slotRect);
         armEffectsPress({x: slotRect.left + slotRect.width / 2, y: slotRect.top + slotRect.height / 2});
       }
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       armEffectsFocusOrigin(descendRectOf(root?.querySelector<HTMLElement>('[data-effect-flow-thumb]')));
       this.descendKey = identity.effectKey;
       this.ui.detail = identity;
@@ -1661,7 +1661,7 @@ export default defineComponent({
         armEffectsSlot(slotRect);
       }
       this.ui.detail = identity;
-      playEffectsDetailStep(this.$refs.stageEl as HTMLElement | undefined, dir);
+      playEffectsDetailStep((this.$refs.stageEl ?? undefined) as HTMLElement | undefined, dir);
     },
     /** X at browse — the source card fullscreen, browsing across GROUPS. */
     inspectFocused(): void {

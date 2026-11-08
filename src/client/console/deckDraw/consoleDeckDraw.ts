@@ -237,7 +237,18 @@ export function isDeckDrawActive(): boolean {
 // result surface) around its landed cards — a blocking hold would withhold the
 // very surface the scene assembles into. Surface coordination stays with the
 // shell (`consoleRevealMode` reads `deckDrawHolds()`).
-registerAnimationHoldSupplier('deck-draw', isDeckDrawActive, {scope: 'notification-only'});
+registerAnimationHoldSupplier('deck-draw', isDeckDrawActive, {
+  scope: 'notification-only',
+  // A scene standing past the ceiling takes its own safety's path (`abortDeckDraw`): the staging clears, the reveal
+  // unveils its cards — still takeable — and the deck counter falls to the server's number.
+  expire: () => {
+    if (!deckDrawState.active) {
+      return;
+    }
+    console.warn(`[deck-draw] scene for batch ${String(deckDrawState.stagedEventId)} (${deckDrawState.phase}): outlived its ceiling — ended`);
+    abortDeckDraw();
+  },
+});
 
 /**
  * The reveal overlay must not MOUNT while cards are still coming off the deck

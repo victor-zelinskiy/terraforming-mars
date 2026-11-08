@@ -123,8 +123,29 @@ function freshFlow() {
   return {promised: undefined, owed: undefined, live: false, beat: '' as AgendaWalkBeat, landed: [] as Array<AgendaAdvanceStep>};
 }
 
+/**
+ * WALKS THAT ARRIVED WHILE ONE WAS PLAYING (ledger HC — the rally's twin): each waits as its own seed, run once the walk
+ * in front of it has ended (`takeQueuedAgendaWalk`). A plain list on purpose: it is read only by that imperative take,
+ * never by a predicate a cache holds.
+ */
+let queuedWalkSeeds: Array<() => void> = [];
+
 export function resetAgendaWalkFlow(): void {
   Object.assign(agendaWalkFlow, freshFlow());
+  queuedWalkSeeds = [];
+}
+
+/**
+ * THE NEXT WALK'S TURN: the walk in front of it is over — the next queued record is seeded now, off its own response
+ * (the marker from where the last walk left it). `true` = a walk is owed again and the host plays it in place.
+ */
+export function takeQueuedAgendaWalk(): boolean {
+  const next = queuedWalkSeeds.shift();
+  if (next === undefined) {
+    return false;
+  }
+  next();
+  return agendaWalkFlow.owed !== undefined && !agendaWalkFlow.live;
 }
 
 // ── the promise (the press) ────────────────────────────────────────────────
@@ -291,6 +312,17 @@ export function seedAgendaWalkHolds(before: PlayerViewModel | undefined, after: 
   if (host === undefined || consoleReducedMotionActive()) {
     return;
   }
+  // A WALK PLAYING IN FRONT OF IT (ledger HC): this record WAITS ITS TURN. Re-seeding mid-run cut the first walk —
+  // every ending of its run is gated on `live`, so it ended nothing and its hold stood to the ceiling.
+  if (agendaWalkFlow.live && agendaWalkFlow.beat !== 'done') {
+    queuedWalkSeeds.push(() => seedAgendaWalkRecord(advance, rail, host, before, after));
+    return;
+  }
+  seedAgendaWalkRecord(advance, rail, host, before, after);
+}
+
+function seedAgendaWalkRecord(advance: NonNullable<ReturnType<typeof detectAgendaWalk>>, rail: AgendaWalkRailPromise | undefined, host: AgendaWalkHost,
+  before: PlayerViewModel | undefined, after: PlayerViewModel): void {
   const record: AgendaWalkRecord = {player: advance.player, from: advance.from, to: advance.to, steps: advance.steps};
   // The КРЕСЛО beat is the HAND's step (the walk pose plays it before the walk); a Parliament standing on its own glides
   // the record with its tier's watcher and shows the new chairman as the view does — nothing would consume a seat hold.
@@ -366,6 +398,7 @@ export function releaseAgendaWalkHolds(why: string): void {
   releaseAgendaWalkQuest();
   flushAgendaBonus(why);
   Object.assign(agendaWalkFlow, freshFlow());
+  queuedWalkSeeds = [];
 }
 
 // ── what the workspace's conclusion reads ──────────────────────────────────

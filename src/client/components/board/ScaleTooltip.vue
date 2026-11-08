@@ -84,7 +84,7 @@ export default defineComponent({
     },
     recompute(): void {
       const a = scaleTooltipState.anchor;
-      const el = this.$refs.tip as HTMLElement | undefined;
+      const el = (this.$refs.tip ?? undefined) as HTMLElement | undefined;
       if (a === null || el === undefined) {
         return;
       }

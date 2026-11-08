@@ -108,7 +108,7 @@ export default defineComponent({
   methods: {
     /** Section anchors = the showcase's own headers — no registry to drift. */
     sections(): Array<HTMLElement> {
-      const body = this.$refs.body as HTMLElement | undefined;
+      const body = (this.$refs.body ?? undefined) as HTMLElement | undefined;
       return body === undefined ? [] : Array.from(body.querySelectorAll(this.sectionSelector));
     },
     scrollApi(): {scrollByPx: (dy: number) => void, ensureVisible: (el: Element | null, margin?: number) => void, scrollToStart: () => void} | undefined {
@@ -124,7 +124,7 @@ export default defineComponent({
       // Land the header at the viewport top. ConsoleScrollArea's contract
       // forbids scrollIntoView (it may walk into outer containers) — compute
       // the delta against the scroll area's own box and drive its API.
-      const scrollEl = (this.$refs.scroll as {$el?: HTMLElement} | undefined)?.$el;
+      const scrollEl = ((this.$refs.scroll ?? undefined) as {$el?: HTMLElement} | undefined)?.$el;
       if (scrollEl !== undefined) {
         const delta = target.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top - 16;
         this.scrollApi()?.scrollByPx(delta);

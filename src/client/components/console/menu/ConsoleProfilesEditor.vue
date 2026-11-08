@@ -135,7 +135,7 @@ export default defineComponent({
     handleIntent(intent: GamepadIntent): boolean {
       if (this.entering) {
         // The on-screen keyboard owns every intent while name entry is active.
-        const vk = this.$refs.vkeyboard as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
+        const vk = (this.$refs.vkeyboard ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
         return vk?.handleIntent?.(intent) ?? true;
       }
       if (intent.kind === 'nav') {
@@ -166,7 +166,7 @@ export default defineComponent({
     },
     keepCursorVisible(): void {
       void this.$nextTick(() => {
-        const scroll = this.$refs.scroll as {ensureVisible?: (el: Element | null) => void} | undefined;
+        const scroll = (this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
         scroll?.ensureVisible?.(this.$el.querySelector('.cm-field--cursor'));
       });
     },

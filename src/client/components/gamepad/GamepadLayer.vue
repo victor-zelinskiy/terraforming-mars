@@ -436,7 +436,7 @@ export default defineComponent({
       // category ring / primary / back — delegate the whole intent to it (it
       // emits close on B, which returns to the system list).
       if (this.systemMenuSettings !== undefined) {
-        const options = this.$refs.systemOptions as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
+        const options = (this.$refs.systemOptions ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
         options?.handleIntent?.(intent);
         return;
       }

@@ -219,7 +219,7 @@ export default defineComponent({
     },
     /** Input while the layer is open (the shell routes it here): B folds one level, R3 closes the whole layer. */
     forecastIntent(intent: GamepadIntent): void {
-      forecastHostIntent('confirm', intent, this.$refs.forecastLayer as InstanceType<typeof ConsoleForecastLayer> | undefined);
+      forecastHostIntent('confirm', intent, (this.$refs.forecastLayer ?? undefined) as InstanceType<typeof ConsoleForecastLayer> | undefined);
     },
   },
 });

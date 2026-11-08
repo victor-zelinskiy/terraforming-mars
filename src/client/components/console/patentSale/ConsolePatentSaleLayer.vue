@@ -128,9 +128,9 @@ export default defineComponent({
     // nextTick, so the refs are always current for the active flights.
     this.unregister = registerPatentSaleStage({
       els: (): SaleStageEls | undefined => {
-        const well = this.$refs.well as HTMLElement | undefined;
-        const terminal = this.$refs.terminal as HTMLElement | undefined;
-        const slit = this.$refs.slit as HTMLElement | undefined;
+        const well = (this.$refs.well ?? undefined) as HTMLElement | undefined;
+        const terminal = (this.$refs.terminal ?? undefined) as HTMLElement | undefined;
+        const slit = (this.$refs.slit ?? undefined) as HTMLElement | undefined;
         // `!x` also catches Vue's `null` for a removed-then-queried ref.
         if (!well || !terminal || !slit || !well.isConnected) {
           return undefined;
@@ -146,8 +146,8 @@ export default defineComponent({
           well,
           terminal,
           slit,
-          scan: this.$refs.scan as HTMLElement | undefined,
-          glow: this.$refs.glow as HTMLElement | undefined,
+          scan: (this.$refs.scan ?? undefined) as HTMLElement | undefined,
+          glow: (this.$refs.glow ?? undefined) as HTMLElement | undefined,
           proxies,
         };
       },

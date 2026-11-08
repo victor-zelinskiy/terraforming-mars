@@ -80,7 +80,7 @@ export default defineComponent({
   mounted() {
     this.unregister = registerNomadStage({
       els: (): NomadStageEls | undefined => {
-        const token = this.$refs.token as HTMLElement | undefined;
+        const token = (this.$refs.token ?? undefined) as HTMLElement | undefined;
         if (!token || !token.isConnected) {
           return undefined;
         }
@@ -93,8 +93,8 @@ export default defineComponent({
         }
         return {
           token,
-          srcShadow: this.$refs.srcShadow as HTMLElement | undefined,
-          dstShadow: this.$refs.dstShadow as HTMLElement | undefined,
+          srcShadow: (this.$refs.srcShadow ?? undefined) as HTMLElement | undefined,
+          dstShadow: (this.$refs.dstShadow ?? undefined) as HTMLElement | undefined,
           bonusIcons,
         };
       },

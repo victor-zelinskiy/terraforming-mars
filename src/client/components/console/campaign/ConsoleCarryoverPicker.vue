@@ -277,7 +277,7 @@ export default defineComponent({
   },
   methods: {
     album(): AlbumApi | undefined {
-      return this.$refs.album as AlbumApi | undefined;
+      return (this.$refs.album ?? undefined) as AlbumApi | undefined;
     },
     disarm(): void {
       if (this.armed) {

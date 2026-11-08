@@ -605,7 +605,7 @@ export default defineComponent({
     },
     /** The resolutions stand's pad target — the slotted showcase (resolved late: it mounts async). */
     resolutionsPlaygroundTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
-      return this.$refs.resolutionsPg as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+      return (this.$refs.resolutionsPg ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
     },
     showAlert(title: string, message: string, cb: () => void = () => {}): void {
       // Console mode: the native <dialog> OK button is unreachable by the pad,

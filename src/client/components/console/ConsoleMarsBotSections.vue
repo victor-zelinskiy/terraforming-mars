@@ -287,7 +287,7 @@ export default defineComponent({
      * plates never clip there), so the walk ends at 0. Attribute writes only — no reactive state, no render loop.
      */
     fitHub(): void {
-      const hub = this.$refs.hub as HTMLElement | undefined;
+      const hub = (this.$refs.hub ?? undefined) as HTMLElement | undefined;
       if (hub === undefined) {
         return;
       }
@@ -300,7 +300,7 @@ export default defineComponent({
       }
     },
     observeHub(): void {
-      const hub = this.$refs.hub as HTMLElement | undefined;
+      const hub = (this.$refs.hub ?? undefined) as HTMLElement | undefined;
       if (hub === undefined) {
         this.hubObserver?.disconnect();
         this.hubObserver = undefined;

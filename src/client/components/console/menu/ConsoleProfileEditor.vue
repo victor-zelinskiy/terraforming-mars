@@ -150,7 +150,7 @@ export default defineComponent({
     handleIntent(intent: GamepadIntent): boolean {
       if (this.entering) {
         // The on-screen keyboard owns every intent while name entry is active.
-        const vk = this.$refs.vkeyboard as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
+        const vk = (this.$refs.vkeyboard ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
         return vk?.handleIntent?.(intent) ?? true;
       }
       if (intent.kind === 'nav') {

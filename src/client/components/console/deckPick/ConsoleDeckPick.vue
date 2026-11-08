@@ -817,7 +817,7 @@ export default defineComponent({
     // The HOST'S ZONE, never anything this surface can grow — observing our own
     // box would re-arm the fit from its own result.
     const box = (this.$el as HTMLElement | undefined)?.parentElement ??
-      (this.$refs.frameEl as HTMLElement | undefined);
+      ((this.$refs.frameEl ?? undefined) as HTMLElement | undefined);
     if (box !== null && box !== undefined && typeof ResizeObserver === 'function') {
       const ro = markRaw(new ResizeObserver(() => this.scheduleFit()));
       ro.observe(box);
@@ -1031,7 +1031,7 @@ export default defineComponent({
      * only shrinking.
      */
     fitRow(): void {
-      const row = this.$refs.row as HTMLElement | null | undefined;
+      const row = (this.$refs.row ?? undefined) as HTMLElement | null | undefined;
       if (row === null || row === undefined || this.entries.length === 0) {
         return;
       }
@@ -1124,7 +1124,7 @@ export default defineComponent({
      * elements, so a profile that re-tunes any of them needs no change here.
      */
     rowBudgetPx(): number {
-      const frame = this.$refs.frameEl as HTMLElement | null | undefined;
+      const frame = (this.$refs.frameEl ?? undefined) as HTMLElement | null | undefined;
       if (frame === null || frame === undefined) {
         return 0;
       }
@@ -1243,7 +1243,7 @@ export default defineComponent({
         }
         return;
       }
-      const row = this.$refs.row as HTMLElement | null | undefined;
+      const row = (this.$refs.row ?? undefined) as HTMLElement | null | undefined;
       const perRow = Math.max(1, parseInt(
         row?.style.getPropertyValue('--con-ws-stage-per-row') || String(this.entries.length), 10) ||
         this.entries.length);
@@ -1448,7 +1448,7 @@ export default defineComponent({
           preludeVariantOf(played, this.candidatePreviews[played]) !== undefined) {
         const variant = preludeVariantOf(played, this.candidatePreviews[played]);
         this.variantFocus = variant === undefined ? 0 : firstAvailableRow(variant);
-        const frame = this.$refs.frameEl as HTMLElement | undefined;
+        const frame = (this.$refs.frameEl ?? undefined) as HTMLElement | undefined;
         const hero = asElements(this.$refs.slots).find((el) => el.getAttribute('data-deckpick-slot') === played);
         if (frame !== undefined && frame !== null && hero !== undefined) {
           const fr = frame.getBoundingClientRect();

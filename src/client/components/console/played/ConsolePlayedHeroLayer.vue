@@ -83,16 +83,16 @@ export default defineComponent({
     // nextTick, so the refs are always current for the active proxy.
     this.unregister = registerPlayedHeroStage({
       els: (): HeroStageEls | undefined => {
-        const proxy = this.$refs.proxy as HTMLElement | undefined;
+        const proxy = (this.$refs.proxy ?? undefined) as HTMLElement | undefined;
         // `!proxy` also catches Vue's `null` for a removed-then-queried ref.
         if (!proxy || !proxy.isConnected) {
           return undefined;
         }
         return {
           proxy,
-          flip: this.$refs.flip as HTMLElement | undefined,
-          shade: this.$refs.shade as HTMLElement | undefined,
-          sweep: this.$refs.sweep as HTMLElement | undefined,
+          flip: (this.$refs.flip ?? undefined) as HTMLElement | undefined,
+          shade: (this.$refs.shade ?? undefined) as HTMLElement | undefined,
+          sweep: (this.$refs.sweep ?? undefined) as HTMLElement | undefined,
         };
       },
     });

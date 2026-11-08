@@ -1442,8 +1442,8 @@ export default defineComponent({
         // captured its rect at the press — this surface never re-enters, so
         // `enterPhase` can never run for it) and play the body's own return.
         // Only the CARRY suppressed the fade, so only the carry replaces it.
-        if (carryAnchorsHome(this.$refs.rootEl as HTMLElement | undefined, 'card-actions')) {
-          playActionCarryReturn(this.$refs.rootEl as HTMLElement | undefined);
+        if (carryAnchorsHome((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, 'card-actions')) {
+          playActionCarryReturn((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
         }
       },
     },
@@ -2037,7 +2037,7 @@ export default defineComponent({
         }
       }
       if (this.composer !== undefined) {
-        const ref = this.$refs.composerRef as InstanceType<typeof ConsoleActionComposer> | undefined;
+        const ref = (this.$refs.composerRef ?? undefined) as InstanceType<typeof ConsoleActionComposer> | undefined;
         ref?.handleIntent(intent);
         return;
       }
@@ -2154,7 +2154,7 @@ export default defineComponent({
         armDescendOrigin('action-browse', {x: slotRect.left + slotRect.width / 2, y: slotRect.top + slotRect.height / 2});
       }
       armDescendRect('action-slot', slotRect);
-      const thumb = this.$refs.detailCard as HTMLElement | undefined;
+      const thumb = (this.$refs.detailCard ?? undefined) as HTMLElement | undefined;
       armActionFocusOrigin(thumb?.getBoundingClientRect?.());
       this.descendKey = tile.key;
       // The transition state is EXPLICIT: the commit reads on the slot while
@@ -2199,9 +2199,9 @@ export default defineComponent({
       }
       this.canvasFitFrame = window.requestAnimationFrame(() => {
         this.canvasFitFrame = undefined;
-        fitActionCanvases(this.$refs.rootEl as HTMLElement | undefined);
+        fitActionCanvases((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
         // The caption's tier is the column's to decide (PL-123) — measured in the same paint.
-        fitDescTiers(this.$refs.rootEl as HTMLElement | undefined, {selector: '.con-cardactions__desc', classPrefix: 'con-cardactions__desc', regrow: this.descRegrow});
+        fitDescTiers((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, {selector: '.con-cardactions__desc', classPrefix: 'con-cardactions__desc', regrow: this.descRegrow});
         this.descRegrow = false;
       });
     },
@@ -2220,7 +2220,7 @@ export default defineComponent({
       }
       this.detailFitFrame = window.requestAnimationFrame(() => {
         this.detailFitFrame = undefined;
-        const panel = this.$refs.detailEl as HTMLElement | undefined;
+        const panel = (this.$refs.detailEl ?? undefined) as HTMLElement | undefined;
         if (panel === undefined || panel === null || panel.clientHeight <= 0) {
           return;
         }
@@ -2364,7 +2364,7 @@ export default defineComponent({
         // The LAW — the same fullscreen inspector the Parliament's R3 opens, lifted from the dossier's face.
         openConsoleCardZoom([resolutionZoomEntry(tile.resolutionAction)], 0, undefined, undefined, {
           contextLabel: 'Card actions',
-          origin: slotZoomOrigin(() => this.$refs.browseEl as HTMLElement | undefined, () => tile.cardName),
+          origin: slotZoomOrigin(() => (this.$refs.browseEl ?? undefined) as HTMLElement | undefined, () => tile.cardName),
         });
         return;
       }
@@ -2373,7 +2373,7 @@ export default defineComponent({
         // lifted from the dossier's emblem plate and returned there on close.
         openConsoleCardZoom([partyEffectZoomEntry(tile.party)], 0, undefined, undefined, {
           contextLabel: 'Card actions',
-          origin: slotZoomOrigin(() => this.$refs.browseEl as HTMLElement | undefined, () => tile.cardName),
+          origin: slotZoomOrigin(() => (this.$refs.browseEl ?? undefined) as HTMLElement | undefined, () => tile.cardName),
         });
         return;
       }
@@ -2401,7 +2401,7 @@ export default defineComponent({
       // the big viewer are one object, never two disconnected previews.
       openConsoleCardZoom([card], 0, undefined, undefined, {
         contextLabel: 'Card actions',
-        origin: slotZoomOrigin(() => this.$refs.browseEl as HTMLElement | undefined, () => tile.cardName),
+        origin: slotZoomOrigin(() => (this.$refs.browseEl ?? undefined) as HTMLElement | undefined, () => tile.cardName),
         inspect: {history},
       });
     },
@@ -2418,7 +2418,7 @@ export default defineComponent({
         openConsoleCardZoom([partyEffectZoomEntry(comp.party)], 0, undefined, undefined, {
           contextLabel: 'Card actions',
           origin: slotZoomOrigin(
-            () => (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-cardactions__pact'),
+            () => ((this.$refs.rootEl ?? undefined) as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-cardactions__pact'),
             () => comp.cardName),
         });
         return;
@@ -2443,7 +2443,7 @@ export default defineComponent({
         // The explicit root ref — never $el (a dev-build root comment makes
         // the template a fragment, whose $el is a Comment node).
         origin: slotZoomOrigin(
-          () => (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('[data-motion-surface="action-composer"]'),
+          () => ((this.$refs.rootEl ?? undefined) as HTMLElement | undefined)?.querySelector<HTMLElement>('[data-motion-surface="action-composer"]'),
           () => comp.cardName),
         inspect: {history},
       });
@@ -3059,7 +3059,7 @@ export default defineComponent({
     },
     /** A party's discard is answered: its payout flies off the plaque's printed icon (checked against the views), then the flow LEAVES. */
     payDiscardAndConclude(): void {
-      const ref = this.$refs.composerRef as InstanceType<typeof ConsoleActionComposer> | undefined;
+      const ref = (this.$refs.composerRef ?? undefined) as InstanceType<typeof ConsoleActionComposer> | undefined;
       void (ref?.flyDiscardExchange() ?? Promise.resolve()).then(() => this.concludeFlow());
     },
     onComposerCommitting(on: boolean): void {
@@ -3094,7 +3094,7 @@ export default defineComponent({
     },
     scrollList(dy: number): void {
       // Foundation: right-stick scroll through the ConsoleScrollArea API.
-      (this.$refs.list as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(dy) * SCROLL_STEP_PX * conUiScale());
+      ((this.$refs.list ?? undefined) as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(dy) * SCROLL_STEP_PX * conUiScale());
     },
     scrollFocusedIntoView(): void {
       const list = this.$refs.list as {

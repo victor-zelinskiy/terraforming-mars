@@ -495,7 +495,7 @@ import {ColonyCityReceipt, colonyCityOwnSceneLive, colonyCityState, endWatchedCo
 import {COLONY_CITY_STAGE, ColonyCityReading, ColonyCityStageView, colonyCityReading} from '@/client/console/colonyCity/colonyCityModel';
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
-import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
+import {retractWorkspaceOutcomeSlot, workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
 import {
   setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject,
   workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay,
@@ -1834,8 +1834,14 @@ export default defineComponent({
     // unmounts. The teleport's target must exist before Vue resolves it.
     outcomeSlotSelector: {
       flush: 'post',
-      handler(selector: string): void {
-        setWorkspaceOutcomeSlot(selector);
+      handler(selector: string, previous: string | undefined): void {
+        // A zone switching OFF retracts only what THIS host published — a blind '' wiped a slot another host had
+        // published meanwhile (the lent-node class of game-pdb19bfa, ledger HC).
+        if (selector !== '') {
+          setWorkspaceOutcomeSlot(selector);
+        } else {
+          retractWorkspaceOutcomeSlot(previous ?? '');
+        }
       },
     },
     // The HOSTED STEP's teleport target (the hand's discard, the Parliament's
@@ -1939,7 +1945,7 @@ export default defineComponent({
      * real box) — never a second copy of the seat's own CSS width.
      */
     fit(): void {
-      const scroll = this.$refs.scroll as HTMLElement | null | undefined;
+      const scroll = (this.$refs.scroll ?? undefined) as HTMLElement | null | undefined;
       const root = this.$el as HTMLElement | null | undefined;
       const count = this.colonies.length;
       if (scroll === undefined || scroll === null || root === undefined || root === null || count === 0) {
@@ -2193,7 +2199,7 @@ export default defineComponent({
       if (dock === undefined || this.focusState.open) {
         return;
       }
-      const slot = this.$refs.selectedDock as HTMLElement | Array<HTMLElement> | undefined;
+      const slot = (this.$refs.selectedDock ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
       const el = Array.isArray(slot) ? slot[0] : slot;
       const tile = el?.querySelector<HTMLElement>('.con-fleetdock-tile');
       const face = tile?.querySelector<HTMLElement>('[data-fleet-dock-face]');
@@ -2208,14 +2214,14 @@ export default defineComponent({
     },
     /** The shell ACCEPTED the dock's confirm — the stage becomes its own receipt. */
     holdDockStage(): void {
-      (this.$refs.dockStage as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.holdPresentation();
+      ((this.$refs.dockStage ?? undefined) as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.holdPresentation();
     },
     /** A refused submit gives the dock's stage back as it was. */
     releaseDockStage(): void {
-      (this.$refs.dockStage as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.releasePresentation();
+      ((this.$refs.dockStage ?? undefined) as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.releasePresentation();
     },
     scrollSelectedIntoView(): void {
-      const slot = this.$refs.selectedSlot as HTMLElement | Array<HTMLElement> | undefined;
+      const slot = (this.$refs.selectedSlot ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
       const el = Array.isArray(slot) ? slot[0] : slot;
       // On the cursor's clock, bounded to the grid's own scroller (TR58 — never `scrollIntoView`).
       if (el !== undefined && el !== null) {
@@ -2283,7 +2289,7 @@ export default defineComponent({
      * be measured — the fold then lets go where it stands.
      */
     retargetFocusHome(name: string): boolean {
-      const grid = this.$refs.grid as HTMLElement | null | undefined;
+      const grid = (this.$refs.grid ?? undefined) as HTMLElement | null | undefined;
       const tile = grid?.querySelector<HTMLElement>(`[data-test="con-colony-${name.replace(/["\\]/g, '\\$&')}"]`);
       const browse = (this.$el as HTMLElement | null)?.querySelector<HTMLElement>('.con-colonies__browse');
       if (tile === null || tile === undefined) {
@@ -2312,7 +2318,7 @@ export default defineComponent({
      * the beat's (`landing`); reduced motion and an unmeasurable grid apply at once.
      */
     async reseatRosterLevel(apply: () => void): Promise<void> {
-      const grid = this.$refs.grid as HTMLElement | null | undefined;
+      const grid = (this.$refs.grid ?? undefined) as HTMLElement | null | undefined;
       if (grid === undefined || grid === null || consoleReducedMotionActive() || this.rosterState.landing) {
         apply();
         return;
@@ -2324,7 +2330,7 @@ export default defineComponent({
         });
         apply();
         await this.$nextTick();
-        const next = this.$refs.grid as HTMLElement | null | undefined;
+        const next = (this.$refs.grid ?? undefined) as HTMLElement | null | undefined;
         if (next !== undefined && next !== null) {
           await new Promise<void>((resolve) => {
             playReseatIn(next, null, resolve);
@@ -2343,7 +2349,7 @@ export default defineComponent({
       if (colony === undefined || this.focusState.open) {
         return;
       }
-      const slot = this.$refs.selectedSlot as HTMLElement | Array<HTMLElement> | undefined;
+      const slot = (this.$refs.selectedSlot ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
       const el = Array.isArray(slot) ? slot[0] : slot;
       const tile = el?.querySelector<HTMLElement>('.con-coltile');
       const planet = tile?.querySelector<HTMLElement>('.con-coltile__planet-berth');
@@ -2435,15 +2441,15 @@ export default defineComponent({
      *  stage OR the dossier — is open. */
     handleFocusIntent(intent: GamepadIntent): void {
       if (this.focusState.dock !== '') {
-        (this.$refs.dockStage as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.handleIntent(intent);
+        ((this.$refs.dockStage ?? undefined) as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.handleIntent(intent);
         return;
       }
       if (this.focusState.intent === 'inspect') {
-        const dossier = this.$refs.inspectStage as InstanceType<typeof ConsoleColonyInspect> | undefined;
+        const dossier = (this.$refs.inspectStage ?? undefined) as InstanceType<typeof ConsoleColonyInspect> | undefined;
         dossier?.handleIntent(intent);
         return;
       }
-      const stage = this.$refs.focusStage as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
+      const stage = (this.$refs.focusStage ?? undefined) as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
       stage?.handleIntent(intent);
     },
     /**
@@ -2492,13 +2498,13 @@ export default defineComponent({
     },
     /** The commit did not hold (a refusal, a live re-ask): the stage is a door again (see the stage's `releasePresentation`). */
     releaseFocusStage(): void {
-      const stage = this.$refs.focusStage as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
+      const stage = (this.$refs.focusStage ?? undefined) as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
       stage?.releasePresentation();
     },
     /** The shell ACCEPTED a stage confirm — pin the stage's presentation
      *  across the commit boundary (see the stage's `holdPresentation`). */
     holdFocusStage(): void {
-      const stage = this.$refs.focusStage as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
+      const stage = (this.$refs.focusStage ?? undefined) as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
       stage?.holdPresentation();
     },
     async loadFocusPreview(name: ColonyName): Promise<void> {
@@ -2568,7 +2574,7 @@ export default defineComponent({
     }
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     // The SCROLLER is the room the fit solves (the docks are cells of the grid — no group beside it).
-    const room = this.$refs.scroll as HTMLElement | undefined;
+    const room = (this.$refs.scroll ?? undefined) as HTMLElement | undefined;
     if (room !== undefined) {
       this.stopResizeObs = useResizeObserver(room, () => this.scheduleFit()).stop;
     }
@@ -2614,7 +2620,8 @@ export default defineComponent({
     // the slot this very mount published would survive as a selector into a
     // detached node.
     if (this.outcomeState.host === 'colonies') {
-      setWorkspaceOutcomeSlot('');
+      // Only OUR zone (ledger HC): whatever the colonies published, never a slot another host holds now.
+      retractWorkspaceOutcomeSlot(workspaceOutcomeState.embedSlot.startsWith('[data-embed-slot="colonies-') ? workspaceOutcomeState.embedSlot : this.outcomeSlotSelector);
     }
     // …and the hand step's frame slot, for the same reason.
     setWorkspaceFrameSlot('colonies', '');

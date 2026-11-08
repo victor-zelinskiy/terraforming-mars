@@ -121,15 +121,51 @@ export const boardBeatParkState = reactive({
 // as they do behind the cover-lift scene it hands over to. Deliberately only
 // the drain — a PARK can outlive any reasonable silence (the player may sit
 // in a workspace for minutes) and the feed must keep flowing there.
+//
+// THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT (both holds): a drain whose
+// own timers / members never closed runs the park's honest degrade — the one
+// its ledger story's `degrade` and the game switch run: every held value let
+// go (the HUD reads the applied view), the parked batch un-parks.
 registerAnimationHoldSupplier('board-beat-drain',
-  () => boardBeatParkState.draining, {scope: 'notification-only'});
+  () => boardBeatParkState.draining, {
+    scope: 'notification-only',
+    diagnose: () => boardBeatParkDiagnosis(),
+    expire: () => {
+      if (!boardBeatParkState.draining) {
+        return;
+      }
+      console.warn('[boardBeatPark] board-beat drain: outlived its ceiling — ended');
+      releaseBoardBeatPark();
+    },
+  });
 
 // …and the SCALE STORY holds BLOCKING for its own bounded window: a follow-up
 // modal or a bot-turn card must not cover the gliding scales (the defect the
 // old planet-focus beat existed to prevent, now stated once for every drain
 // that releases held values).
 registerAnimationHoldSupplier('board-beat-scale-story',
-  () => boardBeatParkState.scaleStory);
+  () => boardBeatParkState.scaleStory, {
+    diagnose: () => boardBeatParkDiagnosis(),
+    expire: () => {
+      if (!boardBeatParkState.scaleStory) {
+        return;
+      }
+      console.warn('[boardBeatPark] board-beat scale story: outlived its ceiling — ended');
+      releaseBoardBeatPark();
+    },
+  });
+
+function boardBeatParkDiagnosis(): unknown {
+  return {
+    nonce: boardBeatParkState.nonce,
+    draining: boardBeatParkState.draining,
+    scaleStory: boardBeatParkState.scaleStory,
+    batchHeldByDrain: boardBeatParkState.batchHeldByDrain,
+    sceneHeld: boardBeatParkState.sceneHeld,
+    held: Object.keys(boardBeatParkState.heldParams ?? {}),
+    members: [...storyMembers.entries()].filter(([, m]) => m.busy()).map(([id]) => id),
+  };
+}
 
 /** The html accent class suffix per changed parameter (shared CSS —
  *  `con-scale-focus-<accent>`, the Government-Support beat's own language). */

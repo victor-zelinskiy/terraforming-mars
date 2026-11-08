@@ -178,6 +178,8 @@ export default defineComponent({
       agendaGlideHold: undefined as AnimationHold | undefined,
       /** The running walk's hold budget (re-armed after a card step's take, which the hold stands down for). */
       agendaGlideHoldMs: 0,
+      /** The running walk's LAST step — where the ceiling's recovery (`finishAgendaGlide`) sets the marker down. */
+      agendaGlideStep: 0,
       /** The caller's «the marker has settled» callback of the running glide (fired once, on every ending). */
       onGlideLanded: undefined as (() => void) | undefined,
     };
@@ -267,7 +269,7 @@ export default defineComponent({
         this.agendaGlideHold?.release();
         this.agendaGlideHold = undefined;
       } else if (this.agendaGlideHold === undefined) {
-        this.agendaGlideHold = beginAnimationHold('parliament-agenda-glide', {maxHoldMs: this.agendaGlideHoldMs});
+        this.raiseAgendaGlideHold();
       }
     },
     /**
@@ -454,7 +456,8 @@ export default defineComponent({
       this.agendaPhase = 'charge';
       consoleParliamentUi.agendaSettling = true;
       this.agendaGlideHoldMs = agendaWalkHoldMs(record);
-      this.agendaGlideHold = beginAnimationHold('parliament-agenda-glide', {maxHoldMs: this.agendaGlideHoldMs});
+      this.agendaGlideStep = record.to;
+      this.raiseAgendaGlideHold();
       const reduced = consoleReducedMotionActive();
       const rewardStep = opts?.rewardStep ?? ((leg: AgendaWalkLeg, done: () => void) => deliverAgendaStepReward(root, undefined, leg.to, done));
       const cubeRect = (step: number): DOMRect | undefined => {
@@ -468,7 +471,7 @@ export default defineComponent({
       let geometry: {proxy: HTMLElement, size: DOMRect} | undefined;
       const stageGeometry = (): {proxy: HTMLElement, size: DOMRect} | undefined => {
         if (geometry === undefined) {
-          const proxy = this.$refs.agendaFlightEl as HTMLElement | undefined;
+          const proxy = (this.$refs.agendaFlightEl ?? undefined) as HTMLElement | undefined;
           // The cube's own size: the held cube on the old step, the drawn cube on the new one, else any cube on the track.
           const anyCube = root.querySelector<HTMLElement>('[data-agenda-cube]')?.getBoundingClientRect();
           const size = cubeRect(record.from) ?? cubeRect(record.to) ?? (anyCube !== undefined && anyCube.width >= 2 ? anyCube : undefined);
@@ -566,6 +569,30 @@ export default defineComponent({
         beat: opts?.beat,
       });
       this.agendaWalk = markRaw(walk);
+    },
+    /**
+     * The walk's hold, sized to the walk. ITS CEILING ENDS THE WALK, not only its count: the marker is set down on the
+     * walk's last step and its owner's continuation runs (`finishAgendaGlide` — the same ending an unmeasurable leg
+     * takes), so a flow waiting on the landing (the chairmanship's ПОВЕСТКА, a card's step) never stands on its beat.
+     */
+    raiseAgendaGlideHold(): void {
+      const hold = beginAnimationHold('parliament-agenda-glide', {
+        maxHoldMs: this.agendaGlideHoldMs,
+        expire: () => {
+          // Only the hold of THIS walk: a newer walk (or the take of a card step, which stood it down and up) owns its own.
+          if (this.agendaGlideHold !== hold) {
+            return;
+          }
+          console.warn(`[parliament] agenda glide to step ${this.agendaGlideStep}: outlived its ceiling — ended`);
+          // The leg in the air is torn down (its lock would answer a walk that is over), then the walk ends by its hand.
+          const glide = this.agendaGlide;
+          this.agendaGlide = undefined;
+          glide?.skip();
+          this.finishAgendaGlide(this.agendaGlideStep);
+        },
+      });
+      // RAW on purpose: the expire compares identities — a reactive proxy never equals its raw object.
+      this.agendaGlideHold = markRaw(hold);
     },
     finishAgendaGlide(step: number): void {
       this.agendaWalk?.skip();

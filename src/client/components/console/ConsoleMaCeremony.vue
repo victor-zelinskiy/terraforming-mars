@@ -123,6 +123,8 @@ export default defineComponent({
     return {
       visible: false,
       hideTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+      /** The beat this shell put on screen — its leave advances the queue only while it is still the current one. */
+      shownEvent: undefined as MaCeremonyEvent | undefined,
       fx: undefined as CeremonyBurstHandle | undefined,
       questVisible: false,
       questTimer: undefined as ReturnType<typeof setTimeout> | undefined,
@@ -197,6 +199,7 @@ export default defineComponent({
         clearTimeout(this.hideTimer);
       }
       this.visible = true;
+      this.shownEvent = this.event;
       // The gsap burst layer (rings/sparks/flash) plays over the stage once
       // it exists — timed so the CSS hero entrance lands first.
       void this.$nextTick(() => this.playFx());
@@ -246,7 +249,13 @@ export default defineComponent({
     },
     /** The leave transition finished — hand the stage to the next queued beat. */
     onGone(): void {
-      advanceMaCeremony();
+      // ONE advance per beat (ledger HC): a beat whose hold already expired was advanced by its owner's recovery — a
+      // second advance here would skip the beat queued behind it.
+      const shown = this.shownEvent;
+      this.shownEvent = undefined;
+      if (shown === undefined || maCeremonyState.current === shown) {
+        advanceMaCeremony();
+      }
       // A quest beat that waited for this strip takes the top now.
       this.showQuest();
     },
@@ -257,7 +266,7 @@ export default defineComponent({
       }
       this.questVisible = true;
       void this.$nextTick(() => {
-        const host = this.$refs.questStage as HTMLElement | undefined;
+        const host = (this.$refs.questStage ?? undefined) as HTMLElement | undefined;
         if (host !== undefined && host !== null) {
           this.questFx = playCeremonyBurst({host, accent: 'quest', reduced: prefersReducedMotion(), intensity: 'ping', delayMs: 140});
         }

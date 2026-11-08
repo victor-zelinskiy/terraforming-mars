@@ -833,7 +833,7 @@ export default defineComponent({
       const [fromRect, ...resolved] = standing;
       this.markerVisible = true;
       await this.$nextTick();
-      const marker = this.$refs.marker as HTMLElement | undefined;
+      const marker = (this.$refs.marker ?? undefined) as HTMLElement | undefined;
       if (marker === undefined) {
         this.markerVisible = false;
         finish();

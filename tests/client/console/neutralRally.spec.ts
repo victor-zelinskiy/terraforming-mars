@@ -7,7 +7,7 @@ import {ParliamentModel, ParliamentRallyModel} from '@/common/models/ParliamentM
 import {
   detectNeutralRally, dropNeutralRallyPromise, neutralRallyFlow, neutralRallyHostFor, neutralRallyLiveIn, neutralRallyOwedTo, promiseNeutralRally,
   rallyCounted, rallyCountedPlaces, rallyCubeLifted, rallyMarked, rallyPlaceKey, rallyPoolHeld, rallySupportIncoming, rallySupportLanded, rallySupportRead,
-  rallySupportReading, rallyVoteKey, rallyVoteLanded, rallyWinnerShown, releaseNeutralRallyHolds, resetNeutralRallyFlow, seedNeutralRallyHolds,
+  rallySupportReading, rallyVoteKey, rallyVoteLanded, rallyWinnerShown, releaseNeutralRallyHolds, resetNeutralRallyFlow, seedNeutralRallyHolds, takeQueuedNeutralRally,
   NEUTRAL_RALLY_RAIL_KEY,
 } from '@/client/console/parliament/neutralRally';
 import {
@@ -337,6 +337,39 @@ describe('«ДЕЛЕГАТЫ» — a card\'s rally of neutral delegates (the pur
       expect(railRewardPending(NEUTRAL_RALLY_RAIL_KEY)).is.false;
       expect(neutralRallyFlow.owed).is.undefined;
       expect(neutralRallyFlow.live).is.false;
+    });
+
+    it('TWO CAMPAIGNS BACK TO BACK (ledger HC, game gc4cb8d130e52): the second record WAITS ITS TURN — the first rally is never reset mid-flight, and the second plays after it, in place', () => {
+      enterWorkspace('start', {anchor: {type: 'phase', phase: 'start'}});
+      const first = view(model(), 12);
+      const mid = view(model({lastRally: CAMPAIGN} as never), 12);
+      seedNeutralRallyHolds(first, mid);
+      neutralRallyFlow.live = true;
+      neutralRallyFlow.beat = 'support';
+      rallyCubeLifted();
+      // The second campaign's answer lands while the first's cubes are in the air.
+      const SECOND: ParliamentRallyModel = {...CAMPAIGN, seq: 44, card: CardName.INDUSTRIALISTS_CAMPAIGN, support: [{party: R, current: 1, gained: 3, resulting: 4, printed: 3}],
+        counted: {votes: [], support: [{party: R, count: 4}]}};
+      seedNeutralRallyHolds(mid, view(model({lastRally: SECOND} as never), 12));
+      expect(neutralRallyFlow.owed?.seq, 'the first rally is still the one playing').eq(43);
+      expect(neutralRallyFlow.live).is.true;
+      expect(neutralRallyFlow.beat).eq('support');
+      expect(neutralRallyFlow.queued.map((r) => r.seq)).deep.eq([44]);
+      expect(rallySupportIncoming(R), 'the second rally\'s cubes are held from the start — none shows early').eq(3);
+      expect(rallySupportIncoming(U)).eq(3);
+      expect(rallyPoolHeld(), 'both rallies\' pool cubes, less the one lifted').eq(5);
+      expect(neutralRallyOwedTo('start'), 'a rally waits its turn: the start still owes it').is.true;
+      // The first one's cubes land; then its turn ends and the second becomes the owed one — in place.
+      for (let i = 0; i < 3; i++) {
+        rallySupportLanded(CAMPAIGN.support[0]);
+      }
+      expect(rallySupportIncoming(U)).eq(0);
+      expect(takeQueuedNeutralRally()).is.true;
+      expect(neutralRallyFlow.owed?.seq).eq(44);
+      expect(neutralRallyFlow.live, 'owed, not yet playing: the host plays it on the same stage').is.false;
+      expect(rallySupportIncoming(R)).eq(3);
+      expect(neutralRallyFlow.queued).is.empty;
+      expect(takeQueuedNeutralRally(), 'the queue is empty').is.false;
     });
   });
 

@@ -82,7 +82,7 @@ export default defineComponent({
     },
     /** THE FACE, solved from the cell (never a fixed size): as tall as the cell leaves under the caption, at most half its width. */
     fit(): void {
-      const root = this.$refs.root as HTMLElement | undefined;
+      const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
       if (root === undefined || root.clientWidth <= 0 || root.clientHeight <= 0) {
         return;
       }

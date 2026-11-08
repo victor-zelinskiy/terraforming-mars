@@ -101,9 +101,9 @@ export default defineComponent({
   mounted() {
     this.unregister = registerColonyBuildStage({
       els: (): ColonyBuildStageEls | undefined => {
-        const root = this.$refs.root as HTMLElement | undefined;
-        const ring = this.$refs.ring as HTMLElement | undefined;
-        const cube = this.$refs.cube as {$el?: HTMLElement} | undefined;
+        const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
+        const ring = (this.$refs.ring ?? undefined) as HTMLElement | undefined;
+        const cube = (this.$refs.cube ?? undefined) as {$el?: HTMLElement} | undefined;
         const cubeEl = cube?.$el;
         // `!root` also catches Vue's `null` for a removed-then-queried ref.
         if (!root || !root.isConnected || ring === undefined || cubeEl === undefined) {

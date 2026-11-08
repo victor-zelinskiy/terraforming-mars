@@ -527,7 +527,7 @@ export default defineComponent({
   methods: {
     /** The right stick / ↑↓ inside «ПОДРОБНОСТИ ВЫПЛАТ» — the host's input path drives the step's one scroll area. */
     scrollDetails(dy: number): void {
-      (this.$refs.details as {scrollBy?: (dy: number) => void} | undefined)?.scrollBy?.(dy);
+      ((this.$refs.details ?? undefined) as {scrollBy?: (dy: number) => void} | undefined)?.scrollBy?.(dy);
     },
     partyNameKey(party: ReduxParty): string {
       return partyNameKey(party);
@@ -596,7 +596,7 @@ export default defineComponent({
      * re-attached when the node changes). The box is read in REM, so one budget holds on every profile.
      */
     observeResults(): void {
-      const el = this.$refs.results as HTMLElement | undefined;
+      const el = (this.$refs.results ?? undefined) as HTMLElement | undefined;
       const current = resultsObservers.get(this);
       if (current?.el === el) {
         return;

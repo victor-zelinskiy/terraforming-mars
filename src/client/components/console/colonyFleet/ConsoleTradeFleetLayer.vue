@@ -100,7 +100,7 @@ export default defineComponent({
       setTradeFleetLaunchPending(true);
       // Wait for the ship element to mount (v-if flips with `active`).
       await this.$nextTick();
-      const ship = this.$refs.ship as HTMLElement | undefined;
+      const ship = (this.$refs.ship ?? undefined) as HTMLElement | undefined;
       if (ship === undefined || ship === null) {
         setTradeFleetLaunchPending(false);
         return;

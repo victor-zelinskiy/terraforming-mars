@@ -157,7 +157,7 @@ export default defineComponent({
   methods: {
     /** The grid from the measured stage — the band above the cards (LAN) is subtracted. */
     measure(): void {
-      const stage = this.$refs.stage as HTMLElement | undefined;
+      const stage = (this.$refs.stage ?? undefined) as HTMLElement | undefined;
       if (stage === undefined) {
         return;
       }
@@ -187,7 +187,7 @@ export default defineComponent({
     },
     /** The cursor's card stays in view (the scroll area's own smooth follow). */
     ensureVisible(el: Element | null): void {
-      const scroll = this.$refs.scroll as {ensureVisible?: (el: Element | null) => void} | undefined;
+      const scroll = (this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
       scroll?.ensureVisible?.(el);
     },
   },

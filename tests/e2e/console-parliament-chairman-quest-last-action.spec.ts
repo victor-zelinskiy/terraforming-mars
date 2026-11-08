@@ -1,5 +1,6 @@
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, openMandatoryAnnounce, playCardFromHand, press, settle} from './consoleStart';
+import {bootFixtureSeats, openMandatoryAnnounce, playCardFromHand, press, pressUntil, settle} from './consoleStart';
+import {focusParliamentZone, openParliament} from './parliamentDrive';
 
 /**
  * «ПРЕДСЕДАТЕЛЬСТВО» ON THE LAST ACTION OF THE TURN — the field freeze of 2026-10-29.
@@ -110,6 +111,35 @@ test.describe('«ПРЕДСЕДАТЕЛЬСТВО» — the gate that ends the t
     const samples = await readFlowProbe(page);
     const lying = samples.filter((s) => s.section && s.stage !== 'browse' && s.stage !== '' && /На поле/i.test(s.bar));
     expect(lying.length, `no «На поле» over the flow\n${timeline(samples)}`).toBe(0);
+    await press(page, 'Enter', 900);
+    await settle(page, {timeoutMs: 20_000});
+    expect(await page.locator('.con-parl').count(), 'the finished flow LEAVES').toBe(0);
+  });
+
+  test('the field lock of 2026-11-07: the VOTE closes the quest — the finished vote hands its screen to the gate in place, no plate, no stall', async ({page, request}) => {
+    test.setTimeout(240_000);
+    await bootFixtureSeats(page, request, 'parliament-chairman-quest-by-vote', {landing: 'board'});
+    await openParliament(page);
+    await focusParliamentZone(page, 'voting');
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}),
+      'A opens the vote mode').toBe(true);
+    await settle(page, {timeoutMs: 20_000});
+    await armFlowProbe(page);
+    await press(page, 'Enter', 200);
+    // The vote lands, and the SAME Parliament goes on into «ПРЕДСЕДАТЕЛЬСТВО» by itself — the player is standing where
+    // the gate is answered (the build of that day stood 8 s on the finished vote until the beat-stall teardown).
+    try {
+      await expect.poll(async () => await page.locator('.con-parl').getAttribute('data-quest-beat'), {
+        timeout: 30_000,
+        message: 'the chairmanship flow opened in place and reached its end',
+      }).toBe('done');
+    } catch (err) {
+      throw new Error(`${String(err)}\n${timeline(await readFlowProbe(page))}`);
+    }
+    const samples = await readFlowProbe(page);
+    expect(samples.some((s) => s.stage === 'landed'), `the vote landed first\n${timeline(samples)}`).toBe(true);
+    expect(samples.every((s) => s.section), `the Parliament never left between the vote and the quest\n${timeline(samples)}`).toBe(true);
+    expect(await page.locator('.con-mandatory').count(), 'no announce plate over a Parliament already serving the gate').toBe(0);
     await press(page, 'Enter', 900);
     await settle(page, {timeoutMs: 20_000});
     expect(await page.locator('.con-parl').count(), 'the finished flow LEAVES').toBe(0);

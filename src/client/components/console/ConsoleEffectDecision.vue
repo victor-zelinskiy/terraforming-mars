@@ -430,7 +430,7 @@ export default defineComponent({
         origin: {
           kind: 'physical',
           // The dock is a COMPONENT — reach its root element.
-          resolve: () => (this.$refs.sourceCard as {$el?: HTMLElement} | undefined)
+          resolve: () => ((this.$refs.sourceCard ?? undefined) as {$el?: HTMLElement} | undefined)
             ?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null,
         },
       });

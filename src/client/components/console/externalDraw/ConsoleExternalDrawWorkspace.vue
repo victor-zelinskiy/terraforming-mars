@@ -424,7 +424,7 @@ export default defineComponent({
     this.absorbOff = registerInputAbsorber(EXTERNAL_DRAW_ABSORBER, () => !this.unmounting && !this.interactive, {scope: 'all'});
     this.scheduleFit();
     const box = (this.$el as HTMLElement | undefined)?.parentElement ??
-      (this.$refs.frameEl as HTMLElement | undefined);
+      ((this.$refs.frameEl ?? undefined) as HTMLElement | undefined);
     if (box !== null && box !== undefined && typeof ResizeObserver === 'function') {
       const ro = markRaw(new ResizeObserver(() => this.scheduleFit()));
       ro.observe(box);
@@ -590,7 +590,7 @@ export default defineComponent({
       void this.$nextTick(() => this.fitRow());
     },
     fitRow(): void {
-      const row = this.$refs.row as HTMLElement | null | undefined;
+      const row = (this.$refs.row ?? undefined) as HTMLElement | null | undefined;
       if (row === null || row === undefined || this.entries.length === 0) {
         return;
       }
@@ -623,7 +623,7 @@ export default defineComponent({
       Object.entries(style).forEach(([k, v]) => row.style.setProperty(k, v));
     },
     rowBudgetPx(): number {
-      const frame = this.$refs.frameEl as HTMLElement | null | undefined;
+      const frame = (this.$refs.frameEl ?? undefined) as HTMLElement | null | undefined;
       if (frame === null || frame === undefined) {
         return 0;
       }
@@ -688,7 +688,7 @@ export default defineComponent({
         if (rects.length === this.entries.length && rects.every((r) => r.width > 4)) {
           return nearestInDirection(rects, from, dir);
         }
-        const row = this.$refs.row as HTMLElement | null | undefined;
+        const row = (this.$refs.row ?? undefined) as HTMLElement | null | undefined;
         const perRow = Math.max(1, parseInt(
           row?.style.getPropertyValue('--con-ws-stage-per-row') || String(this.entries.length), 10) ||
           this.entries.length);

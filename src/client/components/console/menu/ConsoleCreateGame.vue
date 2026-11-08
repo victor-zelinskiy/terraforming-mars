@@ -590,14 +590,14 @@ export default defineComponent({
       const overlay = this.ui.overlay;
       if (overlay?.kind === 'devCards') {
         // The picker owns the pad completely (X = inspect there, not launch).
-        const picker = this.$refs.devCards as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const picker = (this.$refs.devCards ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         if (picker?.handleIntent?.(intent) !== true && action === 'back') {
           this.closeOverlay();
         }
         return true;
       }
       if (overlay?.kind === 'editor') {
-        const editor = this.$refs.editor as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const editor = (this.$refs.editor ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         if (editor?.handleIntent?.(intent) === true) {
           return true;
         }
@@ -712,7 +712,7 @@ export default defineComponent({
      * extreme-viewport safety-valve path). */
     keepDeckCursorVisible(): void {
       void this.$nextTick(() => {
-        const scroll = this.$refs.deckScroll as {ensureVisible?: (el: Element | null) => void} | undefined;
+        const scroll = (this.$refs.deckScroll ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
         scroll?.ensureVisible?.(this.$el.querySelector('.cm-row--cursor, .cm-map--cursor'));
       });
     },

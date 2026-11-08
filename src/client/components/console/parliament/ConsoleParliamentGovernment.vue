@@ -179,7 +179,7 @@ export default defineComponent({
      * never grows it (the fit never reads its own output); a frozen fit stays frozen.
      */
     observeRoom(): void {
-      const room = this.$refs.rulingEl as HTMLElement | undefined;
+      const room = (this.$refs.rulingEl ?? undefined) as HTMLElement | undefined;
       if (room === undefined || typeof ResizeObserver === 'undefined') {
         return;
       }

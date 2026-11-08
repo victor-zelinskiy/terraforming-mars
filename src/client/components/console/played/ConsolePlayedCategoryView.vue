@@ -572,7 +572,7 @@ export default defineComponent({
           this.remPx = rem;
         }
       }
-      const el = this.$refs.body as HTMLElement | undefined;
+      const el = (this.$refs.body ?? undefined) as HTMLElement | undefined;
       if (el === undefined) {
         return;
       }
@@ -785,7 +785,7 @@ export default defineComponent({
       // border box is the honest edge the bottom/top row renders against.
       // A partially-crossing VISIBLE landing hands that overflow down as
       // `targetClip` so the proxy lands as clipped as the real slot.
-      const gridEl = this.$refs.grid as HTMLElement | undefined;
+      const gridEl = (this.$refs.grid ?? undefined) as HTMLElement | undefined;
       const gridClip = layout.kind === 'grid' && gridEl !== undefined && typeof gridEl.getBoundingClientRect === 'function' ?
         gridEl.getBoundingClientRect() : undefined;
       const flights = this.state.flights;
@@ -867,7 +867,7 @@ export default defineComponent({
       return {top: r.top, bottom: r.bottom};
     },
     currentScrollTop(): number {
-      return (this.$refs.grid as HTMLElement | undefined)?.scrollTop ?? 0;
+      return ((this.$refs.grid ?? undefined) as HTMLElement | undefined)?.scrollTop ?? 0;
     },
     /**
      * A card's REAL tableau rect: its slot card box, or — for the face-down
@@ -1089,7 +1089,7 @@ export default defineComponent({
       if (this.layout.kind !== 'grid' || !this.gridPlan.scrolls) {
         return;
       }
-      const grid = this.$refs.grid as HTMLElement | undefined;
+      const grid = (this.$refs.grid ?? undefined) as HTMLElement | undefined;
       if (grid === undefined) {
         return;
       }
@@ -1114,7 +1114,7 @@ export default defineComponent({
       if (Math.abs(dy) < 0.05 || this.busy) {
         return;
       }
-      const grid = this.$refs.grid as HTMLElement | undefined;
+      const grid = (this.$refs.grid ?? undefined) as HTMLElement | undefined;
       if (grid === undefined || this.layout.kind !== 'grid' || !this.gridPlan.scrolls) {
         return;
       }
@@ -1126,7 +1126,7 @@ export default defineComponent({
       }
       this.rafScroll = requestAnimationFrame(() => {
         this.rafScroll = undefined;
-        const grid = this.$refs.grid as HTMLElement | undefined;
+        const grid = (this.$refs.grid ?? undefined) as HTMLElement | undefined;
         if (grid === undefined) {
           return;
         }

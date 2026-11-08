@@ -71,7 +71,7 @@
   </div>
 </template>
 <script lang="ts">
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, markRaw, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -96,7 +96,7 @@ import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {parliamentFlow, parliamentRootEl} from '@/client/console/parliament/consoleParliamentFlow';
 import {freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
-import {flyAccessSeal, rectOf} from '@/client/console/parliament/parliamentFlights';
+import {dropFlight, flyAccessSeal, rectOf} from '@/client/console/parliament/parliamentFlights';
 import {abortBannerCubeStage, playBannerCubeStage} from '@/client/console/parliament/bannerCubeStage';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {parliamentBrowseInspectRequest} from '@/client/console/parliament/parliamentNavigation';
@@ -136,6 +136,8 @@ export default defineComponent({
       stageDone: undefined as Promise<unknown> | undefined,
       /** The mode is being torn down — a stage cut by that tear-down owes the flow nothing more. */
       stopped: false,
+      /** The party's seal in the air (an effect this cube opened) — dropped by the ceiling's recovery. */
+      sealFlight: undefined as string | undefined,
     };
   },
   computed: {
@@ -325,7 +327,27 @@ export default defineComponent({
       f.bannerBeat = 'flight';
       setWorkspaceFramePhase('parliament', 'executing');
       this.outcomeHold?.release();
-      this.outcomeHold = beginAnimationHold('parliament-banner-cube', {maxHoldMs: 9000});
+      const hold = beginAnimationHold('parliament-banner-cube', {
+        maxHoldMs: 9000,
+        // THE CEILING ENDS THE PHRASE, not only its count: the stage of the card is cut, the held cube is shown on its banner,
+        // the seal stops, and the flow ends by its own hand (`finish` — the leave) from wherever it stood.
+        expire: () => {
+          if (this.outcomeHold !== hold || parliamentFlow.bannerBeat === 'done') {
+            return;
+          }
+          console.warn('[parliament] banner cube: outlived its ceiling — ended');
+          abortBannerCubeStage();
+          this.beat?.kill();
+          this.beat = undefined;
+          if (this.sealFlight !== undefined) {
+            dropFlight(this.sealFlight, {silent: true});
+            this.sealFlight = undefined;
+          }
+          releaseBannerCube(party, viewer);
+          this.finish();
+        },
+      });
+      this.outcomeHold = markRaw(hold);
       void this.$nextTick(() => probeTick(() => {
         if (!bannerCubeHeld(party, viewer)) {
           // Nothing held (reduced motion decided earlier, a reload): the cube already stands — read and go on.
@@ -385,7 +407,12 @@ export default defineComponent({
         const root = parliamentRootEl();
         const from = bannerCubeTargetRect(party);
         const to = rectOf(root?.querySelector(`.con-parl__effects-row[data-party="${party}"] .con-parl__effects-seal`));
-        flyAccessSeal({from, to, emblemUrl: partyEmblemUrl(party), onLanded: () => {
+        this.sealFlight = flyAccessSeal({from, to, emblemUrl: partyEmblemUrl(party), onLanded: () => {
+          this.sealFlight = undefined;
+          if (f.bannerBeat !== 'seal') {
+            // The phrase already ended (the ceiling's recovery): a late seal reads nothing again.
+            return;
+          }
           f.accessBeat = 'landed';
           this.read();
         }});
@@ -421,6 +448,11 @@ export default defineComponent({
       abortBannerCubeStage();
       this.beat?.kill();
       this.beat = undefined;
+      if (this.sealFlight !== undefined) {
+        // SILENT: its touchdown would start the read on a mode that is going.
+        dropFlight(this.sealFlight, {silent: true});
+        this.sealFlight = undefined;
+      }
       const party = parliamentFlow.bannerSnapshot?.party;
       if (party !== undefined && this.viewerColor !== undefined) {
         releaseBannerCube(party, this.viewerColor);

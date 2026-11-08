@@ -654,15 +654,15 @@ export default defineComponent({
       }
       void this.$nextTick(() => {
         // Foundation: follow-latest through the ConsoleScrollArea API.
-        (this.$refs.scroll as {scrollToEnd?: () => void} | undefined)?.scrollToEnd?.();
+        ((this.$refs.scroll ?? undefined) as {scrollToEnd?: () => void} | undefined)?.scrollToEnd?.();
       });
     },
     scrollFocusedIntoView(): void {
       void this.$nextTick(() => {
-        const list = this.$refs.list as HTMLElement | undefined;
+        const list = (this.$refs.list ?? undefined) as HTMLElement | undefined;
         const el = list?.children[this.focusIndex] as HTMLElement | undefined;
         // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
-        (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
+        ((this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
       });
     },
     toggleExpand(): void {

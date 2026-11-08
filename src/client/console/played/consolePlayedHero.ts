@@ -811,7 +811,23 @@ export function playedHeroIncomingCard(): {name: CardName} | undefined {
 // The whole scene — incl. the POST-COMMIT reveal / reward beat — holds the
 // presentation: notifications queue, mandatory surfaces wait. Releases the
 // instant `finish`/`abort` drops the phase (the GSAP completion signal).
-registerAnimationHoldSupplier('played-hero', playedHeroHolding);
+//
+// THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: a flight / reward beat that
+// never reached its end runs the scene's own abort (its safety / unmount path)
+// — tweens killed, the source restored, every held reward / rail / VP share /
+// departure released so the panel reads the applied view, the dock withhold
+// let go, the commit gate free.
+registerAnimationHoldSupplier('played-hero', playedHeroHolding, {
+  diagnose: () => ({phase: playedHeroState.phase, card: playedHeroState.card, host: playedHeroState.host,
+    revealed: playedHeroState.revealed, awaitingTarget: playedHeroState.awaitingTarget, gatePending: runResolve !== undefined}),
+  expire: () => {
+    if (!playedHeroHolding()) {
+      return;
+    }
+    console.warn(`[consolePlayedHero] played-card hero (${playedHeroState.phase}): outlived its ceiling — ended`);
+    abortPlayedHero();
+  },
+});
 
 // ── the lifecycle ───────────────────────────────────────────────────────────
 

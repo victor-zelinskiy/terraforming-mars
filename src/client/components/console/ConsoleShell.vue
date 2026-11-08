@@ -1678,7 +1678,7 @@ import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnRevi
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
 import {openBotTurnReviewByKey, skipBotTurnPresentation, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
 import {acquireForegroundLease, isMandatoryPromptsHeld, isMandatoryPromptsHeldByScreen, registerRevealParkSupplier} from '@/client/components/presentation/presentationFlow';
-import {activeAnimationHoldLabels, beginAnimationHold, blockingAnimationHoldCount, isAnimationHoldActive, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
+import {activeAnimationHoldLabels, AnimationHold, beginAnimationHold, blockingAnimationHoldCount, isAnimationHoldActive, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
 import {isTransientBeat, resetBeatStall, transientSurfaceBeats} from '@/client/console/workspaceBeatStall';
 import {LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
@@ -1909,6 +1909,7 @@ import {
   WorkspaceFrameKind,
 } from '@/client/console/consoleWorkspaceStack';
 import {acceptsInput, isCommitted, workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
+import {openFrameQuestionDoor} from '@/client/console/frameQuestionDoor';
 import {installConsoleReadinessProbe, registerReadinessDecisionDiag} from '@/client/console/e2eReadiness';
 import {
   beginStdProjectSubmit,
@@ -2746,6 +2747,10 @@ export default defineComponent({
       livenessRungStops: [] as Array<() => void>,
       /** The stale frame over the free turn already judged (`<kind>|<promptId>`) — one conclusion attempt per standing. */
       staleFreeTurnKey: '',
+      /** The held conclusion's question door already named (`<kind>|<promptId>|<result>`) — one line per standing. */
+      questionDoorLogged: '',
+      /** The last guarded conclusion handed its frame to the frame's own question (`openHeldFrameQuestionDoor`) — '' = no. */
+      questionDoorServedKind: '' as WorkspaceFrameKind | '',
       /** Consecutive 1 Hz passes a LIVE frame of a phase that is over has stood with no leave pending (`reapDeadPhaseFrames`). */
       deadLiveFramePasses: 0,
       startStrandPrompt: undefined as number | undefined,
@@ -5485,6 +5490,16 @@ export default defineComponent({
     parliamentEmbedActive(): boolean {
       return this.parliamentEmbedTarget !== undefined || (this.parliamentLeaving && this.parliamentEmbedLatch !== '');
     },
+    /** The live question is SET ASIDE while the player stands on the very surface that answers it (see the watcher). */
+    deferredWhileOnOwnSurface(): boolean {
+      return this.consoleState.task.deferred && this.shellTask !== undefined && this.shellTaskOnSurface &&
+        !workspaceStackCollapsed() && !this.finaleCollapsed;
+    },
+    /** The Parliament stands as the screen itself — the top of the stack, on stage, no step of another flow (ledger HC). */
+    parliamentStandsAsRoot(): boolean {
+      return workspaceStackTop()?.kind === 'parliament' && workspaceSceneOnStage('parliament') && !this.parliamentEmbedActive &&
+        !this.consoleState.task.deferred;
+    },
     /** The teleport target — the live zone, or the latched one while a hosted step is still dissolving. */
     parliamentEmbedTeleportTo(): string {
       return this.parliamentEmbedTarget ?? (this.parliamentLeaving && this.parliamentEmbedLatch !== '' ? this.parliamentEmbedLatch : 'body');
@@ -6526,6 +6541,14 @@ export default defineComponent({
       // are doing, never a new interruption to announce; the board takes the pick by itself. The first prompt
       // (no session yet) and a prompt returning to a MINIMIZED session are announced as before.
       if (task?.kind === 'choice' && wf?.finalGreeneryPrompt !== undefined && this.finaleSessionEngaged) {
+        task = undefined;
+      }
+      // THE CHAIRMAN'S GATE IN THE PARLIAMENT THE PLAYER STANDS IN (ledger HC, the field lock of 2026-11-07): the plate
+      // exists to BRING the player to the Parliament without cutting a card's cinematic. A player already standing in
+      // it — the vote that completed the quest, the gate riding the vote's own answer — is where the gate is answered:
+      // the section's door opens it there, and a beat announced over it held the gate behind a plate that never paints
+      // over a workspace, the conclusion waiting for the answer, the answer for the plate.
+      if (task?.kind === 'chairmanQuest' && this.parliamentStandsAsRoot) {
         task = undefined;
       }
       // The EXTERNAL-DRAW take is ONE demand for the whole batch: every take
@@ -12505,7 +12528,7 @@ export default defineComponent({
       if (isCommitted(workspaceFramePhase('hand') ?? 'browse')) {
         setWorkspaceFramePhase('hand', 'configure');
       }
-      (this.$refs.playConfirm as InstanceType<typeof ConsolePlayCardConfirm> | undefined)?.resetSubmitting?.();
+      ((this.$refs.playConfirm ?? undefined) as InstanceType<typeof ConsolePlayCardConfirm> | undefined)?.resetSubmitting?.();
     },
     // THE RECOVERY NET: the SERVER phase drives the flow when the glide
     // degraded (an expired arm on a slow answer never fires the marker's own
@@ -12715,7 +12738,7 @@ export default defineComponent({
       if (phase === 'failed') {
         // A refused play walks nothing and rallies nobody: the promises are dropped with the move.
         dropHostedStepPromises();
-        const composer = this.$refs.playConfirm as InstanceType<typeof ConsolePlayCardConfirm> | undefined;
+        const composer = (this.$refs.playConfirm ?? undefined) as InstanceType<typeof ConsolePlayCardConfirm> | undefined;
         composer?.resetSubmitting?.();
         // A refused move never happened: the descent goes back to configurable,
         // or B would stay dead and the crumb would keep claiming a commit.
@@ -12930,7 +12953,7 @@ export default defineComponent({
         if (!this.startStrandedNow) {
           return;
         }
-        const scene = this.$refs.startScene as {healStrand?: () => string} | undefined;
+        const scene = (this.$refs.startScene ?? undefined) as {healStrand?: () => string} | undefined;
         const healed = scene?.healStrand?.() ?? 'no-scene';
         report('confirmed', {heal: healed});
         this.startStrandTimer = window.setTimeout(() => {
@@ -13158,7 +13181,7 @@ export default defineComponent({
       // Every edge retires the leave before it: a release still owed by an older leave answers for a section that is
       // no longer leaving.
       const token = ++this.parliamentLeaveToken;
-      const el = (this.$refs.parliamentSection as {$el?: unknown} | undefined)?.$el;
+      const el = ((this.$refs.parliamentSection ?? undefined) as {$el?: unknown} | undefined)?.$el;
       if (shown) {
         // RE-SHOWN MID-LEAVE (B, then A again inside the step's dissolve — the same instance is still mounted, the
         // `v-if` never fell): the leave's WAAPI fade keeps its `fill: 'forwards'` and would finish the re-entered step
@@ -13332,6 +13355,21 @@ export default defineComponent({
         setMandatoryGateHeld(held);
       },
     },
+    /**
+     * STANDING ON THE ANSWER UN-DEFERS IT (the WG Project lock of 2026-11-07, game p5aa8b7f — ledger HC): «set aside»
+     * is a fact about WHERE the player is, never a latch that outlives it. A door that opened the question's own
+     * surface while marking it set aside (the hand's reveal door, before 057d56ca00) left the prompt refusing every A
+     * with «Сначала завершите текущее действие» — the guard for «something is owed elsewhere» standing in front of the
+     * very answer it was owed — for 45 minutes. Whatever door brought the player here, standing on the surface that
+     * answers the live question clears the mark. A PARKED stack keeps it (`parked ⇒ deferred` — a fresh instance
+     * beside a park is read-only by contract), and so does a minimized finale.
+     */
+    deferredWhileOnOwnSurface(on: boolean): void {
+      if (on && this.consoleState.task.deferred) {
+        console.info(`[task-deferred] standing on the answer of «${this.shellTask?.kind ?? ''}» — no longer set aside`);
+        this.consoleState.task.deferred = false;
+      }
+    },
     // The beat IDENTITY changed (answered / invalidated / superseded) — retire
     // the latches that referred to the old one, so a completed action leaves
     // nothing stale and a NEXT action runs its own pending → presented cycle
@@ -13430,7 +13468,7 @@ export default defineComponent({
           if (this.consoleCardZoom.card === undefined) {
             return; // closed before it ever opened
           }
-          const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+          const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
           const el = zoom?.$el as HTMLElement | undefined;
           if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
             if (attempt < 10) {
@@ -13500,7 +13538,7 @@ export default defineComponent({
       if (now || !was || this.stagedColonyModel === undefined) {
         return;
       }
-      (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
+      ((this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
       colonyFocusState.committing = false;
       // The step's HOST takes its decision back — the hand's play, the law's stage (RX36).
       setWorkspaceFramePhase(stagedStepHost() ?? 'hand', 'configure');
@@ -13513,7 +13551,7 @@ export default defineComponent({
       if (now || !was || this.stagedVoteModel === undefined) {
         return;
       }
-      const section = this.$refs.parliamentSection as InstanceType<typeof ConsoleParliamentSection> | undefined;
+      const section = (this.$refs.parliamentSection ?? undefined) as InstanceType<typeof ConsoleParliamentSection> | undefined;
       section?.resetSubmitting();
       // A refused support-area pick (TR12) promised nothing that happened.
       clearSupportDiscard();
@@ -13666,7 +13704,7 @@ export default defineComponent({
       if (target === undefined || !this.placementActive) {
         return;
       }
-      const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
+      const board = (this.$refs.boardSection ?? undefined) as InstanceType<typeof ConsoleBoardSection> | undefined;
       if (board?.focusSpace(target) !== true) {
         this.consoleState.boardSpaceId = target;
       }
@@ -14047,7 +14085,7 @@ export default defineComponent({
       seat();
       void this.$nextTick(() => {
         seat();
-        void this.$nextTick(() => (this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined)?.ensureSelectedVisible());
+        void this.$nextTick(() => ((this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined)?.ensureSelectedVisible());
       });
     },
     /** A phrased pick's latest select look — what the shelf freezes on while it leaves (`pickResumeFreeze`). */
@@ -14089,7 +14127,7 @@ export default defineComponent({
           }
         } else {
           void this.$nextTick(() => {
-            (this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined)?.ensureSelectedVisible();
+            ((this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined)?.ensureSelectedVisible();
           });
         }
         return;
@@ -14961,7 +14999,7 @@ export default defineComponent({
       const releaseAccent = beginDockIntakeAccent('hand-close');
       try {
         await this.$nextTick();
-        const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+        const section = (this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
         const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
         // Landing targets are analytic (the bodies layer's pose oracle).
         const pairs: Array<RevealPair> = t.pairs.map((p) => ({
@@ -15048,7 +15086,7 @@ export default defineComponent({
       // last physical change lands means the player never sees what it was: the
       // cube had only just seated. The section owns the dwell, then hands the
       // screen forward through `flow-complete`.
-      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      const section = (this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
       if (host === undefined && this.colonyFocus.open && section !== undefined) {
         section.completeFlow();
         return;
@@ -15887,7 +15925,7 @@ export default defineComponent({
         // the player cannot see instead of the content in front of them.
         if (this.consoleState.sheet === 'cardActions' && !this.handPickActive &&
             !this.workspaceOutcomeEmbedded) {
-          (this.$refs.cardActions as InstanceType<typeof ConsoleCardActions> | undefined)?.handleIntent(intent);
+          ((this.$refs.cardActions ?? undefined) as InstanceType<typeof ConsoleCardActions> | undefined)?.handleIntent(intent);
           return true;
         }
         this.scrollActiveConsole(intent.dy, intent.dx);
@@ -15916,11 +15954,11 @@ export default defineComponent({
         // would strand the take press). The cards must be takeable — no
         // silent loss, even at the finish line.
         if (this.consoleRevealMode !== undefined) {
-          const overlay = this.$refs.revealOverlay as InstanceType<typeof ConsoleRevealOverlay> | undefined;
+          const overlay = (this.$refs.revealOverlay ?? undefined) as InstanceType<typeof ConsoleRevealOverlay> | undefined;
           overlay?.handleIntent(intent);
           return true;
         }
-        (this.$refs.endgameWs as InstanceType<typeof ConsoleEndgameWorkspace> | undefined)?.handleIntent(intent);
+        ((this.$refs.endgameWs ?? undefined) as InstanceType<typeof ConsoleEndgameWorkspace> | undefined)?.handleIntent(intent);
         return true;
       }
       // Information Mode owns everything while open (read-only).
@@ -15955,7 +15993,7 @@ export default defineComponent({
           this.toggleInfoMode();
           return true;
         }
-        const panel = this.$refs.journalPanel as InstanceType<typeof ConsoleJournalPanel> | undefined;
+        const panel = (this.$refs.journalPanel ?? undefined) as InstanceType<typeof ConsoleJournalPanel> | undefined;
         panel?.handleIntent(intent);
         return true;
       }
@@ -15967,7 +16005,7 @@ export default defineComponent({
           this.toggleInfoMode();
           return true;
         }
-        const confirm = this.$refs.corpFirstConfirm as InstanceType<typeof ConsoleCorpFirstActionConfirm> | undefined;
+        const confirm = (this.$refs.corpFirstConfirm ?? undefined) as InstanceType<typeof ConsoleCorpFirstActionConfirm> | undefined;
         confirm?.handleIntent(intent);
         return true;
       }
@@ -15981,7 +16019,7 @@ export default defineComponent({
           this.toggleInfoMode();
           return true;
         }
-        const overlay = this.$refs.playedOverlay as InstanceType<typeof ConsolePlayedOverlay> | undefined;
+        const overlay = (this.$refs.playedOverlay ?? undefined) as InstanceType<typeof ConsolePlayedOverlay> | undefined;
         overlay?.handleIntent(intent);
         return true;
       }
@@ -16027,7 +16065,7 @@ export default defineComponent({
       // CTS T6: a reveal overlay owns input while visible (drawn cards
       // must be taken; the result / viewer close on any confirm).
       if (this.consoleRevealMode !== undefined) {
-        const overlay = this.$refs.revealOverlay as InstanceType<typeof ConsoleRevealOverlay> | undefined;
+        const overlay = (this.$refs.revealOverlay ?? undefined) as InstanceType<typeof ConsoleRevealOverlay> | undefined;
         overlay?.handleIntent(intent);
         return true;
       }
@@ -16055,14 +16093,14 @@ export default defineComponent({
       // deliberately swallows everything, so a committed move can never be
       // re-submitted by a stray press.
       if (this.deckPickServing) {
-        (this.$refs.deckPick as InstanceType<typeof ConsoleDeckPick> | undefined)?.handleIntent(intent);
+        ((this.$refs.deckPick ?? undefined) as InstanceType<typeof ConsoleDeckPick> | undefined)?.handleIntent(intent);
         return true;
       }
       // THE DRAFT WORKSPACE owns the pad while it is the serving surface.
       // `hostTask === undefined` inside the predicate yields it to the
       // embedded payment / the Underworld research choice (host-served).
       if (this.draftWorkspaceOwnsPad) {
-        (this.$refs.draftWs as InstanceType<typeof ConsoleDraftWorkspace> | undefined)?.handleIntent(intent);
+        ((this.$refs.draftWs ?? undefined) as InstanceType<typeof ConsoleDraftWorkspace> | undefined)?.handleIntent(intent);
         return true;
       }
       // THE EXTERNAL-DRAW WORKSPACE owns the pad outright while it stands —
@@ -16070,11 +16108,11 @@ export default defineComponent({
       // NOTHING below it may see a press. Its own phases absorb input during
       // the deal and the take flights.
       if (this.externalDrawOwnsPad) {
-        (this.$refs.extDrawWs as InstanceType<typeof ConsoleExternalDrawWorkspace> | undefined)?.handleIntent(intent);
+        ((this.$refs.extDrawWs ?? undefined) as InstanceType<typeof ConsoleExternalDrawWorkspace> | undefined)?.handleIntent(intent);
         return true;
       }
       if (this.startSceneOwnsPad) {
-        const scene = this.$refs.startScene as InstanceType<typeof ConsoleStartScene> | undefined;
+        const scene = (this.$refs.startScene ?? undefined) as InstanceType<typeof ConsoleStartScene> | undefined;
         scene?.handleIntent(intent);
         return true;
       }
@@ -16091,39 +16129,39 @@ export default defineComponent({
       // Government Support (WGT) — the dedicated briefing panel owns input
       // while it serves (before the generic host branch below).
       if (this.govSupportActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
-        const panel = this.$refs.govSupport as InstanceType<typeof ConsoleGovernmentSupport> | undefined;
+        const panel = (this.$refs.govSupport ?? undefined) as InstanceType<typeof ConsoleGovernmentSupport> | undefined;
         panel?.handleIntent(intent);
         return true;
       }
       // Production loss (Ares hazard) — the dedicated surface owns input while
       // it serves (before the generic host branch below).
       if (this.productionLossActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
-        const panel = this.$refs.prodLoss as InstanceType<typeof ConsoleProductionLoss> | undefined;
+        const panel = (this.$refs.prodLoss ?? undefined) as InstanceType<typeof ConsoleProductionLoss> | undefined;
         panel?.handleIntent(intent);
         return true;
       }
       // The three dedicated COMPOSITE surfaces own the pad on the same terms.
       if (this.spendHeatActive) {
-        (this.$refs.spendHeat as InstanceType<typeof ConsoleSpendHeat> | undefined)?.handleIntent(intent);
+        ((this.$refs.spendHeat ?? undefined) as InstanceType<typeof ConsoleSpendHeat> | undefined)?.handleIntent(intent);
         return true;
       }
       if (this.venusBonusActive) {
-        (this.$refs.venusBonus as InstanceType<typeof ConsoleVenusBonus> | undefined)?.handleIntent(intent);
+        ((this.$refs.venusBonus ?? undefined) as InstanceType<typeof ConsoleVenusBonus> | undefined)?.handleIntent(intent);
         return true;
       }
       if (this.aresGlobalsActive) {
-        (this.$refs.aresGlobals as InstanceType<typeof ConsoleAresGlobals> | undefined)?.handleIntent(intent);
+        ((this.$refs.aresGlobals ?? undefined) as InstanceType<typeof ConsoleAresGlobals> | undefined)?.handleIntent(intent);
         return true;
       }
       if (this.botAttackActive) {
-        (this.$refs.botAttack as InstanceType<typeof ConsoleBotAttack> | undefined)?.handleIntent(intent);
+        ((this.$refs.botAttack ?? undefined) as InstanceType<typeof ConsoleBotAttack> | undefined)?.handleIntent(intent);
         return true;
       }
       // The EFFECT DECISION screen owns input while it stands in for the host
       // (same contract, same gate — kept next to it so the two can never both
       // claim the pad).
       if (this.effectDecisionActive) {
-        const panel = this.$refs.effectDecision as InstanceType<typeof ConsoleEffectDecision> | undefined;
+        const panel = (this.$refs.effectDecision ?? undefined) as InstanceType<typeof ConsoleEffectDecision> | undefined;
         panel?.handleIntent(intent);
         return true;
       }
@@ -16167,7 +16205,7 @@ export default defineComponent({
       // this gate, the two command-bar gates and the template's v-if in
       // LOCK-STEP — a mismatch silently swallows the pad.
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined && !this.handPickActive) {
-        const host = this.$refs.taskHost as InstanceType<typeof ConsoleTaskHost> | undefined;
+        const host = (this.$refs.taskHost ?? undefined) as InstanceType<typeof ConsoleTaskHost> | undefined;
         host?.handleIntent(intent);
         return true;
       }
@@ -16196,7 +16234,7 @@ export default defineComponent({
           isDeltaBlockadePickActive() || isBlockadeExecutionActive() || this.handCoveredByHydro;
         const hydroDeeper = workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick');
         if (deltaInstrumentUp && (!this.repeatPickActive || hydroDeeper)) {
-          const section = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
+          const section = (this.$refs.hydroSection ?? undefined) as InstanceType<typeof ConsoleHydroSection> | undefined;
           section?.handleIntent(intent);
           return true;
         }
@@ -16205,7 +16243,7 @@ export default defineComponent({
       // surface owns the pad while it is out — the hidden source composers
       // (v-show) must not swallow input. Routed BEFORE every composer branch.
       if (this.repeatPickActive) {
-        const panel = this.$refs.repeatPick as InstanceType<typeof ConsoleCardActions> | undefined;
+        const panel = (this.$refs.repeatPick ?? undefined) as InstanceType<typeof ConsoleCardActions> | undefined;
         panel?.handleIntent(intent);
         return true;
       }
@@ -16225,7 +16263,7 @@ export default defineComponent({
       }
       // T8: the native play-card confirm owns input while open.
       if (this.pendingPlayCard !== undefined) {
-        const confirm = this.$refs.playConfirm as InstanceType<typeof ConsolePlayCardConfirm> | undefined;
+        const confirm = (this.$refs.playConfirm ?? undefined) as InstanceType<typeof ConsolePlayCardConfirm> | undefined;
         confirm?.handleIntent(intent);
         return true;
       }
@@ -16238,7 +16276,7 @@ export default defineComponent({
           this.inspectContextualSource();
           return true;
         }
-        const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+        const section = (this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
         section?.handleFocusIntent(intent);
         return true;
       }
@@ -16251,7 +16289,7 @@ export default defineComponent({
       if (this.consoleState.confirm !== undefined) {
         // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 on the plate opens it (PL-394) — both resolved BEFORE
         // the semantic map, the stages' order (no default R3).
-        const confirm = this.$refs.actionConfirm as InstanceType<typeof ConsoleActionConfirm> | undefined;
+        const confirm = (this.$refs.actionConfirm ?? undefined) as InstanceType<typeof ConsoleActionConfirm> | undefined;
         if (effectForecastOpen('confirm')) {
           confirm?.forecastIntent(intent);
           return true;
@@ -16278,7 +16316,7 @@ export default defineComponent({
       // demonstrably driving the colony grid on top of it. Depth breaks the
       // tie, the same rule presence already uses.
       if (this.consoleState.sheet === 'cardActions' && workspaceStackTopAxis() !== 'section') {
-        const panel = this.$refs.cardActions as InstanceType<typeof ConsoleCardActions> | undefined;
+        const panel = (this.$refs.cardActions ?? undefined) as InstanceType<typeof ConsoleCardActions> | undefined;
         panel?.handleIntent(intent);
         return true;
       }
@@ -16450,7 +16488,7 @@ export default defineComponent({
         return;
       }
       if (this.infoModeState.route === 'extras') {
-        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)
+        ((this.$refs.infoMode ?? undefined) as InstanceType<typeof ConsoleInfoMode> | undefined)
           ?.selectExtrasType(press.key, press.index);
       }
     },
@@ -16474,7 +16512,7 @@ export default defineComponent({
             return;
           }
         }
-        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handlePlayedIntent(intent);
+        ((this.$refs.infoMode ?? undefined) as InstanceType<typeof ConsoleInfoMode> | undefined)?.handlePlayedIntent(intent);
         return;
       }
       // THE SCORE EXPLORER (vp subtree): the explorer owns nav, A (descend)
@@ -16496,14 +16534,14 @@ export default defineComponent({
           if (action === 'back') {
             // The MA inspection consumes B first (fold back into its entry);
             // only then does B walk the route tree.
-            const view = this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined;
+            const view = (this.$refs.infoMode ?? undefined) as InstanceType<typeof ConsoleInfoMode> | undefined;
             if (view?.consumeScoreBack() !== true) {
               this.infoBack();
             }
             return;
           }
         }
-        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleScoreIntent(intent);
+        ((this.$refs.infoMode ?? undefined) as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleScoreIntent(intent);
         return;
       }
       // THE EXTRAS EXPLORER: the satellite column + gallery own nav, A
@@ -16529,7 +16567,7 @@ export default defineComponent({
             return;
           }
         }
-        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleExtrasIntent(intent);
+        ((this.$refs.infoMode ?? undefined) as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleExtrasIntent(intent);
         return;
       }
       // THE CAMPAIGN OVERVIEW: the overview owns nav, A (open results /
@@ -16549,7 +16587,7 @@ export default defineComponent({
             return;
           }
         }
-        const view = this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined;
+        const view = (this.$refs.infoMode ?? undefined) as InstanceType<typeof ConsoleInfoMode> | undefined;
         if (view?.handleCampaignIntent(intent) !== true &&
             intent.kind === 'press' && consoleActionOf(intent) === 'back') {
           this.infoBack();
@@ -16576,7 +16614,7 @@ export default defineComponent({
             return;
           }
         }
-        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleActionsIntent(intent);
+        ((this.$refs.infoMode ?? undefined) as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleActionsIntent(intent);
         return;
       }
       // THE EFFECTS EXPLORER: the grid owns nav, A (descend into the effect
@@ -16598,14 +16636,14 @@ export default defineComponent({
             return;
           }
           if (action === 'back') {
-            const view = this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined;
+            const view = (this.$refs.infoMode ?? undefined) as InstanceType<typeof ConsoleInfoMode> | undefined;
             if (view?.consumeEffectsBack() !== true) {
               this.infoBack();
             }
             return;
           }
         }
-        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleEffectsIntent(intent);
+        ((this.$refs.infoMode ?? undefined) as InstanceType<typeof ConsoleInfoMode> | undefined)?.handleEffectsIntent(intent);
         return;
       }
       const route = this.infoModeState.route;
@@ -16877,7 +16915,7 @@ export default defineComponent({
         // the scroll — the targets below are the settled layout. Bounded: an
         // idle compositor withholding rAF must not latch `opening` forever.
         await settledPaint();
-        const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+        const section = (this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
         const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
         const pairs: Array<RevealPair> = t.pairs.map((p) => ({
           name: p.name, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name),
@@ -16919,7 +16957,7 @@ export default defineComponent({
         if (isHandRevealEpisodeRunning() || this.consoleState.section !== 'hand') {
           return;
         }
-        const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+        const section = (this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
         const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
         // The landing targets are ANALYTIC (the bodies layer's pose oracle):
         // no dock measure, no provisional berths, no retarget races.
@@ -17128,7 +17166,7 @@ export default defineComponent({
         }
         // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 on the browse opens it (PL-066). Both resolved
         // BEFORE the semantic map (no default R3) — the composers' and the stages' order.
-        const stdpScreen = this.$refs.stdpScreen as InstanceType<typeof ConsoleStdProjectsScreen> | undefined;
+        const stdpScreen = (this.$refs.stdpScreen ?? undefined) as InstanceType<typeof ConsoleStdProjectsScreen> | undefined;
         if (effectForecastOpen('stdp')) {
           stdpScreen?.forecastIntent(intent);
           return;
@@ -17284,13 +17322,13 @@ export default defineComponent({
       // (stages / bonus / CTA / confirm modal / help). Y = Info Mode stays
       // global (handled before this point); the journal is board-home only.
       if (this.padSection === 'hydro') {
-        const hydro = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
+        const hydro = (this.$refs.hydroSection ?? undefined) as InstanceType<typeof ConsoleHydroSection> | undefined;
         hydro?.handleIntent(intent);
         return true;
       }
       // The Parliament owns its whole grammar too (zones / stages / submits).
       if (this.padSection === 'parliament') {
-        const parliament = this.$refs.parliamentSection as InstanceType<typeof ConsoleParliamentSection> | undefined;
+        const parliament = (this.$refs.parliamentSection ?? undefined) as InstanceType<typeof ConsoleParliamentSection> | undefined;
         parliament?.handleIntent(intent);
         return true;
       }
@@ -17479,7 +17517,7 @@ export default defineComponent({
         finishInstant();
       }
       if (this.padSection === 'board') {
-        const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
+        const board = (this.$refs.boardSection ?? undefined) as InstanceType<typeof ConsoleBoardSection> | undefined;
         // P27b: SCALE INSPECTION — the cursor walks the bonus ring
         // (left/up = counter-clockwise, right/down = clockwise, wraps).
         if (this.consoleState.scaleInspecting && !this.placementActive) {
@@ -17528,7 +17566,7 @@ export default defineComponent({
       }
       // Hand grid: delegate to the section — it owns the plan (cols), the
       // column-preserving up/down stepping, and keep-selected-visible.
-      const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+      const hand = (this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
       hand?.move(dir);
     },
     handleSectionConfirm(): void {
@@ -17542,7 +17580,7 @@ export default defineComponent({
         finishInstant();
       }
       if (this.padSection === 'board') {
-        const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
+        const board = (this.$refs.boardSection ?? undefined) as InstanceType<typeof ConsoleBoardSection> | undefined;
         if (this.placementActive) {
           const flow = this.placementFlowState;
           // A commit already on the wire absorbs every further press — a
@@ -18151,7 +18189,7 @@ export default defineComponent({
       // inspection modes above are steps of their own, and swallowing them
       // here would make B skip a level the player can see.
       if (this.postGameInspection) {
-        (this.$refs.endgameWs as InstanceType<typeof ConsoleEndgameWorkspace> | undefined)?.expandFromBoard();
+        ((this.$refs.endgameWs ?? undefined) as InstanceType<typeof ConsoleEndgameWorkspace> | undefined)?.expandFromBoard();
       }
     },
     // ── the console-native journal (View — board home only) ─────────────
@@ -18246,7 +18284,7 @@ export default defineComponent({
       // Land on a predictable cell (the last inspected one, else re-seed).
       void this.$nextTick(() => {
         if (this.consoleState.boardSpaceId === undefined) {
-          const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
+          const board = (this.$refs.boardSection ?? undefined) as InstanceType<typeof ConsoleBoardSection> | undefined;
           board?.seed(false);
         }
       });
@@ -18262,7 +18300,7 @@ export default defineComponent({
         return;
       }
       this.exitInspection();
-      const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
+      const board = (this.$refs.boardSection ?? undefined) as InstanceType<typeof ConsoleBoardSection> | undefined;
       if (board?.enterTrackInspect() === true) {
         this.consoleState.scaleInspecting = true;
       } else {
@@ -18409,7 +18447,7 @@ export default defineComponent({
      *  detail stage. The SCREEN arms the descend origins (the pressed card's
      *  and its emblem pedestal's rects) synchronously at the press. */
     enterMaFocus(): void {
-      (this.$refs.maScreen as InstanceType<typeof ConsoleMaScreen> | undefined)?.enterFocus();
+      ((this.$refs.maScreen ?? undefined) as InstanceType<typeof ConsoleMaScreen> | undefined)?.enterFocus();
     },
     /** Mouse/touch on an overview tile: focus it; a second click on the
      *  focused tile descends (the controller's own two-step, same doors). */
@@ -19500,7 +19538,7 @@ export default defineComponent({
     /** Arm the std-projects DESCEND phrase from the focused row (the screen
      *  owns the rect; a stale/missing arm degrades to a plain surface). */
     armStdpStepOrigin(): void {
-      (this.$refs.stdpScreen as InstanceType<typeof ConsoleStdProjectsScreen> | undefined)?.armStepOrigin();
+      ((this.$refs.stdpScreen ?? undefined) as InstanceType<typeof ConsoleStdProjectsScreen> | undefined)?.armStepOrigin();
     },
     /** A refused/lost submit — the flow returns to its reversible browse layer. */
     rollbackStdProjectFlow(): void {
@@ -19769,7 +19807,7 @@ export default defineComponent({
       if (isTradeFleetActive() || colonyTradeState.active || isColonyBuildActive()) {
         return;
       }
-      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      const section = (this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
       section?.enterFocusFromInspect(act.intent);
     },
     enterColonyFocus(intent: ColonyFocusIntent): void {
@@ -19781,7 +19819,7 @@ export default defineComponent({
       if (isTradeFleetActive() || colonyTradeState.active) {
         return;
       }
-      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      const section = (this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
       section?.enterFocus(intent);
     },
     /**
@@ -19803,7 +19841,7 @@ export default defineComponent({
           this.showNotice(this.actionBlockedReason);
           return;
         }
-        (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.enterDockFocus();
+        ((this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.enterDockFocus();
         return;
       }
       // THE OVERVIEW SELECTS; THE FOCUS STAGE RESOLVES (iteration 2). A on
@@ -19941,7 +19979,7 @@ export default defineComponent({
     ): {slot: number, tail: Array<InputResponse>} {
       // The guards accepted: freeze the stage's presentation for the whole
       // resolution (the answer flips its props under the flying cube).
-      (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+      ((this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
       // The berth the cube takes — the hero, the outcome claim and the server all speak of the same one.
       const slot = nextBuildSlot(selected, buildSiteOf(pick.buildSites, selected.name));
       // THE PLACEMENT BONUS'S HOST CARD, chosen on the stage before the cube
@@ -19998,7 +20036,7 @@ export default defineComponent({
       // hand): the stage stays, pinned; the landing is ARMED for the transport's gate and plays on this stage with
       // the commit held to the contact. The same scene as the staged door — only A's verb and B differ.
       if (pick.tileSite !== undefined) {
-        (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+        ((this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
         markColonyFocusCommitting();
         setWorkspaceFramePhase('colonies', 'committed');
         armColonyCity({colony: selected.name as ColonyName, space: pick.tileSite.space, color: pick.tileSite.color, card: pick.tileSite.card});
@@ -20011,7 +20049,7 @@ export default defineComponent({
       if (pick.trackMoves !== undefined) {
         const move = trackMoveOf(pick.trackMoves, selected.name);
         if (move !== undefined) {
-          (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+          ((this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
           markColonyFocusCommitting();
           setWorkspaceFramePhase('colonies', 'committed');
           promiseColonyTrackMove({
@@ -20029,7 +20067,7 @@ export default defineComponent({
         if (isTradeFleetActive() || colonyTradeState.active) {
           return;
         }
-        (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+        ((this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
         // The PRESSED cell — the origin of the pre-trade advance leg (a
         // trade-offset card moves the track forward before the reward is
         // read). Server truth as of the press; the manifest names where it
@@ -20154,7 +20192,7 @@ export default defineComponent({
         this.closeColonyInspect();
         return;
       }
-      const dossier = this.$refs.journalInspect as InstanceType<typeof ConsoleColonyInspect> | undefined;
+      const dossier = (this.$refs.journalInspect ?? undefined) as InstanceType<typeof ConsoleColonyInspect> | undefined;
       dossier?.handleIntent(intent);
     },
     /**
@@ -20216,7 +20254,7 @@ export default defineComponent({
       // the view commit until the ship docks; the section auto-folds back to
       // the overview only when the WHOLE transaction has settled (its
       // `colonyTradeState.active` falling edge). Desktop is unaffected.
-      (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+      ((this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
       // …and the pressed cell, so a trade-offset card's forward step is a
       // MOVE the player watches instead of a number that changed (see the
       // overview path above).
@@ -20273,7 +20311,7 @@ export default defineComponent({
       if (offer === undefined || !offer.available) {
         return;
       }
-      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      const section = (this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
       if (ctx === undefined && pick?.buttonLabel === 'trade') {
         closeConsoleLayers();
         this.consoleState.task.deferred = false;
@@ -22225,6 +22263,7 @@ export default defineComponent({
      * the intake aims at a still-covered dock.
      */
     concludeWorkspaceFlow(kind: WorkspaceFrameKind, servedPromptHolds = true): boolean {
+      this.questionDoorServedKind = '';
       // Gone = on no stack at all. A frame standing ASIDE for the board is NOT gone: it comes back at the same depth, and
       // reporting it «ended» closed nothing and let it return to a finished flow (the hidden-scene class — `off-stage`).
       if (!workspaceFrameKnown(kind) && !workspaceFrameOffStage(kind)) {
@@ -22254,7 +22293,9 @@ export default defineComponent({
         // …and a PARTY DISCARD'S PAYOUT (the Reds): awaited from the submit (the transport took the prompt down, so the
         // discard's `owed-step` let go and the conclusion owed since the draw's take FIRED — the box's stack trace:
         // `closeWorkspaceRoot:card-actions` before the answer) or held on the rail until its wave has flown.
-        outcomeLive: mine || (kind === 'hand' && hostedStepLiveIn('hand')) ||
+        // …and «ПРЕДСЕДАТЕЛЬСТВО» playing in the Parliament (the office and the step play AFTER the gate's answer — the
+        // vote that closed the quest went on into it in place, ledger HC: its earlier ending must not take the beats down).
+        outcomeLive: mine || (kind === 'hand' && hostedStepLiveIn('hand')) || (kind === 'parliament' && chairmanQuestFlow.live) ||
           (kind === 'card-actions' && (colonyBonusPayoutLive() || this.politicalPayoutOwed)),
         // The second half of a pick-then-pay and a DRAW & SELECT still standing
         // in our zone are both this activation, still being answered — and so
@@ -22278,6 +22319,9 @@ export default defineComponent({
       });
       if (conclusion.verdict === 'hold') {
         lastConclusionHold = {kind, reason: conclusion.reason, at: Date.now()};
+        if (conclusion.reason === 'owned-prompt') {
+          this.openHeldFrameQuestionDoor(kind);
+        }
         return false;
       }
       lastConclusionHold = undefined;
@@ -22337,8 +22381,43 @@ export default defineComponent({
      * `owedConclusionSignal` watcher the moment an ingredient falls — the
      * same law as `colonyResolutionReleaseOwed`, for the ending itself.
      */
+    /**
+     * A CONCLUSION HELD FOR THE FRAME'S OWN QUESTION IS A HAND-OVER (`frameQuestionDoor.ts`, ledger HC — the chairman
+     * quest riding the vote's answer stood 8 s on a finished vote nobody could leave): the frame standing on screen at
+     * the top of the stack is asked to serve the standing question in place. Only a live, on-stage, un-deferred top
+     * frame — a parked / aside / hosted one has its own way back. Named once per prompt.
+     */
+    openHeldFrameQuestionDoor(kind: WorkspaceFrameKind): void {
+      if (workspaceStackTop()?.kind !== kind || !workspaceSceneOnStage(kind) || this.consoleState.task.deferred) {
+        return;
+      }
+      const result = openFrameQuestionDoor(kind);
+      if (result === 'served') {
+        // The flow did not end — it goes on into its question: whatever ending was asked is no longer OWED.
+        this.questionDoorServedKind = kind;
+      }
+      const key = `${kind}|${this.playerView.waitingFor?.promptId ?? ''}|${result}`;
+      if (this.questionDoorLogged !== key) {
+        this.questionDoorLogged = key;
+        const asked = taskFor(this.playerView)?.kind ?? '';
+        // Named quietly: `no-door` / `refused` are the common, honest cases (a hand / a composer that already PRESENTS
+        // its pick-then-pay); a hold that then stands with nothing served is the liveness arbiter's to name.
+        console.info(`[workspace-question] «${kind}» holds for its own question (${asked}) — ${result === 'served' ? 'served in place' : result === 'no-door' ? 'no door' : 'its door has nothing to open'}`);
+      }
+    },
     concludeWorkspaceFlowOrOwe(kind: WorkspaceFrameKind, servedPromptHolds = true): boolean {
       const done = this.concludeWorkspaceFlow(kind, servedPromptHolds);
+      if (!done && this.questionDoorServedKind === kind) {
+        // HANDED TO ITS QUESTION (ledger HC): the flow goes on in place — nothing is owed; the question's own flow
+        // reports its own ending. An owe kept here concluded the Parliament the instant the gate was answered, under
+        // the chairmanship's beats (the e2e of the field lock, 2026-11-08).
+        if (this.owedConclusion?.kind === kind) {
+          this.owedConclusion = undefined;
+          this.owedConclusionSince = 0;
+          this.owedConclusionGhostSince = 0;
+        }
+        return false;
+      }
       if (!done) {
         // Keep the ESCALATION CLOCK from an existing owe of the same kind — a
         // re-owe is the same debt still unpaid, not a fresh one; a different
@@ -22393,7 +22472,8 @@ export default defineComponent({
       if (workspaceOutcomeState.host === owed.kind && workspaceOutcomeClaimed()) {
         this.reconcileWorkspaceOutcome();
       }
-      if (this.concludeWorkspaceFlow(owed.kind, owed.servedPromptHolds)) {
+      if (this.concludeWorkspaceFlow(owed.kind, owed.servedPromptHolds) || this.questionDoorServedKind === owed.kind) {
+        // Concluded — or handed to its question in place (ledger HC): either way nothing is owed any more.
         this.owedConclusion = undefined;
         this.owedConclusionSince = 0;
         this.owedConclusionGhostSince = 0;
@@ -22630,6 +22710,8 @@ export default defineComponent({
         // swallowing the verb over a wedged flow (the chairman quest's leaked beat, the owner's field lock of 2026-11-07).
         backTaken: inputEchoSnapshot().backTaken,
         backJudged: this.backOwedOnStandingFrame(),
+        // …and a transient beat owes its end even when nobody is asked (the two-campaign rally, ledger HC).
+        beatOwed: beat !== undefined,
         signature,
       });
       if (!verdict.stalled || verdict.rung === undefined) {
@@ -22704,7 +22786,7 @@ export default defineComponent({
       };
       let did = '';
       if (cure === 'release') {
-        const scene = this.$refs.startScene as {releaseByDirector?: () => string} | undefined;
+        const scene = (this.$refs.startScene ?? undefined) as {releaseByDirector?: () => string} | undefined;
         did = scene?.releaseByDirector?.() ?? '';
         if (did === '') {
           // No scene instance to ask (unmounted under a park) — the lifetime hold itself lets go.
@@ -22715,7 +22797,7 @@ export default defineComponent({
         this.startStrandYield = false;
         this.startStrandPrompt = undefined;
       } else if (cure === 'heal') {
-        const scene = this.$refs.startScene as {healStrand?: () => string} | undefined;
+        const scene = (this.$refs.startScene ?? undefined) as {healStrand?: () => string} | undefined;
         const healed = scene?.healStrand?.() ?? 'no-scene';
         did = healed === 'nothing-to-heal' || healed === 'no-scene' ? [healed, yieldNow()].filter((x) => x !== '').join(' → ') : healed;
       } else {
@@ -23608,7 +23690,7 @@ export default defineComponent({
         let t: ReturnType<InstanceType<typeof ConsoleHandSection>['transitionTargets']> = {pairs: [], scrollTop: 0};
         for (let i = 0; i < 10 && t.pairs.length === 0; i++) {
           await new Promise((r) => requestAnimationFrame(() => r(undefined)));
-          const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+          const section = (this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
           if (section !== undefined) {
             t = section.transitionTargets();
           }
@@ -24003,7 +24085,7 @@ export default defineComponent({
     },
     /** A roster pick's level change is the section's RESEAT (content lets go → the rail changes → content surfaces); no section — at once. */
     reseatColonyRosterLevel(apply: () => void): Promise<void> {
-      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      const section = (this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
       if (section === undefined) {
         apply();
         return Promise.resolve();
@@ -24038,7 +24120,7 @@ export default defineComponent({
       }
       const build = kind === 'replace' ? rosterIncomingOf(roster.prompt, name)?.build : undefined;
       const builds = rosterBuildLands(build);
-      (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+      ((this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
       markColonyFocusCommitting();
       setWorkspaceFramePhase('colonies', 'committed');
       this.consoleState.task.deferred = false;
@@ -24123,7 +24205,7 @@ export default defineComponent({
       // cube's handoff ends).
       await settle(() => colonyRosterState.live || isColonyBuildActive());
       const receipt = colonyRosterState.receipt;
-      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      const section = (this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
       await vueNextTick();
       await frames();
       if (receipt !== undefined && this.colonyFocus.open && section !== undefined) {
@@ -24170,7 +24252,7 @@ export default defineComponent({
       // The scene first — through its read (resolved at once when none is playing; it never rejects).
       await colonyCitySceneDone();
       const receipt = colonyCityState.receipt;
-      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      const section = (this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
       await vueNextTick();
       await frames();
       if (receipt !== undefined && this.colonyFocus.open && section !== undefined) {
@@ -24227,7 +24309,7 @@ export default defineComponent({
       await vueNextTick();
       await settle(() => this.colonyBuildContinuationOwed);
       const receipt = colonyBuildState.receipt;
-      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      const section = (this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
       await vueNextTick();
       await frames();
       if (receipt !== undefined && this.colonyFocus.open && section !== undefined) {
@@ -24322,7 +24404,7 @@ export default defineComponent({
       if (this.pendingPlayCard !== undefined) {
         releaseConsolePlayCardCommands();
       }
-      const composer = (this.$refs.playConfirm as {$refs?: {rootEl?: unknown}} | undefined)?.$refs?.rootEl;
+      const composer = ((this.$refs.playConfirm ?? undefined) as {$refs?: {rootEl?: unknown}} | undefined)?.$refs?.rootEl;
       const proxy = typeof document === 'undefined' ? null : document.querySelector('.con-played-hero__proxy');
       const fades = [composer, proxy].flatMap((el) =>
         el instanceof HTMLElement && !consoleReducedMotionActive() && typeof el.animate === 'function' ?
@@ -24408,7 +24490,7 @@ export default defineComponent({
       if (this.pendingPlayCard !== undefined) {
         releaseConsolePlayCardCommands();
       }
-      const composer = (this.$refs.playConfirm as {$refs?: {rootEl?: unknown}} | undefined)?.$refs?.rootEl;
+      const composer = ((this.$refs.playConfirm ?? undefined) as {$refs?: {rootEl?: unknown}} | undefined)?.$refs?.rootEl;
       const proxy = typeof document === 'undefined' ? null : document.querySelector('.con-played-hero__proxy');
       const fades = [composer, proxy].flatMap((el) =>
         el instanceof HTMLElement && !consoleReducedMotionActive() && typeof el.animate === 'function' ?
@@ -24461,7 +24543,7 @@ export default defineComponent({
       }
       setWorkspaceFrameStage('parliament', AGENDA_WALK_STEP_STAGE);
       setWorkspaceFramePhase('parliament', 'executing');
-      const section = this.$refs.parliamentSection as InstanceType<typeof ConsoleParliamentSection> | undefined;
+      const section = (this.$refs.parliamentSection ?? undefined) as InstanceType<typeof ConsoleParliamentSection> | undefined;
       void this.$nextTick(() => {
         if (agendaWalkFlow.owed?.host === 'start' && !agendaWalkFlow.live) {
           section?.openWalkFlow();
@@ -24519,7 +24601,7 @@ export default defineComponent({
       if (arm === undefined || staged === undefined || stagedPlayState.committing) {
         return;
       }
-      (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+      ((this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
       markColonyFocusCommitting();
       setWorkspaceFramePhase('colonies', 'committed');
       const move = trackMoveOf(staged.prompt.trackMoves, colony);
@@ -24617,7 +24699,7 @@ export default defineComponent({
         // a receipt, and the live door's own A arms it again.)
         clearColonyBuildReceipt();
         colonyFocusState.committing = false;
-        (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
+        ((this.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
         setWorkspaceFrameServes('colonies', ['colony']);
         setWorkspaceFramePhase('colonies', 'committed');
         setWorkspaceFramePhase(stagedStepHost(arm) ?? 'hand', 'committed');
@@ -25427,7 +25509,7 @@ export default defineComponent({
       if (token !== this.zoomOpenToken) {
         return;
       }
-      const proxyEl = this.$refs.zoomFlightProxy as HTMLElement | undefined;
+      const proxyEl = (this.$refs.zoomFlightProxy ?? undefined) as HTMLElement | undefined;
       playZoomOpenFlight(proxyEl, index, source, landing.rect, {
         onShow: () => {
           if (token === this.zoomOpenToken && this.consoleCardZoom.card !== undefined) {
@@ -25478,13 +25560,13 @@ export default defineComponent({
      * input when the rules have nothing to scroll).
      */
     scrollZoomSide(delta: number): void {
-      const inspect = this.$refs.zoomInspectSide as {scrollBody?: (dy: number) => boolean} | undefined;
+      const inspect = (this.$refs.zoomInspectSide ?? undefined) as {scrollBody?: (dy: number) => boolean} | undefined;
       if (inspect?.scrollBody?.(delta) === true) {
         return;
       }
-      const rules = this.$refs.zoomRulesPanel as {scrollBody?: (dy: number) => boolean} | undefined;
+      const rules = (this.$refs.zoomRulesPanel ?? undefined) as {scrollBody?: (dy: number) => boolean} | undefined;
       if (rules?.scrollBody?.(delta) !== true) {
-        const aside = this.$refs.zoomAsidePanel as {scrollBody?: (dy: number) => boolean} | undefined;
+        const aside = (this.$refs.zoomAsidePanel ?? undefined) as {scrollBody?: (dy: number) => boolean} | undefined;
         aside?.scrollBody?.(delta);
       }
     },
@@ -25506,7 +25588,7 @@ export default defineComponent({
         }
         return true;
       }
-      const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
       // INSPECT DOSSIER: LB/RB switch the ПРАВИЛА/СТАТИСТИКА tab (never browse —
       // the inspect list is always ONE card, so prev/next are free here). A
       // repeated press just re-sets the same tab (idempotent, no overlap).
@@ -25633,7 +25715,7 @@ export default defineComponent({
       if (swap === undefined || this.zoomClosing || this.zoomSwapping) {
         return;
       }
-      const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
       this.zoomSwapping = true;
       void playZoomSwap(zoom?.$el as HTMLElement | undefined, () => swap.swap(), () => zoom?.fitCardToViewport())
         .then(() => {
@@ -25661,7 +25743,7 @@ export default defineComponent({
         return;
       }
       const idx = this.consoleCardZoom.index;
-      const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
       if (r.departFromFullscreen === true) {
         // SINGLE-CARD reveal: the card departs from fullscreen INTO THE HAND
         // — playZoomDepart hands the flight to the hand-intake director (the
@@ -25701,7 +25783,7 @@ export default defineComponent({
         return;
       }
       const handoffSel = action.handoffTarget?.(card.name as CardName);
-      const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
       if (handoffSel !== undefined && zoom !== undefined) {
         action.execute(card.name as CardName);
         this.zoomFlight = true;
@@ -25744,7 +25826,7 @@ export default defineComponent({
      * self-guards on `open`).
      */
     async closeZoomViewer(): Promise<void> {
-      const zoom = this.$refs.cardZoom as InstanceType<typeof CardZoomModal> | undefined;
+      const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
       if (zoom === undefined) {
         return;
       }
@@ -25774,34 +25856,34 @@ export default defineComponent({
       // play-confirm / task / reveal / zoom on top, which would otherwise be
       // paged through blindly).
       if (this.handScrollActive) {
-        const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+        const hand = (this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
         hand?.stickScroll(dy, dx);
         return;
       }
       // The EMBEDDED «Разыграно» table (Information Workspace X route) owns
       // the right stick while it is the workspace's content.
       if (this.infoModeState.open && this.infoModeState.route === 'played') {
-        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)
+        ((this.$refs.infoMode ?? undefined) as InstanceType<typeof ConsoleInfoMode> | undefined)
           ?.handlePlayedIntent({kind: 'scroll', dx: 0, dy});
         return;
       }
       // …and the EFFECTS EXPLORER (its grid, or the open dossier's reading
       // scroll — the explorer knows which layer stands).
       if (this.infoModeState.open && this.infoModeState.route === 'effects') {
-        (this.$refs.infoMode as InstanceType<typeof ConsoleInfoMode> | undefined)
+        ((this.$refs.infoMode ?? undefined) as InstanceType<typeof ConsoleInfoMode> | undefined)
           ?.handleEffectsIntent({kind: 'scroll', dx: 0, dy});
         return;
       }
       // The corp first-action modal's briefing column scrolls first.
       if (this.corpFirstActionOpen) {
-        const confirm = this.$refs.corpFirstConfirm as InstanceType<typeof ConsoleCorpFirstActionConfirm> | undefined;
+        const confirm = (this.$refs.corpFirstConfirm ?? undefined) as InstanceType<typeof ConsoleCorpFirstActionConfirm> | undefined;
         confirm?.stickScroll(dy);
         return;
       }
       // The «Разыграно» overlay owns the right stick while open (main table
       // or the nested events list — the overlay routes internally).
       if (this.playedTableVisible) {
-        const played = this.$refs.playedOverlay as InstanceType<typeof ConsolePlayedOverlay> | undefined;
+        const played = (this.$refs.playedOverlay ?? undefined) as InstanceType<typeof ConsolePlayedOverlay> | undefined;
         played?.stickScroll(dy);
         return;
       }
@@ -25988,7 +26070,7 @@ export default defineComponent({
      * survive by construction. The first/last page swallows the press.
      */
     turnHandPage(dir: 1 | -1): void {
-      const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+      const hand = (this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
       hand?.turnPage(dir);
     },
     /** The bay spine's own LB/RB chips clicked (mouse door). */
@@ -26058,7 +26140,7 @@ export default defineComponent({
         // end state, then answer the new input from settled geometry.
         finishInstant();
       }
-      const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+      const section = (this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
       // During a CLIENT hand pick the staged (being-played) card is EXCLUDED
       // from the entries, so the episode is safe to run under it — that's how
       // the pick's «suitable only» toggle gets the same physical transition
@@ -26150,7 +26232,7 @@ export default defineComponent({
       // never a reset to the first page (the player keeps their place).
       this.consoleState.handIndex = at >= 0 ? at :
         Math.min(Math.max(0, this.consoleState.handIndex), Math.max(0, list.length - 1));
-      const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+      const hand = (this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
       void this.$nextTick(() => hand?.ensureSelectedVisible());
     },
     /** P15: the sale pick flip, shared by the section's A and the viewer. */
@@ -26528,8 +26610,11 @@ export default defineComponent({
         // A NOTIFICATION-ONLY hold the screen handoff waits for and the task host's admission does not — the class of a
         // card into the dock / a token wave at a sitting's close (the «К драфту» stand: no legacy browser in the wait).
         holdScreen: (ms: number) => {
-          const hold = beginAnimationHold('screen-control-owed', {scope: 'notification-only'});
-          window.setTimeout(() => hold.release(), ms);
+          // The seam's own recovery is its release: a ceiling ends the owed screen exactly as the timer would.
+          const owned: {hold?: AnimationHold} = {};
+          const release = () => owned.hold?.release();
+          owned.hold = beginAnimationHold('screen-control-owed', {scope: 'notification-only', expire: release});
+          window.setTimeout(release, ms);
         },
       };
     }
@@ -26907,7 +26992,7 @@ export default defineComponent({
         }
       },
       restoreScroll: (px) => {
-        (this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined)?.restoreScroll(px);
+        ((this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined)?.restoreScroll(px);
       },
     });
     // Clear any scale-overview tooltip a stray real-mouse hover left showing

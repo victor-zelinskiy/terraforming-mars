@@ -382,7 +382,17 @@ function colonyTradeHolding(): boolean {
     colonyTradeState.phase === 'glide' || colonyTradeState.cardScene !== 'idle';
 }
 
-registerAnimationHoldSupplier('colony-trade', colonyTradeHolding);
+// THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: a trade standing in a scene beat past the ceiling concludes to the
+// committed truth — the transaction's own 60 s ceiling and its liveness rung, run at the hold's ceiling instead.
+registerAnimationHoldSupplier('colony-trade', colonyTradeHolding, {
+  expire: () => {
+    if (!colonyTradeHolding()) {
+      return;
+    }
+    console.warn(`[colony-trade] ${colonyTradeState.colonyName} ${colonyTradeState.phase}/${colonyTradeState.cardScene}: outlived its ceiling — ended`);
+    concludeToCommitted();
+  },
+});
 
 /**
  * The presented colony model: while the transaction FREEZES the traded
@@ -1549,4 +1559,13 @@ export function finishColonyTrackWave(why = 'landed'): void {
 }
 
 /** The wave is a scene beat — notifications queue, the transport's view apply waits, mandatory surfaces wait. */
-registerAnimationHoldSupplier('colony-track-wave', () => colonyTrackWaveState.active);
+registerAnimationHoldSupplier('colony-track-wave', () => colonyTrackWaveState.active, {
+  // A wave past the ceiling ends through its own finish (every hold released, the request resolved) — the net's path.
+  expire: () => {
+    if (!colonyTrackWaveState.active) {
+      return;
+    }
+    console.warn(`[colony-track-wave] wave of ${colonyTrackWaveState.moves.length} tile(s): outlived its ceiling — ended`);
+    finishColonyTrackWave('ceiling');
+  },
+});

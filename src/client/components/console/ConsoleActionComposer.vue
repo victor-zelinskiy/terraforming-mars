@@ -3674,7 +3674,7 @@ export default defineComponent({
         return;
       }
       beginPlayLandingRelease();
-      const el = this.$refs.lawPlaystage as HTMLElement | undefined;
+      const el = (this.$refs.lawPlaystage ?? undefined) as HTMLElement | undefined;
       if (el === undefined || el === null || consoleReducedMotionActive()) {
         if (el !== undefined && el !== null) {
           gsap.set(el, {autoAlpha: 0});
@@ -3698,7 +3698,7 @@ export default defineComponent({
         return;
       }
       this.lawLandingLatched = true;
-      const surface = this.$refs.surfaceEl as HTMLElement | undefined;
+      const surface = (this.$refs.surfaceEl ?? undefined) as HTMLElement | undefined;
       if (surface !== undefined) {
         gsap.killTweensOf(surface);
         gsap.to(surface, {autoAlpha: 0, duration: motionMs(110) / 1000, ease: 'power1.in'});
@@ -3737,7 +3737,7 @@ export default defineComponent({
       if (now) {
         const carry = armPayloadCarry(root.querySelector('.con-composer__branches'));
         void this.$nextTick(() => {
-          const step = this.$refs.targetStep as {rootEl?: () => HTMLElement | undefined, payloadEl?: () => HTMLElement | undefined} | undefined;
+          const step = (this.$refs.targetStep ?? undefined) as {rootEl?: () => HTMLElement | undefined, payloadEl?: () => HTMLElement | undefined} | undefined;
           playPayloadCarry(step?.rootEl?.(), step?.payloadEl?.(), carry);
         });
         return;
@@ -3939,7 +3939,7 @@ export default defineComponent({
           // printed cost, which is where a rail price is absorbed.
           const receipt = stagedVoteReceiptOf(branch);
           const railPrice = receipt !== undefined && isStandardResource(receipt.icon);
-          const standIn = (this.$refs.rootEl as HTMLElement | undefined)?.querySelector('[data-parl-vote-receipt-icon]') ?? undefined;
+          const standIn = ((this.$refs.rootEl ?? undefined) as HTMLElement | undefined)?.querySelector('[data-parl-vote-receipt-icon]') ?? undefined;
           this.playCommitBeat(branch, {...(railPrice ? {resultElsewhere: true} : {spendDepartsElsewhere: true}), heroParked: {price: standIn}});
         }
         return;
@@ -4051,9 +4051,9 @@ export default defineComponent({
       if (!on) {
         return;
       }
-      playConfigRelease(this.$refs.rootEl as HTMLElement | undefined);
+      playConfigRelease((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
       void this.$nextTick(() => {
-        playOutcomePhase(this.$refs.rootEl as HTMLElement | undefined, () => { /* settled */ });
+        playOutcomePhase((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, () => { /* settled */ });
       });
     },
     /**
@@ -4066,7 +4066,7 @@ export default defineComponent({
     outcomeContentIn(landed: boolean) {
       if (landed) {
         void this.$nextTick(() => {
-          playOutcomeContent(this.$refs.rootEl as HTMLElement | undefined);
+          playOutcomeContent((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
         });
       }
     },
@@ -4154,8 +4154,8 @@ export default defineComponent({
     // THE SETTLED COLUMN: centred for the opening composition, pinned from the player's first press — every later change
     // grows downward and slides into place (`settledColumn.ts`; the owner's 4K report of 2026-10-14).
     this.settled = markRaw(new SettledColumn({
-      column: () => this.$refs.actRight as HTMLElement | undefined,
-      block: () => this.$refs.surfaceEl as HTMLElement | undefined,
+      column: () => (this.$refs.actRight ?? undefined) as HTMLElement | undefined,
+      block: () => (this.$refs.surfaceEl ?? undefined) as HTMLElement | undefined,
       active: () => !this.submitting,
     }));
   },
@@ -4327,7 +4327,7 @@ export default defineComponent({
       if (!railRewardPending(key)) {
         return Promise.resolve();
       }
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const wrap = root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
       const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, this.actionGraphicNode) : undefined;
       return flyRailReward(key, (spec) => (anchors === undefined ? undefined : resolveGainIconEnds(anchors, [spec])[0])).then(() => undefined);
@@ -4347,7 +4347,7 @@ export default defineComponent({
       if (!this.forecastCanOpen || this.fxOpen) {
         return;
       }
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       armForecastRow(descendRectOf(root?.querySelector<HTMLElement>('[data-forecast-row]')));
       this.forecastPulse = true;
       window.setTimeout(() => {
@@ -4366,7 +4366,7 @@ export default defineComponent({
     /** Input while the layer is open: B folds one level (the explorer's
      *  dossier first), R3 closes the whole layer, the rest is the explorer's. */
     onForecastIntent(intent: GamepadIntent): void {
-      const explorer = this.$refs.forecastExplorer as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
+      const explorer = (this.$refs.forecastExplorer ?? undefined) as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
       if (intent.kind === 'press' && intent.button === 'stickR') {
         this.closeForecastLayer();
         return;
@@ -4657,7 +4657,7 @@ export default defineComponent({
     },
     /** The commit row's arrival, measured against the root the gate may stand on once it has rendered. */
     arriveAtCommitRow(opening: boolean): void {
-      arriveAtCommit(this.commitArrival, () => this.$refs.rootEl as HTMLElement | undefined, {opening});
+      arriveAtCommit(this.commitArrival, () => (this.$refs.rootEl ?? undefined) as HTMLElement | undefined, {opening});
     },
     /** The commit row's one breath ended (its layer's `animationend` — never a child's animation bubbling up). */
     onCommitBreathEnd(e: AnimationEvent): void {
@@ -5278,13 +5278,13 @@ export default defineComponent({
       }
       if (intent.kind === 'scroll') {
         const step = this.sub?.kind === 'playedTarget' ?
-          this.$refs.targetStep as {scrollBy?: (d: number) => void} | undefined : undefined;
+          (this.$refs.targetStep ?? undefined) as {scrollBy?: (d: number) => void} | undefined : undefined;
         if (step?.scrollBy !== undefined) {
           // The step owns the only scroller on screen while it is open.
           step.scrollBy(Math.sign(intent.dy) * 40);
           return;
         }
-        (this.$refs.scroll as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(intent.dy) * 40);
+        ((this.$refs.scroll ?? undefined) as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(intent.dy) * 40);
         return;
       }
       if (intent.kind === 'nav') {
@@ -5326,7 +5326,7 @@ export default defineComponent({
       if (this.sub?.kind === 'venus') {
         // THE NESTED CARD PICK walks the selector's own boxes (`ConsoleVenusBonusStep.pickNav`).
         if (this.sub.focus.zone === 'pick') {
-          (this.$refs.venusStep as VenusBonusStepApi | undefined)?.pickNav(dir as PlayedTargetNavDir);
+          ((this.$refs.venusStep ?? undefined) as VenusBonusStepApi | undefined)?.pickNav(dir as PlayedTargetNavDir);
           return;
         }
         const c = this.venusSubChoice;
@@ -5443,7 +5443,7 @@ export default defineComponent({
       if (sub?.kind !== 'wild' || focus === undefined || d === undefined) {
         return;
       }
-      const step = this.$refs.wildTargetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>, ensureFocusVisible?: () => void} | undefined;
+      const step = (this.$refs.wildTargetStep ?? undefined) as {cells?: () => ReadonlyArray<PlayedTargetCell>, ensureFocusVisible?: () => void} | undefined;
       const cells = step?.cells?.() ?? [];
       const next = cells.length > 0 ? stepPlayedTargetFocusVia(step, focus, d, cells) : undefined;
       if (next === undefined) {
@@ -5483,7 +5483,7 @@ export default defineComponent({
       if (model === undefined || candidate === undefined || candidate.stand !== undefined) {
         return;
       }
-      openPlayedTargetZoom({model, cardName: candidate.cardName, getRoot: () => this.$refs.rootEl as HTMLElement | undefined});
+      openPlayedTargetZoom({model, cardName: candidate.cardName, getRoot: () => (this.$refs.rootEl ?? undefined) as HTMLElement | undefined});
     },
     openWildStep(item?: {id: string, step?: number}): void {
       if (item?.step !== undefined) {
@@ -5606,7 +5606,7 @@ export default defineComponent({
       }
       const before = this.venusPartsOf(c);
       // THE NESTED CARD PICK: LB/RB turn its page, A answers with the selector's focused card.
-      const step = this.$refs.venusStep as VenusBonusStepApi | undefined;
+      const step = (this.$refs.venusStep ?? undefined) as VenusBonusStepApi | undefined;
       if (sub.focus.zone === 'pick' && (verb === 'prevSection' || verb === 'nextSection')) {
         step?.pickTurn(verb === 'nextSection' ? 1 : -1);
         return;
@@ -5833,7 +5833,7 @@ export default defineComponent({
     /** The law's SETUP stands again (a refused scene, B out of a staged step): the slot as it was, nothing latched. */
     restoreLawSetup(): void {
       this.lawLandingLatched = false;
-      const surface = this.$refs.surfaceEl as HTMLElement | undefined;
+      const surface = (this.$refs.surfaceEl ?? undefined) as HTMLElement | undefined;
       if (surface !== undefined) {
         gsap.killTweensOf(surface);
         gsap.set(surface, {clearProps: 'opacity,visibility'});
@@ -6075,7 +6075,7 @@ export default defineComponent({
       // Measure the band ONCE, before the step is visible, and measure it where
       // the layout is STRETCHED: the work column's width is the band's, and the
       // row above it is the only box here whose height the cards cannot move.
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const zone = root?.querySelector<HTMLElement>('.con-composer__actright');
       if (zone !== null && zone !== undefined) {
         this.playedTargetWidth = zone.clientWidth;
@@ -6223,7 +6223,7 @@ export default defineComponent({
       if (d === undefined) {
         return;
       }
-      const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
+      const step = (this.$refs.targetStep ?? undefined) as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
       const cells = step?.cells?.() ?? [];
       const next = cells.length > 0 ?
         stepPlayedTargetFocusVia(step, this.sub.focus, d, cells) :
@@ -6237,7 +6237,7 @@ export default defineComponent({
     /** The STEP owns its candidate viewport — the rail and the contract sit
      *  outside it, so this never moves them. */
     scrollPlayedTargetFocused(): void {
-      (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+      ((this.$refs.targetStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
     },
     /** LB/RB — the owner axis, tabbed mode only (in split both groups are on
      *  screen and the d-pad crosses between them spatially). */
@@ -6380,7 +6380,7 @@ export default defineComponent({
       // every card carries its TARGET DOSSIER (what lies on it, what this move does to it). Scoped to this composer's own
       // root, never `document`.
       if (this.playedTargetModel !== undefined) {
-        openPlayedTargetZoom({model: this.playedTargetModel, cardName: candidate.cardName, getRoot: () => this.$refs.rootEl as HTMLElement | undefined});
+        openPlayedTargetZoom({model: this.playedTargetModel, cardName: candidate.cardName, getRoot: () => (this.$refs.rootEl ?? undefined) as HTMLElement | undefined});
       }
     },
     /** The summary of an answered played-target choice (undefined = unanswered
@@ -6590,7 +6590,7 @@ export default defineComponent({
             const turned = turnPlayedTargetPageVia(this.$refs.wildTargetStep, this.wildTargetFocusShown, action === 'nextSection' ? 1 : -1);
             if (turned !== undefined) {
               this.wildTargetFocusRaw = turned;
-              (this.$refs.wildTargetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+              ((this.$refs.wildTargetStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
             }
             return;
           }
@@ -6606,7 +6606,7 @@ export default defineComponent({
       }
       if (sub.kind === 'venus') {
         if (action === 'inspect' && sub.focus.zone === 'pick') {
-          (this.$refs.venusStep as VenusBonusStepApi | undefined)?.pickInspect();
+          ((this.$refs.venusStep ?? undefined) as VenusBonusStepApi | undefined)?.pickInspect();
           return;
         }
         if (action === 'primary' || action === 'back' || action === 'prevSection' || action === 'nextSection' || action === 'nextTab') {
@@ -6873,7 +6873,7 @@ export default defineComponent({
     },
     /** What the Parliament takes the stage from — the hero column and the decision column together (its zone is their sibling). */
     setupLayers(): Array<HTMLElement> {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       return Array.from(root?.querySelectorAll<HTMLElement>('.con-composer__actmain') ?? []);
     },
     cancelSetupFades(): void {
@@ -6898,7 +6898,7 @@ export default defineComponent({
     releaseSetupForParliament(): void {
       this.cancelSetupFades();
       const token = ++this.parliamentReleaseToken;
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       if (consoleReducedMotionActive() || root === undefined) {
         this.parliamentSetupParked = true;
         return;
@@ -7048,7 +7048,7 @@ export default defineComponent({
     },
     /** A chips row's wave: born on the row's printed bonus, landing on the rail — the counter ticks on the touchdown. */
     flyLedgerRow(row: PayoutRow): void {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const card = this.sourceKey;
       const landed = (): void => {
         row.state = 'paid';
@@ -7174,7 +7174,7 @@ export default defineComponent({
         ...stageSpecs,
         ...(kind === 'draw' ? [] : discardSpecs),
       ];
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const wrap = opts.heroParked !== undefined ? undefined : root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
       const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, this.actionGraphicNode) : undefined;
       // The ORIGINS ARE OBJECTS (T06 «оба конца живые»): each printed icon is re-measured at its token's birth — the
@@ -7379,13 +7379,13 @@ export default defineComponent({
       // «ALL YOUR COLONY BONUSES»: the ledger is FROZEN as the player read it — the rows that pay are these rows,
       // and so is the surface's box (measured NOW, in the layout the player pressed in).
       this.ledgerFrozen = branch.colonyBonuses;
-      const surface = this.$refs.surfaceEl as HTMLElement | undefined;
+      const surface = (this.$refs.surfaceEl ?? undefined) as HTMLElement | undefined;
       this.ledgerSurfaceHeight = branch.colonyBonuses !== undefined && surface !== undefined && typeof getComputedStyle === 'function' ?
         getComputedStyle(surface).height : '';
-      this.ledgerBodyPin = branch.colonyBonuses !== undefined ? bodyBlockPin(this.$refs.bodyEl as HTMLElement | undefined) : '';
+      this.ledgerBodyPin = branch.colonyBonuses !== undefined ? bodyBlockPin((this.$refs.bodyEl ?? undefined) as HTMLElement | undefined) : '';
       // Capture the configuration surface's box NOW — the outcome unfolds from
       // it, and by the time that zone mounts this surface is already gone.
-      armOutcomeOrigin(this.$refs.rootEl as HTMLElement | undefined);
+      armOutcomeOrigin((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
       // ── ACTION COMMIT — the universal activation beat. Armed and MEASURED
       //    synchronously at the press (the reward-wave origins are the live
       //    icon rects; the flight must never depend on this stage outliving
@@ -7436,9 +7436,9 @@ export default defineComponent({
       this.revealStage = 'pending';
       this.revealFlightOn = true;
       void this.$nextTick(() => {
-        const proxy = this.$refs.revealProxy as HTMLElement | undefined;
-        const flip = this.$refs.revealFlip as HTMLElement | undefined;
-        const slot = this.$refs.revealSlot as HTMLElement | undefined;
+        const proxy = (this.$refs.revealProxy ?? undefined) as HTMLElement | undefined;
+        const flip = (this.$refs.revealFlip ?? undefined) as HTMLElement | undefined;
+        const slot = (this.$refs.revealSlot ?? undefined) as HTMLElement | undefined;
         if (proxy === undefined || flip === undefined || slot === undefined) {
           // No stage to fly on (test runner / torn-down DOM): degrade to the
           // instant path — the outcome shows the moment the payload lands.
@@ -7485,11 +7485,11 @@ export default defineComponent({
       }
       this.revealGainFlying = true;
       void this.$nextTick(() => {
-        const el = this.$refs.gainFly as HTMLElement | undefined;
-        const from = this.$refs.revealSlot as HTMLElement | undefined;
+        const el = (this.$refs.gainFly ?? undefined) as HTMLElement | undefined;
+        const from = (this.$refs.revealSlot ?? undefined) as HTMLElement | undefined;
         // The explicit root ref — NEVER $el (a dev-build root comment makes
         // the template a fragment, whose $el is a Comment node).
-        const root = this.$refs.rootEl as HTMLElement | undefined;
+        const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
         const to = root?.querySelector<HTMLElement>('.con-composer__actcard .pcard__res');
         if (el === undefined || from === undefined || to === null || to === undefined) {
           this.applyRevealGain();
@@ -7576,7 +7576,7 @@ export default defineComponent({
      * visible jump; with it the swap is a zero-distance cross-over.
      */
     fitBeatStage(): void {
-      const row = this.$refs.beatRow as HTMLElement | undefined;
+      const row = (this.$refs.beatRow ?? undefined) as HTMLElement | undefined;
       const probe = row?.querySelector<HTMLElement>('.con-cards__slot');
       if (row === undefined || row === null || probe === null || probe === undefined ||
           typeof window === 'undefined') {
@@ -7664,7 +7664,7 @@ export default defineComponent({
         return;
       }
       this.clearBeatAnswerNet();
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       if (root === undefined) {
         // No stage to fly on (JSDOM / torn-down layout): never withhold the
         // outcome behind an animation that cannot run.
@@ -7856,7 +7856,7 @@ export default defineComponent({
     },
     /** The merged batch's assembly on the prepared stage (the composer is the host: its proxies, its slots, its triggers). */
     launchBeatAssembly(e: DrawnCardEntry, cards: ReadonlyArray<{proxy: HTMLElement, flip: HTMLElement}>, slots: ReadonlyArray<HTMLElement>): void {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const host = {
         stageRect: () => {
           const r = (root?.closest('.con-ws') ?? root)?.getBoundingClientRect();
@@ -7946,7 +7946,7 @@ export default defineComponent({
         probeTick(() => probeTick(() => markWorkspaceOutcomeArrivalDone()));
       };
       const proxies = asElements(this.$refs.batchProxies);
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       if (proxies.length === 0 || root === undefined || typeof window === 'undefined') {
         clear();
         return;
@@ -8019,8 +8019,8 @@ export default defineComponent({
       this.revealHandingOff = true;
       runRevealHandoff({
         reveal: payload,
-        slot: this.$refs.revealSlot as HTMLElement | undefined,
-        verdict: this.$refs.verdictSlot as HTMLElement | undefined,
+        slot: (this.$refs.revealSlot ?? undefined) as HTMLElement | undefined,
+        verdict: (this.$refs.verdictSlot ?? undefined) as HTMLElement | undefined,
         onDetached: () => this.$emit('reveal-ack'),
       });
     },
@@ -8034,7 +8034,7 @@ export default defineComponent({
       openConsoleCardZoom([payload.revealed], 0, undefined, undefined, {
         contextLabel: 'Reveal result',
         origin: slotZoomOrigin(
-          () => this.$refs.rootEl as HTMLElement | undefined,
+          () => (this.$refs.rootEl ?? undefined) as HTMLElement | undefined,
           () => 'revealed:' + payload.revealed.name),
       });
     },
@@ -8051,13 +8051,13 @@ export default defineComponent({
         // template ref — the panel stays purely presentational.
         if (this.payExpanded) {
           const row = (this.$el as HTMLElement | undefined)?.querySelector('.con-payrow--focused');
-          (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(row);
+          ((this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(row);
           return;
         }
         // A variant tile carries no template ref (the group renders them) — it is located by its rendered focus class.
         if (this.focusedItem?.kind === 'branch') {
           const tile = this.branchesRoot()?.querySelector('.con-vchoice__opt--focused');
-          (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(tile);
+          ((this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(tile);
           return;
         }
         // A NESTED LIST (a pick / an `or` step's options) replaces the main
@@ -8065,20 +8065,20 @@ export default defineComponent({
         // cursored option is found by its rendered focus class.
         if (this.sub?.kind === 'list' || this.sub?.kind === 'orNested') {
           const opt = (this.$el as HTMLElement | undefined)?.querySelector('.con-composer__sublist .con-vchoice__opt--focused');
-          (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(opt);
+          ((this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(opt);
           return;
         }
-        const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;
+        const el = (this.$refs.focusedEl ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
         const node = Array.isArray(el) ? el[0] : el;
         // Foundation: keep the focused row visible via the ConsoleScrollArea's
         // own viewport math (never scrollIntoView — it can walk outer scroll
         // ancestors).
-        (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
+        ((this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });
     },
     /** The variant group's root element (the ref is a component). */
     branchesRoot(): HTMLElement | undefined {
-      const ref = this.$refs.branchesEl as {$el?: unknown} | HTMLElement | undefined | null;
+      const ref = (this.$refs.branchesEl ?? undefined) as {$el?: unknown} | HTMLElement | undefined | null;
       const el = ref instanceof HTMLElement ? ref : (ref as {$el?: unknown} | undefined | null)?.$el;
       return el instanceof HTMLElement ? el : undefined;
     },

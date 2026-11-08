@@ -449,7 +449,7 @@ export default defineComponent({
     /** The destination column element — the `ref` sits inside the row's
      *  `v-for`, so Vue 3 collects it as an ARRAY of one. */
     destEl(): HTMLElement | undefined {
-      const r = this.$refs.dest as HTMLElement | ReadonlyArray<HTMLElement> | undefined;
+      const r = (this.$refs.dest ?? undefined) as HTMLElement | ReadonlyArray<HTMLElement> | undefined;
       const el = Array.isArray(r) ? r[0] : r;
       return el === null ? undefined : (el as HTMLElement | undefined);
     },
@@ -605,7 +605,7 @@ export default defineComponent({
       if (minis.length > 0) {
         // Neighbours follow OUTWARD from the destination's slot — the table
         // spreads from where the eye already is.
-        const row = this.$refs.row as HTMLElement | undefined;
+        const row = (this.$refs.row ?? undefined) as HTMLElement | undefined;
         const destIdx = row !== undefined && dest !== undefined ?
           Math.max(0, Array.from(row.children).indexOf(dest)) : 0;
         gsap.fromTo(minis,
@@ -765,7 +765,7 @@ export default defineComponent({
      */
     emergePresentationRow(els: ReadonlyArray<HTMLElement>, homes: ReadonlyArray<{x: number, y: number, w: number, h: number}>): Array<{x: number, y: number, scale: number}> {
       const root = (this.$el as HTMLElement).getBoundingClientRect();
-      const row = (this.$refs.row as HTMLElement | undefined)?.getBoundingClientRect();
+      const row = ((this.$refs.row ?? undefined) as HTMLElement | undefined)?.getBoundingClientRect();
       const w = els[0].offsetWidth;
       const h = els[0].offsetHeight;
       const gap = 22 * conUiScale();

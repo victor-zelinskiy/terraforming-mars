@@ -300,7 +300,18 @@ export function colonyBonusFreshFor(
  * the receiving card while its floater was still on the way, and the card
  * left the stage with the chip aimed at where it had been.
  */
-registerAnimationHoldSupplier('colony-card-scene', () => colonyResolutionUi.cardSceneLive);
+registerAnimationHoldSupplier('colony-card-scene', () => colonyResolutionUi.cardSceneLive, {
+  // THE CEILING ENDS THE WEDGE: a presented card scene that never let go (its chip never landed, its net never fired)
+  // takes the stage's own release — the same write its teardown makes — and the section's falling-edge watcher then
+  // completes the colony flow exactly as on the scene's ordinary end. The reward itself is the view's truth already.
+  expire: () => {
+    if (!colonyResolutionUi.cardSceneLive) {
+      return;
+    }
+    console.warn('[colony-resolution] presented card scene: outlived its ceiling — ended');
+    colonyResolutionUi.cardSceneLive = false;
+  },
+});
 
 export function noticeColonyResolutionDiscard(): void {
   colonyResolutionUi.discarded++;

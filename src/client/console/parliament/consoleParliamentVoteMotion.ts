@@ -557,9 +557,15 @@ export function parkParliamentBody(root: Element | null | undefined): void {
 
 // ── the delegate's flight (a figure from its place on the zone onto the card) ──
 
+/**
+ * A running flight. HOWEVER IT ENDS, ITS CALLER HEARS IT ONCE: `kill()` hides the proxy and SETTLES every callback the
+ * flight still owes (`onLifted` → `onDeparted` → `onLanded`, each at most once — a touchdown that already fired never
+ * fires again) — a director waiting on the touchdown must never wedge because the flight was cut instead of landing.
+ * `kill({silent: true})` is the one exception: the caller is tearing its whole scene (or run) down and settles its own
+ * state by name, so the owed callbacks are forgotten unfired.
+ */
 export type CubeFlightHandle = {
-  /** Abort: the proxy vanishes, the callbacks never fire. */
-  kill: () => void;
+  kill: (opts?: {silent?: boolean}) => void;
   tween: gsap.core.Timeline;
 };
 
@@ -636,6 +642,13 @@ export function runDelegateFlight(args: CubeFlightArgs): CubeFlightHandle {
   write(delegateFlightPose(plan, 0, boxH));
   let landed = false;
   let departed = false;
+  let lifted = false;
+  const lift = () => {
+    if (!lifted) {
+      lifted = true;
+      args.onLifted?.();
+    }
+  };
   const land = () => {
     if (landed) {
       return;
@@ -647,7 +660,7 @@ export function runDelegateFlight(args: CubeFlightArgs): CubeFlightHandle {
   };
   const prog = {p: 0};
   const tl = gsap.timeline();
-  tl.call(() => args.onLifted?.(), undefined, 0.001);
+  tl.call(lift, undefined, 0.001);
   const leadIn = Math.max(0.02, args.leadInS ?? 0.02);
   tl.to(prog, {
     p: 1,
@@ -678,13 +691,21 @@ export function runDelegateFlight(args: CubeFlightArgs): CubeFlightHandle {
   }, leadIn);
   return {
     tween: tl,
-    kill: () => {
+    kill: (opts = {}) => {
       tl.kill();
+      if (opts.silent === true) {
+        landed = true;
+      } else {
+        // Cut, not landed: the caller still hears the lift, the leave and the touchdown — once each (the handle's law).
+        lift();
+        if (!departed) {
+          departed = true;
+          args.onDeparted?.();
+        }
+        land();
+      }
       gsap.set(proxy, {autoAlpha: 0});
       rest();
-      if (!landed) {
-        landed = true;
-      }
     },
   };
 }
@@ -719,6 +740,13 @@ function runProxyFlight(args: CubeFlightArgs): CubeFlightHandle {
   const arc = reduced ? 0 : (args.arcPx ?? descendPx(14));
   let landed = false;
   let departed = false;
+  let lifted = false;
+  const lift = () => {
+    if (!lifted) {
+      lifted = true;
+      args.onLifted?.();
+    }
+  };
   // TOUCHDOWN is called on the frame the cube reaches its place — the eased
   // tail of the glide (its last 1.5 %, a couple of pixels) is snapped, so the
   // counters tick when the cube visibly stops, never a beat after.
@@ -732,7 +760,7 @@ function runProxyFlight(args: CubeFlightArgs): CubeFlightHandle {
   };
   const prog = {p: 0};
   const tl = gsap.timeline();
-  tl.call(() => args.onLifted?.(), undefined, 0.001);
+  tl.call(lift, undefined, 0.001);
   const leadIn = Math.max(0.02, args.leadInS ?? 0.02);
   tl.to(prog, {
     p: 1,
@@ -766,12 +794,20 @@ function runProxyFlight(args: CubeFlightArgs): CubeFlightHandle {
   }, leadIn);
   return {
     tween: tl,
-    kill: () => {
+    kill: (opts = {}) => {
       tl.kill();
-      gsap.set(proxy, {autoAlpha: 0});
-      if (!landed) {
+      if (opts.silent === true) {
         landed = true;
+      } else {
+        // Cut, not landed: the caller still hears the lift, the leave and the touchdown — once each (the handle's law).
+        lift();
+        if (!departed) {
+          departed = true;
+          args.onDeparted?.();
+        }
+        land();
       }
+      gsap.set(proxy, {autoAlpha: 0});
     },
   };
 }

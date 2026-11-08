@@ -878,12 +878,12 @@ export default defineComponent({
         return true;
       }
       if (this.overlay?.kind === 'carryover') {
-        const picker = this.$refs.carryPicker as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const picker = (this.$refs.carryPicker ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         picker?.handleIntent?.(intent);
         return true;
       }
       if (this.overlay?.kind === 'bidding') {
-        const stage = this.$refs.biddingStage as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const stage = (this.$refs.biddingStage ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         stage?.handleIntent?.(intent);
         return true;
       }
@@ -1100,7 +1100,7 @@ export default defineComponent({
     },
     /** THE ENTRY: the terminal hand arrives from the viewer's seat row (the cards of your hand from the mission just played). */
     dealCarryIn(): void {
-      const picker = this.$refs.carryPicker as {dealIn?: (from: DOMRect | undefined) => void} | undefined;
+      const picker = (this.$refs.carryPicker ?? undefined) as {dealIn?: (from: DOMRect | undefined) => void} | undefined;
       const row = (this.$el as HTMLElement | undefined)?.querySelector?.<HTMLElement>('[data-cmap-seat-you]');
       picker?.dealIn?.(row?.getBoundingClientRect());
     },
@@ -1180,7 +1180,7 @@ export default defineComponent({
         return;
       }
       // ARM → DETECT: the kept faces are measured before the POST; only a confirmed answer flies them.
-      const picker = this.$refs.carryPicker as {keptFaces?: () => Map<CardName, {el: HTMLElement, rect: DOMRect}>} | undefined;
+      const picker = (this.$refs.carryPicker ?? undefined) as {keptFaces?: () => Map<CardName, {el: HTMLElement, rect: DOMRect}>} | undefined;
       const kept = picker?.keptFaces?.() ?? new Map<CardName, {el: HTMLElement, rect: DOMRect}>();
       const ok = await submitCampaignCarryover(playerId, this.carryDraft, this.preludeDraft);
       if (ok) {

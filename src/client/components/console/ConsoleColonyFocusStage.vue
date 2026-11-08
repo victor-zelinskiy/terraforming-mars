@@ -2509,7 +2509,7 @@ export default defineComponent({
         return;
       }
       this.unreceding = true;
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const done = () => {
         this.unreceding = false;
         root?.removeEventListener('transitionend', onEnd);
@@ -3062,11 +3062,11 @@ export default defineComponent({
       this.pulseCall = pulseForecastDoor((on) => {
         this.forecastPulse = on;
       }, this.pulseCall);
-      openForecastHost('colony', this.$refs.rootEl as HTMLElement | undefined, this.forecastOwnerColors, this.statsView);
+      openForecastHost('colony', (this.$refs.rootEl ?? undefined) as HTMLElement | undefined, this.forecastOwnerColors, this.statsView);
     },
     /** Input while the layer is open: B folds one level (the explorer's dossier first), R3 closes the whole layer. */
     onForecastIntent(intent: GamepadIntent): void {
-      forecastHostIntent('colony', intent, this.$refs.forecastLayer as InstanceType<typeof ConsoleForecastLayer> | undefined);
+      forecastHostIntent('colony', intent, (this.$refs.forecastLayer ?? undefined) as InstanceType<typeof ConsoleForecastLayer> | undefined);
     },
     onNav(dir: NavDirection): void {
       if (this.sub === 'lanes') {
@@ -3080,7 +3080,7 @@ export default defineComponent({
       if (this.sub === 'venus') {
         // THE NESTED CARD PICK walks the selector's own boxes (`ConsoleVenusBonusStep.pickNav`).
         if (this.venusFocus.zone === 'pick') {
-          (this.$refs.venusStep as VenusBonusStepApi | undefined)?.pickNav(dir as PlayedTargetNavDir);
+          ((this.$refs.venusStep ?? undefined) as VenusBonusStepApi | undefined)?.pickNav(dir as PlayedTargetNavDir);
           return;
         }
         const meta = venusBonusMetaOf(this.venusStepInput);
@@ -3194,7 +3194,7 @@ export default defineComponent({
         return;
       }
       // THE NESTED CARD PICK: LB/RB turn its page, A answers with the selector's focused card.
-      const step = this.$refs.venusStep as VenusBonusStepApi | undefined;
+      const step = (this.$refs.venusStep ?? undefined) as VenusBonusStepApi | undefined;
       if (this.venusFocus.zone === 'pick' && (verb === 'prevSection' || verb === 'nextSection')) {
         step?.pickTurn(verb === 'nextSection' ? 1 : -1);
         return;
@@ -3239,7 +3239,7 @@ export default defineComponent({
       // unit, RT the rest, B back to the decisions with the draft kept.
       if (this.sub === 'venus') {
         if (action === 'inspect' && this.venusFocus.zone === 'pick') {
-          (this.$refs.venusStep as VenusBonusStepApi | undefined)?.pickInspect();
+          ((this.$refs.venusStep ?? undefined) as VenusBonusStepApi | undefined)?.pickInspect();
           return;
         }
         if (action === 'primary' || action === 'back' || action === 'prevSection' || action === 'nextSection' || action === 'nextTab') {
@@ -3426,7 +3426,7 @@ export default defineComponent({
       }
       this.fitRaf = window.requestAnimationFrame(() => {
         this.fitRaf = undefined;
-        const root = this.$refs.rootEl as HTMLElement | undefined;
+        const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
         const surface = root?.querySelector<HTMLElement>('.con-colfocus__surface');
         if (root === undefined || root === null || surface === null || surface === undefined) {
           return;
@@ -3467,7 +3467,7 @@ export default defineComponent({
         }
         this.scrollFocusedIntoView();
       };
-      const step = this.$refs.targetStep as {close?: (done: () => void) => void} | undefined;
+      const step = (this.$refs.targetStep ?? undefined) as {close?: (done: () => void) => void} | undefined;
       if (step?.close !== undefined) {
         step.close(drop);
       } else {
@@ -3476,7 +3476,7 @@ export default defineComponent({
     },
     /** The step's own grammar, reached through its host (the shared selector lives there). */
     targetStepHost(): TradeTargetStepHandle | undefined {
-      return this.$refs.targetStep as TradeTargetStepHandle | undefined;
+      return (this.$refs.targetStep ?? undefined) as TradeTargetStepHandle | undefined;
     },
     targetNav(dir: NavDirection): void {
       this.targetStepHost()?.nav(dir);
@@ -3627,11 +3627,11 @@ export default defineComponent({
     },
     scrollFocusedIntoView(): void {
       void this.$nextTick(() => {
-        const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;
+        const el = (this.$refs.focusedEl ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
         // A focused PAY row lives in the shared rows component — it hands its own element over.
-        const payRow = (this.$refs.payRows as {focusedEl?: () => HTMLElement | undefined} | undefined)?.focusedEl?.();
+        const payRow = ((this.$refs.payRows ?? undefined) as {focusedEl?: () => HTMLElement | undefined} | undefined)?.focusedEl?.();
         const node = payRow ?? (Array.isArray(el) ? el[0] : el);
-        (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
+        ((this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });
     },
     emitConfirm(): void {
@@ -3721,7 +3721,7 @@ export default defineComponent({
       // the follow-up opens from the track/config box, not from the whole
       // panel (an origin larger than the zone clips to nothing and the unfold
       // silently degrades into a fade).
-      armOutcomeOriginFrom(this.$refs.mainEl as HTMLElement | undefined);
+      armOutcomeOriginFrom((this.$refs.mainEl ?? undefined) as HTMLElement | undefined);
       // A mix fee pins the ACTUAL dialed composition into the held row — the
       // entry's own preview is the energy-first default and would misreport
       // a commit that spends steel.
@@ -3740,7 +3740,7 @@ export default defineComponent({
     this.measureFit();
     // The RESPONSIVE path: the band itself changing (a profile switch, the
     // rail lifting, a font settling) — never a manual window listener.
-    const root = this.$refs.rootEl as HTMLElement | undefined;
+    const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
     if (root !== undefined && root !== null) {
       this.stopFitObs = useResizeObserver(root, () => this.measureFit()).stop;
     }

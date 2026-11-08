@@ -228,7 +228,7 @@ export default defineComponent({
       return style;
     },
     measure(): void {
-      const el = this.$refs.root as HTMLElement | undefined;
+      const el = (this.$refs.root ?? undefined) as HTMLElement | undefined;
       if (el === undefined) {
         return;
       }

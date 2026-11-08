@@ -144,7 +144,7 @@ export default defineComponent({
     // The RESPONSIVE path. The frame is `inset: 0` of the band, so its own box
     // changes with every layout change that could move either anchor — which
     // makes it the one honest thing to observe.
-    const frame = this.$refs.frame as HTMLElement | undefined;
+    const frame = (this.$refs.frame ?? undefined) as HTMLElement | undefined;
     if (frame !== undefined) {
       this.stopResizeObs = useResizeObserver(frame, () => this.scheduleMeasure()).stop;
     }
@@ -182,7 +182,7 @@ export default defineComponent({
       });
     },
     measure(): void {
-      const frame = this.$refs.frame as HTMLElement | undefined;
+      const frame = (this.$refs.frame ?? undefined) as HTMLElement | undefined;
       if (frame === undefined || !this.link.present) {
         this.wire = undefined;
         return;

@@ -325,7 +325,7 @@ export default defineComponent({
     openZoom(name: CardName): void {
       this.zoomCard = this.cardModelFor(name);
       nextTick(() => {
-        (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
+        ((this.$refs.zoomModal ?? undefined) as {show?: () => void} | undefined)?.show?.();
       });
     },
     close(): void {

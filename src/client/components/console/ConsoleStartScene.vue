@@ -5567,7 +5567,7 @@ export default defineComponent({
     void this.$nextTick(() => {
       this.fitCardStrip();
       this.syncCeremonyLayout();
-      registerStartDockLayer(this.$refs.dockLayer as HTMLElement | undefined);
+      registerStartDockLayer((this.$refs.dockLayer ?? undefined) as HTMLElement | undefined);
     });
     // (The hero's landing target — the compact played dock's reserved front
     // anchor — is registered by ConsoleStartPlayedDock itself on its mount.)
@@ -5681,7 +5681,7 @@ export default defineComponent({
       // An UNMOUNTED ref reads `null`, never `undefined` (Vue clears it so): read as «no queue» — `observe(null)` threw
       // inside the watcher's flush on every queue change past the deployment (the owner's export of 2026-10-31 22:16,
       // the fourth inside `openHandWithReveal`).
-      const ref = this.$refs.queueEl as HTMLElement | null | undefined;
+      const ref = (this.$refs.queueEl ?? undefined) as HTMLElement | null | undefined;
       const el = ref instanceof Element ? ref : undefined;
       if (el === queueBoxObserved) {
         return;
@@ -5757,7 +5757,7 @@ export default defineComponent({
     /** The pane element a rail position renders in (steps / the summary). */
     paneElAt(pos: number): HTMLElement | undefined {
       if (pos >= this.steps.length) {
-        const summary = this.$refs.summaryPane as HTMLElement | undefined;
+        const summary = (this.$refs.summaryPane ?? undefined) as HTMLElement | undefined;
         return summary ?? undefined;
       }
       return this.paneEls[pos];
@@ -5829,8 +5829,8 @@ export default defineComponent({
      * fly to, and every one of them degraded into «just appear».
      */
     async prewarmSummary(): Promise<void> {
-      const frameEl = this.$refs.frame as HTMLElement | undefined;
-      const body = this.$refs.body as HTMLElement | undefined;
+      const frameEl = (this.$refs.frame ?? undefined) as HTMLElement | undefined;
+      const body = (this.$refs.body ?? undefined) as HTMLElement | undefined;
       if (frameEl !== undefined && frameEl !== null && body !== undefined && body !== null &&
           typeof body.getBoundingClientRect === 'function') {
         const fr = frameEl.getBoundingClientRect();
@@ -6055,7 +6055,7 @@ export default defineComponent({
       // ⑤ THE COMMIT. The summary becomes the stage while every tile is still
       // empty — so there is never a frame with two card surfaces on it.
       setStartTransitionPhase('committing-stage');
-      const summaryPane = this.$refs.summaryPane as HTMLElement | undefined;
+      const summaryPane = (this.$refs.summaryPane ?? undefined) as HTMLElement | undefined;
       this.holdPaneForReveal(summaryPane);
       // ONE TICK, again: on the summary every pile's target drops to 0, but
       // the earlier steps' cards are still physically LYING there until they
@@ -6222,14 +6222,14 @@ export default defineComponent({
         await Promise.all([homeCapture.impulse(), stowCapture.impulse()]);
         setStartTransitionPhase('lifting-selection');
         setStartTransitionPhase('parking-current-surface');
-        await parkSurface(this.$refs.summaryPane as HTMLElement | undefined, -1);
+        await parkSurface((this.$refs.summaryPane ?? undefined) as HTMLElement | undefined, -1);
         // The receiving table first, exactly as in the step→step return.
         setStartTransitionPhase('committing-previous-stage');
         stowGroups.forEach((g) => driftDockPile(g.st.id, -g.names.length));
         this.holdPaneForReveal(this.paneElAt(target));
         this.state.stepIdx = target;
         await this.$nextTick();
-        clearSurfaceParking(this.$refs.summaryPane as HTMLElement | undefined);
+        clearSurfaceParking((this.$refs.summaryPane ?? undefined) as HTMLElement | undefined);
         this.fitCardStrip();
         setStartTransitionPhase('revealing-previous-surface');
         await this.revealPane(target, -1);
@@ -6334,7 +6334,7 @@ export default defineComponent({
       // THE «ЭФФЕКТЫ» LAYER owns the pad while it stands; R3 on the standing first-action briefing opens it (TR81 — the
       // forecast's law 9: every surface that draws the table's answer is a door). Resolved before the semantic map.
       if (this.firstActionFxOpen) {
-        forecastHostIntent('start', intent, this.$refs.forecastLayer as InstanceType<typeof ConsoleForecastLayer> | undefined);
+        forecastHostIntent('start', intent, (this.$refs.forecastLayer ?? undefined) as InstanceType<typeof ConsoleForecastLayer> | undefined);
         return;
       }
       if (intent.kind === 'press' && intent.button === 'stickR' && this.firstActionForecastCanOpen) {
@@ -6457,7 +6457,7 @@ export default defineComponent({
         }, motionMs(120));
         return;
       }
-      const layer = this.$refs.dealLayer as InstanceType<typeof ConsoleCardDealLayer> | undefined;
+      const layer = (this.$refs.dealLayer ?? undefined) as InstanceType<typeof ConsoleCardDealLayer> | undefined;
       if (layer === undefined) {
         this.deal.dispose();
         return;
@@ -6473,7 +6473,7 @@ export default defineComponent({
       } else {
         // CEREMONY: drawn candidates deal into their QUEUE slots (the deck
         // deals — cards received into the queue arrive physically).
-        const row = this.$refs.queueEl as HTMLElement | undefined;
+        const row = (this.$refs.queueEl ?? undefined) as HTMLElement | undefined;
         if (row === undefined || row === null) {
           this.deal.dispose();
           return;
@@ -6914,7 +6914,7 @@ export default defineComponent({
      *  as large as the room allows, minus the caption row and the read-only
      *  note line). */
     fitLegacyView(): void {
-      const pane = this.$refs.legacyPane as HTMLElement | undefined;
+      const pane = (this.$refs.legacyPane ?? undefined) as HTMLElement | undefined;
       if (pane === undefined) {
         return;
       }
@@ -7065,7 +7065,7 @@ export default defineComponent({
       }
     },
     scrollFocusedIntoView(): void {
-      const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
+      const slot = (this.$refs.focusedCardSlot ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
       const el = Array.isArray(slot) ? slot[0] : slot;
       if (el !== undefined && el !== null) {
         // The single ROW is fit-to-width (fitCardStrip) + the candidate rows
@@ -7199,7 +7199,7 @@ export default defineComponent({
       if (consoleReducedMotionActive() || this.matFrozen) {
         return;
       }
-      const host = this.$refs.freezeHost as HTMLElement | undefined;
+      const host = (this.$refs.freezeHost ?? undefined) as HTMLElement | undefined;
       const root = this.sceneRoot();
       const frame = root?.querySelector<HTMLElement>('.con-start__frame') ?? null;
       if (host === undefined || host === null || frame === null) {
@@ -7250,7 +7250,7 @@ export default defineComponent({
     /** Drop the snapshot (and optionally the card overlay) — refusal,
      *  unmount, or the transition's own completion. Idempotent. */
     disposeMaterializationFreeze(alsoCapture: boolean): void {
-      const host = this.$refs.freezeHost as HTMLElement | undefined;
+      const host = (this.$refs.freezeHost ?? undefined) as HTMLElement | undefined;
       if (host !== undefined && host !== null) {
         gsap.killTweensOf(host);
         host.classList.remove('con-start-freeze--live');
@@ -7269,7 +7269,7 @@ export default defineComponent({
     },
     /** The snapshot cross-dissolves over the prepared deployment. */
     dissolveFreeze(): Promise<void> {
-      const host = this.$refs.freezeHost as HTMLElement | undefined;
+      const host = (this.$refs.freezeHost ?? undefined) as HTMLElement | undefined;
       if (host === undefined || host === null || !this.matFrozen) {
         return Promise.resolve();
       }
@@ -7451,7 +7451,7 @@ export default defineComponent({
         // THE RESOLVED BEAT — a short settled frame (the `--resolved` accent:
         // queue empty, dock stable, tableau standing) BEFORE the dissolve, so
         // the release reads as "the start is complete", never as a cut.
-        const flowHost = this.$refs.flowHost as HTMLElement | undefined;
+        const flowHost = (this.$refs.flowHost ?? undefined) as HTMLElement | undefined;
         const rail = flowHost?.querySelector<HTMLElement>('.con-jrail');
         const items = rail?.querySelectorAll<HTMLElement>('.con-jrail__item') ?? [];
         const phases = rail?.querySelectorAll<HTMLElement>('.con-jrail__phase') ?? [];
@@ -7605,7 +7605,7 @@ export default defineComponent({
       if (!this.summaryShown || this.fitLocked) {
         return;
       }
-      const pane = this.$refs.summaryPane as HTMLElement | undefined;
+      const pane = (this.$refs.summaryPane ?? undefined) as HTMLElement | undefined;
       if (pane === undefined || pane === null || typeof pane.querySelector !== 'function') {
         return;
       }
@@ -7693,7 +7693,7 @@ export default defineComponent({
      *  the strip may use the WHOLE body height — the cards fill all the space
      *  between the header and the pinned rail (no verdict reserve to subtract). */
     stripAvailHeight(strip: HTMLElement): number {
-      const body = this.$refs.body as HTMLElement | undefined;
+      const body = (this.$refs.body ?? undefined) as HTMLElement | undefined;
       if (body === undefined || body === null) {
         return strip.clientHeight;
       }
@@ -8330,7 +8330,7 @@ export default defineComponent({
       if (item.kind === 'candidate' && !this.deal.state.active) {
         const slot = this.exitSlotFor(name);
         if (slot !== null) {
-          const row = this.$refs.queueEl as HTMLElement | undefined;
+          const row = (this.$refs.queueEl ?? undefined) as HTMLElement | undefined;
           const rejects = row !== undefined && row !== null ?
             (Array.from(row.querySelectorAll<HTMLElement>('[data-queue-slot]')))
               .filter((el) => el !== slot && !el.classList.contains('con-deal-hold') &&
@@ -8593,7 +8593,7 @@ export default defineComponent({
       if (this.queueReleased) {
         return;
       }
-      const queue = this.$refs.queueEl as HTMLElement | undefined;
+      const queue = (this.$refs.queueEl ?? undefined) as HTMLElement | undefined;
       // NOT CONNECTED = NOT RELEASED. Latching before the node check turned a
       // «there was nothing to recede yet» into «this room has already yielded»,
       // and the room then never yielded at all: a step hosted straight after
@@ -8683,7 +8683,7 @@ export default defineComponent({
     },
     /** The shelf's root element (it is a component, so reach through `$el`). */
     playedDockRoot(): HTMLElement | null {
-      const dock = this.$refs.playedDockEl as {$el?: HTMLElement} | undefined;
+      const dock = (this.$refs.playedDockEl ?? undefined) as {$el?: HTMLElement} | undefined;
       const el = dock?.$el;
       return el !== undefined && el !== null && el.isConnected ? el : null;
     },
@@ -8695,7 +8695,7 @@ export default defineComponent({
         return;
       }
       this.queueReleased = false;
-      const queue = this.$refs.queueEl as HTMLElement | undefined;
+      const queue = (this.$refs.queueEl ?? undefined) as HTMLElement | undefined;
       if (queue === undefined || queue === null || !queue.isConnected) {
         return;
       }
@@ -8992,10 +8992,10 @@ export default defineComponent({
      *  the release phrase played when the step first rose). Waits a tick for a
      *  queue that is not rendered yet rather than latching an undone pose. */
     poseStepRoomReceded(): void {
-      const queue = this.$refs.queueEl as HTMLElement | undefined;
+      const queue = (this.$refs.queueEl ?? undefined) as HTMLElement | undefined;
       if (queue === undefined || queue === null || !queue.isConnected) {
         void this.$nextTick(() => {
-          const late = this.$refs.queueEl as HTMLElement | undefined;
+          const late = (this.$refs.queueEl ?? undefined) as HTMLElement | undefined;
           if (this.embedPresenting && !this.queueReleased && late !== undefined && late !== null && late.isConnected) {
             this.queueReleased = true;
             gsap.set(late, {autoAlpha: 0});
@@ -9040,7 +9040,7 @@ export default defineComponent({
      *  in the meantime, and dropping it early is the flash itself. */
     poseRoomReceded(): void {
       this.queueReleased = true;
-      const queue = this.$refs.queueEl as HTMLElement | undefined;
+      const queue = (this.$refs.queueEl ?? undefined) as HTMLElement | undefined;
       if (queue === undefined || queue === null || !queue.isConnected) {
         void this.$nextTick(() => {
           if (this.stageOwnsRoom && !this.roomPosed) {
@@ -9605,7 +9605,7 @@ export default defineComponent({
         return;
       }
       this.startDeliveryNames = names;
-      const grid = this.$refs.payGrid as HTMLElement | undefined;
+      const grid = (this.$refs.payGrid ?? undefined) as HTMLElement | undefined;
       const rects = new Map<CardName, DOMRect>();
       if (grid !== undefined && grid !== null) {
         for (const el of grid.querySelectorAll<HTMLElement>('[data-pay-card]')) {
@@ -9632,7 +9632,7 @@ export default defineComponent({
         return;
       }
       armDeliveryHold('legacy', deliverySignature(names), names);
-      const grid = this.$refs.legacyGrid as HTMLElement | undefined;
+      const grid = (this.$refs.legacyGrid ?? undefined) as HTMLElement | undefined;
       const rects = new Map<CardName, DOMRect>();
       if (grid !== undefined && grid !== null) {
         for (const el of grid.querySelectorAll<HTMLElement>('[data-legacy-card]')) {

@@ -741,7 +741,7 @@ export default defineComponent({
       if (focus === undefined || owners.length === 0) {
         return;
       }
-      const step = this.$refs.wildStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
+      const step = (this.$refs.wildStep ?? undefined) as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
       const cells = step?.cells?.() ?? [];
       const next = cells.length > 0 ?
         stepPlayedTargetFocusVia(step, focus, dir, cells) :
@@ -750,7 +750,7 @@ export default defineComponent({
         return; // an edge HOLDS — never a wrap, never a silent jump
       }
       this.wildFocusRaw = next;
-      (this.$refs.wildStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+      ((this.$refs.wildStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
     },
     /** Seat the cursor: on the already-chosen card when there is one (a re-entry
      *  must not lose the player's place), otherwise on the first candidate. */
@@ -764,7 +764,7 @@ export default defineComponent({
       void this.$nextTick(() => this.measureWildZone());
     },
     measureWildZone(): void {
-      const zone = this.$refs.wildZone as HTMLElement | undefined;
+      const zone = (this.$refs.wildZone ?? undefined) as HTMLElement | undefined;
       if (zone === undefined || zone === null) {
         return;
       }
@@ -772,7 +772,7 @@ export default defineComponent({
       this.wildZoneH = Math.max(0, zone.clientHeight);
       if (this.stopWildObs === undefined) {
         this.stopWildObs = useResizeObserver(zone, () => {
-          const el = this.$refs.wildZone as HTMLElement | undefined;
+          const el = (this.$refs.wildZone ?? undefined) as HTMLElement | undefined;
           if (el !== undefined && el !== null) {
             this.wildZoneW = Math.max(0, el.clientWidth);
             this.wildZoneH = Math.max(0, el.clientHeight);
@@ -792,7 +792,7 @@ export default defineComponent({
       // ref, so the physical entrance survives a build that leaves `$el` a fragment anchor); no source card here — the
       // bonus is paid by the VENUS TRACK, so every candidate is an ordinary slot.
       if (this.wildModel !== undefined && owners.length > 0) {
-        openPlayedTargetZoom({model: this.wildModel, cardName: focused, getRoot: () => this.$refs.wildZone as HTMLElement | undefined});
+        openPlayedTargetZoom({model: this.wildModel, cardName: focused, getRoot: () => (this.$refs.wildZone ?? undefined) as HTMLElement | undefined});
       }
     },
   },

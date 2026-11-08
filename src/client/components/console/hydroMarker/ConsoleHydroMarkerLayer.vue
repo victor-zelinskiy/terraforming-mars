@@ -64,7 +64,7 @@ export default defineComponent({
         return;
       }
       await this.$nextTick();
-      const marker = this.$refs.marker as HTMLElement | undefined;
+      const marker = (this.$refs.marker ?? undefined) as HTMLElement | undefined;
       if (marker === undefined || marker === null) {
         return;
       }

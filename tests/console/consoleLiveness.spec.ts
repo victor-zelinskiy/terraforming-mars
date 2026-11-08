@@ -57,6 +57,16 @@ describe('consoleLiveness', () => {
     expect(last.stalled && last.rung).to.equal(0);
   });
 
+  it('a TRANSIENT BEAT with nobody asked still owes its end — the two-campaign rally (ledger HC) is judged like an unserved question', () => {
+    const noQuestion = walk(seconds(LIVENESS_GRACE_MS / 1000, () => ({promptLive: false})));
+    expect(noQuestion.some((x) => x.stalled), 'no question, no beat: nothing to judge').is.false;
+    const beat = walk(seconds(LIVENESS_GRACE_MS / 1000, () => ({promptLive: false, beatOwed: true})));
+    const last = beat[beat.length - 1];
+    expect(last.stalled && last.reason).to.equal('unserved');
+    const busy = walk(seconds(LIVENESS_GRACE_MS / 1000, () => ({promptLive: false, beatOwed: true, inFlight: ['parliament-neutral-rally[blocking]']})));
+    expect(busy.some((x) => x.stalled), 'a beat with its work in flight is honest').is.false;
+  });
+
   it('an accepting surface is never a stall, however long the player reads it', () => {
     expect(walk(seconds(120, () => ({accepting: true}))).some((x) => x.stalled)).is.false;
   });

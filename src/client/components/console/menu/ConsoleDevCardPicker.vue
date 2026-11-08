@@ -391,7 +391,7 @@ export default defineComponent({
     },
     keepCursorVisible(): void {
       void this.$nextTick(() => {
-        const scroll = this.$refs.scroll as {ensureVisible?: (el: Element | null) => void} | undefined;
+        const scroll = (this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
         scroll?.ensureVisible?.(this.$el.querySelector('.cm-drow--cursor'));
       });
     },

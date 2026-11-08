@@ -7,7 +7,7 @@ import {ParliamentAdvanceModel, ParliamentModel} from '@/common/models/Parliamen
 import {markerTimings} from '@/client/console/hydroMarker/hydroMarkerModel';
 import {
   agendaWalkBonuses, agendaWalkFlow, agendaWalkHostFor, agendaWalkSeatOf, answersPerRatingStep, agendaWalkLiveIn, agendaWalkOwedTo, agendaWalkReactions, detectAgendaWalk, dropAgendaWalkPromise,
-  promiseAgendaWalk, questBeforeWalk, releaseAgendaWalkHolds, releaseAgendaWalkQuest, resetAgendaWalkFlow, seedAgendaWalkHolds,
+  promiseAgendaWalk, questBeforeWalk, releaseAgendaWalkHolds, releaseAgendaWalkQuest, resetAgendaWalkFlow, seedAgendaWalkHolds, takeQueuedAgendaWalk,
 } from '@/client/console/parliament/agendaWalk';
 import {heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -154,6 +154,25 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       // An echo frame seeds nothing twice.
       seedAgendaWalkHolds(after, after);
       expect(parliamentRewardState.agendaBonuses).has.lengthOf(1);
+    });
+
+    it('a SECOND walk arriving while one PLAYS waits its turn (ledger HC): the playing walk is never reset; its end seeds the next, in place', () => {
+      handDescended();
+      const {before, after} = pair();
+      seedAgendaWalkHolds(before, after);
+      agendaWalkFlow.live = true;
+      agendaWalkFlow.beat = 'walk';
+      const second = view(model({lastAdvance: {...WALK, seq: 6, from: 3, to: 4, steps: [{to: 4}]}} as never));
+      seedAgendaWalkHolds(after, second);
+      expect(agendaWalkFlow.owed?.seq, 'the walk in front is still the one playing').eq(5);
+      expect(agendaWalkFlow.live).is.true;
+      expect(parliamentHolds.agendaAwaits).deep.eq({player: BLUE, from: 1, to: 3});
+      agendaWalkFlow.beat = 'done';
+      expect(takeQueuedAgendaWalk(), 'the next walk is owed now').is.true;
+      expect(agendaWalkFlow.owed).deep.include({seq: 6, from: 3, to: 4});
+      expect(agendaWalkFlow.live).is.false;
+      expect(parliamentHolds.agendaAwaits, 'the marker waits on the step the first walk left it').deep.eq({player: BLUE, from: 3, to: 4});
+      expect(takeQueuedAgendaWalk(), 'the queue is empty').is.false;
     });
 
     it('a Parliament standing ON ITS OWN hosts it (its tier\'s watcher plays the record)', () => {

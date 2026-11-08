@@ -1079,7 +1079,7 @@ export default defineComponent({
       this.pulseCall = pulseForecastDoor((on) => {
         this.forecastPulse = on;
       }, this.pulseCall);
-      openForecastHost('dock', this.$refs.rootEl as HTMLElement | undefined, this.forecastOwnerColors, this.statsView);
+      openForecastHost('dock', (this.$refs.rootEl ?? undefined) as HTMLElement | undefined, this.forecastOwnerColors, this.statsView);
     },
     closeForecastLayer(): void {
       if (this.fxOpen) {
@@ -1088,7 +1088,7 @@ export default defineComponent({
     },
     /** Input while the layer is open: B folds one level (the explorer's dossier first), R3 closes the whole layer. */
     onForecastIntent(intent: GamepadIntent): void {
-      forecastHostIntent('dock', intent, this.$refs.forecastLayer as InstanceType<typeof ConsoleForecastLayer> | undefined);
+      forecastHostIntent('dock', intent, (this.$refs.forecastLayer ?? undefined) as InstanceType<typeof ConsoleForecastLayer> | undefined);
     },
     onNav(dir: NavDirection): void {
       if (this.sub === 'targets') {
@@ -1341,7 +1341,7 @@ export default defineComponent({
       return out;
     },
     targetHost(): TradeTargetStepHandle | undefined {
-      return this.$refs.targetStep as TradeTargetStepHandle | undefined;
+      return (this.$refs.targetStep ?? undefined) as TradeTargetStepHandle | undefined;
     },
     /** DESCEND into the target step — the cursor on the chosen card (a re-entry), else the first seat. */
     openTargetStep(): void {
@@ -1376,16 +1376,16 @@ export default defineComponent({
         // (payment · reward target) stand BELOW them in the same scroll and
         // are found by their zone hook — a cursor on them scrolls too.
         const zone = this.focusedZone;
-        const root = this.$refs.rootEl as HTMLElement | undefined;
+        const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
         const node = zone === 'payment' ? root?.querySelector<HTMLElement>('[data-fleet-dock-payment]') :
           zone === 'target' ? root?.querySelector<HTMLElement>('[data-fleet-dock-target]') :
-            (this.$refs.payRows as {focusedEl?: () => HTMLElement | undefined} | undefined)?.focusedEl?.();
-        (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
+            ((this.$refs.payRows ?? undefined) as {focusedEl?: () => HTMLElement | undefined} | undefined)?.focusedEl?.();
+        ((this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });
     },
     // ── THE SCENE (`fleetDockScene.ts`) — ANSWER → REWARD → READ → LEAVE → CONCLUDE, the slot by category ──
     playScene(): void {
-      const cardEl = this.$refs.cardEl as HTMLElement | undefined;
+      const cardEl = (this.$refs.cardEl ?? undefined) as HTMLElement | undefined;
       const plan = this.presentPlan;
       setFleetDockScenePhase('answer');
       const node = fleetDockEffectNode(getCard(this.card)?.metadata.renderData);
@@ -1469,7 +1469,7 @@ export default defineComponent({
     /** …and only then the workspace leaves as one surface; the shell concludes it and the hold falls at the END of that leave. */
     /** The room's height from the stage's own box — never while the entry is in flight (the hero's zoom is frozen). */
     measureRoom(): void {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       if (this.entering || root === undefined || root === null) {
         return;
       }
@@ -1507,7 +1507,7 @@ export default defineComponent({
     // The ROOM follows the stage's own box from here on (a host that resizes) — but only once the entry has
     // LANDED: the first answer is the press-time measurement's, and the observer's first call (the stage's own box
     // mid-unfold) must not re-solve the hero the FLIP is flying into.
-    const root = this.$refs.rootEl as HTMLElement | undefined;
+    const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
     if (root !== undefined && root !== null) {
       this.stopRoomObs = useResizeObserver(root, () => this.measureRoom()).stop;
     }

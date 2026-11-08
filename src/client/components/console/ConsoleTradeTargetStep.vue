@@ -80,7 +80,7 @@ export default defineComponent({
      * at 4K.
      */
     measureZone(): void {
-      const zone = this.$refs.zone as HTMLElement | undefined;
+      const zone = (this.$refs.zone ?? undefined) as HTMLElement | undefined;
       if (zone === undefined || zone === null) {
         return;
       }
@@ -92,7 +92,7 @@ export default defineComponent({
     },
     /** B — the step lets go in its own phrase, then the stage drops it (`done`). */
     close(done: () => void): void {
-      const zone = this.$refs.zone as HTMLElement | undefined;
+      const zone = (this.$refs.zone ?? undefined) as HTMLElement | undefined;
       if (zone !== undefined && zone !== null) {
         playColonyTargetStepLeave(zone, done);
       } else {
@@ -111,7 +111,7 @@ export default defineComponent({
       if (d === undefined) {
         return;
       }
-      const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
+      const step = (this.$refs.targetStep ?? undefined) as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
       const cells = step?.cells?.() ?? [];
       const next = cells.length > 0 ?
         stepPlayedTargetFocusVia(step, focus, d, cells) :
@@ -120,7 +120,7 @@ export default defineComponent({
         return; // an edge HOLDS — never a wrap, never a silent owner change
       }
       this.focus = next;
-      (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+      ((this.$refs.targetStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
     },
     /** LB/RB — the owner axis, tabbed mode only (the shared grammar; a trade's targets are normally the viewer's own single group). */
     cycleOwner(delta: number): void {
@@ -130,7 +130,7 @@ export default defineComponent({
       const turned = turnPlayedTargetPageVia(this.$refs.targetStep, focus, delta);
       if (turned !== undefined) {
         this.focus = turned;
-        (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+        ((this.$refs.targetStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
         return;
       }
       if (focus === undefined || (this.layout.mode !== 'tabs' && this.layout.mode !== 'board') || owners.length < 2) {
@@ -160,12 +160,12 @@ export default defineComponent({
         return;
       }
       // THE ONE DOOR — with the TARGET DOSSIER.
-      openPlayedTargetZoom({model: this.model, cardName: candidate.cardName, getRoot: () => this.$refs.zone as HTMLElement | undefined});
+      openPlayedTargetZoom({model: this.model, cardName: candidate.cardName, getRoot: () => (this.$refs.zone ?? undefined) as HTMLElement | undefined});
     },
   },
   mounted() {
     this.measureZone();
-    const zone = this.$refs.zone as HTMLElement | undefined;
+    const zone = (this.$refs.zone ?? undefined) as HTMLElement | undefined;
     if (zone !== undefined && zone !== null) {
       playColonyTargetStepEnter(zone);
     }

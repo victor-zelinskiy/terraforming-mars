@@ -92,6 +92,16 @@ registerAnimationHoldSupplier('card-discard', cardDiscardHolding, {
     names: [...cardDiscardTransaction.names],
     flights: cardDiscardState.flights.length,
   }),
+  // THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: the abort of the disposal itself (the same as the liveness rung) —
+  // the proxies gone, the pile settled to the server count, the transaction idle. The cards already left the hand (the
+  // truth of the server).
+  expire: () => {
+    if (!cardDiscardTransaction.active) {
+      return;
+    }
+    console.warn(`[consoleCardDiscard] card discard (${cardDiscardTransaction.phase}): outlived its ceiling — ended`);
+    abortCardDiscard();
+  },
 });
 
 function setPhase(phase: DiscardPhase): void {

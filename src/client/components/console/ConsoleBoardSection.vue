@@ -905,7 +905,7 @@ export default defineComponent({
      */
     'planetFocusState.phase'(now: PlanetFocusPhase): void {
       if (now === 'entering' && this.savedBoardDx === undefined) {
-        const stage = this.$refs.stage as HTMLElement | undefined;
+        const stage = (this.$refs.stage ?? undefined) as HTMLElement | undefined;
         this.savedBoardDx = stage?.style.getPropertyValue('--con-board-dx') ?? '';
         this.savedBoardDy = stage?.style.getPropertyValue('--con-board-dy') ?? '';
         // …and the framing ITSELF. The return replays these instead of
@@ -1019,7 +1019,7 @@ export default defineComponent({
     },
     /** Fit the board to the console stage: write --board-scale ourselves. */
     fitBoard(): void {
-      const stage = this.$refs.stage as HTMLElement | undefined;
+      const stage = (this.$refs.stage ?? undefined) as HTMLElement | undefined;
       if (stage === undefined) {
         return;
       }
@@ -1090,7 +1090,7 @@ export default defineComponent({
      * Blink (a plain `var()` substitution of a finished length parses).
      */
     publishArcBleed(scale: number): void {
-      const stage = this.$refs.stage as HTMLElement | undefined;
+      const stage = (this.$refs.stage ?? undefined) as HTMLElement | undefined;
       stage?.style.setProperty('--con-arc-bleed', `${(ARC_MARKER_BLEED * scale).toFixed(1)}px`);
     },
     /** Hold measurements off until the transform has actually PAINTED at its
@@ -1112,7 +1112,7 @@ export default defineComponent({
         if (!this.boardTweening) {
           return;
         }
-        const stage = this.$refs.stage as HTMLElement | undefined;
+        const stage = (this.$refs.stage ?? undefined) as HTMLElement | undefined;
         const board = stage?.querySelector<HTMLElement>(':scope > .board-cont');
         if (stage === undefined || board === null || board === undefined) {
           return;
@@ -1223,7 +1223,7 @@ export default defineComponent({
     /** The terraformed scene's burst (the shared `ceremonyFx`, accent `terra`) over the real disc — the breath layer hosts it. */
     playTerraformedBurst(): void {
       this.stopTerraformedBurst();
-      const host = this.$refs.terraformedBreath as HTMLElement | undefined;
+      const host = (this.$refs.terraformedBreath ?? undefined) as HTMLElement | undefined;
       if (host === undefined || host === null) {
         return;
       }
@@ -1242,7 +1242,7 @@ export default defineComponent({
     /** `--pfocus-bleed` in px (a length-valued custom property must go
      *  through cssLengthPx — getPropertyValue returns "2.9rem"). */
     pfocusBleedPx(): number {
-      const root = this.$refs.root as HTMLElement | undefined;
+      const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
       if (root === undefined || typeof getComputedStyle !== 'function') {
         return 0;
       }
@@ -1254,7 +1254,7 @@ export default defineComponent({
      * transition that grew the planet now carries it home.
      */
     restoreNormalFraming(): void {
-      const stage = this.$refs.stage as HTMLElement | undefined;
+      const stage = (this.$refs.stage ?? undefined) as HTMLElement | undefined;
       // THE RETURN IS A REVERSAL. Replay the exact pre-focus framing —
       // scale, natural box and centring — so the planet glides back to the
       // pixel it came from and NOTHING corrects it afterwards. A fresh fit
@@ -1326,7 +1326,7 @@ export default defineComponent({
      * it left with).
      */
     stageKey(): string | undefined {
-      const stage = this.$refs.stage as HTMLElement | undefined;
+      const stage = (this.$refs.stage ?? undefined) as HTMLElement | undefined;
       if (stage === undefined) {
         return undefined;
       }
@@ -1447,7 +1447,7 @@ export default defineComponent({
         }
         this.calibrateLock = undefined; // the viewport really moved: re-converge
       }
-      const stage = this.$refs.stage as HTMLElement | undefined;
+      const stage = (this.$refs.stage ?? undefined) as HTMLElement | undefined;
       if (stage === undefined) {
         return;
       }
@@ -1545,7 +1545,7 @@ export default defineComponent({
       if (spaceId === undefined) {
         return undefined;
       }
-      const root = this.$refs.root as HTMLElement | undefined;
+      const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
       return root?.querySelector<HTMLElement>(`[data_space_id="${spaceId}"]`) ?? undefined;
     },
     /**
@@ -1718,7 +1718,7 @@ export default defineComponent({
       if (key === undefined) {
         return undefined;
       }
-      const root = this.$refs.root as HTMLElement | undefined;
+      const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
       return root?.querySelector<HTMLElement>(`[data-arc-marker="${CSS.escape(key)}"]`) ?? undefined;
     },
     /**
@@ -1727,7 +1727,7 @@ export default defineComponent({
      * inspection cycles them — see trackMarkers), never mixed in here.
      */
     candidates(): Array<BoardCandidate> {
-      const root = this.$refs.root as HTMLElement | undefined;
+      const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
       if (root === undefined) {
         return [];
       }
@@ -1748,7 +1748,7 @@ export default defineComponent({
      * board centre, so prev/next walks the circle predictably.
      */
     trackMarkers(): Array<{id: string, el: HTMLElement, angle: number}> {
-      const root = this.$refs.root as HTMLElement | undefined;
+      const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
       if (root === undefined) {
         return [];
       }
@@ -1971,7 +1971,7 @@ export default defineComponent({
     }
     // The reticle's home — Board.vue's root, which never remounts for the
     // session (the console update model), so resolving it once is safe.
-    const stageEl = this.$refs.stage as HTMLElement | undefined;
+    const stageEl = (this.$refs.stage ?? undefined) as HTMLElement | undefined;
     this.cursorHost = stageEl?.querySelector<HTMLElement>('.board-cont') ?? undefined;
     if (this.selectedSpaceId === undefined) {
       this.seed(this.placementActive);
@@ -1993,7 +1993,7 @@ export default defineComponent({
     if (this.stageKey() === undefined) {
       this.releaseFitSettleHold();
     }
-    const stage = this.$refs.stage as HTMLElement | undefined;
+    const stage = (this.$refs.stage ?? undefined) as HTMLElement | undefined;
     if (stage !== undefined && typeof ResizeObserver !== 'undefined') {
       this.stageObserver = new ResizeObserver(() => this.scheduleFit());
       this.stageObserver.observe(stage);

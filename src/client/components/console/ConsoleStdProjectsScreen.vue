@@ -422,10 +422,10 @@ export default defineComponent({
     index() {
       foldForecastHost('stdp');
       void this.$nextTick(() => {
-        const slot = this.$refs.focusedCard as HTMLElement | Array<HTMLElement> | undefined;
+        const slot = (this.$refs.focusedCard ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
         const el = Array.isArray(slot) ? slot[0] : slot;
         // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
-        (this.$refs.grid as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
+        ((this.$refs.grid ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
       });
     },
     /**
@@ -464,7 +464,7 @@ export default defineComponent({
     },
     /** Input while the layer is open (the shell routes it here): B folds one level, R3 closes the whole layer. */
     forecastIntent(intent: GamepadIntent): void {
-      forecastHostIntent('stdp', intent, this.$refs.forecastLayer as InstanceType<typeof ConsoleForecastLayer> | undefined);
+      forecastHostIntent('stdp', intent, (this.$refs.forecastLayer ?? undefined) as InstanceType<typeof ConsoleForecastLayer> | undefined);
     },
     warningTextOf(w: Warning): string {
       return warningText(w);
@@ -487,7 +487,7 @@ export default defineComponent({
      *  SYNCHRONOUSLY in the press handler (and again when a server round
      *  trip pushes the step later; a stale arm degrades gracefully). */
     armStepOrigin(): void {
-      const slot = this.$refs.focusedCard as HTMLElement | Array<HTMLElement> | undefined;
+      const slot = (this.$refs.focusedCard ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
       const el = Array.isArray(slot) ? slot[0] : slot;
       armOutcomeOriginFrom(el);
     },

@@ -376,7 +376,7 @@ export default defineComponent({
         origin: {
           kind: 'physical',
           resolve: () => {
-            const dock = this.$refs.sourceDock as {$el?: HTMLElement} | undefined;
+            const dock = (this.$refs.sourceDock ?? undefined) as {$el?: HTMLElement} | undefined;
             return dock?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
           },
         },

@@ -116,6 +116,10 @@ let armedAt = 0;
 let entry: Entry | undefined;
 let epoch = 0;
 let running = false;
+/** The epoch of the run that owns `running` — a run the ceiling let go never clears a newer run's flag. */
+let runOwner = 0;
+/** The entry whose tokens are in flight (taken off `entry`; its unflown tokens still held). */
+let paying: Entry | undefined;
 let debt: OwedStoryHandle | undefined;
 let quietResolve: (() => void) | undefined;
 let quietPromise: Promise<void> = Promise.resolve();
@@ -158,8 +162,39 @@ export function venusBonusCellQuiet(): Promise<void> {
 registerBoardBeatStoryMember(VENUS_BONUS_CELL_KEY, {busy: venusBonusCellBusy, quiet: venusBonusCellQuiet});
 registerAnimationHoldSupplier(VENUS_BONUS_CELL_KEY, venusBonusCellBusy, {
   scope: 'notification-only',
-  diagnose: () => ({phase: venusBonusCellState.phase, due: venusBonusCellState.due}),
+  diagnose: () => ({phase: venusBonusCellState.phase, due: venusBonusCellState.due, owed: entry !== undefined, paying: paying !== undefined}),
+  // THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: a flight that never reported its touchdowns (or a stage wait nobody
+  // ended) runs the abort of the beat — every held row released (the HUD reads the applied view), the quiet resolved so
+  // the drain of the park goes on, `running` of the wedged run let go. A NEWER arm (of the next answer) is left alone.
+  expire: () => {
+    if (venusBonusCellState.phase === 'idle') {
+      return;
+    }
+    console.warn(`[venusBonusCellBeat] venus bonus-cell beat (${venusBonusCellState.phase}): outlived its ceiling — ended`);
+    endVenusBonusCellBeat();
+  },
 });
+
+/** The beat's abort (`resetVenusBonusCell` less the arm), plus the entry in flight. */
+function endVenusBonusCellBeat(): void {
+  epoch++;
+  for (const e of [entry, paying]) {
+    if (e !== undefined) {
+      releaseHeld(e);
+    }
+  }
+  entry = undefined;
+  paying = undefined;
+  debt?.settle();
+  debt = undefined;
+  running = false;
+  venusBonusCellState.phase = 'idle';
+  venusBonusCellState.due = false;
+  venusBonusCellState.degraded = true;
+  const r = quietResolve;
+  quietResolve = undefined;
+  r?.();
+}
 
 /**
  * SEED — the transport's apply block, beside the rating beat: the response that ANSWERED the bonus (the view before
@@ -316,6 +351,7 @@ async function run(): Promise<void> {
   }
   running = true;
   const myEpoch = ++epoch;
+  runOwner = myEpoch;
   try {
     while (epoch === myEpoch && entry !== undefined) {
       const e = entry;
@@ -331,15 +367,21 @@ async function run(): Promise<void> {
         releaseHeld(e);
         continue;
       }
+      paying = e;
       await gsapWait(motionMs(SCALE_STEP_BREATH_MS));
       if (epoch !== myEpoch) {
         releaseHeld(e);
         return;
       }
       await pay(e, myEpoch);
+      if (paying === e) {
+        paying = undefined;
+      }
     }
   } finally {
-    running = false;
+    if (runOwner === myEpoch) {
+      running = false;
+    }
     if (epoch === myEpoch) {
       venusBonusCellState.phase = 'idle';
       const r = quietResolve;

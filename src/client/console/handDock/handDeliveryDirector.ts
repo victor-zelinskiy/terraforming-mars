@@ -261,7 +261,28 @@ export function handDockReachable(): boolean {
 // land in the always-on-top footer dock) — a blocking hold would withhold
 // surfaces the player continues into. Like deck-draw: hold NOTIFICATIONS
 // behind the beat only.
-registerAnimationHoldSupplier('hand-delivery', isHandDeliveryActive, {scope: 'notification-only'});
+registerAnimationHoldSupplier('hand-delivery', isHandDeliveryActive, {scope: 'notification-only', expire: expireHandDelivery});
+
+/**
+ * THE LIVE RUNS' OWN ENDINGS — one per intake run, registered while it counts toward `runs.active`. The hold's
+ * ceiling (and the foreground watchdog's expiry) used to drop only the COUNT: a run wedged on an await that never
+ * settles kept its proxies on the layer, its cards withheld from the dock as `inFlight` and its host's commit unfired.
+ * A run's ending is the run's own: it lands every card (the dock shows the hand's truth), fires the commit once,
+ * removes ITS proxies and gives back ITS count — exactly once, so the run's late `finally` can never decrement a
+ * newer run's count (the clamp in the finally used to hide exactly that).
+ */
+const liveRunEnds = new Set<() => void>();
+
+/** The `hand-delivery` hold's owner recovery: every run that is part of the held interval ends on its own terms. */
+function expireHandDelivery(): void {
+  if (liveRunEnds.size === 0) {
+    return;
+  }
+  console.warn(`[hand-delivery] ${liveRunEnds.size} intake run(s) in flight ${JSON.stringify(handDeliveryState.inFlight)}: outlived its ceiling — ended`);
+  for (const end of [...liveRunEnds]) {
+    end();
+  }
+}
 
 /* ── choreography (base ms — motionMs scales; a weighty, well-eased beat) ── */
 const LIFT_MS = 240; // the card comes off its surface ("picked up")
@@ -586,14 +607,33 @@ async function runHandIntakeInner(entries: ReadonlyArray<HandIntakeEntry>, opts?
   }
 
   runs.active++;
-  try {
-    await fly(entries, snapshots, opts, dock, {myGen, land, releaseRemaining, runCommit});
-  } finally {
+  // THIS run's ending (see `liveRunEnds`): the flight's own `finish` once `fly` has spawned it, then the run's
+  // `finally` body — guarded, so the ceiling's recovery and a late `finally` end the run exactly once.
+  let flightFinish: (() => void) | undefined;
+  let ended = false;
+  const endRun = () => {
+    if (ended) {
+      return;
+    }
+    ended = true;
+    liveRunEnds.delete(endRun);
+    flightFinish?.();
     releaseRemaining();
     // A run that aborted before its staging seam must still commit — the
     // player pressed take, and the state may not stay behind the animation.
     runCommit();
-    runs.active = Math.max(0, runs.active - 1);
+    if (gen === myGen) {
+      // A reset since (`resetHandDelivery`) zeroed every count — this run's is already gone.
+      runs.active = Math.max(0, runs.active - 1);
+    }
+  };
+  liveRunEnds.add(endRun);
+  try {
+    await fly(entries, snapshots, opts, dock, {myGen, land, releaseRemaining, runCommit, onFinish: (fn) => {
+      flightFinish = fn;
+    }});
+  } finally {
+    endRun();
   }
 }
 
@@ -603,6 +643,8 @@ type RunCtx = {
   releaseRemaining: () => void,
   /** Fire the host's commit (once, whichever path gets there first). */
   runCommit: () => void,
+  /** The flight hands its own `finish` to the run, so the run's ending (the hold's recovery) can cut it. */
+  onFinish: (finish: () => void) => void,
 };
 
 async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyArray<HandIntakeRect | undefined>, opts: HandIntakeOptions | undefined, dock: HTMLElement, ctx: RunCtx): Promise<void> {
@@ -664,6 +706,7 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
     });
     removeDeliveryFlights(myIds);
   };
+  ctx.onFinish(finish);
 
   await nextTick();
   // Two frames so the (held) dock cards have laid out and the proxy
@@ -1248,6 +1291,7 @@ export function resetHandDelivery(): void {
   // still decrements (clamped, so it cannot go negative) — but this is what
   // guarantees the hold drops even if a run is wedged somewhere without one.
   runs.active = 0;
+  liveRunEnds.clear();
   episodes.clear();
   refutedTargets.clear();
   handDeliveryState.held = [];

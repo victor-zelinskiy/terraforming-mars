@@ -58,7 +58,7 @@ export default defineComponent({
   methods: {
     /** The hosted explorer — the section forwards the effects zone's intents to it. */
     explorer(): InstanceType<typeof ConsoleEffectsExplorer> | undefined {
-      return this.$refs.explorer as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
+      return (this.$refs.explorer ?? undefined) as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
     },
   },
 });

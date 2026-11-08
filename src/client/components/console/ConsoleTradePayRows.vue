@@ -122,7 +122,7 @@ export default defineComponent({
   methods: {
     /** The row under the cursor — the stage keeps it in view. */
     focusedEl(): HTMLElement | undefined {
-      const el = this.$refs.focusedRow as HTMLElement | Array<HTMLElement> | undefined;
+      const el = (this.$refs.focusedRow ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
       return Array.isArray(el) ? el[0] : el;
     },
   },

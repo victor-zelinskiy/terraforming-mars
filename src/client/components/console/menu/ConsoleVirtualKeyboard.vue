@@ -124,7 +124,7 @@ export default defineComponent({
   },
   methods: {
     initKeyboard(): void {
-      const el = this.$refs.kb as HTMLDivElement | undefined;
+      const el = (this.$refs.kb ?? undefined) as HTMLDivElement | undefined;
       if (el === undefined) {
         void this.$nextTick(() => this.initKeyboard());
         return;
@@ -198,7 +198,7 @@ export default defineComponent({
     },
     // ── Key grid + cursor ──────────────────────────────────────────────
     recollect(): void {
-      const root = this.$refs.kb as HTMLElement | undefined;
+      const root = (this.$refs.kb ?? undefined) as HTMLElement | undefined;
       if (root === undefined) {
         this.keyGrid = [];
         return;

@@ -372,7 +372,7 @@ export default defineComponent({
     // the pad has somewhere to start; a cursor is not a choice, and the CTA
     // stays refused until the player makes one.
     this.focus = reseatPlayedTargetFocus(undefined, this.targetModel?.owners ?? []);
-    const el = this.$refs.targets as HTMLElement | undefined;
+    const el = (this.$refs.targets ?? undefined) as HTMLElement | undefined;
     if (el !== undefined) {
       this.measure();
       this.stopResizeObs = useResizeObserver(el, () => this.measure()).stop;
@@ -388,7 +388,7 @@ export default defineComponent({
   },
   methods: {
     measure(): void {
-      const el = this.$refs.targets as HTMLElement | undefined;
+      const el = (this.$refs.targets ?? undefined) as HTMLElement | undefined;
       if (el === undefined) {
         return;
       }
@@ -451,7 +451,7 @@ export default defineComponent({
         }
         return;
       }
-      const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
+      const step = (this.$refs.targetStep ?? undefined) as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
       const cells = step?.cells?.() ?? [];
       const at = this.targetFocus;
       const next = at === undefined ? undefined : stepPlayedTargetFocusVia(step, at, dir, cells);
@@ -459,7 +459,7 @@ export default defineComponent({
         this.focus = next;
         // The step's own viewport keeps the cursored candidate in view — the
         // host calls it after every move (the target step's contract).
-        (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+        ((this.$refs.targetStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
         return;
       }
       // An EDGE HOLDS inside the grid — except downwards, where the CTA is the

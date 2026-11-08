@@ -195,7 +195,25 @@ export function createCardDealSequence() {
       // frame with only the header populated).
       preloadPremiumCardArt(cardNames);
       presentationHold?.release();
-      presentationHold = beginAnimationHold('card-deal', {scope: 'notification-only'});
+      // THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: a deal whose timeline never reported `onDone` runs its own
+      // skip (jump to the final state) and, if that too is lost, the dispose funnel — every slot revealed, the input
+      // gate open. Keyed on THIS deal's nonce: a late expire never ends a newer deal.
+      const dealNonce = state.nonce;
+      presentationHold = beginAnimationHold('card-deal', {
+        scope: 'notification-only',
+        diagnose: () => ({cards: state.cards.length, revealed: state.revealed.size, launched: handle !== undefined}),
+        expire: () => {
+          if (!state.active || state.nonce !== dealNonce) {
+            return;
+          }
+          console.warn('[cardDealSequence] card deal: outlived its ceiling — ended');
+          handle?.skip();
+          if (state.active && state.nonce === dealNonce) {
+            handle?.kill();
+            finish();
+          }
+        },
+      });
       return true;
     },
 

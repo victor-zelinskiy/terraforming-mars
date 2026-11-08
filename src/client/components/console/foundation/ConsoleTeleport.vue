@@ -50,6 +50,12 @@ export function resolveTeleportTarget(to: TeleportTo): Element | null {
 /** Per-frame re-checks before the slow cadence takes over. */
 const FAST_RETRY_FRAMES = 30;
 const SLOW_RETRY_MS = 250;
+/**
+ * A wait this long is no gap frame any more — the content is STRANDED: whatever it serves (a prompt's step, a hosted
+ * surface) stands nowhere on screen (ledger HC — the lent-node class of game-pdb19bfa turned from a crash into a
+ * silent wait). Named once, `[teleport] stranded`; every e2e spec reads it red.
+ */
+const STRANDED_MS = 5000;
 
 export default defineComponent({
   name: 'ConsoleTeleport',
@@ -71,7 +77,7 @@ export default defineComponent({
   setup() {
     // The wait's bookkeeping — plain, never reactive (the render reads it).
     return {
-      wait: markRaw({frame: undefined as number | undefined, timer: undefined as number | undefined, active: false, warned: false}),
+      wait: markRaw({frame: undefined as number | undefined, timer: undefined as number | undefined, active: false, warned: false, since: 0, stranded: false}),
     };
   },
   data() {
@@ -102,6 +108,8 @@ export default defineComponent({
         return;
       }
       wait.active = true;
+      wait.since = Date.now();
+      wait.stranded = false;
       let frames = 0;
       const check = (): boolean => {
         if (!wait.active) {
@@ -119,6 +127,10 @@ export default defineComponent({
         wait.timer = undefined;
         if (check()) {
           return;
+        }
+        if (!wait.stranded && Date.now() - wait.since >= STRANDED_MS) {
+          wait.stranded = true;
+          console.warn(`[teleport] stranded — ${typeof this.to === 'string' ? `«${this.to}»` : 'an element target'} absent for ${STRANDED_MS / 1000} s; the content stands nowhere`);
         }
         if (frames++ < FAST_RETRY_FRAMES && typeof window.requestAnimationFrame === 'function') {
           wait.frame = window.requestAnimationFrame(loop);

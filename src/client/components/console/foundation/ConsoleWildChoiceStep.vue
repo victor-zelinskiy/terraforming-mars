@@ -265,8 +265,8 @@ export default defineComponent({
   mounted() {
     this.measureSlot();
     // The band is the box the slot's room is read off (see `measureSlot`); the slot itself for its width.
-    const host = (this.$refs.slot as HTMLElement | undefined)?.closest<HTMLElement>('[data-ws-band]') ?? undefined;
-    const slot = this.$refs.slot as HTMLElement | undefined;
+    const host = ((this.$refs.slot ?? undefined) as HTMLElement | undefined)?.closest<HTMLElement>('[data-ws-band]') ?? undefined;
+    const slot = (this.$refs.slot ?? undefined) as HTMLElement | undefined;
     const targets = [host, slot].filter((el): el is HTMLElement => el !== undefined && el !== null);
     if (targets.length > 0 && typeof ResizeObserver !== 'undefined') {
       const obs = new ResizeObserver(() => this.measureSlot());
@@ -388,7 +388,7 @@ export default defineComponent({
      * floor and the selector, sized off the band, was cut in half). Venus keeps its natural slot (its grid follows).
      */
     measureSlot(): void {
-      const slot = this.$refs.slot as HTMLElement | undefined;
+      const slot = (this.$refs.slot ?? undefined) as HTMLElement | undefined;
       if (slot === undefined || slot === null) {
         return;
       }

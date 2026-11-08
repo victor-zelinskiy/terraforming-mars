@@ -189,7 +189,7 @@ export default defineComponent({
       // The scroll area reports only a CHANGE of its overflow, so a reading that overflows exactly like the
       // one before it would never be heard: re-ask once the new body has been measured.
       probeTick(() => probeTick(() => {
-        const area = this.$refs.scroll as {overflowing?: boolean} | undefined;
+        const area = (this.$refs.scroll ?? undefined) as {overflowing?: boolean} | undefined;
         if (area?.overflowing === true) {
           this.fitDenser();
         }
@@ -243,7 +243,7 @@ export default defineComponent({
       if (!this.overflowing) {
         return false;
       }
-      const area = this.$refs.scroll as {scrollByPx?: (dy: number) => void} | undefined;
+      const area = (this.$refs.scroll ?? undefined) as {scrollByPx?: (dy: number) => void} | undefined;
       area?.scrollByPx?.(delta);
       return true;
     },

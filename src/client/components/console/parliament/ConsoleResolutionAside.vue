@@ -116,7 +116,7 @@ export default defineComponent({
   methods: {
     /** Right-stick paging of the text block (routed by the shell when the right panel has nothing to scroll). */
     scrollBody(delta: number): boolean {
-      const rules = this.$refs.rules as {scrollBody?: (dy: number) => boolean} | undefined;
+      const rules = (this.$refs.rules ?? undefined) as {scrollBody?: (dy: number) => boolean} | undefined;
       return rules?.scrollBody?.(delta) ?? false;
     },
   },

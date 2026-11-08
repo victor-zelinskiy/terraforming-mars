@@ -77,11 +77,11 @@ export default defineComponent({
     forecastFocusLeaveCancelledHook,
     /** B inside the layer: the explorer folds its dossier first; `false` = nothing to fold, the host closes the layer. */
     consumeBack(): boolean {
-      const explorer = this.$refs.explorer as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
+      const explorer = (this.$refs.explorer ?? undefined) as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
       return explorer?.consumeEffectsBack() === true;
     },
     handleIntent(intent: GamepadIntent): void {
-      const explorer = this.$refs.explorer as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
+      const explorer = (this.$refs.explorer ?? undefined) as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
       explorer?.handleIntent(intent);
     },
   },

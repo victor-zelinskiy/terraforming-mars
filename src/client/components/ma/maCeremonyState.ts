@@ -86,7 +86,26 @@ export const maCeremonyState: MaCeremonyStateShape = reactive({
 // payment) waits for the beat to finish. The REMOTE beat is deliberately
 // unobtrusive by design ("never covers open overlays or interrupts an
 // action") and holds nothing. Releases when the host advances the queue.
-registerAnimationHoldSupplier('ma-ceremony-own', () => maCeremonyState.current?.own === true);
+//
+// THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: an own beat nobody advanced
+// (its presenter's scene lost its settle) is consumed by the presenters' own
+// exit — the embed claim on it released, the queue advanced — so the beat
+// stops standing as `current` over the follow-up prompt.
+registerAnimationHoldSupplier('ma-ceremony-own', () => maCeremonyState.current?.own === true, {
+  diagnose: () => ({kind: maCeremonyState.current?.kind, name: maCeremonyState.current?.name,
+    embedded: maCeremonyEventEmbedded(maCeremonyState.current), queued: maCeremonyState.queue.length}),
+  expire: () => {
+    const current = maCeremonyState.current;
+    if (current?.own !== true) {
+      return;
+    }
+    console.warn('[maCeremonyState] own milestone / award beat: outlived its ceiling — ended');
+    if (maCeremonyEventEmbedded(current)) {
+      maCeremonyEmbed.claim = undefined;
+    }
+    advanceMaCeremony();
+  },
+});
 
 // ── The EMBEDDED presentation claim (the MA workspace's focus stage) ────────
 //

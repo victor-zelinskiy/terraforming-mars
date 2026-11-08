@@ -77,6 +77,14 @@ export type LivenessSample = {
    */
   backTaken?: number;
   backJudged?: boolean;
+  /**
+   * A TRANSIENT BEAT stands on screen (`executing` / `completing` — the pad absorbed by contract). It OWES the player
+   * its end whether or not the server asks them anything: the two-campaign rally of 2026-11-07 (ledger HC) stood
+   * `parliament:executing` for a minute during the OTHER seat's turn — no prompt, so `unserved` never fired, and the
+   * beat-stall guard is a rung of this arbiter, not a judge of its own. Such a beat with nothing in flight is judged
+   * like an unserved question.
+   */
+  beatOwed?: boolean;
   /** An OBSERVABLE-STATE signature: the prompt's identity, the stack, the surfaces, the bar, the focus. A press that
    *  changes nothing leaves it equal; anything the player would SEE change moves it. */
   signature: string;
@@ -148,7 +156,7 @@ export function observeLiveness(state: LivenessState, sample: LivenessSample): {
   }
   const quietMs = sample.now - next.progressAt;
   const pressed = next.pressesSinceProgress >= LIVENESS_PRESSES_NO_EFFECT && quietMs >= LIVENESS_PRESSED_GRACE_MS;
-  const unserved = sample.promptLive && !sample.accepting && quietMs >= LIVENESS_GRACE_MS;
+  const unserved = (sample.promptLive || sample.beatOwed === true) && !sample.accepting && quietMs >= LIVENESS_GRACE_MS;
   if (!pressed && !unserved) {
     return {state: next, verdict: {stalled: false}};
   }

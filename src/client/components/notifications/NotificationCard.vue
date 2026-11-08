@@ -548,7 +548,7 @@ export default defineComponent({
       }
     },
     onEffectHover(): void {
-      const el = this.$refs.effectChip as HTMLElement | undefined;
+      const el = (this.$refs.effectChip ?? undefined) as HTMLElement | undefined;
       this.effectAnchor = el?.getBoundingClientRect();
       this.effectHover = true;
     },

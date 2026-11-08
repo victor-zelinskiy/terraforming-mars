@@ -3477,6 +3477,7 @@ export type FixtureName = 'solo-actions' | 'colony-host-handover' | 'bot-polder'
   'parliament-chairman-quest-bot' |
   // …and the field case whole: the PLAY from the hand closes the quest, and the gate ends the turn.
   'parliament-chairman-quest-by-play' |
+  'parliament-chairman-quest-by-vote' |
   // TR59 — the SOURCE of a payout on the viewer's own Ares tile: blue's Restricted Area (Ares) on 47, the free city cell
   // 48 beside it; red (Thorgate, 40 M€, Domed Crater in hand) on the move (`-ares`), or a solo table vs MarsBot whose
   // deck is [B05 Expedited Construction] alone and whose city lands on 48 once blue passes (`-ares-bot`).

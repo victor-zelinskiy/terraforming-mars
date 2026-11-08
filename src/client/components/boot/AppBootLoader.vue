@@ -280,7 +280,7 @@ export default defineComponent({
       // dialog for a beat so Graphite allocates the top-layer + transformed-stage
       // textures NOW instead of at the first real fullscreen zoom.
       this.$nextTick(() => {
-        const dlg = this.$refs.warmDialog as HTMLDialogElement | undefined;
+        const dlg = (this.$refs.warmDialog ?? undefined) as HTMLDialogElement | undefined;
         try {
           dlg?.showModal();
         } catch {
@@ -319,7 +319,7 @@ export default defineComponent({
     }
     // The warm-up dialog must NEVER outlive the loader in the top layer.
     try {
-      (this.$refs.warmDialog as HTMLDialogElement | undefined)?.close();
+      ((this.$refs.warmDialog ?? undefined) as HTMLDialogElement | undefined)?.close();
     } catch {
       // already closed — fine
     }

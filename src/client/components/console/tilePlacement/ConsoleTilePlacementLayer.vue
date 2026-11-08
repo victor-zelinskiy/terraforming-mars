@@ -450,7 +450,7 @@ export default defineComponent({
         // no real tile art (St. Joseph's cathedral lands on an existing city,
         // so `artClass === ''` and the tile div is not rendered). `!tile`
         // covers both null and undefined; a bare `=== undefined` NPE'd.
-        const proxy = tileProxyEls((this.$refs.tile as {$el?: HTMLElement} | null | undefined)?.$el);
+        const proxy = tileProxyEls(((this.$refs.tile ?? undefined) as {$el?: HTMLElement} | null | undefined)?.$el);
         if (proxy === undefined) {
           return undefined;
         }
@@ -473,19 +473,19 @@ export default defineComponent({
           tile,
           edge: proxy.edge,
           touch: proxy.touch,
-          shadow: this.$refs.shadow as HTMLElement | undefined,
+          shadow: (this.$refs.shadow ?? undefined) as HTMLElement | undefined,
           bonusIcons,
           aresPulses,
-          splash: this.$refs.splash as HTMLElement | undefined,
-          depart: connected(this.$refs.depart as HTMLElement | undefined),
-          departEdge: connected(this.$refs.departEdge as HTMLElement | undefined),
-          departTouch: connected(this.$refs.departTouch as HTMLElement | undefined),
-          cover: connected(this.$refs.cover as HTMLElement | undefined),
-          dust: connected(this.$refs.dust as HTMLElement | undefined),
+          splash: (this.$refs.splash ?? undefined) as HTMLElement | undefined,
+          depart: connected((this.$refs.depart ?? undefined) as HTMLElement | undefined),
+          departEdge: connected((this.$refs.departEdge ?? undefined) as HTMLElement | undefined),
+          departTouch: connected((this.$refs.departTouch ?? undefined) as HTMLElement | undefined),
+          cover: connected((this.$refs.cover ?? undefined) as HTMLElement | undefined),
+          dust: connected((this.$refs.dust ?? undefined) as HTMLElement | undefined),
         };
       },
       remoteEls: (): TileStageEls | undefined => {
-        const proxy = tileProxyEls((this.$refs.remoteTile as {$el?: HTMLElement} | null | undefined)?.$el);
+        const proxy = tileProxyEls(((this.$refs.remoteTile ?? undefined) as {$el?: HTMLElement} | null | undefined)?.$el);
         if (proxy === undefined) {
           return undefined;
         }
@@ -501,18 +501,18 @@ export default defineComponent({
           tile,
           edge: proxy.edge,
           touch: proxy.touch,
-          shadow: this.$refs.remoteShadow as HTMLElement | undefined,
+          shadow: (this.$refs.remoteShadow ?? undefined) as HTMLElement | undefined,
           bonusIcons: [],
           aresPulses,
-          splash: this.$refs.remoteSplash as HTMLElement | undefined,
-          beacon: connected(this.$refs.remoteBeacon as HTMLElement | undefined),
-          dust: connected(this.$refs.remoteDust as HTMLElement | undefined),
+          splash: (this.$refs.remoteSplash ?? undefined) as HTMLElement | undefined,
+          beacon: connected((this.$refs.remoteBeacon ?? undefined) as HTMLElement | undefined),
+          dust: connected((this.$refs.remoteDust ?? undefined) as HTMLElement | undefined),
           // A REMOVAL departs on this stage (Water Export's ocean — the shared
           // scene, every viewer's); a placement never does.
-          depart: connected(this.$refs.remoteDepart as HTMLElement | undefined),
-          departEdge: connected(this.$refs.remoteDepartEdge as HTMLElement | undefined),
-          departTouch: connected(this.$refs.remoteDepartTouch as HTMLElement | undefined),
-          cover: connected(this.$refs.remoteCover as HTMLElement | undefined),
+          depart: connected((this.$refs.remoteDepart ?? undefined) as HTMLElement | undefined),
+          departEdge: connected((this.$refs.remoteDepartEdge ?? undefined) as HTMLElement | undefined),
+          departTouch: connected((this.$refs.remoteDepartTouch ?? undefined) as HTMLElement | undefined),
+          cover: connected((this.$refs.remoteCover ?? undefined) as HTMLElement | undefined),
         };
       },
     });

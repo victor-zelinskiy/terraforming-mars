@@ -155,7 +155,28 @@ export function colonyBuildHolding(): boolean {
   return colonyBuildState.active && p !== 'idle' && p !== 'armed' && p !== 'failed';
 }
 
-registerAnimationHoldSupplier('colony-build', colonyBuildHolding);
+// THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: a build standing in its scene past the ceiling runs the flow's own
+// ending — the post-commit handoff when the cube has landed and the commit gate is open, the abort otherwise.
+registerAnimationHoldSupplier('colony-build', colonyBuildHolding, {expire: expireColonyBuild});
+
+/**
+ * THE OWNER'S RECOVERY for the `colony-build` hold. Keyed on the run standing NOW (a build that already ended is a
+ * no-op): a cube that LANDED with the gate open (the commit applied or applying) takes `endColonyBuild` — the same
+ * handoff the transport's post-commit tick runs, a staged build's receipt included; anything earlier is the scene
+ * stalled mid-flight and takes `abortColonyBuild` — the gate opens, the commit paints the real cube. The truth
+ * (the cube in the slot, the bonus credited) is the view's either way; only the story is cut.
+ */
+function expireColonyBuild(): void {
+  if (!colonyBuildHolding()) {
+    return;
+  }
+  console.warn(`[colony-build] scene (${colonyBuildState.phase}, ${colonyBuildState.colonyName}#${colonyBuildState.slotIndex}): outlived its ceiling — ended`);
+  if (colonyBuildState.phase === 'landed' && runResolve === undefined) {
+    void endColonyBuild();
+  } else {
+    abortColonyBuild();
+  }
+}
 
 // ── the lifecycle ───────────────────────────────────────────────────────────
 
@@ -358,12 +379,17 @@ export async function endColonyBuild(): Promise<void> {
   if (!colonyBuildState.active) {
     return;
   }
+  const nonce = colonyBuildState.nonce;
   const els = stage?.els();
   if (els !== undefined) {
     disposeCubeProxy(els);
   }
   if (colonyBuildState.mode === 'resource') {
     await settleResourceTransfers();
+  }
+  // A settle that outlived its run (the ceiling's recovery ended it, a newer build armed) never finishes another run.
+  if (!colonyBuildState.active || colonyBuildState.nonce !== nonce) {
+    return;
   }
   finish();
 }

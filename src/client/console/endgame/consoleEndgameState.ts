@@ -236,7 +236,41 @@ export function finalizeCeremony(vm: ConsoleEndgameVm): void {
 // reads VUE-REACTIVE state (a plain module `let` would kill the registry).
 // `actions` is interactive (not a hold); `idle` is nothing; a COLLAPSED
 // scene is hidden by the player's own hand and may not hold the foreground.
+/**
+ * THE RUNNING CEREMONY's own ending (ledger HC): the director registers its `skip` (the atomic jump to the canonical
+ * final state) and the VM it counts; the hold's ceiling runs it. A scene torn down mid-count without its ending (an
+ * unmount) leaves the VM, and the ceiling finalizes on it — never a phase standing «scoring» with nobody to end it.
+ * Plain module state on purpose: read only by the ceiling's recovery, never by the supplier's predicate.
+ */
+let liveCeremony: {skip: (() => void) | undefined, vm: ConsoleEndgameVm} | undefined;
+
+export function registerEndgameCeremony(skip: () => void, vm: ConsoleEndgameVm): () => void {
+  const entry = {skip: skip as (() => void) | undefined, vm};
+  liveCeremony = entry;
+  return () => {
+    // The director is gone; its VM stays for a ceiling that still finds the phase standing.
+    entry.skip = undefined;
+  };
+}
+
 registerAnimationHoldSupplier('endgame-ceremony', () => {
   const p = consoleEndgameUi.phase;
   return p !== 'idle' && p !== 'actions' && !consoleEndgameUi.collapsed;
+}, {
+  // A LIVE director owns its ending: its net (the timeline × 1.6 + 2.5 s) finalizes a count that never ends, and a
+  // five-seat count at 4K honestly outlasts any fixed ceiling — skipping it here cut the champion out (e2e, 2026-11-08).
+  // Only an ORPHANED phase (the director torn down without its ending) is ended here.
+  expire: () => {
+    const p = consoleEndgameUi.phase;
+    const live = liveCeremony;
+    if (p === 'idle' || p === 'actions' || live?.skip !== undefined) {
+      return;
+    }
+    console.warn('[consoleEndgameState] endgame ceremony: orphaned past its ceiling — ended');
+    if (live !== undefined) {
+      finalizeCeremony(live.vm);
+    } else {
+      consoleEndgameUi.phase = 'actions';
+    }
+  },
 });

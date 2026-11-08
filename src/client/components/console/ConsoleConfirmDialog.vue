@@ -101,7 +101,7 @@ export default defineComponent({
       }
     }
 
-    const dlg = this.$refs.dlg as HTMLDialogElement | undefined;
+    const dlg = (this.$refs.dlg ?? undefined) as HTMLDialogElement | undefined;
     if (dlg !== undefined && typeof dlg.showModal === 'function' && !dlg.open) {
       dlg.showModal();
     }

@@ -91,7 +91,7 @@ export default defineComponent({
      * (`data-dcards-fit` 0 → 3) until nothing stands past the zone — measured, never guessed. Attribute writes only.
      */
     fit(): void {
-      const root = this.$refs.root as HTMLElement | undefined;
+      const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
       if (root === undefined) {
         return;
       }

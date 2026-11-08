@@ -90,7 +90,7 @@ export default defineComponent({
   methods: {
     /** THE ROW, solved from the pane's own box (never the card count alone): one line, the album's face at most. */
     fit(): void {
-      const root = this.$refs.root as HTMLElement | undefined;
+      const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
       if (root === undefined) {
         return;
       }

@@ -178,7 +178,7 @@ export default defineComponent({
     },
     /** The pick's room: from its own top to the band's foot, minus every bottom padding between (the P43 slot's rule). */
     measurePick(): void {
-      const zone = this.$refs.pickZone as HTMLElement | undefined;
+      const zone = (this.$refs.pickZone ?? undefined) as HTMLElement | undefined;
       const band = zone?.closest<HTMLElement>('[data-ws-band]') ?? null;
       if (zone === undefined || zone === null) {
         return;
@@ -200,7 +200,7 @@ export default defineComponent({
     },
     armPickMeasure(): void {
       this.measurePick();
-      const zone = this.$refs.pickZone as HTMLElement | undefined;
+      const zone = (this.$refs.pickZone ?? undefined) as HTMLElement | undefined;
       const band = zone?.closest<HTMLElement>('[data-ws-band]') ?? undefined;
       if (zone === undefined || typeof ResizeObserver === 'undefined') {
         return;
@@ -217,7 +217,7 @@ export default defineComponent({
       if (focus === undefined) {
         return;
       }
-      const step = this.$refs.pickStep as {cells?: () => ReadonlyArray<PlayedTargetCell>, ensureFocusVisible?: () => void} | undefined;
+      const step = (this.$refs.pickStep ?? undefined) as {cells?: () => ReadonlyArray<PlayedTargetCell>, ensureFocusVisible?: () => void} | undefined;
       const next = stepPlayedTargetFocusVia(step, focus, dir, step?.cells?.() ?? []);
       if (next !== undefined) {
         this.pickFocusRaw = next;
@@ -229,7 +229,7 @@ export default defineComponent({
       const turned = turnPlayedTargetPageVia(this.$refs.pickStep, this.pickFocusShown, delta);
       if (turned !== undefined) {
         this.pickFocusRaw = turned;
-        (this.$refs.pickStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+        ((this.$refs.pickStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
       }
     },
     /** A's answer — the focused candidate when it may be chosen (never a near miss). */

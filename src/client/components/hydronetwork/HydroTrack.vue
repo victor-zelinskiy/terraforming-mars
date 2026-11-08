@@ -156,7 +156,7 @@ export default defineComponent({
   },
   mounted() {
     this.scheduleMeasure();
-    const root = this.$refs.root as HTMLElement | undefined;
+    const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
     if (root !== undefined && typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(() => this.scheduleMeasure());
       ro.observe(root);
@@ -191,7 +191,7 @@ export default defineComponent({
       });
     },
     measure() {
-      const root = this.$refs.root as HTMLElement | undefined;
+      const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
       if (root === undefined) {
         return;
       }

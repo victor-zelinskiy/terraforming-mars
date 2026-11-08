@@ -2675,7 +2675,7 @@ export default defineComponent({
      *  source hold, re-arm submission (the transport's alert explains). */
     'draftTrayState.recoverNonce'() {
       this.submitting = false;
-      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      const strip = (this.$refs.cardStrip ?? undefined) as HTMLElement | undefined;
       if (strip === undefined || strip === null || typeof strip.querySelectorAll !== 'function') {
         return;
       }
@@ -2799,7 +2799,7 @@ export default defineComponent({
     },
     /** The companion slots as they stand in the row (DOM = reveal order) — they leave WITH the answer. */
     companionExitSources(): Array<{name: CardName, el: HTMLElement}> {
-      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      const strip = (this.$refs.cardStrip ?? undefined) as HTMLElement | undefined;
       if (strip === undefined || strip === null || typeof strip.querySelectorAll !== 'function') {
         return [];
       }
@@ -2949,8 +2949,8 @@ export default defineComponent({
       if (!this.deal.state.active) {
         return;
       }
-      const strip = this.$refs.cardStrip as HTMLElement | undefined;
-      const layer = this.$refs.dealLayer as InstanceType<typeof ConsoleCardDealLayer> | undefined;
+      const strip = (this.$refs.cardStrip ?? undefined) as HTMLElement | undefined;
+      const layer = (this.$refs.dealLayer ?? undefined) as InstanceType<typeof ConsoleCardDealLayer> | undefined;
       if (strip === undefined || strip === null || layer === undefined) {
         this.deal.dispose();
         if (riseSceneEngaged()) {
@@ -3026,7 +3026,7 @@ export default defineComponent({
       }
       const cards = this.cardEntries.map((e) => e.card);
       const origin = slotZoomOrigin(
-        () => this.$refs.cardStrip as HTMLElement | undefined,
+        () => (this.$refs.cardStrip ?? undefined) as HTMLElement | undefined,
         (i) => cards[i]?.name ?? '',
         (i) => {
           this.focusIdx = i;
@@ -3107,7 +3107,7 @@ export default defineComponent({
           kind: 'physical',
           resolve: () => {
             // The dock is a COMPONENT now — reach its root element.
-            const dock = this.$refs.sourceCard as {$el?: HTMLElement} | undefined;
+            const dock = (this.$refs.sourceCard ?? undefined) as {$el?: HTMLElement} | undefined;
             return dock?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
           },
         },
@@ -3155,7 +3155,7 @@ export default defineComponent({
      * the adjacent row whose centre is nearest horizontally.
      */
     moveFocusRow(step: 1 | -1): void {
-      const strip = this.$refs.cardStrip as HTMLElement | null | undefined;
+      const strip = (this.$refs.cardStrip ?? undefined) as HTMLElement | null | undefined;
       if (strip === undefined || strip === null) {
         return;
       }
@@ -3241,8 +3241,8 @@ export default defineComponent({
       }
     },
     scrollFocusedIntoView(): void {
-      const body = this.$refs.body as HTMLElement | undefined;
-      const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
+      const body = (this.$refs.body ?? undefined) as HTMLElement | undefined;
+      const slot = (this.$refs.focusedCardSlot ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
       const cardEl = Array.isArray(slot) ? slot[0] : slot;
       if (cardEl !== undefined && cardEl !== null) {
         // The single ROW is fit-to-width (fitCardStrip) so it NEVER scrolls —
@@ -3349,7 +3349,7 @@ export default defineComponent({
       // Vue 3 sets a template ref to `null` (not `undefined`) once its v-if'd
       // element unmounts — a queued `$nextTick(fitCardStrip)` from a watcher can
       // fire AFTER the cardStrip left the DOM (task kind changed), so guard both.
-      const strip = this.$refs.cardStrip as HTMLElement | null | undefined;
+      const strip = (this.$refs.cardStrip ?? undefined) as HTMLElement | null | undefined;
       if (strip === undefined || strip === null) {
         return;
       }
@@ -3501,7 +3501,7 @@ export default defineComponent({
     },
     /** The live strip slot for a card (data-zoom-slot marker). */
     exitSlotFor(name: CardName): HTMLElement | null {
-      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      const strip = (this.$refs.cardStrip ?? undefined) as HTMLElement | undefined;
       if (strip === undefined || strip === null || typeof strip.querySelector !== 'function') {
         return null;
       }
@@ -3553,7 +3553,7 @@ export default defineComponent({
         commit();
         return;
       }
-      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      const strip = (this.$refs.cardStrip ?? undefined) as HTMLElement | undefined;
       const rejects = strip !== undefined && strip !== null ?
         (Array.from(strip.children) as Array<HTMLElement>).filter((el) => el !== slot && !el.classList.contains('con-deal-hold')) : [];
       // The hero beat reads FIRST; the rejects start tumbling under it.
@@ -3596,7 +3596,7 @@ export default defineComponent({
         return;
       }
       const commit = () => this.onConfirm();
-      const strip = this.$refs.cardStrip as HTMLElement | undefined;
+      const strip = (this.$refs.cardStrip ?? undefined) as HTMLElement | undefined;
       if (strip === undefined || strip === null) {
         commit();
         return;
@@ -4259,7 +4259,7 @@ export default defineComponent({
         return;
       }
       const origin = slotZoomOrigin(
-        () => this.$refs.cardStrip as HTMLElement | undefined,
+        () => (this.$refs.cardStrip ?? undefined) as HTMLElement | undefined,
         (i) => cards[i]?.name ?? '',
         (i) => {
           this.focusIdx = i;

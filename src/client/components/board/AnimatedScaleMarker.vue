@@ -485,7 +485,7 @@ export default defineComponent({
       } else {
         noteScaleMarkerSettled(this.accent, resting);
       }
-      const marker = this.$refs.marker as HTMLElement | undefined;
+      const marker = (this.$refs.marker ?? undefined) as HTMLElement | undefined;
       if (marker !== undefined) {
         if (resting !== undefined && target === undefined) {
           marker.dataset.scaleMarkerAt = String(resting);
@@ -513,7 +513,7 @@ export default defineComponent({
      * looking somewhere other than the board.
      */
     applyAnchor(a: Anchor): void {
-      const marker = this.$refs.marker as HTMLElement | undefined;
+      const marker = (this.$refs.marker ?? undefined) as HTMLElement | undefined;
       if (marker === undefined) {
         return;
       }
@@ -525,7 +525,7 @@ export default defineComponent({
      * exactly that.
      */
     isRendered(): boolean {
-      const marker = this.$refs.marker as HTMLElement | undefined;
+      const marker = (this.$refs.marker ?? undefined) as HTMLElement | undefined;
       return marker !== undefined && marker.offsetParent !== null;
     },
     /**
@@ -592,7 +592,7 @@ export default defineComponent({
      * transform (e.g. just mounted, never animated).
      */
     currentVisualAnchor(): Anchor | undefined {
-      const marker = this.$refs.marker as HTMLElement | undefined;
+      const marker = (this.$refs.marker ?? undefined) as HTMLElement | undefined;
       if (marker === undefined) {
         return undefined;
       }
@@ -617,7 +617,7 @@ export default defineComponent({
       return {value: Number.NaN, x: tx + w / 2, y: ty + h / 2, rot};
     },
     animateTo(targetValue: number): void {
-      const marker = this.$refs.marker as HTMLElement | undefined;
+      const marker = (this.$refs.marker ?? undefined) as HTMLElement | undefined;
       if (marker === undefined) {
         return;
       }
@@ -766,7 +766,7 @@ export default defineComponent({
       anim.finished.catch(() => undefined);
     },
     triggerSettle(): void {
-      const marker = this.$refs.marker as HTMLElement | undefined;
+      const marker = (this.$refs.marker ?? undefined) as HTMLElement | undefined;
       if (marker === undefined) {
         return;
       }

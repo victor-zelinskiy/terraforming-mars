@@ -293,6 +293,10 @@ type Entry = {
 let entry: Entry | undefined;
 let epoch = 0;
 let running = false;
+/** The epoch of the run that owns `running` — a run the ceiling let go never clears a newer run's flag. */
+let runOwner = 0;
+/** The entry whose tokens are in flight (already taken off `entry`; its unflown tokens still held). */
+let paying: Entry | undefined;
 let debt: OwedStoryHandle | undefined;
 let quietResolve: (() => void) | undefined;
 let quietPromise: Promise<void> = Promise.resolve();
@@ -329,7 +333,25 @@ registerBoardBeatStoryMember(SCALE_STEP_RATING_KEY, {busy: scaleStepRatingBusy, 
 // very workspace that waits on it): the feed waits for the rating's story, nothing else does.
 registerAnimationHoldSupplier(SCALE_STEP_RATING_KEY, scaleStepRatingBusy, {
   scope: 'notification-only',
-  diagnose: () => ({phase: scaleStepRatingState.phase, tokens: scaleStepRatingState.tokens, due: scaleStepRatingState.due}),
+  diagnose: () => ({phase: scaleStepRatingState.phase, tokens: scaleStepRatingState.tokens, due: scaleStepRatingState.due,
+    owed: entry !== undefined, paying: paying !== undefined}),
+  // THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: a flight that never reported its touchdowns ends by the abort of
+  // the beat (`resetScaleStepRating`) — every held rating / answer released (the rows read the applied view), the quiet
+  // resolved so the drain of the park goes on; the wedged run lets go of `running` so the next beat can play.
+  expire: () => {
+    if (scaleStepRatingState.phase === 'idle') {
+      return;
+    }
+    console.warn(`[scaleStepRatingBeat] scale-step rating beat (${scaleStepRatingState.phase}): outlived its ceiling — ended`);
+    const flying = paying;
+    paying = undefined;
+    resetScaleStepRating();
+    if (flying !== undefined) {
+      releaseHeld(flying);
+    }
+    scaleStepRatingState.degraded = true;
+    running = false;
+  },
 });
 
 /** The tokens' birth order: the steps of each scale, in the scales' order, then the Venus 16 % bonus. */
@@ -617,6 +639,7 @@ async function run(): Promise<void> {
   }
   running = true;
   const myEpoch = ++epoch;
+  runOwner = myEpoch;
   try {
     while (epoch === myEpoch && entry !== undefined) {
       const e = entry;
@@ -637,10 +660,16 @@ async function run(): Promise<void> {
         continue;
       }
       entry = undefined;
+      paying = e;
       await pay(e, myEpoch);
+      if (paying === e) {
+        paying = undefined;
+      }
     }
   } finally {
-    running = false;
+    if (runOwner === myEpoch) {
+      running = false;
+    }
     if (epoch === myEpoch) {
       scaleStepRatingState.phase = 'idle';
       scaleStepRatingState.tokens = 0;

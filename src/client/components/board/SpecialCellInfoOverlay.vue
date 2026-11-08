@@ -235,7 +235,7 @@ export default defineComponent({
       // ref will be null whenever `v-if` has just removed the panel,
       // e.g. the popup was just closed by hover-leave. Tolerate both.
       this.$nextTick(() => {
-        const p = this.$refs.panel as HTMLElement | null | undefined;
+        const p = (this.$refs.panel ?? undefined) as HTMLElement | null | undefined;
         if (p) {
           this.panelHeight = p.offsetHeight;
         }

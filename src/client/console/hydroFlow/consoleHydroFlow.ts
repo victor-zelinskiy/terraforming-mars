@@ -456,7 +456,19 @@ export function hydroCeremonyOwed(): boolean {
 // The ceremony is a cinematic INSIDE a mandatory-free workspace: ordinary
 // notifications queue behind it (they would narrate over the culmination),
 // but nothing blocking — the flow's own phase already absorbs input.
-registerAnimationHoldSupplier('hydro-ceremony', isHydroCeremonyActive, {scope: 'notification-only'});
+registerAnimationHoldSupplier('hydro-ceremony', isHydroCeremonyActive, {
+  scope: 'notification-only',
+  // A culmination standing past the ceiling takes the witness's own heal for a wedged run: the choreography ends and
+  // the ceremony counts as PLAYED, so the flow reaches its result stage through the ordinary busy falling edge.
+  expire: () => {
+    if (!hydroFlowState.ceremonyActive) {
+      return;
+    }
+    console.warn('[hydro-flow] VP ceremony: outlived its ceiling — ended');
+    recordHydroFlowEvent('expire:cere:ceiling');
+    healHydroCeremony();
+  },
+});
 
 /** The player touched the pre-commit draft — remember what world it fits. */
 export function noteHydroDraftTouched(version: string): void {

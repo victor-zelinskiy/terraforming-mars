@@ -42,7 +42,7 @@ export default defineComponent({
     onEnter(): void {
       this.clearTimer();
       this.hoverTimer = window.setTimeout(() => {
-        const el = this.$refs.chip as HTMLElement | undefined;
+        const el = (this.$refs.chip ?? undefined) as HTMLElement | undefined;
         this.anchor = el?.getBoundingClientRect();
         this.previewVisible = true;
       }, HOVER_DELAY);

@@ -2868,14 +2868,14 @@ export default defineComponent({
       }
     },
     playedTargetStepOpen(now: boolean, was: boolean) {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       if (root === undefined || now === was) {
         return;
       }
       if (now) {
         const carry = armPayloadCarry(root.querySelector('.con-composer__variants'));
         void this.$nextTick(() => {
-          const step = this.$refs.targetStep as {rootEl?: () => HTMLElement | undefined, payloadEl?: () => HTMLElement | undefined} | undefined;
+          const step = (this.$refs.targetStep ?? undefined) as {rootEl?: () => HTMLElement | undefined, payloadEl?: () => HTMLElement | undefined} | undefined;
           playPayloadCarry(step?.rootEl?.(), step?.payloadEl?.(), carry);
         });
         return;
@@ -2884,7 +2884,7 @@ export default defineComponent({
       // The review RETURNS: the cursor the answer landed (the next question, or the commit — T14 · CC) ARRIVES once it
       // stands — its pose is gated on the root for the phrase (`gateCursorDuringEntry`; a press releases it at once).
       const arrived = gateCursorDuringEntry(root, () => undefined);
-      void this.$nextTick(() => playPayloadReturn(this.$refs.rootEl as HTMLElement | undefined, from, arrived));
+      void this.$nextTick(() => playPayloadReturn((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, from, arrived));
     },
     /** PL-127: the hosted-step declaration, handed to the shell as it changes (cleared with the composer by `resetConsolePlayCardUi`). */
     hostedStepDeclared: {
@@ -3040,8 +3040,8 @@ export default defineComponent({
         this.runPlaystageRelease();
         return;
       }
-      const right = this.$refs.playRight as HTMLElement | undefined;
-      const card = this.$refs.playCard as HTMLElement | undefined;
+      const right = (this.$refs.playRight ?? undefined) as HTMLElement | undefined;
+      const card = (this.$refs.playCard ?? undefined) as HTMLElement | undefined;
       const layers = [right, card].filter((el): el is HTMLElement => el !== undefined);
       if (layers.length === 0) {
         return;
@@ -3055,7 +3055,7 @@ export default defineComponent({
       // its groups re-materialize — the player retries or cancels from the
       // exact configuration they submitted.
       gsap.set(layers, {clearProps: 'opacity,visibility'});
-      handStageReveal(this.$refs.rootEl as HTMLElement | undefined);
+      handStageReveal((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
     },
   },
   created() {
@@ -3063,18 +3063,18 @@ export default defineComponent({
     // variant's step section grows the block DOWNWARD and every group below slides into place (`settledColumn.ts`). The
     // column is the scroll's content (it grows with the block), so its frame is the band's (P81 · DJ).
     this.settled = markRaw(new SettledColumn({
-      column: () => (this.$refs.playBlock as HTMLElement | undefined)?.parentElement ?? undefined,
-      block: () => this.$refs.playBlock as HTMLElement | undefined,
+      column: () => ((this.$refs.playBlock ?? undefined) as HTMLElement | undefined)?.parentElement ?? undefined,
+      block: () => (this.$refs.playBlock ?? undefined) as HTMLElement | undefined,
       active: () => !this.submitting && !this.loading,
       // The FRAME is the band (the column the sheet stands in), never the body's viewport: the sheet legitimately grows
       // under the pin (a section a press adds) and its viewport with it — that is the same composition, not a new one.
-      room: () => (this.$refs.playRight as HTMLElement | undefined)?.clientHeight ?? 0,
+      room: () => ((this.$refs.playRight ?? undefined) as HTMLElement | undefined)?.clientHeight ?? 0,
     }));
     // The SHEET stands on the card's foot and grows UPWARD at its opening (the expanded composition); from the player's
     // first press it is pinned too — a section a press adds grows the sheet DOWNWARD, nothing moves under the cursor.
     this.settledSheet = markRaw(new SettledColumn({
-      column: () => this.$refs.playRight as HTMLElement | undefined,
-      block: () => this.$refs.sheet as HTMLElement | undefined,
+      column: () => (this.$refs.playRight ?? undefined) as HTMLElement | undefined,
+      block: () => (this.$refs.sheet ?? undefined) as HTMLElement | undefined,
       active: () => !this.submitting && !this.loading,
     }));
   },
@@ -3084,12 +3084,12 @@ export default defineComponent({
     // transform the band rides (the descend, a clip) cancels out. The card's OWN transform (the zoom hand-off's flight)
     // would not, so a frame where it moves is skipped and read again on the next one; an empty frame of the face's
     // keyed swap (0) keeps the last height.
-    const card = this.$refs.playCard as HTMLElement | undefined;
+    const card = (this.$refs.playCard ?? undefined) as HTMLElement | undefined;
     if (card !== undefined) {
       let retries = 0;
       const measure = (): void => {
-        const slot = this.$refs.playCard as HTMLElement | undefined;
-        const column = this.$refs.playRight as HTMLElement | undefined;
+        const slot = (this.$refs.playCard ?? undefined) as HTMLElement | undefined;
+        const column = (this.$refs.playRight ?? undefined) as HTMLElement | undefined;
         if (slot === undefined || column === undefined || typeof getComputedStyle !== 'function') {
           return;
         }
@@ -3111,10 +3111,10 @@ export default defineComponent({
       };
       // THE EXPANDED SHEET: taller than the face — read off the sheet's own layout box, re-judged as it grows.
       const judgeExpanded = (): void => {
-        const sheet = this.$refs.sheet as HTMLElement | undefined;
+        const sheet = (this.$refs.sheet ?? undefined) as HTMLElement | undefined;
         this.sheetExpanded = sheet !== undefined && this.heroFaceHeight > 0 && sheet.offsetHeight > this.heroFaceHeight + 2;
       };
-      const sheet = this.$refs.sheet as HTMLElement | undefined;
+      const sheet = (this.$refs.sheet ?? undefined) as HTMLElement | undefined;
       if (sheet !== undefined) {
         this.stopSheetObs = useResizeObserver(sheet, judgeExpanded).stop;
       }
@@ -3126,7 +3126,7 @@ export default defineComponent({
     // nothing to cascade. Without this the controls would simply appear inside
     // an already-open box — the same blink the descent exists to remove.
     if (this.embedded) {
-      void this.$nextTick(() => handStageReveal(this.$refs.rootEl as HTMLElement | undefined));
+      void this.$nextTick(() => handStageReveal((this.$refs.rootEl ?? undefined) as HTMLElement | undefined));
     }
   },
   beforeUnmount() {
@@ -3168,7 +3168,7 @@ export default defineComponent({
      */
     /** The radiogroup's root element (the ref is a component). */
     variantsRoot(): HTMLElement | undefined {
-      const ref = this.$refs.variantsEl as {$el?: unknown} | HTMLElement | undefined | null;
+      const ref = (this.$refs.variantsEl ?? undefined) as {$el?: unknown} | HTMLElement | undefined | null;
       const el = ref instanceof HTMLElement ? ref : (ref as {$el?: unknown} | undefined | null)?.$el;
       return el instanceof HTMLElement ? el : undefined;
     },
@@ -3208,7 +3208,7 @@ export default defineComponent({
       if (!this.forecastCanOpen || this.fxOpen) {
         return;
       }
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       armForecastRow(descendRectOf(root?.querySelector<HTMLElement>('[data-forecast-row]')));
       this.forecastPulse = true;
       window.setTimeout(() => {
@@ -3228,7 +3228,7 @@ export default defineComponent({
      *  dossier first), R3 closes the whole layer, everything else is the
      *  explorer's (d-pad, LT/RT sections, A, X, LB/RB, RS). */
     onForecastIntent(intent: GamepadIntent): void {
-      const explorer = this.$refs.forecastExplorer as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
+      const explorer = (this.$refs.forecastExplorer ?? undefined) as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
       if (intent.kind === 'press' && intent.button === 'stickR') {
         this.closeForecastLayer();
         return;
@@ -3263,7 +3263,7 @@ export default defineComponent({
      * unmount — so the exit can never be cut short by its own `v-if`.
      */
     runPlaystageRelease(): void {
-      const el = this.$refs.playstage as HTMLElement | undefined;
+      const el = (this.$refs.playstage ?? undefined) as HTMLElement | undefined;
       if (el === undefined || el === null || consoleReducedMotionActive()) {
         markPlayLandingReleased(); // no element / reduced motion: it is simply gone
         return;
@@ -3393,7 +3393,7 @@ export default defineComponent({
      * cascade takes the groups and its entry gate holds the cursor) — the hold is simply handed back.
      */
     arriveLateContent(): void {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       if (root === undefined || consoleReducedMotionActive() || root.closest('.con-hand__stage--arming') !== null ||
           typeof root.animate !== 'function') {
         arriveCursor(this.lateCursor);
@@ -3552,7 +3552,7 @@ export default defineComponent({
     },
     /** The commit row's arrival, measured against the root the gate may stand on once it has rendered. */
     arriveAtCommitRow(opening: boolean): void {
-      arriveAtCommit(this.commitArrival, () => this.$refs.rootEl as HTMLElement | undefined, {opening});
+      arriveAtCommit(this.commitArrival, () => (this.$refs.rootEl ?? undefined) as HTMLElement | undefined, {opening});
     },
     /** The commit row's one breath ended (its layer's `animationend` — never a child's animation bubbling up). */
     onCommitBreathEnd(e: AnimationEvent): void {
@@ -4026,7 +4026,7 @@ export default defineComponent({
       }
       const before = this.venusPartsOf(c);
       // THE NESTED CARD PICK: LB/RB turn its page, A answers with the selector's focused card.
-      const step = this.$refs.venusStep as VenusBonusStepApi | undefined;
+      const step = (this.$refs.venusStep ?? undefined) as VenusBonusStepApi | undefined;
       if (sub.focus.zone === 'pick' && (verb === 'prevSection' || verb === 'nextSection')) {
         step?.pickTurn(verb === 'nextSection' ? 1 : -1);
         return;
@@ -4377,7 +4377,7 @@ export default defineComponent({
         return;
       }
       if (intent.kind === 'scroll') {
-        (this.$refs.scroll as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(intent.dy) * 40);
+        ((this.$refs.scroll ?? undefined) as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(intent.dy) * 40);
         return;
       }
       if (intent.kind === 'nav') {
@@ -4408,7 +4408,7 @@ export default defineComponent({
       if (this.sub?.kind === 'venus') {
         // THE NESTED CARD PICK walks the selector's own boxes (`ConsoleVenusBonusStep.pickNav`).
         if (this.sub.focus.zone === 'pick') {
-          (this.$refs.venusStep as VenusBonusStepApi | undefined)?.pickNav(dir as PlayedTargetNavDir);
+          ((this.$refs.venusStep ?? undefined) as VenusBonusStepApi | undefined)?.pickNav(dir as PlayedTargetNavDir);
           return;
         }
         const c = this.venusSubChoice;
@@ -4516,7 +4516,7 @@ export default defineComponent({
           openConsoleCardZoom([this.heroCard], 0, undefined, undefined, {
             origin: {
               kind: 'physical',
-              resolve: () => (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-composer__playcard') ?? null,
+              resolve: () => ((this.$refs.rootEl ?? undefined) as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-composer__playcard') ?? null,
             },
           });
         }
@@ -4953,7 +4953,7 @@ export default defineComponent({
      * above it, which is the only box here whose size the cards cannot move.
      */
     measurePlayedTargetBand(): void {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const zone = root?.querySelector<HTMLElement>('.con-composer__playright');
       if (zone !== null && zone !== undefined) {
         this.playedTargetWidth = zone.clientWidth;
@@ -5188,7 +5188,7 @@ export default defineComponent({
       if (d === undefined) {
         return;
       }
-      const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
+      const step = (this.$refs.targetStep ?? undefined) as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
       const cells = step?.cells?.() ?? [];
       const next = cells.length > 0 ?
         stepPlayedTargetFocusVia(step, this.sub.focus, d, cells) :
@@ -5203,7 +5203,7 @@ export default defineComponent({
      *  The step owns that scroller — the contract and the status rail live
      *  outside it, so a cursor move can never carry the rail off screen. */
     scrollPlayedTargetFocused(): void {
-      (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+      ((this.$refs.targetStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
     },
     /** LB/RB — the owner axis, tabbed mode only (in split the groups are both
      *  on screen and the d-pad crosses between them spatially). */
@@ -5213,7 +5213,7 @@ export default defineComponent({
         const turned = turnPlayedTargetPageVia(this.$refs.targetStep, this.sub.focus, delta);
         if (turned !== undefined) {
           this.sub = {...this.sub, focus: turned};
-          (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+          ((this.$refs.targetStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
           return;
         }
       }
@@ -5228,7 +5228,7 @@ export default defineComponent({
       // `board` («ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА»): every band is on screen — LB/RB JUMP to the next band's first card.
       if (this.playedTargetLayout.mode === 'board') {
         this.sub = {...this.sub, focus: reseatPlayedTargetFocus({ownerId, index: 0}, owners) ?? this.sub.focus};
-        (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+        ((this.$refs.targetStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
         return;
       }
       // Restore this owner's last cursor — a tab the player returns to should
@@ -5641,7 +5641,7 @@ export default defineComponent({
       }
       if (sub.kind === 'venus') {
         if (action === 'inspect' && sub.focus.zone === 'pick') {
-          (this.$refs.venusStep as VenusBonusStepApi | undefined)?.pickInspect();
+          ((this.$refs.venusStep ?? undefined) as VenusBonusStepApi | undefined)?.pickInspect();
           return;
         }
         if (action === 'primary' || action === 'back' || action === 'prevSection' || action === 'nextSection' || action === 'nextTab') {
@@ -5934,7 +5934,7 @@ export default defineComponent({
       }
       // THE ONE DOOR — with the TARGET DOSSIER. The REF, never `$el` — see the note on the root element.
       if (this.playedTargetModel !== undefined) {
-        openPlayedTargetZoom({model: this.playedTargetModel, cardName: candidate.cardName, getRoot: () => this.$refs.rootEl as HTMLElement | undefined});
+        openPlayedTargetZoom({model: this.playedTargetModel, cardName: candidate.cardName, getRoot: () => (this.$refs.rootEl ?? undefined) as HTMLElement | undefined});
       }
     },
     inspectListItem(index: number): void {
@@ -6235,19 +6235,19 @@ export default defineComponent({
         // a template ref — the panel stays purely presentational.
         // THE DOCK (P81 · DJ): the payment and the commit stand on the sheet's bottom line, outside the scroll — there
         // is nothing to bring into view (and asking the scroller to reach them would scroll the result away).
-        const scroll = this.$refs.scroll as {$el?: unknown, ensureVisible?: (el: Element | null | undefined) => void} | undefined;
+        const scroll = (this.$refs.scroll ?? undefined) as {$el?: unknown, ensureVisible?: (el: Element | null | undefined) => void} | undefined;
         const inScroll = (el: Element | null | undefined): boolean => el !== null && el !== undefined && (scroll?.$el as HTMLElement | undefined)?.contains(el) === true;
         if (this.payExpanded) {
-          const row = (this.$refs.rootEl as HTMLElement | undefined)?.querySelector('.con-payrow--focused');
+          const row = ((this.$refs.rootEl ?? undefined) as HTMLElement | undefined)?.querySelector('.con-payrow--focused');
           if (inScroll(row)) {
             scroll?.ensureVisible?.(row);
           }
           return;
         }
-        const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;
+        const el = (this.$refs.focusedEl ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
         // The variant grammar's focused option has no template ref here (it is the component's own DOM).
         const node = (Array.isArray(el) ? el[0] : el) ??
-          (this.$refs.rootEl as HTMLElement | undefined)?.querySelector('.con-vchoice__opt--focused') ?? undefined;
+          ((this.$refs.rootEl ?? undefined) as HTMLElement | undefined)?.querySelector('.con-vchoice__opt--focused') ?? undefined;
         // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
         if (inScroll(node)) {
           scroll?.ensureVisible?.(node);

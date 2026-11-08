@@ -355,7 +355,7 @@ export default defineComponent({
       if (Math.abs(dy) < 0.05) {
         return;
       }
-      (this.$refs.scroll as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(dy * 44);
+      ((this.$refs.scroll ?? undefined) as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(dy * 44);
     },
     inspectCard(): void {
       if (this.card !== undefined) {

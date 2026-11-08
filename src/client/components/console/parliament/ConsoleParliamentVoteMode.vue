@@ -322,7 +322,7 @@
   </div>
 </template>
 <script lang="ts">
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, markRaw, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
@@ -1452,7 +1452,19 @@ export default defineComponent({
       // The ceiling: ONE flight + the read (the 4 s base) + the phrase's staggers (P72 · CZ — the cubes overlap, never
       // a whole flight per cube) + the support + the price token.
       const stagger = (GRANT_CUBE_STAGGER_MS + GRANT_TOUCH_GAP_MS) * Math.max(0, seqs.length - 1);
-      this.landingHold = beginAnimationHold('parliament-vote-landing', {maxHoldMs: 4000 + stagger + 900 * supportLanded + (priced ? 900 : 0)});
+      const landingHold = beginAnimationHold('parliament-vote-landing', {
+        maxHoldMs: 4000 + stagger + 900 * supportLanded + (priced ? 900 : 0),
+        // THE CEILING ENDS THE LANDING, not only its count: the cubes of the phrase stand where the model has them and
+        // the landed read finishes by its own hand (`finishLanding` — the access scene, the series, or the leave).
+        expire: () => {
+          if (this.landingHold !== landingHold || parliamentFlow.stage !== 'landed') {
+            return;
+          }
+          console.warn('[parliament] vote landing: outlived its ceiling — ended');
+          this.settleLandingNow();
+        },
+      });
+      this.landingHold = markRaw(landingHold);
       f.landedSeqs = [];
       f.flightSeq = seqs[0];
       f.pendingSeqs = seqs.slice(1);
@@ -1482,7 +1494,13 @@ export default defineComponent({
       const f = parliamentFlow;
       const snap = f.voteSnapshot;
       const receipt = snap?.receipt;
-      const launch = () => this.flyDelegates(seqs, me);
+      // A landing already ENDED (its ceiling's recovery, a clear) launches nothing: the landing hold stands from the
+      // landing's start to its read's end, so its presence is this run's own «still landing».
+      const launch = () => {
+        if (this.landingHold !== undefined) {
+          this.flyDelegates(seqs, me);
+        }
+      };
       const stillLanding = () => parliamentFlow.stage === 'landed' && parliamentFlow.voteSnapshot !== undefined;
       if (snap?.railPrice === true) {
         // THE ACTION'S PRICE OFF THE RAIL (T07 — PL-104, then TR15 §6): after the impulse has landed (PL-103) the
@@ -1768,6 +1786,10 @@ export default defineComponent({
         const proxy = flightEl(id);
         if (proxy === null || proxy === undefined) {
           dropFlight(id);
+          if (parliamentFlow.stage !== 'landed' || this.landingHold === undefined) {
+            // Dropped with its landing (a clear, the ceiling's recovery): nothing is owed to a phrase that is over.
+            return;
+          }
           // This cube's source lets go of exactly ONE figure (a phrase's other cubes may still be standing on it).
           this.releaseOneSource();
           f.flightSeq = undefined;
@@ -1813,7 +1835,21 @@ export default defineComponent({
         registerFlightHandle(id, handle);
         this.cubesInAir++;
         if (this.flightHold === undefined) {
-          this.flightHold = beginAnimationHold('parliament-vote-flight', {maxHoldMs: 4000});
+          const flightHold = beginAnimationHold('parliament-vote-flight', {
+            maxHoldMs: 4000,
+            // THE CEILING LANDS THE CUBES: every one still in the air is dropped WITH its touchdown (the handle settles
+            // its lift, its leave and its landing — once), so the phrase goes on exactly as if they had arrived.
+            expire: () => {
+              if (this.flightHold !== flightHold) {
+                return;
+              }
+              console.warn('[parliament] vote flight: outlived its ceiling — ended');
+              this.flightHold = undefined;
+              this.cubesInAir = 0;
+              dropFlightsWithPrefix('vote');
+            },
+          });
+          this.flightHold = markRaw(flightHold);
         }
       });
       return true;
@@ -1913,7 +1949,29 @@ export default defineComponent({
       f.accessParty = party;
       f.accessBeat = 'count';
       setWorkspaceFramePhase('parliament', 'executing');
-      this.accessHold = beginAnimationHold('parliament-access-scene', {maxHoldMs: 9000});
+      const accessHold = beginAnimationHold('parliament-access-scene', {
+        maxHoldMs: 9000,
+        // THE CEILING ENDS THE SCENE by its own last beat (`accessDone`): the leave and the seal stop where they are and
+        // the flow goes on (the series, or the leave) — never a frame standing at «executing».
+        expire: () => {
+          const f = parliamentFlow;
+          if (this.accessHold !== accessHold || f.accessParty === undefined || f.accessBeat === 'done') {
+            return;
+          }
+          console.warn('[parliament] access scene: outlived its ceiling — ended');
+          this.accessBeatHandle?.kill();
+          this.accessBeatHandle = undefined;
+          dropFlightsWithPrefix('access-seal', {silent: true});
+          if (f.voteLeaving) {
+            const root = parliamentRootEl();
+            killParliamentVoteMotion(root);
+            restoreParliamentBody(root);
+            f.voteLeaving = false;
+          }
+          this.accessDone();
+        },
+      });
+      this.accessHold = markRaw(accessHold);
       this.landingHold?.release();
       this.landingHold = undefined;
       this.accessBeatHandle = scheduleParliamentBeat(ACCESS_COUNT_MS, () => this.accessReturn());
@@ -2003,14 +2061,49 @@ export default defineComponent({
       }
       this.$emit('flow-complete', 'vote');
     },
+    /**
+     * THE LANDING ENDS NOW (its hold's ceiling): every wait of the phrase is cut and every flight dropped SILENTLY (their
+     * touchdowns would re-enter this very flow), the poses go where the model has them — every arrived cube on the
+     * card, the sources let go, the support landed, the price absorbed — and the read turns and finishes at once.
+     */
+    settleLandingNow(): void {
+      const f = parliamentFlow;
+      this.grantBeats.forEach((beat) => beat.kill());
+      this.grantBeats = [];
+      this.cubesInAir = 0;
+      dropFlightsWithPrefix('vote', {silent: true});
+      this.supportFlights.forEach((id) => dropFlight(id, {silent: true}));
+      this.supportFlights = [];
+      dropFlightsWithPrefix('price', {silent: true});
+      this.flightHold?.release();
+      this.flightHold = undefined;
+      const seqs = [...f.landedSeqs, ...f.pendingSeqs, ...(f.flightSeq === undefined ? [] : [f.flightSeq])];
+      f.landedSeqs = Array.from(new Set(seqs));
+      f.pendingSeqs = [];
+      f.flightSeq = undefined;
+      f.sourceHold = undefined;
+      f.sourceLeaving = undefined;
+      f.sourceHoldCount = 0;
+      f.sourceLeavingCount = 0;
+      f.supportHeld = 0;
+      f.supportLanded = f.voteSnapshot?.support?.gained ?? f.supportLanded;
+      if (f.priceStage !== 'none') {
+        f.priceStage = 'landed';
+      }
+      const last = seqs.length === 0 ? (f.landedSeq ?? 0) : Math.max(...seqs);
+      this.beginLanding(last);
+      this.finishLanding();
+    },
     clearLanding(): void {
       this.landingBeat?.kill();
       this.landingBeat = undefined;
       this.grantBeats.forEach((beat) => beat.kill());
       this.grantBeats = [];
       this.cubesInAir = 0;
-      dropFlightsWithPrefix('vote');
-      this.supportFlights.forEach((id) => dropFlight(id));
+      // A TEARDOWN (the unmount, the series' next decision, a landing that found no stage): the flights go SILENTLY —
+      // their touchdowns would re-enter the landing this very call is clearing.
+      dropFlightsWithPrefix('vote', {silent: true});
+      this.supportFlights.forEach((id) => dropFlight(id, {silent: true}));
       this.supportFlights = [];
       this.flightHold?.release();
       this.flightHold = undefined;
@@ -2028,13 +2121,13 @@ export default defineComponent({
       f.sourceLeaving = undefined;
       f.sourceHoldCount = 0;
       f.sourceLeavingCount = 0;
-      dropFlightsWithPrefix('price');
+      dropFlightsWithPrefix('price', {silent: true});
       f.priceStage = 'none';
       this.accessBeatHandle?.kill();
       this.accessBeatHandle = undefined;
       this.accessHold?.release();
       this.accessHold = undefined;
-      dropFlightsWithPrefix('access-seal');
+      dropFlightsWithPrefix('access-seal', {silent: true});
     },
   },
 });

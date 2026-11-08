@@ -144,7 +144,7 @@ export default defineComponent({
   methods: {
     /** The resolutions stand's pad target — the slotted showcase (resolved late: it mounts async). */
     reduxStandTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
-      return this.$refs.reduxPg as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+      return (this.$refs.reduxPg ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
     },
     openAt(i: number): void {
       this.cursor = i;
@@ -156,7 +156,7 @@ export default defineComponent({
     handleIntent(intent: GamepadIntent): boolean {
       // A fullscreen stand owns the pad while it is up.
       if (this.open !== undefined) {
-        const stand = this.$refs.stand as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const stand = (this.$refs.stand ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         return stand?.handleIntent?.(intent) ?? true;
       }
       const action = consoleActionOf(intent);

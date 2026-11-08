@@ -80,15 +80,15 @@ export default defineComponent({
     /** D-pad navigation keeps the selected row visible (auto-scroll). */
     index() {
       void this.$nextTick(() => {
-        const slot = this.$refs.selectedRow as HTMLElement | Array<HTMLElement> | undefined;
+        const slot = (this.$refs.selectedRow ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
         const el = Array.isArray(slot) ? slot[0] : slot;
         // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
-        (this.$refs.rows as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
+        ((this.$refs.rows ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
       });
     },
     /** A tab/sheet switch resets the list to the top. */
     title() {
-      (this.$refs.rows as {scrollToStart?: () => void} | undefined)?.scrollToStart?.();
+      ((this.$refs.rows ?? undefined) as {scrollToStart?: () => void} | undefined)?.scrollToStart?.();
     },
   },
 });

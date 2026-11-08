@@ -1261,7 +1261,7 @@ export default defineComponent({
       // mid-stage (partly clipped by the stage edge at full opacity); the
       // measured distance closes the same loop the arrival opens.
       const lane = (dir > 0 ? this.$refs.laneRight : this.$refs.laneLeft) as HTMLElement | undefined;
-      const stage = this.$refs.stageWrap as HTMLElement | undefined;
+      const stage = (this.$refs.stageWrap ?? undefined) as HTMLElement | undefined;
       let travel = 150 * conUiScale();
       const laneRect = lane?.getBoundingClientRect?.();
       const stageRect = stage?.getBoundingClientRect?.();
@@ -1323,8 +1323,8 @@ export default defineComponent({
       if (!this.deal.state.active) {
         return;
       }
-      const strip = this.$refs.packetRow as HTMLElement | undefined;
-      const layer = this.$refs.dealLayer as InstanceType<typeof ConsoleCardDealLayer> | undefined;
+      const strip = (this.$refs.packetRow ?? undefined) as HTMLElement | undefined;
+      const layer = (this.$refs.dealLayer ?? undefined) as InstanceType<typeof ConsoleCardDealLayer> | undefined;
       if (strip === undefined || strip === null || layer === undefined) {
         this.deal.dispose();
         return;
@@ -1405,8 +1405,8 @@ export default defineComponent({
       if (!this.deal.state.active) {
         return;
       }
-      const strip = this.$refs.buyRow as HTMLElement | undefined;
-      const layer = this.$refs.dealLayer as InstanceType<typeof ConsoleCardDealLayer> | undefined;
+      const strip = (this.$refs.buyRow ?? undefined) as HTMLElement | undefined;
+      const layer = (this.$refs.dealLayer ?? undefined) as InstanceType<typeof ConsoleCardDealLayer> | undefined;
       if (strip === undefined || strip === null || layer === undefined) {
         this.deal.dispose();
         if (riseSceneEngaged()) {
@@ -1764,8 +1764,8 @@ export default defineComponent({
      * wait's forward scale. Runs synchronously before the row's fit measures the stage box the plan leaves.
      */
     planShowcase(): void {
-      const body = this.$refs.body as HTMLElement | undefined;
-      const bar = this.$refs.statusbar as HTMLElement | undefined;
+      const body = (this.$refs.body ?? undefined) as HTMLElement | undefined;
+      const bar = (this.$refs.statusbar ?? undefined) as HTMLElement | undefined;
       if (body === undefined || body === null || body.clientHeight < 40) {
         return;
       }
@@ -1812,7 +1812,7 @@ export default defineComponent({
       const zone = this.zone;
       const rowRef = zone === 'buy' || zone === 'pay' ? 'buyRow' : zone === 'inspect' ? 'inspectRow' : 'packetRow';
       const row = this.$refs[rowRef] as HTMLElement | undefined;
-      const wrap = this.$refs.stageWrap as HTMLElement | undefined;
+      const wrap = (this.$refs.stageWrap ?? undefined) as HTMLElement | undefined;
       if (row === undefined || row === null || wrap === undefined || wrap === null) {
         return;
       }

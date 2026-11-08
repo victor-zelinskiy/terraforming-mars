@@ -76,7 +76,7 @@
   </div>
 </template>
 <script lang="ts">
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, markRaw, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
@@ -383,7 +383,24 @@ export default defineComponent({
       f.delegateBeat = 'flight';
       setWorkspaceFramePhase('parliament', 'executing');
       this.outcomeHold?.release();
-      this.outcomeHold = beginAnimationHold('parliament-delegate-removal', {maxHoldMs: 4000});
+      const hold = beginAnimationHold('parliament-delegate-removal', {
+        maxHoldMs: 4000,
+        // THE CEILING ENDS THE CARRY, not only its count: the figure (and the second one of an exchange) is dropped where
+        // the model has it, and the flow goes on by its own hand — the read, then the leave (`afterFlight`).
+        expire: () => {
+          if (this.outcomeHold !== hold || parliamentFlow.delegateBeat !== 'flight') {
+            return;
+          }
+          console.warn('[parliament] delegate removal: outlived its ceiling — ended');
+          if (this.flight !== undefined) {
+            dropFlight(this.flight, {silent: true});
+            this.flight = undefined;
+          }
+          settleDelegateRemoval();
+          this.afterFlight();
+        },
+      });
+      this.outcomeHold = markRaw(hold);
       void this.$nextTick(() => probeTick(() => this.fly()));
     },
     fly(): void {
@@ -468,7 +485,8 @@ export default defineComponent({
       this.beat?.kill();
       this.beat = undefined;
       if (this.flight !== undefined) {
-        dropFlight(this.flight);
+        // SILENT: its touchdown would start the exchange's second carry or the read on a mode that is going.
+        dropFlight(this.flight, {silent: true});
         this.flight = undefined;
       }
       this.outcomeHold?.release();

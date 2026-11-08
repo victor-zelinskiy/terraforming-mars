@@ -2311,7 +2311,7 @@ export default defineComponent({
       // box is a permanently small card. The observer is the honest wait —
       // never a guessed delay — and the settle pass is its cheap backstop
       // for a growth that produced no observable resize.
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       if (root !== undefined && root !== null) {
         this.stopFitObs = useResizeObserver(root, () => this.scheduleEmbedFit()).stop;
       }
@@ -2347,7 +2347,7 @@ export default defineComponent({
       }
       void this.$nextTick(() => this.fitVerdictStage());
       this.stopVerdictResize = useEventListener(window, 'resize', () => this.fitVerdictStage());
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       if (root !== undefined && root !== null) {
         this.stopVerdictObs = useResizeObserver(root, () => this.fitVerdictStage()).stop;
       }
@@ -2377,7 +2377,7 @@ export default defineComponent({
       if (!this.embedded || this.mode !== 'result' || typeof window === 'undefined') {
         return;
       }
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const body = root?.querySelector<HTMLElement>('.con-reveal__body--result');
       if (root === undefined || root === null || body === null || body === undefined) {
         return;
@@ -2486,7 +2486,7 @@ export default defineComponent({
         }
         return;
       }
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const strip = root?.querySelector<HTMLElement>('.con-reveal__strip');
       const probe = strip?.querySelector<HTMLElement>('.con-cards__slot');
       if (root === undefined || strip === undefined || strip === null ||
@@ -2683,9 +2683,9 @@ export default defineComponent({
       if (this.mode !== 'result' || this.lastReveal === undefined) {
         return;
       }
-      const proxy = this.$refs.resultProxy as HTMLElement | undefined;
-      const flip = this.$refs.resultFlip as HTMLElement | undefined;
-      const slotHost = this.$refs.resultSlot as HTMLElement | undefined;
+      const proxy = (this.$refs.resultProxy ?? undefined) as HTMLElement | undefined;
+      const flip = (this.$refs.resultFlip ?? undefined) as HTMLElement | undefined;
+      const slotHost = (this.$refs.resultSlot ?? undefined) as HTMLElement | undefined;
       // Land on the CARD rect (not the padded slot frame) so the proxy → real
       // card swap is pixel-true. The real card is visibility:hidden — it keeps
       // its layout, so its rect is measurable while it stays invisible.
@@ -2805,7 +2805,7 @@ export default defineComponent({
       if (next !== this.focusIdx) {
         this.focusIdx = next;
         void this.$nextTick(() => {
-          const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
+          const slot = (this.$refs.focusedCardSlot ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
           const el = Array.isArray(slot) ? slot[0] : slot;
           // Snap while a take / collection / FLIP episode owns the strip: a
           // SMOOTH scroll retargets the container for ~300ms UNDER transforms
@@ -2890,12 +2890,12 @@ export default defineComponent({
         // absent and `slotZoomOrigin` silently degrades to "no physical
         // origin" (the card would appear from nowhere and return to nowhere).
         // Prod strips comments, which is exactly why it stayed invisible.
-        () => this.$refs.rootEl as HTMLElement | undefined,
+        () => (this.$refs.rootEl ?? undefined) as HTMLElement | undefined,
         keyOf,
         follow ? (i) => {
           this.focusIdx = i;
           void this.$nextTick(() => {
-            const slot = this.$refs.focusedCardSlot as HTMLElement | Array<HTMLElement> | undefined;
+            const slot = (this.$refs.focusedCardSlot ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
             const el = Array.isArray(slot) ? slot[0] : slot;
             // Same snap-under-episode rule as focusStep (see there).
             const busy = this.takingIdx !== undefined || this.collecting || this.arrivalPending;
@@ -3002,11 +3002,11 @@ export default defineComponent({
         return;
       }
       this.resultHandingOff = true;
-      const host = this.$refs.resultSlot as HTMLElement | undefined;
+      const host = (this.$refs.resultSlot ?? undefined) as HTMLElement | undefined;
       runRevealHandoff({
         reveal,
         slot: host?.querySelector<HTMLElement>('.pcard, .card-container') ?? host,
-        verdict: this.$refs.resultVerdict as HTMLElement | undefined,
+        verdict: (this.$refs.resultVerdict ?? undefined) as HTMLElement | undefined,
         onDetached: () => this.$emit('dismiss-result'),
       });
     },
@@ -3170,7 +3170,7 @@ export default defineComponent({
     /** The live slot element for a drawn/viewer card (data-zoom-slot key). */
     exitSlotFor(key: string): HTMLElement | null {
       // Explicit ref — see zoomOriginFor: `$el` is a Comment in dev builds.
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       if (root === undefined || typeof root.querySelector !== 'function') {
         return null;
       }

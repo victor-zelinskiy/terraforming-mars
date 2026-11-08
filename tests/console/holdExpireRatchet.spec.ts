@@ -35,12 +35,28 @@ function walk(dir: string, out: Array<string> = []): Array<string> {
   return out;
 }
 
-/** The call's argument text — from its `(` to the matching `)` (strings and template literals skipped). */
-function callText(source: string, open: number): string {
+/**
+ * The call's argument text — from its `(` to the matching `)` (strings and template literals skipped) — and the same
+ * text with its COMMENTS removed (`code`): a quote inside a comment («the phrase's end») is prose, never a string that
+ * hides the rest of the call, and a comment that merely MENTIONS `expire` declares nothing (ledger HC).
+ */
+function callText(source: string, open: number): {raw: string, code: string} {
   let depth = 0;
   let quote = '';
+  let code = '';
   for (let i = open; i < source.length; i++) {
     const c = source[i];
+    if (quote === '' && c === '/' && source[i + 1] === '/') {
+      const end = source.indexOf('\n', i);
+      i = end === -1 ? source.length : end - 1;
+      continue;
+    }
+    if (quote === '' && c === '/' && source[i + 1] === '*') {
+      const end = source.indexOf('*/', i + 2);
+      i = end === -1 ? source.length : end + 1;
+      continue;
+    }
+    code += c;
     if (quote !== '') {
       if (c === '\\') {
         i++;
@@ -56,11 +72,11 @@ function callText(source: string, open: number): string {
     } else if (c === ')') {
       depth--;
       if (depth === 0) {
-        return source.slice(open, i + 1);
+        return {raw: source.slice(open, i + 1), code};
       }
     }
   }
-  return source.slice(open);
+  return {raw: source.slice(open), code};
 }
 
 /** Per file: the holds that declare neither `expire` nor a `hold-expire: none — …` reason. */
@@ -80,7 +96,7 @@ function holdsWithoutExpire(): Record<string, number> {
         continue;
       }
       const args = callText(source, m.index + m[0].length - 1);
-      if (!/\bexpire\b/.test(args) && !/hold-expire: none —/.test(args)) {
+      if (!/\bexpire\b/.test(args.code) && !/hold-expire: none —/.test(args.raw)) {
         missing++;
       }
     }
@@ -91,8 +107,19 @@ function holdsWithoutExpire(): Record<string, number> {
   return out;
 }
 
+/** How many hold calls the scan reads at all (the anti-vacuous half). */
+function holdCallCount(): number {
+  let n = 0;
+  for (const file of walk(CLIENT)) {
+    if (file !== REGISTRY) {
+      n += [...fs.readFileSync(file, 'utf8').matchAll(CALL)].length;
+    }
+  }
+  return n;
+}
+
 describe('hold expire ratchet — a ceiling ends the owner\'s wedge, not only its count', () => {
-  it('no hold without `expire` beyond the baseline; a fall is locked in the same diff', () => {
+  it('EVERY hold declares its owner\'s recovery — the worklist reached zero (ledger HC) and stays there', () => {
     const now = holdsWithoutExpire();
     if (process.env.HOLD_EXPIRE_BASELINE === 'write') {
       fs.writeFileSync(BASELINE, JSON.stringify(now, Object.keys(now).sort(), 2) + '\n');
@@ -102,11 +129,14 @@ describe('hold expire ratchet — a ceiling ends the owner\'s wedge, not only it
     expect(grew, 'a new hold must declare its owner\'s recovery (`expire`) or `hold-expire: none — <reason>` inside the call').deep.eq([]);
     const fell = Object.entries(base).filter(([f, n]) => (now[f] ?? 0) < n).map(([f, n]) => `${f}: ${n} → ${now[f] ?? 0}`);
     expect(fell, 'the worklist shrank — lock it in: HOLD_EXPIRE_BASELINE=write').deep.eq([]);
+    expect(base, 'the baseline is EMPTY since 2026-11-08: a hold without a recovery is a defect, never a worklist row').deep.eq({});
   }).timeout(20_000);
 
-  it('reads a real corpus (anti-vacuous): the chairman quest\'s hold is out of the worklist, holds exist', () => {
-    const now = holdsWithoutExpire();
-    expect(now['src/client/console/parliament/chairmanQuestDirector.ts'], 'the 2026-11-07 hold declares its recovery').eq(undefined);
-    expect(Object.keys(now).length, 'the worklist is real').to.be.greaterThan(5);
+  it('reads a real corpus (anti-vacuous): the holds are found, and a comment\'s apostrophe never hides a call\'s `expire`', () => {
+    expect(holdCallCount(), 'the scan reads the corpus of holds').to.be.greaterThan(40);
+    const quoted = 'x(1, {\n  // the phrase\'s end\n  expire: () => undefined,\n})';
+    expect(/\bexpire\b/.test(callText(quoted, 1).code), 'an apostrophe in a comment is prose, not a string').is.true;
+    const mention = 'x(1, {\n  // no expire here\n  scope: \'blocking\',\n})';
+    expect(/\bexpire\b/.test(callText(mention, 1).code), 'a comment MENTIONING expire declares nothing').is.false;
   }).timeout(20_000);
 });

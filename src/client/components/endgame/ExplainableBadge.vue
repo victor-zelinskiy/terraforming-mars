@@ -122,7 +122,7 @@ export default defineComponent({
       this.open = false;
     },
     position() {
-      const el = this.$refs.anchor as HTMLElement | undefined;
+      const el = (this.$refs.anchor ?? undefined) as HTMLElement | undefined;
       if (el === undefined || typeof el.getBoundingClientRect !== 'function') {
         return;
       }

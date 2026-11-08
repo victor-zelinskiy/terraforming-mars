@@ -180,7 +180,7 @@ export default defineComponent({
     },
   },
   mounted() {
-    const album = this.$refs.album as HTMLElement | undefined;
+    const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
     if (album !== undefined && typeof ResizeObserver !== 'undefined') {
       this.ro = markRaw(new ResizeObserver(() => this.scheduleMeasure()));
       this.ro.observe(album);
@@ -261,7 +261,7 @@ export default defineComponent({
     },
     /** The live slot a card visually lives in (a flight's end, the zoom's physical origin) — null off the mounted pages. */
     slotEl(name: string): HTMLElement | null {
-      const root = this.$refs.album as HTMLElement | undefined;
+      const root = (this.$refs.album ?? undefined) as HTMLElement | undefined;
       if (root === undefined) {
         return null;
       }
@@ -279,14 +279,14 @@ export default defineComponent({
     },
     /** A scroll here is always programmatic (overflow hidden, no wheel) — pin it so nothing shifts the strip. */
     pinScroll(): void {
-      const album = this.$refs.album as HTMLElement | undefined;
+      const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
       if (album !== undefined && (album.scrollLeft !== 0 || album.scrollTop !== 0)) {
         album.scrollLeft = 0;
         album.scrollTop = 0;
       }
     },
     measure(): void {
-      const album = this.$refs.album as HTMLElement | undefined;
+      const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
       if (album === undefined) {
         return;
       }

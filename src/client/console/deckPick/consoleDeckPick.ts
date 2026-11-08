@@ -115,7 +115,19 @@ export function deckPickHolding(): boolean {
  * play on. What it must actually stop is a notification card sliding over the
  * cards mid-flight.
  */
-registerAnimationHoldSupplier('deck-pick', isDeckPickBusy, {scope: 'notification-only'});
+registerAnimationHoldSupplier('deck-pick', isDeckPickBusy, {
+  scope: 'notification-only',
+  // An outgoing beat past the ceiling ends through the commit's own release (`endDeckPickCommit`): the submit went
+  // out long ago, the picks are the hand's (the view) and the surface may let go. A refusal still rolls back — the
+  // surface's own `endOutgoing` re-reads the prompt when its awaits settle.
+  expire: () => {
+    if (!isDeckPickBusy()) {
+      return;
+    }
+    console.warn(`[deck-pick] ${deckPickState.phase} beat (kept ${deckPickState.kept}): outlived its ceiling — ended`);
+    endDeckPickCommit();
+  },
+});
 
 /** The cards are coming off the deck (or another director's cinematic is
  *  delivering them) — input stays shut until they have all landed. */

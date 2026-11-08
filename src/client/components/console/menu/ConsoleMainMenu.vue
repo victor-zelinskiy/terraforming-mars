@@ -957,7 +957,7 @@ export default defineComponent({
       const action = consoleActionOf(intent);
       // The profile editor hosts the text-entry fallback — route to it.
       if (this.overlay === 'profile') {
-        const profile = this.$refs.profile as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const profile = (this.$refs.profile ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         if (profile?.handleIntent?.(intent) === true) {
           return true;
         }
@@ -967,7 +967,7 @@ export default defineComponent({
         return true;
       }
       if (this.overlay === 'profiles') {
-        const profiles = this.$refs.profiles as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const profiles = (this.$refs.profiles ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         if (profiles?.handleIntent?.(intent) === true) {
           return true;
         }
@@ -977,7 +977,7 @@ export default defineComponent({
         return true;
       }
       if (this.overlay === 'friends') {
-        const friends = this.$refs.friends as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const friends = (this.$refs.friends ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         if (friends?.handleIntent?.(intent) === true) {
           return true;
         }
@@ -987,29 +987,29 @@ export default defineComponent({
         return true;
       }
       if (this.overlay === 'language') {
-        const picker = this.$refs.language as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const picker = (this.$refs.language ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         return picker?.handleIntent?.(intent) ?? true;
       }
       if (this.overlay === 'options') {
-        const options = this.$refs.options as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const options = (this.$refs.options ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         return options?.handleIntent?.(intent) ?? true;
       }
       if (this.overlay === 'admin') {
-        const admin = this.$refs.admin as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const admin = (this.$refs.admin ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         return admin?.handleIntent?.(intent) ?? true;
       }
       if (this.overlay === 'playground') {
-        const hub = this.$refs.playground as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const hub = (this.$refs.playground ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         return hub?.handleIntent?.(intent) ?? true;
       }
       if (this.overlay === 'campaigns') {
-        const panel = this.$refs.campaigns as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        const panel = (this.$refs.campaigns ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         return panel?.handleIntent?.(intent) ?? true;
       }
       if (this.overlay === 'games') {
         // The on-screen keyboard owns every intent while an address is typed.
         if (this.lanEntry) {
-          const vk = this.$refs.lankeyboard as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
+          const vk = (this.$refs.lankeyboard ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
           if (vk?.handleIntent?.(intent) === true) {
             return true;
           }
@@ -1107,7 +1107,7 @@ export default defineComponent({
     /** Keep the cursored card inside the showcase's scroll area (a third row is a page below). */
     keepGamesCursorVisible(): void {
       void this.$nextTick(() => {
-        const screen = this.$refs.gamesScreen as {ensureVisible?: (el: Element | null) => void} | undefined;
+        const screen = (this.$refs.gamesScreen ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
         screen?.ensureVisible?.(this.$el.querySelector('.cm-game--cursor'));
       });
     },

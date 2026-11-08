@@ -301,7 +301,7 @@ export default defineComponent({
     openZoom(tile: Tile): void {
       this.zoomCard = tile.model;
       nextTick(() => {
-        (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
+        ((this.$refs.zoomModal ?? undefined) as {show?: () => void} | undefined)?.show?.();
       });
     },
   },

@@ -317,7 +317,7 @@ export default defineComponent({
     moveCursor(delta: 1 | -1): void {
       const rows = this.current.rows.length;
       if (rows === 0) {
-        (this.$refs.scroll as {scrollByPx?: (dy: number) => void} | undefined)?.scrollByPx?.(delta * 60);
+        ((this.$refs.scroll ?? undefined) as {scrollByPx?: (dy: number) => void} | undefined)?.scrollByPx?.(delta * 60);
         return;
       }
       this.cursor = stepIndex(this.cursor, delta, rows);
@@ -351,7 +351,7 @@ export default defineComponent({
     /** Keep the cursored row inside the ConsoleScrollArea viewport. */
     keepCursorVisible(): void {
       void this.$nextTick(() => {
-        const scroll = this.$refs.scroll as {ensureVisible?: (el: Element | null) => void} | undefined;
+        const scroll = (this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
         scroll?.ensureVisible?.(this.$el.querySelector('.con-set__row--cursor'));
       });
     },

@@ -727,7 +727,7 @@ export default defineComponent({
   beforeUnmount() {
     this.observePreview(false);
     this.dropInspect();
-    const stage = this.$refs.stageEl as HTMLElement | undefined;
+    const stage = (this.$refs.stageEl ?? undefined) as HTMLElement | undefined;
     if (stage !== undefined) {
       killDescendEpisode(stage);
     }
@@ -743,7 +743,7 @@ export default defineComponent({
     observePreview(live: boolean): void {
       this.previewRo?.disconnect();
       this.previewRo = undefined;
-      const col = this.$refs.previewEl as HTMLElement | undefined;
+      const col = (this.$refs.previewEl ?? undefined) as HTMLElement | undefined;
       if (!live || col === undefined || typeof ResizeObserver === 'undefined') {
         return;
       }
@@ -761,7 +761,7 @@ export default defineComponent({
      * painted-to-layout ratio, so the table's entry scale cancels out.
      */
     fitPreview(): void {
-      const col = this.$refs.previewEl as HTMLElement | undefined;
+      const col = (this.$refs.previewEl ?? undefined) as HTMLElement | undefined;
       const card = col?.querySelector<HTMLElement>('.con-vpx__preview-card');
       const meta = col?.querySelector<HTMLElement>('.con-vpx__preview-meta');
       if (col === undefined || card === null || card === undefined || meta === null || meta === undefined) {
@@ -913,7 +913,7 @@ export default defineComponent({
           this.ui.rowFocus = next;
           nextTick(() => {
             const rowEl = (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-vpx-row="${next}"]`);
-            const scroll = this.$refs.rowScroll as InstanceType<typeof ConsoleScrollArea> | undefined;
+            const scroll = (this.$refs.rowScroll ?? undefined) as InstanceType<typeof ConsoleScrollArea> | undefined;
             if (rowEl !== null && scroll !== undefined) {
               (scroll as unknown as {ensureVisible?: (el: HTMLElement) => void}).ensureVisible?.(rowEl);
             }
@@ -1021,7 +1021,7 @@ export default defineComponent({
         return;
       }
       nextTick(() => {
-        const layer = this.$refs.inspectEl as HTMLElement | undefined;
+        const layer = (this.$refs.inspectEl ?? undefined) as HTMLElement | undefined;
         if (layer === undefined) {
           return;
         }
@@ -1061,7 +1061,7 @@ export default defineComponent({
       if (entry === undefined) {
         return false;
       }
-      const layer = this.$refs.inspectEl as HTMLElement | undefined;
+      const layer = (this.$refs.inspectEl ?? undefined) as HTMLElement | undefined;
       const sourceArt = this.maSourceArt(entry.key);
       const restore = () => {
         sourceArt?.style.removeProperty('visibility');
@@ -1100,7 +1100,7 @@ export default defineComponent({
       if (entry === undefined) {
         return;
       }
-      const layer = this.$refs.inspectEl as HTMLElement | undefined;
+      const layer = (this.$refs.inspectEl ?? undefined) as HTMLElement | undefined;
       if (layer !== undefined) {
         killDescendEpisode(layer);
       }
@@ -1110,7 +1110,7 @@ export default defineComponent({
     // ── the level transitions (the workspace-descend phrase) ─────────────
     onRouteChange(to: InfoRouteId, from: InfoRouteId): void {
       this.dropInspect();
-      const stage = this.$refs.stageEl as HTMLElement | undefined;
+      const stage = (this.$refs.stageEl ?? undefined) as HTMLElement | undefined;
       if (stage !== undefined) {
         killDescendEpisode(stage);
       }
@@ -1168,8 +1168,8 @@ export default defineComponent({
         guardedDescend(stage, 620, () => {
           this.overviewLeaving = false;
         }, (finish) => {
-          const catEl = this.$refs.catEl as HTMLElement | undefined;
-          const overviewEl = this.$refs.overviewEl as HTMLElement | undefined;
+          const catEl = (this.$refs.catEl ?? undefined) as HTMLElement | undefined;
+          const overviewEl = (this.$refs.overviewEl ?? undefined) as HTMLElement | undefined;
           if (catEl === undefined || overviewEl === undefined) {
             return undefined;
           }
@@ -1189,8 +1189,8 @@ export default defineComponent({
       guardedDescend(stage, 560, () => {
         this.settleCatLeave();
       }, (finish) => {
-        const catEl = this.$refs.catEl as HTMLElement | undefined;
-        const overviewEl = this.$refs.overviewEl as HTMLElement | undefined;
+        const catEl = (this.$refs.catEl ?? undefined) as HTMLElement | undefined;
+        const overviewEl = (this.$refs.overviewEl ?? undefined) as HTMLElement | undefined;
         if (catEl === undefined || overviewEl === undefined) {
           return undefined;
         }
@@ -1210,8 +1210,8 @@ export default defineComponent({
         guardedDescend(stage, 620, () => {
           this.catReceding = false;
         }, (finish) => {
-          const tableEl = this.$refs.tableEl as HTMLElement | undefined;
-          const catEl = this.$refs.catEl as HTMLElement | undefined;
+          const tableEl = (this.$refs.tableEl ?? undefined) as HTMLElement | undefined;
+          const catEl = (this.$refs.catEl ?? undefined) as HTMLElement | undefined;
           if (tableEl === undefined) {
             return undefined;
           }
@@ -1233,8 +1233,8 @@ export default defineComponent({
       guardedDescend(stage, 560, () => {
         this.settleTableLeave();
       }, (finish) => {
-        const tableEl = this.$refs.tableEl as HTMLElement | undefined;
-        const catEl = this.$refs.catEl as HTMLElement | undefined;
+        const tableEl = (this.$refs.tableEl ?? undefined) as HTMLElement | undefined;
+        const catEl = (this.$refs.catEl ?? undefined) as HTMLElement | undefined;
         if (tableEl === undefined) {
           return undefined;
         }

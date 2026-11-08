@@ -642,7 +642,7 @@ export default defineComponent({
      */
     intakeStyle(intake: SeatIntake): Record<string, string> {
       void intake.seq;
-      const ribbon = (this.$refs.playersEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-status__ribbon');
+      const ribbon = ((this.$refs.playersEl ?? undefined) as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-status__ribbon');
       const chip = ribbon?.querySelector<HTMLElement>(`.con-status__player[data-color="${intake.seat}"]:not(.con-status__pghost)`);
       const dot = chip?.querySelector<HTMLElement>('.con-status__dot');
       if (ribbon === undefined || ribbon === null || chip === undefined || chip === null) {

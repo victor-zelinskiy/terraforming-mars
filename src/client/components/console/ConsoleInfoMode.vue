@@ -965,42 +965,42 @@ export default defineComponent({
     /** The shell forwards the pad to the embedded «Разыграно» table while
      *  the played route is up (LB/RB and Y are handled globally first). */
     handlePlayedIntent(intent: GamepadIntent): void {
-      (this.$refs.playedView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
+      ((this.$refs.playedView ?? undefined) as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
     },
     /** …and to the score explorer while a vp route is up (same contract). */
     handleScoreIntent(intent: GamepadIntent): void {
-      (this.$refs.scoreView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
+      ((this.$refs.scoreView ?? undefined) as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
     },
     /** …and to the extras explorer while the extras route is up. */
     handleExtrasIntent(intent: GamepadIntent): void {
-      (this.$refs.extrasView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
+      ((this.$refs.extrasView ?? undefined) as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
     },
     /** …and to the «Действия» gallery while the actions route is up (TR60). */
     handleActionsIntent(intent: GamepadIntent): void {
-      (this.$refs.actionsView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
+      ((this.$refs.actionsView ?? undefined) as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
     },
     /** …and to the effects explorer while the effects route is up. */
     handleEffectsIntent(intent: GamepadIntent): void {
-      (this.$refs.effectsView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
+      ((this.$refs.effectsView ?? undefined) as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
     },
     /** B consumes the effects explorer's open detail before walking the tree. */
     consumeEffectsBack(): boolean {
-      return (this.$refs.effectsView as {consumeEffectsBack?: () => boolean} | undefined)?.consumeEffectsBack?.() === true;
+      return ((this.$refs.effectsView ?? undefined) as {consumeEffectsBack?: () => boolean} | undefined)?.consumeEffectsBack?.() === true;
     },
     /** …and to the campaign overview while the campaign route is up.
      *  Returns false when the overview did not consume it (B at its base
      *  layer — the shell then walks the route tree back to the summary). */
     handleCampaignIntent(intent: GamepadIntent): boolean {
-      return (this.$refs.campaignView as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent) === true;
+      return ((this.$refs.campaignView ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent) === true;
     },
     /** A satellite cell press routed by the shell (mouse/touch): select
      *  the type inside the live explorer. */
     selectExtrasType(key: string, index: number): void {
-      (this.$refs.extrasView as {selectType?: (k: string, i: number) => void} | undefined)?.selectType?.(key, index);
+      ((this.$refs.extrasView ?? undefined) as {selectType?: (k: string, i: number) => void} | undefined)?.selectType?.(key, index);
     },
     /** B consumes the explorer's MA inspection before walking the tree. */
     consumeScoreBack(): boolean {
-      return (this.$refs.scoreView as {consumeScoreBack?: () => boolean} | undefined)?.consumeScoreBack?.() === true;
+      return ((this.$refs.scoreView ?? undefined) as {consumeScoreBack?: () => boolean} | undefined)?.consumeScoreBack?.() === true;
     },
     // ── the content-zone swap beat (route changes) ──────────────────────
     // TR60 — «ЗОНА РАСКРЫВАЕТСЯ ИЗ ПЛИТКИ»: every zone of the dossier is the

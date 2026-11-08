@@ -141,4 +141,21 @@ export function resetExternalDraw(): void {
 // mandatory decision — a blocking hold would refuse to mount the very screen
 // the beats play on. What it must stop is a notification card sliding over
 // the cards mid-flight.
-registerAnimationHoldSupplier('external-draw', isExternalDrawBusy, {scope: 'notification-only'});
+registerAnimationHoldSupplier('external-draw', isExternalDrawBusy, {
+  scope: 'notification-only',
+  // A beat past the ceiling ends on the flow's own edge: a take in flight lands (`endExternalDrawSend` — the take was
+  // submitted, the card is the hand's), a deal that never finished hands the cards over (`beginExternalDrawReady` —
+  // they stand takeable). Only the story is cut.
+  expire: () => {
+    const phase = externalDrawState.phase;
+    if (phase !== 'dealing' && phase !== 'sending') {
+      return;
+    }
+    console.warn(`[external-draw] ${phase} beat of ${externalDrawState.dealtIntake || 'the intake'}: outlived its ceiling — ended`);
+    if (phase === 'sending') {
+      endExternalDrawSend();
+    } else {
+      beginExternalDrawReady();
+    }
+  },
+});

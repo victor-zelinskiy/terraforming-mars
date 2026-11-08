@@ -7418,6 +7418,38 @@ parliamentFixture('parliament-devaction-assembly', familyTable(DEV_ACTION_RESOLU
   write('parliament-chairman-quest-by-play', game);
 }
 
+// ── parliament-chairman-quest-by-vote: the field lock of 2026-11-07 (games pe81fc58 · p61ca6a9 — ledger HC). The quest
+//    is «place 2 delegates» at 1/2 and the seat has ONE action left: its VOTE in the Parliament closes the quest, the
+//    gate rides the vote's own answer, and the finished vote must hand its screen to the gate IN PLACE — the build of
+//    that day stood 8 s on a finished vote nobody could leave (the conclusion held for the gate, the gate's door waited
+//    for an overview the vote never folded back to). ──
+{
+  const pinned = NO_FIRST_ACTION_CORPORATIONS.slice(0, 2);
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations('parliament-chairman-quest-by-vote', [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the parliament-chairman-quest-by-vote fixture has no voting area');
+  }
+  parliament.chairman = p2.id;
+  parliament.agenda.set(p1.id, 1);
+  parliament.quest = {
+    definition: {goal: {kind: 'delegates'}, count: 2},
+    source: ARCHITECTURE_AWARD_ID, generation: game.generation, progress: new Map([[p1.id, 1]]),
+  };
+  p1.megaCredits = 40;
+  p1.actionsTakenThisRound = 1;
+  runAllActions(game);
+  if (game.activePlayer !== p1 || !(p1.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`parliament-chairman-quest-by-vote: expected blue's action menu, got ${p1.getWaitingFor()?.constructor.name}`);
+  }
+  write('parliament-chairman-quest-by-vote', game);
+}
+
 // ── MARSBOT AT THE TABLE (docs/TURMOIL_REDUX_MARSBOT.md §8 — `console-parliament-bot.spec.ts`).
 //    Four tables with the bot as a SEAT: it votes (D2), takes the winner's reward by declaration
 //    (D4) and completes the chairman quest by its ordinary play (D5). The bot's turn IS its action

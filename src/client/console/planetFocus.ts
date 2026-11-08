@@ -121,10 +121,25 @@ export const planetFocusState = reactive({
 // during `entering`/`active` would suppress the very placement prompt this
 // mode decorates. The scale story past the exit raises the park's own
 // `board-beat-scale-story` hold.
-registerAnimationHoldSupplier('planet-focus', () =>
+//
+// THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: an exit whose frame / timers
+// were lost lands where the exit lands — the camera idle, the instruments back
+// (`resetPlanetFocus`, the no-transition drop: the board reads live values).
+const planetFocusExitHolds = (): boolean =>
   planetFocusState.phase === 'exit-prep' ||
   planetFocusState.phase === 'exiting' ||
-  planetFocusState.arcsReturning);
+  planetFocusState.arcsReturning;
+registerAnimationHoldSupplier('planet-focus', planetFocusExitHolds, {
+  diagnose: () => ({phase: planetFocusState.phase, mode: planetFocusState.mode,
+    arcsReturning: planetFocusState.arcsReturning, storyReady: planetFocusState.storyReady}),
+  expire: () => {
+    if (!planetFocusExitHolds()) {
+      return;
+    }
+    console.warn(`[planetFocus] planet focus exit (${planetFocusState.phase}): outlived its ceiling — ended`);
+    resetPlanetFocus();
+  },
+});
 
 let settleTimer: number | undefined;
 let exitPrepRaf: number | undefined;

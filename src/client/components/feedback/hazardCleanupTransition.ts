@@ -67,6 +67,8 @@ const seen = new Set<string>();
 let rafId = 0;
 let safetyTimerId = 0;
 let resolveActive: (() => void) | undefined;
+/** The live run's own `finish` (swap the tile in, resolve the gate) — the ceiling's recovery. */
+let finishActive: (() => void) | undefined;
 
 function now(): number {
   return (typeof performance !== 'undefined' && typeof performance.now === 'function') ? performance.now() : Date.now();
@@ -91,7 +93,21 @@ export function isHazardCleanupActive(): boolean {
 
 // While the cleanup fx plays, notifications queue and mandatory surfaces
 // wait; releases the instant `endHazardCleanup` (or the safety) drops it.
-registerAnimationHoldSupplier('hazard-cleanup', isHazardCleanupActive);
+// THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: a run the commit path never
+// ended (`endHazardCleanup` lost) runs its own honest ending — the tile swap is
+// guaranteed, the gate resolves, the overlay clears.
+registerAnimationHoldSupplier('hazard-cleanup', isHazardCleanupActive, {
+  diagnose: () => ({phase: hazardCleanupState.phase, swapped: hazardCleanupState.swapped,
+    events: hazardCleanupState.events.length, gatePending: resolveActive !== undefined}),
+  expire: () => {
+    if (!hazardCleanupState.active) {
+      return;
+    }
+    console.warn('[hazardCleanupTransition] hazard cleanup: outlived its ceiling — ended');
+    finishActive?.();
+    endHazardCleanup();
+  },
+});
 
 /**
  * Detect (and atomically CLAIM) the cleanups to animate for this prev→next view
@@ -153,6 +169,9 @@ export function runHazardCleanup(
     }
   };
   const finish = () => {
+    if (finishActive === finish) {
+      finishActive = undefined;
+    }
     doSwap(); // guarantee the swap even if rAF was skipped / frozen
     hazardCleanupState.progress = 1;
     hazardCleanupState.phase = 'done';
@@ -161,6 +180,8 @@ export function runHazardCleanup(
     resolveActive = undefined;
     r?.();
   };
+
+  finishActive = finish;
 
   if (reduced || typeof requestAnimationFrame !== 'function') {
     // Reduced motion (or no rAF, e.g. tests): swap promptly to the END state
@@ -199,6 +220,7 @@ export function runHazardCleanup(
 /** Clear the overlay state AFTER the new view has committed. Idempotent. */
 export function endHazardCleanup(): void {
   cancelTimers();
+  finishActive = undefined;
   hazardCleanupState.active = false;
   hazardCleanupState.events = [];
   hazardCleanupState.phase = 'focus';

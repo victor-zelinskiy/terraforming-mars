@@ -90,6 +90,8 @@ const seen = new Set<string>();
 let rafId = 0;
 let safetyTimerId = 0;
 let resolveActive: (() => void) | undefined;
+/** The live run's own `finish` (snap the counters to the result, resolve the gate) — the ceiling's recovery. */
+let finishActive: (() => void) | undefined;
 
 function now(): number {
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
@@ -117,7 +119,22 @@ export function isEnergyConversionActive(): boolean {
 
 // While the paired counters glide, notifications queue and mandatory surfaces
 // wait; releases the instant `endEnergyConversion` (or the safety) drops it.
-registerAnimationHoldSupplier('energy-conversion', isEnergyConversionActive);
+// THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: a run the commit path never
+// ended (`endEnergyConversion` lost) runs its own honest ending — the counters
+// snap to the result, the gate resolves, the override drops so the panel reads
+// the applied view.
+registerAnimationHoldSupplier('energy-conversion', isEnergyConversionActive, {
+  diagnose: () => ({color: energyConversionState.color, amount: energyConversionState.amount,
+    leadIn: energyConversionState.leadIn, gatePending: resolveActive !== undefined}),
+  expire: () => {
+    if (!energyConversionState.active) {
+      return;
+    }
+    console.warn('[energyConversionTransition] energy → heat conversion: outlived its ceiling — ended');
+    finishActive?.();
+    endEnergyConversion();
+  },
+});
 
 /**
  * Detect (and atomically CLAIM) a conversion to animate for the prev→next view
@@ -186,6 +203,9 @@ export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadIn
   });
 
   const finish = () => {
+    if (finishActive === finish) {
+      finishActive = undefined;
+    }
     energyConversionState.leadIn = false;
     energyConversionState.displayEnergy = event.source.after;
     energyConversionState.displayHeat = event.target.after;
@@ -199,6 +219,8 @@ export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadIn
     resolveActive = undefined;
     r?.();
   };
+
+  finishActive = finish;
 
   const start = () => {
     energyConversionState.leadIn = false;
@@ -253,6 +275,7 @@ export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadIn
  */
 export function endEnergyConversion(): void {
   cancelTimers();
+  finishActive = undefined;
   energyConversionState.active = false;
   energyConversionState.showChips = false;
   energyConversionState.leadIn = false;
@@ -263,6 +286,7 @@ export function endEnergyConversion(): void {
 export function resetEnergyConversion(): void {
   cancelTimers();
   resolveActive = undefined;
+  finishActive = undefined;
   seen.clear();
   energyConversionState.active = false;
   energyConversionState.color = '';

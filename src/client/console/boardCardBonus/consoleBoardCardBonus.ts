@@ -222,7 +222,21 @@ export function isBoardCardBonusActive(): boolean {
 // scene. 'notification-only': the scene STAGES the reveal overlay (a mandatory
 // result surface) around its landed cards — a blocking hold would withhold the
 // very surface the scene assembles into.
-registerAnimationHoldSupplier('board-card-bonus', isBoardCardBonusActive, {scope: 'notification-only'});
+// THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: a scene its own arm safety
+// did not end runs the scene's teardown abort — the staging cleared so the
+// reveal unveils its cards, the board icon restored, the input gate open.
+registerAnimationHoldSupplier('board-card-bonus', isBoardCardBonusActive, {
+  scope: 'notification-only',
+  diagnose: () => ({phase: boardCardBonusState.phase, source: boardCardBonusState.source,
+    staged: boardCardBonusState.stagedEventId, zoomEntryReady: boardCardBonusState.zoomEntryReady}),
+  expire: () => {
+    if (!boardCardBonusState.active) {
+      return;
+    }
+    console.warn('[consoleBoardCardBonus] board card-bonus scene: outlived its ceiling — ended');
+    abortBoardCardBonus('instant', 'hold ceiling');
+  },
+});
 
 /** The layer registers its live-scene handle (idempotent re-register). */
 export function registerBoardCardBonusHandle(h: BoardCardBonusHandle | undefined): void {

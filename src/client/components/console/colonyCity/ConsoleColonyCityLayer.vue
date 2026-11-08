@@ -87,17 +87,17 @@ export default defineComponent({
   mounted() {
     this.unregister = registerColonyCityStage({
       els: (): ColonyCityStageEls | undefined => {
-        const proxy = tileProxyEls((this.$refs.tile as {$el?: HTMLElement} | null | undefined)?.$el);
-        const shadow = this.$refs.shadow as HTMLElement | null | undefined;
+        const proxy = tileProxyEls(((this.$refs.tile ?? undefined) as {$el?: HTMLElement} | null | undefined)?.$el);
+        const shadow = (this.$refs.shadow ?? undefined) as HTMLElement | null | undefined;
         if (proxy === undefined || !shadow || !shadow.isConnected) {
           return undefined;
         }
         return {tile: proxy.tile, edge: proxy.edge, art: proxy.art, touch: proxy.touch, shadow};
       },
       cube: (): ColonyBuildStageEls | undefined => {
-        const root = this.$refs.cubeRoot as HTMLElement | null | undefined;
-        const ring = this.$refs.ring as HTMLElement | null | undefined;
-        const cubeEl = (this.$refs.cube as {$el?: HTMLElement} | null | undefined)?.$el;
+        const root = (this.$refs.cubeRoot ?? undefined) as HTMLElement | null | undefined;
+        const ring = (this.$refs.ring ?? undefined) as HTMLElement | null | undefined;
+        const cubeEl = ((this.$refs.cube ?? undefined) as {$el?: HTMLElement} | null | undefined)?.$el;
         if (!root || !root.isConnected || !ring || !cubeEl) {
           return undefined;
         }

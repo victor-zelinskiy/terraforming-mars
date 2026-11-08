@@ -49,7 +49,21 @@ export const govScaleFocusState = reactive({
 // The close beat + the scale glide/accent hold the presentation, so the next
 // modal AND any poll-delivered notification wait for the choreography to
 // finish (bounded by this module's own timers + safety).
-registerAnimationHoldSupplier('gov-scale-focus', () => govScaleFocusState.closing || govScaleFocusState.holding);
+// THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: the beat's own safety
+// release (the lost-commit path) — the arm dropped, the accent cleared, the
+// hidden modal / the next modal let go.
+registerAnimationHoldSupplier('gov-scale-focus', () => govScaleFocusState.closing || govScaleFocusState.holding, {
+  diagnose: () => ({closing: govScaleFocusState.closing, holding: govScaleFocusState.holding,
+    param: govScaleFocusState.param, armed: armedParam}),
+  expire: () => {
+    if (!govScaleFocusState.closing && !govScaleFocusState.holding) {
+      return;
+    }
+    console.warn('[consoleGovScaleFocus] government-support scale focus: outlived its ceiling — ended');
+    armedParam = undefined;
+    releaseGovScaleFocus();
+  },
+});
 
 let armedParam: string | undefined;
 let closeTimer: number | undefined;

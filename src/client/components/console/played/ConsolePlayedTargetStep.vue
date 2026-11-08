@@ -764,7 +764,7 @@ export default defineComponent({
     // The RESPONSIVE path — the band itself changing (a profile switch, the
     // rail lifting). Never a manual window listener: the observer answers for
     // the element that actually carries the budget.
-    const zone = this.$refs.zone as HTMLElement | undefined;
+    const zone = (this.$refs.zone ?? undefined) as HTMLElement | undefined;
     if (zone !== undefined) {
       this.stopResizeObs = useResizeObserver(zone, () => {
         this.measureSizing();
@@ -809,7 +809,7 @@ export default defineComponent({
      * ancestor is this component's root by construction.
      */
     rootEl(): HTMLElement | undefined {
-      const zone = this.$refs.zone as HTMLElement | undefined;
+      const zone = (this.$refs.zone ?? undefined) as HTMLElement | undefined;
       const viaZone = typeof zone?.closest === 'function' ?
         zone.closest<HTMLElement>('.con-ptsel') :
         null;
@@ -864,18 +864,18 @@ export default defineComponent({
      */
     ensureFocusVisible(): void {
       void this.$nextTick(() => {
-        const area = this.$refs.viewport as {ensureVisible?: (el: Element | null | undefined) => void} | undefined;
+        const area = (this.$refs.viewport ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined;
         const el = this.rootEl()?.querySelector('[data-ptsel-cell][data-focused]');
         area?.ensureVisible?.(el);
       });
     },
     /** The header's payload (the carried print) — the host FLIPs it in from the variant tile it was chosen on. */
     payloadEl(): HTMLElement | undefined {
-      return this.$refs.payload as HTMLElement | undefined;
+      return (this.$refs.payload ?? undefined) as HTMLElement | undefined;
     },
     /** Right-stick scroll, routed by the host while the step owns the screen. */
     scrollBy(dy: number): void {
-      (this.$refs.viewport as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(dy);
+      ((this.$refs.viewport ?? undefined) as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(dy);
     },
     /**
      * Solve the card size against the real box.
@@ -889,7 +889,7 @@ export default defineComponent({
      * keeps this acyclic even though it reads the live DOM.
      */
     measureSizing(): void {
-      const zone = this.$refs.zone as HTMLElement | undefined;
+      const zone = (this.$refs.zone ?? undefined) as HTMLElement | undefined;
       const root = this.rootEl();
       if (zone === undefined || root === undefined) {
         return;
@@ -967,9 +967,9 @@ export default defineComponent({
         band.offsetHeight - layoutTopWithin(root, band) - inset :
         this.bandHeight));
       this.budgetPx = budget;
-      const chrome = (this.$refs.contract as HTMLElement | undefined)?.offsetHeight ?? 0;
-      const tabs = (this.$refs.tabs as HTMLElement | undefined)?.offsetHeight ?? 0;
-      const rail = (this.$refs.rail as HTMLElement | undefined)?.offsetHeight ?? 0;
+      const chrome = ((this.$refs.contract ?? undefined) as HTMLElement | undefined)?.offsetHeight ?? 0;
+      const tabs = ((this.$refs.tabs ?? undefined) as HTMLElement | undefined)?.offsetHeight ?? 0;
+      const rail = ((this.$refs.rail ?? undefined) as HTMLElement | undefined)?.offsetHeight ?? 0;
       // The column gaps of `.con-ptsel` — one FEWER than its children, and the
       // owner-tabs row is conditional. It was hardcoded to 3, which handed back
       // 11 px of phantom room on every single-owner step (the common case).

@@ -615,7 +615,7 @@ export default defineComponent({
       }
       const r = anchor.getBoundingClientRect();
       const c = content ?? this.inspector;
-      const popup = this.$refs.inspectorWrap as HTMLElement | undefined;
+      const popup = (this.$refs.inspectorWrap ?? undefined) as HTMLElement | undefined;
       const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
       const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
       // Real measured size when the popup is laid out, else a content estimate.
@@ -652,7 +652,7 @@ export default defineComponent({
       if (typeof ResizeObserver === 'undefined') {
         return;
       }
-      const popup = this.$refs.inspectorWrap as HTMLElement | undefined;
+      const popup = (this.$refs.inspectorWrap ?? undefined) as HTMLElement | undefined;
       if (popup === undefined) {
         return;
       }
@@ -960,7 +960,7 @@ export default defineComponent({
   },
   mounted(): void {
     this.startEaseLoop();
-    (this.$refs.root as HTMLElement | undefined)?.focus?.();
+    ((this.$refs.root ?? undefined) as HTMLElement | undefined)?.focus?.();
     // Keep the open popup glued to its anchor through every viewport change.
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this.scheduleReposition);

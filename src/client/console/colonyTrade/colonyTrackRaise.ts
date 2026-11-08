@@ -182,7 +182,22 @@ export function clearColonyTrackRaise(): void {
 // The raise is a scene beat while it is OWED too (the wave's own hold covers the glide): what waits for a quiet
 // screen waits for the tiles to reach the truth. Notification-only — a decision never waits on a story.
 registerAnimationHoldSupplier('colony-track-raise', () => colonyTrackRaiseFlow.owed !== undefined && !colonyTrackRaiseFlow.live,
-  {scope: 'notification-only'});
+  {scope: 'notification-only', expire: expireColonyTrackRaise});
+
+/**
+ * THE OWNER'S RECOVERY for the `colony-track-raise` hold: a raise OWED and never played (nobody asked for the wave)
+ * is told without its wave — marked told (a re-open never re-seeds it) and cleared through `clearColonyTrackRaise`,
+ * so the tiles stand on the raised truth and the pick unlocks. A raise already on stage is the wave's (its own net).
+ */
+function expireColonyTrackRaise(): void {
+  const raise = colonyTrackRaiseFlow.owed;
+  if (raise === undefined || colonyTrackRaiseFlow.live) {
+    return;
+  }
+  console.warn(`[colony-track-raise] owed raise ${raise.key}: outlived its ceiling — ended`);
+  markTold(raise.key);
+  clearColonyTrackRaise();
+}
 
 // The pad is the wave's from the seed: a press before the first marker moves could only answer the pick early.
 registerColonyInputLock(colonyTrackRaiseLocksInput);

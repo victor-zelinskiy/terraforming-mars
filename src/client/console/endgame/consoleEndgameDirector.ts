@@ -50,7 +50,7 @@ import type {ConsoleEndgameVm} from '@/client/console/endgame/consoleEndgameMode
 import {
   CEREMONY_MS, CeremonyBeat, ceremonyBeats, finalSums, hurriedBeats, igniteOffsets, igniteSpanMs, luminousMs,
 } from '@/client/console/endgame/consoleEndgameScript';
-import {consoleEndgameUi, finalizeCeremony} from '@/client/console/endgame/consoleEndgameState';
+import {consoleEndgameUi, finalizeCeremony, registerEndgameCeremony} from '@/client/console/endgame/consoleEndgameState';
 
 /**
  * The ONE light (CI): `rise` (it comes on with the first category), `glide` (it moves to the next category — hotspot
@@ -557,6 +557,8 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
     teardown();
     finalizeCeremony(vm);
   };
+  // The hold's ceiling ends the ceremony through this very skip (ledger HC); the teardown hands the registration back.
+  cleanups.push(registerEndgameCeremony(skip, vm));
 
   const hurry = (): boolean => {
     if (done || s.hurry !== 'off') {

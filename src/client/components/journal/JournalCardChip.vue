@@ -192,7 +192,7 @@ export default defineComponent({
       // NOTE: this is a multi-root component (chip + teleported popovers),
       // so `this.$el` is the fragment's text anchor, not the span — read
       // the rect from the explicit ref instead.
-      const chip = this.$refs.chip as HTMLElement | undefined;
+      const chip = (this.$refs.chip ?? undefined) as HTMLElement | undefined;
       if (chip === undefined) {
         return;
       }

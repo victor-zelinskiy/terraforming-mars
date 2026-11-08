@@ -204,7 +204,7 @@ export default defineComponent({
     // ── the pad (delegated by the endgame workspace) ──────────────────────
     handleIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
-        (this.$refs.pane as Pane | undefined)?.nav(intent.dir);
+        ((this.$refs.pane ?? undefined) as Pane | undefined)?.nav(intent.dir);
         return;
       }
       const action = consoleActionOf(intent);
@@ -228,7 +228,7 @@ export default defineComponent({
         return;
       }
       if (action === 'primary') {
-        (this.$refs.pane as Pane | undefined)?.primary();
+        ((this.$refs.pane ?? undefined) as Pane | undefined)?.primary();
       }
     },
   },

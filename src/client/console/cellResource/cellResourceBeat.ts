@@ -53,6 +53,12 @@ let queue: Array<Entry> = [];
 let consumedSeq: number | undefined;
 let running = false;
 let debt: OwedStoryHandle | undefined;
+/** Bumped by the ceiling's recovery — a run of an older generation lets go at its next await (never a newer run's). */
+let generation = 0;
+/** The entry being paid right now (shifted off the queue, its unit still held until the touchdown). */
+let current: Entry | undefined;
+/** The pending stage wait's own degrade (resolves it «not ready») — the ceiling's recovery calls it. */
+let abortStageWait: (() => void) | undefined;
 
 /**
  * THE FRESH RECORDS of a response (pure): the records with a `seq` above the last one consumed. The FIRST view seen
@@ -89,8 +95,39 @@ export function cellResourceBusy(): boolean {
 
 registerAnimationHoldSupplier(CELL_RESOURCE_KEY, cellResourceBusy, {
   scope: 'notification-only',
-  diagnose: () => ({phase: cellResourceState.phase, queued: queue.length}),
+  diagnose: () => ({phase: cellResourceState.phase, queued: queue.length, paying: current?.record.spaceId}),
+  // THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT: a flight that never reported its touchdown (or a seat plaque that
+  // never opened) ends by the degrade of the beat — every held unit let go (the row ticks to the applied view), the
+  // stage debt settled, the queue dropped, the beat idle; the wedged run lets go at its next await (generation).
+  expire: () => {
+    if (cellResourceState.phase === 'idle') {
+      return;
+    }
+    console.warn(`[cellResourceBeat] cell resource beat (${cellResourceState.phase}): outlived its ceiling — ended`);
+    endCellResourceBeat();
+  },
 });
+
+/** The beat's honest degrade, run by the ceiling: nothing flies, every held row reads the truth. */
+function endCellResourceBeat(): void {
+  generation++;
+  const abort = abortStageWait;
+  abortStageWait = undefined;
+  abort?.();
+  debt?.settle();
+  debt = undefined;
+  if (current !== undefined) {
+    release(current);
+    current = undefined;
+  }
+  for (const e of queue) {
+    release(e);
+  }
+  queue = [];
+  running = false;
+  cellResourceState.degraded = true;
+  cellResourceState.phase = 'idle';
+}
 
 /**
  * SEED — the apply block (the transport's `seedRewardHolds`, `App.update`): the fresh records of this response; the
@@ -149,7 +186,7 @@ function waitForStage(e: Entry): Promise<boolean> {
   }
   let due = false;
   debt?.settle();
-  debt = owePresentation({
+  const mine = owePresentation({
     id: CELL_RESOURCE_KEY,
     ready: () => stageReady(e),
     redrive: () => {
@@ -162,6 +199,12 @@ function waitForStage(e: Entry): Promise<boolean> {
     },
     diagnose: () => ({space: e.record.spaceId, watchable: boardBeatBoardWatchable()}),
   });
+  debt = mine;
+  const abort = () => {
+    due = true;
+    cellResourceState.nudge++;
+  };
+  abortStageWait = abort;
   return new Promise<boolean>((resolve) => {
     const stop: WatchStopHandle = watch(
       () => {
@@ -174,8 +217,13 @@ function waitForStage(e: Entry): Promise<boolean> {
       (verdict) => {
         if (verdict !== 'wait') {
           stop();
-          debt?.settle();
-          debt = undefined;
+          mine.settle();
+          if (debt === mine) {
+            debt = undefined;
+          }
+          if (abortStageWait === abort) {
+            abortStageWait = undefined;
+          }
           resolve(verdict === 'ready');
         }
       });
@@ -189,7 +237,7 @@ function release(e: Entry): void {
   }
 }
 
-async function pay(e: Entry): Promise<void> {
+async function pay(e: Entry, gen: number): Promise<void> {
   cellResourceState.phase = 'flying';
   const origin = cellPoint(e.record.spaceId);
   if (origin === undefined) {
@@ -200,6 +248,10 @@ async function pay(e: Entry): Promise<void> {
   const seat = e.own ? undefined : e.record.color;
   if (seat !== undefined) {
     await openSeatIntake(seat, [{resource: e.spec.resource, amount: e.spec.amount}]);
+    if (gen !== generation) {
+      release(e);
+      return;
+    }
   }
   const destination = seat === undefined ? undefined : seatIntakeEnd(seat, e.spec.resource);
   await runResourceTransfers({
@@ -227,21 +279,32 @@ async function run(): Promise<void> {
     return;
   }
   running = true;
+  const gen = generation;
   try {
-    while (queue.length > 0) {
+    while (queue.length > 0 && gen === generation) {
       const e = queue[0];
       cellResourceState.phase = 'waiting';
       const ready = await waitForStage(e);
+      if (gen !== generation) {
+        return;
+      }
       queue.shift();
       if (!ready) {
         cellResourceState.degraded = true;
         release(e);
         continue;
       }
-      await pay(e);
+      current = e;
+      await pay(e, gen);
+      if (current === e) {
+        current = undefined;
+      }
     }
   } finally {
-    running = false;
-    cellResourceState.phase = 'idle';
+    // A run the ceiling ended is not this generation's to close (a newer run may own the phase by now).
+    if (gen === generation) {
+      running = false;
+      cellResourceState.phase = 'idle';
+    }
   }
 }

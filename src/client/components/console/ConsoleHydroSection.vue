@@ -1334,7 +1334,7 @@ import {
   workspaceFrameEmblem, workspaceFrameHost, workspaceFrameRoot, workspaceHostYieldsScene,
   workspaceStackCrumb,
 } from '@/client/console/consoleWorkspaceStack';
-import {setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {retractWorkspaceOutcomeSlot, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {captureSurfaceDeparture, holdCarriedAnchors} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {useConsoleReducedMotion} from '@/client/console/composables/useConsoleReducedMotion';
 
@@ -3952,7 +3952,7 @@ export default defineComponent({
     'flow.repeatBridge'(on: boolean): void {
       if (!on) {
         void this.$nextTick(() => {
-          const root = this.$refs.rootEl as HTMLElement | undefined;
+          const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
           // ⚠️ THE ROOT IS POSED TOO, and by somebody else. This section
           // publishes no `[data-motion-panel]`, so the surface-motion director
           // falls back to posing the ROOT ITSELF (`panelsOf` → `[el]`) — and its
@@ -4077,7 +4077,7 @@ export default defineComponent({
     // is FLIPping in from that flow's hero slot — and this component paints
     // before the enter hook can pose it. Held here, released by the FLIP (or by
     // its own bounded safety).
-    holdCarriedAnchors(this.$refs.rootEl as HTMLElement | undefined);
+    holdCarriedAnchors((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
     // RESUME ≠ FRESH-OPEN: decide ONCE, host-scoped, what this mount can
     // honestly rebuild (the actionWorkspaceRestorePlan idiom).
     const owned = hydroFlowIsOwnedByCurrentFrame();
@@ -4129,7 +4129,7 @@ export default defineComponent({
     // The movement-link arcs: measured on mount (the pick scenes mount with
     // their offer already standing — a change watcher has no edge to fire on)
     // and re-measured whenever the rail's own box moves.
-    const rail = this.$refs.railEl as HTMLElement | undefined;
+    const rail = (this.$refs.railEl ?? undefined) as HTMLElement | undefined;
     if (rail !== undefined && typeof ResizeObserver !== 'undefined') {
       this.ghostLinkRo = new ResizeObserver(() => this.scheduleGhostLinkMeasure());
       this.ghostLinkRo.observe(rail);
@@ -4204,7 +4204,7 @@ export default defineComponent({
     },
     /** Input while the layer is open: B folds one level, R3 closes the whole layer, the rest is the explorer's. */
     forecastIntent(intent: GamepadIntent): void {
-      forecastHostIntent('hydro', intent, this.$refs.forecastLayer as InstanceType<typeof ConsoleForecastLayer> | undefined);
+      forecastHostIntent('hydro', intent, (this.$refs.forecastLayer ?? undefined) as InstanceType<typeof ConsoleForecastLayer> | undefined);
     },
     fetchPreview(): void {
       fetchHydroPreview(this.playerView.id, this.viewerColor, this.cacheKey + ':' + this.viewerColor);
@@ -4235,7 +4235,7 @@ export default defineComponent({
      *  stands in to the cell its ghost projects into, trimmed at both ends
      *  so the tokens themselves stay unobscured. */
     measureGhostLinks(): void {
-      const rail = this.$refs.railEl as HTMLElement | undefined;
+      const rail = (this.$refs.railEl ?? undefined) as HTMLElement | undefined;
       if (rail === undefined || this.ghostLinks.length === 0) {
         this.ghostLinkPaths = [];
         return;
@@ -4385,9 +4385,8 @@ export default defineComponent({
     },
     retractEmbedZone(): void {
       setWorkspaceFrameSlot('hydro', '');
-      if (workspaceOutcomeState.host === 'hydro') {
-        setWorkspaceOutcomeSlot('');
-      }
+      // Only OUR zone (ledger HC) — never a slot another host published meanwhile.
+      retractWorkspaceOutcomeSlot(HYDRO_EMBED_SLOT);
     },
     reasonText(r: HydroReason): string {
       // …through the SHARED rule (`reasonParams`) — one sentence, one name for
@@ -4692,13 +4691,13 @@ export default defineComponent({
       }
     },
     armSceneFromSummary(): void {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       armHydroSceneOrigin(root?.querySelector<HTMLElement>('.con-hydro__summary--focused') ??
         root?.querySelector<HTMLElement>('.con-hydro__pickrow') ??
         root?.querySelector<HTMLElement>('.con-hydro__ctazone'));
     },
     armSceneFromCta(): void {
-      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       armHydroSceneOrigin(root?.querySelector<HTMLElement>('.con-hydro__ctazone') ??
         root?.querySelector<HTMLElement>('.con-hydro__panel'));
     },
@@ -4770,7 +4769,7 @@ export default defineComponent({
       openConsoleCardZoom([this.embedSourceModel ?? {name} as CardModel], 0, undefined, undefined, {
         statusLabel: 'Source',
         origin: slotZoomOrigin(
-          () => this.$refs.rootEl as HTMLElement | undefined,
+          () => (this.$refs.rootEl ?? undefined) as HTMLElement | undefined,
           () => this.embedSourceCard ?? ''),
       });
     },
@@ -4791,7 +4790,7 @@ export default defineComponent({
         // zoom machinery empty the whole slot (`:has(.con-zoom-hold)`) rather
         // than only zeroing the face and leaving its focus ring behind.
         origin: slotZoomOrigin(
-          () => this.$refs.rootEl as HTMLElement | undefined,
+          () => (this.$refs.rootEl ?? undefined) as HTMLElement | undefined,
           () => source),
       });
     },
@@ -5289,7 +5288,7 @@ export default defineComponent({
       }
     },
     measureTargetZone(): void {
-      const zone = this.$refs.targetZone as HTMLElement | undefined;
+      const zone = (this.$refs.targetZone ?? undefined) as HTMLElement | undefined;
       if (zone === undefined || zone === null) {
         return;
       }
@@ -5305,7 +5304,7 @@ export default defineComponent({
       if (focus === undefined || owners.length === 0) {
         return;
       }
-      const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
+      const step = (this.$refs.targetStep ?? undefined) as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
       const cells = step?.cells?.() ?? [];
       const next = cells.length > 0 ?
         stepPlayedTargetFocusVia(step, focus, dir as PlayedTargetNavDir, cells) :
@@ -5314,7 +5313,7 @@ export default defineComponent({
         return; // an edge HOLDS — never a wrap, never a silent owner change
       }
       this.targetFocus = next;
-      (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+      ((this.$refs.targetStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
     },
     cycleTargetOwner(delta: number): void {
       const owners = this.targetStepModel?.owners ?? [];
@@ -5323,7 +5322,7 @@ export default defineComponent({
       const turned = turnPlayedTargetPageVia(this.$refs.targetStep, focus, delta);
       if (turned !== undefined) {
         this.targetFocus = turned;
-        (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+        ((this.$refs.targetStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
         return;
       }
       if (focus === undefined || this.targetLayout.mode !== 'tabs' || owners.length < 2) {
@@ -5396,7 +5395,7 @@ export default defineComponent({
       }
       // THE ONE DOOR — with the TARGET DOSSIER.
       if (this.targetStepModel !== undefined) {
-        openPlayedTargetZoom({model: this.targetStepModel, cardName: candidate.cardName, getRoot: () => this.$refs.rootEl as HTMLElement | undefined});
+        openPlayedTargetZoom({model: this.targetStepModel, cardName: candidate.cardName, getRoot: () => (this.$refs.rootEl ?? undefined) as HTMLElement | undefined});
       }
     },
     // ── the REWARD-ONLY PICK (Dutch Mountains) ────────────────────────────
@@ -5654,9 +5653,9 @@ export default defineComponent({
       }
       this.cereStarted = true;
       void this.$nextTick(() => {
-        const root = this.$refs.rootEl as HTMLElement | undefined;
-        const seat = this.$refs.cereSeat as HTMLElement | undefined;
-        const sceneEl = this.$refs.sceneEl as HTMLElement | undefined;
+        const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
+        const seat = (this.$refs.cereSeat ?? undefined) as HTMLElement | undefined;
+        const sceneEl = (this.$refs.sceneEl ?? undefined) as HTMLElement | undefined;
         if (root === undefined || seat === undefined || seat === null || sceneEl === undefined) {
           // No stage to play on (mid-teardown) — complete without pretending.
           markHydroCeremonyPlayed();

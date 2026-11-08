@@ -1160,7 +1160,7 @@ export default defineComponent({
     });
     // The podium's box is the free space between the rail and the bottom zone — it changes with the profile, the
     // fonts' arrival and the scene's own reveal (a hidden scene measures nothing and keeps the last box).
-    const rows = this.$refs.rowsEl as HTMLElement | undefined;
+    const rows = (this.$refs.rowsEl ?? undefined) as HTMLElement | undefined;
     if (rows !== undefined && typeof ResizeObserver !== 'undefined') {
       this.stageObserver = new ResizeObserver(() => this.measureStage());
       this.stageObserver.observe(rows);
@@ -1244,7 +1244,7 @@ export default defineComponent({
      */
     measureStage(): void {
       const root = this.$el as HTMLElement | undefined;
-      const rows = this.$refs.rowsEl as HTMLElement | undefined;
+      const rows = (this.$refs.rowsEl ?? undefined) as HTMLElement | undefined;
       if (root === undefined || rows === undefined) {
         return;
       }
@@ -1266,7 +1266,7 @@ export default defineComponent({
     },
     /** Hang each sources line under its head cell — centred on the cell, never past the caption's edges. */
     measureSources(root: HTMLElement): void {
-      const caption = this.$refs.captionEl as HTMLElement | undefined;
+      const caption = (this.$refs.captionEl ?? undefined) as HTMLElement | undefined;
       const cap = caption?.getBoundingClientRect();
       if (caption === undefined || cap === undefined || cap.width <= 0) {
         return;
@@ -1655,7 +1655,7 @@ export default defineComponent({
      * atomically (clearProps) instead of stranding half-translated rows.
      */
     performRankFlip(): void {
-      const rowsEl = this.$refs.rowsEl as HTMLElement | undefined;
+      const rowsEl = (this.$refs.rowsEl ?? undefined) as HTMLElement | undefined;
       if (rowsEl === undefined) {
         consoleEndgameUi.ranked = true;
         return;
@@ -1699,7 +1699,7 @@ export default defineComponent({
      * tweens register with the director so a skip or an unmount clears them atomically.
      */
     performCrown(): void {
-      const rowsEl = this.$refs.rowsEl as HTMLElement | undefined;
+      const rowsEl = (this.$refs.rowsEl ?? undefined) as HTMLElement | undefined;
       if (rowsEl === undefined || this.reduced) {
         return;
       }
@@ -1745,8 +1745,8 @@ export default defineComponent({
      */
     playLight(beat: CeremonyLightBeat, attach: (tween: gsap.core.Animation) => void): void {
       const root = this.$el as HTMLElement | undefined;
-      const beam = this.$refs.beamEl as HTMLElement | undefined;
-      const wash = this.$refs.washEl as HTMLCanvasElement | undefined;
+      const beam = (this.$refs.beamEl ?? undefined) as HTMLElement | undefined;
+      const wash = (this.$refs.washEl ?? undefined) as HTMLCanvasElement | undefined;
       if (root === undefined || beam === undefined || wash === undefined || this.vm.categories[beat.catIdx] === undefined || this.reduced) {
         return;
       }
@@ -1797,7 +1797,7 @@ export default defineComponent({
     /** Pose the light's box over the podium (once, when it comes on) — false while there is nothing to measure. */
     poseBeam(root: HTMLElement, beam: HTMLElement): boolean {
       const origin = root.getBoundingClientRect();
-      const plate = (this.$refs.captionEl as HTMLElement | undefined)?.getBoundingClientRect();
+      const plate = ((this.$refs.captionEl ?? undefined) as HTMLElement | undefined)?.getBoundingClientRect();
       const seats = Array.from(root.querySelectorAll<HTMLElement>('[data-eg-row]')).map((el) => el.getBoundingClientRect());
       const medals = Array.from(root.querySelectorAll<HTMLElement>('[data-eg-row] .con-eg__medals'))
         .map((el) => el.getBoundingClientRect()).filter((r) => r.height > 0);
@@ -1857,7 +1857,7 @@ export default defineComponent({
     },
     /** Put the light out at once (a skip, a replay, a teardown) — the wash at rest, the beam dark. */
     putOutLight(): void {
-      const wash = this.$refs.washEl as HTMLCanvasElement | undefined;
+      const wash = (this.$refs.washEl ?? undefined) as HTMLCanvasElement | undefined;
       if (wash !== undefined) {
         gsap.killTweensOf(wash);
         gsap.set(wash, {opacity: 0, clearProps: 'transform'});
@@ -1875,7 +1875,7 @@ export default defineComponent({
      *  or safety-net finalize can never strand a half-scaled number. */
     fireChampionFx(): void {
       void this.$nextTick(() => {
-        const rowsEl = this.$refs.rowsEl as HTMLElement | undefined;
+        const rowsEl = (this.$refs.rowsEl ?? undefined) as HTMLElement | undefined;
         for (const color of this.vm.winners) {
           const host = rowsEl?.querySelector<HTMLElement>(`[data-eg-row="${color}"] .con-eg__total`);
           if (host !== null && host !== undefined) {
@@ -1906,7 +1906,7 @@ export default defineComponent({
         return; // a defeat gets a calm row, never a celebration
       }
       void this.$nextTick(() => {
-        const rowsEl = this.$refs.rowsEl as HTMLElement | undefined;
+        const rowsEl = (this.$refs.rowsEl ?? undefined) as HTMLElement | undefined;
         this.vm.winners.forEach((color, i) => {
           const host = rowsEl?.querySelector<HTMLElement>(`[data-eg-row="${color}"]`);
           if (host !== null && host !== undefined) {
@@ -1988,16 +1988,16 @@ export default defineComponent({
       // a transition must never absorb input). Its `leaving` beat belongs to
       // the scoring scene the player is returning to.
       if (this.overviewParked) {
-        (this.$refs.overview as InstanceType<typeof ConsoleEndgameOverview> | undefined)?.handleIntent(intent);
+        ((this.$refs.overview ?? undefined) as InstanceType<typeof ConsoleEndgameOverview> | undefined)?.handleIntent(intent);
         return;
       }
       // THE CAMPAIGN SCENE owns the pad while it stands (the same law).
       if (this.campaignScene === 'map') {
-        (this.$refs.campaignMap as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
+        ((this.$refs.campaignMap ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
         return;
       }
       if (this.campaignScene === 'bidding') {
-        (this.$refs.bidding as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
+        ((this.$refs.bidding ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
         return;
       }
       // THE MANDATORY CHAMPION CEREMONY absorbs the whole pad: no skip (X),

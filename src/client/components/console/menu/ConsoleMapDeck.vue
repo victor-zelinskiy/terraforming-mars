@@ -157,7 +157,7 @@ export default defineComponent({
     this.measure();
     if (typeof ResizeObserver !== 'undefined') {
       this.observer = new ResizeObserver(() => this.measure());
-      const el = this.$refs.gridEl as HTMLElement | undefined;
+      const el = (this.$refs.gridEl ?? undefined) as HTMLElement | undefined;
       if (el !== undefined) {
         this.observer.observe(el);
       }
@@ -168,7 +168,7 @@ export default defineComponent({
   },
   methods: {
     measure(): void {
-      const el = this.$refs.gridEl as HTMLElement | undefined;
+      const el = (this.$refs.gridEl ?? undefined) as HTMLElement | undefined;
       if (el === undefined) {
         return;
       }

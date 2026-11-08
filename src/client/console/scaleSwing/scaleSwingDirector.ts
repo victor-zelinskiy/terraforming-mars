@@ -121,6 +121,8 @@ let displayClaims: Record<string, Color> | undefined;
 let epoch = 0;
 let running = false;
 let tagSeq = 0;
+/** The rating tokens in flight right now (spliced off their entry, released on touchdown) — the ceiling releases them. */
+let flyingOwed: Set<ResourceTransferSpec> | undefined;
 let debt: OwedStoryHandle | undefined;
 let quietResolve: (() => void) | undefined;
 let quietPromise: Promise<void> = Promise.resolve();
@@ -158,14 +160,31 @@ export function scaleSwingQuiet(): Promise<void> {
   return scaleSwingState.phase === 'idle' ? Promise.resolve() : quietPromise;
 }
 
+// THE CEILING ENDS THE WEDGE, NOT JUST THE COUNT (both holds): a leg whose arrival / flight never reported, or a
+// stage nobody granted, ends by the scene's own abort — every display key let go (the board and the HUD read the
+// applied view), every held and in-flight rating released, the quiet resolved, the wedged run let go (epoch).
 registerAnimationHoldSupplier(SCALE_SWING_KEY, scaleSwingPlaying, {
   diagnose: () => ({seq: scaleSwingState.seq, leg: scaleSwingState.leg, played: scaleSwingState.played.join(',')}),
+  expire: () => {
+    if (scaleSwingState.phase !== 'playing') {
+      return;
+    }
+    console.warn(`[scaleSwingDirector] parameter swing scene (seq ${scaleSwingState.seq}, ${scaleSwingState.leg || 'between legs'}): outlived its ceiling — ended`);
+    endScaleSwing();
+  },
 });
 // Waiting for the board is NOTIFICATION-ONLY: a workspace whose conclusion waits on blocking holds must never wait
 // for a scene that waits for the workspace to leave.
 registerAnimationHoldSupplier(`${SCALE_SWING_KEY}-owed`, () => scaleSwingState.phase === 'waiting', {
   scope: 'notification-only',
   diagnose: () => ({seq: scaleSwingState.seq, watchable: boardBeatBoardWatchable(), settling: boardSceneSettling()}),
+  expire: () => {
+    if (scaleSwingState.phase !== 'waiting') {
+      return;
+    }
+    console.warn(`[scaleSwingDirector] parameter swing stage wait (seq ${scaleSwingState.seq}): outlived its ceiling — ended`);
+    endScaleSwing();
+  },
 });
 registerBoardSceneMember(scaleSwingPlaying);
 
@@ -390,6 +409,7 @@ async function flyRating(e: Entry, leg: SwingLeg & {kind: 'up'}): Promise<void> 
   }
   const origins: Array<TransferPoint> = scaleStepTokenOrigins({x: box.left, y: box.top, w: box.width, h: box.height}, specs.length);
   const owed = new Set(specs);
+  flyingOwed = owed;
   await runResourceTransfers({
     specs,
     origins,
@@ -407,6 +427,10 @@ async function flyRating(e: Entry, leg: SwingLeg & {kind: 'up'}): Promise<void> 
   });
   // Whatever a token's honest fallback did not release — never strand a counter.
   owed.forEach((spec) => releasePanelRewardHold(spec));
+  owed.clear();
+  if (flyingOwed === owed) {
+    flyingOwed = undefined;
+  }
 }
 
 async function play(e: Entry, myEpoch: number): Promise<void> {
@@ -520,6 +544,21 @@ async function run(): Promise<void> {
       resolveQuiet();
     }
   }
+}
+
+/**
+ * THE CEILING'S END — the abort (`resetScaleSwing`) for a scene that outlived its hold, less the game-switch
+ * forgetting: the claimed records stay claimed (an echo frame never replays the story), the tokens in flight released.
+ */
+function endScaleSwing(): void {
+  const flying = flyingOwed;
+  flyingOwed = undefined;
+  flying?.forEach((spec) => releasePanelRewardHold(spec));
+  flying?.clear();
+  const keep = [...claimed];
+  resetScaleSwing();
+  keep.forEach((seq) => claimed.add(seq));
+  scaleSwingState.degraded = true;
 }
 
 /** Abort / game switch / shell teardown: stop, let go of every display key, release every held rating. Idempotent. */

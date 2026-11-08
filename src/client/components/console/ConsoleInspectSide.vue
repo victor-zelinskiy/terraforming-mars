@@ -88,7 +88,7 @@ export default defineComponent({
      * swallowing the input instead of pretending a journey.
      */
     scrollBody(delta: number): boolean {
-      const content = this.$refs.content as HTMLElement | undefined;
+      const content = (this.$refs.content ?? undefined) as HTMLElement | undefined;
       const viewports = content === undefined ? [] : Array.from(content.querySelectorAll<HTMLElement>('.con-scroll-area__viewport'));
       // During the tab crossfade both bodies stand: the LAST one is the entering tab's.
       const vp = viewports.reverse().find((el) => el.scrollHeight > el.clientHeight + 1);

@@ -437,7 +437,18 @@ export function workspaceOutcomeArrivalPending(): boolean {
  */
 registerAnimationHoldSupplier('workspace-outcome-arrival',
   () => workspaceOutcomeState.sourceCard !== '' && workspaceOutcomeState.arrivalFlown && !workspaceOutcomeState.arrivalDone,
-  {scope: 'notification-only'});
+  {
+    scope: 'notification-only',
+    // An arrival that never handed over opens the gate the way its own backstop does (`markWorkspaceOutcomeArrivalDone`):
+    // the batch's cards stand in the stage and become takeable — only the arrival's story is cut.
+    expire: () => {
+      if (workspaceOutcomeState.sourceCard === '' || !workspaceOutcomeState.arrivalFlown || workspaceOutcomeState.arrivalDone) {
+        return;
+      }
+      console.warn(`[workspace-outcome] arrival of ${workspaceOutcomeState.sourceCard}'s batch: outlived its ceiling — ended`);
+      markWorkspaceOutcomeArrivalDone();
+    },
+  });
 
 /** The workspace's outcome zone is mounted (or gone) — publish the target. */
 export function setWorkspaceOutcomeSlot(selector: string): void {

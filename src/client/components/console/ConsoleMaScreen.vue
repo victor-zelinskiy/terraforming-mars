@@ -505,10 +505,10 @@ export default defineComponent({
     /** Overflow is an extreme-mod fallback — keep the focus visible there. */
     index() {
       void this.$nextTick(() => {
-        const slot = this.$refs.focusedCard as HTMLElement | Array<HTMLElement> | undefined;
+        const slot = (this.$refs.focusedCard ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
         const el = Array.isArray(slot) ? slot[0] : slot;
         // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
-        (this.$refs.grid as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
+        ((this.$refs.grid ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
       });
     },
     kind(next: ConsoleMaKind, prev: ConsoleMaKind) {
@@ -516,7 +516,7 @@ export default defineComponent({
       if (maFocusState.open) {
         resetMaFocus();
       }
-      (this.$refs.grid as {scrollToStart?: () => void} | undefined)?.scrollToStart?.();
+      ((this.$refs.grid ?? undefined) as {scrollToStart?: () => void} | undefined)?.scrollToStart?.();
       // The ARRIVE beat: the other workspace's list slides in from its bumper's side (RB → the awards from the right)
       // while the frame, the head and the rail stand still. The reveal ledger seeds fresh for the new list.
       this.availSeed = undefined;
@@ -674,7 +674,7 @@ export default defineComponent({
       if (item === undefined || maFocusState.open) {
         return;
       }
-      const slot = this.$refs.focusedCard as HTMLElement | Array<HTMLElement> | undefined;
+      const slot = (this.$refs.focusedCard ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
       const el = Array.isArray(slot) ? slot[0] : slot;
       const art = el?.querySelector<HTMLElement>('.con-ma__stage');
       const rectOf = (node: HTMLElement | null | undefined) => {

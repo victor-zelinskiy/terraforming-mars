@@ -684,7 +684,7 @@ export default defineComponent({
     },
     /** The rules panel's one scroll path (↑/↓ and the right stick alike). */
     scrollRules(dy: number): void {
-      const scroll = this.$refs.scroll as {scrollByPx?: (dy: number) => void} | undefined;
+      const scroll = (this.$refs.scroll ?? undefined) as {scrollByPx?: (dy: number) => void} | undefined;
       scroll?.scrollByPx?.(Math.sign(dy) * SCROLL_STEP_PX * conUiScale());
     },
     /**

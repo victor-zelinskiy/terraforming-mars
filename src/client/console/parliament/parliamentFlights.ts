@@ -136,6 +136,17 @@ let flightEls: Record<string, HTMLElement | null> = {};
 let flightHandles: Record<string, CubeFlightHandle> = {};
 /** A flight's STAGGER beat (between its birth and its launch) — killed with the flight; «дожать» fires it at once. */
 let flightBeats: Record<string, {beat: ParliamentBeat, fire: () => void}> = {};
+/**
+ * EVERY WAY A FLIGHT ENDS SETTLES ITS WAITER — EXACTLY ONCE. A flight's WAITER is its caller's continuation (the
+ * touchdown — and the lift / the leave / the absorption it still owes), armed at the flight's BIRTH and settled by
+ * whichever ending comes first: the touchdown, a kill or a drop (`dropFlight`), the proxy that never rendered or was
+ * unmounted before its launch. A director waiting on a touchdown must never wedge because its flight ended some other
+ * way (2026-11-08: a hold's ceiling only dropped the COUNT while its flow stood waiting on a dropped cube).
+ * The ONE exception is a SILENT teardown — `killParliamentFlights()` (the whole scene goes) and
+ * `dropFlight(id, {silent: true})` (an owner tearing down its own run, settling its state by name): the waiters are
+ * forgotten unfired. A waiter fires only while it is REGISTERED here, so a late ending after a silent teardown is a no-op.
+ */
+let flightWaiters: Record<string, () => void> = {};
 let flightSerial = 0;
 /**
  * «ДОЖАТЬ» IS ARMED: every flight born from now on launches at once and is
@@ -146,6 +157,34 @@ let flightSerial = 0;
  * poses. Cleared when a stage starts playing and when the motion is killed.
  */
 let hurried = false;
+
+/**
+ * Arm flight `id`'s waiter (see `flightWaiters`) — returns the once-guarded settle every ending of the flight calls.
+ * A proxy that starts a NEW phrase under the same id (a dealt card carried off the table) first ends the previous one.
+ */
+function armWaiter(id: string, settle: () => void): () => void {
+  flightWaiters[id]?.();
+  const once = (): void => {
+    if (flightWaiters[id] !== once) {
+      return;
+    }
+    delete flightWaiters[id];
+    settle();
+  };
+  flightWaiters[id] = once;
+  return once;
+}
+
+/** A callback that runs at most once (a flight's lift / leave — owed by the waiter as much as by the flight). */
+function onceOnly(fn: (() => void) | undefined): () => void {
+  let done = false;
+  return () => {
+    if (!done) {
+      done = true;
+      fn?.();
+    }
+  };
+}
 
 export function setParliamentFlightsHurried(on: boolean): void {
   hurried = on;
@@ -199,9 +238,12 @@ export function scheduleHurriedParliamentBeat(delayMs: number, fire: () => void)
   };
 }
 
-/** Register a running handle — and drive it to rest at once under «дожать». */
+/**
+ * Register a running handle of THIS module's flights — and drive it to rest at once under «дожать». Such a flight
+ * settles through its WAITER (one authority), so the registered kill is the handle's silent one.
+ */
 function runHandle(id: string, handle: CubeFlightHandle): void {
-  flightHandles[id] = handle;
+  flightHandles[id] = {tween: handle.tween, kill: () => handle.kill({silent: true})};
   if (hurried) {
     handle.tween.progress(1);
   }
@@ -235,6 +277,7 @@ export function flightRegistered(id: string): boolean {
   return flightEls[id] !== undefined && flightEls[id] !== null;
 }
 
+/** An OWNER's own running flight (no waiter here): a drop kills it through the handle, which settles its callbacks itself. */
 export function registerFlightHandle(id: string, handle: CubeFlightHandle): void {
   flightHandles[id] = handle;
 }
@@ -259,10 +302,16 @@ export function pushSealFlight(spec: SealFlightSpec): void {
   parliamentFlights.sealFlights.push(spec);
 }
 
-export function dropFlight(id: string): void {
+/**
+ * Drop a flight: its beat, its handle, its proxy. Its WAITER is SETTLED (the caller hears the touchdown it still owes,
+ * once) — unless `silent`: the owner is tearing its own run down and settles its state by name (see `flightWaiters`).
+ * A drop after the touchdown is only the proxy's cleanup (the waiter has already been settled).
+ */
+export function dropFlight(id: string, opts: {silent?: boolean} = {}): void {
+  const silent = opts.silent === true;
   flightBeats[id]?.beat.kill();
   delete flightBeats[id];
-  flightHandles[id]?.kill();
+  const handle = flightHandles[id];
   delete flightHandles[id];
   delete flightEls[id];
   parliamentFlights.flights = parliamentFlights.flights.filter((f) => f.id !== id);
@@ -270,32 +319,62 @@ export function dropFlight(id: string): void {
   parliamentFlights.tokenFlights = parliamentFlights.tokenFlights.filter((f) => f.id !== id);
   parliamentFlights.sparkFlights = parliamentFlights.sparkFlights.filter((f) => f.id !== id);
   parliamentFlights.sealFlights = parliamentFlights.sealFlights.filter((f) => f.id !== id);
+  // The flight is gone from every list BEFORE anybody hears its ending: a continuation that launches the next flight
+  // finds no trace of this one. An owner's handle settles its own callbacks (or not, when silent); a waiter here
+  // deregisters itself before it runs.
+  handle?.kill({silent});
+  if (silent) {
+    delete flightWaiters[id];
+  } else {
+    flightWaiters[id]?.();
+  }
 }
 
-/** Drop every flight whose id starts with `prefix` (the vote's landing clears its own delegate flights). */
-export function dropFlightsWithPrefix(prefix: string): void {
-  for (const id of Object.keys(flightHandles)) {
+/** Every flight id this module knows (a spec, a proxy, a beat, a handle or a waiter) — a drop by prefix misses none. */
+function knownFlightIds(): Set<string> {
+  return new Set<string>([
+    ...Object.keys(flightHandles), ...Object.keys(flightBeats), ...Object.keys(flightWaiters), ...Object.keys(flightEls),
+    ...parliamentFlights.flights.map((f) => f.id), ...parliamentFlights.cardFlights.map((f) => f.id),
+    ...parliamentFlights.tokenFlights.map((f) => f.id), ...parliamentFlights.sparkFlights.map((f) => f.id),
+    ...parliamentFlights.sealFlights.map((f) => f.id),
+  ]);
+}
+
+/**
+ * Drop every flight whose id starts with `prefix` (the vote's landing clears its own delegate flights) — one still in
+ * its stagger or not yet rendered included. `silent` as `dropFlight`'s.
+ */
+export function dropFlightsWithPrefix(prefix: string, opts: {silent?: boolean} = {}): void {
+  for (const id of knownFlightIds()) {
     if (id.startsWith(prefix)) {
-      dropFlight(id);
+      dropFlight(id, opts);
     }
   }
 }
 
+/**
+ * THE WHOLE SCENE'S SILENT TEARDOWN — the section's unmount, the sitting director forcing a stage's resting poses:
+ * every flight goes and NO waiter is settled (their callers go with the scene and settle their own state by name).
+ * Anything short of that — one owner's flight, one owner's run — is `dropFlight`, which settles.
+ */
 export function killParliamentFlights(): void {
   hurried = false;
+  flightWaiters = {};
   for (const id of Object.keys(flightBeats)) {
     flightBeats[id].beat.kill();
   }
   flightBeats = {};
-  for (const id of Object.keys(flightHandles)) {
-    flightHandles[id]?.kill();
-  }
+  const handles = flightHandles;
   flightHandles = {};
+  for (const id of Object.keys(handles)) {
+    handles[id]?.kill({silent: true});
+  }
   flightEls = {};
   parliamentFlights.flights = [];
   parliamentFlights.cardFlights = [];
   parliamentFlights.tokenFlights = [];
   parliamentFlights.sparkFlights = [];
+  parliamentFlights.sealFlights = [];
 }
 
 /** Whether any proxy is on screen (the section's `--flying` class). */
@@ -322,11 +401,11 @@ export function sendAllianceSpark(args: {from: Rect | undefined, to: Rect | unde
   }
   const id = nextFlightId('ally-spark');
   pushSparkFlight({id, accent: args.accent});
+  const landed = armWaiter(id, args.onLanded);
   void nextTick(() => {
     const proxy = flightEls[id];
     if (proxy === null || proxy === undefined) {
       dropFlight(id);
-      args.onLanded();
       return;
     }
     const size = proxy.offsetWidth || conLogicalPx(18);
@@ -345,13 +424,6 @@ export function sendAllianceSpark(args: {from: Rect | undefined, to: Rect | unde
     // let GSAP catch up and paint the spark's first or last frame half way between the seals — born or landed «nowhere»
     // (TR62's probe, 60–160 px off a seal under load). `addPause` stops the playhead exactly at each end even across a
     // jump; the next painted frame resumes it.
-    let landedOnce = false;
-    const landed = () => {
-      if (!landedOnce) {
-        landedOnce = true;
-        args.onLanded();
-      }
-    };
     tl.addPause(lit, () => probeTick(() => tl.resume()));
     tl.to(proxy, {x: x1, y: y1, scale: 0.95, duration: dur, ease: 'power2.inOut'}, lit);
     tl.addPause(lit + dur, () => {
@@ -369,10 +441,12 @@ export function sendAllianceSpark(args: {from: Rect | undefined, to: Rect | unde
       probeTick(() => dropFlight(id));
     };
     tl.eventCallback('onComplete', end);
-    runHandle(id, {tween: tl, kill: () => {
+    runHandle(id, {tween: tl, kill: (opts = {}) => {
       tl.kill();
       gsap.set(proxy, {autoAlpha: 0});
-      end();
+      if (opts.silent !== true) {
+        end();
+      }
     }});
   });
 }
@@ -386,19 +460,19 @@ export function sendAllianceSpark(args: {from: Rect | undefined, to: Rect | unde
  * the law of the visible ends of a flight). `onLanded` is the touchdown (the tile answers there), the proxy dissolves
  * into the tile a beat later. Nothing measurable or reduced motion: `onLanded` at once (the tile answers in place).
  */
-export function flyAccessSeal(args: {from: Rect | undefined, to: Rect | undefined, emblemUrl: string, onLanded: () => void}): void {
+export function flyAccessSeal(args: {from: Rect | undefined, to: Rect | undefined, emblemUrl: string, onLanded: () => void}): string | undefined {
   const {from, to} = args;
   if (from === undefined || to === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
     args.onLanded();
-    return;
+    return undefined;
   }
   const id = nextFlightId('access-seal');
   pushSealFlight({id, emblemUrl: args.emblemUrl});
+  const landed = armWaiter(id, args.onLanded);
   void nextTick(() => {
     const proxy = flightEls[id];
     if (proxy === null || proxy === undefined) {
       dropFlight(id);
-      args.onLanded();
       return;
     }
     // The proxy is laid out at the TILE's seal size: it lands 1:1, and is born a third of that on the delegate.
@@ -414,13 +488,6 @@ export function flyAccessSeal(args: {from: Rect | undefined, to: Rect | undefine
     const rise = consoleMotionMs(ACCESS_SEAL_RISE_MS) / 1000;
     const travel = consoleMotionMs(ACCESS_SEAL_FLIGHT_MS) / 1000;
     const tl = gsap.timeline();
-    let landedOnce = false;
-    const landed = () => {
-      if (!landedOnce) {
-        landedOnce = true;
-        args.onLanded();
-      }
-    };
     tl.set(proxy, {x: x0, y: y0, scale: 0.34, autoAlpha: 0, transformOrigin: '50% 50%'}, 0);
     tl.addPause(0, () => probeTick(() => tl.resume()));
     tl.to(proxy, {autoAlpha: 1, scale: 0.86, y: y0 - lift, duration: rise, ease: 'power3.out'}, 0);
@@ -443,12 +510,15 @@ export function flyAccessSeal(args: {from: Rect | undefined, to: Rect | undefine
       probeTick(() => dropFlight(id));
     };
     tl.eventCallback('onComplete', end);
-    runHandle(id, {tween: tl, kill: () => {
+    runHandle(id, {tween: tl, kill: (opts = {}) => {
       tl.kill();
       gsap.set(proxy, {autoAlpha: 0});
-      end();
+      if (opts.silent !== true) {
+        end();
+      }
     }});
   });
+  return id;
 }
 
 /**
@@ -469,17 +539,19 @@ export function riseToken(args: {iconClass: string, amount: number, over: Rect |
   }
   const id = nextFlightId('sit-token');
   pushTokenFlight({id, iconClass: args.iconClass, amount: args.amount});
+  const landed = armWaiter(id, args.onLanded);
   void nextTick(() => {
     const proxy = flightEls[id];
     if (proxy === null || proxy === undefined) {
       dropFlight(id);
-      args.onLanded();
       return;
     }
     gsap.set(proxy, {autoAlpha: 0});
     const fire = () => {
       delete flightBeats[id];
       if (flightEls[id] === undefined) {
+        // The proxy went before its launch: the phrase ends here, its waiter hears it.
+        dropFlight(id);
         return;
       }
       const w = proxy.offsetWidth || conLogicalPx(48);
@@ -501,7 +573,7 @@ export function riseToken(args: {iconClass: string, amount: number, over: Rect |
           return;
         }
         ended = true;
-        args.onLanded();
+        landed();
         probeTick(() => dropFlight(id));
       };
       tl.eventCallback('onComplete', end);
@@ -546,19 +618,25 @@ export function flyPriceToken(args: {
   }
   const id = nextFlightId('price');
   pushTokenFlight({id, iconClass: args.iconClass, amount: args.amount, sign: '−'});
+  const departed = onceOnly(args.onDeparted);
+  const landed = onceOnly(args.onLanded);
+  // The waiter owes the whole chain — departed → landed → absorbed — whichever way the token ends.
+  const absorbed = armWaiter(id, () => {
+    departed();
+    landed();
+    args.onAbsorbed();
+  });
   void nextTick(() => {
     const proxy = flightEls[id];
     if (proxy === null || proxy === undefined) {
       dropFlight(id);
-      args.onDeparted();
-      args.onLanded();
-      args.onAbsorbed();
       return;
     }
     gsap.set(proxy, {autoAlpha: 0});
     const fire = () => {
       delete flightBeats[id];
       if (flightEls[id] === undefined) {
+        dropFlight(id);
         return;
       }
       const w = proxy.offsetWidth || conLogicalPx(48);
@@ -572,17 +650,17 @@ export function flyPriceToken(args: {
         from: born,
         to: land,
         durationMs: PRICE_FLIGHT_MS,
-        onDeparted: args.onDeparted,
+        onDeparted: departed,
         onLanded: () => {
           if (ended) {
             return;
           }
           ended = true;
-          args.onLanded();
+          landed();
           // Absorbed by the stack: a short dissolve, then gone — and only then the next flight (the cube) lifts.
           gsap.to(proxy, {autoAlpha: 0, scale: 0.8, duration: consoleMotionMs(PRICE_ABSORB_MS) / 1000, ease: 'power1.in', onComplete: () => {
+            absorbed();
             dropFlight(id);
-            args.onAbsorbed();
           }});
         },
       });
@@ -613,19 +691,25 @@ export function flyDelegate(color: Color | 'neutral', from: Rect | undefined, to
   const id = nextFlightId('f');
   const size = Math.max(8, Math.round(from.height));
   pushCubeFlight({id, color, size});
+  const lifted = onceOnly(opts.onLifted);
+  // The waiter owes the lift AND the touchdown: a figure cut before its lift still leaves its source.
+  const landed = armWaiter(id, () => {
+    lifted();
+    onLanded();
+  });
   void nextTick(() => {
     const proxy = flightEls[id];
     if (proxy === null || proxy === undefined) {
       dropFlight(id);
-      opts.onLifted?.();
-      onLanded();
       return;
     }
     gsap.set(proxy, {autoAlpha: 0});
-    // The STAGGER is a beat on the motion clock; dropping the flight kills it.
+    // The STAGGER is a beat on the motion clock; dropping the flight kills it (and settles its waiter).
     const fire = () => {
       delete flightBeats[id];
       if (flightEls[id] === undefined) {
+        // The proxy was unmounted during the stagger: the figure is simply there — its waiter hears the touchdown.
+        dropFlight(id);
         return;
       }
       const handle = runDelegateFlight({
@@ -638,9 +722,9 @@ export function flyDelegate(color: Color | 'neutral', from: Rect | undefined, to
         // out of launch order and two places answered at once). The vote's
         // own figure paces by its distance (`delegateFlightMs`).
         durationMs: CUBE_FLIGHT_MS,
-        onLifted: opts.onLifted,
+        onLifted: lifted,
         onLanded: () => {
-          onLanded();
+          landed();
           probeTick(() => dropFlight(id));
         },
       });
@@ -665,24 +749,25 @@ export function flyBannerCube(color: Color, from: Rect | undefined, to: Rect | u
   const id = nextFlightId('bc');
   const size = Math.max(8, Math.round(to.height));
   pushCubeFlight({id, color, size, shape: 'cube'});
+  const landed = armWaiter(id, onLanded);
   void nextTick(() => {
     const proxy = flightEls[id];
     if (proxy === null || proxy === undefined) {
       dropFlight(id);
-      onLanded();
       return;
     }
     gsap.set(proxy, {autoAlpha: 0});
     scheduleLaunch(id, 0, () => {
       delete flightBeats[id];
       if (flightEls[id] === undefined) {
+        dropFlight(id);
         return;
       }
       runHandle(id, runDelegateFlight({
         proxy, from, to,
         durationMs: BANNER_CUBE_FLIGHT_MS,
         onLanded: () => {
-          onLanded();
+          landed();
           probeTick(() => dropFlight(id));
         },
       }));
@@ -701,9 +786,8 @@ export function flySeatDelegate(root: HTMLElement | undefined, color: Color | un
   const r = chair?.getBoundingClientRect();
   // The figure SITS IN the chair: its height is the chair mark's, its base on the mark's floor, centred.
   const to = r === undefined || r.width < 2 ? undefined : {left: r.left + r.width / 2 - r.height * 0.4, top: r.top, width: r.height * 0.8, height: r.height};
-  if (flyDelegate(color, from, to, 0, onLanded) === undefined) {
-    onLanded();
-  }
+  // (`flyDelegate` settles `onLanded` itself on every ending — the unmeasurable one included: never call it twice.)
+  flyDelegate(color, from, to, 0, onLanded);
 }
 
 /**
@@ -728,12 +812,15 @@ export function dealResolutionCard(args: {
   const id = nextFlightId(args.prefix ?? 'sit-deal');
   pushCardFlight({id, width: Math.round(to.width), height: Math.round(to.height), face, faceUp: false});
   const durationMs = args.durationMs ?? DEAL_FLIGHT_MS;
+  const launched = onceOnly(args.onLaunch);
+  const landed = armWaiter(id, () => {
+    launched();
+    args.onLanded();
+  });
   void nextTick(() => {
     const proxy = flightEls[id];
     if (proxy === null || proxy === undefined) {
       dropFlight(id);
-      args.onLaunch?.();
-      args.onLanded();
       return;
     }
     gsap.set(proxy, {autoAlpha: 0});
@@ -744,16 +831,17 @@ export function dealResolutionCard(args: {
     const fire = () => {
       delete flightBeats[id];
       if (flightEls[id] === undefined) {
+        dropFlight(id);
         return;
       }
-      args.onLaunch?.();
+      launched();
       const handle = runCardDealFlight({
         proxy,
         from,
         to,
         durationMs,
         onLanded: () => {
-          args.onLanded();
+          landed();
           if (args.keep !== true) {
             probeTick(() => dropFlight(id));
           }
@@ -800,10 +888,13 @@ export function flyCardOffTable(args: {
   const {id, to} = args;
   const proxy = flightEls[id];
   const card = readCard3DInner(proxy);
+  const lifted = onceOnly(args.onLift);
+  const landed = armWaiter(id, () => {
+    lifted();
+    args.onLanded();
+  });
   if (proxy === null || proxy === undefined || to === undefined || card === undefined || consoleReducedMotionActive()) {
     dropFlight(id);
-    args.onLift?.();
-    args.onLanded();
     return false;
   }
   const r = proxy.getBoundingClientRect();
@@ -811,13 +902,14 @@ export function flyCardOffTable(args: {
   const fire = () => {
     delete flightBeats[id];
     if (flightEls[id] === undefined) {
+      dropFlight(id);
       return;
     }
-    args.onLift?.();
+    lifted();
     const handle = runCardDealFlight({
       proxy, from, to, durationMs: LEAVE_CARRY_MS, leadInS: consoleMotionMs(LEAVE_TURN_LEAD_MS) / 1000,
       onLanded: () => {
-        args.onLanded();
+        landed();
         probeTick(() => dropFlight(id));
       },
     });
@@ -850,11 +942,13 @@ export function runReshuffle(args: {from: Rect | undefined, to: Rect | undefined
     pushCardFlight({id, width: Math.round(from.width), height: Math.round(from.height)});
     ids.push(id);
   }
+  // ONE waiter for the stack, on the first id (the one that carries the handle).
+  const key = ids[0];
+  const stackLanded = armWaiter(key, args.onLanded);
   void nextTick(() => {
     const proxies = ids.map((id) => flightEls[id]).filter((el): el is HTMLElement => el !== null && el !== undefined);
     if (proxies.length !== ids.length) {
-      ids.forEach(dropFlight);
-      args.onLanded();
+      ids.forEach((id) => dropFlight(id));
       return;
     }
     const ui = conLogicalPx(1);
@@ -863,10 +957,10 @@ export function runReshuffle(args: {from: Rect | undefined, to: Rect | undefined
       gsap.set(proxy, {x: from.left + i * 0.9 * ui, y: from.top - i * 0.9 * ui, rotation: 0, scale: 1, transformOrigin: '50% 50%', autoAlpha: 0});
     });
     const s = (ms: number) => consoleMotionMs(ms) / 1000;
-    const key = ids[0];
     const fire = () => {
       delete flightBeats[key];
       if (flightEls[key] === undefined) {
+        ids.forEach((id) => dropFlight(id));
         return;
       }
       const tl = gsap.timeline();
@@ -885,8 +979,8 @@ export function runReshuffle(args: {from: Rect | undefined, to: Rect | undefined
           return;
         }
         landed = true;
-        args.onLanded();
-        probeTick(() => ids.forEach(dropFlight));
+        stackLanded();
+        probeTick(() => ids.forEach((id) => dropFlight(id)));
       };
       tl.eventCallback('onComplete', land);
       const handle: CubeFlightHandle = {tween: tl, kill: () => {

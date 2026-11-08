@@ -287,7 +287,7 @@ export default defineComponent({
     },
     keepCursorVisible(): void {
       void this.$nextTick(() => {
-        const screen = this.$refs.screen as {ensureVisible?: (el: Element | null) => void} | undefined;
+        const screen = (this.$refs.screen ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
         screen?.ensureVisible?.(this.$el.querySelector('.cm-game--cursor'));
       });
     },

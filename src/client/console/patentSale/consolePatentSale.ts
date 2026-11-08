@@ -175,7 +175,30 @@ export function patentSaleHolding(): boolean {
 // The whole trade-terminal scene — incl. the post-commit settle — holds the
 // presentation (notifications queue, mandatory surfaces wait); releases the
 // instant the phase drops on end/abort (the scene's real completion signal).
-registerAnimationHoldSupplier('patent-sale', patentSaleHolding);
+registerAnimationHoldSupplier('patent-sale', patentSaleHolding, {expire: expirePatentSale});
+
+/**
+ * THE OWNER'S RECOVERY for the `patent-sale` hold, keyed on the sale standing NOW. Past the commit (the response was
+ * claimed and the gate has opened — the M€ is the view's) the terminal ENDS: the story is cut and `finish` closes the
+ * transaction, its held answers released onto the rail. Before it, the scene is stalled pre-commit and takes the
+ * arm/scene safety's own `abortPatentSale` — the gate opens, the hand cards come back, the commit decides.
+ */
+function expirePatentSale(): void {
+  if (!patentSaleHolding()) {
+    return;
+  }
+  console.warn(`[patent-sale] terminal (${patentSaleState.phase}, ${patentSaleState.cards.length} card(s)): outlived its ceiling — ended`);
+  if (claimed && runResolve === undefined) {
+    const els = stage?.els();
+    if (els !== undefined) {
+      killSaleTweens(els);
+    }
+    abortResourceTransfers(); // the resting chips go with the story; the rail already reads the committed value
+    finish();
+  } else {
+    abortPatentSale();
+  }
+}
 
 // ── the lifecycle ───────────────────────────────────────────────────────────
 
@@ -278,6 +301,9 @@ export async function endPatentSale(): Promise<void> {
     return;
   }
   patentSaleState.phase = 'settling';
+  // A settle that outlived its sale (the ceiling's recovery ended it, a newer sale armed) never touches another sale.
+  const nonce = patentSaleState.nonce;
+  const live = () => patentSaleState.active && patentSaleState.nonce === nonce;
   const els = stage?.els();
   if (!patentSaleState.reducedMotion && heldAnswerSpecs.length > 0) {
     // The landed chips absorb (the money into the row, the data into the
@@ -298,6 +324,9 @@ export async function endPatentSale(): Promise<void> {
       },
     });
     await settled;
+    if (!live()) {
+      return;
+    }
     patentSaleState.receiversUp = false;
     if (els !== undefined) {
       await playSaleSettle(els, conUiScale());
@@ -313,6 +342,9 @@ export async function endPatentSale(): Promise<void> {
     ]);
   } else {
     await settleResourceTransfers(); // no landed chips under reduced motion
+  }
+  if (!live()) {
+    return;
   }
   finish();
 }
