@@ -2,7 +2,7 @@
 
 **Status:** Phase 0 — feasibility audit + implementation-grade plan (analysis only; no Electron runtime added yet).
 **Target runtime:** Electron **43.0.0** · **Windows-first** · macOS signing/notarization deferred to a separate future initiative.
-> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**45.2.1** as of 2026-11-01 — Chromium 156, Node 24.22.1, V8 15.6). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
+> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**45.2.3** as of 2026-11-08 — Chromium 156, Node 24.22.2, V8 15.6). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
 **Baseline:** builds on the completed WebSocket realtime layer — see `WEBSOCKET_MIGRATION_PLAN.md` (§L mutation matrix + flag ladder). This document is its desktop-shell companion.
 
 This plan is grounded in a read-only audit of the actual codebase (branch `main`, Node v22.22.3 / npm 10.9.8). Every load-bearing claim cites `file:line`. It is a plan, not an implementation — the first code lands only when Phase 1 is explicitly requested.
@@ -939,19 +939,42 @@ letting the web-server lane drift: `engines.node`, `devDependencies.@types/node`
 must move all of them in the same commit.**
 
 Aligned 2026-08-31 on **Node 24 «Krypton»** (Active LTS to 2028-04; Electron 44.0.0 bundles 24.18.1,
-44.1.0 bundles 24.19.0, 44.2.0+ bundle 24.20.0): `engines` `>=22.22.2 <23` → `>=24.18.1 <25` (raised to `>=24.19.0 <25` with the 44.1.0 bump, to `>=24.20.0 <25` with 44.3.0, and deliberately LEFT there by 45.0.0 and 45.2.1 — same major, nothing needs a 24.22 API, and the local fnm toolchain is 24.20.0); `@types/node` `^25` → `^24` (both 25
+44.1.0 bundles 24.19.0, 44.2.0+ bundle 24.20.0): `engines` `>=22.22.2 <23` → `>=24.18.1 <25` (raised to `>=24.19.0 <25` with the 44.1.0 bump, to `>=24.20.0 <25` with 44.3.0, and deliberately LEFT there by 45.0.0, 45.2.1 and 45.2.3 — same major, nothing needs a 24.22 API, and the local fnm toolchain is 24.20.0); `@types/node` `^25` → `^24` (both 25
 and 26 track **non-LTS** Node lines, and types ahead of the runtime turn a missing API into a production
 crash rather than a build error); 7 CI `node-version` pins and the `Dockerfile` base `22-alpine3.21` →
 `24-alpine3.21`. `.nvmrc` already read `v24`.
 
 | Date | Pin | Chromium | Node | V8 | Notes |
 | --- | --- | --- | --- | --- | --- |
+| 2026-11-08 | **45.2.3** | 156.0.8078.80 | 24.22.2 | 15.6.75.27 | Rolls up 45.2.2 + 45.2.3 — fixes + security backports only; see the upgrade notes below |
 | 2026-11-01 | **45.2.1** | 156.0.8078.75 | 24.22.1 | 15.6.75.25 | Rolls up 45.1.0 + 45.2.0 + 45.2.1 — no breaking changes; see the upgrade notes below |
 | 2026-10-21 | **45.0.0** | 156.0.8078.48 | 24.22.0 | 15.6.75.19 | Major — breaking-change audit below. Skips 44.4.0…44.9.3 (dependabot proposed 44.4.5) |
 | 2026-09-11 | **44.3.0** | 152.0.7977.78 | 24.20.0 | 15.2.124.19 | Rolls up 44.1.1 + 44.2.0 + 44.3.0 — no breaking changes; see the upgrade notes below |
 | 2026-08-31 | **44.1.0** | 152.0.7977.65 | 24.19.0 | 15.2.124.18 | Patch release - no breaking changes; see below |
 | 2026-08-25 | **44.0.0** | 152.0.7977.54 | 24.18.1 | 15.2.124.13 | See audit below |
 | (prior) | 43.4.0 | 150.0.7871.224 | 24.18.1 | 15.0.245.28 | |
+
+### 45.2.1 → 45.2.3 — upgrade notes
+
+Two patch releases (45.2.2, 45.2.3) — no breaking change, no API change. What they change *for this codebase*:
+
+| Upstream change | Impact here |
+| --- | --- |
+| **Crash when a hidden window is the parent on Wayland** (45.2.2, [#55571](https://github.com/electron/electron/pull/55571)) | No impact — the Linux lane stays on X11/XWayland by design (`electron/perf.ts`: Vulkan is incompatible with `--ozone-platform=wayland`), and no window is created with a `parent`. |
+| **`removeInsertedCSS()` now removes `cssOrigin: 'user'` sheets** (45.2.2, [#55538](https://github.com/electron/electron/pull/55538)) | No impact — `insertCSS` / `removeInsertedCSS` are unused in `electron/`. |
+| **Chromium 156.0.8078.75 → .80, Node 24.22.1 → 24.22.2, backports from ANGLE / Chromium / Dawn / FFmpeg / minigbm / PDFium / Skia / V8** (45.2.2, 45.2.3 [#55592](https://github.com/electron/electron/pull/55592)) | The reason for the bump (security). Same Node major — the repo's Node pins stay where they are. |
+
+**Verified on the bump (2026-11-08, Windows):** `npx electron --version` → `v45.2.3`, `node_modules/electron/dist/version`
+→ `45.2.3`; `electron:build:main` green; a clean `npm ci --dry-run` (npm 11.19, empty directory) accepts the lockfile. Boot under
+`TM_ELECTRON_LOAD=app`: the embedded `utilityProcess` server came up (local-filesystem DB, 11 ids preloaded, WS gateway on
+`/ws`), `app://bundle/` mounted the app (renderer UA `Chrome/156.0.8078.80 Electron/45.2.3`, CDP `V8-Version` 15.6.75.27),
+no errors in the boot log, no `electron.exe` left after the stop.
+
+**Gotcha — GitHub release downloads can be down while npm is up.** On the bump day `github.com/electron/electron/releases/download/…`
+answered 502, so `node node_modules/electron/install.js` could not unpack the runtime. `install.js` verifies the zip against the
+`checksums.json` shipped INSIDE the npm package, so a mirror is safe: `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ node node_modules/electron/install.js`
+(a tampered or mismatched archive fails the SHA-256 check). Do not set `electron_use_remote_checksums` with a mirror — that would
+take the checksums from the mirror too.
 
 ### 45.0.0 → 45.2.1 — upgrade notes
 
