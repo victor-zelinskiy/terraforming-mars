@@ -93,6 +93,45 @@ describe('ApiWaitingFor', () => {
     expect(model.changed).eq(false);
   });
 
+  // THE DISPLAYED PROMPT (2026-11-08): a prompt swapped under the page with no game-age move is a change — the
+  // research phase moves no age, and a selection answered over the API left the open page on its old question for good.
+  it('a client advertising a prompt the player no longer holds — or a different one — reads changed=true at the same game age', async () => {
+    const player = TestPlayer.BLACK.newPlayer();
+    const game = Game.newInstance('game-id', [player], player, 'spectatorid');
+    await scaffolding.ctx.gameLoader.add(game);
+    const shown = player.waitingForSerial;
+    const age = `gameAge=${game.gameAge}&undoCount=${game.undoCount}`;
+
+    scaffolding.url = `/api/waitingfor?id=${player.id}&${age}&promptId=${shown}`;
+    await scaffolding.get(ApiWaitingFor.INSTANCE, res);
+    let model = JSON.parse(res.content);
+    expect(model.result).eq('GO');
+    expect(model.changed, 'the same prompt, the same age — nothing changed').eq(false);
+
+    res = new MockResponse();
+    scaffolding.url = `/api/waitingfor?id=${player.id}&${age}&promptId=${shown - 1}`;
+    await scaffolding.get(ApiWaitingFor.INSTANCE, res);
+    model = JSON.parse(res.content);
+    expect(model.result).eq('GO');
+    expect(model.changed, 'the page shows an older prompt — a change at the same age').eq(true);
+
+    // The prompt was answered elsewhere: the player holds none now, the page still shows it → a change.
+    player.popWaitingFor();
+    res = new MockResponse();
+    scaffolding.url = `/api/waitingfor?id=${player.id}&${age}&promptId=${shown}`;
+    await scaffolding.get(ApiWaitingFor.INSTANCE, res);
+    model = JSON.parse(res.content);
+    expect(model.result).eq('REFRESH');
+    expect(model.changed).eq(true);
+
+    // An older client that sends no promptId keeps the age-only reading.
+    res = new MockResponse();
+    scaffolding.url = `/api/waitingfor?id=${player.id}&${age}`;
+    await scaffolding.get(ApiWaitingFor.INSTANCE, res);
+    model = JSON.parse(res.content);
+    expect(model.changed).eq(false);
+  });
+
   // AN OPTIONAL INPUT IS NOT THE SEAT'S TURN (the draft re-pick, a sitting's early close — the owner, 2026-10-28):
   // never GO, never in the waited-on list, and the public model does not count the seat as asked.
   it('an OPTIONAL input in the slot is WAIT / REFRESH, never GO, and the seat is not waited on', async () => {

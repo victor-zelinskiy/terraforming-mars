@@ -1812,7 +1812,11 @@ export function waitForUpdate(immediate = false): void {
       return;
     }
     const xhr = new XMLHttpRequest();
-    xhr.open('GET', apiUrl(paths.API_WAITING_FOR) + identitySearch() + '&gameAge=' + currentView().game.gameAge + '&undoCount=' + currentView().game.undoCount);
+    // The DISPLAYED prompt rides along (`promptId`): a prompt swapped under the page with no game-age move (the research
+    // phase; an answer over another channel) is a change the server can only see if told what the page shows.
+    const shownPrompt = currentWaitingFor()?.promptId;
+    xhr.open('GET', apiUrl(paths.API_WAITING_FOR) + identitySearch() + '&gameAge=' + currentView().game.gameAge + '&undoCount=' + currentView().game.undoCount +
+      (shownPrompt !== undefined ? '&promptId=' + shownPrompt : ''));
     // ⚠️ THE CHAIN'S LIVENESS RIDES THIS ONE REQUEST. The re-arm lives in
     // onload/onerror — with no timeout, a request that neither answers nor
     // fails (a half-dead LAN host: the WS flapping while TCP quietly hangs)
