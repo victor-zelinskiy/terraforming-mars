@@ -220,7 +220,13 @@
     letter-spacing: 0.02em;
     text-transform: uppercase;
     color: @tender-ink;
+    /* a word never breaks — the length-tier ladder (`data-name-tier`) sizes the type so every word holds its line */
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: manual;
   }
+  &[data-name-tier="2"] .con-tender__name { font-size: 0.92rem; letter-spacing: 0.01em; }
+  &[data-name-tier="3"] .con-tender__name { font-size: 0.76rem; letter-spacing: 0; }
   &__window {
     font-family: @con-font;
     font-size: 0.54rem;
@@ -325,6 +331,12 @@
   }
 
   /* ── sizes ── */
+  /* THE TABLE (the compact size, the owner 2026-11-08): no rule text — head · rank · name · window · stub; the window
+     pushes the stub to the foot, the watermark fills the middle; the Committee's short name holds one line. */
+  &--table {
+    .con-tender__committee { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .con-tender__window { margin-bottom: auto; }
+  }
   &--reader {
     --tender-w: 22rem;
     padding: 1.3rem 1.5rem 1.2rem;
@@ -336,6 +348,8 @@
     .con-tender__rank,
     .con-tender__window { font-size: 0.64rem; }
     .con-tender__name { font-size: 1.45rem; }
+    &[data-name-tier="2"] .con-tender__name { font-size: 1.28rem; }
+    &[data-name-tier="3"] .con-tender__name { font-size: 1.12rem; }
     .con-tender__rule { font-size: 0.94rem; }
     .con-tender__lore { font-size: 0.82rem; }
     .con-tender__coupon { font-size: 0.64rem; }

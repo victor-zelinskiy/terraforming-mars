@@ -1421,7 +1421,7 @@ import {
 } from '@/client/console/campaign/tenderPortfolio';
 import {tenderZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {TenderResponse} from '@/common/inputs/InputResponse';
-import {TENDER_COMPENSATION_MC, TenderId} from '@/common/campaign/tenders';
+import {TENDER_COMPENSATION_MC, TenderId, isGambleTender} from '@/common/campaign/tenders';
 import {candidateOutlook} from '@/client/console/deckPick/preludePick';
 import {readingText} from '@/client/console/readingText';
 import {nearestInDirection, rowFitZoom, gridFitPlan} from '@/client/console/consoleStartNav';
@@ -4114,6 +4114,7 @@ export default defineComponent({
         projectsMax: projects?.max ?? 0,
         cardCost: this.preview?.cardCost ?? 0,
         lineage: this.campaignLineage,
+        corporationsDealt: stepOf('corp')?.cards.length ?? 0,
         picksLive: this.state.corp !== undefined || this.state.preludes.length > 0 || this.state.projects.length > 0,
       };
     },
@@ -6909,8 +6910,8 @@ export default defineComponent({
         }
         this.tenderLanding = {instance: entry.instance, step: entry.landsOn};
         void this.travelToStep(entry.landsOn).then(() => {
-          // «Авантюра»: everything on the table goes back to the deck face down before the new deal comes off it.
-          if (entry.id === 'gamble' && entry.landsOn !== undefined) {
+          // A GAMBLE: everything on its step's table goes back to the deck face down before the new deal comes off it.
+          if (isGambleTender(entry.id) && entry.landsOn !== undefined) {
             void this.departToDeck(entry.landsOn, this.stepEntries.map((c) => c.name));
           }
           this.submitTender(response);

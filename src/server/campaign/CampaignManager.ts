@@ -469,6 +469,9 @@ export class CampaignManager {
       preludePool: options.preludeExtension === true ? cards.getPreludeCards().length : 0,
       startingPreludes: Math.max(options.startingPreludes ?? 0, PRELUDE_CARDS_DEALT_PER_PLAYER),
       corporationPool: cards.getCorporationCards().length,
+      // The finale drafts a corporation when the lineage it meets is short of the company of three (the three-mission route).
+      finaleDraftsCorporation: campaignFinalePicksCorporation(missionCount - 1),
+      startingCorporations: Math.max(1, options.startingCorporations ?? 2),
     };
     return (id) => tenderApplicable(tenderDef(id), ctx);
   }

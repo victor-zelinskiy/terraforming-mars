@@ -11,18 +11,7 @@
 // The hosts render and route; nothing here touches the DOM or the wire.
 
 import {CardName} from '@/common/cards/CardName';
-import {
-  TENDER_BROAD_PORTFOLIO_PROJECTS,
-  TENDER_COMPENSATION_MC,
-  TENDER_OPEN_CALL_PRELUDES,
-  TENDER_RESTRUCTURING_CANDIDATES,
-  TENDER_REVIEW_KEEP_MAX,
-  TenderId,
-  TenderStatus,
-  TenderWindow,
-  tenderDef,
-  tenderNameKey,
-} from '@/common/campaign/tenders';
+import {isGambleTender, tenderDef, TenderId, tenderNameKey, TenderStatus, TenderWindow, TENDER_BROAD_PORTFOLIO_PROJECTS, TENDER_COMPENSATION_MC, TENDER_OPEN_CALL_PRELUDES, TENDER_RESTRUCTURING_CANDIDATES, TENDER_REVIEW_KEEP_MAX} from '@/common/campaign/tenders';
 import {TenderResponse} from '@/common/inputs/InputResponse';
 import {TenderInSelectionModel} from '@/common/models/PlayerInputModel';
 import {CarryoverTenderModel} from '@/common/campaign/CampaignModel';
@@ -82,7 +71,9 @@ export type StartPortfolioContext = {
   cardCost: number;
   /** The corporations the finale deploys (the lineage, overrides applied). */
   lineage: ReadonlyArray<CardName>;
-  /** The player has picks on the deal («Авантюра» would clear them). */
+  /** The finale's corporation DRAFT offer (0 when the finale deploys the whole lineage) — what «Авантюра: корпорации» redeals. */
+  corporationsDealt: number;
+  /** The player has picks on the deal (a gamble would clear them). */
   picksLive: boolean;
 };
 
@@ -159,6 +150,12 @@ function startEntry(ctx: StartPortfolioContext, t: TenderInSelectionModel): Tend
       return {key: 'Keep up to ${0} of ${1} projects — the rest are redealt once', params: [n(TENDER_REVIEW_KEEP_MAX), n(ctx.projectsDealt)]};
     case 'gamble':
       return {key: 'Redeal everything: ${0} preludes and ${1} projects', params: [n(ctx.preludesDealt), n(ctx.projectsDealt)]};
+    case 'gamblePreludes':
+      return {key: 'Redeal all ${0} preludes', params: [n(ctx.preludesDealt)]};
+    case 'gambleProjects':
+      return {key: 'Redeal all ${0} projects', params: [n(ctx.projectsDealt)]};
+    case 'gambleCorporations':
+      return {key: 'Redeal the ${0} corporations offered', params: [n(ctx.corporationsDealt)]};
     case 'restructuring':
       return t.offer === undefined ?
         {key: '${0} corporations are dealt — one may take the place of any in the lineage (${1})', params: [n(TENDER_RESTRUCTURING_CANDIDATES), n(ctx.lineage.length)]} :
@@ -173,18 +170,22 @@ function startEntry(ctx: StartPortfolioContext, t: TenderInSelectionModel): Tend
     case 'additionalPrelude':
     case 'preludeReview':
     case 'gamble':
+    case 'gamblePreludes':
       return 'prelude';
     case 'broadPortfolio':
     case 'researchSubsidy':
     case 'projectReview':
+    case 'gambleProjects':
       return 'projects';
     case 'restructuring':
+    case 'gambleCorporations':
       return 'corp';
     default:
       return undefined;
     }
   })();
-  const confirm = id === 'gamble' && state === 'ready' && ctx.picksLive ?
+  // A GAMBLE over live picks asks for a second press — the redeal clears whatever was chosen on that step.
+  const confirm = isGambleTender(id) && state === 'ready' && ctx.picksLive ?
     {key: 'Your picks on the deal will be cleared — press again to redeal everything', params: []} : undefined;
   return {...base, state, verb: verbOf(), ...(blocked !== undefined ? {reason: blocked} : {}), reading, ...(confirm !== undefined ? {confirm} : {}), ...(landsOn !== undefined ? {landsOn} : {})};
 }

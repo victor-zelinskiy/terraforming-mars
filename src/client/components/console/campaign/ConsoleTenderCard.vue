@@ -1,7 +1,7 @@
 <template>
   <div class="con-tender"
        :class="[`con-tender--${size}`, `con-tender--${state}`, `con-tender--tier-${tier}`, {'con-tender--focused': focused}]"
-       :data-tender="id" :data-tender-state="state">
+       :data-tender="id" :data-tender-state="state" :data-name-tier="nameTier">
     <!--
       A TENDER — the Committee's LOT: a CERTIFICATE on the Committee's VELLUM (the face rework of 2026-11-08 — the
       owner: the dark glass was «слишком тёмные, выбиваются из стиля»; the bill's family: a page with a folded corner,
@@ -10,9 +10,11 @@
       form), the Committee's seal and the printed lot number on the head, the name in the display face, the
       window as a tracked label, the rule in prose over the family's glyph engraved as a watermark, the compensation
       floor on a perforated stub, a diagonal STAMP for its state (taken by a seat / withdrawn / executed / bought
-      back). Three sizes: `table` (the bidding's row), `reader` (X — the full text and the lore), `plaque` (a seat's
-      crest on the podium / the campaign rail: the head and the name only). Every state is drawn by MATERIAL — a
-      kant, a stamp, a word — never a glow.
+      back). Three sizes: `table` (the bidding's row and the portfolio — the owner, 2026-11-08: NO rule text at this
+      size, the name must FIT: head · rank · name · window · stub, the reading line and X carry the words), `reader`
+      (X — the full rule and the lore), `plaque` (a seat's crest on the podium / the campaign rail: the head and the
+      name only). The name's size follows a LENGTH-TIER ladder (`data-name-tier` — the longest word and the whole),
+      never a mid-word break. Every state is drawn by MATERIAL — a kant, a stamp, a word — never a glow.
     -->
     <i class="con-tender__frame" aria-hidden="true"></i>
     <svg v-if="size !== 'plaque'" class="con-tender__watermark" viewBox="0 0 24 24" aria-hidden="true"><path :d="glyphPath" /></svg>
@@ -33,7 +35,7 @@
     <div class="con-tender__name">{{ $t(meta.nameKey) }}</div>
     <template v-if="size !== 'plaque'">
       <div class="con-tender__window">{{ $t(windowKey) }}</div>
-      <div class="con-tender__rule">{{ $t(meta.ruleKey) }}</div>
+      <div v-if="size === 'reader'" class="con-tender__rule">{{ $t(meta.ruleKey) }}</div>
       <div v-if="size === 'reader'" class="con-tender__lore">{{ $t(meta.loreKey) }}</div>
       <div class="con-tender__coupon">
         <span class="con-tender__coupon-label">{{ $t('Not executed') }}</span>
@@ -55,7 +57,7 @@ import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {TENDER_COMPENSATION_MC, TenderId, tenderDef} from '@/common/campaign/tenders';
 import {TENDER_GLYPH_PATH, TenderCardState, tenderChevrons, tenderMeta, tenderTierKey, tenderWindowKey} from '@/client/console/campaign/tenderMeta';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 export type {TenderCardState};
 
@@ -70,10 +72,22 @@ export default defineComponent({
     focused: {type: Boolean, default: false},
   },
   computed: {
-    /** The head names the Committee — the full name wraps on two lines on the table and the reader; the plaque's
-     *  one-line strip carries the short form. */
+    /** The head names the Committee — the full name only where the head has the room (the reader); the table and the
+     *  plaque carry the short form on one line (the full name broke into five one-word lines beside the lot tag). */
     committeeKey(): string {
-      return this.size === 'plaque' ? 'Committee' : 'Terraforming Committee';
+      return this.size === 'reader' ? 'Terraforming Committee' : 'Committee';
+    },
+    /**
+     * THE NAME'S TIER — a calibrated ladder, never an eyeballed shrink: the LONGEST WORD decides first (it can never
+     * wrap), the whole name second (three lines at most on the table). 1 = the base size, 2 = tighter, 3 = tightest.
+     */
+    nameTier(): 1 | 2 | 3 {
+      const name = translateText(this.meta.nameKey);
+      const longest = name.split(/\s+/).reduce((m, w) => Math.max(m, w.length), 0);
+      if (longest <= 9 && name.length <= 18) {
+        return 1;
+      }
+      return longest <= 12 && name.length <= 24 ? 2 : 3;
     },
     meta() {
       return tenderMeta(this.id);

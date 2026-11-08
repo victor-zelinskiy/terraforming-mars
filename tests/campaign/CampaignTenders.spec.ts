@@ -264,7 +264,7 @@ describe('the «Тендеры» reward mode', () => {
 
   it('the finale LAUNCH hands a human its held tenders and CASHES the bot\'s out at once', async () => {
     const campaign = await manager.createCampaign(key(), tenderConfig({automa: {difficulty: 'hard'}}), {rewardMode: 'tenders', missionCount: 3});
-    await manager.devCommit(campaign.id, [0, 1, 2], {tenders: {0: ['projectReview'], 2: ['gamble', 'openCall']}});
+    await manager.devCommit(campaign.id, [0, 1, 2], {tenders: {0: ['projectReview'], 2: ['gamblePreludes', 'openCall']}});
     await manager.devCommit(campaign.id, [0, 1, 2], {
       tenders: {},
       lineages: {0: [CardName.CREDICOR, CardName.THORGATE], 1: [CardName.HELION, CardName.TERACTOR]},

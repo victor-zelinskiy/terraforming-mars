@@ -598,6 +598,7 @@ export const TENDER_START_REFUSAL = {
   projectDeckShort: 'Too few projects are left in the deck',
   corporationDeckShort: 'Too few corporations are left in the deck',
   handAlreadyFree: 'The starting hand is already free',
+  noCorporationDraft: 'The finale deploys your lineage — no corporation is drafted',
 } as const;
 
 function deckSize(deck: {drawPile: ReadonlyArray<unknown>, discardPile: ReadonlyArray<unknown>}): number {
@@ -638,6 +639,16 @@ export function tenderStartRefusal(player: IPlayer, tender: Pick<PlayerTender, '
       return TENDER_START_REFUSAL.preludeDeckShort;
     }
     return projects < player.dealtProjectCards.length ? TENDER_START_REFUSAL.projectDeckShort : undefined;
+  case 'gamblePreludes':
+    return preludes < player.dealtPreludeCards.length ? TENDER_START_REFUSAL.preludeDeckShort : undefined;
+  case 'gambleProjects':
+    return projects < player.dealtProjectCards.length ? TENDER_START_REFUSAL.projectDeckShort : undefined;
+  case 'gambleCorporations':
+    // The draft is the finale's own corporation step; a finale that deploys the whole lineage has none to redeal.
+    if (!campaignPicksNewCorporation(player) || player.dealtCorporationCards.length === 0) {
+      return TENDER_START_REFUSAL.noCorporationDraft;
+    }
+    return deckSize(game.corporationDeck) < player.dealtCorporationCards.length ? TENDER_START_REFUSAL.corporationDeckShort : undefined;
   case 'restructuring':
     return tender.offer === undefined && deckSize(game.corporationDeck) < TENDER_RESTRUCTURING_CANDIDATES ? TENDER_START_REFUSAL.corporationDeckShort : undefined;
   case 'researchSubsidy':
@@ -647,7 +658,7 @@ export function tenderStartRefusal(player: IPlayer, tender: Pick<PlayerTender, '
   }
 }
 
-function redealInPlace<T extends IProjectCard>(
+function redealInPlace<T extends {name: CardName}>(
   game: IGame,
   dealt: Array<T>,
   keep: ReadonlySet<CardName>,
@@ -727,6 +738,18 @@ export function executeTender(player: IPlayer, response: TenderResponse): void {
   case 'gamble':
     redealInPlace<IPreludeCard>(game, player.dealtPreludeCards, new Set(), drawPreludes, (cards) => game.preludeDeck.discard(...cards));
     redealInPlace<IProjectCard>(game, player.dealtProjectCards, new Set(), drawProjects, (cards) => game.projectDeck.discard(...cards));
+    break;
+  case 'gamblePreludes':
+    redealInPlace<IPreludeCard>(game, player.dealtPreludeCards, new Set(), drawPreludes, (cards) => game.preludeDeck.discard(...cards));
+    break;
+  case 'gambleProjects':
+    redealInPlace<IProjectCard>(game, player.dealtProjectCards, new Set(), drawProjects, (cards) => game.projectDeck.discard(...cards));
+    break;
+  case 'gambleCorporations':
+    // The finale's DRAFT offer goes back as it came — face down to the deck — and the same number comes off it (draw
+    // first, discard after). A «Реструктуризация» is untouched: its candidates are its own deal, the lineage its own.
+    redealInPlace<ICorporationCard>(game, player.dealtCorporationCards, new Set(),
+      (count) => game.corporationDeck.drawN(game, count), (cards) => game.corporationDeck.discard(...cards));
     break;
   case 'restructuring':
     executeRestructuring(player, tender, response);

@@ -56,6 +56,10 @@ export type TenderId =
   | 'openCall'
   | 'broadPortfolio'
   | 'researchSubsidy'
+  | 'gamblePreludes'
+  | 'gambleProjects'
+  | 'gambleCorporations'
+  /** LEGACY (never dealt since 2026-11-08 — split into the three pool gambles): kept so an older campaign's holding still reads. */
   | 'gamble';
 
 /**
@@ -80,6 +84,8 @@ export type TenderDef = {
   botPriority: number;
   /** The tender exists only with the Prelude expansion at the table. */
   needsPreludes: boolean;
+  /** A kind the Register no longer prints (`copies` 0) — kept for the holdings of older campaigns, hidden from every catalog view. */
+  legacy?: boolean;
 };
 
 /**
@@ -94,13 +100,27 @@ export const TENDER_CATALOG: Readonly<Record<TenderId, TenderDef>> = {
   extendedLegacy: {id: 'extendedLegacy', tier: 'notable', window: 'legacy', copies: 3, botPriority: 6, needsPreludes: false},
   preludeReview: {id: 'preludeReview', tier: 'notable', window: 'start', copies: 3, botPriority: 5, needsPreludes: true},
   projectReview: {id: 'projectReview', tier: 'notable', window: 'start', copies: 3, botPriority: 7, needsPreludes: false},
-  researchSubsidy: {id: 'researchSubsidy', tier: 'minor', window: 'start', copies: 2, botPriority: 9, needsPreludes: false},
-  gamble: {id: 'gamble', tier: 'gamble', window: 'start', copies: 2, botPriority: 8, needsPreludes: true},
+  researchSubsidy: {id: 'researchSubsidy', tier: 'minor', window: 'start', copies: 2, botPriority: 11, needsPreludes: false},
+  // THE GAMBLES (the owner, 2026-11-08): one per pool — the preludes, the projects, and the corporations the finale
+  // DRAFTS (a three-mission route; printed only when the finale picks a corporation — `tenderWindows.ts`).
+  gamblePreludes: {id: 'gamblePreludes', tier: 'gamble', window: 'start', copies: 2, botPriority: 8, needsPreludes: true},
+  gambleProjects: {id: 'gambleProjects', tier: 'gamble', window: 'start', copies: 2, botPriority: 9, needsPreludes: false},
+  gambleCorporations: {id: 'gambleCorporations', tier: 'gamble', window: 'start', copies: 1, botPriority: 10, needsPreludes: false},
+  gamble: {id: 'gamble', tier: 'gamble', window: 'start', copies: 0, botPriority: 13, needsPreludes: true, legacy: true},
   openCall: {id: 'openCall', tier: 'notable', window: 'start', copies: 3, botPriority: 3, needsPreludes: true},
-  broadPortfolio: {id: 'broadPortfolio', tier: 'minor', window: 'start', copies: 2, botPriority: 10, needsPreludes: false},
+  broadPortfolio: {id: 'broadPortfolio', tier: 'minor', window: 'start', copies: 2, botPriority: 12, needsPreludes: false},
 };
 
+/** Every id the rule knows — the legacy ones included (a holding of an older campaign must still resolve). */
 export const TENDER_IDS: ReadonlyArray<TenderId> = Object.keys(TENDER_CATALOG) as Array<TenderId>;
+
+/** The kinds the Register PRINTS today — every catalog view (the stand, the balance table) shows these. */
+export const TENDER_DEALT_IDS: ReadonlyArray<TenderId> = TENDER_IDS.filter((id) => TENDER_CATALOG[id].legacy !== true);
+
+/** A gamble of any pool — the one-press redeal with the «your picks will be cleared» confirm. */
+export function isGambleTender(id: TenderId): boolean {
+  return TENDER_CATALOG[id].tier === 'gamble';
+}
 
 /** The printed NAME of every tender — an English i18n key (the journal and every surface speak it). */
 export const TENDER_NAME_KEY: Readonly<Record<TenderId, string>> = {
@@ -113,6 +133,9 @@ export const TENDER_NAME_KEY: Readonly<Record<TenderId, string>> = {
   openCall: 'Open Call',
   broadPortfolio: 'Broad Portfolio',
   researchSubsidy: 'Research Subsidy',
+  gamblePreludes: 'Gamble: Preludes',
+  gambleProjects: 'Gamble: Projects',
+  gambleCorporations: 'Gamble: Corporations',
   gamble: 'Gamble',
 };
 

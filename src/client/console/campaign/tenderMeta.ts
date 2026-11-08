@@ -1,6 +1,10 @@
 // Campaign «ТЕНДЕРЫ» — the presentation registry (`common/campaign/tenders.ts`
 // is the rule). ONE row per tender id: its printed name, its rule in one
 // sentence, its lore line, its lot number and the glyph the document wears.
+// THE RULE'S VOICE (the owner, 2026-11-08): short, plain and STACKABLE — two
+// copies of one kind may be held, so a rule says what ONE MORE copy adds («на
+// один пролог больше»), never «3 вместо 2»; the window is printed on its own
+// line, so the rule never opens with «на старте финала».
 // Every surface that shows a tender (the bidding's table, the podium plaque,
 // the start's «НАСЛЕДИЕ › ТЕНДЕРЫ» page, the campaign map) reads this table —
 // a new tender is a new row here and nothing else on the client; the compiler
@@ -26,47 +30,47 @@ export type TenderMeta = {
 
 const META: Record<TenderId, Omit<TenderMeta, 'id' | 'nameKey'>> = {
   programExtension: {
-    ruleKey: 'Carry one prelude you played in the previous mission into the finale — it is played again as your extra prelude.',
+    ruleKey: 'Carry one more prelude you played in the previous mission into the finale: it is played again.',
     loreKey: 'The programme was a success. So we are running it again — same budget, half the oversight.',
     lot: 1, glyph: 'prelude',
   },
   additionalPrelude: {
-    ruleKey: 'At the finale\'s start choose 3 preludes of those dealt instead of 2.',
+    ruleKey: 'Keep one more prelude from your deal.',
     loreKey: 'Three opening moves. The Committee calls it initiative; the auditors call it a footnote.',
     lot: 2, glyph: 'prelude',
   },
   restructuring: {
-    ruleKey: 'At the finale\'s start 2 corporations are dealt to you; take one of them in place of any corporation of your lineage, or decline.',
+    ruleKey: 'Two corporations are dealt to you: take one of them in place of any corporation of your lineage, or decline.',
     loreKey: 'Nobody was fired. The division was simply reassigned to another planet.',
     lot: 3, glyph: 'corporation',
   },
   extendedLegacy: {
-    ruleKey: 'One more legacy seat: carry 3 project cards into the finale instead of 2.',
+    ruleKey: 'One more seat in your project legacy: carry one more card into the finale.',
     loreKey: 'One more crate cleared customs. Don\'t ask what the manifest said.',
     lot: 4, glyph: 'legacy',
   },
   preludeReview: {
-    ruleKey: 'At the finale\'s start keep at most one of your dealt preludes and redeal the rest once.',
+    ruleKey: 'Keep at most one of your dealt preludes; the rest are redealt once.',
     loreKey: 'The first proposals were fine. The second proposals were ours.',
     lot: 5, glyph: 'prelude',
   },
   projectReview: {
-    ruleKey: 'At the finale\'s start keep at most one of your dealt projects and redeal the rest once.',
+    ruleKey: 'Keep at most one of your dealt projects; the rest are redealt once.',
     loreKey: 'Ten projects landed on the desk. The desk was found to be the wrong desk.',
     lot: 6, glyph: 'project',
   },
   openCall: {
-    ruleKey: '6 preludes are dealt to you at the finale\'s start instead of 4.',
+    ruleKey: 'Two more preludes in your deal.',
     loreKey: 'More applicants than chairs. The Committee considers this healthy.',
     lot: 7, glyph: 'prelude',
   },
   broadPortfolio: {
-    ruleKey: '14 project cards are dealt to you at the finale\'s start instead of 10.',
+    ruleKey: 'Four more project cards in your deal.',
     loreKey: 'Fourteen folders instead of ten. The intern is no longer with us.',
     lot: 8, glyph: 'project',
   },
   researchSubsidy: {
-    ruleKey: 'Every card of your starting hand in the finale costs 1 M€ less.',
+    ruleKey: 'Every card of your starting hand costs 1 M€ less.',
     loreKey: 'One megacredit less per card. Science has never been so affordable — or so suspicious.',
     lot: 9, glyph: 'megacredit',
   },
@@ -74,6 +78,23 @@ const META: Record<TenderId, Omit<TenderMeta, 'id' | 'nameKey'>> = {
     ruleKey: 'At the finale\'s start redeal all your preludes and all your projects — nothing of the first deal stays.',
     loreKey: 'Everything back in the box. Shake. Hope.',
     lot: 10, glyph: 'dice',
+  },
+  // THE POOL GAMBLES (the owner, 2026-11-08): the emblem names the POOL that goes back in the box; the rank row's die
+  // names the tier.
+  gamblePreludes: {
+    ruleKey: 'Redeal all your dealt preludes once: nothing of the first deal stays.',
+    loreKey: 'The opening moves go back in the box. Shake. Hope.',
+    lot: 11, glyph: 'prelude',
+  },
+  gambleProjects: {
+    ruleKey: 'Redeal all your dealt projects once: nothing of the first deal stays.',
+    loreKey: 'Ten folders back in the box. Shake. Hope.',
+    lot: 12, glyph: 'project',
+  },
+  gambleCorporations: {
+    ruleKey: 'Redeal the corporations offered to you for the finale once: nothing of the first deal stays.',
+    loreKey: 'The board of directors goes back in the box. Shake. Hope.',
+    lot: 13, glyph: 'corporation',
   },
 };
 

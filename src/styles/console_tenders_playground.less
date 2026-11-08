@@ -33,7 +33,8 @@
         padding: .5rem .5rem .5rem; border-radius: .6rem;
         background: rgba(255, 255, 255, 0.03);
         box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
-        .con-tender { --tender-w: 9.6rem; }
+        /* the NARROWEST real width the table size is drawn at (the portfolio's row) — the acceptance probe measures this */
+        .con-tender { --tender-w: 11rem; }
         &--cursor { background: rgba(24, 38, 54, 0.92); box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 75%); }
         /* a kind this table never deals (the Prelude expansion off) — a muted document under a word, never a dim alone */
         &--off .con-tender { filter: saturate(.35); }

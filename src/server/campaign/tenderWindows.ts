@@ -20,6 +20,10 @@ export type TenderApplicabilityContext = {
   startingPreludes: number;
   /** The corporation pool's size (every corporation the frozen settings admit). */
   corporationPool: number;
+  /** The finale DRAFTS a corporation (the three-mission route — `campaignFinalePicksCorporation(missionCount − 1)`). */
+  finaleDraftsCorporation: boolean;
+  /** Corporations dealt per human at a start (the draft's size — what «Авантюра: корпорации» redeals). */
+  startingCorporations: number;
 };
 
 export function tenderApplicable(def: TenderDef, ctx: TenderApplicabilityContext): boolean {
@@ -36,6 +40,11 @@ export function tenderApplicable(def: TenderDef, ctx: TenderApplicabilityContext
     // The finale bans every lineage corporation (and the bot's); the dealt
     // candidates must still exist for every human at once.
     return ctx.corporationPool >= ctx.humans * (ctx.missionCount - 1) + 2 + ctx.humans * TENDER_RESTRUCTURING_CANDIDATES;
+  case 'gambleCorporations':
+    // Only where the finale DRAFTS a corporation — and the pool must cover the draft, its redeal and a restructuring's
+    // candidates for every human at once, past the lineage bans.
+    return ctx.finaleDraftsCorporation &&
+      ctx.corporationPool >= ctx.humans * (ctx.missionCount - 1) + 2 + 2 * ctx.humans * ctx.startingCorporations + ctx.humans * TENDER_RESTRUCTURING_CANDIDATES;
   default:
     return true;
   }

@@ -155,7 +155,7 @@ describe('tender execution at the finale\'s start', () => {
     expect(p1.campaignTenders![0].status).eq('executed');
   });
 
-  it('«Пересмотр проектов» does the same for the ten projects; «Авантюра» redeals everything, keeping nothing', () => {
+  it('«Пересмотр проектов» does the same for the ten projects; the legacy «Авантюра» redeals everything, keeping nothing', () => {
     const {p1} = finale(['projectReview', 'gamble']);
     const projects = p1.dealtProjectCards.map((c) => c.name);
     p1.process({type: 'tender', instance: 't0', keep: [projects[3]]});
@@ -169,6 +169,63 @@ describe('tender execution at the finale\'s start', () => {
     expect(p1.dealtProjectCards.map((c) => c.name).some((n) => reviewed.includes(n))).is.false;
     expect(p1.dealtPreludeCards).has.length(4);
     expect(p1.dealtProjectCards).has.length(10);
+  });
+
+  it('THE SPLIT GAMBLES (the owner, 2026-11-08): «Авантюра: прологи» redeals the preludes ALONE, «Авантюра: проекты» the projects ALONE; each is one press, nothing kept', () => {
+    const {p1} = finale(['gamblePreludes', 'gambleProjects']);
+    const preludes = p1.dealtPreludeCards.map((c) => c.name);
+    const projects = p1.dealtProjectCards.map((c) => c.name);
+    p1.process({type: 'tender', instance: 't0'});
+    expect(p1.dealtPreludeCards.map((c) => c.name).some((n) => preludes.includes(n)), 'no prelude of the first deal stays').is.false;
+    expect(p1.dealtPreludeCards).has.length(4);
+    expect(p1.dealtProjectCards.map((c) => c.name), 'the projects are untouched by the prelude gamble').deep.eq(projects);
+    expect(p1.campaignTenders![0].status).eq('executed');
+    p1.process({type: 'tender', instance: 't1'});
+    expect(p1.dealtProjectCards.map((c) => c.name).some((n) => projects.includes(n))).is.false;
+    expect(p1.dealtProjectCards).has.length(10);
+    expect(p1.campaignTenders![1].status).eq('executed');
+  });
+
+  it('«Авантюра: корпорации»: refused where the finale deploys the lineage; on a three-mission route it redeals the DRAFT offer and leaves a restructuring alone', () => {
+    // A four-mission finale deploys three corporations — nothing is drafted, the certificate says so.
+    const whole = finale(['gambleCorporations']);
+    expect(tenderStartRefusal(whole.p1, whole.p1.campaignTenders![0])).eq(TENDER_START_REFUSAL.noCorporationDraft);
+    expect(() => executeTender(whole.p1, {type: 'tender', instance: 't0'})).throws(/no corporation is drafted/);
+
+    // A three-mission route: the lineage is two, the finale drafts the third from the ordinary corporation step.
+    const short = [CardName.CREDICOR, CardName.THORGATE];
+    const p1 = new Player('Alice', 'blue', false, 0, 'p-tend-c1');
+    const p2 = new Player('Bruno', 'red', false, 0, 'p-tend-c2');
+    p1.campaignSeat = 0;
+    p2.campaignSeat = 1;
+    p1.campaignTenders = [{instance: 't0', id: 'gambleCorporations', status: 'held'}, {instance: 't1', id: 'restructuring', status: 'held'}];
+    const options = finaleOptions(['gambleCorporations', 'restructuring'], {bannedCards: [CardName.MERGER, ...short, CardName.HELION, CardName.TERACTOR]});
+    options.campaign!.missionSlot = 2;
+    options.campaign!.missionCount = 3;
+    options.campaign!.grants = [
+      {seat: 0, color: 'blue', bonusMegaCredits: 5, corporations: short, titlePoints: [], tenders: [{instance: 't0', id: 'gambleCorporations'}, {instance: 't1', id: 'restructuring'}]},
+      {seat: 1, color: 'red', bonusMegaCredits: 0, corporations: [CardName.HELION, CardName.TERACTOR], titlePoints: []},
+    ];
+    const game = Game.newInstance('g-tend-corp', [p1, p2], p1, 's-tend-c', options, 0.42);
+    expect(campaignLineageOf(p1)).deep.eq(short);
+    const draft = p1.dealtCorporationCards.map((c) => c.name);
+    expect(draft.length, 'the finale drafts: a corporation offer is dealt').greaterThan(0);
+    expect(tenderStartRefusal(p1, p1.campaignTenders[0])).is.undefined;
+    // A restructuring's candidates are dealt first — the corporation gamble must not touch them.
+    p1.process({type: 'tender', instance: 't1'});
+    const candidates = [...p1.campaignTenders[1].offer!];
+    const deckBefore = game.corporationDeck.drawPile.length;
+    p1.process({type: 'tender', instance: 't0'});
+    const redealt = p1.dealtCorporationCards.map((c) => c.name);
+    expect(redealt).has.length(draft.length);
+    expect(redealt.some((n) => draft.includes(n)), 'nothing of the first draft stays').is.false;
+    expect(redealt.some((n) => candidates.includes(n)), 'the restructuring candidates are not dealt into the draft').is.false;
+    expect(p1.campaignTenders[1].offer, 'the restructuring stands as it was').deep.eq(candidates);
+    expect(game.corporationDeck.drawPile.length, 'draw first, discard after — the deck shrank by the draft').eq(deckBefore - draft.length);
+    expect(game.corporationDeck.discardPile.map((c) => c.name)).includes(draft[0]);
+    expect(p1.campaignTenders[0].status).eq('executed');
+    const corpOption = selectionOf(p1).toModel(p1).options[0] as unknown as {cards: Array<{name: CardName}>};
+    expect(corpOption.cards.map((c) => c.name), 'the corporation step re-serves the new offer').deep.eq(redealt);
   });
 
   it('«Реструктуризация»: deal two, decline or take one in place of a lineage corporation — the deployment follows', () => {
@@ -207,7 +264,7 @@ describe('tender execution at the finale\'s start', () => {
   });
 
   it('«КОМПЕНСАЦИЯ»: the tenders left unexecuted are bought back as the LAST press of the deployment', () => {
-    const {p1} = finale(['openCall', 'gamble']);
+    const {p1} = finale(['openCall', 'gamblePreludes']);
     expect(tenderCompensationPending(p1), 'nothing owed while the selection stands').deep.eq({tenders: 0, megaCredits: 0});
     finishSelection(p1, p1.dealtPreludeCards.slice(0, 2).map((c) => c.name));
     expect(tenderCompensationPending(p1)).deep.eq({tenders: 2, megaCredits: 2 * TENDER_COMPENSATION_MC});

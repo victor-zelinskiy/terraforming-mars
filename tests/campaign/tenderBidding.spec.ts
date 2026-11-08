@@ -3,6 +3,7 @@ import {SeededRandom} from '../../src/common/utils/Random';
 import {
   BiddingOfferCard,
   TENDER_CATALOG,
+  TENDER_DEALT_IDS,
   TENDER_IDS,
   TENDER_NAME_KEY,
   TenderId,
@@ -13,6 +14,7 @@ import {
   botTenderPick,
   effectiveTenderOffer,
   heldTenderCount,
+  isGambleTender,
   isTenderId,
   tenderDef,
 } from '../../src/common/campaign/tenders';
@@ -35,18 +37,28 @@ const standing = (seat: number, place: number): MissionStanding =>
   ({seat, place, score: 0, megaCredits: 0, corporations: [], tiedWith: []});
 
 describe('the «Тендеры» catalog', () => {
-  it('every id has a row, a printed name, a unique bot priority and at least one copy', () => {
+  it('every id has a row, a printed name, a unique bot priority and at least one copy — a LEGACY kind zero copies and stays readable', () => {
     const priorities = new Set<number>();
     for (const id of TENDER_IDS) {
       const def = TENDER_CATALOG[id];
       expect(def.id, id).eq(id);
       expect(TENDER_NAME_KEY[id], `${id} needs a printed name`).to.be.a('string').and.not.empty;
-      expect(def.copies, `${id} copies`).greaterThan(0);
+      if (def.legacy === true) {
+        expect(def.copies, `${id} is legacy — never printed`).eq(0);
+      } else {
+        expect(def.copies, `${id} copies`).greaterThan(0);
+      }
       expect(priorities.has(def.botPriority), `${id} shares a bot priority`).is.false;
       priorities.add(def.botPriority);
       expect(['legacy', 'start']).includes(def.window);
     }
+    // The old «Авантюра» (both pools at once) was split on 2026-11-08: still an id (an older campaign's holding reads), never dealt.
     expect(isTenderId('gamble')).is.true;
+    expect(TENDER_DEALT_IDS.includes('gamble')).is.false;
+    expect(TENDER_DEALT_IDS).includes('gamblePreludes').and.includes('gambleProjects').and.includes('gambleCorporations');
+    expect(printTenderRegister(ALL, new SeededRandom(0.3)).includes('gamble'), 'the Register never prints a legacy kind').is.false;
+    expect(isGambleTender('gamblePreludes') && isGambleTender('gambleCorporations') && isGambleTender('gamble')).is.true;
+    expect(isGambleTender('openCall')).is.false;
     expect(isTenderId('preferentialMerger'), 'a removed kind is no tender').is.false;
     expect(tenderDef('programExtension').window).eq('legacy');
   });
@@ -268,7 +280,8 @@ describe('the bidding', () => {
 
 describe('applicability', () => {
   const ctx = (overrides: Partial<TenderApplicabilityContext> = {}): TenderApplicabilityContext => ({
-    preludes: true, humans: 2, missionCount: 4, preludePool: 35, startingPreludes: 4, corporationPool: 40, ...overrides,
+    preludes: true, humans: 2, missionCount: 4, preludePool: 35, startingPreludes: 4, corporationPool: 40,
+    finaleDraftsCorporation: false, startingCorporations: 2, ...overrides,
   });
 
   it('a prelude tender needs the Prelude expansion', () => {
@@ -282,5 +295,15 @@ describe('applicability', () => {
     expect(tenderApplicable(tenderDef('programExtension'), ctx({humans: 5, preludePool: 34}))).is.false;
     expect(tenderApplicable(tenderDef('restructuring'), ctx({humans: 2, missionCount: 4, corporationPool: 12}))).is.true;
     expect(tenderApplicable(tenderDef('restructuring'), ctx({humans: 2, missionCount: 4, corporationPool: 11}))).is.false;
+  });
+
+  it('«Авантюра: корпорации» exists only where the finale DRAFTS a corporation (the three-mission route), with a pool for the draft, its redeal and a restructuring', () => {
+    expect(tenderApplicable(tenderDef('gambleCorporations'), ctx({missionCount: 4, finaleDraftsCorporation: false}))).is.false;
+    // 2 humans × 2 bans + 2 + 2 × 2 × 2 (the draft and its redeal) + 2 × 2 (restructuring) = 18.
+    expect(tenderApplicable(tenderDef('gambleCorporations'), ctx({missionCount: 3, finaleDraftsCorporation: true, corporationPool: 18}))).is.true;
+    expect(tenderApplicable(tenderDef('gambleCorporations'), ctx({missionCount: 3, finaleDraftsCorporation: true, corporationPool: 17}))).is.false;
+    // The other two gambles need nothing beyond their pool's expansion.
+    expect(tenderApplicable(tenderDef('gamblePreludes'), ctx({preludes: false}))).is.false;
+    expect(tenderApplicable(tenderDef('gambleProjects'), ctx({preludes: false}))).is.true;
   });
 });

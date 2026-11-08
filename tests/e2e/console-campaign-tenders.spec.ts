@@ -72,7 +72,7 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await launchMission(request, id);
     // Mission 2's grant is stated too: a fixture with NO `tenders` opens the real bidding and resolves it by the bot's
     // order — seat 0 would win a fifth lot, and the portfolio below counts exactly four.
-    await devCommit(request, id, [0, 1], {lineages: {0: ['Ecoline', 'Mining Guild'], 1: ['Helion', 'Saturn Systems']}, tenders: {1: ['gamble']}});
+    await devCommit(request, id, [0, 1], {lineages: {0: ['Ecoline', 'Mining Guild'], 1: ['Helion', 'Saturn Systems']}, tenders: {1: ['gamblePreludes']}});
     const {yourPlayerId: aliceId} = await launchMission(request, id);
     expect(aliceId).toBeTruthy();
     const brunoId = (await campaignModelAs(request, id, 'Bruno')).missions[2]?.yourPlayerId;

@@ -20,6 +20,10 @@
     <ConsolePlaygroundStand v-if="showResolutionsPlayground" standalone titleKey="Redux resolutions showcase" :padTarget="resolutionsPlaygroundTarget" @close="closePlaygroundDeepLink">
       <ConsoleResolutionsPlayground ref="resolutionsPg" embedded />
     </ConsolePlaygroundStand>
+    <!-- The campaign tenders stand (?tendersPlayground) — interactive too (the catalog cursor, the simulated table). -->
+    <ConsolePlaygroundStand v-if="showTendersPlayground" standalone titleKey="Tenders showcase" :padTarget="tendersPlaygroundTarget" @close="closePlaygroundDeepLink">
+      <ConsoleTendersPlayground ref="tendersPg" embedded />
+    </ConsolePlaygroundStand>
     <!--
       Game-screen atmosphere backdrop. Mounted ONLY on the in-game screen
       (player-home) — start / create / load / the-end
@@ -311,6 +315,7 @@ import {
 const EndgameExperience = defineAsyncComponent(() => import(/* webpackChunkName: "endgame" */ '@/client/components/endgame/EndgameExperience.vue'));
 const PlayerCubePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "player-cube-playground" */ '@/client/components/PlayerCubePlayground.vue'));
 const ConsoleResolutionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "resolutions-playground" */ '@/client/components/console/parliament/ConsoleResolutionsPlayground.vue'));
+const ConsoleTendersPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "tenders-playground" */ '@/client/components/console/campaign/ConsoleTendersPlayground.vue'));
 const PremiumCardsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "premium-cards-playground" */ '@/client/components/premiumCard/PremiumCardsPlayground.vue'));
 const CardLorePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "card-lore-playground" */ '@/client/components/card/CardLorePlayground.vue'));
 // The console-native stand chassis the deep-linked showcases render inside.
@@ -482,6 +487,7 @@ export default defineComponent({
     EndgameExperience,
     PlayerCubePlayground,
     ConsoleResolutionsPlayground,
+    ConsoleTendersPlayground,
     PremiumCardsPlayground,
     CardLorePlayground,
     ConsolePlaygroundStand,
@@ -573,10 +579,14 @@ export default defineComponent({
     showResolutionsPlayground(): boolean {
       return window.location.search.includes('resolutionsPlayground');
     },
+    // Dev-only: the campaign tenders showcase (`?tendersPlayground`).
+    showTendersPlayground(): boolean {
+      return window.location.search.includes('tendersPlayground');
+    },
     /** Any deep-linked dev stand is up — the main menu must not mount under it
      *  (single console-intent slot; see the template note). */
     playgroundDeepLinkActive(): boolean {
-      return this.showCubePlayground || this.showPremiumCardsPlayground || this.showLorePlayground || this.showResolutionsPlayground;
+      return this.showCubePlayground || this.showPremiumCardsPlayground || this.showLorePlayground || this.showResolutionsPlayground || this.showTendersPlayground;
     },
     // The active player view ONLY when its game has ended —
     // drives the App-level EndgameExperience mount. Undefined mid-game.
@@ -606,6 +616,10 @@ export default defineComponent({
     /** The resolutions stand's pad target — the slotted showcase (resolved late: it mounts async). */
     resolutionsPlaygroundTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
       return (this.$refs.resolutionsPg ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+    },
+    /** The tenders stand's pad target — the same late resolution. */
+    tendersPlaygroundTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
+      return (this.$refs.tendersPg ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
     },
     showAlert(title: string, message: string, cb: () => void = () => {}): void {
       // Console mode: the native <dialog> OK button is unreachable by the pad,

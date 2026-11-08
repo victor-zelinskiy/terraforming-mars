@@ -19,7 +19,7 @@ const held = (id: TenderId, extra: Partial<TenderInSelectionModel> = {}): Tender
 function startCtx(tenders: ReadonlyArray<TenderInSelectionModel>, extra: Partial<StartPortfolioContext> = {}): StartPortfolioContext {
   return {
     place: 'start', tenders, preludesDealt: 4, preludePick: 2, projectsDealt: 10, projectsMax: 10, cardCost: 3,
-    lineage: [CardName.ECOLINE, CardName.MINING_GUILD], picksLive: false, ...extra,
+    lineage: [CardName.ECOLINE, CardName.MINING_GUILD], corporationsDealt: 2, picksLive: false, ...extra,
   };
 }
 
@@ -36,6 +36,9 @@ describe('tenderPortfolio — the one reader of a holding on the two places', ()
     expect(tenderExecutionOf('broadPortfolio')).eq('simple');
     expect(tenderExecutionOf('researchSubsidy')).eq('simple');
     expect(tenderExecutionOf('gamble')).eq('simple');
+    expect(tenderExecutionOf('gamblePreludes')).eq('simple');
+    expect(tenderExecutionOf('gambleProjects')).eq('simple');
+    expect(tenderExecutionOf('gambleCorporations')).eq('simple');
     expect(tenderExecutionOf('additionalPrelude')).eq('simple');
     expect(tenderExecutionOf('preludeReview')).eq('keep-preludes');
     expect(tenderExecutionOf('projectReview')).eq('keep-projects');
@@ -50,7 +53,7 @@ describe('tenderPortfolio — the one reader of a holding on the two places', ()
   it('THE START: each certificate\'s state, verb, the step it lands on and the reading in the deal\'s own numbers', () => {
     const entries = tenderPortfolio(startCtx([
       held('openCall'), held('broadPortfolio'), held('additionalPrelude'), held('researchSubsidy'),
-      held('preludeReview'), held('projectReview'), held('gamble'), held('restructuring'),
+      held('preludeReview'), held('projectReview'), held('gamblePreludes'), held('gambleProjects'), held('gambleCorporations'), held('restructuring'),
       held('extendedLegacy', {blocked: 'Its window was the legacy step before the finale'}),
       held('programExtension', {status: 'executed'}),
     ]));
@@ -64,20 +67,27 @@ describe('tenderPortfolio — the one reader of a holding on the two places', ()
     expect(byId.preludeReview).include({state: 'step', verb: 'Review', landsOn: 'prelude'});
     expect(byId.preludeReview.reading.params).deep.eq(['1', '4']);
     expect(byId.projectReview).include({state: 'step', verb: 'Review', landsOn: 'projects'});
-    expect(byId.gamble).include({state: 'ready', verb: 'Execute', landsOn: 'prelude'});
-    expect(byId.gamble.confirm, 'no live picks — no second press').is.undefined;
+    expect(byId.gamblePreludes).include({state: 'ready', verb: 'Execute', landsOn: 'prelude'});
+    expect(byId.gamblePreludes.reading).deep.eq({key: 'Redeal all ${0} preludes', params: ['4']});
+    expect(byId.gamblePreludes.confirm, 'no live picks — no second press').is.undefined;
+    expect(byId.gambleProjects).include({state: 'ready', verb: 'Execute', landsOn: 'projects'});
+    expect(byId.gambleProjects.reading.params).deep.eq(['10']);
+    expect(byId.gambleCorporations).include({state: 'ready', verb: 'Execute', landsOn: 'corp'});
+    expect(byId.gambleCorporations.reading).deep.eq({key: 'Redeal the ${0} corporations offered', params: ['2']});
     expect(byId.restructuring).include({state: 'step', verb: 'Deal the candidates', landsOn: 'corp'});
     expect(byId.restructuring.reading.params).deep.eq(['2', '2']);
     expect(byId.extendedLegacy).include({state: 'blocked', verb: '', reason: 'Its window was the legacy step before the finale'});
     expect(byId.programExtension).include({state: 'executed', verb: ''});
-    expect(tenderPortfolioCounts(entries)).deep.eq({executed: 1, open: 8, total: 10});
+    expect(tenderPortfolioCounts(entries)).deep.eq({executed: 1, open: 10, total: 12});
   });
 
   it('THE START: a gamble over LIVE picks asks for a second press; a dealt restructuring continues; a cashed one is done', () => {
     const entries = tenderPortfolio(startCtx([
-      held('gamble'), held('restructuring', {offer: [CardName.THARSIS_REPUBLIC, CardName.HELION]}), held('openCall', {status: 'cashed'}),
+      held('gambleProjects'), held('restructuring', {offer: [CardName.THARSIS_REPUBLIC, CardName.HELION]}), held('openCall', {status: 'cashed'}),
+      held('gambleCorporations'),
     ], {picksLive: true}));
     expect(entries[0].confirm?.key).contains('press again');
+    expect(entries[3].confirm?.key, 'every pool gamble asks over live picks').contains('press again');
     expect(entries[1]).include({state: 'step', verb: 'Continue the restructuring'});
     expect(entries[1].reading.key).contains('choose one');
     expect(entries[2]).include({state: 'cashed', verb: ''});
