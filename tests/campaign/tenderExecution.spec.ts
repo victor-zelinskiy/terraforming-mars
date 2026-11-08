@@ -18,6 +18,8 @@ import {
   campaignSetupResumeInput,
   campaignStartingBudget,
   executeTender,
+  TENDER_START_REFUSAL,
+  tenderStartRefusal,
   grantCarriedPreludes,
   runCampaignDeploymentChain,
   tenderCompensationPending,
@@ -99,7 +101,7 @@ describe('tender execution at the finale\'s start', () => {
     expect(p1.waitingForSerial, 'with a fresh identity').not.eq(serial);
     expect(cast(selection.inputs.prelude, SelectCard).config.max).eq(3);
     expect(cast(selection.inputs.prelude, SelectCard).config.min).eq(3);
-    expect(selection.toModel(p1).tenders).deep.eq([{instance: 't0', id: 'additionalPrelude', status: 'executed'}]);
+    expect(selection.toModel(p1).tenders).deep.eq([{instance: 't0', id: 'additionalPrelude', status: 'executed', window: 'start'}]);
     // A second execution of the same instance is refused.
     expect(() => p1.process({type: 'tender', instance: 't0'})).throws(/already executed/);
     // Three preludes are now the answer; two are refused.
@@ -252,6 +254,32 @@ describe('tender execution at the finale\'s start', () => {
     expect(p1.campaignCarriedPreludesGranted).is.true;
     grantCarriedPreludes(p1);
     expect(p1.preludeCardsInHand).has.length(3);
+  });
+
+  it('the selection model names each tender\'s WINDOW and the server\'s REASON when it cannot go — the one reader the executor refuses by', () => {
+    const {game, p1} = finale(['extendedLegacy', 'openCall', 'researchSubsidy', 'restructuring']);
+    const read = () => selectionOf(p1).toModel(p1).tenders!.map((t) => [t.id, t.window, t.blocked]);
+    expect(read()).deep.eq([
+      ['extendedLegacy', 'legacy', TENDER_START_REFUSAL.legacyWindow],
+      ['openCall', 'start', undefined],
+      ['researchSubsidy', 'start', undefined],
+      ['restructuring', 'start', undefined],
+    ]);
+    expect(() => executeTender(p1, {type: 'tender', instance: 't0'})).to.throw(TENDER_START_REFUSAL.legacyWindow);
+    // The prelude deck runs dry: «Открытый конкурс» cannot deal — the model says so BEFORE a press, the press is refused by the same words.
+    game.preludeDeck.drawPile.splice(0);
+    game.preludeDeck.discardPile.splice(0);
+    expect(tenderStartRefusal(p1, {id: 'openCall'})).eq(TENDER_START_REFUSAL.preludeDeckShort);
+    expect(read()[1]).deep.eq(['openCall', 'start', TENDER_START_REFUSAL.preludeDeckShort]);
+    expect(() => executeTender(p1, {type: 'tender', instance: 't1'})).to.throw(TENDER_START_REFUSAL.preludeDeckShort);
+    // A hand already free: «Субсидия» would buy nothing — refused, so the compensation stays the better deal.
+    p1.campaignStartingHandDiscount = 99;
+    expect(read()[2]).deep.eq(['researchSubsidy', 'start', TENDER_START_REFUSAL.handAlreadyFree]);
+    // The corporation deck runs dry: «Реструктуризация» has nothing to deal.
+    game.corporationDeck.drawPile.splice(0);
+    game.corporationDeck.discardPile.splice(0);
+    expect(read()[3]).deep.eq(['restructuring', 'start', TENDER_START_REFUSAL.corporationDeckShort]);
+    expect(() => executeTender(p1, {type: 'tender', instance: 't3'})).to.throw(TENDER_START_REFUSAL.corporationDeckShort);
   });
 
   it('a tenders finale scores no «Титулы» category; a titles finale still does', () => {

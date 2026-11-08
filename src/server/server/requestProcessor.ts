@@ -29,6 +29,7 @@ import {ApiCampaignCreate} from '../routes/ApiCampaignCreate';
 import {ApiCampaignLaunch} from '../routes/ApiCampaignLaunch';
 import {ApiCampaignCarryover} from '../routes/ApiCampaignCarryover';
 import {ApiCampaignBid} from '../routes/ApiCampaignBid';
+import {ApiCampaignTender} from '../routes/ApiCampaignTender';
 import {ApiCampaignDev} from '../routes/ApiCampaignDev';
 import {ApiCampaigns} from '../routes/ApiCampaigns';
 import {ApiCampaignDelete} from '../routes/ApiCampaignDelete';
@@ -124,6 +125,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_CAMPAIGN_LAUNCH, ApiCampaignLaunch.INSTANCE],
     [paths.API_CAMPAIGN_CARRYOVER, ApiCampaignCarryover.INSTANCE],
     [paths.API_CAMPAIGN_BID, ApiCampaignBid.INSTANCE],
+    [paths.API_CAMPAIGN_TENDER, ApiCampaignTender.INSTANCE],
     [paths.API_CAMPAIGN_DEV, ApiCampaignDev.INSTANCE],
     [paths.API_CAMPAIGNS, ApiCampaigns.INSTANCE],
     [paths.API_CAMPAIGN_DELETE, ApiCampaignDelete.INSTANCE],

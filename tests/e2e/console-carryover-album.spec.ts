@@ -237,8 +237,18 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     await devCommit(request, id, [0, 1], {
       carryoverPending: true, carryover: {0: [], 1: HAND}, finalPreludes: {1: ['Allied Bank', 'Biofuels']},
     });
+    // A legacy tender is ACTIVATED on the step, never used silently (2026-11-08): the limit counts the seat only after
+    // the activation — here over the API (the picker's own activation stage is the subject of test F).
+    const brunoId = (await campaignModelAs(request, id, 'Bruno')).missions[1]?.yourPlayerId;
+    expect(brunoId, 'Bruno\'s seat in the source mission').toBeTruthy();
+    expect((await campaignModelAs(request, id, 'Bruno')).carryover?.yourLimit, 'the base alone until the tenders are activated').toBe(2);
+    for (const instance of ['dev0-1-0', 'dev0-1-1']) {
+      const res = await request.post(`${campaignBase()}/api/campaign/tender?id=${id}`, {data: {playerId: brunoId, instance}});
+      expect(res.ok(), await res.text()).toBeTruthy();
+    }
     const before = await campaignModelAs(request, id, 'Bruno');
-    expect(before.carryover?.yourLimit, 'the seat\'s limit already counts the tender seat').toBe(3);
+    expect(before.carryover?.yourLimit, 'the seat\'s limit counts the activated tender seat').toBe(3);
+    expect(before.carryover?.yourTenders?.map((t: {status: string}) => t.status), 'both holdings read executed').toEqual(['executed', 'executed']);
     const posts = watchCarryPosts(page);
     await openMapAs(page, id, 'Bruno');
     await page.waitForSelector('.con-carry .con-album', {timeout: 20_000});

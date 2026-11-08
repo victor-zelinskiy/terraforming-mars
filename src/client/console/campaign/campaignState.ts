@@ -31,6 +31,7 @@ export const campaignState = reactive<{
   submittingCarryover: boolean,
   /** True while a tender BID is in flight (the «Тендеры» mode). */
   submittingBid: boolean,
+  submittingTender: boolean,
 }>({
   id: undefined,
   model: undefined,
@@ -39,6 +40,8 @@ export const campaignState = reactive<{
   launching: false,
   submittingCarryover: false,
   submittingBid: false,
+  /** A legacy tender's activation is on the wire (`submitCampaignTender`) — one at a time. */
+  submittingTender: false,
 });
 
 let pollTimer: number | undefined;
@@ -203,6 +206,7 @@ export function resetCampaignState(): void {
   campaignState.launching = false;
   campaignState.submittingCarryover = false;
   campaignState.submittingBid = false;
+  campaignState.submittingTender = false;
 }
 
 /**
@@ -240,6 +244,45 @@ export async function submitCampaignBid(instance: string): Promise<boolean> {
     return false;
   } finally {
     campaignState.submittingBid = false;
+  }
+}
+
+/**
+ * «ТЕНДЕРЫ» — ACTIVATE a legacy-window tender on the carryover step into the finale (`api/campaign/tender`): the
+ * seat's own PlayerId of the SOURCE mission is the credential (the carryover's). The model answer replaces the
+ * campaign's — the limit / the prelude allowance / the holding's status move in ONE apply. `false` on a refusal
+ * (the server's reason goes to `campaignState.error`).
+ */
+export async function submitCampaignTender(instance: string): Promise<boolean> {
+  const id = campaignState.id;
+  const model = campaignState.model;
+  const carry = model?.carryover;
+  const playerId = carry !== undefined ? model?.missions[carry.sourceSlot]?.yourPlayerId : undefined;
+  if (id === undefined || playerId === undefined || campaignState.submittingTender) {
+    return false;
+  }
+  campaignState.submittingTender = true;
+  try {
+    const res = await fetch(apiUrl(paths.API_CAMPAIGN_TENDER) + `?id=${encodeURIComponent(id)}`, {
+      method: 'POST',
+      body: JSON.stringify({playerId, instance}),
+      headers: {'Content-Type': 'application/json'},
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(text || 'tender failed');
+    }
+    const next = JSON.parse(text) as CampaignModel;
+    if (campaignState.model === undefined || next.rev >= campaignState.model.rev) {
+      campaignState.model = next;
+    }
+    campaignState.error = '';
+    return true;
+  } catch (err) {
+    campaignState.error = err instanceof Error && err.message.length > 0 ? err.message : 'Could not execute the tender. Please try again.';
+    return false;
+  } finally {
+    campaignState.submittingTender = false;
   }
 }
 

@@ -18,7 +18,7 @@ import {
   MissionStanding,
   TitleEntry,
 } from './CampaignTypes';
-import {BiddingState, CampaignRewardMode, TenderHolding} from './tenders';
+import {BiddingState, CampaignRewardMode, TenderHolding, TenderId, TenderStatus, TenderWindow} from './tenders';
 
 /**
  * The live BIDDING as every viewer sees it (the «Тендеры» reward mode): the
@@ -73,6 +73,18 @@ export type CarryoverSeatPublic = {
   preludeCount?: number;
 };
 
+/**
+ * The «Тендеры» mode: ONE of the viewer's holdings as the carryover step shows it — executable on THIS step, or why
+ * not (`blocked`: the server's reason, an English i18n key; absent on a held tender = executable now).
+ */
+export type CarryoverTenderModel = {
+  instance: string;
+  id: TenderId;
+  status: TenderStatus;
+  window: TenderWindow;
+  blocked?: string;
+};
+
 export type CampaignCarryoverModel = {
   sourceSlot: number;
   bySeat: ReadonlyArray<CarryoverSeatPublic>;
@@ -93,6 +105,11 @@ export type CampaignCarryoverModel = {
   yourPreludeLimit?: number;
   /** The «Тендеры» mode: the viewer's currently selected preludes. */
   yourPreludes?: ReadonlyArray<CardName>;
+  /**
+   * The «Тендеры» mode: EVERY holding of the viewer, in acquisition order, with its availability on this step — the
+   * portfolio stage reads it. A legacy-window tender is ACTIVATED here (`api/campaign/tender`), never «used» silently.
+   */
+  yourTenders?: ReadonlyArray<CarryoverTenderModel>;
 };
 
 export type CampaignModel = {

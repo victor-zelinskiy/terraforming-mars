@@ -10,15 +10,8 @@ import {InputError} from './InputError';
 import {OptionsInput} from './OptionsPlayerInput';
 import {InputResponse, isSelectInitialCardsResponse, isTenderResponse} from '../../common/inputs/InputResponse';
 import {PlayerInput} from '../PlayerInput';
-import {
-  campaignPreludePickCount,
-  campaignSelectionSkipsCorpStep,
-  campaignStartingBudget,
-  campaignTendersOf,
-  campaignTenderWindowOpen,
-  executeTender,
-  grantCarriedPreludes,
-} from '../campaign/CampaignMissionSetup';
+import {campaignPreludePickCount, campaignSelectionSkipsCorpStep, campaignStartingBudget, campaignTendersOf, campaignTenderWindowOpen, executeTender, grantCarriedPreludes, tenderStartRefusal} from '../campaign/CampaignMissionSetup';
+import {tenderDef} from '../../common/campaign/tenders';
 
 type Inputs = {
   corp: PlayerInput | undefined,
@@ -189,12 +182,18 @@ export class SelectInitialCards extends OptionsInput<undefined> {
     // (structural — the start's «НАСЛЕДИЕ › ТЕНДЕРЫ» page reads them here).
     const tenders = campaignTendersOf(player);
     if (tenders.length > 0) {
-      model.tenders = tenders.map((t) => ({
-        instance: t.instance,
-        id: t.id,
-        status: t.status,
-        ...(t.offer !== undefined ? {offer: [...t.offer]} : {}),
-      }));
+      model.tenders = tenders.map((t) => {
+        // The SERVER names why a held tender cannot go now (invariant 2) — the certificate prints the reason as it is.
+        const blocked = t.status === 'held' ? tenderStartRefusal(player, t) : undefined;
+        return {
+          instance: t.instance,
+          id: t.id,
+          status: t.status,
+          window: tenderDef(t.id).window,
+          ...(blocked !== undefined ? {blocked} : {}),
+          ...(t.offer !== undefined ? {offer: [...t.offer]} : {}),
+        };
+      });
     }
     return model;
   }

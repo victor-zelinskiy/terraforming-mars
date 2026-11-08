@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {CardName} from '../../../src/common/cards/CardName';
 import {TenderInSelectionModel} from '../../../src/common/models/PlayerInputModel';
+import {TenderId, tenderWindowOf} from '../../../src/common/campaign/tenders';
 import {
   pickRestructure, startTenderVerb, tenderCardStateOf, tenderExecutionOf, tenderPressResponse, tenderStepAskKey,
   tenderStepCommit, tenderStepDecline, tenderStepFor, tenderStepStatus, toggleKeep,
@@ -12,7 +13,7 @@ import {
  * routes; nothing here touches the DOM.
  */
 const held = (id: string, extra: Partial<TenderInSelectionModel> = {}): TenderInSelectionModel =>
-  ({instance: `t0-${id}`, id, status: 'held', ...extra});
+  ({instance: `t0-${id}`, id, status: 'held', window: tenderWindowOf(id as TenderId), ...extra});
 
 describe('startTenders — the start window from the legacy stage', () => {
   it('every kind knows HOW it executes: one press · a keep · the restructuring · never from here', () => {

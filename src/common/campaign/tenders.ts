@@ -112,6 +112,12 @@ export const TENDER_OPEN_CALL_PRELUDES = 2;
 export const TENDER_BROAD_PORTFOLIO_PROJECTS = 4;
 /** «Реструктуризация»: how many corporations are dealt per copy. */
 export const TENDER_RESTRUCTURING_CANDIDATES = 2;
+/** «Пересмотр прологов / проектов»: how many of the dealt cards the player may KEEP; the rest are redealt once. */
+export const TENDER_REVIEW_KEEP_MAX = 1;
+
+export function tenderWindowOf(id: TenderId): TenderWindow {
+  return TENDER_CATALOG[id].window;
+}
 
 /**
  * A tender's life: `held` (won, waiting for its window) → `executed` (its

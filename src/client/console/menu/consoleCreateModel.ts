@@ -485,7 +485,7 @@ export function campaignRewardModeLabel(mode: CampaignRewardMode): string {
 /** The dial's one sentence (an i18n key) — what a place EARNS under this mode. */
 export function campaignRewardModeDesc(mode: CampaignRewardMode): string {
   return mode === 'tenders' ?
-    'The places pick tenders — reward cards executed at the finale\'s start; an unexecuted one pays 3 M€.' :
+    'The places pick tenders — reward cards executed before the finale and at its start; an unexecuted one pays 3 M€; no comeback bonus.' :
     'The places earn titles — title points that count in the finale\'s VP.';
 }
 

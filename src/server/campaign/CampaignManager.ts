@@ -60,7 +60,6 @@ import {
   biddingOpenCards,
   biddingTurnSeat,
   botTenderPick,
-  heldTenderCount,
   isCampaignRewardMode,
   isTenderId,
   tenderDef,
@@ -126,34 +125,52 @@ export function carryoverLimitWithTenders(campaign: SerializedCampaign, seat: nu
   return carryoverLimitOf(state) + tenderSeatsOf(campaign, seat, sourceSlot);
 }
 
-/** How many legacy seats the held «Расширенное наследие» tenders add on the carryover INTO the finale. */
+/** The carryover INTO the finale is the ONE step a legacy-window tender speaks on. */
+function legacyTenderStep(campaign: SerializedCampaign, sourceSlot: number): boolean {
+  return campaignRewardMode(campaign) === 'tenders' && sourceSlot === campaign.missions.length - 2;
+}
+
+/**
+ * The seat's EXECUTED copies of a tender. A legacy tender is ACTIVATED on the carryover step (`executeLegacyTender`,
+ * the owner 2026-11-08: the activation opens the slot and is felt) — never «used» silently by what the seat carried.
+ */
+function executedTenderCount(campaign: SerializedCampaign, seat: number, id: TenderId): number {
+  return (campaign.progression.tenders?.[seat] ?? []).filter((h) => h.id === id && h.status === 'executed').length;
+}
+
+/** How many legacy seats the ACTIVATED «Расширенное наследие» tenders add on the carryover INTO the finale. */
 function tenderSeatsOf(campaign: SerializedCampaign, seat: number, sourceSlot: number): number {
-  if (campaignRewardMode(campaign) !== 'tenders' || sourceSlot !== campaign.missions.length - 2) {
-    return 0;
-  }
-  return heldTenderCount(campaign.progression.tenders?.[seat] ?? [], 'extendedLegacy');
+  return legacyTenderStep(campaign, sourceSlot) ? executedTenderCount(campaign, seat, 'extendedLegacy') : 0;
 }
 
-/** How many played preludes the held «Продление программы» tenders carry on the carryover INTO the finale. */
+/** How many played preludes the ACTIVATED «Продление программы» tenders carry on the carryover INTO the finale. */
 function tenderPreludeLimitOf(campaign: SerializedCampaign, seat: number, sourceSlot: number): number {
-  if (campaignRewardMode(campaign) !== 'tenders' || sourceSlot !== campaign.missions.length - 2) {
-    return 0;
-  }
-  return heldTenderCount(campaign.progression.tenders?.[seat] ?? [], 'programExtension');
+  return legacyTenderStep(campaign, sourceSlot) ? executedTenderCount(campaign, seat, 'programExtension') : 0;
 }
 
-/** Marks `count` held tenders of `id` of the seat with `status` (acquisition order) — the launch's consumption. */
-function markHeldTenders(campaign: SerializedCampaign, seat: number, id: TenderId, count: number, status: TenderHolding['status']): void {
-  let left = count;
-  for (const holding of campaign.progression.tenders?.[seat] ?? []) {
-    if (left <= 0) {
-      break;
-    }
-    if (holding.id === id && holding.status === 'held') {
-      holding.status = status;
-      left--;
-    }
+/** The reasons a HELD tender cannot be activated on a carryover step — English i18n keys the certificate prints as they are. */
+export const TENDER_LEGACY_REFUSAL = {
+  startWindow: 'Executed at the finale\'s start',
+  notTheFinaleStep: 'Its window is the legacy step before the finale',
+  noPreludePlayed: 'You played no prelude in that mission',
+} as const;
+
+/**
+ * WHY a held tender cannot be activated on THIS carryover step — `undefined` = it can. ONE reader for the model
+ * (`carryover.yourTenders[].blocked` — the portfolio prints it) and for `executeLegacyTender` (the refusal), so the
+ * client never derives availability (invariant 2).
+ */
+export function legacyTenderRefusal(campaign: SerializedCampaign, seat: number, sourceSlot: number, holding: Pick<TenderHolding, 'id'>): string | undefined {
+  if (tenderDef(holding.id).window === 'start') {
+    return TENDER_LEGACY_REFUSAL.startWindow;
   }
+  if (!legacyTenderStep(campaign, sourceSlot)) {
+    return TENDER_LEGACY_REFUSAL.notTheFinaleStep;
+  }
+  if (holding.id === 'programExtension' && (campaign.missions[sourceSlot]?.finalPreludes?.[seat] ?? []).length === 0) {
+    return TENDER_LEGACY_REFUSAL.noPreludePlayed;
+  }
+  return undefined;
 }
 
 export class CampaignManager {
@@ -496,18 +513,8 @@ export class CampaignManager {
       if (blockers.length > 0) {
         throw new Error(blockers[0]);
       }
-      // The «Тендеры» mode: a legacy tender is realized BY USE — every seat
-      // taken beyond the base limit consumed an «Расширенное наследие», every
-      // carried prelude a «Продление программы». Marked BEFORE the game is
-      // built, so only the tenders still held ride into the finale (the
-      // portfolio's `growBotHoldings` precedent: the launch's save persists it).
-      if (campaign.carryover !== undefined && campaign.carryover.sourceSlot === slot.slot - 1) {
-        for (const [seatKey, state] of Object.entries(campaign.carryover.bySeat)) {
-          const seat = Number(seatKey);
-          markHeldTenders(campaign, seat, 'extendedLegacy', Math.max(0, state.cards.length - carryoverLimitOf(state)), 'executed');
-          markHeldTenders(campaign, seat, 'programExtension', (state.preludes ?? []).length, 'executed');
-        }
-      }
+      // The «Тендеры» mode: a legacy tender was ACTIVATED on the carryover step (`executeLegacyTender`) — the launch
+      // marks nothing; only the tenders still held ride into the finale, where the start's compensation buys them back.
       const game = this.buildMissionGame(campaign, slot);
       // Invariant 3: the GAME is on disk before the campaign points at it.
       await Database.getInstance().saveGame(game);
@@ -780,8 +787,9 @@ export class CampaignManager {
           titles.push({seat: standing.seat, missionSlot: slot.slot, title, titlePoints: TITLE_TABLE[title].titlePoints});
         }
         // Bonus M€ only for humans: the bot never plays a corporation, so the
-        // application point does not exist for it (D5 honesty rule).
-        if (!final && humanSeats.has(standing.seat)) {
+        // application point does not exist for it (D5 honesty rule). And only
+        // in the TITLES mode: the tenders ARE the reward (the owner, 2026-11-08).
+        if (!final && humanSeats.has(standing.seat) && !tenderMode) {
           const bonus = bonusForPlace(standing.place);
           if (bonus > 0) {
             bonuses.push({seat: standing.seat, megaCredits: bonus});
@@ -948,6 +956,53 @@ export class CampaignManager {
   }
 
   // ----------------------------------------------------------- carryover --
+
+  /**
+   * «ТЕНДЕРЫ» — a LEGACY-window tender is ACTIVATED on the carryover step into the finale (the owner, 2026-11-08: the
+   * activation opens the slot — a seat of the manifest, the prelude band — and is felt; nothing is «used» silently).
+   * Irreversible: the seat's limit / prelude allowance read the EXECUTED copies from here on. The bearer is the seat's
+   * PlayerId in the SOURCE mission (the carryover's own credential).
+   */
+  public async executeLegacyTender(id: CampaignId, playerId: PlayerId, instance: string): Promise<{campaign: SerializedCampaign, viewerName: string}> {
+    const campaign = await this.load(id);
+    if (campaign === undefined) {
+      throw new Error('Campaign not found');
+    }
+    const carryover = campaign.carryover;
+    if (carryover === undefined || campaign.phase !== 'interlude') {
+      throw new Error('No legacy step is open');
+    }
+    if (campaign.bidding !== undefined && !campaign.bidding.done) {
+      throw new Error('The tender bidding must finish first');
+    }
+    const sourceSlot = campaign.missions[carryover.sourceSlot];
+    const seatEntry = Object.entries(sourceSlot.playerIds ?? {}).find(([, pid]) => pid === playerId);
+    if (seatEntry === undefined) {
+      throw new Error('Not a participant of the source mission');
+    }
+    const seat = Number(seatEntry[0]);
+    const state = carryover.bySeat[seat];
+    if (state === undefined) {
+      throw new Error('This seat has no carryover selection');
+    }
+    if (state.consumed) {
+      throw new Error('The selection was already applied by the next mission');
+    }
+    const holding = (campaign.progression.tenders?.[seat] ?? []).find((h) => h.instance === instance);
+    if (holding === undefined) {
+      throw new Error('You hold no such tender');
+    }
+    if (holding.status !== 'held') {
+      throw new Error('This tender was already executed');
+    }
+    const refusal = legacyTenderRefusal(campaign, seat, carryover.sourceSlot, holding);
+    if (refusal !== undefined) {
+      throw new Error(refusal);
+    }
+    holding.status = 'executed';
+    await this.save(campaign);
+    return {campaign, viewerName: campaign.seats[seat].name};
+  }
 
   public async submitCarryover(id: CampaignId, playerId: PlayerId, cards: ReadonlyArray<CardName>, preludes: ReadonlyArray<CardName> = []): Promise<SerializedCampaign> {
     const campaign = await this.load(id);
@@ -1513,7 +1568,7 @@ export class CampaignManager {
         if (title !== undefined && title !== null) {
           titles.push({seat: standing.seat, missionSlot: slot.slot, title, titlePoints: TITLE_TABLE[title].titlePoints});
         }
-        if (humanSeats.has(standing.seat)) {
+        if (humanSeats.has(standing.seat) && !tenderMode) {
           const bonus = bonusForPlace(standing.place);
           if (bonus > 0) {
             bonuses.push({seat: standing.seat, megaCredits: bonus});
@@ -1753,6 +1808,11 @@ export class CampaignManager {
           yourEligiblePreludes: source.finalPreludes?.[viewerSeat.seat] ?? [],
           yourPreludeLimit: tenderPreludeLimitOf(campaign, viewerSeat.seat, sourceIndex),
           yourPreludes: own.preludes ?? [],
+          // EVERY holding with its availability on THIS step — the portfolio stage reads it (the server names the reason).
+          yourTenders: (campaign.progression.tenders?.[viewerSeat.seat] ?? []).map((h) => {
+            const blocked = h.status === 'held' ? legacyTenderRefusal(campaign, viewerSeat.seat, sourceIndex, h) : undefined;
+            return {instance: h.instance, id: h.id, status: h.status, window: tenderDef(h.id).window, ...(blocked !== undefined ? {blocked} : {})};
+          }),
         } : {}),
       };
     }

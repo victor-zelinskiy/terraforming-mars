@@ -20,6 +20,7 @@ import {
   TENDER_RESTRUCTURING_CANDIDATES,
   tenderDef,
   tenderNameKey,
+  TENDER_REVIEW_KEEP_MAX,
 } from '../../common/campaign/tenders';
 import {TenderResponse} from '../../common/inputs/InputResponse';
 import {ICorporationCard, isICorporationCard} from '../cards/corporation/ICorporationCard';
@@ -588,6 +589,64 @@ export function campaignPreludePickCount(player: IPlayer): number {
   return 2 + Math.max(0, player.campaignPreludePickBonus);
 }
 
+/** The reasons a HELD tender cannot be executed at the finale's start — English i18n keys the certificate prints as they are. */
+export const TENDER_START_REFUSAL = {
+  legacyWindow: 'Its window was the legacy step before the finale',
+  needsPreludes: 'This tender needs the Prelude expansion',
+  fewPreludesDealt: 'Not enough preludes were dealt for an additional pick',
+  preludeDeckShort: 'Too few preludes are left in the deck',
+  projectDeckShort: 'Too few projects are left in the deck',
+  corporationDeckShort: 'Too few corporations are left in the deck',
+  handAlreadyFree: 'The starting hand is already free',
+} as const;
+
+function deckSize(deck: {drawPile: ReadonlyArray<unknown>, discardPile: ReadonlyArray<unknown>}): number {
+  // `Deck.draw` reshuffles the discard when the pile runs dry — both piles are what a deal can still give.
+  return deck.drawPile.length + deck.discardPile.length;
+}
+
+/**
+ * WHY a held tender cannot be executed at the finale's start RIGHT NOW — `undefined` = it can. ONE reader for the
+ * selection model (`SelectInitialCards.toModel` — the portfolio prints it as the certificate's reason) and for
+ * `executeTender` (the refusal), so the client never derives availability (invariant 2). A window closed for the whole
+ * selection (`campaignTenderWindowOpen`) and a status other than `held` are judged by the callers.
+ */
+export function tenderStartRefusal(player: IPlayer, tender: Pick<PlayerTender, 'id' | 'offer'>): string | undefined {
+  const def = tenderDef(tender.id);
+  const game = player.game;
+  if (def.window === 'legacy') {
+    return TENDER_START_REFUSAL.legacyWindow;
+  }
+  if (def.needsPreludes && game.gameOptions.preludeExtension !== true) {
+    return TENDER_START_REFUSAL.needsPreludes;
+  }
+  const preludes = deckSize(game.preludeDeck);
+  const projects = deckSize(game.projectDeck);
+  switch (tender.id) {
+  case 'additionalPrelude':
+    return player.dealtPreludeCards.length < campaignPreludePickCount(player) + 1 ? TENDER_START_REFUSAL.fewPreludesDealt : undefined;
+  case 'openCall':
+    return preludes < TENDER_OPEN_CALL_PRELUDES ? TENDER_START_REFUSAL.preludeDeckShort : undefined;
+  case 'broadPortfolio':
+    return projects < TENDER_BROAD_PORTFOLIO_PROJECTS ? TENDER_START_REFUSAL.projectDeckShort : undefined;
+  case 'preludeReview':
+    return preludes < Math.max(0, player.dealtPreludeCards.length - TENDER_REVIEW_KEEP_MAX) ? TENDER_START_REFUSAL.preludeDeckShort : undefined;
+  case 'projectReview':
+    return projects < Math.max(0, player.dealtProjectCards.length - TENDER_REVIEW_KEEP_MAX) ? TENDER_START_REFUSAL.projectDeckShort : undefined;
+  case 'gamble':
+    if (preludes < player.dealtPreludeCards.length) {
+      return TENDER_START_REFUSAL.preludeDeckShort;
+    }
+    return projects < player.dealtProjectCards.length ? TENDER_START_REFUSAL.projectDeckShort : undefined;
+  case 'restructuring':
+    return tender.offer === undefined && deckSize(game.corporationDeck) < TENDER_RESTRUCTURING_CANDIDATES ? TENDER_START_REFUSAL.corporationDeckShort : undefined;
+  case 'researchSubsidy':
+    return campaignStartingBudget(player, undefined).cardCost <= 0 ? TENDER_START_REFUSAL.handAlreadyFree : undefined;
+  default:
+    return undefined;
+  }
+}
+
 function redealInPlace<T extends IProjectCard>(
   game: IGame,
   dealt: Array<T>,
@@ -635,21 +694,15 @@ export function executeTender(player: IPlayer, response: TenderResponse): void {
   if (tender.status !== 'held') {
     throw new InputError('This tender was already executed');
   }
-  const def = tenderDef(tender.id);
-  if (def.window !== 'start') {
-    throw new InputError('This tender is realized on the carryover step, not at the start');
+  const refusal = tenderStartRefusal(player, tender);
+  if (refusal !== undefined) {
+    throw new InputError(refusal);
   }
   const game = player.game;
-  if (def.needsPreludes && game.gameOptions.preludeExtension !== true) {
-    throw new InputError('This tender needs the Prelude expansion');
-  }
   const drawPreludes = (n: number) => game.preludeDeck.drawN(game, n);
   const drawProjects = (n: number) => game.projectDeck.drawN(game, n);
   switch (tender.id) {
   case 'additionalPrelude':
-    if (player.dealtPreludeCards.length < campaignPreludePickCount(player) + 1) {
-      throw new InputError('Not enough preludes were dealt for an additional pick');
-    }
     player.campaignPreludePickBonus++;
     break;
   case 'openCall':
@@ -662,12 +715,12 @@ export function executeTender(player: IPlayer, response: TenderResponse): void {
     player.campaignStartingHandDiscount++;
     break;
   case 'preludeReview': {
-    const keep = keepSetOf(response, player.dealtPreludeCards, 1);
+    const keep = keepSetOf(response, player.dealtPreludeCards, TENDER_REVIEW_KEEP_MAX);
     redealInPlace<IPreludeCard>(game, player.dealtPreludeCards, keep, drawPreludes, (cards) => game.preludeDeck.discard(...cards));
     break;
   }
   case 'projectReview': {
-    const keep = keepSetOf(response, player.dealtProjectCards, 1);
+    const keep = keepSetOf(response, player.dealtProjectCards, TENDER_REVIEW_KEEP_MAX);
     redealInPlace<IProjectCard>(game, player.dealtProjectCards, keep, drawProjects, (cards) => game.projectDeck.discard(...cards));
     break;
   }

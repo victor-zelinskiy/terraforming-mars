@@ -1101,6 +1101,14 @@ export type TenderInSelectionModel = {
   instance: string;
   id: string;
   status: 'held' | 'executed' | 'cashed';
+  /** The tender's window (the catalog's, repeated so no surface looks it up by id): `legacy` spoke before the finale. */
+  window: 'legacy' | 'start';
+  /**
+   * HELD and NOT executable right now — the SERVER's reason (an English i18n key the certificate prints as it is:
+   * the legacy window is over, the deck is short, the hand is already free…). Absent on a held tender = executable.
+   * Availability is server-authoritative (invariant 2): the client never re-derives it.
+   */
+  blocked?: string;
   /** A restructuring's dealt candidates, while its resolution is still owed. */
   offer?: Array<CardName>;
 };

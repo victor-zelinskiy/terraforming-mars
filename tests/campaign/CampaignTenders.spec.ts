@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {setTestDatabase, restoreTestDatabase} from '../testing/setup';
 import {InMemoryDatabase} from '../testing/InMemoryDatabase';
-import {CampaignManager, campaignRewardMode} from '../../src/server/campaign/CampaignManager';
+import {CampaignManager, TENDER_LEGACY_REFUSAL, campaignRewardMode, legacyTenderRefusal} from '../../src/server/campaign/CampaignManager';
 import {GameLoader} from '../../src/server/database/GameLoader';
 import {CardName} from '../../src/common/cards/CardName';
 import {NewGameConfig} from '../../src/common/game/NewGameConfig';
@@ -70,7 +70,7 @@ describe('the «Тендеры» reward mode', () => {
     let loaded = (await manager.load(campaign.id))!;
     const result = loaded.missions[0].result!;
     expect(result.titles, 'a tenders campaign awards no titles').is.empty;
-    expect(result.bonuses.map((b) => b.megaCredits), 'the comeback bonus stays').deep.eq([5]);
+    expect(result.bonuses, 'no comeback bonus in the tenders mode — the tenders ARE the reward (the owner, 2026-11-08)').deep.eq([]);
     expect(loaded.missions[0].finalPreludes, 'the played preludes are recorded for «Продление программы»').is.not.undefined;
     const bidding = loaded.bidding!;
     expect(bidding.done).is.false;
@@ -144,7 +144,7 @@ describe('the «Тендеры» reward mode', () => {
     expect(loaded.progression.tenders![0] ?? []).is.empty;
   });
 
-  it('BEFORE THE FINALE the legacy tenders are realized BY USE: a third card, a carried prelude; the launch marks them', async () => {
+  it('BEFORE THE FINALE a legacy tender is ACTIVATED on the carryover step: a third seat, a carried prelude; the launch marks nothing', async () => {
     const campaign = await manager.createCampaign(key(), tenderConfig({players: [
       {name: 'Alice', color: 'blue', beginner: false, handicap: 0, first: true},
       {name: 'Bruno', color: 'red', beginner: false, handicap: 0, first: false},
@@ -166,11 +166,35 @@ describe('the «Тендеры» reward mode', () => {
     loaded.missions[1].playerIds = {0: 'p-tender-alice', 1: 'p-tender-bruno'};
     const alicePid = loaded.missions[1].playerIds[0];
     const brunoPid = loaded.missions[1].playerIds[1];
-    const model = manager.getModel(loaded, 'Alice');
-    expect(model.carryover?.yourLimit, 'the base 2 + one tender seat').eq(3);
+    // BEFORE the activation the holdings are HELD and the limits are the base: nothing is used silently.
+    let model = manager.getModel(loaded, 'Alice');
+    expect(model.carryover?.yourLimit, 'the base alone until the tender is activated').eq(2);
+    expect(model.carryover?.yourTenderSeats).eq(0);
+    expect(model.carryover?.yourPreludeLimit).eq(0);
+    expect(model.carryover?.yourEligiblePreludes).deep.eq([CardName.ALLIED_BANK, CardName.BIOFUELS]);
+    expect(model.carryover?.yourTenders?.map((t) => [t.id, t.status, t.window, t.blocked]), 'both legacy tenders executable here')
+      .deep.eq([['extendedLegacy', 'held', 'legacy', undefined], ['programExtension', 'held', 'legacy', undefined]]);
+    expect((await failureOf(manager.submitCarryover(campaign.id, alicePid,
+      [CardName.ACQUIRED_COMPANY, CardName.ADAPTATION_TECHNOLOGY, CardName.AI_CENTRAL])))?.message).contains('at most 2');
+    expect((await failureOf(manager.submitCarryover(campaign.id, alicePid, [], [CardName.BIOFUELS])))?.message).contains('carries no prelude');
+    // The reasons a tender cannot be activated — the ONE reader the model and the route share.
+    expect(legacyTenderRefusal(loaded, 0, 1, {id: 'openCall'})).eq(TENDER_LEGACY_REFUSAL.startWindow);
+    expect(legacyTenderRefusal(loaded, 0, 0, {id: 'extendedLegacy'}), 'an earlier interlude is not the step').eq(TENDER_LEGACY_REFUSAL.notTheFinaleStep);
+    expect(legacyTenderRefusal(loaded, 1, 1, {id: 'programExtension'}), 'Bruno played no prelude').eq(TENDER_LEGACY_REFUSAL.noPreludePlayed);
+    expect((await failureOf(manager.executeLegacyTender(campaign.id, 'p-forged', 'dev0-0-0')))?.message).contains('Not a participant');
+    expect((await failureOf(manager.executeLegacyTender(campaign.id, brunoPid, 'dev0-0-0')))?.message).contains('no such tender');
+
+    // ACTIVATION: the seat opens, the band opens; a second activation of the same holding is refused.
+    const activated = await manager.executeLegacyTender(campaign.id, alicePid, 'dev0-0-0');
+    expect(activated.viewerName).eq('Alice');
+    await manager.executeLegacyTender(campaign.id, alicePid, 'dev0-0-1');
+    expect((await failureOf(manager.executeLegacyTender(campaign.id, alicePid, 'dev0-0-0')))?.message).contains('already executed');
+    loaded = (await manager.load(campaign.id))!;
+    expect(loaded.progression.tenders![0].map((t) => t.status)).deep.eq(['executed', 'executed']);
+    model = manager.getModel(loaded, 'Alice');
+    expect(model.carryover?.yourLimit, 'the base 2 + one activated seat').eq(3);
     expect(model.carryover?.yourTenderSeats).eq(1);
     expect(model.carryover?.yourPreludeLimit).eq(1);
-    expect(model.carryover?.yourEligiblePreludes).deep.eq([CardName.ALLIED_BANK, CardName.BIOFUELS]);
     expect(model.carryover?.bySeat.find((s) => s.seat === 0)?.limit).eq(3);
     expect(manager.getModel(loaded, 'Bruno').carryover?.yourLimit, 'Bruno holds nothing').eq(2);
 
@@ -191,7 +215,7 @@ describe('the «Тендеры» reward mode', () => {
 
     const {gameId} = await manager.launchMission(campaign.id, 'Alice');
     loaded = (await manager.load(campaign.id))!;
-    // Both legacy tenders were USED — the launch marks them executed; nothing rides into the finale as held.
+    // Both legacy tenders were ACTIVATED on the step — the launch marks nothing; nothing rides into the finale as held.
     expect(loaded.progression.tenders![0].map((t) => t.status)).deep.eq(['executed', 'executed']);
     const game = (await GameLoader.getInstance().getGame(gameId))!;
     const alice = game.players.find((p) => p.name === 'Alice')!;

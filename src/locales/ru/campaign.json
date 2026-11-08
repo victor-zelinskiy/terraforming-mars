@@ -290,7 +290,7 @@
   "Dealt corporations": "Сданные корпорации",
   "In place of": "Вместо",
   "Unexecuted tenders: ${0} × ${1} M€": "Неисполненные тендеры: ${0} × ${1} M€",
-  "The places pick tenders — reward cards executed at the finale's start; an unexecuted one pays 3 M€.": "Места выбирают тендеры — карты наград, исполняемые на старте финала; неисполненный приносит 3 M€.",
+  "The places pick tenders — reward cards executed before the finale and at its start; an unexecuted one pays 3 M€; no comeback bonus.": "Места выбирают тендеры — карты наград, исполняемые перед финалом и на его старте; неисполненный приносит 3 M€; бонуса за отставание нет.",
   "The places earn titles — title points that count in the finale's VP.": "Места получают титулы — очки титулов, которые считаются в ПО финала.",
   "The last mission is the finale: the tenders won on the way execute at its start, corporations count into its VP.": "Последняя миссия — финал: выигранные по дороге тендеры исполняются на его старте, корпорации входят в его ПО.",
   "Held": "В запасе",

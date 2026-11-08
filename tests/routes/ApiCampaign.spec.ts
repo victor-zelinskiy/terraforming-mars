@@ -7,6 +7,7 @@ import {ApiCampaignCreate} from '../../src/server/routes/ApiCampaignCreate';
 import {ApiCampaignLaunch} from '../../src/server/routes/ApiCampaignLaunch';
 import {ApiCampaignDev} from '../../src/server/routes/ApiCampaignDev';
 import {ApiCampaignBid} from '../../src/server/routes/ApiCampaignBid';
+import {ApiCampaignTender} from '../../src/server/routes/ApiCampaignTender';
 import {CampaignManager} from '../../src/server/campaign/CampaignManager';
 import {CampaignModel} from '../../src/common/campaign/CampaignModel';
 import {setTestDatabase, restoreTestDatabase} from '../testing/setup';
@@ -102,6 +103,29 @@ describe('ApiCampaign routes', () => {
     const answer = JSON.parse(res.content) as {gameId: string, yourPlayerId?: string};
     expect(answer.gameId.startsWith('g')).is.true;
     expect(answer.yourPlayerId?.startsWith('p')).is.true;
+  });
+
+  it('tender: a legacy tender\'s ACTIVATION on the carryover step is bearer-authenticated by the source-mission PlayerId', async () => {
+    const manager = CampaignManager.getInstance();
+    const created = await manager.createCampaign(key(), campaignTestConfig(), {rewardMode: 'tenders', missionCount: 3});
+    await manager.devCommit(created.id, [0, 1], {tenders: {0: ['extendedLegacy']}});
+    await manager.devCommit(created.id, [0, 1], {tenders: {}, carryoverPending: true, carryover: {0: []}});
+    const loaded = (await manager.load(created.id))!;
+    loaded.missions[1].playerIds = {0: 'p-route-alice', 1: 'p-route-bruno'};
+
+    scaffolding.url = `/api/campaign/tender?id=${created.id}`;
+    await postJson(ApiCampaignTender.INSTANCE, {playerId: 'p-forged', instance: 'dev0-0-0'});
+    expect(res.statusCode).eq(statusCode.badRequest);
+
+    req = new MockRequest();
+    res = new MockResponse();
+    scaffolding = new RouteTestScaffolding(req);
+    scaffolding.url = `/api/campaign/tender?id=${created.id}`;
+    await postJson(ApiCampaignTender.INSTANCE, {playerId: 'p-route-alice', instance: 'dev0-0-0'});
+    expect(res.statusCode).eq(statusCode.ok);
+    const answer = JSON.parse(res.content) as {carryover?: {yourLimit?: number, yourTenders?: Array<{status: string}>}};
+    expect(answer.carryover?.yourLimit, 'the activated seat opened').eq(3);
+    expect(answer.carryover?.yourTenders?.[0]?.status).eq('executed');
   });
 
   it('bid: the «Тендеры» mode\'s pick is bearer-authenticated by the source-mission PlayerId', async () => {
