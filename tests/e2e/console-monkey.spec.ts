@@ -153,12 +153,24 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
         test.skip(true, `the fixture did not boot for a walk (${String(err).slice(0, 160)})`);
         return;
       }
+      // The console's own account of the walk (the last lines), filed beside the press log — a red names WHAT the screen
+      // said in the seconds before, not only that a net fired.
+      const consoleTail: Array<string> = [];
+      page.on('console', (message) => {
+        consoleTail.push(`${Date.now() % 1_000_000} ${message.type()} ${message.text().slice(0, 600)}`);
+        if (consoleTail.length > 400) {
+          consoleTail.shift();
+        }
+      });
       try {
         await walk(page, request, seats.slice(1), r, log);
         // THE LAST WORD: a quiet spell longer than the arbiter's grace — whatever the walk left on screen is judged.
         await cinematicBeat(page, 14_000, 'the last word — a quiet spell past the liveness grace, so the arbiter judges the screen the walk left');
       } finally {
-        await test.info().attach('monkey-walk', {body: `seed=${seed} landing=${landing}\n${log.join(' ')}`, contentType: 'text/plain'});
+        const walkLog = `seed=${seed} landing=${landing}\n${log.join(' ')}`;
+        // A FILE beside the error context (pulled back with test-results) — the attachment lives in the report only.
+        fs.writeFileSync(test.info().outputPath('monkey-walk.txt'), `${walkLog}\n\n── console (last ${consoleTail.length}) ──\n${consoleTail.join('\n')}\n`);
+        await test.info().attach('monkey-walk', {body: walkLog, contentType: 'text/plain'});
       }
       expect(page.isClosed(), 'the page survived the walk').toBe(false);
     });

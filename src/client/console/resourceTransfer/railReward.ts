@@ -56,7 +56,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
-  RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferEndLike, mergeTransferSpecs, railRowKey,
+  RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferEndLike, TransferPoint, isTransferEnd, mergeTransferSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   TransferDegradeReason, beginPanelRewardHold, beginPanelVpHold, declareHeldAnswers, noteTransferTrail, releasePanelRewardHold, releasePanelVpHold,
@@ -428,6 +428,11 @@ export function railRewardHoldsAnswer(key: string): boolean {
  * row of the reward has ticked: the cause on its touchdowns, the reactions one
  * beat of the animation clock after the last of them.
  */
+/** A bare point outside the viewport (a surface measured mid-leave, a stale cached point) — never a flight's birth. */
+function pointOffViewport(p: TransferPoint): boolean {
+  return typeof window !== 'undefined' && (p.x < 0 || p.y < 0 || p.x > window.innerWidth || p.y > window.innerHeight);
+}
+
 export function flyRailReward(
   key: string,
   originOf: (spec: ResourceTransferSpec, index: number) => TransferEndLike | undefined,
@@ -445,7 +450,14 @@ export function flyRailReward(
   }
   entry.phase = 'flying';
   const specs = [...entry.cause];
-  const origins = specs.map((spec, index) => originOf(spec, index));
+  // A BARE POINT OFF THE VIEWPORT IS NO SOURCE (ledger HC — the monkey's nationalist-movement table: B pressed mid-rally,
+  // the leaving section measured its count chip past the screen's edge and the coin was born «over off-screen»). An
+  // OBJECT end is judged by the flight's own verdict; a bare point can only be judged here: off screen, it degrades —
+  // the counter ticks, nothing is born out of nothing.
+  const origins = specs.map((spec, index) => {
+    const origin = originOf(spec, index);
+    return origin !== undefined && !isTransferEnd(origin) && pointOffViewport(origin) ? undefined : origin;
+  });
   let degraded = false;
   origins.forEach((origin, index) => {
     if (origin === undefined) {

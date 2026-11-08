@@ -3174,7 +3174,13 @@ export default defineComponent({
         },
         // The coin: the M€ row held since the answer (`seedNeutralRallyHolds`) ticks on the touchdown; a hold
         // nobody seeded (reduced motion, a standalone host without the price known) resolves at once — honestly early.
-        coin: (origin) => flyRailReward(NEUTRAL_RALLY_RAIL_KEY, () => origin),
+        // …born on the count chip as an OBJECT (ledger HC): the flight's own verdict judges it painted at the birth — a
+        // section leaving under a B degrades the coin to the counter's tick, never a token born over nothing.
+        coin: (origin) => {
+          const chip = root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"] .con-band__num`) ??
+            root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"]`) ?? undefined;
+          return flyRailReward(NEUTRAL_RALLY_RAIL_KEY, () => (chip !== undefined ? {el: chip, fx: 0.5, fy: 0.5} : origin));
+        },
         onBeat: (beat) => {
           neutralRallyFlow.beat = beat;
         },

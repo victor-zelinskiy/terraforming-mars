@@ -801,8 +801,17 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     }
   };
   // `origins` aligns with `run.specs` by index — pair them BEFORE filtering.
+  // …and a BARE point off the viewport is no origin at all (ledger HC): an object end is judged by the verdict at its
+  // birth, a bare point cannot be — off screen it falls back to the run's own source ladder, or degrades named.
   const specEntries = run.specs
-    .map((spec, i) => ({spec, origin: run.origins?.[i]}))
+    .map((spec, i) => {
+      const origin = run.origins?.[i];
+      const offScreen = origin !== undefined && !isTransferEnd(origin) && unpaintedUnder(origin) === 'off-screen';
+      if (offScreen) {
+        trail(runId, 'origin:off-screen', `${spec.channel}:${spec.resource} (${Math.round(origin.x)}, ${Math.round(origin.y)})`);
+      }
+      return {spec, origin: offScreen ? undefined : origin};
+    })
     .filter((e) => e.spec.amount > 0);
   if (specEntries.length === 0) {
     trail(runId, 'run:earlyreturn', 'no-positive-specs');
