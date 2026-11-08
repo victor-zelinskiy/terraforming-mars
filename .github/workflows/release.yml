@@ -157,7 +157,19 @@ jobs:
       # electron ships without a postinstall hook, so `npm ci` doesn't populate
       # node_modules/electron/dist (electron-builder's electronDist). Unpack it explicitly.
       - name: Unpack Electron runtime
-        run: node node_modules/electron/install.js
+        shell: bash
+        run: |
+          # github.com release downloads go down while npm stays up (502/503 on 2026-11-08).
+          # install.js verifies the zip against the checksums.json shipped INSIDE the npm
+          # package, so the mirror fallback is byte-identical or it fails — never set
+          # electron_use_remote_checksums here (that would trust the mirror's own sums).
+          for attempt in 1 2 3; do
+            node node_modules/electron/install.js && exit 0
+            echo "::warning::Electron download from github.com failed (attempt $attempt)"
+            sleep $((attempt * 20))
+          done
+          echo "::warning::falling back to the npmmirror Electron mirror (checksum-verified)"
+          ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ node node_modules/electron/install.js
 
       - name: Setup .NET (for vpk)
         uses: actions/setup-dotnet@v4
@@ -291,7 +303,19 @@ jobs:
         run: npm ci
 
       - name: Unpack Electron runtime
-        run: node node_modules/electron/install.js
+        shell: bash
+        run: |
+          # github.com release downloads go down while npm stays up (502/503 on 2026-11-08).
+          # install.js verifies the zip against the checksums.json shipped INSIDE the npm
+          # package, so the mirror fallback is byte-identical or it fails — never set
+          # electron_use_remote_checksums here (that would trust the mirror's own sums).
+          for attempt in 1 2 3; do
+            node node_modules/electron/install.js && exit 0
+            echo "::warning::Electron download from github.com failed (attempt $attempt)"
+            sleep $((attempt * 20))
+          done
+          echo "::warning::falling back to the npmmirror Electron mirror (checksum-verified)"
+          ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ node node_modules/electron/install.js
 
       - name: Setup .NET (for vpk)
         uses: actions/setup-dotnet@v4
