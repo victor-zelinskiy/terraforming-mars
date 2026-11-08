@@ -39,7 +39,10 @@
 
       <div class="con-bidding__table">
         <div class="con-bidding__register" data-bidding-register>
-          <div class="con-bidding__register-stack" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="con-bidding__register-stack" aria-hidden="true">
+            <i class="con-bidding__register-edge"></i><i class="con-bidding__register-edge"></i>
+            <ConsoleTenderBack class="con-bidding__register-top" />
+          </div>
           <span class="con-bidding__register-cap">{{ $t('Tender register') }}</span>
         </div>
         <div class="con-bidding__row" data-bidding-row>
@@ -49,7 +52,7 @@
                :data-bidding-taken="card.takenBy" :data-bidding-withdrawn="card.withdrawn ? 'yes' : undefined"
                @animationend="onSlotAnimationEnd($event, card, i)">
             <div class="con-bidding__flip">
-              <div class="con-bidding__back" aria-hidden="true"></div>
+              <ConsoleTenderBack class="con-bidding__back" />
               <ConsoleTenderCard class="con-bidding__face" :id="card.id" :state="cardState(card)" :owner="ownerOf(card)" :focused="cursor === i && !revealing" />
             </div>
           </div>
@@ -80,6 +83,7 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleTenderCard, {TenderCardState} from './ConsoleTenderCard.vue';
+import ConsoleTenderBack from './ConsoleTenderBack.vue';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {tenderZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {
@@ -92,7 +96,7 @@ type OrderRow = {seat: number, name: string, color: Color, you: boolean, turn: b
 
 export default defineComponent({
   name: 'ConsoleTenderBidding',
-  components: {ConsoleWsHead, ConsoleTenderCard},
+  components: {ConsoleWsHead, ConsoleTenderCard, ConsoleTenderBack},
   props: {
     bidding: {type: Object as PropType<BiddingModel>, required: true},
     seats: {type: Array as PropType<ReadonlyArray<CampaignSeat>>, required: true},

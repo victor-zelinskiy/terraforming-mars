@@ -48,7 +48,7 @@
                    :dismissable="!consoleCardZoom.mandatory"
                    :closing="zoomClosing"
                    :consoleMotion="true"
-                   :annotationsSuppressed="zoomHasRules || zoomResolutionId !== undefined"
+                   :annotationsSuppressed="zoomHasRules || zoomResolutionId !== undefined || zoomTenderAnnotations !== undefined"
                    :flankMotion="zoomResolutionId !== undefined"
                    :lore="true"
                    @navigate="onCardZoomNavigate"
@@ -69,13 +69,20 @@
                                   :closing="aside.closing" />
         </div>
       </template>
-      <template v-if="zoomHasRules || zoomResolutionId !== undefined" #side="side">
+      <template v-if="zoomHasRules || zoomResolutionId !== undefined || zoomTenderAnnotations !== undefined" #side="side">
         <div class="con-zoom-sidecol">
           <ConsoleCardRulesPanel v-if="zoomResolutionId !== undefined"
                                  ref="zoomRulesPanel"
                                  keepOrder
                                  :tier="zoomResolutionTier"
                                  :annotationsOverride="zoomResolutionAnnotations"
+                                 :nonce="side.nonce"
+                                 :closing="side.closing" />
+          <!-- A campaign TENDER: the contract's rule, window and buyout (`tenderAnnotations`) — the shell's own branch. -->
+          <ConsoleCardRulesPanel v-else-if="zoomTenderAnnotations !== undefined"
+                                 ref="zoomRulesPanel"
+                                 keepOrder
+                                 :annotationsOverride="zoomTenderAnnotations"
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
           <ConsoleCardRulesPanel v-else-if="zoomRulesCardName !== undefined"
@@ -162,7 +169,8 @@ import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
 import {CardName} from '@/common/cards/CardName';
-import {isResolutionZoom, ZoomCard} from '@/client/components/card/cardZoomTypes';
+import {isResolutionZoom, isTenderZoom, ZoomCard} from '@/client/components/card/cardZoomTypes';
+import {tenderAnnotations} from '@/client/console/campaign/tenderAnnotations';
 import {Color} from '@/common/Color';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -301,6 +309,11 @@ export default defineComponent({
     zoomResolutionCareer(): AgendaGrantReading | undefined {
       const id = this.zoomResolutionId;
       return id === undefined ? undefined : agendaGrantReadingOf(getResolution(id), this.zoomParliament, this.zoomViewer);
+    },
+    /** A campaign TENDER on the stage — its contract read in the rules column. */
+    zoomTenderAnnotations(): ReadonlyArray<CardAnnotation> | undefined {
+      const card = this.consoleCardZoom.card;
+      return card !== undefined && isTenderZoom(card) ? tenderAnnotations(card.tender) : undefined;
     },
     zoomResolutionAnnotations(): ReadonlyArray<CardAnnotation> {
       const id = this.zoomResolutionId;

@@ -1093,6 +1093,14 @@
           <!-- The MarsBot corporation's printed boxes — the SAME rules panel,
                fed the bot card's own groups (never the human original's). A
                HOLDING reads in the order given: its dividend leads. -->
+          <!-- A campaign TENDER (the Committee's contract): its rule, its window and its buyout — the face prints no
+               prose since its third pass, the column reads it like a project card's rules. -->
+          <ConsoleCardRulesPanel v-else-if="zoomTenderAnnotations !== undefined"
+                                 ref="zoomRulesPanel"
+                                 keepOrder
+                                 :annotationsOverride="zoomTenderAnnotations"
+                                 :nonce="side.nonce"
+                                 :closing="side.closing" />
           <ConsoleCardRulesPanel v-else-if="zoomBotCorpAnnotations !== undefined"
                                  ref="zoomRulesPanel"
                                  :annotationsOverride="zoomBotCorpAnnotations"
@@ -2063,7 +2071,8 @@ import {PresentedArmedEffect, presentedArmedEffects, stageArmedSpends} from '@/c
 import {ArmedPlayEffectModel} from '@/common/models/ArmedPlayEffectModel';
 import ConsoleArmedFlightLayer from '@/client/components/console/ConsoleArmedFlightLayer.vue';
 import Card from '@/client/components/card/CardFace.vue';
-import {ZoomCard, bonusZoomEntry, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
+import {ZoomCard, bonusZoomEntry, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, isTenderZoom, partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
+import {tenderAnnotations} from '@/client/console/campaign/tenderAnnotations';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import {marsBotCorpAnnotations, marsBotDividendGroupId, marsBotHoldingAnnotations} from '@/client/components/marsbot/marsBotCorpRules';
 import {BotDividendReading, botDividendDetailOf, botDividendReading} from '@/client/components/marsbot/botDividendReading';
@@ -11336,7 +11345,7 @@ export default defineComponent({
      *  card had no rules) OR when the availability panel has something to say.
      *  Gates the panel AND the viewer's width reservation. */
     zoomSideVisible(): boolean {
-      return this.zoomHasRules || this.zoomBotCorpAnnotations !== undefined || this.zoomParliamentAnnotations !== undefined ||
+      return this.zoomHasRules || this.zoomBotCorpAnnotations !== undefined || this.zoomParliamentAnnotations !== undefined || this.zoomTenderAnnotations !== undefined ||
         this.consoleCardZoom.inspect !== undefined || this.zoomAvailabilityView !== undefined || this.zoomTargetDossier !== undefined;
     },
     /** The card on screen AS A TARGET of a «where does it go» step — re-read on every LB/RB browse. */
@@ -11368,6 +11377,11 @@ export default defineComponent({
       return forYou === undefined ? rules : [...rules, forYou];
     },
     /** A parliament face's rules (Turmoil Redux) — only when the viewer is on a resolution / party entry. */
+    /** A campaign TENDER on the viewer's stage — its contract read in the rules column (`tenderAnnotations`). */
+    zoomTenderAnnotations(): ReadonlyArray<CardAnnotation> | undefined {
+      const card = this.consoleCardZoom.card;
+      return card !== undefined && isTenderZoom(card) ? tenderAnnotations(card.tender) : undefined;
+    },
     zoomParliamentAnnotations(): ReadonlyArray<CardAnnotation> | undefined {
       const card = this.consoleCardZoom.card;
       if (card === undefined) {

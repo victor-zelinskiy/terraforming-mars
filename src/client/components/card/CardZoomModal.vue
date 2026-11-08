@@ -226,6 +226,7 @@ import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import {LoreModel, buildCardLoreModel} from '@/client/cards/cardLore';
 import {buildPartyLoreModel} from '@/client/cards/partyLore';
 import {translateLore} from '@/client/cards/loreTranslate';
+import {tenderLoreModel} from '@/client/console/campaign/tenderAnnotations';
 import CardZoomCard from './CardZoomCard.vue';
 import CardLoreAside from './CardLoreAside.vue';
 import CardAnnotationsLayer from '@/client/components/cardAnnotations/CardAnnotationsLayer.vue';
@@ -497,7 +498,8 @@ export default defineComponent({
      *    official identity/art/lore link of RB-B);
      *  - a Turmoil Redux PARTY → the faction's rulebook paragraph (`partyLore`);
      *  - an Automa bonus entry is not a card and has no lore;
-     *  - a campaign TENDER prints its own lore ON the certificate — no gutter;
+     *  - a campaign TENDER → its contract's lore (`tenderLoreModel` — the face
+     *    prints no prose since its third pass; the rule reads in the right column);
      *  - a RESOLUTION lends the gutter to its PARTY column (`#aside`) — the
      *    cell is taken, so no entry is offered.
      * Undefined ⇔ no entry: the gutter stays empty rather than printing
@@ -508,8 +510,11 @@ export default defineComponent({
         return undefined;
       }
       const card = this.activeCard;
-      if (isBonusZoom(card) || isResolutionZoom(card) || isTenderZoom(card)) {
+      if (isBonusZoom(card) || isResolutionZoom(card)) {
         return undefined;
+      }
+      if (isTenderZoom(card)) {
+        return tenderLoreModel(card.tender, translateLore);
       }
       if (isPartyEffectZoom(card)) {
         return buildPartyLoreModel(card.partyEffect, translateLore);

@@ -1,0 +1,8 @@
+{
+  "Tender effect": "Эффект тендера",
+  "When it is executed": "Когда исполняется",
+  "If it is not executed": "Если не исполнен",
+  "On the finale's threshold — the legacy step, before the finale is launched.": "На пороге финала — на шаге наследия, до запуска финала.",
+  "At the finale's start, while your initial selection is still open.": "На старте финала, пока открыт ваш стартовый выбор.",
+  "The Committee buys it back for ${0} M€ at the finale's start.": "Комитет выкупает его за ${0} M€ на старте финала."
+}
