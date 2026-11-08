@@ -64,12 +64,21 @@
   font-family: @con-font-read;
   .tender-enamel();
   border-radius: 0.6em;
-  /* the metal EDGE draws the silhouette on the dark stage; its weight on the table an offset shadow, never a halo */
-  box-shadow: inset 0 0 0 0.08em rgba(var(--tm-rgb), 0.95), 0 0.22em 0.6em rgba(0, 0, 0, 0.5);
   overflow: hidden;
   user-select: none;
-  /* THE CURSOR — the console's one ring (`.con-cursor()`) on its own layer. */
-  .con-cursor(inset 0 0 0 0.16rem @con-cyan; 0.6rem; none; 3; before);
+  /* THE CURSOR — the face clips its own children (`overflow: hidden`), so the ring is the host's OWN box-shadow (the
+     colony tile's and the queue card's grammar, `.con-cursor-shadow()`): ONE list scaled by `--con-cursor-on` on the
+     cursor's clock. At rest the metal EDGE draws the silhouette on the dark stage and its weight on the table is an
+     offset shadow, never a halo; under the cursor an OUTER ring in the console's cyan on the profile's focus token
+     (twice the HUD's ring — a certificate is a big object) and the cursor's halo (the one licensed light), and a step
+     of lift. The old inset .16rem layer stood ON the tier's metal rim and read as nothing (the owner, 2026-11-09:
+     «рамка фокуса совершенно не читается, едва заметно»). */
+  .con-cursor-shadow(@transform: ~"scale(calc(1 + .045 * var(--con-cursor-on)))"; @z: 3);
+  box-shadow:
+    inset 0 0 0 0.08em rgba(var(--tm-rgb), 0.95),
+    0 0.22em 0.6em rgba(0, 0, 0, 0.5),
+    0 0 0 calc(var(--con-focus-ring, .1rem) * 2 * var(--con-cursor-on)) fade(@con-cyan, 92%),
+    0 0 calc(var(--con-glow-r, .9rem) * var(--con-cursor-on)) fade(@con-cyan, 45%);
 
   /* The TIER's metal — the rank read by material (the chevrons give it form). */
   &--tier-decisive { --tm: @tender-gold; --tm-rgb: 220, 188, 124; --tm-deep: @tender-gold-deep; }
@@ -371,7 +380,7 @@
     .con-tender__emblem { opacity: 0.5; }
   }
 
-  /* The cursor stands here — the ring layer lights (`.con-cursor-on()`), the card itself never re-paints. */
+  /* The cursor stands here — the ring widens from nothing and the face steps up (`.con-cursor-on()`). */
   &--focused {
     .con-cursor-on();
   }
@@ -769,7 +778,15 @@
     transition: transform calc(160ms * var(--motion-scale, 1)) @con-ease-standard, opacity calc(160ms * var(--motion-scale, 1)) linear;
     > .con-tender { --tender-w: 11rem; }
     &--busy > .con-tender { opacity: .72; }
-    &--armed > .con-tender { box-shadow: inset 0 0 0 .14rem fade(@con-amber, 85%); }
+    /* ARMED — the press awaits its second press: the ring turns amber IN PLACE (the whole list, so the metal edge and
+       the table weight stay; ordered after the face's own, it wins on the card that is by definition also focused). */
+    &--armed > .con-tender {
+      box-shadow:
+        inset 0 0 0 0.08em rgba(var(--tm-rgb), 0.95),
+        0 0.22em 0.6em rgba(0, 0, 0, 0.5),
+        0 0 0 calc(var(--con-focus-ring, .1rem) * 2) fade(@con-amber, 92%),
+        0 0 calc(var(--con-glow-r, .9rem) * var(--con-cursor-on)) fade(@con-amber, 40%);
+    }
     /* THE STAMP LANDS — the one event of an execution (ends on its own). */
     &--stamping > .con-tender .con-tender__stamp {
       animation: con-tport-stamp calc(620ms * var(--motion-scale, 1)) @con-ease-settle both;
