@@ -98,13 +98,17 @@ export const TENDER_CATALOG: Readonly<Record<TenderId, TenderDef>> = {
   programExtension: {id: 'programExtension', tier: 'decisive', window: 'legacy', botPriority: 1, needsPreludes: true},
   // «Целевой запрос» is DECISIVE (the owner, 2026-11-08): three cards of ONE tag under a known lineage — three Jovians
   // for a Jovian company — swing a finale; it never lies on one table with «Продление программы».
-  targetedRequest: {id: 'targetedRequest', tier: 'decisive', window: 'start', botPriority: 2, needsPreludes: false},
+  // «Реструктуризация» is DECISIVE and the first of the start window (the owner, 2026-11-09: «синергия корпораций —
+  // самый сильный аспект имбалансных комбо; эта карта позволяет точечно собрать себе комбо»): the finale deploys a
+  // COMPANY of three, and two candidates against a known lineage, known legacy projects and the deal in view — with a
+  // free decline — is the one tender that re-makes the company itself; three cards of a tag are the next best thing.
+  restructuring: {id: 'restructuring', tier: 'decisive', window: 'start', botPriority: 2, needsPreludes: false},
+  targetedRequest: {id: 'targetedRequest', tier: 'decisive', window: 'start', botPriority: 3, needsPreludes: false},
   // «Субсидия» heads the notables (the owner, 2026-11-08: «скорее весомая»): 6–10 M€ a copy, floored at 1 M€ a card.
-  researchSubsidy: {id: 'researchSubsidy', tier: 'notable', window: 'start', botPriority: 3, needsPreludes: false},
-  broadPortfolio: {id: 'broadPortfolio', tier: 'notable', window: 'start', botPriority: 4, needsPreludes: false},
-  openCall: {id: 'openCall', tier: 'notable', window: 'start', botPriority: 5, needsPreludes: true},
-  extendedLegacy: {id: 'extendedLegacy', tier: 'notable', window: 'legacy', botPriority: 6, needsPreludes: false},
-  restructuring: {id: 'restructuring', tier: 'notable', window: 'start', botPriority: 7, needsPreludes: false},
+  researchSubsidy: {id: 'researchSubsidy', tier: 'notable', window: 'start', botPriority: 4, needsPreludes: false},
+  broadPortfolio: {id: 'broadPortfolio', tier: 'notable', window: 'start', botPriority: 5, needsPreludes: false},
+  openCall: {id: 'openCall', tier: 'notable', window: 'start', botPriority: 6, needsPreludes: true},
+  extendedLegacy: {id: 'extendedLegacy', tier: 'notable', window: 'legacy', botPriority: 7, needsPreludes: false},
   preludeReview: {id: 'preludeReview', tier: 'notable', window: 'start', botPriority: 8, needsPreludes: true},
   projectReview: {id: 'projectReview', tier: 'minor', window: 'start', botPriority: 9, needsPreludes: false},
   // THE GAMBLES — one per pool; the LAST the bot takes (the owner, 2026-11-08). The corporation one only where the

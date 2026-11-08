@@ -57,13 +57,14 @@ describe('the «Тендеры» catalog', () => {
 
   it('THE DENIAL ORDER follows the impact estimate (§18.6): the decisive first, the three gambles LAST (the owner, 2026-11-08)', () => {
     const byPriority = [...TENDER_IDS].sort((a, b) => tenderDef(a).botPriority - tenderDef(b).botPriority);
-    expect(byPriority.slice(0, 2), 'the two decisives lead').deep.eq(['programExtension', 'targetedRequest']);
+    expect(byPriority.slice(0, 3), 'the three decisives lead').deep.eq(['programExtension', 'restructuring', 'targetedRequest']);
     expect(byPriority.slice(-3), 'the gambles close').deep.eq(['gamblePreludes', 'gambleProjects', 'gambleCorporations']);
     expect(tenderDef('broadPortfolio').botPriority, '«Широкий портфель» outranks «Пересмотр проектов»').lessThan(tenderDef('projectReview').botPriority);
     const tiers = Object.fromEntries(TENDER_IDS.map((id) => [id, tenderDef(id).tier]));
+    expect(tiers.restructuring, 'two candidates against a known company of three — the combo made to order (the owner, 2026-11-09)').eq('decisive');
     expect(tiers.targetedRequest, 'three cards of one tag under a known lineage swing a finale (the owner, 2026-11-08)').eq('decisive');
     expect(tiers.researchSubsidy, 'the first of the notables (the owner: «скорее весомая»)').eq('notable');
-    expect(byPriority[2]).eq('researchSubsidy');
+    expect(byPriority[3]).eq('researchSubsidy');
     expect(tiers.broadPortfolio).eq('notable');
     expect(tiers.projectReview).eq('minor');
     // The tiers are monotone along the denial order: no minor outranks a notable, no notable a decisive.
@@ -80,8 +81,9 @@ describe('the «Тендеры» catalog', () => {
       {instance: 'c', id: 'restructuring'},
     ];
     expect(botTenderPick(open)?.id).eq('programExtension');
-    // «Широкий портфель» outranks «Реструктуризация» since the owner's review of 2026-11-08 (§18.6).
-    expect(botTenderPick(open.filter((c) => c.id !== 'programExtension'))?.id).eq('broadPortfolio');
+    // «Реструктуризация» outranks «Широкий портфель» since the owner's reading of 2026-11-09 (§18.8): the company
+    // re-made beats four more cards in the deal.
+    expect(botTenderPick(open.filter((c) => c.id !== 'programExtension'))?.id).eq('restructuring');
     expect(botTenderPick([{instance: 'd', id: 'gambleProjects'}, {instance: 'e', id: 'projectReview'}])?.id, 'a gamble is the last the bot takes').eq('projectReview');
     expect(botTenderPick([])).is.undefined;
   });
@@ -159,7 +161,7 @@ describe('the mission deck (the owner, 2026-11-08: one card of every kind, shuff
         expect(table, `seed ${seed} size ${size} — the set-aside decisive is replaced`).has.length(size);
       }
     }
-    // Both decisives in a two-card deck: one dealt, the other set aside — an honest short table.
+    // Only decisives in the deck (three of them): one dealt, the others set aside — an honest short table.
     const decisiveOnly = (id: TenderId) => tenderDef(id).tier === 'decisive';
     const two = dealTenderOffer(2, 0, decisiveOnly, new SeededRandom(0.5));
     expect(two).has.length(1);
