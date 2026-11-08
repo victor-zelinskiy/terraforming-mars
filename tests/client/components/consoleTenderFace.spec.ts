@@ -41,7 +41,7 @@ describe('the tender contract — face, back and the viewer\'s reading', () => {
     for (const id of TENDER_IDS) {
       const url = tenderArtUrl(id);
       if (url !== undefined) {
-        expect(url).eq(`${TENDER_ART_DIR}/${id}.png`);
+        expect(url).eq(`${TENDER_ART_DIR}/${id}.webp`);
       }
     }
   });

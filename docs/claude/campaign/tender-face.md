@@ -44,7 +44,7 @@
 
 ## 4. Арт — как подключить
 
-Файл `assets/campaign/tenders/<id>.png` (id из `TenderId`), затем строка `<id>: true` в `TENDER_ART`
+Файл `assets/campaign/tenders/<id>.webp` (`node scripts/import-tender-art.mjs <id>` — обрезка 4:3, 1200×900, WebP), затем строка `<id>: true` в `TENDER_ART`
 (`tenderArt.ts`). До этого окно гравирует глиф семейства — заглушка по построению, никакого 404.
 `object-fit: cover` — важное держать в центральных ~80 % кадра.
 
@@ -66,7 +66,7 @@
 - Один предмет (+ максимум один вторичный), ~55–65 % высоты кадра, важное в центральных 80 %; читается в окне
   ~250 px. Без текста, букв, цифр, логотипов, людей, пейзажа, свечения.
 - Кадр 4 : 3, 1600 × 1200 PNG; выход — `C:/Users/zelin/Downloads/Mars Arts/tenders/<id>.png`; импорт —
-  `assets/campaign/tenders/<id>.png` + строка в `tenderArt.ts`.
+  `node scripts/import-tender-art.mjs <id>` → `assets/campaign/tenders/<id>.webp` + строка в `tenderArt.ts`.
 - Семейные подсказки внутри предмета: ПРОЛОГ = запечатанный конверт-депеша, ПРОЕКТ = лист-чертёж / рулон,
   КОРПОРАЦИЯ = башня штаб-квартиры.
 
