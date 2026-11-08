@@ -1123,7 +1123,7 @@ import {
   cardPickAskKey,
   cardPickRoleKey, keepPlayAnswers,
   // THE SOLE CANDIDATE (T14 · CC) — a target with ONE enabled candidate is seeded, shown and marked.
-  soleCandidateOf, soleMarkKeys, soleSeedPick, soleSeedResponse,
+  soleCandidateOf, soleMarkKeys, soleSeedPick, soleSeedResponse, soleSeedViewerOf, SoleSeed, SoleSeedViewer,
   // The price every variant shares — printed once, on the price side.
   commonVariantCost,
   // The good every variant buys — printed once, after the price tiles (TR58).
@@ -1756,6 +1756,10 @@ export default defineComponent({
     },
     thisPlayer() {
       return this.playerView.thisPlayer;
+    },
+    /** Who a lone target would be «yourself» for — an attack on yourself is never seeded (`soleCandidateOf`). */
+    soleViewer(): SoleSeedViewer {
+      return soleSeedViewerOf(this.thisPlayer);
     },
     // ── THE EFFECT FORECAST (rides inside the action preview) ───────────
     forecast(): EffectForecast | undefined {
@@ -4769,7 +4773,7 @@ export default defineComponent({
       if (!this.choiceMissing(c) || (c.input.type !== 'card' && c.input.type !== 'player' && c.input.type !== 'or')) {
         return;
       }
-      const seed = soleCandidateOf(c);
+      const seed = soleCandidateOf(c, this.soleViewer);
       if (seed === undefined) {
         return;
       }
@@ -4777,6 +4781,12 @@ export default defineComponent({
         // The bot alone in the table's one zone — its branch answered, the row marked «единственная цель».
         this.picks = {...this.picks, [c.id]: soleSeedPick(seed)};
         this.captureFor(c, soleSeedResponse(seed));
+      } else if (seed.kind === 'optionalCard') {
+        // «You MAY also add 1 data to ANY card» with ONE holder: the pick branch answered with it — the same capture the
+        // target step's A writes (`confirmPlayedTarget` → `answerNestedOr`); RT still declines.
+        if (!this.seedOptionalCard(c, seed)) {
+          return;
+        }
       } else if (seed.kind === 'player') {
         this.picks = {...this.picks, [c.id]: seed.color};
         this.captureFor(c, {type: 'player', player: seed.color});
@@ -4795,13 +4805,43 @@ export default defineComponent({
       }
       this.seeded = {...this.seeded, [c.id]: 'sole'};
     },
+    /**
+     * The optional pick's seed — the nested branch answered with the lone holder, its target result read off the SAME
+     * step model the target step draws (the descent is recorded first: the model reads the branch's own input). `false`
+     * = the candidate is not drawable or stands refused — nothing is written.
+     */
+    seedOptionalCard(c: ComposerChoice, seed: Extract<SoleSeed, {kind: 'optionalCard'}>): boolean {
+      const item = this.optionalPickItem(c);
+      if (item === undefined || item.optionIndex !== seed.branch) {
+        return false;
+      }
+      const before = this.orDescents;
+      this.orDescents = {...this.orDescents, [c.id]: {item, pick: seed.name}};
+      const owners = this.playedTargetModelFor(c)?.owners ?? [];
+      const focus = findPlayedTargetFocus(seed.name, owners);
+      const candidate = focus === undefined ? undefined : playedTargetAt(focus, owners);
+      if (candidate?.blocked !== undefined) {
+        this.orDescents = before;
+        return false;
+      }
+      if (candidate !== undefined) {
+        this.playedTargetResults = {...this.playedTargetResults, [c.id]: playedTargetResultOf(candidate, owners, this.playedTargetVersion)};
+      }
+      this.picks = {...this.picks, [c.id]: soleSeedPick(seed)};
+      this.captureFor(c, soleSeedResponse(seed));
+      return true;
+    },
+    /** Does the row still hold exactly what its seed wrote? (An optional pick names its card in the descent.) */
+    seedHolds(c: ComposerChoice, seed: SoleSeed): boolean {
+      return soleSeedPick(seed) === this.picks[c.id] && (seed.kind !== 'optionalCard' || this.orDescents[c.id]?.pick === seed.name);
+    },
     /** The mark of a seeded row (i18n keys) — `undefined` when the row was not seeded or no longer holds its seed. */
     soleMark(c: ComposerChoice): {mark: string, hint: string} | undefined {
       if (this.seeded[c.id] !== 'sole' || this.choiceMissing(c)) {
         return undefined;
       }
-      const seed = soleCandidateOf(c);
-      return seed === undefined ? undefined : soleMarkKeys(seed, this.isHandPickChoice(c));
+      const seed = soleCandidateOf(c, this.soleViewer);
+      return seed === undefined || !this.seedHolds(c, seed) ? undefined : soleMarkKeys(seed, this.isHandPickChoice(c));
     },
     /**
      * A refetched preview of the SAME shape keeps every answer — but a SEED is a reading of the server's candidate set
@@ -4815,11 +4855,13 @@ export default defineComponent({
         if (this.seeded[c.id] !== 'sole') {
           continue;
         }
-        const seed = soleCandidateOf(c);
-        if (seed !== undefined && soleSeedPick(seed) === this.picks[c.id]) {
+        const seed = soleCandidateOf(c, this.soleViewer);
+        if (seed !== undefined && this.seedHolds(c, seed)) {
           continue;
         }
         this.captureFor(c, undefined);
+        const {[c.id]: _descent, ...descents} = this.orDescents;
+        this.orDescents = descents;
         const {[c.id]: _pick, ...picks} = this.picks;
         const {[c.id]: _result, ...results} = this.playedTargetResults;
         const {[c.id]: _seed, ...seeded} = this.seeded;
@@ -6714,10 +6756,22 @@ export default defineComponent({
       delete this.orDescents[c.id];
       this.picks[c.id] = String(oc.decline.index);
       this.captureFor(c, declineResponse(oc));
+      // A decline is the player's own answer — a seed it replaces lets go (or the reseat would put it back).
+      this.dropSeed(c);
       this.sub = undefined;
       // A decline is an answer like any other: the ONE rule lands the cursor (T14 · CC).
       this.landCursor();
       this.scrollFocused();
+    },
+    /** Forget a row's seed mark and the target result it wrote — the row now holds the player's own answer. */
+    dropSeed(c: ComposerChoice): void {
+      if (this.seeded[c.id] === undefined) {
+        return;
+      }
+      const {[c.id]: _seed, ...seeded} = this.seeded;
+      const {[c.id]: _result, ...results} = this.playedTargetResults;
+      this.seeded = seeded;
+      this.playedTargetResults = results;
     },
     /** The ONE pick an optional choice offers beside its decline (`undefined` = not that shape, or not drawable here). */
     optionalPickItem(c: ComposerChoice): ConsoleOrItem | undefined {

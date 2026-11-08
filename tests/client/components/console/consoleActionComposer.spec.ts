@@ -31,6 +31,7 @@ import {
   cardPickRoleKey,
   commonVariantCost,
   soleCandidateOf,
+  soleSeedResponse,
   soleMarkKeys,
   allCandidatesSeed,
   ALL_SEED_MARK,
@@ -573,43 +574,84 @@ describe('consoleActionComposer', () => {
       ({id: 'step#0', scope: 'step', index: 0, kind: 'card', input: {type: 'card', title: 'Select card', cards, min: 1, max: 1, ...over} as unknown as PlayerInputModel});
     const player = (players: Array<string>): ComposerChoice =>
       ({id: 'step#0', scope: 'step', index: 0, kind: 'player', input: {type: 'player', title: 'Select player', players} as unknown as PlayerInputModel});
+    // The viewer is BLUE and owns «Supercomputer» / «Small Animals»; red is a rival.
+    const VIEWER = {color: 'blue', ownsCard: (name: CardName) => name === 'Supercomputer' || name === 'Small Animals'};
+    const sole = (c: ComposerChoice) => soleCandidateOf(c, VIEWER);
 
     it('ONE card candidate: seeded with it', () => {
-      expect(soleCandidateOf(card([{name: 'Tardigrades'}]))).to.deep.eq({kind: 'card', name: 'Tardigrades'});
+      expect(sole(card([{name: 'Tardigrades'}]))).to.deep.eq({kind: 'card', name: 'Tardigrades'});
     });
     it('TWO candidates: a choice — never seeded', () => {
-      expect(soleCandidateOf(card([{name: 'Tardigrades'}, {name: 'Decomposers'}]))).to.eq(undefined);
+      expect(sole(card([{name: 'Tardigrades'}, {name: 'Decomposers'}]))).to.eq(undefined);
     });
     it('one ENABLED beside a disabled one (shown with its reason): the enabled one is the answer', () => {
-      expect(soleCandidateOf(card([{name: 'Tardigrades'}, {name: 'Ants', isDisabled: true}]))).to.deep.eq({kind: 'card', name: 'Tardigrades'});
+      expect(sole(card([{name: 'Tardigrades'}, {name: 'Ants', isDisabled: true}]))).to.deep.eq({kind: 'card', name: 'Tardigrades'});
     });
     it('a lone candidate that is DISABLED: never seeded (its reason holds the commit)', () => {
-      expect(soleCandidateOf(card([{name: 'Ants', isDisabled: true}]))).to.eq(undefined);
+      expect(sole(card([{name: 'Ants', isDisabled: true}]))).to.eq(undefined);
     });
     it('an OPTIONAL pick (min 0): declining is a second real answer — never seeded', () => {
-      expect(soleCandidateOf(card([{name: 'Tardigrades'}], {min: 0}))).to.eq(undefined);
+      expect(sole(card([{name: 'Tardigrades'}], {min: 0}))).to.eq(undefined);
     });
     it('a RANGE (max > 1): how many is a decision — never seeded', () => {
-      expect(soleCandidateOf(card([{name: 'Tardigrades'}], {max: 2}))).to.eq(undefined);
+      expect(sole(card([{name: 'Tardigrades'}], {max: 2}))).to.eq(undefined);
     });
     it('a multi-select (reveal any number): never seeded', () => {
-      expect(soleCandidateOf({...card([{name: 'Tardigrades'}]), multiSelect: {countLabel: 'x'}})).to.eq(undefined);
+      expect(sole({...card([{name: 'Tardigrades'}]), multiSelect: {countLabel: 'x'}})).to.eq(undefined);
     });
     it('a TABLE QUESTION (another card asks): never seeded', () => {
-      expect(soleCandidateOf({...card([{name: 'Tardigrades'}]), reaction: {card: 'Mars University' as CardName} as never})).to.eq(undefined);
+      expect(sole({...card([{name: 'Tardigrades'}]), reaction: {card: 'Mars University' as CardName} as never})).to.eq(undefined);
     });
     it('a REPEAT slot (its answer is another card\'s composed action): never seeded', () => {
-      expect(soleCandidateOf({...card([{name: 'Tardigrades'}]), repeatAction: true})).to.eq(undefined);
+      expect(sole({...card([{name: 'Tardigrades'}]), repeatAction: true})).to.eq(undefined);
     });
     it('ONE player target: seeded with that player', () => {
-      expect(soleCandidateOf(player(['red']))).to.deep.eq({kind: 'player', color: 'red'});
+      expect(sole(player(['red']))).to.deep.eq({kind: 'player', color: 'red'});
     });
     it('TWO player targets: a choice — never seeded', () => {
-      expect(soleCandidateOf(player(['red', 'blue']))).to.eq(undefined);
+      expect(sole(player(['red', 'blue']))).to.eq(undefined);
+    });
+    it('ATTACK ON YOURSELF — the viewer as the ONE player target: never seeded (the owner, 2026-11-08)', () => {
+      expect(sole(player(['blue']))).to.eq(undefined);
+    });
+    it("ATTACK ON YOURSELF — a removal across the table whose ONE candidate is the viewer's own card: never seeded", () => {
+      // Predators' «remove 1 animal from ANY card» with only the viewer's own animals on the table.
+      expect(sole({...card([{name: 'Small Animals'}], {showOwner: true}), amount: -1})).to.eq(undefined);
+      expect(sole(card([{name: 'Small Animals'}], {choiceContext: {source: {kind: 'card', card: 'Predators'}, mode: 'attack'}}))).to.eq(undefined);
+      // …the same removal whose one candidate is a RIVAL's card is no decision about yourself: seeded.
+      expect(sole({...card([{name: 'Fish'}], {showOwner: true}), amount: -1})).to.deep.eq({kind: 'card', name: 'Fish'});
+    });
+    it('a COST spent from your own card (no owners shown, `effect-choice`) is no attack: its lone holder is seeded', () => {
+      expect(sole({...card([{name: 'Small Animals'}], {showOwner: false}), amount: -1})).to.deep.eq({kind: 'card', name: 'Small Animals'});
+      expect(sole({...card([{name: 'Small Animals'}], {showOwner: true, choiceContext: {source: {kind: 'card', card: 'X'}, mode: 'effect-choice'}}), amount: -1}))
+        .to.deep.eq({kind: 'card', name: 'Small Animals'});
+    });
+    describe('«you MAY also add» — an optional GAIN with ONE holder of your own is seeded (TR44, the owner 2026-11-08)', () => {
+      const pick = (cards: Array<{name: string, isDisabled?: boolean}>, over: Record<string, unknown> = {}) =>
+        ({type: 'card', title: 'Select card', cards, min: 1, max: 1, resourceGainPrompt: {amount: 1}, ...over});
+      const decline = {type: 'option', title: 'Do not add data', metadata: {kind: 'skip'}};
+      const optional = (options: Array<unknown>): ComposerChoice =>
+        ({id: 'step#1', scope: 'step', index: 1, kind: 'or', input: {type: 'or', title: 't', options} as unknown as PlayerInputModel});
+
+      it('the pick branch answered with the lone own holder; the capture nests the card into it', () => {
+        const seed = sole(optional([pick([{name: 'Supercomputer'}]), decline]));
+        expect(seed).to.deep.eq({kind: 'optionalCard', branch: 0, name: 'Supercomputer'});
+        expect(soleSeedResponse(seed!)).to.deep.eq({type: 'or', index: 0, response: {type: 'card', cards: ['Supercomputer']}});
+      });
+      it("two holders, a rival's lone card, a disabled lone card: a decision — never seeded", () => {
+        expect(sole(optional([pick([{name: 'Supercomputer'}, {name: 'Small Animals'}]), decline]))).to.eq(undefined);
+        expect(sole(optional([pick([{name: 'Fish'}]), decline]))).to.eq(undefined);
+        expect(sole(optional([pick([{name: 'Supercomputer', isDisabled: true}]), decline]))).to.eq(undefined);
+      });
+      it('not a gain (no marker, a discard) or no decline beside it: never seeded', () => {
+        expect(sole(optional([pick([{name: 'Supercomputer'}], {resourceGainPrompt: undefined}), decline]))).to.eq(undefined);
+        expect(sole(optional([pick([{name: 'Supercomputer'}], {discardPrompt: {}}), decline]))).to.eq(undefined);
+        expect(sole(optional([pick([{name: 'Supercomputer'}]), {type: 'option', title: 'other'}]))).to.eq(undefined);
+      });
     });
     it('an OR question, an amount, a payment: not a target — never seeded', () => {
-      expect(soleCandidateOf({id: 'step#0', scope: 'step', index: 0, kind: 'or', input: {type: 'or', title: 't', options: []} as unknown as PlayerInputModel})).to.eq(undefined);
-      expect(soleCandidateOf({id: 'step#0', scope: 'step', index: 0, kind: 'amount', input: AMOUNT_INPUT})).to.eq(undefined);
+      expect(sole({id: 'step#0', scope: 'step', index: 0, kind: 'or', input: {type: 'or', title: 't', options: []} as unknown as PlayerInputModel})).to.eq(undefined);
+      expect(sole({id: 'step#0', scope: 'step', index: 0, kind: 'amount', input: AMOUNT_INPUT})).to.eq(undefined);
     });
     it('the mark names what was chosen: a target on the table, a card from the hand, a player', () => {
       expect(soleMarkKeys({kind: 'card', name: 'A' as CardName}, false)).to.deep.eq({mark: 'The only target', hint: 'No other targets'});

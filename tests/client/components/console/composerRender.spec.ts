@@ -1507,6 +1507,43 @@ describe('ConsoleActionComposer — one cursor rule, the commit arrives, the sol
     w.unmount();
   });
 
+  it('an ATTACK whose ONE target is the viewer is NEVER seeded — hitting yourself is the player\'s decision (2026-11-08)', async () => {
+    const w = factory(single([{kind: 'input', input: {type: 'player', title: 'Select player', buttonLabel: 'Select', players: ['blue'], icon: 'heat', amount: 2, scope: 'production'}}]), 'Y');
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    expect(vm.choiceMissing(vm.allChoices[0]), 'the row stays open').to.eq(true);
+    expect(w.find('[data-seeded="sole"]').exists()).to.eq(false);
+    expect(vm.ctaFocused, 'the open question holds the cursor').to.eq(false);
+    w.unmount();
+  });
+
+  it('«you MAY also add 1 data to ANY card» with ONE holder of your own is SEEDED; RT declines and the seed lets go (TR44)', async () => {
+    const optional = {kind: 'input', amount: 1, cardResource: 'data', input: {type: 'or', title: 't', buttonLabel: 'OK', options: [
+      {type: 'card', title: 'Select card', buttonLabel: 'Add resource', cards: [{name: 'Supercomputer', resources: 0}], min: 1, max: 1, resourceGainPrompt: {amount: 1}},
+      {type: 'option', title: 'Do not add data', buttonLabel: 'OK', metadata: {kind: 'skip'}},
+    ]}};
+    const w = factory(single([optional]), 'Aquatic Research Station', 0, viewWithTableau(['Aquatic Research Station', 'Supercomputer']));
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    const c = vm.allChoices[0];
+    expect(vm.choiceMissing(c), 'answered by the composer').to.eq(false);
+    expect(vm.seeded[c.id]).to.eq('sole');
+    expect(w.find('[data-seeded-mark]').exists(), 'the quiet mark').to.eq(true);
+    expect(vm.ctaFocused, 'nothing left to ask: the commit').to.eq(true);
+    pastTheArrival(vm);
+    vm.handleIntent({kind: 'press', button: 'confirm'});
+    const [payload] = w.emitted('confirm')![0] as [any];
+    expect(JSON.stringify(payload), 'the pick branch nests the card').to.contain('"index":0').and.to.contain('Supercomputer');
+
+    // The decline is still one press away — and it replaces the seed for good.
+    vm.answerDecline(c);
+    await w.vm.$nextTick();
+    expect(vm.seeded[c.id], 'a decline drops the seed').to.eq(undefined);
+    vm.reseatSeeds();
+    expect(vm.picks[c.id], 'the reseat never puts the seed back over the decline').to.eq('1');
+    w.unmount();
+  });
+
   it('a seeded candidate that LEAVES on a refetch of the same shape lets go — the cursor goes back to the row', async () => {
     const w = factory(single([cardStep(['Tardigrades'])]), 'Y');
     await w.vm.$nextTick();

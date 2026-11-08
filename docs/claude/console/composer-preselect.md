@@ -88,9 +88,13 @@ A landing of kind `commit` is an ARRIVAL: `arriveAtCommit(record, root, {opening
 | a self-target (the hero is the only candidate) | **yes** | the handle row («↰» + the tag) |
 | one enabled beside a disabled one (Pharmacy Union's grey) | **yes** — the enabled one | the grey one is shown with its reason |
 | a player target with ONE candidate (an attack with one rival) | **yes** | the row reads who loses what (`current → resulting`) |
+| …that ONE candidate is the VIEWER (an attack on yourself) | **no** (2026-11-08) | every `SelectPlayer` hurts the player it names — hitting yourself is the player's decision |
+| an ATTACK (the `attack` marker, or a removal picked across the table — `showOwner`) whose ONE card is the viewer's own | **no** (2026-11-08) | the same: never the composer's choice (`hitsViewersOwnCard`) |
+| a COST spent from your own card (`effect-choice`, no owners shown) with ONE holder | **yes** | a price you chose, not an attack |
 | the party / law «resource onto a card» with ONE holder | **yes** (after the kind) | `seedSoleTarget` |
 | TWO+ enabled candidates | no | a choice |
 | an OPTIONAL choice (the `skip` marker, a card pick of `min 0`) | no | declining is the second real answer (RT) |
+| …EXCEPT a «you MAY also add» GAIN — the `or` of ONE card pick carrying `resourceGainPrompt` beside ONE `skip` decline — with ONE enabled holder of the viewer's OWN (TR44 Aquatic Research Station's data) | **yes** (`optionalCard`, 2026-11-08) | the owner: «one target — pre-select it»; RT still declines, and a decline DROPS the seed (`dropSeed` — the reseat would put it back otherwise). A rival's lone card, a discard, a removal stay open |
 | a lone candidate that is DISABLED | no | its reason holds the commit |
 | a RANGE / multi pick (`max > 1`, a multi-select's count) | no | how many is a decision |
 | a MERGED gain pick (`mergeCardSteps`) with NO MORE candidates than seats, none disabled, none hurt by the gain | **yes — ALL** (`seeded[id] = 'all'`, «ВСЕ ЦЕЛИ») | which and how many — all of them: no decision (P78, ledger CU) |
@@ -102,7 +106,7 @@ A landing of kind `commit` is an ARRIVAL: `arriveAtCommit(record, root, {opening
 | a board placement | never a composer row | the follow-up stays |
 | a hand pick whose only candidate is the card being played | — | 0 candidates: the follow-up, as before |
 
-The seed is the SAME capture a press would write (`{type: 'card', cards: [name]}` / `{type: 'player', player}`; a
+The seed is the SAME capture a press would write (`{type: 'card', cards: [name]}` / `{type: 'player', player}` / an optional pick's `{type: 'or', index, response: {type: 'card', cards: [name]}}` with its descent recorded; a
 played-target seed also writes the `PlayedTargetResult` off the same step model), plus `seeded[choiceId] = 'sole'`.
 The batch posts it ADDRESSED like any pre-select (`preselectWitness` turns a re-ask red). It is re-read when the
 candidate set moves: a refetch of the SAME shape (`samePreviewShape`) runs `reseatSeeds` — a seed whose candidate left,

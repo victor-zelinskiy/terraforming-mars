@@ -911,6 +911,7 @@ import {
   spendHeatPlan, spendHeatStock, spendHeatResponse, spendHeatValid,
   orderedPreResponses, orderedStepResponses, tabbedStepsOf, cardPickAskKey, cardPickRoleKey, keepPlayAnswers,
   soleCandidateOf, soleMarkKeys, soleSeedPick, soleSeedResponse, allCandidatesSeed, ALL_SEED_MARK,
+  soleSeedViewerOf, SoleSeed, SoleSeedViewer,
 } from '@/client/console/consoleActionComposer';
 import {distributionLanesOf, DistributionLanes} from '@/client/console/consoleActionComposer';
 import {pourRemaining, spreadOn, spreadRemaining, SpreadState, spreadTotal, stepSpread} from '@/client/console/cardResourceDistribution';
@@ -1386,6 +1387,10 @@ export default defineComponent({
     },
     thisPlayer() {
       return this.playerView.thisPlayer;
+    },
+    /** Who a lone target would be «yourself» for — an attack on yourself is never seeded (`soleCandidateOf`). */
+    soleViewer(): SoleSeedViewer {
+      return soleSeedViewerOf(this.thisPlayer);
     },
     card(): CardModel | undefined {
       return this.input.cards.find((c) => c.name === this.cardName);
@@ -3360,12 +3365,12 @@ export default defineComponent({
         if (this.seeded[c.id] !== 'sole') {
           continue;
         }
-        const seed = soleCandidateOf(c);
-        if (seed !== undefined && soleSeedPick(seed) === this.picks[c.id]) {
+        const seed = soleCandidateOf(c, this.soleViewer);
+        if (seed !== undefined && this.seedHolds(c, seed)) {
           continue;
         }
         this.captureFor(c, undefined);
-        const {[c.id]: _pick, ...picks} = this.picks;
+        const {[c.id]: _pick, [nestedPickKey(c.id)]: _nested, ...picks} = this.picks;
         const {[c.id]: _result, ...results} = this.playedTargetResults;
         const {[c.id]: _seed, ...seeded} = this.seeded;
         this.picks = picks;
@@ -3738,11 +3743,19 @@ export default defineComponent({
      */
     seedSole(c: ComposerChoice): void {
       // The bot alone in the table's one zone — its branch answered, the row marked «единственная цель».
-      const tableSeed = this.stepUnanswered(c) ? soleCandidateOf(c) : undefined;
+      const tableSeed = this.stepUnanswered(c) ? soleCandidateOf(c, this.soleViewer) : undefined;
       if (tableSeed?.kind === 'tableBot') {
         this.picks = {...this.picks, [c.id]: soleSeedPick(tableSeed)};
         this.captureFor(c, soleSeedResponse(tableSeed));
         this.seeded = {...this.seeded, [c.id]: 'sole'};
+        return;
+      }
+      // «You MAY also add 1 data to ANY card» with ONE holder of your own: the pick branch answered with it — the same
+      // capture the target step's A writes; RT still declines.
+      if (tableSeed?.kind === 'optionalCard') {
+        if (this.seedOptionalCard(c, tableSeed)) {
+          this.seeded = {...this.seeded, [c.id]: 'sole'};
+        }
         return;
       }
       // A MERGED gain pick with no more candidates than seats, each a gain (P78, ledger CU): ALL of them — the same
@@ -3764,8 +3777,8 @@ export default defineComponent({
           c.input.type === 'deltaEspionage' || c.id.startsWith('esp-owner') || !this.stepUnanswered(c)) {
         return;
       }
-      const seed = soleCandidateOf(c);
-      if (seed === undefined || seed.kind === 'tableBot') {
+      const seed = soleCandidateOf(c, this.soleViewer);
+      if (seed === undefined || seed.kind === 'tableBot' || seed.kind === 'optionalCard') {
         return;
       }
       if (seed.kind === 'player') {
@@ -3840,6 +3853,33 @@ export default defineComponent({
         };
       });
     },
+    /**
+     * The optional pick's seed — the nested branch answered with the lone holder (`picks` + its nested key, the target
+     * result read off the SAME step model the target step draws for that branch). `false` = the branch is not drawable
+     * here or the candidate stands refused — nothing is written.
+     */
+    seedOptionalCard(c: ComposerChoice, seed: Extract<SoleSeed, {kind: 'optionalCard'}>): boolean {
+      const item = this.optionalPickItem(c);
+      if (item === undefined || item.optionIndex !== seed.branch) {
+        return false;
+      }
+      const owners = this.playedTargetModelFor(c, item)?.owners ?? [];
+      const focus = findPlayedTargetFocus(seed.name, owners);
+      const candidate = focus === undefined ? undefined : playedTargetAt(focus, owners);
+      if (candidate?.blocked !== undefined) {
+        return false;
+      }
+      if (candidate !== undefined) {
+        this.playedTargetResults = {...this.playedTargetResults, [c.id]: playedTargetResultOf(candidate, owners, this.playedTargetVersion)};
+      }
+      this.picks = {...this.picks, [c.id]: soleSeedPick(seed), [nestedPickKey(c.id)]: seed.name};
+      this.captureFor(c, soleSeedResponse(seed));
+      return true;
+    },
+    /** Does the row still hold exactly what its seed wrote? (An optional pick names its card under the nested key.) */
+    seedHolds(c: ComposerChoice, seed: SoleSeed): boolean {
+      return soleSeedPick(seed) === this.picks[c.id] && (seed.kind !== 'optionalCard' || this.picks[nestedPickKey(c.id)] === seed.name);
+    },
     /** The mark of a seeded row (i18n keys) — `undefined` when the row was not seeded or no longer holds its seed. */
     soleMark(c: ComposerChoice): {mark: string, hint: string} | undefined {
       if (this.seeded[c.id] === 'all') {
@@ -3849,8 +3889,8 @@ export default defineComponent({
       if (this.seeded[c.id] !== 'sole' || this.stepUnanswered(c)) {
         return undefined;
       }
-      const seed = soleCandidateOf(c);
-      return seed === undefined ? undefined : soleMarkKeys(seed, this.choiceMode(c) === 'handPick');
+      const seed = soleCandidateOf(c, this.soleViewer);
+      return seed === undefined || !this.seedHolds(c, seed) ? undefined : soleMarkKeys(seed, this.choiceMode(c) === 'handPick');
     },
     captureFor(c: ComposerChoice, response: unknown | undefined): void {
       if (c.scope === 'pre') {
@@ -5063,8 +5103,8 @@ export default defineComponent({
      * that reads the step's candidates goes through here, so a nested descent can never render one set of cards and
      * validate against another (the action composer's `playedTargetInputFor`).
      */
-    playedTargetInputFor(c: ComposerChoice): SelectCardModel | undefined {
-      const open = this.sub?.kind === 'playedTarget' && this.sub.choiceId === c.id ? this.sub.orItem : undefined;
+    playedTargetInputFor(c: ComposerChoice, seedItem?: ConsoleOrItem): SelectCardModel | undefined {
+      const open = seedItem ?? (this.sub?.kind === 'playedTarget' && this.sub.choiceId === c.id ? this.sub.orItem : undefined);
       // The table's one zone serves the players' card pick of the `or` (absent with a lone bot).
       if (open === undefined && tableTargetOf(c.input) !== undefined) {
         return tableTargetCardPick(c.input);
@@ -5310,8 +5350,8 @@ export default defineComponent({
      * the same model the step would draw) and every answered row's liveness. Per CHOICE, never «the» step: a play with
      * two played-card picks judged the second against the first one's owners.
      */
-    playedTargetModelFor(choice: ComposerChoice): PlayedTargetModel | undefined {
-      const model = this.playedTargetInputFor(choice);
+    playedTargetModelFor(choice: ComposerChoice, seedItem?: ConsoleOrItem): PlayedTargetModel | undefined {
+      const model = this.playedTargetInputFor(choice, seedItem);
       const bot = this.tableTargetBotFor(choice);
       if (model === undefined) {
         // A lone bot in the table's one zone: its group alone.
@@ -5769,6 +5809,13 @@ export default defineComponent({
       this.picks[c.id] = String(oc.decline.index);
       delete this.picks[nestedPickKey(c.id)];
       this.captureFor(c, declineResponse(oc));
+      // A decline is the player's own answer — a seed it replaces lets go (or the reseat would put it back).
+      if (this.seeded[c.id] !== undefined) {
+        const {[c.id]: _seed, ...seeded} = this.seeded;
+        const {[c.id]: _result, ...results} = this.playedTargetResults;
+        this.seeded = seeded;
+        this.playedTargetResults = results;
+      }
       this.sub = undefined;
       this.landCursor();
       this.scrollFocused();

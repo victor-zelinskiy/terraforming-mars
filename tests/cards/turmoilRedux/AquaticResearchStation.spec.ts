@@ -462,6 +462,8 @@ describe('AquaticResearchStation', () => {
       expect(model.options).has.length(2);
       expect((model.options[0] as SelectCardModel).cards.map((c) => c.name)).deep.eq([census.name]);
       expect((model.options[1] as {metadata?: {kind?: string}}).metadata?.kind).eq('skip');
+      // The GAIN marker the console's composer seeds a lone holder of your own by (`soleCandidateOf` → `optionalCard`).
+      expect((model.options[0] as SelectCardModel).resourceGainPrompt, 'the pick is marked a gain').is.not.undefined;
       const live = activate(t)!.toModel(t.player) as OrOptionsModel;
       expect((live.options[0] as SelectCardModel).cards.map((c) => c.name)).deep.eq((model.options[0] as SelectCardModel).cards.map((c) => c.name));
       // The animal's own chip, with its `current → resulting` on this card.

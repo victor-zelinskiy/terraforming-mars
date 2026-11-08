@@ -31,6 +31,7 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {tableTargetOf} from '@/client/console/played/tableTargetZone';
+import {isDeclineOption} from '@/client/console/optionalChoice';
 import {PreselectAddress, addressed} from '@/common/inputs/preselectAddress';
 import {CardModel} from '@/common/models/CardModel';
 import {Message} from '@/common/logs/Message';
@@ -189,7 +190,14 @@ export function keepPlayAnswers<T>(record: Readonly<Record<string, T>>): Record<
  * posts it ADDRESSED like any pre-select, and the server still asks (`game-logic.md` § NO AUTO-SELECT stands).
  *
  * WHAT IS NEVER SEEDED — every case is a decision or not a target:
- *  · an OPTIONAL choice (the server's `skip` marker / a card pick of `min 0`) — declining is the second real answer;
+ *  · an OPTIONAL choice (the server's `skip` marker / a card pick of `min 0`) — declining is the second real answer —
+ *    EXCEPT a «you MAY also add» GAIN (the owner, 2026-11-08 — TR44 Aquatic Research Station's «1 data on ANY card»):
+ *    an optional choice whose ONE answer is a card pick carrying `resourceGainPrompt`, with ONE enabled candidate, is
+ *    seeded with it when that card is the viewer's own (`optionalCard`) — the decline stays RT, one press away;
+ *  · an ATTACK ON YOURSELF (the owner, 2026-11-08): a negative effect whose one target is the VIEWER — a player pick
+ *    of the viewer alone (every `SelectPlayer` on the server hurts the player it names), or an attack on a card the
+ *    viewer owns (`hitsViewersOwnCard` — a COST spent from your own card is not one) — hitting yourself is a decision
+ *    the player makes, never the composer;
  *  · a MULTI pick (a range — «up to N», `max > 1`, a multi-select's count) — how many is a decision (unless there is
  *    none: no more candidates than seats, each a gain — `allCandidatesSeed`, ledger CU);
  *  · a lone candidate that is DISABLED (its reason holds the commit; the row says why);
@@ -202,7 +210,21 @@ export type SoleSeed =
   | {kind: 'card', name: CardName}
   | {kind: 'player', color: string}
   /** «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА»: a MANDATORY removal whose one target is the bot (no player's card holds the resource). */
-  | {kind: 'tableBot', branch: number};
+  | {kind: 'tableBot', branch: number}
+  /** A «you MAY also add» GAIN with ONE holder: its pick branch answered with the card, the decline still RT. */
+  | {kind: 'optionalCard', branch: number, name: CardName};
+
+/** WHO is looking — what makes a lone target «yourself» (an attack on yourself is never seeded). */
+export type SoleSeedViewer = {
+  color: string;
+  /** Does this card lie on the viewer's own tableau? */
+  ownsCard: (name: CardName) => boolean;
+};
+
+/** The viewer of a player view — their colour and their own tableau. */
+export function soleSeedViewerOf(player: {color: string, tableau: ReadonlyArray<{name: CardName}>}): SoleSeedViewer {
+  return {color: player.color, ownsCard: (name) => player.tableau.some((card) => card.name === name)};
+}
 
 /** The pick value a seed writes (and a reseat compares). */
 export function soleSeedPick(seed: SoleSeed): string {
@@ -210,6 +232,7 @@ export function soleSeedPick(seed: SoleSeed): string {
   case 'player': return seed.color;
   case 'card': return seed.name;
   case 'tableBot': return String(seed.branch);
+  case 'optionalCard': return String(seed.branch);
   }
 }
 
@@ -219,10 +242,11 @@ export function soleSeedResponse(seed: SoleSeed): unknown {
   case 'player': return {type: 'player', player: seed.color};
   case 'card': return {type: 'card', cards: [seed.name]};
   case 'tableBot': return {type: 'or', index: seed.branch, response: {type: 'option'}};
+  case 'optionalCard': return {type: 'or', index: seed.branch, response: {type: 'card', cards: [seed.name]}};
   }
 }
 
-export function soleCandidateOf(choice: ComposerChoice): SoleSeed | undefined {
+export function soleCandidateOf(choice: ComposerChoice, viewer: SoleSeedViewer): SoleSeed | undefined {
   // A TABLE'S question is never seeded (it is routinely optional — a decline beside it) — EXCEPT a step of the Career
   // answered by the table (TR78 Arwind Inc. — `agendaWalkPrompt`): a MANDATORY target pick, seeded like the card's own.
   const careerAnswer = choice.kind === 'card' && (choice.input as SelectCardModel).agendaWalkPrompt !== undefined;
@@ -235,18 +259,64 @@ export function soleCandidateOf(choice: ComposerChoice): SoleSeed | undefined {
       return undefined;
     }
     const enabled = model.cards.filter((card) => card.isDisabled !== true);
-    return enabled.length === 1 ? {kind: 'card', name: enabled[0].name} : undefined;
+    if (enabled.length !== 1 || hitsViewersOwnCard(choice, model, enabled[0].name, viewer)) {
+      return undefined;
+    }
+    return {kind: 'card', name: enabled[0].name};
   }
   if (choice.kind === 'player') {
     const model = choice.input as SelectPlayerModel;
-    return model.players.length === 1 ? {kind: 'player', color: model.players[0]} : undefined;
+    // Every player pick the server builds HURTS the player it names (a production cut, a theft, a discard): the viewer
+    // alone is an attack on yourself — shown, never chosen for the player.
+    return model.players.length === 1 && model.players[0] !== viewer.color ? {kind: 'player', color: model.players[0]} : undefined;
   }
   // The table's one zone with the BOT alone, and no decline beside it: the only target — seeded, shown, marked.
   const table = tableTargetOf(choice.input);
   if (choice.kind === 'or' && table !== undefined && table.cardBranch === undefined && table.skipBranch === undefined) {
     return {kind: 'tableBot', branch: table.botBranch};
   }
+  if (choice.kind === 'or' && table === undefined) {
+    return optionalGainSeed(choice.input, viewer);
+  }
   return undefined;
+}
+
+/**
+ * An ATTACK that lands on a card the VIEWER owns. «Attack» is the server's structural reading, never a guess: the
+ * `attack` marker, or a removal (the step's negative delta) picked ACROSS THE TABLE (`showOwner` — the removal's own
+ * builder sets it for every source but `self`). A COST from your own card (`effect-choice`, no owners shown — «spend 1
+ * fighter from ANY of your cards») is a price you chose, and its lone holder stays seeded.
+ */
+function hitsViewersOwnCard(choice: ComposerChoice, model: SelectCardModel, name: CardName, viewer: SoleSeedViewer): boolean {
+  const mode = model.choiceContext?.mode;
+  const attack = mode === 'attack' || ((choice.amount ?? 0) < 0 && mode !== 'effect-choice' && model.showOwner === true);
+  return attack && viewer.ownsCard(name);
+}
+
+/**
+ * «YOU MAY ALSO ADD 1 DATA TO ANY CARD» WITH ONE HOLDER (TR44): an optional choice whose one answer is a card pick of a
+ * GAIN (`resourceGainPrompt`), a single pick, ONE enabled candidate on the viewer's own tableau — the pick branch
+ * answered with it. A discard, a removal, a range, a rival's card or a choice between several answers stays open.
+ */
+function optionalGainSeed(input: PlayerInputModel, viewer: SoleSeedViewer): SoleSeed | undefined {
+  if (input.type !== 'or') {
+    return undefined;
+  }
+  const options = (input as OrOptionsModel).options;
+  const declines = options.filter((o) => isDeclineOption(o));
+  const answers = options.map((o, i) => ({o, i})).filter(({o}) => !isDeclineOption(o));
+  if (declines.length !== 1 || answers.length !== 1 || answers[0].o.type !== 'card') {
+    return undefined;
+  }
+  const pick = answers[0].o as SelectCardModel;
+  const gain = pick.resourceGainPrompt;
+  if (gain === undefined || (gain.amount !== undefined && gain.amount <= 0) || pick.discardPrompt !== undefined ||
+      (pick.max ?? 1) !== 1 || (pick.min ?? 1) !== 1 || pick.selectBlueCardAction === true) {
+    return undefined;
+  }
+  const enabled = pick.cards.filter((card) => card.isDisabled !== true);
+  // Only onto the viewer's OWN card: a «may» gift to a rival's lone card is the player's decision.
+  return enabled.length === 1 && viewer.ownsCard(enabled[0].name) ? {kind: 'optionalCard', branch: answers[0].i, name: enabled[0].name} : undefined;
 }
 
 /**
