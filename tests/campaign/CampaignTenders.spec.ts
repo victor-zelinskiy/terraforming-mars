@@ -40,18 +40,16 @@ describe('the «Тендеры» reward mode', () => {
     CampaignManager.resetForTesting();
   });
 
-  it('a titles campaign is byte-identical to before the mode existed; a tenders campaign prints its Register', async () => {
+  it('a titles campaign is byte-identical to before the mode existed; a tenders campaign opens its portfolio empty and deals nothing before a result', async () => {
     const titles = await manager.createCampaign(key(), tenderConfig());
     expect(titles.rewardMode).is.undefined;
-    expect(titles.register).is.undefined;
     expect(titles.progression.tenders).is.undefined;
     expect(campaignRewardMode(titles)).eq('titles');
     expect(manager.getModel(titles, 'Alice').rewardMode).eq('titles');
 
     const tenders = await manager.createCampaign(key(), tenderConfig(), {rewardMode: 'tenders'});
     expect(tenders.rewardMode).eq('tenders');
-    expect(tenders.register?.order.length).greaterThan(10);
-    expect(tenders.register?.drawn).eq(0);
+    expect(tenders.bidding, 'no table exists before a mission\'s results').is.undefined;
     expect(tenders.progression.tenders).deep.eq({});
     expect(manager.getModel(tenders, 'Alice').rewardMode).eq('tenders');
     // An unknown mode is a titles campaign.
@@ -110,7 +108,7 @@ describe('the «Тендеры» reward mode', () => {
     const first = result.standings[0].seat;
     const second = result.standings[1].seat;
     expect(bidding.order, 'the standings are the pick order').deep.eq([first, second]);
-    expect(loaded.register!.drawn).eq(2);
+    expect(new Set(bidding.offer.map((c) => c.id)).size, 'one card per kind on a table').eq(2);
     expect(manager.launchBlockersOf(loaded)).includes('Waiting for the tender bidding');
 
     const firstPid = loaded.missions[0].playerIds![first];

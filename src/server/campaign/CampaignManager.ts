@@ -69,7 +69,7 @@ import {
   tenderDef,
 } from '../../common/campaign/tenders';
 import {BiddingModel} from '../../common/campaign/CampaignModel';
-import {advanceBots, applyBid, biddingHoldings, biddingOrder, buildTenderRegister, dealTenderOffer, openBidding} from './tenderBidding';
+import {advanceBots, applyBid, biddingHoldings, biddingOrder, dealTenderOffer, openBidding} from './tenderBidding';
 import {TenderApplicabilityContext, tenderApplicable} from './tenderWindows';
 import {marsBotOf} from '../automa/AutomaUtil';
 import {Database} from '../database/Database';
@@ -419,12 +419,10 @@ export class CampaignManager {
       return {slot, board, modifiers: rollSlotModifiers(board, {randomMA: randomMAChance, shuffleMap: shuffleMapChance}, rolls)};
     });
 
-    // The «Тендеры» reward mode: the Register is printed and shuffled from the
-    // same stream, AFTER every roll — a titles campaign's route and rolls are
-    // byte-identical to before the mode existed.
+    // The «Тендеры» reward mode: nothing is dealt at creation — every mission's table comes off a FRESH deck
+    // shuffled at its commit (`openBiddingFor`), so a titles campaign's route and rolls are byte-identical to before
+    // the mode existed, and no deck order ever exists before a mission's results.
     const rewardMode: CampaignRewardMode = isCampaignRewardMode(options.rewardMode) ? options.rewardMode : 'titles';
-    const register = rewardMode === 'tenders' ?
-      buildTenderRegister(this.tenderApplicability(frozen, missionCount), rng) : undefined;
     // The offer rule (the owner, 2026-11-08): stored only when it is not the default, read through ONE reader.
     const tenderOffer: CampaignTenderOffer = isCampaignTenderOffer(options.tenderOffer) ? options.tenderOffer : DEFAULT_CAMPAIGN_TENDER_OFFER;
 
@@ -448,7 +446,7 @@ export class CampaignManager {
         ...(hasBot ? {botHoldings: []} : {}),
         ...(rewardMode === 'tenders' ? {tenders: {}} : {}),
       },
-      ...(rewardMode === 'tenders' ? {rewardMode, register} : {}),
+      ...(rewardMode === 'tenders' ? {rewardMode} : {}),
       ...(rewardMode === 'tenders' && tenderOffer !== DEFAULT_CAMPAIGN_TENDER_OFFER ? {tenderOffer} : {}),
     };
   }
@@ -887,7 +885,7 @@ export class CampaignManager {
       campaign.carryover = {sourceSlot: slot.slot, bySeat};
       campaign.pointer = slot.slot + 1;
       campaign.phase = 'interlude';
-      // The «Тендеры» mode: THE BIDDING opens — the Register deals the table,
+      // The «Тендеры» mode: THE BIDDING opens — the mission's fresh deck deals the table,
       // the standings set the order (a lot inside every full tie), and the bot
       // picks at once wherever its turn comes before a human's.
       if (tenderMode) {
@@ -901,14 +899,13 @@ export class CampaignManager {
   private openBiddingFor(campaign: SerializedCampaign, slot: SerializedMissionSlot, standings: ReadonlyArray<{seat: number, place: number}>): void {
     const rng = new SeededRandom(biddingSeedFor(campaign.generator.seed, slot.slot));
     const applicable = this.tenderApplicability(campaign.settings, campaign.missions.length);
-    const register = campaign.register ?? buildTenderRegister(applicable, rng);
-    // The campaign's OFFER RULE decides the table's size and how many seats take a card (the owner, 2026-11-08).
+    // The campaign's OFFER RULE decides the table's size and how many seats take a card (the owner, 2026-11-08); the
+    // table comes off THIS mission's fresh deck — one card of every applicable kind, shuffled by the mission's seed.
     const offerRule = campaignTenderOffer(campaign);
     const seatCount = campaign.seats.length;
-    const dealt = dealTenderOffer(register, biddingOfferSize(seatCount, offerRule), slot.slot, applicable, rng);
-    campaign.register = dealt.register;
+    const offer = dealTenderOffer(biddingOfferSize(seatCount, offerRule), slot.slot, applicable, rng);
     const {order, lots} = biddingOrder(standings.map((s) => ({seat: s.seat, place: s.place, score: 0, megaCredits: 0, corporations: [], tiedWith: []})), rng);
-    const bidding = advanceBots(openBidding(slot.slot, dealt.offer, order, lots, biddingPickers(seatCount, offerRule)), (seat) => campaign.seats[seat]?.kind === 'bot');
+    const bidding = advanceBots(openBidding(slot.slot, offer, order, lots, biddingPickers(seatCount, offerRule)), (seat) => campaign.seats[seat]?.kind === 'bot');
     this.settleBidding(campaign, bidding);
   }
 
@@ -1138,8 +1135,8 @@ export class CampaignManager {
       campaign.pointer = slot.slot;
       campaign.phase = 'missionActive';
       // The «Тендеры» mode: the revoked mission's bidding and what it gave are
-      // withdrawn (the Register's cards stay drawn — the next printing covers
-      // an exhausted deck; an honest loss, never a doubled card).
+      // withdrawn (the mission's deck is fresh at every commit — a replayed
+      // mission simply deals again).
       if (slot.bidding !== undefined || campaign.bidding?.sourceSlot === slot.slot) {
         slot.bidding = undefined;
         campaign.bidding = undefined;

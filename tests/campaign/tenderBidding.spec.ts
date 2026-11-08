@@ -24,10 +24,9 @@ import {
   biddingHoldings,
   biddingOrder,
   biddingPickerCount,
-  buildTenderRegister,
   dealTenderOffer,
+  missionTenderDeck,
   openBidding,
-  printTenderRegister,
 } from '../../src/server/campaign/tenderBidding';
 import {tenderApplicable, TenderApplicabilityContext} from '../../src/server/campaign/tenderWindows';
 import {MissionStanding} from '../../src/common/campaign/CampaignTypes';
@@ -37,17 +36,12 @@ const standing = (seat: number, place: number): MissionStanding =>
   ({seat, place, score: 0, megaCredits: 0, corporations: [], tiedWith: []});
 
 describe('the «Тендеры» catalog', () => {
-  it('every id has a row, a printed name, a unique bot priority and at least one copy — a LEGACY kind zero copies and stays readable', () => {
+  it('every id has a row, a printed name and a unique bot priority — a LEGACY kind stays readable but is in no mission deck', () => {
     const priorities = new Set<number>();
     for (const id of TENDER_IDS) {
       const def = TENDER_CATALOG[id];
       expect(def.id, id).eq(id);
       expect(TENDER_NAME_KEY[id], `${id} needs a printed name`).to.be.a('string').and.not.empty;
-      if (def.legacy === true) {
-        expect(def.copies, `${id} is legacy — never printed`).eq(0);
-      } else {
-        expect(def.copies, `${id} copies`).greaterThan(0);
-      }
       expect(priorities.has(def.botPriority), `${id} shares a bot priority`).is.false;
       priorities.add(def.botPriority);
       expect(['legacy', 'start']).includes(def.window);
@@ -56,7 +50,7 @@ describe('the «Тендеры» catalog', () => {
     expect(isTenderId('gamble')).is.true;
     expect(TENDER_DEALT_IDS.includes('gamble')).is.false;
     expect(TENDER_DEALT_IDS).includes('gamblePreludes').and.includes('gambleProjects').and.includes('gambleCorporations');
-    expect(printTenderRegister(ALL, new SeededRandom(0.3)).includes('gamble'), 'the Register never prints a legacy kind').is.false;
+    expect(missionTenderDeck(ALL, new SeededRandom(0.3)).includes('gamble'), 'a mission deck never holds a legacy kind').is.false;
     expect(isGambleTender('gamblePreludes') && isGambleTender('gambleCorporations') && isGambleTender('gamble')).is.true;
     expect(isGambleTender('openCall')).is.false;
     expect(isTenderId('preferentialMerger'), 'a removed kind is no tender').is.false;
@@ -108,78 +102,59 @@ describe('the «Тендеры» catalog', () => {
   });
 });
 
-describe('the Register', () => {
-  it('prints every copy of every applicable kind, shuffled reproducibly by the seed', () => {
-    const a = printTenderRegister(ALL, new SeededRandom(0.25));
-    const b = printTenderRegister(ALL, new SeededRandom(0.25));
+describe('the mission deck (the owner, 2026-11-08: one card of every kind, shuffled anew for every mission)', () => {
+  it('holds ONE card of every applicable dealt kind, shuffled reproducibly by the seed; a kind the campaign cannot use is not in it', () => {
+    const a = missionTenderDeck(ALL, new SeededRandom(0.25));
+    const b = missionTenderDeck(ALL, new SeededRandom(0.25));
     expect(a).deep.eq(b);
-    const total = TENDER_IDS.reduce((sum, id) => sum + TENDER_CATALOG[id].copies, 0);
-    expect(a).has.length(total);
-    for (const id of TENDER_IDS) {
-      expect(a.filter((x) => x === id)).has.length(TENDER_CATALOG[id].copies);
+    expect(a).has.length(TENDER_DEALT_IDS.length);
+    expect(new Set(a).size, 'one card of every kind — never two').eq(a.length);
+    for (const id of TENDER_DEALT_IDS) {
+      expect(a).includes(id);
     }
-    const noPreludes = printTenderRegister((id) => !TENDER_CATALOG[id].needsPreludes, new SeededRandom(0.25));
+    expect(a, 'a different seed shuffles differently').not.deep.eq(missionTenderDeck(ALL, new SeededRandom(0.75)));
+    const noPreludes = missionTenderDeck((id) => !TENDER_CATALOG[id].needsPreludes, new SeededRandom(0.25));
     expect(noPreludes.some((id) => TENDER_CATALOG[id].needsPreludes)).is.false;
+    expect(noPreludes.length).lessThan(a.length);
   });
 
-  it('a deal is RANDOM: it takes the top cards as they lie — two copies of one kind may share a table (the owner, 2026-11-08)', () => {
-    const register = {order: ['gamble', 'gamble', 'restructuring', 'openCall'] as Array<TenderId>, drawn: 0};
-    const dealt = dealTenderOffer(register, 2, 1, ALL, new SeededRandom(0.5));
-    expect(dealt.offer.map((c) => c.id)).deep.eq(['gamble', 'gamble']);
-    expect(dealt.offer.map((c) => c.instance)).deep.eq(['t1-0', 't1-1']);
-    // Nothing went under the Register; the cursor sits past the two dealt.
-    expect(dealt.register.order).deep.eq(['gamble', 'gamble', 'restructuring', 'openCall']);
-    expect(dealt.register.drawn).eq(2);
-    // The next deal continues from the cursor.
-    const next = dealTenderOffer(dealt.register, 2, 2, ALL, new SeededRandom(0.5));
-    expect(next.offer.map((c) => c.id)).deep.eq(['restructuring', 'openCall']);
-    expect(next.register.drawn).eq(4);
-    // Two minors side by side are an honest table too — no tier is steered but the decisive.
-    const minors = {order: ['researchSubsidy', 'broadPortfolio', 'openCall'] as Array<TenderId>, drawn: 0};
-    expect(dealTenderOffer(minors, 2, 0, ALL, new SeededRandom(0.5)).offer.map((c) => c.id)).deep.eq(['researchSubsidy', 'broadPortfolio']);
+  it('a deal is RANDOM off the top of the fresh deck: distinct kinds (one card each), two minors are an honest table, instances by slot', () => {
+    const offer = dealTenderOffer(4, 1, ALL, new SeededRandom(0.5));
+    expect(offer).has.length(4);
+    expect(new Set(offer.map((c) => c.id)).size, 'one card per kind — no kind twice on one table').eq(4);
+    expect(offer.map((c) => c.instance)).deep.eq(['t1-0', 't1-1', 't1-2', 't1-3']);
+    // A deal of nothing but the minors is honest — no tier but the decisive is steered.
+    const minorsOnly = (id: TenderId) => tenderDef(id).tier === 'minor';
+    expect(dealTenderOffer(2, 0, minorsOnly, new SeededRandom(0.5)).map((c) => tenderDef(c.id).tier)).deep.eq(['minor', 'minor']);
   });
 
-  it('AT MOST ONE DECISIVE per offer: the second decisive goes under the Register and is dealt at a later table', () => {
+  it('AT MOST ONE DECISIVE per table: the second decisive is set aside and the next card takes its place — whatever the seed', () => {
     // The owner, 2026-11-07: «Продление программы» and «Дополнительный пролог» never lie on one table.
-    const register = {order: ['programExtension', 'additionalPrelude', 'restructuring', 'openCall'] as Array<TenderId>, drawn: 0};
-    const dealt = dealTenderOffer(register, 2, 1, ALL, new SeededRandom(0.5));
-    expect(dealt.offer.map((c) => c.id)).deep.eq(['programExtension', 'restructuring']);
-    expect(dealt.register.order).deep.eq(['programExtension', 'restructuring', 'openCall', 'additionalPrelude']);
-    // The next table gets the deferred decisive — a player can still collect both across two missions.
-    const next = dealTenderOffer(dealt.register, 2, 2, ALL, new SeededRandom(0.5));
-    expect(next.offer.map((c) => c.id)).deep.eq(['openCall', 'additionalPrelude']);
-    // A full Register never deals two decisives together, whatever the shuffle.
-    for (const seed of [0.05, 0.3, 0.62, 0.9]) {
-      const full = buildTenderRegister(ALL, new SeededRandom(seed));
-      let reg = full;
-      for (let slot = 0; slot < 5; slot++) {
-        const table = dealTenderOffer(reg, 4, slot, ALL, new SeededRandom(seed));
-        const decisive = table.offer.filter((c) => tenderDef(c.id).tier === 'decisive').length;
-        expect(decisive, `seed ${seed} slot ${slot}`).lte(1);
-        reg = table.register;
+    const decisiveOrNotable = (id: TenderId) => tenderDef(id).tier === 'decisive' || tenderDef(id).tier === 'notable';
+    for (const seed of [0.05, 0.3, 0.62, 0.9, 0.17, 0.44]) {
+      for (const size of [2, 4, 5]) {
+        const table = dealTenderOffer(size, 0, decisiveOrNotable, new SeededRandom(seed));
+        const decisive = table.filter((c) => tenderDef(c.id).tier === 'decisive').length;
+        expect(decisive, `seed ${seed} size ${size}`).lte(1);
+        expect(table, `seed ${seed} size ${size} — the set-aside decisive is replaced`).has.length(size);
       }
     }
+    // Both decisives in a two-card deck: one dealt, the other set aside — an honest short table.
+    const decisiveOnly = (id: TenderId) => tenderDef(id).tier === 'decisive';
+    const two = dealTenderOffer(2, 0, decisiveOnly, new SeededRandom(0.5));
+    expect(two).has.length(1);
+    expect(tenderDef(two[0].id).tier).eq('decisive');
   });
 
-  it('an exhausted Register appends a second printing; a kind that is never applicable leaves it', () => {
-    const register = {order: ['openCall'] as Array<TenderId>, drawn: 0};
-    const applicable = (id: TenderId) => id !== 'openCall';
-    const dealt = dealTenderOffer(register, 2, 0, applicable, new SeededRandom(0.1));
-    expect(dealt.offer).has.length(2);
-    expect(dealt.offer.some((c) => c.id === 'openCall')).is.false;
-    expect(dealt.register.order.includes('openCall')).is.false;
-    expect(dealt.register.order.length).greaterThan(2);
-  });
-
-  it('nothing applicable at all → an honest short offer, never a loop', () => {
-    const dealt = dealTenderOffer({order: [], drawn: 0}, 3, 0, () => false, new SeededRandom(0.1));
-    expect(dealt.offer).is.empty;
-  });
-
-  it('buildTenderRegister starts the cursor at zero', () => {
-    const register = buildTenderRegister(ALL, new SeededRandom(0.9));
-    expect(register.drawn).eq(0);
-    expect(register.order.length).greaterThan(0);
+  it('the deck is the MISSION\'s: the next mission shuffles afresh — the same kind may come again; nothing applicable → an empty table', () => {
+    const first = dealTenderOffer(2, 0, ALL, new SeededRandom(0.31));
+    const second = dealTenderOffer(2, 1, ALL, new SeededRandom(0.31));
+    expect(second.map((c) => c.id), 'the same seed deals the same kinds again — no cursor carries over').deep.eq(first.map((c) => c.id));
+    expect(second.map((c) => c.instance)).deep.eq(['t1-0', 't1-1']);
+    expect(dealTenderOffer(3, 0, () => false, new SeededRandom(0.1))).is.empty;
+    // A deck shorter than the table deals what it has.
+    const onlyOpenCall = (id: TenderId) => id === 'openCall';
+    expect(dealTenderOffer(3, 0, onlyOpenCall, new SeededRandom(0.1)).map((c) => c.id)).deep.eq(['openCall']);
   });
 });
 

@@ -335,8 +335,6 @@
   "Tenders showcase": "Витрина тендеров",
   "Every tender of the Committee: the certificate at its sizes and states, the fullscreen viewer, a simulated Register deal and the real bidding scene": "Каждый тендер Комитета: сертификат во всех размерах и состояниях, полноэкранный осмотр, симуляция раздачи Реестра и настоящая сцена торгов",
   "Tender catalog": "Каталог тендеров",
-  "Register": "Реестр",
-  "Copies": "Копий",
   "Bot priority": "Приоритет бота",
   "Needs the Prelude expansion": "Нужно дополнение «Прелюдия»",
   "Reader": "Чтение",
@@ -349,7 +347,6 @@
   "Prelude expansion": "Дополнение «Прелюдия»",
   "Deal seed": "Сид раздачи",
   "Decisive on the table": "Решающих на столе",
-  "Two copies of one kind on the table — allowed": "Две копии одного вида на столе — допустимо",
   "Redeal": "Пересдать",
   "Play the table": "Играть стол",
   "Back to the catalog": "К каталогу",
@@ -375,5 +372,6 @@
   "Redeal all ${0} preludes": "Пересдать все прологи: ${0}",
   "Redeal all ${0} projects": "Пересдать все проекты: ${0}",
   "Redeal the ${0} corporations offered": "Пересдать предложенные корпорации: ${0}",
-  "The finale deploys your lineage — no corporation is drafted": "Финал развёртывает вашу линейку — корпорация не драфтится"
+  "The finale deploys your lineage — no corporation is drafted": "Финал развёртывает вашу линейку — корпорация не драфтится",
+  "Mission deck": "Колода миссии"
 }

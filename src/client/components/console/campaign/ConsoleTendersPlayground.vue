@@ -3,14 +3,14 @@
     TENDERS — the playground stand («Полигон» → «Витрина тендеров», the owner 2026-11-08: «полигон тендеров для осмотра
     в дев режиме»). One instrument for every tender of the Committee and the ones after it:
       1. THE CATALOG as it ships (`TENDER_CATALOG` + `tenderMeta` — nothing hand-drawn): every certificate at the
-         table size with its tier, window, lot, copies and the bot's denial rank; X opens the SAME fullscreen viewer the
-         game opens (`tenderZoomEntry`), LB/RB there browse the catalog.
+         table size with its tier, window, lot and the bot's denial rank; X opens the SAME fullscreen viewer the game
+         opens (`tenderZoomEntry`), LB/RB there browse the catalog.
       2. THE DOCUMENT of the selected tender at the three sizes the game paints (table · reader · plaque) and in EVERY
          STATE the game stamps it with (open · under the cursor · taken by a seat · withdrawn · executed · bought back).
-      3. THE DEAL — a simulated Register: seats 2…5, the campaign's OFFER RULE (all · all but the last · all but two),
-         the Prelude expansion on or off (the applicability), a seed; the table is dealt by the SAME pure engine the
-         server runs (`dealTenderOffer`: random but for one decisive per table — two copies of one kind may lie side by
-         side), and the REAL bidding scene (`ConsoleTenderBidding`) plays it: the Register deals and turns the lots, the
+      3. THE DEAL — a simulated MISSION DECK: seats 2…5, the campaign's OFFER RULE (all · all but the last · all but
+         two), the Prelude expansion on or off (the applicability), a seed; the table is dealt by the SAME pure engine
+         the server runs (`dealTenderOffer`: one card of every applicable kind shuffled afresh, random but for one
+         decisive per table), and the REAL bidding scene (`ConsoleTenderBidding`) plays it: the deck deals and turns the lots, the
          places pick in turn (You are seat 0 — A takes on your turn; the other humans and the bot pick by the denial
          order, presented one by one), the last place is said «без тендера». RT redeals with the next seed.
     Pad: ◀ ▶ the catalog cursor · X the viewer · RT redeal · LT the table takes the pad (◀ ▶ / A / X go to the scene;
@@ -31,7 +31,7 @@
 
     <!-- ── 1. THE CATALOG ── -->
     <section class="con-tdpg__section">
-      <h2>{{ $t('Tender catalog') }} · {{ catalog.length }} <span class="con-tdpg__dim">{{ $t('Register') }} · {{ registerSize }}</span></h2>
+      <h2>{{ $t('Tender catalog') }} · {{ catalog.length }} <span class="con-tdpg__dim">{{ $t('Mission deck') }} · {{ deckSize }}</span></h2>
       <div class="con-tdpg__catalog" data-tdpg-catalog>
         <div v-for="(entry, i) in catalog" :key="entry.id"
              class="con-tdpg__slot"
@@ -47,7 +47,6 @@
             <span class="con-tdpg__dim">{{ $t(windowKey(entry.id)) }}</span>
           </span>
           <span class="con-tdpg__slot-meta">
-            <span>{{ $t('Copies') }} {{ entry.copies }}</span>
             <span>{{ $t('Bot priority') }} {{ entry.botPriority }}</span>
             <span v-if="!applicable(entry.id)" class="con-tdpg__off">{{ $t('Needs the Prelude expansion') }}</span>
           </span>
@@ -81,7 +80,7 @@
       </div>
     </section>
 
-    <!-- ── 3. THE DEAL — the simulated Register and the real bidding scene ── -->
+    <!-- ── 3. THE DEAL — the simulated mission deck and the real bidding scene ── -->
     <section class="con-tdpg__section">
       <h2>{{ $t('The deal') }}</h2>
       <div class="con-tdpg__controls" data-tdpg-controls>
@@ -90,7 +89,6 @@
         <span class="con-tdpg__control"><span class="con-tdpg__ckey">{{ $t('Prelude expansion') }}</span><b data-tdpg-preludes>{{ preludes ? '✓' : '—' }}</b></span>
         <span class="con-tdpg__control"><span class="con-tdpg__ckey">{{ $t('Deal seed') }}</span><b data-tdpg-seed>{{ seed }}</b></span>
         <span class="con-tdpg__control"><span class="con-tdpg__ckey">{{ $t('Decisive on the table') }}</span><b data-tdpg-decisive>{{ decisiveCount }}</b></span>
-        <span v-if="duplicateKinds.length > 0" class="con-tdpg__control con-tdpg__control--note" data-tdpg-duplicates>{{ $t('Two copies of one kind on the table — allowed') }}</span>
       </div>
       <div class="con-tdpg__table" :class="{'con-tdpg__table--focus': tableFocus}" data-tdpg-table :data-tdpg-table-focus="tableFocus ? 'yes' : undefined">
         <ConsoleTenderBidding v-if="bidding !== undefined"
@@ -118,7 +116,7 @@ import {
   biddingOfferSize, biddingOpenCards, biddingPickers, biddingTurnSeat, botTenderPick, effectiveTenderOffer, tenderDef,
 } from '@/common/campaign/tenders';
 import {SeededRandom} from '@/common/utils/Random';
-import {advanceBots, applyBid, biddingOrder, dealTenderOffer, openBidding, printTenderRegister} from '@/server/campaign/tenderBidding';
+import {advanceBots, applyBid, biddingOrder, dealTenderOffer, openBidding} from '@/server/campaign/tenderBidding';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {stepIndex} from '@/client/console/consoleRouter';
@@ -131,7 +129,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleTenderCard from './ConsoleTenderCard.vue';
 import ConsoleTenderBidding from './ConsoleTenderBidding.vue';
 
-type CatalogEntry = TenderMeta & Pick<TenderDef, 'tier' | 'copies' | 'botPriority' | 'needsPreludes'>;
+type CatalogEntry = TenderMeta & Pick<TenderDef, 'tier' | 'botPriority' | 'needsPreludes'>;
 
 type StateRow = {key: string, label: string, state: TenderCardState, owner?: {name: string, color: Color}, focused?: boolean};
 
@@ -177,10 +175,10 @@ export default defineComponent({
   },
   computed: {
     catalog(): ReadonlyArray<CatalogEntry> {
-      // The kinds the Register prints — a legacy id (the undivided «Авантюра») is kept for older holdings only.
+      // The kinds a mission deck holds — a legacy id (the undivided «Авантюра») is kept for older holdings only.
       return TENDER_DEALT_IDS.map((id) => {
         const def = TENDER_CATALOG[id];
-        return {...tenderMeta(id), tier: def.tier, copies: def.copies, botPriority: def.botPriority, needsPreludes: def.needsPreludes};
+        return {...tenderMeta(id), tier: def.tier, botPriority: def.botPriority, needsPreludes: def.needsPreludes};
       });
     },
     selected(): CatalogEntry | undefined {
@@ -189,9 +187,9 @@ export default defineComponent({
     seats(): ReadonlyArray<CampaignSeat> {
       return SEAT_POOL.slice(0, this.seatCount);
     },
-    /** The printed Register under the current applicability — every copy of every applicable kind. */
-    registerSize(): number {
-      return TENDER_DEALT_IDS.filter((id) => this.applicable(id)).reduce((sum, id) => sum + TENDER_CATALOG[id].copies, 0);
+    /** The mission deck under the current applicability — one card of every applicable kind. */
+    deckSize(): number {
+      return TENDER_DEALT_IDS.filter((id) => this.applicable(id)).length;
     },
     offerLabel(): string {
       return campaignTenderOfferLabel(effectiveTenderOffer(this.offerRule, this.seatCount));
@@ -208,17 +206,6 @@ export default defineComponent({
     },
     decisiveCount(): number {
       return (this.bidding?.offer ?? []).filter((c) => tenderDef(c.id).tier === 'decisive').length;
-    },
-    duplicateKinds(): ReadonlyArray<TenderId> {
-      const seen = new Set<TenderId>();
-      const dup = new Set<TenderId>();
-      for (const c of this.bidding?.offer ?? []) {
-        if (seen.has(c.id)) {
-          dup.add(c.id);
-        }
-        seen.add(c.id);
-      }
-      return [...dup];
     },
   },
   created() {
@@ -244,14 +231,13 @@ export default defineComponent({
         this.rivalTimer = undefined;
       }
     },
-    /** A fresh table: the Register printed and shuffled by the seed, dealt by the server's own engine, the order a lot of the seed. */
+    /** A fresh table: the mission deck shuffled by the seed, dealt by the server's own engine, the order a lot of the seed. */
     deal(): void {
       this.clearRival();
       const rng = new SeededRandom((this.seed * 0.6180339887) % 1);
       const applicable = (id: TenderId) => this.applicable(id);
-      const register = {order: printTenderRegister(applicable, rng), drawn: 0};
       const rule = effectiveTenderOffer(this.offerRule, this.seatCount);
-      const dealt = dealTenderOffer(register, biddingOfferSize(this.seatCount, rule), 0, applicable, rng);
+      const offer = dealTenderOffer(biddingOfferSize(this.seatCount, rule), 0, applicable, rng);
       // The standings: a seeded shuffle of the seats — You land anywhere in the order.
       const standings = this.seats.map((s, i) => ({seat: s.seat, place: i + 1, score: 0, megaCredits: 0, corporations: [], tiedWith: []}));
       for (let i = standings.length - 1; i > 0; i--) {
@@ -263,7 +249,7 @@ export default defineComponent({
       });
       const {order, lots} = biddingOrder(standings, rng);
       this.dealSeq++;
-      this.bidding = advanceBots(openBidding(0, dealt.offer, order, lots, biddingPickers(this.seatCount, rule)), (seat) => this.seats[seat]?.kind === 'bot');
+      this.bidding = advanceBots(openBidding(0, offer, order, lots, biddingPickers(this.seatCount, rule)), (seat) => this.seats[seat]?.kind === 'bot');
       this.armRival();
     },
     /** A rival human's pick arrives a beat after their turn — the catalog's denial order, like the bot's. */

@@ -42,7 +42,7 @@ export type PartyEffectZoomEntry = {partyEffect: ReduxParty, name: string};
  * A campaign TENDER as a browser entry (the «Тендеры» reward mode, §16.6): renders the Committee's certificate
  * (`ConsoleTenderCard`, the reader size) in the SAME viewer every card opens in — the bidding's table, the portfolio,
  * the playground. `state` / `owner` are the document's stamps as the opener sees them; `name` keys the modal's cache /
- * nav off the INSTANCE (two copies of one kind may share a table since 2026-11-08), the kind when there is none.
+ * nav off the INSTANCE (a holder may own two copies of one kind across missions), the kind when there is none.
  */
 export type TenderZoomEntry = {tender: TenderId, state: TenderCardState, owner?: {name: string, color: Color}, name: string};
 
@@ -68,7 +68,7 @@ export function isTenderZoom(card: ZoomCard): card is TenderZoomEntry {
   return (card as Partial<TenderZoomEntry>).tender !== undefined;
 }
 
-/** Build a tender entry — `instance` keeps two copies of one kind apart in one list. */
+/** Build a tender entry — `instance` keeps two holdings of one kind apart in one list. */
 export function tenderZoomEntry(tender: TenderId, opts: {instance?: string, state?: TenderCardState, owner?: {name: string, color: Color}} = {}): TenderZoomEntry {
   return {tender, state: opts.state ?? 'open', owner: opts.owner, name: `tender:${opts.instance ?? tender}`};
 }

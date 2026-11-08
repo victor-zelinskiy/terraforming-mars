@@ -1,10 +1,11 @@
 // Campaign «ТЕНДЕРЫ» — the presentation registry (`common/campaign/tenders.ts`
 // is the rule). ONE row per tender id: its printed name, its rule in one
 // sentence, its lore line, its lot number and the glyph the document wears.
-// THE RULE'S VOICE (the owner, 2026-11-08): short, plain and STACKABLE — two
-// copies of one kind may be held, so a rule says what ONE MORE copy adds («на
-// один пролог больше»), never «3 вместо 2»; the window is printed on its own
-// line, so the rule never opens with «на старте финала».
+// THE RULE'S VOICE (the owner, 2026-11-08): short, plain and STACKABLE — the
+// mission deck is shuffled afresh every mission, so the same kind can be won
+// twice over a campaign; a rule says what ONE MORE copy adds («на один пролог
+// больше»), never «3 вместо 2»; the window is printed on its own line, so the
+// rule never opens with «на старте финала».
 // Every surface that shows a tender (the bidding's table, the podium plaque,
 // the start's «НАСЛЕДИЕ › ТЕНДЕРЫ» page, the campaign map) reads this table —
 // a new tender is a new row here and nothing else on the client; the compiler

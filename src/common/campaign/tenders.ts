@@ -1,7 +1,8 @@
 // Campaign mode — «ТЕНДЕРЫ» (docs/CAMPAIGN_CONCESSIONS_DESIGN.md): the second
-// reward mode of a campaign. After every non-final mission a BIDDING deals
-// `seats − 1` tender cards from the Register, the seats pick by place, and
-// each tender shapes the FINALE's start — the deal, the draft, the legacy.
+// reward mode of a campaign. After every non-final mission a BIDDING deals the
+// table from a FRESH deck — ONE card of every applicable kind, shuffled anew for
+// that mission (the owner, 2026-11-08) — the seats pick by place, and each
+// tender shapes the FINALE's start — the deal, the draft, the legacy.
 // Never a point, never a resource: a tender left unexecuted is bought back
 // by the Committee for `TENDER_COMPENSATION_MC` at the finale's start.
 //
@@ -78,13 +79,11 @@ export type TenderDef = {
   id: TenderId;
   tier: TenderTier;
   window: TenderWindow;
-  /** Copies in the Register (the ONE balance dial — data, never code). */
-  copies: number;
   /** The bot's pick order, 1 = taken first. Unique across the catalog. */
   botPriority: number;
   /** The tender exists only with the Prelude expansion at the table. */
   needsPreludes: boolean;
-  /** A kind the Register no longer prints (`copies` 0) — kept for the holdings of older campaigns, hidden from every catalog view. */
+  /** A kind no mission deck holds any more — kept for the holdings of older campaigns, hidden from every catalog view. */
   legacy?: boolean;
 };
 
@@ -94,27 +93,27 @@ export type TenderDef = {
  * its effect, its meta and its copy.
  */
 export const TENDER_CATALOG: Readonly<Record<TenderId, TenderDef>> = {
-  programExtension: {id: 'programExtension', tier: 'decisive', window: 'legacy', copies: 2, botPriority: 1, needsPreludes: true},
-  additionalPrelude: {id: 'additionalPrelude', tier: 'decisive', window: 'start', copies: 2, botPriority: 2, needsPreludes: true},
-  restructuring: {id: 'restructuring', tier: 'notable', window: 'start', copies: 3, botPriority: 4, needsPreludes: false},
-  extendedLegacy: {id: 'extendedLegacy', tier: 'notable', window: 'legacy', copies: 3, botPriority: 6, needsPreludes: false},
-  preludeReview: {id: 'preludeReview', tier: 'notable', window: 'start', copies: 3, botPriority: 5, needsPreludes: true},
-  projectReview: {id: 'projectReview', tier: 'notable', window: 'start', copies: 3, botPriority: 7, needsPreludes: false},
-  researchSubsidy: {id: 'researchSubsidy', tier: 'minor', window: 'start', copies: 2, botPriority: 11, needsPreludes: false},
+  programExtension: {id: 'programExtension', tier: 'decisive', window: 'legacy', botPriority: 1, needsPreludes: true},
+  additionalPrelude: {id: 'additionalPrelude', tier: 'decisive', window: 'start', botPriority: 2, needsPreludes: true},
+  restructuring: {id: 'restructuring', tier: 'notable', window: 'start', botPriority: 4, needsPreludes: false},
+  extendedLegacy: {id: 'extendedLegacy', tier: 'notable', window: 'legacy', botPriority: 6, needsPreludes: false},
+  preludeReview: {id: 'preludeReview', tier: 'notable', window: 'start', botPriority: 5, needsPreludes: true},
+  projectReview: {id: 'projectReview', tier: 'notable', window: 'start', botPriority: 7, needsPreludes: false},
+  researchSubsidy: {id: 'researchSubsidy', tier: 'minor', window: 'start', botPriority: 11, needsPreludes: false},
   // THE GAMBLES (the owner, 2026-11-08): one per pool — the preludes, the projects, and the corporations the finale
   // DRAFTS (a three-mission route; printed only when the finale picks a corporation — `tenderWindows.ts`).
-  gamblePreludes: {id: 'gamblePreludes', tier: 'gamble', window: 'start', copies: 2, botPriority: 8, needsPreludes: true},
-  gambleProjects: {id: 'gambleProjects', tier: 'gamble', window: 'start', copies: 2, botPriority: 9, needsPreludes: false},
-  gambleCorporations: {id: 'gambleCorporations', tier: 'gamble', window: 'start', copies: 1, botPriority: 10, needsPreludes: false},
-  gamble: {id: 'gamble', tier: 'gamble', window: 'start', copies: 0, botPriority: 13, needsPreludes: true, legacy: true},
-  openCall: {id: 'openCall', tier: 'notable', window: 'start', copies: 3, botPriority: 3, needsPreludes: true},
-  broadPortfolio: {id: 'broadPortfolio', tier: 'minor', window: 'start', copies: 2, botPriority: 12, needsPreludes: false},
+  gamblePreludes: {id: 'gamblePreludes', tier: 'gamble', window: 'start', botPriority: 8, needsPreludes: true},
+  gambleProjects: {id: 'gambleProjects', tier: 'gamble', window: 'start', botPriority: 9, needsPreludes: false},
+  gambleCorporations: {id: 'gambleCorporations', tier: 'gamble', window: 'start', botPriority: 10, needsPreludes: false},
+  gamble: {id: 'gamble', tier: 'gamble', window: 'start', botPriority: 13, needsPreludes: true, legacy: true},
+  openCall: {id: 'openCall', tier: 'notable', window: 'start', botPriority: 3, needsPreludes: true},
+  broadPortfolio: {id: 'broadPortfolio', tier: 'minor', window: 'start', botPriority: 12, needsPreludes: false},
 };
 
 /** Every id the rule knows — the legacy ones included (a holding of an older campaign must still resolve). */
 export const TENDER_IDS: ReadonlyArray<TenderId> = Object.keys(TENDER_CATALOG) as Array<TenderId>;
 
-/** The kinds the Register PRINTS today — every catalog view (the stand, the balance table) shows these. */
+/** The kinds a MISSION DECK holds (one card each) — every catalog view (the stand, the balance table) shows these. */
 export const TENDER_DEALT_IDS: ReadonlyArray<TenderId> = TENDER_IDS.filter((id) => TENDER_CATALOG[id].legacy !== true);
 
 /** A gamble of any pool — the one-press redeal with the «your picks will be cleared» confirm. */
@@ -209,7 +208,7 @@ export type BiddingOfferCard = {
   id: TenderId;
   /** The seat that took it; absent while it lies on the table. */
   takenBy?: number;
-  /** Two seats only: the card the winner did not take is withdrawn under the Register. */
+  /** Two seats only: the card the winner did not take is withdrawn (back into the mission's deck, never dealt again this bidding). */
   withdrawn?: boolean;
 };
 

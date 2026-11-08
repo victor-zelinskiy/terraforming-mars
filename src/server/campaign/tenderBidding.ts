@@ -1,8 +1,8 @@
 // Campaign «ТЕНДЕРЫ» — the BIDDING engine (docs/CAMPAIGN_CONCESSIONS_DESIGN.md §3).
 //
-// Pure: the manager hands in the standings, the Register and the campaign's
+// Pure: the manager hands in the standings, the applicability and the mission's
 // seeded stream; every function returns new state and touches nothing else, so
-// the whole rule — the Register, the deal, the pick order with its lots, the
+// the whole rule — the mission deck, the deal, the pick order with its lots, the
 // bot's denial pick, the close — is tested row by row without a campaign.
 
 import {Random} from '../../common/utils/Random';
@@ -11,8 +11,7 @@ import {
   BiddingLot,
   BiddingOfferCard,
   BiddingState,
-  TENDER_CATALOG,
-  TENDER_IDS,
+  TENDER_DEALT_IDS,
   TenderHolding,
   TenderId,
   biddingOpenCards,
@@ -23,15 +22,15 @@ import {
 } from '../../common/campaign/tenders';
 
 /**
- * THE REGISTER — the campaign's shuffled tender deck. `order` is every copy of
- * every applicable kind, shuffled once with the route's seed; `drawn` is the
- * cursor. A copy skipped at a deal (a second decisive) goes to the bottom;
- * an exhausted Register appends a second printing.
+ * THE MISSION DECK (the owner, 2026-11-08): ONE card of every applicable kind
+ * the catalog deals today (a legacy kind never), shuffled afresh for THIS
+ * mission from the campaign's seeded stream. Nothing persists between
+ * missions — the same kind may come again at the next table, which is why a
+ * tender's text speaks of what ONE MORE copy adds.
  */
-export type TenderRegister = {
-  order: Array<TenderId>;
-  drawn: number;
-};
+export function missionTenderDeck(applicable: (id: TenderId) => boolean, rng: Random): Array<TenderId> {
+  return shuffled(TENDER_DEALT_IDS.filter((id) => applicable(id)), rng);
+}
 
 function shuffled<T>(items: ReadonlyArray<T>, rng: Random): Array<T> {
   const out = [...items];
@@ -42,76 +41,38 @@ function shuffled<T>(items: ReadonlyArray<T>, rng: Random): Array<T> {
   return out;
 }
 
-/** One printing of the Register: every copy of every applicable kind, shuffled. */
-export function printTenderRegister(applicable: (id: TenderId) => boolean, rng: Random): Array<TenderId> {
-  const copies: Array<TenderId> = [];
-  for (const id of TENDER_IDS) {
-    if (!applicable(id)) {
-      continue;
-    }
-    for (let k = 0; k < TENDER_CATALOG[id].copies; k++) {
-      copies.push(id);
-    }
-  }
-  return shuffled(copies, rng);
-}
-
-export function buildTenderRegister(applicable: (id: TenderId) => boolean, rng: Random): TenderRegister {
-  return {order: printTenderRegister(applicable, rng), drawn: 0};
-}
-
 /**
- * THE DEAL — `size` cards off the top of the Register onto the table, RANDOM
- * but for ONE rule: AT MOST ONE DECISIVE tender among them (the owner,
- * 2026-11-07: «Продление программы» and «Дополнительный пролог» never lie on
- * one table — a player may still collect both by winning two missions). Nothing
- * else is steered (the owner, 2026-11-08: «в остальном ограничений нет — может
- * хоть два малых выпасть»): two copies of one kind may lie side by side, two
- * minors may be the whole table. A second decisive — or a kind this slot does
- * not admit — goes under the Register and is drawn again later. Exhausted → a
- * second printing joins the bottom. Returns the dealt offer and the Register as
- * it stands after.
+ * THE DEAL — `size` cards off the top of the mission's fresh deck onto the
+ * table, RANDOM but for ONE rule: AT MOST ONE DECISIVE tender among them (the
+ * owner, 2026-11-07: «Продление программы» and «Дополнительный пролог» never
+ * lie on one table — a player may still collect both by winning two missions).
+ * Nothing else is steered (the owner, 2026-11-08: «в остальном ограничений нет
+ * — может хоть два малых выпасть»): two minors may be the whole table. A second
+ * decisive is set aside and the next card takes its place. A deck shorter than
+ * the table (few applicable kinds) deals an honest short offer.
  */
 export function dealTenderOffer(
-  register: TenderRegister,
   size: number,
   slot: number,
   applicable: (id: TenderId) => boolean,
   rng: Random,
-): {offer: Array<BiddingOfferCard>, register: TenderRegister} {
-  const order = [...register.order];
-  let drawn = register.drawn;
+): Array<BiddingOfferCard> {
+  const deck = missionTenderDeck(applicable, rng);
   const offer: Array<BiddingOfferCard> = [];
   let decisiveOnTable = false;
-  // A bound on the walk: every copy inspected at most twice plus one printing.
-  let budget = order.length * 2 + 1;
-  while (offer.length < size && budget > 0) {
-    budget--;
-    if (drawn >= order.length) {
-      const printing = printTenderRegister(applicable, rng);
-      if (printing.length === 0) {
-        break; // nothing applicable at all — an honest short offer
-      }
-      order.push(...printing);
-      budget += printing.length;
+  for (const id of deck) {
+    if (offer.length >= size) {
+      break;
     }
-    const id = order[drawn];
-    if (!applicable(id)) {
-      order.splice(drawn, 1); // a kind this campaign can never use leaves the Register
-      continue;
-    }
-    if (decisiveOnTable && tenderDef(id).tier === 'decisive') {
-      order.splice(drawn, 1);
-      order.push(id); // under the Register — drawn again later
-      continue;
-    }
-    drawn++;
     if (tenderDef(id).tier === 'decisive') {
+      if (decisiveOnTable) {
+        continue; // set aside — the next card takes its place
+      }
       decisiveOnTable = true;
     }
     offer.push({instance: `t${slot}-${offer.length}`, id});
   }
-  return {offer, register: {order, drawn}};
+  return offer;
 }
 
 /**
@@ -145,8 +106,7 @@ export {biddingPickerCount};
 
 /**
  * Is the bidding over? Every picking seat has picked, or nothing is left on
- * the table. Leftover cards are withdrawn under the Register (the two-seat
- * table's second card).
+ * the table. Leftover cards are withdrawn (the two-seat table's second card).
  */
 function closeIfDone(bidding: BiddingState): BiddingState {
   const open = biddingOpenCards(bidding);
