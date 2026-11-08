@@ -1,5 +1,5 @@
 import {test, expect, Page} from './consoleTest';
-import {fillPicks, pickCards, press, pressUntil, reloadConsole, stepKind, stepSubject, summaryVisible, waitPressable} from './consoleStart';
+import {cinematicBeat, fillPicks, pickCards, press, pressUntil, reloadConsole, stepKind, stepSubject, summaryVisible, waitPressable} from './consoleStart';
 
 /**
  * «ЭПАТАЖНЫЙ СПОНСОР» — the play-from-hand prelude, as a STEP of the Game
@@ -458,5 +458,37 @@ test.describe('console start — «Эпатажный спонсор» as a work
       expect(after.dockCompact,
         'the compact pose died somewhere in the flow (a leaked intake accent)').toBeTruthy();
     }
+  });
+  // THE STEP PUT DOWN MID-OPEN (inventory R15 — the monkey's wg2 table `field-start-sbp-triton`, 3/3): a B that lands while
+  // the step's hand is still OPENING reversed the reveal and closed only the hand's level — the start stood around an
+  // empty zone, the server's play-from-hand asked of nobody, no restore card and no new prompt edge to re-open it (the
+  // stranded plate, every liveness rung «nothing to release»). B there is what it is on the step: the WHOLE workspace
+  // minimizes, the way back stands.
+  test('B pressed while the hand of the step is still OPENING minimizes the whole workspace — the question keeps its way back', async ({page, request}) => {
+    test.setTimeout(300_000);
+    const created = await request.post('/api/creategame', {
+      data: cfg({preludes: ['Eccentric Sponsor', 'Metals Company', 'Supplier', 'Business Empire']}),
+    });
+    expect(created.ok()).toBeTruthy();
+    const {players} = await created.json();
+    await page.goto(`/player?id=${players[0].id}&console=1`);
+    await reachDeployment(page);
+    let midOpen = false;
+    for (let i = 0; i < 12 && !midOpen; i++) {
+      await page.keyboard.press('Enter');
+      // The hand mounts as its opening episode starts — B the moment it is there (raw: the driver's settle would let
+      // the flight finish first, and the subject is the press INSIDE it).
+      midOpen = await page.locator('.con-hand').first().waitFor({state: 'attached', timeout: 2_000}).then(() => true, () => false);
+      if (midOpen) {
+        await page.keyboard.press('Escape');
+      }
+    }
+    expect(midOpen, 'the sponsor raised its play-from-hand step').toBe(true);
+    await expect.poll(async () => (await surfaces(page)).handEmbedded, {timeout: 10_000, message: 'the step is put down'}).toBe(false);
+    await cinematicBeat(page, 6_000, 'past the start-strand watchdog: an orphaned question is confirmed in 2.5 s');
+    const away = await surfaces(page);
+    expect(away.stranded, `no question left asked of nobody (${JSON.stringify(away.diag)})`).toBe(0);
+    expect(await pressUntil(page, 'Enter', async () => (await surfaces(page)).handEmbedded, {tries: 4, settleMs: 2_000}),
+      'A brings the step back — inside the workspace').toBe(true);
   });
 });

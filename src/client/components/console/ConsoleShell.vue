@@ -12994,7 +12994,9 @@ export default defineComponent({
           return;
         }
         const scene = (this.$refs.startScene ?? undefined) as {healStrand?: () => string} | undefined;
-        const healed = scene?.healStrand?.() ?? 'no-scene';
+        const sceneHeal = scene?.healStrand?.() ?? 'no-scene';
+        // …and a step of the start that nothing hosts any more is re-opened through the router's own door (R15).
+        const healed = sceneHeal === 'nothing-to-heal' || sceneHeal === 'no-scene' ? this.reopenStartStep() || sceneHeal : sceneHeal;
         report('confirmed', {heal: healed});
         this.startStrandTimer = window.setTimeout(() => {
           this.startStrandTimer = undefined;
@@ -18043,6 +18045,13 @@ export default defineComponent({
           // Mid-open under a client pick: snap the flight — the pick-cancel
           // below owns the way back (a reversal would fight its section restore).
           finishInstant();
+        } else if (handRevealState.phase === 'opening' && workspaceFrameHost('hand') !== undefined && !workspaceFrameIsOverlay('hand')) {
+          // Mid-open of a HOSTED STEP (the start's play-from-hand — Ecology Experts, Eccentric Sponsor): snap the flight and
+          // let B do what it does on the step — minimize the WHOLE host (the restore card brings it back). The reversal
+          // closed only the hand's level: the start stood around an empty zone with the server's `projectCard` asked of
+          // nobody, no restore card, no new prompt edge to re-open it — the monkey's wg2 table `field-start-sbp-triton`
+          // (3/3, a B 150 ms after the step opened; inventory R15).
+          finishInstant();
         } else {
           if (handRevealState.phase === 'opening') {
             reverseHandReveal();
@@ -22841,6 +22850,26 @@ export default defineComponent({
      * strand's own yield, released on the next prompt). Named in the log under the shadow's prefix (the e2e harness
      * files it with the findings); idempotent — a cure that changes nothing reports nothing.
      */
+    /**
+     * A STEP OF THE START THAT NOTHING HOSTS ANY MORE (the monkey's wg2 table `field-start-sbp-triton`, 3/3 — inventory
+     * R15): the server still asks the step's question (Ecology Experts' «play a card from your hand»), the start knows it
+     * owes the step, but the step's own frame is gone and no new prompt edge comes to re-open it — a yield alone handed the
+     * question to surfaces nobody opened (every liveness rung: «nothing to release»). The cure is the router's OWN door for
+     * that question (`openShellTaskSurface` — for a play-from-hand it pushes the hand INTO the start again, the very road
+     * the prompt took the first time), never while the player set the question aside (the restore card is their way back).
+     */
+    reopenStartStep(): string {
+      const task = taskFor(this.playerView);
+      if (task === undefined || this.consoleState.task.deferred || workspaceFrameHasNested('start')) {
+        return '';
+      }
+      const serving = frameServing(task.kind);
+      if (serving !== undefined && serving.kind !== 'start') {
+        return '';
+      }
+      this.openShellTaskSurface(task);
+      return workspaceFrameHasNested('start') || (frameServing(task.kind)?.kind ?? 'start') !== 'start' ? `reopened the «${task.kind}» step` : '';
+    },
     runStartDirectorCure(finding: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual'>, by: 'shadow' | 'liveness'): string {
       const cure = startDirectorCure(finding);
       if (cure === 'none' || !this.startSceneMounted) {
@@ -22870,6 +22899,8 @@ export default defineComponent({
         const scene = (this.$refs.startScene ?? undefined) as {healStrand?: () => string} | undefined;
         const healed = scene?.healStrand?.() ?? 'no-scene';
         did = healed === 'nothing-to-heal' || healed === 'no-scene' ? [healed, yieldNow()].filter((x) => x !== '').join(' → ') : healed;
+      } else if (finding.expected === 'step' && finding.actual === 'none') {
+        did = this.reopenStartStep() || yieldNow();
       } else {
         did = yieldNow();
       }

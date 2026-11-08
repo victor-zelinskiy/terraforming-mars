@@ -74,7 +74,10 @@ Status: `open` · `fixed <commit>`.
   the card stood 9 s in the composer (Flooding: −1 VP + the Greens). The ritual is the pre-commit half (`stagedCeremony`);
   the pay-back wait is a declared node (`flow:played-hero-payback#nonce`, target the server) — a lift waiting for an answer
   nobody sends is a dead end the shadow names. e2e `console-staged-event-handoff` (red on the old build: `paying → late`).
-- R15 `open` (monkey wg2, `field-start-sbp-triton`, 3/3) — the start's play-from-hand step (Ecology Experts): the server asks
-  `projectCard`, the start knows it is owed (`sponsorPending`) but hosts no hand and has YIELDED; nothing opens the task
-  surface and every liveness rung has nothing to release. Plain B / X / V / B·A in the step are fine (probe) — the walk's
-  path to it is longer.
+- R15 `fixed (monkey wg2)` — a B landing while a HOSTED step's hand was still OPENING reversed the reveal and closed only the
+  hand's level (`handleSectionBack`'s mid-open branch): the start stood around an empty zone, the server's play-from-hand
+  (Ecology Experts, Eccentric Sponsor) asked of nobody, no restore card, no prompt edge to re-open it — the stranded plate,
+  every liveness rung «nothing to release». B mid-open of a hosted step now snaps the flight and minimizes the WHOLE host
+  (the step's own B); a step nothing hosts any more is re-opened through the router's own door (`reopenStartStep` — the
+  start strand's confirm and the start director's `step` cure). e2e `console-start-sponsor` § still OPENING (red on the old
+  build: `[start-stranded] confirmed`), the monkey's table 3/3 → green.
