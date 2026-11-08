@@ -3,10 +3,11 @@
        :class="[`con-tender--${size}`, `con-tender--${state}`, `con-tender--tier-${tier}`, {'con-tender--focused': focused}]"
        :data-tender="id" :data-tender-state="state">
     <!--
-      A TENDER — the Committee's LOT: a CERTIFICATE on dark glass, never a playing card and never a notebook page (the
-      owner, 2026-11-07: «свой узнаваемый визуал», «страницы тетради выглядят непремиально»). A slate plate with a
-      double hairline frame in the TIER's metal (gold · steel · copper · oxide — the rank read by material, with the
-      chevrons for form), the Committee's seal and a riveted lot tag on the head, the name in the display face, the
+      A TENDER — the Committee's LOT: a CERTIFICATE on the Committee's VELLUM (the face rework of 2026-11-08 — the
+      owner: the dark glass was «слишком тёмные, выбиваются из стиля»; the bill's family: a page with a folded corner,
+      a seal, ink), never a playing card and never a notebook page. Warm paper with a double hairline frame and the
+      head's band in the TIER's metal (gold · steel · copper · oxide — the rank read by material, with the chevrons for
+      form), the Committee's seal and the printed lot number on the head, the name in the display face, the
       window as a tracked label, the rule in prose over the family's glyph engraved as a watermark, the compensation
       floor on a perforated stub, a diagonal STAMP for its state (taken by a seat / withdrawn / executed / bought
       back). Three sizes: `table` (the bidding's row), `reader` (X — the full text and the lore), `plaque` (a seat's

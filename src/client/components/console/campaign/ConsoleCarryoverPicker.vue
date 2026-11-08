@@ -28,8 +28,23 @@
     <div class="con-carry__shade" aria-hidden="true"></div>
     <div class="con-carry__stage">
       <ConsoleWsHead class="con-carry__head" :root="root" :subject="missionLabel" subject-raw
-                     stage="Project legacy" :committed="confirmed" />
+                     :stage="stage === 'tenders' ? 'Tenders' : 'Project legacy'" :committed="stage === 'album' && confirmed" />
 
+      <!-- THE TENDERS stage (§16.1) — the portfolio stands FIRST when the seat holds tenders: the threshold's own place to
+           ACTIVATE a legacy tender (A — the seat / the band open in the album right after), read it (X), move on (RT).
+           Two layers of one step, never a swap: the album rests under the portfolio and returns the same nodes. -->
+      <div v-if="hasTenders" v-show="stage === 'tenders'" class="con-carry__layer con-carry__layer--tenders" data-carry-tenders-stage>
+        <ConsoleTenderPortfolio ref="portfolio" :entries="portfolioEntries" :focus="tenderFocus" place="threshold"
+                                :armed="tenderConfirm" :busy="tenderBusy" :reader-open="tenderReaderOpen" embedded />
+        <div class="con-carry__foot con-carry__foot--tenders">
+          <span class="con-carry__status">
+            <span v-if="tenderError !== ''" class="con-carry__status-err" data-carry-tender-error>{{ $t(tenderError) }}</span>
+            <span v-else-if="portfolioCounts.open > 0" class="con-carry__status-hint">{{ $t('Tenders execute from here') }}</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="con-carry__layer con-carry__layer--album" v-show="stage === 'album'" data-carry-album-stage>
       <!-- THE QUESTION LINE (the hand's own chassis): the ask on the left, the running summary on the right. -->
       <div class="con-hand__question con-carry__question" data-pick-question>
         <div class="con-hand__question-ask con-carry__ask">
@@ -71,6 +86,7 @@
       <!-- THE PRELUDE BAND — the «Тендеры» mode's «Продление программы»: the viewer's played preludes of the finished
            mission, up to `preludeLimit` of them travel into the finale and are played AGAIN. A strip above the album
            (↑ from the album's top row reaches it, ↓ returns), the same toggle-in-place grammar, the same X. -->
+      <Transition name="con-carry-band">
       <div v-if="preludeLimit > 0" class="con-carry__preludes" :class="{'con-carry__preludes--active': zone === 'preludes'}" data-carry-preludes>
         <div class="con-carry__preludes-head">
           <span class="con-carry__preludes-ask" data-carry-prelude-ask>{{ preludeAskText }}</span>
@@ -88,6 +104,7 @@
           <div v-if="eligiblePreludes.length === 0" class="con-carry__preludes-empty" v-i18n>No prelude was played in that mission — nothing to carry.</div>
         </div>
       </div>
+      </Transition>
 
       <ConsoleCardAlbum v-if="eligible.length > 0"
                         ref="album"
@@ -107,11 +124,15 @@
         <ConsoleAlbumSpine v-if="eligible.length > 0 && position !== undefined" variant="foot" :album="position"
                            @page="turnPage($event)" />
         <span class="con-carry__status">
-          <span v-if="armed" class="con-carry__status-warn" v-i18n>Nothing is selected — press again to continue WITHOUT a legacy.</span>
+          <!-- THE TERMINAL WARNING (§16.4): legacy tenders still executable — after the readiness the host may launch at
+               any moment and the Committee buys them back. A conscious second press confirms anyway. -->
+          <span v-if="armedTenders" class="con-carry__status-warn" data-carry-tender-warning>{{ tenderWarningText }}</span>
+          <span v-else-if="armed" class="con-carry__status-warn" v-i18n>Nothing is selected — press again to continue WITHOUT a legacy.</span>
           <span v-else-if="notice !== ''" class="con-carry__status-warn" data-carry-notice>{{ $t(notice) }}</span>
           <span v-else-if="confirmed" class="con-carry__status-ok" v-i18n>Selection confirmed — it can be revised until the next mission launches.</span>
           <span v-else-if="error !== ''" class="con-carry__status-err">{{ $t(error) }}</span>
         </span>
+      </div>
       </div>
     </div>
   </div>
@@ -133,6 +154,13 @@ import ConsoleCardAlbum, {CardAlbumEntry, CardAlbumPosition} from '@/client/comp
 import ConsoleAlbumSpine from '@/client/components/console/foundation/ConsoleAlbumSpine.vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {carryoverAskText, carryoverBandText, carryoverPreludeAskText, carryoverSeats, CarryoverSeat} from '@/client/console/campaign/carryoverPicker';
+import ConsoleTenderPortfolio from './ConsoleTenderPortfolio.vue';
+import {CarryoverTenderModel} from '@/common/campaign/CampaignModel';
+import {TENDER_COMPENSATION_MC, tenderDef} from '@/common/campaign/tenders';
+import {TenderPortfolioEntry, tenderPortfolio, tenderPortfolioCounts, tenderPortfolioName} from '@/client/console/campaign/tenderPortfolio';
+
+/** The stamp's beat before the album takes the screen to show the seat / the band it opened. */
+const TENDER_STAGE_FLIP_MS = 760;
 
 type AlbumApi = {
   step(from: number, dir: 'left' | 'right' | 'up' | 'down'): number,
@@ -147,7 +175,7 @@ const NOTICE_MS = 2400;
 
 export default defineComponent({
   name: 'ConsoleCarryoverPicker',
-  components: {ConsoleWsHead, ConsoleCardAlbum, ConsoleAlbumSpine, Card},
+  components: {ConsoleWsHead, ConsoleCardAlbum, ConsoleAlbumSpine, Card, ConsoleTenderPortfolio},
   props: {
     /** The recorded terminal hand (owner-only wire data). */
     eligible: {type: Array as PropType<ReadonlyArray<CardName>>, required: true},
@@ -170,8 +198,14 @@ export default defineComponent({
     /** The «Тендеры» mode: how many preludes may travel (one per held «Продление программы»); 0 = no band. */
     preludeLimit: {type: Number, default: 0},
     selectedPreludes: {type: Array as PropType<ReadonlyArray<CardName>>, default: () => []},
+    /** The «Тендеры» mode: EVERY holding of the viewer with its availability on this step (the portfolio stage, §16.1). */
+    tenders: {type: Array as PropType<ReadonlyArray<CarryoverTenderModel>>, default: () => []},
+    /** The instance whose activation is on the wire. */
+    tenderBusy: {type: String, required: false, default: undefined},
+    /** The server's refusal of the last activation (an i18n key), '' when none. */
+    tenderError: {type: String, default: ''},
   },
-  emits: ['toggle', 'togglePrelude', 'confirm', 'back', 'armChange', 'bar'],
+  emits: ['toggle', 'togglePrelude', 'confirm', 'back', 'armChange', 'bar', 'executeTender'],
   data() {
     return {
       cursor: 0,
@@ -188,7 +222,21 @@ export default defineComponent({
       /** Where the cursor stands: the album, or the prelude band above it (↑ from the album's top row). */
       zone: 'album' as 'album' | 'preludes',
       preludeCursor: 0,
+      /** The step's two layers: the PORTFOLIO (first, when the seat holds tenders) and the ALBUM. */
+      stage: 'album' as 'tenders' | 'album',
+      tenderFocus: 0,
+      /** The certificate whose press asked for a second press (a seat nothing can fill). */
+      tenderConfirm: undefined as string | undefined,
+      tenderReaderOpen: false,
+      /** The RT terminal warning stands: legacy tenders still executable — the next RT confirms anyway. */
+      armedTenders: false,
+      stageTimer: undefined as number | undefined,
     };
+  },
+  created() {
+    // The portfolio stands FIRST while a tender can still be ACTIVATED here; once every holding is executed, blocked
+    // or cashed the step opens on the album (the portfolio stays one B away — a read, not a toll gate).
+    this.stage = this.portfolioEntries.some((e) => e.state === 'ready' || e.state === 'step') ? 'tenders' : 'album';
   },
   computed: {
     /** Cards that no longer resolve in this build (post-update loss, §2.12). */
@@ -237,8 +285,41 @@ export default defineComponent({
     full(): boolean {
       return this.selected.length >= this.limit;
     },
-    barFacts(): {primary: string, pages: number} {
-      return {primary: this.primaryLabel, pages: this.position?.pages ?? 1};
+    barFacts(): {primary: string, pages: number, stage: 'tenders' | 'album', primaryEnabled: boolean} {
+      if (this.stage === 'tenders') {
+        const e = this.focusedTender;
+        const live = e !== undefined && (e.state === 'ready' || e.state === 'step') && this.tenderBusy === undefined;
+        return {primary: e !== undefined && e.verb !== '' ? e.verb : 'Execute', pages: 1, stage: 'tenders', primaryEnabled: live};
+      }
+      return {primary: this.primaryLabel, pages: this.position?.pages ?? 1, stage: 'album', primaryEnabled: true};
+    },
+    hasTenders(): boolean {
+      return this.tenders.length > 0;
+    },
+    /** The portfolio's entries on the THRESHOLD — the seat's limit, the hand, the played preludes are what each tender changes. */
+    portfolioEntries(): ReadonlyArray<TenderPortfolioEntry> {
+      if (!this.hasTenders) {
+        return [];
+      }
+      return tenderPortfolio({
+        place: 'threshold', tenders: this.tenders, limit: this.limit, handSize: this.eligible.length,
+        playedPreludes: this.eligiblePreludes.length, preludeLimit: this.preludeLimit,
+      });
+    },
+    portfolioCounts(): {executed: number, open: number, total: number} {
+      return tenderPortfolioCounts(this.portfolioEntries);
+    },
+    focusedTender(): TenderPortfolioEntry | undefined {
+      return this.portfolioEntries[this.tenderFocus];
+    },
+    /** The legacy tenders still executable here — what the readiness press would leave to the buyout. */
+    openLegacyTenders(): ReadonlyArray<TenderPortfolioEntry> {
+      return this.portfolioEntries.filter((e) => e.state === 'ready');
+    },
+    tenderWarningText(): string {
+      const names = this.openLegacyTenders.map((e) => translateText(tenderPortfolioName(e.id))).join(' · ');
+      return translateTextWithParams('Unexecuted: ${0}', [names]) + ' — ' +
+        translateTextWithParams('Unexecuted tenders of this step are bought back for ${0} M€ each after the launch — press again to confirm anyway', [String(TENDER_COMPENSATION_MC)]);
     },
     /** The A verb for the focused object — the bar reads it (one key, one object, two words). */
     primaryLabel(): string {
@@ -253,6 +334,32 @@ export default defineComponent({
   watch: {
     'selected.length': function(): void {
       this.disarm();
+    },
+    /**
+     * AN ACTIVATION LANDED (a holding turned executed): the certificate takes the Committee's stamp, and after the
+     * stamp's beat the ALBUM takes the screen to show what opened — the new seat of the manifest (its own enter), the
+     * prelude band (its unfold). The player sees the effect where it lives, then decides.
+     */
+    tenders(now: ReadonlyArray<CarryoverTenderModel>, before: ReadonlyArray<CarryoverTenderModel>): void {
+      const wasHeld = new Set(before.filter((t) => t.status === 'held').map((t) => t.instance));
+      const landed = now.filter((t) => t.status === 'executed' && wasHeld.has(t.instance));
+      if (landed.length === 0) {
+        return;
+      }
+      this.tenderConfirm = undefined;
+      const portfolio = (this.$refs.portfolio ?? undefined) as {playStamp?: (instance: string) => void} | undefined;
+      for (const t of landed) {
+        portfolio?.playStamp?.(t.instance);
+      }
+      if (landed.some((t) => tenderDef(t.id).window === 'legacy') && this.stage === 'tenders') {
+        if (this.stageTimer !== undefined) {
+          window.clearTimeout(this.stageTimer);
+        }
+        this.stageTimer = window.setTimeout(() => {
+          this.stageTimer = undefined;
+          this.stage = 'album';
+        }, motionMs(TENDER_STAGE_FLIP_MS));
+      }
     },
     /** The facts the host's ONE bar reads: the A verb for the focused card and whether pages exist. */
     'barFacts': {
@@ -270,6 +377,9 @@ export default defineComponent({
     if (this.noticeTimer !== undefined) {
       window.clearTimeout(this.noticeTimer);
     }
+    if (this.stageTimer !== undefined) {
+      window.clearTimeout(this.stageTimer);
+    }
     if (this.zoomOpenedHere && consoleCardZoom.card !== undefined) {
       closeConsoleCardZoom();
     }
@@ -280,9 +390,75 @@ export default defineComponent({
       return (this.$refs.album ?? undefined) as AlbumApi | undefined;
     },
     disarm(): void {
-      if (this.armed) {
+      if (this.armed || this.armedTenders) {
         this.armed = false;
+        this.armedTenders = false;
         this.$emit('armChange', false);
+      }
+    },
+    // ── THE TENDERS stage (§16.1 / §16.4) ──
+    /** A on the portfolio: a blocked / done certificate says why; a confirm asks for its second press; else the activation goes. */
+    pressTender(): void {
+      const e = this.focusedTender;
+      if (e === undefined || this.tenderBusy !== undefined) {
+        return;
+      }
+      if (e.state !== 'ready' && e.state !== 'step') {
+        if (e.reason !== undefined) {
+          this.say(e.reason);
+        }
+        return;
+      }
+      if (e.confirm !== undefined && this.tenderConfirm !== e.instance) {
+        this.tenderConfirm = e.instance;
+        return;
+      }
+      this.tenderConfirm = undefined;
+      this.tenderReaderOpen = false;
+      this.$emit('executeTender', e.instance);
+    },
+    /** The portfolio stage's pad: ◀ ▶ walk the certificates, A activates, X reads, RT moves on to the album, B closes. */
+    tenderIntent(intent: GamepadIntent): boolean {
+      if (intent.kind === 'nav') {
+        const n = this.portfolioEntries.length;
+        if (n === 0) {
+          return true;
+        }
+        const step = intent.dir === 'right' || intent.dir === 'down' ? 1 : -1;
+        const next = Math.max(0, Math.min(n - 1, this.tenderFocus + step));
+        if (next !== this.tenderFocus) {
+          this.tenderFocus = next;
+          this.tenderConfirm = undefined;
+          this.tenderReaderOpen = false;
+        }
+        return true;
+      }
+      if (intent.kind !== 'press') {
+        return true;
+      }
+      if (intent.button === 'triggerR') {
+        this.tenderConfirm = undefined;
+        this.tenderReaderOpen = false;
+        this.stage = 'album';
+        return true;
+      }
+      const action = consoleActionOf(intent, {});
+      switch (action) {
+      case 'primary':
+        this.pressTender();
+        return true;
+      case 'inspect':
+        this.tenderReaderOpen = !this.tenderReaderOpen && this.focusedTender !== undefined;
+        return true;
+      case 'back':
+        if (this.tenderReaderOpen) {
+          this.tenderReaderOpen = false;
+          return true;
+        }
+        this.$emit('back');
+        return true;
+      default:
+        return true;
       }
     },
     say(notice: string): void {
@@ -357,6 +533,9 @@ export default defineComponent({
       if (consoleCardZoom.card !== undefined || this.submitting) {
         return true; // the zoom host owns the pad while its viewer is up
       }
+      if (this.stage === 'tenders') {
+        return this.tenderIntent(intent);
+      }
       if (intent.kind === 'nav') {
         this.disarm();
         if (this.zone === 'preludes') {
@@ -386,6 +565,12 @@ export default defineComponent({
         return true;
       }
       if (intent.kind === 'press' && intent.button === 'triggerR') {
+        // THE TERMINAL WARNING first: a legacy tender still executable would go to the buyout past the readiness.
+        if (this.openLegacyTenders.length > 0 && !this.armedTenders) {
+          this.armedTenders = true;
+          this.$emit('armChange', true);
+          return true;
+        }
         if (this.selected.length === 0 && this.eligible.length > 0 && this.limit > 0 && !this.armed) {
           this.armed = true;
           this.$emit('armChange', true);
@@ -417,8 +602,13 @@ export default defineComponent({
         this.turnPage(action === 'nextSection' ? 1 : -1);
         return true;
       case 'back':
-        if (this.armed) {
+        if (this.armed || this.armedTenders) {
           this.disarm();
+          return true;
+        }
+        // One level: the album stands over the portfolio when the seat holds tenders — B returns there first.
+        if (this.hasTenders) {
+          this.stage = 'tenders';
           return true;
         }
         this.$emit('back');

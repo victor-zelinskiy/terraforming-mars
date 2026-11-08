@@ -11,13 +11,26 @@
 @tender-text: #edf2f7;
 @tender-text-soft: rgba(214, 223, 233, 0.74);
 @tender-text-dim: rgba(214, 223, 233, 0.5);
-@tender-oxide: #b5472f;
-@tender-stamp-paper: rgba(236, 240, 245, 0.94);
-@tender-gold: #d9b86a;
-@tender-steel: #aeb9c6;
-@tender-copper: #b58a63;
+/* THE COMMITTEE'S PAPER (the face rework of 2026-11-08 — the owner: «слишком тёмные, выбиваются из стиля»): a
+   certificate printed on warm vellum — the bill's family (console_resolution_face.less: a page with a folded corner,
+   a seal, ink), the Committee's own paper beside the Parliament's. Ink on paper, the tier's METAL as the ink of the
+   frame, the seal and the band; the stamp in red ink. */
+@tender-vellum-hi: #f7f2e8;
+@tender-vellum: #ebe3d1;
+@tender-vellum-lo: #d3c7ac;
+@tender-vellum-dull: #d9d5cc;
+@tender-vellum-dull-lo: #bdb8ad;
+@tender-ink: #2b2417;
+@tender-ink-soft: rgba(43, 36, 23, 0.78);
+@tender-ink-dim: rgba(43, 36, 23, 0.54);
+@tender-oxide: #a63b22;
+@tender-stamp-paper: rgba(247, 242, 232, 0.62);
+@tender-gold: #a8822c;
+@tender-steel: #5a6878;
+@tender-copper: #8c5a31;
 
-/* The plate every lot, the Register's stack and the dealt back share — slate glass with a faint brushed grain. */
+/* The plate the Register's stack and the dealt BACK share — slate glass with a faint brushed grain (the back of the
+   document is the Committee's folder; the face is its paper). */
 .tender-plate() {
   background:
     repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.014) 0 2px, transparent 2px 5px),
@@ -25,12 +38,21 @@
   border-radius: 0.35rem;
   clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 0.9rem, 100% 100%, 0 100%);
 }
+/* THE PAPER — laid vellum, lit from the top, the corner turned over (the clip cuts it, the fold draws its back). */
+.tender-vellum(@hi: @tender-vellum-hi, @mid: @tender-vellum, @lo: @tender-vellum-lo) {
+  background:
+    repeating-linear-gradient(0deg, rgba(43, 36, 23, 0.03) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 70% at 50% -10%, rgba(255, 255, 255, 0.55), transparent 62%),
+    linear-gradient(170deg, @hi 0%, @mid 56%, @lo 100%);
+  border-radius: 0.3rem;
+  clip-path: polygon(0 0, calc(100% - 1.1rem) 0, 100% 1.1rem, 100% 100%, 0 100%);
+}
 
-/* ── THE DOCUMENT — a certificate on dark glass ──────────────────────────── */
+/* ── THE DOCUMENT — a certificate on the Committee's vellum ─────────────────────────────────────────────────── */
 .con-tender {
   --tender-w: 14rem;
   --tender-metal: @tender-steel;
-  --tender-metal-rgb: 174, 185, 198;
+  --tender-metal-rgb: 90, 104, 120;
   position: relative;
   box-sizing: border-box;
   width: var(--tender-w);
@@ -39,30 +61,47 @@
   flex-direction: column;
   gap: 0.34rem;
   padding: 0.95rem 1.05rem 0.85rem;
-  color: @tender-text;
+  color: @tender-ink;
   font-family: @con-font-read;
-  .tender-plate();
-  box-shadow: inset 0 0 0 0.05rem rgba(0, 0, 0, 0.55);
+  .tender-vellum();
+  /* the page's own edge (ink at a whisper) and its weight on the table — an offset shadow, never a halo */
+  box-shadow: inset 0 0 0 0.05rem rgba(43, 36, 23, 0.32), 0 0.18rem 0.55rem rgba(0, 0, 0, 0.42);
   overflow: hidden;
   user-select: none;
+  /* THE CURSOR — the console's one ring (`.con-cursor()`) on its own layer (`::before` — `::after` is the folded corner). */
+  .con-cursor(inset 0 0 0 0.16rem @con-cyan; 0.3rem; none; 3; before);
 
-  /* The TIER's metal — the rank read by material (the chevrons give it form). */
-  &--tier-decisive { --tender-metal: @tender-gold; --tender-metal-rgb: 217, 184, 106; }
-  &--tier-notable { --tender-metal: @tender-steel; --tender-metal-rgb: 174, 185, 198; }
-  &--tier-minor { --tender-metal: @tender-copper; --tender-metal-rgb: 181, 138, 99; }
-  &--tier-gamble { --tender-metal: @tender-oxide; --tender-metal-rgb: 181, 71, 47; }
+  /* The TIER's metal — the rank read by material (the chevrons give it form): gold · steel · copper · oxide as INK. */
+  &--tier-decisive { --tender-metal: @tender-gold; --tender-metal-rgb: 168, 130, 44; }
+  &--tier-notable { --tender-metal: @tender-steel; --tender-metal-rgb: 90, 104, 120; }
+  &--tier-minor { --tender-metal: @tender-copper; --tender-metal-rgb: 140, 90, 49; }
+  &--tier-gamble { --tender-metal: @tender-oxide; --tender-metal-rgb: 166, 59, 34; }
 
-  /* The DOUBLE HAIRLINE FRAME — a certificate's border: one line in the metal, a fainter one inside it. */
+  /* THE FOLDED CORNER — the page's back turned over, a crease where it bends (the bill's own grammar). */
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1.1rem;
+    height: 1.1rem;
+    background: linear-gradient(to bottom left, transparent 50%, rgba(43, 36, 23, 0.42) 50%, @tender-vellum-lo 54%, @tender-vellum-hi 100%);
+    box-shadow: -0.06rem 0.06rem 0.2rem rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  /* The DOUBLE HAIRLINE FRAME — a certificate's printed border: one line in the metal, a fainter one inside it. */
   &__frame {
     position: absolute;
     inset: 0.36rem;
-    border: 0.06rem solid rgba(var(--tender-metal-rgb), 0.78);
-    box-shadow: inset 0 0 0 0.22rem @tender-plate-deep, inset 0 0 0 0.27rem rgba(var(--tender-metal-rgb), 0.3);
+    border: 0.06rem solid rgba(var(--tender-metal-rgb), 0.9);
+    box-shadow: inset 0 0 0 0.18rem transparent, inset 0 0 0 0.24rem rgba(var(--tender-metal-rgb), 0.4);
     border-radius: 0.2rem;
     pointer-events: none;
     z-index: 0;
   }
-  /* The family's glyph ENGRAVED behind the body — a watermark, faint and sharp, never a glow. */
+  /* The family's glyph ENGRAVED behind the body — a watermark in ink, faint and sharp, never a glow. */
   &__watermark {
     position: absolute;
     right: -14%;
@@ -70,7 +109,7 @@
     width: 72%;
     height: 72%;
     fill: none;
-    stroke: @tender-text;
+    stroke: @tender-ink;
     stroke-width: 0.7;
     stroke-linecap: round;
     stroke-linejoin: round;
@@ -81,20 +120,24 @@
   /* The body stands over the frame and the watermark; the STAMP keeps its own absolute place over everything. */
   > :not(.con-tender__frame):not(.con-tender__watermark):not(.con-tender__stamp) { position: relative; z-index: 1; }
 
-  /* THE HEAD — the Committee's seal, its name in two tracked lines, the riveted lot tag. */
+  /* THE HEAD — the Committee's seal, its name in two tracked lines, the lot number; the row's lower edge is the BAND
+     dyed in the tier's metal (the bill dyes its band in the party's colour). */
   &__head {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     min-height: 2rem;
+    padding-bottom: 0.32rem;
+    border-bottom: 0.14rem solid var(--tender-metal);
   }
   &__seal {
     flex: 0 0 auto;
     width: 1.9rem;
     height: 1.9rem;
     border-radius: 50%;
-    border: 0.07rem solid rgba(var(--tender-metal-rgb), 0.85);
-    box-shadow: inset 0 0 0 0.2rem @tender-plate-deep, inset 0 0 0 0.25rem rgba(var(--tender-metal-rgb), 0.35);
+    border: 0.07rem solid rgba(var(--tender-metal-rgb), 0.9);
+    background: radial-gradient(circle at 38% 30%, #ffffff 0%, @tender-vellum-hi 40%, @tender-vellum-lo 100%);
+    box-shadow: inset 0 0 0 0.18rem transparent, inset 0 0 0 0.24rem rgba(var(--tender-metal-rgb), 0.45);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -116,17 +159,17 @@
     line-height: 1.25;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: @tender-text-dim;
+    color: @tender-ink-dim;
     white-space: normal;
     overflow-wrap: anywhere; /* the last resort only — at this size the long word holds one line beside the «№» tag */
   }
+  /* The lot number — a printed box in the metal's ink. */
   &__lot {
     flex: 0 0 auto;
     padding: 0.14rem 0.42rem 0.12rem;
-    border-radius: 0.16rem;
-    background: linear-gradient(180deg, rgba(var(--tender-metal-rgb), 1) 0%, rgba(var(--tender-metal-rgb), 0.72) 100%);
-    box-shadow: inset 0 0.05rem 0 rgba(255, 255, 255, 0.35), inset 0 -0.05rem 0 rgba(0, 0, 0, 0.35);
-    color: @tender-plate-deep;
+    border-radius: 0.14rem;
+    border: 0.06rem solid var(--tender-metal);
+    color: var(--tender-metal);
     font-family: @con-font;
     font-size: 0.56rem;
     font-weight: 700;
@@ -136,7 +179,7 @@
     white-space: nowrap;
   }
 
-  /* The rank — chevrons by tier (three · two · one), a die for the gamble — on a kant in the metal. */
+  /* The rank — chevrons by tier (three · two · one), a die for the gamble — beside a rule in the metal. */
   &__rank {
     display: flex;
     align-items: center;
@@ -147,7 +190,7 @@
     font-size: 0.56rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: @tender-text-dim;
+    color: @tender-ink-dim;
   }
   &__chev {
     display: inline-block;
@@ -176,7 +219,7 @@
     line-height: 1.1;
     letter-spacing: 0.02em;
     text-transform: uppercase;
-    color: @tender-text;
+    color: @tender-ink;
   }
   &__window {
     font-family: @con-font;
@@ -189,15 +232,15 @@
     flex: 1 1 auto;
     font-size: 0.74rem;
     line-height: 1.36;
-    color: @tender-text-soft;
+    color: @tender-ink-soft;
   }
   &__lore {
     font-size: 0.7rem;
     line-height: 1.3;
     font-style: italic;
-    color: @tender-text-dim;
+    color: @tender-ink-dim;
     padding-top: 0.3rem;
-    border-top: 0.05rem solid rgba(214, 223, 233, 0.2);
+    border-top: 0.05rem solid rgba(43, 36, 23, 0.18);
   }
 
   /* The STUB — the compensation floor on a perforated tear-off line. */
@@ -208,21 +251,21 @@
     gap: 0.5rem;
     margin: 0.3rem -0.5rem 0;
     padding: 0.42rem 0.5rem 0;
-    border-top: 0.06rem dashed rgba(214, 223, 233, 0.4);
+    border-top: 0.06rem dashed rgba(43, 36, 23, 0.4);
     font-family: @con-font;
     font-size: 0.56rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: @tender-text-dim;
+    color: @tender-ink-dim;
   }
   &__coupon-value {
     font-size: 0.8rem;
     letter-spacing: 0.06em;
-    color: @tender-text;
+    color: @tender-ink;
     font-variant-numeric: tabular-nums;
   }
 
-  /* THE STAMP — a paper tag in oxide ink, diagonal, never a glow. The owner's stamp carries the seat's cube. */
+  /* THE STAMP — red ink pressed on the paper, diagonal, never a glow. The owner's stamp carries the seat's cube. */
   &__stamp {
     position: absolute;
     left: 50%;
@@ -255,29 +298,30 @@
   }
   &__stamp--withdrawn,
   &__stamp--cashed {
-    border-color: #5c6775;
-    color: #5c6775;
+    border-color: #6b665c;
+    color: #6b665c;
   }
   &__stamp--executed {
     border-color: #2f6b4a;
     color: #2f6b4a;
   }
 
-  /* A taken / withdrawn / bought-back lot RECEDES by material: the metal dulls, the text dims, the plate stays. */
+  /* A taken / withdrawn / bought-back lot RECEDES by material: the paper greys, the metal dulls, the ink dims. */
   &--taken,
   &--withdrawn,
   &--cashed {
-    --tender-metal: #6a7684;
-    --tender-metal-rgb: 106, 118, 132;
-    color: @tender-text-soft;
+    --tender-metal: #857f73;
+    --tender-metal-rgb: 133, 127, 115;
+    .tender-vellum(@tender-vellum-dull, @tender-vellum-dull, @tender-vellum-dull-lo);
+    color: @tender-ink-soft;
     .con-tender__rule,
-    .con-tender__name { color: @tender-text-dim; }
+    .con-tender__name { color: @tender-ink-dim; }
     .con-tender__watermark { opacity: 0.04; }
   }
 
-  /* The cursor — a kant inside the plate's edge (the console's focus material), the host's own transition. */
+  /* The cursor stands here — the ring layer lights (`.con-cursor-on()`), the page itself never re-paints. */
   &--focused {
-    box-shadow: inset 0 0 0 0.16rem @con-cyan, inset 0 0 0 0.05rem rgba(0, 0, 0, 0.55);
+    .con-cursor-on();
   }
 
   /* ── sizes ── */
@@ -304,8 +348,9 @@
     max-width: 14rem;
     padding: 0.45rem 0.7rem 0.4rem;
     gap: 0.22rem;
+    &::after { width: 0.8rem; height: 0.8rem; }
     .con-tender__frame { inset: 0.22rem; box-shadow: none; }
-    .con-tender__head { min-height: 0; gap: 0.4rem; }
+    .con-tender__head { min-height: 0; gap: 0.4rem; padding-bottom: 0.2rem; border-bottom-width: 0.1rem; }
     .con-tender__seal { width: 1.3rem; height: 1.3rem; box-shadow: none; }
     .con-tender__committee { font-size: 0.42rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .con-tender__lot { font-size: 0.46rem; padding: 0.08rem 0.3rem 0.06rem; }
@@ -576,22 +621,12 @@
   }
 }
 
-/* ── THE START's «НАСЛЕДИЕ» stage hosts the TENDERS (the finale of a «Тендеры» campaign) ─────────────────────────
-   A third zone beside the corporations and the carried projects — the certificates at the stage's shared zoom (a
-   tender's face stands at a card's width); a tender's STEP takes the zones' place one level deeper. States are
-   kants and bands, never light. */
-.con-legview__zone--tenders {
-  border-left: .05rem solid rgba(214, 178, 106, 0.28);
-  padding-left: 2.8rem;
-}
-.con-legview__slot--tender {
-  > .con-tender {
-    --tender-w: 8rem;
-    zoom: ~"var(--con-legview-zoom, 0.9)";
-  }
-  &.con-legview__slot--busy > .con-tender { opacity: .72; }
-}
-.con-legstep {
+/* ── THE PORTFOLIO (`ConsoleTenderPortfolio`, §16.1) — the ONE surface a campaign's tenders are met on: the finale's
+   START (the wizard's first step) and the THRESHOLD before it (the carryover picker's first stage). The certificates in
+   a row at a card's width, each in its STATE by material (the face dulls its metal when it cannot go; the stamp when
+   it is done); under the row the READING of the focused one. Light is licensed to the one-shot STAMP alone. ── */
+.con-tport {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -599,26 +634,117 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: .8rem;
-  animation: con-legview-rise calc(260ms * var(--motion-scale, 1)) ease both;
-  &__head {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    max-width: 90%;
-  }
-  &__ask {
-    font-size: .86rem;
-    line-height: 1.35;
-    color: #d6f3ff;
-  }
-  &__zones {
+  gap: 1.1rem;
+  padding: .4rem 1.2rem;
+  &__row {
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    gap: 2.8rem;
-    min-width: 0;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    max-width: 100%;
   }
+  &__slot {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .45rem;
+    padding: .35rem;
+    border-radius: .55rem;
+    transition: transform calc(160ms * var(--motion-scale, 1)) @con-ease-standard, opacity calc(160ms * var(--motion-scale, 1)) linear;
+    > .con-tender { --tender-w: 11rem; }
+    &--busy > .con-tender { opacity: .72; }
+    &--armed > .con-tender { box-shadow: inset 0 0 0 .14rem fade(@con-amber, 85%); }
+    /* THE STAMP LANDS — the one event of an execution (ends on its own). */
+    &--stamping > .con-tender .con-tender__stamp {
+      animation: con-tport-stamp calc(620ms * var(--motion-scale, 1)) @con-ease-settle both;
+    }
+  }
+  &__reason,
+  &__hint {
+    font-family: @con-font;
+    font-size: .5rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    text-align: center;
+    max-width: 11rem;
+    line-height: 1.3;
+  }
+  &__reason { color: rgba(214, 223, 233, 0.62); }
+  &__hint { color: rgba(214, 223, 233, 0.5); }
+  &__reading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .28rem;
+    min-height: 3.1rem;
+    max-width: 64%;
+    text-align: center;
+  }
+  &__reading-name {
+    font-family: @con-font;
+    font-size: .84rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: #edf2f7;
+  }
+  &__reading-text {
+    font-family: @con-font-read;
+    font-size: .84rem;
+    line-height: 1.35;
+    color: rgba(214, 223, 233, 0.88);
+  }
+  &__reading-confirm {
+    font-family: @con-font-read;
+    font-size: .8rem;
+    line-height: 1.3;
+    color: @con-amber;
+  }
+  &__reading-busy {
+    font-family: @con-font;
+    font-size: .6rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: rgba(214, 223, 233, 0.7);
+  }
+  &__reader {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(7, 13, 21, 0.9);
+    animation: con-legview-rise calc(220ms * var(--motion-scale, 1)) ease both;
+  }
+}
+@keyframes con-tport-stamp {
+  from { transform: rotate(-12deg) scale(1.9); opacity: 0; }
+  55% { transform: rotate(-12deg) scale(.94); opacity: 1; }
+  to { transform: rotate(-12deg) scale(1); opacity: 1; }
+}
+
+/* ── A TENDER'S MODE ON A DEAL STEP (§16.3): the REVIEW marks the ONE card kept on the step's own strip (a steel band
+   — never a pick's mint); the RESTRUCTURING stands the dealt candidates and the lineage in two groups of the corporation
+   step. States are bands and kants. ── */
+.con-cards__slot--keep {
+  box-shadow: inset 0 0 0 .1rem rgba(174, 185, 198, 0.9);
+}
+.con-cards__pickband--keep {
+  background: rgba(14, 22, 33, 0.9);
+  box-shadow: inset 0 0 0 .05rem rgba(174, 185, 198, 0.85);
+  color: #e6edf4;
+}
+.con-restructure {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.8rem;
+  padding: .4rem 1.2rem;
   &__zone {
     display: flex;
     flex-direction: column;
@@ -630,48 +756,49 @@
     border-left: .05rem solid rgba(214, 178, 106, 0.28);
     padding-left: 2.8rem;
   }
+  &__cap {
+    font-family: @con-font;
+    font-size: .58rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: rgba(214, 223, 233, 0.62);
+  }
   &__row {
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-wrap: wrap;
     gap: 1.1rem;
-    max-width: 100%;
   }
   &__slot {
-    > :is(.card-container, .pcard) { zoom: ~"calc(var(--con-legview-zoom, 0.9) * 0.72)"; }
+    position: relative;
+    > :is(.card-container, .pcard) { zoom: ~"var(--con-cards-zoom, .9)"; }
   }
-  &__slot--picked {
-    box-shadow: inset 0 0 0 .08rem fade(@con-mint, 85%);
+}
+
+/* ── THE DOCK's «ТЕНДЕРЫ» block — the portfolio's HOME on the selection shelf: every holding as its chip with the
+   status, the executed count. A chip answers its execution with the stamp's one-shot. ── */
+.con-startdock__tenders {
+  .con-startdock__legacy-row { gap: .35rem; flex-wrap: wrap; max-width: 22rem; }
+  .con-tchip { cursor: default; }
+  .con-tchip--just-executed { animation: con-tchip-stamp calc(520ms * var(--motion-scale, 1)) @con-ease-settle both; }
+}
+@keyframes con-tchip-stamp {
+  from { transform: scale(1.12); }
+  to { transform: scale(1); }
+}
+
+/* ── THE BUYOUT (§16.4) — the deployment's «КОМПЕНСАЦИЯ» plate carries the certificates still held as chips; the press
+   stamps each in turn and the coins leave FROM the chip. ── */
+.con-start__bonusplate--tenders {
+  .con-start__bonusplate-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem;
+    justify-content: center;
+    max-width: 24rem;
+    margin-top: .2rem;
   }
-  &__band {
-    position: absolute;
-    left: .3rem;
-    right: .3rem;
-    bottom: .3rem;
-    padding: .14rem .3rem;
-    border-radius: .25rem;
-    background: rgba(14, 22, 33, 0.88);
-    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 80%);
-    color: #d8fbe9;
-    font-family: @con-font;
-    font-size: .5rem;
-    font-weight: 700;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    &.con-cards__pickband--discard { box-shadow: inset 0 0 0 .05rem rgba(224, 164, 139, 0.85); color: #f1c7b3; }
-  }
-  &__status {
-    flex-shrink: 0;
-    font-size: .74rem;
-    letter-spacing: .06em;
-    color: rgba(214, 223, 233, 0.78);
-    min-height: 1.2rem;
-  }
+  .con-tchip--cashing { animation: con-tchip-stamp calc(520ms * var(--motion-scale, 1)) @con-ease-settle both; }
 }
 /* The «КОМПЕНСАЦИЯ» plate — the bonus plate's chassis with one more line (what is bought back). */
 .con-start__bonusplate--tenders {

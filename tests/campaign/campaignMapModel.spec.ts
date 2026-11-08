@@ -161,6 +161,10 @@ describe('campaignMapModel', () => {
     const results = vm.missions[0].results!;
     expect(results[0].tender).eq('openCall');
     expect(results[1].tender).is.undefined;
+    // The carryover step's portfolio reads the holdings WITH their availability straight off the model.
+    const withCarry = buildCampaignMapVm({...model, carryover: {sourceSlot: 0, bySeat: [], yourTenders: [{instance: 't0-0', id: 'openCall', status: 'held', window: 'start', blocked: 'Executed at the finale\'s start'}]}} as never);
+    expect(withCarry.yourTenders.map((t) => [t.id, t.blocked])).deep.eq([['openCall', 'Executed at the finale\'s start']]);
+    expect(vm.yourTenders, 'no carryover — nothing').deep.eq([]);
     // A titles campaign: the mode says so, no holdings anywhere.
     const titles = buildCampaignMapVm(baseModel());
     expect(titles.rewardMode).eq('titles');

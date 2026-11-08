@@ -4,7 +4,7 @@
 
 import {CampaignRewardMode, TenderId} from '@/common/campaign/tenders';
 import {campaignRewardModeOf, seatTenderAtMission, seatTenderHoldings, TenderHoldingView, tenderNoteKey} from '@/client/console/campaign/tenderHoldings';
-import {CampaignModel, CampaignMissionModel} from '@/common/campaign/CampaignModel';
+import {CampaignModel, CampaignMissionModel, CarryoverTenderModel} from '@/common/campaign/CampaignModel';
 import {CampaignSeat, MissionSlotState, TitleName} from '@/common/campaign/CampaignTypes';
 import {Color} from '@/common/Color';
 import {BoardName} from '@/common/boards/BoardName';
@@ -122,6 +122,8 @@ export type CampaignMapVm = {
   /** The «Тендеры» mode: how many preludes the viewer may carry (one per held «Продление программы»); 0 = no band. */
   yourPreludeLimit: number;
   yourPreludes: ReadonlyArray<CardName>;
+  /** The «Тендеры» mode: EVERY holding of the viewer with its availability on this carryover step (the portfolio stage). */
+  yourTenders: ReadonlyArray<CarryoverTenderModel>;
   championSeats: ReadonlyArray<number>;
   /** The campaign's reward mode and, for tenders, the rail's one-line note (an i18n key). */
   rewardMode: CampaignRewardMode;
@@ -282,6 +284,7 @@ export function buildCampaignMapVm(model: CampaignModel): CampaignMapVm {
     yourEligiblePreludes: model.carryover?.yourEligiblePreludes ?? [],
     yourPreludeLimit: model.carryover?.yourPreludeLimit ?? 0,
     yourPreludes: model.carryover?.yourPreludes ?? [],
+    yourTenders: model.carryover?.yourTenders ?? [],
     championSeats,
     rewardMode: campaignRewardModeOf(model),
     tenderNote: tenderNoteKey(model),

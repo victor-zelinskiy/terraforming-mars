@@ -287,4 +287,74 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     expect(after.carryover?.yourCards).toEqual([HAND[0]]);
     expect(after.carryover?.yourPreludes).toEqual(['Biofuels']);
   });
+
+  test('F — «Тендеры» before the finale: the PORTFOLIO stage activates the legacy tenders — the seat opens in the album, the band unfolds, the readiness warns while one is still held', async ({page, request}) => {
+    test.setTimeout(240_000);
+    const {id} = await createCampaign(request, {}, {rewardMode: 'tenders', missionCount: 3});
+    await launchMission(request, id);
+    await devCommit(request, id, [1, 0], {tenders: {1: ['extendedLegacy', 'programExtension']}});
+    await launchMission(request, id);
+    await devCommit(request, id, [0, 1], {
+      carryoverPending: true, carryover: {0: [], 1: HAND}, finalPreludes: {1: ['Allied Bank', 'Biofuels']},
+    });
+    expect((await campaignModelAs(request, id, 'Bruno')).carryover?.yourLimit, 'the base alone until an activation').toBe(2);
+    const posts = watchCarryPosts(page);
+    await openMapAs(page, id, 'Bruno');
+    await page.waitForSelector('.con-carry', {timeout: 20_000});
+    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 30_000}).catch(() => undefined);
+    const bar = () => page.locator('.con-cmdbar').innerText();
+
+    // ── The step opens on the PORTFOLIO: two certificates, the first focused and READY, the reading in the seat's numbers. ──
+    await expect(page.locator('.con-carry [data-carry-tenders-stage]')).toBeVisible();
+    await expect(page.locator('.con-carry [data-tport-slot]')).toHaveCount(2);
+    await expect(page.locator('.con-carry [data-tport-slot][data-tport-kind="extendedLegacy"]')).toHaveAttribute('data-tport-state', 'ready');
+    await expect(page.locator('.con-carry [data-tport-reading]')).toContainText('2 → 3');
+    await expect.poll(bar, {timeout: 5_000}).toMatch(/исполнить/i);
+    await expect.poll(bar, {timeout: 5_000}).toMatch(/к наследию проектов/i);
+    await shoot(page, 'f-01-portfolio');
+
+    // ── A: the activation lands — the certificate takes the stamp, the album takes the screen with THREE seats, the third the tender's. ──
+    await press(page, 'Enter', 900);
+    await expect(page.locator('.con-carry [data-tport-slot][data-tport-kind="extendedLegacy"]')).toHaveAttribute('data-tport-state', 'executed', {timeout: 10_000});
+    await expect(page.locator('.con-carry [data-carry-album-stage]')).toBeVisible({timeout: 10_000});
+    await expect(page.locator('.con-carry [data-carry-seat]')).toHaveCount(3);
+    await expect(page.locator('.con-carry [data-carry-seat="3"]')).toHaveAttribute('data-carry-seat-tender', 'yes');
+    await expect(page.locator('.con-carry [data-carry-preludes]')).toHaveCount(0);
+    expect((await campaignModelAs(request, id, 'Bruno')).carryover?.yourLimit, 'the server opened the seat').toBe(3);
+    await shoot(page, 'f-02-seat-opened');
+
+    // ── The readiness RT while «Продление программы» is still held: the WARNING names it; B disarms. ──
+    await press(page, 'Period', 700);
+    await expect(page.locator('.con-carry [data-carry-tender-warning]')).toBeVisible();
+    await expect(page.locator('.con-carry [data-carry-tender-warning]')).toContainText(/Продление программы/i);
+    expect(posts.length, 'nothing was posted — the warning stood first').toBe(0);
+    await press(page, 'Escape', 500);
+    await expect(page.locator('.con-carry [data-carry-tender-warning]')).toHaveCount(0);
+
+    // ── B: back to the portfolio (one level); ▶ A: the band UNFOLDS above the album with the two played preludes. ──
+    await press(page, 'Escape', 600);
+    await expect(page.locator('.con-carry [data-carry-tenders-stage]')).toBeVisible();
+    await press(page, 'ArrowRight', 300);
+    await expect(page.locator('.con-carry [data-tport-slot][data-tport-kind="programExtension"]')).toHaveAttribute('data-tport-focused', 'yes');
+    await press(page, 'Enter', 900);
+    await expect(page.locator('.con-carry [data-tport-slot][data-tport-kind="programExtension"]')).toHaveAttribute('data-tport-state', 'executed', {timeout: 10_000});
+    await expect(page.locator('.con-carry [data-carry-album-stage]')).toBeVisible({timeout: 10_000});
+    await expect(page.locator('.con-carry [data-carry-prelude]')).toHaveCount(2);
+    await expect(page.locator('.con-carry [data-carry-prelude-count]')).toHaveText('0 / 1');
+    await shoot(page, 'f-03-band-unfolded');
+
+    // ── Keep one card, carry one prelude, RT: no warning left — ONE POST carries both. ──
+    await press(page, 'Enter', 700);
+    await expect(page.locator('.con-carry [data-carry-seat="1"]')).toHaveAttribute('data-carry-seat-card', HAND[0]);
+    await press(page, 'ArrowUp', 500);
+    await press(page, 'Enter', 500);
+    await expect(page.locator('.con-carry [data-carry-prelude-count]')).toHaveText('1 / 1');
+    await press(page, 'Period', 900);
+    await expect.poll(() => posts.length, {timeout: 10_000}).toBe(1);
+    const body = JSON.parse(posts[0]) as {cards: Array<string>, preludes?: Array<string>};
+    expect(body.cards).toEqual([HAND[0]]);
+    expect(body.preludes).toEqual(['Allied Bank']);
+    const after = await campaignModelAs(request, id, 'Bruno');
+    expect(after.carryover?.yourTenders?.map((t: {status: string}) => t.status)).toEqual(['executed', 'executed']);
+  });
 });

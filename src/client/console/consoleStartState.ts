@@ -40,12 +40,32 @@ import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overv
 import {presentPlayerStatus, StatusPresentation} from '@/client/components/overview/playerStatusPresenter';
 import {inputLocked, resetStartTransition, startTransitionActive, StartTransitionPhase} from '@/client/console/startStageDirector';
 
-export type StartWizardStepId = 'corp' | 'prelude' | 'ceo' | 'projects';
+/**
+ * The wizard's steps. `tenders` is SYNTHETIC — the campaign «Тендеры» finale's FIRST step (the portfolio: every holding
+ * of the player with what it gives here), prepended by `wizardSteps` when the selection carries tenders; it answers
+ * nothing on the wire (`buildInitialCardsResponse` walks the server's options, never the steps).
+ */
+export type StartWizardStepId = 'tenders' | 'corp' | 'prelude' | 'ceo' | 'projects';
 
 export type StartWizardStep = {
   id: StartWizardStepId,
   input: SelectCardModel & {type: 'card'},
 };
+
+/** The synthetic TENDERS step's input: no cards, nothing to pick — complete by construction (min = max = 0). */
+export const TENDERS_STEP_INPUT = {
+  type: 'card', title: 'Tenders', buttonLabel: '', cards: [], min: 0, max: 0,
+  showOnlyInLearnerMode: false, selectBlueCardAction: false, showOwner: false, showSelectAll: false,
+} as unknown as SelectCardModel & {type: 'card'};
+
+/**
+ * CAMPAIGN «ТЕНДЕРЫ» — a tender's MODE standing on a DEAL step (§16.3): a REVIEW marks the one card to keep on the
+ * prelude / project step's own strip; the RESTRUCTURING picks a dealt candidate and the lineage corporation it
+ * replaces on the corporation step. Module state: the scene may re-mount under the mode (a defer / a restore).
+ */
+export type StartTenderMode =
+  | {kind: 'review', instance: string, pool: 'prelude' | 'projects', keep?: CardName}
+  | {kind: 'restructure', instance: string, offer: ReadonlyArray<CardName>, take?: CardName, replace?: CardName};
 
 /**
  * The Game Start Workspace's FLOW STATE — the one motion director's phase.
@@ -206,6 +226,8 @@ export const consoleStartState = reactive({
    */
   tenderBusy: undefined as string | undefined,
   restructureOpening: undefined as string | undefined,
+  /** A tender's mode standing on a deal step (§16.3) — `undefined` = the ordinary selection. */
+  tenderMode: undefined as StartTenderMode | undefined,
 });
 
 /**
@@ -302,6 +324,7 @@ export function ensureStartWizard(
   consoleStartState.legacySeen = false;
   consoleStartState.tenderBusy = undefined;
   consoleStartState.restructureOpening = undefined;
+  consoleStartState.tenderMode = undefined;
   resetStartTransition();
 }
 
@@ -509,6 +532,11 @@ export function wizardSteps(input: SelectInitialCardsModel): Array<StartWizardSt
       break;
     }
   }
+  // The «Тендеры» finale: the PORTFOLIO stands first — the tenders change the deal, so they come before the picks
+  // (the reviews that need the deal travel to their step from here, §16.2).
+  if ((input.tenders ?? []).length > 0) {
+    steps.unshift({id: 'tenders', input: TENDERS_STEP_INPUT});
+  }
   return steps;
 }
 
@@ -557,6 +585,8 @@ export type InitialCardsPicks = {
 /** The current picks for one step (single-pick steps normalize to arrays). */
 export function picksForStep(picks: InitialCardsPicks, id: StartWizardStepId): ReadonlyArray<CardName> {
   switch (id) {
+  case 'tenders':
+    return [];
   case 'corp':
     return picks.corp !== undefined ? [picks.corp] : [];
   case 'prelude':
@@ -636,6 +666,7 @@ export type StartJourneyItem = {
 };
 
 const JOURNEY_LABEL_BASE: Record<StartWizardStepId, string> = {
+  tenders: 'Tenders',
   corp: 'Corporation',
   prelude: 'Preludes',
   ceo: 'CEO',
@@ -901,6 +932,7 @@ export type StartCrumb = {
 };
 
 const STEP_SUBJECT: Record<StartWizardStepId, string> = {
+  tenders: 'Tenders',
   corp: 'Corporation',
   prelude: 'Preludes',
   ceo: 'CEO',
@@ -919,7 +951,7 @@ export function wizardCrumb(stepId: StartWizardStepId | undefined): StartCrumb {
   }
   return {
     subject: stepId === 'corp' ? startCorpStageLabel() : STEP_SUBJECT[stepId],
-    stage: stepId === 'projects' ? 'Purchase' : 'Selection',
+    stage: stepId === 'tenders' ? 'Portfolio' : stepId === 'projects' ? 'Purchase' : 'Selection',
   };
 }
 
@@ -1096,7 +1128,7 @@ export function startDockPiles(
       backs,
       collected,
     };
-  });
+  }).filter((pile) => pile.id !== 'tenders');
 }
 
 /** One OTHER player at the table, as the summary's readiness readout sees them. */

@@ -796,10 +796,20 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
  * returned, and the caller is the one that reports it.
  */
 export async function waitStepDealSettled(page: Page, maxMs = 15_000): Promise<void> {
-  await page.waitForFunction(() =>
+  // THE DEAL ARMS A BEAT AFTER THE PANE SWAP (`prepareDeal` → a 260 ms timer, then the launch): a read taken in that
+  // gap sees no hold and no pending cursor and reports a settled deal that has not started — the next press is then
+  // the cinematic's SKIP (2026-11-09, the «Тендеры» start walk: LT and RT swallowed on every first-visit step). Two
+  // calm reads a beat apart, or the budget.
+  const deadline = Date.now() + maxMs;
+  const calmNow = () => page.evaluate(() =>
     document.querySelector('.con-cards__slot--focused[data-zoom-slot]') !== null &&
-    document.querySelectorAll('.con-cards__slot[data-zoom-slot].con-deal-hold').length === 0,
-  undefined, {timeout: maxMs}).catch(() => { /* reported by the caller */ });
+    document.querySelectorAll('.con-cards__slot[data-zoom-slot].con-deal-hold').length === 0 &&
+    document.querySelector('[data-cursor-pending]') === null).catch(() => false);
+  let calm = 0;
+  while (Date.now() < deadline && calm < 2) {
+    calm = (await calmNow()) ? calm + 1 : 0;
+    await pollPause(page, 350);
+  }
 }
 
 /**

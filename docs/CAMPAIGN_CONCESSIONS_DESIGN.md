@@ -839,3 +839,18 @@ LT/RT (`startTransition`), и ТАМ играет сцену; после сце�
 защита, предупреждение) · **T4** лицо · **T5** дыра `api/waitingfor` (`changed` не видит смены промта при неизменном
 `gameAge`: клиент шлёт `promptId`, сервер сравнивает).
 
+**Статус (2026-11-08, ночная итерация):** T1 СДАН `7d85d2d193`. T2 реализован: синтетический шаг `tenders`
+(`consoleStartState.ts`), `ConsoleTenderPortfolio.vue` (`.con-tport`), чистая половина `tenderPortfolio.ts`
+(чтение/состояние/подтверждение/ответы, `startTenders.ts` удалён), режимы `review` / `restructure` на родных шагах
+(`consoleStartState.tenderMode`), путешествие к шагу (`travelToStep` — park/unpark), инкрементальная раздача (только
+новые карты летят с колоды — `landedDealNames`), предупреждение сводки (`data-start-tender-warning`), сцена выкупа
+(чипы `data-buyout-card`, монеты с каждого), блок «ТЕНДЕРЫ» в доке (`data-tender-dock-chip`); зона тендеров и
+`con-legstep` стадии «НАСЛЕДИЕ» удалены. T3 реализован: стадия `tenders` в `ConsoleCarryoverPicker` (два слоя
+`data-carry-tenders-stage` / `data-carry-album-stage`), активация через `submitCampaignTender`, печать → альбом с
+открывшимся местом / развёрнутой полосой, защита от дурака вторым нажатием, предупреждение на RT готовности
+(`data-carry-tender-warning`). T4: лицо тендера — ВЕЛЛУМ КОМИТЕТА (светлая бумага семьи «билля», чернила, металл
+тира в рамке/ленте/печати; `console_tender.less`), интеграция в `premium-card-face` / `ZoomCard` отложена (X
+открывает ридер портфеля). T5: `api/waitingfor` получает `promptId` показанного промта и считает `changed` и по нему
+(`ApiWaitingFor.spec`). e2e: `console-campaign-tenders` A переписан под портфель, `console-carryover-album` F —
+активация на пороге; прогон на боксе — в очереди за слотом.
+

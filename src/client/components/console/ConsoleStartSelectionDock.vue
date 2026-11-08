@@ -1,5 +1,5 @@
 <template>
-  <div v-if="piles.length > 0 || lineage.length > 0 || carried.length > 0" class="con-startdock">
+  <div v-if="piles.length > 0 || lineage.length > 0 || carried.length > 0 || tenders.length > 0" class="con-startdock">
     <!--
       THE SELECTION DOCK — the Game Start Workspace's preparation shelf: the
       decisions ALREADY MADE on earlier steps lie here as compact face-down
@@ -82,6 +82,22 @@
       </div>
     </div>
 
+    <!-- CAMPAIGN «ТЕНДЕРЫ» (§16.1): the holder's tenders as their chips with the status — the PORTFOLIO's home on the
+         shelf (the portfolio is the wizard's first step; a chip takes the stamp's one-shot when its tender executes). -->
+    <div v-if="tenders.length > 0" class="con-startdock__legacy con-startdock__tenders" data-tender-dock>
+      <span class="con-startdock__legacy-divider" aria-hidden="true"></span>
+      <div class="con-startdock__legacy-body">
+        <div class="con-startdock__legacy-head">
+          <span class="con-startdock__legacy-cap">{{ $t('Tenders') }}</span>
+        </div>
+        <div class="con-startdock__legacy-row">
+          <ConsoleTenderChip v-for="t in tenders" :key="t.instance" :id="t.id" :status="t.status"
+                             :class="{'con-tchip--just-executed': stamped === t.instance}"
+                             :data-tender-dock-chip="t.instance" :data-tender-dock-status="t.status" />
+        </div>
+      </div>
+    </div>
+
     <!-- CAMPAIGN «Наследие проектов»: the project cards carried over from the
          previous mission — their own block BESIDE the corporations (identity
          matters for the picks being made above: a carried project can change
@@ -112,7 +128,12 @@
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import ConsoleTenderChip from '@/client/components/console/campaign/ConsoleTenderChip.vue';
 import {CardName} from '@/common/cards/CardName';
+import {TenderId, TenderStatus} from '@/common/campaign/tenders';
+
+/** One tender on the shelf — the chip's data. */
+export type StartDockTender = {instance: string, id: TenderId, status: TenderStatus};
 
 export type StartDockPile = {
   id: string,
@@ -130,7 +151,7 @@ export type StartDockPile = {
 
 export default defineComponent({
   name: 'ConsoleStartSelectionDock',
-  components: {Card, GamepadGlyph},
+  components: {Card, GamepadGlyph, ConsoleTenderChip},
   props: {
     piles: {type: Array as PropType<ReadonlyArray<StartDockPile>>, required: true},
     /** CAMPAIGN: the established corporation lineage («Наследие» block). */
@@ -139,6 +160,10 @@ export default defineComponent({
     carried: {type: Array as PropType<ReadonlyArray<CardName>>, required: false, default: () => []},
     /** Show the R3 legacy-overview glyph (where the press actually opens it). */
     lineageHint: {type: Boolean, required: false, default: false},
+    /** CAMPAIGN «ТЕНДЕРЫ»: the holder's tenders (the portfolio's home on the shelf). */
+    tenders: {type: Array as PropType<ReadonlyArray<StartDockTender>>, required: false, default: () => []},
+    /** The chip that just took its stamp (a one-shot class). */
+    stamped: {type: String, required: false, default: undefined},
     /** Tiles whose card is physically UP in the legacy overview right now —
      *  held empty (visibility only: the tile stays the flight's measured
      *  home, and the shelf's geometry never changes). */

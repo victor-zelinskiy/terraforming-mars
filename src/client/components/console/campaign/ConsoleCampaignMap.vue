@@ -209,6 +209,9 @@
           :eligible-preludes="vm.yourEligiblePreludes"
           :prelude-limit="vm.yourPreludeLimit"
           :selected-preludes="preludeDraft"
+          :tenders="vm.yourTenders"
+          :tender-busy="tenderBusy"
+          :tender-error="tenderError"
           :next-mission="vm.currentSlot + 1"
           :root="embedded ? 'Game results' : 'Campaign'"
           :confirmed="vm.carryoverConfirmed && !carryDirty"
@@ -216,6 +219,7 @@
           :error="state.error"
           @toggle="toggleCarry($event)"
           @toggle-prelude="togglePreludeCarry($event)"
+          @execute-tender="executeTender($event)"
           @confirm="confirmCarry"
           @back="closeOverlay"
           @arm-change="carryArmed = $event"
@@ -309,6 +313,7 @@ import {
   stopCampaignWatch,
   submitCampaignBid,
   submitCampaignCarryover,
+  submitCampaignTender,
 } from '@/client/console/campaign/campaignState';
 import {CampaignMapVm, buildCampaignMapVm} from '@/client/console/campaign/campaignMapModel';
 import {campaignMapUi, resetCampaignMapUi} from '@/client/console/campaign/campaignMapUi';
@@ -354,7 +359,10 @@ export default defineComponent({
       /** The picker's ARMED zero-carry confirm (mirrored up for the bar). */
       carryArmed: false,
       /** The picker's bar facts (the A verb by focus, the page count) — mirrored up for the ONE command bar. */
-      carryBar: {primary: 'Keep for the next mission', pages: 1} as {primary: string, pages: number},
+      carryBar: {primary: 'Keep for the next mission', pages: 1, stage: 'album', primaryEnabled: true} as {primary: string, pages: number, stage: 'tenders' | 'album', primaryEnabled: boolean},
+      /** The «Тендеры» mode: the legacy tender whose activation is on the wire, and the server's last refusal. */
+      tenderBusy: undefined as string | undefined,
+      tenderError: '',
       /** The CONFIRM flight is in the air: the viewer's seat row holds its carry count until each card's touchdown. */
       carryHeldCount: undefined as number | undefined,
       /** The next mission's card answers the touchdown (a one-shot kant impulse). */
@@ -508,6 +516,15 @@ export default defineComponent({
         // next-step verb). While the fullscreen viewer is open the modal
         // draws its own bar on top (the dev-picker precedent).
         const carryCmds: Array<ConsoleCommand> = [];
+        // THE TENDERS stage (§16.1): A the focused certificate's verb (disabled, never hidden), X reads it, RT moves on.
+        if (this.carryBar.stage === 'tenders') {
+          carryCmds.push({control: 'dpad', label: 'Choose'});
+          carryCmds.push({control: 'confirm', label: this.carryBar.primary, enabled: this.carryBar.primaryEnabled});
+          carryCmds.push({control: 'secondary', label: 'Inspect'});
+          carryCmds.push({control: 'triggerR', label: 'Continue to the legacy', highlight: true});
+          carryCmds.push({control: 'back', label: 'Close'});
+          return carryCmds;
+        }
         if (vm.yourEligibleCards.length > 0) {
           carryCmds.push({control: 'dpad', label: 'Choose'});
           carryCmds.push({control: 'confirm', label: this.carryBar.primary});
@@ -515,7 +532,7 @@ export default defineComponent({
           // LB / RB turn the page — the SPINE in the stage foot says so (one action, one hint: never the bar).
         }
         carryCmds.push({control: 'triggerR', label: this.carryConfirmLabel, highlight: true});
-        carryCmds.push({control: 'back', label: 'Close'});
+        carryCmds.push({control: 'back', label: vm.yourTenders.length > 0 ? 'Back' : 'Close'});
         return carryCmds;
       }
       if (this.overlay?.kind === 'mission') {
@@ -1167,6 +1184,22 @@ export default defineComponent({
         this.preludeDraft.push(name);
       }
       this.carryDirty = true;
+    },
+    /** «ТЕНДЕРЫ» (§16.5): a legacy tender's ACTIVATION — the seat's own credential, one at a time; the model answer opens the seat / the band. */
+    async executeTender(instance: string): Promise<void> {
+      if (this.tenderBusy !== undefined) {
+        return;
+      }
+      this.tenderBusy = instance;
+      this.tenderError = '';
+      try {
+        const ok = await submitCampaignTender(instance);
+        if (!ok) {
+          this.tenderError = this.state.error !== '' ? this.state.error : 'Could not execute the tender. Please try again.';
+        }
+      } finally {
+        this.tenderBusy = undefined;
+      }
     },
     async confirmCarry(): Promise<void> {
       const vm = this.vm;
