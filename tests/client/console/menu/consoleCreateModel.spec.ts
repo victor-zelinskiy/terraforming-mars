@@ -242,7 +242,7 @@ describe('consoleCreateModel', () => {
       createGameState.config.mapId = BoardName.AMAZONIS_PLANITIA;
       expect(botSecondShiftCap()).to.eq(4);
       createGameState.config.botDifficulty = 'hard';
-      expect(botSecondShiftCap()).to.eq(6);
+      expect(botSecondShiftCap()).to.eq(7); // Hard's +2 from the 7th generation
       createGameState.config.mapMode = 'random-all';
       expect(botSecondShiftCap()).to.eq(5);
     });

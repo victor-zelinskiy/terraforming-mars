@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {DifficultyLevel, MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
-import {SECOND_SHIFT_CAP_LADDER, SECOND_SHIFT_LONG_MAP_BONUS, secondShiftCap, secondShiftMaxCap, secondShiftRuleApplies} from '../../src/common/automa/SecondShift';
+import {SECOND_SHIFT_CAP_LADDER, SECOND_SHIFT_LONG_MAP_BONUS, secondShiftCap, secondShiftLongMapBonus, secondShiftMaxCap, secondShiftRuleApplies} from '../../src/common/automa/SecondShift';
 import {isLongMapForBot} from '../../src/common/automa/botPace';
 import {BoardName} from '../../src/common/boards/BoardName';
 import {Game} from '../../src/server/Game';
@@ -87,8 +87,10 @@ describe('SecondShift — «вторая смена», the bot\'s late-game pace
     expect([secondShiftMaxCap('easy'), secondShiftMaxCap('normal'), secondShiftMaxCap('hard'), secondShiftMaxCap('brutal')]).deep.eq([3, 4, 5, 4]);
   });
 
-  it('a LONG map (a bot pace offset — Amazonis Planitia) reads every ACTIVE band one card higher; the sleeping first band stays asleep (the owner, 2026-11-08)', () => {
-    expect(SECOND_SHIFT_LONG_MAP_BONUS).eq(1);
+  it('a LONG map (a bot pace offset — Amazonis Planitia): Easy / Normal +1 in every active band, Hard / Brutal +1 in the 5th–6th and +2 from the 7th; the sleeping first band stays asleep (the owner, 2026-11-08)', () => {
+    expect(SECOND_SHIFT_LONG_MAP_BONUS).deep.eq({easy: {first: 1, later: 1}, normal: {first: 1, later: 1}, hard: {first: 1, later: 2}, brutal: {first: 1, later: 2}});
+    expect([0, 1, 2, 6].map((band) => secondShiftLongMapBonus('hard', band))).deep.eq([0, 1, 2, 2]);
+    expect([0, 1, 2, 6].map((band) => secondShiftLongMapBonus('normal', band))).deep.eq([0, 1, 1, 1]);
     expect(isLongMapForBot(BoardName.AMAZONIS_PLANITIA)).is.true;
     expect(isLongMapForBot(BoardName.THARSIS)).is.false;
     expect(isLongMapForBot(BoardName.AMAZONIS), 'the FAN Amazonis is a standard-length map').is.false;
@@ -100,14 +102,14 @@ describe('SecondShift — «вторая смена», the bot\'s late-game pace
       expect(row(gen), `gen ${gen} — Easy's rung is 0 and stays 0`).deep.eq([0, 2, 2, 3]);
     }
     for (const gen of [7, 8]) {
-      expect(row(gen), `gen ${gen}`).deep.eq([2, 2, 3, 4]);
+      expect(row(gen), `gen ${gen} — Hard / Brutal +2 from here`).deep.eq([2, 2, 4, 5]);
     }
-    expect(row(9)).deep.eq([2, 3, 4, 5]);
-    expect(row(16)).deep.eq([4, 5, 6, 5]);
-    expect([secondShiftMaxCap('easy', true), secondShiftMaxCap('normal', true), secondShiftMaxCap('hard', true), secondShiftMaxCap('brutal', true)]).deep.eq([4, 5, 6, 5]);
+    expect(row(9)).deep.eq([2, 3, 5, 6]);
+    expect(row(16)).deep.eq([4, 5, 7, 6]);
+    expect([secondShiftMaxCap('easy', true), secondShiftMaxCap('normal', true), secondShiftMaxCap('hard', true), secondShiftMaxCap('brutal', true)]).deep.eq([4, 5, 7, 6]);
   });
 
-  it('…read LIVE in the game: Hard on Amazonis Planitia offers two extra cards in the 5th generation and three in the 7th; Tharsis keeps one and two', () => {
+  it('…read LIVE in the game: Hard on Amazonis Planitia offers two extra cards in the 5th generation and four in the 7th; Tharsis keeps one and two', () => {
     const amazonis = spentDeckGame({...shiftOptions('hard', true), boardName: BoardName.AMAZONIS_PLANITIA}, '-long-map');
     amazonis.game.generation = 4;
     expect(SecondShift.cap(amazonis.game), 'the sleeping band').eq(0);
@@ -115,9 +117,11 @@ describe('SecondShift — «вторая смена», the bot\'s late-game pace
     expect(SecondShift.cap(amazonis.game)).eq(2);
     expect(SecondShift.offer(amazonis.game)).deep.eq({index: 1, cap: 2});
     amazonis.game.generation = 7;
-    expect(SecondShift.cap(amazonis.game)).eq(3);
+    expect(SecondShift.cap(amazonis.game)).eq(4);
     amazonis.game.automa!.secondShift = {generation: 7, drawn: 2};
-    expect(SecondShift.offer(amazonis.game), 'the third card the printed ladder would not have offered').deep.eq({index: 3, cap: 3});
+    expect(SecondShift.offer(amazonis.game), 'the third card the printed ladder would not have offered').deep.eq({index: 3, cap: 4});
+    amazonis.game.automa!.secondShift = {generation: 7, drawn: 4};
+    expect(SecondShift.offer(amazonis.game), 'the cap holds').is.undefined;
     const tharsis = spentDeckGame(shiftOptions('hard', true), '-standard-map');
     tharsis.game.generation = 5;
     expect(SecondShift.cap(tharsis.game)).eq(1);
