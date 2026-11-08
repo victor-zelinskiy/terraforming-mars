@@ -82,18 +82,25 @@
       </div>
     </div>
 
-    <!-- CAMPAIGN «ТЕНДЕРЫ» (§16.1): the holder's tenders as their chips with the status — the PORTFOLIO's home on the
-         shelf (the portfolio is the wizard's first step; a chip takes the stamp's one-shot when its tender executes). -->
+    <!-- CAMPAIGN «ТЕНДЕРЫ» (§16.1): the holder's tenders — the PORTFOLIO's home on the shelf — on the LINEAGE's own
+         chassis: every holding is its certificate in MINIATURE (the face itself, zoomed: the tier's metal, the art,
+         the stamp read as material), one row beside the cap with the executed tally. A column of word chips once
+         stood here and stretched the whole dock by a row per holding (the owner's frame of 2026-11-09). A card takes
+         the stamp's one-shot when its tender executes. -->
     <div v-if="tenders.length > 0" class="con-startdock__legacy con-startdock__tenders" data-tender-dock>
       <span class="con-startdock__legacy-divider" aria-hidden="true"></span>
       <div class="con-startdock__legacy-body">
         <div class="con-startdock__legacy-head">
           <span class="con-startdock__legacy-cap">{{ $t('Tenders') }}</span>
+          <span class="con-startdock__tenders-tally" data-tender-dock-tally>{{ executedTenders }}/{{ tenders.length }}</span>
         </div>
         <div class="con-startdock__legacy-row">
-          <ConsoleTenderChip v-for="t in tenders" :key="t.instance" :id="t.id" :status="t.status"
-                             :class="{'con-tchip--just-executed': stamped === t.instance}"
-                             :data-tender-dock-chip="t.instance" :data-tender-dock-status="t.status" />
+          <div v-for="t in tenders" :key="t.instance" class="con-startdock__tcard"
+               :class="[`con-startdock__tcard--${t.status}`, {'con-startdock__tcard--just-executed': stamped === t.instance}]"
+               :data-tender-dock-chip="t.instance" :data-tender-dock-status="t.status"
+               :aria-label="$t(tenderNameKey(t.id))">
+            <ConsoleTenderCard :id="t.id" size="table" :state="tenderCardStateOf(t.status)" />
+          </div>
         </div>
       </div>
     </div>
@@ -128,9 +135,10 @@
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import ConsoleTenderChip from '@/client/components/console/campaign/ConsoleTenderChip.vue';
+import ConsoleTenderCard from '@/client/components/console/campaign/ConsoleTenderCard.vue';
+import {tenderCardStateOf} from '@/client/console/campaign/tenderPortfolio';
 import {CardName} from '@/common/cards/CardName';
-import {TenderId, TenderStatus} from '@/common/campaign/tenders';
+import {TenderId, TenderStatus, tenderNameKey} from '@/common/campaign/tenders';
 
 /** One tender on the shelf — the chip's data. */
 export type StartDockTender = {instance: string, id: TenderId, status: TenderStatus};
@@ -151,7 +159,7 @@ export type StartDockPile = {
 
 export default defineComponent({
   name: 'ConsoleStartSelectionDock',
-  components: {Card, GamepadGlyph, ConsoleTenderChip},
+  components: {Card, GamepadGlyph, ConsoleTenderCard},
   props: {
     piles: {type: Array as PropType<ReadonlyArray<StartDockPile>>, required: true},
     /** CAMPAIGN: the established corporation lineage («Наследие» block). */
@@ -170,7 +178,15 @@ export default defineComponent({
     heldNames: {type: Array as PropType<ReadonlyArray<CardName>>, required: false, default: () => []},
   },
   emits: ['inspect-lineage'],
+  computed: {
+    /** How many of the holdings have already executed — the dock's quiet tally beside the cap. */
+    executedTenders(): number {
+      return this.tenders.filter((t) => t.status === 'executed').length;
+    },
+  },
   methods: {
+    tenderNameKey,
+    tenderCardStateOf,
     /** The pile's cards are laid out elsewhere (the summary tiles) — only
      *  the informational label · count trace remains, no physical backs. */
     traceOnly(pile: StartDockPile): boolean {

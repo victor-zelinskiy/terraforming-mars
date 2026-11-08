@@ -92,6 +92,15 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     // ── THE PORTFOLIO stands FIRST: four certificates, the first focused, its reading in the deal's numbers, the bar its verb. ──
     await expect(portfolio).toBeVisible();
     await expect(page.locator('[data-tport-slot]')).toHaveCount(5);
+    // The dock's «ТЕНДЕРЫ» block stands on the lineage's chassis — one row of miniature certificates, never the column
+    // of word chips that stretched the whole dock by a row per holding (the owner's frame of 2026-11-09).
+    const dockBoxes = await page.evaluate(() => ({
+      tenders: document.querySelector('[data-tender-dock]')?.getBoundingClientRect().height,
+      lineage: document.querySelector('.con-startdock__legacy:not(.con-startdock__tenders)')?.getBoundingClientRect().height,
+      cards: document.querySelectorAll('[data-tender-dock-chip] .con-tender').length,
+    }));
+    expect(dockBoxes.cards, 'every holding is a miniature certificate').toBe(5);
+    expect(dockBoxes.tenders, `the tenders block is no taller than the lineage block ${JSON.stringify(dockBoxes)}`).toBeLessThanOrEqual((dockBoxes.lineage ?? 0) * 1.15);
     await expect.poll(subject, {timeout: 5_000}).toMatch(/тендер/i);
     await expect(slot('openCall')).toHaveAttribute('data-tport-focused', 'yes');
     await expect(slot('openCall')).toHaveAttribute('data-tport-state', 'ready');

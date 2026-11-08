@@ -944,12 +944,31 @@
    2.6rem of it for the focused card's lift): that room goes to the cards. Three classes — the TV rule has two. */
 .con-start .con-cards--tagmode > .con-cards__strip--grid { padding-top: .6rem; }
 
-/* ── THE DOCK's «ТЕНДЕРЫ» block — the portfolio's HOME on the selection shelf: every holding as its chip with the
-   status, the executed count. A chip answers its execution with the stamp's one-shot. ── */
+/* ── THE DOCK's «ТЕНДЕРЫ» block — the portfolio's HOME on the selection shelf, on the LINEAGE's chassis: every
+   holding as its certificate in MINIATURE (the face itself, zoomed — the tier's metal, the art, the stamp read as
+   material), one row, the executed tally beside the cap. The column of word chips it used to be stretched the dock
+   by a row per holding (the owner's frame of 2026-11-09). A card answers its execution with the stamp's one-shot. ── */
 .con-startdock__tenders {
-  .con-startdock__legacy-row { gap: .35rem; flex-wrap: wrap; max-width: 22rem; }
-  .con-tchip { cursor: default; }
-  .con-tchip--just-executed { animation: con-tchip-stamp calc(520ms * var(--motion-scale, 1)) @con-ease-settle both; }
+  .con-startdock__legacy-row { gap: .3rem; flex-wrap: nowrap; }
+  .con-startdock__legacy-head { align-items: flex-start; }
+  &-tally {
+    font-family: @con-font;
+    font-size: .6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .08em;
+    color: rgba(236, 211, 154, 0.62);
+  }
+}
+.con-startdock__tcard {
+  position: relative;
+  flex: none;
+  border-radius: .22rem;
+  box-shadow: 0 .12rem .3rem rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  /* The face is 14rem × 1.42 at its natural size; the lineage's cards stand 3.2rem tall — zoom 3.2 / 19.88. */
+  > .con-tender { zoom: 0.161; }
+  &--just-executed { animation: con-tchip-stamp calc(520ms * var(--motion-scale, 1)) @con-ease-settle both; }
 }
 @keyframes con-tchip-stamp {
   from { transform: scale(1.12); }
