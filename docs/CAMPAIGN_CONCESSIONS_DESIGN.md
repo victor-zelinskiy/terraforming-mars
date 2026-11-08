@@ -852,5 +852,5 @@ LT/RT (`startTransition`), и ТАМ играет сцену; после сце�
 тира в рамке/ленте/печати; `console_tender.less`), интеграция в `premium-card-face` / `ZoomCard` отложена (X
 открывает ридер портфеля). T5: `api/waitingfor` получает `promptId` показанного промта и считает `changed` и по нему
 (`ApiWaitingFor.spec`). e2e: `console-campaign-tenders` A переписан под портфель, `console-carryover-album` F —
-активация на пороге; прогон на боксе — в очереди за слотом.
+активация на пороге. СДАНО: T2–T4 `48614307fe`, T5 `0c218fdb26` (2026-11-09); на боксе зелёные `console-campaign-tenders` A+B, `console-carryover-album` A–F, `console-campaign-bidding`, `console-campaign-overview`, `console-campaign`, `console-campaign-legacy-overview`, `aaa-driver-canary`. Отложено: лицо тендера в `premium-card-face` / `ZoomCard` (X — ридер портфеля); ревью тематики карт владельцем.
 
