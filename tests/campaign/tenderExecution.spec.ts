@@ -108,6 +108,17 @@ describe('tender execution at the finale\'s start', () => {
     expect(p1.waitingForSerial, 'with a fresh identity').not.eq(serial);
     expect(cast(selection.inputs.project, SelectCard).cards).has.length(before.length + 3);
     expect(selection.toModel(p1).tenders).deep.eq([{instance: 't0', id: 'targetedRequest', status: 'executed', window: 'start'}]);
+    // While HELD the model carried the deck's own numbers per requestable tag (the decision's facts); executed — no counts.
+    const fresh = finale(['targetedRequest']);
+    const served = selectionOf(fresh.p1).toModel(fresh.p1).tenders![0];
+    expect(served.tagCounts, 'a held request is served with the counts').is.not.undefined;
+    expect(served.tagCounts![Tag.SPACE], 'the base deck holds Space cards').greaterThan(3);
+    expect(served.tagCounts![Tag.WILD], 'a marker tag is never offered').is.undefined;
+    expect(Object.values(served.tagCounts!).every((n) => typeof n === 'number' && n >= 0)).is.true;
+    const sum = (g: typeof fresh.game) => g.projectDeck.drawPile.length + g.projectDeck.discardPile.length;
+    const jovianInDeck = [...fresh.game.projectDeck.drawPile, ...fresh.game.projectDeck.discardPile].filter((c) => c.tags.includes(Tag.JOVIAN)).length;
+    expect(served.tagCounts![Tag.JOVIAN], 'counted over the draw pile AND the discards').eq(jovianInDeck);
+    void sum;
     expect(() => p1.process({type: 'tender', instance: 't0', tag: Tag.SPACE})).throws(/already executed/);
     // A tag the deck has run out of is refused by name — the tender stays held (the compensation can buy it back).
     const other = finale(['targetedRequest']);

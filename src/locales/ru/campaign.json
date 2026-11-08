@@ -368,13 +368,13 @@
   "Name a tag: three project cards with it join your deal from the deck.": "Назовите метку: три карты проектов с ней придут в вашу раздачу из колоды.",
   "Three folders, one keyword. The archivist did not ask why.": "Три папки по одному ключевому слову. Архивариус не спросил зачем.",
   "Name a tag: ${0} project cards with it join the deal": "Назовите метку: карт проектов с ней в раздачу: ${0}",
-  "Name a tag": "Назвать метку",
-  "Tag of the three requested cards": "Метка трёх запрошенных карт",
+  "Name a tag": "Назвать метку",
   "Request the three cards": "Запросить три карты",
   "Choose this tag": "Выбрать эту метку",
   "Cancel the request": "Отменить запрос",
   "No project card with that tag is left in the deck": "В колоде не осталось карт проектов с этой меткой",
   "A starting-hand card already costs the minimum (1 M€)": "Карта стартовой руки уже стоит минимум (1 M€)",
   "Name a tag for the request": "Назовите метку для запроса",
-  "Tag": "Метка"
+  "Tag": "Метка",
+  "No card with this tag is left": "Карт с этой меткой не осталось"
 }

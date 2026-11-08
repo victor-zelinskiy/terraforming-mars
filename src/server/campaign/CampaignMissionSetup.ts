@@ -691,6 +691,26 @@ function drawProjectsWithTag(game: IGame, tag: Tag, count: number): Array<IProje
   return found;
 }
 
+/** What the finale's project deck still holds per requestable tag — the facts a «Целевой запрос» is decided on. */
+export function projectTagCounts(game: IGame): Partial<Record<Tag, number>> {
+  const counts: Partial<Record<Tag, number>> = {};
+  for (const tag of ALL_TAGS) {
+    if (isRequestableTag(tag)) {
+      counts[tag] = 0;
+    }
+  }
+  for (const pile of [game.projectDeck.drawPile, game.projectDeck.discardPile]) {
+    for (const card of pile) {
+      for (const tag of card.tags) {
+        if (counts[tag] !== undefined) {
+          counts[tag] = (counts[tag] ?? 0) + 1;
+        }
+      }
+    }
+  }
+  return counts;
+}
+
 /** The tags a «Целевой запрос» may name — a printed card tag, never the wild / clone / event markers. */
 export function isRequestableTag(value: unknown): value is Tag {
   return typeof value === 'string' && (ALL_TAGS as ReadonlyArray<string>).includes(value) &&

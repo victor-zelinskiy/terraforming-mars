@@ -1111,6 +1111,12 @@ export type TenderInSelectionModel = {
   blocked?: string;
   /** A restructuring's dealt candidates, while its resolution is still owed. */
   offer?: Array<CardName>;
+  /**
+   * «Целевой запрос», while HELD: how many project cards of each requestable tag the finale's deck still holds (the draw
+   * pile and the discards) — the decision's facts, server-counted (invariant 2): a tag with none is shown DISABLED with
+   * its reason, a tag short of three shows its number; the client never counts a deck.
+   */
+  tagCounts?: Partial<Record<Tag, number>>;
 };
 
 export type SelectInitialCardsModel = BaseInputModel & {

@@ -138,6 +138,9 @@ export interface GridPlan {
   readonly cols: number;
 }
 
+/** The grid's couch-legible floor (× scale) — a REFERENCE, not a clamp: the planner never forces it (see below). */
+export const GRID_ZOOM_FLOOR = 0.4;
+
 /**
  * GRID fit (the 10-card project buy): the balanced rows×cols with the LARGEST
  * zoom fitting BOTH axes. `cols` caps the content width so flex-wrap breaks at
@@ -150,14 +153,24 @@ export function gridFitPlan(inp: GridFitInput, gridCeil: number): GridPlan {
   }
   const ceil = gridCeil * scale;
   let best: GridPlan = {zoom: 0, cols: Math.ceil(n / 2)};
+  // One device px of slack PER COLUMN on the width: a width-bound row planned to the exact pixel wraps its last tile
+  // (a zoomed tile's painted edge rounds up — ten of them did, 2026-11-08: ten cards planned as one row, laid 9 + 1).
+  const slack = Math.ceil(scale);
   for (let rows = 1; rows <= Math.min(maxRows, n); rows++) {
     const cols = Math.ceil(n / rows);
-    const wZoom = (availW - (cols - 1) * colGap) / (cols * slotW);
+    const wZoom = (availW - (cols - 1) * colGap - cols * slack) / (cols * slotW);
     const hZoom = (availH - (rows - 1) * rowGap) / (rows * slotH);
     const zoom = Math.min(ceil, wZoom, hZoom);
     if (zoom > best.zoom) {
       best = {zoom, cols};
     }
   }
-  return {zoom: Math.max(0.4 * scale, best.zoom), cols: best.cols};
+  // NO CLAMP BELOW THE FIT. A floor of 0.4 × scale once kept the 10-card buy couch-legible — and on a 16:9 screen that
+  // grid sits exactly AT the floor, so anything else that takes height from the strip (the start dock grown by the
+  // tender chips, the request's tag row above the deal — 2026-11-08) made the floor force a zoom the room could not
+  // hold: the grid overflowed, centred, its top row's heads hidden and unreachable, its last row under the status
+  // rail. A card cut off is legible at no size, and X is the detailed read — so below the floor the cards shrink to
+  // FIT. (A hard minimum between the two was tried the same day and failed both ways: clamped up on a width-bound
+  // plan it wrapped one more row; clamped up on a height-bound plan it overflowed the height it was meant to spare.)
+  return best;
 }

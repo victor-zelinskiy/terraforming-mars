@@ -26075,6 +26075,11 @@ body.con-start-ceremony {
         display: flex;
         flex-direction: column;
         .con-cards { flex: 1; min-height: 0; }
+        /* The strip's box is the ROOM the column gives it (`flex: 1`, basis 0) — never its content's height: with the
+           default `min-height: auto` a deal taller than the room GREW the strip, so «how tall is the strip» answered
+           «as tall as the cards», the fit could never shrink them, and the rows overflowed under the status rail (the
+           box frames of 2026-11-08). `fitCardStrip` measures THIS box. */
+        .con-cards__strip { min-height: 0; }
         /* Fill the freed height: centre the single row / the grid rows
            vertically so the (now larger) cards sit centred in the strip
            instead of top-stuck above a void. Scoped to the wizard body so the

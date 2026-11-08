@@ -149,6 +149,7 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     }
     await expect(slot('targetedRequest')).toHaveAttribute('data-tport-focused', 'yes');
     await expect.poll(bar, {timeout: 5_000}).toMatch(/назвать метку/i);
+    await page.screenshot({path: 'screenshots/tenders/targeted-request-1-portfolio.png'});
     const projectsBefore = stepCards(await model(request, aliceId!), /buy|project/i).length;
     expect(projectsBefore, 'the project deal stands').toBeGreaterThan(0);
     await press(page, 'Enter', 900);
@@ -157,9 +158,42 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await expect.poll(crumb, {timeout: 5_000}).toMatch(/метк/i);
     const tags = page.locator('[data-tender-mode="tag"] [data-tender-tag]');
     expect(await tags.count(), 'the printed tags of the table').toBeGreaterThanOrEqual(8);
+    // Every chip wears the deck's own number (the server's count); the focused first tag has cards to give.
+    const counts = await tags.evaluateAll((els) => els.map((el) => Number(el.getAttribute('data-tender-tag-count'))));
+    expect(counts.every((n) => Number.isFinite(n) && n >= 0), `server-counted tags: ${counts.join(',')}`).toBe(true);
+    expect(counts[0], 'the first tag (Building) has cards to give').toBeGreaterThanOrEqual(3);
     await expect.poll(bar, {timeout: 5_000}).toMatch(/выбрать эту метку/i);
     await press(page, 'Enter', 300);
     await expect(page.locator('[data-tender-mode="tag"] [data-tender-mode-picked="yes"]')).toHaveCount(1);
+    // The row stands ABOVE the deal (in flow — a wrapped second line once covered the first row of cards), and every
+    // dealt card is WHOLE inside the step's body (the strip re-fits under the row and under a dock that grew).
+    const dealGeometry = () => page.evaluate(() => {
+      const r = (el: Element | null | undefined) => {
+        const b = el?.getBoundingClientRect();
+        return b === undefined ? undefined : {top: Math.round(b.top), bottom: Math.round(b.bottom), h: Math.round(b.height), l: Math.round(b.left), w: Math.round(b.width)};
+      };
+      const body = document.querySelector('.con-start__body--cards')!.getBoundingClientRect();
+      const row = document.querySelector('[data-tender-mode="tag"]')?.getBoundingClientRect();
+      const slotEls = Array.from(document.querySelectorAll('[data-step-slot^="projects|"]'));
+      const slots = slotEls.map((el) => el.getBoundingClientRect());
+      const strip = slotEls[0]?.parentElement ?? null;
+      return {bodyTop: body.top, bodyBottom: body.bottom, rowBottom: row?.bottom,
+        slotTop: Math.min(...slots.map((r) => r.top)), slotBottom: Math.max(...slots.map((r) => r.bottom)), slots: slots.length,
+        // the boxes the fit stands on — named in every message so a red says WHICH box lied
+        boxes: {row: r(row === undefined ? undefined : document.querySelector('[data-tender-mode="tag"]')), column: r(strip?.parentElement), strip: r(strip),
+          stripClient: strip?.clientHeight, stripScroll: strip?.scrollHeight, stripW: strip?.clientWidth, zoom: strip?.style.getPropertyValue('--con-cards-grid-zoom'),
+          maxWidth: strip?.style.maxWidth, slot0: r(slotEls[0]), slotLast: r(slotEls[slotEls.length - 1]),
+          rowSpan: Math.round(Math.max(...slots.map((b) => b.right)) - Math.min(...slots.map((b) => b.left)))}};
+    });
+    const g2 = await dealGeometry();
+    expect(g2.rowBottom, `the tag row stands above the deal, never over it ${JSON.stringify(g2)}`).toBeLessThanOrEqual(g2.slotTop + 1);
+    expect(g2.slotTop, `the deal's first row is whole under the tag row ${JSON.stringify(g2)}`).toBeGreaterThanOrEqual(g2.bodyTop - 1);
+    expect(g2.slotBottom, `the deal's last row is whole above the dock ${JSON.stringify(g2)}`).toBeLessThanOrEqual(g2.bodyBottom + 1);
+    // The dealt cards WITHOUT the named tag step back (a dim), the ones that carry it stand — never all, never none.
+    const dimmed = await page.locator('[data-step-slot^="projects|"].con-cards__slot--dim').count();
+    expect(dimmed, 'some dealt cards lack the named tag').toBeGreaterThan(0);
+    expect(dimmed, 'the dim never takes the whole deal').toBeLessThan(g2.slots);
+    await page.screenshot({path: 'screenshots/tenders/targeted-request-2-tag-row.png'});
     const named = await page.locator('[data-tender-mode="tag"] [data-tender-mode-picked="yes"]').getAttribute('data-tender-tag');
     await press(page, 'Period', 900);
     await expect.poll(async () => stepCards(await model(request, aliceId!), /buy|project/i).length, {timeout: 10_000, message: `three ${named} cards joined the deal`}).toBe(projectsBefore + 3);
@@ -167,6 +201,12 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await waitStepDealSettled(page);
     await expect(page.locator(`[data-step-slot^="projects|"]`)).toHaveCount(projectsBefore + 3);
     await expect(page.locator('[data-tender-dock-chip][data-tender-dock-status="executed"]')).toHaveCount(3);
+    const g3 = await dealGeometry();
+    expect(g3.slots).toBe(projectsBefore + 3);
+    expect(g3.slotTop, `the grown deal's first row is whole in the body ${JSON.stringify(g3)}`).toBeGreaterThanOrEqual(g3.bodyTop - 1);
+    expect(g3.slotBottom, `the grown deal's last row is whole above the dock ${JSON.stringify(g3)}`).toBeLessThanOrEqual(g3.bodyBottom + 1);
+    expect(await page.locator('[data-step-slot^="projects|"].con-cards__slot--dim').count(), 'the dim leaves with the tag mode').toBe(0);
+    await page.screenshot({path: 'screenshots/tenders/targeted-request-3-landed.png'});
 
     // ── «Реструктуризация»: A deals two candidates, the corporation step opens its mode by itself; A picks the candidate
     //    and the lineage corporation; RT rewrites the lineage. ──

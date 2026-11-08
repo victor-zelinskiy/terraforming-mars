@@ -10,7 +10,7 @@ import {InputError} from './InputError';
 import {OptionsInput} from './OptionsPlayerInput';
 import {InputResponse, isSelectInitialCardsResponse, isTenderResponse} from '../../common/inputs/InputResponse';
 import {PlayerInput} from '../PlayerInput';
-import {campaignPreludePickCount, campaignSelectionSkipsCorpStep, campaignStartingBudget, campaignTendersOf, campaignTenderWindowOpen, executeTender, grantCarriedPreludes, tenderStartRefusal} from '../campaign/CampaignMissionSetup';
+import {campaignPreludePickCount, campaignSelectionSkipsCorpStep, campaignStartingBudget, campaignTendersOf, campaignTenderWindowOpen, executeTender, grantCarriedPreludes, projectTagCounts, tenderStartRefusal} from '../campaign/CampaignMissionSetup';
 import {tenderDef} from '../../common/campaign/tenders';
 
 type Inputs = {
@@ -192,6 +192,8 @@ export class SelectInitialCards extends OptionsInput<undefined> {
           window: tenderDef(t.id).window,
           ...(blocked !== undefined ? {blocked} : {}),
           ...(t.offer !== undefined ? {offer: [...t.offer]} : {}),
+          // A held «Целевой запрос» decides on the deck's own numbers — counted here, never on the client.
+          ...(t.id === 'targetedRequest' && t.status === 'held' ? {tagCounts: projectTagCounts(player.game)} : {}),
         };
       });
     }

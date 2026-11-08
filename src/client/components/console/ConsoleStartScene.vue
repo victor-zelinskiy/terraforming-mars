@@ -163,14 +163,25 @@
               <!-- «ЦЕЛЕВОЙ ЗАПРОС» (§18.6): the tag row stands over the project step's own strip — ◀ ▶ walk the tags,
                    A names one, RT asks the Committee; the three cards come off the deck into the strip below. -->
               <div v-if="st.id === 'projects' && tagMode !== undefined" class="con-tagpick" data-tender-mode="tag">
-                <div class="con-tagpick__cap">{{ $t('Tag of the three requested cards') }}</div>
+                <!-- No cap: the crumb already reads «› МЕТКА» and the bar the verbs — a title line here was a line
+                     taken from the deal under it (the TV body has none to spare). -->
                 <div class="con-tagpick__row">
+                  <!-- Each chip wears the deck's own number (server-counted): a tag with NO card is disabled with its reason on the
+                       bar, a tag short of three shows what it has — the player decides on facts, never on a refusal after the press. -->
                   <div v-for="(tag, i) in requestTags" :key="tag"
                        class="con-tagpick__chip"
-                       :class="{'con-tagpick__chip--focused': railPos === si && focusIdx === i, 'con-tagpick__chip--picked': tagMode.tag === tag}"
-                       :data-tender-tag="tag" :data-tender-mode-picked="tagMode.tag === tag ? 'yes' : undefined">
+                       :class="{
+                         'con-tagpick__chip--focused': railPos === si && focusIdx === i,
+                         'con-tagpick__chip--picked': tagMode.tag === tag,
+                         'con-tagpick__chip--off': requestTagCount(tag) === 0,
+                         'con-tagpick__chip--short': requestTagCount(tag) > 0 && requestTagCount(tag) < 3,
+                       }"
+                       :data-tender-tag="tag" :data-tender-tag-count="requestTagCount(tag)"
+                       :data-tender-tag-off="requestTagCount(tag) === 0 ? 'yes' : undefined"
+                       :data-tender-mode-picked="tagMode.tag === tag ? 'yes' : undefined">
                     <i class="con-tagpick__icon" :style="tagIconStyle(tag)" aria-hidden="true"></i>
                     <span class="con-tagpick__name">{{ tagLabel(tag) }}</span>
+                    <b class="con-tagpick__count">{{ requestTagCount(tag) }}</b>
                   </div>
                 </div>
               </div>
@@ -190,7 +201,7 @@
                      :class="{
                        'con-cards__slot--focused': railPos === si && focusIdx === i && !(st.id === 'projects' && tagMode !== undefined),
                        'con-cards__slot--picked': stepPicked(st, card.name),
-                       'con-cards__slot--dim': railPos === si && dimUnpicked && !stepPicked(st, card.name) && reviewKeep === undefined,
+                       'con-cards__slot--dim': railPos === si && ((dimUnpicked && !stepPicked(st, card.name) && reviewKeep === undefined) || tagFocusDims(st, card.name)),
                        'con-cards__slot--keep': railPos === si && reviewKeep === card.name,
                        'con-deal-hold': (railPos === si && deal.isHeld(card.name + '#' + i)) || returningNames.has(st.id + '|' + card.name),
                      }"
@@ -1670,6 +1681,7 @@ export default defineComponent({
        *  run it on resize; never per focus. */
       /** VueUse stop-handles (auto-managed listeners; no raw addEventListener). */
       stopStripObs: undefined as (() => void) | undefined,
+      stopBodyObs: undefined as (() => void) | undefined,
       stopResize: undefined as (() => void) | undefined,
       fitScheduled: false,
       fitRetries: 0,
@@ -4194,6 +4206,16 @@ export default defineComponent({
       const mode = this.state.tenderMode;
       return mode !== undefined && mode.kind === 'tag' ? mode : undefined;
     },
+    /** The tag row stands in the project step's column (a geometry fact — the strip's fit watches it). */
+    tagRowUp(): boolean {
+      return this.tagMode !== undefined && this.currentStep?.id === 'projects';
+    },
+    /** The deck's numbers the held request was served with (`tagCounts` — the server's; absent = unknown, treated as open). */
+    requestTagCounts(): Partial<Record<Tag, number>> {
+      const mode = this.tagMode;
+      const live = mode === undefined ? undefined : (this.wizardInput?.tenders ?? []).find((t) => t.instance === mode.instance);
+      return live?.tagCounts ?? {};
+    },
     /** The tags a request may name here — the printed card tags of the expansions at the table (never wild / clone / event). */
     requestTags(): ReadonlyArray<Tag> {
       const o = this.playerView.game.gameOptions;
@@ -4236,8 +4258,10 @@ export default defineComponent({
       const tagMode = this.tagMode;
       if (tagMode !== undefined && this.currentStep?.id === 'projects') {
         const focused = this.requestTags[this.focusIdx];
+        const none = focused !== undefined && this.requestTagCount(focused) === 0;
         return {kind: 'tag', commitLabel: 'Request the three cards', canCommit: !busy && tagMode.tag !== undefined,
-          pickLabel: focused !== undefined && tagMode.tag === focused ? 'Unpick' : 'Choose this tag', pickEnabled: focused !== undefined && !busy};
+          pickLabel: none ? 'No card with this tag is left' : focused !== undefined && tagMode.tag === focused ? 'Unpick' : 'Choose this tag',
+          pickEnabled: focused !== undefined && !busy && !none};
       }
       const review = this.reviewMode;
       if (review !== undefined) {
@@ -4985,6 +5009,15 @@ export default defineComponent({
     wizardGrid() {
       void this.$nextTick(() => this.fitCardStrip());
     },
+    /** The tag row entering / leaving the column changes the strip's box — re-fit once it has laid out. */
+    tagRowUp() {
+      void this.$nextTick(() => this.fitCardStrip());
+    },
+    /** A deal that GREW in place (a tender's +3 / +4, a redeal) re-fits before its new cards launch (`prepareDeal`
+     *  waits 260 ms for exactly this — the measured destinations are the fitted ones). */
+    'stepEntries.length'() {
+      void this.$nextTick(() => this.fitCardStrip());
+    },
     /** The rail's height is FIXED (the shared card-status token — the
      *  availability block is one row now), so this watch is only a settle
      *  re-measure kept for safety: the reasons ride the SERVER model and can
@@ -5708,6 +5741,10 @@ export default defineComponent({
     // anchor — is registered by ConsoleStartPlayedDock itself on its mount.)
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     this.stopStripObs = useResizeObserver(this.$el as HTMLElement, () => this.scheduleFit()).stop;
+    // The BODY's own box moves when the scene's root does not — the dock below it grows (the tender chips, the legacy
+    // row) and the strip's room shrinks with no event at the root; the fit against the old room overflowed the deal
+    // under the dock (the box frame of 2026-11-08). The body is `v-show`, one element for the scene's whole life.
+    this.stopBodyObs = useResizeObserver((this.$refs.body ?? undefined) as HTMLElement | undefined, () => this.scheduleFit()).stop;
     this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
     // The legacy overview re-solves its shared zoom against the live body box
     // (never per focus — geometry only moves when the room does).
@@ -5775,6 +5812,7 @@ export default defineComponent({
     this.settleLegacyClosed(true);
     this.stopLegacyResize?.();
     this.stopStripObs?.();
+    this.stopBodyObs?.();
     this.stopResize?.();
     if (this.dealLaunchTimer !== undefined) {
       window.clearTimeout(this.dealLaunchTimer);
@@ -7041,6 +7079,10 @@ export default defineComponent({
       const tagMode = this.tagMode;
       if (tagMode !== undefined) {
         const tag = this.requestTags[this.focusIdx];
+        if (tag !== undefined && this.requestTagCount(tag) === 0) {
+          this.blockedNudge++; // the bar names why (the deck has none) — the press is refused, never silently
+          return;
+        }
         if (tag !== undefined) {
           this.state.tenderMode = {...tagMode, tag: tagMode.tag === tag ? undefined : tag};
         }
@@ -7177,6 +7219,10 @@ export default defineComponent({
     },
     tagIconStyle,
     tagLabel,
+    /** How many cards of the tag the deck still holds — the server's count; unknown reads as open (never a client count). */
+    requestTagCount(tag: Tag): number {
+      return this.requestTagCounts[tag] ?? Number.POSITIVE_INFINITY;
+    },
     /** The dock chip of an executed tender takes the stamp — a one-shot class the CSS keyframe reads. */
     stampDockChip(instance: string): void {
       if (this.dockStampTimer !== undefined) {
@@ -8019,11 +8065,31 @@ export default defineComponent({
      *  the strip may use the WHOLE body height — the cards fill all the space
      *  between the header and the pinned rail (no verdict reserve to subtract). */
     stripAvailHeight(strip: HTMLElement): number {
+      // The strip's OWN box is the room (`.con-start__body--cards .con-cards__strip { min-height: 0 }` — `flex: 1`
+      // with basis 0, so the box is what the column gives it, never what the cards take): whatever stands above it in
+      // the column (the «ЦЕЛЕВОЙ ЗАПРОС» tag row — one line or two) and whatever grew below the body (the dock's
+      // chips) is already subtracted by layout. The body is only the fallback for a strip that has no box yet.
+      const own = strip.clientHeight;
+      if (own > 0) {
+        return Math.max(180 * conUiScale(), own);
+      }
       const body = (this.$refs.body ?? undefined) as HTMLElement | undefined;
       if (body === undefined || body === null) {
-        return strip.clientHeight;
+        return own;
       }
-      return Math.max(180 * conUiScale(), body.clientHeight);
+      const column = strip.parentElement;
+      const row = column === null ? null : column.querySelector<HTMLElement>(':scope > .con-tagpick');
+      const rowH = row === null || column === null ? 0 : row.offsetHeight + (parseFloat(window.getComputedStyle(column).rowGap) || 0);
+      return Math.max(180 * conUiScale(), body.clientHeight - rowH);
+    },
+    /** Tag mode: a dealt card WITHOUT the focused tag steps back — the player reads at once what the request would
+     *  stack with on this table (the tags are tiny on a grid card; the dim says it at a glance). */
+    tagFocusDims(step: StartWizardStep, name: CardName): boolean {
+      if (step.id !== 'projects' || this.tagMode === undefined || this.currentStep?.id !== 'projects') {
+        return false;
+      }
+      const tag = this.requestTags[this.focusIdx];
+      return tag !== undefined && !(getCard(name)?.tags ?? []).includes(tag);
     },
     /**
      * Size the wizard card strip so N cards ALWAYS fit — BOTH axes (the
