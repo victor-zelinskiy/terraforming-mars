@@ -498,7 +498,7 @@ import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph
 import {retractWorkspaceOutcomeSlot, workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
 import {
   setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject,
-  workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay,
+  workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay, workspaceFrameKnown,
   workspaceFrameParked, workspaceFrameStage, workspaceStackCrumb, workspaceStackRootKind,
 } from '@/client/console/consoleWorkspaceStack';
 import {colonyResolutionUi, colonyRevealSourceOf, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
@@ -731,6 +731,8 @@ export default defineComponent({
   emits: ['trade-confirm', 'build-confirm', 'pick-confirm', 'flow-complete', 'inspect-enter', 'dock-confirm', 'dock-inspect', 'dock-flow-complete'],
   data() {
     return {
+      /** The fleet berth the step last stood in while its frame lived (see `fleetBerth`). */
+      berthLatch: '',
       /** The grant's colony, LATCHED for the hosted vote's whole life: the prompt moves on at the submit while the cubes still fly. */
       grantSubject: '',
       /** The resolution's LAST payout stage — the crumb's tail keeps it between stages (forward-only). */
@@ -1098,8 +1100,18 @@ export default defineComponent({
       return '';
     },
     /** The berth the HOST hosting us NOW offers for our fleet dock ('' = keep it locally) — never another host's. */
-    fleetBerth(): string {
+    liveFleetBerth(): string {
       return this.embedded ? colonyFleetBerthFor(workspaceFrameHost('colonies')) : '';
+    },
+    /**
+     * The berth the dock stands in. A step that RIDES its host's dissolve (TR07's staged colony — the shell's
+     * `coloniesLeaving`: the frame is gone, the section still on screen inside the leaving hand) belongs to the
+     * PREVIOUS state: with no frame there is no host to ask, the live answer falls to '' and the toolbar came back
+     * INSIDE the zone — a row stolen from the grid while it dissolved (CI 2026-11-08, `console-colony-sponsors`,
+     * since the berth became owned in c74ac75f9f). So the decision the step stood in is kept until it unmounts.
+     */
+    fleetBerth(): string {
+      return this.embedded && !workspaceFrameKnown('colonies') ? this.berthLatch : this.liveFleetBerth;
     },
     /** The pair handed up to a HOSTING workspace's breadcrumb (see the watcher). */
     /**
@@ -1623,6 +1635,15 @@ export default defineComponent({
     },
   },
   watch: {
+    liveFleetBerth: {
+      immediate: true,
+      handler(berth: string): void {
+        // Only while the frame lives — a dissolve past the frame keeps what it stood in.
+        if (workspaceFrameKnown('colonies')) {
+          this.berthLatch = berth;
+        }
+      },
+    },
     colonyDiscardPileLease: {
       immediate: true,
       handler(on: boolean): void {

@@ -294,41 +294,88 @@ export function runColonyTrackGlide(args: {
   // while it waits its turn — the proxy appears exactly when its leg starts.
   gsap.set(marker, {width: size, height: size, x: start.x, y: start.y, scale: 1, autoAlpha: (args.delayMs ?? 0) > 0 ? 0 : 1});
 
-  const tl = gsap.timeline({onComplete: args.onLanded, delay: s(args.delayMs ?? 0), onStart: () => {
+  // ONE CLOCK, IN TURN (animations.md § A MOTION IS RIGHT ON A SLOW FRAME, law 2): on a starved frame one tick used
+  // to carry the whole story — the proxy's first painted pose was already mid-track (born out of nothing, never on
+  // the 3rd cell), and the last cell's touch and the landing fell into ONE task, so the destination never lit up as
+  // crossed before the marker sat on it (CI-like box runs of `console-colony-sponsors`, ~1 in 8). The birth is its own
+  // beat (painted on the source, the glide built in a LATER frame) and the landing follows the last touch's frame.
+  let tl: gsap.core.Timeline | undefined;
+  let birth: gsap.core.Tween | undefined;
+  const waiters = new Set<() => void>();
+  const laterFrame = (run: () => void): void => {
+    const since = gsap.ticker.frame;
+    // A listener added while a tick dispatches is called in that very tick — hence the frame count.
+    const waiter = (): void => {
+      if (gsap.ticker.frame <= since) {
+        return;
+      }
+      gsap.ticker.remove(waiter);
+      waiters.delete(waiter);
+      run();
+    };
+    waiters.add(waiter);
+    gsap.ticker.add(waiter);
+  };
+  let lastTouchFrame = -1;
+  const touched = (i: number): void => {
+    if (i === cells.length - 1) {
+      lastTouchFrame = gsap.ticker.frame;
+    }
+    args.onCellPassed(i);
+  };
+  const landed = (): void => {
+    if (lastTouchFrame === gsap.ticker.frame) {
+      laterFrame(args.onLanded);
+      return;
+    }
+    args.onLanded();
+  };
+  const glide = (): void => {
+    const line = gsap.timeline({onComplete: landed});
+    tl = line;
+    if (reduced) {
+      const last = cells.length > 0 ? poseAt(cells[cells.length - 1]) : start;
+      line.to(marker, {x: last.x, y: last.y, duration: s(120), ease: 'power2.out'}, 0);
+      line.call(() => {
+        cells.forEach((_c, i) => touched(i));
+      }, undefined, s(120));
+      return;
+    }
+    // Charge: the marker wakes on its cell before it moves.
+    line.to(marker, {scale: 1.35, duration: s(140), ease: 'power2.out'}, 0);
+    line.to(marker, {scale: 1.12, duration: s(110), ease: 'power2.inOut'}, s(140));
+    if (cells.length === 0) {
+      // THE END OF THE TRACK: the marker charges and finds nowhere to go — it settles back where it stood,
+      // and the surface NAMES it («трек на максимуме»). Nothing pretends to have moved.
+      line.to(marker, {scale: 1, duration: s(200), ease: 'power2.inOut'}, s(260));
+      return;
+    }
+    let at = s(260);
+    const pause = s(args.pauseMs ?? 0);
+    cells.forEach((cell, i) => {
+      const pose = poseAt(cell);
+      const step = s(args.perCellMs);
+      line.to(marker, {x: pose.x, y: pose.y, duration: step, ease: 'power1.inOut'}, at);
+      line.call(() => touched(i), undefined, at + step * 0.6);
+      at += step + (i < cells.length - 1 ? pause : 0);
+    });
+    // The landing snap: decisive, no overshoot past the cell.
+    line.to(marker, {scale: 1, duration: s(180), ease: 'back.out(2.2)'}, at);
+  };
+  const born = (): void => {
     gsap.set(marker, {autoAlpha: 1});
     args.onStart?.();
-  }});
-  if (reduced) {
-    const last = cells.length > 0 ? poseAt(cells[cells.length - 1]) : start;
-    tl.to(marker, {x: last.x, y: last.y, duration: s(120), ease: 'power2.out'}, 0);
-    tl.call(() => {
-      cells.forEach((_c, i) => args.onCellPassed(i));
-    }, undefined, s(120));
-    return {kill: () => tl.kill()};
+    laterFrame(glide);
+  };
+  if ((args.delayMs ?? 0) > 0) {
+    birth = gsap.delayedCall(s(args.delayMs ?? 0), born);
+  } else {
+    born();
   }
-
-  // Charge: the marker wakes on its cell before it moves.
-  tl.to(marker, {scale: 1.35, duration: s(140), ease: 'power2.out'}, 0);
-  tl.to(marker, {scale: 1.12, duration: s(110), ease: 'power2.inOut'}, s(140));
-
-  if (cells.length === 0) {
-    // THE END OF THE TRACK: the marker charges and finds nowhere to go — it settles back where it stood,
-    // and the surface NAMES it («трек на максимуме»). Nothing pretends to have moved.
-    tl.to(marker, {scale: 1, duration: s(200), ease: 'power2.inOut'}, s(260));
-    return {kill: () => tl.kill()};
-  }
-
-  let at = s(260);
-  const pause = s(args.pauseMs ?? 0);
-  cells.forEach((cell, i) => {
-    const pose = poseAt(cell);
-    const step = s(args.perCellMs);
-    tl.to(marker, {x: pose.x, y: pose.y, duration: step, ease: 'power1.inOut'}, at);
-    tl.call(() => args.onCellPassed(i), undefined, at + step * 0.6);
-    at += step + (i < cells.length - 1 ? pause : 0);
-  });
-
-  // The landing snap: decisive, no overshoot past the cell.
-  tl.to(marker, {scale: 1, duration: s(180), ease: 'back.out(2.2)'}, at);
-  return {kill: () => tl.kill()};
+  return {kill: () => {
+    birth?.kill();
+    tl?.kill();
+    waiters.forEach((w) => gsap.ticker.remove(w));
+    waiters.clear();
+  }};
 }

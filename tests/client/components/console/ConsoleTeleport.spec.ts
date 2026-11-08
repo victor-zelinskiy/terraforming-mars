@@ -109,6 +109,64 @@ describe('ConsoleTeleport — a teleport never mounts into nothing', () => {
     expect(errors).to.deep.eq([]);
   });
 
+  it('law 4 — content that ARRIVES in the render enabling into an absent target never stands up in place first', async () => {
+    // The shell's reveal: the teleport stood disabled and EMPTY (`v-if` off); in one render the overlay arrives and
+    // the claim names a zone the host renders later in the same flush. Native-shaped, the overlay mounted in the
+    // teleport's own place and MOVED a tick later — two insertions, the dealt card told twice.
+    const Gate = defineComponent({
+      components: {Leaf, ConsoleTeleport},
+      props: {to: {type: String, required: true}, disabled: {type: Boolean, default: true}, on: {type: Boolean, default: false}},
+      template: '<div class="host"><ConsoleTeleport :to="to" :disabled="disabled"><Leaf v-if="on" :n="1" /></ConsoleTeleport></div>',
+    });
+    const w = mount(Gate, {props: {to: '#tp-a'}, attachTo: document.body, global: config()});
+    const inserted: Array<string> = [];
+    const watcher = new MutationObserver((records) => records.forEach((r) => r.addedNodes.forEach((n) => {
+      if (n instanceof HTMLElement && n.classList.contains('leaf')) {
+        inserted.push((r.target as HTMLElement).id || (r.target as HTMLElement).className);
+      }
+    })));
+    watcher.observe(document.body, {childList: true, subtree: true});
+    await w.setProps({disabled: false, on: true});
+    expect(w.element.querySelector('.leaf'), 'nothing stands up in the teleport\'s own place').to.eq(null);
+    const el = target('tp-a');
+    await waitFor(() => el.querySelector('.leaf') !== null);
+    await new Promise((r) => setTimeout(r, 0));
+    watcher.disconnect();
+    expect(inserted, 'ONE insertion — straight into the target').to.deep.eq(['tp-a']);
+    w.unmount();
+    expect(errors).to.deep.eq([]);
+  });
+
+  it('law 4 — the same with the target ALREADY there: the arriving content is inserted once, into the target', async () => {
+    const Gate = defineComponent({
+      components: {Leaf, ConsoleTeleport},
+      props: {to: {type: String, required: true}, disabled: {type: Boolean, default: true}, on: {type: Boolean, default: false}},
+      template: '<div class="host"><ConsoleTeleport :to="to" :disabled="disabled"><Leaf v-if="on" :n="1" /></ConsoleTeleport></div>',
+    });
+    const el = target('tp-a');
+    const w = mount(Gate, {props: {to: '#tp-a'}, attachTo: document.body, global: config()});
+    const inserted: Array<string> = [];
+    const watcher = new MutationObserver((records) => records.forEach((r) => r.addedNodes.forEach((n) => {
+      if (n instanceof HTMLElement && n.classList.contains('leaf')) {
+        inserted.push((r.target as HTMLElement).id || (r.target as HTMLElement).className);
+      }
+    })));
+    watcher.observe(document.body, {childList: true, subtree: true});
+    await w.setProps({disabled: false, on: true});
+    await new Promise((r) => setTimeout(r, 0));
+    watcher.disconnect();
+    expect(el.querySelector('.leaf')).to.not.eq(null);
+    expect(inserted, 'ONE insertion — straight into the target').to.deep.eq(['tp-a']);
+    // …while content that STANDS keeps law 3: it moves, it is never re-mounted.
+    await w.setProps({disabled: true});
+    const leaf = w.element.querySelector('.leaf');
+    expect(leaf, 'disabled again: back in place').to.not.eq(null);
+    await w.setProps({disabled: false});
+    expect(el.querySelector('.leaf'), 'the SAME node moved, not a fresh one').to.eq(leaf);
+    w.unmount();
+    expect(errors).to.deep.eq([]);
+  });
+
   it('law 2 — a target node REPLACED under the same selector receives the content on the next render', async () => {
     const first = target('tp-a');
     const w = mount(host('console'), {props: {to: '#tp-a'}, attachTo: document.body, global: config()});

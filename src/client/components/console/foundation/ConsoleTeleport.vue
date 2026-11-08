@@ -30,6 +30,17 @@
  *    keeps the target it resolved at mount; enabled later with the same `to`,
  *    Vue inserts into that (possibly `null`) target. While the target is
  *    missing, an already-mounted teleport that is disabled STAYS disabled.
+ * 4. **…and what was not standing yet does not stand up in place.** Law 3 keeps
+ *    content that is already ON SCREEN where it is; content that arrives in the
+ *    very render that asks for the missing target (the reveal claimed by a
+ *    colony stage whose zone renders later in the same flush) would otherwise
+ *    mount in the teleport's own place and MOVE into the target a tick later —
+ *    two insertions, the arrival told twice (CI 2026-11-08,
+ *    `console-pluto-two-colony-sequence`: the dealt card re-inserted). Vue
+ *    patches a disabled teleport's NEW children into its own place before it
+ *    moves them, so a teleport holding nothing (`teleportStandsContent`) waits
+ *    empty and goes live as a FRESH teleport (a new key): its content mounts
+ *    straight into the target — the stack's own «ownership ≠ readiness» gap.
  */
 import {defineComponent, h, markRaw, nextTick, PropType, Teleport, VNode} from 'vue';
 
@@ -45,6 +56,22 @@ export function resolveTeleportTarget(to: TeleportTo): Element | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Does the live teleport hold content the player can SEE — any child that rendered an element (a `v-if` that is
+ * off renders a comment, a `<transition>` around it renders that comment)? Only such content has a place to keep.
+ */
+export function teleportStandsContent(prev: VNode): boolean {
+  // A DISABLED teleport keeps its content in place, between its own two anchors.
+  const start = prev.el as Node | null;
+  const end = prev.anchor as Node | null;
+  for (let node = start?.nextSibling ?? null; node !== null && node !== end; node = node.nextSibling) {
+    if (node.nodeType === 1) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Per-frame re-checks before the slow cadence takes over. */
@@ -77,7 +104,7 @@ export default defineComponent({
   setup() {
     // The wait's bookkeeping — plain, never reactive (the render reads it).
     return {
-      wait: markRaw({frame: undefined as number | undefined, timer: undefined as number | undefined, active: false, warned: false, since: 0, stranded: false}),
+      wait: markRaw({frame: undefined as number | undefined, timer: undefined as number | undefined, active: false, warned: false, since: 0, stranded: false, key: 0}),
     };
   },
   data() {
@@ -156,25 +183,31 @@ export default defineComponent({
     const live = prev !== null && prev.type === Teleport;
     const target = resolveTeleportTarget(this.to);
     const children = this.$slots.default?.() ?? [];
+    const wasDisabled = live && (prev.props?.disabled === true || prev.props?.disabled === '');
+    // LAW 4 — a disabled teleport holding NOTHING that is asked to go live does not patch its new content in place
+    // (Vue mounts it into the teleport's own place and only then moves it): it waits empty, and goes live as a FRESH
+    // teleport — a new key — whose content mounts straight into the target.
+    const nothingStands = wasDisabled && !teleportStandsContent(prev);
     if (target === null) {
       if (!live && !this.disabled) {
         // LAW 1 — the native teleport would mount nothing and crash on the next patch.
         this.awaitTarget();
         return null;
       }
-      if (live && !this.disabled) {
-        const wasDisabled = prev.props?.disabled === true || prev.props?.disabled === '';
-        if (wasDisabled) {
-          // LAW 3 — enabling now would insert into the target resolved at mount.
-          this.awaitTarget();
-          return h(Teleport, {to: prev.props?.to ?? this.to, disabled: true}, children);
-        }
+      if (live && !this.disabled && wasDisabled) {
+        // LAW 3 — enabling now would insert into the target resolved at mount.
+        this.awaitTarget();
+        return h(Teleport, {key: this.wait.key, to: prev.props?.to ?? this.to, disabled: true}, nothingStands ? [] : children);
       }
-      return h(Teleport, {to: this.to, disabled: this.disabled, defer: live ? undefined : this.defer}, children);
+      return h(Teleport, {key: this.wait.key, to: this.to, disabled: this.disabled, defer: live ? undefined : this.defer}, children);
     }
     this.stopWaiting();
+    if (!this.disabled && nothingStands) {
+      this.wait.key++;
+      return h(Teleport, {key: this.wait.key, to: target as HTMLElement, disabled: false}, children);
+    }
     // LAW 2 — the element, so a replaced node is a changed `to`.
-    return h(Teleport, {to: target as HTMLElement, disabled: this.disabled, defer: live ? undefined : this.defer}, children);
+    return h(Teleport, {key: this.wait.key, to: target as HTMLElement, disabled: this.disabled, defer: live ? undefined : this.defer}, children);
   },
 });
 </script>
