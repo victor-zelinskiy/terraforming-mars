@@ -24,6 +24,7 @@ const TENDER_ART: Readonly<Partial<Record<TenderId, true>>> = {
   targetedRequest: true,
   restructuring: true,
   extendedLegacy: true,
+  openCall: true,
 };
 
 /** The kind's art URL, or undefined while the window still engraves the family glyph. */
