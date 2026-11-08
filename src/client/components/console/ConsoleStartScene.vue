@@ -1431,6 +1431,7 @@ import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCa
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {availabilityContextFor, CardAvailabilityView} from '@/client/console/cardAvailability';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
+import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 
 
 function textOf(v: string | Message | undefined): string {
@@ -9961,6 +9962,12 @@ export default defineComponent({
      *  PRE-FETCHED on-play rewards so the landing gets the same premium
      *  reward beat a composer-played card gets. */
     armStartHero(name: CardName): void {
+      // What the press KNEW of the play's rewards (the trail names a wave that was never promised).
+      noteTransferTrail('start:arm', {
+        card: name, preview: this.playPreviews.has(name), fetched: this.rewardFetched.has(name),
+        version: this.rewardVersion === this.startPreviewVersion ? 'current' : 'stale',
+        rewards: this.playRewards.get(name)?.length ?? 0, rail: this.playRails.has(name),
+      });
       // The one place the client legitimately knows WHICH card is being
       // played. If its effect turns out to ask for a play-from-hand
       // («Эпатажный спонсор»), this is the source the crumb names — the

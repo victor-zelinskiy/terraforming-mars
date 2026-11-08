@@ -83,6 +83,8 @@ type Episode = {
   onSettled: (settledAs: 'open' | 'closed') => void,
   /** TRUE once a finalize ran (idempotence guard). */
   done: boolean,
+  /** Built and PLACED (the proxies stand on their sources) but not yet playing — its start is the floor's. */
+  held: boolean,
 };
 
 let episode: Episode | undefined;
@@ -163,6 +165,7 @@ function runEpisode(
   dir: 'open' | 'close',
   plans: ReadonlyArray<CategoryFlightPlan>,
   onSettled: (settledAs: 'open' | 'closed') => void,
+  held = false,
 ): void {
   killEpisode();
   handoffFade?.kill();
@@ -238,13 +241,20 @@ function runEpisode(
   const total = s(LIFT_MS + FLY_MS) + s(Math.min(STAGGER_TOTAL_CAP_MS, (plans.length - 1) * STAGGER_MS));
   void total;
 
-  const ep: Episode = {tl, dir, safety: undefined, onSettled, done: false};
+  const ep: Episode = {tl, dir, safety: undefined, onSettled, done: false, held};
   tl.eventCallback('onComplete', () => finalize(ep, dir === 'open' ? 'open' : 'closed'));
   tl.eventCallback('onReverseComplete', () => finalize(ep, dir === 'open' ? 'closed' : 'open'));
   episode = ep;
-  ep.safety = window.setTimeout(() => finishCategoryInstant(), motionMs(LIFT_MS + FLY_MS + STAGGER_TOTAL_CAP_MS) + SAFETY_SLACK_MS);
   window.addEventListener('resize', onEpisodeResize);
-  tl.play(0);
+  if (!held) {
+    playEpisode(ep);
+  }
+}
+
+function playEpisode(ep: Episode): void {
+  ep.held = false;
+  ep.safety = window.setTimeout(() => finishCategoryInstant(), motionMs(LIFT_MS + FLY_MS + STAGGER_TOTAL_CAP_MS) + SAFETY_SLACK_MS);
+  ep.tl.play(0);
 }
 
 function finalize(ep: Episode, settledAs: 'open' | 'closed'): void {
@@ -263,9 +273,27 @@ function finalize(ep: Episode, settledAs: 'open' | 'closed'): void {
   ep.onSettled(settledAs);
 }
 
-/** Start the OPEN flight (tableau → category view). */
-export function runCategoryOpen(plans: ReadonlyArray<CategoryFlightPlan>, onSettled: (settledAs: 'open' | 'closed') => void): void {
-  runEpisode('open', plans, onSettled);
+/**
+ * Start the OPEN flight (tableau → category view). `held`: the proxies are PLACED on their sources now (the table hands
+ * its cards over in the same turn) but the flight waits for `startHeldCategoryEpisode` — the floor's real start.
+ */
+export function runCategoryOpen(plans: ReadonlyArray<CategoryFlightPlan>, onSettled: (settledAs: 'open' | 'closed') => void, opts: {held?: boolean} = {}): void {
+  runEpisode('open', plans, onSettled, opts.held === true);
+}
+
+/**
+ * THE FLOOR'S START IS THE FLIGHT'S (animations.md § SLOW FRAME, law 7). The floor unfolds by a COMPOSITED CSS
+ * transition, which takes its start time from the compositor's first frame after the (full-band, opaque) panel is
+ * rastered; the flight runs on GSAP's main-thread clock from the frame it was played in. On a software renderer those
+ * are hundreds of ms apart: the cards landed on a floor still at opacity 0 and the floor popped in after them (3 / 8 at
+ * CPU ×4 — «0 0L 1L»). So the open episode is built HELD and played here, on the floor's `ready`. Idempotent.
+ */
+export function startHeldCategoryEpisode(): void {
+  const ep = episode;
+  if (ep === undefined || ep.done || !ep.held) {
+    return;
+  }
+  playEpisode(ep);
 }
 
 /** Start the CLOSE flight (category view → tableau). */
@@ -280,6 +308,12 @@ export function runCategoryClose(plans: ReadonlyArray<CategoryFlightPlan>, onSet
 export function reverseCategoryEpisode(): boolean {
   if (episode === undefined || episode.done) {
     return false;
+  }
+  if (episode.held) {
+    // Nothing has moved yet (the floor never started): «reversed» is simply home.
+    episode.tl.progress(0, false);
+    finalize(episode, episode.dir === 'open' ? 'closed' : 'open');
+    return true;
   }
   episode.tl.reversed(!episode.tl.reversed());
   return true;

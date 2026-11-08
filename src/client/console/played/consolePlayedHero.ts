@@ -61,7 +61,7 @@ import {
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold,
   resetCardResourceLandings, noteCardResourceLanding,
-  cardResourceLanded, surfaceClear,
+  cardResourceLanded, surfaceClear, noteTransferTrail,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   ResourceTransferSpec, TRANSFER_BEAT_MS, TRANSFER_READ_MS, TRANSFER_RESIDUAL_PAUSE_MS, transferFlightBudgetMs, transferWaveDelayMs,
@@ -78,6 +78,7 @@ import {TOUCHDOWN_TICK_GAP_MS, TransferEnd, TransferEndLike, railRowKey} from '@
 import {bareWildIcons, centreEndOf, iconNeedlesFor, resolveActionCommitAnchors, resolvePlayGainIconEnds, resolveSpendIconEnds, wildChosen} from '@/client/console/consoleActionCommitMotion';
 import type {PlayCardPrice} from '@/client/console/consoleActionCommit';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
+import {probeTick} from '@/client/console/probeTick';
 import {armedEffectsChange, releaseArmedEffectHolds, releaseStagedArmedSpends, settleArmedEffectHolds, shipArmedEffects} from '@/client/console/armedEffectFlight';
 import {Tag} from '@/common/cards/Tag';
 import {VpShare} from '@/common/game/vpAttribution';
@@ -105,6 +106,8 @@ const HERO_RESULT_PAUSE_FOLLOWUP_MS = 220;
 const HERO_RESOLVED_BEAT_MS = 260;
 /** How long we wait for the table overlay to mount + register its measurer. */
 const TARGET_WAIT_BUDGET_MS = 1600;
+/** How long the reward beat waits for the landed card to be PAINTED before it reads it (wall clock, motion-scaled). */
+const HERO_PLACE_PAINT_MAX_MS = 1500;
 
 /**
  * THE PICTURE the proxy paints — the premium face's two identity axes that a
@@ -885,6 +888,8 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   playedHeroState.reactions = '';
   releaseHeroRail('re-armed');
   pendingRail = opts.rail;
+  // THE PROMISE THE PRESS ARMED, in the flights' trail: a wave that never flew names whether it was ever promised.
+  noteTransferTrail('hero:arm', {card, rewards: pendingRewards.length, rail: opts.rail !== undefined});
   releaseDepartures();
   pendingSpends = opts.spends;
   pendingPrice = opts.price;
@@ -1099,6 +1104,7 @@ export function seedPlayedHeroRewardHold(before?: PlayerViewModel, after?: Playe
     return;
   }
   rewardHoldSeeded = true;
+  noteTransferTrail('hero:seed', {card: playedHeroState.card, rewards: pendingRewards.length, rail: pendingRail !== undefined});
   // ONE ANSWER (P82 · H1): the reactors this play's scene raises are THIS block's — never a group an earlier press left.
   heroReactionBlock = reactionDeclarationBlock();
   if (pendingRewards.length > 0) {
@@ -1844,6 +1850,7 @@ export async function endPlayedHero(): Promise<void> {
   // THE CARD'S PRINTED POINTS (TR55): a card whose play changes nothing but the score (Reds News Outlet, a «2 VP»
   // card with no gain) still owes the beat — its token is the whole story of the landing's result.
   const vpOwed = holdsVpShares(PLAYED_HERO_VP_OWNER);
+  noteTransferTrail('hero:beat', {card: playedHeroState.card, rewards: pendingRewards.length, rail: railKey !== undefined, seeded: rewardHoldSeeded});
   if (rewardBeatOwed({rewards: pendingRewards.length, reactions: heldReactions.length, answers: heldAnswers.length, rail: railKey !== undefined, vp: vpOwed}) &&
     !consoleReducedMotionActive()) {
     // THE REWARD BEAT — the final chord of the play: the landed card is read
@@ -1854,6 +1861,16 @@ export async function endPlayedHero(): Promise<void> {
     // the last transfer completes.
     const rewards = pendingRewards;
     pendingRewards = [];
+    // THE READ STARTS ON A PAINTED CARD (CI 2026-11-06, `console-sagitta` A / `console-venus-l1-shade` B2): the handoff
+    // releases the landing place's hold and the place FADES IN on its own opacity transition (the start's source seat:
+    // 160 ms) — a transition that, on a starved renderer, has not produced a frame by the time a wall-clock read is over.
+    // Measured then, every rung of the ladder read «faded», the wave returned early and the printed «+31» / the rating
+    // ticked with no token at all. The beat waits for the place it is born on (bounded — a place that never paints
+    // degrades exactly as before, by name).
+    await heroPlacePainted(playedHeroState.card ?? '');
+    if (!playedHeroState.active) {
+      return;
+    }
     await wait(motionMs(TRANSFER_READ_MS));
     if (!playedHeroState.active) {
       return;
@@ -2846,6 +2863,25 @@ function frame(): Promise<void> {
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Resolves once the landed card's reward place is PAINTED (`heroRewardPlace`), or at the bound; never rejects. */
+function heroPlacePainted(card: string): Promise<void> {
+  if (typeof document === 'undefined' || card === '' || heroRewardPlace(card) !== undefined) {
+    return Promise.resolve();
+  }
+  const deadline = Date.now() + motionMs(HERO_PLACE_PAINT_MAX_MS);
+  return new Promise((resolve) => {
+    const poll = () => {
+      if (!playedHeroState.active || heroRewardPlace(card) !== undefined || Date.now() >= deadline) {
+        noteTransferTrail('hero:place', {card, painted: heroRewardPlace(card) !== undefined});
+        resolve();
+        return;
+      }
+      probeTick(poll);
+    };
+    probeTick(poll);
+  });
 }
 
 function skippablePause(ms: number): Promise<void> {

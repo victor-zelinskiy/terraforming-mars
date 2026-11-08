@@ -62,6 +62,26 @@ describe('a resource chip is born at its source — the flight starts on the ani
     expect(run, 'a token with no piece releases its slot').to.include('releaseWaveSlot(waveGate, e.index);');
   });
 
+  it('a WAVE\'s TOUCHDOWNS are a phrase of events too — token k touches down after token k − 1, in a LATER frame', () => {
+    // Births 102 ms apart and still ONE tick for two: on the box at ×4 a frame is longer than the stagger, so both
+    // tokens' timelines completed in one GSAP tick and the counter ticked 20 → 22 (`console-venus-l1-shade` B2, 3 / 8).
+    const guard = raw.slice(raw.indexOf('function guarded('), raw.indexOf('function topRailBottom('));
+    expect(guard, 'the guard takes the wave slot').to.include('wave?: TransferWaveSlot');
+    expect(guard, 'a touchdown waits for its turn').to.include('landingSlotReady(wave)');
+    expect(guard, 'on the animation clock').to.include('gsap.ticker.add(waiter);');
+    expect(guard, 'every way out releases the next touchdown').to.include('releaseLandingSlot(wave.gate, wave.index);');
+    // The safety resolves WITHOUT waiting for the turn — the bound stays the token's own.
+    expect(guard.slice(guard.indexOf('const safety = window.setTimeout(')), 'the safety never waits for a predecessor').to.not.include('done()');
+    const ready = raw.slice(raw.indexOf('function landingSlotReady('), raw.indexOf('function waveSlotReady('));
+    expect(ready, 'only after every predecessor touched down (or never will)').to.include('gate.landNext >= slot.index');
+    expect(ready, 'in a LATER frame').to.include('gsap.ticker.frame > gate.landFrame');
+    expect(body('runTransferFlight'), 'the flight hands its slot to the guard').to.include('}, opts.wave);');
+    // A detached token waits seconds for its surface to leave: it keeps no place in the order past its pop.
+    expect(body('runDetachedTransferFlight'), 'a detached token leaves the order at its pop').to.include('void launchedAt.then(leaveLandingOrder);');
+    const run = fs.readFileSync(path.resolve(path.dirname(DIRECTOR), 'consoleResourceTransfer.ts'), 'utf8');
+    expect(run, 'a token with no piece releases its touchdown too').to.include('releaseLandingSlot(waveGate, e.index);');
+  });
+
   it('a DETACHED flight (PL-165) is born at its source the same way, leaves it on the pop, and builds its arc only once the destination is painted', () => {
     const flight = body('runDetachedTransferFlight');
     const deferred = flight.indexOf('guarded((done) => bornThenFlown(chip, opts.delayMs, () => {');
@@ -83,7 +103,7 @@ describe('a resource chip is born at its source — the flight starts on the ani
     // reached (CI 2026-11-04: `console-utopia-invest` C, `console-rail-landing`).
     const guard = raw.slice(raw.indexOf('function guarded('), raw.indexOf('function topRailBottom('));
     expect(guard, 'the safety asks the beat to catch up before it resolves').to.include('if (catchUp?.() === true) {');
-    expect(guard, 'a caught-up beat gets its own touchdown\'s grace, then resolves anyway — never a hang').to.include('window.setTimeout(done, CATCH_UP_TOUCHDOWN_GRACE_MS);');
+    expect(guard, 'a caught-up beat gets its own touchdown\'s grace, then resolves anyway — never a hang').to.include('window.setTimeout(finish, CATCH_UP_TOUCHDOWN_GRACE_MS);');
     for (const name of ['runTransferFlight', 'runDetachedTransferFlight']) {
       const flight = body(name);
       expect(flight, `${name}: the timeline is kept for the safety`).to.match(/flight = (tl|arc);/);

@@ -250,12 +250,16 @@ function bornThenFlown(chip: HTMLElement, delayMs: number, fly: () => void, plac
  * clock, in a later frame. On a healthy frame this is exactly the old schedule; on a starved one the tokens still go
  * one after another.
  */
-export type TransferWaveGate = {done: Array<boolean>, next: number, lastAtMs: number, lastFrame: number};
+export type TransferWaveGate = {
+  done: Array<boolean>, next: number, lastAtMs: number, lastFrame: number,
+  /** THE TOUCHDOWN HALF — slot k is over once token k has touched down (or never will). */
+  landed: Array<boolean>, landNext: number, landFrame: number,
+};
 /** One token's place in its wave: its index and the stagger it keeps after its predecessor's birth. */
 export type TransferWaveSlot = {gate: TransferWaveGate, index: number, staggerMs: number};
 
 export function createTransferWaveGate(): TransferWaveGate {
-  return {done: [], next: 0, lastAtMs: Number.NEGATIVE_INFINITY, lastFrame: -1};
+  return {done: [], next: 0, lastAtMs: Number.NEGATIVE_INFINITY, lastFrame: -1, landed: [], landNext: 0, landFrame: -1};
 }
 
 /** Slot `index` is over (its token was born, or never will be): the next one may follow. Idempotent. */
@@ -269,6 +273,26 @@ export function releaseWaveSlot(gate: TransferWaveGate, index: number): void {
   while (gate.done[gate.next] === true) {
     gate.next++;
   }
+}
+
+/**
+ * Slot `index`'s TOUCHDOWN is over (its token touched down, was absorbed in the air, or will never fly): the next
+ * token's touchdown may follow — in a LATER frame. Idempotent.
+ */
+export function releaseLandingSlot(gate: TransferWaveGate, index: number): void {
+  if (gate.landed[index] === true) {
+    return;
+  }
+  gate.landed[index] = true;
+  gate.landFrame = gsap.ticker.frame;
+  while (gate.landed[gate.landNext] === true) {
+    gate.landNext++;
+  }
+}
+
+function landingSlotReady(slot: TransferWaveSlot): boolean {
+  const gate = slot.gate;
+  return gate.landNext >= slot.index && (slot.index === 0 || gsap.ticker.frame > gate.landFrame);
 }
 
 function waveSlotReady(slot: TransferWaveSlot): boolean {
@@ -293,22 +317,49 @@ function waveAllowanceMs(wave: TransferWaveSlot | undefined): number {
  * rendered to its last pose, its own touchdown runs AT the destination — and only a beat that has nothing to catch up
  * (never started, killed) is resolved where it stands.
  */
-function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: () => boolean): Promise<void> {
+function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: () => boolean, wave?: TransferWaveSlot): Promise<void> {
   return new Promise<void>((resolve) => {
     let settled = false;
-    const done = () => {
+    let waiter: (() => void) | undefined;
+    const finish = () => {
       if (!settled) {
         settled = true;
         window.clearTimeout(safety);
+        if (waiter !== undefined) {
+          gsap.ticker.remove(waiter);
+          waiter = undefined;
+        }
+        if (wave !== undefined) {
+          releaseLandingSlot(wave.gate, wave.index);
+        }
         resolve();
       }
+    };
+    // A WAVE'S TOUCHDOWNS ARE A PHRASE OF EVENTS TOO (law 2): token k resolves only after token k − 1 has, in a LATER
+    // frame — on a starved renderer one frame is longer than the stagger, so two touchdowns used to land in one tick and
+    // the counter ticked once for two (console-venus-l1-shade B2 on the box at ×4: births 102 ms apart, the cell
+    // 20 → 22 in one frame). The chip simply rests on its destination for the frame it waits.
+    const done = () => {
+      if (settled || waiter !== undefined) {
+        return;
+      }
+      if (wave === undefined || landingSlotReady(wave)) {
+        finish();
+        return;
+      }
+      waiter = () => {
+        if (wave !== undefined && landingSlotReady(wave)) {
+          finish();
+        }
+      };
+      gsap.ticker.add(waiter);
     };
     const safety = window.setTimeout(() => {
       if (catchUp?.() === true) {
         // Caught up: its own touchdown now runs at the destination — a short grace for it, then resolved anyway.
-        window.setTimeout(done, CATCH_UP_TOUCHDOWN_GRACE_MS);
+        window.setTimeout(finish, CATCH_UP_TOUCHDOWN_GRACE_MS);
       } else {
-        done();
+        finish();
       }
     }, budgetMs + 1200);
     run(done);
@@ -569,7 +620,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
       report.restAt = restingAt;
     }
     return false;
-  });
+  }, opts.wave);
 
   /** The final approach's read: the live end, else its stand-in, else undefined (lost). Fills the report. */
   function finalApproach(): TransferPoint | undefined {
@@ -769,6 +820,15 @@ export function runDetachedTransferFlight(piece: TransferStagePiece, opts: Detac
     flight.progress(1);
     return true;
   });
+  // A DETACHED token keeps no place in its wave's touchdown order: its arc waits for a surface to leave (seconds), so it
+  // lets its followers touch down from its pop on (and from its end, whatever ended it).
+  const leaveLandingOrder = () => {
+    if (opts.wave !== undefined) {
+      releaseLandingSlot(opts.wave.gate, opts.wave.index);
+    }
+  };
+  void launchedAt.then(leaveLandingOrder);
+  void touched.then(leaveLandingOrder);
 
   const finished: Promise<'landed' | 'done'> = touched.then(() => (unborn ? undefined : absorbChip(piece, restingAt, motionMs(TRANSFER_BEAT_MS) * pace))).then(() => 'done' as const);
   const launched = Promise.race([launchedAt, touched]);

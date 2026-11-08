@@ -308,6 +308,7 @@ test.describe(`P66 Venus L1 Shade · a scale step at the start pays its rating �
 
   test('(B2) PL-1810 — P44\'s TEMPERATURE row on the start: two rating tokens off its printed temperature icon', async ({page, request}) => {
     test.setTimeout(420_000);
+    const logs = collectConsole(page);
     const id = await bootFixture(page, request, 'venus-l1-shade-temperature', {query: PRESET.query, landing: 'prompt'});
     await settle(page, {timeoutMs: 30_000});
     await expect(page.locator(`.con-start [data-queue-slot="${ENHANCERS}"]`), 'P44 stands in the deployment queue').toHaveCount(1, {timeout: 60_000});
@@ -333,8 +334,10 @@ test.describe(`P66 Venus L1 Shade · a scale step at the start pays its rating �
     const poses = await readTransient<RatingPose>(page, 'p66-b2');
     const witness = await transferWitness(page);
     writeText('B2-poses.txt', poses.map((x) => `${Math.round(x.t)} ${JSON.stringify(x.v)}`).join('\n'));
-    writeText('B2-trail.txt', transferTrail(witness));
-    expectToldByTheHero(poses, 2, 'B2', false);
+    const productTrail = await page.evaluate(() => JSON.stringify(
+      ((window as unknown as {__conReady?: () => {transfer?: {trail?: ReadonlyArray<unknown>}}}).__conReady?.().transfer?.trail ?? []).slice(-30)));
+    writeText('B2-trail.txt', [transferTrail(witness), '# product trail', productTrail, '# console', ...logs].join('\n'));
+    expectToldByTheHero(poses, 2, `B2 (product trail ${productTrail} · console ${logs.join(' | ')})`, false);
     expect(endsOverGlass(witness), 'B2: no end over glass or nothing').toEqual([]);
   });
 

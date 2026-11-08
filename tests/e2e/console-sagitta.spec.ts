@@ -256,7 +256,10 @@ test.describe(`PC03 Sagitta Frontier Services · the reveal's three stories · $
 
     const poses = await readTransient<Pose>(page, 'a');
     const witness = await transferWitness(page);
-    const trail = transferTrail(witness);
+    // The PRODUCT's own trail (the flights' verdicts — a token never born names why), beside the witness's.
+    const productTrail = await page.evaluate(() => JSON.stringify(
+      ((window as unknown as {__conReady?: () => {transfer?: {trail?: ReadonlyArray<unknown>}}}).__conReady?.().transfer?.trail ?? []).slice(-40)));
+    const trail = [transferTrail(witness), '# product trail', productTrail].join('\n');
     writeText('a-reveal.txt', poseReport('A · the reveal', poses, [
       `promise ${JSON.stringify(promise)}`,
       `mc ${JSON.stringify(sequence(poses, 'mc'))}`,

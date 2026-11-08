@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, press, settle} from './consoleStart';
+import {readTransient, recordTransient} from './transientRecorder';
 
 /**
  * «РАЗЫГРАНО» POLISH (P88's second half, the owner's frames of 2026-11-01 — docs/claude/prompts/
@@ -114,34 +115,34 @@ test.describe(`«РАЗЫГРАНО» polish · ${PRESET.id}`, () => {
     await settle(page);
     await openTable(page);
     await focusStack(page, 'events');
-    // A sampler armed BEFORE the press: the proxy's flip angle and the floor's opacity, frame-independent.
-    await page.evaluate(() => {
-      const w = window as unknown as {__p88Flip: Array<number>, __p88Floor: Array<{opacity: number, proxyLanded: boolean}>};
-      w.__p88Flip = [];
-      w.__p88Floor = [];
-      const t = window.setInterval(() => {
-        const flip = document.querySelector<HTMLElement>('.con-played-cat__fly .con-deal-proxy__flip');
-        if (flip !== null) {
-          const m = new DOMMatrixReadOnly(getComputedStyle(flip).transform === 'none' ? undefined : getComputedStyle(flip).transform);
-          w.__p88Flip.push(Math.round(Math.acos(Math.max(-1, Math.min(1, m.m11))) * 180 / Math.PI));
-        }
-        const panel = document.querySelector<HTMLElement>('.con-played-cat__panel');
-        if (panel !== null) {
-          w.__p88Floor.push({opacity: Number(getComputedStyle(panel).opacity), proxyLanded: document.querySelector('.con-played-cat--framed') !== null});
-        }
-      }, 16);
-      window.setTimeout(() => window.clearInterval(t), 4000);
+    // Recorded BEFORE the press, off the product's own writes (tests.md ② — a 16 ms `setInterval` sampler armed for a
+    // fixed 4 s slept through the floor's rise on a starved 4K software frame: 3 / 8 red at CPU ×4 with the product
+    // right): the proxy's flip angle and the floor's opacity beside «has the card landed».
+    await recordTransient(page, 'p88-flip', () => {
+      const flip = document.querySelector<HTMLElement>('.con-played-cat__fly .con-deal-proxy__flip');
+      if (flip === null) {
+        return null;
+      }
+      const m = new DOMMatrixReadOnly(getComputedStyle(flip).transform === 'none' ? undefined : getComputedStyle(flip).transform);
+      return Math.round(Math.acos(Math.max(-1, Math.min(1, m.m11))) * 180 / Math.PI);
+    });
+    await recordTransient(page, 'p88-floor', () => {
+      const panel = document.querySelector<HTMLElement>('.con-played-cat__panel');
+      return panel === null ? null :
+        {opacity: Math.round(Number(getComputedStyle(panel).opacity) * 100) / 100, proxyLanded: document.querySelector('.con-played-cat--framed') !== null};
     });
     await press(page, 'Enter', 200);
     await expect(page.locator('.con-played-cat'), 'the category scene mounts — never a shortcut to the viewer').toHaveCount(1, {timeout: 8_000});
     expect(await page.locator('dialog.con-zoom[open]').count(), 'no fullscreen before the scene').toBe(0);
     await expect(page.locator('.con-played-cat--framed'), 'the card landed').toHaveCount(1, {timeout: 15_000});
     await settle(page).catch(() => undefined);
-    const flips = await page.evaluate(() => (window as unknown as {__p88Flip: Array<number>}).__p88Flip);
+    const flips = (await readTransient<number | null>(page, 'p88-flip')).map((x) => x.v).filter((v): v is number => v !== null);
     expect(Math.max(0, ...flips), `the event starts face down (angles ${flips.join(',')})`).toBeGreaterThan(120);
     expect(flips[flips.length - 1] ?? 0, 'and lands face up').toBeLessThan(20);
-    const floor = await page.evaluate(() => (window as unknown as {__p88Floor: Array<{opacity: number, proxyLanded: boolean}>}).__p88Floor);
-    expect(floor.some((f) => f.opacity > 0.05 && !f.proxyLanded), 'the floor is up BEFORE the landing (a phrase, not a pop-in)').toBe(true);
+    const floor = (await readTransient<{opacity: number, proxyLanded: boolean} | null>(page, 'p88-floor')).map((x) => x.v)
+      .filter((v): v is {opacity: number, proxyLanded: boolean} => v !== null);
+    expect(floor.some((f) => f.opacity > 0.05 && !f.proxyLanded),
+      `the floor is up BEFORE the landing (a phrase, not a pop-in) — ${floor.map((f) => `${f.opacity}${f.proxyLanded ? 'L' : ''}`).join(' ')}`).toBe(true);
     await expect(page.locator('.con-played-cat__slot--single'), 'the single stage').toHaveCount(1);
     await expect(page.locator('.con-played__slot--events-out'), 'the pile wears its «out» ghost while the card is away').toHaveCount(1);
     const m = await floorMaterial(page);
@@ -154,8 +155,57 @@ test.describe(`«РАЗЫГРАНО» polish · ${PRESET.id}`, () => {
     await expect(page.locator('dialog.con-zoom[open]'), 'X — the viewer out of the scene\'s slot').toHaveCount(1, {timeout: 10_000});
     await press(page, 'Escape', 1600);
     await expect(page.locator('dialog.con-zoom[open]')).toHaveCount(0, {timeout: 10_000});
+    // B right behind the viewer's close: the viewer's flight swallows the pad on purpose, and it must hand the pad
+    // back the moment the card is home — CI 42223555435 lost this B in the gap before the dialog's queued `close`.
+    // A red names what took the press (the echo's outcome and gate) and what still stood.
+    const padState = () => page.evaluate(() => {
+      const w = window as unknown as {__conInputEcho?: () => {lastPress?: unknown}, __conReady?: () => {absorbers?: unknown, holds?: unknown}};
+      const ready = w.__conReady?.();
+      return JSON.stringify({lastPress: w.__conInputEcho?.().lastPress, absorbers: ready?.absorbers, holds: ready?.holds,
+        cat: document.querySelector('.con-played-cat')?.className, zoom: document.querySelector('.con-zoom')?.className});
+    });
     await press(page, 'Escape', 1600);
-    await expect(page.locator('.con-played-cat'), 'B — back to the table').toHaveCount(0, {timeout: 15_000});
+    const afterB = await padState();
+    try {
+      await expect(page.locator('.con-played-cat'), 'B — back to the table').toHaveCount(0, {timeout: 15_000});
+    } catch (e) {
+      throw new Error(`B — back to the table: the category still stands (right after B: ${afterB} · now: ${await padState()})\n${String(e)}`);
+    }
+  });
+
+  test('(I2) a B pressed in the very task the viewer lets go reaches the category beneath — the viewer\'s swallow ends with its flight', async ({page, request}) => {
+    test.setTimeout(240_000);
+    await bootFixture(page, request, 'played-table-polish', {query: PRESET.query});
+    await settle(page);
+    await openTable(page);
+    await focusStack(page, 'events');
+    await press(page, 'Enter', 200);
+    await expect(page.locator('.con-played-cat--framed'), 'the card landed').toHaveCount(1, {timeout: 15_000});
+    await settle(page).catch(() => undefined);
+    await press(page, 'KeyX', 1800);
+    await expect(page.locator('dialog.con-zoom[open]'), 'X — the viewer').toHaveCount(1, {timeout: 10_000});
+    // The worst moment for a second B, made DETERMINISTIC: in the very task the dialog lets go (its `open` falls), a B
+    // goes to the console — the frame a player's quick double B lands in on a slow machine. The viewer's close used to
+    // unwind only on the dialog's QUEUED `close` event, so that B died in the viewer as «consumed» (CI 42223555435).
+    await page.evaluate(() => {
+      const dialog = document.querySelector<HTMLDialogElement>('dialog.con-zoom[open]');
+      if (dialog === null) {
+        return;
+      }
+      const observer = new MutationObserver(() => {
+        if (!dialog.open) {
+          observer.disconnect();
+          window.dispatchEvent(new KeyboardEvent('keydown', {code: 'Escape', key: 'Escape', bubbles: true}));
+          window.dispatchEvent(new KeyboardEvent('keyup', {code: 'Escape', key: 'Escape', bubbles: true}));
+          (window as unknown as {__p88SecondB?: number}).__p88SecondB = Date.now();
+        }
+      });
+      observer.observe(dialog, {attributes: true, attributeFilter: ['open']});
+    });
+    await press(page, 'Escape', 1600);
+    await expect.poll(() => page.evaluate(() => (window as unknown as {__p88SecondB?: number}).__p88SecondB !== undefined),
+      {message: 'the second B went in as the dialog let go', timeout: 10_000}).toBe(true);
+    await expect(page.locator('.con-played-cat'), 'that B took the category back to the table').toHaveCount(0, {timeout: 15_000});
   });
 
   test('(M) a collapsed draft never takes A while the table is open; the board gives it back', async ({page, request}) => {

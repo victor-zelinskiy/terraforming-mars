@@ -1,7 +1,7 @@
-import {expect, test, Page} from './consoleTest';
+import {expect, test, Page, APIRequestContext} from './consoleTest';
 import {reloadConsole} from './consoleStart';
 import {
-  createCampaign, devCommit, launchMission, campaignModelAs,
+  createCampaign, devCommit, launchMission, campaignModelAs, campaignBase,
 } from './campaignFixtures';
 import {
   journeyToEndgame, waitWithFrames, forceFrame, shoot,
@@ -290,6 +290,25 @@ async function seatCoverage(page: Page) {
   });
 }
 
+/** The mission-1 RESULT as the server committed it: `color:title` per titled seat (sorted), the Governor count, and a
+ *  readable standings line for the message. */
+async function missionTitlesByColor(request: APIRequestContext, id: string): Promise<{byColor: Array<string>, governor: number, standings: string}> {
+  const res = await request.get(`${campaignBase()}/api/campaign?id=${id}&name=Alice`);
+  expect(res.ok(), await res.text()).toBeTruthy();
+  const model = await res.json() as {
+    seats: Array<{seat: number, color: string}>,
+    missions: Array<{result?: {titles: Array<{seat: number, title: string}>, standings: Array<{seat: number, place: number, score: number, megaCredits: number}>}}>,
+  };
+  const result = model.missions[0]?.result;
+  expect(result, 'mission 1 committed its result').toBeDefined();
+  const colorOf = (seat: number) => model.seats.find((s) => s.seat === seat)?.color ?? `seat${seat}`;
+  return {
+    byColor: result!.titles.map((t) => `${colorOf(t.seat)}:${t.title}`).sort(),
+    governor: result!.titles.filter((t) => t.title === 'governor').length,
+    standings: result!.standings.map((s) => `${colorOf(s.seat)} #${s.place} ${s.score} VP ${s.megaCredits} M€`).join(' · '),
+  };
+}
+
 function expectHonoursClear(rows: Awaited<ReturnType<typeof seatCoverage>>): void {
   for (const row of rows) {
     expect(row.inside, `${row.color}: the stand stays inside its seat`).toBe(true);
@@ -392,15 +411,22 @@ test.describe('campaign podium — the honours and the lineage (tv4k)', () => {
     }
     await journeyToEndgame(page, request, ids);
     await waitWithFrames(page, async () => (await page.locator('.con-eg__actions').count()) > 0, 200_000, 'the settled results');
+    // WHICH titles stand is the SERVER's verdict, never a constant: the deal and the drive are not reproducible, and a
+    // full tie (VP and M€) SHARES the better place by design (competition ranking — `missionStandings.ts`): two seats
+    // tied for first are both Governors and the next place is skipped (CI 42223555435: «governor, governor, prefect»
+    // with the product right). The crests must name exactly the result's titles, each on its own seat.
+    const expected = await missionTitlesByColor(request, id);
+    expect(expected.governor, `place 1 always earns the Governor (${JSON.stringify(expected)})`).toBeGreaterThan(0);
     // The crests unfold in ascending order after the winner beat (Prefect → Administrator → Governor).
     await waitWithFrames(page, async () => (await page.locator('[data-eg-title="governor"]').count()) > 0, 15_000, 'the Governor crest');
-    await waitWithFrames(page, async () => page.evaluate(() => {
+    await waitWithFrames(page, async () => page.evaluate((n) => {
       const crests = [...document.querySelectorAll('.con-eg__title')];
-      return crests.length === 3 && crests.every((el) => Number(getComputedStyle(el).opacity) > 0.99 && el.getAnimations().every((anim) => anim.playState === 'finished'));
-    }), 15_000, 'every crest unfolded');
+      return crests.length === n && crests.every((el) => Number(getComputedStyle(el).opacity) > 0.99 && el.getAnimations().every((anim) => anim.playState === 'finished'));
+    }, expected.byColor.length), 15_000, 'every crest unfolded');
     await shoot(page, SHOT_DIR, '4p-4k-mission1-titles');
     const rows = await seatCoverage(page);
-    expect(rows.map((r) => r.title).filter((t) => t !== undefined).sort(), 'three titles on four seats').toEqual(['administrator', 'governor', 'prefect']);
+    expect(rows.filter((r) => r.title !== undefined).map((r) => `${r.color}:${r.title}`).sort(),
+      `the crests name the server's titles, each on its seat (standings ${expected.standings})`).toEqual(expected.byColor);
     expectHonoursClear(rows);
     // The winner's «ПОБЕДИТЕЛЬ» yielded to its Governor crest — one anchor, one honour.
     const ribbon = await page.locator('.con-eg__ribbon').evaluateAll((els) => els.map((el) => Number(getComputedStyle(el).opacity)));

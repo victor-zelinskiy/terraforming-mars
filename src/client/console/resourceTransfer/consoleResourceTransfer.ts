@@ -47,7 +47,7 @@ import {
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   TransferFlightPaint, TransferFlightReport, TransferStagePiece, runDetachedTransferFlight, runTransferFlight, settleTransferChip, killTransferPiece,
-  TransferWaveSlot, createTransferWaveGate, releaseWaveSlot,
+  TransferWaveSlot, createTransferWaveGate, releaseLandingSlot, releaseWaveSlot,
 } from '@/client/console/resourceTransfer/resourceTransferDirector';
 import {probeTick} from '@/client/console/probeTick';
 import {effectiveOpacity, firstVisibleEnd, TRANSFER_END_MIN_OPACITY, TransferEndOptions, TransferEndVerdict, transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
@@ -983,8 +983,9 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         }
         trail(runId, 'flight:no-piece', e.id);
         removeFlight(e.id);
-        // A token that will never be born lets the rest of its wave go on.
+        // A token that will never be born lets the rest of its wave go on — its births and its touchdowns.
         releaseWaveSlot(waveGate, e.index);
+        releaseLandingSlot(waveGate, e.index);
         return Promise.resolve();
       }
       const liveFrom = () => measureEndRef(e.fromRef, e.spec, 'source');

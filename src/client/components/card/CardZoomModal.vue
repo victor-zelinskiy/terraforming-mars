@@ -1166,6 +1166,11 @@ export default defineComponent({
       dialogPolyfill.registerDialog(this.typedRefs.dialog);
     }
     this.typedRefs.dialog.addEventListener('close', () => {
+      // The event is a QUEUED task: a host that unwound at `close()` itself (the console shell) has unmounted this
+      // instance by now — a late 'close' from a gone viewer must not close the NEXT one.
+      if (this.$.isUnmounted) {
+        return;
+      }
       // Rule overlay off: nonce 0 clears the blocks + the target marks so a
       // reopen (the modal instance can persist across opens) starts clean.
       this.cancelSettle();

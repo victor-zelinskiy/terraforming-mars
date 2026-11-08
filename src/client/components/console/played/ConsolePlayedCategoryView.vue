@@ -221,13 +221,14 @@ import {
 } from '@/client/console/played/playedCategoryView';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {
-  runCategoryOpen, runCategoryClose, reverseCategoryEpisode, finishCategoryInstant,
+  runCategoryOpen, runCategoryClose, reverseCategoryEpisode, finishCategoryInstant, startHeldCategoryEpisode,
   dissolveCategoryProxies, resetCategoryDirector,
   CategoryFlightPlan, CATEGORY_FRAME_MS,
 } from '@/client/console/played/playedCategoryDirector';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 import {publicFaceModel} from '@/client/components/premiumCard/premiumFleetDock';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 
 /** Rows kept mounted above/below the viewport (hand-section discipline). */
 const OVERSCAN = 2;
@@ -239,6 +240,10 @@ const CAT_EDGE_INSET = 22;
 /** Fallback body box before the first measure / under JSDOM. */
 const FALLBACK_W = 1280;
 const FALLBACK_H = 560;
+/** The flight waits for the floor's real start at most this long (wall clock) — a backstop that STARTS, never resolves. */
+const FLOOR_START_WAIT_MS = 600;
+/** The open / close flight takes every press but B on purpose (B reverses / snaps it) — said on the ledger. */
+const CATEGORY_FLIGHT_ABSORBER = 'played-category-flight';
 /**
  * The grid body's air around its clip (rem — top, sides, bottom). Inline on `__bodybox`, read by the plan: the GRID
  * stands in the body's box MINUS this air, the album and the single stage in the whole box. One source, so the plan
@@ -320,6 +325,7 @@ export default defineComponent({
       lastFlickAt: 0,
       wheelAcc: 0,
       wheelAt: 0,
+      absorbOff: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -522,6 +528,9 @@ export default defineComponent({
       this.ro.observe(el);
     }
     this.measure();
+    // THE FLIGHT'S SWALLOW IS DECLARED (animations.md § SLOW FRAME, law 5): X / the d-pad / LB·RB pressed while the
+    // cards are in the air wait out the beat — a press it took is pressed again once the view stands.
+    this.absorbOff = registerInputAbsorber(CATEGORY_FLIGHT_ABSORBER, () => this.busy, {scope: 'all'});
     // The OPEN flight starts once the grid has laid out (held-invisible).
     void this.beginOpenFlight();
     // The album's strip arms its slide once the view stands on its page.
@@ -530,6 +539,7 @@ export default defineComponent({
     });
   },
   beforeUnmount() {
+    this.absorbOff?.();
     consolePlayedUi.page = 0;
     consolePlayedUi.pageCount = 1;
     this.ro?.disconnect();
@@ -616,14 +626,43 @@ export default defineComponent({
         '--con-cat-from-b': px(view.bottom - r.bottom),
       };
     },
-    /** Open the floor on the NEXT frame — the closed clip must paint once for the transition to have a `from`. */
-    unfoldFloor(): void {
+    /**
+     * Open the floor on the NEXT frame — the closed clip must paint once for the transition to have a `from` — and
+     * call `started` once the floor's fade has REALLY started (its transition's `ready`: the compositor's start time,
+     * which on a software renderer lags the class by the panel's raster). Bounded: a floor with no transition (reduced
+     * motion) starts at once, one whose start never resolves after `FLOOR_START_WAIT_MS`.
+     */
+    unfoldFloor(started?: () => void): void {
       this.measureUnfoldOrigin();
       void this.frame().then(() => {
-        if (this.state.phase === 'opening' || this.state.phase === 'open') {
-          this.unfolded = true;
+        if (this.state.phase !== 'opening' && this.state.phase !== 'open') {
+          started?.();
+          return;
+        }
+        this.unfolded = true;
+        if (started !== undefined) {
+          void this.$nextTick().then(() => this.whenFloorStarts(started));
         }
       });
+    },
+    whenFloorStarts(started: () => void): void {
+      const panel = (this.$el as HTMLElement | undefined)?.querySelector?.<HTMLElement>('.con-played-cat__panel');
+      const anims = panel !== undefined && panel !== null && typeof panel.getAnimations === 'function' ? panel.getAnimations() : [];
+      const fade = anims.find((a) => (a as CSSTransition).transitionProperty === 'opacity') ?? anims[0];
+      if (fade === undefined) {
+        started();
+        return;
+      }
+      let done = false;
+      const go = (): void => {
+        if (!done) {
+          done = true;
+          window.clearTimeout(timer);
+          started();
+        }
+      };
+      const timer = window.setTimeout(go, FLOOR_START_WAIT_MS);
+      fade.ready.then(go, go);
     },
     // ── the OPEN flight (mounted at phase 'opening') ────────────────────
     async beginOpenFlight(): Promise<void> {
@@ -647,13 +686,14 @@ export default defineComponent({
         this.settleOpenInstant();
         return;
       }
-      runCategoryOpen(plans, (settledAs) => this.onOpenSettled(settledAs));
+      runCategoryOpen(plans, (settledAs) => this.onOpenSettled(settledAs), {held: true});
       // The director has just PAINTED the proxies on the table rects — the
       // table hands its cards over in the same synchronous turn (no frame
       // where a card exists twice or not at all).
       this.state.holdCards = true;
-      // …and the floor starts unfolding out of the stack WITH the lift.
-      this.unfoldFloor();
+      // …and the floor starts unfolding out of the stack WITH the lift — the lift takes the floor's REAL start
+      // (`startHeldCategoryEpisode`), so the cards never land before the floor is there, on any frame.
+      this.unfoldFloor(() => startHeldCategoryEpisode());
     },
     settleOpenInstant(): void {
       this.unfolded = true;
@@ -927,6 +967,8 @@ export default defineComponent({
         // Mid-flight: B reverses/snaps; everything else waits out the beat.
         if (intent.kind === 'press' && consoleActionOf(intent) === 'back') {
           this.requestClose();
+        } else {
+          noteInputAbsorbed(CATEGORY_FLIGHT_ABSORBER);
         }
         return;
       }

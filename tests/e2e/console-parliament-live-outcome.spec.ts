@@ -2,6 +2,7 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, focusCard, openCardActions, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
+import {readTransient, recordTransient} from './transientRecorder';
 
 /**
  * RX36 LIVE EXPERIMENTS · WHAT THE PLAYED CARD SETS OFF STAYS IN THE LAW'S STAGE (the owner, 2026-10-31: «результат карты,
@@ -115,6 +116,11 @@ for (const shape of SHAPES) {
     expect(await page.locator(READY).count(), 'the commit is ready').toBe(1);
     const before = await fetchPlayerModel(request, playerId) as unknown as {thisPlayer: {tableau: Array<{name: string}>}};
 
+    await recordTransient(page, 'law-landing', () => {
+      const el = document.querySelector<HTMLElement>('.con-cardactions [data-law-landing]');
+      return el === null ? null : `${Math.round(Number(getComputedStyle(el).opacity) * 100) / 100}·${getComputedStyle(el).visibility}`;
+    });
+
     // ── THE COMMIT: the card lands in the stage, then what it set off rises IN THE SAME STAGE. ──
     await page.keyboard.press('Enter');
     const hosted = page.locator(`${ZONE} ${shape.surface}`);
@@ -130,11 +136,18 @@ for (const shape of SHAPES) {
     await expect(crumb).toContainText(/ЖИВЫЕ ЭКСПЕРИМЕНТЫ/i);
     // (the stage segment crossfades in a shared cell — the LEAVING span is not the tail)
     await expect(page.locator('.con-cardactions .con-wshead__step:not([class*="swap-leave"])')).toHaveText(shape.tail, {timeout: 10_000});
-    // The landed tableau let go under the outcome — it does not stand over the cards.
+    // The landed tableau let go under the outcome — it does not stand over the cards. The let-go is a DISSOLVE that
+    // starts on the very fact the outcome rises on (`playLandingYieldedToOutcome`), so it is read as a STATE, never
+    // one-shot (tests.md ④ / ⑦): the hosted surface stands a frame before the tableau's ease has crossed half — CI
+    // 42223555435 read it at that frame on a starved 4K runner. A tableau that never lets go stays red, with its record.
     const landing = page.locator('.con-cardactions [data-law-landing]');
-    if (await landing.count() > 0) {
-      const painted = await landing.evaluate((el) => Number(getComputedStyle(el).opacity) > 0.5 && getComputedStyle(el).visibility !== 'hidden');
-      expect(painted, 'the landed tableau dissolved under the rising outcome').toBe(false);
+    const landingPainted = () => landing.evaluateAll((els) =>
+      els.some((el) => Number(getComputedStyle(el).opacity) > 0.5 && getComputedStyle(el).visibility !== 'hidden'));
+    try {
+      await expect.poll(landingPainted, {timeout: 5_000}).toBe(false);
+    } catch (e) {
+      const trail = (await readTransient<string | null>(page, 'law-landing')).map((x) => `${x.t % 100000}:${x.v}`).join(' ');
+      throw new Error(`the landed tableau dissolved under the rising outcome — it still stands (opacity·visibility over time: ${trail})\n${String(e)}`);
     }
     const after = await fetchPlayerModel(request, playerId) as unknown as {thisPlayer: {tableau: Array<{name: string}>}};
     expect(after.thisPlayer.tableau.length, 'the card is on the table').toBe(before.thisPlayer.tableau.length + 1);

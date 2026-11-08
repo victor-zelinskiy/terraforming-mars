@@ -1651,6 +1651,8 @@ import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAb
 
 /** PC04 · GS — the ledger's name of the series' visit standing between two questions (`seriesHeld`). */
 const SERIES_VISIT_ABSORBER = 'series-visit';
+/** The fullscreen viewer's OPEN / CLOSE flight swallows the pad on purpose (the card is mid-air) — said on the ledger. */
+const ZOOM_FLIGHT_ABSORBER = 'zoom-flight';
 
 /** PC04 · GS — the answered member of a series, on the surface that answered it (`noteSeriesAnswer`). */
 type SeriesVisit = {key: ChoiceSeriesKey, surface: 'host' | 'decision', task: ConsoleTask, input: PlayerInputModel, vm?: EffectDecisionViewModel};
@@ -2721,6 +2723,7 @@ export default defineComponent({
       /** PC04 · GS — the series member the standalone host answered last (`noteSeriesAnswer`); read by `seriesHeldVisit`. */
       seriesVisit: undefined as SeriesVisit | undefined,
       seriesAbsorbOff: undefined as (() => void) | undefined,
+      zoomFlightAbsorbOff: undefined as (() => void) | undefined,
       /**
        * «ПРИЁМКА»: the reveal instance was last re-homed into the PARLIAMENT's draw stage — latched past the take (the
        * batch leaves the queue before the take's staged seam fires), so its two completion seams know the batch was
@@ -25573,8 +25576,10 @@ export default defineComponent({
     /** P15: the controller drives the viewer natively while it is open. */
     handleZoomIntent(intent: GamepadIntent): boolean {
       // A close/handoff flight is in progress: the card is mid-air — swallow
-      // everything (no browsing a departing card, no double execute).
+      // everything (no browsing a departing card, no double execute). A
+      // DELIBERATE swallow, so it is said on the ledger (`ZOOM_FLIGHT_ABSORBER`).
       if (this.zoomClosing) {
+        noteInputAbsorbed(ZOOM_FLIGHT_ABSORBER);
         return true;
       }
       // Mid OPEN-flight (dialog not shown yet): only closing is meaningful —
@@ -25584,8 +25589,10 @@ export default defineComponent({
           const action = consoleActionOf(intent);
           if (action === 'back' || action === 'inspect') {
             void this.closeZoomViewer();
+            return true;
           }
         }
+        noteInputAbsorbed(ZOOM_FLIGHT_ABSORBER);
         return true;
       }
       const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
@@ -25843,6 +25850,13 @@ export default defineComponent({
       this.zoomClosing = true;
       await playZoomClose(dialogEl as HTMLElement | undefined, this.consoleCardZoom.index);
       zoom.close();
+      // THE CARD IS HOME — THE PAD IS BACK IN THE SAME TASK. The dialog's 'close' event (the usual unwinder) is a
+      // QUEUED task: until it ran, `zoomClosing` stood with the viewer already gone and swallowed the next press — a
+      // B meant for the surface beneath (CI 42223555435: «РАЗЫГРАНО»'s category never closed on a starved frame).
+      // The late event is inert: the unmounted modal emits nothing (CardZoomModal), and the reset is idempotent.
+      if (this.zoomClosing) {
+        this.onCardZoomClosed();
+      }
     },
     /** P17: right-stick scroll for the ACTIVE console scroll container —
      *  the journal peek while open, else the topmost visible scrollable
@@ -26564,6 +26578,9 @@ export default defineComponent({
   mounted() {
     // A SERIES' VISIT IS A DELIBERATE SWALLOW (PC04 · GS) — on the ledger, so a driver waits it out.
     this.seriesAbsorbOff = registerInputAbsorber(SERIES_VISIT_ABSORBER, () => this.seriesHeld !== undefined, {scope: 'all'});
+    // THE VIEWER'S FLIGHT IS A DELIBERATE SWALLOW — on the ledger, so a press it took is pressed again once it landed.
+    this.zoomFlightAbsorbOff = registerInputAbsorber(ZOOM_FLIGHT_ABSORBER,
+      () => this.consoleCardZoom.card !== undefined && (this.zoomClosing || this.zoomOpening), {scope: 'all'});
     // THE CURSOR ARRIVES (TR58): a step or a press during an arrival releases it — input never waits for a ring.
     installCursorArrivalInput();
     // THE START YIELDS ITS SCENE, NOT ITS FRAME (the reliability iteration): while it does, the board is on screen.
@@ -27076,6 +27093,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.seriesAbsorbOff?.();
+    this.zoomFlightAbsorbOff?.();
     registerGenerationSceneHandoff(undefined); // a dead shell's director must not gate the next game's rise
     handoffPendingEntries.clear();
     window.clearTimeout(this.startStrandTimer); // the start watchdog dies with its shell
