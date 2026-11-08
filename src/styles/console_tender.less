@@ -759,13 +759,18 @@
   justify-content: center;
   gap: 1.1rem;
   padding: .4rem 1.2rem;
+  /* ONE ROW BY CONSTRUCTION: a certificate stands 11rem wide while the row has room and SHRINKS with the count beyond
+     it — the slots share the row's width (`flex: 0 1`, `min-width: 0`), each slot is an inline-size container and its
+     face takes the slot's width with the em-scale read off it (`100cqw / 14` — the face's one layout at every size).
+     A wrapping row once laid five holdings as 4 + 1 and the two rows, centred, overflowed the body with the heads of
+     the top row cut off (the box frame of 2026-11-09). */
   &__row {
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 1.2rem;
-    max-width: 100%;
+    width: 100%;
   }
   &__slot {
     position: relative;
@@ -775,8 +780,14 @@
     gap: .45rem;
     padding: .35rem;
     border-radius: .55rem;
+    flex: 0 1 calc(11rem + .7rem);
+    min-width: 0;
+    container-type: inline-size;
     transition: transform calc(160ms * var(--motion-scale, 1)) @con-ease-standard, opacity calc(160ms * var(--motion-scale, 1)) linear;
-    > .con-tender { --tender-w: 11rem; }
+    > .con-tender {
+      width: 100%;
+      font-size: calc(100cqw / 14);
+    }
     &--busy > .con-tender { opacity: .72; }
     /* ARMED — the press awaits its second press: the ring turns amber IN PLACE (the whole list, so the metal edge and
        the table weight stay; ordered after the face's own, it wins on the card that is by definition also focused). */

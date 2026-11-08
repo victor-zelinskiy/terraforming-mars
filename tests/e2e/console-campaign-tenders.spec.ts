@@ -92,6 +92,17 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     // ── THE PORTFOLIO stands FIRST: four certificates, the first focused, its reading in the deal's numbers, the bar its verb. ──
     await expect(portfolio).toBeVisible();
     await expect(page.locator('[data-tport-slot]')).toHaveCount(5);
+    // The portfolio is ONE ROW by construction — five holdings share the row's width and every certificate stands whole
+    // inside the step's body (a wrapping row once laid them 4 + 1 and the heads of the top row were cut off above it).
+    const portfolioBoxes = await page.evaluate(() => {
+      const body = document.querySelector('.con-start__body--cards')!.getBoundingClientRect();
+      const slots = Array.from(document.querySelectorAll('[data-tport-slot]')).map((el) => el.getBoundingClientRect());
+      return {bodyTop: body.top, bodyBottom: body.bottom, tops: slots.map((r) => Math.round(r.top)),
+        top: Math.min(...slots.map((r) => r.top)), bottom: Math.max(...slots.map((r) => r.bottom))};
+    });
+    expect(new Set(portfolioBoxes.tops).size, `one row of certificates ${JSON.stringify(portfolioBoxes)}`).toBe(1);
+    expect(portfolioBoxes.top, `the row stands inside the body ${JSON.stringify(portfolioBoxes)}`).toBeGreaterThanOrEqual(portfolioBoxes.bodyTop - 1);
+    expect(portfolioBoxes.bottom, `the row stands inside the body ${JSON.stringify(portfolioBoxes)}`).toBeLessThanOrEqual(portfolioBoxes.bodyBottom + 1);
     // The dock's «ТЕНДЕРЫ» block stands on the lineage's chassis — one row of miniature certificates, never the column
     // of word chips that stretched the whole dock by a row per holding (the owner's frame of 2026-11-09).
     const dockBoxes = await page.evaluate(() => ({
