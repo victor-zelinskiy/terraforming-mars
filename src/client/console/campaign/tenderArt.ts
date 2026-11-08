@@ -19,6 +19,7 @@ export const TENDER_ART_DIR = 'assets/campaign/tenders';
 /** The kinds whose art has shipped (the file name is the id). */
 const TENDER_ART: Readonly<Partial<Record<TenderId, true>>> = {
   projectReview: true,
+  preludeReview: true,
 };
 
 /** The kind's art URL, or undefined while the window still engraves the family glyph. */
