@@ -151,7 +151,11 @@ test.describe('one press, a cell bonus and a table draw — ONE batch, the cell 
     expect(batches[0].actionId).toBeDefined();
     expect((batches[0].segments ?? []).map((s) => s.source?.type), 'the cell first, the card after').toEqual(['tile', 'card']);
     expect(batches[0].segments?.[0].source?.spaceId).toBe(cell!.id);
-    await cinematicBeat(page, 2200, 'the assembly settles — the cover landed, the university surfaced, dealt and receded');
+    // The assembly settles — the cover landed, the university surfaced, dealt and receded. Waited for as a STATE (the deck
+    // layer's guest and the cover's proxies gone — the one handoff released the real cards), never a fixed beat: the
+    // university's run deals off its real rise, so on a starved renderer the whole assembly runs longer than any guess.
+    await expect.poll(() => page.evaluate(() => document.querySelectorAll('.con-deckdraw, .con-bonusfly-proxy').length),
+      {timeout: 30_000, message: 'the assembly handed over — no deck-layer guest, no cover proxy left'}).toBe(0);
     await page.evaluate(() => window.__obWatchB?.freeze());
     await shoot(page, 'B1-batch-assembled');
     // NO BLINK: once a card is painted in its slot (as its flyer or as itself) it stays painted through the whole
@@ -160,7 +164,11 @@ test.describe('one press, a cell bonus and a table draw — ONE batch, the cell 
     for (let slot = 0; slot < 2; slot++) {
       const trail = assembly.map((p) => p[slot] === true);
       const first = trail.indexOf(true);
-      expect(first, `slot ${slot} was painted during the assembly`).toBeGreaterThanOrEqual(0);
+      if (first < 0) {
+        const owner = await page.evaluate(() => ((window as unknown as {__conReady?: () => {transfer?: {trail: ReadonlyArray<unknown>}}}).__conReady?.()?.transfer?.trail ?? [])
+          .slice(-24).map((t) => JSON.stringify(t)).join('\n'));
+        expect(first, `slot ${slot} was painted during the assembly\n── the product's trail ──\n${owner}`).toBeGreaterThanOrEqual(0);
+      }
       const gaps = trail.slice(first).filter((on) => !on).length;
       expect(gaps, `slot ${slot} never vanished after it landed (trail ${trail.map((on) => on ? '█' : '·').join('')})`).toBe(0);
     }
@@ -181,6 +189,9 @@ test.describe('one press, a cell bonus and a table draw — ONE batch, the cell 
     expect(Math.max(...withReveal.map((s) => s.slots)), 'one row of the whole batch').toBe(2);
     expect(withReveal.some((s) => s.viewer), 'never the viewer').toBe(false);
     expect(watch.some((s) => s.cover > 0), 'the cell\'s cover flew').toBe(true);
-    expect(withReveal.some((s) => s.triggers.includes(MU)), 'the university surfaced beside the row').toBe(true);
+    const owner = await page.evaluate(() => ((window as unknown as {__conReady?: () => {transfer?: {trail: ReadonlyArray<unknown>}}}).__conReady?.()?.transfer?.trail ?? [])
+      .slice(-24).map((t) => JSON.stringify(t)).join('\n'));
+    const triggerTrail = watch.filter((s) => s.triggers.length > 0).map((s) => `${s.reveals}:${s.triggers.join(',')}`).join(' ');
+    expect(withReveal.some((s) => s.triggers.includes(MU)), `the university surfaced beside the row (trigger samples: ${triggerTrail || 'none'})\n── the product's trail ──\n${owner}`).toBe(true);
   });
 });

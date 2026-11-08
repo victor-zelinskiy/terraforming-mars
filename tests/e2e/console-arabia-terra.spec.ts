@@ -322,12 +322,16 @@ for (const profile of PROFILES) {
       const witness = await transferWitness(page);
       const trail = transferTrail(witness);
       console.log('── data flights ──\n' + trail);
-      expect(endsOverGlass(witness), `no flight end over glass:\n${trail}`).toEqual([]);
-      expect(witness.landings.some((e) => e.under === 'recv:Supercomputer'), `the unit landed on the chosen card by the field:\n${trail}`).toBe(true);
+      // The product's own trail beside the witness's: a red names WHY (the receive's stage, the rating's wait), not only where.
+      const owner = await page.evaluate(() => ((window as unknown as {__conReady?: () => {transfer?: {trail: ReadonlyArray<unknown>}}}).__conReady?.()?.transfer?.trail ?? [])
+        .slice(-30).map((t) => JSON.stringify(t)).join('\n'));
+      const both = `${trail}\n── the product's trail ──\n${owner}`;
+      expect(endsOverGlass(witness), `no flight end over glass:\n${both}`).toEqual([]);
+      expect(witness.landings.some((e) => e.under === 'recv:Supercomputer'), `the unit landed on the chosen card by the field:\n${both}`).toBe(true);
       // THE OXYGEN STEP'S RATING never leaves the plate: its marker stood under the «on which card» plate while the
       // question was open, and the token was born on the plate's own card (it read as «Суперкомпьютер pays the rating»).
       expect(witness.births.filter((e) => /^slot:/.test(e.under)).map((e) => `${e.under} @${Math.round(e.x)},${Math.round(e.y)}`),
-        `no token is born on a card of the plate:\n${trail}`).toEqual([]);
+        `no token is born on a card of the plate:\n${both}`).toEqual([]);
       expect(witness.landings.some((e) => e.under === 'rail:tr'), `the step's rating still lands on the rating cell:\n${trail}`).toBe(true);
       expect(await strandedReports(page), 'no prompt was stranded on the way').toEqual([]);
     });

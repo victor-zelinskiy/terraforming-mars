@@ -10,6 +10,7 @@
  * Every run flies through `runBatchArrival({from})` — the SAME director every deck flight in the fork uses — so a
  * card dealt by a trigger and a card dealt by the deck are physically the same object.
  */
+import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {CardIntakeSegment} from '@/common/models/CardDrawRevealModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -19,6 +20,7 @@ import {recedeReactor, riseReactor} from '@/client/console/cardReaction/cardReac
 import {findPrintedCardsIcon} from '@/client/console/consoleActionCommitMotion';
 import {cardArrivalTimings, reducedCardArrivalTimings} from '@/client/console/consoleCardArrival';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
+import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   IntakeAssemblyPlan, IntakeAssemblyTimings, IntakeRun, RectLike, intakeAssemblyTimings, planIntakeAssembly,
   reducedIntakeAssemblyTimings, rowRectOf, triggerSeatRect,
@@ -110,8 +112,8 @@ function originOf(run: IntakeRun, host: IntakeAssemblyHost): ArrivalOrigin | und
  * and a reacting card are the same physical move — `cardReactionStage.riseReactor` / `recedeReactor`, the numbers this
  * scene set (surface 260 / recede 220; reduced 140 / 120). The assembly's own timings map onto the primitive's.
  */
-function surfaceTrigger(face: HTMLElement, seat: RectLike, t: IntakeAssemblyTimings, reduced: boolean): void {
-  void riseReactor(face, seat, {riseMs: t.surfaceMs, holdMs: t.holdMs, settleMs: 0, recedeMs: t.recedeMs, overlapMs: t.overlapMs, staggerMs: 0}, reduced);
+function surfaceTrigger(face: HTMLElement, seat: RectLike, t: IntakeAssemblyTimings, reduced: boolean): Promise<void> {
+  return riseReactor(face, seat, {riseMs: t.surfaceMs, holdMs: t.holdMs, settleMs: 0, recedeMs: t.recedeMs, overlapMs: t.overlapMs, staggerMs: 0}, reduced);
 }
 
 function recedeTrigger(face: HTMLElement, t: IntakeAssemblyTimings, reduced: boolean): void {
@@ -121,6 +123,16 @@ function recedeTrigger(face: HTMLElement, t: IntakeAssemblyTimings, reduced: boo
 /**
  * PLAY the runs. Every run leaves from its own place on the plan's clock; a trigger surfaces before its run deals
  * and recedes after its last landing; `onDone` fires once the last run has settled and its trigger has receded.
+ *
+ * A TRIGGER'S RUN DEALS OFF THE TRIGGER'S OWN RISE, never off a parallel timer (`.claude/rules/animations.md` § A
+ * MOTION IS RIGHT ON A SLOW FRAME BY CONSTRUCTION, law 2). The rise waits for its posed face to be PAINTED (two
+ * frames) before it tweens; the deal used to fire on its own wall-clock timer `surfaceMs + holdMs` after the
+ * surface's — on a starved renderer the two paint frames outlasted that, the card left a face still at opacity 0,
+ * landed, and the landing's recede killed the rise before it was half way: the card came out of an invisible
+ * university (Natural Preserve under Mars University — the trigger never painted). So the runs are CHAINED: each
+ * waits its planned offset from the previous run's DEAL, and a trigger's run deals `holdMs` after its rise has
+ * COMPLETED (the hold on the rise's own GSAP clock) — a late rise pushes its run, and every run after it, by exactly
+ * its lateness; a trigger that cannot surface deals at its planned moment.
  */
 export function playIntakeAssembly(args: IntakeAssemblyArgs): IntakeAssemblyHandle {
   const reduced = consoleReducedMotionActive();
@@ -142,65 +154,86 @@ export function playIntakeAssembly(args: IntakeAssemblyArgs): IntakeAssemblyHand
   }
   const alive = () => !dead && args.alive();
   const base = runs[0].surfaceAtMs ?? runs[0].dealAtMs;
-  const at = (ms: number) => Math.max(0, motionMs(ms - base));
   const row = rowRectOf(args.slots.map((el) => restingRectOf(el)));
   const seat = row === undefined ? undefined : triggerSeatRect(args.host.stageRect(), row);
   let settled = 0;
   let approached = false;
-  runs.forEach((run) => {
-    if (run.surfaceAtMs !== undefined) {
-      timers.push(setTimeout(() => {
-        const face = args.host.triggerEl(run.index);
-        if (alive() && face !== null && seat !== undefined) {
-          surfaceTrigger(face, seat, t, reduced);
+  const sleep = (ms: number) => new Promise<void>((resolve) => {
+    timers.push(setTimeout(resolve, Math.max(0, ms)));
+  });
+  const deal = (run: IntakeRun) => {
+    const from = originOf(run, args.host);
+    const handle = runBatchArrival({
+      cards: args.pairs.slice(run.first, run.first + run.count),
+      slots: args.slots.slice(run.first, run.first + run.count),
+      mode: 'in-flight-reveal',
+      from,
+      onCardPeeled: () => args.onCardPeeled?.(),
+      onDeparted: () => {
+        if (from === undefined) {
+          args.onDeckDeparted?.();
         }
-      }, at(run.surfaceAtMs)));
+      },
+      onLanded: () => {
+        const face = args.host.triggerEl(run.index);
+        if (run.origin.kind === 'card' && face !== null) {
+          recedeTrigger(face, t, reduced);
+        }
+      },
+      onSettled: () => {
+        settled++;
+        if (settled === runs.length) {
+          // The last trigger's recede is the scene's tail.
+          timers.push(setTimeout(() => {
+            if (alive()) {
+              args.onDone();
+            }
+          }, run.origin.kind === 'card' ? motionMs(t.recedeMs) : 0));
+        }
+      },
+    });
+    handles.push(handle);
+    if (!approached) {
+      approached = true;
+      const firstLand = handle.plan.beats[0]?.landAtMs ?? 0;
+      timers.push(setTimeout(() => {
+        if (alive()) {
+          args.onFirstApproach?.();
+        }
+      }, Math.max(0, motionMs(firstLand) - motionMs(70))));
     }
-    timers.push(setTimeout(() => {
+  };
+  void (async () => {
+    // The plan's moment of the previous run's deal — every run waits its planned OFFSET from that deal's real moment.
+    let lastDealAt = base;
+    for (const run of runs) {
+      await sleep(motionMs((run.surfaceAtMs ?? run.dealAtMs) - lastDealAt));
       if (!alive()) {
         return;
       }
-      const from = originOf(run, args.host);
-      const handle = runBatchArrival({
-        cards: args.pairs.slice(run.first, run.first + run.count),
-        slots: args.slots.slice(run.first, run.first + run.count),
-        mode: 'in-flight-reveal',
-        from,
-        onCardPeeled: () => args.onCardPeeled?.(),
-        onDeparted: () => {
-          if (from === undefined) {
-            args.onDeckDeparted?.();
+      if (run.surfaceAtMs !== undefined) {
+        const face = args.host.triggerEl(run.index);
+        if (face !== null && seat !== undefined) {
+          await surfaceTrigger(face, seat, t, reduced);
+          if (!alive()) {
+            return;
           }
-        },
-        onLanded: () => {
-          const face = args.host.triggerEl(run.index);
-          if (run.origin.kind === 'card' && face !== null) {
-            recedeTrigger(face, t, reduced);
-          }
-        },
-        onSettled: () => {
-          settled++;
-          if (settled === runs.length) {
-            // The last trigger's recede is the scene's tail.
-            timers.push(setTimeout(() => {
-              if (alive()) {
-                args.onDone();
-              }
-            }, run.origin.kind === 'card' ? motionMs(t.recedeMs) : 0));
-          }
-        },
-      });
-      handles.push(handle);
-      if (!approached) {
-        approached = true;
-        const firstLand = handle.plan.beats[0]?.landAtMs ?? 0;
-        timers.push(setTimeout(() => {
-          if (alive()) {
-            args.onFirstApproach?.();
-          }
-        }, Math.max(0, motionMs(firstLand) - motionMs(70))));
+          // The read beat between the surfaced face and its first card — on the rise's own clock.
+          await new Promise<void>((resolve) => {
+            gsap.delayedCall(motionMs(t.holdMs) / 1000, resolve);
+          });
+        } else {
+          // No face to raise (an unmeasurable stage): the run deals at its planned moment, and the trail says why.
+          noteTransferTrail('intake:no-trigger', {run: run.index, face: face !== null, seat: seat !== undefined});
+          await sleep(motionMs(run.dealAtMs - run.surfaceAtMs));
+        }
+        if (!alive()) {
+          return;
+        }
       }
-    }, at(run.dealAtMs)));
-  });
+      lastDealAt = run.dealAtMs;
+      deal(run);
+    }
+  })();
   return {kill};
 }

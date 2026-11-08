@@ -46,7 +46,7 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {cardResourceKey, ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {noteTransferTrail, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {pulseDivertedSeal, resolveActionCommitAnchors, resolveGainIconOrigins} from '@/client/console/consoleActionCommitMotion';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {runCardHome} from '@/client/console/cardDeal/cardExitDirector';
@@ -152,6 +152,7 @@ export function promptReceiveLandedOn(card: string): number {
  */
 export function armPromptReceive(wf: PlayerInputModel | undefined, card: CardName, opts: {client?: boolean} = {}): boolean {
   const family = promptReceiveFamily(wf);
+  noteTransferTrail('prompt-receive:arm', {card, family, reduced: consoleReducedMotionActive()});
   if (family === undefined || consoleReducedMotionActive()) {
     return false;
   }
@@ -215,6 +216,7 @@ export function detectPromptReceive(before: PlayerViewModel | undefined, after: 
     wf?.type === 'card' && (wf as SelectCardModel).cards.some((c) => c.name === a.card) && promptReceiveFamily(wf) === a.family;
   const now = storedOn(after, a.card);
   if (!standing || now === undefined || now !== a.before + a.amount) {
+    noteTransferTrail('prompt-receive:unverified', {card: a.card, standing, before: a.before, amount: a.amount, now, wf: wf?.type});
     disarmPromptReceive('unverified');
     return undefined;
   }
@@ -225,6 +227,7 @@ export function detectPromptReceive(before: PlayerViewModel | undefined, after: 
   const record = (after.game?.cardAdjacencyPayouts ?? []).find((r) =>
     !seen.has(r.seq) && r.asked === true && r.target === a.card && r.color === after.thisPlayer?.color && r.amount === a.amount);
   if (record === undefined || !claimCityPayout(record.seq)) {
+    noteTransferTrail('prompt-receive:no-record', {card: a.card, record: record?.seq});
     // No record to play (an older server, a ring overflow): the plate scene is the honest fallback — the card is
     // still here, the token flies from the dock or the plate itself.
     return {armed: {...a, family: 'plate'}};
@@ -394,6 +397,9 @@ function runInSurface(a: Armed): Promise<CardReceiveOutcome> {
 async function runField(a: Armed, record: CardAdjacencyPayoutModel): Promise<CardReceiveOutcome> {
   const tile = measureEl(`.board-space[data_space_id="${escapeName(record.spaceId)}"]`);
   const from = slotCardRect(a.card);
+  // A red names WHY the scene had no stage: the plate gone from under its own answer (no host) or the paying cell.
+  noteTransferTrail('prompt-receive:field', {card: a.card, seq: record.seq, tile: tile !== undefined, from: from !== undefined,
+    hosts: document.querySelectorAll('.con-task-host').length});
   if (tile === undefined || from === undefined) {
     return 'degraded';
   }
@@ -436,6 +442,7 @@ export async function runPromptReceive(event: PromptReceiveEvent): Promise<void>
   } catch {
     promptReceiveState.outcome = 'degraded';
   }
+  noteTransferTrail('prompt-receive:end', {card: a.card, family: a.family, outcome: promptReceiveState.outcome});
   // A WALK'S ANSWER THE PLAYER GAVE ON STAGE (TR78): the scene has told it — the record that follows in the commit is
   // attributed to it, never flown a second time by the answer stage or the reaction chain.
   if (a.asker !== undefined) {

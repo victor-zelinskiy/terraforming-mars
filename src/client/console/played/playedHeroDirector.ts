@@ -18,7 +18,7 @@
 import {gsap} from 'gsap';
 import {
   HeroRect, HeroPathPlan, heroPoint, heroProgressAt, heroScaleAt, heroTiltAt, heroFlipAt,
-  HERO_LIFT_SCALE, HERO_RETARGET_AT, HERO_SHADE_OUT_FROM,
+  HERO_LIFT_SCALE, HERO_RETARGET_AT, HERO_SHADE_OUT_FROM, heroRetargetWeight,
 } from '@/client/console/played/playedHeroModel';
 
 export type HeroStageEls = {
@@ -190,16 +190,19 @@ export function playHeroFlight(els: HeroStageEls, plan: HeroPathPlan, opts: Hero
       ease: 'none',
       onUpdate: () => {
         const p = heroProgressAt(prog.q);
+        // The read is taken on the first frame past the mark that CAN read the slot — an unreadable
+        // look (the stage's emergence window) is asked again on the next frame, never given up for the
+        // whole flight; and a read on the touchdown frame itself is applied whole (`heroRetargetWeight`).
         if (corr.from < 0 && prog.q >= HERO_RETARGET_AT && opts.retarget !== undefined) {
-          corr.from = p;
           const live = opts.retarget();
           if (live !== undefined && live.w > 4 && live.h > 4) {
+            corr.from = p;
             corr.x = live.x + live.w / 2 - plan.p1.x;
             corr.y = live.y + live.h / 2 - plan.p1.y;
             corr.scale = live.w / Math.max(1, g.restRect.w) - plan.targetScale;
           }
         }
-        const cw = corr.from < 0 || corr.from >= 1 ? 0 : Math.min(1, Math.max(0, (p - corr.from) / (1 - corr.from)));
+        const cw = heroRetargetWeight(corr.from, p);
         const sc = g.baseScale * (heroScaleAt(p, plan) + corr.scale * cw);
         const at = heroPoint(plan, p);
         gsap.set(els.proxy, {

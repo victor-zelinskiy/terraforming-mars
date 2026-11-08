@@ -135,7 +135,10 @@ export function transferEndVerdict(el: Element | null | undefined, opts: Transfe
   // it is `pointer-events: none`, so the hit test under a reactor's face names the BAND the face paints over: a
   // reactor risen at the stage over a standing composer (the owner, 2026-10-27 — one place in every state) is never
   // covered by that band. A `.con-ws` cannot cover it; nothing else is asked of it here.
-  const overlay = el.closest('.con-reaction') !== null;
+  // …and the CITY-PAYOUT stage stands on the same step of the ladder (11650 — `.con-citypay`, the field's receiving card):
+  // the «on which card» plate the card was carried out of keeps the hit test until its paint is gone, and is never cover
+  // for the card standing over it (Arabia Terra's data, 2026-11-06).
+  const overlay = el.closest('.con-reaction, .con-citypay') !== null;
   if (typeof document.elementsFromPoint === 'function' && !overlay) {
     // The transfer layer itself (a chip already in the air over the point) is never «cover».
     const top = document.elementsFromPoint(cx, cy).find((e) => e.closest('.con-transfer') === null);

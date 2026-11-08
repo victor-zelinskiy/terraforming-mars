@@ -2447,10 +2447,14 @@ export default defineComponent({
         // The layout's own verbs and its commit (X here) are the LAST to drop
         // from a crowded bar: at the default bumper rank LB/RB went first,
         // before the generic Source — the bar then hid how to distribute at all.
+        // RT is a SHORTCUT (LB/RB place the same units one by one), so it keeps
+        // the trigger rank and drops BEFORE L3: the source has no other home on
+        // this surface (the dock draws no badge), the shortcut's work does
+        // (CI 2026-11-08, `console-prompt-source` — the 1440 bar dropped «Источник»).
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'bumperL', control2: 'bumperR', label: 'Distribute −1 / +1', priority: 0},
-          {control: 'triggerR', label: 'Rest here', enabled: this.distributedSum < this.distributeTarget, priority: 0},
+          {control: 'triggerR', label: 'Rest here', enabled: this.distributedSum < this.distributeTarget, priority: 2},
           {...confirm, priority: 0}, ...this.sourceHint, defer,
         ];
       }
@@ -2503,7 +2507,9 @@ export default defineComponent({
           // «−1 · +1 · МАКС.» did not read as «this is how you distribute», and
           // «МАКС.» hid that RT places what is LEFT, not a maximum). They are
           // the LAST to drop from a crowded bar (beside A): at the default
-          // bumper rank they went before Inspect / Source.
+          // bumper rank they went before Inspect / Source. RT alone keeps the
+          // trigger rank — a shortcut for what LB/RB already do, it drops
+          // before the verbs with no other home (Inspect, Source).
           const focused = this.focusedCardEntry;
           const live = focused !== undefined && !focused.disabled;
           const canTake = live && this.spreadOnCard(focused.card.name) > 0;
@@ -2511,7 +2517,7 @@ export default defineComponent({
           return [
             nav,
             {control: 'bumperL', control2: 'bumperR', label: 'Distribute −1 / +1', enabled: canTake || canPut, priority: 0},
-            {control: 'triggerR', label: 'Rest here', enabled: canPut, priority: 0},
+            {control: 'triggerR', label: 'Rest here', enabled: canPut, priority: 2},
             {control: 'confirm', label: this.confirmLabel, enabled: this.spreadReady, priority: 0},
             inspect, ...this.sourceHint, defer,
           ];

@@ -308,7 +308,8 @@ export async function armTransferWitness(page: Page): Promise<void> {
         // test under a reactor's face names the band it stands over — that band is never glass for it (the product's
         // own verdict says the same, `transferEndVerdict`; iteration 3: a reactor rises at the stage over a standing
         // composer by the owner's decision).
-        const overlay = el.closest('.con-reaction') !== null;
+        // …the city-payout stage likewise (`.con-citypay`, z 11650 — the field's receiving card over the plate it left).
+        const overlay = el.closest('.con-reaction, .con-citypay') !== null;
         if (!overlay && top !== undefined && top !== el && !el.contains(top) && !top.contains(el)) {
           const ws = top.closest('.con-ws');
           if (ws !== null && !ws.contains(el)) {

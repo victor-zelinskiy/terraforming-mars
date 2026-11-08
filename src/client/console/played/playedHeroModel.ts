@@ -86,6 +86,26 @@ export const HERO_APEX_SCALE_BOOST = 1.06;
  * corrected after the landing (a correction over a painted card is a jerk).
  */
 export const HERO_RETARGET_AT = 0.78;
+
+/**
+ * The weight of the final-approach correction at path progress `p`, the read
+ * having been taken at `from` (`< 0` = no read yet). A RAMP from the read to
+ * the touchdown — and a read taken AT the touchdown (`from >= 1`) is applied
+ * WHOLE: a starved frame (or the wall-clock backstop's catch-up, `progress(1)`)
+ * jumps the timeline from before the read straight to its end, and a ramp of
+ * zero length weighed the correction at 0 — the card touched down on the stale
+ * aim and the commit then glided it the rest (CI 2026-11-08,
+ * `console-play-landing-geometry` — 47 px at 4K). Pure.
+ */
+export function heroRetargetWeight(from: number, p: number): number {
+  if (from < 0) {
+    return 0;
+  }
+  if (from >= 1) {
+    return 1;
+  }
+  return Math.min(1, Math.max(0, (p - from) / (1 - from)));
+}
 /** The airborne ground shade lands at ZERO before contact: from this path
  *  progress on it fades out, so the touchdown frame carries no extra paint
  *  the real slot does not have. */

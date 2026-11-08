@@ -78,8 +78,14 @@ for (const profile of PROFILES) {
       await page.evaluate(async () => {
         await document.fonts.ready;
         document.documentElement.classList.add('console-mode', 'console-native', 'con-profile-tv');
-        document.body.replaceChildren();
-        document.body.insertAdjacentHTML('afterbegin', `
+        // A FIXTURE BESIDE the live app, never instead of it: wiping the body
+        // detached the app's teleported nodes (GamepadLayer → body) and its next
+        // patch threw «insertBefore of null» (CI 2026-11-08, vueErrorGuard). The
+        // probe measures only its own nodes, so the app may stay where it is.
+        const host = document.createElement('div');
+        host.setAttribute('data-e2e-fixture', 'inspect-tabs');
+        document.body.appendChild(host);
+        host.insertAdjacentHTML('afterbegin', `
           <div class="con-inspect-side">
             <aside class="con-inspect-side__box">
               <div class="con-inspect-side__tabs" role="tablist">

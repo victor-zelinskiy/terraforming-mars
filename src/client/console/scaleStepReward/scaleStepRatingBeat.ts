@@ -659,6 +659,11 @@ async function run(): Promise<void> {
       if (epoch !== myEpoch || entry !== e) {
         continue;
       }
+      // The stage is asked AGAIN after the breath: a surface that came over the marker inside it (a plate re-judged, a
+      // scene's card standing up) is waited out — a token is never born on a stage it only had a breath ago.
+      if (!stageReady(e)) {
+        continue;
+      }
       entry = undefined;
       paying = e;
       await pay(e, myEpoch);

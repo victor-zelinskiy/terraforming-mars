@@ -8,6 +8,7 @@ import {
   isPromptAdmitted,
   isPromptPresent,
   latchPromptPresence,
+  presenceOutlivesAnswer,
   promptPresenceState,
   releasePromptPresence,
   promptAdmissionBlock,
@@ -358,5 +359,21 @@ describe('consolePromptAdmission — ENTRY IS NOT PRESENCE (the decision that bl
     expect(promptPresenceState.latched).to.deep.equal({host: 'or#7'});
     releasePromptPresence();
     expect(promptPresenceState.latched).to.deep.equal({});
+  });
+
+  it('an answer played IN PLACE keeps its surface through the send — Arabia Terra\'s data pick, the plate the field carries the card out of', () => {
+    expect(presenceOutlivesAnswer('host', true), 'an armed receive: the plate is the answer\'s stage').to.equal(true);
+    expect(presenceOutlivesAnswer('host', false), 'an ordinary answer leaves its surface').to.equal(false);
+    for (const surface of ['section', 'standaloneModal', 'scaleBonus', 'placement', 'followUp', 'scene'] as const) {
+      expect(presenceOutlivesAnswer(surface, true), surface).to.equal(false);
+    }
+    latchPromptPresence('host', 'card#3');
+    latchPromptPresence('section', 'card#3');
+    releasePromptPresence(['host']);
+    expect(promptPresenceState.latched, 'the send keeps only the in-place family').to.deep.equal({host: 'card#3'});
+    // …standing beside the board's story the send would otherwise have re-judged by entry.
+    expect(isPromptPresent('host', {...idle(), presentation: true, anyAnimation: true, boardStory: true}, true)).to.equal(true);
+    releasePromptPresence(['scaleBonus']);
+    expect(promptPresenceState.latched, 'a kept family that was never latched keeps nothing').to.deep.equal({});
   });
 });

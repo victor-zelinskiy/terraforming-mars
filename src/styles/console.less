@@ -23874,10 +23874,17 @@ html.console-mode {
         /* The whole band lets go of the hit test too: the law of visible ends asks «what is painted over the
            capsule» and a transparent band surface must not answer «I am». */
         pointer-events: none;
+        /* …but only once it IS transparent: the plate answers the hit test for as long as it still paints, and lets go
+           of it with its paint — `visibility` flips at the END of the dissolve, on the dissolve's own clock. A hit-test
+           release in the class's first frame (the old `pointer-events: none` here) let a marker under the still-painted
+           plate read «visible»: on a starved renderer the oxygen step's rating token was born on the plate's own card
+           (Arabia Terra's data cell — «Суперкомпьютер pays the rating»). */
         .con-task {
             opacity: 0 !important;
-            pointer-events: none;
-            transition: opacity calc(220ms * var(--motion-scale, 1)) ease !important;
+            visibility: hidden !important;
+            pointer-events: auto;
+            transition: opacity calc(220ms * var(--motion-scale, 1)) ease,
+                visibility 0s linear calc(220ms * var(--motion-scale, 1)) !important;
         }
     }
     /* …HOME (the in-surface families): the plate dissolves under the card being carried home — the result outlives

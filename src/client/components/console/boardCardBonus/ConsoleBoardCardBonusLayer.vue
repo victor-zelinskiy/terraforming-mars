@@ -65,6 +65,7 @@ import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
 import {intakeAssemblyOwnsBatch} from '@/client/console/cardIntake/intakeAssemblyPlan';
 import {continueIntakeAssembly, releaseIntakeGuest} from '@/client/console/cardIntake/intakeAssembly';
+import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {parliamentDrawReady} from '@/client/console/parliament/parliamentDraw';
 import {getGlobalParameterTracks} from '@/common/boards/GlobalParameterTracks';
 
@@ -659,11 +660,13 @@ export default defineComponent({
       if (resolved.length !== keys.length || proxies.length !== keys.length || flips.length !== keys.length) {
         // The overlay never produced stable slots (a different batch is on
         // screen / edge layout) — honest degrade: no flight, instant reveal.
+        noteTransferTrail('cell-bonus:degrade', {why: 'slots', resolved: resolved.length, keys: keys.length, proxies: proxies.length});
         this.degradeToInstant();
         return;
       }
       const from = this.takeOverCover();
       if (from === undefined) {
+        noteTransferTrail('cell-bonus:degrade', {why: 'cover'});
         this.degradeToInstant();
         return;
       }

@@ -116,6 +116,7 @@ import {BatchArrivalHandle, runBatchArrival} from '@/client/console/consoleBatch
 import {intakeAssemblyOwnsBatch, intakeAssemblyPresentsBatch, intakeSearchRun} from '@/client/console/cardIntake/intakeAssemblyPlan';
 import {IntakeAssemblyHandle, IntakeTriggerFace, planAssemblyFor, playIntakeAssembly} from '@/client/console/cardIntake/intakeAssemblyDirector';
 import {holdIntakeGuest, registerIntakeContinuation} from '@/client/console/cardIntake/intakeAssembly';
+import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {conWsPresence} from '@/client/console/conWsPresenceBridge';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
@@ -821,6 +822,7 @@ export default defineComponent({
      */
     playGuestAssembly(e: DrawnCardEntry, fromCard: number, onDone: () => void): void {
       if (deckDrawState.active || this.guestRun) {
+        noteTransferTrail('intake:guest-refused', {id: e.id, fromCard, deckActive: deckDrawState.active, guestRun: this.guestRun});
         onDone();
         return;
       }
@@ -868,6 +870,7 @@ export default defineComponent({
         const alive = () => this.guestRun && currentRevealEvent()?.id === e.id;
         const geometry = await this.assemblyGeometry(e, alive);
         if (geometry === undefined) {
+          noteTransferTrail('intake:guest-no-stage', {id: e.id, alive: alive(), current: currentRevealEvent()?.id});
           this.endGuestRun();
           onDone();
           return;

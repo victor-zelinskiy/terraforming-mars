@@ -2353,6 +2353,7 @@ import {
   isPromptAdmitted,
   isPromptPresent,
   latchPromptPresence,
+  presenceOutlivesAnswer,
   promptAdmissionBlock,
   promptPresenceState,
   releasePromptPresence,
@@ -4312,6 +4313,10 @@ export default defineComponent({
     /** The submit funnel is closed — the answer is on its way (the presence latch lets go). */
     promptAnswerInFlight(): boolean {
       return transportState.requestInProgress;
+    },
+    /** The answer on its way is played IN PLACE by its own surface — an armed live-pick receive (`presenceOutlivesAnswer`). */
+    answerPlaysInPlace(): boolean {
+      return promptReceiveState.card !== undefined;
     },
     promptPresenceEntries(): string {
       if (this.promptPresenceIdentity === '') {
@@ -11858,7 +11863,8 @@ export default defineComponent({
     /** …and the answer sent lets the surface go (the next presence is an entry again). */
     promptAnswerInFlight(inProgress: boolean): void {
       if (inProgress) {
-        releasePromptPresence();
+        // …unless the surface plays that very answer in place (an armed «on which card» receive — the plate is its stage).
+        releasePromptPresence(this.answerPlaysInPlace ? ['host'] : []);
       }
     },
     /**
@@ -14943,7 +14949,8 @@ export default defineComponent({
      */
     admits(surface: PromptSurface): boolean {
       const latched = promptPresenceState.latched[surface] === this.promptPresenceIdentity &&
-        this.promptPresenceIdentity !== '' && !transportState.requestInProgress;
+        this.promptPresenceIdentity !== '' &&
+        (!transportState.requestInProgress || presenceOutlivesAnswer(surface, this.answerPlaysInPlace));
       return isPromptPresent(surface, this.admissionSignals, latched);
     },
     // ── THE WORKSPACE STACK — the shell's whole navigation vocabulary ──────

@@ -46,7 +46,7 @@ import {
 import {
   playOceanActivation, playOceanCoinMaterialize, playOceanCoinHandoff, killOceanTweens,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
-import {runResourceTransfers, transferEndPointNow} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {noteTransferTrail, runResourceTransfers, transferEndPointNow} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {acceptSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/statusIntake';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {boardStorySettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
@@ -336,6 +336,7 @@ async function payTokens(
   const els = stage?.els();
   if (epoch !== myEpoch || els === undefined ||
       els.wakes.length !== geometry.wakes.length || els.tokens.length !== geometry.tokens.length) {
+    noteTransferTrail('city-payout:no-stage', {epoch: epoch === myEpoch, els: els !== undefined, wakes: [els?.wakes.length, geometry.wakes.length], tokens: [els?.tokens.length, geometry.tokens.length]});
     return false;
   }
   // ONE CADENCE: the framework's own wave stagger over the TOKENS, so each
@@ -536,21 +537,25 @@ export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> 
       cityPayoutState.phase = 'rising';
       await wait(motionMs(CITY_PAYOUT_BREATH_MS));
       if (!live()) {
+        noteTransferTrail('city-payout:rise', {why: 'not-live'});
         return false;
       }
       const home = auxCellRect(opts.payout.resource, opts.payout.target);
       const senders = senderRects(opts.payout);
       if (home === undefined || senders === undefined) {
+        noteTransferTrail('city-payout:rise', {why: 'no-home-or-senders', home: home !== undefined, senders: senders !== undefined});
         return false;
       }
       cityPayoutState.card = {name: opts.payout.target, model: opts.cardModel, before: opts.payout.before, plate: {x: 0, y: 0, w: 0, h: 0}};
       await nextTick();
       cardEl = stage?.els()?.card;
       if (epoch !== myEpoch || cardEl === undefined) {
+        noteTransferTrail('city-payout:rise', {why: 'no-card-el', epoch: epoch === myEpoch});
         return false;
       }
       const box = cardEl.getBoundingClientRect();
       if (box.width < 4 || box.height < 4) {
+        noteTransferTrail('city-payout:rise', {why: 'card-unmeasurable', w: box.width, h: box.height});
         return false;
       }
       const board = measure('.con-board') ?? measure('.board-cont') ?? {x: 0, y: 0, w: window.innerWidth, h: window.innerHeight};
@@ -652,6 +657,9 @@ export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> 
   if (epoch !== myEpoch) {
     tell();
     return;
+  }
+  if (verdict !== 'done' && verdict !== 'reduced') {
+    noteTransferTrail('city-payout:verdict', {target: opts.payout.target, seq: opts.payout.seq, verdict});
   }
   if (verdict === 'reduced') {
     end(); // reduced motion: nothing flew by design — every hold released, the numbers tick (never a degrade)

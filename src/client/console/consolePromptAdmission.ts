@@ -362,11 +362,35 @@ export function latchPromptPresence(surface: PromptSurface, identity: string): v
   }
 }
 
-/** The answer was sent (or the game switched): every family lets go — its next presence is an entry again. */
-export function releasePromptPresence(): void {
-  if (Object.keys(promptPresenceState.latched).length > 0) {
-    promptPresenceState.latched = {};
+/**
+ * The answer was sent (or the game switched): every family lets go — its next presence is an entry again — except the
+ * families in `keep`, whose surface PLAYS THAT ANSWER IN PLACE (see `presenceOutlivesAnswer`).
+ */
+export function releasePromptPresence(keep: ReadonlyArray<PromptSurface> = []): void {
+  const kept: Partial<Record<PromptSurface, string>> = {};
+  for (const surface of keep) {
+    const identity = promptPresenceState.latched[surface];
+    if (identity !== undefined) {
+      kept[surface] = identity;
+    }
   }
+  if (Object.keys(promptPresenceState.latched).length !== Object.keys(kept).length) {
+    promptPresenceState.latched = kept;
+  }
+}
+
+/**
+ * …AND AN ANSWER PLAYED IN PLACE KEEPS ITS SURFACE (Arabia Terra's data cell, 2026-11-06). «Until the answer is sent»
+ * is the latch's end for a surface the answer LEAVES; a live «on which card» pick answers as a SCENE on the plate
+ * itself — the chosen card sealed in its slot, the others receded, and the field's scene carries THAT card out of the
+ * plate (`cardReceive/promptReceive.ts`, `riseFrom`). Released at the send, the plate was re-judged by ENTRY while the
+ * answer was in flight — any blocking story of the same table (the oxygen step's board story, a starved frame's long
+ * tail) took it down, the scene found no card to carry, degraded, and the units ticked with nothing on screen. So the
+ * family that hosts an armed in-place answer stays latched through the request and the scene the transport holds the
+ * commit for; the server's next prompt (a new identity) or the disarm lets it go. PURE.
+ */
+export function presenceOutlivesAnswer(surface: PromptSurface, inPlaceAnswer: boolean): boolean {
+  return inPlaceAnswer && surface === 'host';
 }
 
 /**
