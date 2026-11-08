@@ -79,6 +79,16 @@
       >
         <ConsoleResolutionsPlayground ref="reduxPg" embedded />
       </ConsolePlaygroundStand>
+      <!-- The campaign TENDERS stand is interactive too (the catalog cursor, the simulated deal, the real bidding scene). -->
+      <ConsolePlaygroundStand
+        v-else-if="open === 'campaign-tenders'"
+        ref="stand"
+        titleKey="Tenders showcase"
+        :padTarget="tendersStandTarget"
+        @close="open = undefined"
+      >
+        <ConsoleTendersPlayground ref="tendersPg" embedded />
+      </ConsolePlaygroundStand>
     </Teleport>
   </div>
 </template>
@@ -97,13 +107,14 @@ const PremiumCardsPlayground = defineAsyncComponent(() => import('@/client/compo
 const PlayerCubePlayground = defineAsyncComponent(() => import('@/client/components/PlayerCubePlayground.vue'));
 const CardLorePlayground = defineAsyncComponent(() => import('@/client/components/card/CardLorePlayground.vue'));
 const ConsoleResolutionsPlayground = defineAsyncComponent(() => import('@/client/components/console/parliament/ConsoleResolutionsPlayground.vue'));
+const ConsoleTendersPlayground = defineAsyncComponent(() => import('@/client/components/console/campaign/ConsoleTendersPlayground.vue'));
 
-type StandId = 'premium-cards' | 'player-cubes' | 'card-lore' | 'redux-resolutions';
+type StandId = 'premium-cards' | 'player-cubes' | 'card-lore' | 'redux-resolutions' | 'campaign-tenders';
 type StandRow = {id: StandId, labelKey: string, subKey: string, glyph: string};
 
 export default defineComponent({
   name: 'ConsolePlaygroundHub',
-  components: {GamepadGlyph, ConsolePlaygroundStand, PremiumCardsPlayground, PlayerCubePlayground, CardLorePlayground, ConsoleResolutionsPlayground},
+  components: {GamepadGlyph, ConsolePlaygroundStand, PremiumCardsPlayground, PlayerCubePlayground, CardLorePlayground, ConsoleResolutionsPlayground, ConsoleTendersPlayground},
   emits: ['close'],
   data() {
     return {
@@ -138,6 +149,12 @@ export default defineComponent({
           subKey: 'Every catalogued resolution: the face, the inspector, the influence-scaled payout and the shared recipient picker',
           glyph: '⚖',
         },
+        {
+          id: 'campaign-tenders',
+          labelKey: 'Tenders showcase',
+          subKey: 'Every tender of the Committee: the certificate at its sizes and states, the fullscreen viewer, a simulated Register deal and the real bidding scene',
+          glyph: '§',
+        },
       ];
     },
   },
@@ -145,6 +162,10 @@ export default defineComponent({
     /** The resolutions stand's pad target — the slotted showcase (resolved late: it mounts async). */
     reduxStandTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
       return (this.$refs.reduxPg ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+    },
+    /** The tenders stand's pad target — the same late resolution. */
+    tendersStandTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
+      return (this.$refs.tendersPg ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
     },
     openAt(i: number): void {
       this.cursor = i;

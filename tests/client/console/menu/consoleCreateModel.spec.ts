@@ -44,6 +44,9 @@ import {
   stepCampaignChance,
   stepCampaignMissionCount,
   stepCampaignRewardMode,
+  stepCampaignTenderOffer,
+  campaignSeatCount,
+  campaignTenderOfferReading,
   campaignChanceAvailable,
   setCreateLayoutWide,
   toggleBotSecondShift,
@@ -405,6 +408,41 @@ describe('consoleCreateModel', () => {
       expect(createGameState.config.campaignRewardMode).to.eq('tenders');
       expect(rulesDeckRows()[0]).to.deep.eq({kind: 'rewardMode', mode: 'tenders'});
       expect(buildCreateGamePayloadFromPremiumState(createGameState.config)).to.not.have.property('campaignRewardMode');
+      stepCampaignRewardMode(-1, false);
+    });
+
+    it('CAMPAIGN · «Тендеры»: the offer dial stands right under the mode — «all but the last» by default, «all but the last two» only with a third seat, the sentence in this table\'s numbers', () => {
+      setSessionMode('campaign');
+      expect(rulesDeckRows().some((r) => r.kind === 'tenderOffer'), 'a titles campaign has no offer dial').to.be.false;
+      stepCampaignRewardMode(1, false);
+      let rows = rulesDeckRows();
+      expect(rows[0]).to.deep.eq({kind: 'rewardMode', mode: 'tenders'});
+      const seats = campaignSeatCount();
+      expect(rows[1]).to.deep.eq({kind: 'tenderOffer', offer: 'minusOne', seats});
+      expect(deckRowCount('rules')).to.eq(rows.length);
+      // Two seats: the ring is minusOne ↔ all — «all but the last two» is not offered.
+      expect(seats).to.eq(2);
+      stepCampaignTenderOffer(-1, false);
+      expect(createGameState.config.campaignTenderOffer, 'no «minus two» on a two-seat table').to.eq('minusOne');
+      stepCampaignTenderOffer(1, false);
+      expect(createGameState.config.campaignTenderOffer).to.eq('all');
+      stepCampaignTenderOffer(1, true);
+      expect(createGameState.config.campaignTenderOffer, 'A cycles within the table\'s ring').to.eq('minusOne');
+      // The sentence prints the table: two seats under the default deal TWO cards for ONE picker (D2).
+      expect(campaignTenderOfferReading('minusOne', 2).params).to.deep.eq(['2', '1', '2']);
+      expect(campaignTenderOfferReading('all', 2).params).to.deep.eq(['2', '2', '2']);
+      // A third seat opens «all but the last two»: one card, one picker.
+      seatBot();
+      expect(campaignSeatCount()).to.eq(3);
+      stepCampaignTenderOffer(-1, false);
+      expect(createGameState.config.campaignTenderOffer).to.eq('minusTwo');
+      rows = rulesDeckRows();
+      expect(rows[1]).to.deep.eq({kind: 'tenderOffer', offer: 'minusTwo', seats: 3});
+      expect(campaignTenderOfferReading('minusTwo', 3).params).to.deep.eq(['1', '1', '3']);
+      // The bot leaves: the stored «minus two» reads as the default on the two-seat table (the row says so).
+      unseatBot();
+      expect(rulesDeckRows()[1]).to.deep.eq({kind: 'tenderOffer', offer: 'minusOne', seats: 2});
+      expect(buildCreateGamePayloadFromPremiumState(createGameState.config)).to.not.have.property('campaignTenderOffer');
       stepCampaignRewardMode(-1, false);
     });
 

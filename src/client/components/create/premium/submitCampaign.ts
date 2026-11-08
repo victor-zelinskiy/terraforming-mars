@@ -66,6 +66,8 @@ export async function submitPremiumCreateCampaign(): Promise<boolean> {
           missionCount: createGameState.config.campaignMissionCount,
           // How the places are rewarded — titles, or the «Тендеры» bidding.
           rewardMode: createGameState.config.campaignRewardMode,
+          // The «Тендеры» mode: how many tenders a bidding deals (ignored under titles).
+          tenderOffer: createGameState.config.campaignTenderOffer,
         },
       }),
       headers: {'Content-Type': 'application/json'},

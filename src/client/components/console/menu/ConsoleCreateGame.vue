@@ -246,6 +246,7 @@ import {
   setCreateLayoutWide,
   stepCampaignChance,
   stepCampaignRewardMode,
+  stepCampaignTenderOffer,
   stepCampaignMissionCount,
   unseatBot,
 } from '@/client/console/menu/consoleCreateModel';
@@ -653,6 +654,10 @@ export default defineComponent({
           stepCampaignRewardMode(intent.dir === 'right' ? 1 : -1, false);
           return true;
         }
+        if (dial?.kind === 'tenderOffer' && (intent.dir === 'left' || intent.dir === 'right')) {
+          stepCampaignTenderOffer(intent.dir === 'right' ? 1 : -1, false);
+          return true;
+        }
         const next = deckNavStep(deck, this.ui.cursor[deck], intent.dir, deckRowCount(deck), {wide: this.creatorWide, mapCols: this.mapCols});
         if (next !== undefined) {
           this.ui.cursor[deck] = next;
@@ -770,6 +775,12 @@ export default defineComponent({
       }
       if (row.kind === 'rewardMode') {
         stepCampaignRewardMode(1, true);
+        // The mode's sub-row appears / leaves with it — the cursor must not stand on a row that is gone.
+        clampCreateCursors();
+        return;
+      }
+      if (row.kind === 'tenderOffer') {
+        stepCampaignTenderOffer(1, true);
         return;
       }
       toggleRule(row.rule.meta.id);

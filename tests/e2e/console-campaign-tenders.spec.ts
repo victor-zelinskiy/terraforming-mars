@@ -246,5 +246,30 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await expect(value).toHaveText(/Тендеры/i);
     // The launch panel's route line names the reward beside the length.
     await expect(page.locator('.cm-launch__map-name')).toContainText(/Тендеры/i);
+
+    // ── THE OFFER DIAL (§17.3): under «Тендеры» ONE sub-row follows the mode — how many tenders a bidding deals. The
+    //    default is «all but the last»; a two-seat table offers no «all but the last two», so ◄ from the default stays;
+    //    ► reaches «every seat»; the sentence prints the table's numbers; the row leaves with the mode. ──
+    const offer = page.locator('[data-rule-sub="tenderOffer"]');
+    await expect(offer, 'the offer dial stands right under the reward mode').toHaveCount(1);
+    const offerValue = offer.locator('[data-tender-offer-value]');
+    await expect(offerValue).toHaveText(/кроме последнего/i);
+    await expect(offer).toHaveAttribute('data-tender-offer', 'minusOne');
+    await expect(offer.locator('.cm-rule__desc'), 'the sentence in the numbers of this table (two seats: two cards, one picker)').toContainText(/2.*1 из 2/);
+    await press(page, 'ArrowDown', 250);
+    await expect(offer, 'one step down lands on the dial').toHaveClass(/cm-row--cursor/);
+    await press(page, 'ArrowLeft', 250);
+    await expect(offer, 'no «all but the last two» on a two-seat table').toHaveAttribute('data-tender-offer', 'minusOne');
+    await press(page, 'ArrowRight', 250);
+    await expect(offerValue).toHaveText(/Каждому месту/i);
+    await expect(offer).toHaveAttribute('data-tender-offer', 'all');
+    await expect(offer.locator('.cm-rule__desc')).toContainText(/2 из 2/);
+    await press(page, 'ArrowUp', 250);
+    await press(page, 'Enter', 250);
+    await expect(value, 'A on the mode cycles it back to titles').toHaveText(/Титулы/i);
+    await expect(offer, 'the dial leaves with the mode').toHaveCount(0);
+    await press(page, 'Enter', 250);
+    await expect(value).toHaveText(/Тендеры/i);
+    await expect(offer, 'and returns with it, its value kept').toHaveAttribute('data-tender-offer', 'all');
   });
 });

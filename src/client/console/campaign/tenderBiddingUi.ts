@@ -14,12 +14,9 @@ export const tenderBiddingUi = reactive<{
   commands: ReadonlyArray<ConsoleCommand>,
   /** The deal / flip cinematic is playing — the pad is absorbed, the hold stands. */
   revealing: boolean,
-  /** The focused document is open in the reader (X). */
-  reading: boolean,
 }>({
   commands: [],
   revealing: false,
-  reading: false,
 });
 
 /** `campaignId:slot` of every bidding whose reveal this client already played. */
@@ -40,7 +37,6 @@ export function markBiddingRevealPlayed(key: string): void {
 export function resetTenderBiddingUi(): void {
   tenderBiddingUi.commands = [];
   tenderBiddingUi.revealing = false;
-  tenderBiddingUi.reading = false;
 }
 
 /** Tests only — forget every played reveal. */

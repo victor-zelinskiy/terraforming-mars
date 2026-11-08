@@ -1,12 +1,14 @@
 <template>
-  <div class="con-tport" :class="{'con-tport--embedded': embedded, 'con-tport--reading': readerOpen}"
+  <div class="con-tport" :class="{'con-tport--embedded': embedded}"
        data-tender-portfolio :data-tender-portfolio-place="place" :data-tender-portfolio-count="entries.length">
     <!--
       THE PORTFOLIO — the ONE surface a campaign's tenders are met on, at the two places a tender can speak: the
       finale's START (the wizard's first step) and the THRESHOLD before it (the carryover picker's first stage).
       Host-agnostic (§16.1): the host owns the focus, the pad and every verb; this draws the holder's certificates in
       acquisition order, each in its STATE on this place (a kant · a word · the stamp — never light), and under the row
-      the READING of the focused one — WHAT IT GIVES HERE in live numbers, so the player knows before the press.
+      the READING of the focused one — WHAT IT GIVES HERE in live numbers, so the player knows before the press. X is the
+      console's one inspection — the host opens the certificate in the shared fullscreen viewer (`tenderZoomEntry`), lifted
+      out of its `data-zoom-slot`; the portfolio draws no reader of its own.
     -->
     <div class="con-tport__row" data-tport-row>
       <div v-for="(e, i) in entries" :key="e.instance"
@@ -37,10 +39,6 @@
         <span v-else-if="busy === focused.instance" class="con-tport__reading-busy">{{ $t('Executing…') }}</span>
       </template>
     </div>
-    <!-- X — the certificate read in full over the row (the host closes it on B / X). -->
-    <div v-if="readerOpen && focused !== undefined" class="con-tport__reader" data-tport-reader>
-      <ConsoleTenderCard :id="focused.id" size="reader" :state="tenderCardStateOf(focused.status)" />
-    </div>
   </div>
 </template>
 
@@ -69,8 +67,6 @@ export default defineComponent({
     armed: {type: String, required: false, default: undefined},
     /** The instance whose answer is on the wire. */
     busy: {type: String, required: false, default: undefined},
-    /** X — the focused certificate read in full. */
-    readerOpen: {type: Boolean, required: false, default: false},
     embedded: {type: Boolean, required: false, default: false},
   },
   data() {

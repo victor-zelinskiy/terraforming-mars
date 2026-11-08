@@ -1,6 +1,6 @@
 <template>
   <div class="con-bidding"
-       :class="{'con-bidding--embedded': embedded, 'con-bidding--revealing': revealing, 'con-bidding--done': bidding.done, 'con-bidding--reading': reading}"
+       :class="{'con-bidding--embedded': embedded, 'con-bidding--revealing': revealing, 'con-bidding--done': bidding.done}"
        role="dialog" :aria-label="$t('Bidding')" data-bidding-stage :data-bidding-turn="turnSeat" :data-bidding-done="bidding.done ? 'yes' : undefined">
     <!--
       «ТОРГИ» — the BIDDING of the «Тендеры» reward mode (docs/CAMPAIGN_CONCESSIONS_DESIGN.md §6), hosted by the endgame
@@ -11,9 +11,10 @@
           bidding on this client, never on a reload);
         · the PICK ORDER strip above the table: seat cubes in standings order with their place, a «жребий» tag inside
           every tie, the last place «без тендера» (nothing disappears — the one who gets nothing is said);
-        · the picks go IN TURN: the turn seat wears a kant; the viewer's own pick is A on an open lot (X opens the
-          reader); a rival's and the bot's picks arrive by the campaign's push and are PRESENTED one by one — the lot
-          receives the taker's stamp; the viewer never sees two things settle at once;
+        · the picks go IN TURN: the turn seat wears a kant; the viewer's own pick is A on an open lot (X opens the lot
+          in the ONE fullscreen viewer, its stamps as they stand — §16.6); a rival's and the bot's picks arrive by the
+          campaign's push and are PRESENTED one by one — the lot receives the taker's stamp; the viewer never sees two
+          things settle at once;
         · every state is MATERIAL: a kant, a stamp, a word — never a glow.
       The host owns the ONE command bar (the scene publishes its verbs through `tenderBiddingUi`) and routes the pad in
       through `handleIntent`. The server is the truth: `bidding` is the model's, the scene decides nothing.
@@ -55,10 +56,6 @@
         </div>
       </div>
 
-      <div v-if="reading && focusedCard !== undefined" class="con-bidding__reader" data-bidding-reader>
-        <ConsoleTenderCard size="reader" :id="focusedCard.id" :state="cardState(focusedCard)" :owner="ownerOf(focusedCard)" />
-      </div>
-
       <div class="con-bidding__foot">
         <span class="con-bidding__status" :class="{'con-bidding__status--yours': yourTurn && !revealing}" role="status" data-bidding-status>{{ statusText }}</span>
         <span v-if="error !== ''" class="con-bidding__error" data-bidding-error>{{ $t(error) }}</span>
@@ -83,6 +80,8 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleTenderCard, {TenderCardState} from './ConsoleTenderCard.vue';
+import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {tenderZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {
   biddingRevealPlayed, markBiddingRevealPlayed, tenderBiddingUi,
 } from '@/client/console/campaign/tenderBiddingUi';
@@ -112,7 +111,6 @@ export default defineComponent({
   data() {
     return {
       cursor: 0,
-      reading: false,
       revealing: false,
       /** Picks already PRESENTED here (instances) — a taken lot not in it is a pick still to be shown. */
       shown: new Set<string>(),
@@ -131,7 +129,7 @@ export default defineComponent({
       return !this.bidding.done && this.turnSeat !== undefined && this.turnSeat === this.youSeat;
     },
     orderRows(): Array<OrderRow> {
-      const pickers = biddingPickerCount(this.bidding.order);
+      const pickers = biddingPickerCount(this.bidding);
       return this.bidding.order.map((seat, i) => {
         const s = this.seats.find((x) => x.seat === seat);
         return {
@@ -176,9 +174,6 @@ export default defineComponent({
         // A swallowed window is DECLARED — a disabled status, never an empty list.
         return [{control: 'confirm', label: 'Take the tender', enabled: false}];
       }
-      if (this.reading) {
-        return [{control: 'back', label: 'Close the reader', priority: 5}];
-      }
       const cmds: Array<ConsoleCommand> = [];
       if (this.bidding.offer.length > 1) {
         cmds.push({control: 'dpadH', label: 'Choose'});
@@ -200,9 +195,6 @@ export default defineComponent({
       handler(cmds: ReadonlyArray<ConsoleCommand>): void {
         tenderBiddingUi.commands = cmds;
       },
-    },
-    reading(on: boolean): void {
-      tenderBiddingUi.reading = on;
     },
     // A pick that arrived (the viewer's own answer, a rival's push, the bot's instant pick) is PRESENTED — in turn.
     'bidding.offer': {
@@ -257,7 +249,6 @@ export default defineComponent({
     this.absorbOff = undefined;
     this.endReveal();
     tenderBiddingUi.commands = [];
-    tenderBiddingUi.reading = false;
   },
   methods: {
     cardState(card: BiddingOfferCard): TenderCardState {
@@ -330,6 +321,31 @@ export default defineComponent({
       }
       this.presenting = next;
     },
+    /**
+     * X — the table in the ONE fullscreen viewer (§16.6): every lot with its stamps as they stand (taken by a seat,
+     * withdrawn), the focused one first, lifted out of its own slot; LB/RB keep the table's cursor in lockstep.
+     */
+    openTableZoom(): void {
+      const offer = this.bidding.offer;
+      if (offer.length === 0) {
+        return;
+      }
+      const list = offer.map((c) => tenderZoomEntry(c.id, {instance: c.instance, state: this.cardState(c), owner: this.ownerOf(c)}));
+      const root = this.$el as HTMLElement | undefined;
+      openConsoleCardZoom(list, Math.min(Math.max(this.cursor, 0), list.length - 1), undefined, undefined, {
+        contextLabel: 'Bidding',
+        origin: {
+          kind: 'physical',
+          resolve: (i) => {
+            const c = offer[i];
+            return c !== undefined ? root?.querySelector<HTMLElement>(`[data-bidding-card="${CSS.escape(c.instance)}"]`) ?? null : null;
+          },
+          onBrowse: (i) => {
+            this.cursor = i;
+          },
+        },
+      });
+    },
     /** The host routes pad intents here. Returns true when consumed. */
     handleIntent(intent: GamepadIntent): boolean {
       if (this.revealing) {
@@ -337,9 +353,6 @@ export default defineComponent({
         return true;
       }
       if (intent.kind === 'nav') {
-        if (this.reading) {
-          return true;
-        }
         const n = this.bidding.offer.length;
         if (n > 0 && (intent.dir === 'left' || intent.dir === 'right')) {
           const step = intent.dir === 'left' ? -1 : 1;
@@ -350,23 +363,14 @@ export default defineComponent({
       const action = consoleActionOf(intent, {});
       switch (action) {
       case 'primary':
-        if (this.reading) {
-          return true;
-        }
         if (this.yourTurn && this.focusedOpen && !this.submitting && this.focusedCard !== undefined) {
           this.$emit('bid', this.focusedCard.instance);
         }
         return true;
       case 'inspect':
-        if (this.focusedCard !== undefined) {
-          this.reading = !this.reading;
-        }
+        this.openTableZoom();
         return true;
       case 'back':
-        if (this.reading) {
-          this.reading = false;
-          return true;
-        }
         this.$emit('back');
         return true;
       default:

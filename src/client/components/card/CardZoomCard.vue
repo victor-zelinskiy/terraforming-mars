@@ -37,6 +37,12 @@
     <premium-card-face :vmOverride="parliamentVm" tier="full" :inert="true" />
   </div>
 
+  <!-- A campaign TENDER — the Committee's certificate at its reader size (the full rule and the lore printed on the
+       document itself, so the viewer lends it no archive gutter); its stamps as the opener saw them. -->
+  <div v-else-if="tenderEntry !== undefined" class="card-zoom-card card-zoom-card--tender">
+    <ConsoleTenderCard :id="tenderEntry.tender" size="reader" :state="tenderEntry.state" :owner="tenderEntry.owner" />
+  </div>
+
   <!-- PREMIUM face — every real card type (tier `full`, inert: the modal
        owns interaction). `premium-card-face` is registered GLOBALLY in
        main.ts — a static import here would close the PremiumCard ->
@@ -53,12 +59,13 @@
 import {defineComponent} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
-import {ZoomCard, BonusZoomEntry, MarsBotCorpZoomEntry, PartyEffectZoomEntry, isBonusZoom, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom} from './cardZoomTypes';
+import {ZoomCard, BonusZoomEntry, MarsBotCorpZoomEntry, PartyEffectZoomEntry, TenderZoomEntry, isBonusZoom, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, isTenderZoom} from './cardZoomTypes';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyPremiumVm} from '@/client/components/premiumCard/partyPremiumVm';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
+import ConsoleTenderCard from '@/client/components/console/campaign/ConsoleTenderCard.vue';
 import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {liveCardResources} from '@/client/components/card/liveCardResources';
@@ -68,6 +75,7 @@ export default defineComponent({
   components: {
     BonusCardFace,
     MarsBotCorpFace,
+    ConsoleTenderCard,
   },
   props: {
     card: {
@@ -96,6 +104,10 @@ export default defineComponent({
     /** A Turmoil Redux PARTY entry, or undefined otherwise. */
     partyEntry(): PartyEffectZoomEntry | undefined {
       return isPartyEffectZoom(this.card) ? this.card : undefined;
+    },
+    /** A campaign TENDER entry, or undefined otherwise. */
+    tenderEntry(): TenderZoomEntry | undefined {
+      return isTenderZoom(this.card) ? this.card : undefined;
     },
     /** A party entry as its CHARTER's view-model (the composer hero's own face), or undefined otherwise. */
     partyVm(): PremiumCardVM | undefined {

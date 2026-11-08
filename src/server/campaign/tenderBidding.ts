@@ -25,7 +25,7 @@ import {
 /**
  * THE REGISTER — the campaign's shuffled tender deck. `order` is every copy of
  * every applicable kind, shuffled once with the route's seed; `drawn` is the
- * cursor. A kind skipped at a deal (already on the table) goes to the bottom;
+ * cursor. A copy skipped at a deal (a second decisive) goes to the bottom;
  * an exhausted Register appends a second printing.
  */
 export type TenderRegister = {
@@ -61,15 +61,16 @@ export function buildTenderRegister(applicable: (id: TenderId) => boolean, rng: 
 }
 
 /**
- * THE DEAL — `size` cards off the top of the Register onto the table, every
- * kind DISTINCT within the offer (the owner's rule: no duplicates in one
- * bidding; duplicates across missions stack) and AT MOST ONE DECISIVE tender
- * among them (the owner, 2026-11-07: «Продление программы» and «Дополнительный
- * пролог» never lie on one table — a player may still collect both by winning
- * two missions). A copy whose kind already lies on the table, a second decisive
- * — or a kind this slot does not admit — goes under the Register and is drawn
- * again later. Exhausted → a second printing joins the bottom. Returns the
- * dealt offer and the Register as it stands after.
+ * THE DEAL — `size` cards off the top of the Register onto the table, RANDOM
+ * but for ONE rule: AT MOST ONE DECISIVE tender among them (the owner,
+ * 2026-11-07: «Продление программы» and «Дополнительный пролог» never lie on
+ * one table — a player may still collect both by winning two missions). Nothing
+ * else is steered (the owner, 2026-11-08: «в остальном ограничений нет — может
+ * хоть два малых выпасть»): two copies of one kind may lie side by side, two
+ * minors may be the whole table. A second decisive — or a kind this slot does
+ * not admit — goes under the Register and is drawn again later. Exhausted → a
+ * second printing joins the bottom. Returns the dealt offer and the Register as
+ * it stands after.
  */
 export function dealTenderOffer(
   register: TenderRegister,
@@ -81,7 +82,6 @@ export function dealTenderOffer(
   const order = [...register.order];
   let drawn = register.drawn;
   const offer: Array<BiddingOfferCard> = [];
-  const onTable = new Set<TenderId>();
   let decisiveOnTable = false;
   // A bound on the walk: every copy inspected at most twice plus one printing.
   let budget = order.length * 2 + 1;
@@ -100,13 +100,12 @@ export function dealTenderOffer(
       order.splice(drawn, 1); // a kind this campaign can never use leaves the Register
       continue;
     }
-    if (onTable.has(id) || (decisiveOnTable && tenderDef(id).tier === 'decisive')) {
+    if (decisiveOnTable && tenderDef(id).tier === 'decisive') {
       order.splice(drawn, 1);
       order.push(id); // under the Register — drawn again later
       continue;
     }
     drawn++;
-    onTable.add(id);
     if (tenderDef(id).tier === 'decisive') {
       decisiveOnTable = true;
     }
@@ -151,7 +150,7 @@ export {biddingPickerCount};
  */
 function closeIfDone(bidding: BiddingState): BiddingState {
   const open = biddingOpenCards(bidding);
-  const done = bidding.pointer >= biddingPickerCount(bidding.order) || open.length === 0;
+  const done = bidding.pointer >= biddingPickerCount(bidding) || open.length === 0;
   if (!done) {
     return bidding;
   }
@@ -162,9 +161,16 @@ function closeIfDone(bidding: BiddingState): BiddingState {
   };
 }
 
-/** Open a bidding over a dealt offer and an order — the bot's picks are NOT applied here (`advanceBots`). */
-export function openBidding(sourceSlot: number, offer: ReadonlyArray<BiddingOfferCard>, order: ReadonlyArray<number>, lots: ReadonlyArray<BiddingLot>): BiddingState {
-  return closeIfDone({sourceSlot, offer: [...offer], order: [...order], lots: [...lots], pointer: 0, done: false});
+/**
+ * Open a bidding over a dealt offer and an order — the bot's picks are NOT applied here (`advanceBots`). `pickers` is
+ * the campaign's offer rule read for this table (`biddingPickers`); absent = every seat but the last.
+ */
+export function openBidding(sourceSlot: number, offer: ReadonlyArray<BiddingOfferCard>, order: ReadonlyArray<number>, lots: ReadonlyArray<BiddingLot>, pickers?: number): BiddingState {
+  const state: BiddingState = {sourceSlot, offer: [...offer], order: [...order], lots: [...lots], pointer: 0, done: false};
+  if (pickers !== undefined) {
+    state.pickers = Math.max(0, Math.min(order.length, pickers));
+  }
+  return closeIfDone(state);
 }
 
 /**

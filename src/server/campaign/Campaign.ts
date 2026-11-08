@@ -20,7 +20,7 @@ import {
   MissionResult,
   TitleEntry,
 } from '../../common/campaign/CampaignTypes';
-import {BiddingState, CampaignRewardMode, TenderHolding} from '../../common/campaign/tenders';
+import {BiddingState, CampaignRewardMode, CampaignTenderOffer, TenderHolding} from '../../common/campaign/tenders';
 import {TenderRegister} from './tenderBidding';
 
 export type SerializedMissionSlot = {
@@ -147,6 +147,11 @@ export type SerializedCampaign = {
    * Absent on a document written before the mode existed = `titles`. Frozen at creation.
    */
   rewardMode?: CampaignRewardMode;
+  /**
+   * The «Тендеры» mode: how many tenders a bidding deals (`biddingOfferSize` / `biddingPickers` — all seats, all but
+   * the last, all but the last two). Absent = `minusOne`. Frozen at creation.
+   */
+  tenderOffer?: CampaignTenderOffer;
   /** The «Тендеры» mode: the shuffled tender deck and its cursor (`tenderBidding.ts`). */
   register?: TenderRegister;
   /** The «Тендеры» mode: the LIVE bidding of the interlude — present from the commit until every pick is made. */

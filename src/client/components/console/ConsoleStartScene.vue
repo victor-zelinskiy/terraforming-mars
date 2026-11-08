@@ -130,8 +130,7 @@
                  the focused one's reading under the row. The host (this scene) owns the focus and every verb. -->
             <ConsoleTenderPortfolio v-if="st.id === 'tenders'" ref="portfolio"
                                     :entries="portfolioEntries" :focus="railPos === si ? focusIdx : -1" place="start"
-                                    :armed="tenderConfirm" :busy="state.tenderBusy"
-                                    :reader-open="railPos === si && portfolioReaderOpen" embedded />
+                                    :armed="tenderConfirm" :busy="state.tenderBusy" embedded />
             <!-- THE RESTRUCTURING (§16.3) on the corporation step: the dealt candidates and the lineage in two groups;
                  A picks in either, RT replaces — the ordinary deal strip rests under the mode and returns with it. -->
             <div v-else-if="st.id === 'corp' && restructureMode !== undefined" class="con-restructure" data-tender-mode="restructure">
@@ -1418,8 +1417,9 @@ import ConsoleTenderPortfolio from '@/client/components/console/campaign/Console
 import ConsoleTenderChip from '@/client/components/console/campaign/ConsoleTenderChip.vue';
 import {
   StartPortfolioContext, TenderPortfolioEntry, tenderExecutionOf, tenderModeStageKey, tenderPortfolio, tenderPortfolioCounts,
-  tenderPortfolioName, tenderPressResponse, tenderRestructureDecline, tenderRestructureResponse, tenderReviewResponse,
+  tenderCardStateOf, tenderPortfolioName, tenderPressResponse, tenderRestructureDecline, tenderRestructureResponse, tenderReviewResponse,
 } from '@/client/console/campaign/tenderPortfolio';
+import {tenderZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {TenderResponse} from '@/common/inputs/InputResponse';
 import {TENDER_COMPENSATION_MC, TenderId} from '@/common/campaign/tenders';
 import {candidateOutlook} from '@/client/console/deckPick/preludePick';
@@ -1734,7 +1734,6 @@ export default defineComponent({
       /** CAMPAIGN «ТЕНДЕРЫ» (§16): the certificate whose press asked for a SECOND press (a gamble over live picks). */
       tenderConfirm: undefined as string | undefined,
       /** X on the portfolio: the focused certificate read in full. */
-      portfolioReaderOpen: false,
       /** The summary's TERMINAL WARNING stands: start-window tenders still held — the next press begins anyway. */
       armedTenders: false,
       /** A simple tender's answer is on the wire and its effect lands on `step` — the landing is told there. */
@@ -6639,7 +6638,6 @@ export default defineComponent({
         this.focusIdx = next;
         this.armedSkip = false; this.armedTenders = false;
         this.tenderConfirm = undefined;
-        this.portfolioReaderOpen = false;
         this.clearRiskStage();
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
@@ -6885,7 +6883,6 @@ export default defineComponent({
         return;
       }
       this.tenderConfirm = undefined;
-      this.portfolioReaderOpen = false;
       switch (tenderExecutionOf(entry.id)) {
       case 'keep-preludes':
         void this.enterReviewMode(entry.instance, 'prelude');
@@ -7062,6 +7059,33 @@ export default defineComponent({
         capture.dispose();
         this.departureActive = false;
       }
+    },
+    /**
+     * THE PORTFOLIO's X (§16.6): the holder's certificates in the shared fullscreen viewer — the focused one first, each
+     * in its state on this place, lifted out of its own slot; LB/RB keep the row's cursor in lockstep.
+     */
+    openPortfolioZoom(): void {
+      const entries = this.portfolioEntries;
+      if (entries.length === 0) {
+        return;
+      }
+      const list = entries.map((e) => tenderZoomEntry(e.id, {instance: e.instance, state: tenderCardStateOf(e.status)}));
+      const portfolio = (this.$refs.portfolio ?? undefined) as {slotEl?: (instance: string) => HTMLElement | undefined} | undefined;
+      openConsoleCardZoom(list, Math.min(Math.max(this.focusIdx, 0), list.length - 1), undefined, undefined, {
+        contextLabel: 'Tenders',
+        origin: {
+          kind: 'physical',
+          resolve: (i) => {
+            const e = entries[i];
+            return e !== undefined ? portfolio?.slotEl?.(e.instance) ?? null : null;
+          },
+          onBrowse: (i) => {
+            if (this.tendersStepCurrent) {
+              this.focusIdx = i;
+            }
+          },
+        },
+      });
     },
     /** The dock chip of an executed tender takes the stamp — a one-shot class the CSS keyframe reads. */
     stampDockChip(instance: string): void {
@@ -8014,9 +8038,10 @@ export default defineComponent({
         this.onPrimary();
         return;
       case 'inspect':
-        // THE PORTFOLIO's X: the focused certificate read in full (its own reader over the row; X / B close it).
+        // THE PORTFOLIO's X: the focused certificate in the ONE fullscreen viewer (§16.6) — lifted out of its slot,
+        // LB/RB browse the holder's documents, B is the viewer's own.
         if (this.tendersStepCurrent) {
-          this.portfolioReaderOpen = !this.portfolioReaderOpen && this.focusedPortfolioEntry !== undefined;
+          this.openPortfolioZoom();
           return;
         }
         // THE RESTRUCTURING's X: the focused candidate / lineage corporation fullscreen.
@@ -8073,11 +8098,7 @@ export default defineComponent({
         }
         return;
       case 'back':
-        // THE PORTFOLIO's reader closes first; a tender's MODE ends with nothing applied — one level each.
-        if (this.mode === 'wizard' && this.portfolioReaderOpen) {
-          this.portfolioReaderOpen = false;
-          return;
-        }
+        // A tender's MODE ends with nothing applied — one level.
         if (this.mode === 'wizard' && this.tenderModeFacts !== undefined) {
           this.cancelTenderMode();
           return;

@@ -7,6 +7,8 @@ import {BiddingModel} from '@/common/campaign/CampaignModel';
 import {CampaignSeat} from '@/common/campaign/CampaignTypes';
 import {resetBiddingRevealsForTesting, tenderBiddingUi} from '@/client/console/campaign/tenderBiddingUi';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {closeConsoleCardZoom, consoleCardZoom} from '@/client/console/consoleCardZoom';
+import {isTenderZoom} from '@/client/components/card/cardZoomTypes';
 
 const SEATS: Array<CampaignSeat> = [
   {seat: 0, kind: 'human', name: 'Alice', color: 'blue', trBoost: 0},
@@ -79,9 +81,13 @@ describe('ConsoleTenderBidding', () => {
     expect(second.findAll('.con-bidding__slot--reveal')).has.length(0);
   });
 
-  it('on the viewer\'s turn A on an open lot emits the bid; X opens the reader; B closes it, then leaves', async () => {
-    const wrapper = mountScene({bidding: bidding({yourTurn: true})});
+  it('on the viewer\'s turn A on an open lot emits the bid; X opens the TABLE in the one fullscreen viewer (the focused lot first, its stamps as they stand); B leaves', async () => {
+    // The bot picked first (the order's head); the turn is now yours (seat 1).
+    const wrapper = mountScene({bidding: bidding({yourTurn: true, offer: [{instance: 't0-0', id: 'gamble', takenBy: 2}, {instance: 't0-1', id: 'restructuring'}], order: [2, 1, 0], pointer: 1})});
     (wrapper.vm as any).endReveal();
+    await wrapper.vm.$nextTick();
+    // The bot's pick stands presented on a settled mount.
+    (wrapper.vm as any).onSlotAnimationEnd({animationName: 'con-tender-taking'}, {instance: 't0-0', id: 'gamble', takenBy: 2}, 0);
     await wrapper.vm.$nextTick();
     expect(tenderBiddingUi.commands.some((c) => c.control === 'confirm' && c.enabled !== false)).is.true;
     (wrapper.vm as any).handleIntent(nav('right'));
@@ -89,10 +95,14 @@ describe('ConsoleTenderBidding', () => {
     expect(wrapper.emitted('bid')?.[0]).deep.eq(['t0-1']);
     (wrapper.vm as any).handleIntent(press('secondary'));
     await wrapper.vm.$nextTick();
-    expect(wrapper.find('[data-bidding-reader]').exists()).is.true;
-    (wrapper.vm as any).handleIntent(press('back'));
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find('[data-bidding-reader]').exists()).is.false;
+    const open = consoleCardZoom.card;
+    expect(open !== undefined && isTenderZoom(open), 'the viewer holds a tender entry').is.true;
+    expect(consoleCardZoom.cards, 'the whole table is browsable').has.length(2);
+    expect(consoleCardZoom.index, 'the focused lot first').eq(1);
+    const taken = consoleCardZoom.cards[0];
+    expect(taken !== undefined && isTenderZoom(taken) && taken.state === 'taken' && taken.owner?.color === 'green', 'the taken lot carries its stamp into the viewer').is.true;
+    expect(consoleCardZoom.contextLabel).eq('Bidding');
+    closeConsoleCardZoom();
     expect(wrapper.emitted('back')).is.undefined;
     (wrapper.vm as any).handleIntent(press('back'));
     expect(wrapper.emitted('back')).has.length(1);

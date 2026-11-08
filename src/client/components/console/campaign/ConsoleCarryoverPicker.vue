@@ -35,7 +35,7 @@
            Two layers of one step, never a swap: the album rests under the portfolio and returns the same nodes. -->
       <div v-if="hasTenders" v-show="stage === 'tenders'" class="con-carry__layer con-carry__layer--tenders" data-carry-tenders-stage>
         <ConsoleTenderPortfolio ref="portfolio" :entries="portfolioEntries" :focus="tenderFocus" place="threshold"
-                                :armed="tenderConfirm" :busy="tenderBusy" :reader-open="tenderReaderOpen" embedded />
+                                :armed="tenderConfirm" :busy="tenderBusy" embedded />
         <div class="con-carry__foot con-carry__foot--tenders">
           <span class="con-carry__status">
             <span v-if="tenderError !== ''" class="con-carry__status-err" data-carry-tender-error>{{ $t(tenderError) }}</span>
@@ -157,7 +157,8 @@ import {carryoverAskText, carryoverBandText, carryoverPreludeAskText, carryoverS
 import ConsoleTenderPortfolio from './ConsoleTenderPortfolio.vue';
 import {CarryoverTenderModel} from '@/common/campaign/CampaignModel';
 import {TENDER_COMPENSATION_MC, tenderDef} from '@/common/campaign/tenders';
-import {TenderPortfolioEntry, tenderPortfolio, tenderPortfolioCounts, tenderPortfolioName} from '@/client/console/campaign/tenderPortfolio';
+import {TenderPortfolioEntry, tenderCardStateOf, tenderPortfolio, tenderPortfolioCounts, tenderPortfolioName} from '@/client/console/campaign/tenderPortfolio';
+import {tenderZoomEntry} from '@/client/components/card/cardZoomTypes';
 
 /** The stamp's beat before the album takes the screen to show the seat / the band it opened. */
 const TENDER_STAGE_FLIP_MS = 760;
@@ -227,7 +228,6 @@ export default defineComponent({
       tenderFocus: 0,
       /** The certificate whose press asked for a second press (a seat nothing can fill). */
       tenderConfirm: undefined as string | undefined,
-      tenderReaderOpen: false,
       /** The RT terminal warning stands: legacy tenders still executable — the next RT confirms anyway. */
       armedTenders: false,
       stageTimer: undefined as number | undefined,
@@ -414,7 +414,6 @@ export default defineComponent({
         return;
       }
       this.tenderConfirm = undefined;
-      this.tenderReaderOpen = false;
       this.$emit('executeTender', e.instance);
     },
     /** The portfolio stage's pad: ◀ ▶ walk the certificates, A activates, X reads, RT moves on to the album, B closes. */
@@ -429,7 +428,6 @@ export default defineComponent({
         if (next !== this.tenderFocus) {
           this.tenderFocus = next;
           this.tenderConfirm = undefined;
-          this.tenderReaderOpen = false;
         }
         return true;
       }
@@ -438,7 +436,6 @@ export default defineComponent({
       }
       if (intent.button === 'triggerR') {
         this.tenderConfirm = undefined;
-        this.tenderReaderOpen = false;
         this.stage = 'album';
         return true;
       }
@@ -448,13 +445,9 @@ export default defineComponent({
         this.pressTender();
         return true;
       case 'inspect':
-        this.tenderReaderOpen = !this.tenderReaderOpen && this.focusedTender !== undefined;
+        this.openTenderZoom();
         return true;
       case 'back':
-        if (this.tenderReaderOpen) {
-          this.tenderReaderOpen = false;
-          return true;
-        }
         this.$emit('back');
         return true;
       default:
@@ -616,6 +609,29 @@ export default defineComponent({
       default:
         return true;
       }
+    },
+    /** X on the portfolio stage — the holder's certificates in the ONE fullscreen viewer (§16.6), the focused one first. */
+    openTenderZoom(): void {
+      const entries = this.portfolioEntries;
+      if (entries.length === 0) {
+        return;
+      }
+      const list = entries.map((e) => tenderZoomEntry(e.id, {instance: e.instance, state: tenderCardStateOf(e.status)}));
+      const portfolio = (this.$refs.portfolio ?? undefined) as {slotEl?: (instance: string) => HTMLElement | undefined} | undefined;
+      this.zoomOpenedHere = true;
+      openConsoleCardZoom(list, Math.min(Math.max(this.tenderFocus, 0), list.length - 1), undefined, undefined, {
+        contextLabel: 'Tenders',
+        origin: {
+          kind: 'physical',
+          resolve: (i) => {
+            const e = entries[i];
+            return e !== undefined ? portfolio?.slotEl?.(e.instance) ?? null : null;
+          },
+          onBrowse: (i) => {
+            this.tenderFocus = i;
+          },
+        },
+      });
     },
     // ── X — the ONE console zoom pipeline; the card lifts out of its album slot, A there is the same toggle ──
     openZoom(at: number): void {

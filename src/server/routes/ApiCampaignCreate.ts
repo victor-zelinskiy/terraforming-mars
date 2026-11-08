@@ -50,6 +50,7 @@ export class ApiCampaignCreate extends Handler {
         shuffleMapChance: parsed.options?.shuffleMapChance,
         missionCount: parsed.options?.missionCount,
         rewardMode: parsed.options?.rewardMode,
+        tenderOffer: parsed.options?.tenderOffer,
       });
       responses.writeJson(res, ctx, manager.getModel(campaign, creatorName));
     } catch (err) {

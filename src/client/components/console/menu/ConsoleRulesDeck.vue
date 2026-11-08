@@ -86,6 +86,34 @@
       </button>
 
       <!--
+        CAMPAIGN ONLY, the «Тендеры» mode — HOW MANY tenders a bidding deals (the owner, 2026-11-08): a dial right under the
+        reward mode, indented like every sub-setting; the sentence prints THIS table's numbers (cards dealt · seats that
+        take one), so the player reads the rule in seats, never in a formula.
+      -->
+      <button
+        v-else-if="row.kind === 'tenderOffer'"
+        type="button"
+        class="cm-row cm-rule cm-rule--sub cm-rule--on cm-rule--reward"
+        data-rule-sub="tenderOffer"
+        :data-tender-offer="row.offer"
+        :class="{'cm-row--cursor': i === cursor, 'cm-row--shake': i === shakeRow}"
+        @click="$emit('activate', i)"
+        @mousemove="$emit('hover', i)"
+      >
+        <span class="cm-row__main">
+          <span class="cm-row__name">{{ $t('Tenders per bidding') }}</span>
+          <span class="cm-row__sub">
+            <span class="cm-rule__desc">{{ tenderOfferDesc(row.offer, row.seats) }}</span>
+          </span>
+        </span>
+        <span class="cm-field__value cm-field__value--stepper cm-rule__dial" aria-hidden="true">
+          <span class="cm-field__arrow">◄</span>
+          <span class="cm-field__stepval cm-rule__dial-value" data-tender-offer-value>{{ $t(tenderOfferLabel(row.offer)) }}</span>
+          <span class="cm-field__arrow">►</span>
+        </span>
+      </button>
+
+      <!--
         The test-mode SUB-setting. Indented under its parent and marked DEV: it
         is not a rule variant, and it is not a switch — the value is a count and
         A drills into the picker.
@@ -126,8 +154,11 @@
  * for the blocker reason and carries the red conflict rim. Pure presentation.
  */
 import {defineComponent, PropType} from 'vue';
-import {CampaignChanceRule, RulesDeckRow, campaignChanceRule, campaignRewardModeDesc, campaignRewardModeLabel} from '@/client/console/menu/consoleCreateModel';
-import {CampaignRewardMode} from '@/common/campaign/tenders';
+import {
+  CampaignChanceRule, RulesDeckRow, campaignChanceRule, campaignRewardModeDesc, campaignRewardModeLabel, campaignTenderOfferLabel, campaignTenderOfferReading,
+} from '@/client/console/menu/consoleCreateModel';
+import {CampaignRewardMode, CampaignTenderOffer} from '@/common/campaign/tenders';
+import {readingText} from '@/client/console/readingText';
 import {MissionModifierId} from '@/common/campaign/CampaignTypes';
 import {automaBlockerText} from '@/client/components/create/premium/createGameState';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -165,6 +196,14 @@ export default defineComponent({
     },
     rewardModeDesc(mode: CampaignRewardMode): string {
       return campaignRewardModeDesc(mode);
+    },
+    tenderOfferLabel(offer: CampaignTenderOffer): string {
+      return campaignTenderOfferLabel(offer);
+    },
+    /** The dial's sentence with THIS table's numbers — the one renderer of a reading with params (PL-160). */
+    tenderOfferDesc(offer: CampaignTenderOffer, seats: number): string {
+      const reading = campaignTenderOfferReading(offer, seats);
+      return readingText({label: reading.key, params: [...reading.params]});
     },
     blockerText(key: string): string {
       return automaBlockerText(key);

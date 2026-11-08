@@ -3,7 +3,7 @@
  * by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).
  * Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.
  */
-import {CampaignRewardMode, isCampaignRewardMode} from '@/common/campaign/tenders';
+import {CampaignRewardMode, CampaignTenderOffer, DEFAULT_CAMPAIGN_TENDER_OFFER, isCampaignRewardMode, isCampaignTenderOffer} from '@/common/campaign/tenders';
 import {reactive} from 'vue';
 import {Color, PLAYER_COLORS} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
@@ -113,6 +113,8 @@ export type PremiumCreateGameState = {
   campaignMissionCount: CampaignMissionCount;
   /** CAMPAIGN ONLY: how a mission's places are rewarded — titles (the default) or the «Тендеры» bidding. */
   campaignRewardMode: CampaignRewardMode;
+  /** CAMPAIGN ONLY (the «Тендеры» mode): how many tenders a bidding deals — all seats / all but the last (default) / all but two. */
+  campaignTenderOffer: CampaignTenderOffer;
   /** Only reachable while `rules.testMode` is on for the admin seat. */
   guaranteedCards: GuaranteedCardPicks;
 };
@@ -178,6 +180,7 @@ export function defaultPremiumState(): PremiumCreateGameState {
     campaignShuffleMapChance: DEFAULT_CAMPAIGN_SHUFFLE_MAP_CHANCE,
     campaignMissionCount: CAMPAIGN_MISSION_COUNT,
     campaignRewardMode: 'titles',
+    campaignTenderOffer: DEFAULT_CAMPAIGN_TENDER_OFFER,
     guaranteedCards: {corporations: [], preludes: [], projects: []},
   };
 }
@@ -724,6 +727,7 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
     campaignShuffleMapChance: isCampaignModifierChance(saved.campaignShuffleMapChance) ? saved.campaignShuffleMapChance : base.campaignShuffleMapChance,
     campaignMissionCount: isCampaignMissionCount(saved.campaignMissionCount) ? saved.campaignMissionCount : base.campaignMissionCount,
     campaignRewardMode: isCampaignRewardMode(saved.campaignRewardMode) ? saved.campaignRewardMode : base.campaignRewardMode,
+    campaignTenderOffer: isCampaignTenderOffer(saved.campaignTenderOffer) ? saved.campaignTenderOffer : base.campaignTenderOffer,
     guaranteedCards: sanitizeGuaranteedCards(saved.guaranteedCards),
   };
 }

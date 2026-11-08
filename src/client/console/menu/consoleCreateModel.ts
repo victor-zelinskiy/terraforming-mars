@@ -23,7 +23,7 @@
  * seat-bot confirm step is deleted and nothing else moves.
  */
 
-import {CampaignRewardMode} from '@/common/campaign/tenders';
+import {biddingOfferSize, biddingPickers, CampaignRewardMode, CampaignTenderOffer, CAMPAIGN_TENDER_OFFERS, effectiveTenderOffer} from '@/common/campaign/tenders';
 import {showcaseStep} from '@/client/console/menu/lobbyCardModel';
 import {reactive} from 'vue';
 import {Color, PLAYER_COLORS} from '@/common/Color';
@@ -472,6 +472,7 @@ export type RulesDeckRow =
   | {kind: 'rule', rule: RuleRow}
   | {kind: 'chance', id: MissionModifierId, chance: CampaignModifierChance}
   | {kind: 'rewardMode', mode: CampaignRewardMode}
+  | {kind: 'tenderOffer', offer: CampaignTenderOffer, seats: number}
   | {kind: 'devCards', count: number};
 
 /** The reward modes in dial order — titles first (the default), the «Тендеры» bidding second. */
@@ -499,6 +500,49 @@ export function stepCampaignRewardMode(step: 1 | -1, wrap: boolean): void {
   const at = Math.max(0, values.indexOf(config.campaignRewardMode));
   const next = wrap ? (at + step + values.length) % values.length : Math.min(values.length - 1, Math.max(0, at + step));
   config.campaignRewardMode = values[next];
+}
+
+/** The campaign's SEATS as the creator stands — every human slot plus the bot's seat when it is seated. */
+export function campaignSeatCount(): number {
+  return createGameState.config.players.length + (botSeated() ? 1 : 0);
+}
+
+/** The offer dial's values for THIS table — `minusTwo` needs a third seat (the owner, 2026-11-08). */
+export function campaignTenderOfferValues(seats: number): ReadonlyArray<CampaignTenderOffer> {
+  return CAMPAIGN_TENDER_OFFERS.filter((o) => o !== 'minusTwo' || seats >= 3);
+}
+
+/** The dial's printed value (an i18n key) — WHO takes a tender. */
+export function campaignTenderOfferLabel(offer: CampaignTenderOffer): string {
+  switch (offer) {
+  case 'all': return 'Every seat';
+  case 'minusTwo': return 'All but the last two';
+  default: return 'All but the last';
+  }
+}
+
+/**
+ * The dial's one sentence — the table's numbers under the rule: how many cards the Register deals and how many of
+ * the seats take one (a two-seat default table deals TWO so the winner has a choice — D2).
+ */
+export function campaignTenderOfferReading(offer: CampaignTenderOffer, seats: number): {key: string, params: ReadonlyArray<string>} {
+  const effective = effectiveTenderOffer(offer, seats);
+  return {
+    key: 'After every mission the Register deals ${0} tender card(s); ${1} of ${2} seats take one, in the order of the places.',
+    params: [String(biddingOfferSize(seats, effective)), String(biddingPickers(seats, effective)), String(seats)],
+  };
+}
+
+/**
+ * CAMPAIGN ONLY (the «Тендеры» mode): how many tenders a bidding deals. `wrap` cycles (A), else clamps (◄ ►); the
+ * ring is the values THIS table admits, so a two-seat campaign never lands on «all but the last two».
+ */
+export function stepCampaignTenderOffer(step: 1 | -1, wrap: boolean): void {
+  const config = createGameState.config;
+  const values = campaignTenderOfferValues(campaignSeatCount());
+  const at = Math.max(0, values.indexOf(effectiveTenderOffer(config.campaignTenderOffer, campaignSeatCount())));
+  const next = wrap ? (at + step + values.length) % values.length : Math.min(values.length - 1, Math.max(0, at + step));
+  config.campaignTenderOffer = values[next];
 }
 
 /** A rule a campaign ROLLS per mission — the mission modifier it becomes, and where its chance lives. */
@@ -574,9 +618,15 @@ export function devCardsCount(): number {
 
 export function rulesDeckRows(): ReadonlyArray<RulesDeckRow> {
   const rows: Array<RulesDeckRow> = ruleRows().map((rule) => ({kind: 'rule' as const, rule}));
-  // CAMPAIGN: the reward mode heads the deck — a campaign-wide choice, never a rule's sub-setting.
+  // CAMPAIGN: the reward mode heads the deck — a campaign-wide choice, never a rule's sub-setting; under the «Тендеры»
+  // mode its ONE sub-setting follows at once — how many tenders a bidding deals (the owner, 2026-11-08).
   if (isCampaignMode()) {
-    rows.unshift({kind: 'rewardMode', mode: createGameState.config.campaignRewardMode});
+    const mode = createGameState.config.campaignRewardMode;
+    rows.unshift({kind: 'rewardMode', mode});
+    if (mode === 'tenders') {
+      const seats = campaignSeatCount();
+      rows.splice(1, 0, {kind: 'tenderOffer', offer: effectiveTenderOffer(createGameState.config.campaignTenderOffer, seats), seats});
+    }
   }
   // Each chance dial stands RIGHT UNDER its parent rule — in the wide
   // creator's grid that is one whole row of columns further, so the dial

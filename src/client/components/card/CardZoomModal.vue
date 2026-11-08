@@ -221,7 +221,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {CardName} from '@/common/cards/CardName';
-import {ZoomCard, isBonusZoom, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom} from './cardZoomTypes';
+import {ZoomCard, isBonusZoom, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, isTenderZoom} from './cardZoomTypes';
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import {LoreModel, buildCardLoreModel} from '@/client/cards/cardLore';
 import {buildPartyLoreModel} from '@/client/cards/partyLore';
@@ -236,9 +236,9 @@ import dialogPolyfill from 'dialog-polyfill';
 // `.mb-face`. All scoped to the viewer's own card so a stray board `.mb-face`
 // is never measured.
 // (A Turmoil Redux PARTY is a `.pcard` too since 2026-10-25 — its charter face.)
-const STAGE_CARD_SELECTOR = '.card-zoom-stage .card-zoom-card :is(.card-container.filterDiv, .pcard), .card-zoom-stage .card-zoom-card .mb-face';
+const STAGE_CARD_SELECTOR = '.card-zoom-stage .card-zoom-card :is(.card-container.filterDiv, .pcard, .con-tender), .card-zoom-stage .card-zoom-card .mb-face';
 const PRELOAD_CARD_SELECTOR = '.card-zoom-preload .card-zoom-card :is(.card-container.filterDiv, .pcard), .card-zoom-preload .card-zoom-card .mb-face';
-const CARD_EL_SELECTOR = '.card-container.filterDiv, .pcard, .mb-face';
+const CARD_EL_SELECTOR = '.card-container.filterDiv, .pcard, .con-tender, .mb-face';
 
 type Refs = {
   dialog: HTMLDialogElement;
@@ -482,9 +482,9 @@ export default defineComponent({
       }
       return out;
     },
-    /** The rule-overlay card: project cards only (a bonus/corp entry has no rules model). */
+    /** The rule-overlay card: project cards only (a bonus / corp / tender entry has no rules model). */
     annotationCardName(): CardName | undefined {
-      return isBonusZoom(this.activeCard) || isMarsBotCorpZoom(this.activeCard) ?
+      return isBonusZoom(this.activeCard) || isMarsBotCorpZoom(this.activeCard) || isTenderZoom(this.activeCard) ?
         undefined :
         this.activeCard.name as CardName;
     },
@@ -497,6 +497,7 @@ export default defineComponent({
      *    official identity/art/lore link of RB-B);
      *  - a Turmoil Redux PARTY → the faction's rulebook paragraph (`partyLore`);
      *  - an Automa bonus entry is not a card and has no lore;
+     *  - a campaign TENDER prints its own lore ON the certificate — no gutter;
      *  - a RESOLUTION lends the gutter to its PARTY column (`#aside`) — the
      *    cell is taken, so no entry is offered.
      * Undefined ⇔ no entry: the gutter stays empty rather than printing
@@ -507,7 +508,7 @@ export default defineComponent({
         return undefined;
       }
       const card = this.activeCard;
-      if (isBonusZoom(card) || isResolutionZoom(card)) {
+      if (isBonusZoom(card) || isResolutionZoom(card) || isTenderZoom(card)) {
         return undefined;
       }
       if (isPartyEffectZoom(card)) {

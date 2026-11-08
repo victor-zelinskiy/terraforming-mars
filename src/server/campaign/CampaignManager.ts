@@ -53,14 +53,18 @@ import {PRELUDE_CARDS_DEALT_PER_PLAYER} from '../../common/constants';
 import {
   BiddingState,
   CampaignRewardMode,
+  CampaignTenderOffer,
+  DEFAULT_CAMPAIGN_TENDER_OFFER,
   TENDER_COMPENSATION_MC,
   TenderHolding,
   TenderId,
   biddingOfferSize,
+  biddingPickers,
   biddingOpenCards,
   biddingTurnSeat,
   botTenderPick,
   isCampaignRewardMode,
+  isCampaignTenderOffer,
   isTenderId,
   tenderDef,
 } from '../../common/campaign/tenders';
@@ -102,12 +106,19 @@ export type CampaignCreateOptions = {
   missionCount?: number;
   /** How the campaign rewards a mission's placement (anything else → `titles`). */
   rewardMode?: CampaignRewardMode;
+  /** The «Тендеры» mode: how many tenders a bidding deals (anything else → `minusOne`). */
+  tenderOffer?: CampaignTenderOffer;
 };
 import {carryoverLimitFor, carryoverLimitOf} from './carryoverLimit';
 
 /** The ONE reader of a document's reward mode — a document written before the mode existed is a titles campaign. */
 export function campaignRewardMode(campaign: Pick<SerializedCampaign, 'rewardMode'>): CampaignRewardMode {
   return campaign.rewardMode ?? 'titles';
+}
+
+/** The ONE reader of a document's offer rule — a document written before the dial existed deals `seats − 1`. */
+export function campaignTenderOffer(campaign: Pick<SerializedCampaign, 'tenderOffer'>): CampaignTenderOffer {
+  return campaign.tenderOffer ?? DEFAULT_CAMPAIGN_TENDER_OFFER;
 }
 
 /** A float seed per (campaign, mission) for the bidding's lots — `SeededRandom` wants a fraction, never an integer. */
@@ -414,6 +425,8 @@ export class CampaignManager {
     const rewardMode: CampaignRewardMode = isCampaignRewardMode(options.rewardMode) ? options.rewardMode : 'titles';
     const register = rewardMode === 'tenders' ?
       buildTenderRegister(this.tenderApplicability(frozen, missionCount), rng) : undefined;
+    // The offer rule (the owner, 2026-11-08): stored only when it is not the default, read through ONE reader.
+    const tenderOffer: CampaignTenderOffer = isCampaignTenderOffer(options.tenderOffer) ? options.tenderOffer : DEFAULT_CAMPAIGN_TENDER_OFFER;
 
     return {
       version: 1,
@@ -436,6 +449,7 @@ export class CampaignManager {
         ...(rewardMode === 'tenders' ? {tenders: {}} : {}),
       },
       ...(rewardMode === 'tenders' ? {rewardMode, register} : {}),
+      ...(rewardMode === 'tenders' && tenderOffer !== DEFAULT_CAMPAIGN_TENDER_OFFER ? {tenderOffer} : {}),
     };
   }
 
@@ -885,10 +899,13 @@ export class CampaignManager {
     const rng = new SeededRandom(biddingSeedFor(campaign.generator.seed, slot.slot));
     const applicable = this.tenderApplicability(campaign.settings, campaign.missions.length);
     const register = campaign.register ?? buildTenderRegister(applicable, rng);
-    const dealt = dealTenderOffer(register, biddingOfferSize(campaign.seats.length), slot.slot, applicable, rng);
+    // The campaign's OFFER RULE decides the table's size and how many seats take a card (the owner, 2026-11-08).
+    const offerRule = campaignTenderOffer(campaign);
+    const seatCount = campaign.seats.length;
+    const dealt = dealTenderOffer(register, biddingOfferSize(seatCount, offerRule), slot.slot, applicable, rng);
     campaign.register = dealt.register;
     const {order, lots} = biddingOrder(standings.map((s) => ({seat: s.seat, place: s.place, score: 0, megaCredits: 0, corporations: [], tiedWith: []})), rng);
-    const bidding = advanceBots(openBidding(slot.slot, dealt.offer, order, lots), (seat) => campaign.seats[seat]?.kind === 'bot');
+    const bidding = advanceBots(openBidding(slot.slot, dealt.offer, order, lots, biddingPickers(seatCount, offerRule)), (seat) => campaign.seats[seat]?.kind === 'bot');
     this.settleBidding(campaign, bidding);
   }
 

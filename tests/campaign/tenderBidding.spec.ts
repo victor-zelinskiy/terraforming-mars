@@ -7,9 +7,11 @@ import {
   TENDER_NAME_KEY,
   TenderId,
   biddingOfferSize,
+  biddingPickers,
   biddingOpenCards,
   biddingTurnSeat,
   botTenderPick,
+  effectiveTenderOffer,
   heldTenderCount,
   isTenderId,
   tenderDef,
@@ -64,6 +66,24 @@ describe('the «Тендеры» catalog', () => {
     expect(biddingOfferSize(2)).eq(2);
     expect(biddingOfferSize(3)).eq(2);
     expect(biddingOfferSize(5)).eq(4);
+    expect(biddingPickers(2)).eq(1);
+    expect(biddingPickers(3)).eq(2);
+  });
+
+  it('the OFFER RULE (the owner, 2026-11-08): «all» deals one per seat and every seat picks; «minus two» deals seats − 2 and needs a third seat', () => {
+    expect(biddingOfferSize(2, 'all')).eq(2);
+    expect(biddingPickers(2, 'all')).eq(2);
+    expect(biddingOfferSize(4, 'all')).eq(4);
+    expect(biddingPickers(4, 'all')).eq(4);
+    expect(biddingOfferSize(3, 'minusTwo')).eq(1);
+    expect(biddingPickers(3, 'minusTwo')).eq(1);
+    expect(biddingOfferSize(5, 'minusTwo')).eq(3);
+    // A two-seat table reads «minus two» as the default (two cards, one picker) — never an empty table.
+    expect(effectiveTenderOffer('minusTwo', 2)).eq('minusOne');
+    expect(biddingOfferSize(2, 'minusTwo')).eq(2);
+    expect(biddingPickers(2, 'minusTwo')).eq(1);
+    expect(effectiveTenderOffer('minusTwo', 3)).eq('minusTwo');
+    expect(effectiveTenderOffer('all', 2)).eq('all');
   });
 
   it('heldTenderCount counts only HELD copies of the kind', () => {
@@ -90,18 +110,21 @@ describe('the Register', () => {
     expect(noPreludes.some((id) => TENDER_CATALOG[id].needsPreludes)).is.false;
   });
 
-  it('a deal takes distinct kinds off the top; a duplicate kind goes under and is drawn again later', () => {
+  it('a deal is RANDOM: it takes the top cards as they lie — two copies of one kind may share a table (the owner, 2026-11-08)', () => {
     const register = {order: ['gamble', 'gamble', 'restructuring', 'openCall'] as Array<TenderId>, drawn: 0};
     const dealt = dealTenderOffer(register, 2, 1, ALL, new SeededRandom(0.5));
-    expect(dealt.offer.map((c) => c.id)).deep.eq(['gamble', 'restructuring']);
+    expect(dealt.offer.map((c) => c.id)).deep.eq(['gamble', 'gamble']);
     expect(dealt.offer.map((c) => c.instance)).deep.eq(['t1-0', 't1-1']);
-    // The second gamble went under the Register; the cursor sits past the two dealt.
-    expect(dealt.register.order).deep.eq(['gamble', 'restructuring', 'openCall', 'gamble']);
+    // Nothing went under the Register; the cursor sits past the two dealt.
+    expect(dealt.register.order).deep.eq(['gamble', 'gamble', 'restructuring', 'openCall']);
     expect(dealt.register.drawn).eq(2);
     // The next deal continues from the cursor.
     const next = dealTenderOffer(dealt.register, 2, 2, ALL, new SeededRandom(0.5));
-    expect(next.offer.map((c) => c.id)).deep.eq(['openCall', 'gamble']);
+    expect(next.offer.map((c) => c.id)).deep.eq(['restructuring', 'openCall']);
     expect(next.register.drawn).eq(4);
+    // Two minors side by side are an honest table too — no tier is steered but the decisive.
+    const minors = {order: ['researchSubsidy', 'broadPortfolio', 'openCall'] as Array<TenderId>, drawn: 0};
+    expect(dealTenderOffer(minors, 2, 0, ALL, new SeededRandom(0.5)).offer.map((c) => c.id)).deep.eq(['researchSubsidy', 'broadPortfolio']);
   });
 
   it('AT MOST ONE DECISIVE per offer: the second decisive goes under the Register and is dealt at a later table', () => {
@@ -168,10 +191,32 @@ describe('the pick order', () => {
     expect(lots).is.empty;
   });
 
-  it('every seat but the last picks', () => {
-    expect(biddingPickerCount([0, 1, 2])).eq(2);
-    expect(biddingPickerCount([0, 1])).eq(1);
-    expect(biddingPickerCount([])).eq(0);
+  it('every seat but the last picks — unless the record names its own picker count', () => {
+    expect(biddingPickerCount({order: [0, 1, 2]})).eq(2);
+    expect(biddingPickerCount({order: [0, 1]})).eq(1);
+    expect(biddingPickerCount({order: []})).eq(0);
+    expect(biddingPickerCount({order: [0, 1, 2], pickers: 3})).eq(3);
+    expect(biddingPickerCount({order: [0, 1, 2], pickers: 1})).eq(1);
+  });
+
+  it('«all»: three seats, three cards — every seat takes one, the last takes what is left; «minus two»: one card, one picker', () => {
+    const offer: Array<BiddingOfferCard> = [{instance: 'a', id: 'gamble'}, {instance: 'b', id: 'restructuring'}, {instance: 'c', id: 'openCall'}];
+    let b = openBidding(0, offer, [0, 1, 2], [], biddingPickers(3, 'all'));
+    expect(b.pickers).eq(3);
+    b = applyBid(b, 0, 'b');
+    b = applyBid(b, 1, 'c');
+    expect(b.done, 'the last seat still picks').is.false;
+    expect(biddingTurnSeat(b)).eq(2);
+    b = applyBid(b, 2, 'a');
+    expect(b.done).is.true;
+    expect(b.offer.every((c) => c.takenBy !== undefined), 'nothing withdrawn — everyone holds one').is.true;
+    expect(biddingHoldings(b).map((h) => h.seat).sort()).deep.eq([0, 1, 2]);
+
+    const one = openBidding(0, offer.slice(0, 1), [0, 1, 2], [], biddingPickers(3, 'minusTwo'));
+    expect(one.pickers).eq(1);
+    const taken = applyBid(one, 0, 'a');
+    expect(taken.done, 'one picker — the table closes on the first pick').is.true;
+    expect(biddingHoldings(taken).map((h) => h.seat)).deep.eq([0]);
   });
 });
 

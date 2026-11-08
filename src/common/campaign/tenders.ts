@@ -21,6 +21,31 @@ export function isCampaignRewardMode(value: unknown): value is CampaignRewardMod
   return typeof value === 'string' && (CAMPAIGN_REWARD_MODES as ReadonlyArray<string>).includes(value);
 }
 
+/**
+ * HOW MANY tenders a bidding deals (the owner, 2026-11-08 — a creator setting of a «Тендеры» campaign, frozen with it):
+ *  · `minusOne` — the default: `seats − 1` cards, every seat but the last takes one (a two-seat table deals TWO and
+ *    withdraws the one the winner leaves — D2, so the winner has a choice);
+ *  · `all` — `seats` cards, every seat takes one (the last takes what is left);
+ *  · `minusTwo` — `seats − 2` cards, the last two seats leave with nothing — only for a table of three or more (on a
+ *    two-seat table it reads as `minusOne`).
+ * Absent on an older document = `minusOne`.
+ */
+export type CampaignTenderOffer = 'minusTwo' | 'minusOne' | 'all';
+
+/** The dial's order — fewer cards first, the default in the middle. */
+export const CAMPAIGN_TENDER_OFFERS: ReadonlyArray<CampaignTenderOffer> = ['minusTwo', 'minusOne', 'all'];
+
+export const DEFAULT_CAMPAIGN_TENDER_OFFER: CampaignTenderOffer = 'minusOne';
+
+export function isCampaignTenderOffer(value: unknown): value is CampaignTenderOffer {
+  return typeof value === 'string' && (CAMPAIGN_TENDER_OFFERS as ReadonlyArray<string>).includes(value);
+}
+
+/** `minusTwo` needs a third seat to mean anything — a smaller table reads it as the default. */
+export function effectiveTenderOffer(offer: CampaignTenderOffer, seatCount: number): CampaignTenderOffer {
+  return offer === 'minusTwo' && seatCount < 3 ? 'minusOne' : offer;
+}
+
 export type TenderId =
   | 'programExtension'
   | 'additionalPrelude'
@@ -169,6 +194,8 @@ export type BiddingOfferCard = {
  * ONE bidding — the interlude state between the mission's commit and the
  * carryover window. `order` is the pick order (standings, lots applied),
  * `pointer` indexes it; `done` once every seat that gets a card has one.
+ * `pickers` is how many seats of the order TAKE a card (the campaign's offer
+ * rule, fixed at the deal); absent on an older record = every seat but the last.
  */
 export type BiddingState = {
   sourceSlot: number;
@@ -177,16 +204,34 @@ export type BiddingState = {
   lots: ReadonlyArray<BiddingLot>;
   pointer: number;
   done: boolean;
+  pickers?: number;
 };
 
-/** How many tender cards a bidding deals: `seats − 1`, and TWO for a two-seat table (D2). */
-export function biddingOfferSize(seatCount: number): number {
-  return Math.max(seatCount - 1, Math.min(seatCount, 2));
+/**
+ * How many tender cards a bidding deals under the campaign's offer rule: `all` — one per seat; `minusOne` — `seats − 1`,
+ * and TWO for a two-seat table (D2: the winner chooses, the other card is withdrawn); `minusTwo` — `seats − 2` (a
+ * two-seat table reads as `minusOne`).
+ */
+export function biddingOfferSize(seatCount: number, offer: CampaignTenderOffer = DEFAULT_CAMPAIGN_TENDER_OFFER): number {
+  switch (effectiveTenderOffer(offer, seatCount)) {
+  case 'all': return Math.max(0, seatCount);
+  case 'minusTwo': return Math.max(0, seatCount - 2);
+  default: return Math.max(seatCount - 1, Math.min(seatCount, 2));
+  }
 }
 
-/** The seats that PICK: every seat of the order but the last (the last place leaves with nothing). */
-export function biddingPickerCount(order: ReadonlyArray<number>): number {
-  return Math.max(0, order.length - 1);
+/** How many seats of the order TAKE a card under the offer rule (D2: two seats, two cards, ONE picker). */
+export function biddingPickers(seatCount: number, offer: CampaignTenderOffer = DEFAULT_CAMPAIGN_TENDER_OFFER): number {
+  switch (effectiveTenderOffer(offer, seatCount)) {
+  case 'all': return Math.max(0, seatCount);
+  case 'minusTwo': return Math.max(0, seatCount - 2);
+  default: return Math.max(0, seatCount - 1);
+  }
+}
+
+/** The seats that PICK — the record's own count; an older record: every seat of the order but the last. */
+export function biddingPickerCount(bidding: Pick<BiddingState, 'order' | 'pickers'>): number {
+  return bidding.pickers ?? Math.max(0, bidding.order.length - 1);
 }
 
 /** The seat whose pick it is now — undefined once the bidding is done. */

@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {setTestDatabase, restoreTestDatabase} from '../testing/setup';
 import {InMemoryDatabase} from '../testing/InMemoryDatabase';
-import {CampaignManager, TENDER_LEGACY_REFUSAL, campaignRewardMode, legacyTenderRefusal} from '../../src/server/campaign/CampaignManager';
+import {CampaignManager, TENDER_LEGACY_REFUSAL, campaignRewardMode, campaignTenderOffer, legacyTenderRefusal} from '../../src/server/campaign/CampaignManager';
 import {GameLoader} from '../../src/server/database/GameLoader';
 import {CardName} from '../../src/common/cards/CardName';
 import {NewGameConfig} from '../../src/common/game/NewGameConfig';
@@ -59,6 +59,37 @@ describe('the «Тендеры» reward mode', () => {
     expect(odd.rewardMode).is.undefined;
   });
 
+  it('the OFFER RULE is frozen at creation (the owner, 2026-11-08): «all» deals one card per seat and every seat picks; the default stores nothing', async () => {
+    const byDefault = await manager.createCampaign(key(), tenderConfig(), {rewardMode: 'tenders'});
+    expect(byDefault.tenderOffer, 'the default is not written').is.undefined;
+    expect(campaignTenderOffer(byDefault)).eq('minusOne');
+    const odd = await manager.createCampaign(key(), tenderConfig(), {rewardMode: 'tenders', tenderOffer: 'everyone' as any});
+    expect(campaignTenderOffer(odd), 'an unknown rule reads as the default').eq('minusOne');
+    const titles = await manager.createCampaign(key(), tenderConfig(), {tenderOffer: 'all'});
+    expect(titles.tenderOffer, 'a titles campaign keeps no offer rule').is.undefined;
+
+    const campaign = await manager.createCampaign(key(), tenderConfig(), {rewardMode: 'tenders', tenderOffer: 'all'});
+    expect(campaign.tenderOffer).eq('all');
+    const {gameId} = await manager.launchMission(campaign.id, 'Alice');
+    const game = (await GameLoader.getInstance().getGame(gameId))!;
+    await manager.commitMissionResult(game);
+    const loaded = (await manager.load(campaign.id))!;
+    const bidding = loaded.bidding!;
+    expect(bidding.offer, 'two seats, two cards').has.length(2);
+    expect(bidding.pickers, 'every seat takes one').eq(2);
+    const first = bidding.order[0];
+    const second = bidding.order[1];
+    await manager.submitBid(campaign.id, loaded.missions[0].playerIds![first], bidding.offer[0].instance);
+    let after = (await manager.load(campaign.id))!;
+    expect(after.bidding?.done, 'the second seat still picks').is.false;
+    await manager.submitBid(campaign.id, after.missions[0].playerIds![second], bidding.offer[1].instance);
+    after = (await manager.load(campaign.id))!;
+    expect(after.bidding).is.undefined;
+    expect(after.missions[0].bidding?.offer.every((c) => c.takenBy !== undefined), 'nothing withdrawn').is.true;
+    expect(after.progression.tenders![first]).has.length(1);
+    expect(after.progression.tenders![second]).has.length(1);
+  });
+
   it('the commit opens the BIDDING: two cards for two seats, the winner picks, the loser gets nothing, no titles', async () => {
     const campaign = await manager.createCampaign(key(), tenderConfig(), {rewardMode: 'tenders'});
     const {gameId} = await manager.launchMission(campaign.id, 'Alice');
@@ -75,7 +106,7 @@ describe('the «Тендеры» reward mode', () => {
     const bidding = loaded.bidding!;
     expect(bidding.done).is.false;
     expect(bidding.offer).has.length(2);
-    expect(new Set(bidding.offer.map((c) => c.id)).size, 'distinct kinds on the table').eq(2);
+    expect(bidding.pickers, 'the default rule: every seat but the last takes one').eq(1);
     const first = result.standings[0].seat;
     const second = result.standings[1].seat;
     expect(bidding.order, 'the standings are the pick order').deep.eq([first, second]);

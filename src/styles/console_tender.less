@@ -341,6 +341,11 @@
     .con-tender__coupon { font-size: 0.64rem; }
     .con-tender__coupon-value { font-size: 0.95rem; }
   }
+  /* THE FULLSCREEN VIEWER (X everywhere — `TenderZoomEntry`): the reader size on the shared stage; the viewer's fit
+     engine measures `.con-tender` like any card face and zooms it to the stage. The folded corner's clip stays. */
+  .card-zoom-card--tender > &--reader {
+    --tender-w: 23rem;
+  }
   &--plaque {
     --tender-w: auto;
     aspect-ratio: auto;
@@ -530,17 +535,6 @@
     animation: con-tender-taking-slot calc(640ms * var(--motion-scale, 1)) @con-ease-standard both;
   }
 
-  /* THE READER (X) — the lot in full, over the table, never a second instance left standing after B. */
-  &__reader {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(7, 13, 21, 0.86);
-    z-index: 4;
-  }
-
   &__foot {
     flex: 0 0 auto;
     height: var(--con-ws-foot-h);
@@ -707,16 +701,6 @@
     letter-spacing: .12em;
     text-transform: uppercase;
     color: rgba(214, 223, 233, 0.7);
-  }
-  &__reader {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(7, 13, 21, 0.9);
-    animation: con-legview-rise calc(220ms * var(--motion-scale, 1)) ease both;
   }
 }
 @keyframes con-tport-stamp {
