@@ -37,6 +37,14 @@ const isCI = Boolean(process.env.CI);
 const TIMING_SPEC_GLOBS = [...TIMING_SPECS].map((name) => `**/${name}`);
 
 /*
+ * THE MONKEY IS NOT COLLECTED UNLESS IT IS ASKED FOR. `console-monkey.spec.ts` declares one test per fixture table
+ * (603 on 2026-11-08) and every one of them skips without `TM_E2E_MONKEY=1` — so a CI run reported «skipped: 620»,
+ * a quarter of the suite, and a REAL unexpected skip had nowhere to stand out. Off the collection, the report's
+ * skipped count is only the honest opt-ins (perf probes, stills, a deal that did not come).
+ */
+const OPT_IN_SPEC_GLOBS = process.env.TM_E2E_MONKEY === '1' ? [] : ['**/console-monkey.spec.ts'];
+
+/*
  * THE E2E RUNS ON THE STEAM MACHINE — the owner's decision 2026-10-21, enforced here, not only in a rule.
  * The laptop carries several sessions, builds and watchers at once; a Playwright run there is a verdict
  * about the load, and it loads the box every other session works on. `npm run e2e:remote -- <task> <spec…>`
@@ -144,7 +152,9 @@ export default defineConfig({
   // (`chromium-timing`: the specs that sample motion, ONE AT A TIME whatever `--workers` says) — see TIMING_SPEC_GLOBS.
   projects: ['chromium', 'chromium-timing'].map((name) => ({
     name,
-    ...(name === 'chromium-timing' ? {testMatch: TIMING_SPEC_GLOBS, workers: 1} : {testIgnore: TIMING_SPEC_GLOBS}),
+    ...(name === 'chromium-timing' ?
+      {testMatch: TIMING_SPEC_GLOBS, testIgnore: OPT_IN_SPEC_GLOBS, workers: 1} :
+      {testIgnore: [...TIMING_SPEC_GLOBS, ...OPT_IN_SPEC_GLOBS]}),
     use: {
       ...devices['Desktop Chrome'],
         /*
