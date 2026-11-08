@@ -16,11 +16,19 @@
               :class="{'con-dcmp__node--done': i - 1 < missionSlot, 'con-dcmp__node--now': i - 1 === missionSlot}"></span>
       </div>
       <span class="con-dcmp__mission" data-dossier-mission>{{ missionText }}</span>
-      <!-- The «Тендеры» mode: the seat's holdings where the titles and the TP stood. -->
+      <!-- The «Тендеры» mode: the seat's holdings where the titles and the TP stood — each its CERTIFICATE in miniature
+           (the one chassis, `.con-tmini`: the tier's metal, the art, the stamp read as material), the count in the
+           ledger's register beside them. Read-only here like everything in the zone: A opens the overview, whose legacy
+           layer walks the certificates like cards and X opens the viewer. -->
       <template v-if="tenders !== undefined">
         <div class="con-dcmp__tp con-info__cmp-tprow con-dcmp__tenders" data-dossier-tenders>
-          <ConsoleTenderChip v-for="t in tenders" :key="t.instance" :id="t.id" :status="t.status" />
-          <b v-if="tenders.length === 0" class="con-info__cmp-tp">{{ $t('No tenders yet') }}</b>
+          <span v-if="tenders.length > 0" class="con-dcmp__tcards">
+            <span v-for="t in tenders" :key="t.instance" class="con-tmini" :class="`con-tmini--${t.status}`"
+                  :data-dossier-tender="t.instance" :data-dossier-tender-status="t.status" :aria-label="$t(tenderHoldingName(t.id))">
+              <ConsoleTenderCard :id="t.id" size="table" :state="tenderCardStateOf(t.status)" />
+            </span>
+          </span>
+          <b class="con-info__cmp-tp" data-dossier-tender-tally>{{ tenders.length === 0 ? $t('No tenders yet') : tenderTally }}</b>
         </div>
         <span class="con-info__note con-info__note--tp con-dcmp__tpnote">{{ $t(tpNote) }}</span>
       </template>
@@ -42,12 +50,14 @@
 import {defineComponent, PropType} from 'vue';
 import {BoardName} from '@/common/boards/BoardName';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
-import ConsoleTenderChip from '@/client/components/console/campaign/ConsoleTenderChip.vue';
-import {TenderHoldingView} from '@/client/console/campaign/tenderHoldings';
+import ConsoleTenderCard from '@/client/components/console/campaign/ConsoleTenderCard.vue';
+import {tenderCardStateOf} from '@/client/console/campaign/tenderPortfolio';
+import {tenderHoldingName, TenderHoldingView} from '@/client/console/campaign/tenderHoldings';
+import {translateTextWithParams} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'ConsoleDossierCampaign',
-  components: {PremiumMapFingerprint, ConsoleTenderChip},
+  components: {PremiumMapFingerprint, ConsoleTenderCard},
   props: {
     /** The mission being played, 0-based. */
     missionSlot: {type: Number, required: true},
@@ -63,6 +73,16 @@ export default defineComponent({
     corpCount: {type: String, required: true},
     /** The «Тендеры» mode: the viewed seat's holdings — present (even empty) only on a tenders campaign. */
     tenders: {type: Array as PropType<ReadonlyArray<TenderHoldingView> | undefined>, default: undefined},
+  },
+  computed: {
+    /** The ledger's count of the holdings («3 тендера») — the TP's register in the tenders mode. */
+    tenderTally(): string {
+      return translateTextWithParams('${0} tender(s)', [String(this.tenders?.length ?? 0)]);
+    },
+  },
+  methods: {
+    tenderHoldingName,
+    tenderCardStateOf,
   },
 });
 </script>

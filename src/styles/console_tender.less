@@ -1012,15 +1012,45 @@
     color: rgba(236, 211, 154, 0.62);
   }
 }
-.con-startdock__tcard {
+/* ── THE MINIATURE CERTIFICATE (`.con-tmini`) — ONE chassis wherever a holding is shown as an OBJECT in a line: the
+   start dock's «ТЕНДЕРЫ» block, the Information dossier's campaign zone, the campaign overview's seat rows. The face
+   itself, zoomed (`--tmini-zoom` — the host picks the height: the lineage's 3.2rem cards, a seat row's 2rem line);
+   the tier's metal, the art and the stamp read as material at every size. A word chip (`ConsoleTenderChip`) stays
+   the INDEX entry where a line of text is the surface (the map's rail, a podium, the buyout plate). ── */
+.con-tmini {
   position: relative;
   flex: none;
   border-radius: .22rem;
   box-shadow: 0 .12rem .3rem rgba(0, 0, 0, 0.5);
   overflow: hidden;
   /* The face is 14rem × 1.42 at its natural size; the lineage's cards stand 3.2rem tall — zoom 3.2 / 19.88. */
-  > .con-tender { zoom: 0.161; }
+  > .con-tender { zoom: var(--tmini-zoom, 0.161); }
   &--just-executed { animation: con-tchip-stamp calc(520ms * var(--motion-scale, 1)) @con-ease-settle both; }
+}
+/* The dossier's campaign zone: the holdings where the titles' emblems stand, in one row beside the ledger count. */
+.con-dcmp__tcards { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
+/* The overview's seat row: a 2rem line of certificates — the titles' emblems' register; the row's tenders column is
+   content-sized (the titles' 3.4rem column holds no five certificates). */
+.con-cmpov__seat--tenders { grid-template-columns: auto minmax(7rem, 13rem) auto 5.2rem minmax(0, 1fr) auto; }
+.con-cmpov__seat-tenders .con-tmini { --tmini-zoom: 0.1; }
+/* THE LEGACY LAYER's «ТЕНДЕРЫ» zone (`CampaignSeatLegacy`): the certificates at the card slot's size (6.6rem wide —
+   the face is rem-based, so `--tender-w` is the slot's width and its height lands on the cards' 9.4rem), the reading
+   line under each (where it was won), the cursor the FACE's own ring (`focused` → `.con-tender--focused`). */
+.cleg__tcards { align-items: flex-start; }
+.cleg__tcard {
+  position: relative;
+  width: 6.6rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .3rem;
+  > .con-tender { --tender-w: 6.6rem; }
+}
+.cleg__tline {
+  font-size: .62rem;
+  color: #c2cfdd;
+  text-align: center;
+  line-height: 1.25;
 }
 @keyframes con-tchip-stamp {
   from { transform: scale(1.12); }
@@ -1117,5 +1147,4 @@
 }
 .cmap__seat-tp--none { color: rgba(214, 223, 233, 0.5); }
 .cmres__tender, .ccard__result-tender { max-width: 11rem; }
-.cleg__tender { display: inline-flex; align-items: center; gap: .45rem; }
-.con-dcmp__tenders { display: flex; flex-wrap: wrap; gap: .3rem; }
+.con-dcmp__tenders { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }

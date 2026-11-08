@@ -38,7 +38,7 @@
             v-for="(seat, i) in vm.seats"
             :key="seat.seat"
             class="con-cmpov__seat"
-            :class="seatClasses(seat, i)"
+            :class="[seatClasses(seat, i), {'con-cmpov__seat--tenders': vm.rewardMode === 'tenders'}]"
             :style="seatRevealStyle(i)"
             @click="onSeatClick(i)">
             <span class="con-cmpov__seat-cube" :class="`player_bg_color_${seat.color}`"></span>
@@ -48,8 +48,13 @@
               <span v-if="seat.isChampion" class="con-cmpov__seat-crown">{{ $t('Campaign champion') }}</span>
             </span>
             <template v-if="vm.rewardMode === 'tenders'">
+              <!-- The holdings as their certificates in miniature (the titles' emblems' register) — the legacy layer
+                   (A) walks them like cards and X opens the viewer. -->
               <span class="con-cmpov__seat-titles con-cmpov__seat-tenders" data-cmpov-seat-tenders>
-                <ConsoleTenderChip v-for="t in seat.tenders" :key="t.instance" :id="t.id" :status="t.status" />
+                <span v-for="t in seat.tenders" :key="t.instance" class="con-tmini" :class="`con-tmini--${t.status}`"
+                      :data-cmpov-tender="t.instance" :data-cmpov-tender-status="t.status">
+                  <ConsoleTenderCard :id="t.id" size="table" :state="tenderCardStateOf(t.status)" />
+                </span>
               </span>
               <span class="con-cmpov__seat-tp">{{ seat.tenders.length > 0 ? tenderCountText(seat.tenders.length) : $t('No tenders yet') }}</span>
             </template>
@@ -97,7 +102,7 @@
             <span class="con-cmpov__layer-kicker">{{ legacyDisplayName }}</span>
             <span class="con-cmpov__layer-board">{{ $t('Legacy') }}</span>
           </div>
-          <CampaignSeatLegacy :legacy="legacyVm" :carried-models="legacyCarriedModels" :cursor-index="legacyCards.length > 0 ? ui.legacyCursor : undefined" />
+          <CampaignSeatLegacy :legacy="legacyVm" :carried-models="legacyCarriedModels" :cursor-index="legacyRingSize > 0 ? ui.legacyCursor : undefined" />
         </div>
       </Transition>
     </template>
@@ -139,7 +144,10 @@ import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import CampaignMissionCard from './CampaignMissionCard.vue';
 import CampaignMissionInspect from './CampaignMissionInspect.vue';
 import CampaignSeatLegacy from './CampaignSeatLegacy.vue';
-import ConsoleTenderChip from './ConsoleTenderChip.vue';
+import ConsoleTenderCard from './ConsoleTenderCard.vue';
+import {tenderCardStateOf} from '@/client/console/campaign/tenderPortfolio';
+import {tenderZoomEntry} from '@/client/components/card/cardZoomTypes';
+import {TenderHoldingView} from '@/client/console/campaign/tenderHoldings';
 
 /**
  * THE IN-GAME CAMPAIGN OVERVIEW — the Information workspace's «Кампания»
@@ -157,7 +165,7 @@ import ConsoleTenderChip from './ConsoleTenderChip.vue';
  */
 export default defineComponent({
   name: 'ConsoleCampaignOverview',
-  components: {CampaignMissionCard, CampaignMissionInspect, CampaignSeatLegacy, ConsoleTenderChip},
+  components: {CampaignMissionCard, CampaignMissionInspect, CampaignSeatLegacy, ConsoleTenderCard},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     viewedColor: {type: String as PropType<Color>, required: true},
@@ -278,7 +286,7 @@ export default defineComponent({
       }
       return this.playerView.campaignCarriedCards;
     },
-    /** The legacy layer's inspectable ring: corps then carried, in order. */
+    /** The legacy layer's inspectable CARDS: corps then carried, in order (the ring's first stretch). */
     legacyCards(): ReadonlyArray<CardModel> {
       const legacy = this.legacyVm;
       if (legacy === undefined) {
@@ -287,6 +295,14 @@ export default defineComponent({
       const corps: Array<CardModel> = legacy.corps.map((c) => ({name: c.name} as CardModel));
       const carried = this.legacyCarriedModels ?? (legacy.carried.names ?? []).map((name) => ({name} as CardModel));
       return [...corps, ...carried];
+    },
+    /** The legacy layer's TENDERS — the ring's second stretch (empty on a titles campaign). */
+    legacyTenders(): ReadonlyArray<TenderHoldingView> {
+      return this.legacyVm?.tenders ?? [];
+    },
+    /** ONE ring over the layer: corps → carried → tenders — a certificate is walked like a card and X opens it. */
+    legacyRingSize(): number {
+      return this.legacyCards.length + this.legacyTenders.length;
     },
     layerOriginStyle(): Record<string, string> {
       return {'--cov-ox': `${this.layerOrigin.x}%`, '--cov-oy': `${this.layerOrigin.y}%`};
@@ -306,7 +322,7 @@ export default defineComponent({
       }
       if (this.ui.level === 'legacy') {
         const cmds: Array<ConsoleCommand> = [{control: 'dpad', label: 'Choose'}];
-        if (this.legacyCards.length > 0) {
+        if (this.legacyRingSize > 0) {
           cmds.push({control: 'secondary', label: 'Inspect'});
         }
         cmds.push({control: 'back', label: 'Back'});
@@ -358,6 +374,7 @@ export default defineComponent({
     this.ui.barCommands = undefined;
   },
   methods: {
+    tenderCardStateOf,
     titleArtUrl,
     titleLabel(title: TitleName): string {
       return TITLE_LABEL[title];
@@ -440,6 +457,24 @@ export default defineComponent({
     },
     zoomLegacyCursor(): void {
       const cards = this.legacyCards;
+      const tenders = this.legacyTenders;
+      if (this.ui.legacyCursor >= cards.length && tenders.length > 0) {
+        // The cursor stands on a CERTIFICATE: the seat's holdings in the one fullscreen viewer (the rule in its right
+        // column, the lore in the gutter), the focused one first, LB/RB in lockstep with the layer's cursor.
+        const at = Math.min(this.ui.legacyCursor - cards.length, tenders.length - 1);
+        const list = tenders.map((t) => tenderZoomEntry(t.id, {instance: t.instance, state: tenderCardStateOf(t.status)}));
+        openConsoleCardZoom(list, at, undefined, undefined, {
+          contextLabel: 'Tenders',
+          origin: slotZoomOrigin(
+            () => this.$el as HTMLElement,
+            (i) => `cleg:tender:${tenders[i]?.instance ?? ''}`,
+            (i) => {
+              this.ui.legacyCursor = cards.length + i;
+            },
+          ),
+        });
+        return;
+      }
       if (cards.length === 0) {
         return;
       }
@@ -493,7 +528,7 @@ export default defineComponent({
           return true;
         }
         if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
-          const n = this.legacyCards.length;
+          const n = this.legacyRingSize;
           if (n > 0) {
             const step = intent.dir === 'left' ? -1 : 1;
             this.ui.legacyCursor = Math.max(0, Math.min(n - 1, this.ui.legacyCursor + step));

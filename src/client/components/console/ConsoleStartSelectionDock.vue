@@ -95,8 +95,8 @@
           <span class="con-startdock__tenders-tally" data-tender-dock-tally>{{ executedTenders }}/{{ tenders.length }}</span>
         </div>
         <div class="con-startdock__legacy-row">
-          <div v-for="t in tenders" :key="t.instance" class="con-startdock__tcard"
-               :class="[`con-startdock__tcard--${t.status}`, {'con-startdock__tcard--just-executed': stamped === t.instance}]"
+          <div v-for="t in tenders" :key="t.instance" class="con-tmini"
+               :class="[`con-tmini--${t.status}`, {'con-tmini--just-executed': stamped === t.instance}]"
                :data-tender-dock-chip="t.instance" :data-tender-dock-status="t.status"
                :aria-label="$t(tenderNameKey(t.id))">
             <ConsoleTenderCard :id="t.id" size="table" :state="tenderCardStateOf(t.status)" />

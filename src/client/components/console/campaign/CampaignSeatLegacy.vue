@@ -33,6 +33,28 @@
         <div v-if="carriedCards.length > 0" class="cleg__note">{{ $t('Carried from the previous mission') }} · {{ $t('View only') }}</div>
       </section>
 
+      <!-- The «Тендеры» mode: the holdings as CERTIFICATES on the cards' own chassis — the ring's third stretch
+           (corps → carried → tenders), each wearing the face's own cursor when focused, the reading line under it
+           (where it was won); X opens the ONE viewer. A chip list in the facts zone stood here before and could be
+           neither walked nor read. -->
+      <section v-if="legacy.rewardMode === 'tenders'" class="cleg__zone cleg__zone--tenders" data-cleg-tenders>
+        <h4 class="cleg__cap">{{ $t('Tenders') }}</h4>
+        <div v-if="legacy.tenders.length > 0" class="cleg__cards cleg__tcards">
+          <div
+            v-for="(t, i) in legacy.tenders"
+            :key="t.instance"
+            class="cleg__tcard"
+            :data-zoom-slot="`cleg:tender:${t.instance}`"
+            :data-cleg-tender="t.instance" :data-cleg-tender-status="t.status"
+            :data-cleg-tender-focused="cursorIndex === cardCount + i ? 'yes' : undefined">
+            <ConsoleTenderCard :id="t.id" size="table" :state="tenderCardStateOf(t.status)" :focused="cursorIndex === cardCount + i" />
+            <span class="cleg__tline">{{ tenderLine(t) }}</span>
+          </div>
+        </div>
+        <div v-else class="cleg__muted">{{ $t('No tenders yet') }}</div>
+        <div class="cleg__note">{{ $t(tenderNote) }}</div>
+      </section>
+
       <section class="cleg__zone cleg__zone--facts">
         <h4 class="cleg__cap">{{ $t('Legacy') }}</h4>
         <div v-if="legacy.bonus !== undefined" class="cleg__fact">
@@ -40,20 +62,12 @@
           <span class="cleg__fact-value">+{{ legacy.bonus.amount }} M€</span>
           <span class="cleg__fact-status" :class="`cleg__fact-status--${legacy.bonus.status}`">{{ $t(bonusStatusLabel) }}</span>
         </div>
-        <!-- The «Тендеры» mode: the holdings take the title ledger's place — each with where it was won and its status. -->
+        <!-- The «Тендеры» mode: the ledger's count — the certificates themselves stand in their own zone. -->
         <template v-if="legacy.rewardMode === 'tenders'">
           <div class="cleg__fact">
             <span class="cleg__fact-label">{{ $t('Tenders') }}</span>
             <span class="cleg__fact-value">{{ legacy.tenders.length }}</span>
-            <span class="cleg__fact-status">{{ $t(tenderNote) }}</span>
           </div>
-          <div v-if="legacy.tenders.length > 0" class="cleg__titles cleg__tenders" data-cleg-tenders>
-            <span v-for="t in legacy.tenders" :key="t.instance" class="cleg__title cleg__tender">
-              <ConsoleTenderChip :id="t.id" :status="t.status" />
-              <span class="cleg__title-text">{{ tenderLine(t) }}</span>
-            </span>
-          </div>
-          <div v-else class="cleg__muted">{{ $t('No tenders yet') }}</div>
         </template>
         <template v-else>
           <div class="cleg__fact">
@@ -80,7 +94,8 @@ import Card from '@/client/components/card/CardFace.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {OverviewTitle, SeatLegacyVm, tpStatusLabel} from '@/client/console/campaign/campaignOverviewModel';
 import {TenderHoldingView} from '@/client/console/campaign/tenderHoldings';
-import ConsoleTenderChip from './ConsoleTenderChip.vue';
+import ConsoleTenderCard from './ConsoleTenderCard.vue';
+import {tenderCardStateOf} from '@/client/console/campaign/tenderPortfolio';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
 import {TitleName} from '@/common/campaign/CampaignTypes';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -93,11 +108,11 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
  * card faces, view-only — rendering here NEVER re-grants anything), and
  * the title ledger with the TP semantics note. Shared by both campaign
  * surfaces; the host owns the cursor ring (`cursorIndex` over
- * corps → carried) and the fullscreen inspect.
+ * corps → carried → tenders) and the fullscreen inspect.
  */
 export default defineComponent({
   name: 'CampaignSeatLegacy',
-  components: {Card, ConsoleTenderChip},
+  components: {Card, ConsoleTenderCard},
   props: {
     legacy: {type: Object as PropType<SeatLegacyVm>, required: true},
     /**
@@ -121,6 +136,10 @@ export default defineComponent({
         return this.carriedModels.map((card) => ({card}));
       }
       return (this.legacy.carried.names ?? []).map((name) => ({card: {name} as CardModel}));
+    },
+    /** The cards before the tenders in the ring — the index a certificate's cursor is counted from. */
+    cardCount(): number {
+      return this.corpCards.length + this.carriedCards.length;
     },
     carriedNote(): string {
       if (!this.legacy.carried.known) {
@@ -151,6 +170,7 @@ export default defineComponent({
     },
   },
   methods: {
+    tenderCardStateOf,
     tenderLine(t: TenderHoldingView): string {
       return translateTextWithParams('won at mission ${0}', [String(t.wonAtSlot + 1)]);
     },

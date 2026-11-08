@@ -289,5 +289,83 @@ for (const preset of PRESETS) {
       const revAfter = (await campaignModelAs(request, id, 'Alice') as unknown as {rev: number}).rev;
       expect(revAfter, 'viewing must not mutate the campaign').toBe(revBefore);
     });
+
+    test('in-game «Тендеры»: the campaign zone shows the holdings as certificates, the legacy layer walks them like cards and X opens the viewer', async ({page, request}) => {
+      test.setTimeout(480_000);
+      // Mission 2 of 3 LIVE on a TENDERS campaign: Alice holds three certificates granted at mission 1 (held — they
+      // execute at the finale's start), Bruno one; the pregame is answered over the API for both seats.
+      const {id} = await createCampaign(request, {testMode: true}, {rewardMode: 'tenders', missionCount: 3});
+      await devCommit(request, id, [1, 0], {
+        lineages: {0: ['Tharsis Republic'], 1: ['Helion']},
+        carryover: {0: ['Ants', 'Algae'], 1: []},
+        tenders: {0: ['openCall', 'restructuring', 'researchSubsidy'], 1: ['projectReview']},
+      });
+      const {yourPlayerId: aliceId} = await launchMission(request, id);
+      expect(aliceId).toBeTruthy();
+      const bruno = await campaignModelAs(request, id, 'Bruno');
+      const brunoId = bruno.missions[1]?.yourPlayerId;
+      expect(brunoId).toBeTruthy();
+      await drive(request, [aliceId!, brunoId!],
+        (m) => m.game.phase === 'action' && m.waitingFor !== undefined, 200);
+      await openConsole(page, aliceId!, preset.profileQuery);
+      await waitForBoardHome(page, 70);
+
+      // ── Y → the Information workspace: the campaign zone shows the holdings as MINIATURE certificates (the face
+      //    itself — never a word chip) beside the ledger's count. ──
+      const workspace = page.locator('.con-info');
+      for (let i = 0; i < 10 && await workspace.count() === 0; i++) {
+        if (i > 0) {
+          await press(page, 'Enter', 700);
+          await press(page, 'Escape', 500);
+        }
+        await press(page, 'KeyY', 1100);
+      }
+      await expect(workspace).toHaveCount(1);
+      const zone = page.locator('.con-info__zone--campaign');
+      await expect(zone).toBeVisible();
+      await expect(zone.locator('[data-dossier-tender] .con-tender')).toHaveCount(3);
+      await expect(zone.locator('.con-tchip')).toHaveCount(0);
+      await expect(zone.locator('[data-dossier-tender-tally]')).toContainText('3');
+      await shoot(page, 'info-tenders-zone');
+
+      // ── A → the overview: the seat rows carry the same miniatures. ──
+      expect(await focusInfoZone(page, 'campaign'), 'the ring reaches the campaign zone').toBe(true);
+      await press(page, 'Enter', 900);
+      const overview = page.locator('.con-cmpov');
+      await expect(overview).toBeVisible();
+      await expect(page.locator('.con-cmpov__seat').first().locator('[data-cmpov-tender] .con-tender')).toHaveCount(3);
+      await expect(page.locator('.con-cmpov .con-tchip')).toHaveCount(0);
+
+      // ── Seats → A → the legacy layer: a «ТЕНДЕРЫ» zone of certificates on the cards' chassis; the ring walks
+      //    corps → carried → tenders; X on a certificate opens the ONE viewer with the face at the reader size. ──
+      for (let i = 0; i < 4 && await page.locator('.con-cmpov__seat--cursor').count() === 0; i++) {
+        await press(page, 'ArrowDown', 250);
+      }
+      await press(page, 'Enter', 600);
+      await expect(page.locator('.con-cmpov__layer')).toBeVisible();
+      await expect(page.locator('[data-cleg-tender]')).toHaveCount(3);
+      await expect(page.locator('.cleg__card')).toHaveCount(4);
+      const focusedTender = page.locator('[data-cleg-tender-focused="yes"]');
+      expect(await pressUntil(page, 'ArrowRight', async () => await focusedTender.count() === 1, {tries: 8, settleMs: 300}),
+        'the ring walks past the cards onto the first certificate').toBe(true);
+      await expect(focusedTender.locator('.con-tender--focused')).toHaveCount(1);
+      await shoot(page, 'info-legacy-tenders');
+      await press(page, 'KeyX', 800);
+      await expect(page.locator('.con-zoom-hold')).toHaveCount(1);
+      // The ONE viewer's stage carries the certificate at the reader size (the stage may warm a neighbour too).
+      await expect(page.locator('.card-zoom-stage .card-zoom-card--tender .con-tender').first()).toBeVisible();
+      await shoot(page, 'info-legacy-tender-zoom');
+      await press(page, 'Escape', 800);
+      await expect(page.locator('.con-zoom-hold')).toHaveCount(0);
+      // The ring's end: one more step right stays on the last certificate; B walks the layer away.
+      await pressUntil(page, 'Escape',
+        async () => await page.locator('.con-cmpov__layer').count() === 0,
+        {tries: 4, settleMs: 500});
+      await pressUntil(page, 'Escape',
+        async () => await page.locator('.con-info__zone--campaign.con-info__zone--focused').count() === 1,
+        {tries: 4, settleMs: 700});
+      await press(page, 'KeyY', 900);
+      await expect(workspace).toHaveCount(0);
+    });
   });
 }

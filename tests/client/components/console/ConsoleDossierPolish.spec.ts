@@ -92,5 +92,31 @@ describe('the Information polish — the dossier heroes', () => {
       expect(w.find('.con-info__cmp-tp').text()).eq('10 TP');
       expect(w.find('.con-dcmp__board').exists(), 'no board known yet — no empty frame').is.false;
     });
+
+    it('the «Тендеры» mode: the holdings as their certificates in MINIATURE (never a word chip), the count in the ledger’s register', () => {
+      const w = mount(ConsoleDossierCampaign, {
+        ...globalConfig,
+        props: {missionSlot: 1, missionCount: 3, missionText: '2 of 3', titles: [], tpText: '0 TP', tpNote: 'Tenders execute at the finale’s start; an unexecuted one pays 3 M€', corpCount: '2',
+          tenders: [
+            {instance: 'a', id: 'openCall', wonAtSlot: 0, place: 1, status: 'held'},
+            {instance: 'b', id: 'restructuring', wonAtSlot: 0, place: 2, status: 'executed'},
+          ]},
+      });
+      const minis = w.findAll('[data-dossier-tender]');
+      expect(minis).has.length(2);
+      expect(w.findAll('[data-dossier-tender] .con-tender'), 'each holding is the face itself').has.length(2);
+      expect(w.find('[data-dossier-tender="b"] .con-tender').attributes('data-tender-state'), 'the stamp is the face’s own state').eq('executed');
+      expect(w.find('.con-tchip').exists(), 'no word chip in the zone').is.false;
+      expect(w.find('[data-dossier-tender-tally]').text()).to.match(/2/);
+    });
+
+    it('the «Тендеры» mode with nothing won yet says so in the ledger’s register', () => {
+      const w = mount(ConsoleDossierCampaign, {
+        ...globalConfig,
+        props: {missionSlot: 0, missionCount: 3, missionText: '1 of 3', titles: [], tpText: '0 TP', tpNote: 'x', corpCount: '1', tenders: []},
+      });
+      expect(w.findAll('[data-dossier-tender]')).has.length(0);
+      expect(w.find('[data-dossier-tender-tally]').text()).eq('No tenders yet');
+    });
   });
 });
