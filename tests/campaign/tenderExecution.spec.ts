@@ -10,10 +10,10 @@ import {ICorporationCard, isICorporationCard} from '../../src/server/cards/corpo
 import {newCorporationCard} from '../../src/server/createCard';
 import {IGame} from '../../src/server/IGame';
 import {TENDER_COMPENSATION_MC, TenderId} from '../../src/common/campaign/tenders';
+import {Tag} from '../../src/common/cards/Tag';
 import {
   campaignCorporationQueue,
   campaignLineageOf,
-  campaignPreludePickCount,
   campaignSetupExtrasOwed,
   campaignSetupResumeInput,
   campaignStartingBudget,
@@ -90,26 +90,36 @@ describe('tender execution at the finale\'s start', () => {
     expect(() => executeTender(p1, {type: 'tender', instance: 't0'})).throws(/only while the finale/);
   });
 
-  it('«Дополнительный пролог»: the pick rises to 3, the standing step follows, the selection is served again', () => {
-    const {p1} = finale(['additionalPrelude']);
+  it('«Целевой запрос»: the three project cards with the NAMED tag come out of the deck into the deal; the selection is served again; a tag with no card left is refused', () => {
+    const {game, p1} = finale(['targetedRequest']);
     const serial = p1.waitingForSerial;
     const selection = selectionOf(p1);
-    expect(cast(selection.inputs.prelude, SelectCard).config.max).eq(2);
-    p1.process({type: 'tender', instance: 't0'});
-    expect(campaignPreludePickCount(p1)).eq(3);
+    const before = p1.dealtProjectCards.map((c) => c.name);
+    const deckBefore = game.projectDeck.drawPile.length;
+    expect(() => p1.process({type: 'tender', instance: 't0'})).throws(/Name a tag/);
+    expect(() => p1.process({type: 'tender', instance: 't0', tag: Tag.WILD})).throws(/Name a tag/);
+    p1.process({type: 'tender', instance: 't0', tag: Tag.SPACE});
+    const after = p1.dealtProjectCards;
+    expect(after).has.length(before.length + 3);
+    const requested = after.slice(before.length);
+    expect(requested.every((c) => c.tags.includes(Tag.SPACE)), 'every requested card carries the tag').is.true;
+    expect(game.projectDeck.drawPile.length, 'the three left the deck — nothing else moved').eq(deckBefore - 3);
     expect(p1.getWaitingFor(), 'the very same selection stands').eq(selection);
     expect(p1.waitingForSerial, 'with a fresh identity').not.eq(serial);
-    expect(cast(selection.inputs.prelude, SelectCard).config.max).eq(3);
-    expect(cast(selection.inputs.prelude, SelectCard).config.min).eq(3);
-    expect(selection.toModel(p1).tenders).deep.eq([{instance: 't0', id: 'additionalPrelude', status: 'executed', window: 'start'}]);
-    // A second execution of the same instance is refused.
-    expect(() => p1.process({type: 'tender', instance: 't0'})).throws(/already executed/);
-    // Three preludes are now the answer; two are refused.
-    const dealt = p1.dealtPreludeCards.map((c) => c.name);
-    expect(() => finishSelection(p1, dealt.slice(0, 2))).throws();
-    finishSelection(p1, dealt.slice(0, 3));
-    expect(p1.preludeCardsInHand.map((c) => c.name)).deep.eq(dealt.slice(0, 3));
-    expect(p1.initialCardSelectionDone).is.true;
+    expect(cast(selection.inputs.project, SelectCard).cards).has.length(before.length + 3);
+    expect(selection.toModel(p1).tenders).deep.eq([{instance: 't0', id: 'targetedRequest', status: 'executed', window: 'start'}]);
+    expect(() => p1.process({type: 'tender', instance: 't0', tag: Tag.SPACE})).throws(/already executed/);
+    // A tag the deck has run out of is refused by name — the tender stays held (the compensation can buy it back).
+    const other = finale(['targetedRequest']);
+    other.game.projectDeck.drawPile.splice(0);
+    other.game.projectDeck.discardPile.splice(0);
+    expect(tenderStartRefusal(other.p1, other.p1.campaignTenders![0]), 'an empty deck is refused before the press').eq(TENDER_START_REFUSAL.projectDeckShort);
+    const third = finale(['targetedRequest']);
+    const pile = third.game.projectDeck.drawPile;
+    pile.splice(0, pile.length, ...pile.filter((c) => !c.tags.includes(Tag.JOVIAN)));
+    third.game.projectDeck.discardPile.splice(0);
+    expect(() => third.p1.process({type: 'tender', instance: 't0', tag: Tag.JOVIAN})).throws(TENDER_START_REFUSAL.noCardWithTag);
+    expect(third.p1.campaignTenders![0].status).eq('held');
   });
 
   it('«Открытый конкурс» deals 2 more preludes; «Широкий портфель» 4 more projects — in place, under the standing steps', () => {
@@ -132,6 +142,13 @@ describe('tender execution at the finale\'s start', () => {
     expect(campaignStartingBudget(p1, undefined).cardCost).eq(3);
     p1.process({type: 'tender', instance: 't0'});
     expect(campaignStartingBudget(p1, undefined).cardCost).eq(2);
+    // THE FLOOR (the owner, 2026-11-08): two subsidies make a card 1 M€; a third has nothing to take off and is refused.
+    p1.campaignStartingHandDiscount = 2;
+    expect(campaignStartingBudget(p1, undefined).cardCost).eq(1);
+    p1.campaignStartingHandDiscount = 3;
+    expect(campaignStartingBudget(p1, undefined).cardCost, 'never below 1 M€').eq(1);
+    expect(tenderStartRefusal(p1, {id: 'researchSubsidy'})).eq(TENDER_START_REFUSAL.handAtMinimum);
+    p1.campaignStartingHandDiscount = 1;
     const preludes = p1.dealtPreludeCards.slice(0, 2).map((c) => c.name);
     finishSelection(p1, preludes, p1.dealtProjectCards.slice(0, 2).map((c) => c.name));
     expect(p1.cardsInHand).has.length(2);
@@ -155,8 +172,8 @@ describe('tender execution at the finale\'s start', () => {
     expect(p1.campaignTenders![0].status).eq('executed');
   });
 
-  it('«Пересмотр проектов» does the same for the ten projects; the legacy «Авантюра» redeals everything, keeping nothing', () => {
-    const {p1} = finale(['projectReview', 'gamble']);
+  it('«Пересмотр проектов» does the same for the ten projects; «Авантюра: проекты» then redeals them all, keeping nothing', () => {
+    const {p1} = finale(['projectReview', 'gambleProjects']);
     const projects = p1.dealtProjectCards.map((c) => c.name);
     p1.process({type: 'tender', instance: 't0', keep: [projects[3]]});
     const reviewed = p1.dealtProjectCards.map((c) => c.name);
@@ -165,9 +182,8 @@ describe('tender execution at the finale\'s start', () => {
     expect(reviewed.filter((n) => projects.includes(n))).deep.eq([projects[3]]);
     const preludes = p1.dealtPreludeCards.map((c) => c.name);
     p1.process({type: 'tender', instance: 't1'});
-    expect(p1.dealtPreludeCards.map((c) => c.name).some((n) => preludes.includes(n))).is.false;
+    expect(p1.dealtPreludeCards.map((c) => c.name), 'the project gamble leaves the preludes alone').deep.eq(preludes);
     expect(p1.dealtProjectCards.map((c) => c.name).some((n) => reviewed.includes(n))).is.false;
-    expect(p1.dealtPreludeCards).has.length(4);
     expect(p1.dealtProjectCards).has.length(10);
   });
 
@@ -329,9 +345,9 @@ describe('tender execution at the finale\'s start', () => {
     expect(tenderStartRefusal(p1, {id: 'openCall'})).eq(TENDER_START_REFUSAL.preludeDeckShort);
     expect(read()[1]).deep.eq(['openCall', 'start', TENDER_START_REFUSAL.preludeDeckShort]);
     expect(() => executeTender(p1, {type: 'tender', instance: 't1'})).to.throw(TENDER_START_REFUSAL.preludeDeckShort);
-    // A hand already free: «Субсидия» would buy nothing — refused, so the compensation stays the better deal.
+    // A hand already at the floor: «Субсидия» would buy nothing — refused, so the compensation stays the better deal.
     p1.campaignStartingHandDiscount = 99;
-    expect(read()[2]).deep.eq(['researchSubsidy', 'start', TENDER_START_REFUSAL.handAlreadyFree]);
+    expect(read()[2]).deep.eq(['researchSubsidy', 'start', TENDER_START_REFUSAL.handAtMinimum]);
     // The corporation deck runs dry: «Реструктуризация» has nothing to deal.
     game.corporationDeck.drawPile.splice(0);
     game.corporationDeck.discardPile.splice(0);

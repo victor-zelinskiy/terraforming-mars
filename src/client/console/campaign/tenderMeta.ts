@@ -35,10 +35,10 @@ const META: Record<TenderId, Omit<TenderMeta, 'id' | 'nameKey'>> = {
     loreKey: 'The programme was a success. So we are running it again — same budget, half the oversight.',
     lot: 1, glyph: 'prelude',
   },
-  additionalPrelude: {
-    ruleKey: 'Keep one more prelude from your deal.',
-    loreKey: 'Three opening moves. The Committee calls it initiative; the auditors call it a footnote.',
-    lot: 2, glyph: 'prelude',
+  targetedRequest: {
+    ruleKey: 'Name a tag: three project cards with it join your deal from the deck.',
+    loreKey: 'Three folders, one keyword. The archivist did not ask why.',
+    lot: 2, glyph: 'project',
   },
   restructuring: {
     ruleKey: 'Two corporations are dealt to you: take one of them in place of any corporation of your lineage, or decline.',
@@ -75,27 +75,22 @@ const META: Record<TenderId, Omit<TenderMeta, 'id' | 'nameKey'>> = {
     loreKey: 'One megacredit less per card. Science has never been so affordable — or so suspicious.',
     lot: 9, glyph: 'megacredit',
   },
-  gamble: {
-    ruleKey: 'At the finale\'s start redeal all your preludes and all your projects — nothing of the first deal stays.',
-    loreKey: 'Everything back in the box. Shake. Hope.',
-    lot: 10, glyph: 'dice',
-  },
   // THE POOL GAMBLES (the owner, 2026-11-08): the emblem names the POOL that goes back in the box; the rank row's die
   // names the tier.
   gamblePreludes: {
     ruleKey: 'Redeal all your dealt preludes once: nothing of the first deal stays.',
     loreKey: 'The opening moves go back in the box. Shake. Hope.',
-    lot: 11, glyph: 'prelude',
+    lot: 10, glyph: 'prelude',
   },
   gambleProjects: {
     ruleKey: 'Redeal all your dealt projects once: nothing of the first deal stays.',
     loreKey: 'Ten folders back in the box. Shake. Hope.',
-    lot: 12, glyph: 'project',
+    lot: 11, glyph: 'project',
   },
   gambleCorporations: {
     ruleKey: 'Redeal the corporations offered to you for the finale once: nothing of the first deal stays.',
     loreKey: 'The board of directors goes back in the box. Shake. Hope.',
-    lot: 13, glyph: 'corporation',
+    lot: 12, glyph: 'corporation',
   },
 };
 

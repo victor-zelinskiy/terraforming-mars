@@ -35,11 +35,10 @@ describe('tenderPortfolio — the one reader of a holding on the two places', ()
     expect(tenderExecutionOf('openCall')).eq('simple');
     expect(tenderExecutionOf('broadPortfolio')).eq('simple');
     expect(tenderExecutionOf('researchSubsidy')).eq('simple');
-    expect(tenderExecutionOf('gamble')).eq('simple');
     expect(tenderExecutionOf('gamblePreludes')).eq('simple');
     expect(tenderExecutionOf('gambleProjects')).eq('simple');
     expect(tenderExecutionOf('gambleCorporations')).eq('simple');
-    expect(tenderExecutionOf('additionalPrelude')).eq('simple');
+    expect(tenderExecutionOf('targetedRequest')).eq('choose-tag');
     expect(tenderExecutionOf('preludeReview')).eq('keep-preludes');
     expect(tenderExecutionOf('projectReview')).eq('keep-projects');
     expect(tenderExecutionOf('restructuring')).eq('restructure');
@@ -52,7 +51,7 @@ describe('tenderPortfolio — the one reader of a holding on the two places', ()
 
   it('THE START: each certificate\'s state, verb, the step it lands on and the reading in the deal\'s own numbers', () => {
     const entries = tenderPortfolio(startCtx([
-      held('openCall'), held('broadPortfolio'), held('additionalPrelude'), held('researchSubsidy'),
+      held('openCall'), held('broadPortfolio'), held('targetedRequest'), held('researchSubsidy'),
       held('preludeReview'), held('projectReview'), held('gamblePreludes'), held('gambleProjects'), held('gambleCorporations'), held('restructuring'),
       held('extendedLegacy', {blocked: 'Its window was the legacy step before the finale'}),
       held('programExtension', {status: 'executed'}),
@@ -62,7 +61,8 @@ describe('tenderPortfolio — the one reader of a holding on the two places', ()
     expect(byId.openCall.reading).deep.eq({key: 'Preludes in the deal: ${0} → ${1}', params: ['4', '6']});
     expect(byId.broadPortfolio).include({state: 'ready', verb: 'Execute', landsOn: 'projects'});
     expect(byId.broadPortfolio.reading.params).deep.eq(['10', '14', '10']);
-    expect(byId.additionalPrelude.reading).deep.eq({key: 'Prelude picks: ${0} → ${1} of ${2}', params: ['2', '3', '4']});
+    expect(byId.targetedRequest).include({state: 'step', verb: 'Name a tag', landsOn: 'projects'});
+    expect(byId.targetedRequest.reading).deep.eq({key: 'Name a tag: ${0} project cards with it join the deal', params: ['3']});
     expect(byId.researchSubsidy.reading.params, 'the price after one more copy').deep.eq(['3', '2']);
     expect(byId.preludeReview).include({state: 'step', verb: 'Review', landsOn: 'prelude'});
     expect(byId.preludeReview.reading.params).deep.eq(['1', '4']);
@@ -79,6 +79,7 @@ describe('tenderPortfolio — the one reader of a holding on the two places', ()
     expect(byId.extendedLegacy).include({state: 'blocked', verb: '', reason: 'Its window was the legacy step before the finale'});
     expect(byId.programExtension).include({state: 'executed', verb: ''});
     expect(tenderPortfolioCounts(entries)).deep.eq({executed: 1, open: 10, total: 12});
+    expect(tenderModeStageKey('tag')).eq('Tag');
   });
 
   it('THE START: a gamble over LIVE picks asks for a second press; a dealt restructuring continues; a cashed one is done', () => {

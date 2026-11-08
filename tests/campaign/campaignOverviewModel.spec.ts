@@ -260,7 +260,7 @@ describe('campaignOverviewModel', () => {
 
   it('«Тендеры»: the seat rows, the podium, the mission details and the seat legacy all read the holdings off the ONE reader', () => {
     const base = baseModel({phase: 'interlude', pointer: 1});
-    const bidding = {sourceSlot: 0, offer: [{instance: 't0-0', id: 'openCall', takenBy: 1}, {instance: 't0-1', id: 'gamble', withdrawn: true}], order: [1, 0, 2], lots: [], pointer: 1, done: true};
+    const bidding = {sourceSlot: 0, offer: [{instance: 't0-0', id: 'openCall', takenBy: 1}, {instance: 't0-1', id: 'gamblePreludes', withdrawn: true}], order: [1, 0, 2], lots: [], pointer: 1, done: true};
     const m = {
       ...base,
       rewardMode: 'tenders',

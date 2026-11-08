@@ -119,7 +119,6 @@ export interface SerializedPlayer extends DeprecatedFields{
   campaignCarriedPreludes?: Array<CardName>;
   campaignCarriedPreludesGranted?: boolean;
   campaignLineageOverride?: Array<CardName>;
-  campaignPreludePickBonus?: number;
   campaignStartingHandDiscount?: number;
   plantProduction: number;
   plants: number;

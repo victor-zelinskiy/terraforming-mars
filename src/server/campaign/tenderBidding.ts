@@ -11,7 +11,7 @@ import {
   BiddingLot,
   BiddingOfferCard,
   BiddingState,
-  TENDER_DEALT_IDS,
+  TENDER_IDS,
   TenderHolding,
   TenderId,
   biddingOpenCards,
@@ -23,13 +23,13 @@ import {
 
 /**
  * THE MISSION DECK (the owner, 2026-11-08): ONE card of every applicable kind
- * the catalog deals today (a legacy kind never), shuffled afresh for THIS
- * mission from the campaign's seeded stream. Nothing persists between
+ * of the catalog, shuffled afresh for THIS mission from the campaign's seeded
+ * stream. Nothing persists between
  * missions — the same kind may come again at the next table, which is why a
  * tender's text speaks of what ONE MORE copy adds.
  */
 export function missionTenderDeck(applicable: (id: TenderId) => boolean, rng: Random): Array<TenderId> {
-  return shuffled(TENDER_DEALT_IDS.filter((id) => applicable(id)), rng);
+  return shuffled(TENDER_IDS.filter((id) => applicable(id)), rng);
 }
 
 function shuffled<T>(items: ReadonlyArray<T>, rng: Random): Array<T> {

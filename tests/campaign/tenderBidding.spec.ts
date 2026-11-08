@@ -3,7 +3,6 @@ import {SeededRandom} from '../../src/common/utils/Random';
 import {
   BiddingOfferCard,
   TENDER_CATALOG,
-  TENDER_DEALT_IDS,
   TENDER_IDS,
   TENDER_NAME_KEY,
   TenderId,
@@ -36,7 +35,7 @@ const standing = (seat: number, place: number): MissionStanding =>
   ({seat, place, score: 0, megaCredits: 0, corporations: [], tiedWith: []});
 
 describe('the «Тендеры» catalog', () => {
-  it('every id has a row, a printed name and a unique bot priority — a LEGACY kind stays readable but is in no mission deck', () => {
+  it('every id has a row, a printed name and a unique bot priority; the removed kinds are no tenders', () => {
     const priorities = new Set<number>();
     for (const id of TENDER_IDS) {
       const def = TENDER_CATALOG[id];
@@ -46,15 +45,30 @@ describe('the «Тендеры» catalog', () => {
       priorities.add(def.botPriority);
       expect(['legacy', 'start']).includes(def.window);
     }
-    // The old «Авантюра» (both pools at once) was split on 2026-11-08: still an id (an older campaign's holding reads), never dealt.
-    expect(isTenderId('gamble')).is.true;
-    expect(TENDER_DEALT_IDS.includes('gamble')).is.false;
-    expect(TENDER_DEALT_IDS).includes('gamblePreludes').and.includes('gambleProjects').and.includes('gambleCorporations');
-    expect(missionTenderDeck(ALL, new SeededRandom(0.3)).includes('gamble'), 'a mission deck never holds a legacy kind').is.false;
-    expect(isGambleTender('gamblePreludes') && isGambleTender('gambleCorporations') && isGambleTender('gamble')).is.true;
+    expect(TENDER_IDS).includes('gamblePreludes').and.includes('gambleProjects').and.includes('gambleCorporations').and.includes('targetedRequest');
+    expect(isGambleTender('gamblePreludes') && isGambleTender('gambleCorporations')).is.true;
     expect(isGambleTender('openCall')).is.false;
+    // The undivided «Авантюра» and «Дополнительный пролог» are gone (the owner, 2026-11-08 — neither ever shipped).
+    expect(isTenderId('gamble')).is.false;
+    expect(isTenderId('additionalPrelude')).is.false;
     expect(isTenderId('preferentialMerger'), 'a removed kind is no tender').is.false;
     expect(tenderDef('programExtension').window).eq('legacy');
+  });
+
+  it('THE DENIAL ORDER follows the impact estimate (§18.6): the decisive first, the three gambles LAST (the owner, 2026-11-08)', () => {
+    const byPriority = [...TENDER_IDS].sort((a, b) => tenderDef(a).botPriority - tenderDef(b).botPriority);
+    expect(byPriority.slice(0, 2), 'the two decisives lead').deep.eq(['programExtension', 'researchSubsidy']);
+    expect(byPriority.slice(-3), 'the gambles close').deep.eq(['gamblePreludes', 'gambleProjects', 'gambleCorporations']);
+    expect(tenderDef('broadPortfolio').botPriority, '«Широкий портфель» outranks «Пересмотр проектов»').lessThan(tenderDef('projectReview').botPriority);
+    const tiers = Object.fromEntries(TENDER_IDS.map((id) => [id, tenderDef(id).tier]));
+    expect(tiers.researchSubsidy).eq('decisive');
+    expect(tiers.broadPortfolio).eq('notable');
+    expect(tiers.projectReview).eq('minor');
+    // The tiers are monotone along the denial order: no minor outranks a notable, no notable a decisive.
+    const rank = {decisive: 0, notable: 1, minor: 2, gamble: 3};
+    for (let i = 1; i < byPriority.length; i++) {
+      expect(rank[tenderDef(byPriority[i]).tier], `${byPriority[i]} after ${byPriority[i - 1]}`).gte(rank[tenderDef(byPriority[i - 1]).tier]);
+    }
   });
 
   it('the bot\'s denial order is the catalog\'s: the decisive first, the minor last', () => {
@@ -64,7 +78,9 @@ describe('the «Тендеры» catalog', () => {
       {instance: 'c', id: 'restructuring'},
     ];
     expect(botTenderPick(open)?.id).eq('programExtension');
-    expect(botTenderPick(open.filter((c) => c.id !== 'programExtension'))?.id).eq('restructuring');
+    // «Широкий портфель» outranks «Реструктуризация» since the owner's review of 2026-11-08 (§18.6).
+    expect(botTenderPick(open.filter((c) => c.id !== 'programExtension'))?.id).eq('broadPortfolio');
+    expect(botTenderPick([{instance: 'd', id: 'gambleProjects'}, {instance: 'e', id: 'projectReview'}])?.id, 'a gamble is the last the bot takes').eq('projectReview');
     expect(botTenderPick([])).is.undefined;
   });
 
@@ -97,7 +113,7 @@ describe('the «Тендеры» catalog', () => {
       {id: 'extendedLegacy', status: 'held'},
       {id: 'extendedLegacy', status: 'executed'},
       {id: 'extendedLegacy', status: 'held'},
-      {id: 'gamble', status: 'held'},
+      {id: 'gamblePreludes', status: 'held'},
     ], 'extendedLegacy')).eq(2);
   });
 });
@@ -107,9 +123,9 @@ describe('the mission deck (the owner, 2026-11-08: one card of every kind, shuff
     const a = missionTenderDeck(ALL, new SeededRandom(0.25));
     const b = missionTenderDeck(ALL, new SeededRandom(0.25));
     expect(a).deep.eq(b);
-    expect(a).has.length(TENDER_DEALT_IDS.length);
+    expect(a).has.length(TENDER_IDS.length);
     expect(new Set(a).size, 'one card of every kind — never two').eq(a.length);
-    for (const id of TENDER_DEALT_IDS) {
+    for (const id of TENDER_IDS) {
       expect(a).includes(id);
     }
     expect(a, 'a different seed shuffles differently').not.deep.eq(missionTenderDeck(ALL, new SeededRandom(0.75)));
@@ -123,9 +139,11 @@ describe('the mission deck (the owner, 2026-11-08: one card of every kind, shuff
     expect(offer).has.length(4);
     expect(new Set(offer.map((c) => c.id)).size, 'one card per kind — no kind twice on one table').eq(4);
     expect(offer.map((c) => c.instance)).deep.eq(['t1-0', 't1-1', 't1-2', 't1-3']);
-    // A deal of nothing but the minors is honest — no tier but the decisive is steered.
-    const minorsOnly = (id: TenderId) => tenderDef(id).tier === 'minor';
-    expect(dealTenderOffer(2, 0, minorsOnly, new SeededRandom(0.5)).map((c) => tenderDef(c.id).tier)).deep.eq(['minor', 'minor']);
+    // A deal of nothing but the weakest tiers is honest — no tier but the decisive is steered.
+    const weakOnly = (id: TenderId) => tenderDef(id).tier === 'minor' || tenderDef(id).tier === 'gamble';
+    const weak = dealTenderOffer(2, 0, weakOnly, new SeededRandom(0.5)).map((c) => tenderDef(c.id).tier);
+    expect(weak).has.length(2);
+    expect(weak.every((t) => t === 'minor' || t === 'gamble')).is.true;
   });
 
   it('AT MOST ONE DECISIVE per table: the second decisive is set aside and the next card takes its place — whatever the seed', () => {
@@ -187,7 +205,7 @@ describe('the pick order', () => {
   });
 
   it('«all»: three seats, three cards — every seat takes one, the last takes what is left; «minus two»: one card, one picker', () => {
-    const offer: Array<BiddingOfferCard> = [{instance: 'a', id: 'gamble'}, {instance: 'b', id: 'restructuring'}, {instance: 'c', id: 'openCall'}];
+    const offer: Array<BiddingOfferCard> = [{instance: 'a', id: 'gamblePreludes'}, {instance: 'b', id: 'restructuring'}, {instance: 'c', id: 'openCall'}];
     let b = openBidding(0, offer, [0, 1, 2], [], biddingPickers(3, 'all'));
     expect(b.pickers).eq(3);
     b = applyBid(b, 0, 'b');
@@ -211,20 +229,20 @@ describe('the bidding', () => {
   const offer = (...ids: Array<TenderId>): Array<BiddingOfferCard> => ids.map((id, i) => ({instance: `t0-${i}`, id}));
 
   it('three seats, two cards: the first picks any, the second takes the last, the third gets nothing', () => {
-    let bidding = openBidding(0, offer('gamble', 'restructuring'), [2, 0, 1], []);
+    let bidding = openBidding(0, offer('gamblePreludes', 'restructuring'), [2, 0, 1], []);
     expect(bidding.done).is.false;
     expect(biddingTurnSeat(bidding)).eq(2);
     expect(() => applyBid(bidding, 0, 't0-0'), 'out of turn').throws(/not this seat's turn/);
     expect(() => applyBid(bidding, 2, 'nope'), 'not on the table').throws(/not on the table/);
     bidding = applyBid(bidding, 2, 't0-1');
     expect(biddingTurnSeat(bidding)).eq(0);
-    expect(biddingOpenCards(bidding).map((c) => c.id)).deep.eq(['gamble']);
+    expect(biddingOpenCards(bidding).map((c) => c.id)).deep.eq(['gamblePreludes']);
     bidding = applyBid(bidding, 0, 't0-0');
     expect(bidding.done).is.true;
     expect(biddingTurnSeat(bidding)).is.undefined;
     expect(() => applyBid(bidding, 1, 't0-0')).throws(/over/);
     const holdings = biddingHoldings(bidding);
-    expect(holdings.map((h) => [h.seat, h.holding.id, h.holding.place])).deep.eq([[0, 'gamble', 2], [2, 'restructuring', 1]]);
+    expect(holdings.map((h) => [h.seat, h.holding.id, h.holding.place])).deep.eq([[0, 'gamblePreludes', 2], [2, 'restructuring', 1]]);
     expect(holdings.every((h) => h.holding.status === 'held' && h.holding.wonAtSlot === 0)).is.true;
   });
 
@@ -238,12 +256,12 @@ describe('the bidding', () => {
   });
 
   it('the bot picks the moment its turn comes — by the denial order — and the humans\' turns stand', () => {
-    const bidding = openBidding(0, offer('broadPortfolio', 'additionalPrelude', 'preludeReview'), [3, 0, 1, 2], []);
+    const bidding = openBidding(0, offer('broadPortfolio', 'researchSubsidy', 'preludeReview'), [3, 0, 1, 2], []);
     const after = advanceBots(bidding, (seat) => seat === 3);
-    expect(after.offer.find((c) => c.id === 'additionalPrelude')?.takenBy).eq(3);
+    expect(after.offer.find((c) => c.id === 'researchSubsidy')?.takenBy, 'the decisive «Субсидия» is denied first').eq(3);
     expect(biddingTurnSeat(after)).eq(0);
     // Two bots in a row pick in a row.
-    const twoBots = advanceBots(openBidding(0, offer('broadPortfolio', 'additionalPrelude', 'preludeReview'), [3, 4, 0, 1], []), (s) => s >= 3);
+    const twoBots = advanceBots(openBidding(0, offer('broadPortfolio', 'researchSubsidy', 'preludeReview'), [3, 4, 0, 1], []), (s) => s >= 3);
     expect(twoBots.offer.filter((c) => c.takenBy !== undefined)).has.length(2);
     expect(biddingTurnSeat(twoBots)).eq(0);
   });

@@ -111,7 +111,7 @@ describe('campaignMapModel', () => {
       },
       bidding: {
         sourceSlot: 0,
-        offer: [{instance: 't0-0', id: 'gamble'}, {instance: 't0-1', id: 'restructuring'}],
+        offer: [{instance: 't0-0', id: 'gamblePreludes'}, {instance: 't0-1', id: 'restructuring'}],
         order: [1, 0, 2],
         lots: [],
         pointer: 0,
@@ -150,7 +150,7 @@ describe('campaignMapModel', () => {
       ],
       titles: [], bonuses: [],
     };
-    (model.missions[0] as any).bidding = {sourceSlot: 0, offer: [{instance: 't0-0', id: 'openCall', takenBy: 1}, {instance: 't0-1', id: 'gamble', withdrawn: true}], order: [1, 0, 2], lots: [], pointer: 1, done: true};
+    (model.missions[0] as any).bidding = {sourceSlot: 0, offer: [{instance: 't0-0', id: 'openCall', takenBy: 1}, {instance: 't0-1', id: 'gamblePreludes', withdrawn: true}], order: [1, 0, 2], lots: [], pointer: 1, done: true};
     const vm = buildCampaignMapVm(model);
     expect(vm.rewardMode).eq('tenders');
     expect(vm.tenderNote).include('finale');

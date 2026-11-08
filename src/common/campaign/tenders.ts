@@ -49,7 +49,7 @@ export function effectiveTenderOffer(offer: CampaignTenderOffer, seatCount: numb
 
 export type TenderId =
   | 'programExtension'
-  | 'additionalPrelude'
+  | 'targetedRequest'
   | 'restructuring'
   | 'extendedLegacy'
   | 'preludeReview'
@@ -59,9 +59,7 @@ export type TenderId =
   | 'researchSubsidy'
   | 'gamblePreludes'
   | 'gambleProjects'
-  | 'gambleCorporations'
-  /** LEGACY (never dealt since 2026-11-08 — split into the three pool gambles): kept so an older campaign's holding still reads. */
-  | 'gamble';
+  | 'gambleCorporations';
 
 /**
  * WHEN a tender speaks:
@@ -79,12 +77,14 @@ export type TenderDef = {
   id: TenderId;
   tier: TenderTier;
   window: TenderWindow;
-  /** The bot's pick order, 1 = taken first. Unique across the catalog. */
+  /**
+   * The bot's pick order, 1 = taken first — the DENIAL order: the bot takes what would help a human most. It follows
+   * the catalog's impact estimate (§4.1 / §18.6 of the design doc): the decisive first, the gambles LAST (the owner,
+   * 2026-11-08). Unique across the catalog.
+   */
   botPriority: number;
   /** The tender exists only with the Prelude expansion at the table. */
   needsPreludes: boolean;
-  /** A kind no mission deck holds any more — kept for the holdings of older campaigns, hidden from every catalog view. */
-  legacy?: boolean;
 };
 
 /**
@@ -93,28 +93,26 @@ export type TenderDef = {
  * its effect, its meta and its copy.
  */
 export const TENDER_CATALOG: Readonly<Record<TenderId, TenderDef>> = {
+  // THE TIERS by real impact at the finale's start (M€-equivalents — the design doc §18.6, the owner's review of
+  // 2026-11-08): decisive ≥ 10 · notable 5–9 · minor < 5 · gamble = high variance at a low expectation.
   programExtension: {id: 'programExtension', tier: 'decisive', window: 'legacy', botPriority: 1, needsPreludes: true},
-  additionalPrelude: {id: 'additionalPrelude', tier: 'decisive', window: 'start', botPriority: 2, needsPreludes: true},
-  restructuring: {id: 'restructuring', tier: 'notable', window: 'start', botPriority: 4, needsPreludes: false},
+  researchSubsidy: {id: 'researchSubsidy', tier: 'decisive', window: 'start', botPriority: 2, needsPreludes: false},
+  broadPortfolio: {id: 'broadPortfolio', tier: 'notable', window: 'start', botPriority: 3, needsPreludes: false},
+  openCall: {id: 'openCall', tier: 'notable', window: 'start', botPriority: 4, needsPreludes: true},
+  targetedRequest: {id: 'targetedRequest', tier: 'notable', window: 'start', botPriority: 5, needsPreludes: false},
   extendedLegacy: {id: 'extendedLegacy', tier: 'notable', window: 'legacy', botPriority: 6, needsPreludes: false},
-  preludeReview: {id: 'preludeReview', tier: 'notable', window: 'start', botPriority: 5, needsPreludes: true},
-  projectReview: {id: 'projectReview', tier: 'notable', window: 'start', botPriority: 7, needsPreludes: false},
-  researchSubsidy: {id: 'researchSubsidy', tier: 'minor', window: 'start', botPriority: 11, needsPreludes: false},
-  // THE GAMBLES (the owner, 2026-11-08): one per pool — the preludes, the projects, and the corporations the finale
-  // DRAFTS (a three-mission route; printed only when the finale picks a corporation — `tenderWindows.ts`).
-  gamblePreludes: {id: 'gamblePreludes', tier: 'gamble', window: 'start', botPriority: 8, needsPreludes: true},
-  gambleProjects: {id: 'gambleProjects', tier: 'gamble', window: 'start', botPriority: 9, needsPreludes: false},
-  gambleCorporations: {id: 'gambleCorporations', tier: 'gamble', window: 'start', botPriority: 10, needsPreludes: false},
-  gamble: {id: 'gamble', tier: 'gamble', window: 'start', botPriority: 13, needsPreludes: true, legacy: true},
-  openCall: {id: 'openCall', tier: 'notable', window: 'start', botPriority: 3, needsPreludes: true},
-  broadPortfolio: {id: 'broadPortfolio', tier: 'minor', window: 'start', botPriority: 12, needsPreludes: false},
+  restructuring: {id: 'restructuring', tier: 'notable', window: 'start', botPriority: 7, needsPreludes: false},
+  preludeReview: {id: 'preludeReview', tier: 'notable', window: 'start', botPriority: 8, needsPreludes: true},
+  projectReview: {id: 'projectReview', tier: 'minor', window: 'start', botPriority: 9, needsPreludes: false},
+  // THE GAMBLES — one per pool; the LAST the bot takes (the owner, 2026-11-08). The corporation one only where the
+  // finale DRAFTS a corporation (a three-mission route — `tenderWindows.ts`).
+  gamblePreludes: {id: 'gamblePreludes', tier: 'gamble', window: 'start', botPriority: 10, needsPreludes: true},
+  gambleProjects: {id: 'gambleProjects', tier: 'gamble', window: 'start', botPriority: 11, needsPreludes: false},
+  gambleCorporations: {id: 'gambleCorporations', tier: 'gamble', window: 'start', botPriority: 12, needsPreludes: false},
 };
 
-/** Every id the rule knows — the legacy ones included (a holding of an older campaign must still resolve). */
+/** Every kind — the mission deck holds one card of each applicable one. */
 export const TENDER_IDS: ReadonlyArray<TenderId> = Object.keys(TENDER_CATALOG) as Array<TenderId>;
-
-/** The kinds a MISSION DECK holds (one card each) — every catalog view (the stand, the balance table) shows these. */
-export const TENDER_DEALT_IDS: ReadonlyArray<TenderId> = TENDER_IDS.filter((id) => TENDER_CATALOG[id].legacy !== true);
 
 /** A gamble of any pool — the one-press redeal with the «your picks will be cleared» confirm. */
 export function isGambleTender(id: TenderId): boolean {
@@ -124,7 +122,7 @@ export function isGambleTender(id: TenderId): boolean {
 /** The printed NAME of every tender — an English i18n key (the journal and every surface speak it). */
 export const TENDER_NAME_KEY: Readonly<Record<TenderId, string>> = {
   programExtension: 'Programme Extension',
-  additionalPrelude: 'Additional Prelude',
+  targetedRequest: 'Targeted Request',
   restructuring: 'Restructuring',
   extendedLegacy: 'Extended Legacy',
   preludeReview: 'Prelude Review',
@@ -135,7 +133,6 @@ export const TENDER_NAME_KEY: Readonly<Record<TenderId, string>> = {
   gamblePreludes: 'Gamble: Preludes',
   gambleProjects: 'Gamble: Projects',
   gambleCorporations: 'Gamble: Corporations',
-  gamble: 'Gamble',
 };
 
 export function tenderNameKey(id: TenderId): string {
@@ -159,6 +156,10 @@ export const TENDER_OPEN_CALL_PRELUDES = 2;
 export const TENDER_BROAD_PORTFOLIO_PROJECTS = 4;
 /** «Реструктуризация»: how many corporations are dealt per copy. */
 export const TENDER_RESTRUCTURING_CANDIDATES = 2;
+/** «Целевой запрос»: how many project cards with the named tag join the deal per copy. */
+export const TENDER_TARGETED_REQUEST_CARDS = 3;
+/** «Субсидия на исследования»: a starting-hand card never goes below this price (the owner's floor, 2026-11-08). */
+export const TENDER_SUBSIDY_FLOOR_MC = 1;
 /** «Пересмотр прологов / проектов»: how many of the dealt cards the player may KEEP; the rest are redealt once. */
 export const TENDER_REVIEW_KEEP_MAX = 1;
 

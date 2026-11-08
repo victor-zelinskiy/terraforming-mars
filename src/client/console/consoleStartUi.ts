@@ -165,7 +165,7 @@ export type StartSceneCommandState = {
    * rest, B cancels — nothing sent) or the RESTRUCTURING (A picks in either group, RT replaces once both are chosen,
    * LT and B decline — the candidates go back).
    */
-  tenderMode?: {kind: 'review' | 'restructure', commitLabel: string, canCommit: boolean, pickLabel: string, pickEnabled: boolean},
+  tenderMode?: {kind: 'review' | 'restructure' | 'tag', commitLabel: string, canCommit: boolean, pickLabel: string, pickEnabled: boolean},
   /**
    * The press on the focused item WOULD BE REFUSED right now (`startPressRefusal` over the live signals) — the bar
    * dims A and names the wait, so a press that does nothing is never advertised.
@@ -204,7 +204,7 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
         mode.push({control: 'triggerL', label: 'Decline the restructuring'});
       }
       mode.push({control: 'secondary', label: 'Inspect'});
-      mode.push({control: 'back', label: s.tenderMode.kind === 'restructure' ? 'Decline the restructuring' : 'Cancel the review'});
+      mode.push({control: 'back', label: s.tenderMode.kind === 'restructure' ? 'Decline the restructuring' : s.tenderMode.kind === 'tag' ? 'Cancel the request' : 'Cancel the review'});
       return mode;
     }
     if (s.awaiting) {

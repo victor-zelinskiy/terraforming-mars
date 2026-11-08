@@ -11,7 +11,8 @@
 // The hosts render and route; nothing here touches the DOM or the wire.
 
 import {CardName} from '@/common/cards/CardName';
-import {isGambleTender, tenderDef, TenderId, tenderNameKey, TenderStatus, TenderWindow, TENDER_BROAD_PORTFOLIO_PROJECTS, TENDER_COMPENSATION_MC, TENDER_OPEN_CALL_PRELUDES, TENDER_RESTRUCTURING_CANDIDATES, TENDER_REVIEW_KEEP_MAX} from '@/common/campaign/tenders';
+import {Tag} from '@/common/cards/Tag';
+import {isGambleTender, tenderDef, TenderId, tenderNameKey, TenderStatus, TenderWindow, TENDER_BROAD_PORTFOLIO_PROJECTS, TENDER_COMPENSATION_MC, TENDER_OPEN_CALL_PRELUDES, TENDER_RESTRUCTURING_CANDIDATES, TENDER_REVIEW_KEEP_MAX, TENDER_TARGETED_REQUEST_CARDS} from '@/common/campaign/tenders';
 import {TenderResponse} from '@/common/inputs/InputResponse';
 import {TenderInSelectionModel} from '@/common/models/PlayerInputModel';
 import {CarryoverTenderModel} from '@/common/campaign/CampaignModel';
@@ -19,14 +20,15 @@ import {TenderCardState, tenderMeta} from './tenderMeta';
 
 export type TenderPlace = 'start' | 'threshold';
 
-/** HOW a start-window tender executes: in one press · a KEEP step on its deal · the restructuring's two answers. */
-export type TenderExecution = 'simple' | 'keep-preludes' | 'keep-projects' | 'restructure' | 'legacy';
+/** HOW a start-window tender executes: in one press · a KEEP step on its deal · the restructuring's two answers · a TAG named on the project step. */
+export type TenderExecution = 'simple' | 'keep-preludes' | 'keep-projects' | 'restructure' | 'choose-tag' | 'legacy';
 
 export function tenderExecutionOf(id: TenderId): TenderExecution {
   switch (id) {
   case 'preludeReview': return 'keep-preludes';
   case 'projectReview': return 'keep-projects';
   case 'restructuring': return 'restructure';
+  case 'targetedRequest': return 'choose-tag';
   case 'programExtension':
   case 'extendedLegacy':
     return 'legacy';
@@ -116,7 +118,7 @@ function startEntry(ctx: StartPortfolioContext, t: TenderInSelectionModel): Tend
   const base = {instance: t.instance, id, status: t.status, window: t.window};
   const done = t.status !== 'held';
   const blocked = done ? undefined : t.blocked;
-  const needsStep = execution === 'keep-preludes' || execution === 'keep-projects' || execution === 'restructure';
+  const needsStep = execution === 'keep-preludes' || execution === 'keep-projects' || execution === 'restructure' || execution === 'choose-tag';
   const state = stateOf(t.status, blocked, needsStep);
   const verbOf = (): string => {
     if (state === 'executed' || state === 'cashed') {
@@ -128,6 +130,8 @@ function startEntry(ctx: StartPortfolioContext, t: TenderInSelectionModel): Tend
       return 'Review';
     case 'restructure':
       return t.offer === undefined ? 'Deal the candidates' : 'Continue the restructuring';
+    case 'choose-tag':
+      return 'Name a tag';
     case 'legacy':
       return '';
     default:
@@ -140,16 +144,14 @@ function startEntry(ctx: StartPortfolioContext, t: TenderInSelectionModel): Tend
       return {key: 'Preludes in the deal: ${0} → ${1}', params: [n(ctx.preludesDealt), n(ctx.preludesDealt + TENDER_OPEN_CALL_PRELUDES)]};
     case 'broadPortfolio':
       return {key: 'Projects in the deal: ${0} → ${1} · buy up to ${2}', params: [n(ctx.projectsDealt), n(ctx.projectsDealt + TENDER_BROAD_PORTFOLIO_PROJECTS), n(ctx.projectsMax)]};
-    case 'additionalPrelude':
-      return {key: 'Prelude picks: ${0} → ${1} of ${2}', params: [n(ctx.preludePick), n(ctx.preludePick + 1), n(ctx.preludesDealt)]};
+    case 'targetedRequest':
+      return {key: 'Name a tag: ${0} project cards with it join the deal', params: [n(TENDER_TARGETED_REQUEST_CARDS)]};
     case 'researchSubsidy':
       return {key: 'A starting-hand card: ${0} → ${1} M€', params: [n(ctx.cardCost), n(Math.max(0, ctx.cardCost - 1))]};
     case 'preludeReview':
       return {key: 'Keep up to ${0} of ${1} preludes — the rest are redealt once', params: [n(TENDER_REVIEW_KEEP_MAX), n(ctx.preludesDealt)]};
     case 'projectReview':
       return {key: 'Keep up to ${0} of ${1} projects — the rest are redealt once', params: [n(TENDER_REVIEW_KEEP_MAX), n(ctx.projectsDealt)]};
-    case 'gamble':
-      return {key: 'Redeal everything: ${0} preludes and ${1} projects', params: [n(ctx.preludesDealt), n(ctx.projectsDealt)]};
     case 'gamblePreludes':
       return {key: 'Redeal all ${0} preludes', params: [n(ctx.preludesDealt)]};
     case 'gambleProjects':
@@ -167,14 +169,13 @@ function startEntry(ctx: StartPortfolioContext, t: TenderInSelectionModel): Tend
   const landsOn = ((): TenderPortfolioEntry['landsOn'] => {
     switch (id) {
     case 'openCall':
-    case 'additionalPrelude':
     case 'preludeReview':
-    case 'gamble':
     case 'gamblePreludes':
       return 'prelude';
     case 'broadPortfolio':
     case 'researchSubsidy':
     case 'projectReview':
+    case 'targetedRequest':
     case 'gambleProjects':
       return 'projects';
     case 'restructuring':
@@ -260,8 +261,17 @@ export function tenderRestructureDecline(instance: string): TenderResponse {
 }
 
 /** The crumb's stage while a step mode stands on a deal step (an i18n key). */
-export function tenderModeStageKey(mode: 'review' | 'restructure'): string {
-  return mode === 'review' ? 'Review' : 'Restructuring';
+export function tenderModeStageKey(mode: 'review' | 'restructure' | 'tag'): string {
+  switch (mode) {
+  case 'review': return 'Review';
+  case 'restructure': return 'Restructuring';
+  default: return 'Tag';
+  }
+}
+
+/** «Целевой запрос»: the named tag on the wire. */
+export function tenderTagResponse(instance: string, tag: Tag): TenderResponse {
+  return {type: 'tender', instance, tag};
 }
 
 export function tenderPortfolioName(id: TenderId): string {

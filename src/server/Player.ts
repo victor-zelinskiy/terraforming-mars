@@ -245,7 +245,6 @@ export class Player implements IPlayer {
   public campaignCarriedPreludes?: Array<CardName>;
   public campaignCarriedPreludesGranted: boolean = false;
   public campaignLineageOverride?: Array<CardName>;
-  public campaignPreludePickBonus: number = 0;
   public campaignStartingHandDiscount: number = 0;
 
   // Terraforming Rating
@@ -3753,7 +3752,6 @@ export class Player implements IPlayer {
       campaignCarriedPreludes: this.campaignCarriedPreludes !== undefined && this.campaignCarriedPreludes.length > 0 ? this.campaignCarriedPreludes : undefined,
       campaignCarriedPreludesGranted: this.campaignCarriedPreludesGranted === true ? true : undefined,
       campaignLineageOverride: this.campaignLineageOverride,
-      campaignPreludePickBonus: this.campaignPreludePickBonus > 0 ? this.campaignPreludePickBonus : undefined,
       campaignStartingHandDiscount: this.campaignStartingHandDiscount > 0 ? this.campaignStartingHandDiscount : undefined,
       // Terraforming Rating
       terraformRating: this.terraformRating,
@@ -3955,7 +3953,6 @@ export class Player implements IPlayer {
     player.campaignCarriedPreludes = d.campaignCarriedPreludes;
     player.campaignCarriedPreludesGranted = d.campaignCarriedPreludesGranted ?? false;
     player.campaignLineageOverride = d.campaignLineageOverride;
-    player.campaignPreludePickBonus = d.campaignPreludePickBonus ?? 0;
     player.campaignStartingHandDiscount = d.campaignStartingHandDiscount ?? 0;
 
     player.pendingInitialActions = corporationCardsFromJSON(d.pendingInitialActions ?? []);

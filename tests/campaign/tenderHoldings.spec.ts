@@ -15,7 +15,7 @@ function model(overrides: Partial<CampaignModel> = {}): CampaignModel {
     you: {seat: 0}, canLaunch: false, launchBlockers: [],
     missions: [
       {slot: 0, board: 'tharsis', final: false, state: 'committed', modifiers: [],
-        bidding: {sourceSlot: 0, offer: [{instance: 't0-0', id: 'openCall', takenBy: 1}, {instance: 't0-1', id: 'gamble', withdrawn: true}], order: [1, 0], lots: [], pointer: 1, done: true}},
+        bidding: {sourceSlot: 0, offer: [{instance: 't0-0', id: 'openCall', takenBy: 1}, {instance: 't0-1', id: 'gamblePreludes', withdrawn: true}], order: [1, 0], lots: [], pointer: 1, done: true}},
       {slot: 1, board: 'hellas', final: false, state: 'ready', modifiers: []},
       {slot: 2, board: 'elysium', final: true, state: 'locked', modifiers: []},
     ],

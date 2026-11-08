@@ -7,6 +7,7 @@
 
 import * as constants from '../../common/constants';
 import {CardName} from '../../common/cards/CardName';
+import {ALL_TAGS, Tag} from '../../common/cards/Tag';
 import {Resource} from '../../common/Resource';
 import {CampaignGameContract, CampaignGrant} from '../game/GameOptions';
 import {contractRewardMode} from '../../common/campaign/CampaignGameContract';
@@ -18,6 +19,8 @@ import {
   TENDER_COMPENSATION_MC,
   TENDER_OPEN_CALL_PRELUDES,
   TENDER_RESTRUCTURING_CANDIDATES,
+  TENDER_SUBSIDY_FLOOR_MC,
+  TENDER_TARGETED_REQUEST_CARDS,
   tenderDef,
   tenderNameKey,
   TENDER_REVIEW_KEEP_MAX,
@@ -499,8 +502,10 @@ export function campaignStartingBudget(player: IPlayer, newCorporation: ICorpora
   if (corps.length > 1) {
     megaCredits -= Merger.mergerCost * (corps.length - 1);
   }
-  // «Субсидия на исследования»: the starting hand's price per card, after every executed copy.
-  cardCost -= player.campaignStartingHandDiscount;
+  // «Субсидия на исследования»: 1 M€ off per executed copy — never below the floor (the owner, 2026-11-08: a lineage
+  // that already buys at 1 M€ — Terralabs — cannot make its hand FREE; a subsidy that would buy nothing is refused).
+  const floor = Math.min(cardCost, TENDER_SUBSIDY_FLOOR_MC);
+  cardCost = Math.max(cardCost - player.campaignStartingHandDiscount, floor);
   return {megaCredits, cardCost: Math.max(cardCost, 0)};
 }
 
@@ -585,20 +590,20 @@ export function campaignTenderWindowOpen(player: IPlayer): boolean {
 }
 
 /** How many preludes this player picks at the start: 2, plus one per executed «Дополнительный пролог». */
-export function campaignPreludePickCount(player: IPlayer): number {
-  return 2 + Math.max(0, player.campaignPreludePickBonus);
+export function campaignPreludePickCount(_player: IPlayer): number {
+  return 2;
 }
 
 /** The reasons a HELD tender cannot be executed at the finale's start — English i18n keys the certificate prints as they are. */
 export const TENDER_START_REFUSAL = {
   legacyWindow: 'Its window was the legacy step before the finale',
   needsPreludes: 'This tender needs the Prelude expansion',
-  fewPreludesDealt: 'Not enough preludes were dealt for an additional pick',
   preludeDeckShort: 'Too few preludes are left in the deck',
   projectDeckShort: 'Too few projects are left in the deck',
   corporationDeckShort: 'Too few corporations are left in the deck',
-  handAlreadyFree: 'The starting hand is already free',
+  handAtMinimum: 'A starting-hand card already costs the minimum (1 M€)',
   noCorporationDraft: 'The finale deploys your lineage — no corporation is drafted',
+  noCardWithTag: 'No project card with that tag is left in the deck',
 } as const;
 
 function deckSize(deck: {drawPile: ReadonlyArray<unknown>, discardPile: ReadonlyArray<unknown>}): number {
@@ -624,8 +629,8 @@ export function tenderStartRefusal(player: IPlayer, tender: Pick<PlayerTender, '
   const preludes = deckSize(game.preludeDeck);
   const projects = deckSize(game.projectDeck);
   switch (tender.id) {
-  case 'additionalPrelude':
-    return player.dealtPreludeCards.length < campaignPreludePickCount(player) + 1 ? TENDER_START_REFUSAL.fewPreludesDealt : undefined;
+  case 'targetedRequest':
+    return projects === 0 ? TENDER_START_REFUSAL.projectDeckShort : undefined;
   case 'openCall':
     return preludes < TENDER_OPEN_CALL_PRELUDES ? TENDER_START_REFUSAL.preludeDeckShort : undefined;
   case 'broadPortfolio':
@@ -634,11 +639,6 @@ export function tenderStartRefusal(player: IPlayer, tender: Pick<PlayerTender, '
     return preludes < Math.max(0, player.dealtPreludeCards.length - TENDER_REVIEW_KEEP_MAX) ? TENDER_START_REFUSAL.preludeDeckShort : undefined;
   case 'projectReview':
     return projects < Math.max(0, player.dealtProjectCards.length - TENDER_REVIEW_KEEP_MAX) ? TENDER_START_REFUSAL.projectDeckShort : undefined;
-  case 'gamble':
-    if (preludes < player.dealtPreludeCards.length) {
-      return TENDER_START_REFUSAL.preludeDeckShort;
-    }
-    return projects < player.dealtProjectCards.length ? TENDER_START_REFUSAL.projectDeckShort : undefined;
   case 'gamblePreludes':
     return preludes < player.dealtPreludeCards.length ? TENDER_START_REFUSAL.preludeDeckShort : undefined;
   case 'gambleProjects':
@@ -652,7 +652,7 @@ export function tenderStartRefusal(player: IPlayer, tender: Pick<PlayerTender, '
   case 'restructuring':
     return tender.offer === undefined && deckSize(game.corporationDeck) < TENDER_RESTRUCTURING_CANDIDATES ? TENDER_START_REFUSAL.corporationDeckShort : undefined;
   case 'researchSubsidy':
-    return campaignStartingBudget(player, undefined).cardCost <= 0 ? TENDER_START_REFUSAL.handAlreadyFree : undefined;
+    return campaignStartingBudget(player, undefined).cardCost <= TENDER_SUBSIDY_FLOOR_MC ? TENDER_START_REFUSAL.handAtMinimum : undefined;
   default:
     return undefined;
   }
@@ -672,6 +672,29 @@ function redealInPlace<T extends {name: CardName}>(
   discard(gone);
   dealt.splice(0, dealt.length, ...kept, ...fresh);
   void game;
+}
+
+/**
+ * «ЦЕЛЕВОЙ ЗАПРОС» — the project cards with the named tag come out of the deck AS IT LIES: the draw pile from its top,
+ * then the discards; up to `count`. The rest of the deck keeps its order (nothing is revealed to anyone — the start's
+ * deal is the player's own).
+ */
+function drawProjectsWithTag(game: IGame, tag: Tag, count: number): Array<IProjectCard> {
+  const found: Array<IProjectCard> = [];
+  for (const pile of [game.projectDeck.drawPile, game.projectDeck.discardPile]) {
+    for (let i = pile.length - 1; i >= 0 && found.length < count; i--) {
+      if (pile[i].tags.includes(tag)) {
+        found.push(...pile.splice(i, 1));
+      }
+    }
+  }
+  return found;
+}
+
+/** The tags a «Целевой запрос» may name — a printed card tag, never the wild / clone / event markers. */
+export function isRequestableTag(value: unknown): value is Tag {
+  return typeof value === 'string' && (ALL_TAGS as ReadonlyArray<string>).includes(value) &&
+    value !== Tag.WILD && value !== Tag.CLONE && value !== Tag.EVENT;
 }
 
 function keepSetOf(response: TenderResponse, dealt: ReadonlyArray<{name: CardName}>, keepMax: number): Set<CardName> {
@@ -713,9 +736,17 @@ export function executeTender(player: IPlayer, response: TenderResponse): void {
   const drawPreludes = (n: number) => game.preludeDeck.drawN(game, n);
   const drawProjects = (n: number) => game.projectDeck.drawN(game, n);
   switch (tender.id) {
-  case 'additionalPrelude':
-    player.campaignPreludePickBonus++;
+  case 'targetedRequest': {
+    if (!isRequestableTag(response.tag)) {
+      throw new InputError('Name a tag for the request');
+    }
+    const found = drawProjectsWithTag(game, response.tag, TENDER_TARGETED_REQUEST_CARDS);
+    if (found.length === 0) {
+      throw new InputError(TENDER_START_REFUSAL.noCardWithTag);
+    }
+    player.dealtProjectCards.push(...found);
     break;
+  }
   case 'openCall':
     player.dealtPreludeCards.push(...drawPreludes(TENDER_OPEN_CALL_PRELUDES));
     break;
@@ -735,10 +766,6 @@ export function executeTender(player: IPlayer, response: TenderResponse): void {
     redealInPlace<IProjectCard>(game, player.dealtProjectCards, keep, drawProjects, (cards) => game.projectDeck.discard(...cards));
     break;
   }
-  case 'gamble':
-    redealInPlace<IPreludeCard>(game, player.dealtPreludeCards, new Set(), drawPreludes, (cards) => game.preludeDeck.discard(...cards));
-    redealInPlace<IProjectCard>(game, player.dealtProjectCards, new Set(), drawProjects, (cards) => game.projectDeck.discard(...cards));
-    break;
   case 'gamblePreludes':
     redealInPlace<IPreludeCard>(game, player.dealtPreludeCards, new Set(), drawPreludes, (cards) => game.preludeDeck.discard(...cards));
     break;

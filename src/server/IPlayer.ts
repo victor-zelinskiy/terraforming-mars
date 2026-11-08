@@ -301,8 +301,6 @@ export interface IPlayer {
    * contract's lineage.
    */
   campaignLineageOverride?: Array<CardName>;
-  /** Campaign «Тендеры»: «Дополнительный пролог» copies executed — each raises the prelude pick by one. */
-  campaignPreludePickBonus: number;
   /** Campaign «Тендеры»: «Субсидия на исследования» copies executed — each takes 1 M€ off every starting-hand card. */
   campaignStartingHandDiscount: number;
 

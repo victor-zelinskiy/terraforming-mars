@@ -855,6 +855,71 @@
   }
 }
 
+/* ── «ЦЕЛЕВОЙ ЗАПРОС» (§18.6): the TAG ROW over the project step's strip — a line of tag medallions with their names;
+   the cursor is the console's one ring, the named tag a kant and a word. The strip under it keeps its cards (the
+   request ADDS three); the row takes its room by the mode's padding, never by covering a card. ── */
+.con-start .con-cards { position: relative; }
+.con-cards--tagmode { padding-top: 3.9rem; }
+.con-tagpick {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .45rem;
+  padding: .3rem 1rem 0;
+  &__cap {
+    font-family: @con-font;
+    font-size: .58rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: rgba(214, 223, 233, 0.62);
+  }
+  &__row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: .55rem .7rem;
+  }
+  &__chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .28rem .7rem .28rem .32rem;
+    border-radius: 1.2rem;
+    background: rgba(16, 24, 34, 0.78);
+    box-shadow: inset 0 0 0 .05rem rgba(125, 142, 163, 0.32);
+    font-family: @con-font;
+    font-size: .66rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #dfe8f2;
+    .con-cursor(inset 0 0 0 .14rem @con-cyan; 1.2rem; none; 3; after);
+    &--focused { .con-cursor-on(); }
+    /* the NAMED tag — a kant and a check, never light */
+    &--picked {
+      background: rgba(24, 38, 54, 0.92);
+      box-shadow: inset 0 0 0 .1rem fade(@con-amber, 85%);
+      .con-tagpick__name::after { content: ' ✓'; }
+    }
+  }
+  &__icon {
+    display: inline-block;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.35);
+  }
+  &__name { white-space: nowrap; }
+}
+
 /* ── THE DOCK's «ТЕНДЕРЫ» block — the portfolio's HOME on the selection shelf: every holding as its chip with the
    status, the executed count. A chip answers its execution with the stamp's one-shot. ── */
 .con-startdock__tenders {

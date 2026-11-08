@@ -112,7 +112,7 @@ import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {CampaignSeat} from '@/common/campaign/CampaignTypes';
 import {
-  BiddingState, CAMPAIGN_TENDER_OFFERS, CampaignTenderOffer, TENDER_CATALOG, TENDER_DEALT_IDS, TenderDef, TenderId,
+  BiddingState, CAMPAIGN_TENDER_OFFERS, CampaignTenderOffer, TENDER_CATALOG, TENDER_IDS, TenderDef, TenderId,
   biddingOfferSize, biddingOpenCards, biddingPickers, biddingTurnSeat, botTenderPick, effectiveTenderOffer, tenderDef,
 } from '@/common/campaign/tenders';
 import {SeededRandom} from '@/common/utils/Random';
@@ -175,8 +175,8 @@ export default defineComponent({
   },
   computed: {
     catalog(): ReadonlyArray<CatalogEntry> {
-      // The kinds a mission deck holds — a legacy id (the undivided «Авантюра») is kept for older holdings only.
-      return TENDER_DEALT_IDS.map((id) => {
+      // The kinds a mission deck holds — one card of each.
+      return TENDER_IDS.map((id) => {
         const def = TENDER_CATALOG[id];
         return {...tenderMeta(id), tier: def.tier, botPriority: def.botPriority, needsPreludes: def.needsPreludes};
       });
@@ -189,7 +189,7 @@ export default defineComponent({
     },
     /** The mission deck under the current applicability — one card of every applicable kind. */
     deckSize(): number {
-      return TENDER_DEALT_IDS.filter((id) => this.applicable(id)).length;
+      return TENDER_IDS.filter((id) => this.applicable(id)).length;
     },
     offerLabel(): string {
       return campaignTenderOfferLabel(effectiveTenderOffer(this.offerRule, this.seatCount));

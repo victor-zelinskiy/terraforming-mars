@@ -67,7 +67,7 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await launchMission(request, id);
     await devCommit(request, id, [0, 1], {
       lineages: {0: ['Ecoline'], 1: ['Helion']},
-      tenders: {0: ['openCall', 'preludeReview', 'restructuring', 'researchSubsidy']},
+      tenders: {0: ['openCall', 'preludeReview', 'restructuring', 'researchSubsidy', 'targetedRequest']},
     });
     await launchMission(request, id);
     // Mission 2's grant is stated too: a fixture with NO `tenders` opens the real bidding and resolves it by the bot's
@@ -91,7 +91,7 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
 
     // ── THE PORTFOLIO stands FIRST: four certificates, the first focused, its reading in the deal's numbers, the bar its verb. ──
     await expect(portfolio).toBeVisible();
-    await expect(page.locator('[data-tport-slot]')).toHaveCount(4);
+    await expect(page.locator('[data-tport-slot]')).toHaveCount(5);
     await expect.poll(subject, {timeout: 5_000}).toMatch(/тендер/i);
     await expect(slot('openCall')).toHaveAttribute('data-tport-focused', 'yes');
     await expect(slot('openCall')).toHaveAttribute('data-tport-state', 'ready');
@@ -99,8 +99,8 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     expect(dealt, 'a prelude deal stands').toBeGreaterThanOrEqual(2);
     await expect(page.locator('[data-tport-reading]')).toContainText(`${dealt} → ${dealt + 2}`);
     await expect.poll(bar, {timeout: 5_000, message: 'A is the certificate\'s verb'}).toMatch(/исполнить/i);
-    // The dock carries the portfolio's home: four chips, all held.
-    await expect(page.locator('[data-tender-dock-chip]')).toHaveCount(4);
+    // The dock carries the portfolio's home: five chips, all held.
+    await expect(page.locator('[data-tender-dock-chip]')).toHaveCount(5);
 
     // ── «Открытый конкурс»: ONE press — the screen travels to the prelude step, the deal grows by two there, the chip takes its stamp. ──
     await press(page, 'Enter', 900);
@@ -139,6 +139,35 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await expect(page.locator(`.con-cards__slot--picked[data-zoom-slot="${kept}"]`)).toHaveCount(1);
     await waitStepDealSettled(page);
 
+    // ── «Целевой запрос» (§18.6): A travels to the PROJECT step in its TAG mode — a row of tags over the strip; A names
+    //    the focused tag, RT asks the Committee: three cards with that tag come off the deck INTO the deal. ──
+    expect(await pressUntil(page, 'Comma', async () => /корпорац|слияни/i.test(await subject()), {tries: 4, settleMs: 900}), 'LT to the corporation step').toBe(true);
+    await waitStepDealSettled(page);
+    expect(await pressUntil(page, 'Comma', async () => await portfolio.isVisible(), {tries: 4, settleMs: 900}), 'LT to the portfolio').toBe(true);
+    for (let i = 0; i < 4; i++) {
+      await press(page, 'ArrowRight', 250);
+    }
+    await expect(slot('targetedRequest')).toHaveAttribute('data-tport-focused', 'yes');
+    await expect.poll(bar, {timeout: 5_000}).toMatch(/назвать метку/i);
+    const projectsBefore = stepCards(await model(request, aliceId!), /buy|project/i).length;
+    expect(projectsBefore, 'the project deal stands').toBeGreaterThan(0);
+    await press(page, 'Enter', 900);
+    await expect.poll(subject, {timeout: 8_000, message: 'the travel to the project step'}).toMatch(/проект/i);
+    await expect(page.locator('[data-tender-mode="tag"]')).toHaveCount(1, {timeout: 10_000});
+    await expect.poll(crumb, {timeout: 5_000}).toMatch(/метк/i);
+    const tags = page.locator('[data-tender-mode="tag"] [data-tender-tag]');
+    expect(await tags.count(), 'the printed tags of the table').toBeGreaterThanOrEqual(8);
+    await expect.poll(bar, {timeout: 5_000}).toMatch(/выбрать эту метку/i);
+    await press(page, 'Enter', 300);
+    await expect(page.locator('[data-tender-mode="tag"] [data-tender-mode-picked="yes"]')).toHaveCount(1);
+    const named = await page.locator('[data-tender-mode="tag"] [data-tender-mode-picked="yes"]').getAttribute('data-tender-tag');
+    await press(page, 'Period', 900);
+    await expect.poll(async () => stepCards(await model(request, aliceId!), /buy|project/i).length, {timeout: 10_000, message: `three ${named} cards joined the deal`}).toBe(projectsBefore + 3);
+    await expect(page.locator('[data-tender-mode="tag"]')).toHaveCount(0, {timeout: 10_000});
+    await waitStepDealSettled(page);
+    await expect(page.locator(`[data-step-slot^="projects|"]`)).toHaveCount(projectsBefore + 3);
+    await expect(page.locator('[data-tender-dock-chip][data-tender-dock-status="executed"]')).toHaveCount(3);
+
     // ── «Реструктуризация»: A deals two candidates, the corporation step opens its mode by itself; A picks the candidate
     //    and the lineage corporation; RT rewrites the lineage. ──
     expect(await pressUntil(page, 'Comma', async () => /корпорац|слияни/i.test(await subject()), {tries: 4, settleMs: 900}), 'LT to the corporation step').toBe(true);
@@ -163,7 +192,7 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await press(page, 'Period', 900);
     await expect.poll(async () => (await model(request, aliceId!)).campaignLineage?.[0], {timeout: 10_000}).toBe(take);
     await expect(page.locator('[data-tender-mode="restructure"]')).toHaveCount(0);
-    await expect(page.locator('[data-tender-dock-chip][data-tender-dock-status="executed"]')).toHaveCount(3);
+    await expect(page.locator('[data-tender-dock-chip][data-tender-dock-status="executed"]')).toHaveCount(4);
 
     // ── The corporation step is the ordinary selection again: its deal lands, the pick is made. ──
     await waitStepDealSettled(page);
@@ -179,7 +208,7 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     expect(await pressUntil(page, 'Period', async () => /проект/i.test(await subject()), {tries: 4, settleMs: 900}), 'RT to the projects').toBe(true);
     await waitStepDealSettled(page);
     expect(await pressUntil(page, 'Period', async () => await page.locator('.con-start__summary').isVisible(), {tries: 4, settleMs: 1200}), 'RT to the summary').toBe(true);
-    await expect(page.locator('[data-summary-tenders]')).toContainText('3/4');
+    await expect(page.locator('[data-summary-tenders]')).toContainText('4/5');
 
     // ── THE TERMINAL WARNING: «Субсидия» is still open — the first A warns, the second begins. ──
     await finishSelectionOverApi(request, brunoId!);
@@ -207,7 +236,7 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await expect.poll(() => page.locator('[data-tender-compensation]').count(), {timeout: 10_000}).toBe(0);
     const after = await model(request, aliceId!);
     expect(after.thisPlayer.megacredits - mcBeforePress, 'the Committee paid exactly 3 M€ on the compensation press').toBe(3);
-    expect((after.campaignTenders ?? []).filter((t) => t.status === 'executed').map((t) => t.id).sort()).toEqual(['openCall', 'preludeReview', 'restructuring']);
+    expect((after.campaignTenders ?? []).filter((t) => t.status === 'executed').map((t) => t.id).sort()).toEqual(['openCall', 'preludeReview', 'restructuring', 'targetedRequest']);
   });
   test('the creator\'s reward dial: «Награды за миссии» heads the rules deck — ◄ ► and A flip titles ↔ tenders, the launch panel names the choice', async ({page}) => {
     test.setTimeout(180_000);

@@ -26,6 +26,7 @@ import {reactive} from 'vue';
 import * as constants from '@/common/constants';
 import {CAMPAIGN_MERGE_COST, campaignFinalePicksCorporation} from '@/common/campaign/CampaignTypes';
 import {CardName} from '@/common/cards/CardName';
+import {Tag} from '@/common/cards/Tag';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {PlayerInputModel, SelectCardModel, SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
@@ -65,7 +66,9 @@ export const TENDERS_STEP_INPUT = {
  */
 export type StartTenderMode =
   | {kind: 'review', instance: string, pool: 'prelude' | 'projects', keep?: CardName}
-  | {kind: 'restructure', instance: string, offer: ReadonlyArray<CardName>, take?: CardName, replace?: CardName};
+  | {kind: 'restructure', instance: string, offer: ReadonlyArray<CardName>, take?: CardName, replace?: CardName}
+  /** «Целевой запрос» on the project step: the tag the three requested cards will carry. */
+  | {kind: 'tag', instance: string, tag?: Tag};
 
 /**
  * The Game Start Workspace's FLOW STATE — the one motion director's phase.

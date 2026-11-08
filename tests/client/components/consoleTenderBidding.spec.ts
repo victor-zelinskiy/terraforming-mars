@@ -19,7 +19,7 @@ const SEATS: Array<CampaignSeat> = [
 function bidding(overrides: Partial<BiddingModel> = {}): BiddingModel {
   return {
     sourceSlot: 0,
-    offer: [{instance: 't0-0', id: 'gamble'}, {instance: 't0-1', id: 'restructuring'}],
+    offer: [{instance: 't0-0', id: 'gamblePreludes'}, {instance: 't0-1', id: 'restructuring'}],
     order: [1, 0, 2],
     lots: [{seats: [1, 0], order: [1, 0]}],
     pointer: 0,
@@ -83,11 +83,11 @@ describe('ConsoleTenderBidding', () => {
 
   it('on the viewer\'s turn A on an open lot emits the bid; X opens the TABLE in the one fullscreen viewer (the focused lot first, its stamps as they stand); B leaves', async () => {
     // The bot picked first (the order's head); the turn is now yours (seat 1).
-    const wrapper = mountScene({bidding: bidding({yourTurn: true, offer: [{instance: 't0-0', id: 'gamble', takenBy: 2}, {instance: 't0-1', id: 'restructuring'}], order: [2, 1, 0], pointer: 1})});
+    const wrapper = mountScene({bidding: bidding({yourTurn: true, offer: [{instance: 't0-0', id: 'gamblePreludes', takenBy: 2}, {instance: 't0-1', id: 'restructuring'}], order: [2, 1, 0], pointer: 1})});
     (wrapper.vm as any).endReveal();
     await wrapper.vm.$nextTick();
     // The bot's pick stands presented on a settled mount.
-    (wrapper.vm as any).onSlotAnimationEnd({animationName: 'con-tender-taking'}, {instance: 't0-0', id: 'gamble', takenBy: 2}, 0);
+    (wrapper.vm as any).onSlotAnimationEnd({animationName: 'con-tender-taking'}, {instance: 't0-0', id: 'gamblePreludes', takenBy: 2}, 0);
     await wrapper.vm.$nextTick();
     expect(tenderBiddingUi.commands.some((c) => c.control === 'confirm' && c.enabled !== false)).is.true;
     (wrapper.vm as any).handleIntent(nav('right'));
@@ -118,12 +118,12 @@ describe('ConsoleTenderBidding', () => {
     expect(wrapper.emitted('bid')).is.undefined;
     expect(wrapper.find('[data-bidding-status]').text()).contains('Bruno');
     // Bruno's pick arrives by the push.
-    await wrapper.setProps({bidding: bidding({offer: [{instance: 't0-0', id: 'gamble', takenBy: 1}, {instance: 't0-1', id: 'restructuring'}], pointer: 1, yourTurn: false})});
+    await wrapper.setProps({bidding: bidding({offer: [{instance: 't0-0', id: 'gamblePreludes', takenBy: 1}, {instance: 't0-1', id: 'restructuring'}], pointer: 1, yourTurn: false})});
     await wrapper.vm.$nextTick();
     const slot = wrapper.find('[data-bidding-card="t0-0"]');
     expect(slot.classes()).includes('con-bidding__slot--taking');
     // The taking's own end lands the stamp.
-    (wrapper.vm as any).onSlotAnimationEnd({animationName: 'con-tender-taking'}, {instance: 't0-0', id: 'gamble', takenBy: 1}, 0);
+    (wrapper.vm as any).onSlotAnimationEnd({animationName: 'con-tender-taking'}, {instance: 't0-0', id: 'gamblePreludes', takenBy: 1}, 0);
     await wrapper.vm.$nextTick();
     expect(wrapper.find('[data-bidding-card="t0-0"]').classes()).includes('con-bidding__slot--taken');
     expect(wrapper.find('[data-bidding-card="t0-0"] .con-tender__stamp--owner').exists()).is.true;
@@ -131,7 +131,7 @@ describe('ConsoleTenderBidding', () => {
 
   it('a settled mount shows every past pick stamped and a done bidding says so', () => {
     const wrapper = mountScene({bidding: bidding({
-      offer: [{instance: 't0-0', id: 'gamble', takenBy: 1}, {instance: 't0-1', id: 'restructuring', takenBy: 0}],
+      offer: [{instance: 't0-0', id: 'gamblePreludes', takenBy: 1}, {instance: 't0-1', id: 'restructuring', takenBy: 0}],
       pointer: 2, done: true,
     })});
     expect(wrapper.findAll('.con-bidding__slot--taken')).has.length(2);

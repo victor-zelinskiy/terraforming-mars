@@ -159,7 +159,21 @@
                 </div>
               </section>
             </div>
-            <div v-else class="con-cards">
+            <div v-else class="con-cards" :class="{'con-cards--tagmode': st.id === 'projects' && tagMode !== undefined}">
+              <!-- «ЦЕЛЕВОЙ ЗАПРОС» (§18.6): the tag row stands over the project step's own strip — ◀ ▶ walk the tags,
+                   A names one, RT asks the Committee; the three cards come off the deck into the strip below. -->
+              <div v-if="st.id === 'projects' && tagMode !== undefined" class="con-tagpick" data-tender-mode="tag">
+                <div class="con-tagpick__cap">{{ $t('Tag of the three requested cards') }}</div>
+                <div class="con-tagpick__row">
+                  <div v-for="(tag, i) in requestTags" :key="tag"
+                       class="con-tagpick__chip"
+                       :class="{'con-tagpick__chip--focused': railPos === si && focusIdx === i, 'con-tagpick__chip--picked': tagMode.tag === tag}"
+                       :data-tender-tag="tag" :data-tender-mode-picked="tagMode.tag === tag ? 'yes' : undefined">
+                    <i class="con-tagpick__icon" :style="tagIconStyle(tag)" aria-hidden="true"></i>
+                    <span class="con-tagpick__name">{{ tagLabel(tag) }}</span>
+                  </div>
+                </div>
+              </div>
               <div class="con-cards__strip"
                    :class="{
                      'con-cards__strip--grid': st.input.cards.length > 6,
@@ -174,7 +188,7 @@
                      :data-zoom-slot="railPos === si ? card.name : undefined"
                      :data-step-slot="st.id + '|' + card.name"
                      :class="{
-                       'con-cards__slot--focused': railPos === si && focusIdx === i,
+                       'con-cards__slot--focused': railPos === si && focusIdx === i && !(st.id === 'projects' && tagMode !== undefined),
                        'con-cards__slot--picked': stepPicked(st, card.name),
                        'con-cards__slot--dim': railPos === si && dimUnpicked && !stepPicked(st, card.name) && reviewKeep === undefined,
                        'con-cards__slot--keep': railPos === si && reviewKeep === card.name,
@@ -1418,7 +1432,11 @@ import ConsoleTenderChip from '@/client/components/console/campaign/ConsoleTende
 import {
   StartPortfolioContext, TenderPortfolioEntry, tenderExecutionOf, tenderModeStageKey, tenderPortfolio, tenderPortfolioCounts,
   tenderCardStateOf, tenderPortfolioName, tenderPressResponse, tenderRestructureDecline, tenderRestructureResponse, tenderReviewResponse,
+  tenderTagResponse,
 } from '@/client/console/campaign/tenderPortfolio';
+import {ALL_TAGS, Tag} from '@/common/cards/Tag';
+import {tagIconStyle} from '@/client/components/premiumCard/premiumCardIcons';
+import {tagLabel} from '@/client/cards/tagLabel';
 import {tenderZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {TenderResponse} from '@/common/inputs/InputResponse';
 import {TENDER_COMPENSATION_MC, TenderId, isGambleTender} from '@/common/campaign/tenders';
@@ -1573,6 +1591,10 @@ const START_REACTOR_FACE_WAIT_MS = 2400;
 
 /** The deployment refuses a press while its destination is not ready / the funnel is busy (the input-absorb ledger). */
 const START_PRESS_ABSORBER = 'start-press-refusal';
+/** THE INPUT LOCK's gate on the ledger: a press while the start's motion director is busy (a dock flight, the summary's
+ *  arrival, the commit round trip, the materialization) is a DELIBERATE swallow — noted, so a driver retries once the
+ *  motion lets go instead of reading a screen that never saw the press (the e2e flake class ①, 2026-11-08). */
+const START_FLOW_ABSORBER = 'start-flow-motion';
 
 export default defineComponent({
   name: 'ConsoleStartScene',
@@ -1614,6 +1636,7 @@ export default defineComponent({
       pressRefusal: '' as string,
       /** The input-absorb ledger's registration of the press-refusal gate (`inputAbsorb.ts`). */
       absorbOff: undefined as (() => void) | undefined,
+      flowAbsorbOff: undefined as (() => void) | undefined,
       /**
        * The prelude the player COMMITTED knowing its effect would not happen.
        * Latched (not derived): by the time the beat is shown the card has left
@@ -4166,6 +4189,28 @@ export default defineComponent({
       const mode = this.state.tenderMode;
       return mode !== undefined && mode.kind === 'restructure' ? mode : undefined;
     },
+    /** «Целевой запрос»'s mode — the tag row over the project step's strip. */
+    tagMode(): Extract<StartTenderMode, {kind: 'tag'}> | undefined {
+      const mode = this.state.tenderMode;
+      return mode !== undefined && mode.kind === 'tag' ? mode : undefined;
+    },
+    /** The tags a request may name here — the printed card tags of the expansions at the table (never wild / clone / event). */
+    requestTags(): ReadonlyArray<Tag> {
+      const o = this.playerView.game.gameOptions;
+      return ALL_TAGS.filter((tag) => {
+        switch (tag) {
+        case Tag.WILD:
+        case Tag.CLONE:
+        case Tag.EVENT:
+          return false;
+        case Tag.VENUS: return o.expansions.venus === true;
+        case Tag.MOON: return o.expansions.moon === true;
+        case Tag.CRIME: return o.expansions.underworld === true;
+        case Tag.MARS: return o.expansions.pathfinders === true;
+        default: return true;
+        }
+      });
+    },
     restructureOfferCards(): ReadonlyArray<CardModel> {
       return (this.restructureMode?.offer ?? []).map((name) => ({name}) as CardModel);
     },
@@ -4177,14 +4222,23 @@ export default defineComponent({
       if (this.tendersStepCurrent) {
         return this.portfolioEntries.length;
       }
+      if (this.tagMode !== undefined && this.currentStep?.id === 'projects') {
+        return this.requestTags.length;
+      }
       if (this.restructureMode !== undefined && this.currentStep?.id === 'corp') {
         return this.restructureOfferCards.length + this.restructureLineageCards.length;
       }
       return this.stepEntries.length;
     },
     /** The bar's facts while a tender's mode stands on a deal step. */
-    tenderModeFacts(): {kind: 'review' | 'restructure', commitLabel: string, canCommit: boolean, pickLabel: string, pickEnabled: boolean} | undefined {
+    tenderModeFacts(): {kind: 'review' | 'restructure' | 'tag', commitLabel: string, canCommit: boolean, pickLabel: string, pickEnabled: boolean} | undefined {
       const busy = this.state.tenderBusy !== undefined;
+      const tagMode = this.tagMode;
+      if (tagMode !== undefined && this.currentStep?.id === 'projects') {
+        const focused = this.requestTags[this.focusIdx];
+        return {kind: 'tag', commitLabel: 'Request the three cards', canCommit: !busy && tagMode.tag !== undefined,
+          pickLabel: focused !== undefined && tagMode.tag === focused ? 'Unpick' : 'Choose this tag', pickEnabled: focused !== undefined && !busy};
+      }
       const review = this.reviewMode;
       if (review !== undefined) {
         const focused = this.stepEntries[this.focusIdx]?.name;
@@ -5463,6 +5517,9 @@ export default defineComponent({
   },
   mounted() {
     this.absorbOff = registerInputAbsorber(START_PRESS_ABSORBER, () => this.pressBlockedNow !== undefined);
+    // Every button, the d-pad too (`handleIntent` returns on ANY intent while the director moves) — a deal in flight is the
+    // skip's, not a swallow.
+    this.flowAbsorbOff = registerInputAbsorber(START_FLOW_ABSORBER, () => startFlowBusy() && !this.deal.state.active, {scope: 'all'});
     this.$nextTick(() => this.observeQueueBox());
     // THE START IS A REACTOR'S PLACE (PL-1098 — TR84 Titan Holdings answers its OWN play): a corporation the ceremony
     // carries (the queue → the shelf «РАЗЫГРАНО» → the seat «Источник») may be in no painted place at the very moment its
@@ -5662,6 +5719,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.absorbOff?.();
+    this.flowAbsorbOff?.();
     queueBoxObserver?.disconnect();
     queueBoxObserver = undefined;
     queueBoxObserved = undefined;
@@ -6405,8 +6463,10 @@ export default defineComponent({
       // THE INPUT LOCK: while the director is mid-motion (dock flights, the
       // commit round trip, the materialization, the final release) every
       // press is absorbed — a repeat A cannot double-fire, LT/RT cannot fork
-      // a flight, B cannot tear down a surface a proxy is flying over.
+      // a flight, B cannot tear down a surface a proxy is flying over. The swallow is NOTED (the ledger): a press that
+      // landed inside the summary's arrival beat is retried by a driver once the motion lets go, never read as taken.
       if (startFlowBusy()) {
+        noteInputAbsorbed(START_FLOW_ABSORBER);
         return;
       }
       // THE «ЭФФЕКТЫ» LAYER owns the pad while it stands; R3 on the standing first-action briefing opens it (TR81 — the
@@ -6892,6 +6952,9 @@ export default defineComponent({
       case 'keep-projects':
         void this.enterReviewMode(entry.instance, 'projects');
         return;
+      case 'choose-tag':
+        void this.enterTagMode(entry.instance);
+        return;
       case 'restructure': {
         const live = (this.wizardInput?.tenders ?? []).find((t) => t.instance === entry.instance);
         if (live?.offer !== undefined) {
@@ -6967,8 +7030,22 @@ export default defineComponent({
       await this.travelToStep('corp');
       this.focusIdx = 0;
     },
-    /** A in a mode: the review's keep toggle · the restructuring's candidate / lineage pick. */
+    /** «Целевой запрос»: the project step opens with the tag row; the first tag under the cursor. */
+    async enterTagMode(instance: string): Promise<void> {
+      await this.travelToStep('projects');
+      this.state.tenderMode = {kind: 'tag', instance};
+      this.focusIdx = 0;
+    },
+    /** A in a mode: the review's keep toggle · the restructuring's candidate / lineage pick · the request's tag. */
     toggleTenderModePick(): void {
+      const tagMode = this.tagMode;
+      if (tagMode !== undefined) {
+        const tag = this.requestTags[this.focusIdx];
+        if (tag !== undefined) {
+          this.state.tenderMode = {...tagMode, tag: tagMode.tag === tag ? undefined : tag};
+        }
+        return;
+      }
       const review = this.reviewMode;
       if (review !== undefined) {
         const name = this.stepEntries[this.focusIdx]?.name;
@@ -6997,6 +7074,15 @@ export default defineComponent({
     /** RT in a mode: the ONE commit — the review's redeal, the restructuring's replacement. */
     commitTenderMode(): void {
       if (this.state.tenderBusy !== undefined) {
+        return;
+      }
+      const tagMode = this.tagMode;
+      if (tagMode !== undefined) {
+        if (tagMode.tag !== undefined) {
+          // The three cards LAND on the project step like any widening of the deal (the incremental deal flies only them).
+          this.tenderLanding = {instance: tagMode.instance, step: 'projects'};
+          this.submitTender(tenderTagResponse(tagMode.instance, tagMode.tag));
+        }
         return;
       }
       const review = this.reviewMode;
@@ -7089,6 +7175,8 @@ export default defineComponent({
         },
       });
     },
+    tagIconStyle,
+    tagLabel,
     /** The dock chip of an executed tender takes the stamp — a one-shot class the CSS keyframe reads. */
     stampDockChip(instance: string): void {
       if (this.dockStampTimer !== undefined) {

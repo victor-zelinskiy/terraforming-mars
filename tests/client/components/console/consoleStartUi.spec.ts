@@ -183,6 +183,10 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(restructure.find((c) => c.control === 'triggerR')?.enabled, 'RT waits for both picks').to.eq(false);
     expect(labelOf(restructure, 'triggerL')).to.eq('Decline the restructuring');
     expect(labelOf(restructure, 'back')).to.eq('Decline the restructuring');
+    const request = startSceneCommands(state({tenderMode: {kind: 'tag', commitLabel: 'Request the three cards', canCommit: false, pickLabel: 'Choose this tag', pickEnabled: true}}));
+    expect(request.map((c) => c.control)).to.deep.eq(['confirm', 'triggerR', 'secondary', 'back']);
+    expect(request.find((c) => c.control === 'triggerR')?.enabled, 'RT waits for a named tag').to.eq(false);
+    expect(labelOf(request, 'back')).to.eq('Cancel the request');
     // The legacy stage is a read again: X and one-level B, no tender verb.
     const stage = startSceneCommands(state({legacyAvailable: true, legacyOverview: true}));
     expect(stage.map((c) => c.control)).to.deep.eq(['secondary', 'back']);

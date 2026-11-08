@@ -1,4 +1,5 @@
 import {CardName} from '../cards/CardName';
+import {Tag} from '../cards/Tag';
 import {ColonyName} from '../colonies/ColonyName';
 import {Color, ColorWithNeutral} from '../Color';
 import {GlobalEventName} from '../turmoil/globalEvents/GlobalEventName';
@@ -68,13 +69,15 @@ export interface TenderResponse {
   take?: CardName;
   replace?: CardName;
   decline?: boolean;
+  /** «Целевой запрос»: the tag the three requested project cards carry. */
+  tag?: Tag;
 }
 
 export function isTenderResponse(response: InputResponse): response is TenderResponse {
   if (response.type !== 'tender') {
     return false;
   }
-  const allowed = ['type', 'instance', 'keep', 'take', 'replace', 'decline'];
+  const allowed = ['type', 'instance', 'keep', 'take', 'replace', 'decline', 'tag'];
   const keys = Object.keys(response);
   return keys.includes('instance') && keys.every((k) => allowed.includes(k));
 }
