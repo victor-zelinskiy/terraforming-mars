@@ -72,6 +72,7 @@ import {
   PremiumRuleMeta,
 } from '@/client/components/create/premium/createGameMeta';
 import {secondShiftMaxCap, secondShiftRuleApplies} from '@/common/automa/SecondShift';
+import {isLongMapForBot} from '@/common/automa/botPace';
 import {CAMPAIGN_MODIFIER_CHANCES, CampaignModifierChance} from '@/common/campaign/missionModifiers';
 import {CAMPAIGN_MISSION_COUNTS, MissionModifierId} from '@/common/campaign/CampaignTypes';
 
@@ -405,9 +406,13 @@ export function toggleBotExtraCorporations(): void {
   setBotExtraCorporations(!createGameState.config.botExtraCorporations);
 }
 
-/** The creator's reading of the rule for the CURRENT difficulty: the most it can ever draw in one generation (the ladder's top rung). */
+/**
+ * The creator's reading of the rule for the CURRENT difficulty: the most it can ever draw in one generation (the
+ * ladder's top rung — one higher when a LONG map is pinned, `isLongMapForBot`).
+ */
 export function botSecondShiftCap(): number {
-  return secondShiftMaxCap(createGameState.config.botDifficulty);
+  const longMap = createGameState.config.mapMode === 'specific' && isLongMapForBot(createGameState.config.mapId);
+  return secondShiftMaxCap(createGameState.config.botDifficulty, longMap);
 }
 
 export function adjustTrBoost(index: number, step: 1 | -1): void {

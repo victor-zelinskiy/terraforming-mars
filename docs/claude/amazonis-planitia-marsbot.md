@@ -95,6 +95,22 @@ help), reading the generation off the parameters' progress (a lie after a stall)
 
 ## 4. The second shift — the ladder runs to the long game (`SecondShift.ts`)
 
+**THE LONG MAP'S BONUS (the owner, 2026-11-08 — the first field reading).** The campaign mission on Amazonis Planitia
+(two humans with carried engines + the bot on Hard, holdings C01 + CF2) ran EIGHT generations like every other
+mission of that campaign: the humans' engines closed the longer parameters by the 7th (11 oceans by the 6th, +12 °C
+and 17 % by the 7th, Venus 33 % by the 7th), so neither the reserve nor the clock offset engaged — the bot's tracks
+ended at 4–14. It lost 164 : 173 — on TR it led 76 : 63; it lost the milestone / award race 0 : 6 (the human claimed
+all three milestones by the 3rd generation and funded all three awards by the 4th; the bot reached its cells in the
+7th–8th and took four Failed Actions there), and in the 5th–8th the humans took 25–38 actions a generation against
+its 9–11 turns with 1 / 1 / 2 / 2 extra cards. The pace bench on the game's own snapshots: an extra card was worth
+1.2–1.6 TR in the 5th–7th and — in a campaign — ≈ 2–3 VP through the holdings' dividends in the 8th (the bot ended two
+cheap cards short of C01's +10 and two Earth tags short of CF2's +8). The owner's decision: **on a long map (a bot
+pace offset) every ACTIVE band of the ladder is one card higher** — `SECOND_SHIFT_LONG_MAP_BONUS = 1`, read by
+`SecondShift.cap` through `isLongMapForBot`; the sleeping first band stays asleep, a standard-length map reads the
+printed ladder. In that game: 2 / 2 / 3 / 3 — four more cards, one in each late generation. Not chosen: shifting the
+bands by the pace offset (+11 cards, two of them early — the October complaint), a table-size shift of the ladder
+(it was calibrated on the owner's two-human campaigns), touching the clock (irrelevant in an 8-generation game).
+
 The dynamic-balance cap was five bands, the last «10+» — designed for games that end by the 13th. Two bands added FOR
 EVERY MAP (the rule is the game's, not the map's — a long Tharsis game needs them too):
 

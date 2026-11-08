@@ -14,8 +14,10 @@ import {BoardName} from '../boards/BoardName';
  * would say «late» while the planet says «mid-game». So every clock ladder reads the generation LESS this offset
  * (the rulebook itself hands the standard solo game one extra generation on this map — upstream 16da0a0117).
  *
- * The second-shift cap ladder deliberately does NOT read it: the length of a GENERATION (how many actions a human
- * takes before passing) is the engine's doing, not the planet's, and that rule is about outlasting a generation.
+ * The second-shift cap ladder does NOT shift by it (the length of a GENERATION — how many actions a human takes
+ * before passing — is the engine's doing, not the planet's); instead a long map lifts every ACTIVE rung of the ladder
+ * by one card (`SECOND_SHIFT_LONG_MAP_BONUS`, the owner 2026-11-08 — the bot must keep its share of a longer planet
+ * against humans who take three times its actions late; `isLongMapForBot`).
  */
 export const BOT_PACE_OFFSETS: Readonly<Partial<Record<BoardName, number>>> = {
   [BoardName.AMAZONIS_PLANITIA]: 3,
@@ -24,4 +26,9 @@ export const BOT_PACE_OFFSETS: Readonly<Partial<Record<BoardName, number>>> = {
 /** The generations the clock of a game on `boardName` runs behind the standard map's (0 for every other map). */
 export function botPaceOffset(boardName: BoardName | string | undefined): number {
   return boardName === undefined ? 0 : (BOT_PACE_OFFSETS[boardName as BoardName] ?? 0);
+}
+
+/** A LONG map for the bot — one with a pace offset: the second shift's ladder reads one card higher in every active band there. */
+export function isLongMapForBot(boardName: BoardName | string | undefined): boolean {
+  return botPaceOffset(boardName) > 0;
 }

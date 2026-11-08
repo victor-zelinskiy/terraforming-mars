@@ -1,4 +1,5 @@
 import {secondShiftCap, secondShiftRuleApplies} from '../../common/automa/SecondShift';
+import {isLongMapForBot} from '../../common/automa/botPace';
 import {IProjectCard} from '../cards/IProjectCard';
 import {IGame} from '../IGame';
 import {AutomaCorporations} from './corps/AutomaCorporations';
@@ -24,9 +25,13 @@ export class SecondShift {
     return automa !== undefined && game.gameOptions.automa?.secondShift === true && secondShiftRuleApplies(automa.difficulty);
   }
 
-  /** The cap of the CURRENT generation on this game's difficulty (0 when the rule is off) — read live, never stored. */
+  /**
+   * The cap of the CURRENT generation on this game's difficulty (0 when the rule is off) — read live, never stored;
+   * one higher in every active band on a LONG map (`SECOND_SHIFT_LONG_MAP_BONUS` — Amazonis Planitia).
+   */
   public static cap(game: IGame): number {
-    return SecondShift.enabled(game) && game.automa !== undefined ? secondShiftCap(game.automa.difficulty, game.generation) : 0;
+    return SecondShift.enabled(game) && game.automa !== undefined ?
+      secondShiftCap(game.automa.difficulty, game.generation, isLongMapForBot(game.gameOptions.boardName)) : 0;
   }
 
   /** The extra cards already drawn THIS generation. */

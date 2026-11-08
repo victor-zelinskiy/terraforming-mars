@@ -237,6 +237,14 @@ describe('consoleCreateModel', () => {
       createGameState.config.botDifficulty = 'easy';
       expect(botSecondShiftCap()).to.eq(3);
       expect(crewRows().find((r) => r.kind === 'bot')).to.include({secondShift: true});
+      // A LONG map pinned (Amazonis Planitia, 2026-11-08): the top rung reads one higher; a random map reads the printed ladder.
+      createGameState.config.mapMode = 'specific';
+      createGameState.config.mapId = BoardName.AMAZONIS_PLANITIA;
+      expect(botSecondShiftCap()).to.eq(4);
+      createGameState.config.botDifficulty = 'hard';
+      expect(botSecondShiftCap()).to.eq(6);
+      createGameState.config.mapMode = 'random-all';
+      expect(botSecondShiftCap()).to.eq(5);
     });
 
     it('hides trBoost editor field until the rule is on', () => {

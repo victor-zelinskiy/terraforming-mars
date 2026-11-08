@@ -53,18 +53,35 @@ export const SECOND_SHIFT_CAP_LADDER: Readonly<Record<DifficultyLevel, readonly 
 /** The first generation of each band after the first: 1–4 · 5–6 · 7–8 · 9 · 10–12 · 13–15 · 16+. */
 export const SECOND_SHIFT_BAND_STARTS: readonly [number, number, number, number, number, number] = [5, 7, 9, 10, 13, 16];
 
+/**
+ * THE LONG MAP'S BONUS (the owner, 2026-11-08, after the campaign mission on Amazonis Planitia the bot lost 164 : 173):
+ * on a map with a bot pace offset (`botPace.ts` — longer global parameters, Amazonis Planitia) every ACTIVE band of
+ * the ladder is ONE card higher; the sleeping first band (1–4) stays asleep. Measured on that game (two humans with
+ * carried engines, 8 generations): the humans took 25–38 actions a generation in the 5th–8th against the bot's 9–11
+ * turns with 1 / 1 / 2 / 2 extra cards; an extra card there was worth 1.2–1.6 TR in the 5th–7th and, in a campaign,
+ * ≈ 2–3 VP through the holdings' dividends in the 8th (the bot ended two cheap cards short of C01's +10 and two Earth
+ * tags short of CF2's +8). The bonus gives 2 / 2 / 3 / 3 in such a game — four cards, one in each late generation;
+ * the humans' share of a longer planet is what it answers, so a standard-length map reads the ladder as printed.
+ */
+export const SECOND_SHIFT_LONG_MAP_BONUS = 1;
+
 /** Whether the difficulty has the rule at all — any rung above zero (every difficulty today); the creator's generation-free reading. */
 export function secondShiftRuleApplies(difficulty: DifficultyLevel): boolean {
   return SECOND_SHIFT_CAP_LADDER[difficulty].some((cap) => cap > 0);
 }
 
-/** The most the difficulty can ever draw in one generation — the ladder's top rung. */
-export function secondShiftMaxCap(difficulty: DifficultyLevel): number {
-  return Math.max(...SECOND_SHIFT_CAP_LADDER[difficulty]);
+/** The most the difficulty can ever draw in one generation — the ladder's top rung (one higher on a long map). */
+export function secondShiftMaxCap(difficulty: DifficultyLevel, longMap = false): number {
+  return withLongMapBonus(Math.max(...SECOND_SHIFT_CAP_LADDER[difficulty]), longMap);
 }
 
-/** The cap of THIS generation on this difficulty. */
-export function secondShiftCap(difficulty: DifficultyLevel, generation: number): number {
+/** The cap of THIS generation on this difficulty — `longMap`: the map carries a bot pace offset (`botPaceOffset > 0`). */
+export function secondShiftCap(difficulty: DifficultyLevel, generation: number, longMap = false): number {
   const band = SECOND_SHIFT_BAND_STARTS.filter((start) => generation >= start).length;
-  return SECOND_SHIFT_CAP_LADDER[difficulty][band];
+  return withLongMapBonus(SECOND_SHIFT_CAP_LADDER[difficulty][band], longMap);
+}
+
+/** The long map's +1 on an ACTIVE rung only — a sleeping band (cap 0) stays asleep. */
+function withLongMapBonus(cap: number, longMap: boolean): number {
+  return longMap && cap > 0 ? cap + SECOND_SHIFT_LONG_MAP_BONUS : cap;
 }
