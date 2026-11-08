@@ -23,7 +23,9 @@ describe('the tender contract — face, back and the viewer\'s reading', () => {
       // NO PROSE: the reading plate is the name, the meta line and the stub — nothing else.
       expect(wrapper.findAll('.con-tender__plate > *').map((w) => w.classes()[0]), size)
         .deep.eq(['con-tender__name', 'con-tender__meta', 'con-tender__coupon']);
-      expect(wrapper.find('.con-tender__coupon').text()).contains(`${TENDER_COMPENSATION_MC} M€`);
+      // the floor speaks the game's money language: the value inside the megacredit TILE, never the letters «M€»
+      expect(wrapper.find('.con-tender__coupon .con-tender__mc').text()).eq(String(TENDER_COMPENSATION_MC));
+      expect(wrapper.find('.con-tender__coupon').text()).not.contains('M€');
       wrapper.unmount();
     }
   });

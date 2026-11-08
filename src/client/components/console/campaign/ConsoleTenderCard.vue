@@ -43,7 +43,11 @@
       </div>
       <div class="con-tender__coupon">
         <span class="con-tender__coupon-label">{{ $t('Not executed') }}</span>
-        <b class="con-tender__coupon-value">→ {{ compensation }} M€</b>
+        <!-- the floor in the game's own money language: the value INSIDE the megacredit tile (the premium face's cost badge) -->
+        <b class="con-tender__coupon-value">
+          <span class="con-tender__coupon-arrow" aria-hidden="true">→</span>
+          <span class="con-tender__mc" :aria-label="`${compensation} M€`">{{ compensation }}</span>
+        </b>
       </div>
     </div>
     <div v-if="owner !== undefined" class="con-tender__stamp con-tender__stamp--owner" :data-owner-color="owner.color">

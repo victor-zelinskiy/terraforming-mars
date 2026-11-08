@@ -122,10 +122,10 @@
     flex: 1 1 auto;
     min-width: 0;
     font-family: @con-font;
-    font-size: 0.66em;
+    font-size: 0.7em;
     font-weight: 700;
     line-height: 1.2;
-    letter-spacing: 0.32em;
+    letter-spacing: 0.34em;
     text-transform: uppercase;
     color: @tender-on-petrol;
     white-space: nowrap;
@@ -135,8 +135,8 @@
   /* The lot number — a printed box in the metal. */
   &__lot {
     flex: 0 0 auto;
-    padding: 0.16em 0.42em 0.12em;
-    border-radius: 0.16em;
+    padding: 0.2em 0.46em 0.16em;
+    border-radius: 0.18em;
     border: 0.06em solid var(--tm);
     color: var(--tm);
     font-family: @con-font;
@@ -197,18 +197,19 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.32em;
+    gap: 0.28em;
     margin-top: 0.45em;
-    padding: 0.55em 0.62em 0.42em;
+    padding: 0.6em 0.62em 0.46em;
     border-radius: 0.32em;
     .tender-ceramic();
-    box-shadow: inset 0 0.14em 0 var(--tm), inset 0 0 0 0.05em rgba(21, 37, 43, 0.28);
+    /* the metal INLAY band along the top edge, an ink hairline under it, the plate's own edge */
+    box-shadow: inset 0 0.16em 0 var(--tm), inset 0 0.2em 0 rgba(21, 37, 43, 0.35), inset 0 0 0 0.05em rgba(21, 37, 43, 0.28);
   }
   &__name {
     font-family: @con-font;
     font-size: 1.06em;
     font-weight: 700;
-    line-height: 1.1;
+    line-height: 1.06;
     letter-spacing: 0.02em;
     text-transform: uppercase;
     color: @tender-ink;
@@ -272,9 +273,10 @@
     align-items: baseline;
     justify-content: space-between;
     gap: 0.5em;
+    align-items: center;
     margin: auto -0.2em 0;
-    padding: 0.55em 0.2em 0;
-    border-top: 0.11em dashed rgba(21, 37, 43, 0.36);
+    padding: 0.5em 0.2em 0;
+    border-top: 0.09em dashed rgba(21, 37, 43, 0.4);
     font-family: @con-font;
     font-size: 0.52em;
     letter-spacing: 0.14em;
@@ -283,10 +285,32 @@
     white-space: nowrap;
   }
   &__coupon-value {
-    font-size: 1.5em;
-    letter-spacing: 0.06em;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
     color: @tender-ink;
+  }
+  &__coupon-arrow {
+    font-size: 1.3em;
+    color: @tender-ink-dim;
+  }
+  /* THE MEGACREDIT TILE — the game's own money tile with the value INSIDE (the premium face's cost badge language),
+     never the letters «M€»; a dark seat ring and an offset contact shadow, no glow. */
+  &__mc {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6em;
+    height: 2.6em;
+    background: url(./assets/resources/megacredit.png) center / contain no-repeat;
+    border-radius: 0.55em;
+    box-shadow: 0 0 0 0.08em rgba(28, 19, 5, 0.85), 0 0.12em 0.25em rgba(0, 0, 0, 0.35);
+    font-size: 1em;
+    font-weight: 700;
+    letter-spacing: 0;
+    color: #2c1e08;
     font-variant-numeric: tabular-nums;
+    line-height: 1;
   }
 
   /* THE STAMP — ink pressed over the ART window, diagonal, never a glow (on the ceramic it struck through the name — the
