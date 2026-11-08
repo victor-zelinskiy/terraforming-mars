@@ -1164,7 +1164,7 @@ import {
 import {effectStatsFor, ensureEffectStats} from '@/client/console/effectStatsStore';
 import {descendRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, retractWorkspaceOutcomeSlot, setWorkspaceOutcomeSlot, workspaceClaimOwnsArrival, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, rearmWorkspaceOutcomeBeat, retractWorkspaceOutcomeSlot, setWorkspaceOutcomeSlot, workspaceClaimOwnsArrival, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {requestDiscardStream} from '@/client/console/deckDraw/consoleDeckDraw';
 import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost, workspaceFrameKnown, workspaceStackRootKind} from '@/client/console/consoleWorkspaceStack';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -7636,6 +7636,13 @@ export default defineComponent({
       if (this.beatFlightOn) {
         return;
       }
+      // NEVER A DEAL ONTO A STAGE THAT ALREADY PRESENTS (the duplicate card — `rearmWorkspaceOutcomeBeat`): once the
+      // claim presents, the REAL cards stand in the zone, and a proxy launched now (a late net, a late answer, a
+      // queued tick) flies the same card from the deck onto its own double. The beat's moment is over — the stage's
+      // falling edge already handed off (`outcomePendingBeat` watcher).
+      if (!this.outcomePendingBeat) {
+        return;
+      }
       // A SEARCH waits for its answer (PL-261): until the server has turned the cards over nobody knows which ones it
       // threw away, and they leave the deck BEFORE the found ones — a beat launched on the round-trip flew the find
       // first and the rejects never (the e2e under load: the pile then just «knew» 2). Bounded: past the net the find
@@ -7645,6 +7652,9 @@ export default defineComponent({
         // size, the stream ticked it two further down, and the release flipped it back UP by two (reduced motion).
         this.holdBeatDeck();
         if (this.beatAnswerNet === undefined) {
+          // The deal is DEFERRED by this wait: its backstop counts from here (the net, 2.5 s, fires before it), or it
+          // runs out before the launch and a late answer presents the cards with no deal at all.
+          rearmWorkspaceOutcomeBeat();
           this.beatAnswerNet = window.setTimeout(() => {
             this.beatAnswerNet = undefined;
             this.beatSearchNetSpent = true;
@@ -7666,6 +7676,9 @@ export default defineComponent({
       this.beatFlightOn = true;
       this.beatLanded = false;
       this.beatHandoffPending = false;
+      // THE BEAT IS COMMITTED TO FLY: its backstop counts from here — a search's thrown-away cards stream off the deck
+      // first, and a clock started at the press could run out before the found cards leave (the launch re-arms again).
+      rearmWorkspaceOutcomeBeat();
       // FREEZE the HUD deck counter at its pre-draw value. The server's answer
       // decrements it the moment it lands, so without this the «−N» chip fires
       // while the cards are still sitting on the pile — the number changes
@@ -7768,6 +7781,13 @@ export default defineComponent({
     /** Measure the prepared slots and hand the batch to the director. */
     launchBeatBatch(): void {
       if (!this.beatFlightOn || this.beatHandle !== undefined) {
+        return;
+      }
+      // The launch waited (a stream of thrown-away cards, a tick) and the claim PRESENTED meanwhile: the real cards
+      // already stand in the zone — never fly their doubles onto them (`beginBeatFlight`). The handoff the stage's
+      // falling edge started owns the proxies; the deck's counter is let go so it tells the truth.
+      if (!this.outcomePendingBeat) {
+        releaseDeckDisplay();
         return;
       }
       const proxies = asElements(this.$refs.batchProxies);

@@ -355,14 +355,28 @@ export function markWorkspaceOutcomeBeatDone(): void {
 }
 
 /**
- * RE-ARM the execution beat: a stage of the claim that owns its OWN minimum
- * time before the batch may present (the resolution action's sale — the cards
- * feed the terminal and the chip lands BEFORE the draw is pulled) restarts
- * the beat and its backstop, so a sale longer than the backstop cannot let
- * the batch present over a pull that has not started. A no-op without a claim.
+ * RE-ARM the execution beat: a beat whose deal starts LATER than the confirm
+ * (TR53 — the price and the «+1» token land on the chosen row first; a search
+ * waiting for its answer; the thrown-away cards streaming off the deck first)
+ * restarts the beat and its backstop, so a wait longer than the backstop
+ * cannot let the batch present over a pull that has not started — or is still
+ * in the air.
+ *
+ * ⚠ THE DUPLICATE CARD (the owner's field report, 2026-11-07 — «Передовые
+ * лаборатории»: the drawn card flew onto the slot where the SAME card already
+ * stood). The backstop counted from the CLAIM, the deal launched only after the
+ * rail half (≈ 2–3 s), so the backstop marked the beat done while the proxies
+ * were airborne; every «held while the beat is pending» gate of the shell then
+ * teleported the real surface into the zone and the proxy landed on its own
+ * double. The backstop guards a flight that never COMPLETES, so it counts from
+ * the flight (`markWorkspaceOutcomeArrivalFlown`), never from the press.
+ *
+ * Only while the claim still AWAITS: a presenting surface is never retracted by
+ * a late re-arm (the shell's gates would hold it back out of its zone). A no-op
+ * without a claim.
  */
 export function rearmWorkspaceOutcomeBeat(): void {
-  if (workspaceOutcomeState.sourceCard === '') {
+  if (workspaceOutcomeState.sourceCard === '' || workspaceOutcomeState.stage !== 'awaiting') {
     return;
   }
   clearBeat();
@@ -388,10 +402,14 @@ export function markWorkspaceOutcomeArrivalDone(): void {
 }
 
 /** The claim's own beat has physically launched this outcome's cards off the
- *  pile — an arriving surface must not deal them a second time. */
+ *  pile — an arriving surface must not deal them a second time. The beat's
+ *  backstop restarts HERE: from now on it guards THIS flight, which settles in
+ *  ~1.1–1.6 s — never a clock started at the press that may run out mid-air
+ *  (see `rearmWorkspaceOutcomeBeat`). */
 export function markWorkspaceOutcomeArrivalFlown(): void {
   if (workspaceOutcomeState.sourceCard !== '') {
     workspaceOutcomeState.arrivalFlown = true;
+    rearmWorkspaceOutcomeBeat();
   }
 }
 

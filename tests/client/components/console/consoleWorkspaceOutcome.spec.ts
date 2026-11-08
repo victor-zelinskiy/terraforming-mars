@@ -76,6 +76,34 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     expect(workspaceOutcomeBeatPending(), 'a no-op without a claim').to.eq(false);
   });
 
+  /**
+   * THE DUPLICATE CARD (the owner's field report 2026-11-07 — «Передовые лаборатории»): the beat's backstop counted
+   * from the CLAIM while TR53's deal launched only after the price and the «+1» token, so it ran out with the proxy
+   * airborne and the real surface was placed in the zone under its own double. The backstop guards a FLIGHT.
+   */
+  describe('the beat backstop counts from the FLIGHT, never from the press', () => {
+    it('a launch RE-ARMS a beat the press-time backstop already spent — the surface waits for the flight to settle', () => {
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw'], 0, 1);
+      // The backstop armed at the confirm ran out during the rail half (nothing presented — no batch yet).
+      markWorkspaceOutcomeBeatDone();
+      expect(workspaceOutcomeBeatPending()).to.eq(false);
+      markWorkspaceOutcomeArrivalFlown();
+      expect(workspaceOutcomeBeatPending(), 'held while the proxy flies').to.eq(true);
+      markWorkspaceOutcomeBeatDone();
+      expect(workspaceOutcomeBeatPending(), 'the flight settled').to.eq(false);
+    });
+
+    it('never retracts a PRESENTING surface — a late re-arm or launch leaves the beat done', () => {
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw'], 0, 1);
+      markWorkspaceOutcomeBeatDone();
+      markWorkspaceOutcomePresenting();
+      rearmWorkspaceOutcomeBeat();
+      expect(workspaceOutcomeBeatPending(), 'a re-arm past the presentation').to.eq(false);
+      markWorkspaceOutcomeArrivalFlown();
+      expect(workspaceOutcomeBeatPending(), 'a launch past the presentation').to.eq(false);
+    });
+  });
+
   it('a PARTY-sourced batch (Turmoil Redux — the Reds draw) is claimed under the party key, and only that party', () => {
     claimWorkspaceOutcome('card-actions', 'PARTY_Reds', ['draw'], 0, 2);
     expect(workspaceClaimsDrawReveal({type: 'party', party: 'Reds'} as CardDrawRevealSource), 'the Reds own draw').to.eq(true);

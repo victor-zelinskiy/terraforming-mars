@@ -474,6 +474,7 @@ import {
   claimWorkspaceOutcome,
   markWorkspaceOutcomeBeatDone,
   markWorkspaceOutcomePresenting,
+  rearmWorkspaceOutcomeBeat,
   workspaceOutcomeBeatPending,
   releaseWorkspaceOutcome,
   workspaceClaimsDrawRevealBatch,
@@ -1366,6 +1367,11 @@ export default defineComponent({
         // opens nothing (the composer is back in its configuration).
         if (this.outcomeFlow === undefined && workspaceOutcomeState.host === 'card-actions' &&
             workspaceOutcomeState.kinds.includes('draw')) {
+          // THE DEAL STARTS NOW, so does its beat: the backstop armed at the confirm has run through the price, the
+          // token and the read — spent, it presented the drawn card at once (no deal), and half-spent it presented
+          // it under its own proxy still flying off the deck: the card landed on its double (the owner's field report
+          // 2026-11-07 — `rearmWorkspaceOutcomeBeat`).
+          rearmWorkspaceOutcomeBeat();
           this.outcomeFlow = {kind: 'pending'};
           // The batch may already be here (the answer beat the rail): the draw stage opens the way `drawSignal` would.
           if (this.drawSignal !== 0 && this.composer !== undefined) {

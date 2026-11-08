@@ -64,8 +64,24 @@ async function untilServer(request: APIRequestContext, playerId: string, ok: (m:
 /** A sampler (task clock, never rAF): did a draft departure / a headless viewer / the field's receiving card ever paint? */
 async function armSceneProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const w = window as unknown as {__frl: {reject: number, headless: number, citypay: Array<string>, samples: number, trail: Array<string>}};
-    w.__frl = {reject: 0, headless: 0, citypay: [], samples: 0, trail: []};
+    const w = window as unknown as {__frl: {reject: number, headless: number, citypay: Array<string>, samples: number, trail: Array<string>, doubles: Array<string>, dealt: boolean}};
+    w.__frl = {reject: 0, headless: 0, citypay: [], samples: 0, trail: [], doubles: [], dealt: false};
+    /** Painted for the eye: a box, and no ancestor below half opacity / hidden. */
+    const painted = (el: Element): boolean => {
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) {
+        return false;
+      }
+      let o = 1;
+      for (let n: Element | null = el; n !== null; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.visibility === 'hidden' || cs.display === 'none') {
+          return false;
+        }
+        o *= parseFloat(cs.opacity) || 0;
+      }
+      return o >= 0.5;
+    };
     const t0 = performance.now();
     let last = '';
     const sample = () => {
@@ -74,13 +90,22 @@ async function armSceneProbe(page: Page): Promise<void> {
       const ready = (window as unknown as {__conReady?: () => {
         holds?: Array<string>,
         actionCommitRail?: {phase: string, link: number, lastEnd: string, capsules: Array<string>, fallback: string},
+        outcome?: {stage: string, beatDone: boolean, arrivalFlown: boolean, arrivalDone: boolean},
       }}).__conReady?.() ?? {};
+      const oc = ready.outcome;
+      // The drawn card came off the deck by the workspace's own DEAL (the composer's beat launched its proxies).
+      if (oc?.arrivalFlown === true) {
+        w.__frl.dealt = true;
+      }
       const rail = ready.actionCommitRail;
       const line = `host=${document.querySelector('.con-task-host') === null ? 0 : 1} ` +
         `pay=${document.querySelector('.con-citypay')?.getAttribute('data-city-payout') ?? '-'} ` +
         `rail=${rail === undefined ? '-' : `${rail.phase}:${rail.link}:${rail.lastEnd}:${rail.capsules.join('+')}:${rail.fallback}`} ` +
         `rows=${Array.from(document.querySelectorAll('.con-cardactions .con-composer [data-composer-card]')).map((e) => e.getAttribute('data-composer-card')).join('+')} ` +
         `zone=${document.querySelector('.con-cardactions [data-embed-slot="workspace-reveal"]') === null ? 0 : 1} ` +
+        `outcome=${oc === undefined ? '-' : `${oc.stage}:beat${oc.beatDone ? 'Done' : 'Owed'}:${oc.arrivalFlown ? 'flown' : 'still'}:${oc.arrivalDone ? 'in' : 'arriving'}`} ` +
+        `deal=${document.querySelectorAll('.con-cardactions .con-deal-proxy').length}/` +
+        `${document.querySelectorAll('.con-cardactions .con-reveal--embedded .con-cards__slot').length} ` +
         `holds=${(ready.holds ?? []).join(',')}`;
       if (line !== last) {
         w.__frl.trail.push(`${Math.round(performance.now() - t0)} ${line}`);
@@ -88,6 +113,33 @@ async function armSceneProbe(page: Page): Promise<void> {
       }
       if (document.querySelector('.con-exit-reject') !== null) {
         w.__frl.reject++;
+      }
+      // THE DUPLICATE CARD (the owner's field report 2026-11-07): the drawn card painted in the stage AND a second
+      // body of it somewhere else — the composer's deal proxy still TRAVELLING (its centre away from every real card),
+      // or the SAME card's hand body already painted in the dock before its take. At the handoff the proxy stands ON
+      // the real card (held invisible beneath it) and the hand's OTHER cards rest in the dock: neither is counted.
+      const realSlots = Array.from(document.querySelectorAll('.con-cardactions .con-reveal--embedded .con-cards__slot'))
+        .filter((el) => painted(el));
+      const real = realSlots.map((el) => el.getBoundingClientRect());
+      const drawn = realSlots.map((el) => (el.getAttribute('data-zoom-slot') ?? '').replace(/#\d+$/, '')).filter((n) => n !== '');
+      if (real.length > 0) {
+        const doubles = [
+          ...Array.from(document.querySelectorAll('.con-cardactions .con-deal-proxy')),
+          ...Array.from(document.querySelectorAll('.con-handbody[data-hand-dock-card]'))
+            .filter((el) => drawn.includes(el.getAttribute('data-hand-dock-card') ?? '')),
+        ];
+        for (const proxy of doubles) {
+          if (!painted(proxy)) {
+            continue;
+          }
+          const p = proxy.getBoundingClientRect();
+          const away = real.every((r) => Math.hypot((p.left + p.width / 2) - (r.left + r.width / 2), (p.top + p.height / 2) - (r.top + r.height / 2)) > 24);
+          if (away && w.__frl.doubles.length < 8) {
+            w.__frl.doubles.push(`${Math.round(performance.now() - t0)}ms ${proxy.getAttribute('data-hand-dock-card') ?? 'deal-proxy'}` +
+              `@${Math.round(p.left)},${Math.round(p.top)} ${Math.round(p.width)}x${Math.round(p.height)} ` +
+              `real=${drawn.join('+')}@${real.map((r) => `${Math.round(r.left)},${Math.round(r.top)}`).join('+')}`);
+          }
+        }
       }
       // The headless fullscreen viewer of a drawn card — a draw that escaped its workspace: the zoom with its
       // «ПОЛУЧЕННАЯ КАРТА» pill (the overlay's own `--headless` root paints nothing — it may stand a gap frame while
@@ -106,7 +158,7 @@ async function armSceneProbe(page: Page): Promise<void> {
   });
 }
 
-type SceneProbe = {reject: number, headless: number, citypay: Array<string>, samples: number, trail: Array<string>};
+type SceneProbe = {reject: number, headless: number, citypay: Array<string>, samples: number, trail: Array<string>, doubles: Array<string>, dealt: boolean};
 
 async function sceneProbe(page: Page): Promise<SceneProbe> {
   return page.evaluate(() => (window as unknown as {__frl: SceneProbe}).__frl);
@@ -220,6 +272,10 @@ for (const profile of PROFILES) {
       const probe = await sceneProbe(page);
       expect(probe.samples, 'the scene sampler ran').toBeGreaterThan(5);
       expect(probe.headless, 'the drawn card never opened the headless fullscreen viewer').toBe(0);
+      // …and it CAME OFF THE DECK (physical causality): a beat backstop counted from the press ran out before the deal
+      // launched (the rail half took ~2.3 s) and the card simply appeared in its slot.
+      expect(probe.dealt, `the drawn card is dealt off the deck, never just appears:\n${await trailOf(page)}`).toBe(true);
+      expect(probe.doubles, `the drawn card is never on screen twice — a proxy flying onto its own double:\n${await trailOf(page)}`).toEqual([]);
     });
 
     test(`A · a science target: +1, no draw (${profile.id})`, async ({page, request}) => {
