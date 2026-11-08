@@ -65,6 +65,7 @@ import {
   ownBonusTransferSpecs, viewerBonusCubes,
   trackAdvancePlan, trackGlidePlan, TrackGlidePlan, TRACK_SETTLE_MS, trackWavePlan, TrackWavePlan, TrackMoveRhythm,
 } from '@/client/console/colonyTrade/colonyTradeModel';
+import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
 
 /**
  * The ADVANCE leg's own net: whatever happens to the track's measurability,
@@ -261,7 +262,30 @@ let ceilingId = 0;
 let settleTimerId = 0;
 let revealWaitId = 0;
 let parkedNetId = 0;
+let advanceSafetyId = 0;
 let glideResolver: (() => void) | undefined;
+
+/**
+ * THE RUN'S OWN IDENTITY (wait graph R6). Bumped by every arm; every ENDING of a transaction — a timer (settle, the
+ * parked net, the reveal wait, the ceiling, the arm safety, the advance net) and every continuation of the reward run
+ * after an await — captures it when it is set up and acts only while it still names the live run. `active` is a
+ * GLOBAL flag the NEXT trade raises again, so an ending keyed on it alone let an old trade's settle timer finish a new
+ * trade (or its chip run write `chipsDone` into the new trade's context).
+ */
+let tradeRun = 0;
+
+/** The run whose seeded holds an ABORT already released in full (a stale run must not release them again). */
+let heldReleasedRun = -1;
+
+/** The transaction `run` is still the live one (armed by this very arm and not ended since). */
+function isLiveRun(run: number): boolean {
+  return colonyTradeState.active && run === tradeRun;
+}
+
+/** The live run's identity — the spec reads it to prove an old run's ending cannot touch a new one. */
+export function colonyTradeRunId(): number {
+  return tradeRun;
+}
 
 /**
  * How long the conclusion waits for a PROMISED card that never arrived. The
@@ -641,6 +665,40 @@ function clearRevealWait(): void {
   }
 }
 
+function clearSettleTimer(): void {
+  if (settleTimerId !== 0) {
+    clearTimeout(settleTimerId);
+    settleTimerId = 0;
+  }
+}
+
+function clearAdvanceSafety(): void {
+  if (advanceSafetyId !== 0) {
+    clearTimeout(advanceSafetyId);
+    advanceSafetyId = 0;
+  }
+}
+
+/**
+ * EVERY TIMER AND EVERY AWAIT OF THE PREVIOUS RUN LETS GO (R6) — the arm of a new trade is the old one's last word.
+ * The timers are cleared; a pending glide / advance await is resolved so its run unwinds, and the run identity it
+ * captured no longer matches, so it writes nothing into the new transaction.
+ */
+function releasePreviousRun(): void {
+  clearArmSafety();
+  clearCeiling();
+  clearRevealWait();
+  clearParkedNet();
+  clearSettleTimer();
+  clearAdvanceSafety();
+  const g = glideResolver;
+  glideResolver = undefined;
+  g?.();
+  const a = ctx.advanceResolve;
+  ctx.advanceResolve = undefined;
+  a?.();
+}
+
 /**
  * ARM (the composer confirm, right next to `armTradeFleet`) — the transaction
  * exists from the player's own press. `targets` carries the composer's
@@ -657,8 +715,8 @@ export function armColonyTrade(
    *  advance is skipped rather than guessed. */
   trackPosition?: number,
 ): void {
-  clearArmSafety();
-  clearCeiling();
+  releasePreviousRun();
+  const run = ++tradeRun;
   ctx.manifest = undefined;
   ctx.targets = targets;
   ctx.claimed = false;
@@ -673,7 +731,6 @@ export function armColonyTrade(
   ctx.revealSeen = false;
   ctx.stageYielded = false;
   ctx.answerBlock = 0;
-  clearRevealWait();
   colonyTradeState.active = true;
   colonyTradeState.phase = 'armed';
   colonyTradeState.cardScene = 'idle';
@@ -691,7 +748,8 @@ export function armColonyTrade(
   // The fleet's own 12 s abort net recalls the flight on a dropped submit;
   // this net just clears the never-claimed transaction shell after it.
   armSafetyId = setTimeout(() => {
-    if (colonyTradeState.active && !ctx.claimed) {
+    armSafetyId = 0;
+    if (isLiveRun(run) && !ctx.claimed) {
       tradeLog('arm safety — never claimed, resetting');
       abortColonyTrade();
     }
@@ -722,6 +780,7 @@ export function detectColonyTrade(newView: PlayerViewModel): {tradeId: string} |
 
 /** The one claim: mark the tradeId seen, freeze the track, start the ceiling. */
 function claimManifest(manifest: ColonyTradeManifestModel): void {
+  const run = tradeRun;
   seenTradeIds.add(manifest.tradeId);
   clearArmSafety();
   ctx.claimed = true;
@@ -756,7 +815,7 @@ function claimManifest(manifest: ColonyTradeManifestModel): void {
   if (plannedViewerCards() > 0) {
     revealWaitId = setTimeout(() => {
       revealWaitId = 0;
-      if (colonyTradeState.active && !ctx.revealSeen) {
+      if (isLiveRun(run) && !ctx.revealSeen) {
         tradeLog('promised cards never arrived — concluding without them');
         ctx.revealSeen = true;
         maybeAdvance();
@@ -767,7 +826,8 @@ function claimManifest(manifest: ColonyTradeManifestModel): void {
   // never-arriving reset), the ceiling concludes honestly to committed truth.
   clearCeiling();
   ceilingId = setTimeout(() => {
-    if (colonyTradeState.active) {
+    ceilingId = 0;
+    if (isLiveRun(run)) {
       tradeLog('transaction ceiling — concluding to committed state');
       concludeToCommitted();
     }
@@ -843,15 +903,24 @@ export async function runColonyTradeRewards(): Promise<void> {
     return;
   }
   ctx.rewardsKicked = true;
+  // Every continuation below re-asks THIS run (R6): an await may resume after the next trade's arm, and `active` is
+  // that trade's flag — a stale run must never write its phase / `chipsDone` into the new transaction.
+  const run = tradeRun;
   const manifest = ctx.manifest;
   const viewer = colonyTradeState.color as Color;
+  const targets = ctx.targets;
+  const seeded = ctx.seeded;
+  const income = manifest.trader === viewer ? incomeTransferSpecs(manifest, targets) : [];
+  const answers = colonyTradeAnswerSpecs(manifest, viewer);
+  const bonus = ownBonusTransferSpecs(manifest, viewer, targets);
   // ── THE ADVANCE LEG FIRST. The reward is READ at the advanced cell, so the
   //    marker gets there before anything is paid: the player watches the
   //    position they are about to be paid at being earned. Bounded — a track
   //    that cannot be measured releases the gate honestly (the layer's own
   //    degrade), and the payout continues either way.
   await runTrackAdvance();
-  if (!colonyTradeState.active) {
+  if (!isLiveRun(run)) {
+    releaseUnflownHolds(run, seeded, [...income, ...answers, ...bonus]);
     return;
   }
   colonyTradeState.phase = 'chips';
@@ -871,7 +940,6 @@ export async function runColonyTradeRewards(): Promise<void> {
   // The touchdown is ONE beat with two consequences: the panel hold releases
   // (the rail's number ticks) and — for a card-resource reward — the chosen
   // host card's own frozen counter ticks and pops on the presented scene.
-  const income = manifest.trader === viewer ? incomeTransferSpecs(manifest, ctx.targets) : [];
   if (income.length > 0) {
     await runResourceTransfers({
       specs: income,
@@ -879,12 +947,14 @@ export async function runColonyTradeRewards(): Promise<void> {
       arrival: 'auto',
       onArrive: releasePanelRewardHold,
     });
+    if (!isLiveRun(run)) {
+      releaseUnflownHolds(run, seeded, [...answers, ...bonus]);
+      return;
+    }
   }
   // THE CARDS' ANSWER rides the wave's TAIL — launched once the income has landed (the reactor answers the trade it
   // just watched pay), in parallel with the colony bonus, never after a pause of its own.
-  const answers = colonyTradeAnswerSpecs(manifest, viewer);
   const answered = answers.length > 0 ? flyTradeAnswer(answers) : Promise.resolve();
-  const bonus = ownBonusTransferSpecs(manifest, viewer, ctx.targets);
   if (bonus.length > 0) {
     if (income.length > 0 && bonusHandsOverCard(income, bonus)) {
       // TWO CARDS, TWO WAVES: the beat turns FIRST — the bonus's card stands forward, the income's steps back —
@@ -895,6 +965,10 @@ export async function runColonyTradeRewards(): Promise<void> {
     } else if (income.length > 0) {
       await pause(motionMs(TRANSFER_RESIDUAL_PAUSE_MS));
     }
+    if (!isLiveRun(run)) {
+      releaseUnflownHolds(run, seeded, bonus);
+      return;
+    }
     colonyTradeState.beat = 'bonus';
     await runResourceTransfers({
       specs: bonus,
@@ -904,12 +978,29 @@ export async function runColonyTradeRewards(): Promise<void> {
     });
   }
   await answered;
+  if (!isLiveRun(run)) {
+    return;
+  }
   ctx.chipsDone = true;
-  if (colonyTradeState.active && colonyTradeState.phase === 'chips') {
+  if (colonyTradeState.phase === 'chips') {
     colonyTradeState.phase = 'awaiting';
   }
   tradeLog('chip waves done');
   maybeAdvance();
+}
+
+/**
+ * A STALE RUN STOPS FLYING, BUT IT NEVER KEEPS A NUMBER HIDDEN (R6). A run that lost its identity mid-payout (the
+ * ceiling / the liveness rung concluded it, or the next trade was armed) does not launch its remaining waves into a
+ * transaction that is no longer its own — the rows those waves would have ticked snap to the committed truth instead.
+ * An ABORT already released everything this run held (`heldReleasedRun`), so nothing is released twice.
+ */
+function releaseUnflownHolds(run: number, seeded: boolean, specs: ReadonlyArray<ResourceTransferSpec>): void {
+  if (!seeded || heldReleasedRun === run) {
+    return;
+  }
+  specs.forEach((spec) => releasePanelRewardHold(spec));
+  tradeLog('stale run — unflown holds released', specs.length);
 }
 
 /**
@@ -1018,9 +1109,10 @@ function syncParkedEvidence(view: PlayerViewModel): void {
     (view.players ?? []).some((p) => p.color !== viewerColor && p.isWaitingForInput);
   if (parked && resetStillOwed() && parkedNetId === 0) {
     tradeLog('view proves the queue is parked on another player — arming the bounded conclusion net');
+    const run = tradeRun;
     parkedNetId = setTimeout(() => {
       parkedNetId = 0;
-      if (!colonyTradeState.active || ctx.glideStarted || !resetStillOwed()) {
+      if (!isLiveRun(run) || ctx.glideStarted || !resetStillOwed()) {
         return;
       }
       if (colonyTradeState.phase !== 'awaiting' || colonyTradeState.cardScene !== 'idle' ||
@@ -1127,13 +1219,22 @@ function runTrackAdvance(): Promise<void> {
     finishColonyTrackAdvance();
     return Promise.resolve();
   }
+  const run = tradeRun;
   return new Promise<void>((resolve) => {
     ctx.advanceResolve = resolve;
     colonyTradeState.phase = 'advance';
     colonyTradeState.glideKind = 'advance';
     colonyTradeState.glideNonce++;
     tradeLog('track advance', ctx.advanceFrom, '→', ctx.manifest?.preTradeTrackPosition);
-    setTimeout(() => finishColonyTrackAdvance(), motionMs(TRACK_ADVANCE_SAFETY_MS));
+    // The net is THIS run's (R6): kept by id, cleared by the landing and by the next arm, and it re-asks the run —
+    // an old trade's net must never settle a NEW trade's advance leg.
+    clearAdvanceSafety();
+    advanceSafetyId = setTimeout(() => {
+      advanceSafetyId = 0;
+      if (isLiveRun(run)) {
+        finishColonyTrackAdvance();
+      }
+    }, motionMs(TRACK_ADVANCE_SAFETY_MS)) as unknown as number;
   });
 }
 
@@ -1146,6 +1247,7 @@ export function finishColonyTrackAdvance(): void {
   if (colonyTradeState.glideKind !== 'advance') {
     return;
   }
+  clearAdvanceSafety();
   colonyTradeState.glideKind = 'reset';
   const manifest = ctx.manifest;
   if (manifest !== undefined) {
@@ -1176,11 +1278,14 @@ export function finishColonyTrackReset(): void {
   const r = glideResolver;
   glideResolver = undefined;
   r?.();
-  if (settleTimerId !== 0) {
-    clearTimeout(settleTimerId);
-  }
+  clearSettleTimer();
+  // The settle ends THIS run only (R6) — the next trade armed inside the settle window owns `active` now.
+  const run = tradeRun;
   settleTimerId = setTimeout(() => {
     settleTimerId = 0;
+    if (!isLiveRun(run)) {
+      return;
+    }
     colonyTradeState.settledCell = -1;
     finishTrade();
   }, motionMs(colonyTradeState.reducedMotion ? 120 : TRACK_SETTLE_MS + 640)) as unknown as number;
@@ -1195,6 +1300,8 @@ function finishTrade(): void {
   clearArmSafety();
   clearRevealWait();
   clearParkedNet();
+  clearSettleTimer();
+  clearAdvanceSafety();
   colonyTradeState.active = false;
   colonyTradeState.phase = 'idle';
   colonyTradeState.cardScene = 'idle';
@@ -1268,10 +1375,8 @@ export function abortColonyTrade(): void {
   clearCeiling();
   clearRevealWait();
   clearParkedNet();
-  if (settleTimerId !== 0) {
-    clearTimeout(settleTimerId);
-    settleTimerId = 0;
-  }
+  clearSettleTimer();
+  clearAdvanceSafety();
   receiptBase = undefined;
   if (!colonyTradeState.active) {
     return;
@@ -1283,6 +1388,7 @@ export function abortColonyTrade(): void {
     for (const spec of colonyTradeHeldSpecs(ctx.manifest, colonyTradeState.color, ctx.targets)) {
       releasePanelRewardHold(spec);
     }
+    heldReleasedRun = tradeRun;
   }
   const r = glideResolver;
   glideResolver = undefined;
@@ -1569,3 +1675,11 @@ registerAnimationHoldSupplier('colony-track-wave', () => colonyTrackWaveState.ac
     finishColonyTrackWave('ceiling');
   },
 });
+
+/**
+ * THE TRADE AS A WAIT (the wait graph, Э4): one run, keyed by its own id (R6), bounded by the transaction's ceiling.
+ */
+registerWaitSource('flow:colony-trade', () => (colonyTradeState.active ? [{
+  id: `flow:colony-trade#${tradeRun}`, family: 'flow' as const, owner: 'colonyTrade',
+  targets: [{kind: 'motion' as const, what: `the trade (${colonyTradeState.phase})`}], boundMs: 60_000,
+}] : []));

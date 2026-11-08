@@ -1937,6 +1937,7 @@ export async function endPlayedHero(): Promise<void> {
       // the touchdown, and the table's answer (the ruling Greens' M€) one beat
       // after — `flyRailReward` resolves once all of it has ticked.
       const born = new Map<string, number>();
+      await awaitHeroRewardPlace(playedHeroState.card ?? '');
       await flyRailReward(railKey, (spec) => heroRailOrigin(playedHeroState.card ?? '', spec, born),
         heroAnswerFlight(playedHeroState.card ?? '', heldRailAnswerTags));
       heldRailKey = undefined;
@@ -2117,6 +2118,7 @@ async function payBackFromStandingCard(mine: () => boolean): Promise<void> {
   }
   if (railKey !== undefined) {
     const born = new Map<string, number>();
+    await awaitHeroRewardPlace(card);
     await flyRailReward(railKey, (spec) => heroRailOrigin(card, spec, born), heroAnswerFlight(card, heldRailAnswerTags));
     heldRailKey = undefined;
   }
@@ -2770,6 +2772,32 @@ function heroVpOrigin(card: string): TransferEnd | undefined {
  * A token BORN ELSEWHERE (`bornOn` — a scale step's rating on the start host, P66 · GJ) is born on THAT printed icon,
  * the k-th token of one icon on its k-th print (`born` counts them across one flight — three Venus icons, three sources).
  */
+/** How long the TR may wait for its source card to be painted before it degrades (a deal still arriving). */
+const HERO_REWARD_PLACE_WAIT_MS = 1600;
+
+/**
+ * THE TR WAITS FOR ITS SOURCE TO BE PAINTED (wait-graph Э2, the P56 Planetary Alliance race — red on more than half its
+ * runs): the start's source column was still DEALING its card (`con-deal-hold`, faded) when the rating token looked for
+ * it, so the verdict said «faded» and the flight degraded to a bare tick. A step never runs ahead of what it depends on:
+ * the token's birth waits — bounded — for the card to stand, then flies; past the bound it degrades honestly as before.
+ */
+function awaitHeroRewardPlace(card: string): Promise<void> {
+  if (card === '' || typeof document === 'undefined' || heroRewardPlace(card) !== undefined) {
+    return Promise.resolve();
+  }
+  const deadline = performance.now() + motionMs(HERO_REWARD_PLACE_WAIT_MS);
+  return new Promise((resolve) => {
+    const poll = (): void => {
+      if (heroRewardPlace(card) !== undefined || performance.now() >= deadline || !playedHeroState.active) {
+        resolve();
+        return;
+      }
+      gsap.delayedCall(0.05, poll);
+    };
+    poll();
+  });
+}
+
 function heroRailOrigin(card: string, spec?: ResourceTransferSpec, born?: Map<string, number>): TransferEnd | undefined {
   const place = heroRewardPlace(card);
   if (place === undefined) {

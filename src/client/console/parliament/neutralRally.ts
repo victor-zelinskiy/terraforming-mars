@@ -42,6 +42,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {workspaceFrameDescended, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 import {parliamentHolds} from './parliamentDisplayHolds';
+import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
 
 /**
  * WHO PLAYS the rally: the hand that hosts the Parliament as a step, a Parliament standing on its own — or the START
@@ -411,3 +412,19 @@ export function neutralRallyLiveIn(host: NeutralRallyHost): boolean {
   const flow = neutralRallyFlow;
   return flow.owed?.host === host && flow.live && flow.beat !== 'done';
 }
+
+/**
+ * THE RALLY AS A WAIT (the wait graph, Э4 — a flow declares its own run): owed and not yet opened, the host owes it its
+ * pose (bounded — an owed record no host opens is the R9 orphan); playing, it is its own motion (its hold's ceiling).
+ */
+registerWaitSource('flow:rally', () => {
+  const flow = neutralRallyFlow;
+  if (flow.owed === undefined || flow.beat === 'done') {
+    return [];
+  }
+  return [{
+    id: `flow:rally#${flow.owed.seq}`, family: 'flow', owner: `neutralRally:${flow.owed.host}`,
+    targets: [{kind: 'motion', what: flow.live ? `the rally pose (${flow.beat})` : `the ${flow.owed.host} opens the rally pose`}],
+    boundMs: flow.live ? 40_000 : 12_000, detail: flow.queued.length > 0 ? `${flow.queued.length} queued` : undefined,
+  }];
+});

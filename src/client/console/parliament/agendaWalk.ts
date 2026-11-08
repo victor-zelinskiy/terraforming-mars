@@ -49,6 +49,7 @@ import {parliamentHolds} from './parliamentDisplayHolds';
 import {buildParliamentView, ParliamentQuestVm} from './consoleParliamentModel';
 import {AgendaBonusOwed, flushAgendaBonus, queueAgendaBonuses, RATING_RAIL_KEY} from './parliamentRewardBeat';
 import {detectChairmanChange} from './consoleChairmanQuest';
+import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
 
 /**
  * THE TABLE'S ANSWER to the walk's TR step, promised at the press (PL-002):
@@ -312,9 +313,11 @@ export function seedAgendaWalkHolds(before: PlayerViewModel | undefined, after: 
   if (host === undefined || consoleReducedMotionActive()) {
     return;
   }
-  // A WALK PLAYING IN FRONT OF IT (ledger HC): this record WAITS ITS TURN. Re-seeding mid-run cut the first walk —
-  // every ending of its run is gated on `live`, so it ended nothing and its hold stood to the ceiling.
-  if (agendaWalkFlow.live && agendaWalkFlow.beat !== 'done') {
+  // A WALK IN FRONT OF IT — owed and not opened yet, or playing (ledger HC, wait graph R5 — the rally's own law): this
+  // record WAITS ITS TURN. Re-seeding mid-run cut the first walk (its run ended nothing, its hold stood to the ceiling);
+  // re-seeding over a record its host had not opened yet OVERWROTE it — the first walk's steps were never played and
+  // its bonuses flushed under a marker that jumped. Each record is played in turn (`takeQueuedAgendaWalk` at the end).
+  if (agendaWalkFlow.owed !== undefined && agendaWalkFlow.beat !== 'done') {
     queuedWalkSeeds.push(() => seedAgendaWalkRecord(advance, rail, host, before, after));
     return;
   }
@@ -419,3 +422,19 @@ export function agendaWalkLiveIn(host: AgendaWalkHost): boolean {
   const flow = agendaWalkFlow;
   return flow.owed?.host === host && flow.live && flow.beat !== 'done';
 }
+
+/**
+ * THE WALK AS A WAIT (the wait graph, Э4): owed and not yet opened, the host owes it its pose (bounded); playing, it is
+ * its own motion (its hold's ceiling).
+ */
+registerWaitSource('flow:walk', () => {
+  const flow = agendaWalkFlow;
+  if (flow.owed === undefined || flow.beat === 'done') {
+    return [];
+  }
+  return [{
+    id: `flow:walk#${flow.owed.seq}`, family: 'flow', owner: `agendaWalk:${flow.owed.host}`,
+    targets: [{kind: 'motion', what: flow.live ? `the walk (${flow.beat})` : `the ${flow.owed.host} opens the walk`}],
+    boundMs: flow.live ? 40_000 : 12_000,
+  }];
+});

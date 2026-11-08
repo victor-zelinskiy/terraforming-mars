@@ -97,7 +97,7 @@ import {
 } from './parliamentFlights';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {cardResourceIconKey} from './influenceYieldModel';
-import {scheduleParliamentBeat} from './parliamentBeat';
+import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {Rect, runCardDealFlight} from './consoleParliamentVoteMotion';
 import {SittingBeat} from './sittingBeats';
 import {BandRenewalCue} from './parliamentBand';
@@ -288,12 +288,28 @@ type StageRun = {
   /** The Agenda CARD bonus taken by this run's glide — its parked reveal is released when the run is at rest. */
   releaseAgendaCard?: boolean;
   finished: boolean;
+  /**
+   * THE RUN'S OWN PROMISE (wait graph R4): `runBeat` resolves it at rest — and a KILL resolves it too, keyed on this
+   * very run. A kill that only dropped the module's pointer left the awaiting `playSittingStage` (and the section's
+   * `runWalk` above it) suspended for good: its `finally` never ran and `walking` stood raised for the section's life.
+   */
+  resolve: () => void;
 };
 
+/**
+ * ONE PLAY of a stage (`playSittingStage`) — its own identity (wait graph R4). A killed play's continuation resolves
+ * (its run's promise, its gap) and reads THIS record to learn it was cut: it never plays the next beat of a stage a new
+ * play now owns, even the same stage replayed (a global `stagePlaying === stage` cannot tell the two apart).
+ */
+type StagePlay = {stage: SittingStage, killed: boolean};
+
 let run: StageRun | undefined;
+let play: StagePlay | undefined;
 /** The STAGE whose beats are playing (a multi-beat stage spans several runs) and whether A asked to hurry it. */
 let stagePlaying: SittingStage | '' = '';
 let hurry = false;
+/** The gaps between two beats now pending — a kill resolves them at once (never a continuation left suspended). */
+const pendingGaps = new Set<{beat: ParliamentBeat, resolve: () => void}>();
 
 const s = (baseMs: number): number => motionMs(baseMs) / 1000;
 
@@ -2122,7 +2138,7 @@ function settleStagePoses(stage: SittingStage): void {
 function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact' | 'banner' | 'career' | 'receipt' | 'answer', compact: boolean,
   build: (tl: gsap.core.Timeline, runState: StageRun) => number, bounds: {ceilingMs?: number} = {}): Promise<void> {
   const master = gsap.timeline({paused: true});
-  const runState: StageRun = {stage, master, hold: {release: () => undefined}, flights: new Set(), pending: 0, kills: [], finished: false};
+  const runState: StageRun = {stage, master, hold: {release: () => undefined}, flights: new Set(), pending: 0, kills: [], finished: false, resolve: () => undefined};
   const total = build(master, runState);
   // The master spans the storyboard's arithmetic; the run is AT REST only once its last flight has landed (the
   // flights fly on their own timelines), so the hold is the director's own and releases on that touchdown.
@@ -2145,7 +2161,7 @@ function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact' 
       }
     },
   });
-  let resolveRun: () => void = () => undefined;
+  const resolveRun = (): void => runState.resolve();
   const settle = (): void => {
     if (run !== runState || runState.finished) {
       return;
@@ -2173,7 +2189,13 @@ function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact' 
     }
   };
   return new Promise<void>((resolve) => {
-    resolveRun = resolve;
+    let over = false;
+    runState.resolve = () => {
+      if (!over) {
+        over = true;
+        resolve();
+      }
+    };
     master.eventCallback('onComplete', awaitFlights);
     master.play();
     if (hurry) {
@@ -2182,22 +2204,37 @@ function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact' 
   });
 }
 
-/** A pause between two beats on the motion clock (instant under «дожать» / reduced motion). */
+/** A pause between two beats on the motion clock (instant under «дожать» / reduced motion; a kill ends it at once). */
 function gap(baseMs: number): Promise<void> {
   if (hurry || consoleReducedMotionActive()) {
     return Promise.resolve();
   }
-  return new Promise<void>((resolve) => scheduleParliamentBeat(baseMs, resolve));
+  return new Promise<void>((resolve) => {
+    const wait = {beat: {kill: () => undefined} as ParliamentBeat, resolve: () => {
+      pendingGaps.delete(wait);
+      resolve();
+    }};
+    pendingGaps.add(wait);
+    wait.beat = scheduleParliamentBeat(baseMs, wait.resolve);
+  });
 }
+
+/** How a stage's play ended: at rest (naturally, «дожать», the ceiling) or CUT by a kill (a newer play, a close). */
+export type SittingStageEnd = 'settled' | 'killed';
 
 /**
  * PLAY A STAGE's beats. Resolves when the stage is at rest (naturally, by
- * «дожать», or by the ceiling). `compact` halves every duration and drops the
+ * «дожать», or by the ceiling) — `settled` — or when a kill CUT it (a newer play,
+ * a close, the unmount) — `killed`: never left suspended (wait graph R4). `compact` halves every duration and drops the
  * dwell (a restore). Reduced motion: the resting poses at once, the hold
  * registered and released synchronously.
  */
-export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray<SittingBeat>, ctx: SittingDirectorContext, opts: {compact: boolean}): Promise<void> {
+export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray<SittingBeat>, ctx: SittingDirectorContext, opts: {compact: boolean}): Promise<SittingStageEnd> {
   killSittingMotion();
+  // THIS play's identity (wait graph R4): every «go on?» below asks it — a kill marks it, a newer play replaces it.
+  const mine: StagePlay = {stage, killed: false};
+  play = mine;
+  const alive = (): boolean => play === mine && !mine.killed;
   const own = beats.filter((b) => b.stage === stage);
   // The REWARD page always has a beat of its own (the reading's reveal, or the wave of what just arrived); the
   // RESULTS page always reveals its card — the summary's records are not their only fact.
@@ -2214,13 +2251,13 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
       try {
         await runBeat(stage, '', opts.compact, () => s(QUIET_REWARD_DWELL_MS));
       } finally {
-        if (stagePlaying === stage) {
+        if (alive()) {
           stagePlaying = '';
           sittingMotion.stage = '';
         }
       }
     }
-    return;
+    return endOf(mine);
   }
   const k = opts.compact ? COMPACT : 1;
   stagePlaying = stage;
@@ -2241,29 +2278,29 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
       }
       // «ОТВЕТ СТОЛА» (TR78): the winner's table answered the step with units that LANDED (the asker alone) — the
       // answer stage plays the receipt on this page before the chain goes on.
-      if (stagePlaying === stage && tableAnswerOwedTo('sitting', 'phase')) {
+      if (alive() && tableAnswerOwedTo('sitting', 'phase')) {
         await runBeat(stage, 'answer', opts.compact, (tl, r) => beatTableAnswer(tl, r, 'phase'), {ceilingMs: ANSWER_HOLD_CEILING_MS});
       }
       // THE CHAIN WAITS ON THE TABLE'S ANSWER TO THE STEP (TR78): the page holds here — its field opens for the pick /
       // the layout on the answer stage (the asked seat) or names the asked seat (every other one); the support and the
       // enactment come with the answer.
-      if (stagePlaying === stage && ctx.careerPaused?.() === true) {
+      if (alive() && ctx.careerPaused?.() === true) {
         ctx.onCareerTold?.();
         break;
       }
       await gap(BEAT_GAP_MS);
-      if (stagePlaying === stage) {
+      if (alive()) {
         await runBeat(stage, 'support', opts.compact, (tl, r) => beatSupport(tl, ctx, k, r));
         await gap(BEAT_GAP_MS);
       }
-      if (stagePlaying === stage) {
+      if (alive()) {
         await runBeat(stage, 'enact', opts.compact, (tl, r) => beatEnactMove(tl, ctx, k, r));
       }
       // …THEN «КУБ НА ЗНАМЯ» (Septem Tribus:redux): the winner's cube is carried from their seat onto the banner of the
       // party that has just come to power — the record's own cubes, one flight each; nothing when none is owed.
-      if (stagePlaying === stage && bannerCubesOwed(ctx)) {
+      if (alive() && bannerCubesOwed(ctx)) {
         await gap(BEAT_GAP_MS);
-        if (stagePlaying === stage) {
+        if (alive()) {
           await runBeat(stage, 'banner', opts.compact, (tl, r) => beatBanner(tl, ctx, k, r));
         }
       }
@@ -2271,18 +2308,18 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
     case 'reward':
       await runBeat(stage, '', opts.compact, (tl, r) => beatReward(tl, ctx, k, r));
       // …THEN THE CAREER, seat by seat (Reds Budget): the seat's own money first, the steps of every seat after it.
-      if (stagePlaying === stage && careerWalksOwed()) {
+      if (alive() && careerWalksOwed()) {
         await gap(BEAT_GAP_MS);
-        if (stagePlaying === stage) {
+        if (alive()) {
           await runBeat(stage, 'career', opts.compact, (tl, r) => beatCareer(tl, ctx, k, r), {ceilingMs: CAREER_HOLD_CEILING_MS});
         }
       }
       // …THEN «ОТВЕТ СТОЛА» (TR78): a law's step of the Career the viewer's table answered with units that LANDED.
-      if (stagePlaying === stage && tableAnswerOwedTo('sitting', 'resolution')) {
+      if (alive() && tableAnswerOwedTo('sitting', 'resolution')) {
         await runBeat(stage, 'answer', opts.compact, (tl, r) => beatTableAnswer(tl, r, 'resolution'), {ceilingMs: ANSWER_HOLD_CEILING_MS});
       }
       // …THEN THE RECEIPT OF THE TABLE (Sponsored Projects): a payout that asked nobody, shown on the seat's own cards.
-      if (stagePlaying === stage && tableReceiptsOwed()) {
+      if (alive() && tableReceiptsOwed()) {
         await runBeat(stage, 'receipt', opts.compact, (tl, r) => beatReceipt(tl, ctx, k, r), {ceilingMs: RECEIPT_HOLD_CEILING_MS});
       }
       break;
@@ -2291,16 +2328,30 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
       break;
     case 'results':
       await runBeat(stage, '', opts.compact, (tl, r) => beatResults(tl, ctx, k, r));
-      sittingMotion.resultsRevealed = true;
+      // A CUT play reveals nothing: its continuation resolves after the cut (the reset may already have hidden them).
+      if (alive()) {
+        sittingMotion.resultsRevealed = true;
+      }
       break;
     }
   } finally {
-    if (stagePlaying === stage) {
+    if (alive()) {
       stagePlaying = '';
       sittingMotion.stage = '';
       hurry = false;
     }
+    if (play === mine) {
+      play = undefined;
+    }
   }
+  return endOf(mine);
+}
+
+function endOf(mine: StagePlay): SittingStageEnd {
+  if (play === mine) {
+    play = undefined;
+  }
+  return mine.killed ? 'killed' : 'settled';
 }
 
 /**
@@ -2323,10 +2374,23 @@ export function finishSittingMotion(): void {
   finishParliamentFlights();
 }
 
-/** Abort (unmount, a stage change mid-beat, the ceiling) — nothing stays posed. */
+/**
+ * Abort (unmount, a stage change mid-beat, the ceiling) — nothing stays posed, and NOTHING STAYS SUSPENDED (wait graph
+ * R4): the cut play is marked, every gap it waits in ends now, and the killed run's own promise resolves — keyed on
+ * that run — so the awaiting `playSittingStage` returns `killed` and its caller's `finally` runs.
+ */
 export function killSittingMotion(): void {
   const current = run;
   run = undefined;
+  const cut = play;
+  play = undefined;
+  if (cut !== undefined) {
+    cut.killed = true;
+  }
+  for (const wait of Array.from(pendingGaps)) {
+    wait.beat.kill();
+    wait.resolve();
+  }
   stagePlaying = '';
   hurry = false;
   sittingMotion.stage = '';
@@ -2353,6 +2417,8 @@ export function killSittingMotion(): void {
     current.releaseAgendaCard = false;
     markAgendaBonusLanded();
   }
+  // LAST: the run's awaiting continuation may only run once the abort above has torn everything down.
+  current.resolve();
 }
 
 /** The director's whole reset (the section's unmount): the flights and the poses of the motion; the display holds stay (they outlive the section). */

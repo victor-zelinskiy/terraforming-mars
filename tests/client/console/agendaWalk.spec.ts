@@ -175,6 +175,37 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       expect(takeQueuedAgendaWalk(), 'the queue is empty').is.false;
     });
 
+    it('wait graph R5 — a SECOND walk arriving while the first is OWED but not opened yet waits its turn: the owed record is never overwritten', () => {
+      handDescended();
+      const {before, after} = pair();
+      seedAgendaWalkHolds(before, after);
+      expect(agendaWalkFlow.live, 'the host has not opened the pose yet').is.false;
+      const second = view(model({lastAdvance: {...WALK, seq: 6, from: 3, to: 4, steps: [{to: 4}]}} as never));
+      seedAgendaWalkHolds(after, second);
+      expect(agendaWalkFlow.owed?.seq, 'the first record is still the owed one').eq(5);
+      expect(parliamentHolds.agendaAwaits, 'the marker is held for the FIRST walk').deep.eq({player: BLUE, from: 1, to: 3});
+      expect(parliamentRewardState.agendaBonuses.map((b) => b.step), 'the first walk\'s bonus is not flushed').deep.eq([2]);
+      expect(agendaWalkOwedTo('hand'), 'the hand still owes the first walk').is.true;
+      // The first walk plays and ends: the queued record becomes the owed one, in place.
+      agendaWalkFlow.live = true;
+      agendaWalkFlow.beat = 'done';
+      expect(takeQueuedAgendaWalk()).is.true;
+      expect(agendaWalkFlow.owed).deep.include({seq: 6, from: 3, to: 4});
+      expect(takeQueuedAgendaWalk()).is.false;
+    });
+
+    it('a record arriving after the walk in front is DONE is seeded at once (nothing to wait for)', () => {
+      handDescended();
+      const {before, after} = pair();
+      seedAgendaWalkHolds(before, after);
+      agendaWalkFlow.live = true;
+      agendaWalkFlow.beat = 'done';
+      const second = view(model({lastAdvance: {...WALK, seq: 6, from: 3, to: 4, steps: [{to: 4}]}} as never));
+      seedAgendaWalkHolds(after, second);
+      expect(agendaWalkFlow.owed?.seq).eq(6);
+      expect(takeQueuedAgendaWalk(), 'nothing was queued').is.false;
+    });
+
     it('a Parliament standing ON ITS OWN hosts it (its tier\'s watcher plays the record)', () => {
       enterWorkspace('parliament', {anchor: {type: 'always'}});
       expect(agendaWalkHostFor()).eq('parliament');
@@ -229,7 +260,10 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       expect(held?.progress.find((row) => row.color === BLUE)?.value, '…at its old progress').eq(2);
       releaseAgendaWalkQuest();
       expect(parliamentHolds.questWalkBefore, 'the rewards landed: the server\'s answer reads').is.undefined;
-      // Every other ending lets it go too (the section unmounts, the motion is cut).
+      // Every other ending lets it go too (the section unmounts, the motion is cut). The first walk has played by now —
+      // a record still owed and not opened would QUEUE the next one instead of being overwritten (wait graph R5).
+      agendaWalkFlow.live = true;
+      agendaWalkFlow.beat = 'done';
       seedAgendaWalkHolds(before, view(model({lastAdvance: {...WALK, seq: 6}, quest: quest({blue: 3}, BLUE)} as never)));
       expect(parliamentHolds.questWalkBefore).is.not.undefined;
       releaseAgendaWalkHolds('unmount');

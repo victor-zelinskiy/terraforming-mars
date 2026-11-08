@@ -1689,7 +1689,11 @@ import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client
 import {openBotTurnReviewByKey, skipBotTurnPresentation, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
 import {acquireForegroundLease, isMandatoryPromptsHeld, isMandatoryPromptsHeldByScreen, registerRevealParkSupplier} from '@/client/components/presentation/presentationFlow';
 import {activeAnimationHoldLabels, AnimationHold, beginAnimationHold, blockingAnimationHoldCount, isAnimationHoldActive, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
-import {isTransientBeat, resetBeatStall, transientSurfaceBeats} from '@/client/console/workspaceBeatStall';
+import {isTransientBeat, resetBeatStall, transientSurfaceBeats, WORKSPACE_BEAT_STALL_MS} from '@/client/console/workspaceBeatStall';
+import {registerWaitRecovery, registerWaitSource, tickWaitGraph, waitGraphSnapshot, WaitNodeInput} from '@/client/console/waitGraph/waitGraph';
+import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
+import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
+import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGraphSources';
 import {LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
@@ -2501,6 +2505,8 @@ const OWED_CONCLUSION_FORCE_MS = 8000;
  * A transient (a flush between the answer and its flyer) never survives this window; a real ghost always does.
  */
 const OWED_CONCLUSION_GHOST_CONFIRM_MS = 2500;
+/** How long an owed commit fold counts as «in flight» for the liveness arbiter (its tokens' 9 s fold ceiling + a beat). */
+const COMMIT_FOLD_OWED_GRACE_MS = 12_000;
 
 /** The shared hold-to-confirm key of the finale's irreversible stop (PL-296). */
 const FINALE_FINISH_HOLD = 'final-greenery-finish';
@@ -2762,6 +2768,8 @@ export default defineComponent({
       staleFreeTurnKey: '',
       /** The held conclusion's question door already named (`<kind>|<promptId>|<result>`) — one line per standing. */
       questionDoorLogged: '',
+      /** The liveness arbiter's last `accepting` (a surface takes input for the live question) — read by the ghost gate. */
+      lastLivenessAccepting: true,
       /** The last guarded conclusion handed its frame to the frame's own question (`openHeldFrameQuestionDoor`) — '' = no. */
       questionDoorServedKind: '' as WorkspaceFrameKind | '',
       /** Consecutive 1 Hz passes a LIVE frame of a phase that is over has stood with no leave pending (`reapDeadPhaseFrames`). */
@@ -3062,6 +3070,8 @@ export default defineComponent({
        * resolving it a second time. Cleared by the fold itself.
        */
       commitFoldOwed: false,
+      /** When the owed fold was first seen by the liveness tick (0 = none) — its in-flight credit is bounded. */
+      commitFoldOwedSince: 0,
       /**
        * THE LAW'S CARD LANDS IN ITS STAGE (PL-726 — RX36): the action commit's fold, OWED to the played-hero scene. The
        * awaiting handoff resolved while the card was still landing; the scene's own `closing` runs this (the workspace
@@ -9772,6 +9782,13 @@ export default defineComponent({
         this.deckPickBelongsToWorkspace ? 'pick-ws' : '',
         kind === 'card-actions' && this.lawStepOwed ? 'law-step' : '',
         workspaceFrameParked(kind) ? 'parked' : '',
+        // …and every OTHER hold the conclusion reads (wait-graph inventory W7): their fall must re-ask the ending, never
+        // leave it to the 2.5 s time net (which skips nested / parked / serving cases) — the chairmanship playing in the
+        // Parliament, a colony bonus payout, the decision / Venus bonus belonging to the workspace, the frame's `serves`.
+        kind === 'parliament' && chairmanQuestFlow.live ? 'chair-live' : '',
+        kind === 'card-actions' && colonyBonusPayoutLive() ? 'colony-payout' : '',
+        this.venusBonusBelongsToWorkspace ? 'venus-ws' : '',
+        task !== undefined && frameServing(task.kind)?.kind === kind ? 'serves' : '',
         // …AND THE BOARD-BEAT PARK'S OWN STATE. A play that raised a global
         // parameter seeds the park (`noteBoardScaleAdvance`), and the park can
         // only DRAIN over a board the workspace is covering — so «park owed»
@@ -22287,7 +22304,10 @@ export default defineComponent({
      * the intake aims at a still-covered dock.
      */
     concludeWorkspaceFlow(kind: WorkspaceFrameKind, servedPromptHolds = true): boolean {
-      this.questionDoorServedKind = '';
+      // The door's word is per KIND (wait-graph inventory W3): another kind's conclusion never clears it.
+      if (this.questionDoorServedKind === kind) {
+        this.questionDoorServedKind = '';
+      }
       // Gone = on no stack at all. A frame standing ASIDE for the board is NOT gone: it comes back at the same depth, and
       // reporting it «ended» closed nothing and let it return to a finished flow (the hidden-scene class — `off-stage`).
       if (!workspaceFrameKnown(kind) && !workspaceFrameOffStage(kind)) {
@@ -22547,7 +22567,16 @@ export default defineComponent({
         !this.placementActive &&
         this.consoleRevealMode === undefined &&
         !currentRevealEvent() &&
-        !isPlayedHeroActive();
+        !isPlayedHeroActive() &&
+        // …and a frame that SERVES the live question on a screen that ACCEPTS input is the player's place to answer it,
+        // never a phantom (wait-graph inventory W1: the force tore down a hand serving the next `projectCard` at 10.5 s).
+        !this.frameServesLiveQuestion(kind);
+    },
+    /** The frame is the registry home of the live (non-optional) question and the screen accepts input (liveness). */
+    frameServesLiveQuestion(kind: WorkspaceFrameKind): boolean {
+      const wf = this.playerView.waitingFor;
+      const task = taskFor(this.playerView);
+      return wf !== undefined && wf.optional !== true && task !== undefined && frameServing(task.kind)?.kind === kind && this.lastLivenessAccepting;
     },
     /**
      * FORCE a proven-ghost workspace to board home — bypassing the guarded
@@ -22675,8 +22704,17 @@ export default defineComponent({
       if (surfaceMotionState.awaiting !== undefined && Date.now() - surfaceMotionState.awaiting.startedAt < AWAITING_SAFETY_MS + 500) {
         inFlight.push(`awaiting:${surfaceMotionState.awaiting.from}`);
       }
+      // An owed fold is in flight only within its bound (wait-graph inventory R10): a fold that never runs must not hide a
+      // stall from the arbiter until the next commit.
       if (this.commitFoldOwed) {
-        inFlight.push('commit-fold-owed');
+        if (this.commitFoldOwedSince === 0) {
+          this.commitFoldOwedSince = Date.now();
+        }
+        if (Date.now() - this.commitFoldOwedSince < COMMIT_FOLD_OWED_GRACE_MS) {
+          inFlight.push('commit-fold-owed');
+        }
+      } else {
+        this.commitFoldOwedSince = 0;
       }
       if (blockingAnimationHoldCount() > 0 && oldestAnimationHoldAgeMs() < ANIMATION_STALL_GRACE_MS) {
         inFlight.push(...activeAnimationHoldLabels().filter((l) => l.endsWith('[blocking]')));
@@ -22719,6 +22757,14 @@ export default defineComponent({
         // What a wait waits FOR, and what the opening says it serves — the two facts the 2026-11-01 13:50 freeze lacked.
         block: wf === undefined ? '' : promptAdmissionBlock(wf.type === 'space' ? 'placement' : 'host', this.admissionSignals) ?? '',
         start: this.startSceneMounted ? consoleStartState.serves ?? '' : '',
+      });
+      // THE WAIT GRAPH (Э2 — a shadow): the same second's waits, judged structurally — a cycle, a dangling wait, a dead
+      // end, an overdue one — logged `[wait-graph] …` once per confirmed finding; nothing is acted on yet.
+      this.lastLivenessAccepting = accepting;
+      tickWaitGraph({
+        now: Date.now(), accepting,
+        requestInFlight: transport?.requestInProgress === true,
+        serverOwes: wf === undefined && this.playerView.game.phase !== Phase.END,
       });
       const verdict = tickLiveness({
         now: Date.now(),
@@ -22872,8 +22918,181 @@ export default defineComponent({
       }
       return `${plan.door} (was «${frames || 'no frame'}»)${then !== undefined ? ` → the router's door for «${task.kind}»` : ''}`;
     },
+    /**
+     * THE WAIT GRAPH's SHELL SOURCE (Э2 — a shadow; docs/claude/console/wait-graph.md): the waits the shell owns, read
+     * off the state they already live in — the live question, the plate, «set aside», the standing frame, a held or
+     * owed conclusion, a claim, the submit funnel, an admission block. Every edge names what the wait waits FOR, so a
+     * mutual wait closes a cycle the graph sees the tick it stands (the chairman quest's field lock is
+     * question → announce → surface → conclusion → question).
+     */
+    shellWaitNodes(): Array<WaitNodeInput> {
+      const out: Array<WaitNodeInput> = [];
+      const wf = this.playerView.waitingFor;
+      const task = taskFor(this.playerView);
+      const top = workspaceStackTop();
+      const signals = this.admissionSignals;
+      const beat = this.mandatoryBeat;
+      const questionId = wf === undefined || wf.optional === true ? undefined : `question:${task?.kind ?? wf.type}#${wf.promptId ?? ''}`;
+      const announceId = this.mandatoryGateHeld && beat !== undefined ? `announce:${beat.key}` : undefined;
+      const deferredId = this.consoleState.task.deferred && wf !== undefined ? `deferred:${wf.promptId ?? ''}` : undefined;
+      const owed = this.owedConclusion;
+      const admission = (family: PromptSurface): string | undefined => {
+        const block = promptAdmissionBlock(family, signals);
+        if (block === undefined) {
+          return undefined;
+        }
+        if (block === 'announce-gate') {
+          return announceId;
+        }
+        const id = `admission:${family}:${block}`;
+        out.push({
+          id, family: 'admission', owner: 'consolePromptAdmission',
+          targets: block === 'reveal' ? [{kind: 'player', what: 'take the revealed cards'}] : [{kind: 'motion', what: block}],
+          ...(block === 'reveal' ? {} : {boundMs: WAIT_ADMISSION_BOUND_MS[block]}),
+          detail: `${family} held by ${block}`,
+        });
+        return id;
+      };
+      // THE QUESTION — answered by a press on whatever serves it, or held by what holds it.
+      if (questionId !== undefined) {
+        const held = announceId ?? deferredId ?? admission(task?.kind === 'space' ? 'placement' : 'host');
+        out.push({
+          id: questionId, family: 'question', owner: 'server',
+          targets: held !== undefined ? [{kind: 'node', id: held}] : [{kind: 'player', what: 'answer the question'}],
+          detail: `${wf?.type ?? ''}${task !== undefined ? ` / ${task.kind}` : ''}`,
+        });
+      }
+      // THE PLATE — the player's A on it, while it can be seen; else what hides it.
+      if (announceId !== undefined) {
+        const targets: Array<WaitTarget> = this.mandatoryAnnounceVisible ? [{kind: 'player', what: 'A on the plate'}] :
+          this.mandatoryChipAttention ? [{kind: 'player', what: 'the chip\'s beacon → the board home'}] :
+            top !== undefined ? [{kind: 'node', id: `surface:${top.kind}`}] :
+              [{kind: 'motion', what: 'the first presentation'}];
+        out.push({
+          id: announceId, family: 'announce', owner: 'consoleMandatoryGate', targets, recovery: 'announce-serve',
+          ...(targets[0].kind === 'motion' ? {boundMs: 15_000} : {}),
+          detail: isMandatoryBeatPresented(beat) ? 'presented' : 'pending',
+        });
+      }
+      // «SET ASIDE» — its way back is the restore card; with no card the wait points at nothing (dangling, A2).
+      if (deferredId !== undefined) {
+        out.push({
+          id: deferredId, family: 'surface', owner: 'shell:deferred',
+          targets: this.mandatoryDeferredActive ? [{kind: 'player', what: 'the restore card'}] : [{kind: 'node', id: 'surface:restore-card'}],
+        });
+      }
+      // THE STANDING FRAME — past its commit it waits for its ending, a transient beat for its motion.
+      if (top !== undefined && (isTransientBeat(top.phase) || top.phase === 'committed')) {
+        const targets: Array<WaitTarget> = owed?.kind === top.kind ? [{kind: 'node', id: `conclusion:${top.kind}`}] :
+          isTransientBeat(top.phase) ? [{kind: 'motion', what: `${top.kind}:${top.phase}`}] :
+            questionId !== undefined && task !== undefined && frameServing(task.kind)?.kind === top.kind ? [{kind: 'node', id: questionId}] :
+              [{kind: 'player', what: 'B collapses / A continues'}];
+        out.push({
+          id: `surface:${top.kind}`, family: 'surface', owner: `workspace:${top.kind}`, targets,
+          ...(isTransientBeat(top.phase) && owed?.kind !== top.kind ? {boundMs: WORKSPACE_BEAT_STALL_MS} : {}),
+          detail: top.phase,
+        });
+      }
+      // A HELD / OWED CONCLUSION — by the reason it held on.
+      if (owed !== undefined) {
+        const reason = lastConclusionHold?.kind === owed.kind ? lastConclusionHold.reason : 'unknown';
+        const claimed = workspaceOutcomeState.host === owed.kind && workspaceOutcomeClaimed();
+        // The edge by the hold's REASON — one typed table (`CONCLUSION_HOLD_EDGE`, exhaustive: a new reason names its edge).
+        const edge = (CONCLUSION_HOLD_EDGE as Partial<Record<string, string>>)[reason] ?? 'motion';
+        const followUp = edge === 'follow-up' ? admission('followUp') : undefined;
+        const targets: Array<WaitTarget> =
+          edge === 'question' ? [{kind: 'node', id: questionId ?? 'question:none'}] :
+            edge === 'nested' && top !== undefined && top.kind !== owed.kind ? [{kind: 'node', id: `surface:${top.kind}`}] :
+              edge === 'claim' && claimed ? [{kind: 'node', id: `claim:${owed.kind}`}] :
+                edge === 'follow-up' ? [followUp !== undefined ? {kind: 'node', id: followUp} : {kind: 'server', what: 'the follow-up step'}] :
+                  edge === 'player' ? [{kind: 'player', what: 'restore the parked flow'}] :
+                    [{kind: 'motion', what: `held: ${reason}`}];
+        out.push({
+          id: `conclusion:${owed.kind}`, family: 'conclusion', owner: `workspace:${owed.kind}`, targets,
+          since: this.owedConclusionSince > 0 ? this.owedConclusionSince : undefined,
+          boundMs: OWED_CONCLUSION_FORCE_MS + OWED_CONCLUSION_GHOST_CONFIRM_MS, recovery: 'workspace-conclusion', detail: reason,
+        });
+      }
+      // A CLAIM — awaiting its answer (bounded by its safety), or presenting its outcome to the player.
+      if (workspaceOutcomeClaimed()) {
+        const awaiting = workspaceOutcomeState.stage === 'awaiting';
+        out.push({
+          id: `claim:${workspaceOutcomeState.host}`, family: 'claim', owner: 'consoleWorkspaceOutcome',
+          targets: awaiting ? [{kind: 'server', what: 'the claimed answer'}] : [{kind: 'player', what: 'take the claimed outcome'}],
+          ...(awaiting ? {boundMs: 20_000} : {}), recovery: 'workspace-outcome',
+          detail: `${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ${workspaceOutcomeState.stage}`,
+        });
+      }
+      // THE SUBMIT FUNNEL — the wire, then the answer's own gates.
+      if (transportState.requestInProgress) {
+        out.push({
+          id: 'transport:submit', family: 'transport', owner: 'gameTransport',
+          targets: transportState.responseArrived ? [{kind: 'motion', what: 'the answer\'s cinematic gates'}] : [{kind: 'server', what: 'the answer'}],
+          since: transportState.requestSince > 0 ? transportState.requestSince : undefined,
+          boundMs: transportState.responseArrived ? LIVENESS_TRANSPORT_GRACE_MS : 60_000, recovery: 'transport-funnel',
+        });
+      }
+      return out;
+    },
+    /**
+     * THE PLATE YIELDS (Э3, the chairman quest's field shape generalized): a held plate in a cycle names a question
+     * whose OWN surface already stands on screen — the player is where it is answered, so the beat is acknowledged and
+     * the surface serves it in place; elsewhere the beacon is lit (the screen director's cure) and the press stays the
+     * player's. Never the plate's A pressed on their behalf.
+     */
+    yieldAnnounceInCycle(): string {
+      const beat = this.mandatoryBeat;
+      const task = taskFor(this.playerView);
+      if (beat === undefined || !this.mandatoryGateHeld) {
+        return '';
+      }
+      const home = task === undefined ? undefined : frameServing(task.kind);
+      if (home !== undefined && workspaceSceneOnStage(home.kind)) {
+        acknowledgeMandatoryBeat(beat.key);
+        return `acknowledged ${beat.key} — «${home.kind}» stands and serves it in place`;
+      }
+      if (!isMandatoryBeaconForced(beat)) {
+        forceMandatoryBeacon(beat.key);
+        return `lit the beacon of ${beat.key}`;
+      }
+      return '';
+    },
     registerLivenessRungs(): void {
       this.livenessRungStops = [
+        registerWaitSource('shell', () => this.shellWaitNodes()),
+        // …and the registries every presentation wait goes through — holds, ledger stories, the park — BY CONSTRUCTION (Э4).
+        ...registerConstructionWaitSources(),
+        // THE WAIT GRAPH's DOORS (Э3): what the shell's own waits yield through when a confirmed cycle names them — every
+        // one an EXISTING path (the plate acknowledged where its question's surface already stands, the conclusion's
+        // question door, the claim's forced release), never a press on the player's behalf.
+        registerWaitRecovery('announce-serve', () => this.yieldAnnounceInCycle()),
+        registerWaitRecovery('workspace-conclusion', (node) => {
+          const kind = node.id.slice('conclusion:'.length) as WorkspaceFrameKind;
+          const result = openFrameQuestionDoor(kind);
+          if (result === 'served') {
+            this.retryOwedConclusion();
+            return `«${kind}»'s question door opened the question in place`;
+          }
+          return '';
+        }),
+        registerWaitRecovery('workspace-outcome', () => (releaseWorkspaceOutcome('wait-graph', {force: true}) ? 'the claim released' : '')),
+        // THE WAIT GRAPH's POSITIVE CONTROL (`?waitGraphControl=1` — never in a game): a mutual wait put in on purpose (the
+        // chairman quest's field shape), so a stand proves the shadow sees, confirms and logs a cycle end to end.
+        // Its plate carries a door (Э3): the graph breaks the planted cycle through it, and the cycle is gone after.
+        ...(new URLSearchParams(window.location.search).get('waitGraphControl') === '1' ? ((): Array<() => void> => {
+          const control = {broken: false};
+          return [
+            registerWaitSource('control', () => (control.broken ? [] : [
+              {id: 'control:conclusion', family: 'conclusion', owner: 'control', targets: [{kind: 'node', id: 'control:question'}]},
+              {id: 'control:question', family: 'question', owner: 'control', targets: [{kind: 'node', id: 'control:plate'}]},
+              {id: 'control:plate', family: 'announce', owner: 'control', targets: [{kind: 'node', id: 'control:conclusion'}], recovery: 'control-door'},
+            ] as Array<WaitNodeInput>)),
+            registerWaitRecovery('control-door', () => {
+              control.broken = true;
+              return 'the planted plate yielded';
+            }),
+          ];
+        })() : []),
         registerLivenessRelease({
           rank: 15,
           name: 'start-director',
@@ -26665,6 +26884,8 @@ export default defineComponent({
         announce: !this.mandatoryGateHeld ? 'none' : isMandatoryBeatPresented(this.mandatoryBeat) ? 'presented' : 'pending',
       };
     });
+    // THE WAIT GRAPH's evidence (Э2): the last snapshot's nodes, the counts, the standing streaks.
+    (window as unknown as {__conWaitGraph?: () => unknown}).__conWaitGraph = () => JSON.parse(JSON.stringify(waitGraphSnapshot())) as unknown;
     (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({
       findings: [...screenShadowLog.findings], judged: screenShadowLog.judged,
       stats: JSON.parse(JSON.stringify(screenShadowLog.stats)) as unknown,
@@ -27133,6 +27354,7 @@ export default defineComponent({
     registerAnchorDropListener(undefined);
     registerReadinessDecisionDiag(undefined);
     delete (window as unknown as {__conScreenShadow?: unknown}).__conScreenShadow;
+    delete (window as unknown as {__conWaitGraph?: unknown}).__conWaitGraph;
     delete (window as unknown as {__conScreenControl?: unknown}).__conScreenControl;
     registerBoardShownDespiteStack(undefined);
     setConsoleTaskHandoffPending(false);

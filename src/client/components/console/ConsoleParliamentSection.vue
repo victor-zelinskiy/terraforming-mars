@@ -339,7 +339,7 @@ import {
 import {registerFrameQuestionDoor} from '@/client/console/frameQuestionDoor';
 import {
   chairmanQuestBeatActive, finishChairmanQuestBeats, killChairmanQuestBeats, noteChairmanQuestAnswer, playChairHandover, startChairmanQuestBeats, CHAIRMAN_QUEST_BUDGET,
-  chairmanQuestAwaitsReaction, noteChairmanQuestReactionAnswered, chairmanQuestStalled, settleChairmanQuestBeats,
+  chairmanQuestAwaitsReaction, noteChairmanQuestReactionAnswered, chairmanQuestStalled, settleChairmanQuestBeats, hurryChairmanQuestReaction,
 } from '@/client/console/parliament/chairmanQuestDirector';
 import {transportRequestInProgress} from '@/client/console/transport/gameTransport';
 import {SittingBeat, sittingBeats} from '@/client/console/parliament/sittingBeats';
@@ -2271,20 +2271,30 @@ export default defineComponent({
      * conclusion HELD this Parliament for a question it serves. The vote that completed the chairman's quest reported
      * its flow finished from `landed` — and the quest's stage opens only from the OVERVIEW, which the finished vote
      * never folded back to: the conclusion waited for the answer, the door waited for the conclusion. So the flow does
-     * not leave, it goes on IN PLACE: a finished stage folds back (the vote's own leave), the overview's doors open the
-     * question's stage. A stage still at work (a submit on the wire, a bill, the quest's own beats) serves already —
-     * `true`, nothing done.
+     * not leave, it goes on IN PLACE: a finished stage folds back (the vote's own leave, a mode's own close), the
+     * overview's doors open the question's stage.
+     *
+     * «SERVED» MUST BE TRUE (wait graph W2 / R1): the shell DROPS its owe on `true` — the question's own flow is trusted
+     * to report its ending. So `true` only when, after this door's action, a stage of this section really serves the
+     * question (`standingQuestionServed` — the quest stage for the gate, the seat / grant / pick mode for those), or
+     * will by its own pending fold (a finished stage folding to the overview whose door opens the question on the next
+     * tick). A door that cannot serve — embedded, warm, leaving, a stage at work for something else, an overview whose
+     * door stays shut (a walk owed in front of the quest gate) — does NOTHING and answers `false`: the conclusion stays
+     * owed, never an orphan the owe no longer tracks.
      */
     serveStandingQuestion(): boolean {
       if (this.warm || this.leaving || this.embedded || !this.standingDoorOwed()) {
         return false;
       }
-      const stage = parliamentFlow.stage;
-      if (stage === 'browse') {
-        this.reconciledKey = '';
-        this.reconcileStandingPrompts();
+      // A stage at work FOR this very question serves it already — nothing to do.
+      if (this.standingQuestionServed()) {
         return true;
       }
+      // Everything below folds back to the overview and asks its doors: worth doing only when a door there OPENS it.
+      if (!this.overviewServesQuestion()) {
+        return false;
+      }
+      const stage = parliamentFlow.stage;
       if (stage === 'landed' || stage === 'access') {
         // The vote is over and read: its own leave brings the overview back, and the overview's doors are asked at once
         // (never only through the stage watcher — a pass already spent on this server position would skip it).
@@ -2292,11 +2302,133 @@ export default defineComponent({
         if (parliamentFlow.stage !== 'browse') {
           this.closeStage();
         }
+        this.retireFinishedFlows();
         this.reconciledKey = '';
         void this.$nextTick(() => this.reconcileStandingPrompts());
         return true;
       }
-      return true;
+      if (stage !== 'browse') {
+        // A FINISHED stage folds back by its own close (the mode unmounts before the overview's door re-arms it); a
+        // stage still at work for something else is not this door's to cut.
+        if (!this.foldFinishedStage()) {
+          return false;
+        }
+        this.retireFinishedFlows();
+        this.reconciledKey = '';
+        void this.$nextTick(() => this.reconcileStandingPrompts());
+        return true;
+      }
+      this.retireFinishedFlows();
+      this.reconciledKey = '';
+      this.reconcileStandingPrompts();
+      return this.standingQuestionServed();
+    },
+    /**
+     * DOES A STAGE OF THIS SECTION SERVE THE STANDING QUESTION NOW? Per door, the stage that answers it: the quest's own
+     * flow (its stage, its seat pick, its submit) for the gate; the seat pick for a stand-alone seat; the vote mode (its
+     * pick, its payment, its submit) for a live grant; the support / banner / delegate mode — not yet `done` — for its
+     * live pick. A SITTING standing serves every door: the phase's asks are hosted in its own field, and its end folds
+     * back to the overview by its own hand (`endSitting` → `closeStage`, the overview's doors asked on the way back).
+     */
+    standingQuestionServed(): boolean {
+      const f = parliamentFlow;
+      const b = this.bridge;
+      const kind = parliamentStageKind();
+      if (this.sittingUp && kind === 'sitting') {
+        return true;
+      }
+      const questUp = chairmanQuestFlow.live && chairmanQuestFlow.beat !== 'done';
+      if (this.questGate !== undefined && questUp && (kind === 'quest' || kind === 'seat')) {
+        return true;
+      }
+      if (b.seat !== undefined && kind === 'seat') {
+        return true;
+      }
+      if (b.grant !== undefined && b.grant.staged !== true && (kind === 'vote' || f.stage === 'paying')) {
+        return true;
+      }
+      if (b.supportPick !== undefined && b.supportPick.staged !== true && kind === 'support' && f.supportBeat !== 'done') {
+        return true;
+      }
+      if (b.bannerPick !== undefined && kind === 'banner' && f.bannerBeat !== 'done') {
+        return true;
+      }
+      return b.delegatePick !== undefined && b.delegatePick.staged !== true && kind === 'delegate' && f.delegateBeat !== 'done';
+    },
+    /**
+     * WOULD THE OVERVIEW'S DOOR OPEN THE STANDING QUESTION? The same conditions its watchers read, with a FINISHED walk
+     * or quest counted as gone (the fold retires them — `retireFinishedFlows`): the quest gate opens only in a
+     * Parliament the player walked into, with no walk owed in front of it and no quest flow still running; the seat, a
+     * live grant and a live pick always open.
+     */
+    overviewServesQuestion(): boolean {
+      const b = this.bridge;
+      const walkInFront = agendaWalkFlow.owed !== undefined && agendaWalkFlow.beat !== 'done';
+      const questRunning = chairmanQuestFlow.live && chairmanQuestFlow.beat !== 'done';
+      if (this.questGate !== undefined && !this.embedded && !walkInFront && !questRunning) {
+        return true;
+      }
+      return b.seat !== undefined || (b.grant !== undefined && b.grant.staged !== true) ||
+        (b.supportPick !== undefined && b.supportPick.staged !== true) || b.bannerPick !== undefined ||
+        (b.delegatePick !== undefined && b.delegatePick.staged !== true);
+    },
+    /**
+     * FOLD A FINISHED STAGE back to the overview through its own close: a support / banner / delegate mode whose beat
+     * reads `done` (its `flow-complete` was reported, the conclusion held), the chairmanship flow that has played every
+     * beat, a card's walk or rally that has ended. `false` — the stage is still at work: nothing is touched.
+     */
+    foldFinishedStage(): boolean {
+      const f = parliamentFlow;
+      type ModeRef = {closeFinished?: () => void} | undefined;
+      switch (f.stage) {
+      case 'support':
+      case 'banner':
+      case 'delegate': {
+        const beat = f.stage === 'support' ? f.supportBeat : f.stage === 'banner' ? f.bannerBeat : f.delegateBeat;
+        if (beat !== 'done') {
+          return false;
+        }
+        const ref = f.stage === 'support' ? 'supportMode' : f.stage === 'banner' ? 'bannerMode' : 'delegateMode';
+        ((this.$refs[ref] ?? undefined) as ModeRef)?.closeFinished?.();
+        this.closeStage();
+        return true;
+      }
+      case 'quest':
+        if (!chairmanQuestFlow.live || chairmanQuestFlow.beat === 'done') {
+          this.retireQuestFlow();
+          return true;
+        }
+        return false;
+      case 'walk':
+        if (!agendaWalkFlow.live || agendaWalkFlow.beat === 'done') {
+          this.closeStage();
+          return true;
+        }
+        return false;
+      case 'rally':
+        if (!neutralRallyFlow.live || neutralRallyFlow.beat === 'done') {
+          this.closeStage();
+          return true;
+        }
+        return false;
+      default:
+        return false;
+      }
+    },
+    /**
+     * A FINISHED walk's record (its beat `done` — the support mode's step, a walk pose that ended) and a finished
+     * chairmanship flow still standing as records would keep the quest gate's door shut for good: they are retired
+     * here, their holds already consumed (released again — honestly idempotent).
+     */
+    retireFinishedFlows(): void {
+      if (agendaWalkFlow.owed !== undefined && agendaWalkFlow.beat === 'done') {
+        releaseAgendaWalkHolds('walk-retired');
+      }
+      if (chairmanQuestFlow.live && chairmanQuestFlow.beat === 'done' && parliamentFlow.stage !== 'quest') {
+        killChairmanQuestBeats();
+        releaseChairmanQuestHolds('quest-retired');
+        resetChairmanQuestFlow();
+      }
     },
     /**
      * THE OVERVIEW IS BACK — does a MANDATORY prompt stand that nothing opened? Each door opens its stage from browse,
@@ -2794,6 +2926,18 @@ export default defineComponent({
      */
     handleQuestIntent(intent: GamepadIntent): void {
       const action = consoleActionOf(intent);
+      // THE FLOW HOLDS FOR THE TABLE'S QUESTION (TR78) and the press reached the Parliament — so no pick on the answer
+      // stage took it (the shell routes a standing pick first). Never a deaf screen (wait graph R3): B closes the flow as
+      // a finished one closes (the question, if it still stands, is then served where any live pick is); A «дожать» —
+      // the flow ends at once when the question is gone, settles when it stands with nothing serving it.
+      if (chairmanQuestAwaitsReaction()) {
+        if (action === 'back') {
+          this.endQuestFlow();
+        } else if (action === 'primary' && hurryChairmanQuestReaction() && chairmanQuestFlow.beat === 'done') {
+          this.endQuestFlow();
+        }
+        return;
+      }
       // B CLOSES A FINISHED (or stalled) FLOW — the one logical level there is past the commit; during a beat it says
       // nothing (the beat absorbs it), and the bar never advertises a B it would not honour.
       if (action === 'back' && (chairmanQuestFlow.beat === 'done' || chairmanQuestStalled())) {
@@ -2877,6 +3021,9 @@ export default defineComponent({
             const wf = this.pv.waitingFor;
             return questReactionOf(wf) !== undefined ? agendaReactionStageKey(wf) : undefined;
           },
+          // …SERVED only once this section has asked it on the quest's answer stage (the shell teleports the pick there):
+          // a question that never reaches the stage is a pick nobody can press — the director bounds that wait (R3).
+          reactionServed: () => this.hostedAnswerAskKey.startsWith('quest|'),
           // …and its RECEIPT (the units landed on the asker — no question): played on the section's own answer stage.
           playTableAnswer: (answer: TableAnswer, done: () => void) => this.playHostedAnswer(answer, () => chairmanQuestFlow.live, done),
           onStage: () => {
@@ -2923,11 +3070,14 @@ export default defineComponent({
       const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       const owed = agendaWalkFlow.owed;
       const seat = owed?.seat;
+      // THE RUN'S OWN IDENTITY (wait graph R5): every ending below is keyed on the record this beat started on, never
+      // on the global `live` another walk's start raises again.
+      const seq = owed?.seq;
       const beat = (ms: number, fn: () => void): void => {
         this.walkSeatBeats.push(scheduleHurriedParliamentBeat(ms, fn));
       };
       const seated = (): void => {
-        if (!agendaWalkFlow.live) {
+        if (seq === undefined ? !agendaWalkFlow.live : !this.walkRunAlive(seq)) {
           return;
         }
         agendaWalkFlow.beat = 'walk';
@@ -2946,10 +3096,17 @@ export default defineComponent({
       // cube lifting off inside that fade is a beat the player never saw start (the law «ни один такт не начинается,
       // пока сцена не видна»). On the walk's hurriable clock: A «дожать» cuts it like every other wait.
       beat(CHAIRMAN_QUEST_BUDGET.seatRead, () => {
-        if (agendaWalkFlow.live) {
+        if (this.walkRunAlive(owed.seq)) {
           playChairHandover({root, change: seat, viewer: this.viewerColor, source: 'reserve', beat, onSeated: seated});
         }
       });
+    },
+    /**
+     * IS THE WALK RUN `seq` STILL THE ONE PLAYING? (wait graph R5) The run's own record is still the owed one and the
+     * flow still plays it — a callback of a run that was released, or replaced by the next queued record, ends nothing.
+     */
+    walkRunAlive(seq: number): boolean {
+      return agendaWalkFlow.live && agendaWalkFlow.owed?.seq === seq;
     },
     /** The walk the answer carried becomes the section's subject (the band grows its chips, the conclusion reads it live). */
     startOwedWalk(beat: 'seat' | 'walk' = 'walk'): void {
@@ -2985,6 +3142,11 @@ export default defineComponent({
         onDone();
         return;
       }
+      // THE RUN'S OWN IDENTITY (wait graph R5): every inner ending below is keyed on the record this run started on —
+      // never on the global `live`, which the next walk's start raises again (a stale callback of a released or
+      // replaced run would otherwise read the next walk's flag and end, or advance, THAT walk).
+      const seq = owed.seq;
+      const alive = (): boolean => this.walkRunAlive(seq);
       // ONE end for this run, whoever reaches it first — its own last beat or the hold's ceiling (ledger HC).
       let ended = false;
       const finish = (): void => {
@@ -3006,12 +3168,14 @@ export default defineComponent({
         beat: scheduleHurriedParliamentBeat,
         rewardStep: (leg: AgendaWalkLeg, done: () => void) => deliverAgendaStepReward(root, generation, leg.to, done),
         onStep: (leg: AgendaWalkLeg) => {
-          agendaWalkFlow.landed.push(leg.step);
+          if (alive()) {
+            agendaWalkFlow.landed.push(leg.step);
+          }
         },
         onLanded: () => {
           // The LAST step's reward, off the settled marker; then the read.
           deliverAgendaStepReward(root, generation, owed.to, () => {
-            if (!agendaWalkFlow.live) {
+            if (!alive()) {
               return;
             }
             // Every reward has landed: the chairman quest the walk's TR closed reads its answer NOW — inside the
@@ -3021,9 +3185,9 @@ export default defineComponent({
             this.walkReadBeat?.kill();
             this.walkReadBeat = scheduleHurriedParliamentBeat(AGENDA_WALK_READ_MS, () => {
               this.walkReadBeat = undefined;
-              if (agendaWalkFlow.live) {
+              if (alive()) {
                 // «ОТВЕТ СТОЛА» (TR78): the table's receipt of the walk plays on the section's own stage before the end.
-                this.playWalkAnswer(finish);
+                this.playWalkAnswer(seq, finish);
               }
             });
           });
@@ -3035,15 +3199,19 @@ export default defineComponent({
       void playTableAnswer(answer, {alive}).then(done, done);
     },
     /** …after a card's walk: the table's receipt plays on the section's own stage before the walk reads «done». */
-    playWalkAnswer(onDone: () => void): void {
+    playWalkAnswer(seq: number, onDone: () => void): void {
+      // A run that is no longer the one playing ends nothing (and takes no receipt that belongs to the next walk).
+      if (!this.walkRunAlive(seq)) {
+        return;
+      }
       const answer = tableAnswerOwedTo('walk') ? takeTableAnswer('walk') : undefined;
-      if (answer === undefined || !agendaWalkFlow.live) {
+      if (answer === undefined) {
         onDone();
         return;
       }
       agendaWalkFlow.beat = 'answer';
-      this.playHostedAnswer(answer, () => agendaWalkFlow.live, () => {
-        if (agendaWalkFlow.live) {
+      this.playHostedAnswer(answer, () => this.walkRunAlive(seq), () => {
+        if (this.walkRunAlive(seq)) {
           onDone();
         }
       });
@@ -3227,11 +3395,15 @@ export default defineComponent({
     },
     /** The flow is over: the holds are gone with their beats, and the workspace concludes. */
     endQuestFlow(): void {
+      this.retireQuestFlow();
+      this.$emit('flow-complete', 'quest');
+    },
+    /** The chairmanship's teardown without the report (the question door folds a finished flow in place). */
+    retireQuestFlow(): void {
       killChairmanQuestBeats();
       releaseChairmanQuestHolds('quest-closed');
       resetChairmanQuestFlow();
       this.closeStage();
-      this.$emit('flow-complete', 'quest');
     },
     /** X: the enacted resolution lifts out of the government's card (or the stage's hero, while carried). */
     inspectSitting(): void {
@@ -3656,7 +3828,11 @@ export default defineComponent({
           const careerResume = stage === 'enact' && careerResumeOwed(key, this.model?.phase);
           if (!sittingStagePlayed(key, stage) || receipt || ledgerRead || worldRead || careerResume || (stage === 'reward' && (this.rewardPending || this.tableReceiptOwed))) {
             notePlayedSittingStage(key, stage);
-            await playSittingStage(stage, this.sittingBeatList, ctx, {compact: false});
+            if (await playSittingStage(stage, this.sittingBeatList, ctx, {compact: false}) === 'killed') {
+              // THE PLAY WAS CUT (a close, the phase's end, a newer play — wait graph R4): it RESOLVED, so this walk
+              // ends here and its `finally` lowers `walking`; whoever cut it owns what comes next (`walkOwed` re-queues).
+              break;
+            }
             if (stage === 'enact' && careerAgendaTold(key) && !careerPausedAt(this.model?.phase)) {
               noteCareerResumed(key);
             }

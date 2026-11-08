@@ -268,6 +268,28 @@ export function degradePresentationStories(reason: string): string {
   return degraded.join(', ');
 }
 
+/**
+ * DEGRADE ONE STORY now (the wait graph's door for a story that yields in a cycle, Э3): the same honest degrade its own
+ * due runs — named, its `degrade` hook run. `false` when no story of that id is owed.
+ */
+export function degradePresentationStory(id: string, reason: string): boolean {
+  const story = stories.get(id);
+  if (story === undefined) {
+    return false;
+  }
+  stories.delete(id);
+  presentationLedgerStats.degrades++;
+  console.warn(`[presentation-ledger] story «${id}» degraded by ${reason} after ${Math.round((now() - story.since) / 1000)}s${storyDiagnose(story)}`);
+  try {
+    story.degrade?.();
+  } catch (err) {
+    console.error(`[presentation-ledger] degrade of «${id}» failed`, err);
+  }
+  presentationLedgerStats.owedNow = stories.size;
+  stopHeartbeatIfIdle();
+  return true;
+}
+
 registerLivenessRelease({rank: 0, name: 'presentation-ledger', release: () => degradePresentationStories('the liveness arbiter')});
 
 /**

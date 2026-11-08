@@ -163,10 +163,25 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
       // The console's own account of the walk (the last lines), filed beside the press log — a red names WHAT the screen
       // said in the seconds before, not only that a net fired.
       const consoleTail: Array<string> = [];
+      // THE MOMENT A NET FIRES — the frame, the wait graph and the readiness probe, filed beside the walk: a red names
+      // what the screen looked like and who was waiting on whom, not only that an arbiter acted.
+      const evidence: Array<Promise<unknown>> = [];
+      let shots = 0;
+      const NET = /\[(liveness\] stall|workspace-stall\]|workspace-stale\]|transfer\] (token painted|end not painted)|wait-graph\] (cycle|dangling|dead-end))/;
       page.on('console', (message) => {
-        consoleTail.push(`${Date.now() % 1_000_000} ${message.type()} ${message.text().slice(0, 600)}`);
+        const text = message.text();
+        consoleTail.push(`${Date.now() % 1_000_000} ${message.type()} ${text.slice(0, 600)}`);
         if (consoleTail.length > 400) {
           consoleTail.shift();
+        }
+        if (NET.test(text) && shots < 3 && !page.isClosed()) {
+          const n = ++shots;
+          evidence.push(page.screenshot({path: test.info().outputPath(`net-${n}.png`)}).catch(() => undefined));
+          evidence.push(page.evaluate(() => {
+            const w = window as unknown as {__conWaitGraph?: () => unknown, __conReady?: () => unknown};
+            return {graph: w.__conWaitGraph?.(), ready: w.__conReady?.()};
+          }).then((s) => fs.writeFileSync(test.info().outputPath(`net-${n}.json`), JSON.stringify({line: text, ...s as object}, null, 1)))
+            .catch(() => undefined));
         }
       });
       try {
@@ -177,6 +192,7 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
         const walkLog = `seed=${seed} landing=${landing}\n${log.join(' ')}`;
         // A FILE beside the error context (pulled back with test-results) — the attachment lives in the report only.
         fs.writeFileSync(test.info().outputPath('monkey-walk.txt'), `${walkLog}\n\n── console (last ${consoleTail.length}) ──\n${consoleTail.join('\n')}\n`);
+        await Promise.all(evidence);
         await test.info().attach('monkey-walk', {body: walkLog, contentType: 'text/plain'});
       }
       expect(page.isClosed(), 'the page survived the walk').toBe(false);

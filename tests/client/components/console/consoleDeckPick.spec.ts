@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {
   beginDeckPickChoosing, beginDeckPickClearing, beginDeckPickDeal, beginDeckPickSend,
-  deckPickHolding, deckPickState, endDeckPickCommit, isDeckPickBusy, markBatchDealt,
+  deckPickHolding, deckPickState, disownDeckPickDeal, endDeckPickCommit, isDeckPickBusy, markBatchDealt,
   resetDeckPick, rollbackDeckPickCommit, saveDeckPickDraft, shouldDealBatch, takeDeckPickDraft,
 } from '../../../../src/client/console/deckPick/consoleDeckPick';
 
@@ -155,6 +155,54 @@ describe('consoleDeckPick', () => {
       saveDeckPickDraft(KEY, ['CardA'] as never, 0);
       endDeckPickCommit();
       expect(takeDeckPickDraft(KEY)).to.eq(undefined);
+    });
+  });
+
+  /*
+   * WAIT GRAPH R13 — `dealing` has a ceiling. The deal's ending is the surface's own landing; a landing that never comes
+   * ends at the ceiling through the surface's handover (cards shown, input open), and with no surface standing the flow
+   * simply rests — never a shut pad or a hydro traversal waiting on a phase nobody will move.
+   */
+  describe('the deal is bounded (wait graph R13)', () => {
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    it('a deal that never lands is handed over at its ceiling — input opens', async () => {
+      let handed = 0;
+      beginDeckPickDeal(() => handed++, 30);
+      expect(deckPickState.phase).to.eq('dealing');
+      await wait(80);
+      expect(handed, 'the surface handover ran').to.eq(1);
+      expect(deckPickState.phase).to.eq('choosing');
+    });
+
+    it('a deal whose surface is gone lets the flow rest at its ceiling', async () => {
+      const seq = beginDeckPickDeal(() => {
+        throw new Error('a torn-down surface is never asked');
+      }, 30);
+      disownDeckPickDeal(seq);
+      await wait(80);
+      expect(deckPickState.phase).to.eq('idle');
+    });
+
+    it('a deal that LANDED is never touched by its ceiling', async () => {
+      let handed = 0;
+      beginDeckPickDeal(() => handed++, 30);
+      beginDeckPickChoosing();
+      beginDeckPickSend(1); // the player already confirmed
+      await wait(80);
+      expect(handed).to.eq(0);
+      expect(deckPickState.phase).to.eq('sending');
+    });
+
+    it('an older deal’s ceiling never ends a newer deal', async () => {
+      let first = 0;
+      let second = 0;
+      beginDeckPickDeal(() => first++, 30);
+      beginDeckPickDeal(() => second++, 400); // a re-deal of a new batch before the first ceiling
+      await wait(80);
+      expect(first).to.eq(0);
+      expect(second).to.eq(0);
+      expect(deckPickState.phase).to.eq('dealing');
     });
   });
 });

@@ -792,6 +792,11 @@ export default defineComponent({
       stopResizeObs: undefined as (() => void) | undefined,
       /** The completion dwell (a breathing beat, never a gate). */
       completeTimer: undefined as number | undefined,
+      /**
+       * THE TRADE FELL WHILE ITS FLEET STILL FLEW (wait graph R7): the trade's falling edge stands its completion down
+       * while the fleet is active, so the ending is OWED to the fleet's own fall — latched here, consumed there.
+       */
+      tradeEndOwed: false,
       /** The overview cursor's docks zone (module state — the shell steps it). */
       dockCursor: colonyDockCursor,
       /** The dock stage's server preview (`?dock=`), re-asked on every state move. */
@@ -1881,7 +1886,30 @@ export default defineComponent({
     // (new track position, the seated cube, the docked fleet) is what the
     // fold reveals. Embedded flows fold through their own latch finalize.
     'tradeState.active'(active: boolean, was: boolean): void {
-      if (!active && was && this.focusState.open && !this.tradeFleetState.active) {
+      if (active) {
+        this.tradeEndOwed = false;
+        return;
+      }
+      if (!was || !this.focusState.open) {
+        return;
+      }
+      if (this.tradeFleetState.active) {
+        // The fleet still flies: its own fall re-asks the ending (below) — never a dropped edge.
+        this.tradeEndOwed = true;
+        return;
+      }
+      this.completeFlow();
+    },
+    /**
+     * THE FLEET'S OWN FALL — the edge the trade's ending was waiting for when the trade fell first (R7). Without it the
+     * stage stood until some unrelated edge happened to re-ask, and the workspace held the screen with nothing owed.
+     */
+    'tradeFleetState.active'(active: boolean, was: boolean): void {
+      if (active || !was || !this.tradeEndOwed) {
+        return;
+      }
+      this.tradeEndOwed = false;
+      if (this.focusState.open && !this.tradeState.active && !this.buildState.active) {
         this.completeFlow();
       }
     },

@@ -56,6 +56,14 @@ const SEAT_HANDOVER_MS = 300;
 const SEAT_LEAD_MS = 180;
 /** A card that TAKES the chair (TR76): the risen pose reads the chair with its holder before the handover starts. */
 const SEAT_READ_MS = 420;
+/** «ИСТРЕБИТЕЛЬ»: while the flow holds for the table's question it re-reads that question on this beat (motion clock). */
+const REACTION_PROBE_MS = 200;
+/**
+ * …and the question may stand with NO surface serving it (the quest's answer stage never asked it — a pick nobody can
+ * press) this long, in REAL time (the motion clock is instant under reduced motion), before the flow settles honestly
+ * (wait graph R3). A question that IS served is the player's: no bound stands over a decision.
+ */
+export const CHAIRMAN_QUEST_REACTION_UNSERVED_MS = 6000;
 
 export type ChairmanQuestDirectorContext = {
   root: HTMLElement;
@@ -81,6 +89,12 @@ export type ChairmanQuestDirectorContext = {
    */
   owesReaction?: () => string | undefined;
   /**
+   * …and is that question SERVED — standing on the quest's own answer stage, where the shell teleports its pick (the
+   * section has asked it)? A question standing unserved past `CHAIRMAN_QUEST_REACTION_UNSERVED_MS` is a deaf screen:
+   * the flow settles (wait graph R3). Absent = served.
+   */
+  reactionServed?: () => boolean;
+  /**
    * «ОТВЕТ СТОЛА» (TR78): the step's units LANDED on the asker (no question) — the section plays the receipt on the
    * quest's answer stage (`tableAnswerBeat.playTableAnswer`) and calls `done` when the stage has folded.
    */
@@ -101,8 +115,18 @@ type Run = {
   awaitingSeatPick: boolean;
   /** …or for the table's answer to the step (TR78) — the pick stands in the quest's zone. */
   awaitingReaction: boolean;
+  /** The one probe of that wait (re-armed each read, never piled up) and since when the question stood unserved. */
+  reactionProbe: ParliamentBeat | undefined;
+  reactionUnservedSince: number | undefined;
+  /** The step past the table's answer waiting behind its gap (the receipt read, the last answer landed) — «дожать» runs it. */
+  reactionTail: (() => void) | undefined;
   killed: boolean;
 };
+
+/** Real time for a BOUND (never a beat's pace — the beats ride the motion clock). */
+function nowMs(): number {
+  return typeof performance === 'undefined' ? Date.now() : performance.now();
+}
 
 let run: Run | undefined;
 
@@ -174,6 +198,9 @@ export function startChairmanQuestBeats(ctx: ChairmanQuestDirectorContext): void
     seatStarted: false,
     awaitingSeatPick: false,
     awaitingReaction: false,
+    reactionProbe: undefined,
+    reactionUnservedSince: undefined,
+    reactionTail: undefined,
     killed: false,
   };
   chairmanQuestFlow.beat = 'task';
@@ -402,7 +429,7 @@ function afterAgenda(): void {
     chairmanQuestFlow.beat = 'reaction';
     chairmanQuestFlow.stage = 'reaction';
     state.ctx.onStage('reaction');
-    play(receipt, () => schedule(BEAT_GAP_MS, () => afterAnswer()));
+    play(receipt, () => scheduleReactionTail(state, () => afterAnswer()));
     return;
   }
   afterAnswer();
@@ -427,6 +454,73 @@ function afterAnswer(): void {
   state.hold?.release();
   state.hold = undefined;
   state.ctx.onStage('reaction');
+  // …but the WAIT is still the flow's own, and bounded (wait graph R3): it re-reads its question on its own beat — gone
+  // (answered wherever it was served, or withdrawn) ends the flow; standing with no surface serving it past its bound
+  // settles the flow honestly. Never a deaf screen whose hold is released with no ceiling and A / B both inert.
+  armReactionProbe(state);
+}
+
+function armReactionProbe(state: Run): void {
+  state.reactionProbe?.kill();
+  state.reactionProbe = scheduleParliamentBeat(REACTION_PROBE_MS, () => {
+    state.reactionProbe = undefined;
+    if (run === state && !state.killed) {
+      probeChairmanQuestReaction();
+    }
+  });
+}
+
+/**
+ * ONE READ of the held flow's question (the probe's beat; exported for the specs with an injectable clock):
+ *  · the question is GONE → the flow's own ending (`noteChairmanQuestReactionAnswered`);
+ *  · it stands SERVED → the player's: the wait goes on, its unserved clock reset;
+ *  · it stands UNSERVED → counted from the first such read; past the bound the beats SETTLE (`done` — A / B close).
+ * Returns what it did.
+ */
+export function probeChairmanQuestReaction(now: number = nowMs()): 'none' | 'answered' | 'waiting' | 'settled' {
+  const state = run;
+  if (state === undefined || state.killed || !state.awaitingReaction) {
+    return 'none';
+  }
+  if (state.ctx.owesReaction?.() === undefined) {
+    noteChairmanQuestReactionAnswered();
+    return 'answered';
+  }
+  if (state.ctx.reactionServed?.() ?? true) {
+    state.reactionUnservedSince = undefined;
+  } else {
+    state.reactionUnservedSince ??= now;
+    if (now - state.reactionUnservedSince >= CHAIRMAN_QUEST_REACTION_UNSERVED_MS) {
+      settleChairmanQuestBeats('the table question stood with no surface serving it');
+      return 'settled';
+    }
+  }
+  armReactionProbe(state);
+  return 'waiting';
+}
+
+/**
+ * A «ДОЖАТЬ» WHILE THE FLOW HOLDS FOR THE TABLE'S QUESTION — the press reached the Parliament, so no pick took it: the
+ * question GONE ends the flow now (no gap); standing UNSERVED settles it now (the bound, hurried); a question SERVED is
+ * the player's and A does nothing here. `true` = the flow moved.
+ */
+export function hurryChairmanQuestReaction(): boolean {
+  const state = run;
+  if (state === undefined || state.killed || !state.awaitingReaction) {
+    return false;
+  }
+  if (state.ctx.owesReaction?.() === undefined) {
+    state.awaitingReaction = false;
+    state.reactionProbe?.kill();
+    state.reactionProbe = undefined;
+    finishRun();
+    return true;
+  }
+  if (state.ctx.reactionServed?.() ?? true) {
+    return false;
+  }
+  settleChairmanQuestBeats('the table question stands with no surface serving it — hurried');
+  return true;
 }
 
 /**
@@ -444,7 +538,20 @@ export function noteChairmanQuestReactionAnswered(): void {
     return;
   }
   state.awaitingReaction = false;
-  schedule(BEAT_GAP_MS, () => finishRun());
+  state.reactionProbe?.kill();
+  state.reactionProbe = undefined;
+  scheduleReactionTail(state, () => finishRun());
+}
+
+/** The step past the table's answer, after its gap — remembered so a «дожать» that cuts the gap still takes it. */
+function scheduleReactionTail(state: Run, fn: () => void): void {
+  state.reactionTail = fn;
+  schedule(BEAT_GAP_MS, () => {
+    if (state.reactionTail === fn) {
+      state.reactionTail = undefined;
+      fn();
+    }
+  });
 }
 
 /** Is the flow HOLDING for the table's answer to the step (the pick stands in the quest's zone)? */
@@ -531,6 +638,12 @@ export function finishChairmanQuestBeats(): void {
       beatAgenda();
     } else if (chairmanQuestFlow.beat === 'agenda' && parliamentHolds.agendaAwaits === undefined) {
       afterAgenda();
+    } else if (chairmanQuestFlow.beat === 'reaction' && state.reactionTail !== undefined) {
+      // The table's answer has landed (or its receipt was read) and only the gap before the next step was pending — cut
+      // above: the step is taken now, never a `reaction` beat left standing with nothing scheduled to end it.
+      const tail = state.reactionTail;
+      state.reactionTail = undefined;
+      tail();
     } else {
       break;
     }
@@ -549,6 +662,8 @@ export function killChairmanQuestBeats(): void {
     beat.kill();
   }
   state.beats = [];
+  state.reactionProbe?.kill();
+  state.reactionProbe = undefined;
   state.hold?.release();
   parliamentFlow.sourceHold = undefined;
   parliamentFlow.sourceLeaving = undefined;

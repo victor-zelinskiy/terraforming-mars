@@ -45,7 +45,7 @@ export const TRANSFER_END_MIN_OPACITY = 0.5;
  * UNDER its veil). The viewer and the system menu stand above the flight layer by contract; an end under them is not
  * painted for the eye, so the flight degrades to its counter's tick instead of a token nobody can see.
  */
-const COVERING_SURFACES = '.con-ws, .con-zoom-veil, .con-sys';
+const COVERING_SURFACES = '.con-ws, .con-zoom-veil, .con-sys, .card-zoom-container';
 
 /**
  * A BARE POINT under a full-screen overlay (the card viewer's veil, the system menu) — the one cover a point can be
@@ -57,7 +57,7 @@ export function fullscreenCoverAt(p: {x: number, y: number}): string | undefined
     return undefined;
   }
   const top = document.elementsFromPoint(p.x, p.y).find((e) => e.closest('.con-transfer') === null);
-  const overlay = top?.closest('.con-zoom-veil, .con-sys');
+  const overlay = top?.closest('.con-zoom-veil, .con-sys, .card-zoom-container');
   return overlay === null || overlay === undefined ? undefined : surfaceName(overlay);
 }
 
@@ -116,7 +116,7 @@ export function transferEndVerdict(el: Element | null | undefined, opts: Transfe
   // AN END INSIDE A FULL-SCREEN OVERLAY is never a flight end (ledger HC, the monkey's day2 table: X lifted Fish into
   // the card viewer mid-payout, and its capsule — visible, INSIDE the viewer — was the token's birth). The flight
   // layer stands under every scene that takes the screen by contract, so a token there is painted under the veil.
-  const screenTaker = el.closest('.con-zoom, .con-zoom-veil, .con-zoom-flight-layer, .con-sys');
+  const screenTaker = el.closest('.con-zoom, .con-zoom-veil, .con-zoom-flight-layer, .con-sys, .card-zoom-container');
   if (screenTaker !== null) {
     return {visible: false, why: 'covered', by: surfaceName(screenTaker)};
   }

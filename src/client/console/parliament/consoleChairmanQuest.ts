@@ -36,6 +36,7 @@ import {AgendaMove} from './consoleParliamentModel';
 import {agendaStepAnswerSpecs, flushAgendaBonus, queueAgendaBonuses, RATING_RAIL_KEY} from './parliamentRewardBeat';
 import {StandardMoves} from '@/common/parliament/ParliamentTypes';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
 
 /**
  * THE FLOW'S STAGES — the crumb's tail, one word each
@@ -238,3 +239,19 @@ export function releaseChairmanQuestHolds(why: string): void {
   parliamentHolds.returns.clear();
   flushAgendaBonus(why);
 }
+
+/**
+ * THE CHAIRMANSHIP AS A WAIT (the wait graph, Э4): its beats are its own motion — once they are `done` the player's A
+ * closes it (honest, unbounded); before that its hold's ceiling bounds it.
+ */
+registerWaitSource('flow:chairman-quest', () => {
+  const flow = chairmanQuestFlow;
+  if (!flow.live) {
+    return [];
+  }
+  return [{
+    id: 'flow:chairman-quest', family: 'flow', owner: 'chairmanQuest',
+    targets: [flow.beat === 'done' ? {kind: 'player', what: 'A closes the chairmanship'} : {kind: 'motion', what: `the beats (${flow.beat})`}],
+    ...(flow.beat === 'done' ? {} : {boundMs: 30_000}),
+  }];
+});

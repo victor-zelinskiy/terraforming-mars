@@ -18,7 +18,7 @@ import {
   markColonyTradeZoomReady, noticeColonyTradeCommit, notifyColonyTradeTrackCommitted,
   presentedColonyModel, resetColonyTrade, runColonyTradeRewards, seedColonyTradeRewardHold,
   setColonyTradeCardScene, stageColonyTradeReveal,
-  colonyTrackWaveState, finishColonyTrackWave, requestColonyTrackWave,
+  colonyTrackWaveState, finishColonyTrackWave, requestColonyTrackWave, colonyTradeDiagnostics, colonyTradeRunId,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 
 function manifest(over: Partial<ColonyTradeManifestModel> = {}): ColonyTradeManifestModel {
@@ -449,5 +449,77 @@ describe('consoleColonyTrade', () => {
       expect(colonyTrackWaveState.active).to.eq(false);
       expect(isColonyTradeInputLocked(), 'the wave ended: the pad belongs to the player again').to.eq(false);
     });
+  });
+
+  /*
+   * WAIT GRAPH R6 — an ENDING is keyed to the RUN, never to the global `active` the next trade raises again. An old
+   * trade's settle timer / parked net / advance net / reward continuation must never finish or write into a new one.
+   */
+  describe('wait graph R6 — every ending is keyed to the trade run', () => {
+    it('an old trade’s SETTLE timer never finishes the trade armed inside its window', async () => {
+      armColonyTrade(ColonyName.TRITON, 'red');
+      detectColonyTrade(view(manifest({preTradeTrackPosition: 1, postTradeTrackPosition: 1})));
+      await runColonyTradeRewards();
+      await nextTick();
+      expect(colonyTradeState.phase).eq('settle'); // trade A owes its settle timer
+      const runA = colonyTradeRunId();
+      armColonyTrade(ColonyName.LUNA, 'red'); // trade B, inside A's settle window
+      expect(colonyTradeRunId()).gt(runA);
+      await new Promise((resolve) => setTimeout(resolve, 1_200)); // past A's settle (260 + 640 ms)
+      expect(isColonyTradeActive(), 'B is not finished by A’s timer').eq(true);
+      expect(colonyTradeState.colonyName).eq(ColonyName.LUNA);
+      expect(colonyTradeState.phase).eq('armed');
+    }).timeout(4_000);
+
+    it('an old trade’s PARKED net never concludes the next trade', async () => {
+      armColonyTrade(ColonyName.TRITON, 'red');
+      detectColonyTrade(view(manifest()));
+      await runColonyTradeRewards();
+      await nextTick();
+      noticeColonyTradeCommit({
+        colonyTradeManifest: manifest(),
+        thisPlayer: {color: 'red'},
+        waitingFor: undefined,
+        players: [{color: 'red', isWaitingForInput: false}, {color: 'blue', isWaitingForInput: true}],
+      } as unknown as PlayerViewModel);
+      armColonyTrade(ColonyName.LUNA, 'red');
+      detectColonyTrade(view(manifest({tradeId: 'Luna:g3:a200', colonyName: ColonyName.LUNA})));
+      await runColonyTradeRewards();
+      await nextTick();
+      expect(colonyTradeState.phase).eq('awaiting');
+      await new Promise((resolve) => setTimeout(resolve, 2_800)); // past A's 2.5 s parked net
+      expect(isColonyTradeActive(), 'B still waits for ITS reset').eq(true);
+      expect(colonyTradeState.tradeId).eq('Luna:g3:a200');
+    }).timeout(6_000);
+
+    it('an old run resumed after the next arm writes nothing into it, and lets go of the numbers it held', async () => {
+      armColonyTrade(ColonyName.TRITON, 'red', undefined, 2); // pressed at cell 2, read at 4 — an advance leg is owed
+      detectColonyTrade(view(manifest()));
+      seedColonyTradeRewardHold();
+      expect(heldStock('titanium')).eq(4);
+      const runA = runColonyTradeRewards(); // waits on the advance leg
+      expect(colonyTradeState.phase).eq('advance');
+      armColonyTrade(ColonyName.LUNA, 'red'); // the arm releases A's advance await
+      await runA;
+      expect(colonyTradeState.colonyName).eq(ColonyName.LUNA);
+      expect(colonyTradeState.phase, 'A never moved B to chips/awaiting').eq('armed');
+      expect((colonyTradeDiagnostics() as {chipsDone: boolean}).chipsDone).eq(false);
+      expect(heldStock('titanium'), 'A’s unflown payout snaps to committed').eq(0);
+    });
+
+    it('an old trade’s ADVANCE net never settles the next trade’s advance leg', async () => {
+      armColonyTrade(ColonyName.TRITON, 'red', undefined, 2);
+      detectColonyTrade(view(manifest()));
+      void runColonyTradeRewards(); // A's advance net (1.8 s) is armed
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      armColonyTrade(ColonyName.LUNA, 'red', undefined, 1);
+      detectColonyTrade(view(manifest({tradeId: 'Luna:g3:a200', colonyName: ColonyName.LUNA, preTradeTrackPosition: 3})));
+      void runColonyTradeRewards(); // B's own advance leg starts
+      await nextTick();
+      expect(colonyTradeState.phase).eq('advance');
+      await new Promise((resolve) => setTimeout(resolve, 1_000)); // A's net would have fired here (t = 1.8 s)
+      expect(colonyTradeState.glideKind, 'B’s advance still owed').eq('advance');
+      expect(colonyTradeState.phase).eq('advance');
+    }).timeout(6_000);
   });
 });

@@ -1,6 +1,11 @@
 import {expect} from 'chai';
 import {
+  abandonStartSceneRelease,
   abortStartTender,
+  beginFirstActSubmit,
+  beginStartSceneRelease,
+  completeStartSceneRelease,
+  endFirstActSubmit,
   armStartRedealRestore,
   buildInitialCardsResponse,
   campaignWizardExtra,
@@ -900,5 +905,78 @@ describe('consoleStartState (abortStartTender — a refused tender answer lets g
     expect(startRedealRestoreArmed(), 'a deal that never changed restores nothing').to.be.false;
     expect(consoleStartState.tenderBusy).to.be.undefined;
     expect(consoleStartState.restructureOpening).to.be.undefined;
+  });
+});
+
+describe('consoleStartState (wait graph R12 — the first action’s submit latch has an ending)', () => {
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  beforeEach(() => ensureStartWizard('r12', `sig-${Math.random()}`));
+
+  it('a plain REFUSAL (no view at all) lets the latch go through the transport’s refusal battery', () => {
+    beginFirstActSubmit();
+    expect(consoleStartState.firstAct.submitting).to.be.true;
+    abortStartTender(); // the battery’s start entry
+    expect(consoleStartState.firstAct.submitting, 'A re-arms').to.be.false;
+  });
+
+  it('the answer ends it once; a later ending of the same submit is a no-op', () => {
+    const seq = beginFirstActSubmit();
+    expect(endFirstActSubmit(undefined, 'answered')).to.be.true;
+    expect(endFirstActSubmit(seq, 'safety')).to.be.false;
+    expect(consoleStartState.firstAct.submitting).to.be.false;
+  });
+
+  it('a submit nobody answers is BOUNDED by its own safety', async () => {
+    beginFirstActSubmit(30);
+    await wait(80);
+    expect(consoleStartState.firstAct.submitting).to.be.false;
+  });
+
+  it('an older press’s safety never releases a newer submit', async () => {
+    const first = beginFirstActSubmit(30);
+    consoleStartState.firstAct.submitting = false; // the scene let it go (the stage left)
+    beginFirstActSubmit(500); // the next press
+    await wait(80);
+    expect(endFirstActSubmit(first, 'safety'), 'the old id names nothing').to.be.false;
+    expect(consoleStartState.firstAct.submitting, 'the new press still stands').to.be.true;
+  });
+});
+
+describe('consoleStartState (wait graph R8 — a release that could not run is owed, never latched)', () => {
+  beforeEach(() => {
+    ensureStartWizard('r8', `sig-${Math.random()}`);
+    holdStartScene();
+    consoleStartState.flow = 'deploying';
+  });
+
+  it('a release abandoned by a torn-down scene hands the flow back — the next mount may run it', () => {
+    const run = beginStartSceneRelease();
+    expect(consoleStartState.flow).to.eq('completing');
+    expect(abandonStartSceneRelease(run)).to.be.true;
+    expect(consoleStartState.flow, 'no longer «already releasing»').to.eq('deploying');
+    expect(startSceneHeld(), 'the hold is still owed a release').to.be.true;
+    // …and the next release completes it.
+    const again = beginStartSceneRelease();
+    completeStartSceneRelease(again);
+    expect(startSceneHeld()).to.be.false;
+    expect(consoleStartState.flow).to.eq('idle');
+  });
+
+  it('an OLD run’s abandon never undoes a NEWER release in flight', () => {
+    const old = beginStartSceneRelease();
+    consoleStartState.flow = 'deploying'; // the unmount reset the busy flow
+    const fresh = beginStartSceneRelease(); // the restored scene releases
+    expect(abandonStartSceneRelease(old)).to.be.false;
+    expect(consoleStartState.flow).to.eq('completing');
+    completeStartSceneRelease(fresh);
+    expect(startSceneHeld()).to.be.false;
+  });
+
+  it('a release of an earlier DEAL never touches the new one (rematch)', () => {
+    const run = beginStartSceneRelease();
+    ensureStartWizard('r8', 'a-new-deal');
+    consoleStartState.flow = 'completing'; // whatever the new deal is doing
+    expect(abandonStartSceneRelease(run)).to.be.false;
+    expect(consoleStartState.flow).to.eq('completing');
   });
 });

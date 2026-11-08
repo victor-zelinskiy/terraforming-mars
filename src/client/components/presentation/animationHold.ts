@@ -154,7 +154,7 @@ const store = reactive({
   /** Bumped on (un)register so the counts computed re-scans the Map. */
   version: 0,
   /** Live imperative holds (beginAnimationHold). */
-  manual: new Map<number, {label: string, scope: AnimationHoldScope, since: number}>(),
+  manual: new Map<number, {label: string, scope: AnimationHoldScope, since: number, maxHoldMs: number}>(),
   /** Supplier labels past the safety ceiling — excluded until they go false. */
   expired: new Set<string>(),
   /**
@@ -306,11 +306,11 @@ export function unregisterAnimationHoldSupplier(label: string): void {
  */
 export function beginAnimationHold(label: string, options?: AnimationHoldOptions): AnimationHold {
   const id = nextHoldId++;
-  store.manual.set(id, {label, scope: options?.scope ?? 'blocking', since: Date.now()});
+  const maxHoldMs = options?.maxHoldMs ?? DEFAULT_MAX_HOLD_MS;
+  store.manual.set(id, {label, scope: options?.scope ?? 'blocking', since: Date.now(), maxHoldMs});
   if (options?.diagnose !== undefined || options?.expire !== undefined) {
     manualRecovery.set(id, {diagnose: options.diagnose, expire: options.expire});
   }
-  const maxHoldMs = options?.maxHoldMs ?? DEFAULT_MAX_HOLD_MS;
   const ceiling = setTimeout(() => {
     const recovery = manualRecovery.get(id);
     manualRecovery.delete(id);
@@ -520,6 +520,51 @@ export function activeAnimationHoldLabels(): Array<string> {
     }
   }
   return labels;
+}
+
+/**
+ * THE HOLDS AS WAITS (the wait graph, Э4 — a mechanism enters the graph BY CONSTRUCTION): every hold standing now, with
+ * its scope, since when it holds and its ceiling. Read by the graph's hold source once a tick (never reactive).
+ */
+export function activeAnimationHoldWaits(): Array<{label: string, scope: AnimationHoldScope, since: number, maxHoldMs: number}> {
+  const out: Array<{label: string, scope: AnimationHoldScope, since: number, maxHoldMs: number}> = [];
+  for (const [label, entry] of suppliers) {
+    if (entry.heldSince !== undefined && !store.expired.has(label) && !store.quarantined.has(label)) {
+      out.push({label, scope: entry.scope, since: entry.heldSince, maxHoldMs: entry.maxHoldMs});
+    }
+  }
+  for (const hold of store.manual.values()) {
+    if (!store.quarantined.has(hold.label)) {
+      out.push({label: hold.label, scope: hold.scope, since: hold.since, maxHoldMs: hold.maxHoldMs});
+    }
+  }
+  return out;
+}
+
+/**
+ * END ONE HOLD through its owner's recovery NOW (the wait graph's door for a hold that yields in a cycle, Э3): the same
+ * path the ceiling runs — the supplier is excluded until it falls and its `expire` runs; a manual handle is dropped and
+ * its `expire` runs. `false` when nothing of that label holds.
+ */
+export function expireAnimationHoldNow(label: string): boolean {
+  let did = false;
+  const entry = suppliers.get(label);
+  if (entry !== undefined && entry.heldSince !== undefined && !store.expired.has(label)) {
+    store.expired.add(label);
+    store.version++;
+    safeExpireRecovery(label, entry.expire);
+    did = true;
+  }
+  for (const [id, hold] of [...store.manual.entries()]) {
+    if (hold.label === label) {
+      const recovery = manualRecovery.get(id);
+      manualRecovery.delete(id);
+      store.manual.delete(id);
+      safeExpireRecovery(label, recovery?.expire);
+      did = true;
+    }
+  }
+  return did;
 }
 
 // ── settle promise (imperative await for future call sites) ─────────────────

@@ -1316,6 +1316,7 @@ import {
   sponsorCrumb, startCardAvailability, startParticipants, StartWizardStep, stepComplete,
   stepShowsAvailability, wizardCrumb, wizardSteps,
   armStartRedealRestore, restoreStartPicksAfterRedeal, startCardPrice, StartTenderMode, StartWizardStepId,
+  abandonStartSceneRelease, beginFirstActSubmit, beginStartSceneRelease, completeStartSceneRelease, endFirstActSubmit,
 } from '@/client/console/consoleStartState';
 import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/startStatusPreview';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -5440,8 +5441,9 @@ export default defineComponent({
      * from here.
      */
     'playerView'() {
-      if (this.state.firstAct.submitting) {
-        this.state.firstAct.submitting = false;
+      // The latch is the submit's own (R12): the answer ends it here, a refusal in the transport's battery, a silence at
+      // its bounded safety.
+      if (endFirstActSubmit(undefined, 'answered')) {
         // ACCEPTED = the seated corporation's option is GONE — even when the
         // marked prompt is still live for ANOTHER owed corporation (Merger:
         // the server re-raises it in the same response). Reading «the prompt
@@ -7801,7 +7803,10 @@ export default defineComponent({
       if (this.state.flow === 'completing' || this.state.flow === 'releasing') {
         return 'already-releasing';
       }
-      if (this.mode !== 'ceremony') {
+      // …and a scene with NO STANDING ROOT has nothing to dissolve either (a stale instance the director still holds a
+      // ref to): its release beat could only mark `completing` and return — the hold lets go at once instead (R8).
+      const root = this.sceneRoot();
+      if (this.mode !== 'ceremony' || root === undefined || !root.isConnected) {
         releaseStartScene();
         return 'hold-released';
       }
@@ -7812,11 +7817,21 @@ export default defineComponent({
       if (this.state.flow === 'completing' || this.state.flow === 'releasing') {
         return;
       }
+      // NOTHING IS MARKED UNTIL THE RELEASE CAN RUN (wait graph R8): `completing` reads «already releasing» to every
+      // door (the settled watcher of the next mount, the director's release), so a release that set it and then found
+      // no root to dissolve stood the lifetime hold for the whole game. A torn-down instance releases nothing here.
+      const root = this.sceneRoot();
+      if (root === undefined || !root.isConnected) {
+        return;
+      }
       this.flowTerminal = false;
-      this.state.flow = 'completing';
+      const release = beginStartSceneRelease();
       await this.$nextTick();
       const el = this.sceneRoot();
       if (el === undefined || !el.isConnected) {
+        // Torn down in the tick: the flow returns to where it stood (this deal, this run only), so the restored scene's
+        // settled watcher — or the director — runs the release again.
+        abandonStartSceneRelease(release);
         return;
       }
       {
@@ -7924,13 +7939,14 @@ export default defineComponent({
           this.completionTimeline = undefined;
         }
         // A teardown kills the timeline. A detached instance cannot release
-        // the lifetime hold; the restored Start workspace owns that outcome.
+        // the lifetime hold; the restored Start workspace owns that outcome —
+        // and it CAN, because the abandoned run hands the flow back (R8).
         if (!el.isConnected) {
+          abandonStartSceneRelease(release);
           return;
         }
       }
-      releaseStartScene();
-      this.state.flow = 'idle';
+      completeStartSceneRelease(release);
     },
     /**
      * SHELL BOUNDS. The deployment's bounds are the SYSTEM workspace band
@@ -9731,7 +9747,7 @@ export default defineComponent({
       if (prompt === undefined || index === -1) {
         return;
       }
-      this.state.firstAct.submitting = true;
+      beginFirstActSubmit();
       // THE RAIL HALF (TR81): the action's own rail gains and the table's answer to them, armed off the briefing's own
       // preview at the press — the transport holds them in the apply block that pays them, the stage flies them.
       foldForecastHost('start');

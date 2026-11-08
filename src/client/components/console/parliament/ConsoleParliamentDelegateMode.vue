@@ -480,6 +480,19 @@ export default defineComponent({
       parliamentFlow.delegateBeat = 'done';
       this.$emit('flow-complete', 'delegate');
     },
+    /**
+     * THE QUESTION DOOR folds this FINISHED mode back to the overview (wait graph R1 — the conclusion held the frame for
+     * a question the overview opens): every beat cut, the fit thawed, the latch let go; the section then closes the stage.
+     * A mode still at work is never closed here.
+     */
+    closeFinished(): void {
+      if (parliamentFlow.delegateBeat !== 'done') {
+        return;
+      }
+      this.stopOutcome();
+      this.latchedCard = undefined;
+      freezeParliamentFit(false);
+    },
     /** Cut every beat of this mode (the section unmounts): the flight lands in its final pose, the hold lets go. */
     stopOutcome(): void {
       this.beat?.kill();

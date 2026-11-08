@@ -271,7 +271,7 @@ import {cardsResponse} from '@/client/console/taskResponses';
 import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase, workspaceOutcomeArrivalFlown, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {
   armDeckPickFlight, beginDeckPickChoosing, beginDeckPickClearing, beginDeckPickDeal,
-  beginDeckPickSend, clearDeckPickFlight, deckPickProxyEls, deckPickState,
+  beginDeckPickSend, clearDeckPickFlight, deckPickProxyEls, deckPickState, disownDeckPickDeal,
   endDeckPickCommit, markBatchDealt, rollbackDeckPickCommit, saveDeckPickDraft,
   shouldDealBatch, takeDeckPickDraft,
 } from '@/client/console/deckPick/consoleDeckPick';
@@ -321,6 +321,8 @@ export default defineComponent({
       /** Names still owned by a proxy (the real slot stays held under it). */
       held: new Set<string>(),
       handle: undefined as BatchArrivalHandle | undefined,
+      /** The identity of the deal THIS surface started (its ceiling's handover is ours only while we stand). */
+      dealSeq: 0,
       /** Blocks a duplicate submit between the press and the response. */
       submitting: false,
       fitRetries: 0,
@@ -838,6 +840,8 @@ export default defineComponent({
     }
     this.handle?.kill();
     this.handle = undefined;
+    // The deal's ceiling may not hand over into a torn-down tree — it only lets the flow go (R13).
+    disownDeckPickDeal(this.dealSeq);
     clearDeckPickFlight();
     releaseDeckDisplay();
     this.ro?.disconnect();
@@ -898,7 +902,8 @@ export default defineComponent({
         this.scheduleFit();
         return;
       }
-      beginDeckPickDeal();
+      // BOUNDED (R13): a landing that never comes ends at the deal's ceiling through the surface's own handover.
+      this.dealSeq = beginDeckPickDeal(() => this.handOverDealAtCeiling());
       const names = this.entries.map((e) => e.name);
       this.held = new Set<string>(names);
       if (typeof window === 'undefined') {
@@ -987,6 +992,15 @@ export default defineComponent({
           this.finishDeal();
         },
       });
+    },
+    /**
+     * THE DEAL'S CEILING fired (R13): the flight never reported its landing. The deal ends where it stands — the
+     * arrival is stopped, the real cards show in their slots (the proxies go with the layer), the cursor opens.
+     */
+    handOverDealAtCeiling(): void {
+      this.handle?.kill();
+      this.handle = undefined;
+      this.finishDeal();
     },
     finishDeal(): void {
       this.flyOn = false;

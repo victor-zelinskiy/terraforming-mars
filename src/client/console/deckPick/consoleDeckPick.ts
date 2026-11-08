@@ -27,6 +27,7 @@
 import {markRaw, reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {motionMs} from '@/client/components/motion/motionTokens';
 
 /**
  * `idle`     — nothing running (the surface is not up, or it is waiting for a
@@ -129,12 +130,66 @@ registerAnimationHoldSupplier('deck-pick', isDeckPickBusy, {
   },
 });
 
+/**
+ * THE DEAL'S CEILING (wait graph R13). A deal is a beat of 1–3 s (the arrival plan of the largest batch, plus the
+ * handoff); its ending is the surface's own landing (`finishDeal` → `beginDeckPickChoosing`). A landing that never
+ * comes (a starved GSAP ticker, a handoff whose `onDone` never fired, a surface torn down mid-flight) left `dealing`
+ * standing with the pad shut — and the hydro traversal, which resumes only on an `idle` flow, waiting behind it.
+ * Generous, scaled with the motion preset, and ended HONESTLY: the cards are handed over, input opens.
+ */
+const DEAL_CEILING_MS = 8_000;
+
+/** The deal run's own identity — a ceiling armed for an older deal never ends a newer one. */
+let dealSeq = 0;
+let dealCeilingId: ReturnType<typeof setTimeout> | undefined;
+/** The surface's own handover (the real cards under the proxies, the bodies gone) — absent once it unmounted. */
+let dealHandover: (() => void) | undefined;
+
+function clearDealCeiling(): void {
+  if (dealCeilingId !== undefined) {
+    clearTimeout(dealCeilingId);
+    dealCeilingId = undefined;
+  }
+  dealHandover = undefined;
+}
+
+/** The ceiling fired on deal `seq`: the deal ends where it stands — handed over to the player, or let go. */
+function endDealAtCeiling(seq: number): void {
+  dealCeilingId = undefined;
+  if (seq !== dealSeq || deckPickState.phase !== 'dealing') {
+    return;
+  }
+  const handover = dealHandover;
+  dealHandover = undefined;
+  console.warn(`[deck-pick] the deal outlived its ceiling — ${handover !== undefined ? 'cards handed over, input opens' : 'no surface stands, the flow lets go'}`);
+  handover?.();
+  clearDeckPickFlight();
+  if (deckPickState.phase === 'dealing') {
+    // A surface that stands now takes input; with none standing there is nobody to choose — the flow rests.
+    deckPickState.phase = handover !== undefined ? 'choosing' : 'idle';
+  }
+}
+
 /** The cards are coming off the deck (or another director's cinematic is
- *  delivering them) — input stays shut until they have all landed. */
-export function beginDeckPickDeal(): void {
+ *  delivering them) — input stays shut until they have all landed. Bounded by
+ *  its own ceiling; `handover` is the surface's honest ending of a deal that
+ *  never landed (the cards shown in their slots). Returns the deal's identity. */
+export function beginDeckPickDeal(handover?: () => void, ceilingMs: number = DEAL_CEILING_MS): number {
   deckPickState.phase = 'dealing';
   deckPickState.committing = false;
   deckPickState.kept = 0;
+  clearDealCeiling();
+  const seq = ++dealSeq;
+  dealHandover = handover;
+  dealCeilingId = setTimeout(() => endDealAtCeiling(seq), motionMs(ceilingMs));
+  return seq;
+}
+
+/** The surface that dealt `seq` is going: its handover would act on a dead tree — the ceiling only lets the flow go. */
+export function disownDeckPickDeal(seq: number): void {
+  if (seq === dealSeq) {
+    dealHandover = undefined;
+  }
 }
 
 /** Everything has landed and handed over — the player may act. */
@@ -142,6 +197,7 @@ export function beginDeckPickChoosing(): void {
   if (deckPickState.phase !== 'sending' && deckPickState.phase !== 'clearing') {
     deckPickState.phase = 'choosing';
   }
+  clearDealCeiling();
 }
 
 /**
@@ -151,6 +207,7 @@ export function beginDeckPickChoosing(): void {
  * picks have already left the surface.
  */
 export function beginDeckPickSend(kept: number): void {
+  clearDealCeiling();
   deckPickState.phase = 'sending';
   deckPickState.committing = true;
   deckPickState.kept = kept;
@@ -171,6 +228,7 @@ export function beginDeckPickClearing(): void {
  * rather than leaving the player inside a beat that will never finish.
  */
 export function endDeckPickCommit(): void {
+  clearDealCeiling();
   deckPickState.committing = false;
   deckPickState.phase = 'idle';
   // The batch is ANSWERED — a parked draft for it can never be honest again.
@@ -252,6 +310,7 @@ export function clearDeckPickFlight(): void {
 
 /** Full reset (unmount / game switch / test cleanup). */
 export function resetDeckPick(): void {
+  clearDealCeiling();
   deckPickState.phase = 'idle';
   deckPickState.committing = false;
   deckPickState.kept = 0;

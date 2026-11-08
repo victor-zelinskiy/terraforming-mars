@@ -269,6 +269,115 @@ export function abortStartTender(): void {
   consoleStartState.tenderBusy = undefined;
   consoleStartState.restructureOpening = undefined;
   pendingRedealRestore = undefined;
+  // THE SAME BATTERY IS THE START'S ONE REFUSAL EDGE (wait graph R12): the first action's anti-double-press latch
+  // waited for ANY new view, and a plain refusal (400) brings none — A stood dead until something else moved.
+  endFirstActSubmit(undefined, 'refused');
+}
+
+// ── THE FIRST ACTION'S SUBMIT LATCH (wait graph R12) ─────────────────────────
+
+/**
+ * How long a first-action submit may stand without ANY answer — no view, no refusal — before the latch lets go and the
+ * stage takes the next press. Past the transport's own refusal paths; a degrade net, never the ordinary ending.
+ */
+export const FIRST_ACT_SUBMIT_SAFETY_MS = 20_000;
+
+/** The submit run's own identity — an ending armed for an older press never releases a newer one. */
+let firstActSubmitSeq = 0;
+let firstActSubmitSafety: ReturnType<typeof setTimeout> | undefined;
+
+function clearFirstActSubmitSafety(): void {
+  if (firstActSubmitSafety !== undefined) {
+    clearTimeout(firstActSubmitSafety);
+    firstActSubmitSafety = undefined;
+  }
+}
+
+/**
+ * A on the standing first-action stage: the submit is on the wire. Ended by the answer (the scene's view watcher), by
+ * the transport's refusal battery (`abortStartTender`), or — bounded — by its own safety. Returns the submit's id.
+ */
+export function beginFirstActSubmit(safetyMs: number = FIRST_ACT_SUBMIT_SAFETY_MS): number {
+  consoleStartState.firstAct.submitting = true;
+  const seq = ++firstActSubmitSeq;
+  clearFirstActSubmitSafety();
+  firstActSubmitSafety = setTimeout(() => {
+    firstActSubmitSafety = undefined;
+    endFirstActSubmit(seq, 'safety');
+  }, safetyMs);
+  return seq;
+}
+
+/**
+ * The submit's round trip ENDED — the latch lets go. `seq` names the submit the ending belongs to (`undefined` = the
+ * live one: a refusal / an answer always concerns the submit on the wire). Returns whether a latch was released.
+ */
+export function endFirstActSubmit(seq: number | undefined, why: 'answered' | 'refused' | 'safety'): boolean {
+  if (seq !== undefined && seq !== firstActSubmitSeq) {
+    return false;
+  }
+  clearFirstActSubmitSafety();
+  if (!consoleStartState.firstAct.submitting) {
+    return false;
+  }
+  consoleStartState.firstAct.submitting = false;
+  if (why !== 'answered') {
+    console.warn(`[start] first-action submit ${why === 'refused' ? 'refused by the server' : 'never answered'} — the stage takes the next press`);
+  }
+  return true;
+}
+
+// ── THE SCENE RELEASE RUN (wait graph R8) ───────────────────────────────────
+
+/**
+ * The scene's final release beat in flight, keyed by its OWN identity (`seq`) and the DEAL it releases. The release
+ * marks `flow = 'completing'` and then needs a standing root to dissolve; a release that cannot finish in the instance
+ * that began it (torn down, root gone) must leave a state the next mount or the director's release can complete —
+ * otherwise `completing` reads «already releasing» to every door and the lifetime hold stands for the game.
+ */
+let startReleaseSeq = 0;
+let startReleaseRun: {seq: number, deal: string, prior: StartFlowState} | undefined;
+
+function startDealKey(): string {
+  return `${consoleStartState.ownerId}|${consoleStartState.signature}`;
+}
+
+/** The release beat begins: `flow` goes `completing` and the run is recorded. Returns its id. */
+export function beginStartSceneRelease(): number {
+  const seq = ++startReleaseSeq;
+  startReleaseRun = {seq, deal: startDealKey(), prior: consoleStartState.flow};
+  consoleStartState.flow = 'completing';
+  return seq;
+}
+
+/**
+ * The release `seq` could NOT finish (its root is gone): if it is still THIS deal's live release, the flow returns to
+ * where it stood before the release began, so the next mount's settled watcher / the director's release runs it again.
+ * A newer release, a new deal (rematch) or a flow somebody already moved is never touched.
+ */
+export function abandonStartSceneRelease(seq: number): boolean {
+  const run = startReleaseRun;
+  if (run === undefined || run.seq !== seq) {
+    return false;
+  }
+  startReleaseRun = undefined;
+  if (run.deal !== startDealKey()) {
+    return false;
+  }
+  if (consoleStartState.flow !== 'completing' && consoleStartState.flow !== 'releasing') {
+    return false;
+  }
+  consoleStartState.flow = run.prior;
+  return true;
+}
+
+/** The release `seq` finished: the lifetime hold let go, the flow rests. */
+export function completeStartSceneRelease(seq: number): void {
+  if (startReleaseRun?.seq === seq) {
+    startReleaseRun = undefined;
+  }
+  releaseStartScene();
+  consoleStartState.flow = 'idle';
 }
 
 /** After `ensureStartWizard` on the re-served deal: the surviving picks come back, the page too. */
@@ -321,6 +430,8 @@ export function ensureStartWizard(
   consoleStartState.heroPlaying = false;
   consoleStartState.deploymentBegun = false;
   consoleStartState.firstAct = {stage: 'idle', corp: undefined, submitting: false};
+  clearFirstActSubmitSafety();
+  startReleaseRun = undefined;
   consoleStartState.firstActionSeen = false;
   consoleStartState.bonusAct = {stage: 'idle', source: undefined, corpDone: false};
   consoleStartState.bonusActionSeen = false;
