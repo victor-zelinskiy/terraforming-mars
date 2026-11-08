@@ -57,11 +57,13 @@ describe('the «Тендеры» catalog', () => {
 
   it('THE DENIAL ORDER follows the impact estimate (§18.6): the decisive first, the three gambles LAST (the owner, 2026-11-08)', () => {
     const byPriority = [...TENDER_IDS].sort((a, b) => tenderDef(a).botPriority - tenderDef(b).botPriority);
-    expect(byPriority.slice(0, 2), 'the two decisives lead').deep.eq(['programExtension', 'researchSubsidy']);
+    expect(byPriority.slice(0, 2), 'the two decisives lead').deep.eq(['programExtension', 'targetedRequest']);
     expect(byPriority.slice(-3), 'the gambles close').deep.eq(['gamblePreludes', 'gambleProjects', 'gambleCorporations']);
     expect(tenderDef('broadPortfolio').botPriority, '«Широкий портфель» outranks «Пересмотр проектов»').lessThan(tenderDef('projectReview').botPriority);
     const tiers = Object.fromEntries(TENDER_IDS.map((id) => [id, tenderDef(id).tier]));
-    expect(tiers.researchSubsidy).eq('decisive');
+    expect(tiers.targetedRequest, 'three cards of one tag under a known lineage swing a finale (the owner, 2026-11-08)').eq('decisive');
+    expect(tiers.researchSubsidy, 'the first of the notables (the owner: «скорее весомая»)').eq('notable');
+    expect(byPriority[2]).eq('researchSubsidy');
     expect(tiers.broadPortfolio).eq('notable');
     expect(tiers.projectReview).eq('minor');
     // The tiers are monotone along the denial order: no minor outranks a notable, no notable a decisive.
@@ -258,7 +260,7 @@ describe('the bidding', () => {
   it('the bot picks the moment its turn comes — by the denial order — and the humans\' turns stand', () => {
     const bidding = openBidding(0, offer('broadPortfolio', 'researchSubsidy', 'preludeReview'), [3, 0, 1, 2], []);
     const after = advanceBots(bidding, (seat) => seat === 3);
-    expect(after.offer.find((c) => c.id === 'researchSubsidy')?.takenBy, 'the decisive «Субсидия» is denied first').eq(3);
+    expect(after.offer.find((c) => c.id === 'researchSubsidy')?.takenBy, '«Субсидия» heads the notables — denied before the portfolio and the review').eq(3);
     expect(biddingTurnSeat(after)).eq(0);
     // Two bots in a row pick in a row.
     const twoBots = advanceBots(openBidding(0, offer('broadPortfolio', 'researchSubsidy', 'preludeReview'), [3, 4, 0, 1], []), (s) => s >= 3);

@@ -96,10 +96,13 @@ export const TENDER_CATALOG: Readonly<Record<TenderId, TenderDef>> = {
   // THE TIERS by real impact at the finale's start (M€-equivalents — the design doc §18.6, the owner's review of
   // 2026-11-08): decisive ≥ 10 · notable 5–9 · minor < 5 · gamble = high variance at a low expectation.
   programExtension: {id: 'programExtension', tier: 'decisive', window: 'legacy', botPriority: 1, needsPreludes: true},
-  researchSubsidy: {id: 'researchSubsidy', tier: 'decisive', window: 'start', botPriority: 2, needsPreludes: false},
-  broadPortfolio: {id: 'broadPortfolio', tier: 'notable', window: 'start', botPriority: 3, needsPreludes: false},
-  openCall: {id: 'openCall', tier: 'notable', window: 'start', botPriority: 4, needsPreludes: true},
-  targetedRequest: {id: 'targetedRequest', tier: 'notable', window: 'start', botPriority: 5, needsPreludes: false},
+  // «Целевой запрос» is DECISIVE (the owner, 2026-11-08): three cards of ONE tag under a known lineage — three Jovians
+  // for a Jovian company — swing a finale; it never lies on one table with «Продление программы».
+  targetedRequest: {id: 'targetedRequest', tier: 'decisive', window: 'start', botPriority: 2, needsPreludes: false},
+  // «Субсидия» heads the notables (the owner, 2026-11-08: «скорее весомая»): 6–10 M€ a copy, floored at 1 M€ a card.
+  researchSubsidy: {id: 'researchSubsidy', tier: 'notable', window: 'start', botPriority: 3, needsPreludes: false},
+  broadPortfolio: {id: 'broadPortfolio', tier: 'notable', window: 'start', botPriority: 4, needsPreludes: false},
+  openCall: {id: 'openCall', tier: 'notable', window: 'start', botPriority: 5, needsPreludes: true},
   extendedLegacy: {id: 'extendedLegacy', tier: 'notable', window: 'legacy', botPriority: 6, needsPreludes: false},
   restructuring: {id: 'restructuring', tier: 'notable', window: 'start', botPriority: 7, needsPreludes: false},
   preludeReview: {id: 'preludeReview', tier: 'notable', window: 'start', botPriority: 8, needsPreludes: true},
