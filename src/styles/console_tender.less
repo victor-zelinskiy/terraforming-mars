@@ -780,7 +780,9 @@
     gap: .45rem;
     padding: .35rem;
     border-radius: .55rem;
-    flex: 0 1 calc(11rem + .7rem);
+    /* The certificate's size is the LIST's (`--tport-w`, solved by the host from the layer: as large as the row allows —
+       the owner, 2026-11-09: «отображает их слишком мелко»); the face reads its em off the slot (`100cqw / 14`). */
+    flex: 0 0 var(--tport-w, calc(11rem + .7rem));
     min-width: 0;
     container-type: inline-size;
     transition: transform calc(160ms * var(--motion-scale, 1)) @con-ease-standard, opacity calc(160ms * var(--motion-scale, 1)) linear;
@@ -792,10 +794,25 @@
     /* A certificate still IN THE AIR (the rise out of the dock): the slot keeps its box, the face waits for its own
        touchdown — visibility only, the row never re-lays out. */
     &--aloft > .con-tender { visibility: hidden; }
-    /* NOT ON THIS PAGE — the face steps back by material (its metal dulls), the word under it says why. Opaque: a
-       filter, never a whole-element opacity. */
-    &--elsewhere > .con-tender,
-    &--blocked > .con-tender { filter: saturate(.45) brightness(.82); }
+    /* NOT ON THIS PAGE — the face steps back under a SCRIM (the console strips every `filter` — paint baseline — so a
+       filtered dim never painted: the owner's frame of 2026-11-09 read five equally bright certificates), the word under
+       it says why. The scrim is the face's own layer (it clips it), opaque glass over opaque paint — never a
+       whole-element opacity. A done one steps back less: it is history, not a refusal. */
+    &--elsewhere > .con-tender::after,
+    &--blocked > .con-tender::after,
+    &--executed > .con-tender::after,
+    &--cashed > .con-tender::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 6;
+      pointer-events: none;
+      background: rgba(7, 11, 17, 0.62);
+    }
+    &--executed > .con-tender::after,
+    &--cashed > .con-tender::after { background: rgba(7, 11, 17, 0.42); }
+    /* The focused one reads in full even when it cannot go — the reading names why; the scrim thins under the cursor. */
+    &--focused > .con-tender::after { background: rgba(7, 11, 17, 0.3); }
     /* EXECUTES HERE — a kant on the slot, never a glow (invariant 15). */
     &--ready { box-shadow: inset 0 0 0 .07rem fade(@con-mint, 70%); }
     /* THE STAMP LANDS — the one event of an execution (ends on its own). */
@@ -805,7 +822,8 @@
   }
   &__here {
     font-family: @con-font;
-    font-size: .5rem;
+    font-size: .68rem;
+    font-weight: 700;
     letter-spacing: .1em;
     text-transform: uppercase;
     text-align: center;
@@ -813,18 +831,18 @@
   }
   &__reading-note {
     font-family: @con-font-read;
-    font-size: .8rem;
+    font-size: .95rem;
     line-height: 1.3;
     color: rgba(214, 223, 233, 0.62);
   }
   &__reason,
   &__hint {
     font-family: @con-font;
-    font-size: .5rem;
+    font-size: .64rem;
     letter-spacing: .08em;
     text-transform: uppercase;
     text-align: center;
-    max-width: 11rem;
+    max-width: 100%;
     line-height: 1.3;
   }
   &__reason { color: rgba(214, 223, 233, 0.62); }
@@ -833,21 +851,22 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: .28rem;
-    min-height: 3.1rem;
-    max-width: 64%;
+    gap: .35rem;
+    min-height: 2rem;
+    max-width: 72%;
     text-align: center;
   }
   &__reading-name {
     font-family: @con-font;
-    font-size: .84rem;
+    font-size: 1.15rem;
+    font-weight: 700;
     letter-spacing: .14em;
     text-transform: uppercase;
     color: #edf2f7;
   }
   &__reading-text {
     font-family: @con-font-read;
-    font-size: .84rem;
+    font-size: 1.02rem;
     line-height: 1.35;
     color: rgba(214, 223, 233, 0.88);
   }
@@ -1317,3 +1336,264 @@
 .cmap__seat-tp--none { color: rgba(214, 223, 233, 0.5); }
 .cmres__tender, .ccard__result-tender { max-width: 11rem; }
 .con-dcmp__tenders { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+
+/* ── THE ACTIVATION SHEET (§20) — the chosen tender as the HERO of its own scene: the certificate large on the left (it
+   was CARRIED here out of its list slot), the RESULT on the right in the table's live numbers. One hero by size and
+   type, never by light; the stamp is the one licensed event. ── */
+.con-tsheet {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3.4rem;
+  padding: .6rem 2.4rem;
+  &__hero {
+    position: relative;
+    flex: none;
+    width: var(--tsheet-hero-w, 16rem);
+    > .con-tender { --tender-w: var(--tsheet-hero-w, 16rem); }
+    /* The seat waits for the certificate's own flight (visibility only — the seat is the landing). */
+    &--held > .con-tender { visibility: hidden; }
+    &--stamping > .con-tender .con-tender__stamp {
+      animation: con-tport-stamp calc(620ms * var(--motion-scale, 1)) @con-ease-settle both;
+    }
+  }
+  &__panel {
+    /* Every size below is in em of the panel: a sheet taller than its layer is fitted by ONE number (`--tsheet-type`,
+       `fitTenderSheet`) — the whole reading scales together, never a scroll, never a clipped head. */
+    font-size: var(--tsheet-type, 1rem);
+    flex: 0 1 36em;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .85em;
+    /* The RESULT unfolds from beside the hero once it has landed (opacity and a hair of travel — no geometry). */
+    opacity: 0;
+    transform: translateX(-.8em);
+    transition:
+      opacity calc(260ms * var(--motion-scale, 1)) @con-ease-standard,
+      transform calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
+  }
+  &--open &__panel { opacity: 1; transform: none; }
+  &--leaving &__panel {
+    opacity: 0;
+    transform: translateX(-.4em);
+    transition-duration: calc(180ms * var(--motion-scale, 1));
+  }
+  &__kicker {
+    font-family: @con-font;
+    font-size: .7em;
+    font-weight: 700;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: fade(@con-cyan, 80%);
+  }
+  &--committed &__kicker { color: fade(@con-amber, 90%); }
+  &__name {
+    font-family: @con-font;
+    font-size: 1.9em;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    line-height: 1.1;
+    color: #f2f6fa;
+  }
+  &__rule {
+    margin: 0;
+    font-family: @con-font-read;
+    font-size: 1.05em;
+    line-height: 1.4;
+    color: rgba(214, 223, 233, 0.86);
+    max-width: 34em;
+  }
+  /* THE RESULT ROWS — the label quiet, the value the loud voice: `from → to`, the gain in mint, a cost in amber. */
+  &__rows {
+    display: flex;
+    flex-direction: column;
+    gap: .2em;
+    padding: .7em 0;
+    border-top: .05em solid rgba(150, 175, 205, 0.18);
+    border-bottom: .05em solid rgba(150, 175, 205, 0.18);
+  }
+  &__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1.6em;
+    padding: .25em 0;
+  }
+  &__label {
+    font-family: @con-font;
+    font-size: .74em;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: rgba(214, 223, 233, 0.66);
+  }
+  &__value {
+    display: inline-flex;
+    align-items: center;
+    gap: .45em;
+    font-family: @con-font;
+    font-variant-numeric: tabular-nums;
+  }
+  &__from {
+    font-size: 1.3em;
+    font-weight: 600;
+    color: rgba(214, 223, 233, 0.5);
+  }
+  &__arrow {
+    font-style: normal;
+    font-size: 1.1em;
+    color: rgba(214, 223, 233, 0.5);
+  }
+  &__to {
+    font-size: 1.7em;
+    font-weight: 700;
+    color: #eef3f8;
+  }
+  &__row[data-tone='gain'] &__to { color: @con-mint; }
+  &__row[data-tone='cost'] &__to { color: @con-amber; }
+  &__mc { width: 1.15em; height: 1.15em; }
+  /* A unit is a card SHAPE (its kind by its tint) — what the number counts, read by form. */
+  &__unit {
+    display: inline-block;
+    width: .78em;
+    height: 1.08em;
+    border-radius: .14em;
+    box-shadow: inset 0 0 0 .07em rgba(214, 223, 233, 0.55);
+    &--prelude { background: linear-gradient(180deg, rgba(196, 120, 76, 0.55), rgba(120, 66, 40, 0.45)); }
+    &--project { background: linear-gradient(180deg, rgba(76, 160, 196, 0.5), rgba(40, 86, 120, 0.45)); }
+    &--corporation { background: linear-gradient(180deg, rgba(214, 178, 106, 0.6), rgba(140, 108, 50, 0.45)); }
+    &--seat { background: transparent; box-shadow: inset 0 0 0 .07em fade(@con-mint, 75%); border-radius: .2em; }
+  }
+  &__notes {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .35em;
+  }
+  &__note {
+    position: relative;
+    padding-left: 1.1em;
+    font-family: @con-font-read;
+    font-size: .92em;
+    line-height: 1.35;
+    color: rgba(214, 223, 233, 0.72);
+    &::before {
+      content: '';
+      position: absolute;
+      left: .15em;
+      top: .52em;
+      width: .38em;
+      height: .38em;
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 .07em rgba(214, 223, 233, 0.6);
+    }
+    &[data-tone='warn'] {
+      color: fade(@con-amber, 92%);
+      &::before { background: fade(@con-amber, 80%); box-shadow: none; }
+    }
+  }
+  &__busy {
+    font-family: @con-font;
+    font-size: .7em;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: fade(@con-amber, 88%);
+  }
+  /* «ЦЕЛЕВОЙ ЗАПРОС»: the tag is named HERE — large medallions, the deck's count on each, the named one a kant. */
+  &__tags {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8.4em, 1fr));
+    gap: .45em;
+  }
+  &__tag {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: .5em;
+    padding: .35em .55em .35em .35em;
+    border-radius: .5em;
+    background: rgba(16, 24, 34, 0.78);
+    box-shadow: inset 0 0 0 .05em rgba(125, 142, 163, 0.32);
+    font-family: @con-font;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: #dfe8f2;
+    .con-cursor(inset 0 0 0 .12em @con-cyan; .5em; none; 3; after);
+    &--focused { .con-cursor-on(); }
+    &--picked {
+      background: rgba(24, 38, 54, 0.92);
+      box-shadow: inset 0 0 0 .1em fade(@con-amber, 85%);
+    }
+    &--off {
+      color: rgba(223, 232, 242, 0.4);
+      .con-tsheet__tag-icon { opacity: .4; }
+    }
+    &--short .con-tsheet__tag-count { color: fade(@con-amber, 95%); }
+  }
+  &__tag-icon {
+    flex: none;
+    width: 1.5em;
+    height: 1.5em;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+  }
+  &__tag-name { flex: 1; min-width: 0; font-size: .72em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  &__tag-count {
+    font-variant-numeric: tabular-nums;
+    font-size: .8em;
+    color: rgba(214, 223, 233, 0.82);
+  }
+}
+.con-start__tenderview > .con-tsheet {
+  animation: con-legview-rise calc(220ms * var(--motion-scale, 1)) ease both;
+}
+
+/* ── THE PURCHASE LEDGER (§20.4) — the project step's one money line in the head: «ПОКУПКА 5 × 3 = 15 · ОСТАЛОСЬ 33».
+   Each number is keyed on its value — a change replays its tick in place (a one-shot), the line never re-lays out. ── */
+.con-start__ledger {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .2rem .7rem;
+  border-radius: .45rem;
+  background: rgba(14, 22, 33, 0.6);
+  box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.28);
+  font-family: @con-font;
+  white-space: nowrap;
+  &-cap {
+    font-size: .58rem;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: rgba(214, 223, 233, 0.6);
+  }
+  &-sum { display: inline-flex; align-items: center; gap: .28rem; }
+  &-num {
+    display: inline-block;
+    font-size: .95rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #eef3f8;
+    animation: con-ledger-tick calc(420ms * var(--motion-scale, 1)) @con-ease-settle both;
+  }
+  &-num--left { color: @con-mint; }
+  &-op { font-size: .8rem; color: rgba(214, 223, 233, 0.5); }
+  &-mc { width: .95rem; height: .95rem; }
+  &-sep { width: .05rem; align-self: stretch; margin: .1rem .1rem; background: rgba(150, 175, 205, 0.28); }
+  &--broke &-num--left { color: #ef8a7a; }
+}
+@keyframes con-ledger-tick {
+  from { transform: translateY(-.35rem); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .con-start__ledger-num { animation: none; }
+}

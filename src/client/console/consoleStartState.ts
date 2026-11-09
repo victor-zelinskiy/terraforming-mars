@@ -238,7 +238,7 @@ export const consoleStartState = reactive({
  * before the tender's answer goes out; the restore (`restoreStartPicksAfterRedeal`) re-applies every pick the new
  * deal still holds, clamps to the new limits and puts the player back on the page they were reading.
  */
-let pendingRedealRestore: {corp?: CardName, preludes: Array<CardName>, ceo?: CardName, projects: Array<CardName>, stepIdx: number} | undefined;
+let pendingRedealRestore: {corp?: CardName, preludes: Array<CardName>, ceo?: CardName, projects: Array<CardName>, stepIdx: number, signature: string} | undefined;
 
 export function armStartRedealRestore(): void {
   pendingRedealRestore = {
@@ -247,6 +247,7 @@ export function armStartRedealRestore(): void {
     ceo: consoleStartState.ceo,
     projects: [...consoleStartState.projects],
     stepIdx: consoleStartState.stepIdx,
+    signature: consoleStartState.signature,
   };
 }
 
@@ -385,6 +386,12 @@ export function restoreStartPicksAfterRedeal(input: SelectInitialCardsModel): vo
   if (saved === undefined) {
     return;
   }
+  // A view that still carries the OLD deal (a poll, a socket frame ahead of the answer) is not the redeal: the record
+  // stays armed for the deal that changes. Consumed here, the real redeal then read as a fresh start and re-dealt every
+  // card already on the table.
+  if (initialCardsSignature(input) === saved.signature) {
+    return;
+  }
   pendingRedealRestore = undefined;
   const steps = wizardSteps(input);
   const dealt = (id: StartWizardStepId) => new Set((steps.find((st) => st.id === id)?.input.cards ?? []).map((c) => c.name));
@@ -407,6 +414,17 @@ export function ensureStartWizard(
   stepIds: ReadonlyArray<StartWizardStepId> = [],
 ): void {
   if (consoleStartState.ownerId === ownerId && consoleStartState.signature === signature) {
+    if (stepIds.length > 0) {
+      consoleStartState.stepIds = [...stepIds];
+    }
+    return;
+  }
+  // A TENDER's REDEAL (the scene armed the restore before its answer went out): the SAME table, its deal changed in
+  // place — never a fresh start. The visited steps, the dock's physics, the flow and the standing tender mode stay;
+  // the picks are re-applied by `restoreStartPicksAfterRedeal`. Resetting here re-dealt every card already lying on
+  // the table — the cards a «+4» kept in place flew in again (the owner's frames of 2026-11-09).
+  if (consoleStartState.ownerId === ownerId && pendingRedealRestore !== undefined) {
+    consoleStartState.signature = signature;
     if (stepIds.length > 0) {
       consoleStartState.stepIds = [...stepIds];
     }

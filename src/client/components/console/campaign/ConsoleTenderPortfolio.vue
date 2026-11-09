@@ -19,7 +19,7 @@
              'con-tport__slot--focused': i === focus,
              ['con-tport__slot--' + e.state]: true,
              'con-tport__slot--busy': busy === e.instance,
-             'con-tport__slot--held': heldNames.includes(e.instance),
+             'con-tport__slot--aloft': heldNames.includes(e.instance),
              'con-tport__slot--stamping': stamping.has(e.instance),
            }"
            :data-tport-slot="e.instance" :data-tport-kind="e.id" :data-tport-state="e.state"
@@ -37,7 +37,7 @@
          same line. -->
     <div class="con-tport__reading" data-tport-reading :data-tport-reading-state="focused?.state">
       <template v-if="focused !== undefined">
-        <span class="con-tport__reading-name">{{ $t(nameOf(focused.id)) }}</span>
+        <!-- No name line: the focused face above prints it (a status line never repeats the face above it). -->
         <span class="con-tport__reading-text">{{ readingOf(focused.reading) }}</span>
         <span v-if="busy === focused.instance" class="con-tport__reading-busy">{{ $t('Executing…') }}</span>
         <span v-else-if="focused.state !== 'ready' && focused.note !== undefined" class="con-tport__reading-note">{{ $t(focused.note) }}</span>
@@ -48,10 +48,9 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import {TenderId} from '@/common/campaign/tenders';
 import ConsoleTenderCard from './ConsoleTenderCard.vue';
 import {
-  TenderPlace, TenderPortfolioEntry, TenderReading, tenderCardStateOf, tenderPortfolioName, tenderReadyHere,
+  TenderPlace, TenderPortfolioEntry, TenderReading, tenderCardStateOf, tenderReadyHere,
 } from '@/client/console/campaign/tenderPortfolio';
 import {readingText} from '@/client/console/readingText';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -99,9 +98,6 @@ export default defineComponent({
   },
   methods: {
     tenderCardStateOf,
-    nameOf(id: TenderId): string {
-      return tenderPortfolioName(id);
-    },
     readingOf(reading: TenderReading): string {
       return readingText({label: reading.key, params: [...reading.params]});
     },

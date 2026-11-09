@@ -1,6 +1,7 @@
 import {expect, test} from './consoleTest';
 import {fillPicks, openConsole, pickedCards, press, pressUntil, waitStepDealSettled} from './consoleStart';
 import {campaignBase, campaignModelAs, createCampaign, devCommit, launchMission, seedIdentity} from './campaignFixtures';
+import {readTransient, recordTransient} from './transientRecorder';
 import {NO_PAYMENT, titleOf} from './consoleEndgameHarness';
 
 /**
@@ -21,7 +22,10 @@ const NEW_COPY = {
  * and names the page of every other; a chosen tender STANDS on its page in its mode (the crumb names it, the dock's
  * plate reads what it gives, the deal's layout is untouched) and executes there; the summary warns before the terminal
  * press; the tenders left unexecuted are bought back by the deployment's BUYOUT. A real three-mission tenders campaign
- * fast-forwarded to its finale, Alice holding five tenders granted outright by the dev fixture:
+ * fast-forwarded to its finale, Alice holding five tenders granted outright by the dev fixture. Since §20 every tender
+ * chosen in the list first stands on its ACTIVATION SHEET (the certificate carried out of the list as the hero, the
+ * RESULT in the table's numbers beside it, B back to the list); A on the sheet stamps it and hands the screen to the page,
+ * where a deal that grows deals ONLY its new cards (a witness counts every card the deal layer holds):
  *  · the corporation page lights ONE (the restructuring — the lineage is on the dock of every page): two candidates over
  *    the page, a candidate and the lineage corporation it replaces, RT rewrites the lineage;
  *  · the prelude page lights two: «Открытый конкурс» stands in its CONFIRM mode (the deal's boxes unchanged), A deals two
@@ -117,6 +121,54 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
       await press(page, 'KeyC', 600);
       await expect(list, 'L3 opens the door').toHaveClass(/con-tport--live/, {timeout: 15_000});
     };
+    /**
+     * ONE OBJECT, ONE TELLER (the owner's point 5, 2026-11-09: «тендеры раздаются на месте, где уже видна ЭТА ЖЕ
+     * КАРТА»): every certificate face painted on screen, counted per tender kind, recorded off the product's own writes —
+     * a kind painted twice at once in two PLACES (the dock's miniature still standing while its certificate rises, a list
+     * slot standing while its proxy is still in the air) is a duplicate. A proxy lying exactly over its own source or
+     * landing place is one object to the eye (the take-off / touchdown frame), and a face at a sliver of opacity is not a
+     * second card.
+     */
+    await recordTransient(page, 'tender-twins', () => {
+      const places: Record<string, Array<DOMRect>> = {};
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-tender]'))) {
+        const r = el.getBoundingClientRect();
+        if (r.width < 4 || r.height < 4 || r.right < 0 || r.left > window.innerWidth || r.bottom < 0 || r.top > window.innerHeight) {
+          continue;
+        }
+        let op = 1;
+        let hidden = false;
+        for (let n: HTMLElement | null = el; n !== null; n = n.parentElement) {
+          const cs = window.getComputedStyle(n);
+          if (cs.visibility === 'hidden' || cs.display === 'none') {
+            hidden = true;
+            break;
+          }
+          op *= Number(cs.opacity);
+        }
+        if (hidden || op < 0.35) {
+          continue;
+        }
+        const id = el.getAttribute('data-tender') ?? '?';
+        const same = (a: DOMRect) => Math.abs((a.left + a.width / 2) - (r.left + r.width / 2)) < Math.max(a.width, r.width) * 0.3 &&
+          Math.abs((a.top + a.height / 2) - (r.top + r.height / 2)) < Math.max(a.height, r.height) * 0.3;
+        const known = places[id] ?? [];
+        if (!known.some(same)) {
+          places[id] = [...known, r];
+        }
+      }
+      return Object.entries(places).filter(([, at]) => at.length > 1).map(([id, at]) => `${id}x${at.length}`).sort().join(',');
+    });
+    const twins = async () => (await readTransient<string>(page, 'tender-twins')).map((x) => x.v).filter((v) => v !== '');
+    /** Every card the deal layer held (= dealt) since the recorder was armed — a deal that grows deals its new cards only. */
+    await recordTransient(page, 'deal-held', () => Array.from(document.querySelectorAll<HTMLElement>('[data-deal-dealing="yes"][data-step-slot]'))
+      .map((el) => (el.getAttribute('data-step-slot') ?? '').split('|')[1] ?? '').sort().join(','));
+    let dealMark = 0;
+    const markDeal = async () => {
+      dealMark = (await readTransient<string>(page, 'deal-held')).length;
+    };
+    const dealtSinceMark = async () => [...new Set((await readTransient<string>(page, 'deal-held')).slice(dealMark)
+      .flatMap((x) => x.v.split(',')).filter((n) => n !== ''))];
 
     // ── THE CORPORATION page: no portfolio step — the dock's «ТЕНДЕРЫ» block is the door, lit for the ONE tender that
     //    executes here (the restructuring rewrites the lineage the dock carries on every page). ──
@@ -148,15 +200,60 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await expect(slot('openCall').locator('[data-tport-reason]')).toContainText(NEW_COPY.preludeStep);
     await expect(slot('targetedRequest').locator('[data-tport-reason]')).toContainText(NEW_COPY.projectStep);
     await page.screenshot({path: 'screenshots/tenders/door-1-corp-list.png'});
+    // THE LIST READS AT ONE GLANCE (the owner's point 6): the certificates of another page step back under a scrim (the
+    // console strips every `filter`, so a filtered dim never painted), the one of THIS page stands bright; the row is
+    // large, and the cursor's ring stands clear of the journey rail above the layer.
+    const listLook = await page.evaluate(() => {
+      const face = (state: string) => document.querySelector<HTMLElement>(`[data-tport-state="${state}"]:not([data-tport-focused]) > .con-tender`) ??
+        document.querySelector<HTMLElement>(`[data-tport-state="${state}"] > .con-tender`);
+      const ready = face('ready');
+      const other = face('elsewhere');
+      const focused = document.querySelector<HTMLElement>('[data-tport-focused="yes"]');
+      const rail = document.querySelector<HTMLElement>('.con-start__flowhost');
+      return {
+        readyScrim: ready === null ? '?' : window.getComputedStyle(ready, '::after').content,
+        otherScrim: other === null ? '?' : window.getComputedStyle(other, '::after').backgroundColor,
+        w: other?.getBoundingClientRect().width ?? 0,
+        vw: window.innerWidth,
+        focusTop: focused?.getBoundingClientRect().top ?? 0,
+        railBottom: rail?.getBoundingClientRect().bottom ?? 0,
+      };
+    });
+    expect(listLook.readyScrim, `the certificate of THIS page stands bright ${JSON.stringify(listLook)}`).toBe('none');
+    expect(listLook.otherScrim, `a certificate of another page steps back under a scrim ${JSON.stringify(listLook)}`).toMatch(/^rgba\(.+, 0\.[3-9]\d*\)$/);
+    expect(listLook.w / listLook.vw, `the certificates are large ${JSON.stringify(listLook)}`).toBeGreaterThan(0.12);
+    expect(listLook.focusTop, `the cursor's slot stands clear of the journey rail ${JSON.stringify(listLook)}`).toBeGreaterThan(listLook.railBottom + 2);
+    expect(await twins(), 'entering the list: no certificate is painted twice at once').toEqual([]);
     // ▶ to a tender of another page: A is DISABLED (never hidden) and the press changes nothing.
     await press(page, 'ArrowRight', 250);
     await expect(page.locator('.con-cmdbar .con-cmdbar__cmd--disabled', {hasText: /исполнить/i}), 'A of another page stands DISABLED').toHaveCount(1, {timeout: 3_000});
     await press(page, 'ArrowLeft', 250);
 
+    // ── THE ACTIVATION SHEET (§20): A on the certificate CARRIES it out of the list onto the sheet's hero seat — one
+    //    object (the list lets go, no second copy), the RESULT beside it; B is one level back to the list. ──
+    await press(page, 'Enter', 900);
+    const sheet = page.locator('[data-tender-sheet]');
+    await expect(sheet).toHaveAttribute('data-tender-sheet-id', 'restructuring', {timeout: 10_000});
+    await expect(sheet).toHaveAttribute('data-tender-sheet-open', 'yes', {timeout: 10_000});
+    await expect(list, 'the list yields the layer to the sheet').toBeHidden();
+    await expect(page.locator('[data-tsheet-hero] .con-tender'), 'ONE certificate on the hero seat').toHaveCount(1);
+    await expect(page.locator('[data-tport-slot] .con-tender:visible'), 'no copy of it left in the list').toHaveCount(0);
+    await expect(sheet.locator('[data-tsheet-row="Your lineage"] [data-tsheet-to]')).toHaveText('2');
+    await expect(sheet.locator('.con-tsheet__note[data-tone="warn"]'), 'the irreversible decision is said BEFORE the press').toHaveCount(1);
+    await expect.poll(bar, {timeout: 5_000}).toMatch(/сдать кандидатов|deal the candidates/i);
+    await page.screenshot({path: 'screenshots/tenders/door-1a-restructure-sheet.png'});
+    await press(page, 'Escape', 700);
+    await expect(list, 'B — one level back: the list').toHaveClass(/con-tport--live/, {timeout: 10_000});
+    await expect(sheet).toHaveCount(0);
+    await expect(slot('restructuring'), 'the cursor stands on the certificate the player had chosen').toHaveAttribute('data-tport-focused', 'yes');
+    await press(page, 'Enter', 900);
+    await expect(sheet).toHaveAttribute('data-tender-sheet-open', 'yes', {timeout: 10_000});
+
     // ── «Реструктуризация» (§19.7): ONE ROW over THIS page — the lineage first, already MARKED, then the two candidates
     //    off the deck. ONE lineage corporation out, ONE candidate in; RT resolves only a whole lineage; no decline. ──
     await press(page, 'Enter', 900);
     await expect(page.locator('[data-tender-mode="restructure"]')).toHaveCount(1, {timeout: 15_000});
+    await expect(sheet, 'the sheet handed the screen over').toHaveCount(0, {timeout: 10_000});
     const lineageCards = page.locator('[data-tender-zone="lineage"] [data-tender-mode-card]');
     await expect(lineageCards, 'the lineage stands in the row').toHaveCount(2);
     await expect(page.locator('[data-tender-zone="lineage"] [data-tender-mode-picked="yes"]'), 'every lineage corporation starts MARKED').toHaveCount(2);
@@ -200,36 +297,52 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await waitStepDealSettled(page);
     await expect(door, 'the prelude page lights two').toHaveAttribute('data-tender-dock-ready', '2');
 
-    // ── «Открытый конкурс»: chosen in the list, it STANDS on the prelude page in its CONFIRM mode — the crumb names it,
-    //    the dock's plate reads «N → N+2», the deal stands exactly as it was; A executes: two preludes come in. ──
-    const dealt = stepCards(await model(request, aliceId!), /prelude/i).length;
+    // ── «Открытый конкурс»: chosen in the list, its SHEET reads the result in the table's numbers («N → N+2»), the
+    //    crumb names it; A stamps it and hands the screen to the page: the cards that stand GLIDE to their new places
+    //    (never re-dealt), only the two new ones come off the tender deck. ──
+    const dealtNames = stepCards(await model(request, aliceId!), /prelude/i);
+    const dealt = dealtNames.length;
     expect(dealt, 'a prelude deal stands').toBeGreaterThanOrEqual(2);
-    const preludeLayout = await layoutOf('prelude');
     await openDoor();
     await expect(page.locator('[data-tport-slot]').first()).toHaveAttribute('data-tport-kind', 'openCall');
-    await expect(page.locator('[data-tport-reading]')).toContainText(`${dealt} → ${dealt + 2}`);
+    await expect(page.locator('[data-tport-reading]').first()).toContainText(`${dealt} → ${dealt + 2}`);
     await press(page, 'Enter', 900);
-    await expect(plate).toHaveAttribute('data-tender-plate-id', 'openCall', {timeout: 8_000});
-    await expect(list).toBeHidden();
-    await expect.poll(crumb, {timeout: 5_000, message: 'the crumb names the tender standing on the page'}).toMatch(/открытый конкурс/i);
-    await expect(page.locator('[data-tender-plate-reading]')).toContainText(`${dealt} → ${dealt + 2}`);
+    await expect(sheet).toHaveAttribute('data-tender-sheet-id', 'openCall', {timeout: 8_000});
+    await expect(sheet).toHaveAttribute('data-tender-sheet-open', 'yes', {timeout: 8_000});
+    await expect.poll(crumb, {timeout: 5_000, message: 'the crumb names the tender'}).toMatch(/открытый конкурс/i);
+    const openRow = sheet.locator('[data-tsheet-row="Preludes in the deal"]');
+    await expect(openRow.locator('[data-tsheet-from]')).toHaveText(String(dealt));
+    await expect(openRow.locator('[data-tsheet-to]')).toHaveText(String(dealt + 2));
     await expect.poll(bar, {timeout: 5_000}).toMatch(NEW_COPY.executeTender);
-    await expect.poll(() => layoutOf('prelude'), {timeout: 3_000, message: 'the mode changes NOTHING of the deal\'s layout'}).toBe(preludeLayout);
-    await page.screenshot({path: 'screenshots/tenders/door-2-open-call-mode.png'});
+    await page.screenshot({path: 'screenshots/tenders/door-2-open-call-sheet.png'});
+    // A deal that GROWS is witnessed from the press on: every card that stood must never get a deal proxy of its own
+    // (a re-deal of a card already on the table — the owner's frames of 2026-11-09), the new ones must.
+    await markDeal();
     await press(page, 'Enter', 900);
     await expect.poll(async () => stepCards(await model(request, aliceId!), /prelude/i).length, {timeout: 10_000}).toBe(dealt + 2);
+    await expect(sheet, 'the sheet handed the screen to the page').toHaveCount(0, {timeout: 10_000});
     await waitStepDealSettled(page);
     await expect(page.locator(`[data-step-slot^="prelude|"]`)).toHaveCount(dealt + 2);
+    const redealt = await dealtSinceMark();
+    expect(redealt.filter((n) => dealtNames.includes(n)), `no card already on the table is dealt again (dealt: ${redealt.join(',')})`).toEqual([]);
+    expect(redealt.length, 'the witness saw the two new preludes come off the deck (a probe that saw nothing proves nothing)').toBe(2);
     await expect(plate).toHaveCount(0);
     await expect(page.locator('[data-tender-dock-chip][data-tender-dock-status="executed"]')).toHaveCount(2);
     await expect.poll(crumb, {timeout: 5_000}).not.toMatch(/открытый конкурс/i);
 
     // ── «Замена прологов»: its EXCHANGE mode on the same strip — A marks the focused card to return, RT exchanges the
     //    marked: fresh preludes take THEIR places, every card not marked stays where it lay. ──
+    const preludeLayout = await layoutOf('prelude');
     await openDoor();
     await expect(page.locator('[data-tport-slot]').first()).toHaveAttribute('data-tport-kind', 'preludeReview');
     await press(page, 'Enter', 900);
+    await expect(sheet).toHaveAttribute('data-tender-sheet-kind', 'review', {timeout: 8_000});
+    await expect(sheet).toHaveAttribute('data-tender-sheet-open', 'yes', {timeout: 8_000});
+    await expect.poll(bar, {timeout: 5_000, message: 'the sheet hands over to the marking on the deal'}).toMatch(/отметить карты|mark the cards/i);
+    await press(page, 'Enter', 900);
+    await expect(sheet).toHaveCount(0, {timeout: 10_000});
     await expect(plate).toHaveAttribute('data-tender-plate-id', 'preludeReview', {timeout: 8_000});
+    await expect.poll(() => layoutOf('prelude'), {timeout: 5_000, message: 'the page comes back exactly as it was: the marking changes NOTHING of the deal layout'}).toBe(preludeLayout);
     await expect.poll(crumb, {timeout: 8_000, message: 'the prelude page with the exchange standing'}).toMatch(/замена прологов/i);
     await expect.poll(bar, {timeout: 5_000}).toMatch(/заменить карту/i);
     const dealBefore = stepCards(await model(request, aliceId!), /prelude/i);
@@ -255,18 +368,24 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await waitStepDealSettled(page);
     await expect(door, 'the project page lights two').toHaveAttribute('data-tender-dock-ready', '2');
 
-    // ── «Целевой запрос»: its TAG mode — the tags ride the DOCK's plate (never a row over the deal: the deal keeps its
-    //    size), each with the deck's own count; A names the focused tag, RT asks: three cards with it join the deal. ──
-    const projectsBefore = stepCards(await model(request, aliceId!), /buy|project/i).length;
+    // ── THE PURCHASE LEDGER (§20.4): the project page says what the buy costs and what is left, in one line. ──
+    const ledger = page.locator('[data-purchase-ledger]');
+    await expect(ledger, 'the purchase ledger stands on the project page').toBeVisible({timeout: 5_000});
+    const ledgerPrice = Number(await ledger.getAttribute('data-purchase-cost'));
+    expect(ledgerPrice, 'a starting-hand card\'s price').toBeGreaterThanOrEqual(1);
+
+    // ── «Целевой запрос»: its SHEET names the tag — each medallion with the deck's own count; A names the focused tag,
+    //    RT asks: the sheet hands over and three cards with it join the deal (only the new ones off the deck). ──
+    const projectNames = stepCards(await model(request, aliceId!), /buy|project/i);
+    const projectsBefore = projectNames.length;
     expect(projectsBefore, 'the project deal stands').toBeGreaterThan(0);
-    const projectLayout = await layoutOf('projects');
     await openDoor();
     await press(page, 'ArrowRight', 250);
     await expect(slot('targetedRequest')).toHaveAttribute('data-tport-focused', 'yes');
     await press(page, 'Enter', 900);
-    await expect(page.locator('[data-tender-plate] [data-tender-mode="tag"]')).toHaveCount(1, {timeout: 10_000});
+    await expect(sheet).toHaveAttribute('data-tender-sheet-kind', 'tag', {timeout: 10_000});
+    await expect(sheet.locator('[data-tender-mode="tag"]')).toHaveCount(1);
     await expect.poll(crumb, {timeout: 5_000}).toMatch(/целевой запрос/i);
-    await expect.poll(() => layoutOf('projects'), {timeout: 3_000, message: 'the tag mode changes NOTHING of the deal\'s layout'}).toBe(projectLayout);
     const tags = page.locator('[data-tender-mode="tag"] [data-tender-tag]');
     expect(await tags.count(), 'the printed tags of the table').toBeGreaterThanOrEqual(8);
     const counts = await tags.evaluateAll((els) => els.map((el) => Number(el.getAttribute('data-tender-tag-count'))));
@@ -275,17 +394,18 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await expect.poll(bar, {timeout: 5_000}).toMatch(/выбрать эту метку/i);
     await press(page, 'Enter', 300);
     await expect(page.locator('[data-tender-mode="tag"] [data-tender-mode-picked="yes"]')).toHaveCount(1);
-    // The dealt cards WITHOUT the named tag step back (a dim), the ones that carry it stand — never all, never none.
-    const dimmed = await page.locator('[data-step-slot^="projects|"].con-cards__slot--dim').count();
-    expect(dimmed, 'some dealt cards lack the named tag').toBeGreaterThan(0);
-    expect(dimmed, 'the dim never takes the whole deal').toBeLessThan(projectsBefore);
-    await page.screenshot({path: 'screenshots/tenders/door-3-tag-plate.png'});
+    await expect(sheet.locator('[data-tsheet-row="Projects in the deal"] [data-tsheet-to]')).toHaveText(String(projectsBefore + 3));
+    await page.screenshot({path: 'screenshots/tenders/door-3-tag-sheet.png'});
     const named = await page.locator('[data-tender-mode="tag"] [data-tender-mode-picked="yes"]').getAttribute('data-tender-tag');
+    await markDeal();
     await press(page, 'Period', 900);
     await expect.poll(async () => stepCards(await model(request, aliceId!), /buy|project/i).length, {timeout: 10_000, message: `three ${named} cards joined the deal`}).toBe(projectsBefore + 3);
-    await expect(plate).toHaveCount(0, {timeout: 10_000});
+    await expect(sheet).toHaveCount(0, {timeout: 10_000});
     await waitStepDealSettled(page);
     await expect(page.locator(`[data-step-slot^="projects|"]`)).toHaveCount(projectsBefore + 3);
+    const requestDealt = await dealtSinceMark();
+    expect(requestDealt.filter((n) => projectNames.includes(n)), `the request deals only its three (dealt: ${requestDealt.join(',')})`).toEqual([]);
+    expect(requestDealt.length, 'the three requested cards came off the deck').toBe(3);
     await expect(page.locator('[data-tender-dock-chip][data-tender-dock-status="executed"]')).toHaveCount(4);
     const grown = await page.evaluate(() => {
       const body = document.querySelector('.con-start__body--cards')!.getBoundingClientRect();
@@ -294,8 +414,8 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     });
     expect(grown.top, `the grown deal's first row is whole in the body ${JSON.stringify(grown)}`).toBeGreaterThanOrEqual(grown.bodyTop - 1);
     expect(grown.bottom, `the grown deal's last row is whole above the dock ${JSON.stringify(grown)}`).toBeLessThanOrEqual(grown.bodyBottom + 1);
-    expect(await page.locator('[data-step-slot^="projects|"].con-cards__slot--dim').count(), 'the dim leaves with the tag mode').toBe(0);
     await page.screenshot({path: 'screenshots/tenders/door-4-request-landed.png'});
+    expect(await twins(), 'through every list, sheet and hand-over: no certificate was ever painted twice at once').toEqual([]);
 
     // ── To the summary: «Субсидия» left; the projects stay empty. ──
     expect(await pressUntil(page, 'Period', async () => await page.locator('.con-start__summary').isVisible(), {tries: 4, settleMs: 1200}), 'RT to the summary').toBe(true);

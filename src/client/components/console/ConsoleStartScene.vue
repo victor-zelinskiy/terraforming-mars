@@ -81,6 +81,31 @@
               <b aria-hidden="true">{{ picksHere.length }}</b>
               <span aria-hidden="true">{{ ofMaxText }}</span>
             </span>
+            <!-- THE PURCHASE LEDGER (§20.4 — the owner, 2026-11-09): on the project step, ONE line says what the buy costs and
+                 what is left — the money the start brings (the lineage's merges and bonus, the preludes' own M€) minus
+                 the picks × the card's price. Each number is keyed on its value: a change (a pick, «Субсидия»'s price)
+                 replays its one-shot tick in place — the line never re-lays out. -->
+            <span v-if="ledgerShown && budget !== undefined" class="con-start__ledger"
+                  :class="{'con-start__ledger--broke': ledgerLeft < 0}" data-purchase-ledger
+                  :data-purchase-cost="budget.cardCost" :data-purchase-left="ledgerLeft">
+              <span class="con-start__ledger-cap">{{ $t('Purchase') }}</span>
+              <!-- The purchase carries the price's WHY (TerraLabs, a lineage merge, «Субсидия»…) — the one hint the
+                   status rail's money chip carried before this line replaced it on the project step. -->
+              <span class="con-start__ledger-sum con-price-hint" data-purchase-price :data-hint="startPriceHint">
+                <b :key="'n' + budget.buys" class="con-start__ledger-num">{{ budget.buys }}</b>
+                <span class="con-start__ledger-op" aria-hidden="true">×</span>
+                <b :key="'c' + budget.cardCost" class="con-start__ledger-num con-start__ledger-num--price" data-purchase-price-value>{{ budget.cardCost }}</b>
+                <i class="resource_icon resource_icon--megacredits con-start__ledger-mc" aria-hidden="true"></i>
+                <span class="con-start__ledger-op" aria-hidden="true">=</span>
+                <b :key="'t' + budget.buys * budget.cardCost" class="con-start__ledger-num">{{ budget.buys * budget.cardCost }}</b>
+              </span>
+              <span class="con-start__ledger-sep" aria-hidden="true"></span>
+              <span class="con-start__ledger-cap">{{ $t('Left') }}</span>
+              <span class="con-start__ledger-sum">
+                <b :key="'l' + ledgerLeft" class="con-start__ledger-num con-start__ledger-num--left" data-purchase-left-value>{{ ledgerLeft }}</b>
+                <i class="resource_icon resource_icon--megacredits con-start__ledger-mc" aria-hidden="true"></i>
+              </span>
+            </span>
             <!-- PARTICIPANT READINESS (preparation only — in the deployment
                  the real top strip is back and owns this). Compact by design:
                  seat dot · name · status. Never the whole game HUD. -->
@@ -92,7 +117,7 @@
                 <span class="con-start__crewname">{{ participantName(p) }}</span>
                 <span class="con-start__crewstate">
                   <span v-if="p.status.category !== 'active'" class="con-start__crewtick" aria-hidden="true">✓</span>
-                  {{ $t(p.status.textKey) }}
+                  <span class="con-start__crewword">{{ $t(p.status.textKey) }}</span>
                 </span>
               </span>
             </div>
@@ -140,6 +165,7 @@
                      :style="railPos === si && !state.visited.has(si) ? dealDelay(i) : {}"
                      :data-zoom-slot="railPos === si ? card.name : undefined"
                      :data-step-slot="st.id + '|' + card.name"
+                     :data-deal-dealing="railPos === si && deal.isHeld(card.name + '#' + i) ? 'yes' : undefined"
                      :class="{
                        'con-cards__slot--focused': railPos === si && focusIdx === i && !(st.id === 'projects' && tagMode !== undefined),
                        'con-cards__slot--tender': railPos === si && tenderModeLive,
@@ -429,11 +455,18 @@
              surfaces as it was — same cards, same size) and the tender stands there in its MODE; B / L3 return with
              nothing done. -->
         <div v-show="tenderViewCovers" class="con-start__body con-start__tenderview" ref="tenderPane">
-          <ConsoleTenderPortfolio ref="portfolio" class="con-start__tenderlist"
+          <ConsoleTenderPortfolio v-show="tenderSheet === undefined" ref="portfolio" class="con-start__tenderlist"
                                   :class="{'con-start__tenderlist--leaving': tenderView.phase === 'leaving'}"
                                   :entries="doorEntries" :focus="tenderView.phase === 'open' ? tenderView.focus : -1"
                                   place="start" :busy="state.tenderBusy" :held-names="tenderListHeld"
                                   :live="tenderView.phase === 'open'" embedded />
+          <!-- THE ACTIVATION SHEET (§20): the chosen tender as the hero of its own scene — the RESULT beside it. -->
+          <ConsoleTenderActivation v-if="tenderSheet !== undefined && tenderSheetPlan !== undefined" ref="tenderSheetEl"
+                                   :plan="tenderSheetPlan" :hero-held="sheetHeroHeld"
+                                   :open="tenderSheet.phase === 'open' || tenderSheet.phase === 'committing'"
+                                   :committed="sheetCommitted" :stamping="sheetStamping"
+                                   :leaving="tenderSheet.phase === 'leaving'" :busy="state.tenderBusy !== undefined"
+                                   :tags="sheetTags" :tag-focus="sheetTagFocus" :tag-picked="sheetTagPicked" />
         </div>
 
         <!-- ── CAMPAIGN «ТЕНДЕРЫ»: THE RESTRUCTURING (§19.7, the owner 2026-11-09) ──
@@ -1217,7 +1250,7 @@
                  live economy in a compact chip — funds on the identity steps,
                  the full buy line on the projects step. The deep breakdown
                  belongs to the summary's status preview, never up here. -->
-            <span v-if="budget !== undefined" class="con-start__status-quick"
+            <span v-if="budget !== undefined && !ledgerShown" class="con-start__status-quick"
                   :class="{'con-start__status-quick--broke': budget.remaining + budget.preludes < 0}">
               <template v-if="!moneyCompact">
                 <span class="con-start__status-quick-part con-price-hint" data-purchase-price :data-hint="startPriceHint">{{ $t('Projects') }} {{ budget.buys }} × {{ budget.cardCost }}</span>
@@ -1432,7 +1465,9 @@ import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState
 import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
-import {captureCards, CapturedFlight, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource, parkSurface, unparkSurface, clearSurfaceParking, measureTargets, pressPile, riseToSeats, RiseConvoy} from '@/client/console/startDockMotion';
+import {captureCards, CapturedFlight, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource, parkSurface, unparkSurface, clearSurfaceParking, measureTargets, pressPile, riseToSeats, RiseConvoy, glideFromRects, GlidePair, cardRectNow, Rect} from '@/client/console/startDockMotion';
+import ConsoleTenderActivation, {ActivationTag} from '@/client/components/console/campaign/ConsoleTenderActivation.vue';
+import {ActivationFacts, TenderActivationPlan, startActivationPlan} from '@/client/console/campaign/tenderActivation';
 import {FACE_DOWN_DEG, FACE_UP_DEG} from '@/client/console/cardFlight/card3dInner';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {
@@ -1681,7 +1716,7 @@ const TENDER_DOOR_ABSORBER = 'tender-door-motion';
 export default defineComponent({
   name: 'ConsoleStartScene',
   directives: {embedZone: vEmbedZone},
-  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip, ConsoleForecastRow, ConsoleForecastLayer, ConsolePreludeVariantStep, ConsoleTenderPortfolio, ConsoleTenderChip, ConsoleTenderCard},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip, ConsoleForecastRow, ConsoleForecastLayer, ConsolePreludeVariantStep, ConsoleTenderPortfolio, ConsoleTenderChip, ConsoleTenderCard, ConsoleTenderActivation},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
@@ -1854,8 +1889,23 @@ export default defineComponent({
       /** The page's cursor before a mode took the d-pad (the request's tags, the restructuring's groups) — given back. */
       tagFocusReturn: 0,
       restructFocusReturn: 0,
-      /** THE GLIDE: where every standing card of a deal about to grow stood (FLIP's «first»). */
-      dealGlide: undefined as Map<string, DOMRect> | undefined,
+      /** THE GLIDE (§20): the page's card boxes as the player last saw them (remembered when the door opened). */
+      pageSlotRects: undefined as Map<string, Rect> | undefined,
+      /** A tender that GROWS the deal was executed: its answer's new layout plays as a glide, then a deal. */
+      dealGlideArmed: false,
+      /** A deal that changed while a tender's layer covered the page — dealt the moment the page is the player's again. */
+      dealOwed: false,
+      glideActive: false,
+      /** THE ACTIVATION SHEET (§20): the chosen tender as the hero of its own scene. */
+      tenderSheet: undefined as {instance: string, id: TenderId, phase: 'entering' | 'open' | 'committing' | 'leaving'} | undefined,
+      sheetHeroHeld: true,
+      sheetCommitted: false,
+      sheetStamping: false,
+      sheetTagFocus: 0,
+      sheetTagPicked: undefined as Tag | undefined,
+      /** The sheet is handing the screen to its page — a page change waits for it (`whenHandoffDone`). */
+      tenderHandoffActive: false,
+      handoffWaiters: [] as Array<() => void>,
       /** THE RESTRUCTURING's candidates still in the air off the tender deck (their slots keep their box, show nothing). */
       restructArriving: new Set<CardName>(),
       restructFlight: undefined as CloneFlightHandle | undefined,
@@ -2126,7 +2176,7 @@ export default defineComponent({
         // A tender's MODE on a deal step is the page's tail — «… › ПРОЛОГИ › ПЕРЕСМОТР», «… › КОРПОРАЦИЯ › РЕСТРУКТУРИЗАЦИЯ».
         // THE DOOR's list is a tail of the page it was opened from — «… › ПРОЛОГИ › ТЕНДЕРЫ».
         if (this.tenderViewOwnsScreen) {
-          return {subject: page.subject, stage: 'Tenders'};
+          return {subject: page.subject, stage: this.tenderSheet !== undefined ? tenderPortfolioName(this.tenderSheet.id) : 'Tenders'};
         }
         // A tender's MODE on its page names the TENDER — «СТАРТ ПАРТИИ › ПРОЛОГИ › ОТКРЫТЫЙ КОНКУРС»: the player sees which
         // tender they are executing, on the page it changes.
@@ -4040,24 +4090,47 @@ export default defineComponent({
     },
     /** The wizard funds after `buys` purchases — ONE formula for the budget,
      *  the per-card gate and the pick guard (campaign-aware). */
+    /**
+     * The starting M€ the CORPORATION pick brings — the pick's own; in a campaign finale that deploys its lineage (no
+     * corporation step at all) nothing is picked and the lineage's money is the whole of `campaignExtra` (0 here).
+     * `undefined` = not known yet (a corporation step whose pick is still open).
+     */
+    startCorpMc(): number | undefined {
+      const corp = this.state.corp;
+      if (corp !== undefined) {
+        return startingMegacredits(corp, 0);
+      }
+      const deploysLineage = this.playerView.game.gameOptions.campaign !== undefined && !this.steps.some((st) => st.id === 'corp') &&
+        this.campaignLineage.length > 0;
+      return deploysLineage ? 0 : undefined;
+    },
     wizardRemaining(): (buys: number) => number | undefined {
       return (buys: number) => {
-        const corp = this.state.corp;
-        const base = startingMegacredits(corp, 0);
-        if (corp === undefined || base === undefined) {
+        const base = this.startCorpMc;
+        if (base === undefined) {
           return undefined;
         }
         return base + this.campaignExtra.megaCredits - buys * this.cardCost;
       };
     },
+    /** The purchase ledger stands on the project step whenever the money is known. */
+    ledgerShown(): boolean {
+      return this.mode === 'wizard' && this.currentStep?.id === 'projects' && this.budget !== undefined;
+    },
+    /** What is left after the buy — the start's money, the preludes' own M€, minus the picks. */
+    ledgerLeft(): number {
+      const b = this.budget;
+      return b === undefined ? 0 : b.remaining + b.preludes;
+    },
     budget(): {start: number, buys: number, cardCost: number, remaining: number, preludes: number} | undefined {
       const corp = this.state.corp;
-      if (corp === undefined) {
+      const base = this.startCorpMc;
+      if (base === undefined) {
         return undefined;
       }
       const buys = this.state.projects.length;
       return {
-        start: (startingMegacredits(corp, 0) ?? 0) + this.campaignExtra.megaCredits,
+        start: base + this.campaignExtra.megaCredits,
         buys,
         cardCost: this.cardCost,
         remaining: this.wizardRemaining(buys) ?? 0,
@@ -4303,9 +4376,67 @@ export default defineComponent({
     focusedDoorEntry(): TenderPortfolioEntry | undefined {
       return this.tenderView.phase === 'open' ? this.doorEntries[this.tenderView.focus] : undefined;
     },
+    /** The sheet's certificate (its live entry). */
+    tenderSheetEntry(): TenderPortfolioEntry | undefined {
+      const sheet = this.tenderSheet;
+      return sheet === undefined ? undefined : this.portfolioEntries.find((e) => e.instance === sheet.instance);
+    },
+    /** The table's facts the sheet's RESULT reads. */
+    activationFacts(): ActivationFacts {
+      const ctx = this.portfolioContext;
+      const live = this.tenderSheet === undefined ? undefined : (this.wizardInput?.tenders ?? []).find((t) => t.instance === this.tenderSheet?.instance);
+      const b = this.budget;
+      return {
+        preludesDealt: ctx?.preludesDealt ?? 0,
+        preludePick: ctx?.preludePick ?? 0,
+        projectsDealt: ctx?.projectsDealt ?? 0,
+        projectsMax: ctx?.projectsMax ?? 0,
+        corporationsDealt: ctx?.corporationsDealt ?? 0,
+        lineage: this.campaignLineage.length,
+        cardCost: this.cardCost,
+        projectsPicked: this.state.projects.length,
+        fundsLeft: b === undefined ? undefined : b.remaining + b.preludes,
+        preludesPicked: this.state.preludes.length,
+        corporationPicked: this.state.corp !== undefined,
+        ...(live?.deckLeft !== undefined ? {deckLeft: live.deckLeft} : {}),
+        ...(this.sheetTagPicked !== undefined && live?.tagCounts?.[this.sheetTagPicked] !== undefined ? {tagCount: live.tagCounts[this.sheetTagPicked]} : {}),
+      };
+    },
+    tenderSheetPlan(): TenderActivationPlan | undefined {
+      const sheet = this.tenderSheet;
+      return sheet === undefined ? undefined : startActivationPlan(sheet.id, this.activationFacts);
+    },
+    /** «Целевой запрос»'s medallions on the sheet — the table's printed tags with the deck's own counts. */
+    sheetTags(): ReadonlyArray<ActivationTag> | undefined {
+      const sheet = this.tenderSheet;
+      if (sheet === undefined || sheet.id !== 'targetedRequest') {
+        return undefined;
+      }
+      const live = (this.wizardInput?.tenders ?? []).find((t) => t.instance === sheet.instance);
+      const counts = live?.tagCounts ?? {};
+      return this.requestTags.map((tag) => ({tag, label: tagLabel(tag), count: counts[tag] ?? Number.POSITIVE_INFINITY, iconStyle: tagIconStyle(tag)}));
+    },
+    /** The bar's facts while the sheet stands. */
+    tenderSheetFacts(): {verb: string, enabled: boolean, tag: boolean, pickLabel: string, pickEnabled: boolean} | undefined {
+      const sheet = this.tenderSheet;
+      const plan = this.tenderSheetPlan;
+      if (sheet === undefined || plan === undefined) {
+        return undefined;
+      }
+      const live = sheet.phase === 'open' && this.state.tenderBusy === undefined;
+      const tags = this.sheetTags;
+      if (tags !== undefined) {
+        const focused = tags[this.sheetTagFocus];
+        const none = focused !== undefined && focused.count === 0;
+        return {verb: plan.verb, enabled: live && this.sheetTagPicked !== undefined, tag: true,
+          pickLabel: none ? 'No card with this tag is left' : focused !== undefined && this.sheetTagPicked === focused.tag ? 'Unpick' : 'Choose this tag',
+          pickEnabled: live && focused !== undefined && !none};
+      }
+      return {verb: plan.verb, enabled: live, tag: false, pickLabel: '', pickEnabled: false};
+    },
     /** The bar's facts while the list stands: A executes the focused certificate — disabled, never hidden, elsewhere. */
     tenderListFacts(): {enabled: boolean} | undefined {
-      if (!this.tenderViewOwnsScreen) {
+      if (!this.tenderViewOwnsScreen || this.tenderSheet !== undefined) {
         return undefined;
       }
       const e = this.focusedDoorEntry;
@@ -4368,6 +4499,10 @@ export default defineComponent({
       return mode !== undefined && mode.kind === 'restructure' ? mode : undefined;
     },
     /** The restructuring's layer covers the page (the page is parked under it). */
+    /** A tender's layer stands over the wizard's page (its list / sheet, or the restructuring's row). */
+    pageCovered(): boolean {
+      return this.restructureCovers || this.tenderViewCovers;
+    },
     restructureCovers(): boolean {
       return this.mode === 'wizard' && this.restructureMode !== undefined && !this.tenderViewCovers && !this.legacyViewCovers;
     },
@@ -4426,7 +4561,7 @@ export default defineComponent({
       if (this.mode !== 'wizard') {
         return false;
       }
-      if (this.departureActive || this.restructArriving.size > 0 || (this.tenderDealArmed && (this.state.tenderBusy !== undefined || this.deal.state.active))) {
+      if (this.departureActive || this.restructArriving.size > 0 || this.tenderDealArmed) {
         return true;
       }
       const mode = this.state.tenderMode;
@@ -5043,6 +5178,7 @@ export default defineComponent({
         tenderDoor: this.tenderDoorAvailable && !this.tenderViewOn && !this.legacyViewOn && this.state.tenderMode === undefined ?
           {ready: this.tenderReadyCount} : undefined,
         tenderList: this.tenderListFacts,
+        tenderSheet: this.tenderSheetFacts,
         tenderMode: this.tenderModeFacts,
       });
     },
@@ -5337,6 +5473,13 @@ export default defineComponent({
       this.onFrameSettle();
     },
 
+    /** The page is the player's again: a deal that changed under the tender's layer is dealt now — only its new cards
+     *  (`landedDealNames`), off the tender deck, after the glide of the ones that stayed (`launchDeal` waits for it). */
+    pageCovered(now: boolean) {
+      if (!now && this.dealOwed) {
+        this.prepareDeal();
+      }
+    },
     /** Pre-flush: arm the deal HOLD before the new card set paints (the
      *  real cards mount hidden — zero first-frame flash). */
     'dealSignature': {
@@ -5352,12 +5495,12 @@ export default defineComponent({
     /** A deal that GREW in place (a tender's +3 / +4, a redeal) re-fits before its new cards launch (`prepareDeal`
      *  waits 260 ms for exactly this — the measured destinations are the fitted ones). */
     'stepEntries.length'() {
+      if (this.dealGlideArmed) {
+        void this.playDealGlide();
+      }
       void this.$nextTick(() => {
         this.fitCardStrip();
-        // THE GLIDE (§19): the standing cards move to the places the fit gave them as one calm motion — never a jump.
-        if (this.dealGlide !== undefined) {
-          requestAnimationFrame(() => this.playDealGlide());
-        }
+        // THE GLIDE (§20) is played by the pre-flush half below — the cards that stay hide from this very frame.
       });
     },
     /** The rail's height is FIXED (the shared card-status token — the
@@ -6971,9 +7114,13 @@ export default defineComponent({
         window.clearTimeout(this.dealLaunchTimer);
         this.dealLaunchTimer = undefined;
       }
-      if (this.restructureCovers || this.tenderViewCovers) {
-        return; // the page is parked under a tender's layer — its deal plays once the page is back (`stepEntries.length`)
+      if (this.pageCovered) {
+        // The page is parked under a tender's layer (the sheet commits before it hands the screen over): the deal is
+        // OWED and plays once the page is back (`pageCovered`) — skipped, the new cards simply appeared, undealt.
+        this.dealOwed = true;
+        return;
       }
+      this.dealOwed = false;
       const cards = this.dealCards;
       const allNames = cards.map((c) => c.name);
       // A VISITED step whose deal GREW or was REDEALT in place (a tender — «Открытый конкурс», a review) deals only
@@ -7006,7 +7153,7 @@ export default defineComponent({
       // are neither where the cards will lie nor visible when they arrive —
       // that is the reported «прологи выкладываются без анимации». Re-arm
       // instead of dropping the cinematic.
-      if (this.roomSettling || this.departureActive) {
+      if (this.roomSettling || this.departureActive || this.glideActive || this.tenderHandoffActive) {
         // …and a REDEAL's new cards come off the deck only once the cards it took away have reached it (the review's
         // and the gamble's departure, §16.3): the deck answers after it has received.
         this.dealLaunchTimer = window.setTimeout(() => {
@@ -7349,6 +7496,8 @@ export default defineComponent({
       if (!this.tenderDoorAvailable || this.tenderView.phase !== 'closed' || this.state.tenderMode !== undefined) {
         return;
       }
+      // The page's cards as the player sees them NOW — a tender that grows the deal glides them from here.
+      this.rememberPageSlots();
       this.tenderView.focus = 0;
       this.tenderListHeld = this.doorEntries.map((e) => e.instance);
       this.tenderView.phase = 'fading';
@@ -7361,6 +7510,7 @@ export default defineComponent({
       }
       this.tenderView.phase = 'entering';
       await this.$nextTick();
+      this.fitTenderList();
       await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
       if (this.tenderView.phase !== 'entering') {
         return; // torn down mid-beat
@@ -7454,6 +7604,7 @@ export default defineComponent({
       this.tenderFlight = undefined;
       this.tenderDockHeld = [];
       this.tenderListHeld = [];
+      this.tenderSheet = undefined;
       const wasUp = this.tenderView.phase !== 'closed';
       const pageBack = this.tenderPageRestored;
       this.tenderView.phase = 'closed';
@@ -7469,6 +7620,10 @@ export default defineComponent({
     },
     /** The list's whole input surface: ◀ ▶ walk, A executes a certificate of this page, X inspects, B / L3 return. */
     handleTenderViewIntent(intent: GamepadIntent): void {
+      if (this.tenderSheet !== undefined) {
+        this.handleSheetIntent(intent);
+        return;
+      }
       if (this.tenderView.phase !== 'open') {
         noteInputAbsorbed(TENDER_DOOR_ABSORBER);
         return; // a motion beat — absorb (no double-open, no mid-flight tear)
@@ -7511,8 +7666,8 @@ export default defineComponent({
         this.blockedNudge++;
         return;
       }
-      const ownLayer = tenderExecutionOf(entry.id) === 'restructure';
-      void this.closeTenderView(() => this.enterTenderMode(entry, ownLayer), ownLayer);
+      // The chosen tender becomes the HERO of its activation sheet (§20) — what it does and what it gives, in numbers.
+      void this.openSheet(entry);
     },
     /** The tender stands on its page: a CONFIRM of the previewed effect · the exchange · the request's tags · the restructuring. */
     enterTenderMode(entry: TenderPortfolioEntry, pageParked = false): void {
@@ -7755,7 +7910,7 @@ export default defineComponent({
         if (isGambleTender(confirm.id) && page !== undefined) {
           void this.departToDeck(page, this.stepEntries.map((c) => c.name));
         } else {
-          this.armDealGlide();
+          this.dealGlideArmed = true;
         }
         this.submitTender(response);
         return;
@@ -7764,7 +7919,7 @@ export default defineComponent({
       if (tagMode !== undefined) {
         if (tagMode.tag !== undefined) {
           this.tenderLanding = {instance: tagMode.instance, step: 'projects'};
-          this.armDealGlide();
+          this.dealGlideArmed = true;
           this.submitTender(tenderTagResponse(tagMode.instance, tagMode.tag));
         }
         return;
@@ -7800,57 +7955,378 @@ export default defineComponent({
       }
       this.state.tenderMode = undefined;
     },
+    // ── THE ACTIVATION SHEET (§20) — the chosen tender as the hero of its own scene, then the hand-over to its page ──
     /**
-     * THE GLIDE — a deal about to GROW in place records where every standing card is now; once the new deal is laid
-     * out and fitted, each card that stayed glides from its old rect to its new one (FLIP on the slot), so the table
-     * re-arranges as one calm motion before the new cards come off the deck into the places that opened. Reduced
-     * motion: nothing is recorded, the deal simply stands.
+     * A on a certificate of THIS page: the list lets go of everything but the chosen one — its siblings fly home into
+     * their miniatures, the chosen certificate is CARRIED out of its slot onto the hero seat of its sheet, and the RESULT
+     * unfolds beside it once it has landed. No second copy of the card exists at any moment (one object, one teller).
      */
-    armDealGlide(): void {
-      const strip = this.activeStrip();
-      if (strip === undefined || strip === null || consoleReducedMotionActive()) {
-        this.dealGlide = undefined;
+    async openSheet(entry: TenderPortfolioEntry): Promise<void> {
+      if (this.tenderSheet !== undefined || this.tenderView.phase !== 'open') {
         return;
       }
-      const rects = new Map<string, DOMRect>();
-      for (const el of Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot[data-step-slot]'))) {
-        const key = el.dataset.stepSlot;
-        if (key !== undefined) {
-          rects.set(key, el.getBoundingClientRect());
+      const root = this.sceneRoot();
+      const miniOf = (n: CardName) => root?.querySelector<HTMLElement>(`[data-tender-dock-chip="${n}"]`) ?? null;
+      const sources: Array<DockFlightSource> = [];
+      for (const e of this.doorEntries) {
+        const el = root?.querySelector<HTMLElement>(`[data-tport-slot="${e.instance}"]`);
+        if (el instanceof HTMLElement) {
+          sources.push({name: e.instance as CardName, el});
         }
       }
-      this.dealGlide = rects.size > 0 ? rects : undefined;
+      // Capture where everything stands NOW (the list still painted), then let the sheet take the layer.
+      const flight = captureCards(sources);
+      this.tenderFlight = flight;
+      this.tenderListHeld = this.doorEntries.map((e) => e.instance);
+      this.sheetHeroHeld = true;
+      this.sheetCommitted = false;
+      this.sheetTagFocus = 0;
+      this.sheetTagPicked = undefined;
+      this.tenderSheet = {instance: entry.instance, id: entry.id, phase: 'entering'};
+      await this.$nextTick();
+      this.fitTenderSheet();
+      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      const hero = this.sheetHeroEl();
+      await flight.flyTo((n) => (n === entry.instance ? hero : miniOf(n)),
+        (n) => {
+          if (n === entry.instance) {
+            this.sheetHeroHeld = false;
+          } else {
+            this.tenderDockHeld = this.tenderDockHeld.filter((held) => held !== n);
+          }
+        },
+        {reseat: true, pressElFor: (n) => (n === entry.instance ? null : miniOf(n))});
+      this.tenderFlight = undefined;
+      this.sheetHeroHeld = false;
+      if (this.tenderSheet?.instance === entry.instance && this.tenderSheet.phase === 'entering') {
+        this.tenderSheet = {...this.tenderSheet, phase: 'open'};
+      }
     },
-    /** The recorded glide plays on the fitted layout (the `stepEntries.length` watcher's re-fit has run). */
-    playDealGlide(): void {
-      const before = this.dealGlide;
-      this.dealGlide = undefined;
-      const strip = this.activeStrip();
-      if (before === undefined || strip === undefined || strip === null) {
+    /** The hero's seat (the certificate's landing and its take-off). */
+    sheetHeroEl(): HTMLElement | null {
+      const sheet = (this.$refs.tenderSheetEl ?? undefined) as {heroEl?: () => HTMLElement | undefined} | undefined;
+      return sheet?.heroEl?.() ?? null;
+    },
+    /**
+     * B on the sheet — ONE level: back to the list. The hero is carried back into its slot and its siblings rise out of
+     * the dock again; the cursor stands on the certificate the player had chosen.
+     */
+    async closeSheetToList(): Promise<void> {
+      const sheet = this.tenderSheet;
+      if (sheet === undefined || sheet.phase !== 'open') {
         return;
       }
+      const hero = this.sheetHeroEl();
+      const flight = captureCards(hero !== null ? [{name: sheet.instance as CardName, el: hero}] : []);
+      this.tenderFlight = flight;
+      this.tenderListHeld = this.doorEntries.map((e) => e.instance);
+      this.tenderSheet = undefined;
+      this.tenderView.focus = Math.max(0, this.doorEntries.findIndex((e) => e.instance === sheet.instance));
+      this.tenderView.phase = 'entering';
+      await this.$nextTick();
+      this.fitTenderList();
+      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      const root = this.sceneRoot();
+      const slotOf = (n: string) => root?.querySelector<HTMLElement>(`[data-tport-slot="${n}"]`) ?? null;
+      const pairs = this.doorEntries
+        .filter((e) => e.instance !== sheet.instance)
+        .map((e) => ({name: e.instance as CardName, fromEl: root?.querySelector<HTMLElement>(`[data-tender-dock-chip="${e.instance}"]`) ?? null, toEl: slotOf(e.instance)}))
+        .filter((p): p is {name: CardName, fromEl: HTMLElement, toEl: HTMLElement} => p.fromEl !== null && p.toEl !== null);
+      const convoy = riseToSeats(pairs,
+        (n) => {
+          this.tenderListHeld = this.tenderListHeld.filter((x) => x !== n);
+        },
+        (n) => {
+          if (!this.tenderDockHeld.includes(n)) {
+            this.tenderDockHeld = [...this.tenderDockHeld, n];
+          }
+        });
+      this.tenderRise = convoy;
+      await Promise.all([
+        convoy.settled,
+        flight.flyTo((n) => slotOf(n), (n) => {
+          this.tenderListHeld = this.tenderListHeld.filter((x) => x !== n);
+        }, {reseat: true}),
+      ]);
+      this.tenderRise = undefined;
+      this.tenderFlight = undefined;
+      if (this.tenderView.phase === 'entering') {
+        this.tenderListHeld = [];
+        this.tenderView.phase = 'open';
+      }
+    },
+    /** The sheet's whole input surface: A (and RT for a request) commits, the tags walk, X reads the hero, B goes back. */
+    handleSheetIntent(intent: GamepadIntent): void {
+      const sheet = this.tenderSheet;
+      if (sheet === undefined || sheet.phase !== 'open' || this.state.tenderBusy !== undefined) {
+        noteInputAbsorbed(TENDER_DOOR_ABSORBER);
+        return;
+      }
+      const tags = this.sheetTags;
+      if (intent.kind === 'nav') {
+        if (tags !== undefined && tags.length > 0) {
+          const step = intent.dir === 'right' || intent.dir === 'down' ? 1 : -1;
+          this.sheetTagFocus = Math.min(tags.length - 1, Math.max(0, this.sheetTagFocus + step));
+        }
+        return;
+      }
+      if (intent.kind !== 'press') {
+        return;
+      }
+      switch (intent.button) {
+      case 'back':
+      case 'stickL':
+        void this.closeSheetToList();
+        return;
+      case 'secondary': {
+        const entry = this.tenderSheetEntry;
+        if (entry !== undefined) {
+          openConsoleCardZoom([tenderZoomEntry(entry.id, {instance: entry.instance, state: tenderCardStateOf(entry.status)})], 0, undefined, undefined, {
+            contextLabel: 'Tenders',
+            origin: {kind: 'physical', resolve: () => this.sheetHeroEl()},
+          });
+        }
+        return;
+      }
+      case 'confirm':
+        if (tags !== undefined) {
+          const t = tags[this.sheetTagFocus];
+          if (t === undefined || t.count === 0) {
+            this.blockedNudge++;
+            return;
+          }
+          this.sheetTagPicked = this.sheetTagPicked === t.tag ? undefined : t.tag;
+          return;
+        }
+        void this.commitSheet();
+        return;
+      case 'triggerR':
+        if (tags !== undefined && this.sheetTagPicked !== undefined) {
+          void this.commitSheet();
+        }
+        return;
+      default:
+        return;
+      }
+    },
+    /**
+     * THE ACTIVATION — the sheet's one commit. The Committee's stamp comes down on the hero (a one-shot), the answer goes
+     * out (a gamble's only after its cards are back in the deck — the deck answers after it has received), and the sheet
+     * HANDS the screen to the page whose cards it changes, where the change plays: the cards that stay glide to their new
+     * places, the new ones come off the tender deck, the price ticks in the purchase ledger. An exchange and the
+     * restructuring are not executed here — their sheet hands over to the page's marking / the restructuring's row.
+     */
+    async commitSheet(): Promise<void> {
+      const sheet = this.tenderSheet;
+      const plan = this.tenderSheetPlan;
+      if (sheet === undefined || plan === undefined || sheet.phase !== 'open') {
+        return;
+      }
+      const page = this.currentStep?.id;
+      switch (plan.kind) {
+      case 'review': {
+        const pool = sheet.id === 'preludeReview' ? 'prelude' : 'projects';
+        await this.handOffSheet(false);
+        this.state.tenderMode = {kind: 'review', instance: sheet.instance, pool, release: []};
+        return;
+      }
+      case 'restructure': {
+        await this.handOffSheet(true);
+        const live = (this.wizardInput?.tenders ?? []).find((t) => t.instance === sheet.instance);
+        if (live?.offer !== undefined) {
+          void this.openRestructureMode(sheet.instance, live.offer, true);
+          return;
+        }
+        void this.openRestructureMode(sheet.instance, [], true);
+        this.state.restructureOpening = sheet.instance;
+        this.tenderDealArmed = true;
+        this.submitTender({type: 'tender', instance: sheet.instance});
+        return;
+      }
+      default:
+        break;
+      }
+      // A one-press tender (and the request with its tag): the stamp, then the answer, then the hand-over.
+      const response = plan.kind === 'tag' ?
+        (this.sheetTagPicked !== undefined ? tenderTagResponse(sheet.instance, this.sheetTagPicked) : undefined) :
+        tenderPressResponse({instance: sheet.instance, id: sheet.id});
+      if (response === undefined) {
+        return;
+      }
+      this.tenderSheet = {...sheet, phase: 'committing'};
+      this.sheetCommitted = true;
+      this.sheetStamping = true;
+      window.setTimeout(() => {
+        this.sheetStamping = false;
+      }, motionMs(620));
+      const gamble = isGambleTender(sheet.id);
+      const grows = sheet.id === 'openCall' || sheet.id === 'broadPortfolio' || sheet.id === 'targetedRequest';
+      this.tenderLanding = {instance: sheet.instance, step: page};
+      if (grows) {
+        this.dealGlideArmed = true;
+        this.tenderDealArmed = true;
+      }
+      if (!gamble) {
+        this.submitTender(response);
+      }
+      await new Promise<void>((r) => window.setTimeout(r, motionMs(560)));
+      await this.handOffSheet(false);
+      if (gamble && page !== undefined) {
+        // The page is back: every card of it goes back into the tender deck, THEN the new deal is asked for.
+        await this.departToDeck(page, this.stepEntries.map((c) => c.name));
+        this.submitTender(response);
+      }
+    },
+    /**
+     * THE HAND-OVER: the RESULT folds, the hero flies home into its miniature (the dock answers the landing; a stamped
+     * one takes the stamp's one-shot there too), and the page surfaces from behind the glass — or stays parked for a
+     * layer that takes its place (the restructuring). Resolves once the screen is the page's.
+     */
+    async handOffSheet(keepPageParked: boolean): Promise<void> {
+      const sheet = this.tenderSheet;
+      if (sheet === undefined) {
+        return;
+      }
+      this.tenderHandoffActive = true;
+      const root = this.sceneRoot();
+      const miniOf = (n: CardName) => root?.querySelector<HTMLElement>(`[data-tender-dock-chip="${n}"]`) ?? null;
+      const hero = this.sheetHeroEl();
+      const flight = captureCards(hero !== null ? [{name: sheet.instance as CardName, el: hero}] : []);
+      this.tenderFlight = flight;
+      this.sheetHeroHeld = true;
+      this.tenderSheet = {...sheet, phase: 'leaving'};
+      this.tenderView.phase = 'leaving';
+      window.clearTimeout(this.tenderRestoreTimer);
+      this.tenderRestoreTimer = window.setTimeout(() => {
+        this.tenderRestoreTimer = undefined;
+        if (this.tenderView.phase === 'leaving') {
+          this.tenderPageRestored = true;
+          if (!keepPageParked) {
+            void this.$nextTick().then(() => void unparkSurface(this.legacyPageEl() ?? null, 1));
+          }
+        }
+      }, motionMs(260));
+      await flight.flyTo(miniOf, (n) => {
+        this.tenderDockHeld = this.tenderDockHeld.filter((held) => held !== n);
+        if (this.sheetCommitted) {
+          this.stampDockChip(n);
+        }
+      }, {reseat: false, pressElFor: miniOf});
+      this.tenderFlight = undefined;
+      this.tenderSheet = undefined;
+      if (this.tenderView.phase === 'leaving') {
+        if (keepPageParked) {
+          this.tenderPageRestored = true; // nothing to unpark — the layer that follows takes the page's seat
+        }
+        this.settleTenderViewClosed();
+      }
+      this.tenderHandoffActive = false;
+      const waiters = this.handoffWaiters;
+      this.handoffWaiters = [];
+      waiters.forEach((w) => w());
+    },
+    /** Resolves once no hand-over is running (a page change plays on a page the player SEES). */
+    whenHandoffDone(): Promise<void> {
+      if (!this.tenderHandoffActive) {
+        return Promise.resolve();
+      }
+      return new Promise<void>((resolve) => {
+        this.handoffWaiters.push(resolve);
+      });
+    },
+    /** The sheet's hero size — solved from the layer's own box (the certificate is the scene's hero by size). */
+    fitTenderSheet(): void {
+      const pane = (this.$refs.tenderPane ?? undefined) as HTMLElement | undefined;
+      const sheet = pane?.querySelector<HTMLElement>('.con-tsheet');
+      if (pane === undefined || sheet === null || sheet === undefined || pane.clientHeight < 40) {
+        return;
+      }
+      const h = pane.clientHeight * 0.9;
+      const w = Math.min(h / 1.42, pane.clientWidth * 0.34);
+      sheet.style.setProperty('--tsheet-hero-w', `${Math.round(w)}px`);
+      // The RESULT reads in full: a panel taller than the layer (a long rule, three notes on a 720p frame) is fitted by
+      // ONE type number — measured at the natural size, scaled down together, never below a legible floor.
+      const panel = sheet.querySelector<HTMLElement>('.con-tsheet__panel');
+      if (panel !== null) {
+        sheet.style.removeProperty('--tsheet-type');
+        const room = pane.clientHeight * 0.96;
+        const need = panel.scrollHeight;
+        if (need > room) {
+          const rem = parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+          sheet.style.setProperty('--tsheet-type', `${(Math.max(0.7, room / need) * rem).toFixed(2)}px`);
+        }
+      }
+    },
+    /** The list's certificate size — as large as the layer allows for the whole row (never a scroll, never a wrap). */
+    fitTenderList(): void {
+      const pane = (this.$refs.tenderPane ?? undefined) as HTMLElement | undefined;
+      const list = pane?.querySelector<HTMLElement>('.con-tport');
+      if (pane === undefined || list === null || list === undefined || pane.clientHeight < 40) {
+        return;
+      }
+      const count = Math.max(1, this.doorEntries.length);
+      // The ROOT rem — every length of the layer below is one (the list's own font size is not).
+      const rem = parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+      const gap = 1.6 * rem;
+      const availW = pane.clientWidth - 2.4 * rem - gap * (count - 1);
+      // The row's own room: the reading under it (two lines), each certificate's word line and the cursor's lift (its
+      // ring stands proud of the face — it once touched the journey rail above the layer) are subtracted.
+      const availH = pane.clientHeight - 7.2 * rem;
+      const w = Math.max(6 * rem, Math.min(availW / count, availH / 1.42, 20 * rem));
+      list.style.setProperty('--tport-w', `${Math.round(w)}px`);
+    },
+    /**
+     * THE GLIDE (§20): the deal GREW in place. The cards that stay are carried from where the player last saw them (the
+     * boxes remembered when the door opened) to the places the new fit gave them — on the page the player sees, after
+     * the hand-over — and only then do the new cards come off the tender deck (`launchDeal` waits for the glide). They
+     * are hidden from the very frame the new deal applies, so nothing ever jumps.
+     */
+    async playDealGlide(): Promise<void> {
+      this.dealGlideArmed = false;
+      const rects = this.pageSlotRects;
+      const step = this.currentStep?.id;
+      if (rects === undefined || step === undefined) {
+        return;
+      }
+      const keys = [...rects.keys()].filter((k) => k.startsWith(`${step}|`));
+      keys.forEach((k) => this.returningNames.add(k));
+      this.glideActive = true;
+      try {
+        await this.whenHandoffDone();
+        await this.$nextTick();
+        this.fitCardStrip();
+        await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+        const pairs: Array<GlidePair> = [];
+        for (const k of keys) {
+          const name = k.slice(step.length + 1) as CardName;
+          const toEl = this.stepSlotEl(step, name);
+          const from = rects.get(k);
+          if (toEl !== null && from !== undefined) {
+            pairs.push({name, from, toEl});
+          }
+        }
+        await glideFromRects(pairs, (n) => this.returningNames.delete(`${step}|${n}`));
+      } finally {
+        keys.forEach((k) => this.returningNames.delete(k));
+        this.glideActive = false;
+      }
+    },
+    /** The boxes of the page's cards as the player sees them now (a glide's «from»). */
+    rememberPageSlots(): void {
+      const strip = this.activeStrip();
+      if (strip === undefined || strip === null) {
+        this.pageSlotRects = undefined;
+        return;
+      }
+      const rects = new Map<string, Rect>();
       for (const el of Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot[data-step-slot]'))) {
         const key = el.dataset.stepSlot;
-        const from = key !== undefined ? before.get(key) : undefined;
-        if (from === undefined) {
-          continue; // a NEW card — the deal brings it off the deck
+        const r = cardRectNow(el);
+        if (key !== undefined && r !== undefined && r.w > 4) {
+          rects.set(key, r);
         }
-        const to = el.getBoundingClientRect();
-        if (to.width < 4 || from.width < 4) {
-          continue;
-        }
-        // The slot's own zoom scales its transform: a screen-px delta is divided back into the slot's space.
-        const eff = el.offsetWidth > 0 ? to.width / el.offsetWidth : 1;
-        const dx = (from.left - to.left) / eff;
-        const dy = (from.top - to.top) / eff;
-        const k = from.width / to.width;
-        if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(k - 1) < 0.01) {
-          continue;
-        }
-        gsap.fromTo(el,
-          {x: dx, y: dy, scale: k, transformOrigin: '0 0'},
-          {x: 0, y: 0, scale: 1, duration: motionMs(240) / 1000, ease: 'power3.inOut', clearProps: 'transform,transformOrigin'});
       }
+      this.pageSlotRects = rects.size > 0 ? rects : undefined;
     },
     /**
      * THE DEPARTURE (§16.3) — the cards a redeal takes away leave the table as they came: captured where they stand,

@@ -177,7 +177,15 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(list.map((c) => c.control)).to.deep.eq(['confirm', 'secondary', 'back']);
     expect(list.find((c) => c.control === 'confirm')?.enabled, 'a certificate of another page: DISABLED, never hidden').to.eq(false);
     expect(labelOf(list, 'back')).to.eq('Back');
-    const confirm = startSceneCommands(state({tenderMode: {kind: 'confirm', commitLabel: 'Execute the tender', canCommit: true, pickLabel: '', pickEnabled: false}}));
+    // THE ACTIVATION SHEET (§20): the tender's ONE verb on A; a tag sheet picks on A and commits on RT; B one level back.
+    const sheet = startSceneCommands(state({tenderSheet: {verb: 'Execute the tender', enabled: true, tag: false, pickLabel: '', pickEnabled: false}, tenderList: {enabled: true}}));
+    expect(sheet.map((c) => c.control), 'the sheet outranks the list under it').to.deep.eq(['confirm', 'secondary', 'back']);
+    expect(sheet.find((c) => c.control === 'confirm')).to.deep.include({label: 'Execute the tender', highlight: true});
+    expect(labelOf(sheet, 'back')).to.eq('Back');
+    const tagSheet = startSceneCommands(state({tenderSheet: {verb: 'Request the three cards', enabled: false, tag: true, pickLabel: 'Choose this tag', pickEnabled: true}}));
+    expect(tagSheet.map((c) => c.control)).to.deep.eq(['confirm', 'triggerR', 'secondary', 'back']);
+    expect(tagSheet.find((c) => c.control === 'triggerR')?.enabled, 'RT waits for a named tag').to.eq(false);
+    const confirm =startSceneCommands(state({tenderMode: {kind: 'confirm', commitLabel: 'Execute the tender', canCommit: true, pickLabel: '', pickEnabled: false}}));
     expect(confirm.map((c) => c.control)).to.deep.eq(['confirm', 'secondary', 'back']);
     expect(labelOf(confirm, 'confirm')).to.eq('Execute the tender');
     expect(labelOf(confirm, 'back')).to.eq('Cancel the tender');

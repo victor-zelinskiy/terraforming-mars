@@ -138,6 +138,9 @@ describe('consoleStartState (T5 wizard logic)', () => {
     expect(startRedealRestoreArmed()).to.eq(false);
     armStartRedealRestore();
     expect(startRedealRestoreArmed()).to.eq(true);
+    // A view that still carries the OLD deal (a poll ahead of the answer) is not the redeal: the record stays armed.
+    restoreStartPicksAfterRedeal(before);
+    expect(startRedealRestoreArmed(), 'the old deal never consumes the restore').to.eq(true);
     // The server redealt the preludes (a «Пересмотр прологов» that kept Loan) and served the selection again.
     const after = {
       ...before,
@@ -148,9 +151,13 @@ describe('consoleStartState (T5 wizard logic)', () => {
       ],
     } as unknown as SelectInitialCardsModel;
     ensureStartWizard('p1', initialCardsSignature(after), wizardSteps(after).map((st) => st.id));
-    expect(consoleStartState.corp, 'a fresh identity reset everything…').to.eq(undefined);
+    // The redeal is the SAME table, its deal changed in place — never a fresh start (a reset re-dealt every card already
+    // lying there: the owner's frames of 2026-11-09). The page, the picks and the visited steps stand…
+    expect(consoleStartState.signature, 'the new deal identity is adopted').to.eq(initialCardsSignature(after));
+    expect(consoleStartState.corp, 'the table survives the redeal').to.eq(CardName.CREDICOR);
+    expect(consoleStartState.stepIdx).to.eq(2);
     restoreStartPicksAfterRedeal(after);
-    expect(consoleStartState.corp, '…and the restore brought back what the deal still holds').to.eq(CardName.CREDICOR);
+    expect(consoleStartState.corp, '…and the restore keeps what the deal still holds').to.eq(CardName.CREDICOR);
     expect(consoleStartState.preludes).to.deep.eq([CardName.LOAN]);
     expect(consoleStartState.projects).to.deep.eq([CardName.ANTS]);
     expect(consoleStartState.stepIdx).to.eq(2);

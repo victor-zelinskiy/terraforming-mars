@@ -164,6 +164,11 @@ export type StartSceneCommandState = {
   /** …the door's LIST stands: A executes the focused certificate (disabled, never hidden, when it is not this page's). */
   tenderList?: {enabled: boolean},
   /**
+   * …the ACTIVATION SHEET stands (§20): A is the tender's verb (or, for «Целевой запрос», A names the focused tag and RT
+   * asks), X reads the certificate, B goes back to the list.
+   */
+  tenderSheet?: {verb: string, enabled: boolean, tag: boolean, pickLabel: string, pickEnabled: boolean},
+  /**
    * …or a tender's MODE stands on its page (§16.3 · §19): a CONFIRM (A executes the previewed effect, B cancels), an
    * EXCHANGE (A marks / unmarks the focused card, RT exchanges, B cancels — nothing sent), the REQUEST (A names a tag,
    * RT asks) or the RESTRUCTURING (one row — A takes one lineage corporation out / one candidate in, RT resolves a
@@ -208,6 +213,18 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
         {control: 'secondary', label: 'Inspect'},
         {control: 'back', label: 'Back'},
       ];
+    }
+    // THE ACTIVATION SHEET owns the bar while it stands: the tender's ONE verb, the hero's inspection, one level back.
+    if (s.tenderSheet !== undefined) {
+      const sheet: Array<StartCommand> = s.tenderSheet.tag ? [
+        {control: 'confirm', label: s.tenderSheet.pickLabel, enabled: s.tenderSheet.pickEnabled},
+        {control: 'triggerR', label: s.tenderSheet.verb, enabled: s.tenderSheet.enabled, highlight: s.tenderSheet.enabled},
+      ] : [
+        {control: 'confirm', label: s.tenderSheet.verb, enabled: s.tenderSheet.enabled, highlight: s.tenderSheet.enabled},
+      ];
+      sheet.push({control: 'secondary', label: 'Inspect'});
+      sheet.push({control: 'back', label: 'Back'});
+      return sheet;
     }
     // THE TENDER DOOR's LIST owns the bar while it stands: A executes the focused certificate of this page, X reads,
     // B goes ONE level back to the page (L3 too — the door's own stick).

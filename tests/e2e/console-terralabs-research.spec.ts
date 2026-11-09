@@ -126,8 +126,9 @@ test.describe('R14 Terralabs Research · tv4k', () => {
           const picked = await fillPicks(p, 3, 24);
           expect(picked.length, 'three projects picked').toBe(3);
           await settle(p, {timeoutMs: 15_000});
-          quickText = (await p.locator('.con-start__status-quick-part').first().innerText()).replace(/\s+/g, ' ');
-          quickHint = (await priceHints(p, '.con-start__status-quick'))[0] ?? '';
+          // The project step's money is the PURCHASE LEDGER in the head (§20.4) — «ПОКУПКА 3 × 1 = 3 · ОСТАЛОСЬ …».
+          quickText = (await p.locator('[data-purchase-ledger] [data-purchase-price]').first().innerText()).replace(/\s+/g, ' ');
+          quickHint = (await priceHints(p, '[data-purchase-ledger]'))[0] ?? '';
           await shoot(p, 'a-02-projects');
         }
       },

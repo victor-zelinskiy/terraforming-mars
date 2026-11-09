@@ -132,7 +132,10 @@ export function createCardDealSequence() {
    *  unmount its own stage. */
   let presentationHold: AnimationHold | undefined;
 
-  const isHeld = (key: string): boolean => state.active && !state.revealed.has(key);
+  // Only a slot of THIS deal is held: a deal that GREW in place (a tender's +2 / +3 / +4) deals its new slots only, and
+  // a card already lying on the table read «held» too — the whole row vanished under the flight and came back with it,
+  // which read as every card being dealt again (the owner's frames of 2026-11-09).
+  const isHeld = (key: string): boolean => state.active && keys.includes(key) && !state.revealed.has(key);
 
   const finish = () => {
     keys.forEach((k) => state.revealed.add(k));

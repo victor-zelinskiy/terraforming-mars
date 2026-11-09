@@ -28974,6 +28974,8 @@ body.con-start-barshold .con-status {
         box-shadow: 0 0 .3rem rgba(0, 0, 0, 0.6);
     }
     &__crewname {
+        /* The NAME is who; the status yields its width first (an ellipsis in its own box — never out of the chip). */
+        flex: 0 0 auto;
         min-width: 0;
         max-width: 9rem;
         overflow: hidden;
@@ -28984,11 +28986,15 @@ body.con-start-barshold .con-status {
         display: inline-flex;
         align-items: center;
         gap: .25rem;
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
         font-size: .68rem;
         letter-spacing: .05em;
         text-transform: uppercase;
     }
-    &__crewtick { color: @con-mint; }
+    &__crewtick { flex: none; color: @con-mint; }
+    &__crewword { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* ── THE DEPLOYMENT: queue column (+ embed layer) · the played dock ──
        One row of three physical places inside the bounded workspace. The

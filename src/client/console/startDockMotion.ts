@@ -215,6 +215,13 @@ function fillFace(card: Card3DInner, sourceCard: HTMLElement | undefined): void 
   }
   const clone = sourceCard.cloneNode(true) as HTMLElement;
   clone.style.margin = '0';
+  // A face whose SIZE comes from its container (a tender certificate: `width: 100%`, the em read off `100cqw`) loses
+  // it outside that container — the clone stood at its natural 14rem inside a seat-sized proxy and flew as a bigger,
+  // second copy of the very card it carried. Its laid-out width and em travel with it.
+  if (sourceCard.classList.contains('con-tender')) {
+    clone.style.width = `${sourceCard.offsetWidth}px`;
+    clone.style.fontSize = window.getComputedStyle(sourceCard).fontSize;
+  }
   // THE EFFECTIVE zoom, measured — visual box ÷ layout box. The fit zoom
   // usually sits on an ANCESTOR (the strip/slot), where the card's own
   // computed `zoom` reads '1': cloning with that left the face at natural
@@ -908,6 +915,70 @@ export async function reseatCards(
     });
   }, batchBudget(live.length, true));
   batch.dispose();
+}
+
+// ── GLIDE FROM REMEMBERED PLACES: a layout that CHANGED under the cards ─────
+
+export type GlidePair = {name: CardName, from: Rect, toEl: HTMLElement};
+
+/**
+ * A layout that changed while its cards stood still (a deal that GREW in place — a tender's +2 / +3 / +4): every card
+ * that stays is carried from where the player LAST SAW it (`from`, remembered before the change) to its new place —
+ * the re-seat grammar (face-up, a light regrip, the convoy in the reading order of the destinations). The proxy wears
+ * the NEW place's own face (crisp at the landing); `onLanded` fires per card at its touchdown (the host reveals the
+ * slot in that frame). A pair whose place did not move resolves at once (no proxy for a card that stays put). Reduced
+ * motion / no layer: everything lands at once.
+ */
+export async function glideFromRects(pairs: ReadonlyArray<GlidePair>, onLanded?: (name: CardName) => void): Promise<void> {
+  const moved: Array<{name: CardName, from: Rect, to: Rect, toEl: HTMLElement, card: HTMLElement | undefined}> = [];
+  for (const p of pairs) {
+    const to = cardRectOf(p.toEl);
+    if (to === undefined || to.w < 4) {
+      onLanded?.(p.name);
+      continue;
+    }
+    if (Math.abs(to.x - p.from.x) < 1 && Math.abs(to.y - p.from.y) < 1 && Math.abs(to.w - p.from.w) < 1) {
+      onLanded?.(p.name);
+      continue;
+    }
+    moved.push({name: p.name, from: p.from, to, toEl: p.toEl, card: cardIn(p.toEl)});
+  }
+  if (moved.length === 0 || layerEl === undefined || consoleReducedMotionActive()) {
+    moved.forEach((m) => onLanded?.(m.name));
+    return;
+  }
+  moved.sort((a, b) => (a.to.y - b.to.y) || (a.to.x - b.to.x));
+  const batch = newBatch();
+  const proxies = moved.map((m) => {
+    const card = spawnProxy(batch, m.from, true);
+    if (card !== undefined) {
+      fillFace(card, m.card);
+    }
+    return card;
+  });
+  await guarded((done) => {
+    const tl = gsap.timeline({onComplete: done});
+    moved.forEach((m, i) => {
+      const card = proxies[i];
+      if (card === undefined) {
+        onLanded?.(m.name);
+        return;
+      }
+      addFlight(tl, card, m.from, m.to, {
+        at: (flightMs(staggerFor(moved.length)) * i) / 1000 * 0.5,
+        reseat: true,
+        retarget: () => restingCardRectOf(m.toEl),
+        onDock: () => onLanded?.(m.name),
+      });
+    });
+  }, batchBudget(moved.length, true));
+  batch.dispose();
+  moved.forEach((m) => onLanded?.(m.name));
+}
+
+/** The rect of the card a slot hosts, as the dock flights measure it (the remembered «from» of a glide). */
+export function cardRectNow(el: HTMLElement | null | undefined): Rect | undefined {
+  return cardRectOf(el);
 }
 
 // ── CAPTURE → FLY: the two-phase transfer (a stage may SWAP underneath) ─────
