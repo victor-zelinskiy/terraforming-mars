@@ -2974,7 +2974,7 @@ export type FixtureName = 'solo-actions' | 'colony-host-handover' | 'bot-polder'
   // TR53 Frontier Labs and the iteration «ресурс на карту — один стандарт»: the card with four holders (one a near
   // miss); the FIELD's live pick and silent arrival (a printed microbe / an Ares animal with two holders each, a printed
   // data with one); a foreign trade on blue's Titan (red on the move) — docs/claude/prompts/project-tr53-frontier-labs.md.
-  'frontier-labs' | 'receive-board' | 'receive-colony' | 'titan-split-trade' | 'hydro-terminal' | 'hydro-terminal-2p' | 'field-hydro-terminal' |
+  'frontier-labs' | 'receive-board' | 'receive-colony' | 'titan-split-trade' | 'hydro-terminal' | 'hydro-floodgates-mix' | 'hydro-terminal-2p' | 'field-hydro-terminal' |
   // Arabia Terra's own cells on the REAL board: printed DATA (two holders → a pick), SCIENCE (one holder), the energy-production cove.
   'arabia-receive' |
   // …and two seats on it: red's greenery on the energy-production cove — the REMOTE landing of a printed production bonus.

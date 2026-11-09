@@ -41,6 +41,9 @@ export type HydroAdvancePayload = {
    * shape. Card moves (DP04) never set it: their toll is energy-only.
    */
   steelSpend?: number;
+  /** The player's Modular Floodgates share (Delta Works, 1:1) — rides the
+   *  move step as `cardSteel`; omitted at 0 (byte-identical batches). */
+  cardSteelSpend?: number;
   rewardChoice: number | undefined;
   selectedCard?: CardName;
   /** The composed stage-7 repeat pick (console-only pre-collection). */
@@ -232,7 +235,7 @@ export function hydroAdvanceBatch(
   // exists only when meaningful — every energy-only, non-waiving batch stays
   // byte-identical to the historical shape.
   const move: {
-    type: 'deltaProject', amount: number, waiveReward?: true, steel?: number,
+    type: 'deltaProject', amount: number, waiveReward?: true, steel?: number, cardSteel?: number,
     waivedSteps?: ReadonlyArray<number>,
     plannedActions?: ReadonlyArray<{position: number, card: CardName}>,
     plannedChoices?: ReadonlyArray<{position: number, choice: number}>,
@@ -243,6 +246,9 @@ export function hydroAdvanceBatch(
   }
   if (payload.steelSpend !== undefined && payload.steelSpend > 0) {
     move.steel = payload.steelSpend;
+  }
+  if (payload.cardSteelSpend !== undefined && payload.cardSteelSpend > 0) {
+    move.cardSteel = payload.cardSteelSpend;
   }
   if (payload.waivedSteps !== undefined && payload.waivedSteps.length > 0) {
     move.waivedSteps = payload.waivedSteps;

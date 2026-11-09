@@ -71,6 +71,7 @@ import {DeltaSurge} from '../../../src/server/cards/delta/DeltaSurge';
 import {MiningExpedition} from '../../../src/server/cards/base/MiningExpedition';
 import {ElectroCatapult} from '../../../src/server/cards/base/ElectroCatapult';
 import {ModularFloodgates} from '../../../src/server/cards/delta/ModularFloodgates';
+import {DeltaWorks} from '../../../src/server/cards/delta/DeltaWorks';
 import {WaterSplittingPlant} from '../../../src/server/cards/base/WaterSplittingPlant';
 import {AquiferPumping} from '../../../src/server/cards/base/AquiferPumping';
 import {RestrictedArea} from '../../../src/server/cards/base/RestrictedArea';
@@ -1244,6 +1245,32 @@ finaleRichFixture('finale-rich-2p', 2);
   player.drawCard(2);
   runAllActions(game);
   write('hydro-terminal', game);
+}
+
+// ── hydro-floodgates-mix: the PROTECTED third pool of the Hydronetwork price (the repeat audit, 2026-11-09). Delta
+//    Works lets steel pay energy 1:1, and the steel stored on Modular Floodgates counts — but only when the player
+//    dials it. Position 2, ALL row tags, 1 energy, NO stock steel and 3 steel on Modular Floodgates: «К дальнему» is
+//    stage 6 (4 steps — the plant stage, no pick to answer), the ordinary pools are 3 short, and the move is paid
+//    only once the player raises the Floodgates lane (the server used to call it affordable while the console could
+//    never send that share — the commit was refused and the bare amount prompt surfaced). ──
+{
+  const [game, player] = testGame(1, {skipInitialCardSelection: false, deltaProjectExpansion: true, coloniesExtension: true});
+  const wf = player.getWaitingFor();
+  if (!(wf instanceof SelectInitialCards)) {
+    throw new Error(`expected SelectInitialCards, got ${wf?.constructor.name}`);
+  }
+  answerStartFlow(game, [player]);
+  const floodgates = new ModularFloodgates();
+  floodgates.resourceCount = 3;
+  player.playedCards.push(new SolarPower(), new AdaptedLichen(), new RegolithEaters(),
+    new IoMiningIndustries(), new Pets(), new DeltaWorks(), floodgates);
+  player.deltaProjectData!.position = 2;
+  player.energy = 1;
+  player.steel = 0;
+  player.megaCredits = 60;
+  player.drawCard(2);
+  runAllActions(game);
+  write('hydro-floodgates-mix', game);
 }
 
 // ── hydro-terminal-2p: the owner's freeze of 2026-10-31 — the SAME terminal landing («К дальнему» onto the 5 VP

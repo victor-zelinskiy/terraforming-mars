@@ -22,6 +22,17 @@ describe('hydroAdvanceResponses (console advance batch)', () => {
     ]);
   });
 
+  it('the Modular Floodgates share rides the move step as `cardSteel` beside the stock steel (omitted at 0)', () => {
+    expect(hydroAdvanceResponses(ACTIVATE, {spend: 4, steelSpend: 1, cardSteelSpend: 2, rewardChoice: undefined})).to.deep.equal([
+      ACTIVATE,
+      {type: 'deltaProject', amount: 4, steel: 1, cardSteel: 2},
+    ]);
+    expect(hydroAdvanceResponses(ACTIVATE, {spend: 2, cardSteelSpend: 0, rewardChoice: undefined})).to.deep.equal([
+      ACTIVATE,
+      {type: 'deltaProject', amount: 2},
+    ]);
+  });
+
   it('a CHOICE stage (pos 1/2) rides the move step as a positioned answer', () => {
     expect(hydroAdvanceResponses(ACTIVATE, {spend: 1, rewardChoice: 1, toPosition: 2})).to.deep.equal([
       ACTIVATE,

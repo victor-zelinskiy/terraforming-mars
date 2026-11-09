@@ -20998,6 +20998,8 @@ export default defineComponent({
       spend: number,
       /** The Delta Works steel share of the price (energy is the remainder). */
       steelSpend?: number,
+      /** The Modular Floodgates steel share (the protected pool, dialed). */
+      cardSteelSpend?: number,
       rewardChoice: number | undefined, selectedCard?: CardName,
       /** The landed stage's target reward was CONSCIOUSLY declined (the warned
        *  second press) — rides the batch, and owes no follow-up. */
@@ -21140,7 +21142,9 @@ export default defineComponent({
         fromPosition: payload.fromPosition,
         toPosition: payload.toPosition,
         spend: payload.spend,
-        spendSteel: payload.steelSpend ?? 0,
+        // Every steel the move takes — stock and Floodgates alike — reads as
+        // steel on the route; the journal names the Floodgates' share.
+        spendSteel: (payload.steelSpend ?? 0) + (payload.cardSteelSpend ?? 0),
         rewardChoice: payload.rewardChoice,
         selectedCard: payload.selectedCard,
         waivedTarget: payload.waiveTarget === true,

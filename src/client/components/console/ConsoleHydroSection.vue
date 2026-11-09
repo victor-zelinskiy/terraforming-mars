@@ -372,9 +372,9 @@
                   </template>
                   <template v-else>
                     <span v-if="!mixAdjustable" class="con-hydro__payline-will">{{ $t('Will pay') }}:</span>
-                    <span class="con-hydro__payline-part"><b>{{ model.selectedSpend - mixSteel }}</b><i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i></span>
+                    <span class="con-hydro__payline-part"><b>{{ model.selectedSpend - mixSteel - model.floodgateSteelForSpend }}</b><i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i></span>
                     <span aria-hidden="true">+</span>
-                    <span class="con-hydro__payline-part"><b>{{ mixSteel }}</b><i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></span>
+                    <span class="con-hydro__payline-part"><b>{{ mixSteel + model.floodgateSteelForSpend }}</b><i class="con-hydro__chip-ico resource_icon resource_icon--steel" aria-hidden="true"></i></span>
                   </template>
                 </span>
                 <span v-if="mixRowVisible" class="con-hydro__payline-src">{{ $t(mixSourceCard ?? '') }}</span>
@@ -459,7 +459,8 @@
                ONE canonical draft, with the room it deserves. -->
           <div class="con-hydro__paypanel" data-unfold-item>
             <ConsolePaymentPanel :view="mixPaymentView"
-                                 mode="compact"
+                                 :mode="mixTwoLanes ? 'expanded' : 'compact'"
+                                 :focus-unit="mixActiveLane"
                                  hint-mode="none"
                                  title-key="Payment mix"
                                  :source-card="mixSourceCard"
@@ -1537,6 +1538,14 @@ export default defineComponent({
        * and 0 keeps the energy-first default (steel covers only the deficit).
        */
       steelPreference: 0,
+      /**
+       * The player's Modular Floodgates share — a PROTECTED pool, so it starts
+       * at 0 and moves only on the player's own press (the model clamps it).
+       */
+      floodgatePreference: 0,
+      /** The lane the payment substep's bumpers dial when two lanes stand
+       *  (↑/↓ switch it): stock steel or the Floodgates' steel. */
+      mixLane: 'steel' as 'steel' | 'floodgateSteel',
       /** Re-keys the payment panel's one-shot pulse on each dial press. */
       mixFlashNonce: 0,
       /** Where the cursor stood when the payment substep opened — B restores
@@ -1671,6 +1680,7 @@ export default defineComponent({
         // A card's own move pays ITS price (0 free / 1 waiver), never the
         // per-step one — the repeat plan threads what the move really takes.
         movePrice: (this.bonusOffer ?? this.cardOffer)?.energyCost,
+        floodgateSteel: this.floodgatePreference,
       });
     },
     /** The traversal presentation's marker cursor (−1 = no plan running).
@@ -1921,6 +1931,16 @@ export default defineComponent({
         out.push({
           kind: 'unavailable',
           textKey: 'The payment mix conflicts with the selected action',
+          blocking: true,
+        });
+      }
+      // A move nothing the player may dial can pay (the server counts a pool
+      // the composition cannot reach — Modular Floodgates' steel held back
+      // for its own repeat): refused HERE, by name, never at the commit.
+      if (this.advanceOffer === undefined && this.model.mode === 'plan' && !this.mixCovered && !this.floodgateLaneLive) {
+        out.push({
+          kind: 'unavailable',
+          textKey: 'Not enough energy and steel',
           blocking: true,
         });
       }
@@ -3507,11 +3527,42 @@ export default defineComponent({
     /** The substitution is live (the card in the tableau, steel on hand). */
     mixRowVisible(): boolean {
       return this.model.mode === 'plan' && this.model.selectedSpend > 0 &&
-        this.model.availableSteelSubstitute > 0;
+        (this.model.availableSteelSubstitute > 0 || this.floodgateLaneLive);
     },
-    /** More than one valid mix — the bumpers become a dial; else a summary. */
+    /** Modular Floodgates steel can pay part of THIS move (the standard
+     *  advance, Delta Works live, steel on the card). */
+    floodgateLaneLive(): boolean {
+      return this.model.maxFloodgateForSpend > 0;
+    },
+    /** Both the stock steel and the Floodgates' steel are dialable — ↑/↓
+     *  then choose the lane the bumpers move. */
+    mixTwoLanes(): boolean {
+      return this.floodgateLaneLive && this.model.maxSteelForSpend > this.model.minSteelForSpend;
+    },
+    /** The lane the bumpers move NOW (the only live one when one stands). */
+    mixActiveLane(): 'steel' | 'floodgateSteel' {
+      if (!this.floodgateLaneLive) {
+        return 'steel';
+      }
+      return this.mixTwoLanes ? this.mixLane : 'floodgateSteel';
+    },
+    /** More than one valid mix — the bumpers become a dial; else a summary.
+     *  A live Floodgates lane always is: the protected pool is the player's
+     *  explicit choice, so the composition step must exist to make it. */
     mixAdjustable(): boolean {
-      return this.mixRowVisible && this.model.maxSteelForSpend > this.model.minSteelForSpend;
+      return this.mixRowVisible &&
+        (this.model.maxSteelForSpend > this.model.minSteelForSpend || this.floodgateLaneLive);
+    },
+    /** The draft PAYS the move — energy + stock steel + the Floodgates' share
+     *  cover the price. A move the ordinary pools cannot pay stays short until
+     *  the player raises the protected lane: never auto-taken, never submitted
+     *  short (the server would refuse it). */
+    mixCovered(): boolean {
+      const m = this.model;
+      if (m.mode !== 'plan' || this.advanceOffer !== undefined) {
+        return true;
+      }
+      return m.selectedSpend - m.floodgateSteelForSpend - this.mixSteel <= m.availableEnergy;
     },
     /** The EFFECTIVE steel share — THE canonical draft value. The preference
      *  is clamped by the ONE shared rule (never a private copy of the bounds
@@ -3534,6 +3585,11 @@ export default defineComponent({
         minSteel: this.model.minSteelForSpend,
         maxSteel: this.model.maxSteelForSpend,
         steelUsed: this.mixSteel,
+        ...(this.floodgateLaneLive ? {floodgate: {
+          available: this.model.availableFloodgateSteel,
+          used: this.model.floodgateSteelForSpend,
+          max: this.model.maxFloodgateForSpend,
+        }} : {}),
       });
     },
     /** The substitution's source card (English name IS the i18n key) — the
@@ -3618,8 +3674,9 @@ export default defineComponent({
       // final reinforce, and B back to the plan. Nothing else.
       if (this.flow.step === 'payment') {
         return [
+          ...(this.mixTwoLanes ? [{control: 'dpad' as const, label: 'Payment source', priority: 2}] : []),
           {control: 'bumperL', control2: 'bumperR', label: 'Payment mix', priority: 2},
-          {control: 'confirm', label: 'Reinforce the hydronetwork'},
+          {control: 'confirm', label: 'Reinforce the hydronetwork', enabled: this.mixCovered},
           {control: 'back', label: 'Back'},
         ];
       }
@@ -3810,6 +3867,9 @@ export default defineComponent({
       // refusal) or a finished flow must re-arm it for the next resolution;
       // a stale latch would silently skip the next terminal culmination.
       if (now === undefined && prev !== undefined) {
+        // …and a finished (or refused) move never leaves it raised for the next.
+        this.floodgatePreference = 0;
+        this.mixLane = 'steel';
         this.cereStarted = false;
       }
     },
@@ -4002,6 +4062,12 @@ export default defineComponent({
     'model.selectedPosition'(next: number, prev: number | undefined): void {
       // The cursor moved to another stop: its answer is another forecast — the R3 layer folds, the next R3 opens that one.
       foldForecastHost('hydro');
+      // A PROTECTED pool is dialed for ONE move: another destination starts
+      // it at 0 again, so a share raised for one price never rides another.
+      if (next !== prev) {
+        this.floodgatePreference = 0;
+        this.mixLane = 'steel';
+      }
       if (prev !== undefined && next !== prev && this.sceneKey === 'preview') {
         this.retunePanel();
       }
@@ -4505,6 +4571,16 @@ export default defineComponent({
       if (this.flow.step !== 'payment' || !this.mixAdjustable || this.flow.commit !== undefined) {
         return;
       }
+      if (this.mixActiveLane === 'floodgateSteel') {
+        const now = this.model.floodgateSteelForSpend;
+        const want = Math.max(0, Math.min(now + delta, this.model.maxFloodgateForSpend));
+        if (want === now) {
+          return;
+        }
+        this.floodgatePreference = want;
+        this.mixFlashNonce += 1;
+        return;
+      }
       const next = clampEnergyMixSteel(this.mixSteel + delta,
         {minSteel: this.model.minSteelForSpend, maxSteel: this.model.maxSteelForSpend});
       if (next === this.mixSteel) {
@@ -4540,6 +4616,10 @@ export default defineComponent({
     /** The FINAL act of the payment substep — the same server-authoritative
      *  reinforce the single-allocation path fires from Configure. */
     onPaymentConfirm(): void {
+      if (!this.mixCovered) {
+        this.$emit('notice', translateText('Not enough energy and steel: add steel from Modular Floodgates'));
+        return;
+      }
       this.armSceneFromCta();
       this.emitConfirm();
     },
@@ -5021,7 +5101,7 @@ export default defineComponent({
       });
     },
     emitConfirm(): void {
-      if (!this.model.canConfirm || this.flow.commit !== undefined) {
+      if (!this.model.canConfirm || !this.mixCovered || this.flow.commit !== undefined) {
         return;
       }
       this.armSceneFromCta();
@@ -5033,6 +5113,7 @@ export default defineComponent({
         this.$emit('confirm', {
           spend: this.model.selectedSpend,
           steelSpend: this.mixSteel > 0 ? this.mixSteel : undefined,
+          cardSteelSpend: this.model.floodgateSteelForSpend > 0 ? this.model.floodgateSteelForSpend : undefined,
           rewardChoice: undefined,
           selectedCard: undefined,
           waiveTarget: undefined,
@@ -5063,6 +5144,8 @@ export default defineComponent({
         // The chosen Delta Works mix — the ONE linked steel value (energy is
         // the remainder). Omitted at 0 so the batch stays byte-identical.
         steelSpend: this.mixSteel > 0 ? this.mixSteel : undefined,
+        // The Floodgates' share — the player's own dial, never auto-mixed.
+        cardSteelSpend: this.model.floodgateSteelForSpend > 0 ? this.model.floodgateSteelForSpend : undefined,
         rewardChoice: this.model.targetNeedsChoice ? hydroNetworkState.rewardChoice : undefined,
         selectedCard: this.model.mustSelectCard ? this.model.selectedCard : undefined,
         // The warned confirm with no pick is a CONSCIOUS decline — the server
@@ -5830,6 +5913,9 @@ export default defineComponent({
       // (destination, pre-selects, the dialed draft) intact.
       if (this.flow.step === 'payment') {
         if (intent.kind === 'nav') {
+          if ((intent.dir === 'up' || intent.dir === 'down') && this.mixTwoLanes) {
+            this.mixLane = intent.dir === 'up' ? 'steel' : 'floodgateSteel';
+          }
           return;
         }
         switch (consoleActionOf(intent)) {

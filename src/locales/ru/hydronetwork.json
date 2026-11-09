@@ -162,6 +162,7 @@
     "Not enough energy left after the movement payment": "После оплаты перемещения не хватает энергии",
     "The movement payment conflicts with this action": "Оплата перемещения конфликтует с этим действием",
     "Not enough energy left after the claim price": "После оплаты действия карты не хватает энергии",
+    "Not enough energy and steel: add steel from Modular Floodgates": "Не хватает энергии и стали: добавьте сталь с «Модульных гидрозатворов»",
     "The claim price leaves too little for this action": "После оплаты действия карты не хватает ресурсов на это действие",
     "The payment mix conflicts with the selected action": "Состав оплаты конфликтует с выбранным действием",
     "Claim the reward of a reached Hydronetwork stage": "Получите награду достигнутого этапа Гидросети",

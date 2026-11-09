@@ -741,6 +741,14 @@ export type EnergyMixArgs = {
   /** The CANONICAL draft: the dialed steel share, already clamped by the host
    *  to [minSteel, maxSteel]. Everything below derives from this one value. */
   steelUsed: number;
+  /**
+   * Modular Floodgates steel — the PROTECTED third pool (the Hydronetwork
+   * advance only): its own row, dialed only by the player (the draft starts
+   * at 0), never the quick lane while stock steel is dialable. Absent = no row.
+   * `used` is already clamped by the host to [0, max]; the stock-steel bounds
+   * above are the REMAINDER's (the host derives them with this share out).
+   */
+  floodgate?: {available: number, used: number, max: number};
 };
 
 /**
@@ -771,12 +779,15 @@ export function buildEnergyMixView(args: EnergyMixArgs): PaymentView {
   const {cost, energyAvailable, steelAvailable} = args;
   const steelLaneExists = steelAvailable > 0;
   const steelUsed = steelLaneExists ? clampEnergyMixSteel(args.steelUsed, args) : 0;
+  const floodgate = args.floodgate !== undefined && args.floodgate.max > 0 ? args.floodgate : undefined;
+  const floodgateUsed = floodgate !== undefined ? Math.max(0, Math.min(floodgate.used, floodgate.max)) : 0;
   // The energy share is the remainder; when the combined pool cannot cover
   // the price the lane honestly empties the stock and the verdict blocks.
-  const energyUsed = Math.min(Math.max(0, cost - steelUsed), energyAvailable);
-  const paid = energyUsed + steelUsed;
+  const energyUsed = Math.min(Math.max(0, cost - steelUsed - floodgateUsed), energyAvailable);
+  const paid = energyUsed + steelUsed + floodgateUsed;
   const deficit = Math.max(0, cost - paid);
-  const adjustable = steelLaneExists && args.maxSteel > args.minSteel;
+  const steelAdjustable = steelLaneExists && args.maxSteel > args.minSteel;
+  const adjustable = steelAdjustable || floodgate !== undefined;
 
   const rows: Array<PaymentSourceRow> = [];
   if (steelLaneExists) {
@@ -793,9 +804,30 @@ export function buildEnergyMixView(args: EnergyMixArgs): PaymentView {
       reserved: false,
       min: args.minSteel,
       max: args.maxSteel,
-      canIncrease: adjustable && steelUsed < args.maxSteel,
-      canDecrease: adjustable && steelUsed > args.minSteel,
-      quickAdjust: adjustable,
+      canIncrease: steelAdjustable && steelUsed < args.maxSteel,
+      canDecrease: steelAdjustable && steelUsed > args.minSteel,
+      quickAdjust: steelAdjustable,
+    });
+  }
+  if (floodgate !== undefined) {
+    const sourceCard = paymentLaneSource('floodgateSteel');
+    rows.push({
+      unit: 'floodgateSteel',
+      labelKey: paymentUnitLabel('floodgateSteel'),
+      ...(sourceCard !== undefined ? {sourceCard} : {}),
+      rate: 1,
+      available: floodgate.available,
+      used: floodgateUsed,
+      remaining: Math.max(0, floodgate.available - floodgateUsed),
+      contribution: floodgateUsed,
+      auto: false,
+      editable: true,
+      reserved: false,
+      min: 0,
+      max: floodgate.max,
+      canIncrease: floodgateUsed < floodgate.max,
+      canDecrease: floodgateUsed > 0,
+      quickAdjust: !steelAdjustable,
     });
   }
   rows.push({
@@ -808,7 +840,7 @@ export function buildEnergyMixView(args: EnergyMixArgs): PaymentView {
     contribution: energyUsed,
     // Energy is the AUTO lane only while steel actually shares the bill —
     // alone it is simply the price, not a lane «topping up» anything.
-    auto: steelLaneExists,
+    auto: steelLaneExists || floodgate !== undefined,
     editable: false,
     reserved: false,
     min: energyUsed,
@@ -831,7 +863,7 @@ export function buildEnergyMixView(args: EnergyMixArgs): PaymentView {
     // The compact block IS the whole editor here (one dialable lane) — LT
     // must never advertise a second stage.
     editorEligible: false,
-    quickAdjustUnit: adjustable ? 'steel' : undefined,
+    quickAdjustUnit: steelAdjustable ? 'steel' : floodgate !== undefined ? 'floodgateSteel' : undefined,
     paymentValid: deficit === 0,
     deficit,
     overpay: 0,

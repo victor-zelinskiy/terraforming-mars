@@ -149,6 +149,13 @@ export type HydroModelInput = {
    * Absent = the standard advance (1 energy-equivalent per step).
    */
   movePrice?: number;
+  /**
+   * The player's DIALED share of Modular Floodgates steel (Delta Works: 1
+   * card steel = 1 energy) — a PROTECTED source, so the draft starts at 0 and
+   * only the player raises it. Absent = 0. Clamped here to what the move and
+   * the card allow.
+   */
+  floodgateSteel?: number;
 };
 
 /** A reward that needs a card pick before confirm. */
@@ -193,6 +200,15 @@ export type HydroModel = {
   availableSteelSubstitute: number;
   /** The substitution's source card — present iff the substitute is > 0. */
   steelSubstituteCard: CardName | undefined;
+  /** Modular Floodgates steel usable 1:1 (Delta Works live), else 0. */
+  availableFloodgateSteel: number;
+  /** The CLAMPED floodgate share of the selected spend (0 by default). */
+  floodgateSteelForSpend: number;
+  /** The floodgate share's upper bound for the selected spend. */
+  maxFloodgateForSpend: number;
+  /** The least floodgate share that lets the move be paid at all (energy +
+   *  stock steel short of the price) — 0 when the ordinary pools cover it. */
+  minFloodgateForSpend: number;
   atEndOfTrack: boolean;
   usedThisGeneration: boolean;
 
@@ -590,11 +606,25 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
             s.position === 6 ? {plants: input.plantTags ?? 0} : {},
       }))
       .filter((g) => Object.keys(g.gain).length > 0);
+  // THE FLOODGATES SHARE — Modular Floodgates steel, the protected third
+  // pool of the standard advance (never a card move's toll). It pays part of
+  // the price off the CARD, so the stock-steel bounds and the plan below are
+  // the remainder's; Modular Floodgates' own repeat keeps one steel on the
+  // card (its blockade variant needs it at the repeat's point).
+  const standardMix = mode === 'plan' && input.movePrice === undefined;
+  const availableFloodgateSteel = preview?.availableFloodgateSteelSubstitute ?? 0;
+  const floodgateKeep = repeatPickName === CardName.MODULAR_FLOODGATES ? 1 : 0;
+  const maxFloodgateForSpend = standardMix ?
+    Math.max(0, Math.min(availableFloodgateSteel - floodgateKeep, selectedSpend)) : 0;
+  const minFloodgateForSpend = standardMix ?
+    Math.min(maxFloodgateForSpend, Math.max(0, selectedSpend - availableEnergy - availableSteelSubstitute)) : 0;
+  const floodgateSteelForSpend = Math.max(0, Math.min(input.floodgateSteel ?? 0, maxFloodgateForSpend));
+  const stockSpend = selectedSpend - floodgateSteelForSpend;
   // The plan's movement payment: the standard per-step price with its Delta
-  // Works mix, or a card move's own energy-only toll.
-  const planSpend = input.movePrice ?? selectedSpend;
-  const baseMinSteel = mode === 'plan' && input.movePrice === undefined ? Math.max(0, selectedSpend - availableEnergy) : 0;
-  const baseMaxSteel = mode === 'plan' && input.movePrice === undefined ? Math.min(availableSteelSubstitute, selectedSpend) : 0;
+  // Works mix (less the floodgate share), or a card move's own energy-only toll.
+  const planSpend = input.movePrice ?? stockSpend;
+  const baseMinSteel = standardMix ? Math.max(0, stockSpend - availableEnergy) : 0;
+  const baseMaxSteel = standardMix ? Math.min(availableSteelSubstitute, stockSpend) : 0;
   const planMixVerdict = planCommitment !== undefined && preview !== undefined ?
     hydroPlanMixVerdict({
       start: Units.of(input.stock ?? {energy: availableEnergy, steel: availableSteelSubstitute}),
@@ -716,6 +746,10 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
     availableEnergy,
     availableSteelSubstitute,
     steelSubstituteCard,
+    availableFloodgateSteel,
+    floodgateSteelForSpend,
+    maxFloodgateForSpend,
+    minFloodgateForSpend,
     atEndOfTrack: preview?.atEndOfTrack ?? (currentPosition >= MAX_POS),
     usedThisGeneration: preview?.usedThisGeneration ?? false,
     selectedSpend,

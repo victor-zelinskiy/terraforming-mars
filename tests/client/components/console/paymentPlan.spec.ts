@@ -760,6 +760,33 @@ describe('paymentPlan (T3 native payment math)', () => {
  * that settles the remainder; panel, summary, confirm availability and the
  * request payload all read THIS view — never a second arithmetic.
  */
+describe('paymentPlan · buildEnergyMixView — the Modular Floodgates lane (the protected third pool)', () => {
+  it('its own dialable row between steel and energy; the energy settles what both steels leave', () => {
+    const view = buildEnergyMixView({
+      cost: 4, energyAvailable: 1, steelAvailable: 1, minSteel: 1, maxSteel: 1, steelUsed: 1,
+      floodgate: {available: 3, used: 2, max: 3},
+    });
+    expect(view.rows.map((r) => r.unit)).to.deep.eq(['steel', 'floodgateSteel', 'energy']);
+    const [, gate, energy] = view.rows;
+    expect(gate.used).to.eq(2);
+    expect(gate.editable).to.eq(true);
+    expect(gate.canIncrease).to.eq(true);
+    expect(gate.quickAdjust, 'stock steel is not dialable here — the gate lane takes the bumpers').to.eq(true);
+    expect(energy.used).to.eq(1);
+    expect(view.status.ok).to.eq(true);
+  });
+
+  it('at its default 0 a price the ordinary pools cannot meet reads SHORT — never auto-taken', () => {
+    const view = buildEnergyMixView({
+      cost: 4, energyAvailable: 1, steelAvailable: 1, minSteel: 3, maxSteel: 1, steelUsed: 1,
+      floodgate: {available: 3, used: 0, max: 3},
+    });
+    expect(view.rows.find((r) => r.unit === 'floodgateSteel')?.used).to.eq(0);
+    expect(view.paymentValid).to.eq(false);
+    expect(view.deficit).to.eq(2);
+  });
+});
+
 describe('paymentPlan · buildEnergyMixView (Delta Works 1 steel = 1 energy)', () => {
   const bounds = (cost: number, energy: number, steel: number) => ({
     cost,

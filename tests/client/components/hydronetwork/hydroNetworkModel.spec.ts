@@ -493,6 +493,41 @@ describe('buildHydroModel — the ordered resource plan', () => {
     expect(m.reuseInfeasibleCards).deep.eq([{name: DC, resource: 'energy'}]);
   });
 
+  it('the Modular Floodgates share: protected (0 by default), clamped, and the stock-steel bounds are the remainder', () => {
+    // 1 energy + 1 stock steel + 3 steel on Modular Floodgates; a 4-step move.
+    const at = (floodgateSteel: number | undefined) => buildHydroModel(input({
+      preview: fullPreview(1, {
+        availableSteelSubstitute: 1,
+        availableFloodgateSteelSubstitute: 3,
+        destinations: fullPreview(8).destinations,
+      }),
+      selectedPosition: 4,
+      floodgateSteel,
+    }));
+    const none = at(undefined);
+    expect(none.floodgateSteelForSpend, 'never auto-taken').eq(0);
+    expect(none.minFloodgateForSpend, 'the ordinary pools are 2 short').eq(2);
+    expect(none.maxFloodgateForSpend).eq(3);
+    const two = at(2);
+    expect(two.floodgateSteelForSpend).eq(2);
+    expect([two.minSteelForSpend, two.maxSteelForSpend], 'the remainder (2) needs the 1 stock steel').deep.eq([1, 1]);
+    expect(at(9).floodgateSteelForSpend, 'clamped to the card').eq(3);
+  });
+
+  it('a Modular Floodgates REPEAT keeps one steel on its card (its blockade variant needs it there)', () => {
+    const m = buildHydroModel(input({
+      preview: fullPreview(8, {
+        availableFloodgateSteelSubstitute: 2,
+        reuseActionCards: ['Modular Floodgates' as never],
+      }),
+      selectedPosition: 7,
+      selectedCard: 'Modular Floodgates' as never,
+      floodgateSteel: 2,
+    }));
+    expect(m.maxFloodgateForSpend).eq(1);
+    expect(m.floodgateSteelForSpend).eq(1);
+  });
+
   it('a CARD move threads ITS price, not the per-step one (a free bonus step leaves the energy to the repeat)', () => {
     // 2 energy; the card's free step 6 → 7; the action needs 2 energy. The
     // per-step reading (1 energy) would grey a repeat the free move keeps fed.
