@@ -6,7 +6,7 @@ import {
   playedCategories, categoryCards, planCategoryView, categoryTargetRect,
   plannedFlightIndices, CAT_GRID_MAX_ZOOM,
   categoryAlbumSpec, planCategoryAlbum, albumPageOf, albumPageIndices, stepCategoryAlbum, turnCategoryAlbum,
-  CategoryViewLayout,
+  CategoryViewLayout, categoryLiftY,
 } from '@/client/components/console/consolePlayedCategoryModel';
 import {
   playedCategoryState, resetPlayedCategoryView, categoryOutNames,
@@ -347,5 +347,18 @@ describe('consolePlayedCategoryModel', () => {
       registerCategoryFlightEl(id, null);
       expect(categoryFlightEl(id)).to.be.undefined;
     });
+  });
+});
+
+describe('categoryLiftY — a lift never carries a card PAST its place', () => {
+  it('a place well above the source: the full lift', () => {
+    expect(categoryLiftY(350, 307, 32)).to.eq(318);
+  });
+  it('a place a hair above the source (less than the lift): the lift stops ON its height', () => {
+    expect(categoryLiftY(350, 331.9, 32)).to.eq(331.9);
+  });
+  it('a place below or level: the full lift — the card rises away first', () => {
+    expect(categoryLiftY(350, 600, 32)).to.eq(318);
+    expect(categoryLiftY(350, 350, 32)).to.eq(318);
   });
 });

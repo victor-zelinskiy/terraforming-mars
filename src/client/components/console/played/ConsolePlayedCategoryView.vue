@@ -731,12 +731,27 @@ export default defineComponent({
             if (this.state.phase !== 'opening') {
               return;
             }
-            dissolveCategoryProxies(() => {
-              this.state.flights = [];
-            });
-            // The real cards paint the instant the dissolve starts underneath.
+            // SHOW, THEN REMOVE (animations.md law 9): the real cards are let out from under the hold FIRST, and the
+            // proxies start to dissolve only once a frame has PAINTED them standing under the proxies. Started in one
+            // turn, the dissolve ran on GSAP's clock while the cards waited for Vue's patch and the compositor: one
+            // starved 4K frame (≥ the 180 ms dissolve) took the proxies away before the cards' first painted frame —
+            // the category landed on an empty grid that filled a frame later.
+            const handed = this.state.flights;
             this.state.holdCards = false;
             this.state.phase = 'open';
+            void this.$nextTick()
+              .then(() => this.frame())
+              .then(() => this.frame())
+              .then(() => {
+                if (this.state.flights !== handed) {
+                  return; // a close (or a teardown) took the proxies over
+                }
+                dissolveCategoryProxies(() => {
+                  if (this.state.flights === handed) {
+                    this.state.flights = [];
+                  }
+                });
+              });
           });
       }, motionMs(CATEGORY_FRAME_MS));
     },

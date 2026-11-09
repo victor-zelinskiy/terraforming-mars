@@ -162,20 +162,29 @@ test.describe(`«Разыграно» · the category's landing · ${PRESET.id}`
         }
       }
       // ── the APPROACH: does a proxy's y overshoot (dip past its last y and come back)? ──
-      const tracks: Array<Array<Box>> = [];
+      const tracks: Array<Array<Box & {t: number, painted: boolean}>> = [];
       for (const f of frames) {
+        const painted = f.slots.some((q) => q.painted);
         f.proxies.forEach((p, i) => {
           // A proxy's mount frame stands at (0, 0) before the director places it — not a pose of the flight.
           if (p.x !== 0 || p.y !== 0) {
-            (tracks[i] ??= []).push(p);
+            (tracks[i] ??= []).push({...p, t: f.t, painted});
           }
         });
       }
-      const overshoots = tracks.map((tr) => {
+      const dips = tracks.map((tr) => {
         const end = tr[tr.length - 1];
         const after = tr.slice(Math.floor(tr.length * 0.5));
-        return Math.round(Math.max(0, ...after.map((p) => Math.abs(p.y - end.y) > 0 && ((p.y - end.y) * (tr[0].y - end.y) < 0) ? Math.abs(p.y - end.y) : 0)) * 10) / 10;
+        let worst = {d: 0, t: -1, painted: false};
+        for (const p of after) {
+          const d = Math.abs(p.y - end.y);
+          if (d > worst.d && (p.y - end.y) * (tr[0].y - end.y) < 0) {
+            worst = {d, t: p.t, painted: p.painted};
+          }
+        }
+        return {d: Math.round(worst.d * 10) / 10, t: worst.t, painted: worst.painted, from: tr[0].y, to: end.y, endT: end.t};
       });
+      const overshoots = dips.map((x) => x.d);
 
       const report = {
         cards: count,
@@ -183,12 +192,14 @@ test.describe(`«Разыграно» · the category's landing · ${PRESET.id}`
         handoffAt: handoff?.t,
         handoffErr: {max: Math.max(0, ...handoffErr), n: handoffErr.length, all: handoffErr},
         settleMove: {max: Math.max(0, ...settleMove.values()), moved: [...settleMove.entries()].filter(([, d]) => d > 1)},
-        overshoot: {max: Math.max(0, ...overshoots)},
+        overshoot: {max: Math.max(0, ...overshoots), worst: dips.reduce<typeof dips[number] | undefined>((a, x) => (a === undefined || x.d > a.d ? x : a), undefined)},
         phases: [...new Set(frames.map((f) => `${f.phase}${f.held ? ':held' : ''}`))],
         kinds: frames.map((f) => `${f.t}:${f.kind}:${f.stackW}`).filter((s, i, a) => i === 0 || s.split(':').slice(1).join(':') !== a[i - 1].split(':').slice(1).join(':')),
       };
       fs.mkdirSync(OUT, {recursive: true});
       fs.writeFileSync(path.join(OUT, `landing-report-${zone}.json`), JSON.stringify({report, frames}, null, 1));
+      // A repeat keeps its own evidence: a red in `--repeat-each` is never overwritten by the green run after it.
+      fs.writeFileSync(path.join(OUT, `landing-report-${zone}-r${test.info().repeatEachIndex}.json`), JSON.stringify({report, frames}, null, 1));
       console.log(`[played-landing] ${zone} ${JSON.stringify(report)}`);
 
       // ── the verdict (PL-1416) ──

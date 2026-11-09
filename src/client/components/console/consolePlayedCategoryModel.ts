@@ -491,3 +491,14 @@ export function categoryTargetRect(
     h: p.slotH,
   };
 }
+
+/**
+ * The LIFT's height, never PAST the destination: a card whose place stands a hair ABOVE its source (less than the lift)
+ * rose above that place and came back down onto it — a dip a starved frame shows as the bounce PL-1416 named
+ * (`console-played-landing-probe`, 2.1 px at 4K: the source 350, the target 331.9, a 32 px lift rising to 318). Such a lift stops ON
+ * the destination's height; a place below (or level) keeps the full lift — the card rises AWAY from it first.
+ */
+export function categoryLiftY(fromY: number, toY: number, lift: number): number {
+  const lifted = fromY - lift;
+  return toY < fromY ? Math.max(lifted, toY) : lifted;
+}

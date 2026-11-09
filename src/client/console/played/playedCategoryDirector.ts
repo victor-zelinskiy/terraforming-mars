@@ -31,7 +31,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {PLAYED_CARD_NATURAL_W} from '@/client/components/console/consolePlayedModel';
-import {FlightRect} from '@/client/components/console/consolePlayedCategoryModel';
+import {FlightRect, categoryLiftY} from '@/client/components/console/consolePlayedCategoryModel';
 import {
   playedCategoryState, CategoryFlight, categoryFlightEl, clearCategoryFlightEls,
 } from '@/client/console/played/playedCategoryView';
@@ -200,7 +200,7 @@ function runEpisode(
 
     // Leg 0 — the physical LIFT out of the slot (both directions: a card
     // leaves a surface by rising off it, never by sliding flat).
-    tl.to(el, {y: from.y - lift, duration: s(LIFT_MS), ease: 'power1.out'}, at);
+    tl.to(el, {y: categoryLiftY(from.y, to.y, lift), duration: s(LIFT_MS), ease: 'power1.out'}, at);
     // Leg 1 — the travel: x and y run on slightly different eases so the
     // path bows naturally (an arc without a bezier plugin); scale glides.
     const flyAt = at + s(LIFT_MS);
