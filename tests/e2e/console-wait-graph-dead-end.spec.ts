@@ -64,4 +64,20 @@ test.describe('the wait graph cures a question asked of nobody', () => {
       {timeout: 10_000, message: `the orphaned claim was released (lines: ${lines.join(' | ')})`}).toBe(true);
     expect(lines.filter((l) => l.includes('outlived its host')), 'released ONCE').toHaveLength(1);
   });
+  test('a blocking hold with NOTHING moving on the page is named — the motion witness sees stillness (its positive control)', async ({page, request}) => {
+    test.setTimeout(120_000);
+    const lines: Array<string> = [];
+    page.on('console', (m) => {
+      if (m.text().startsWith('[liveness] still hold')) {
+        lines.push(m.text());
+      }
+    });
+    await bootFixture(page, request, 'ecology-experts-wg', {query: PRESET.query});
+    await settle(page);
+    const planted = await page.evaluate(() => (window as unknown as {__conStillHold?: () => boolean}).__conStillHold?.() ?? false);
+    expect(planted, 'the seam planted a blocking hold').toBe(true);
+    await expect.poll(() => lines.some((l) => l.includes('wait-graph-control:still')),
+      {timeout: 20_000, message: `the still hold was named (lines: ${lines.join(' | ')})`}).toBe(true);
+    expect(lines, 'named ONCE per still spell').toHaveLength(1);
+  });
 });

@@ -1695,6 +1695,7 @@ import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
 import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
 import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGraphSources';
 import {ceilingStats} from '@/client/console/waitGraph/ceilingWait';
+import {motionWitnessed, observeStillHold, StillHoldState, witnessMotion} from '@/client/console/waitGraph/motionWitness';
 import {advanceLivenessRung, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
@@ -2519,6 +2520,8 @@ const FINALE_FINISH_HOLD = 'final-greenery-finish';
  */
 /** The wait graph's standing frame: the phase it is in and since when (a plain module holder — read only by the 1 Hz source). */
 const waitSurfacePhase = {key: '', since: 0};
+/** Blocking holds standing with NOTHING moving on the page (`motionWitness.ts` — a shadow; read only by the 1 Hz tick). */
+let stillHold: StillHoldState = {since: 0, named: false};
 /** A collapse owed until the band surfaces' tokens have landed (a plain flag — read only by the collapse itself). */
 let collapseOwedOnTokens = false;
 /** Since when the live claim's host frame has been known nowhere (0 — it is, or there is no claim). */
@@ -22787,6 +22790,16 @@ export default defineComponent({
       if (blockingAnimationHoldCount() > 0 && oldestAnimationHoldAgeMs() < ANIMATION_STALL_GRACE_MS) {
         inFlight.push(...activeAnimationHoldLabels().filter((l) => l.endsWith('[blocking]')));
       }
+      // THE MOTION WITNESS (shadow): a blocking hold claims a story is playing — is anything on the page moving at all?
+      // A hold that stood STILL is named once; the arbiter still counts it in flight until it is measured (`motionWitness.ts`).
+      const blockingHeld = blockingAnimationHoldCount() > 0;
+      const still = observeStillHold(stillHold, Date.now(), blockingHeld,
+        blockingHeld && (transport?.requestInProgress === true || motionWitnessed(witnessMotion())));
+      stillHold = still.state;
+      if (still.cross) {
+        console.warn(`[liveness] still hold — ${activeAnimationHoldLabels().filter((l) => l.endsWith('[blocking]')).join(', ')} ` +
+          `stand ${Math.round(still.stillMs / 1000)}s with nothing moving on the page (shadow: nothing acted on)`);
+      }
       if (isResourceTransferActive()) {
         inFlight.push('resource-transfer');
       }
@@ -23305,9 +23318,18 @@ export default defineComponent({
             claimWorkspaceOutcome('card-actions', 'Hi-Tech Lab', ['draw', 'pick'], 0, 1, 'card');
             return true;
           };
+          // …and THE STILL HOLD on demand (the motion witness's control): a blocking hold with nothing on the page moving.
+          let still: AnimationHold | undefined;
+          (window as unknown as {__conStillHold?: () => boolean}).__conStillHold = () => {
+            still?.release();
+            still = beginAnimationHold('wait-graph-control:still', {maxHoldMs: 25_000});
+            return true;
+          };
           return [() => {
+            still?.release();
             delete (window as unknown as {__conStrandQuestion?: unknown}).__conStrandQuestion;
             delete (window as unknown as {__conOrphanClaim?: unknown}).__conOrphanClaim;
+            delete (window as unknown as {__conStillHold?: unknown}).__conStillHold;
           }];
         })() : []),
         // THE WAIT GRAPH's POSITIVE CONTROL (`?waitGraphControl=1` — never in a game): a mutual wait put in on purpose (the
