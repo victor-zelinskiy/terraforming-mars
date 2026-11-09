@@ -232,6 +232,43 @@ export function buildErrorDigest(entries: ConsoleEntry[], limit: number = DIGEST
 }
 
 /**
+ * THE STALLS AND THEIR TIME-TO-CURE — every `[liveness] stall` the arbiter reported, each paired with the
+ * `[liveness] recovered after Ns` that closed it (or none: the player reloaded / exported first). PURE (unit-tested).
+ * The Hi-Tech Lab field freeze of 2026-11-09 WAS cured — 16 s in, after the player had already reloaded: a cure counts
+ * only if it comes before the player gives up, so the export leads with how long each one took.
+ */
+export function buildStallDigest(entries: ConsoleEntry[], limit: number = DIGEST_LIMIT): string {
+  type Stall = {t: number, what: string, curedMs?: number};
+  const stalls: Array<Stall> = [];
+  let open: Stall | undefined;
+  for (const e of entries) {
+    const stall = /\[liveness\] stall \(([^)]*)\).*?; asked: ([^;]*);/.exec(e.text);
+    if (stall !== null) {
+      if (open === undefined) {
+        open = {t: e.t, what: `${stall[1]}, asked ${stall[2]}`};
+        stalls.push(open);
+      }
+      continue;
+    }
+    const cured = /\[liveness\] recovered after (\d+)s/.exec(e.text);
+    if (cured !== null && open !== undefined) {
+      open.curedMs = Number(cured[1]) * 1000;
+      open = undefined;
+    }
+  }
+  if (stalls.length === 0) {
+    return 'STALLS: none\n';
+  }
+  const cured = stalls.filter((x) => x.curedMs !== undefined);
+  const worst = cured.reduce((m, x) => Math.max(m, x.curedMs ?? 0), 0);
+  const head = `STALLS: ${stalls.length} — ${cured.length} cured (worst ${Math.round(worst / 1000)}s), ` +
+    `${stalls.length - cured.length} never cured on this page`;
+  const rows = stalls.slice(-limit).map((x) => `[${clock(x.t)}] ${x.what} → ` +
+    (x.curedMs === undefined ? 'NOT cured (reload / export first)' : `cured after ${Math.round(x.curedMs / 1000)}s`));
+  return [head, ...rows].join('\n') + '\n';
+}
+
+/**
  * THE SCREEN, SECOND BY SECOND — the field recorder's heartbeat ring (`window.__conFieldRecorder()`: what the server
  * asked, whether a surface accepted, what was in flight, the workspace stack, how long nothing moved) printed under the
  * errors. PURE (unit-tested). The owner's export of 2026-11-07 01:06 was taken ON a frozen screen and carried no line
@@ -625,6 +662,7 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
       rule,
       // Errors first: this file is read because something broke, so lead with what broke.
       buildErrorDigest(entries) + rule,
+      buildStallDigest(entries) + rule,
       buildScreenDigest(screen, when) + rule,
       '',
     ].join('\n');

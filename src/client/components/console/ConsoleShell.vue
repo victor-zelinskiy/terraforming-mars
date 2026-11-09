@@ -22856,7 +22856,14 @@ export default defineComponent({
         stranded: leakDetectorState.stranded !== undefined,
         signature,
       });
-      if (!verdict.stalled || verdict.rung === undefined) {
+      if (!verdict.stalled) {
+        // The stall's END is evidence too: the field export reads the time-to-cure, not only that a cure ran.
+        if (verdict.recovered !== undefined) {
+          console.warn(`[liveness] recovered after ${Math.round(verdict.recovered.afterMs / 1000)}s, ${verdict.recovered.rungs} rung(s) run`);
+        }
+        return;
+      }
+      if (verdict.rung === undefined) {
         return;
       }
       // A rung with NOTHING to release costs no gap — the next one runs in the same tick, so the first rung that acts acts

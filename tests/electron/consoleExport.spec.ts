@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  buildErrorDigest, buildExportFilename, buildScreenDigest, CONSOLE_CAPTURE, ConsoleEntry, formatConsoleEntry,
+  buildErrorDigest, buildExportFilename, buildScreenDigest, buildStallDigest, CONSOLE_CAPTURE, ConsoleEntry, formatConsoleEntry,
   formatStamp, isErrorLevel, makeRichFormatter, mergeCaptures, normalizeConsoleLevel,
   RICH_FORMAT_SOURCE, sanitizeForFilename,
 } from '../../electron/consoleExport';
@@ -471,6 +471,25 @@ describe('electron/consoleExport', () => {
       expect(isErrorLevel('error')).to.be.true;   // console-message hands them lowercase
       expect(isErrorLevel('WARNING')).to.be.false;
       expect(isErrorLevel('INFO')).to.be.false;
+    });
+  });
+
+  describe('buildStallDigest — each stall with its time-to-cure (the Hi-Tech Lab freeze was cured after the reload)', () => {
+    const warn = (sec: number, text: string): ConsoleEntry => ({t: new Date(2026, 10, 9, 16, 0, sec).getTime(), level: 'WARN', text, source: ''});
+    const stall = (sec: number) => warn(sec, '[liveness] stall (unserved): 10s without progress, 0 presses; asked: card; beat: none; stranded: card; rung 0: x');
+
+    it('pairs each stall with its recovery and names the one never cured', () => {
+      const digest = buildStallDigest([
+        stall(1), stall(3), warn(5, '[liveness] recovered after 14s, 2 rung(s) run'),
+        stall(20),
+      ]);
+      expect(digest).to.eq('STALLS: 2 — 1 cured (worst 14s), 1 never cured on this page\n' +
+        '[16:00:01] unserved, asked card → cured after 14s\n' +
+        '[16:00:20] unserved, asked card → NOT cured (reload / export first)\n');
+    });
+
+    it('says so plainly when there were none', () => {
+      expect(buildStallDigest([warn(0, '[liveness] recovered after 3s, 1 rung(s) run')])).to.eq('STALLS: none\n');
     });
   });
 

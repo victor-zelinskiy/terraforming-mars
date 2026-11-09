@@ -120,7 +120,9 @@ export function initialLivenessState(now = 0): LivenessState {
 }
 
 export type LivenessVerdict =
-  | {stalled: false}
+  /** No stall. `recovered`: a REPORTED stall just made progress — how long the screen stood still, and how many rungs ran
+   *  (the field's time-to-cure: a cure that comes after the player has reloaded is no cure — the Hi-Tech Lab freeze). */
+  | {stalled: false, recovered?: {afterMs: number, rungs: number}}
   | {
     stalled: true,
     /** Why: no surface accepting for the grace, or presses with no effect. */
@@ -160,7 +162,8 @@ export function observeLiveness(state: LivenessState, sample: LivenessSample): {
     next.rung = 0;
     next.rungAt = 0;
     next.reported = false;
-    return {state: next, verdict: {stalled: false}};
+    return {state: next, verdict: state.reported ?
+      {stalled: false, recovered: {afterMs: sample.now - state.progressAt, rungs: state.rung}} : {stalled: false}};
   }
   const quietMs = sample.now - next.progressAt;
   const pressed = next.pressesSinceProgress >= LIVENESS_PRESSES_NO_EFFECT && quietMs >= LIVENESS_PRESSED_GRACE_MS;

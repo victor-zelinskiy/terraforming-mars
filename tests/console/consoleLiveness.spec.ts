@@ -185,6 +185,17 @@ describe('consoleLiveness', () => {
     expect(after.stalled && after.rung).to.equal(4);
   });
 
+  it('a REPORTED stall that moves again says how long it stood and how many rungs ran — the time-to-cure', () => {
+    const v = walk([...seconds(LIVENESS_GRACE_MS / 1000 + 2), sample(LIVENESS_GRACE_MS + 3000, {signature: 'moved'}), sample(LIVENESS_GRACE_MS + 4000, {signature: 'again'})]);
+    const back = v[v.length - 2];
+    expect(!back.stalled && back.recovered).to.deep.equal({afterMs: LIVENESS_GRACE_MS + 3000, rungs: 1 + Math.floor(2000 / LIVENESS_RUNG_GAP_MS)});
+    // Once: the next progress is plain progress.
+    const after = v[v.length - 1];
+    expect(!after.stalled && after.recovered).to.equal(undefined);
+    // An unreported quiet that moves is no recovery.
+    expect(walk([sample(0), sample(1000, {signature: 'moved'})]).every((x) => !x.stalled && x.recovered === undefined)).is.true;
+  });
+
   it('the registered releases run by RANK, each named, nothing twice', () => {
     const log: Array<string> = [];
     registerLivenessRelease({rank: 20, name: 'flow', release: () => {
