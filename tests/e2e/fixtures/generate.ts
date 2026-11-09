@@ -290,6 +290,7 @@ import {SpaceshipRecycling} from '../../../src/server/cards/turmoilRedux/Spacesh
 import {FormulaZero} from '../../../src/server/cards/turmoilRedux/FormulaZero';
 import {MechSports} from '../../../src/server/cards/turmoilRedux/MechSports';
 import {BribedCommittee} from '../../../src/server/cards/base/BribedCommittee';
+import {HiTechLab} from '../../../src/server/cards/promo/HiTechLab';
 import {PreservationProgram} from '../../../src/server/cards/prelude2/PreservationProgram';
 import {ratingSkipMarkOf} from '../../../src/server/models/skippedRating';
 import {TerraformingGanymede} from '../../../src/server/cards/base/TerraformingGanymede';
@@ -11898,6 +11899,24 @@ wildlifeDomeTable('wildlife-dome-noroom', ({game, p1, p2}) => {
     }
   }
 }, false);
+// ── HI-TECH LAB (the field freeze of 2026-11-09 — «Этот запрос пока недоступен» until a reload): the card on blue's table,
+//    3 energy — the action spends X energy, draws X cards and asks «keep 1» (`deckSelect`), the question «Действия карт»
+//    claims for its stage. Blue's action phase. ──
+parliamentFixture('hi-tech-lab', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({p1}) => {
+    p1.playedCards.push(new HiTechLab());
+    p1.energy = 3;
+  },
+  expect: ({game, p1, parliament}) => {
+    if (!p1.tableau.has(CardName.HI_TECH_LAB) || p1.energy !== 3 || game.activePlayer.id !== p1.id) {
+      throw new Error(`the hi-tech-lab fixture expected Hi-Tech Lab on the table, 3 energy and blue on the move — got energy=${p1.energy}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
 // ── THE STAGED EVENT HANDS THE BOARD OVER AT ONCE (the owner's field freeze of 2026-11-08, game g245a35e2022f): Flooding
 //    — an EVENT whose commit is the board's cell (a staged play: the ocean), −1 VP printed on its face and the GREENS
 //    ruling (their quiet law enacted — the table answers the ocean) — MOVED out of the dealt pool into blue's hand, 40 M€,
