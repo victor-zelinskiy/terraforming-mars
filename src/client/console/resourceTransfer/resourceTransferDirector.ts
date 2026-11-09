@@ -318,6 +318,16 @@ function waveAllowanceMs(wave: TransferWaveSlot | undefined): number {
  * rendered to its last pose, its own touchdown runs AT the destination — and only a beat that has nothing to catch up
  * (never started, killed) is resolved where it stands.
  */
+/** Every guarded beat still open — an ABORT settles them all at once (never their safety's 1.5–3 s, never its line). */
+const openGuards = new Set<() => void>();
+
+/** The transfers were ABORTED (`abortResourceTransfers`): every beat still waiting for a touchdown resolves now. */
+export function settleOpenTransferGuards(): void {
+  for (const finish of [...openGuards]) {
+    finish();
+  }
+}
+
 function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: () => boolean, wave?: TransferWaveSlot): Promise<void> {
   return new Promise<void>((resolve) => {
     let settled = false;
@@ -325,6 +335,7 @@ function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: ()
     const finish = () => {
       if (!settled) {
         settled = true;
+        openGuards.delete(finish);
         window.clearTimeout(safety);
         if (waiter !== undefined) {
           gsap.ticker.remove(waiter);
@@ -366,6 +377,7 @@ function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: ()
         finish();
       }
     }, budgetMs + 1200);
+    openGuards.add(finish);
     run(done);
   });
 }

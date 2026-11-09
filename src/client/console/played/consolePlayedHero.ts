@@ -2083,11 +2083,12 @@ async function openGateForPayBack(mine: () => boolean): Promise<void> {
   capturePlayedCardReturnSource();
   freeRunGate();
   // THE WAIT GRAPH (Э4): the lift waits for the play's ANSWER — a node with that target, so a lift waiting for a commit
-  // nobody sends is a dead end the shadow names (no request on the wire, nothing owed) instead of 8 s of a still card;
+  // nobody sends ends on its ceiling, said (the target is the TRANSPORT's apply — the wire flag drops before it, and as a
+  // «server» target every ordinary pay-back read as a dead end in the field export of 2026-11-09);
   // a pay-back that never came is said once (`[wait-graph] ceiling played-hero:payback`).
   await raceCeiling({
     id: 'played-hero:payback', owner: 'playedHero', what: 'the play\'s answer (the pay-back off the standing card)',
-    maxMs: PAYBACK_WAIT_MAX_MS, target: 'server', detail: playedHeroState.card ?? '',
+    maxMs: PAYBACK_WAIT_MAX_MS, detail: playedHeroState.card ?? '',
   }, go);
   if (liftGo !== undefined && mine()) {
     // The pay-back never came: lift with nothing paid here (the landing's half pays off the pile, the old road).

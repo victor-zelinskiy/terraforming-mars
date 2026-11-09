@@ -48,4 +48,20 @@ test.describe('the wait graph cures a question asked of nobody', () => {
     await cinematicBeat(page, 3_000, 'the cured screen holds — one cure, no second finding');
     expect(graph.filter((l) => l.includes('cure dead-end')), 'cured ONCE').toHaveLength(1);
   });
+  test('a claim placed for a host that is NOWHERE is released by itself — its question never stays suppressed (the Hi-Tech Lab freeze)', async ({page, request}) => {
+    test.setTimeout(120_000);
+    const lines: Array<string> = [];
+    page.on('console', (m) => {
+      if (m.text().startsWith('[workspace-outcome]')) {
+        lines.push(m.text());
+      }
+    });
+    await bootFixture(page, request, 'ecology-experts-wg', {query: PRESET.query});
+    await settle(page);
+    const planted = await page.evaluate(() => (window as unknown as {__conOrphanClaim?: () => boolean}).__conOrphanClaim?.() ?? false);
+    expect(planted, 'the seam planted a claim for «card-actions» with no such frame').toBe(true);
+    await expect.poll(() => lines.some((l) => l.includes('the claim of «card-actions» (Hi-Tech Lab [draw,pick]) outlived its host — released')),
+      {timeout: 10_000, message: `the orphaned claim was released (lines: ${lines.join(' | ')})`}).toBe(true);
+    expect(lines.filter((l) => l.includes('outlived its host')), 'released ONCE').toHaveLength(1);
+  });
 });

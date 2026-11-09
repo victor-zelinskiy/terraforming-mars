@@ -46,7 +46,7 @@ import {
   transferSignedAmount, NO_TRANSFER_COVER, transferPaintPlan, TRANSFER_HANDOVER_FROM,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
-  TransferFlightPaint, TransferFlightReport, TransferStagePiece, runDetachedTransferFlight, runTransferFlight, settleTransferChip, killTransferPiece,
+  TransferFlightPaint, TransferFlightReport, TransferStagePiece, runDetachedTransferFlight, runTransferFlight, settleTransferChip, killTransferPiece, settleOpenTransferGuards,
   TransferWaveSlot, createTransferWaveGate, releaseLandingSlot, releaseWaveSlot,
 } from '@/client/console/resourceTransfer/resourceTransferDirector';
 import {probeTick} from '@/client/console/probeTick';
@@ -1514,7 +1514,8 @@ export async function settleResourceTransfers(): Promise<void> {
 }
 
 /** Abort — unmount every chip with zero trace and drop the pending holds.
- *  Callers' own onArrive gates are freed by their run's safety net. */
+ *  Callers' own onArrive gates are freed AT ONCE (`settleOpenTransferGuards` — they used to wait for their run's safety
+ *  net, 1.5–3 s of a beat standing over nothing, each one a false `[wait-graph] ceiling transfer:touchdown`). */
 export function abortResourceTransfers(): void {
   trail(undefined, 'abort', {flightIds: resourceTransferState.flights.map((f) => f.id), heldIds: heldChips.map((h) => h.id)});
   for (const f of resourceTransferState.flights) {
@@ -1523,6 +1524,7 @@ export function abortResourceTransfers(): void {
       killTransferPiece(piece);
     }
   }
+  settleOpenTransferGuards();
   resourceTransferState.flights = [];
   heldChips = [];
   resourceTransferState.runActive = false;

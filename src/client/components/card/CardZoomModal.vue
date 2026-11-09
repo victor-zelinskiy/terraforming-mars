@@ -723,7 +723,9 @@ export default defineComponent({
       }, 90);
     },
     close() {
-      if (this.typedRefs.dialog.open) {
+      // The dialog may already be gone (the viewer unmounted under an async close — the monkey's DUO walk of
+      // `two-player-finale-trigger`: «Cannot read properties of null (reading 'open')» in the shell's close beat).
+      if (this.typedRefs.dialog?.open === true) {
         this.typedRefs.dialog.close();
       }
     },

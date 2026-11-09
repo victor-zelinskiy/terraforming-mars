@@ -2521,6 +2521,10 @@ const FINALE_FINISH_HOLD = 'final-greenery-finish';
 const waitSurfacePhase = {key: '', since: 0};
 /** A collapse owed until the band surfaces' tokens have landed (a plain flag — read only by the collapse itself). */
 let collapseOwedOnTokens = false;
+/** Since when the live claim's host frame has been known nowhere (0 — it is, or there is no claim). */
+let claimHostGoneSince = 0;
+/** A claim placed in the same press its host's frame is pushed in is never «orphaned» — a beat of grace. */
+const CLAIM_HOST_GONE_GRACE_MS = 1500;
 let lastConclusionHold: {kind: WorkspaceFrameKind, reason: string, at: number} | undefined;
 /**
  * A FINISHED FRAME OVER THE FREE TURN LEAVES BY ITSELF after this long with nothing moving (`reapStaleFreeTurnFrame`).
@@ -22703,6 +22707,16 @@ export default defineComponent({
       }
       this.staleFreeTurnKey = key;
       const quiet = Math.round((Date.now() - livenessStateSnapshot().progressAt) / 1000);
+      // A CLAIM WITH NOTHING TO PRESENT holds no conclusion (the field export of 2026-11-09: «hand» stood committed over the
+      // free turn, held by `live-outcome`): the server asks the action menu, no drawn batch waits, nothing moves — the claim
+      // answers for nothing on this screen. It is let go (forced — the funnel would call a claim on its own host serving),
+      // and the ONE guarded conclusion is asked again below; a claim with a batch still to take is never touched here.
+      if (workspaceOutcomeClaimed() && workspaceOutcomeState.host === top.kind && currentRevealEvent() === undefined) {
+        this.reconcileWorkspaceOutcome();
+        if (workspaceOutcomeClaimed() && releaseWorkspaceOutcome('stale-free-turn', {force: true})) {
+          console.warn(`[workspace-outcome] the claim of «${top.kind}» answered for nothing over the free turn ${quiet}s — released`);
+        }
+      }
       if (this.concludeWorkspaceFlow(top.kind)) {
         console.warn(`[workspace-stale] concluded «${top.kind}» — it stood committed over the free turn ${quiet}s with ` +
           `nothing in flight (frames: ${workspaceStackState.frames.map((f) => f.kind + ':' + f.phase).join(';') || 'none'}); ` +
@@ -22816,6 +22830,7 @@ export default defineComponent({
       // THE WAIT GRAPH (Э2 — a shadow): the same second's waits, judged structurally — a cycle, a dangling wait, a dead
       // end, an overdue one — logged `[wait-graph] …` once per confirmed finding; nothing is acted on yet.
       this.lastLivenessAccepting = accepting;
+      this.releaseOrphanedClaim();
       tickWaitGraph({
         now: Date.now(), accepting,
         requestInFlight: transport?.requestInProgress === true,
@@ -22916,6 +22931,35 @@ export default defineComponent({
         return '';
       }
       return this.reopenOrphanQuestion();
+    },
+    /**
+     * A CLAIM NEVER OUTLIVES ITS HOST (the field freeze of 2026-11-09, Hi-Tech Lab: «Действия карт» claimed the deck pick
+     * its action raised, the workspace left, the claim stood — and while it stood the pick's own surface stayed suppressed
+     * as «a workspace owns it», a question asked of nobody: «Этот запрос пока недоступен», healed only by a reload). The
+     * release funnel never refuses a claim whose host frame is gone; nothing asked it to. Once a second, a claim whose host
+     * is known NOWHERE (not on the stack, not parked, not aside) for more than a beat is released — its question then
+     * presents on its own surface, and the line names it.
+     */
+    releaseOrphanedClaim(): void {
+      const host = workspaceOutcomeState.host;
+      if (!workspaceOutcomeClaimed() || host === undefined || workspaceFrameKnown(host)) {
+        claimHostGoneSince = 0;
+        return;
+      }
+      const now = Date.now();
+      if (claimHostGoneSince === 0) {
+        claimHostGoneSince = now;
+        return;
+      }
+      if (now - claimHostGoneSince < CLAIM_HOST_GONE_GRACE_MS) {
+        return;
+      }
+      claimHostGoneSince = 0;
+      const card = workspaceOutcomeState.sourceCard;
+      const kinds = workspaceOutcomeState.kinds.join(',');
+      if (releaseWorkspaceOutcome('host-gone', {force: true})) {
+        console.warn(`[workspace-outcome] the claim of «${host}» (${card} [${kinds}]) outlived its host — released; its question presents on its own surface`);
+      }
     },
     /**
      * THE QUESTION GETS ITS SURFACE BACK — the router's own door (`openShellTaskSurface`, the road the prompt took when it
@@ -23138,10 +23182,13 @@ export default defineComponent({
         // An answer already IN waits for its presentation (the reconciler's tick, the arrival), never for the server —
         // read as the server's, every optimistic play claim was a false `dead-end` (the field export of 2026-11-08).
         const answered = awaiting && workspaceOutcomeState.answerIn;
+        // A claim whose HOST is gone waits on a surface that is not there — dangling (the Hi-Tech Lab field freeze).
+        const hostGone = workspaceOutcomeState.host !== undefined && !workspaceFrameKnown(workspaceOutcomeState.host);
         out.push({
           id: `claim:${workspaceOutcomeState.host}`, family: 'claim', owner: 'consoleWorkspaceOutcome',
-          targets: answered ? [{kind: 'motion', what: 'the claimed outcome presents (or the reconciler lets it go)'}] :
-            awaiting ? [{kind: 'server', what: 'the claimed answer'}] : [{kind: 'player', what: 'take the claimed outcome'}],
+          targets: hostGone ? [{kind: 'node', id: `surface:${workspaceOutcomeState.host}`}] :
+            answered ? [{kind: 'motion', what: 'the claimed outcome presents (or the reconciler lets it go)'}] :
+              awaiting ? [{kind: 'server', what: 'the claimed answer'}] : [{kind: 'player', what: 'take the claimed outcome'}],
           ...(awaiting ? {boundMs: 20_000} : {}), recovery: 'workspace-outcome',
           detail: `${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ${workspaceOutcomeState.stage}`,
         });
@@ -23227,8 +23274,17 @@ export default defineComponent({
             popWorkspaceFrame();
             return frame.kind;
           };
+          // …and THE ORPHANED CLAIM on demand (the Hi-Tech Lab freeze): a claim placed for a host that is nowhere.
+          (window as unknown as {__conOrphanClaim?: () => boolean}).__conOrphanClaim = () => {
+            if (workspaceOutcomeClaimed() || workspaceFrameKnown('card-actions')) {
+              return false;
+            }
+            claimWorkspaceOutcome('card-actions', 'Hi-Tech Lab', ['draw', 'pick'], 0, 1, 'card');
+            return true;
+          };
           return [() => {
             delete (window as unknown as {__conStrandQuestion?: unknown}).__conStrandQuestion;
+            delete (window as unknown as {__conOrphanClaim?: unknown}).__conOrphanClaim;
           }];
         })() : []),
         // THE WAIT GRAPH's POSITIVE CONTROL (`?waitGraphControl=1` — never in a game): a mutual wait put in on purpose (the
@@ -26245,14 +26301,19 @@ export default defineComponent({
       }
       this.zoomFlight = true;
       this.zoomClosing = true;
-      await playZoomClose(dialogEl as HTMLElement | undefined, this.consoleCardZoom.index);
-      zoom.close();
-      // THE CARD IS HOME — THE PAD IS BACK IN THE SAME TASK. The dialog's 'close' event (the usual unwinder) is a
-      // QUEUED task: until it ran, `zoomClosing` stood with the viewer already gone and swallowed the next press — a
-      // B meant for the surface beneath (CI 42223555435: «РАЗЫГРАНО»'s category never closed on a starved frame).
-      // The late event is inert: the unmounted modal emits nothing (CardZoomModal), and the reset is idempotent.
-      if (this.zoomClosing) {
-        this.onCardZoomClosed();
+      try {
+        await playZoomClose(dialogEl as HTMLElement | undefined, this.consoleCardZoom.index);
+        zoom.close();
+      } finally {
+        // THE CARD IS HOME — THE PAD IS BACK IN THE SAME TASK. The dialog's 'close' event (the usual unwinder) is a
+        // QUEUED task: until it ran, `zoomClosing` stood with the viewer already gone and swallowed the next press — a
+        // B meant for the surface beneath (CI 42223555435: «РАЗЫГРАНО»'s category never closed on a starved frame).
+        // The late event is inert: the unmounted modal emits nothing (CardZoomModal), and the reset is idempotent.
+        // In a `finally`: a viewer unmounted under the close beat threw here and left the flag standing — a deaf screen
+        // (the monkey's DUO walk, `[page-error] … reading 'open'`).
+        if (this.zoomClosing) {
+          this.onCardZoomClosed();
+        }
       }
     },
     /** P17: right-stick scroll for the ACTIVE console scroll container —

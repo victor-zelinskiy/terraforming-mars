@@ -94,3 +94,22 @@ Status: `open` · `fixed <commit>`.
   concluded by the reaper at 8 s (`[workspace-stale] concluded «colonies» … frames: start:committed` — red), the start
   left on «ПЕРВОЕ ДЕЙСТВИЕ» with an empty zone until its director released it. 8 s of a stale screen, no freeze; the
   step's own ending misses a wheel opened inside its committed beat.
+
+## Claims (the field, 2026-11-09)
+- C1 `fixed` — a claim OUTLIVED ITS HOST (Hi-Tech Lab: «Действия карт» claimed the deck pick its action raised, the
+  workspace left, the claim stood; the pick's own surface stayed suppressed as «a workspace owns it» — «Этот запрос пока
+  недоступен», healed only by a reload; every liveness rung «nothing to release»). A claim whose host frame is known
+  NOWHERE for > 1.5 s is released (`ConsoleShell.releaseOrphanedClaim`, `[workspace-outcome] … outlived its host`); on the
+  wait graph such a claim is `dangling` (it waits on `surface:<host>`). Positive control: `console-wait-graph-dead-end`
+  § orphaned claim (`__conOrphanClaim()`).
+- C2 `fixed` — a claim with NOTHING TO PRESENT held its frame over the free turn (`[workspace-stale] «hand» … held:
+  live-outcome`): the free-turn reaper reconciles it and lets it go (forced) when the server asks the action menu and no
+  drawn batch waits, then asks the one conclusion again.
+- C3 `fixed` — the played hero's pay-back node targeted the SERVER; the wire flag drops before the transport applies the
+  answer, so every ordinary pay-back read as a dead end. Its target is the transport's apply (a motion); a pay-back that
+  never comes is still said by its ceiling line.
+- Z1 `fixed` (monkey wg3 DUO, `[page-error]`) — the card viewer's close beat threw on a viewer unmounted under it
+  (`dialog.open` of null) and left `zoomClosing` standing — the flag that swallows the next press. `close()` is null-safe,
+  the shell's reset runs in a `finally`.
+- T1 `fixed` — an ABORT of the transfers left every token's beat waiting for its safety (1.5–3 s over nothing, a false
+  `ceiling transfer:touchdown`): `abortResourceTransfers` settles the open guards at once.
