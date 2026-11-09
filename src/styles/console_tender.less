@@ -807,12 +807,13 @@
       inset: 0;
       z-index: 6;
       pointer-events: none;
-      background: rgba(7, 11, 17, 0.62);
+      /* The focused one reads in full even when it cannot go — the reading names why; the scrim thins under the cursor:
+         ONE value written as a function of the face's own `--con-cursor-on` (`.con-tender--focused`), never a second
+         hand-painted focus rule (the cursor grammar, TR58). */
+      background: rgba(7, 11, 17, calc(0.62 - 0.32 * var(--con-cursor-on, 0)));
     }
     &--executed > .con-tender::after,
-    &--cashed > .con-tender::after { background: rgba(7, 11, 17, 0.42); }
-    /* The focused one reads in full even when it cannot go — the reading names why; the scrim thins under the cursor. */
-    &--focused > .con-tender::after { background: rgba(7, 11, 17, 0.3); }
+    &--cashed > .con-tender::after { background: rgba(7, 11, 17, calc(0.42 - 0.12 * var(--con-cursor-on, 0))); }
     /* EXECUTES HERE — a kant on the slot, never a glow (invariant 15). */
     &--ready { box-shadow: inset 0 0 0 .07rem fade(@con-mint, 70%); }
     /* THE STAMP LANDS — the one event of an execution (ends on its own). */
