@@ -6589,10 +6589,15 @@ export default defineComponent({
       // plate; the graph broke it 11× in one shard): a question whose own frame stands on top, on stage, inside its flow
       // (past the commit — never a browse the player opened, where a mandatory pick must still be announced) is a STEP
       // of what the player is doing, never an interruption to announce.
+      // «On top» is the frame OR a step it hosts (every frame above it in the live stack is nested in it — a lateral
+      // move resets the stack): the colonies frame pushes the very hand that answers its discard, and a rule keyed on
+      // the bare top let the beat come back the moment that hand stood — born held, its gate closed the hand's select
+      // mode, and the player stood in a browse album over a question nothing asked (CI 2026-11-09, run 42626840874:
+      // `console-pluto-settlements` foreign · «СБРОС 2 ИЗ 2», 3/3). A parked frame is not on top (index −1).
       if (task !== undefined) {
         const own = frameServing(task.kind);
         const phase = own === undefined ? undefined : workspaceFramePhase(own.kind);
-        if (own !== undefined && workspaceStackTop()?.kind === own.kind && workspaceSceneOnStage(own.kind) &&
+        if (own !== undefined && workspaceFrameIndex(own.kind) !== -1 && workspaceSceneOnStage(own.kind) &&
             phase !== undefined && (phase === 'committed' || isTransientBeat(phase))) {
           task = undefined;
         }
