@@ -47,6 +47,7 @@ import * as os from 'os';
 import * as path from 'path';
 import {currentTimingBucket, formatTiming, noteTiming, resetTiming, snapshotTiming} from './timing';
 import {describeReactionStory, installReactionWitness, reactionStory} from './reactionWitness';
+import {armHungPageWatch} from './hungPageWatch';
 
 export * from '@playwright/test';
 
@@ -517,7 +518,7 @@ function sleepSiteOf(stack: string): string {
   return '<unknown>';
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, waitGraphHarvest: void, startShadowHarvest: void, screenShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, vueErrorGuard: void, stallHarvest: void, productReloadGuard: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, waitGraphHarvest: void, startShadowHarvest: void, screenShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, vueErrorGuard: void, stallHarvest: void, productReloadGuard: void, timingLedger: void, cpuThrottle: void, hungPageWatch: void}, {workerServer: WorkerServer, workerBuild: string}>({
   /**
    * CI's STARVED RENDERER ON DEMAND (`TM_E2E_CPU_THROTTLE=<rate>`, e.g. 4): every page of the test's context runs under
    * CDP CPU throttling. CI's 4K software raster on a shared runner starves the main thread for hundreds of ms — the
@@ -681,6 +682,17 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
    * and the subtree it was patching simply stops updating — the colony step of game-pdb19bfa (2026-11-07) went dark
    * that way behind fourteen identical lines that no spec read. The line names the component chain.
    */
+  /**
+   * EVERY TEST, EVERY PAGE: a main thread that stops answering is PAUSED from outside and its stack is printed and
+   * filed (`hung-page`) — the one freeze the product's own nets cannot report, since they run on that thread
+   * (`hungPageWatch.ts`). Diagnostic only; the test's own timeout is the red.
+   */
+  hungPageWatch: [async ({context}, use, testInfo) => {
+    const stop = armHungPageWatch(context, testInfo, SERVE_ROOT);
+    await use();
+    stop();
+  }, {auto: true}],
+
   vueErrorGuard: [async ({context}, use) => {
     const errors: Array<string> = [];
     const watch = (page: Page) => {

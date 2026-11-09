@@ -414,6 +414,9 @@ export async function readiness(page: Page): Promise<{
  * Where the probe is absent (menu pages, a pre-readiness bundle) this degrades
  * to a single `quietMs` pause — the pre-settle behaviour, never a hang.
  */
+/** How long past its own deadline a settle waits for ONE readiness read before calling the page hung. */
+const SETTLE_READ_GRACE_MS = 10_000;
+
 export async function settle(page: Page, opts: {timeoutMs?: number, quietMs?: number, notifications?: boolean} = {}): Promise<void> {
   await timed('settle', () => settleInner(page, opts));
 }
@@ -425,7 +428,19 @@ async function settleInner(page: Page, opts: {timeoutMs?: number, quietMs?: numb
   let quietSince: number | undefined;
   let last: Awaited<ReturnType<typeof readiness>>;
   for (;;) {
-    last = await readiness(page);
+    // A READ THAT NEVER RETURNS IS A HUNG PAGE, not a busy console (CI 2026-11-09, `console-parliament-climate` :292:
+    // one `__conReady()` evaluate spent the whole 300 s test budget — the main thread never answered). The read is
+    // bounded by the settle's own deadline (+ a grace for one slow frame); past it the settle says what it saw, and
+    // the harness's `hungPageWatch` files the stack of the thread that would not answer.
+    const answer = await Promise.race([
+      readiness(page).then((r) => ({r})),
+      new Promise<'hung'>((resolve) => setTimeout(() => resolve('hung'), Math.max(0, deadline - Date.now()) + SETTLE_READ_GRACE_MS)),
+    ]);
+    if (answer === 'hung') {
+      throw new Error(`settle: the page did not answer a readiness read for ${timeoutMs + SETTLE_READ_GRACE_MS} ms — ` +
+        'its main thread is HUNG (see the `hung-page` annotation for the stack it was paused in)');
+    }
+    last = answer.r;
     if (last === undefined) {
       await page.waitForTimeout(quietMs);
       return;
