@@ -125,6 +125,14 @@ export default defineConfig({
     baseURL: BASE_URL,
     viewport: {width: 1440, height: 1000},
 
+    // NO ACTION WAITS WITHOUT A BOUND. Playwright's default is none: a `page.screenshot` (every spec's `shoot`), a
+    // `locator.getAttribute` on an element that left, a click on one that never comes — each waits as long as the
+    // TEST does, and on a starved 4K software renderer a screenshot waits on a compositor frame that may not come
+    // for minutes (CI 2026-11-09, run 42591455049: the climate take spent 270 s somewhere before its settle, the page's
+    // main thread answering throughout, and the report could only say «Test timeout of 300000ms exceeded»). Bounded,
+    // the action fails by NAME with its own call log, inside the test's budget.
+    actionTimeout: 90_000,
+
     // Diagnostics — only kept when something actually goes wrong, to keep the
     // artifact footprint small.
     //

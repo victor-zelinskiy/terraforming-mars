@@ -34,6 +34,8 @@ const BLOCK_BUDGET = 700_000;
 const ERROR_LINES = 40;
 const SNIPPET_LINES = 14;
 const STDOUT_LINES = 25;
+/** Annotations a red ATTEMPT files about itself — printed under that attempt, not lost with the retry's. */
+const ATTEMPT_DIAGNOSES = new Set(['hung-page', 'worker-stall', 'product-reload']);
 const LINE_MAX = 400;
 
 const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
@@ -88,6 +90,13 @@ function attemptBlock(result) {
       for (const line of head(err.snippet, SNIPPET_LINES)) {
         out.push(`    ${line}`);
       }
+    }
+  }
+  // THE ATTEMPT'S OWN DIAGNOSES. A test's `annotations` are its LAST run's (Playwright's JSON report), so a flaky test
+  // whose retry passed showed nothing of what its red attempt filed — the hung-page watch's stack included.
+  for (const a of result.annotations ?? []) {
+    if (ATTEMPT_DIAGNOSES.has(a.type) && a.description) {
+      out.push(`    ${a.type}: ${clip(strip(a.description).replace(/\n/g, ' ⏎ '))}`);
     }
   }
   const stdout = (result.stdout ?? []).map((c) => c.text ?? (c.buffer ? Buffer.from(c.buffer, 'base64').toString('utf8') : ''))

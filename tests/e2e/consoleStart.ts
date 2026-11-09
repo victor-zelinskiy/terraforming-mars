@@ -128,6 +128,27 @@ const ABSORB_PRE_WAIT_MS = 8_000;
 const ABSORB_REOPEN_WAIT_MS = 10_000;
 /** How many times an absorbed press is sent again. */
 const ABSORB_RETRIES = 3;
+/**
+ * How long ONE key dispatch may take before the press calls the renderer stalled. `keyboard.press` waits for the
+ * renderer's input ack — a starved / wedged compositor holds it with no limit while the page's main thread answers
+ * every ping (CI 2026-11-09, run 42591455049: the climate take ran to the 300 s test timeout with nothing filed).
+ */
+const KEY_DISPATCH_BOUND_MS = 30_000;
+
+async function dispatchKey(page: Page, code: string): Promise<void> {
+  let bound: ReturnType<typeof setTimeout> | undefined;
+  const done = await Promise.race([
+    page.keyboard.press(code).then(() => true),
+    new Promise<false>((resolve) => {
+      bound = setTimeout(() => resolve(false), KEY_DISPATCH_BOUND_MS);
+    }),
+  ]);
+  clearTimeout(bound);
+  if (!done) {
+    throw new Error(`press(${code}): the key did not come back from the renderer in ${KEY_DISPATCH_BOUND_MS} ms — its input / ` +
+      'frames are STALLED (a `hung-page` annotation names a main thread that would not answer)');
+  }
+}
 
 type AbsorbProbe = {active: Array<string>, activeGlobal: Array<string>, still?: Array<string>};
 
@@ -228,7 +249,7 @@ export async function press(page: Page, code: string, settleMs = 700, opts: Pres
     for (let attempt = 0; ; attempt++) {
       const before = await inputEchoSeq(page);
       const sentAt = Date.now();
-      await page.keyboard.press(code);
+      await dispatchKey(page, code);
       if (before !== undefined) {
         const deadline = Date.now() + 300;
         for (;;) {
@@ -432,10 +453,14 @@ async function settleInner(page: Page, opts: {timeoutMs?: number, quietMs?: numb
     // one `__conReady()` evaluate spent the whole 300 s test budget — the main thread never answered). The read is
     // bounded by the settle's own deadline (+ a grace for one slow frame); past it the settle says what it saw, and
     // the harness's `hungPageWatch` files the stack of the thread that would not answer.
+    let bound: ReturnType<typeof setTimeout> | undefined;
     const answer = await Promise.race([
       readiness(page).then((r) => ({r})),
-      new Promise<'hung'>((resolve) => setTimeout(() => resolve('hung'), Math.max(0, deadline - Date.now()) + SETTLE_READ_GRACE_MS)),
+      new Promise<'hung'>((resolve) => {
+        bound = setTimeout(() => resolve('hung'), Math.max(0, deadline - Date.now()) + SETTLE_READ_GRACE_MS);
+      }),
     ]);
+    clearTimeout(bound);
     if (answer === 'hung') {
       throw new Error(`settle: the page did not answer a readiness read for ${timeoutMs + SETTLE_READ_GRACE_MS} ms — ` +
         'its main thread is HUNG (see the `hung-page` annotation for the stack it was paused in)');
