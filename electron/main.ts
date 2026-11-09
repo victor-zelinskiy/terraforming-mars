@@ -26,6 +26,7 @@ import {applyPerformanceSwitches, describePowerShellFailure, logGpuStatus, parse
 import {execFile} from 'child_process';
 import {installDevtoolsPadCursor} from './devtoolsPadCursor';
 import {installConsoleCapture} from './consoleExport';
+import {createRendererHangWatch, PROBE_SCRIPT} from './rendererHangWatch';
 import {installNativeGamepads} from './nativeGamepadLinux';
 import {installCurtainOverlay} from './curtainOverlay';
 import {beginShutdown, isShuttingDown} from './shutdown';
@@ -553,6 +554,49 @@ function createWindow(): void {
   // F12 "Экспорт консоли" button can dump it to a file beside the game log, and "Копировать
   // консоль" can put the same dump on the clipboard.
   const consoleExporter = installConsoleCapture(app, mainWindow);
+
+  // THE RENDERER HANG WATCH (`rendererHangWatch.ts`): a stop in NATIVE rendering never returns to JS, so nothing in the
+  // page sees it — the main process names where the screen stood, and past 30 s restarts the renderer (the reload
+  // raises the live prompt by itself). Lines go to the console export, stdout (the Deck wrapper's log) and the field log.
+  const hangWin = mainWindow;
+  const hangWatch = createRendererHangWatch({
+    probe: () => hangWin.webContents.executeJavaScript(PROBE_SCRIPT, true).then((v) => String(v ?? '')),
+    note: (line) => {
+      consoleExporter.note(line);
+      // eslint-disable-next-line no-console
+      console.warn(line);
+    },
+    post: (body) => {
+      void fetch(`${runtimeConfig().apiBase}/api/field-log`, {method: 'POST', headers: {'Content-Type': 'text/plain'}, body: JSON.stringify(body)})
+        .catch(() => undefined);
+    },
+    crash: () => {
+      if (!hangWin.isDestroyed()) {
+        hangWin.webContents.forcefullyCrashRenderer();
+      }
+    },
+    reload: () => {
+      if (!hangWin.isDestroyed()) {
+        hangWin.webContents.reload();
+      }
+    },
+    now: () => Date.now(),
+    setTimer: (fn, ms) => setTimeout(fn, ms),
+    clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  });
+  const hangProbeTimer = setInterval(() => {
+    if (!hangWin.isDestroyed()) {
+      hangWatch.probeTick();
+    }
+  }, 5_000);
+  mainWindow.webContents.on('unresponsive', () => hangWatch.onUnresponsive());
+  mainWindow.webContents.on('responsive', () => hangWatch.onResponsive());
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    if (!windowClosing) {
+      hangWatch.onGone(details.reason, details.exitCode);
+    }
+  });
+  mainWindow.on('closed', () => clearInterval(hangProbeTimer));
 
   // Gamepad-driven mouse cursor INSIDE the DevTools window only (Steam Machine /
   // Deck have no mouse; F12 was visible but un-navigable from the pad) + the export

@@ -312,6 +312,14 @@ export interface ConsoleExporter {
   export(): Promise<{ok: boolean, path?: string, error?: string}>;
   /** Same dump as `export()` (objects expanded), written to the system clipboard instead of a file. */
   copyToClipboard(): Promise<{ok: boolean, length?: number, error?: string}>;
+  /** A line the MAIN process says (the renderer hang watch) — kept beside the page's own, in the export. */
+  note(text: string): void;
+}
+
+/** A page probe that cannot hang the export: a hung renderer never answers `executeJavaScript` (the hang watch). */
+const PAGE_PROBE_MAX_MS = 2_000;
+function pageProbe<T>(work: Promise<T>, fallbackValue: T): Promise<T> {
+  return Promise.race([work, new Promise<T>((resolve) => setTimeout(() => resolve(fallbackValue), PAGE_PROBE_MAX_MS))]);
 }
 
 /** Where to write the export — mirror the wrapper's log location, with sane fallbacks. */
@@ -586,8 +594,8 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
       return;
     }
     try {
-      const raw = await win.webContents.executeJavaScript(
-        'window.__tmConsoleDrain ? window.__tmConsoleDrain() : []', true);
+      const raw = await pageProbe<unknown>(win.webContents.executeJavaScript(
+        'window.__tmConsoleDrain ? window.__tmConsoleDrain() : []', true), []);
       if (Array.isArray(raw)) {
         for (const r of raw as Array<{t?: number; level?: string; text?: string; flat?: string}>) {
           richLog.push({
@@ -673,11 +681,11 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
   // each sees red lines the other structurally cannot, so neither may be dropped.
   const gather = async (): Promise<{gameName: string, when: Date, entries: ConsoleEntry[], rich: boolean, screen: string}> => {
     await drain();
-    const gameName = String(await win.webContents.executeJavaScript(GAME_NAME_PROBE, true));
+    const gameName = String(await pageProbe<unknown>(win.webContents.executeJavaScript(GAME_NAME_PROBE, true), 'unresponsive-page'));
     let screen = '';
     try {
-      screen = String(await win.webContents.executeJavaScript(
-        'window.__conFieldRecorder ? JSON.stringify(window.__conFieldRecorder()) : ""', true));
+      screen = String(await pageProbe<unknown>(win.webContents.executeJavaScript(
+        'window.__conFieldRecorder ? JSON.stringify(window.__conFieldRecorder()) : ""', true), ''));
     } catch {
       screen = '';
     }
@@ -685,6 +693,9 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
   };
 
   return {
+    note(text: string): void {
+      capTo(fallback, 'WARN', text, 'main');
+    },
     async export() {
       try {
         const {gameName, when, entries, rich, screen} = await gather();
