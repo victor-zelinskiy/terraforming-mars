@@ -345,9 +345,30 @@ export function installFieldRecorder(): FieldRecorder | undefined {
   };
   wrap('warn');
   wrap('error');
+  // AN EXCEPTION IN AN ASYNC BEAT leaves its flow half-way (a stage never left, a hold never released) — and printed
+  // untagged it never reached the field log: the freeze arrived with its symptom only. Every uncaught error and every
+  // unhandled rejection is a tagged line now, with the head of its stack.
+  window.addEventListener('error', (e) => {
+    // The browser's own notice that a ResizeObserver callback was deferred a frame — no exception, no flow affected.
+    if (/^ResizeObserver loop/.test(String(e.message ?? ''))) {
+      return;
+    }
+    console.error(pageErrorLine('uncaught', e.error ?? e.message));
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    console.error(pageErrorLine('unhandled rejection', e.reason));
+  });
   window.addEventListener('pagehide', () => recorder.pagehide());
   (window as unknown as {__conFieldRecorder?: () => FieldRecord}).__conFieldRecorder = () => recorder.snapshot();
   return recorder;
+}
+
+/** `[page-error] <kind>: <name: message> @ <the first two frames>` — pure (the field log's line for an exception). */
+export function pageErrorLine(kind: string, err: unknown): string {
+  const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  const frames = err instanceof Error && typeof err.stack === 'string' ?
+    err.stack.split('\n').slice(1, 3).map((f) => f.trim()).join(' | ') : '';
+  return `[page-error] ${kind}: ${message.slice(0, 300)}${frames !== '' ? ` @ ${frames.slice(0, 300)}` : ''}`;
 }
 
 /** The arbiter's heartbeat — a no-op until the recorder is installed. */

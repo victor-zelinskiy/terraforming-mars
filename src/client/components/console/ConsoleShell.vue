@@ -6583,6 +6583,20 @@ export default defineComponent({
       if (task?.kind === 'chairmanQuest' && this.parliamentStandsAsRoot) {
         task = undefined;
       }
+      // …and the GENERAL LAW those rows are cases of (the wait graph's harvest of 2026-11-09: a plate held Pluto's colony
+      // discard and a Venus trade's bonus behind it while the colonies frame SERVING that very question stood on screen
+      // past its commit — the plate waiting for the frame to leave, the frame for the question, the question for the
+      // plate; the graph broke it 11× in one shard): a question whose own frame stands on top, on stage, inside its flow
+      // (past the commit — never a browse the player opened, where a mandatory pick must still be announced) is a STEP
+      // of what the player is doing, never an interruption to announce.
+      if (task !== undefined) {
+        const own = frameServing(task.kind);
+        const phase = own === undefined ? undefined : workspaceFramePhase(own.kind);
+        if (own !== undefined && workspaceStackTop()?.kind === own.kind && workspaceSceneOnStage(own.kind) &&
+            phase !== undefined && (phase === 'committed' || isTransientBeat(phase))) {
+          task = undefined;
+        }
+      }
       // The EXTERNAL-DRAW take is ONE demand for the whole batch: every take
       // RE-ISSUES the prompt with the remainder (a new title, a new prompt
       // identity), and a beat keyed on the prompt would run a fresh

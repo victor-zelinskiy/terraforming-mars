@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, FixtureName, openConsole, sendPlayerInput} from './consoleStart';
+import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, FixtureName, openConsole, reloadConsole, sendPlayerInput} from './consoleStart';
 
 /**
  * THE MONKEY — freezes are found by US, never by the field (the owner, 2026-11-08: «делаем глубоко и основательно,
@@ -32,6 +32,12 @@ const ONLY = process.env.TM_E2E_MONKEY_ONLY === undefined ? undefined : new RegE
  * hand-over arrive WHILE the first player is mid-flow (the API seats only ever answer between presses).
  */
 const DUO = process.env.TM_E2E_MONKEY_DUO === '1';
+/**
+ * THE RELOAD (`TM_E2E_MONKEY_RELOAD=1`): now and then (≈ 1 press in 120, its own seeded stream — an old seed's presses
+ * replay unchanged with it off) the page is RELOADED mid-walk, wherever the walk stands: the session's restore paths
+ * (a stage re-primed from the server, a flow's latch reset under a live question) are walked like any press.
+ */
+const RELOAD = process.env.TM_E2E_MONKEY_RELOAD === '1';
 
 /** Every fixture the generator writes — read off the directory, so a new table is walked the day it exists. */
 const FIXTURES: ReadonlyArray<string> = fs.readdirSync(path.resolve(__dirname, 'fixtures'))
@@ -121,13 +127,19 @@ async function moveOthers(request: APIRequestContext, seats: ReadonlyArray<strin
   }
 }
 
-async function walk(page: Page, request: APIRequestContext, others: ReadonlyArray<string>, r: () => number, log: Array<string>): Promise<void> {
+async function walk(page: Page, request: APIRequestContext, others: ReadonlyArray<string>, r: () => number, log: Array<string>,
+  reload?: () => number): Promise<void> {
   for (let i = 0; i < PRESSES; i++) {
     if (page.isClosed()) {
       return;
     }
     if (i % 12 === 11) {
       await moveOthers(request, others, log);
+    }
+    if (reload !== undefined && reload() < 1 / 120) {
+      log.push(`${Date.now() % 1_000_000}:RELOAD`);
+      await reloadConsole(page);
+      continue;
     }
     const key = pick(r);
     // The press with its moment (the console tail's clock) — a red is read press by press against the lines.
@@ -173,7 +185,7 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
       const consoleTail: Array<string> = [];
       const evidence: Array<Promise<unknown>> = [];
       let shots = 0;
-      const NET = /\[(liveness\] stall|workspace-stall\]|workspace-stale\]|transfer\] (token painted|end not painted)|wait-graph\] (cycle|dangling|dead-end|ceiling)|animation-hold\] .*force-released)/;
+      const NET = /\[(liveness\] stall|workspace-stall\]|workspace-stale\]|transfer\] (token painted|end not painted)|wait-graph\] (cycle|dangling|dead-end|ceiling)|animation-hold\] .*force-released|page-error\])/;
       const watch = (p: Page, tag: string): void => {
         p.on('console', (message) => {
           const text = message.text();
@@ -207,8 +219,8 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
       try {
         const apiSeats = seats.slice(second === undefined ? 1 : 2);
         await Promise.all([
-          walk(page, request, apiSeats, r, log),
-          ...(page2 === undefined ? [] : [walk(page2, request, [], rng(`${seed}:duo`), log2)]),
+          walk(page, request, apiSeats, r, log, RELOAD ? rng(`${seed}:reload`) : undefined),
+          ...(page2 === undefined ? [] : [walk(page2, request, [], rng(`${seed}:duo`), log2, RELOAD ? rng(`${seed}:duo:reload`) : undefined)]),
         ]);
         // THE LAST WORD: a quiet spell longer than the arbiter's grace — whatever the walk left on screen is judged.
         await cinematicBeat(page, 14_000, 'the last word — a quiet spell past the liveness grace, so the arbiter judges the screen the walk left');

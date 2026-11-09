@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  FIELD_HEARTBEATS_MAX, FIELD_LINES_MAX, FIELD_QUIET_POST_S, FieldPost, FieldRecorder, FieldRecorderDeps, FieldStorage, fieldPostWithin,
+  FIELD_HEARTBEATS_MAX, FIELD_LINES_MAX, FIELD_QUIET_POST_S, FieldPost, FieldRecorder, FieldRecorderDeps, FieldStorage, fieldPostWithin, pageErrorLine,
 } from '../../src/client/console/fieldRecorder';
 
 /**
@@ -214,5 +214,16 @@ describe('fieldRecorder — the console\'s flight recorder', () => {
     expect(cut.record.heartbeats.length).to.be.below(45);
     expect(cut.record.heartbeats.map((h) => (h as unknown as {at: number}).at).every((at) => at >= 45 - cut.record.heartbeats.length), 'the NEWEST heartbeats kept').eq(true);
     expect(cut.record.lines.map((l) => (l as {text: string}).text)).to.deep.eq(['[wait-graph] old', '[wait-graph] new']);
+  });
+  it('an exception in an async beat is a TAGGED line with the head of its stack — it reaches the field log', () => {
+    const err = new TypeError('cannot read seat');
+    err.stack = 'TypeError: cannot read seat\n    at runFirstActionLeave (start.js:10:5)\n    at seatRelease (start.js:20:3)\n    at deeper (x.js:1:1)';
+    const line = pageErrorLine('unhandled rejection', err);
+    expect(line).to.eq('[page-error] unhandled rejection: TypeError: cannot read seat @ at runFirstActionLeave (start.js:10:5) | at seatRelease (start.js:20:3)');
+    expect(pageErrorLine('uncaught', 'Script error.')).to.eq('[page-error] uncaught: Script error.');
+    const h = harness();
+    const r = h.make();
+    r.line(line);
+    expect(r.snapshot().lines.map((l) => l.text)).to.deep.eq([line]);
   });
 });

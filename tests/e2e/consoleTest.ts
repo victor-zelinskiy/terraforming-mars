@@ -306,6 +306,7 @@ const SCREEN_SHADOW = '[screen-shadow]';
  * ticks. DATA, never red — filed under `test-results/wait-graph/`, the evidence Э3 (acting) is armed on.
  */
 const WAIT_GRAPH = '[wait-graph]';
+const PAGE_ERROR = '[page-error]';
 
 /**
  * A SHADOW's findings of one test, FILED, never failed: the marker's console lines of every page of the test's context
@@ -518,7 +519,7 @@ function sleepSiteOf(stack: string): string {
   return '<unknown>';
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, waitGraphHarvest: void, startShadowHarvest: void, screenShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, vueErrorGuard: void, stallHarvest: void, productReloadGuard: void, timingLedger: void, cpuThrottle: void, hungPageWatch: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, startStrandGuard: void, beatStallGuard: void, livenessGuard: void, waitGraphHarvest: void, pageErrorHarvest: void, startShadowHarvest: void, screenShadowHarvest: void, transferEndsGuard: void, reactivityLatchGuard: void, vueErrorGuard: void, stallHarvest: void, productReloadGuard: void, timingLedger: void, cpuThrottle: void, hungPageWatch: void}, {workerServer: WorkerServer, workerBuild: string}>({
   /**
    * CI's STARVED RENDERER ON DEMAND (`TM_E2E_CPU_THROTTLE=<rate>`, e.g. 4): every page of the test's context runs under
    * CDP CPU throttling. CI's 4K software raster on a shared runner starves the main thread for hundreds of ms — the
@@ -927,6 +928,17 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     const lines = armShadowHarvest(context, WAIT_GRAPH);
     await use();
     fileShadowFindings(testInfo, WAIT_GRAPH, 'wait-graph', lines);
+  }, {auto: true}],
+
+  /**
+   * EVERY TEST: an uncaught error / unhandled rejection of the page (`[page-error]` — the field recorder's line for an
+   * exception in an async beat, the latent cause of a flow left half-way) is FILED per test under
+   * `<outputDir>/page-errors/` — the worklist; red once the suite reads clean.
+   */
+  pageErrorHarvest: [async ({context}, use, testInfo) => {
+    const lines = armShadowHarvest(context, PAGE_ERROR);
+    await use();
+    fileShadowFindings(testInfo, PAGE_ERROR, 'page-errors', lines);
   }, {auto: true}],
 
   startShadowHarvest: [async ({context}, use, testInfo) => {

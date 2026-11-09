@@ -110,6 +110,20 @@ through `deferred-restore` and its question's surface opened. `overdue` acts on 
 15 s bound is the graph's own, no other net ends a gate stuck PENDING: inventory A1), through `announce-serve`; every
 other family's bound is its owner's ceiling, which acts at the same moment (`WAIT_GRAPH_OVERDUE_FAMILIES`).
 
+## 2e. What the harvest of the full suite fixed at its source (2026-11-09)
+
+- **A plate never announces a question its own frame serves in-flow.** The graph broke the same cycle 11× in one shard —
+  the plate waiting for the colonies frame to leave, the frame (serving Pluto's colony discard / a Venus trade's bonus)
+  for the question, the question for the plate. The rows of exceptions in `ConsoleShell.mandatoryBeat` (the ledger's
+  discard, the start's discard, the chairman's gate, the finale) are cases of ONE law, now written once: a question whose
+  serving frame stands on top, on stage, past its commit is a step of the flow, never an interruption (a browse the
+  player opened still announces it).
+- **An exception in an async beat reaches the field log** — `[page-error] uncaught | unhandled rejection: … @ <frames>`
+  (`fieldRecorder.pageErrorLine`; the ResizeObserver notice excluded), harvested per e2e test into
+  `test-results/page-errors/` and a monkey net.
+- **The monkey reloads** (`TM_E2E_MONKEY_RELOAD=1` — ≈ 1 press in 120, its own seeded stream): the restore paths are
+  walked like any press.
+
 ## 3. Phases
 
 - **Э0** inventory — done (§0).
