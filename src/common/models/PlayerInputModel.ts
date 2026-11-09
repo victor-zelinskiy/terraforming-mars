@@ -1117,6 +1117,8 @@ export type TenderInSelectionModel = {
    * its reason, a tag short of three shows its number; the client never counts a deck.
    */
   tagCounts?: Partial<Record<Tag, number>>;
+  /** A held «Замена»: how many cards its pool's deck can still give — the most the player may return (the server's). */
+  deckLeft?: number;
 };
 
 export type SelectInitialCardsModel = BaseInputModel & {

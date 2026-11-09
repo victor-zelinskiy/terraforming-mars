@@ -65,7 +65,8 @@ export const TENDERS_STEP_INPUT = {
  * replaces on the corporation step. Module state: the scene may re-mount under the mode (a defer / a restore).
  */
 export type StartTenderMode =
-  | {kind: 'review', instance: string, pool: 'prelude' | 'projects', keep?: CardName}
+  /** «Замена»: the dealt cards marked to go back to the deck (as many fresh ones take their places). */
+  | {kind: 'review', instance: string, pool: 'prelude' | 'projects', release: ReadonlyArray<CardName>}
   | {kind: 'restructure', instance: string, offer: ReadonlyArray<CardName>, take?: CardName, replace?: CardName}
   /** «Целевой запрос» on the project step: the tag the three requested cards will carry. */
   | {kind: 'tag', instance: string, tag?: Tag};

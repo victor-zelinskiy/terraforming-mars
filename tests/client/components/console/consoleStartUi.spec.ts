@@ -172,12 +172,12 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(blocked.find((c) => c.control === 'confirm')?.enabled, 'a blocked certificate: the verb stands DISABLED, never hidden').to.eq(false);
     const armed = startSceneCommands(state({portfolio: {verb: 'Execute', enabled: true, armed: true}, stepComplete: true}));
     expect(armed.find((c) => c.control === 'confirm')?.highlight, 'the second press is the hot one').to.eq(true);
-    const withLegacy = startSceneCommands(state({portfolio: {verb: 'Review', enabled: true, armed: false}, stepComplete: true, legacyAvailable: true}));
+    const withLegacy = startSceneCommands(state({portfolio: {verb: 'Choose the cards to exchange', enabled: true, armed: false}, stepComplete: true, legacyAvailable: true}));
     expect(withLegacy.map((c) => c.control)).to.deep.eq(['confirm', 'secondary', 'stickR', 'triggerR', 'back']);
     const review = startSceneCommands(state({tenderMode: {kind: 'review', commitLabel: 'Redeal the rest', canCommit: true, pickLabel: 'Keep this card', pickEnabled: true}}));
     expect(review.map((c) => c.control)).to.deep.eq(['confirm', 'triggerR', 'secondary', 'back']);
     expect(labelOf(review, 'triggerR')).to.eq('Redeal the rest');
-    expect(labelOf(review, 'back')).to.eq('Cancel the review');
+    expect(labelOf(review, 'back')).to.eq('Cancel the exchange');
     const restructure = startSceneCommands(state({tenderMode: {kind: 'restructure', commitLabel: 'Replace', canCommit: false, pickLabel: 'Take this candidate', pickEnabled: true}}));
     expect(restructure.map((c) => c.control)).to.deep.eq(['confirm', 'triggerR', 'triggerL', 'secondary', 'back']);
     expect(restructure.find((c) => c.control === 'triggerR')?.enabled, 'RT waits for both picks').to.eq(false);

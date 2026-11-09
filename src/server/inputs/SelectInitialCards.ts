@@ -10,7 +10,7 @@ import {InputError} from './InputError';
 import {OptionsInput} from './OptionsPlayerInput';
 import {InputResponse, isSelectInitialCardsResponse, isTenderResponse} from '../../common/inputs/InputResponse';
 import {PlayerInput} from '../PlayerInput';
-import {campaignPreludePickCount, campaignSelectionSkipsCorpStep, campaignStartingBudget, campaignTendersOf, campaignTenderWindowOpen, executeTender, grantCarriedPreludes, projectTagCounts, tenderStartRefusal} from '../campaign/CampaignMissionSetup';
+import {campaignPreludePickCount, campaignSelectionSkipsCorpStep, campaignStartingBudget, campaignTendersOf, campaignTenderWindowOpen, executeTender, grantCarriedPreludes, projectTagCounts, tenderExchangeDeckLeft, tenderStartRefusal} from '../campaign/CampaignMissionSetup';
 import {tenderDef} from '../../common/campaign/tenders';
 
 type Inputs = {
@@ -194,6 +194,8 @@ export class SelectInitialCards extends OptionsInput<undefined> {
           ...(t.offer !== undefined ? {offer: [...t.offer]} : {}),
           // A held «Целевой запрос» decides on the deck's own numbers — counted here, never on the client.
           ...(t.id === 'targetedRequest' && t.status === 'held' ? {tagCounts: projectTagCounts(player.game)} : {}),
+          // A held «Замена» caps the cards returned at what its pool's deck can still give — the server's count.
+          ...(t.status === 'held' && tenderExchangeDeckLeft(player, t.id) !== undefined ? {deckLeft: tenderExchangeDeckLeft(player, t.id)} : {}),
         };
       });
     }

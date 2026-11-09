@@ -51,12 +51,12 @@ const META: Record<TenderId, Omit<TenderMeta, 'id' | 'nameKey'>> = {
     lot: 4, glyph: 'legacy',
   },
   preludeReview: {
-    ruleKey: 'Keep at most one of your dealt preludes; the rest are redealt once.',
+    ruleKey: 'Return any of your dealt preludes to the deck: as many fresh ones come in their place.',
     loreKey: 'The first proposals were fine. The second proposals were ours.',
     lot: 5, glyph: 'prelude',
   },
   projectReview: {
-    ruleKey: 'Keep at most one of your dealt projects; the rest are redealt once.',
+    ruleKey: 'Return any of your dealt project cards to the deck: as many fresh ones come in their place.',
     loreKey: 'Ten projects landed on the desk. The desk was found to be the wrong desk.',
     lot: 6, glyph: 'project',
   },

@@ -15,6 +15,7 @@ import {campaignFinalePicksCorporation} from '../../common/campaign/CampaignType
 import {
   CampaignRewardMode,
   PlayerTender,
+  TenderId,
   TENDER_BROAD_PORTFOLIO_PROJECTS,
   TENDER_COMPENSATION_MC,
   TENDER_OPEN_CALL_PRELUDES,
@@ -23,7 +24,6 @@ import {
   TENDER_TARGETED_REQUEST_CARDS,
   tenderDef,
   tenderNameKey,
-  TENDER_REVIEW_KEEP_MAX,
 } from '../../common/campaign/tenders';
 import {TenderResponse} from '../../common/inputs/InputResponse';
 import {ICorporationCard, isICorporationCard} from '../cards/corporation/ICorporationCard';
@@ -636,9 +636,9 @@ export function tenderStartRefusal(player: IPlayer, tender: Pick<PlayerTender, '
   case 'broadPortfolio':
     return projects < TENDER_BROAD_PORTFOLIO_PROJECTS ? TENDER_START_REFUSAL.projectDeckShort : undefined;
   case 'preludeReview':
-    return preludes < Math.max(0, player.dealtPreludeCards.length - TENDER_REVIEW_KEEP_MAX) ? TENDER_START_REFUSAL.preludeDeckShort : undefined;
+    return preludes === 0 ? TENDER_START_REFUSAL.preludeDeckShort : undefined;
   case 'projectReview':
-    return projects < Math.max(0, player.dealtProjectCards.length - TENDER_REVIEW_KEEP_MAX) ? TENDER_START_REFUSAL.projectDeckShort : undefined;
+    return projects === 0 ? TENDER_START_REFUSAL.projectDeckShort : undefined;
   case 'gamblePreludes':
     return preludes < player.dealtPreludeCards.length ? TENDER_START_REFUSAL.preludeDeckShort : undefined;
   case 'gambleProjects':
@@ -717,24 +717,63 @@ export function isRequestableTag(value: unknown): value is Tag {
     value !== Tag.WILD && value !== Tag.CLONE && value !== Tag.EVENT;
 }
 
-function keepSetOf(response: TenderResponse, dealt: ReadonlyArray<{name: CardName}>, keepMax: number): Set<CardName> {
-  const keep = response.keep ?? [];
-  if (keep.length > keepMax) {
-    throw new InputError(`This tender keeps at most ${keepMax} card(s)`);
+/** A held «Замена»: how many cards its pool's deck can still give (the model's `deckLeft` and the execution's cap). */
+export function tenderExchangeDeckLeft(player: IPlayer, id: TenderId): number | undefined {
+  if (id === 'preludeReview') {
+    return deckSize(player.game.preludeDeck);
   }
-  const names = new Set(dealt.map((c) => c.name));
-  for (const name of keep) {
-    if (!names.has(name)) {
+  if (id === 'projectReview') {
+    return deckSize(player.game.projectDeck);
+  }
+  return undefined;
+}
+
+/**
+ * «ЗАМЕНА» — the selective mulligan (the owner, 2026-11-09): the cards named go back to the deck and as many fresh ones
+ * take THEIR places in the deal (the order of the deal is kept — a card the player kept never moves). At least one; each
+ * one in the deal, once; never more than the deck can give (refused by name, never a short exchange).
+ */
+function exchangeInPlace<T extends {name: CardName}>(
+  dealt: Array<T>,
+  release: ReadonlyArray<CardName> | undefined,
+  deckLeft: number,
+  draw: (count: number) => Array<T>,
+  discard: (cards: Array<T>) => void,
+): void {
+  const names = release ?? [];
+  if (names.length === 0) {
+    throw new InputError('Mark at least one card to exchange');
+  }
+  if (new Set(names).size !== names.length) {
+    throw new InputError('A card is marked twice');
+  }
+  for (const name of names) {
+    if (!dealt.some((c) => c.name === name)) {
       throw new InputError(`Card ${name} is not in your deal`);
     }
   }
-  return new Set(keep);
+  if (names.length > deckLeft) {
+    throw new InputError(`The deck holds only ${deckLeft} card(s) for the exchange`);
+  }
+  const marked = new Set(names);
+  // Draw FIRST, discard after: an exchange never hands the same card straight back.
+  const fresh = draw(names.length);
+  const gone = dealt.filter((c) => marked.has(c.name));
+  discard(gone);
+  for (let i = 0; i < dealt.length; i++) {
+    if (marked.has(dealt[i].name)) {
+      const next = fresh.shift();
+      if (next !== undefined) {
+        dealt[i] = next;
+      }
+    }
+  }
 }
 
 /**
  * EXECUTE one held tender of the START window. Refuses by name: an unknown
  * instance, a tender already executed, a window that is closed, a prelude
- * tender without the Prelude expansion, a keep that is not in the deal.
+ * tender without the Prelude expansion, an exchange of a card that is not in the deal.
  * Idempotent per instance (a second execution is refused, never doubled).
  */
 export function executeTender(player: IPlayer, response: TenderResponse): void {
@@ -776,16 +815,12 @@ export function executeTender(player: IPlayer, response: TenderResponse): void {
   case 'researchSubsidy':
     player.campaignStartingHandDiscount++;
     break;
-  case 'preludeReview': {
-    const keep = keepSetOf(response, player.dealtPreludeCards, TENDER_REVIEW_KEEP_MAX);
-    redealInPlace<IPreludeCard>(game, player.dealtPreludeCards, keep, drawPreludes, (cards) => game.preludeDeck.discard(...cards));
+  case 'preludeReview':
+    exchangeInPlace<IPreludeCard>(player.dealtPreludeCards, response.release, deckSize(game.preludeDeck), drawPreludes, (cards) => game.preludeDeck.discard(...cards));
     break;
-  }
-  case 'projectReview': {
-    const keep = keepSetOf(response, player.dealtProjectCards, TENDER_REVIEW_KEEP_MAX);
-    redealInPlace<IProjectCard>(game, player.dealtProjectCards, keep, drawProjects, (cards) => game.projectDeck.discard(...cards));
+  case 'projectReview':
+    exchangeInPlace<IProjectCard>(player.dealtProjectCards, response.release, deckSize(game.projectDeck), drawProjects, (cards) => game.projectDeck.discard(...cards));
     break;
-  }
   case 'gamblePreludes':
     redealInPlace<IPreludeCard>(game, player.dealtPreludeCards, new Set(), drawPreludes, (cards) => game.preludeDeck.discard(...cards));
     break;

@@ -863,6 +863,8 @@
 .con-cards__slot--keep {
   box-shadow: inset 0 0 0 .1rem rgba(174, 185, 198, 0.9);
 }
+/* «ЗАМЕНА»: a card marked to go back to the deck — its face steps back (it is leaving) under the discard family's band. */
+.con-cards__slot--release > :is(.card-container, .pcard) { opacity: .55; }
 .con-cards__pickband--keep {
   background: rgba(14, 22, 33, 0.9);
   box-shadow: inset 0 0 0 .05rem rgba(174, 185, 198, 0.85);

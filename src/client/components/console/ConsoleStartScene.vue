@@ -201,13 +201,13 @@
                      :class="{
                        'con-cards__slot--focused': railPos === si && focusIdx === i && !(st.id === 'projects' && tagMode !== undefined),
                        'con-cards__slot--picked': stepPicked(st, card.name),
-                       'con-cards__slot--dim': railPos === si && ((dimUnpicked && !stepPicked(st, card.name) && reviewKeep === undefined) || tagFocusDims(st, card.name)),
-                       'con-cards__slot--keep': railPos === si && reviewKeep === card.name,
+                       'con-cards__slot--dim': railPos === si && ((dimUnpicked && !stepPicked(st, card.name) && reviewMode === undefined) || tagFocusDims(st, card.name)),
+                       'con-cards__slot--release': railPos === si && reviewRelease.has(card.name),
                        'con-deal-hold': (railPos === si && deal.isHeld(card.name + '#' + i)) || returningNames.has(st.id + '|' + card.name),
                      }"
                      :ref="railPos === si && focusIdx === i ? 'focusedCardSlot' : undefined">
                   <Card :card="card" :key="card.name" lightweight />
-                  <span v-if="railPos === si && reviewKeep === card.name" class="con-cards__pickband con-cards__pickband--keep" aria-hidden="true" data-tender-keep>{{ $t('Kept') }}</span>
+                  <span v-if="railPos === si && reviewRelease.has(card.name)" class="con-cards__pickband con-cards__pickband--discard" aria-hidden="true" data-tender-release>{{ $t('Back to the deck') }}</span>
                   <span v-else-if="stepPicked(st, card.name)" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
                 </div>
               </div>
@@ -1443,7 +1443,7 @@ import ConsoleTenderPortfolio from '@/client/components/console/campaign/Console
 import ConsoleTenderChip from '@/client/components/console/campaign/ConsoleTenderChip.vue';
 import {
   StartPortfolioContext, TenderPortfolioEntry, tenderExecutionOf, tenderModeStageKey, tenderPortfolio, tenderPortfolioCounts,
-  tenderCardStateOf, tenderPortfolioName, tenderPressResponse, tenderRestructureDecline, tenderRestructureResponse, tenderReviewResponse,
+  tenderCardStateOf, tenderPortfolioName, tenderPressResponse, tenderRestructureDecline, tenderRestructureResponse, tenderExchangeResponse,
   tenderTagResponse,
 } from '@/client/console/campaign/tenderPortfolio';
 import {ALL_TAGS, Tag} from '@/common/cards/Tag';
@@ -4194,9 +4194,15 @@ export default defineComponent({
       const mode = this.state.tenderMode;
       return mode !== undefined && mode.kind === 'review' && this.currentStep?.id === mode.pool ? mode : undefined;
     },
-    /** The card the standing review keeps (its band on the deal strip). */
-    reviewKeep(): CardName | undefined {
-      return this.reviewMode?.keep;
+    /** The cards the standing exchange returns to the deck (their band on the deal strip). */
+    reviewRelease(): ReadonlySet<CardName> {
+      return new Set(this.reviewMode?.release ?? []);
+    },
+    /** The most cards the exchange may return — what its pool's deck can still give (the server's `deckLeft`). */
+    reviewDeckLeft(): number {
+      const mode = this.reviewMode;
+      const live = mode === undefined ? undefined : (this.wizardInput?.tenders ?? []).find((t) => t.instance === mode.instance);
+      return live?.deckLeft ?? Number.POSITIVE_INFINITY;
     },
     restructureMode(): Extract<StartTenderMode, {kind: 'restructure'}> | undefined {
       const mode = this.state.tenderMode;
@@ -4267,8 +4273,11 @@ export default defineComponent({
       const review = this.reviewMode;
       if (review !== undefined) {
         const focused = this.stepEntries[this.focusIdx]?.name;
-        return {kind: 'review', commitLabel: 'Redeal the rest', canCommit: !busy,
-          pickLabel: focused !== undefined && review.keep === focused ? 'Let it go' : 'Keep this card', pickEnabled: focused !== undefined && !busy};
+        const marked = focused !== undefined && review.release.includes(focused);
+        const full = !marked && review.release.length >= this.reviewDeckLeft;
+        return {kind: 'review', commitLabel: 'Exchange the marked cards', canCommit: !busy && review.release.length > 0,
+          pickLabel: marked ? 'Keep this card' : full ? 'The deck holds no more cards' : 'Exchange this card',
+          pickEnabled: focused !== undefined && !busy && !full};
       }
       const mode = this.restructureMode;
       if (mode !== undefined && this.currentStep?.id === 'corp') {
@@ -4924,13 +4933,12 @@ export default defineComponent({
             // The mode's cursor walked ITS rows (the restructuring's two groups); the step's own strip is back — the
             // cursor lands on its first card, never past its end (A would then pick nothing).
             this.focusIdx = 0;
-            if (mode.kind === 'review' && mode.keep !== undefined) {
-              const step = this.steps.find((st) => st.id === mode.pool);
-              if (step !== undefined && step.input.cards.some((c) => c.name === mode.keep) && !picksForStep(this.picks, step.id).includes(mode.keep)) {
-                const picks = picksForStep(this.picks, step.id);
-                if (picks.length < step.input.max) {
-                  this.writePicks(step.id, [...picks, mode.keep]);
-                }
+            if (mode.kind === 'review' && mode.release.length > 0) {
+              // The returned cards are gone from the deal — a pick that stood on one of them goes with it.
+              const picks = picksForStep(this.picks, mode.pool);
+              const kept = picks.filter((name) => !mode.release.includes(name));
+              if (kept.length !== picks.length) {
+                this.writePicks(mode.pool, kept);
               }
             }
             this.stampDockChip(mode.instance);
@@ -7057,10 +7065,10 @@ export default defineComponent({
         endStartTransition();
       }
     },
-    /** THE REVIEW's mode on its own deal step: A marks the one card kept, RT redeals the rest (§16.3). */
+    /** THE EXCHANGE's mode on its own deal step: A marks the cards to return, RT exchanges them (§18.10). */
     async enterReviewMode(instance: string, pool: 'prelude' | 'projects'): Promise<void> {
       await this.travelToStep(pool);
-      this.state.tenderMode = {kind: 'review', instance, pool};
+      this.state.tenderMode = {kind: 'review', instance, pool, release: []};
     },
     /** THE RESTRUCTURING's mode on the corporation step once the candidates are dealt. */
     async openRestructureMode(instance: string, offer: ReadonlyArray<CardName>): Promise<void> {
@@ -7094,7 +7102,12 @@ export default defineComponent({
       if (review !== undefined) {
         const name = this.stepEntries[this.focusIdx]?.name;
         if (name !== undefined) {
-          this.state.tenderMode = {...review, keep: review.keep === name ? undefined : name};
+          const marked = review.release.includes(name);
+          if (!marked && review.release.length >= this.reviewDeckLeft) {
+            this.blockedNudge++; // the bar names why (the deck has no more) — refused, never silently
+            return;
+          }
+          this.state.tenderMode = {...review, release: marked ? review.release.filter((n) => n !== name) : [...review.release, name]};
         }
         return;
       }
@@ -7132,10 +7145,13 @@ export default defineComponent({
       const review = this.reviewMode;
       if (review !== undefined) {
         this.tenderLanding = {instance: review.instance, step: review.pool};
-        // THE DEPARTURE plays beside the answer: the cards the review lets go turn face down and return to the deck;
-        // the kept one stays; the redeal's new cards come off the deck after them (`launchDeal` waits).
-        void this.departToDeck(review.pool, this.stepEntries.map((c) => c.name).filter((n) => n !== review.keep));
-        this.submitTender(tenderReviewResponse(review.instance, review.keep));
+        if (review.release.length === 0) {
+          return;
+        }
+        // THE DEPARTURE plays beside the answer: the cards the exchange returns turn face down and go back to the deck;
+        // the rest stay where they lie; the fresh ones come off the deck into the freed places (`launchDeal` waits).
+        void this.departToDeck(review.pool, [...review.release]);
+        this.submitTender(tenderExchangeResponse(review.instance, review.release));
         return;
       }
       const mode = this.restructureMode;

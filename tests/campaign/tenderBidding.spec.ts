@@ -59,14 +59,15 @@ describe('the «Тендеры» catalog', () => {
     const byPriority = [...TENDER_IDS].sort((a, b) => tenderDef(a).botPriority - tenderDef(b).botPriority);
     expect(byPriority.slice(0, 3), 'the three decisives lead').deep.eq(['programExtension', 'restructuring', 'targetedRequest']);
     expect(byPriority.slice(-3), 'the gambles close').deep.eq(['gamblePreludes', 'gambleProjects', 'gambleCorporations']);
-    expect(tenderDef('broadPortfolio').botPriority, '«Широкий портфель» outranks «Пересмотр проектов»').lessThan(tenderDef('projectReview').botPriority);
+    expect(tenderDef('broadPortfolio').botPriority, '«Широкий портфель» outranks «Замена проектов»').lessThan(tenderDef('projectReview').botPriority);
     const tiers = Object.fromEntries(TENDER_IDS.map((id) => [id, tenderDef(id).tier]));
     expect(tiers.restructuring, 'two candidates against a known company of three — the combo made to order (the owner, 2026-11-09)').eq('decisive');
     expect(tiers.targetedRequest, 'three cards of one tag under a known lineage swing a finale (the owner, 2026-11-08)').eq('decisive');
     expect(tiers.researchSubsidy, 'the first of the notables (the owner: «скорее весомая»)').eq('notable');
     expect(byPriority[3]).eq('researchSubsidy');
     expect(tiers.broadPortfolio).eq('notable');
-    expect(tiers.projectReview).eq('minor');
+    expect(tiers.projectReview, 'the exchange loses nothing good: notable (the owner, 2026-11-09)').eq('notable');
+    expect(tiers.preludeReview).eq('notable');
     // The tiers are monotone along the denial order: no minor outranks a notable, no notable a decisive.
     const rank = {decisive: 0, notable: 1, minor: 2, gamble: 3};
     for (let i = 1; i < byPriority.length; i++) {

@@ -109,8 +109,10 @@ export const TENDER_CATALOG: Readonly<Record<TenderId, TenderDef>> = {
   broadPortfolio: {id: 'broadPortfolio', tier: 'notable', window: 'start', botPriority: 5, needsPreludes: false},
   openCall: {id: 'openCall', tier: 'notable', window: 'start', botPriority: 6, needsPreludes: true},
   extendedLegacy: {id: 'extendedLegacy', tier: 'notable', window: 'legacy', botPriority: 7, needsPreludes: false},
-  preludeReview: {id: 'preludeReview', tier: 'notable', window: 'start', botPriority: 8, needsPreludes: true},
-  projectReview: {id: 'projectReview', tier: 'minor', window: 'start', botPriority: 9, needsPreludes: false},
+  preludeReview: {id: 'preludeReview', tier: 'notable', window: 'start', botPriority: 9, needsPreludes: true},
+  // «Замена проектов / прологов» (the owner, 2026-11-09 — the ids stay for the saves): return ANY dealt cards to the
+  // deck, as many fresh ones come in their place — the selective mulligan; nothing good is lost, so it is NOTABLE.
+  projectReview: {id: 'projectReview', tier: 'notable', window: 'start', botPriority: 8, needsPreludes: false},
   // THE GAMBLES — one per pool; the LAST the bot takes (the owner, 2026-11-08). The corporation one only where the
   // finale DRAFTS a corporation (a three-mission route — `tenderWindows.ts`).
   gamblePreludes: {id: 'gamblePreludes', tier: 'gamble', window: 'start', botPriority: 10, needsPreludes: true},
@@ -132,8 +134,8 @@ export const TENDER_NAME_KEY: Readonly<Record<TenderId, string>> = {
   targetedRequest: 'Targeted Request',
   restructuring: 'Restructuring',
   extendedLegacy: 'Extended Legacy',
-  preludeReview: 'Prelude Review',
-  projectReview: 'Project Review',
+  preludeReview: 'Prelude Exchange',
+  projectReview: 'Project Exchange',
   openCall: 'Open Call',
   broadPortfolio: 'Broad Portfolio',
   researchSubsidy: 'Research Subsidy',
@@ -167,8 +169,6 @@ export const TENDER_RESTRUCTURING_CANDIDATES = 2;
 export const TENDER_TARGETED_REQUEST_CARDS = 3;
 /** «Субсидия на исследования»: a starting-hand card never goes below this price (the owner's floor, 2026-11-08). */
 export const TENDER_SUBSIDY_FLOOR_MC = 1;
-/** «Пересмотр прологов / проектов»: how many of the dealt cards the player may KEEP; the rest are redealt once. */
-export const TENDER_REVIEW_KEEP_MAX = 1;
 
 export function tenderWindowOf(id: TenderId): TenderWindow {
   return TENDER_CATALOG[id].window;

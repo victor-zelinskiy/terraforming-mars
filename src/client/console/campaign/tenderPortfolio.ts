@@ -12,7 +12,7 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {Tag} from '@/common/cards/Tag';
-import {isGambleTender, tenderDef, TenderId, tenderNameKey, TenderStatus, TenderWindow, TENDER_BROAD_PORTFOLIO_PROJECTS, TENDER_COMPENSATION_MC, TENDER_OPEN_CALL_PRELUDES, TENDER_RESTRUCTURING_CANDIDATES, TENDER_REVIEW_KEEP_MAX, TENDER_TARGETED_REQUEST_CARDS} from '@/common/campaign/tenders';
+import {isGambleTender, tenderDef, TenderId, tenderNameKey, TenderStatus, TenderWindow, TENDER_BROAD_PORTFOLIO_PROJECTS, TENDER_COMPENSATION_MC, TENDER_OPEN_CALL_PRELUDES, TENDER_RESTRUCTURING_CANDIDATES, TENDER_TARGETED_REQUEST_CARDS} from '@/common/campaign/tenders';
 import {TenderResponse} from '@/common/inputs/InputResponse';
 import {TenderInSelectionModel} from '@/common/models/PlayerInputModel';
 import {CarryoverTenderModel} from '@/common/campaign/CampaignModel';
@@ -127,7 +127,7 @@ function startEntry(ctx: StartPortfolioContext, t: TenderInSelectionModel): Tend
     switch (execution) {
     case 'keep-preludes':
     case 'keep-projects':
-      return 'Review';
+      return 'Choose the cards to exchange';
     case 'restructure':
       return t.offer === undefined ? 'Deal the candidates' : 'Continue the restructuring';
     case 'choose-tag':
@@ -149,9 +149,9 @@ function startEntry(ctx: StartPortfolioContext, t: TenderInSelectionModel): Tend
     case 'researchSubsidy':
       return {key: 'A starting-hand card: ${0} → ${1} M€', params: [n(ctx.cardCost), n(Math.max(0, ctx.cardCost - 1))]};
     case 'preludeReview':
-      return {key: 'Keep up to ${0} of ${1} preludes — the rest are redealt once', params: [n(TENDER_REVIEW_KEEP_MAX), n(ctx.preludesDealt)]};
+      return {key: 'Return any of the ${0} preludes — as many fresh ones come in their place', params: [n(ctx.preludesDealt)]};
     case 'projectReview':
-      return {key: 'Keep up to ${0} of ${1} projects — the rest are redealt once', params: [n(TENDER_REVIEW_KEEP_MAX), n(ctx.projectsDealt)]};
+      return {key: 'Return any of the ${0} projects — as many fresh ones come in their place', params: [n(ctx.projectsDealt)]};
     case 'gamblePreludes':
       return {key: 'Redeal all ${0} preludes', params: [n(ctx.preludesDealt)]};
     case 'gambleProjects':
@@ -245,9 +245,9 @@ export function tenderPressResponse(entry: Pick<TenderPortfolioEntry, 'instance'
   return undefined;
 }
 
-/** A REVIEW's answer: the card kept (or none — everything is redealt). */
-export function tenderReviewResponse(instance: string, keep: CardName | undefined): TenderResponse {
-  return {type: 'tender', instance, keep: keep === undefined ? [] : [keep]};
+/** An EXCHANGE's answer: the dealt cards returned to the deck (as many fresh ones come in their place). */
+export function tenderExchangeResponse(instance: string, release: ReadonlyArray<CardName>): TenderResponse {
+  return {type: 'tender', instance, release: [...release]};
 }
 
 /** THE RESTRUCTURING's second answer: the candidate taken in place of a lineage corporation. */
@@ -263,7 +263,7 @@ export function tenderRestructureDecline(instance: string): TenderResponse {
 /** The crumb's stage while a step mode stands on a deal step (an i18n key). */
 export function tenderModeStageKey(mode: 'review' | 'restructure' | 'tag'): string {
   switch (mode) {
-  case 'review': return 'Review';
+  case 'review': return 'Card exchange';
   case 'restructure': return 'Restructuring';
   default: return 'Tag';
   }

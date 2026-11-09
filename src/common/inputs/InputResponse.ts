@@ -56,7 +56,7 @@ export function isSelectInitialCardsResponse(response: InputResponse): response 
  * initial selection stands (the finale's start). Answered on the SAME
  * `initialCards` prompt: the server applies the effect to the player's deal
  * and serves the selection again — the selection itself is not answered.
- *  · `keep`    — a review («оставь не более одного»): the dealt cards to keep;
+ *  · `release` — an exchange («Замена»): the dealt cards returned to the deck (as many fresh ones come);
  *  · `take` / `replace` — a restructuring's RESOLUTION: the dealt candidate
  *    joining the lineage in place of `replace`;
  *  · `decline` — a restructuring's candidates are let go (the tender stays
@@ -65,7 +65,8 @@ export function isSelectInitialCardsResponse(response: InputResponse): response 
 export interface TenderResponse {
   type: 'tender',
   instance: string;
-  keep?: Array<CardName>;
+  /** «Замена»: the dealt cards returned to the deck — as many fresh ones come in their place. */
+  release?: Array<CardName>;
   take?: CardName;
   replace?: CardName;
   decline?: boolean;
@@ -77,7 +78,7 @@ export function isTenderResponse(response: InputResponse): response is TenderRes
   if (response.type !== 'tender') {
     return false;
   }
-  const allowed = ['type', 'instance', 'keep', 'take', 'replace', 'decline', 'tag'];
+  const allowed = ['type', 'instance', 'release', 'take', 'replace', 'decline', 'tag'];
   const keys = Object.keys(response);
   return keys.includes('instance') && keys.every((k) => allowed.includes(k));
 }

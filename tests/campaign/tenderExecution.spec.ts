@@ -168,28 +168,43 @@ describe('tender execution at the finale\'s start', () => {
     expect(p1.megaCredits).eq(57 - 2 * 2);
   });
 
-  it('«Пересмотр прологов» keeps at most one and redeals the rest once', () => {
+  it('«Замена прологов» returns ANY dealt preludes to the deck — fresh ones take THEIR places, the rest never move', () => {
     const {p1} = finale(['preludeReview']);
     const before = p1.dealtPreludeCards.map((c) => c.name);
-    expect(() => p1.process({type: 'tender', instance: 't0', keep: [before[0], before[1]]})).throws(/at most 1/);
-    expect(() => p1.process({type: 'tender', instance: 't0', keep: [CardName.MERGER]})).throws(/not in your deal/);
-    p1.process({type: 'tender', instance: 't0', keep: [before[1]]});
+    expect(() => p1.process({type: 'tender', instance: 't0', release: []}), 'nothing marked').throws(/at least one/);
+    expect(() => p1.process({type: 'tender', instance: 't0', release: [CardName.MERGER]})).throws(/not in your deal/);
+    expect(() => p1.process({type: 'tender', instance: 't0', release: [before[0], before[0]]})).throws(/marked twice/);
+    expect(p1.campaignTenders![0].status, 'a refused answer leaves the tender held').eq('held');
+    p1.process({type: 'tender', instance: 't0', release: [before[0], before[2]]});
     const after = p1.dealtPreludeCards.map((c) => c.name);
     expect(after).has.length(4);
-    expect(after[0]).eq(before[1]);
-    for (const name of after.slice(1)) {
-      expect(before, `${name} was redealt fresh`).not.includes(name);
+    expect([after[1], after[3]], 'the cards not returned stay where they lay').deep.eq([before[1], before[3]]);
+    for (const name of [after[0], after[2]]) {
+      expect(before, `${name} came fresh off the deck`).not.includes(name);
     }
     expect(p1.campaignTenders![0].status).eq('executed');
   });
 
-  it('«Пересмотр проектов» does the same for the ten projects; «Авантюра: проекты» then redeals them all, keeping nothing', () => {
+  it('«Замена» never returns more than the deck can give — the model names the cap, an answer past it is refused by name', () => {
+    const {p1} = finale(['projectReview']);
+    const model = p1.getWaitingFor()?.toModel(p1) as unknown as {tenders: Array<{instance: string, deckLeft?: number}>};
+    expect(model.tenders.find((t) => t.instance === 't0')?.deckLeft, 'the server counts the project deck').is.a('number');
+    const game = p1.game;
+    game.projectDeck.discardPile.length = 0;
+    game.projectDeck.drawPile.splice(1);
+    const deal = p1.dealtProjectCards.map((c) => c.name);
+    expect(() => p1.process({type: 'tender', instance: 't0', release: [deal[0], deal[1]]})).throws(/only 1 card/);
+    p1.process({type: 'tender', instance: 't0', release: [deal[0]]});
+    expect(p1.dealtProjectCards.map((c) => c.name).slice(1)).deep.eq(deal.slice(1));
+  });
+
+  it('«Замена проектов» does the same for the ten projects; «Авантюра: проекты» then redeals them all, keeping nothing', () => {
     const {p1} = finale(['projectReview', 'gambleProjects']);
     const projects = p1.dealtProjectCards.map((c) => c.name);
-    p1.process({type: 'tender', instance: 't0', keep: [projects[3]]});
+    p1.process({type: 'tender', instance: 't0', release: projects.filter((_n, i) => i !== 3)});
     const reviewed = p1.dealtProjectCards.map((c) => c.name);
     expect(reviewed).has.length(10);
-    expect(reviewed).includes(projects[3]);
+    expect(reviewed[3], 'the one card not returned stands in its place').eq(projects[3]);
     expect(reviewed.filter((n) => projects.includes(n))).deep.eq([projects[3]]);
     const preludes = p1.dealtPreludeCards.map((c) => c.name);
     p1.process({type: 'tender', instance: 't1'});

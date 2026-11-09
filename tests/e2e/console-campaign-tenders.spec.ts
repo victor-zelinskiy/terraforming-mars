@@ -12,7 +12,7 @@ import {NO_PAYMENT, titleOf} from './consoleEndgameHarness';
  *  · R3 opens the stage with a TENDERS zone (four certificates); the d-pad crosses the cards into it;
  *  · «Открытый конкурс» executes in ONE press: the prelude deal grows by two, the stage stands, the corporation pick
  *    made before survives the redeal;
- *  · «Пересмотр прологов» opens a KEEP step over the live deal; A keeps one, RT redeals the rest — the kept one stays;
+ *  · «Замена прологов» opens an EXCHANGE step over the live deal; A marks the cards to return, RT exchanges them — the kept one stays;
  *  · «Реструктуризация» deals two candidates and opens its step; A picks a candidate and the lineage corporation it
  *    replaces; RT rewrites the lineage (the self model names it);
  *  · B returns to the page, the pick intact; the selection completes; the ceremony pre-lays the «КОМПЕНСАЦИЯ» plate
@@ -138,25 +138,27 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await expect(slot('openCall')).toHaveAttribute('data-tport-state', 'executed');
     await press(page, 'ArrowRight', 250);
     await expect(slot('preludeReview')).toHaveAttribute('data-tport-focused', 'yes');
-    await expect.poll(bar, {timeout: 5_000}).toMatch(/пересмотреть/i);
+    await expect.poll(bar, {timeout: 5_000}).toMatch(/выбрать карты на замену/i);
 
-    // ── «Пересмотр прологов»: the REVIEW mode on the prelude step's own strip — A keeps the focused card, RT redeals the rest. ──
+    // ── «Замена прологов»: the EXCHANGE mode on the prelude step's own strip — A marks the focused card to return, RT
+    //    exchanges the marked: fresh preludes take THEIR places, every card not marked stays where it lay. ──
     await press(page, 'Enter', 900);
     await expect.poll(subject, {timeout: 8_000, message: 'the travel to the prelude step'}).toMatch(/пролог/i);
-    await expect.poll(crumb, {timeout: 8_000, message: 'the prelude step in its review mode'}).toMatch(/пересмотр/i);
-    await expect.poll(bar, {timeout: 5_000}).toMatch(/пересдать остальные/i);
+    await expect.poll(crumb, {timeout: 8_000, message: 'the prelude step in its exchange mode'}).toMatch(/замена/i);
+    await expect.poll(bar, {timeout: 5_000}).toMatch(/заменить карту/i);
+    const dealBefore = stepCards(await model(request, aliceId!), /prelude/i);
     await press(page, 'Enter', 400);
-    await expect(page.locator('[data-tender-keep]')).toHaveCount(1);
-    const kept = await page.locator('.con-cards__slot--keep [data-zoom-slot], .con-cards__slot--keep').first().getAttribute('data-zoom-slot');
-    expect(kept).toBeTruthy();
+    await expect(page.locator('[data-tender-release]')).toHaveCount(1);
+    const returned = await page.locator('.con-cards__slot--release').first().getAttribute('data-zoom-slot');
+    expect(returned).toBeTruthy();
+    await expect.poll(bar, {timeout: 5_000}).toMatch(/заменить отмеченные/i);
     await press(page, 'Period', 900);
     await expect.poll(async () => {
       const deal = stepCards(await model(request, aliceId!), /prelude/i);
-      return deal.length === dealt + 2 && deal.includes(kept!) ? 'kept' : `deal=${deal.length}`;
-    }, {timeout: 10_000}).toBe('kept');
-    await expect.poll(crumb, {timeout: 8_000, message: 'the mode ends — the page is the prelude selection again'}).not.toMatch(/пересмотр/i);
-    // The kept card became the step's pick (deselectable like any pick).
-    await expect(page.locator(`.con-cards__slot--picked[data-zoom-slot="${kept}"]`)).toHaveCount(1);
+      const stayed = dealBefore.filter((n) => n !== returned).every((n) => deal.includes(n));
+      return deal.length === dealt + 2 && !deal.includes(returned!) && stayed ? 'exchanged' : `deal=${deal.join(',')}`;
+    }, {timeout: 10_000}).toBe('exchanged');
+    await expect.poll(crumb, {timeout: 8_000, message: 'the mode ends — the page is the prelude selection again'}).not.toMatch(/замена/i);
     await waitStepDealSettled(page);
 
     // ── «Целевой запрос» (§18.6): A travels to the PROJECT step in its TAG mode — a row of tags over the strip; A names

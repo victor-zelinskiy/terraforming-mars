@@ -5,7 +5,7 @@ import {TenderInSelectionModel} from '../../src/common/models/PlayerInputModel';
 import {CarryoverTenderModel} from '../../src/common/campaign/CampaignModel';
 import {
   StartPortfolioContext, ThresholdPortfolioContext, tenderExecutionOf, tenderModeStageKey, tenderPortfolio,
-  tenderPortfolioCounts, tenderPressResponse, tenderRestructureDecline, tenderRestructureResponse, tenderReviewResponse,
+  tenderPortfolioCounts, tenderPressResponse, tenderRestructureDecline, tenderRestructureResponse, tenderExchangeResponse,
   tenderSpeaksAt,
 } from '../../src/client/console/campaign/tenderPortfolio';
 
@@ -64,9 +64,9 @@ describe('tenderPortfolio — the one reader of a holding on the two places', ()
     expect(byId.targetedRequest).include({state: 'step', verb: 'Name a tag', landsOn: 'projects'});
     expect(byId.targetedRequest.reading).deep.eq({key: 'Name a tag: ${0} project cards with it join the deal', params: ['3']});
     expect(byId.researchSubsidy.reading.params, 'the price after one more copy').deep.eq(['3', '2']);
-    expect(byId.preludeReview).include({state: 'step', verb: 'Review', landsOn: 'prelude'});
-    expect(byId.preludeReview.reading.params).deep.eq(['1', '4']);
-    expect(byId.projectReview).include({state: 'step', verb: 'Review', landsOn: 'projects'});
+    expect(byId.preludeReview).include({state: 'step', verb: 'Choose the cards to exchange', landsOn: 'prelude'});
+    expect(byId.preludeReview.reading).deep.eq({key: 'Return any of the ${0} preludes — as many fresh ones come in their place', params: ['4']});
+    expect(byId.projectReview).include({state: 'step', verb: 'Choose the cards to exchange', landsOn: 'projects'});
     expect(byId.gamblePreludes).include({state: 'ready', verb: 'Execute', landsOn: 'prelude'});
     expect(byId.gamblePreludes.reading).deep.eq({key: 'Redeal all ${0} preludes', params: ['4']});
     expect(byId.gamblePreludes.confirm, 'no live picks — no second press').is.undefined;
@@ -118,16 +118,15 @@ describe('tenderPortfolio — the one reader of a holding on the two places', ()
     expect(plenty.confirm).is.undefined;
   });
 
-  it('the answers on the wire — the one press, the review\'s keep, the restructuring\'s take / decline — and the modes\' stage names', () => {
+  it('the answers on the wire — the one press, the review\'s returned cards, the restructuring\'s take / decline — and the modes\' stage names', () => {
     expect(tenderPressResponse({instance: 't1', id: 'openCall'})).deep.eq({type: 'tender', instance: 't1'});
     expect(tenderPressResponse({instance: 't2', id: 'restructuring'})).deep.eq({type: 'tender', instance: 't2'});
     expect(tenderPressResponse({instance: 't2', id: 'restructuring', offer: [CardName.HELION]}), 'dealt — the mode answers, not the press').is.undefined;
     expect(tenderPressResponse({instance: 't3', id: 'preludeReview'})).is.undefined;
-    expect(tenderReviewResponse('t3', CardName.LOAN)).deep.eq({type: 'tender', instance: 't3', keep: [CardName.LOAN]});
-    expect(tenderReviewResponse('t3', undefined), 'nothing kept — everything is redealt').deep.eq({type: 'tender', instance: 't3', keep: []});
+    expect(tenderExchangeResponse('t3', [CardName.LOAN, CardName.DONATION])).deep.eq({type: 'tender', instance: 't3', release: [CardName.LOAN, CardName.DONATION]});
     expect(tenderRestructureResponse('t2', CardName.HELION, CardName.ECOLINE)).deep.eq({type: 'tender', instance: 't2', take: CardName.HELION, replace: CardName.ECOLINE});
     expect(tenderRestructureDecline('t2')).deep.eq({type: 'tender', instance: 't2', decline: true});
-    expect(tenderModeStageKey('review')).eq('Review');
+    expect(tenderModeStageKey('review')).eq('Card exchange');
     expect(tenderModeStageKey('restructure')).eq('Restructuring');
   });
 });

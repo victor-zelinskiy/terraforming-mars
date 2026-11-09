@@ -204,7 +204,7 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
         mode.push({control: 'triggerL', label: 'Decline the restructuring'});
       }
       mode.push({control: 'secondary', label: 'Inspect'});
-      mode.push({control: 'back', label: s.tenderMode.kind === 'restructure' ? 'Decline the restructuring' : s.tenderMode.kind === 'tag' ? 'Cancel the request' : 'Cancel the review'});
+      mode.push({control: 'back', label: s.tenderMode.kind === 'restructure' ? 'Decline the restructuring' : s.tenderMode.kind === 'tag' ? 'Cancel the request' : 'Cancel the exchange'});
       return mode;
     }
     if (s.awaiting) {
