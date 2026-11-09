@@ -283,7 +283,7 @@ import {currentServerEndpoint} from '@/client/utils/runtimeConfig';
 import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import ConsoleCarryoverPicker from './ConsoleCarryoverPicker.vue';
+import ConsoleCarryoverPicker, {CarryoverBarFacts} from './ConsoleCarryoverPicker.vue';
 import ConsoleTenderBidding from './ConsoleTenderBidding.vue';
 import ConsoleTenderChip from './ConsoleTenderChip.vue';
 import {biddingRevealKey, tenderBiddingUi} from '@/client/console/campaign/tenderBiddingUi';
@@ -359,7 +359,7 @@ export default defineComponent({
       /** The picker's ARMED zero-carry confirm (mirrored up for the bar). */
       carryArmed: false,
       /** The picker's bar facts (the A verb by focus, the page count) — mirrored up for the ONE command bar. */
-      carryBar: {primary: 'Keep for the next mission', pages: 1, stage: 'album', primaryEnabled: true} as {primary: string, pages: number, stage: 'tenders' | 'album', primaryEnabled: boolean},
+      carryBar: {primary: 'Keep for the next mission', pages: 1, stage: 'album', primaryEnabled: true} as CarryoverBarFacts,
       /** The «Тендеры» mode: the legacy tender whose activation is on the wire, and the server's last refusal. */
       tenderBusy: undefined as string | undefined,
       tenderError: '',
@@ -516,13 +516,20 @@ export default defineComponent({
         // next-step verb). While the fullscreen viewer is open the modal
         // draws its own bar on top (the dev-picker precedent).
         const carryCmds: Array<ConsoleCommand> = [];
-        // THE TENDERS stage (§16.1): A the focused certificate's verb (disabled, never hidden), X reads it, RT moves on.
-        if (this.carryBar.stage === 'tenders') {
+        // THE TENDER DOOR's LIST (§19): A executes the focused certificate of this page (disabled, never hidden,
+        // otherwise), X reads it, B goes one level back to the album.
+        if (this.carryBar.stage === 'list') {
           carryCmds.push({control: 'dpad', label: 'Choose'});
-          carryCmds.push({control: 'confirm', label: this.carryBar.primary, enabled: this.carryBar.primaryEnabled});
+          carryCmds.push({control: 'confirm', label: this.carryBar.primary, enabled: this.carryBar.primaryEnabled, highlight: this.carryBar.primaryEnabled});
           carryCmds.push({control: 'secondary', label: 'Inspect'});
-          carryCmds.push({control: 'triggerR', label: 'Continue to the legacy', highlight: true});
-          carryCmds.push({control: 'back', label: 'Close'});
+          carryCmds.push({control: 'back', label: 'Back'});
+          return carryCmds;
+        }
+        // …a tender standing in its MODE on the album: its place is previewed in the manifest — A executes, B cancels.
+        if (this.carryBar.stage === 'mode') {
+          carryCmds.push({control: 'confirm', label: this.carryBar.primary, enabled: this.carryBar.primaryEnabled, highlight: this.carryBar.primaryEnabled});
+          carryCmds.push({control: 'secondary', label: 'Inspect'});
+          carryCmds.push({control: 'back', label: 'Cancel the tender'});
           return carryCmds;
         }
         if (vm.yourEligibleCards.length > 0) {
@@ -531,8 +538,14 @@ export default defineComponent({
           carryCmds.push({control: 'secondary', label: 'Inspect'});
           // LB / RB turn the page — the SPINE in the stage foot says so (one action, one hint: never the bar).
         }
+        // THE TENDER DOOR (L3): lit and saying so on the page where a legacy tender executes.
+        if (this.carryBar.door !== undefined) {
+          carryCmds.push(this.carryBar.door.ready > 0 ?
+            {control: 'stickL', label: 'Tenders', highlight: true, priority: 2} :
+            {control: 'stickL', label: 'Tenders'});
+        }
         carryCmds.push({control: 'triggerR', label: this.carryConfirmLabel, highlight: true});
-        carryCmds.push({control: 'back', label: vm.yourTenders.length > 0 ? 'Back' : 'Close'});
+        carryCmds.push({control: 'back', label: 'Close'});
         return carryCmds;
       }
       if (this.overlay?.kind === 'mission') {

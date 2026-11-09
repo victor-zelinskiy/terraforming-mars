@@ -152,83 +152,111 @@ describe('ConsoleCarryoverPicker — the album chassis (P87)', () => {
     expect(wrapper.emitted('toggle')?.[0]).deep.eq([HAND[0]]);
   });
 
-  it('«Тендеры» (§16.1): the PORTFOLIO stage stands FIRST — A activates a ready legacy tender (one emit), a blocked one names its reason, RT moves on to the album, B returns; the readiness RT WARNS while a legacy tender is still executable', async () => {
+  it('«Тендеры» (§19): the ALBUM stands first; the door (L3) opens the LIST — A on a ready legacy tender stands its MODE on the album with the GHOST seat; A executes (one emit), B cancels; a blocked one names its reason; the readiness RT WARNS while one is still executable', async () => {
     const tenders = [
       {instance: 'c1', id: 'extendedLegacy', status: 'held', window: 'legacy'},
       {instance: 'c2', id: 'openCall', status: 'held', window: 'start', blocked: 'Executed at the finale\'s start'},
     ];
     const w = mountPicker({tenders});
-    const vm = w.vm as unknown as {handleIntent(i: GamepadIntent): boolean, stage: string};
+    const vm = w.vm as unknown as {handleIntent(i: GamepadIntent): boolean, stage: string, tenderMode?: {instance: string}};
+    const settle = () => new Promise((r) => setTimeout(r, 650));
     // (The wrapper is not attached to the document — a layer's presence is its v-show, never isVisible.)
     const shown = (sel: string) => (w.find(sel).element as HTMLElement).style.display !== 'none';
-    expect(shown('[data-carry-tenders-stage]'), 'the portfolio stands first').to.eq(true);
-    expect(shown('[data-carry-album-stage]'), 'the album rests under it').to.eq(false);
-    expect(w.findAll('[data-tport-slot]')).to.have.length(2);
-    expect(w.find('[data-tport-slot][data-tport-kind="extendedLegacy"]').attributes('data-tport-state')).to.eq('ready');
-    expect(w.find('[data-tport-slot][data-tport-kind="openCall"]').attributes('data-tport-state')).to.eq('blocked');
-    expect(w.find('[data-tport-reading]').text()).to.contain('2').and.contain('3');
-    const bar = w.emitted('bar')!.at(-1)![0] as {stage: string, primary: string, primaryEnabled: boolean};
-    expect(bar).to.deep.include({stage: 'tenders', primary: 'Execute', primaryEnabled: true});
-    // A on the ready certificate: ONE emit, nothing else moves until the server answers.
-    vm.handleIntent(press('confirm'));
-    expect(w.emitted('executeTender')?.map((e) => e[0])).to.deep.eq(['c1']);
-    // ▶ to the blocked one: A says the reason, emits nothing.
+    expect(vm.stage, 'the album first — the page the legacy tenders change').to.eq('album');
+    expect(shown('[data-carry-album-stage]')).to.eq(true);
+    expect(w.find('[data-carry-tender-door]').attributes('data-carry-tender-door-ready'), 'the door says one executes here').to.eq('1');
+    let bar = w.emitted('bar')!.at(-1)![0] as {stage: string, door?: {ready: number}};
+    expect(bar).to.deep.include({stage: 'album', door: {ready: 1}});
+    // L3 → the list: the ready certificate FIRST, the blocked one after it with its reason.
+    vm.handleIntent(press('stickL'));
+    await settle();
+    expect(vm.stage).to.eq('list');
+    expect(shown('[data-carry-tenders-stage]')).to.eq(true);
+    const slots = w.findAll('[data-tport-slot]');
+    expect(slots.map((s) => s.attributes('data-tport-kind'))).to.deep.eq(['extendedLegacy', 'openCall']);
+    expect(slots[1].attributes('data-tport-state')).to.eq('blocked');
+    expect(w.find('[data-tport-reason]').text()).to.contain('finale');
+    bar = w.emitted('bar')!.at(-1)![0] as {stage: string};
+    expect(bar).to.deep.include({stage: 'list', primary: 'Execute', primaryEnabled: true});
+    // ▶ to the blocked one: A says the reason, nothing else happens.
     vm.handleIntent(nav('right'));
     vm.handleIntent(press('confirm'));
     await w.vm.$nextTick();
-    expect(w.emitted('executeTender')).to.have.length(1);
-    expect(w.find('[data-tport-reason]').text()).to.contain('finale');
-    // RT → the album; B → back to the portfolio (one level), never the host's close.
-    vm.handleIntent(press('triggerR'));
-    await w.vm.$nextTick();
+    expect(vm.tenderMode).to.eq(undefined);
+    // ◀ back, A → the album with the MODE: the ghost seat «+3» previews the place, the crumb and the foot name the tender.
+    vm.handleIntent(nav('left'));
+    vm.handleIntent(press('confirm'));
+    await settle();
     expect(vm.stage).to.eq('album');
-    expect(shown('[data-carry-album-stage]')).to.eq(true);
-    // The readiness RT over a ready legacy tender WARNS first; B disarms; the second RT confirms.
+    expect(vm.tenderMode?.instance).to.eq('c1');
+    expect(w.findAll('[data-carry-seat]')).to.have.length(3);
+    expect(w.find('[data-carry-seat="3"]').attributes('data-carry-seat-ghost')).to.eq('yes');
+    expect(w.find('[data-carry-tender-reading]').text()).to.contain('Extended Legacy').and.contain('3');
+    bar = w.emitted('bar')!.at(-1)![0] as {stage: string};
+    expect(bar).to.deep.include({stage: 'mode', primary: 'Execute the tender'});
+    // B cancels with nothing sent; A again (from the list) and A executes: ONE emit.
+    vm.handleIntent(press('back'));
+    await w.vm.$nextTick();
+    expect(vm.tenderMode).to.eq(undefined);
+    expect(w.findAll('[data-carry-seat]'), 'the ghost leaves with the mode').to.have.length(2);
+    expect(w.emitted('executeTender')).to.eq(undefined);
+    vm.handleIntent(press('stickL'));
+    await settle();
+    vm.handleIntent(press('confirm'));
+    await settle();
+    vm.handleIntent(press('confirm'));
+    expect(w.emitted('executeTender')?.map((e) => e[0])).to.deep.eq(['c1']);
+    // The activation LANDED: the ghost is the REAL seat now (the same place), the mode ends.
+    await w.setProps({tenders: [{...tenders[0], status: 'executed'}, tenders[1]], limit: 3, tenderSeats: 1});
+    expect(vm.tenderMode).to.eq(undefined);
+    expect(w.findAll('[data-carry-seat]')).to.have.length(3);
+    expect(w.find('[data-carry-seat="3"]').attributes('data-carry-seat-tender')).to.eq('yes');
+    expect(w.find('[data-carry-seat="3"]').attributes('data-carry-seat-ghost')).to.eq(undefined);
+    expect(w.find('[data-carry-tender-door]').attributes('data-carry-tender-door-ready'), 'nothing left to execute here').to.eq('0');
+  }).timeout(15_000);
+
+  it('«Тендеры»: the readiness RT WARNS while a legacy tender is still executable; B disarms; then the zero-card arm; then the confirm', async () => {
+    const w = mountPicker({tenders: [{instance: 'c1', id: 'extendedLegacy', status: 'held', window: 'legacy'}]});
+    const vm = w.vm as unknown as {handleIntent(i: GamepadIntent): boolean, armed: boolean};
     vm.handleIntent(press('triggerR'));
     await w.vm.$nextTick();
-    expect(w.find('[data-carry-tender-warning]').exists(), 'the terminal warning names the tender').to.eq(true);
     expect(w.find('[data-carry-tender-warning]').text()).to.contain('Extended Legacy');
     expect(w.emitted('confirm')).to.eq(undefined);
     vm.handleIntent(press('back'));
     await w.vm.$nextTick();
     expect(w.find('[data-carry-tender-warning]').exists()).to.eq(false);
-    // RT again: the tender warning first, then the zero-card arm (nothing is kept), then the confirm — each its own press.
     vm.handleIntent(press('triggerR'));
     vm.handleIntent(press('triggerR'));
-    expect((w.vm as unknown as {armed: boolean}).armed, 'the zero-card confirm arms after the tender warning').to.eq(true);
-    expect(w.emitted('confirm')).to.eq(undefined);
+    expect(vm.armed, 'the zero-card confirm arms after the tender warning').to.eq(true);
     vm.handleIntent(press('triggerR'));
     expect(w.emitted('confirm')).to.have.length(1);
-    // B: the first disarms the standing arm, the second is ONE level — the album returns to the portfolio.
     vm.handleIntent(press('back'));
-    expect(vm.stage).to.eq('album');
     vm.handleIntent(press('back'));
-    await w.vm.$nextTick();
-    expect(vm.stage).to.eq('tenders');
-    expect(w.emitted('back')).to.eq(undefined);
-    // The activation LANDED: the executed certificate reads so; the album takes the screen after the stamp's beat.
-    await w.setProps({tenders: [{...tenders[0], status: 'executed'}, tenders[1]], limit: 3, tenderSeats: 1});
-    expect(w.find('[data-tport-slot][data-tport-kind="extendedLegacy"]').attributes('data-tport-state')).to.eq('executed');
-    await new Promise((r) => setTimeout(r, 900));
-    expect(vm.stage, 'the album shows the seat the activation opened').to.eq('album');
-    expect(w.findAll('[data-carry-seat]')).to.have.length(3);
-    expect(w.find('[data-carry-seat="3"]').attributes('data-carry-seat-tender')).to.eq('yes');
+    expect(w.emitted('back'), 'B on the album (past the standing arm) closes the step').to.have.length(1);
   });
 
-  it('«Тендеры»: with nothing left to activate (executed / blocked only) the step opens on the ALBUM; B still reaches the portfolio', async () => {
-    const w = mountPicker({tenders: [
-      {instance: 'c1', id: 'extendedLegacy', status: 'executed', window: 'legacy'},
-      {instance: 'c2', id: 'openCall', status: 'held', window: 'start', blocked: 'Executed at the finale\'s start'},
-    ], limit: 3, tenderSeats: 1});
-    const vm = w.vm as unknown as {handleIntent(i: GamepadIntent): boolean, stage: string};
-    expect(vm.stage, 'nothing to do on the portfolio — the album first').to.eq('album');
-    vm.handleIntent(press('back'));
-    await w.vm.$nextTick();
-    expect(vm.stage, 'B is one level: the portfolio (a read)').to.eq('tenders');
-    expect(w.emitted('back')).to.eq(undefined);
-    vm.handleIntent(press('back'));
-    expect(w.emitted('back'), 'B on the portfolio closes the step').to.have.length(1);
-  });
+  it('«Продление программы»: the prelude band\'s place is RESERVED (locked) from the first frame — the activation changes the album\'s size by nothing; the mode previews a PRELUDE ghost seat beside the project seats', async () => {
+    const w = mountPicker({
+      tenders: [{instance: 'p1', id: 'programExtension', status: 'held', window: 'legacy'}],
+      eligiblePreludes: [CardName.ALLIED_BANK, CardName.BIOFUELS],
+    });
+    const vm = w.vm as unknown as {handleIntent(i: GamepadIntent): boolean, tenderMode?: {instance: string}};
+    expect(w.find('[data-carry-preludes]').attributes('data-carry-preludes-locked'), 'reserved, locked').to.eq('yes');
+    expect(w.findAll('[data-carry-prelude-seat]')).to.have.length(0);
+    // ↑ into a LOCKED band is refused — the album keeps the cursor.
+    vm.handleIntent(nav('up'));
+    expect((w.vm as unknown as {zone: string}).zone).to.eq('album');
+    vm.handleIntent(press('stickL'));
+    await new Promise((r) => setTimeout(r, 650));
+    vm.handleIntent(press('confirm'));
+    await new Promise((r) => setTimeout(r, 650));
+    expect(vm.tenderMode?.instance).to.eq('p1');
+    expect(w.find('[data-carry-prelude-seat="1"]').attributes('data-carry-seat-ghost')).to.eq('yes');
+    await w.setProps({tenders: [{instance: 'p1', id: 'programExtension', status: 'executed', window: 'legacy'}], preludeLimit: 1});
+    expect(w.find('[data-carry-preludes]').attributes('data-carry-preludes-locked'), 'the same band, live').to.eq(undefined);
+    expect(w.find('[data-carry-prelude-seat="1"]').attributes('data-carry-seat-ghost')).to.eq(undefined);
+    expect((w.vm as unknown as {zone: string}).zone, 'the cursor goes where the choice is').to.eq('preludes');
+  }).timeout(15_000);
 
   it('no prelude allowance (a titles campaign): no band, ↑ on the top row stays in the album', () => {
     const wrapper = mountPicker();

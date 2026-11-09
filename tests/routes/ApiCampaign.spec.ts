@@ -1,3 +1,4 @@
+import {CardName} from '../../src/common/cards/CardName';
 import {expect} from 'chai';
 import {MockRequest, MockResponse} from './HttpMocks';
 import {RouteTestScaffolding} from './RouteTestScaffolding';
@@ -109,7 +110,8 @@ describe('ApiCampaign routes', () => {
     const manager = CampaignManager.getInstance();
     const created = await manager.createCampaign(key(), campaignTestConfig(), {rewardMode: 'tenders', missionCount: 3});
     await manager.devCommit(created.id, [0, 1], {tenders: {0: ['extendedLegacy']}});
-    await manager.devCommit(created.id, [0, 1], {tenders: {}, carryoverPending: true, carryover: {0: []}});
+    // Three cards in the hand: the seat the activation opens can be FILLED (an empty hand refuses it by name — §19).
+    await manager.devCommit(created.id, [0, 1], {tenders: {}, carryoverPending: true, carryover: {0: [CardName.ALGAE, CardName.ANTS, CardName.BIRDS]}});
     const loaded = (await manager.load(created.id))!;
     loaded.missions[1].playerIds = {0: 'p-route-alice', 1: 'p-route-bruno'};
 

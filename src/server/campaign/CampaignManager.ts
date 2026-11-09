@@ -164,6 +164,10 @@ export const TENDER_LEGACY_REFUSAL = {
   startWindow: 'Executed at the finale\'s start',
   notTheFinaleStep: 'Its window is the legacy step before the finale',
   noPreludePlayed: 'You played no prelude in that mission',
+  /** «Продление программы» once every played prelude already has its place — one more copy would carry nothing. */
+  everyPreludeCarried: 'Every prelude you played already travels into the finale',
+  /** «Расширенное наследие» with no card of the hand left to fill a new seat. */
+  noCardForSeat: 'Every card of your hand already has a legacy seat',
 } as const;
 
 /**
@@ -178,8 +182,24 @@ export function legacyTenderRefusal(campaign: SerializedCampaign, seat: number, 
   if (!legacyTenderStep(campaign, sourceSlot)) {
     return TENDER_LEGACY_REFUSAL.notTheFinaleStep;
   }
-  if (holding.id === 'programExtension' && (campaign.missions[sourceSlot]?.finalPreludes?.[seat] ?? []).length === 0) {
-    return TENDER_LEGACY_REFUSAL.noPreludePlayed;
+  // AN ACTIVATION OPENS A PLACE THAT CAN BE FILLED (the owner, 2026-11-09: «третья копия активируется и ничего не
+  // даёт»): a copy past what the seat can still use is refused by name and stays held — the buyout pays for it.
+  if (holding.id === 'programExtension') {
+    const played = (campaign.missions[sourceSlot]?.finalPreludes?.[seat] ?? []).length;
+    if (played === 0) {
+      return TENDER_LEGACY_REFUSAL.noPreludePlayed;
+    }
+    if (tenderPreludeLimitOf(campaign, seat, sourceSlot) >= played) {
+      return TENDER_LEGACY_REFUSAL.everyPreludeCarried;
+    }
+  }
+  if (holding.id === 'extendedLegacy') {
+    const hand = (campaign.missions[sourceSlot]?.finalHands?.[seat] ?? []).length;
+    const state = campaign.carryover?.bySeat[seat];
+    const limit = state !== undefined ? carryoverLimitWithTenders(campaign, seat, state, sourceSlot) : 0;
+    if (hand <= limit) {
+      return TENDER_LEGACY_REFUSAL.noCardForSeat;
+    }
   }
   return undefined;
 }

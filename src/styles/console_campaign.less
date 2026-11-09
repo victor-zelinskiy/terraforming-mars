@@ -531,7 +531,59 @@
     flex: 0 0 auto;
     display: flex;
     justify-content: center;
+    align-items: center;
+    gap: 1.4rem;
     min-width: 0;
+  }
+  /* THE TENDER DOOR (§19) — the manifest's LEFT block (L3 — the left stick for the left door): the cap, the glyph and
+     either the tally or «МОЖНО ИСПОЛНИТЬ · N», the holder's certificates in miniature. A tender that executes HERE is a
+     mint KANT round the block, never a glow; the miniature of a tender standing in its mode wears the amber kant. */
+  &__door {
+    display: inline-grid;
+    grid-template-columns: auto auto;
+    grid-template-rows: auto auto;
+    column-gap: .6rem;
+    row-gap: .15rem;
+    align-items: center;
+    padding: .2rem .5rem;
+    border-radius: .4rem;
+    box-shadow: inset 0 0 0 .05rem rgba(214, 178, 106, 0.28);
+    transition: box-shadow calc(200ms * var(--motion-scale, 1)) ease;
+    &--ready { box-shadow: inset 0 0 0 .07rem fade(@con-mint, 65%); }
+  }
+  &__door-cap {
+    font-size: .62rem;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: #ecd39a;
+  }
+  &__door-line {
+    grid-column: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+  }
+  &__door-ready {
+    font-size: .54rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: @con-mint;
+  }
+  &__door-tally {
+    font-size: .58rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: rgba(236, 211, 154, 0.62);
+  }
+  &__door-row {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    display: inline-flex;
+    gap: .25rem;
+    .con-tmini { --tmini-zoom: 0.106; }
   }
   &__seats-row {
     display: inline-flex;
@@ -584,6 +636,43 @@
     font-weight: 800;
     font-variant-numeric: tabular-nums;
   }
+  /* A PRELUDE seat («Продление программы») — beside the project seats, in the prelude's own register (a steel kant and
+     its kind word); taken, it keeps the manifest's mint. */
+  &__seat--prelude {
+    outline: .05rem solid rgba(174, 185, 198, 0.45);
+    outline-offset: -.2rem;
+  }
+  &__seat-kind {
+    font-size: .56rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: rgba(174, 185, 198, 0.9);
+  }
+  /* THE GHOST (§19) — the place a standing tender's activation opens, previewed where it will stand: a dashed amber
+     kant, its number a «+». The activation turns the same node into the real seat (its key is the seat's number). */
+  &__seat--ghost {
+    background: rgba(14, 22, 33, 0.35);
+    box-shadow: none;
+    outline: .06rem dashed fade(@con-amber, 80%);
+    outline-offset: -.15rem;
+    color: fade(@con-amber, 92%);
+  }
+  /* …and the moment it becomes real: a one-shot that ends on its own (an event the player must not miss). */
+  &__seat--landed { animation: con-carry-seat-land calc(620ms * var(--motion-scale, 1)) @con-ease-settle both; }
+
+  /* A tender standing in its mode speaks on the foot: its name, then what the press opens. */
+  &__status-tender {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .7rem;
+    color: #e6edf4;
+  }
+  &__status-tender-name {
+    font-size: .78rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: fade(@con-amber, 95%);
+  }
 
   /* THE PRELUDE BAND («Продление программы») — a strip above the album: the ask and the count on its head, the played
      preludes as small faces; the cursor is the console's kant, a carried one wears the mint kant and its band. */
@@ -599,6 +688,14 @@
   }
   &__preludes--active {
     box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.4);
+  }
+  /* LOCKED — the band's place is reserved for an executable «Продление программы»: the faces stand dimmed by material
+     (opaque — a filter, never a whole-element opacity) and its head says what opens it; the tender standing in its mode
+     PREVIEWS it (the dim lifts halfway and the band takes the ghost's dashed kant). */
+  &__preludes--locked .con-carry__prelude { filter: saturate(.35) brightness(.7); }
+  &__preludes--locked.con-carry__preludes--preview {
+    box-shadow: inset 0 0 0 .06rem fade(@con-amber, 70%);
+    .con-carry__prelude { filter: saturate(.75) brightness(.9); }
   }
   &__preludes-head {
     display: flex;
@@ -731,6 +828,11 @@
 @keyframes con-carry-shade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+@keyframes con-carry-seat-land {
+  0% { transform: scale(1); box-shadow: inset 0 0 0 .06rem fade(@con-mint, 80%), 0 0 0 0 fade(@con-mint, 55%); }
+  40% { transform: scale(1.06); box-shadow: inset 0 0 0 .06rem fade(@con-mint, 80%), 0 0 0 .35rem fade(@con-mint, 0%); }
+  100% { transform: scale(1); box-shadow: inset 0 0 0 .06rem fade(@con-mint, 80%); }
 }
 @keyframes con-carry-seat-in {
   from { opacity: 0; transform: translateX(-.3rem); }
@@ -1151,16 +1253,16 @@
   }
 }
 
-/* ── THE CARRYOVER STEP's TWO LAYERS (§16.1): the PORTFOLIO stands first when the seat holds tenders, the ALBUM under it.
-   Both mounted; a layer leaves by opacity and a hair of travel, never a swap. The prelude band UNFOLDS when a
-   «Продление программы» opens it. ── */
+/* ── THE CARRYOVER STEP's TWO LAYERS (§19): the ALBUM, and the tender door's LIST over it (L3). Both mounted; the phrase
+   between them is the start's own park / unpark (the surface steps back into depth, the other surfaces from just
+   behind the glass) — driven by the picker, so no CSS animation may hold the layer's opacity (a filling animation
+   outranks the park's inline styles). ── */
 .con-carry__layer {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   min-width: 0;
-  animation: con-carry-layer-in calc(260ms * var(--motion-scale, 1)) @con-ease-enter both;
 }
 .con-carry__layer--tenders {
   justify-content: center;
@@ -1171,10 +1273,6 @@
 .con-carry__status-hint {
   color: rgba(214, 223, 233, 0.62);
 }
-@keyframes con-carry-layer-in {
-  from { opacity: 0; transform: translateY(.5rem); }
-  to { opacity: 1; transform: none; }
-}
 .con-carry-band-enter-active {
   transition: opacity calc(360ms * var(--motion-scale, 1)) @con-ease-enter, transform calc(360ms * var(--motion-scale, 1)) @con-ease-enter;
   transform-origin: 50% 0;
@@ -1184,6 +1282,5 @@
   transform: scaleY(.6) translateY(-.6rem);
 }
 @media (prefers-reduced-motion: reduce) {
-  .con-carry__layer { animation: none; }
   .con-carry-band-enter-active { transition: none; }
 }

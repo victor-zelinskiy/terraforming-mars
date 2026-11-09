@@ -26096,6 +26096,21 @@ body.con-start-ceremony {
         display: flex;
         overflow: hidden; /* the stage fits by construction — never a scroll */
     }
+    /* CAMPAIGN «ТЕНДЕРЫ» (§19): the door's LIST and the restructuring's two groups take the same flex seat as the
+       page they stand over — the page parks (GSAP), they surface from inside its zone (a one-shot keyframe on the
+       content, never on the seat: the list's slots are the certificates' measured landings). */
+    &__tenderview,
+    &__restructview {
+        display: flex;
+        overflow: hidden;
+    }
+    &__tenderview > .con-tport,
+    &__restructview > .con-restructure {
+        animation: con-legview-rise calc(260ms * var(--motion-scale, 1)) ease both;
+    }
+    &__tenderview > .con-start__tenderlist--leaving {
+        animation: con-legview-fold calc(300ms * var(--motion-scale, 1)) ease both;
+    }
 
     /* ── PINNED STATUS RAIL ─────────────────────────────────────────────
        The frame's last child (header · body[flex:1] · rail), so it sits

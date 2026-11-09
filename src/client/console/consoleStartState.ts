@@ -26,6 +26,7 @@ import {reactive} from 'vue';
 import * as constants from '@/common/constants';
 import {CAMPAIGN_MERGE_COST, campaignFinalePicksCorporation} from '@/common/campaign/CampaignTypes';
 import {CardName} from '@/common/cards/CardName';
+import {TenderId} from '@/common/campaign/tenders';
 import {Tag} from '@/common/cards/Tag';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
@@ -42,29 +43,26 @@ import {presentPlayerStatus, StatusPresentation} from '@/client/components/overv
 import {inputLocked, resetStartTransition, startTransitionActive, StartTransitionPhase} from '@/client/console/startStageDirector';
 
 /**
- * The wizard's steps. `tenders` is SYNTHETIC — the campaign «Тендеры» finale's FIRST step (the portfolio: every holding
- * of the player with what it gives here), prepended by `wizardSteps` when the selection carries tenders; it answers
- * nothing on the wire (`buildInitialCardsResponse` walks the server's options, never the steps).
+ * The wizard's steps — the server's own options, in its order. (The campaign «Тендеры» finale once prepended a
+ * synthetic PORTFOLIO step; since the door iteration (§19, the owner 2026-11-09) a tender is reached from the dock's
+ * «ТЕНДЕРЫ» block on the very page whose cards it changes — no step of its own.)
  */
-export type StartWizardStepId = 'tenders' | 'corp' | 'prelude' | 'ceo' | 'projects';
+export type StartWizardStepId = 'corp' | 'prelude' | 'ceo' | 'projects';
 
 export type StartWizardStep = {
   id: StartWizardStepId,
   input: SelectCardModel & {type: 'card'},
 };
 
-/** The synthetic TENDERS step's input: no cards, nothing to pick — complete by construction (min = max = 0). */
-export const TENDERS_STEP_INPUT = {
-  type: 'card', title: 'Tenders', buttonLabel: '', cards: [], min: 0, max: 0,
-  showOnlyInLearnerMode: false, selectBlueCardAction: false, showOwner: false, showSelectAll: false,
-} as unknown as SelectCardModel & {type: 'card'};
-
 /**
- * CAMPAIGN «ТЕНДЕРЫ» — a tender's MODE standing on a DEAL step (§16.3): a REVIEW marks the one card to keep on the
- * prelude / project step's own strip; the RESTRUCTURING picks a dealt candidate and the lineage corporation it
- * replaces on the corporation step. Module state: the scene may re-mount under the mode (a defer / a restore).
+ * CAMPAIGN «ТЕНДЕРЫ» — a tender's MODE standing on the page it changes (§16.3 · §19): a CONFIRM shows a one-press
+ * tender's effect on the page before A executes it; the EXCHANGE marks the cards to return on the prelude / project
+ * step's own strip; the RESTRUCTURING picks a dealt candidate and the lineage corporation it replaces over any page; the
+ * REQUEST names a tag on the project step. Module state: the scene may re-mount under the mode (a defer / a restore).
  */
 export type StartTenderMode =
+  /** A one-press tender («Открытый конкурс», «Широкий портфель», «Субсидия», an «Авантюра») previewed on its page. */
+  | {kind: 'confirm', instance: string, id: TenderId}
   /** «Замена»: the dealt cards marked to go back to the deck (as many fresh ones take their places). */
   | {kind: 'review', instance: string, pool: 'prelude' | 'projects', release: ReadonlyArray<CardName>}
   | {kind: 'restructure', instance: string, offer: ReadonlyArray<CardName>, take?: CardName, replace?: CardName}
@@ -647,11 +645,6 @@ export function wizardSteps(input: SelectInitialCardsModel): Array<StartWizardSt
       break;
     }
   }
-  // The «Тендеры» finale: the PORTFOLIO stands first — the tenders change the deal, so they come before the picks
-  // (the reviews that need the deal travel to their step from here, §16.2).
-  if ((input.tenders ?? []).length > 0) {
-    steps.unshift({id: 'tenders', input: TENDERS_STEP_INPUT});
-  }
   return steps;
 }
 
@@ -700,8 +693,6 @@ export type InitialCardsPicks = {
 /** The current picks for one step (single-pick steps normalize to arrays). */
 export function picksForStep(picks: InitialCardsPicks, id: StartWizardStepId): ReadonlyArray<CardName> {
   switch (id) {
-  case 'tenders':
-    return [];
   case 'corp':
     return picks.corp !== undefined ? [picks.corp] : [];
   case 'prelude':
@@ -781,7 +772,6 @@ export type StartJourneyItem = {
 };
 
 const JOURNEY_LABEL_BASE: Record<StartWizardStepId, string> = {
-  tenders: 'Tenders',
   corp: 'Corporation',
   prelude: 'Preludes',
   ceo: 'CEO',
@@ -1047,7 +1037,6 @@ export type StartCrumb = {
 };
 
 const STEP_SUBJECT: Record<StartWizardStepId, string> = {
-  tenders: 'Tenders',
   corp: 'Corporation',
   prelude: 'Preludes',
   ceo: 'CEO',
@@ -1066,7 +1055,7 @@ export function wizardCrumb(stepId: StartWizardStepId | undefined): StartCrumb {
   }
   return {
     subject: stepId === 'corp' ? startCorpStageLabel() : STEP_SUBJECT[stepId],
-    stage: stepId === 'tenders' ? 'Portfolio' : stepId === 'projects' ? 'Purchase' : 'Selection',
+    stage: stepId === 'projects' ? 'Purchase' : 'Selection',
   };
 }
 
@@ -1243,7 +1232,7 @@ export function startDockPiles(
       backs,
       collected,
     };
-  }).filter((pile) => pile.id !== 'tenders');
+  });
 }
 
 /** One OTHER player at the table, as the summary's readiness readout sees them. */

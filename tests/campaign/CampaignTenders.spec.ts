@@ -226,6 +226,16 @@ describe('the «Тендеры» reward mode', () => {
     expect(model.carryover?.yourPreludeLimit).eq(1);
     expect(model.carryover?.bySeat.find((s) => s.seat === 0)?.limit).eq(3);
     expect(manager.getModel(loaded, 'Bruno').carryover?.yourLimit, 'Bruno holds nothing').eq(2);
+    // AN ACTIVATION OPENS A PLACE THAT CAN BE FILLED: one more copy of each still has something to carry (2 played
+    // preludes, 4 cards over 3 seats) — and the copy past that is refused by name (the owner, 2026-11-09).
+    expect(legacyTenderRefusal(loaded, 0, 1, {id: 'programExtension'}), 'a second prelude is still there').is.undefined;
+    expect(legacyTenderRefusal(loaded, 0, 1, {id: 'extendedLegacy'}), 'a fourth card is still there').is.undefined;
+    const extra = (id: 'programExtension' | 'extendedLegacy', instance: string) =>
+      ({instance, id, wonAtSlot: 1, place: 1, status: 'executed' as const});
+    const saturated = {...loaded, progression: {...loaded.progression, tenders: {...loaded.progression.tenders,
+      0: [...loaded.progression.tenders![0], extra('programExtension', 'x-pe'), extra('extendedLegacy', 'x-el')]}}};
+    expect(legacyTenderRefusal(saturated, 0, 1, {id: 'programExtension'}), 'both played preludes travel already').eq(TENDER_LEGACY_REFUSAL.everyPreludeCarried);
+    expect(legacyTenderRefusal(saturated, 0, 1, {id: 'extendedLegacy'}), 'four seats for four cards').eq(TENDER_LEGACY_REFUSAL.noCardForSeat);
 
     // Four cards: refused (3 is the ceiling); two preludes: refused (one copy); a prelude not played: refused.
     expect((await failureOf(manager.submitCarryover(campaign.id, alicePid,

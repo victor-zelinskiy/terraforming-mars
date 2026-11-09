@@ -31,6 +31,8 @@ export type StartCommand = {
   highlight?: boolean,
   /** The press is a HOLD (the shared confirm gate) — the bar draws the ring. */
   hold?: boolean,
+  /** The TV fit model's drop priority (higher drops first; `defaultDropPriority` when omitted). */
+  priority?: number,
 };
 
 /** The scene facts the command contract is derived from (pure — testable). */
@@ -155,23 +157,36 @@ export type StartSceneCommandState = {
    */
   legacyOverview?: boolean,
   /**
-   * CAMPAIGN «ТЕНДЕРЫ» (the finale's start): the wizard stands on the TENDERS step — the portfolio (§16.1). A is the
-   * focused certificate's own verb («Исполнить» · «Пересмотреть» · «Сдать кандидатов»), disabled with the reason on the
-   * certificate when it cannot go; `armed` = the press asked for a second press (a gamble over live picks).
+   * CAMPAIGN «ТЕНДЕРЫ» (the finale's start) — THE DOOR (§19): the dock's «ТЕНДЕРЫ» block opens on L3 from every wizard
+   * page; `ready` = how many tenders execute on THIS page (the verb is lit and says so — «Тендеры · можно исполнить»).
    */
-  portfolio?: {verb: string, enabled: boolean, armed: boolean},
+  tenderDoor?: {ready: number},
+  /** …the door's LIST stands: A executes the focused certificate (disabled, never hidden, when it is not this page's). */
+  tenderList?: {enabled: boolean},
   /**
-   * …or a tender's MODE stands on a deal step (§16.3): a REVIEW (A keeps / lets go the focused card, RT redeals the
-   * rest, B cancels — nothing sent) or the RESTRUCTURING (A picks in either group, RT replaces once both are chosen,
-   * LT and B decline — the candidates go back).
+   * …or a tender's MODE stands on its page (§16.3 · §19): a CONFIRM (A executes the previewed effect, B cancels), an
+   * EXCHANGE (A marks / unmarks the focused card, RT exchanges, B cancels — nothing sent), the REQUEST (A names a tag,
+   * RT asks) or the RESTRUCTURING (A picks in either group, RT replaces once both are chosen, LT and B decline).
    */
-  tenderMode?: {kind: 'review' | 'restructure' | 'tag', commitLabel: string, canCommit: boolean, pickLabel: string, pickEnabled: boolean},
+  tenderMode?: {kind: 'confirm' | 'review' | 'restructure' | 'tag', commitLabel: string, canCommit: boolean, pickLabel: string, pickEnabled: boolean},
   /**
    * The press on the focused item WOULD BE REFUSED right now (`startPressRefusal` over the live signals) — the bar
    * dims A and names the wait, so a press that does nothing is never advertised.
    */
   pressBlocked?: StartPressRefusal,
 };
+
+/**
+ * THE TENDER DOOR's verb (§19): always «Тендеры» on L3; on a page where a tender executes the verb is LIT (the bar's
+ * hot glyph) while the block it opens says so in words («МОЖНО ИСПОЛНИТЬ · N» under a kant). The label stays SHORT and
+ * the lit verb drops with the step triggers, never before them: a long lit label once pushed RT «След. шаг» off the
+ * 4K bar — the one verb this page newly offers must not cost the page its own way forward.
+ */
+function tenderDoorHint(door: {ready: number}): StartCommand {
+  return door.ready > 0 ?
+    {control: 'stickL', label: 'Tenders', highlight: true, priority: 2} :
+    {control: 'stickL', label: 'Tenders'};
+}
 
 /**
  * The initial-setup command contract — ONE pure derivation for the bar.
@@ -191,6 +206,23 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
       return [
         {control: 'secondary', label: 'Inspect'},
         {control: 'back', label: 'Back'},
+      ];
+    }
+    // THE TENDER DOOR's LIST owns the bar while it stands: A executes the focused certificate of this page, X reads,
+    // B goes ONE level back to the page (L3 too — the door's own stick).
+    if (s.tenderList !== undefined) {
+      return [
+        {control: 'confirm', label: 'Execute', enabled: s.tenderList.enabled, highlight: s.tenderList.enabled},
+        {control: 'secondary', label: 'Inspect'},
+        {control: 'back', label: 'Back'},
+      ];
+    }
+    // A CONFIRM mode: the tender's effect is previewed on its page — A executes it, B cancels with nothing sent.
+    if (s.tenderMode !== undefined && s.tenderMode.kind === 'confirm') {
+      return [
+        {control: 'confirm', label: s.tenderMode.commitLabel, enabled: s.tenderMode.canCommit, highlight: s.tenderMode.canCommit},
+        {control: 'secondary', label: 'Inspect'},
+        {control: 'back', label: 'Cancel the tender'},
       ];
     }
     // A tender's MODE on a deal step owns the bar: A the pick, RT the one commit, B (and LT for the restructuring)
@@ -214,6 +246,9 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
       const hints: Array<StartCommand> = [
         {control: 'secondary', label: 'Inspect'},
       ];
+      if (s.tenderDoor !== undefined) {
+        hints.push(tenderDoorHint(s.tenderDoor));
+      }
       if (s.legacyAvailable === true) {
         hints.push({control: 'stickR', label: 'Legacy'});
       }
@@ -230,24 +265,13 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
       if (s.hasCards) {
         hints.push({control: 'secondary', label: 'Inspect'});
       }
+      if (s.tenderDoor !== undefined) {
+        hints.push(tenderDoorHint(s.tenderDoor));
+      }
       if (s.legacyAvailable === true) {
         hints.push({control: 'stickR', label: 'Legacy'});
       }
       hints.push({control: 'triggerL', label: 'Prev step'});
-      hints.push({control: 'back', label: 'Minimize'});
-      return hints;
-    }
-    // THE PORTFOLIO step (the «Тендеры» finale's first page): A is the focused certificate's own verb — disabled, never
-    // hidden, when it cannot go (the certificate names the reason); X reads it; RT moves on to the corporation.
-    if (s.portfolio !== undefined) {
-      const hints: Array<StartCommand> = [
-        {control: 'confirm', label: s.portfolio.verb, enabled: s.portfolio.enabled, highlight: s.portfolio.armed},
-        {control: 'secondary', label: 'Inspect'},
-      ];
-      if (s.legacyAvailable === true) {
-        hints.push({control: 'stickR', label: 'Legacy'});
-      }
-      hints.push({control: 'triggerR', label: 'Next step', enabled: s.stepComplete});
       hints.push({control: 'back', label: 'Minimize'});
       return hints;
     }
@@ -263,6 +287,9 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
     }
     if (s.hasCards) {
       hints.push({control: 'secondary', label: 'Inspect'});
+    }
+    if (s.tenderDoor !== undefined) {
+      hints.push(tenderDoorHint(s.tenderDoor));
     }
     if (s.legacyAvailable === true) {
       hints.push({control: 'stickR', label: 'Legacy'});

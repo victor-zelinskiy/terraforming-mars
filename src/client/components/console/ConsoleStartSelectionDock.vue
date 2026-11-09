@@ -1,5 +1,6 @@
 <template>
-  <div v-if="piles.length > 0 || lineage.length > 0 || carried.length > 0 || tenders.length > 0" class="con-startdock">
+  <div v-if="piles.length > 0 || lineage.length > 0 || carried.length > 0 || tenders.length > 0" class="con-startdock"
+       :class="{'con-startdock--plated': plated}">
     <!--
       THE SELECTION DOCK — the Game Start Workspace's preparation shelf: the
       decisions ALREADY MADE on earlier steps lie here as compact face-down
@@ -51,6 +52,41 @@
       </div>
     </div>
 
+    <!-- CAMPAIGN «ТЕНДЕРЫ» — THE TENDER DOOR (§19, the owner 2026-11-09): the holder's tenders, always in sight on the
+         shelf, LEFT of «НАСЛЕДИЕ» — so its door is the LEFT stick (L3) as the legacy's is the right one (R3). Every
+         holding is its certificate in MINIATURE (the face itself, zoomed: the tier's metal, the art, the stamp read as
+         material), one row beside the cap with the executed tally. On the page where a tender EXECUTES the block says so
+         — a kant and the words «МОЖНО ИСПОЛНИТЬ · N» (material, never a glow); L3 opens the door's list, its certificates
+         rising out of these very miniatures (`heldTenders` keeps a miniature empty while its certificate is up). A tender
+         standing in its mode is marked on its miniature (`activeTender`). -->
+    <div v-if="tenders.length > 0" class="con-startdock__legacy con-startdock__tenders"
+         :class="{'con-startdock__tenders--ready': tenderReady > 0}"
+         data-tender-dock :data-tender-dock-ready="tenderReady">
+      <span class="con-startdock__legacy-divider" aria-hidden="true"></span>
+      <div class="con-startdock__legacy-body">
+        <div class="con-startdock__legacy-head">
+          <span class="con-startdock__legacy-cap">{{ $t('Tenders') }}</span>
+          <span class="con-startdock__tenders-line">
+            <span v-if="tenderDoor" class="con-startdock__legacy-hint"><GamepadGlyph control="stickL" /></span>
+            <span v-if="tenderReady > 0" class="con-startdock__tenders-ready" data-tender-dock-ready-word>{{ readyText }}</span>
+            <span v-else class="con-startdock__tenders-tally" data-tender-dock-tally>{{ executedTenders }}/{{ tenders.length }}</span>
+          </span>
+        </div>
+        <div class="con-startdock__legacy-row">
+          <div v-for="t in tenders" :key="t.instance" class="con-tmini"
+               :class="[`con-tmini--${t.status}`, {
+                 'con-tmini--just-executed': stamped === t.instance,
+                 'con-tmini--aloft': heldTenders.includes(t.instance),
+                 'con-tmini--active': activeTender === t.instance,
+               }]"
+               :data-tender-dock-chip="t.instance" :data-tender-dock-status="t.status"
+               :aria-label="$t(tenderNameKey(t.id))">
+            <ConsoleTenderCard :id="t.id" size="table" :state="tenderCardStateOf(t.status)" />
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- CAMPAIGN missions 2+: «НАСЛЕДИЕ» — the corporations already acquired
          (the established lineage the new pick will merge into). A separate
          premium-captioned block AFTER every pile, in the SAME shelf row — it
@@ -82,29 +118,6 @@
       </div>
     </div>
 
-    <!-- CAMPAIGN «ТЕНДЕРЫ» (§16.1): the holder's tenders — the PORTFOLIO's home on the shelf — on the LINEAGE's own
-         chassis: every holding is its certificate in MINIATURE (the face itself, zoomed: the tier's metal, the art,
-         the stamp read as material), one row beside the cap with the executed tally. A column of word chips once
-         stood here and stretched the whole dock by a row per holding (the owner's frame of 2026-11-09). A card takes
-         the stamp's one-shot when its tender executes. -->
-    <div v-if="tenders.length > 0" class="con-startdock__legacy con-startdock__tenders" data-tender-dock>
-      <span class="con-startdock__legacy-divider" aria-hidden="true"></span>
-      <div class="con-startdock__legacy-body">
-        <div class="con-startdock__legacy-head">
-          <span class="con-startdock__legacy-cap">{{ $t('Tenders') }}</span>
-          <span class="con-startdock__tenders-tally" data-tender-dock-tally>{{ executedTenders }}/{{ tenders.length }}</span>
-        </div>
-        <div class="con-startdock__legacy-row">
-          <div v-for="t in tenders" :key="t.instance" class="con-tmini"
-               :class="[`con-tmini--${t.status}`, {'con-tmini--just-executed': stamped === t.instance}]"
-               :data-tender-dock-chip="t.instance" :data-tender-dock-status="t.status"
-               :aria-label="$t(tenderNameKey(t.id))">
-            <ConsoleTenderCard :id="t.id" size="table" :state="tenderCardStateOf(t.status)" />
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- CAMPAIGN «Наследие проектов»: the project cards carried over from the
          previous mission — their own block BESIDE the corporations (identity
          matters for the picks being made above: a carried project can change
@@ -128,6 +141,15 @@
         </div>
       </div>
     </div>
+
+    <!-- A TENDER'S MODE PLATE (§19): while a tender stands in its mode on the page above, the shelf's ROW is its
+         control plate — its name, what it gives in live numbers, its own small controls (the request's tags). The plate
+         lies OVER the shelf in the shelf's own box (absolute, inset 0): the dock's height never changes, so the cards of
+         the page above never move (the owner: «размер и раскладка карт не должны измениться»); the shelf's blocks step
+         back by opacity under it and return the same nodes. -->
+    <div class="con-startdock__plate" :class="{'con-startdock__plate--up': plated}" :aria-hidden="plated ? undefined : 'true'" data-tender-plate-host>
+      <slot name="plate" />
+    </div>
   </div>
 </template>
 
@@ -139,6 +161,7 @@ import ConsoleTenderCard from '@/client/components/console/campaign/ConsoleTende
 import {tenderCardStateOf} from '@/client/console/campaign/tenderPortfolio';
 import {CardName} from '@/common/cards/CardName';
 import {TenderId, TenderStatus, tenderNameKey} from '@/common/campaign/tenders';
+import {translateTextWithParams} from '@/client/directives/i18n';
 
 /** One tender on the shelf — the chip's data. */
 export type StartDockTender = {instance: string, id: TenderId, status: TenderStatus};
@@ -172,6 +195,16 @@ export default defineComponent({
     tenders: {type: Array as PropType<ReadonlyArray<StartDockTender>>, required: false, default: () => []},
     /** The chip that just took its stamp (a one-shot class). */
     stamped: {type: String, required: false, default: undefined},
+    /** The «ТЕНДЕРЫ» block is a DOOR here (L3 opens the list) — its glyph stands. */
+    tenderDoor: {type: Boolean, required: false, default: false},
+    /** How many tenders EXECUTE on the page the player stands on — > 0 lights the block («МОЖНО ИСПОЛНИТЬ · N»). */
+    tenderReady: {type: Number, required: false, default: 0},
+    /** Miniatures whose certificate is UP in the door's list (held empty — the flight home aims at them). */
+    heldTenders: {type: Array as PropType<ReadonlyArray<string>>, required: false, default: () => []},
+    /** The tender standing in its mode on the page (its miniature is marked). */
+    activeTender: {type: String, required: false, default: undefined},
+    /** A tender's mode plate covers the shelf's row (the `plate` slot). */
+    plated: {type: Boolean, required: false, default: false},
     /** Tiles whose card is physically UP in the legacy overview right now —
      *  held empty (visibility only: the tile stays the flight's measured
      *  home, and the shelf's geometry never changes). */
@@ -182,6 +215,9 @@ export default defineComponent({
     /** How many of the holdings have already executed — the dock's quiet tally beside the cap. */
     executedTenders(): number {
       return this.tenders.filter((t) => t.status === 'executed').length;
+    },
+    readyText(): string {
+      return translateTextWithParams('Can execute: ${0}', [String(this.tenderReady)]);
     },
   },
   methods: {

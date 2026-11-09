@@ -162,19 +162,14 @@ describe('consoleStartState (T5 wizard logic)', () => {
     clearStartRedealRestore();
   });
 
-  it('«Тендеры» (§16.1): a selection with tenders opens on the synthetic TENDERS step — first on the rail, complete by construction, no pile, its own crumb', () => {
+  it('«Тендеры» (§19): a selection with tenders has NO step of its own — the door is the dock block; the steps are the server ones', () => {
     const plain = input(true);
-    expect(wizardSteps(plain).map((st) => st.id), 'no tenders — no step').to.deep.eq(['corp', 'prelude', 'projects']);
+    expect(wizardSteps(plain).map((st) => st.id), 'no tenders').to.deep.eq(['corp', 'prelude', 'projects']);
     const withTenders = {...plain, tenders: [{instance: 't0', id: 'openCall', status: 'held', window: 'start'}]} as unknown as SelectInitialCardsModel;
     const steps = wizardSteps(withTenders);
-    expect(steps.map((st) => st.id)).to.deep.eq(['tenders', 'corp', 'prelude', 'projects']);
-    expect(steps[0].input.cards).to.deep.eq([]);
-    expect(stepComplete(steps[0], {corp: undefined, preludes: [], ceo: undefined, projects: []}), 'nothing to pick — RT is free').to.eq(true);
-    expect(picksForStep({corp: CardName.CREDICOR, preludes: [], ceo: undefined, projects: []}, 'tenders')).to.deep.eq([]);
-    expect(wizardCrumb('tenders')).to.deep.eq({subject: 'Tenders', stage: 'Portfolio'});
-    const piles = startDockPiles(steps, {corp: undefined, preludes: [], ceo: undefined, projects: []}, 1);
-    expect(piles.map((pile) => pile.id), 'the portfolio has no pile — its home is the dock\'s own block').to.deep.eq(['corp', 'prelude', 'projects']);
-    expect(piles[0].collected, 'the corporation step, index 1, is not yet collected while the player stands on it').to.eq(false);
+    expect(steps.map((st) => st.id), 'the tender executes on the page it changes — never before it').to.deep.eq(['corp', 'prelude', 'projects']);
+    const piles = startDockPiles(steps, {corp: undefined, preludes: [], ceo: undefined, projects: []}, 0);
+    expect(piles.map((pile) => pile.id)).to.deep.eq(['corp', 'prelude', 'projects']);
     expect(initialCardsSignature(withTenders), 'the deal identity never reads the tenders').to.eq(initialCardsSignature(plain));
   });
 

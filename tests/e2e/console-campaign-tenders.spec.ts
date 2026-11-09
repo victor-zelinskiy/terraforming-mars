@@ -3,20 +3,31 @@ import {fillPicks, openConsole, pickedCards, press, pressUntil, waitStepDealSett
 import {campaignBase, campaignModelAs, createCampaign, devCommit, launchMission, seedIdentity} from './campaignFixtures';
 import {NO_PAYMENT, titleOf} from './consoleEndgameHarness';
 
+/**
+ * The «ДВЕРЬ» iteration's NEW copy (§19), read in either language: the box's locale bundle is ONE shared copy every
+ * session syncs (`~/tm-e2e/repo/assets`), and a session on an older base re-sends its own bundle without these keys —
+ * the behaviour is witnessed by the hooks; the RU wording is the i18n audit's (`lint:i18n`) and stands in the locale.
+ */
+const NEW_COPY = {
+  canExecute: /можно исполнить|can execute/i,
+  preludeStep: /шаге прологов|prelude step/i,
+  projectStep: /шаге проектов|project step/i,
+  executeTender: /исполнить тендер|execute the tender/i,
+};
+
 /*
- * CAMPAIGN «ТЕНДЕРЫ» — THE FINALE'S START (docs/CAMPAIGN_CONCESSIONS_DESIGN.md §16): the PORTFOLIO is the wizard's
- * first step; a tender executes WHERE its effect lands (the reviews in their mode on the deal step, the restructuring
- * on the corporation step); the summary warns before the terminal press; the tenders left unexecuted are bought back
- * by the deployment's BUYOUT. A real three-mission tenders campaign fast-forwarded to its finale, Alice holding
- * four tenders granted outright by the dev fixture:
- *  · R3 opens the stage with a TENDERS zone (four certificates); the d-pad crosses the cards into it;
- *  · «Открытый конкурс» executes in ONE press: the prelude deal grows by two, the stage stands, the corporation pick
- *    made before survives the redeal;
- *  · «Замена прологов» opens an EXCHANGE step over the live deal; A marks the cards to return, RT exchanges them — the kept one stays;
- *  · «Реструктуризация» deals two candidates and opens its step; A picks a candidate and the lineage corporation it
- *    replaces; RT rewrites the lineage (the self model names it);
- *  · B returns to the page, the pick intact; the selection completes; the ceremony pre-lays the «КОМПЕНСАЦИЯ» plate
- *    for the one tender left («Субсидия»), its press pays 3 M€ and the holding reads «выкуплен».
+ * CAMPAIGN «ТЕНДЕРЫ» — THE FINALE'S START (docs/CAMPAIGN_CONCESSIONS_DESIGN.md §16 · §19): no portfolio step — the dock's
+ * «ТЕНДЕРЫ» block is the DOOR (L3) on every page, lit where a tender executes; the list puts this page's tenders first
+ * and names the page of every other; a chosen tender STANDS on its page in its mode (the crumb names it, the dock's
+ * plate reads what it gives, the deal's layout is untouched) and executes there; the summary warns before the terminal
+ * press; the tenders left unexecuted are bought back by the deployment's BUYOUT. A real three-mission tenders campaign
+ * fast-forwarded to its finale, Alice holding five tenders granted outright by the dev fixture:
+ *  · the corporation page lights ONE (the restructuring — the lineage is on the dock of every page): two candidates over
+ *    the page, a candidate and the lineage corporation it replaces, RT rewrites the lineage;
+ *  · the prelude page lights two: «Открытый конкурс» stands in its CONFIRM mode (the deal's boxes unchanged), A deals two
+ *    more; «Замена прологов» marks a card, RT exchanges it in its place;
+ *  · the project page lights two: «Целевой запрос» names a tag on the dock's plate (the deal's boxes unchanged), RT brings
+ *    three cards in; «Субсидия» is left — the summary warns, the buyout pays 3 M€ and the holding reads «выкуплен».
  */
 
 type WirePrompt = {type: string, title: string | {message: string}, options?: Array<WirePrompt>, cards?: Array<{name: string}>, min?: number, max?: number, tenders?: Array<{instance: string, id: string, status: string}>};
@@ -59,7 +70,7 @@ async function finishSelectionOverApi(request: Parameters<typeof createCampaign>
 }
 
 test.describe('campaign «Тендеры» — the finale\'s start', () => {
-  test('the PORTFOLIO step executes the start tenders where their effect lands; the summary warns; the buyout pays exactly 3 M€', async ({page, request}) => {
+  test('THE DOOR (§19): L3 opens the tenders list on the page they change — the ones of THIS page first; a tender stands in its mode ON the page (the deal\'s layout untouched), executes there; the summary warns; the buyout pays exactly 3 M€', async ({page, request}) => {
     test.setTimeout(480_000);
     // NOT test mode: it deals every seat EIGHT corporations and the finale's small deck (base + corpera + prelude, minus
     // the two lineages) is then empty by the time «Реструктуризация» asks for two — «No corporation is left to deal».
@@ -71,7 +82,7 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     });
     await launchMission(request, id);
     // Mission 2's grant is stated too: a fixture with NO `tenders` opens the real bidding and resolves it by the bot's
-    // order — seat 0 would win a fifth lot, and the portfolio below counts exactly four.
+    // order — seat 0 would win a sixth lot, and the door below counts exactly five.
     await devCommit(request, id, [0, 1], {lineages: {0: ['Ecoline', 'Mining Guild'], 1: ['Helion', 'Saturn Systems']}, tenders: {1: ['gamblePreludes']}});
     const {yourPlayerId: aliceId} = await launchMission(request, id);
     expect(aliceId).toBeTruthy();
@@ -83,68 +94,123 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await waitStepDealSettled(page);
     const bar = () => page.locator('.con-cmdbar').innerText();
     // The head's whole text carries the journey rail too (every step's name) — a STEP is witnessed by the crumb's
-    // SUBJECT segment alone; a MODE's stage word («ПЕРЕСМОТР», «РЕСТРУКТУРИЗАЦИЯ») appears nowhere else in the head.
+    // SUBJECT segment alone; a MODE names its tender in the stage segment.
     const crumb = () => page.locator('.con-wshead').innerText();
     const subject = () => page.locator('.con-wshead__subject').last().innerText();
-    const portfolio = page.locator('[data-tender-portfolio]');
+    const list = page.locator('[data-tender-portfolio]');
     const slot = (kind: string) => page.locator(`[data-tport-slot][data-tport-kind="${kind}"]`);
+    const door = page.locator('[data-tender-dock]');
+    const plate = page.locator('[data-tender-plate]');
+    /**
+     * The page's deal as LAID OUT — every slot's layout box (offset geometry: the cursor's lift is a transform on the
+     * focused card and moves with the focus, the layout does not). A mode may change NOTHING of it (the owner's law of
+     * 2026-11-09: «размер и раскладка карт не должны измениться»).
+     */
+    const layoutOf = (pool: string) => page.evaluate((p) => Array.from(document.querySelectorAll<HTMLElement>(`[data-step-slot^="${p}|"]`))
+      .map((el) => `${el.getAttribute('data-step-slot')}@${el.offsetLeft},${el.offsetTop},${el.offsetWidth}x${el.offsetHeight}`).join(' '), pool);
+    /**
+     * L3 → the list stands. ONE press, then the state: L3 is the door's TOGGLE, so a re-press while the certificates are
+     * still rising would close what the first one opened — a swallowed press is the driver's own retry (the door's
+     * motion is on the absorber ledger, `tender-door-motion`), never a second L3 from here.
+     */
+    const openDoor = async () => {
+      await press(page, 'KeyC', 600);
+      await expect(list, 'L3 opens the door').toHaveClass(/con-tport--live/, {timeout: 15_000});
+    };
 
-    // ── THE PORTFOLIO stands FIRST: four certificates, the first focused, its reading in the deal's numbers, the bar its verb. ──
-    await expect(portfolio).toBeVisible();
-    await expect(page.locator('[data-tport-slot]')).toHaveCount(5);
-    // The portfolio is ONE ROW by construction — five holdings share the row's width and every certificate stands whole
-    // inside the step's body (a wrapping row once laid them 4 + 1 and the heads of the top row were cut off above it).
-    const portfolioBoxes = await page.evaluate(() => {
-      const body = document.querySelector('.con-start__body--cards')!.getBoundingClientRect();
-      const slots = Array.from(document.querySelectorAll('[data-tport-slot]')).map((el) => el.getBoundingClientRect());
-      return {bodyTop: body.top, bodyBottom: body.bottom, tops: slots.map((r) => Math.round(r.top)),
-        top: Math.min(...slots.map((r) => r.top)), bottom: Math.max(...slots.map((r) => r.bottom))};
-    });
-    expect(new Set(portfolioBoxes.tops).size, `one row of certificates ${JSON.stringify(portfolioBoxes)}`).toBe(1);
-    expect(portfolioBoxes.top, `the row stands inside the body ${JSON.stringify(portfolioBoxes)}`).toBeGreaterThanOrEqual(portfolioBoxes.bodyTop - 1);
-    expect(portfolioBoxes.bottom, `the row stands inside the body ${JSON.stringify(portfolioBoxes)}`).toBeLessThanOrEqual(portfolioBoxes.bodyBottom + 1);
-    // The dock's «ТЕНДЕРЫ» block stands on the lineage's chassis — one row of miniature certificates, never the column
-    // of word chips that stretched the whole dock by a row per holding (the owner's frame of 2026-11-09).
+    // ── THE CORPORATION page: no portfolio step — the dock's «ТЕНДЕРЫ» block is the door, lit for the ONE tender that
+    //    executes here (the restructuring rewrites the lineage the dock carries on every page). ──
+    await expect.poll(subject, {timeout: 5_000}).toMatch(/корпорац|слияни/i);
+    await expect(list).toBeHidden();
+    await expect(page.locator('[data-tender-dock-chip]')).toHaveCount(5);
+    await expect(door).toHaveAttribute('data-tender-dock-ready', '1');
+    await expect(page.locator('[data-tender-dock-ready-word]')).toContainText(NEW_COPY.canExecute);
+    await expect(page.locator('.con-cmdbar .con-cmdbar__cmd--hot', {hasText: /тендеры/i}), 'the door verb is LIT on this page').toHaveCount(1, {timeout: 5_000});
+    await expect.poll(bar, {timeout: 5_000, message: 'the lit door never pushes the step forward off the bar'}).toMatch(/след\. шаг/i);
+    // The dock's «ТЕНДЕРЫ» block stands on the lineage's chassis — one row of miniature certificates, LEFT of «НАСЛЕДИЕ»
+    // (the left stick for the left door), never taller than the lineage block.
     const dockBoxes = await page.evaluate(() => ({
-      tenders: document.querySelector('[data-tender-dock]')?.getBoundingClientRect().height,
-      lineage: document.querySelector('.con-startdock__legacy:not(.con-startdock__tenders)')?.getBoundingClientRect().height,
+      tenders: document.querySelector('[data-tender-dock]')?.getBoundingClientRect(),
+      lineage: document.querySelector('.con-startdock__legacy:not(.con-startdock__tenders):not(.con-startdock__legacy--projects)')?.getBoundingClientRect(),
       cards: document.querySelectorAll('[data-tender-dock-chip] .con-tender').length,
     }));
     expect(dockBoxes.cards, 'every holding is a miniature certificate').toBe(5);
-    expect(dockBoxes.tenders, `the tenders block is no taller than the lineage block ${JSON.stringify(dockBoxes)}`).toBeLessThanOrEqual((dockBoxes.lineage ?? 0) * 1.15);
-    await expect.poll(subject, {timeout: 5_000}).toMatch(/тендер/i);
-    await expect(slot('openCall')).toHaveAttribute('data-tport-focused', 'yes');
-    await expect(slot('openCall')).toHaveAttribute('data-tport-state', 'ready');
+    expect(dockBoxes.tenders!.height, `the tenders block is no taller than the lineage block ${JSON.stringify(dockBoxes)}`).toBeLessThanOrEqual(dockBoxes.lineage!.height * 1.15);
+    expect(dockBoxes.tenders!.right, `the tenders block stands LEFT of «НАСЛЕДИЕ» ${JSON.stringify(dockBoxes)}`).toBeLessThanOrEqual(dockBoxes.lineage!.left + 1);
+
+    // ── L3: the LIST — the restructuring FIRST (it executes here), the others after it, each naming its page. ──
+    await openDoor();
+    await expect.poll(crumb, {timeout: 5_000}).toMatch(/тендеры/i);
+    await expect(page.locator('[data-tport-slot]')).toHaveCount(5);
+    await expect(page.locator('[data-tport-slot]').first()).toHaveAttribute('data-tport-kind', 'restructuring');
+    await expect(slot('restructuring')).toHaveAttribute('data-tport-state', 'ready');
+    await expect(slot('openCall')).toHaveAttribute('data-tport-state', 'elsewhere');
+    await expect(slot('openCall').locator('[data-tport-reason]')).toContainText(NEW_COPY.preludeStep);
+    await expect(slot('targetedRequest').locator('[data-tport-reason]')).toContainText(NEW_COPY.projectStep);
+    await page.screenshot({path: 'screenshots/tenders/door-1-corp-list.png'});
+    // ▶ to a tender of another page: A is DISABLED (never hidden) and the press changes nothing.
+    await press(page, 'ArrowRight', 250);
+    await expect(page.locator('.con-cmdbar .con-cmdbar__cmd--disabled', {hasText: /исполнить/i}), 'A of another page stands DISABLED').toHaveCount(1, {timeout: 3_000});
+    await press(page, 'ArrowLeft', 250);
+
+    // ── «Реструктуризация»: A deals two candidates over THIS page; A picks a candidate and the lineage corporation; RT
+    //    rewrites the lineage — the page surfaces back. ──
+    await press(page, 'Enter', 900);
+    await expect(page.locator('[data-tender-mode="restructure"]')).toHaveCount(1, {timeout: 15_000});
+    const offer = page.locator('[data-tender-zone="offer"] [data-tender-mode-card]');
+    await expect(offer).toHaveCount(2);
+    await expect.poll(crumb, {timeout: 5_000}).toMatch(/реструктуризац/i);
+    const take = await offer.first().getAttribute('data-tender-mode-card');
+    await press(page, 'Enter', 300);
+    await expect(offer.first()).toHaveAttribute('data-tender-mode-picked', 'yes');
+    await press(page, 'ArrowRight', 150);
+    await press(page, 'ArrowRight', 150);
+    await press(page, 'Enter', 300);
+    await expect(page.locator('[data-tender-zone="lineage"] [data-tender-mode-card="Ecoline"]')).toHaveAttribute('data-tender-mode-picked', 'yes');
+    await press(page, 'Period', 900);
+    await expect.poll(async () => (await model(request, aliceId!)).campaignLineage?.[0], {timeout: 10_000}).toBe(take);
+    await expect(page.locator('[data-tender-mode="restructure"]')).toBeHidden({timeout: 10_000});
+    await expect(page.locator('[data-tender-dock-chip][data-tender-dock-status="executed"]')).toHaveCount(1);
+    await expect(door, 'nothing else executes on the corporation page').toHaveAttribute('data-tender-dock-ready', '0');
+
+    // ── The corporation pick; RT to the preludes. ──
+    await waitStepDealSettled(page);
+    expect(await pressUntil(page, 'Enter', async () => (await pickedCards(page)).length >= 1, {tries: 8, settleMs: 900}), 'the corporation pick landed').toBe(true);
+    expect(await pressUntil(page, 'Period', async () => /пролог/i.test(await subject()), {tries: 4, settleMs: 900}), 'RT to the preludes').toBe(true);
+    await waitStepDealSettled(page);
+    await expect(door, 'the prelude page lights two').toHaveAttribute('data-tender-dock-ready', '2');
+
+    // ── «Открытый конкурс»: chosen in the list, it STANDS on the prelude page in its CONFIRM mode — the crumb names it,
+    //    the dock's plate reads «N → N+2», the deal stands exactly as it was; A executes: two preludes come in. ──
     const dealt = stepCards(await model(request, aliceId!), /prelude/i).length;
     expect(dealt, 'a prelude deal stands').toBeGreaterThanOrEqual(2);
+    const preludeLayout = await layoutOf('prelude');
+    await openDoor();
+    await expect(page.locator('[data-tport-slot]').first()).toHaveAttribute('data-tport-kind', 'openCall');
     await expect(page.locator('[data-tport-reading]')).toContainText(`${dealt} → ${dealt + 2}`);
-    await expect.poll(bar, {timeout: 5_000, message: 'A is the certificate\'s verb'}).toMatch(/исполнить/i);
-    // The dock carries the portfolio's home: five chips, all held.
-    await expect(page.locator('[data-tender-dock-chip]')).toHaveCount(5);
-
-    // ── «Открытый конкурс»: ONE press — the screen travels to the prelude step, the deal grows by two there, the chip takes its stamp. ──
     await press(page, 'Enter', 900);
-    await expect.poll(subject, {timeout: 8_000, message: 'the travel to the prelude step'}).toMatch(/пролог/i);
+    await expect(plate).toHaveAttribute('data-tender-plate-id', 'openCall', {timeout: 8_000});
+    await expect(list).toBeHidden();
+    await expect.poll(crumb, {timeout: 5_000, message: 'the crumb names the tender standing on the page'}).toMatch(/открытый конкурс/i);
+    await expect(page.locator('[data-tender-plate-reading]')).toContainText(`${dealt} → ${dealt + 2}`);
+    await expect.poll(bar, {timeout: 5_000}).toMatch(NEW_COPY.executeTender);
+    await expect.poll(() => layoutOf('prelude'), {timeout: 3_000, message: 'the mode changes NOTHING of the deal\'s layout'}).toBe(preludeLayout);
+    await page.screenshot({path: 'screenshots/tenders/door-2-open-call-mode.png'});
+    await press(page, 'Enter', 900);
     await expect.poll(async () => stepCards(await model(request, aliceId!), /prelude/i).length, {timeout: 10_000}).toBe(dealt + 2);
     await waitStepDealSettled(page);
     await expect(page.locator(`[data-step-slot^="prelude|"]`)).toHaveCount(dealt + 2);
-    await expect(page.locator('[data-tender-dock-chip][data-tender-dock-status="executed"]')).toHaveCount(1);
+    await expect(plate).toHaveCount(0);
+    await expect(page.locator('[data-tender-dock-chip][data-tender-dock-status="executed"]')).toHaveCount(2);
+    await expect.poll(crumb, {timeout: 5_000}).not.toMatch(/открытый конкурс/i);
 
-    // ── Back to the portfolio (two LT steps — each act → verify → retry: a step's first-visit deal takes a press as its
-    //    skip): the certificate reads EXECUTED; the review is next. ──
-    expect(await pressUntil(page, 'Comma', async () => /корпорац|слияни/i.test(await subject()), {tries: 4, settleMs: 900}), 'LT to the corporation step').toBe(true);
-    await waitStepDealSettled(page);
-    expect(await pressUntil(page, 'Comma', async () => await portfolio.isVisible(), {tries: 4, settleMs: 900}), 'LT to the portfolio').toBe(true);
-    await expect(slot('openCall')).toHaveAttribute('data-tport-state', 'executed');
-    await press(page, 'ArrowRight', 250);
-    await expect(slot('preludeReview')).toHaveAttribute('data-tport-focused', 'yes');
-    await expect.poll(bar, {timeout: 5_000}).toMatch(/выбрать карты на замену/i);
-
-    // ── «Замена прологов»: the EXCHANGE mode on the prelude step's own strip — A marks the focused card to return, RT
-    //    exchanges the marked: fresh preludes take THEIR places, every card not marked stays where it lay. ──
+    // ── «Замена прологов»: its EXCHANGE mode on the same strip — A marks the focused card to return, RT exchanges the
+    //    marked: fresh preludes take THEIR places, every card not marked stays where it lay. ──
+    await openDoor();
+    await expect(page.locator('[data-tport-slot]').first()).toHaveAttribute('data-tport-kind', 'preludeReview');
     await press(page, 'Enter', 900);
-    await expect.poll(subject, {timeout: 8_000, message: 'the travel to the prelude step'}).toMatch(/пролог/i);
-    await expect.poll(crumb, {timeout: 8_000, message: 'the prelude step in its exchange mode'}).toMatch(/замена/i);
+    await expect(plate).toHaveAttribute('data-tender-plate-id', 'preludeReview', {timeout: 8_000});
+    await expect.poll(crumb, {timeout: 8_000, message: 'the prelude page with the exchange standing'}).toMatch(/замена прологов/i);
     await expect.poll(bar, {timeout: 5_000}).toMatch(/заменить карту/i);
     const dealBefore = stepCards(await model(request, aliceId!), /prelude/i);
     await press(page, 'Enter', 400);
@@ -160,115 +226,58 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     }, {timeout: 10_000}).toBe('exchanged');
     await expect.poll(crumb, {timeout: 8_000, message: 'the mode ends — the page is the prelude selection again'}).not.toMatch(/замена/i);
     await waitStepDealSettled(page);
+    await expect(door, 'nothing left for the prelude page').toHaveAttribute('data-tender-dock-ready', '0');
 
-    // ── «Целевой запрос» (§18.6): A travels to the PROJECT step in its TAG mode — a row of tags over the strip; A names
-    //    the focused tag, RT asks the Committee: three cards with that tag come off the deck INTO the deal. ──
-    expect(await pressUntil(page, 'Comma', async () => /корпорац|слияни/i.test(await subject()), {tries: 4, settleMs: 900}), 'LT to the corporation step').toBe(true);
+    // ── Two preludes; RT to the projects. ──
+    await fillPicks(page, 2);
+    expect((await pickedCards(page)).length, 'two preludes picked on the live step').toBe(2);
+    expect(await pressUntil(page, 'Period', async () => /проект/i.test(await subject()), {tries: 4, settleMs: 900}), 'RT to the projects').toBe(true);
     await waitStepDealSettled(page);
-    expect(await pressUntil(page, 'Comma', async () => await portfolio.isVisible(), {tries: 4, settleMs: 900}), 'LT to the portfolio').toBe(true);
-    for (let i = 0; i < 4; i++) {
-      await press(page, 'ArrowRight', 250);
-    }
-    await expect(slot('targetedRequest')).toHaveAttribute('data-tport-focused', 'yes');
-    await expect.poll(bar, {timeout: 5_000}).toMatch(/назвать метку/i);
-    await page.screenshot({path: 'screenshots/tenders/targeted-request-1-portfolio.png'});
+    await expect(door, 'the project page lights two').toHaveAttribute('data-tender-dock-ready', '2');
+
+    // ── «Целевой запрос»: its TAG mode — the tags ride the DOCK's plate (never a row over the deal: the deal keeps its
+    //    size), each with the deck's own count; A names the focused tag, RT asks: three cards with it join the deal. ──
     const projectsBefore = stepCards(await model(request, aliceId!), /buy|project/i).length;
     expect(projectsBefore, 'the project deal stands').toBeGreaterThan(0);
+    const projectLayout = await layoutOf('projects');
+    await openDoor();
+    await press(page, 'ArrowRight', 250);
+    await expect(slot('targetedRequest')).toHaveAttribute('data-tport-focused', 'yes');
     await press(page, 'Enter', 900);
-    await expect.poll(subject, {timeout: 8_000, message: 'the travel to the project step'}).toMatch(/проект/i);
-    await expect(page.locator('[data-tender-mode="tag"]')).toHaveCount(1, {timeout: 10_000});
-    await expect.poll(crumb, {timeout: 5_000}).toMatch(/метк/i);
+    await expect(page.locator('[data-tender-plate] [data-tender-mode="tag"]')).toHaveCount(1, {timeout: 10_000});
+    await expect.poll(crumb, {timeout: 5_000}).toMatch(/целевой запрос/i);
+    await expect.poll(() => layoutOf('projects'), {timeout: 3_000, message: 'the tag mode changes NOTHING of the deal\'s layout'}).toBe(projectLayout);
     const tags = page.locator('[data-tender-mode="tag"] [data-tender-tag]');
     expect(await tags.count(), 'the printed tags of the table').toBeGreaterThanOrEqual(8);
-    // Every chip wears the deck's own number (the server's count); the focused first tag has cards to give.
     const counts = await tags.evaluateAll((els) => els.map((el) => Number(el.getAttribute('data-tender-tag-count'))));
     expect(counts.every((n) => Number.isFinite(n) && n >= 0), `server-counted tags: ${counts.join(',')}`).toBe(true);
     expect(counts[0], 'the first tag (Building) has cards to give').toBeGreaterThanOrEqual(3);
     await expect.poll(bar, {timeout: 5_000}).toMatch(/выбрать эту метку/i);
     await press(page, 'Enter', 300);
     await expect(page.locator('[data-tender-mode="tag"] [data-tender-mode-picked="yes"]')).toHaveCount(1);
-    // The row stands ABOVE the deal (in flow — a wrapped second line once covered the first row of cards), and every
-    // dealt card is WHOLE inside the step's body (the strip re-fits under the row and under a dock that grew).
-    const dealGeometry = () => page.evaluate(() => {
-      const r = (el: Element | null | undefined) => {
-        const b = el?.getBoundingClientRect();
-        return b === undefined ? undefined : {top: Math.round(b.top), bottom: Math.round(b.bottom), h: Math.round(b.height), l: Math.round(b.left), w: Math.round(b.width)};
-      };
-      const body = document.querySelector('.con-start__body--cards')!.getBoundingClientRect();
-      const row = document.querySelector('[data-tender-mode="tag"]')?.getBoundingClientRect();
-      const slotEls = Array.from(document.querySelectorAll('[data-step-slot^="projects|"]'));
-      const slots = slotEls.map((el) => el.getBoundingClientRect());
-      const strip = slotEls[0]?.parentElement ?? null;
-      return {bodyTop: body.top, bodyBottom: body.bottom, rowBottom: row?.bottom,
-        slotTop: Math.min(...slots.map((r) => r.top)), slotBottom: Math.max(...slots.map((r) => r.bottom)), slots: slots.length,
-        // the boxes the fit stands on — named in every message so a red says WHICH box lied
-        boxes: {row: r(row === undefined ? undefined : document.querySelector('[data-tender-mode="tag"]')), column: r(strip?.parentElement), strip: r(strip),
-          stripClient: strip?.clientHeight, stripScroll: strip?.scrollHeight, stripW: strip?.clientWidth, zoom: strip?.style.getPropertyValue('--con-cards-grid-zoom'),
-          maxWidth: strip?.style.maxWidth, slot0: r(slotEls[0]), slotLast: r(slotEls[slotEls.length - 1]),
-          rowSpan: Math.round(Math.max(...slots.map((b) => b.right)) - Math.min(...slots.map((b) => b.left)))}};
-    });
-    const g2 = await dealGeometry();
-    expect(g2.rowBottom, `the tag row stands above the deal, never over it ${JSON.stringify(g2)}`).toBeLessThanOrEqual(g2.slotTop + 1);
-    expect(g2.slotTop, `the deal's first row is whole under the tag row ${JSON.stringify(g2)}`).toBeGreaterThanOrEqual(g2.bodyTop - 1);
-    expect(g2.slotBottom, `the deal's last row is whole above the dock ${JSON.stringify(g2)}`).toBeLessThanOrEqual(g2.bodyBottom + 1);
     // The dealt cards WITHOUT the named tag step back (a dim), the ones that carry it stand — never all, never none.
     const dimmed = await page.locator('[data-step-slot^="projects|"].con-cards__slot--dim').count();
     expect(dimmed, 'some dealt cards lack the named tag').toBeGreaterThan(0);
-    expect(dimmed, 'the dim never takes the whole deal').toBeLessThan(g2.slots);
-    await page.screenshot({path: 'screenshots/tenders/targeted-request-2-tag-row.png'});
+    expect(dimmed, 'the dim never takes the whole deal').toBeLessThan(projectsBefore);
+    await page.screenshot({path: 'screenshots/tenders/door-3-tag-plate.png'});
     const named = await page.locator('[data-tender-mode="tag"] [data-tender-mode-picked="yes"]').getAttribute('data-tender-tag');
     await press(page, 'Period', 900);
     await expect.poll(async () => stepCards(await model(request, aliceId!), /buy|project/i).length, {timeout: 10_000, message: `three ${named} cards joined the deal`}).toBe(projectsBefore + 3);
-    await expect(page.locator('[data-tender-mode="tag"]')).toHaveCount(0, {timeout: 10_000});
+    await expect(plate).toHaveCount(0, {timeout: 10_000});
     await waitStepDealSettled(page);
     await expect(page.locator(`[data-step-slot^="projects|"]`)).toHaveCount(projectsBefore + 3);
-    await expect(page.locator('[data-tender-dock-chip][data-tender-dock-status="executed"]')).toHaveCount(3);
-    const g3 = await dealGeometry();
-    expect(g3.slots).toBe(projectsBefore + 3);
-    expect(g3.slotTop, `the grown deal's first row is whole in the body ${JSON.stringify(g3)}`).toBeGreaterThanOrEqual(g3.bodyTop - 1);
-    expect(g3.slotBottom, `the grown deal's last row is whole above the dock ${JSON.stringify(g3)}`).toBeLessThanOrEqual(g3.bodyBottom + 1);
-    expect(await page.locator('[data-step-slot^="projects|"].con-cards__slot--dim').count(), 'the dim leaves with the tag mode').toBe(0);
-    await page.screenshot({path: 'screenshots/tenders/targeted-request-3-landed.png'});
-
-    // ── «Реструктуризация»: A deals two candidates, the corporation step opens its mode by itself; A picks the candidate
-    //    and the lineage corporation; RT rewrites the lineage. ──
-    expect(await pressUntil(page, 'Comma', async () => /корпорац|слияни/i.test(await subject()), {tries: 4, settleMs: 900}), 'LT to the corporation step').toBe(true);
-    await waitStepDealSettled(page);
-    expect(await pressUntil(page, 'Comma', async () => await portfolio.isVisible(), {tries: 4, settleMs: 900}), 'LT to the portfolio').toBe(true);
-    await press(page, 'ArrowRight', 250);
-    await press(page, 'ArrowRight', 250);
-    await expect(slot('restructuring')).toHaveAttribute('data-tport-focused', 'yes');
-    await expect.poll(bar, {timeout: 5_000}).toMatch(/сдать кандидатов/i);
-    await press(page, 'Enter', 900);
-    await expect(page.locator('[data-tender-mode="restructure"]')).toHaveCount(1, {timeout: 15_000});
-    const offer = page.locator('[data-tender-zone="offer"] [data-tender-mode-card]');
-    await expect(offer).toHaveCount(2);
-    await expect.poll(crumb, {timeout: 5_000}).toMatch(/реструктуризац/i);
-    const take = await offer.first().getAttribute('data-tender-mode-card');
-    await press(page, 'Enter', 300);
-    await expect(offer.first()).toHaveAttribute('data-tender-mode-picked', 'yes');
-    await press(page, 'ArrowRight', 150);
-    await press(page, 'ArrowRight', 150);
-    await press(page, 'Enter', 300);
-    await expect(page.locator('[data-tender-zone="lineage"] [data-tender-mode-card="Ecoline"]')).toHaveAttribute('data-tender-mode-picked', 'yes');
-    await press(page, 'Period', 900);
-    await expect.poll(async () => (await model(request, aliceId!)).campaignLineage?.[0], {timeout: 10_000}).toBe(take);
-    await expect(page.locator('[data-tender-mode="restructure"]')).toHaveCount(0);
     await expect(page.locator('[data-tender-dock-chip][data-tender-dock-status="executed"]')).toHaveCount(4);
+    const grown = await page.evaluate(() => {
+      const body = document.querySelector('.con-start__body--cards')!.getBoundingClientRect();
+      const slots = Array.from(document.querySelectorAll('[data-step-slot^="projects|"]')).map((el) => el.getBoundingClientRect());
+      return {bodyTop: body.top, bodyBottom: body.bottom, top: Math.min(...slots.map((r) => r.top)), bottom: Math.max(...slots.map((r) => r.bottom))};
+    });
+    expect(grown.top, `the grown deal's first row is whole in the body ${JSON.stringify(grown)}`).toBeGreaterThanOrEqual(grown.bodyTop - 1);
+    expect(grown.bottom, `the grown deal's last row is whole above the dock ${JSON.stringify(grown)}`).toBeLessThanOrEqual(grown.bodyBottom + 1);
+    expect(await page.locator('[data-step-slot^="projects|"].con-cards__slot--dim').count(), 'the dim leaves with the tag mode').toBe(0);
+    await page.screenshot({path: 'screenshots/tenders/door-4-request-landed.png'});
 
-    // ── The corporation step is the ordinary selection again: its deal lands, the pick is made. ──
-    await waitStepDealSettled(page);
-    // The witness is the LIVE step's pick (`pickedCards` — the hidden prelude pane already holds the kept card).
-    expect(await pressUntil(page, 'Enter', async () => (await pickedCards(page)).length >= 1, {tries: 8, settleMs: 900}), 'the corporation pick landed').toBe(true);
-
-    // ── To the summary: the preludes need two picks (the kept one is one of them); the projects stay empty. ──
-    expect(await pressUntil(page, 'Period', async () => /пролог/i.test(await subject()), {tries: 4, settleMs: 900}), 'RT to the preludes').toBe(true);
-    await waitStepDealSettled(page);
-    // The kept card already stands picked — the driver's filler takes whatever is still unpicked up to the two.
-    await fillPicks(page, 2);
-    expect((await pickedCards(page)).length, 'two preludes picked on the live step').toBe(2);
-    expect(await pressUntil(page, 'Period', async () => /проект/i.test(await subject()), {tries: 4, settleMs: 900}), 'RT to the projects').toBe(true);
-    await waitStepDealSettled(page);
+    // ── To the summary: «Субсидия» left; the projects stay empty. ──
     expect(await pressUntil(page, 'Period', async () => await page.locator('.con-start__summary').isVisible(), {tries: 4, settleMs: 1200}), 'RT to the summary').toBe(true);
     await expect(page.locator('[data-summary-tenders]')).toContainText('4/5');
 

@@ -126,7 +126,8 @@ function restingRectOfEl(el: HTMLElement | null | undefined): Rect | undefined {
 /** The measurable CARD inside a slot/tile (its padding/band would misplace
  *  and mis-size a proxy against the pixels the player actually sees). */
 function cardIn(el: HTMLElement | null | undefined): HTMLElement | undefined {
-  return el?.querySelector?.<HTMLElement>(':is(.card-container, .pcard)') ?? undefined;
+  // A tender certificate (`.con-tender`) rides the same flights as a card (the door's list rises out of the dock).
+  return el?.querySelector?.<HTMLElement>(':is(.card-container, .pcard, .con-tender)') ?? undefined;
 }
 
 /** The rect of the CARD a slot/tile hosts (falling back to the slot box). */

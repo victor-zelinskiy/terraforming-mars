@@ -5,6 +5,18 @@ import {cinematicBeat, press} from './consoleStart';
 import {campaignBase, campaignModelAs, createCampaign, devCommit, launchMission, openMapAs} from './campaignFixtures';
 
 /**
+ * The «ДВЕРЬ» iteration's NEW copy (§19), read in either language: the box's locale bundle is ONE shared copy every
+ * session syncs (`~/tm-e2e/repo/assets`), and a session on an older base re-sends its own bundle without these keys —
+ * the behaviour is witnessed by the hooks; the RU wording is the i18n audit's (`lint:i18n`) and stands in the locale.
+ */
+const NEW_COPY = {
+  canExecute: /можно исполнить|can execute/i,
+  preludeStep: /шаге прологов|prelude step/i,
+  projectStep: /шаге проектов|project step/i,
+  executeTender: /исполнить тендер|execute the tender/i,
+};
+
+/**
  * «НАСЛЕДИЕ ПРОЕКТОВ» ON THE HAND ALBUM'S CHASSIS (P87 — the owner, 2026-11-01: «сделан как будто на отдельном движке,
  * слабая подача, плохо на большом количестве карт, ставить назад неудобно — надо нажимать на пустую ячейку; лимит —
  * переменная игрока»). On the standalone map (the campaign screen), at 4K:
@@ -288,7 +300,7 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     expect(after.carryover?.yourPreludes).toEqual(['Biofuels']);
   });
 
-  test('F — «Тендеры» before the finale: the PORTFOLIO stage activates the legacy tenders — the seat opens in the album, the band unfolds, the readiness warns while one is still held', async ({page, request}) => {
+  test('F — «Тендеры» before the finale (§19): the album first; L3 opens the door\'s list; a tender STANDS on the album in its mode with its GHOST place, A materializes it in place — the seat, the prelude seat and the band (reserved, nothing re-flows); the readiness warns while one is still held', async ({page, request}) => {
     test.setTimeout(240_000);
     const {id} = await createCampaign(request, {}, {rewardMode: 'tenders', missionCount: 3});
     await launchMission(request, id);
@@ -300,28 +312,59 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     expect((await campaignModelAs(request, id, 'Bruno')).carryover?.yourLimit, 'the base alone until an activation').toBe(2);
     const posts = watchCarryPosts(page);
     await openMapAs(page, id, 'Bruno');
-    await page.waitForSelector('.con-carry', {timeout: 20_000});
+    await page.waitForSelector('.con-carry .con-album', {timeout: 20_000});
     await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 30_000}).catch(() => undefined);
+    await expect.poll(() => page.locator(`${SLOT}--held`).count(), {timeout: 10_000}).toBe(0);
     const bar = () => page.locator('.con-cmdbar').innerText();
+    const head = () => page.locator('.con-carry .con-wshead').innerText();
+    const door = page.locator('.con-carry [data-carry-tender-door]');
+    const albumBox = () => page.locator('.con-carry .con-album').evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}x${Math.round(r.height)}`;
+    });
+    /** ONE press, then the state — L3 is the door's toggle (a re-press mid-phrase would close what it opened). */
+    const openDoor = async () => {
+      await press(page, 'KeyC', 600);
+      await expect(page.locator('.con-carry [data-carry-tenders-stage]'), 'L3 opens the door').toBeVisible({timeout: 15_000});
+      await expect(page.locator('.con-carry [data-tender-portfolio].con-tport--live')).toHaveCount(1);
+    };
 
-    // ── The step opens on the PORTFOLIO: two certificates, the first focused and READY, the reading in the seat's numbers. ──
-    await expect(page.locator('.con-carry [data-carry-tenders-stage]')).toBeVisible();
+    // ── The ALBUM stands first (the page the legacy tenders change); the door is lit for two; the band's place is
+    //    RESERVED (locked) — so no activation can change the album's size. ──
+    await expect(page.locator('.con-carry [data-carry-album-stage]')).toBeVisible();
+    await expect(door).toHaveAttribute('data-carry-tender-door-ready', '2');
+    await expect(page.locator('.con-cmdbar .con-cmdbar__cmd--hot', {hasText: /тендеры/i}), 'the door verb is LIT on this page').toHaveCount(1, {timeout: 5_000});
+    await expect(page.locator('.con-carry [data-carry-preludes]')).toHaveAttribute('data-carry-preludes-locked', 'yes');
+    await expect(page.locator('.con-carry [data-carry-seat]')).toHaveCount(2);
+    const album0 = await albumBox();
+    await shoot(page, 'f-01-album-door');
+
+    // ── L3: the list — both READY (they execute here); A: «Расширенное наследие» stands on the album in its MODE: the
+    //    crumb names it, the manifest shows its GHOST seat «+3», the foot reads «2 → 3». ──
+    await openDoor();
     await expect(page.locator('.con-carry [data-tport-slot]')).toHaveCount(2);
+    await expect(page.locator('.con-carry [data-tport-slot]').first()).toHaveAttribute('data-tport-kind', 'extendedLegacy');
     await expect(page.locator('.con-carry [data-tport-slot][data-tport-kind="extendedLegacy"]')).toHaveAttribute('data-tport-state', 'ready');
     await expect(page.locator('.con-carry [data-tport-reading]')).toContainText('2 → 3');
-    await expect.poll(bar, {timeout: 5_000}).toMatch(/исполнить/i);
-    await expect.poll(bar, {timeout: 5_000}).toMatch(/к наследию проектов/i);
-    await shoot(page, 'f-01-portfolio');
-
-    // ── A: the activation lands — the certificate takes the stamp, the album takes the screen with THREE seats, the third the tender's. ──
+    await shoot(page, 'f-02-list');
     await press(page, 'Enter', 900);
-    await expect(page.locator('.con-carry [data-tport-slot][data-tport-kind="extendedLegacy"]')).toHaveAttribute('data-tport-state', 'executed', {timeout: 10_000});
     await expect(page.locator('.con-carry [data-carry-album-stage]')).toBeVisible({timeout: 10_000});
-    await expect(page.locator('.con-carry [data-carry-seat]')).toHaveCount(3);
+    await expect.poll(head, {timeout: 5_000}).toMatch(/расширенное наследие/i);
+    await expect(page.locator('.con-carry [data-carry-seat="3"]')).toHaveAttribute('data-carry-seat-ghost', 'yes');
+    await expect(page.locator('.con-carry [data-carry-tender-reading]')).toContainText('2 → 3');
+    await expect.poll(bar, {timeout: 5_000}).toMatch(NEW_COPY.executeTender);
+    expect(posts.length).toBe(0);
+    await shoot(page, 'f-03-ghost-seat');
+
+    // ── A: the activation lands — the ghost IS the seat now (the same place, its tag), the server opened it. ──
+    await press(page, 'Enter', 900);
+    await expect(page.locator('.con-carry [data-carry-seat="3"]')).not.toHaveAttribute('data-carry-seat-ghost', 'yes', {timeout: 10_000});
     await expect(page.locator('.con-carry [data-carry-seat="3"]')).toHaveAttribute('data-carry-seat-tender', 'yes');
-    await expect(page.locator('.con-carry [data-carry-preludes]')).toHaveCount(0);
+    await expect(page.locator('.con-carry [data-carry-seat]')).toHaveCount(3);
     expect((await campaignModelAs(request, id, 'Bruno')).carryover?.yourLimit, 'the server opened the seat').toBe(3);
-    await shoot(page, 'f-02-seat-opened');
+    await expect.poll(head, {timeout: 5_000}).not.toMatch(/расширенное наследие/i);
+    expect(await albumBox(), 'the album\'s box never moved').toBe(album0);
+    await shoot(page, 'f-04-seat-opened');
 
     // ── The readiness RT while «Продление программы» is still held: the WARNING names it; B disarms. ──
     await press(page, 'Period', 700);
@@ -331,24 +374,30 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     await press(page, 'Escape', 500);
     await expect(page.locator('.con-carry [data-carry-tender-warning]')).toHaveCount(0);
 
-    // ── B: back to the portfolio (one level); ▶ A: the band UNFOLDS above the album with the two played preludes. ──
-    await press(page, 'Escape', 600);
-    await expect(page.locator('.con-carry [data-carry-tenders-stage]')).toBeVisible();
-    await press(page, 'ArrowRight', 300);
-    await expect(page.locator('.con-carry [data-tport-slot][data-tport-kind="programExtension"]')).toHaveAttribute('data-tport-focused', 'yes');
+    // ── «Продление программы»: its GHOST is a PRELUDE seat beside the project seats; A unlocks the reserved band in place. ──
+    await openDoor();
+    await expect(page.locator('.con-carry [data-tport-slot]').first()).toHaveAttribute('data-tport-kind', 'programExtension');
     await press(page, 'Enter', 900);
-    await expect(page.locator('.con-carry [data-tport-slot][data-tport-kind="programExtension"]')).toHaveAttribute('data-tport-state', 'executed', {timeout: 10_000});
-    await expect(page.locator('.con-carry [data-carry-album-stage]')).toBeVisible({timeout: 10_000});
+    await expect(page.locator('.con-carry [data-carry-prelude-seat="1"]')).toHaveAttribute('data-carry-seat-ghost', 'yes', {timeout: 10_000});
+    await expect.poll(head, {timeout: 5_000}).toMatch(/продление программы/i);
+    await shoot(page, 'f-05-prelude-ghost');
+    await press(page, 'Enter', 900);
+    await expect(page.locator('.con-carry [data-carry-prelude-seat="1"]')).not.toHaveAttribute('data-carry-seat-ghost', 'yes', {timeout: 10_000});
+    await expect(page.locator('.con-carry [data-carry-preludes]')).not.toHaveAttribute('data-carry-preludes-locked', 'yes');
     await expect(page.locator('.con-carry [data-carry-prelude]')).toHaveCount(2);
     await expect(page.locator('.con-carry [data-carry-prelude-count]')).toHaveText('0 / 1');
-    await shoot(page, 'f-03-band-unfolded');
+    expect(await albumBox(), 'the band was reserved — the album\'s box never moved').toBe(album0);
+    await expect(door).toHaveAttribute('data-carry-tender-door-ready', '0');
+    await shoot(page, 'f-06-band-unlocked');
 
-    // ── Keep one card, carry one prelude, RT: no warning left — ONE POST carries both. ──
+    // ── The cursor went where the choice is (the band): A carries Allied Bank (its seat takes the name); ↓ A keeps a card;
+    //    RT: no warning left — ONE POST carries both. ──
+    await press(page, 'Enter', 600);
+    await expect(page.locator('.con-carry [data-carry-prelude-count]')).toHaveText('1 / 1');
+    await expect(page.locator('.con-carry [data-carry-prelude-seat="1"]')).toHaveAttribute('data-carry-prelude-seat-card', 'Allied Bank');
+    await press(page, 'ArrowDown', 500);
     await press(page, 'Enter', 700);
     await expect(page.locator('.con-carry [data-carry-seat="1"]')).toHaveAttribute('data-carry-seat-card', HAND[0]);
-    await press(page, 'ArrowUp', 500);
-    await press(page, 'Enter', 500);
-    await expect(page.locator('.con-carry [data-carry-prelude-count]')).toHaveText('1 / 1');
     await press(page, 'Period', 900);
     await expect.poll(() => posts.length, {timeout: 10_000}).toBe(1);
     const body = JSON.parse(posts[0]) as {cards: Array<string>, preludes?: Array<string>};

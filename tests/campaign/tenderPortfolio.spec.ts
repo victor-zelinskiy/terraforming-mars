@@ -1,25 +1,27 @@
 import {expect} from 'chai';
 import {CardName} from '../../src/common/cards/CardName';
-import {TENDER_COMPENSATION_MC, TenderId, tenderWindowOf} from '../../src/common/campaign/tenders';
+import {TENDER_IDS, TenderId, tenderWindowOf} from '../../src/common/campaign/tenders';
 import {TenderInSelectionModel} from '../../src/common/models/PlayerInputModel';
 import {CarryoverTenderModel} from '../../src/common/campaign/CampaignModel';
 import {
-  StartPortfolioContext, ThresholdPortfolioContext, tenderExecutionOf, tenderModeStageKey, tenderPortfolio,
-  tenderPortfolioCounts, tenderPressResponse, tenderRestructureDecline, tenderRestructureResponse, tenderExchangeResponse,
-  tenderSpeaksAt,
+  StartPortfolioContext, ThresholdPortfolioContext, TenderStandingPage, tenderDoorList, tenderExecutionOf, tenderPageNoteKey,
+  tenderPageOf, tenderPortfolio, tenderPortfolioCounts, tenderPressResponse, tenderReadyHere, tenderRestructureDecline,
+  tenderRestructureResponse, tenderExchangeResponse, tenderSpeaksAt, tenderSpeaksOnPage,
 } from '../../src/client/console/campaign/tenderPortfolio';
 
 /*
- * CAMPAIGN «ТЕНДЕРЫ» — THE PORTFOLIO's pure half (docs/CAMPAIGN_CONCESSIONS_DESIGN.md §16): every holding on each of
- * the two places with its STATE, its VERB, its READING in live numbers and its CONFIRM; the answers on the wire.
+ * CAMPAIGN «ТЕНДЕРЫ» — THE TENDER DOOR's pure half (docs/CAMPAIGN_CONCESSIONS_DESIGN.md §16 · §19): every holding on each
+ * of the two places, with the PAGE it executes on, its STATE on the page the player stands on (ready · elsewhere ·
+ * blocked · executed · cashed), the NOTE that says why it cannot go here, the READING in live numbers; the door's order;
+ * the answers on the wire.
  */
 const held = (id: TenderId, extra: Partial<TenderInSelectionModel> = {}): TenderInSelectionModel =>
   ({instance: `t-${id}`, id, status: 'held', window: tenderWindowOf(id), ...extra});
 
-function startCtx(tenders: ReadonlyArray<TenderInSelectionModel>, extra: Partial<StartPortfolioContext> = {}): StartPortfolioContext {
+function startCtx(tenders: ReadonlyArray<TenderInSelectionModel>, page: TenderStandingPage, extra: Partial<StartPortfolioContext> = {}): StartPortfolioContext {
   return {
-    place: 'start', tenders, preludesDealt: 4, preludePick: 2, projectsDealt: 10, projectsMax: 10, cardCost: 3,
-    lineage: [CardName.ECOLINE, CardName.MINING_GUILD], corporationsDealt: 2, picksLive: false, ...extra,
+    place: 'start', tenders, page, preludesDealt: 4, preludePick: 2, projectsDealt: 10, projectsMax: 10, cardCost: 3,
+    lineage: [CardName.ECOLINE, CardName.MINING_GUILD], corporationsDealt: 2, ...extra,
   };
 }
 
@@ -30,13 +32,14 @@ function thresholdCtx(tenders: ReadonlyArray<CarryoverTenderModel>, extra: Parti
   return {place: 'threshold', tenders, limit: 2, handSize: 5, playedPreludes: 2, preludeLimit: 0, ...extra};
 }
 
-describe('tenderPortfolio — the one reader of a holding on the two places', () => {
-  it('every kind knows HOW it executes at the start: one press · a review on its deal · the restructuring · never from here', () => {
+const ALL_START: ReadonlyArray<TenderId> = [
+  'openCall', 'broadPortfolio', 'targetedRequest', 'researchSubsidy', 'preludeReview', 'projectReview',
+  'gamblePreludes', 'gambleProjects', 'gambleCorporations', 'restructuring',
+];
+
+describe('tenderPortfolio — the tender door: where each tender speaks, and why not here', () => {
+  it('every kind knows HOW it executes and on WHICH PAGE — the page whose cards it changes', () => {
     expect(tenderExecutionOf('openCall')).eq('simple');
-    expect(tenderExecutionOf('broadPortfolio')).eq('simple');
-    expect(tenderExecutionOf('researchSubsidy')).eq('simple');
-    expect(tenderExecutionOf('gamblePreludes')).eq('simple');
-    expect(tenderExecutionOf('gambleProjects')).eq('simple');
     expect(tenderExecutionOf('gambleCorporations')).eq('simple');
     expect(tenderExecutionOf('targetedRequest')).eq('choose-tag');
     expect(tenderExecutionOf('preludeReview')).eq('keep-preludes');
@@ -44,81 +47,92 @@ describe('tenderPortfolio — the one reader of a holding on the two places', ()
     expect(tenderExecutionOf('restructuring')).eq('restructure');
     expect(tenderExecutionOf('programExtension')).eq('legacy');
     expect(tenderExecutionOf('extendedLegacy')).eq('legacy');
+    const pages = Object.fromEntries(TENDER_IDS.map((id) => [id, tenderPageOf(id)]));
+    expect(pages).deep.eq({
+      programExtension: 'legacy', extendedLegacy: 'legacy',
+      openCall: 'prelude', preludeReview: 'prelude', gamblePreludes: 'prelude',
+      broadPortfolio: 'projects', researchSubsidy: 'projects', projectReview: 'projects', targetedRequest: 'projects', gambleProjects: 'projects',
+      gambleCorporations: 'corp', restructuring: 'any',
+    });
+    // «any» = every DEAL page of the start, never its summary (the lineage the restructuring rewrites is on the dock).
+    expect(tenderSpeaksOnPage('any', 'ceo')).is.true;
+    expect(tenderSpeaksOnPage('any', 'summary')).is.false;
+    expect(tenderSpeaksOnPage('prelude', 'projects')).is.false;
     expect(tenderSpeaksAt('openCall', 'start')).is.true;
-    expect(tenderSpeaksAt('openCall', 'threshold')).is.false;
     expect(tenderSpeaksAt('extendedLegacy', 'threshold')).is.true;
   });
 
-  it('THE START: each certificate\'s state, verb, the step it lands on and the reading in the deal\'s own numbers', () => {
+  it('THE OWNER\'S LAW (2026-11-09): nothing executes before its page — a prelude gamble on the CORPORATION page is «elsewhere», named', () => {
+    const corp = Object.fromEntries(tenderPortfolio(startCtx(ALL_START.map((id) => held(id)), 'corp')).map((e) => [e.id, e]));
+    expect(corp.gamblePreludes).include({state: 'elsewhere', note: 'Executes on the prelude step'});
+    expect(corp.openCall).include({state: 'elsewhere', note: 'Executes on the prelude step'});
+    expect(corp.broadPortfolio).include({state: 'elsewhere', note: 'Executes on the project step'});
+    expect(corp.gambleCorporations).include({state: 'ready'});
+    expect(corp.gambleCorporations.note).is.undefined;
+    expect(corp.restructuring).include({state: 'ready'});
+    const prelude = tenderPortfolio(startCtx(ALL_START.map((id) => held(id)), 'prelude'));
+    expect(prelude.filter((e) => e.state === 'ready').map((e) => e.id).sort())
+      .deep.eq(['gamblePreludes', 'openCall', 'preludeReview', 'restructuring']);
+    const projects = tenderPortfolio(startCtx(ALL_START.map((id) => held(id)), 'projects'));
+    expect(projects.filter((e) => e.state === 'ready').map((e) => e.id).sort())
+      .deep.eq(['broadPortfolio', 'gambleProjects', 'projectReview', 'researchSubsidy', 'restructuring', 'targetedRequest']);
+    const summary = tenderPortfolio(startCtx(ALL_START.map((id) => held(id)), 'summary'));
+    expect(tenderReadyHere(summary), 'the summary executes nothing — the list says where each goes').eq(0);
+    expect(summary.find((e) => e.id === 'restructuring')?.note).eq(tenderPageNoteKey('any'));
+  });
+
+  it('THE READINGS speak the deal\'s own numbers; the server\'s refusal outranks the page; a done one is done', () => {
     const entries = tenderPortfolio(startCtx([
-      held('openCall'), held('broadPortfolio'), held('targetedRequest'), held('researchSubsidy'),
-      held('preludeReview'), held('projectReview'), held('gamblePreludes'), held('gambleProjects'), held('gambleCorporations'), held('restructuring'),
-      held('extendedLegacy', {blocked: 'Its window was the legacy step before the finale'}),
-      held('programExtension', {status: 'executed'}),
-    ]));
+      held('openCall'), held('broadPortfolio'), held('researchSubsidy'), held('gamblePreludes'),
+      held('restructuring', {offer: [CardName.THARSIS_REPUBLIC, CardName.HELION]}),
+      held('extendedLegacy', {blocked: 'Executed at the finale\'s start'}),
+      held('projectReview', {blocked: 'Too few projects are left in the deck'}),
+      held('targetedRequest', {status: 'executed'}), held('gambleProjects', {status: 'cashed'}),
+    ], 'projects', {cardCost: 2}));
     const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
-    expect(byId.openCall).include({state: 'ready', verb: 'Execute', landsOn: 'prelude'});
     expect(byId.openCall.reading).deep.eq({key: 'Preludes in the deal: ${0} → ${1}', params: ['4', '6']});
-    expect(byId.broadPortfolio).include({state: 'ready', verb: 'Execute', landsOn: 'projects'});
     expect(byId.broadPortfolio.reading.params).deep.eq(['10', '14', '10']);
-    expect(byId.targetedRequest).include({state: 'step', verb: 'Name a tag', landsOn: 'projects'});
-    expect(byId.targetedRequest.reading).deep.eq({key: 'Name a tag: ${0} project cards with it join the deal', params: ['3']});
-    expect(byId.researchSubsidy.reading.params, 'the price after one more copy').deep.eq(['3', '2']);
-    expect(byId.preludeReview).include({state: 'step', verb: 'Choose the cards to exchange', landsOn: 'prelude'});
-    expect(byId.preludeReview.reading).deep.eq({key: 'Return any of the ${0} preludes — as many fresh ones come in their place', params: ['4']});
-    expect(byId.projectReview).include({state: 'step', verb: 'Choose the cards to exchange', landsOn: 'projects'});
-    expect(byId.gamblePreludes).include({state: 'ready', verb: 'Execute', landsOn: 'prelude'});
+    expect(byId.researchSubsidy.reading.params, 'never below the 1 M€ floor').deep.eq(['2', '1']);
     expect(byId.gamblePreludes.reading).deep.eq({key: 'Redeal all ${0} preludes', params: ['4']});
-    expect(byId.gamblePreludes.confirm, 'no live picks — no second press').is.undefined;
-    expect(byId.gambleProjects).include({state: 'ready', verb: 'Execute', landsOn: 'projects'});
-    expect(byId.gambleProjects.reading.params).deep.eq(['10']);
-    expect(byId.gambleCorporations).include({state: 'ready', verb: 'Execute', landsOn: 'corp'});
-    expect(byId.gambleCorporations.reading).deep.eq({key: 'Redeal the ${0} corporations offered', params: ['2']});
-    expect(byId.restructuring).include({state: 'step', verb: 'Deal the candidates', landsOn: 'corp'});
-    expect(byId.restructuring.reading.params).deep.eq(['2', '2']);
-    expect(byId.extendedLegacy).include({state: 'blocked', verb: '', reason: 'Its window was the legacy step before the finale'});
-    expect(byId.programExtension).include({state: 'executed', verb: ''});
-    expect(tenderPortfolioCounts(entries)).deep.eq({executed: 1, open: 10, total: 12});
-    expect(tenderModeStageKey('tag')).eq('Tag');
+    expect(byId.restructuring.reading.key).contains('choose one');
+    expect(byId.extendedLegacy).include({state: 'blocked', note: 'Executed at the finale\'s start'});
+    expect(byId.projectReview, 'its page — but the deck refuses').include({state: 'blocked', note: 'Too few projects are left in the deck'});
+    expect(byId.targetedRequest.state).eq('executed');
+    expect(byId.gambleProjects.state).eq('cashed');
+    expect(tenderPortfolioCounts(entries)).deep.eq({executed: 1, open: 5, total: 9});
   });
 
-  it('THE START: a gamble over LIVE picks asks for a second press; a dealt restructuring continues; a cashed one is done', () => {
+  it('THE DOOR\'s ORDER: the ones that execute HERE first, then elsewhere, blocked, executed, cashed — acquisition order within each', () => {
     const entries = tenderPortfolio(startCtx([
-      held('gambleProjects'), held('restructuring', {offer: [CardName.THARSIS_REPUBLIC, CardName.HELION]}), held('openCall', {status: 'cashed'}),
-      held('gambleCorporations'),
-    ], {picksLive: true}));
-    expect(entries[0].confirm?.key).contains('press again');
-    expect(entries[3].confirm?.key, 'every pool gamble asks over live picks').contains('press again');
-    expect(entries[1]).include({state: 'step', verb: 'Continue the restructuring'});
-    expect(entries[1].reading.key).contains('choose one');
-    expect(entries[2]).include({state: 'cashed', verb: ''});
+      held('gambleProjects', {status: 'cashed'}), held('openCall'), held('broadPortfolio', {status: 'executed'}),
+      held('gamblePreludes', {blocked: 'Too few preludes are left in the deck'}), held('targetedRequest'), held('preludeReview'),
+      held('researchSubsidy'),
+    ], 'projects'));
+    expect(tenderDoorList(entries).map((e) => `${e.id}:${e.state}`)).deep.eq([
+      'targetedRequest:ready', 'researchSubsidy:ready',
+      'openCall:elsewhere', 'preludeReview:elsewhere',
+      'gamblePreludes:blocked',
+      'broadPortfolio:executed',
+      'gambleProjects:cashed',
+    ]);
+    expect(tenderReadyHere(entries)).eq(2);
   });
 
-  it('THE THRESHOLD: the legacy tenders read the seat and the band in the carryover\'s numbers; the start-window ones name their window', () => {
+  it('THE THRESHOLD: the legacy tenders read the seat and the preludes in the carryover\'s numbers; the server names every refusal', () => {
     const entries = tenderPortfolio(thresholdCtx([
       carry('extendedLegacy'), carry('programExtension'),
       carry('openCall', {blocked: 'Executed at the finale\'s start'}),
-      carry('programExtension', {instance: 'c-pe-2', blocked: 'You played no prelude in that mission'}),
-    ], {limit: 2, handSize: 5, playedPreludes: 2, preludeLimit: 0}));
-    expect(entries[0]).include({state: 'ready', verb: 'Execute'});
+      carry('programExtension', {instance: 'c-pe-2', blocked: 'Every prelude you played already travels into the finale'}),
+    ], {limit: 2, handSize: 5, playedPreludes: 2, preludeLimit: 1}));
+    expect(entries[0]).include({state: 'ready', page: 'legacy'});
     expect(entries[0].reading).deep.eq({key: 'Legacy seats: ${0} → ${1} · ${2} card(s) in hand', params: ['2', '3', '5']});
-    expect(entries[0].confirm, 'five cards for three seats — no second press').is.undefined;
-    expect(entries[1].reading.params).deep.eq(['0', '1', '2']);
-    expect(entries[2]).include({state: 'blocked', reason: 'Executed at the finale\'s start'});
-    expect(entries[3]).include({state: 'blocked', reason: 'You played no prelude in that mission'});
+    expect(entries[1].reading).deep.eq({key: 'Preludes into the finale: ${0} → ${1} of the ${2} you played', params: ['1', '2', '2']});
+    expect(entries[2]).include({state: 'blocked', note: 'Executed at the finale\'s start'});
+    expect(entries[3]).include({state: 'blocked', note: 'Every prelude you played already travels into the finale'});
+    expect(tenderDoorList(entries).map((e) => e.instance)).deep.eq(['c-extendedLegacy', 'c-programExtension', 'c-openCall', 'c-pe-2']);
   });
 
-  it('THE THRESHOLD\'s fool-proof: a seat nothing can fill opens only on a second press, and the line names the compensation', () => {
-    const [two] = tenderPortfolio(thresholdCtx([carry('extendedLegacy')], {limit: 2, handSize: 2}));
-    expect(two.state).eq('ready');
-    expect(two.confirm?.params).deep.eq(['2', String(TENDER_COMPENSATION_MC)]);
-    const [none] = tenderPortfolio(thresholdCtx([carry('extendedLegacy')], {limit: 2, handSize: 0}));
-    expect(none.confirm?.params[0]).eq('0');
-    const [plenty] = tenderPortfolio(thresholdCtx([carry('extendedLegacy')], {limit: 2, handSize: 3}));
-    expect(plenty.confirm).is.undefined;
-  });
-
-  it('the answers on the wire — the one press, the review\'s returned cards, the restructuring\'s take / decline — and the modes\' stage names', () => {
+  it('the answers on the wire — the one press, the exchange\'s returned cards, the restructuring\'s take / decline', () => {
     expect(tenderPressResponse({instance: 't1', id: 'openCall'})).deep.eq({type: 'tender', instance: 't1'});
     expect(tenderPressResponse({instance: 't2', id: 'restructuring'})).deep.eq({type: 'tender', instance: 't2'});
     expect(tenderPressResponse({instance: 't2', id: 'restructuring', offer: [CardName.HELION]}), 'dealt — the mode answers, not the press').is.undefined;
@@ -126,7 +140,5 @@ describe('tenderPortfolio — the one reader of a holding on the two places', ()
     expect(tenderExchangeResponse('t3', [CardName.LOAN, CardName.DONATION])).deep.eq({type: 'tender', instance: 't3', release: [CardName.LOAN, CardName.DONATION]});
     expect(tenderRestructureResponse('t2', CardName.HELION, CardName.ECOLINE)).deep.eq({type: 'tender', instance: 't2', take: CardName.HELION, replace: CardName.ECOLINE});
     expect(tenderRestructureDecline('t2')).deep.eq({type: 'tender', instance: 't2', decline: true});
-    expect(tenderModeStageKey('review')).eq('Card exchange');
-    expect(tenderModeStageKey('restructure')).eq('Restructuring');
   });
 });

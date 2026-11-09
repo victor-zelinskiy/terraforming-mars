@@ -120,71 +120,13 @@
              (`--settled` mutes the first-visit stagger), focus and scroll
              restored by the frame watcher. The pane swap itself hides under
              the Selection Dock flights (collect on RT / return on LT). -->
-        <div v-show="mode === 'wizard' && currentStep !== undefined && !legacyViewCovers"
+        <div v-show="mode === 'wizard' && currentStep !== undefined && !legacyViewCovers && !tenderViewCovers && !restructureCovers"
              class="con-start__body con-start__body--cards con-info__scroll" ref="body"
              :data-cursor-pending="deal.state.active ? '' : undefined">
           <div v-for="(st, si) in steps" :key="st.id"
                class="con-start__steppane" v-show="railPos === si"
                :ref="(el) => setPaneRef(si, el)">
-            <!-- THE PORTFOLIO (§16.1) — the «Тендеры» finale's FIRST step: the holder's certificates in their state here,
-                 the focused one's reading under the row. The host (this scene) owns the focus and every verb. -->
-            <ConsoleTenderPortfolio v-if="st.id === 'tenders'" ref="portfolio"
-                                    :entries="portfolioEntries" :focus="railPos === si ? focusIdx : -1" place="start"
-                                    :armed="tenderConfirm" :busy="state.tenderBusy" embedded />
-            <!-- THE RESTRUCTURING (§16.3) on the corporation step: the dealt candidates and the lineage in two groups;
-                 A picks in either, RT replaces — the ordinary deal strip rests under the mode and returns with it. -->
-            <div v-else-if="st.id === 'corp' && restructureMode !== undefined" class="con-restructure" data-tender-mode="restructure">
-              <section class="con-restructure__zone" data-tender-zone="offer">
-                <div class="con-restructure__cap">{{ $t('Candidates') }}</div>
-                <div class="con-restructure__row">
-                  <div v-for="(card, i) in restructureOfferCards" :key="card.name" class="con-cards__slot con-restructure__slot"
-                       :class="{'con-cards__slot--focused': railPos === si && focusIdx === i, 'con-cards__slot--picked': restructureMode.take === card.name}"
-                       :data-zoom-slot="railPos === si ? card.name : undefined"
-                       :data-tender-mode-card="card.name" :data-tender-mode-picked="restructureMode.take === card.name ? 'yes' : undefined">
-                    <Card :card="card" :key="card.name" lightweight />
-                    <span v-if="restructureMode.take === card.name" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Taken in') }}</span>
-                  </div>
-                </div>
-              </section>
-              <section class="con-restructure__zone con-restructure__zone--lineage" data-tender-zone="lineage">
-                <div class="con-restructure__cap">{{ $t('Lineage') }}</div>
-                <div class="con-restructure__row">
-                  <div v-for="(card, i) in restructureLineageCards" :key="card.name" class="con-cards__slot con-restructure__slot"
-                       :class="{'con-cards__slot--focused': railPos === si && focusIdx === restructureOfferCards.length + i, 'con-cards__slot--keep': restructureMode.replace === card.name}"
-                       :data-zoom-slot="railPos === si ? card.name : undefined"
-                       :data-tender-mode-card="card.name" :data-tender-mode-picked="restructureMode.replace === card.name ? 'yes' : undefined">
-                    <Card :card="card" :key="card.name" lightweight />
-                    <span v-if="restructureMode.replace === card.name" class="con-cards__pickband con-cards__pickband--discard" aria-hidden="true">{{ $t('Leaves the lineage') }}</span>
-                  </div>
-                </div>
-              </section>
-            </div>
-            <div v-else class="con-cards" :class="{'con-cards--tagmode': st.id === 'projects' && tagMode !== undefined}">
-              <!-- «ЦЕЛЕВОЙ ЗАПРОС» (§18.6): the tag row stands over the project step's own strip — ◀ ▶ walk the tags,
-                   A names one, RT asks the Committee; the three cards come off the deck into the strip below. -->
-              <div v-if="st.id === 'projects' && tagMode !== undefined" class="con-tagpick" data-tender-mode="tag">
-                <!-- No cap: the crumb already reads «› МЕТКА» and the bar the verbs — a title line here was a line
-                     taken from the deal under it (the TV body has none to spare). -->
-                <div class="con-tagpick__row">
-                  <!-- Each chip wears the deck's own number (server-counted): a tag with NO card is disabled with its reason on the
-                       bar, a tag short of three shows what it has — the player decides on facts, never on a refusal after the press. -->
-                  <div v-for="(tag, i) in requestTags" :key="tag"
-                       class="con-tagpick__chip"
-                       :class="{
-                         'con-tagpick__chip--focused': railPos === si && focusIdx === i,
-                         'con-tagpick__chip--picked': tagMode.tag === tag,
-                         'con-tagpick__chip--off': requestTagCount(tag) === 0,
-                         'con-tagpick__chip--short': requestTagCount(tag) > 0 && requestTagCount(tag) < 3,
-                       }"
-                       :data-tender-tag="tag" :data-tender-tag-count="requestTagCount(tag)"
-                       :data-tender-tag-off="requestTagCount(tag) === 0 ? 'yes' : undefined"
-                       :data-tender-mode-picked="tagMode.tag === tag ? 'yes' : undefined">
-                    <i class="con-tagpick__icon" :style="tagIconStyle(tag)" aria-hidden="true"></i>
-                    <span class="con-tagpick__name">{{ tagLabel(tag) }}</span>
-                    <b class="con-tagpick__count">{{ requestTagCount(tag) }}</b>
-                  </div>
-                </div>
-              </div>
+            <div class="con-cards">
               <div class="con-cards__strip"
                    :class="{
                      'con-cards__strip--grid': st.input.cards.length > 6,
@@ -200,14 +142,15 @@
                      :data-step-slot="st.id + '|' + card.name"
                      :class="{
                        'con-cards__slot--focused': railPos === si && focusIdx === i && !(st.id === 'projects' && tagMode !== undefined),
+                       'con-cards__slot--tender': railPos === si && tenderModeLive,
                        'con-cards__slot--picked': stepPicked(st, card.name),
                        'con-cards__slot--dim': railPos === si && ((dimUnpicked && !stepPicked(st, card.name) && reviewMode === undefined) || tagFocusDims(st, card.name)),
-                       'con-cards__slot--release': railPos === si && reviewRelease.has(card.name),
+                       'con-cards__slot--release': railPos === si && stripRelease.has(card.name),
                        'con-deal-hold': (railPos === si && deal.isHeld(card.name + '#' + i)) || returningNames.has(st.id + '|' + card.name),
                      }"
                      :ref="railPos === si && focusIdx === i ? 'focusedCardSlot' : undefined">
                   <Card :card="card" :key="card.name" lightweight />
-                  <span v-if="railPos === si && reviewRelease.has(card.name)" class="con-cards__pickband con-cards__pickband--discard" aria-hidden="true" data-tender-release>{{ $t('Back to the deck') }}</span>
+                  <span v-if="railPos === si && stripRelease.has(card.name)" class="con-cards__pickband con-cards__pickband--discard" aria-hidden="true" data-tender-release>{{ $t('Back to the deck') }}</span>
                   <span v-else-if="stepPicked(st, card.name)" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
                 </div>
               </div>
@@ -221,7 +164,7 @@
              scale (cards column left, the money report + the begin CTA in
              a fixed side rail right), never a loose scrollable leftovers
              page. X browses the whole setup fullscreen. -->
-        <div v-show="summaryShown && !legacyViewCovers" class="con-start__body con-start__summary con-info__scroll"
+        <div v-show="summaryShown && !legacyViewCovers && !tenderViewCovers" class="con-start__body con-start__summary con-info__scroll"
              :class="{'con-start__summary--prewarm': summaryPrewarm}"
              :style="prewarmStyle"
              ref="summaryPane">
@@ -475,6 +418,54 @@
             <div class="con-legview__note">
               {{ $t('Carried from the previous mission') }} · {{ $t('View only') }}
             </div>
+          </div>
+        </div>
+
+        <!-- ── CAMPAIGN «ТЕНДЕРЫ»: THE DOOR's LIST (§19) ──────────────────
+             L3 from any wizard page (the dock's «ТЕНДЕРЫ» block is the door): the page PARKS on the spot (the legacy
+             overview's own phrase), this layer takes the same body slot and the certificates RISE out of the dock's
+             miniatures into the list — the ones that execute on THIS page first, then the others with their reason.
+             A on a certificate of this page hands the screen BACK to the page (the certificates fly home, the page
+             surfaces as it was — same cards, same size) and the tender stands there in its MODE; B / L3 return with
+             nothing done. -->
+        <div v-show="tenderViewCovers" class="con-start__body con-start__tenderview" ref="tenderPane">
+          <ConsoleTenderPortfolio ref="portfolio" class="con-start__tenderlist"
+                                  :class="{'con-start__tenderlist--leaving': tenderView.phase === 'leaving'}"
+                                  :entries="doorEntries" :focus="tenderView.phase === 'open' ? tenderView.focus : -1"
+                                  place="start" :busy="state.tenderBusy" :held-names="tenderListHeld"
+                                  :live="tenderView.phase === 'open'" embedded />
+        </div>
+
+        <!-- ── CAMPAIGN «ТЕНДЕРЫ»: THE RESTRUCTURING (§16.3 · §19) ─────────
+             The lineage the dock carries on EVERY page is what it rewrites, so it stands over whichever page the player
+             chose it on: the page parks, the dealt candidates and the lineage stand in two groups; A picks in either, RT
+             replaces, B / LT decline (the candidates go back) and the page surfaces as it was. -->
+        <div v-show="restructureCovers" class="con-start__body con-start__restructview" ref="restructPane">
+          <div v-if="restructureMode !== undefined" class="con-restructure" data-tender-mode="restructure">
+            <section class="con-restructure__zone" data-tender-zone="offer">
+              <div class="con-restructure__cap">{{ $t('Candidates') }}</div>
+              <div class="con-restructure__row">
+                <div v-for="(card, i) in restructureOfferCards" :key="card.name" class="con-cards__slot con-restructure__slot"
+                     :class="{'con-cards__slot--focused': focusIdx === i, 'con-cards__slot--picked': restructureMode.take === card.name}"
+                     :data-zoom-slot="card.name"
+                     :data-tender-mode-card="card.name" :data-tender-mode-picked="restructureMode.take === card.name ? 'yes' : undefined">
+                  <Card :card="card" :key="card.name" lightweight />
+                  <span v-if="restructureMode.take === card.name" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Taken in') }}</span>
+                </div>
+              </div>
+            </section>
+            <section class="con-restructure__zone con-restructure__zone--lineage" data-tender-zone="lineage">
+              <div class="con-restructure__cap">{{ $t('Lineage') }}</div>
+              <div class="con-restructure__row">
+                <div v-for="(card, i) in restructureLineageCards" :key="card.name" class="con-cards__slot con-restructure__slot"
+                     :class="{'con-cards__slot--focused': focusIdx === restructureOfferCards.length + i, 'con-cards__slot--keep': restructureMode.replace === card.name}"
+                     :data-zoom-slot="card.name" :data-restruct-lineage="card.name"
+                     :data-tender-mode-card="card.name" :data-tender-mode-picked="restructureMode.replace === card.name ? 'yes' : undefined">
+                  <Card :card="card" :key="card.name" lightweight />
+                  <span v-if="restructureMode.replace === card.name" class="con-cards__pickband con-cards__pickband--discard" aria-hidden="true">{{ $t('Leaves the lineage') }}</span>
+                </div>
+              </div>
+            </section>
           </div>
         </div>
 
@@ -1161,7 +1152,7 @@
                focus-commit does: the box stays — nothing above it may move —
                while the payload speaks about a card that is not on stage.) -->
           <div class="con-start__status-inner"
-               :class="{'con-start__status-inner--held': !railCommitted || legacyStageOwnsScreen}">
+               :class="{'con-start__status-inner--held': !railCommitted || legacyStageOwnsScreen || tenderViewOwnsScreen || restructureCovers}">
             <!-- THE FOCUSED CARD'S AVAILABILITY — the SAME block the draft
                  workspace pins under its spread (ConsoleCardAvailabilityPanel,
                  compact) built by the SAME shared model in the SAME DRAFT
@@ -1225,8 +1216,46 @@
                                    :lineage-hint="legacyOverviewAvailable"
                                    :tenders="dockTenders"
                                    :stamped="dockStamped"
+                                   :tender-door="tenderDoorAvailable"
+                                   :tender-ready="tenderReadyCount"
+                                   :held-tenders="tenderDockHeld"
+                                   :active-tender="state.tenderMode?.instance"
+                                   :plated="tenderPlate !== undefined"
                                    :held-names="legacyDockHeld"
-                                   @inspect-lineage="openLegacyOverview($event)" />
+                                   @inspect-lineage="openLegacyOverview($event)">
+          <!-- A TENDER'S MODE PLATE (§19): the standing tender's identity, what it gives in live numbers, the request's
+               tags — on the shelf's row, never a row over the deal (the deal's size and layout stay the player's). -->
+          <template #plate>
+            <div v-if="tenderPlate !== undefined" class="con-tplate" data-tender-plate
+                 :data-tender-plate-kind="tenderPlate.kind" :data-tender-plate-id="tenderPlate.id">
+              <div class="con-tmini con-tmini--active"><ConsoleTenderCard :id="tenderPlate.id" size="table" state="held" /></div>
+              <div class="con-tplate__id">
+                <span class="con-tplate__cap">{{ $t('Tender') }}</span>
+                <span class="con-tplate__name">{{ $t(tenderNameOf(tenderPlate.id)) }}</span>
+              </div>
+              <span class="con-tplate__divider" aria-hidden="true"></span>
+              <div v-if="tagMode !== undefined" class="con-tplate__tags" data-tender-mode="tag">
+                <!-- Each medallion wears the deck's own number (server-counted): a tag with NO card is disabled with its
+                     reason on the bar, a tag short of three shows what it has. The focused one's NAME is the plate's line. -->
+                <div v-for="(tag, i) in requestTags" :key="tag"
+                     class="con-tagpick__chip con-tagpick__chip--plate"
+                     :class="{
+                       'con-tagpick__chip--focused': focusIdx === i,
+                       'con-tagpick__chip--picked': tagMode.tag === tag,
+                       'con-tagpick__chip--off': requestTagCount(tag) === 0,
+                       'con-tagpick__chip--short': requestTagCount(tag) > 0 && requestTagCount(tag) < 3,
+                     }"
+                     :data-tender-tag="tag" :data-tender-tag-count="requestTagCount(tag)"
+                     :data-tender-tag-off="requestTagCount(tag) === 0 ? 'yes' : undefined"
+                     :data-tender-mode-picked="tagMode.tag === tag ? 'yes' : undefined">
+                  <i class="con-tagpick__icon" :style="tagIconStyle(tag)" aria-hidden="true"></i>
+                  <b class="con-tagpick__count">{{ requestTagCountText(tag) }}</b>
+                </div>
+              </div>
+              <span class="con-tplate__reading" :class="{'con-tplate__reading--busy': state.tenderBusy !== undefined}" data-tender-plate-reading>{{ tenderPlate.reading }}</span>
+            </div>
+          </template>
+        </ConsoleStartSelectionDock>
 
         <!-- The command contract lives in the shell's command bar ONLY
              (footHints → setConsoleStartCommands). The old inline footer
@@ -1441,17 +1470,18 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {StartQueueFxLane, StartQueueReading, startQueueFxLane, startQueueLayout, startQueueReading} from '@/client/console/startQueueLayout';
 import ConsoleTenderPortfolio from '@/client/components/console/campaign/ConsoleTenderPortfolio.vue';
 import ConsoleTenderChip from '@/client/components/console/campaign/ConsoleTenderChip.vue';
+import ConsoleTenderCard from '@/client/components/console/campaign/ConsoleTenderCard.vue';
 import {
-  StartPortfolioContext, TenderPortfolioEntry, tenderExecutionOf, tenderModeStageKey, tenderPortfolio, tenderPortfolioCounts,
-  tenderCardStateOf, tenderPortfolioName, tenderPressResponse, tenderRestructureDecline, tenderRestructureResponse, tenderExchangeResponse,
-  tenderTagResponse,
+  StartPortfolioContext, TenderPortfolioEntry, TenderStandingPage, tenderDoorList, tenderExecutionOf, tenderPageOf, tenderPortfolio,
+  tenderPortfolioCounts, tenderReadyHere, tenderCardStateOf, tenderPortfolioName, tenderPressResponse, tenderRestructureDecline,
+  tenderRestructureResponse, tenderExchangeResponse, tenderTagResponse,
 } from '@/client/console/campaign/tenderPortfolio';
 import {ALL_TAGS, Tag} from '@/common/cards/Tag';
 import {tagIconStyle} from '@/client/components/premiumCard/premiumCardIcons';
 import {tagLabel} from '@/client/cards/tagLabel';
 import {tenderZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {TenderResponse} from '@/common/inputs/InputResponse';
-import {TENDER_COMPENSATION_MC, TenderId, isGambleTender} from '@/common/campaign/tenders';
+import {TENDER_COMPENSATION_MC, TENDER_TARGETED_REQUEST_CARDS, TenderId, isGambleTender} from '@/common/campaign/tenders';
 import {candidateOutlook} from '@/client/console/deckPick/preludePick';
 import {readingText} from '@/client/console/readingText';
 import {nearestInDirection, rowFitZoom, gridFitPlan} from '@/client/console/consoleStartNav';
@@ -1607,11 +1637,13 @@ const START_PRESS_ABSORBER = 'start-press-refusal';
  *  arrival, the commit round trip, the materialization) is a DELIBERATE swallow — noted, so a driver retries once the
  *  motion lets go instead of reading a screen that never saw the press (the e2e flake class ①, 2026-11-08). */
 const START_FLOW_ABSORBER = 'start-flow-motion';
+/** CAMPAIGN «ТЕНДЕРЫ» (§19): the door's list is moving (rise / fly home) or a tender's answer is on the wire. */
+const TENDER_DOOR_ABSORBER = 'tender-door-motion';
 
 export default defineComponent({
   name: 'ConsoleStartScene',
   directives: {embedZone: vEmbedZone},
-  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip, ConsoleForecastRow, ConsoleForecastLayer, ConsolePreludeVariantStep, ConsoleTenderPortfolio, ConsoleTenderChip},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip, ConsoleForecastRow, ConsoleForecastLayer, ConsolePreludeVariantStep, ConsoleTenderPortfolio, ConsoleTenderChip, ConsoleTenderCard},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
@@ -1649,6 +1681,7 @@ export default defineComponent({
       /** The input-absorb ledger's registration of the press-refusal gate (`inputAbsorb.ts`). */
       absorbOff: undefined as (() => void) | undefined,
       flowAbsorbOff: undefined as (() => void) | undefined,
+      tenderAbsorbOff: undefined as (() => void) | undefined,
       /**
        * The prelude the player COMMITTED knowing its effect would not happen.
        * Latched (not derived): by the time the beat is shown the card has left
@@ -1768,9 +1801,23 @@ export default defineComponent({
        *  returns to the exact page (picks/focus untouched by construction:
        *  the pages are parked v-show layers and this never writes them). */
       legacyView: {phase: 'closed' as LegacyViewPhase, focus: 0},
-      /** CAMPAIGN «ТЕНДЕРЫ» (§16): the certificate whose press asked for a SECOND press (a gamble over live picks). */
-      tenderConfirm: undefined as string | undefined,
-      /** X on the portfolio: the focused certificate read in full. */
+      /**
+       * CAMPAIGN «ТЕНДЕРЫ» — THE DOOR's LIST (§19): L3 from any wizard page parks the page and stands the holder's
+       * certificates over it (the legacy overview's phrase); `tenderListHeld` = list slots whose certificate is still in
+       * the air, `tenderDockHeld` = dock miniatures whose certificate is up.
+       */
+      tenderView: {phase: 'closed' as LegacyViewPhase, focus: 0},
+      tenderListHeld: [] as Array<string>,
+      tenderDockHeld: [] as Array<string>,
+      tenderRise: undefined as RiseConvoy | undefined,
+      tenderFlight: undefined as CapturedFlight | undefined,
+      tenderPageRestored: false,
+      tenderRestoreTimer: undefined as number | undefined,
+      /** The page's cursor before a mode took the d-pad (the request's tags, the restructuring's groups) — given back. */
+      tagFocusReturn: 0,
+      restructFocusReturn: 0,
+      /** THE GLIDE: where every standing card of a deal about to grow stood (FLIP's «first»). */
+      dealGlide: undefined as Map<string, DOMRect> | undefined,
       /** The summary's TERMINAL WARNING stands: start-window tenders still held — the next press begins anyway. */
       armedTenders: false,
       /** A simple tender's answer is on the wire and its effect lands on `step` — the landing is told there. */
@@ -2030,8 +2077,14 @@ export default defineComponent({
           return {subject: page.subject, stage: 'Legacy'};
         }
         // A tender's MODE on a deal step is the page's tail — «… › ПРОЛОГИ › ПЕРЕСМОТР», «… › КОРПОРАЦИЯ › РЕСТРУКТУРИЗАЦИЯ».
-        if (this.state.tenderMode !== undefined && this.currentStep !== undefined && this.currentStep.id !== 'tenders') {
-          return {subject: page.subject, stage: tenderModeStageKey(this.state.tenderMode.kind)};
+        // THE DOOR's list is a tail of the page it was opened from — «… › ПРОЛОГИ › ТЕНДЕРЫ».
+        if (this.tenderViewOwnsScreen) {
+          return {subject: page.subject, stage: 'Tenders'};
+        }
+        // A tender's MODE on its page names the TENDER — «СТАРТ ПАРТИИ › ПРОЛОГИ › ОТКРЫТЫЙ КОНКУРС»: the player sees which
+        // tender they are executing, on the page it changes.
+        if (this.tenderModeLive && this.tenderModeEntry !== undefined) {
+          return {subject: page.subject, stage: tenderPortfolioName(this.tenderModeEntry.id)};
         }
         return page;
       }
@@ -4128,12 +4181,15 @@ export default defineComponent({
     legacyOverviewCorpCount(): number {
       return this.lineageDock.length;
     },
-    // ── CAMPAIGN «ТЕНДЕРЫ» — THE PORTFOLIO (§16.1) and a tender's MODE on a deal step (§16.3) ──
-    /** The wizard stands on the TENDERS step. */
-    tendersStepCurrent(): boolean {
-      return this.mode === 'wizard' && this.currentStep?.id === 'tenders';
+    // ── CAMPAIGN «ТЕНДЕРЫ» — THE DOOR (§19) and a tender's MODE on its page (§16.3 · §19) ──
+    /** The page the player stands on — what decides which tenders execute HERE. */
+    tenderStandingPage(): TenderStandingPage {
+      if (this.mode !== 'wizard' || this.onSummary || this.currentStep === undefined) {
+        return 'summary';
+      }
+      return this.currentStep.id;
     },
-    /** The portfolio's context — the live deal, the picks' ceilings, the price, the lineage (what each tender changes). */
+    /** The portfolio's context — the page, the live deal, the picks' ceilings, the price, the lineage. */
     portfolioContext(): StartPortfolioContext | undefined {
       const input = this.wizardInput;
       if (input === undefined || (input.tenders ?? []).length === 0) {
@@ -4145,6 +4201,7 @@ export default defineComponent({
       return {
         place: 'start',
         tenders: input.tenders ?? [],
+        page: this.tenderStandingPage,
         preludesDealt: prelude?.cards.length ?? 0,
         preludePick: prelude?.max ?? 0,
         projectsDealt: projects?.cards.length ?? 0,
@@ -4152,51 +4209,106 @@ export default defineComponent({
         cardCost: this.preview?.cardCost ?? 0,
         lineage: this.campaignLineage,
         corporationsDealt: stepOf('corp')?.cards.length ?? 0,
-        picksLive: this.state.corp !== undefined || this.state.preludes.length > 0 || this.state.projects.length > 0,
       };
     },
+    /** Every holding in ACQUISITION order (the dock's stable row, the summary). */
     portfolioEntries(): ReadonlyArray<TenderPortfolioEntry> {
       const ctx = this.portfolioContext;
       return ctx === undefined ? [] : tenderPortfolio(ctx);
     },
+    /** …in the DOOR's order: the ones that execute on this page first, then the others with their reason. */
+    doorEntries(): ReadonlyArray<TenderPortfolioEntry> {
+      return tenderDoorList(this.portfolioEntries);
+    },
     portfolioCounts(): {executed: number, open: number, total: number} {
       return tenderPortfolioCounts(this.portfolioEntries);
     },
-    focusedPortfolioEntry(): TenderPortfolioEntry | undefined {
-      return this.tendersStepCurrent ? this.portfolioEntries[this.focusIdx] : undefined;
+    /** The dock's «ТЕНДЕРЫ» block is a door on every wizard page (the summary included — the list says where each goes). */
+    tenderDoorAvailable(): boolean {
+      return this.mode === 'wizard' && this.portfolioEntries.length > 0;
     },
-    /** The bar's facts on the portfolio step: the focused certificate's verb, disabled with its reason on the face. */
-    portfolioFacts(): {verb: string, enabled: boolean, armed: boolean} | undefined {
-      if (!this.tendersStepCurrent) {
+    /** How many tenders execute on THIS page — the door lights only then (never while a mode already stands). */
+    tenderReadyCount(): number {
+      if (!this.tenderDoorAvailable || this.state.tenderMode !== undefined) {
+        return 0;
+      }
+      return tenderReadyHere(this.portfolioEntries);
+    },
+    /** The door's phrase is running or a tender's answer is on the wire — a press now is absorbed, and SAID so (the ledger). */
+    tenderDoorMoving(): boolean {
+      const p = this.tenderView.phase;
+      return p === 'fading' || p === 'entering' || p === 'leaving' || this.state.tenderBusy !== undefined || this.state.restructureOpening !== undefined;
+    },
+    /** The door's list exists (any phase past closed) — input routes to it. */
+    tenderViewOn(): boolean {
+      return this.tenderView.phase !== 'closed';
+    },
+    /** …and owns the screen (the crumb's tail, the bar) — the page surfaced back = the list let go. */
+    tenderViewOwnsScreen(): boolean {
+      return this.tenderViewOn && !this.tenderPageRestored;
+    },
+    /** …and covers the body (the parked page is v-show-hidden through the open). */
+    tenderViewCovers(): boolean {
+      const p = this.tenderView.phase;
+      return p === 'entering' || p === 'open' || (p === 'leaving' && !this.tenderPageRestored);
+    },
+    /** The focused certificate of the open list. */
+    focusedDoorEntry(): TenderPortfolioEntry | undefined {
+      return this.tenderView.phase === 'open' ? this.doorEntries[this.tenderView.focus] : undefined;
+    },
+    /** The bar's facts while the list stands: A executes the focused certificate — disabled, never hidden, elsewhere. */
+    tenderListFacts(): {enabled: boolean} | undefined {
+      if (!this.tenderViewOwnsScreen) {
         return undefined;
       }
-      const e = this.focusedPortfolioEntry;
-      if (e === undefined) {
-        return {verb: 'Execute', enabled: false, armed: false};
-      }
-      const live = (e.state === 'ready' || e.state === 'step') && this.state.tenderBusy === undefined;
-      return {verb: e.verb !== '' ? e.verb : 'Execute', enabled: live, armed: this.tenderConfirm === e.instance};
+      const e = this.focusedDoorEntry;
+      return {enabled: e !== undefined && e.state === 'ready' && this.state.tenderBusy === undefined};
     },
     /** The start-window tenders still executable when the player would leave the selection — the terminal warning's list. */
     openStartTenders(): ReadonlyArray<TenderPortfolioEntry> {
-      return this.portfolioEntries.filter((e) => e.state === 'ready' || e.state === 'step');
+      return this.portfolioEntries.filter((e) => e.state === 'ready' || e.state === 'elsewhere');
     },
     tenderWarningText(): string {
       const names = this.openStartTenders.map((e) => translateText(tenderPortfolioName(e.id))).join(' · ');
       return translateTextWithParams('Unexecuted: ${0}', [names]) + ' — ' +
         translateTextWithParams('Unexecuted tenders are bought back for ${0} M€ each after the start — press again to begin anyway', [String(TENDER_COMPENSATION_MC)]);
     },
-    /** The dock's «ТЕНДЕРЫ» block — the portfolio's home on the shelf. */
+    /** The dock's «ТЕНДЕРЫ» block — every holding in acquisition order. */
     dockTenders(): ReadonlyArray<{instance: string, id: TenderId, status: 'held' | 'executed' | 'cashed'}> {
       return this.portfolioEntries.map((e) => ({instance: e.instance, id: e.id, status: e.status}));
+    },
+    /** The standing mode's certificate (its live entry — the reading in this page's numbers). */
+    tenderModeEntry(): TenderPortfolioEntry | undefined {
+      const mode = this.state.tenderMode;
+      return mode === undefined ? undefined : this.portfolioEntries.find((e) => e.instance === mode.instance);
+    },
+    /** A mode stands on the page the player sees (never under the list or the legacy overview). */
+    tenderModeLive(): boolean {
+      return this.mode === 'wizard' && this.state.tenderMode !== undefined && !this.tenderViewOwnsScreen && !this.legacyStageOwnsScreen;
+    },
+    /** A CONFIRM mode — a previewed effect standing on its page until A executes it. */
+    confirmMode(): Extract<StartTenderMode, {kind: 'confirm'}> | undefined {
+      const mode = this.state.tenderMode;
+      return mode !== undefined && mode.kind === 'confirm' ? mode : undefined;
     },
     reviewMode(): Extract<StartTenderMode, {kind: 'review'}> | undefined {
       const mode = this.state.tenderMode;
       return mode !== undefined && mode.kind === 'review' && this.currentStep?.id === mode.pool ? mode : undefined;
     },
-    /** The cards the standing exchange returns to the deck (their band on the deal strip). */
-    reviewRelease(): ReadonlySet<CardName> {
-      return new Set(this.reviewMode?.release ?? []);
+    /**
+     * The cards the standing mode sends back to the deck — their band on the deal strip: the exchange's marked cards,
+     * or EVERY card of the page under a gamble's confirm (what «пересдать всё» means, seen before the press).
+     */
+    stripRelease(): ReadonlySet<CardName> {
+      const review = this.reviewMode;
+      if (review !== undefined) {
+        return new Set(review.release);
+      }
+      const confirm = this.confirmMode;
+      if (confirm !== undefined && isGambleTender(confirm.id) && tenderPageOf(confirm.id) === this.currentStep?.id) {
+        return new Set(this.stepEntries.map((c) => c.name));
+      }
+      return new Set();
     },
     /** The most cards the exchange may return — what its pool's deck can still give (the server's `deckLeft`). */
     reviewDeckLeft(): number {
@@ -4208,14 +4320,14 @@ export default defineComponent({
       const mode = this.state.tenderMode;
       return mode !== undefined && mode.kind === 'restructure' ? mode : undefined;
     },
-    /** «Целевой запрос»'s mode — the tag row over the project step's strip. */
+    /** The restructuring's layer covers the page (the page is parked under it). */
+    restructureCovers(): boolean {
+      return this.mode === 'wizard' && this.restructureMode !== undefined && !this.tenderViewCovers && !this.legacyViewCovers;
+    },
+    /** «Целевой запрос»'s mode — the tag medallions on the dock's plate. */
     tagMode(): Extract<StartTenderMode, {kind: 'tag'}> | undefined {
       const mode = this.state.tenderMode;
       return mode !== undefined && mode.kind === 'tag' ? mode : undefined;
-    },
-    /** The tag row stands in the project step's column (a geometry fact — the strip's fit watches it). */
-    tagRowUp(): boolean {
-      return this.tagMode !== undefined && this.currentStep?.id === 'projects';
     },
     /** The deck's numbers the held request was served with (`tagCounts` — the server's; absent = unknown, treated as open). */
     requestTagCounts(): Partial<Record<Tag, number>> {
@@ -4246,22 +4358,64 @@ export default defineComponent({
     restructureLineageCards(): ReadonlyArray<CardModel> {
       return this.restructureMode === undefined ? [] : this.campaignLineage.map((name) => ({name}) as CardModel);
     },
-    /** What the d-pad walks on the current wizard page: the certificates · the restructuring's two groups · the deal. */
+    /** What the d-pad walks on the current wizard page: the request's tags · the restructuring's two groups · the deal. */
     wizardFocusCount(): number {
-      if (this.tendersStepCurrent) {
-        return this.portfolioEntries.length;
-      }
       if (this.tagMode !== undefined && this.currentStep?.id === 'projects') {
         return this.requestTags.length;
       }
-      if (this.restructureMode !== undefined && this.currentStep?.id === 'corp') {
+      if (this.restructureMode !== undefined) {
         return this.restructureOfferCards.length + this.restructureLineageCards.length;
       }
       return this.stepEntries.length;
     },
-    /** The bar's facts while a tender's mode stands on a deal step. */
-    tenderModeFacts(): {kind: 'review' | 'restructure' | 'tag', commitLabel: string, canCommit: boolean, pickLabel: string, pickEnabled: boolean} | undefined {
+    /**
+     * THE PLATE's facts (§19) — the standing tender on the shelf's row: its identity and WHAT THE PRESS WILL DO, in this
+     * page's live numbers (a confirm's effect, the exchange's tally, the request's focused tag, the busy word).
+     */
+    tenderPlate(): {kind: StartTenderMode['kind'], id: TenderId, reading: string} | undefined {
+      const mode = this.state.tenderMode;
+      const entry = this.tenderModeEntry;
+      if (mode === undefined || entry === undefined || !this.tenderModeLive) {
+        return undefined;
+      }
+      const read = (key: string, params: ReadonlyArray<string>) => readingText({label: key, params: [...params]});
+      if (this.state.tenderBusy !== undefined) {
+        return {kind: mode.kind, id: entry.id, reading: translateText('Executing…')};
+      }
+      switch (mode.kind) {
+      case 'review': {
+        const n = mode.release.length;
+        return {kind: mode.kind, id: entry.id, reading: n === 0 ?
+          read('Mark the cards to return — as many fresh ones come in their place', []) :
+          read('Returning ${0} card(s) — as many fresh ones come in their place', [String(n)])};
+      }
+      case 'tag': {
+        const focused = this.requestTags[this.focusIdx];
+        const named = mode.tag;
+        if (named !== undefined) {
+          return {kind: mode.kind, id: entry.id, reading: read('Tag named: ${0} — ${1} project cards with it join the deal', [tagLabel(named), String(Math.min(TENDER_TARGETED_REQUEST_CARDS, this.requestTagCount(named)))])};
+        }
+        if (focused !== undefined) {
+          const count = this.requestTagCount(focused);
+          return {kind: mode.kind, id: entry.id, reading: count === Number.POSITIVE_INFINITY ?
+            tagLabel(focused) :
+            read('${0}: ${1} in the deck', [tagLabel(focused), String(count)])};
+        }
+        return {kind: mode.kind, id: entry.id, reading: read(entry.reading.key, entry.reading.params)};
+      }
+      default:
+        return {kind: mode.kind, id: entry.id, reading: read(entry.reading.key, entry.reading.params)};
+      }
+    },
+    /** The bar's facts while a tender's mode stands on its page. */
+    tenderModeFacts(): {kind: 'confirm' | 'review' | 'restructure' | 'tag', commitLabel: string, canCommit: boolean, pickLabel: string, pickEnabled: boolean} | undefined {
+      if (!this.tenderModeLive) {
+        return undefined;
+      }
       const busy = this.state.tenderBusy !== undefined;
+      if (this.confirmMode !== undefined) {
+        return {kind: 'confirm', commitLabel: 'Execute the tender', canCommit: !busy, pickLabel: '', pickEnabled: false};
+      }
       const tagMode = this.tagMode;
       if (tagMode !== undefined && this.currentStep?.id === 'projects') {
         const focused = this.requestTags[this.focusIdx];
@@ -4280,7 +4434,7 @@ export default defineComponent({
           pickEnabled: focused !== undefined && !busy && !full};
       }
       const mode = this.restructureMode;
-      if (mode !== undefined && this.currentStep?.id === 'corp') {
+      if (mode !== undefined) {
         const offerN = this.restructureOfferCards.length;
         const inOffer = this.focusIdx < offerN;
         const focused = inOffer ? this.restructureOfferCards[this.focusIdx]?.name : this.restructureLineageCards[this.focusIdx - offerN]?.name;
@@ -4759,7 +4913,9 @@ export default defineComponent({
         riskHold: this.riskStage !== undefined,
         legacyAvailable: this.legacyOverviewAvailable,
         legacyOverview: this.legacyView.phase === 'open',
-        portfolio: this.portfolioFacts,
+        tenderDoor: this.tenderDoorAvailable && !this.tenderViewOn && !this.legacyViewOn && this.state.tenderMode === undefined ?
+          {ready: this.tenderReadyCount} : undefined,
+        tenderList: this.tenderListFacts,
         tenderMode: this.tenderModeFacts,
       });
     },
@@ -4908,7 +5064,6 @@ export default defineComponent({
           // tender lets go; a restructuring whose candidates just arrived opens its step on the stage.
           restoreStartPicksAfterRedeal(input);
           this.state.tenderBusy = undefined;
-          this.tenderConfirm = undefined;
           const tenders = input.tenders ?? [];
           // A redeal replaced cards whose departure held their slots: the holds of cards no longer dealt let go.
           const live = new Set(this.steps.flatMap((st) => st.input.cards.map((c) => `${st.id}|${c.name}`)));
@@ -4917,7 +5072,7 @@ export default defineComponent({
               this.returningNames.delete(key);
             }
           }
-          // THE RESTRUCTURING's candidates arrived: the corporation step opens its mode (the travel is the step's own phrase).
+          // THE RESTRUCTURING's candidates arrived: its layer stands over the page the player chose it on.
           if (openingBefore !== undefined) {
             const entry = tenders.find((t) => t.instance === openingBefore);
             this.state.restructureOpening = undefined;
@@ -4930,9 +5085,13 @@ export default defineComponent({
           const mode = modeBefore;
           if (mode !== undefined && !tenders.some((t) => t.instance === mode.instance && t.status === 'held')) {
             this.state.tenderMode = undefined;
-            // The mode's cursor walked ITS rows (the restructuring's two groups); the step's own strip is back — the
-            // cursor lands on its first card, never past its end (A would then pick nothing).
-            this.focusIdx = 0;
+            // The mode's cursor walked ITS rows (the request's tags, the restructuring's two groups) — the page's own
+            // cursor comes back; a confirm / an exchange walked the page itself and keeps it (clamped to the deal).
+            if (mode.kind === 'restructure') {
+              this.leaveRestructureLayer();
+            } else if (mode.kind === 'tag') {
+              this.focusIdx = this.tagFocusReturn;
+            }
             if (mode.kind === 'review' && mode.release.length > 0) {
               // The returned cards are gone from the deal — a pick that stood on one of them goes with it.
               const picks = picksForStep(this.picks, mode.pool);
@@ -5018,14 +5177,16 @@ export default defineComponent({
     wizardGrid() {
       void this.$nextTick(() => this.fitCardStrip());
     },
-    /** The tag row entering / leaving the column changes the strip's box — re-fit once it has laid out. */
-    tagRowUp() {
-      void this.$nextTick(() => this.fitCardStrip());
-    },
     /** A deal that GREW in place (a tender's +3 / +4, a redeal) re-fits before its new cards launch (`prepareDeal`
      *  waits 260 ms for exactly this — the measured destinations are the fitted ones). */
     'stepEntries.length'() {
-      void this.$nextTick(() => this.fitCardStrip());
+      void this.$nextTick(() => {
+        this.fitCardStrip();
+        // THE GLIDE (§19): the standing cards move to the places the fit gave them as one calm motion — never a jump.
+        if (this.dealGlide !== undefined) {
+          requestAnimationFrame(() => this.playDealGlide());
+        }
+      });
     },
     /** The rail's height is FIXED (the shared card-status token — the
      *  availability block is one row now), so this watch is only a settle
@@ -5168,6 +5329,9 @@ export default defineComponent({
         // materialization measures the frame.
         if (now !== 'wizard' && this.legacyView.phase !== 'closed') {
           this.settleLegacyClosed(true);
+        }
+        if (now !== 'wizard' && this.tenderView.phase !== 'closed') {
+          this.settleTenderViewClosed(true);
         }
         if (now === 'ceremony' && was === 'wizard' &&
             (this.state.flow === 'committing' || this.sentAwaiting)) {
@@ -5563,6 +5727,7 @@ export default defineComponent({
     // Every button, the d-pad too (`handleIntent` returns on ANY intent while the director moves) — a deal in flight is the
     // skip's, not a swallow.
     this.flowAbsorbOff = registerInputAbsorber(START_FLOW_ABSORBER, () => startFlowBusy() && !this.deal.state.active, {scope: 'all'});
+    this.tenderAbsorbOff = registerInputAbsorber(TENDER_DOOR_ABSORBER, () => this.tenderDoorMoving, {scope: 'all'});
     this.$nextTick(() => this.observeQueueBox());
     // THE START IS A REACTOR'S PLACE (PL-1098 — TR84 Titan Holdings answers its OWN play): a corporation the ceremony
     // carries (the queue → the shelf «РАЗЫГРАНО» → the seat «Источник») may be in no painted place at the very moment its
@@ -5767,6 +5932,7 @@ export default defineComponent({
   beforeUnmount() {
     this.absorbOff?.();
     this.flowAbsorbOff?.();
+    this.tenderAbsorbOff?.();
     queueBoxObserver?.disconnect();
     queueBoxObserver = undefined;
     queueBoxObserved = undefined;
@@ -5820,6 +5986,7 @@ export default defineComponent({
     // at the page the player descended from — it must not come back at the
     // park's alpha 0).
     this.settleLegacyClosed(true);
+    this.settleTenderViewClosed(true);
     this.stopLegacyResize?.();
     this.stopStripObs?.();
     this.stopBodyObs?.();
@@ -6539,10 +6706,26 @@ export default defineComponent({
         this.handleLegacyViewIntent(intent);
         return;
       }
+      // THE TENDER DOOR's list owns every intent while it exists (§19): ◀ ▶ walk, A executes a certificate of this page,
+      // X inspects, B / L3 return — its own motion beats absorb everything.
+      if (this.tenderViewOn) {
+        this.handleTenderViewIntent(intent);
+        return;
+      }
+      // L3 — the tender door, on EVERY wizard page (the dock's «ТЕНДЕРЫ» block stands left of «НАСЛЕДИЕ»: left stick for
+      // the left door, as R3 is the legacy's). A standing mode keeps the stick (its press would leave a half-made choice).
+      if (intent.kind === 'press' && intent.button === 'stickL' && this.tenderDoorAvailable) {
+        if (this.state.tenderMode === undefined && !this.tenderDoorMoving) {
+          this.openTenderView();
+        } else if (this.tenderDoorMoving) {
+          noteInputAbsorbed(TENDER_DOOR_ABSORBER);
+        }
+        return;
+      }
       // R3 — the legacy-overview door, on EVERY wizard page (the corp step
       // through the summary, the sent-and-awaiting summary included).
       if (intent.kind === 'press' && intent.button === 'stickR' &&
-          this.legacyOverviewAvailable) {
+          this.legacyOverviewAvailable && this.state.tenderMode === undefined) {
         this.openLegacyOverview();
         return;
       }
@@ -6613,8 +6796,8 @@ export default defineComponent({
         window.clearTimeout(this.dealLaunchTimer);
         this.dealLaunchTimer = undefined;
       }
-      if (this.mode === 'wizard' && this.currentStep?.id === 'corp' && this.restructureMode !== undefined) {
-        return; // the strip rests under the restructuring's two groups — the deal plays once the mode ends
+      if (this.restructureCovers || this.tenderViewCovers) {
+        return; // the page is parked under a tender's layer — its deal plays once the page is back (`stepEntries.length`)
       }
       const cards = this.dealCards;
       const allNames = cards.map((c) => c.name);
@@ -6747,7 +6930,6 @@ export default defineComponent({
       if (next !== this.focusIdx) {
         this.focusIdx = next;
         this.armedSkip = false; this.armedTenders = false;
-        this.tenderConfirm = undefined;
         this.clearRiskStage();
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
@@ -6967,7 +7149,7 @@ export default defineComponent({
       // Everything else is deliberately absorbed: the pages underneath must
       // not move while the player reads their legacy.
     },
-    // ── CAMPAIGN «ТЕНДЕРЫ» — THE PORTFOLIO's press, the travel to the step, the modes (§16.2–16.3) ──
+    // ── CAMPAIGN «ТЕНДЕРЫ» — THE DOOR's list, a tender's MODE on its page, the commit's scenes (§19) ──
     /** ONE door for every tender answer: the picks are armed to survive the redeal, the instance goes busy. */
     submitTender(response: TenderResponse): void {
       armStartRedealRestore();
@@ -6975,33 +7157,190 @@ export default defineComponent({
       this.$emit('submit', response);
     },
     /**
-     * A on the portfolio: a blocked / done certificate nudges; a certificate with a CONFIRM asks for its second press;
-     * a review travels to its deal step and opens the mode; the restructuring asks the server for its candidates (the
-     * answer opens the mode on the corporation step); a simple kind travels to the step its effect lands on and sends.
+     * L3 / a click on the dock's «ТЕНДЕРЫ» block: the DOOR opens. The phrase is the legacy overview's own: the page
+     * PARKS on the spot, the list takes the page's exact flex seat, and the certificates RISE out of the dock's
+     * miniatures (the ONE take/carry/lay core). The cursor lands on the first certificate of THIS page (the list's head).
      */
-    pressPortfolio(): void {
-      const entry = this.focusedPortfolioEntry;
-      if (entry === undefined || this.state.tenderBusy !== undefined || this.dockBusy || startFlowBusy()) {
+    openTenderView(): void {
+      if (!this.tenderDoorAvailable || this.tenderView.phase !== 'closed' || this.state.tenderMode !== undefined) {
         return;
       }
-      if (entry.state !== 'ready' && entry.state !== 'step') {
+      this.tenderView.focus = 0;
+      this.tenderListHeld = this.doorEntries.map((e) => e.instance);
+      this.tenderView.phase = 'fading';
+      void parkSurface(this.legacyPageEl() ?? null, 1)
+        .then(() => void this.enterTenderView());
+    },
+    async enterTenderView(): Promise<void> {
+      if (this.tenderView.phase !== 'fading') {
+        return;
+      }
+      this.tenderView.phase = 'entering';
+      await this.$nextTick();
+      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      if (this.tenderView.phase !== 'entering') {
+        return; // torn down mid-beat
+      }
+      const root = this.sceneRoot();
+      const pairs = this.doorEntries
+        .map((e) => ({
+          name: e.instance as CardName,
+          fromEl: root?.querySelector<HTMLElement>(`[data-tender-dock-chip="${e.instance}"]`) ?? null,
+          toEl: root?.querySelector<HTMLElement>(`[data-tport-slot="${e.instance}"]`) ?? null,
+        }))
+        .filter((p): p is {name: CardName, fromEl: HTMLElement, toEl: HTMLElement} => p.fromEl !== null && p.toEl !== null);
+      const convoy = riseToSeats(pairs,
+        (n) => {
+          this.tenderListHeld = this.tenderListHeld.filter((x) => x !== n);
+        },
+        (n) => {
+          if (!this.tenderDockHeld.includes(n)) {
+            this.tenderDockHeld = [...this.tenderDockHeld, n];
+          }
+        });
+      this.tenderRise = convoy;
+      await convoy.settled;
+      this.tenderRise = undefined;
+      if (this.tenderView.phase === 'entering') {
+        this.tenderListHeld = [];
+        this.tenderDockHeld = this.doorEntries.map((e) => e.instance);
+        this.tenderView.phase = 'open';
+      }
+    },
+    /**
+     * B / L3 from the list — the exact mirror: the certificates fly home into their miniatures, the page surfaces back
+     * under the convoy (the same table the player left — same cards, same size, picks untouched). Resolves when the
+     * last certificate has landed; `then` runs once the PAGE is the one on screen (a chosen tender's mode stands there).
+     */
+    async closeTenderView(then?: () => void): Promise<void> {
+      if (this.tenderView.phase !== 'open') {
+        return;
+      }
+      const root = this.sceneRoot();
+      const miniOf = (n: CardName) => root?.querySelector<HTMLElement>(`[data-tender-dock-chip="${n}"]`) ?? null;
+      const sources: Array<DockFlightSource> = [];
+      for (const e of this.doorEntries) {
+        const el = root?.querySelector<HTMLElement>(`[data-tport-slot="${e.instance}"]`);
+        if (el instanceof HTMLElement) {
+          sources.push({name: e.instance as CardName, el});
+        }
+      }
+      const flight = captureCards(sources);
+      this.tenderFlight = flight;
+      this.tenderListHeld = this.doorEntries.map((e) => e.instance);
+      this.tenderView.phase = 'leaving';
+      await flight.impulse();
+      if (this.tenderView.phase !== 'leaving') {
+        flight.dispose();
+        this.tenderFlight = undefined;
+        return;
+      }
+      window.clearTimeout(this.tenderRestoreTimer);
+      this.tenderRestoreTimer = window.setTimeout(() => {
+        this.tenderRestoreTimer = undefined;
+        if (this.tenderView.phase === 'leaving') {
+          this.tenderPageRestored = true;
+          then?.();
+          then = undefined;
+          void this.$nextTick().then(() => void unparkSurface(this.legacyPageEl() ?? null, 1));
+        }
+      }, motionMs(320));
+      await flight.flyTo(miniOf,
+        (n) => {
+          this.tenderDockHeld = this.tenderDockHeld.filter((held) => held !== n);
+        },
+        {reseat: false, pressElFor: miniOf});
+      this.tenderFlight = undefined;
+      if (this.tenderView.phase === 'leaving') {
+        this.settleTenderViewClosed();
+        then?.();
+      }
+    },
+    /** The list is gone, the page is back. Also the teardown target (mode flip / unmount): no holds, no proxies left. */
+    settleTenderViewClosed(teardown = false): void {
+      window.clearTimeout(this.tenderRestoreTimer);
+      this.tenderRestoreTimer = undefined;
+      this.tenderRise?.dispose();
+      this.tenderRise = undefined;
+      this.tenderFlight?.dispose();
+      this.tenderFlight = undefined;
+      this.tenderDockHeld = [];
+      this.tenderListHeld = [];
+      const wasUp = this.tenderView.phase !== 'closed';
+      const pageBack = this.tenderPageRestored;
+      this.tenderView.phase = 'closed';
+      this.tenderPageRestored = false;
+      if (teardown || !wasUp) {
+        clearSurfaceParking(this.$refs.body instanceof HTMLElement ? this.$refs.body : null);
+        clearSurfaceParking(this.$refs.summaryPane instanceof HTMLElement ? this.$refs.summaryPane : null);
+        return;
+      }
+      if (!pageBack) {
+        void this.$nextTick().then(() => void unparkSurface(this.legacyPageEl() ?? null, 1));
+      }
+    },
+    /** The list's whole input surface: ◀ ▶ walk, A executes a certificate of this page, X inspects, B / L3 return. */
+    handleTenderViewIntent(intent: GamepadIntent): void {
+      if (this.tenderView.phase !== 'open') {
+        noteInputAbsorbed(TENDER_DOOR_ABSORBER);
+        return; // a motion beat — absorb (no double-open, no mid-flight tear)
+      }
+      if (intent.kind === 'nav') {
+        const count = this.doorEntries.length;
+        if (count === 0) {
+          return;
+        }
+        const step = intent.dir === 'right' || intent.dir === 'down' ? 1 : -1;
+        this.tenderView.focus = Math.min(count - 1, Math.max(0, this.tenderView.focus + step));
+        return;
+      }
+      if (intent.kind !== 'press') {
+        return;
+      }
+      if (intent.button === 'stickL' || intent.button === 'back') {
+        void this.closeTenderView();
+        return;
+      }
+      if (intent.button === 'secondary') {
+        this.openPortfolioZoom();
+        return;
+      }
+      if (intent.button === 'confirm') {
+        this.chooseDoorEntry();
+      }
+    },
+    /**
+     * A on a certificate in the list: one of THIS page goes home with its siblings and stands on the page in its MODE
+     * (the page is the one the player chose it on — no travel, no new surface); any other names why on the bar (the
+     * press is refused with a nudge, never silently).
+     */
+    chooseDoorEntry(): void {
+      const entry = this.focusedDoorEntry;
+      if (entry === undefined || this.state.tenderBusy !== undefined) {
+        return;
+      }
+      if (entry.state !== 'ready') {
         this.blockedNudge++;
         return;
       }
-      if (entry.confirm !== undefined && this.tenderConfirm !== entry.instance) {
-        this.tenderConfirm = entry.instance;
+      void this.closeTenderView(() => this.enterTenderMode(entry));
+    },
+    /** The tender stands on its page: a CONFIRM of the previewed effect · the exchange · the request's tags · the restructuring. */
+    enterTenderMode(entry: TenderPortfolioEntry): void {
+      if (this.state.tenderMode !== undefined) {
         return;
       }
-      this.tenderConfirm = undefined;
       switch (tenderExecutionOf(entry.id)) {
       case 'keep-preludes':
-        void this.enterReviewMode(entry.instance, 'prelude');
+        this.state.tenderMode = {kind: 'review', instance: entry.instance, pool: 'prelude', release: []};
         return;
       case 'keep-projects':
-        void this.enterReviewMode(entry.instance, 'projects');
+        this.state.tenderMode = {kind: 'review', instance: entry.instance, pool: 'projects', release: []};
         return;
       case 'choose-tag':
-        void this.enterTagMode(entry.instance);
+        this.state.tenderMode = {kind: 'tag', instance: entry.instance};
+        this.tagFocusReturn = this.focusIdx;
+        this.focusIdx = 0;
         return;
       case 'restructure': {
         const live = (this.wizardInput?.tenders ?? []).find((t) => t.instance === entry.instance);
@@ -7009,83 +7348,39 @@ export default defineComponent({
           void this.openRestructureMode(entry.instance, live.offer);
           return;
         }
+        // The candidates are dealt by the server first — the answer opens the layer over this very page.
         this.state.restructureOpening = entry.instance;
         this.submitTender({type: 'tender', instance: entry.instance});
         return;
       }
       case 'legacy':
         return;
-      default: {
-        const response = tenderPressResponse(entry);
-        if (response === undefined) {
-          return;
-        }
-        this.tenderLanding = {instance: entry.instance, step: entry.landsOn};
-        void this.travelToStep(entry.landsOn).then(() => {
-          // A GAMBLE: everything on its step's table goes back to the deck face down before the new deal comes off it.
-          if (isGambleTender(entry.id) && entry.landsOn !== undefined) {
-            void this.departToDeck(entry.landsOn, this.stepEntries.map((c) => c.name));
-          }
-          this.submitTender(response);
-        });
-      }
+      default:
+        this.state.tenderMode = {kind: 'confirm', instance: entry.instance, id: entry.id};
       }
     },
-    /**
-     * THE TRAVEL — the portfolio hands the screen to the step where the tender's effect becomes visible, in the step
-     * transition's own phrase: the current page RELEASES in place (parkSurface), the target page UNPARKS. The input lock
-     * holds for the beat (`startFlowBusy`); the target counts as visited so its deal lands as an arrival, never a re-deal.
-     */
-    async travelToStep(stepId: StartWizardStepId | undefined): Promise<void> {
-      if (stepId === undefined) {
-        return;
-      }
-      const to = this.steps.findIndex((st) => st.id === stepId);
-      const from = this.railPos;
-      if (to < 0 || to === from) {
-        return;
-      }
-      const kind = transitionKind(from, to, this.steps.length);
-      if (kind === undefined || this.dockBusy) {
-        this.state.stepIdx = to;
-        return;
-      }
-      this.dockBusy = true;
-      beginStartTransition(kind, from, to);
-      try {
-        setStartTransitionPhase('compressing-selection');
-        await parkSurface(this.paneElAt(from), to > from ? 1 : -1);
-        this.state.stepIdx = to;
-        this.focusIdx = 0;
-        await this.$nextTick();
-        setStartTransitionPhase('stabilizing-focus');
-        await unparkSurface(this.paneElAt(to), to > from ? 1 : -1);
-      } finally {
-        this.dockBusy = false;
-        endStartTransition();
-      }
-    },
-    /** THE EXCHANGE's mode on its own deal step: A marks the cards to return, RT exchanges them (§18.10). */
-    async enterReviewMode(instance: string, pool: 'prelude' | 'projects'): Promise<void> {
-      await this.travelToStep(pool);
-      this.state.tenderMode = {kind: 'review', instance, pool, release: []};
-    },
-    /** THE RESTRUCTURING's mode on the corporation step once the candidates are dealt. */
+    /** THE RESTRUCTURING's layer over the page once the candidates are dealt: the page parks, the two groups stand. */
     async openRestructureMode(instance: string, offer: ReadonlyArray<CardName>): Promise<void> {
-      // The mode stands BEFORE the travel: the corporation step then arrives with its two groups and DEFERS its own
-      // first deal (`dealSignature`) — the deal plays once the mode ends, never into a strip the mode hides.
+      this.restructFocusReturn = this.focusIdx;
+      await parkSurface(this.legacyPageEl() ?? null, 1);
       this.state.tenderMode = {kind: 'restructure', instance, offer: [...offer]};
-      await this.travelToStep('corp');
       this.focusIdx = 0;
     },
-    /** «Целевой запрос»: the project step opens with the tag row; the first tag under the cursor. */
-    async enterTagMode(instance: string): Promise<void> {
-      await this.travelToStep('projects');
-      this.state.tenderMode = {kind: 'tag', instance};
-      this.focusIdx = 0;
+    /** The restructuring's layer lets go: the page surfaces back as it was (its cursor too). */
+    leaveRestructureLayer(): void {
+      this.focusIdx = this.restructFocusReturn;
+      void this.$nextTick().then(() => void unparkSurface(this.legacyPageEl() ?? null, -1));
     },
-    /** A in a mode: the review's keep toggle · the restructuring's candidate / lineage pick · the request's tag. */
+    /** A in a mode: the exchange's mark · the restructuring's candidate / lineage pick · the request's tag · a confirm's commit. */
     toggleTenderModePick(): void {
+      if (this.state.tenderBusy !== undefined) {
+        noteInputAbsorbed(TENDER_DOOR_ABSORBER);
+        return;
+      }
+      if (this.confirmMode !== undefined) {
+        this.commitTenderMode();
+        return;
+      }
       const tagMode = this.tagMode;
       if (tagMode !== undefined) {
         const tag = this.requestTags[this.focusIdx];
@@ -7128,16 +7423,41 @@ export default defineComponent({
         this.state.tenderMode = {...mode, replace: mode.replace === name ? undefined : name};
       }
     },
-    /** RT in a mode: the ONE commit — the review's redeal, the restructuring's replacement. */
+    /**
+     * THE COMMIT — the mode's one press, and its scene on the page the player is looking at:
+     *  · a CONFIRM: a gamble's cards turn face down and go back to the deck before the new deal comes off it; a deal
+     *    that GROWS (+2 preludes, +4 projects) first lets the standing cards GLIDE to their new places (`armDealGlide` —
+     *    nothing jumps), then the new cards come off the deck into the places that opened;
+     *  · the EXCHANGE: the marked cards go back to the deck, the rest stay where they lie, the fresh ones land in the
+     *    freed places (`exchangeInPlace` on the server);
+     *  · the REQUEST: its three cards join the deal with the same glide;
+     *  · the RESTRUCTURING: the candidate takes the replaced charter's seat.
+     */
     commitTenderMode(): void {
       if (this.state.tenderBusy !== undefined) {
+        return;
+      }
+      const confirm = this.confirmMode;
+      if (confirm !== undefined) {
+        const response = tenderPressResponse({instance: confirm.instance, id: confirm.id});
+        if (response === undefined) {
+          return;
+        }
+        const page = this.currentStep?.id;
+        this.tenderLanding = {instance: confirm.instance, step: page};
+        if (isGambleTender(confirm.id) && page !== undefined) {
+          void this.departToDeck(page, this.stepEntries.map((c) => c.name));
+        } else {
+          this.armDealGlide();
+        }
+        this.submitTender(response);
         return;
       }
       const tagMode = this.tagMode;
       if (tagMode !== undefined) {
         if (tagMode.tag !== undefined) {
-          // The three cards LAND on the project step like any widening of the deal (the incremental deal flies only them).
           this.tenderLanding = {instance: tagMode.instance, step: 'projects'};
+          this.armDealGlide();
           this.submitTender(tenderTagResponse(tagMode.instance, tagMode.tag));
         }
         return;
@@ -7148,8 +7468,6 @@ export default defineComponent({
         if (review.release.length === 0) {
           return;
         }
-        // THE DEPARTURE plays beside the answer: the cards the exchange returns turn face down and go back to the deck;
-        // the rest stay where they lie; the fresh ones come off the deck into the freed places (`launchDeal` waits).
         void this.departToDeck(review.pool, [...review.release]);
         this.submitTender(tenderExchangeResponse(review.instance, review.release));
         return;
@@ -7159,7 +7477,7 @@ export default defineComponent({
         this.submitTender(tenderRestructureResponse(mode.instance, mode.take, mode.replace));
       }
     },
-    /** B / LT in a mode: the way out with nothing applied — a review simply ends, the restructuring declines (the candidates go back). */
+    /** B / LT in a mode: the way out with nothing applied — the restructuring declines (the candidates go back). */
     cancelTenderMode(): void {
       const mode = this.state.tenderMode;
       if (mode === undefined || this.state.tenderBusy !== undefined) {
@@ -7167,8 +7485,66 @@ export default defineComponent({
       }
       if (mode.kind === 'restructure') {
         this.submitTender(tenderRestructureDecline(mode.instance));
+        this.state.tenderMode = undefined;
+        this.leaveRestructureLayer();
+        return;
+      }
+      if (mode.kind === 'tag') {
+        this.focusIdx = this.tagFocusReturn;
       }
       this.state.tenderMode = undefined;
+    },
+    /**
+     * THE GLIDE — a deal about to GROW in place records where every standing card is now; once the new deal is laid
+     * out and fitted, each card that stayed glides from its old rect to its new one (FLIP on the slot), so the table
+     * re-arranges as one calm motion before the new cards come off the deck into the places that opened. Reduced
+     * motion: nothing is recorded, the deal simply stands.
+     */
+    armDealGlide(): void {
+      const strip = this.activeStrip();
+      if (strip === undefined || strip === null || consoleReducedMotionActive()) {
+        this.dealGlide = undefined;
+        return;
+      }
+      const rects = new Map<string, DOMRect>();
+      for (const el of Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot[data-step-slot]'))) {
+        const key = el.dataset.stepSlot;
+        if (key !== undefined) {
+          rects.set(key, el.getBoundingClientRect());
+        }
+      }
+      this.dealGlide = rects.size > 0 ? rects : undefined;
+    },
+    /** The recorded glide plays on the fitted layout (the `stepEntries.length` watcher's re-fit has run). */
+    playDealGlide(): void {
+      const before = this.dealGlide;
+      this.dealGlide = undefined;
+      const strip = this.activeStrip();
+      if (before === undefined || strip === undefined || strip === null) {
+        return;
+      }
+      for (const el of Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot[data-step-slot]'))) {
+        const key = el.dataset.stepSlot;
+        const from = key !== undefined ? before.get(key) : undefined;
+        if (from === undefined) {
+          continue; // a NEW card — the deal brings it off the deck
+        }
+        const to = el.getBoundingClientRect();
+        if (to.width < 4 || from.width < 4) {
+          continue;
+        }
+        // The slot's own zoom scales its transform: a screen-px delta is divided back into the slot's space.
+        const eff = el.offsetWidth > 0 ? to.width / el.offsetWidth : 1;
+        const dx = (from.left - to.left) / eff;
+        const dy = (from.top - to.top) / eff;
+        const k = from.width / to.width;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(k - 1) < 0.01) {
+          continue;
+        }
+        gsap.fromTo(el,
+          {x: dx, y: dy, scale: k, transformOrigin: '0 0'},
+          {x: 0, y: 0, scale: 1, duration: motionMs(240) / 1000, ease: 'power3.inOut', clearProps: 'transform,transformOrigin'});
+      }
     },
     /**
      * THE DEPARTURE (§16.3) — the cards a redeal takes away leave the table as they came: captured where they stand,
@@ -7209,17 +7585,17 @@ export default defineComponent({
       }
     },
     /**
-     * THE PORTFOLIO's X (§16.6): the holder's certificates in the shared fullscreen viewer — the focused one first, each
-     * in its state on this place, lifted out of its own slot; LB/RB keep the row's cursor in lockstep.
+     * THE DOOR's X (§16.6): the holder's certificates in the shared fullscreen viewer, in the list's order — the
+     * focused one first, each lifted out of its own slot; LB/RB keep the list's cursor in lockstep.
      */
     openPortfolioZoom(): void {
-      const entries = this.portfolioEntries;
+      const entries = this.doorEntries;
       if (entries.length === 0) {
         return;
       }
       const list = entries.map((e) => tenderZoomEntry(e.id, {instance: e.instance, state: tenderCardStateOf(e.status)}));
       const portfolio = (this.$refs.portfolio ?? undefined) as {slotEl?: (instance: string) => HTMLElement | undefined} | undefined;
-      openConsoleCardZoom(list, Math.min(Math.max(this.focusIdx, 0), list.length - 1), undefined, undefined, {
+      openConsoleCardZoom(list, Math.min(Math.max(this.tenderView.focus, 0), list.length - 1), undefined, undefined, {
         contextLabel: 'Tenders',
         origin: {
           kind: 'physical',
@@ -7228,12 +7604,20 @@ export default defineComponent({
             return e !== undefined ? portfolio?.slotEl?.(e.instance) ?? null : null;
           },
           onBrowse: (i) => {
-            if (this.tendersStepCurrent) {
-              this.focusIdx = i;
+            if (this.tenderView.phase === 'open') {
+              this.tenderView.focus = i;
             }
           },
         },
       });
+    },
+    tenderNameOf(id: TenderId): string {
+      return tenderPortfolioName(id);
+    },
+    /** The medallion's number: the deck's count (unknown reads as nothing — never a client count). */
+    requestTagCountText(tag: Tag): string {
+      const n = this.requestTagCount(tag);
+      return n === Number.POSITIVE_INFINITY ? '' : String(n);
     },
     tagIconStyle,
     tagLabel,
@@ -8098,9 +8482,9 @@ export default defineComponent({
      *  between the header and the pinned rail (no verdict reserve to subtract). */
     stripAvailHeight(strip: HTMLElement): number {
       // The strip's OWN box is the room (`.con-start__body--cards .con-cards__strip { min-height: 0 }` — `flex: 1`
-      // with basis 0, so the box is what the column gives it, never what the cards take): whatever stands above it in
-      // the column (the «ЦЕЛЕВОЙ ЗАПРОС» tag row — one line or two) and whatever grew below the body (the dock's
-      // chips) is already subtracted by layout. The body is only the fallback for a strip that has no box yet.
+      // with basis 0, so the box is what the column gives it, never what the cards take): whatever grew below the body
+      // is already subtracted by layout. The body is only the fallback for a strip that has no box yet. (Nothing of a
+      // tender stands in the column any more — its controls ride the dock's plate, §19: the deal keeps its size.)
       const own = strip.clientHeight;
       if (own > 0) {
         return Math.max(180 * conUiScale(), own);
@@ -8109,10 +8493,7 @@ export default defineComponent({
       if (body === undefined || body === null) {
         return own;
       }
-      const column = strip.parentElement;
-      const row = column === null ? null : column.querySelector<HTMLElement>(':scope > .con-tagpick');
-      const rowH = row === null || column === null ? 0 : row.offsetHeight + (parseFloat(window.getComputedStyle(column).rowGap) || 0);
-      return Math.max(180 * conUiScale(), body.clientHeight - rowH);
+      return Math.max(180 * conUiScale(), body.clientHeight);
     },
     /** Tag mode: a dealt card WITHOUT the focused tag steps back — the player reads at once what the request would
      *  stack with on this table (the tags are tiny on a grid card; the dim says it at a glance). */
@@ -8226,14 +8607,8 @@ export default defineComponent({
         this.onPrimary();
         return;
       case 'inspect':
-        // THE PORTFOLIO's X: the focused certificate in the ONE fullscreen viewer (§16.6) — lifted out of its slot,
-        // LB/RB browse the holder's documents, B is the viewer's own.
-        if (this.tendersStepCurrent) {
-          this.openPortfolioZoom();
-          return;
-        }
         // THE RESTRUCTURING's X: the focused candidate / lineage corporation fullscreen.
-        if (this.restructureMode !== undefined && this.currentStep?.id === 'corp') {
+        if (this.restructureMode !== undefined) {
           const cards = [...this.restructureOfferCards, ...this.restructureLineageCards];
           if (cards.length > 0) {
             openConsoleCardZoom(cards, Math.min(this.focusIdx, cards.length - 1), undefined, undefined, {contextLabel: tenderPortfolioName('restructuring')});
@@ -8258,9 +8633,10 @@ export default defineComponent({
         }
         return;
       case 'nextSection':
-        // A tender's MODE: RT is its ONE commit.
+        // A tender's MODE: RT is its ONE commit — a CONFIRM's commit is A alone (the bar names no RT; a shoulder press
+        // must never execute a tender the player only previewed).
         if (this.mode === 'wizard' && this.tenderModeFacts !== undefined) {
-          if (this.tenderModeFacts.canCommit) {
+          if (this.tenderModeFacts.kind !== 'confirm' && this.tenderModeFacts.canCommit) {
             this.commitTenderMode();
           }
           return;
@@ -8363,11 +8739,6 @@ export default defineComponent({
           // CTA plate names. onContinue still arms the zero-projects warning
           // first, so an empty buy stays a conscious second press.
           this.onContinue();
-          return;
-        }
-        // THE PORTFOLIO step: A is the focused certificate's own verb (§16.2).
-        if (this.tendersStepCurrent) {
-          this.pressPortfolio();
           return;
         }
         // A tender's MODE on this step: A is the mode's pick, never the step's.

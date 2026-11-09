@@ -163,17 +163,24 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(fromAwait.map((c) => c.control)).to.deep.eq(['secondary', 'back']);
   });
 
-  it('«Тендеры» (§16): the PORTFOLIO step carries the focused certificate\'s verb — disabled, never hidden — X reads it, RT moves on; a MODE owns the bar (pick · RT commit · LT / B out)', () => {
-    const ready = startSceneCommands(state({portfolio: {verb: 'Execute', enabled: true, armed: false}, stepComplete: true}));
-    expect(ready.map((c) => c.control)).to.deep.eq(['confirm', 'secondary', 'triggerR', 'back']);
-    expect(labelOf(ready, 'confirm')).to.eq('Execute');
-    expect(labelOf(ready, 'triggerR')).to.eq('Next step');
-    const blocked = startSceneCommands(state({portfolio: {verb: 'Execute', enabled: false, armed: false}, stepComplete: true}));
-    expect(blocked.find((c) => c.control === 'confirm')?.enabled, 'a blocked certificate: the verb stands DISABLED, never hidden').to.eq(false);
-    const armed = startSceneCommands(state({portfolio: {verb: 'Execute', enabled: true, armed: true}, stepComplete: true}));
-    expect(armed.find((c) => c.control === 'confirm')?.highlight, 'the second press is the hot one').to.eq(true);
-    const withLegacy = startSceneCommands(state({portfolio: {verb: 'Choose the cards to exchange', enabled: true, armed: false}, stepComplete: true, legacyAvailable: true}));
-    expect(withLegacy.map((c) => c.control)).to.deep.eq(['confirm', 'secondary', 'stickR', 'triggerR', 'back']);
+  it('«Тендеры» (§19): the DOOR is L3 on every page — LIT where a tender executes; the LIST owns the bar (A disabled elsewhere); a CONFIRM is A / B; a MODE owns the bar (pick · RT commit · LT / B out)', () => {
+    const quiet = startSceneCommands(state({tenderDoor: {ready: 0}, stepComplete: true, legacyAvailable: true}));
+    const door = quiet.find((c) => c.control === 'stickL');
+    expect(door, 'the door stands on every page').to.deep.include({label: 'Tenders'});
+    expect(door?.highlight, 'nothing executes here — the door is quiet').to.not.eq(true);
+    expect(quiet.map((c) => c.control).indexOf('stickL'), 'the left door before the right one').to.be.lessThan(quiet.map((c) => c.control).indexOf('stickR'));
+    const lit = startSceneCommands(state({tenderDoor: {ready: 2}, stepComplete: true}));
+    expect(lit.find((c) => c.control === 'stickL'), 'LIT — a short label, the glyph hot').to.deep.include({label: 'Tenders', highlight: true});
+    const onSummary = startSceneCommands(state({tenderDoor: {ready: 0}, onSummary: true, wizardReady: true}));
+    expect(onSummary.some((c) => c.control === 'stickL'), 'the summary reads the door too').to.eq(true);
+    const list = startSceneCommands(state({tenderList: {enabled: false}, tenderDoor: {ready: 1}}));
+    expect(list.map((c) => c.control)).to.deep.eq(['confirm', 'secondary', 'back']);
+    expect(list.find((c) => c.control === 'confirm')?.enabled, 'a certificate of another page: DISABLED, never hidden').to.eq(false);
+    expect(labelOf(list, 'back')).to.eq('Back');
+    const confirm = startSceneCommands(state({tenderMode: {kind: 'confirm', commitLabel: 'Execute the tender', canCommit: true, pickLabel: '', pickEnabled: false}}));
+    expect(confirm.map((c) => c.control)).to.deep.eq(['confirm', 'secondary', 'back']);
+    expect(labelOf(confirm, 'confirm')).to.eq('Execute the tender');
+    expect(labelOf(confirm, 'back')).to.eq('Cancel the tender');
     const review = startSceneCommands(state({tenderMode: {kind: 'review', commitLabel: 'Redeal the rest', canCommit: true, pickLabel: 'Keep this card', pickEnabled: true}}));
     expect(review.map((c) => c.control)).to.deep.eq(['confirm', 'triggerR', 'secondary', 'back']);
     expect(labelOf(review, 'triggerR')).to.eq('Redeal the rest');

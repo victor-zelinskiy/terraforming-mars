@@ -1,14 +1,16 @@
 <template>
-  <div class="con-tport" :class="{'con-tport--embedded': embedded}"
-       data-tender-portfolio :data-tender-portfolio-place="place" :data-tender-portfolio-count="entries.length">
+  <div class="con-tport" :class="{'con-tport--embedded': embedded, 'con-tport--live': live}"
+       data-tender-portfolio :data-tender-portfolio-place="place" :data-tender-portfolio-count="entries.length"
+       :data-tender-portfolio-ready="readyCount">
     <!--
-      THE PORTFOLIO — the ONE surface a campaign's tenders are met on, at the two places a tender can speak: the
-      finale's START (the wizard's first step) and the THRESHOLD before it (the carryover picker's first stage).
-      Host-agnostic (§16.1): the host owns the focus, the pad and every verb; this draws the holder's certificates in
-      acquisition order, each in its STATE on this place (a kant · a word · the stamp — never light), and under the row
-      the READING of the focused one — WHAT IT GIVES HERE in live numbers, so the player knows before the press. X is the
-      console's one inspection — the host opens the certificate in the shared fullscreen viewer (`tenderZoomEntry`), lifted
-      out of its `data-zoom-slot`; the portfolio draws no reader of its own.
+      THE TENDER DOOR's LIST (§19, the owner 2026-11-09) — the ONE surface a campaign's tenders are met on, at the two
+      places a tender can speak: the finale's START (a layer of the deal page the player stands on, opened from the dock's
+      «ТЕНДЕРЫ» block) and the THRESHOLD before it (a layer of the legacy album). Host-agnostic: the host owns the focus,
+      the pad, the order (`tenderDoorList` — the ones that execute HERE first, then the others with their reason, then the
+      done ones) and every verb; this draws the holder's certificates, each in its STATE on this page (a kant · a word ·
+      the stamp — never light), and under the row the READING of the focused one — WHAT IT GIVES HERE in live numbers.
+      The certificates RISE into these slots out of the dock's miniatures (the host's flight — `heldNames` keeps a slot
+      empty until its own touchdown). X is the console's one inspection (`tenderZoomEntry`).
     -->
     <div class="con-tport__row" data-tport-row>
       <div v-for="(e, i) in entries" :key="e.instance"
@@ -17,7 +19,7 @@
              'con-tport__slot--focused': i === focus,
              ['con-tport__slot--' + e.state]: true,
              'con-tport__slot--busy': busy === e.instance,
-             'con-tport__slot--armed': armed === e.instance,
+             'con-tport__slot--held': heldNames.includes(e.instance),
              'con-tport__slot--stamping': stamping.has(e.instance),
            }"
            :data-tport-slot="e.instance" :data-tport-kind="e.id" :data-tport-state="e.state"
@@ -25,18 +27,20 @@
            :data-zoom-slot="i === focus ? e.instance : undefined"
            :ref="(el) => setSlotRef(e.instance, el)">
         <ConsoleTenderCard :id="e.id" size="table" :state="tenderCardStateOf(e.status)" :focused="i === focus" />
-        <!-- The reason a held certificate cannot go HERE — the server's words, under the document (never a dim alone). -->
-        <span v-if="e.state === 'blocked' && e.reason !== undefined" class="con-tport__reason" data-tport-reason>{{ $t(e.reason) }}</span>
-        <span v-else-if="e.state === 'step'" class="con-tport__hint" aria-hidden="true">{{ $t('Needs a choice') }}</span>
+        <!-- The certificate's word on THIS page: it executes here (a kant), or WHY not — the server's reason / the page it
+             speaks on — under the document (never a dim alone). -->
+        <span v-if="e.state === 'ready'" class="con-tport__here" data-tport-here>{{ $t('Executes here') }}</span>
+        <span v-else-if="e.note !== undefined" class="con-tport__reason" data-tport-reason>{{ $t(e.note) }}</span>
       </div>
     </div>
-    <!-- THE READING — the focused tender's effect in this place's numbers; a confirm names itself in the same line. -->
+    <!-- THE READING — the focused tender's effect in this page's numbers; a certificate that cannot go names why in the
+         same line. -->
     <div class="con-tport__reading" data-tport-reading :data-tport-reading-state="focused?.state">
       <template v-if="focused !== undefined">
         <span class="con-tport__reading-name">{{ $t(nameOf(focused.id)) }}</span>
-        <span class="con-tport__reading-text">{{ readingOf(focused) }}</span>
-        <span v-if="armed === focused.instance && focused.confirm !== undefined" class="con-tport__reading-confirm" data-tport-confirm>{{ readingOf({reading: focused.confirm}) }}</span>
-        <span v-else-if="busy === focused.instance" class="con-tport__reading-busy">{{ $t('Executing…') }}</span>
+        <span class="con-tport__reading-text">{{ readingOf(focused.reading) }}</span>
+        <span v-if="busy === focused.instance" class="con-tport__reading-busy">{{ $t('Executing…') }}</span>
+        <span v-else-if="focused.state !== 'ready' && focused.note !== undefined" class="con-tport__reading-note">{{ $t(focused.note) }}</span>
       </template>
     </div>
   </div>
@@ -47,7 +51,7 @@ import {defineComponent, PropType} from 'vue';
 import {TenderId} from '@/common/campaign/tenders';
 import ConsoleTenderCard from './ConsoleTenderCard.vue';
 import {
-  TenderPlace, TenderPortfolioEntry, TenderReading, tenderCardStateOf, tenderPortfolioName,
+  TenderPlace, TenderPortfolioEntry, TenderReading, tenderCardStateOf, tenderPortfolioName, tenderReadyHere,
 } from '@/client/console/campaign/tenderPortfolio';
 import {readingText} from '@/client/console/readingText';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -59,14 +63,17 @@ export default defineComponent({
   name: 'ConsoleTenderPortfolio',
   components: {ConsoleTenderCard},
   props: {
+    /** The certificates IN THE DOOR's ORDER (the host sorts — `tenderDoorList`). */
     entries: {type: Array as PropType<ReadonlyArray<TenderPortfolioEntry>>, required: true},
     /** The host's cursor over `entries` (−1 = none). */
     focus: {type: Number, required: true},
     place: {type: String as PropType<TenderPlace>, required: true},
-    /** The instance whose press asked for a second press. */
-    armed: {type: String, required: false, default: undefined},
     /** The instance whose answer is on the wire. */
     busy: {type: String, required: false, default: undefined},
+    /** Slots whose certificate is still in the air (the rise out of the dock) — held empty until their touchdown. */
+    heldNames: {type: Array as PropType<ReadonlyArray<string>>, required: false, default: () => []},
+    /** The layer stands fully open (a state marker specs read). */
+    live: {type: Boolean, required: false, default: false},
     embedded: {type: Boolean, required: false, default: false},
   },
   data() {
@@ -81,6 +88,9 @@ export default defineComponent({
     focused(): TenderPortfolioEntry | undefined {
       return this.entries[this.focus];
     },
+    readyCount(): number {
+      return tenderReadyHere(this.entries);
+    },
   },
   beforeUnmount() {
     for (const t of this.stampTimers.values()) {
@@ -92,8 +102,8 @@ export default defineComponent({
     nameOf(id: TenderId): string {
       return tenderPortfolioName(id);
     },
-    readingOf(e: {reading: TenderReading}): string {
-      return readingText({label: e.reading.key, params: [...e.reading.params]});
+    readingOf(reading: TenderReading): string {
+      return readingText({label: reading.key, params: [...reading.params]});
     },
     setSlotRef(instance: string, el: unknown): void {
       if (el instanceof HTMLElement) {

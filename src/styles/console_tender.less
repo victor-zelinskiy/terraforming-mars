@@ -789,19 +789,33 @@
       font-size: calc(100cqw / 14);
     }
     &--busy > .con-tender { opacity: .72; }
-    /* ARMED — the press awaits its second press: the ring turns amber IN PLACE (the whole list, so the metal edge and
-       the table weight stay; ordered after the face's own, it wins on the card that is by definition also focused). */
-    &--armed > .con-tender {
-      box-shadow:
-        inset 0 0 0 0.08em rgba(var(--tm-rgb), 0.95),
-        0 0.22em 0.6em rgba(0, 0, 0, 0.5),
-        0 0 0 calc(var(--con-focus-ring, .1rem) * 2) fade(@con-amber, 92%),
-        0 0 calc(var(--con-glow-r, .9rem) * var(--con-cursor-on)) fade(@con-amber, 40%);
-    }
+    /* A certificate still IN THE AIR (the rise out of the dock): the slot keeps its box, the face waits for its own
+       touchdown — visibility only, the row never re-lays out. */
+    &--aloft > .con-tender { visibility: hidden; }
+    /* NOT ON THIS PAGE — the face steps back by material (its metal dulls), the word under it says why. Opaque: a
+       filter, never a whole-element opacity. */
+    &--elsewhere > .con-tender,
+    &--blocked > .con-tender { filter: saturate(.45) brightness(.82); }
+    /* EXECUTES HERE — a kant on the slot, never a glow (invariant 15). */
+    &--ready { box-shadow: inset 0 0 0 .07rem fade(@con-mint, 70%); }
     /* THE STAMP LANDS — the one event of an execution (ends on its own). */
     &--stamping > .con-tender .con-tender__stamp {
       animation: con-tport-stamp calc(620ms * var(--motion-scale, 1)) @con-ease-settle both;
     }
+  }
+  &__here {
+    font-family: @con-font;
+    font-size: .5rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    text-align: center;
+    color: @con-mint;
+  }
+  &__reading-note {
+    font-family: @con-font-read;
+    font-size: .8rem;
+    line-height: 1.3;
+    color: rgba(214, 223, 233, 0.62);
   }
   &__reason,
   &__hint {
@@ -994,9 +1008,6 @@
    interpolable in this runtime, and the fit's probe — set zoom 1, read the slot — then reads a slot mid-glide (305 px
    for a 320 px face), and a plan built on that wraps one card into a second row. The row's own entrance plays over
    the re-fit instead; a FLIP-style glide of the deal is a later iteration.) */
-/* Under the row the grid needs no focus headroom (no card is focused while the tags are — the TV profile reserves
-   2.6rem of it for the focused card's lift): that room goes to the cards. Three classes — the TV rule has two. */
-.con-start .con-cards--tagmode > .con-cards__strip--grid { padding-top: .6rem; }
 
 /* ── THE DOCK's «ТЕНДЕРЫ» block — the portfolio's HOME on the selection shelf, on the LINEAGE's chassis: every
    holding as its certificate in MINIATURE (the face itself, zoomed — the tier's metal, the art, the stamp read as
@@ -1005,6 +1016,22 @@
 .con-startdock__tenders {
   .con-startdock__legacy-row { gap: .3rem; flex-wrap: nowrap; }
   .con-startdock__legacy-head { align-items: flex-start; }
+  border-radius: .4rem;
+  padding: .1rem .35rem .1rem 0;
+  transition: box-shadow calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
+  /* THE DOOR SPEAKS — a tender executes on this page: a mint KANT round the block and the words under the cap
+     (material, never a glow — invariant 15). It stands while it is true, nothing breathes. */
+  &--ready { box-shadow: inset 0 0 0 .07rem fade(@con-mint, 65%); }
+  &-line { display: inline-flex; align-items: center; gap: .3rem; }
+  &-ready {
+    font-family: @con-font;
+    font-size: .56rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: @con-mint;
+  }
   &-tally {
     font-family: @con-font;
     font-size: .6rem;
@@ -1028,6 +1055,81 @@
   /* The face is 14rem × 1.42 at its natural size; the lineage's cards stand 3.2rem tall — zoom 3.2 / 19.88. */
   > .con-tender { zoom: var(--tmini-zoom, 0.161); }
   &--just-executed { animation: con-tchip-stamp calc(520ms * var(--motion-scale, 1)) @con-ease-settle both; }
+  /* The certificate is UP in the door's list (`--aloft` — never `--held`: that one is the STATUS modifier,
+     `con-tmini--${status}`): the miniature keeps its box (the flight home aims here), shows nothing. */
+  &--aloft > .con-tender { visibility: hidden; }
+  /* The tender standing in its mode on the page above — its miniature wears the kant of the moment. */
+  &--active { box-shadow: 0 .12rem .3rem rgba(0, 0, 0, 0.5), inset 0 0 0 .08rem fade(@con-amber, 90%); }
+}
+
+/* ── A TENDER'S MODE PLATE (§19) — the shelf's ROW becomes the standing tender's control plate: absolute over the
+   shelf, in the shelf's own box (the dock never changes height, the cards above never move); the shelf's blocks step
+   back under it by opacity and come back as the same nodes. ── */
+.con-startdock {
+  position: relative;
+  > :not(.con-startdock__plate) {
+    transition: opacity calc(180ms * var(--motion-scale, 1)) linear;
+  }
+  &--plated > :not(.con-startdock__plate) { opacity: 0; visibility: hidden; }
+  &__plate {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: .35rem .5rem;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity calc(200ms * var(--motion-scale, 1)) linear, visibility 0s linear calc(200ms * var(--motion-scale, 1));
+    &--up {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transition: opacity calc(220ms * var(--motion-scale, 1)) linear calc(60ms * var(--motion-scale, 1)), visibility 0s;
+    }
+  }
+}
+.con-tplate {
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+  min-width: 0;
+  flex: 1;
+  &__cap {
+    font-family: @con-font;
+    font-size: .6rem;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: fade(@con-amber, 82%);
+    white-space: nowrap;
+  }
+  &__name {
+    font-family: @con-font;
+    font-size: .9rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #f2f6fa;
+    white-space: nowrap;
+  }
+  &__id { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+  &__reading {
+    font-family: @con-font-read;
+    font-size: .82rem;
+    line-height: 1.3;
+    color: rgba(214, 223, 233, 0.88);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  &__reading--busy { color: fade(@con-amber, 88%); }
+  &__divider { width: .05rem; align-self: stretch; margin: .2rem 0; background: fade(@con-amber, 30%); flex: none; }
+  /* «ЦЕЛЕВОЙ ЗАПРОС»'s tags ride the PLATE, never a row over the deal (the deal's size must not change): compact
+     medallions — the icon and the deck's own count; the focused one's NAME is the plate's reading. */
+  &__tags { display: flex; align-items: center; gap: .3rem; flex-wrap: nowrap; min-width: 0; }
 }
 /* The dossier's campaign zone: the holdings where the titles' emblems stand, in one row beside the ledger count. */
 .con-dcmp__tcards { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
