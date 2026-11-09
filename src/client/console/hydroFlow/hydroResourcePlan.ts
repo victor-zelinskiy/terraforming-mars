@@ -39,6 +39,14 @@ export type HydroPlanCommitment = {
   card: CardName;
   /** The server-served stock the action needs (empty = needs no stock). */
   cost: Partial<Units>;
+  /**
+   * The server-served EXACT energy × steel reading (`reuseActionFrontiers`) —
+   * present only for an OR-price a vector cannot state: index = energy left
+   * at this point, value = the least steel it acts with (`null` = none). It
+   * replaces the energy/steel half of `cost` in the CHECK; `cost` still
+   * threads what the action spends.
+   */
+  frontier?: ReadonlyArray<number | null>;
 };
 
 export type HydroPlanMixVerdict = {
@@ -104,7 +112,20 @@ function walkFeasible(input: HydroPlanMixInput, steelShare: number): {
     if (commitment === undefined) {
       continue;
     }
+    const frontier = commitment.frontier;
+    if (frontier !== undefined && frontier.length > 0) {
+      const least = frontier[Math.min(Math.max(0, stock.energy), frontier.length - 1)];
+      if (least === null || least === undefined) {
+        return {ok: false, firstConflict: {position, card: commitment.card, resource: 'energy'}};
+      }
+      if (stock.steel < least) {
+        return {ok: false, firstConflict: {position, card: commitment.card, resource: 'steel'}};
+      }
+    }
     for (const key of Units.keys) {
+      if (frontier !== undefined && (key === 'energy' || key === 'steel')) {
+        continue;
+      }
       const need = commitment.cost[key] ?? 0;
       if (need > stock[key]) {
         return {ok: false, firstConflict: {position, card: commitment.card, resource: key}};
@@ -200,6 +221,7 @@ export function claimRepeatInfeasible(input: {
   position: number,
   candidates: ReadonlyArray<CardName>,
   costs: Partial<Record<CardName, Partial<Units>>> | undefined,
+  frontiers?: Partial<Record<CardName, ReadonlyArray<number | null>>>,
 }): Array<{name: CardName, resource: keyof Units | undefined}> {
   const start: Units = {...input.start};
   for (const key of Units.keys) {
@@ -208,12 +230,13 @@ export function claimRepeatInfeasible(input: {
   const out: Array<{name: CardName, resource: keyof Units | undefined}> = [];
   for (const name of input.candidates) {
     const cost = input.costs?.[name];
-    if (cost === undefined) {
+    const frontier = input.frontiers?.[name];
+    if (cost === undefined && frontier === undefined) {
       continue;
     }
     const verdict = hydroPlanMixVerdict({
       start, spend: 0, minSteel: 0, maxSteel: 0, gains: [],
-      commitments: [{position: input.position, card: name, cost}],
+      commitments: [{position: input.position, card: name, cost: cost ?? {}, ...(frontier !== undefined ? {frontier} : {})}],
     });
     if (verdict.feasibleSteelMin === undefined && verdict.conflicts.length > 0) {
       out.push({name, resource: verdict.conflicts[0]?.resource});

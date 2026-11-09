@@ -1668,6 +1668,9 @@ export default defineComponent({
         // espionage owner's destination stands past the energy-priced spend.
         focusReach: this.rewardOffer !== undefined ?
           Math.max(0, Math.max(...this.rewardOffer.claimable) - (p.deltaProject?.position ?? 0)) : undefined,
+        // A card's own move pays ITS price (0 free / 1 waiver), never the
+        // per-step one — the repeat plan threads what the move really takes.
+        movePrice: (this.bonusOffer ?? this.cardOffer)?.energyCost,
       });
     },
     /** The traversal presentation's marker cursor (−1 = no plan running).
@@ -5391,6 +5394,7 @@ export default defineComponent({
           position: this.model.selectedPosition,
           candidates: preview.reuseActionCards,
           costs: preview.reuseActionCosts,
+          frontiers: preview.reuseActionFrontiers,
         }).map((c) => ({name: c.name, reason: translateText(claimConflictReasonKey(c.resource))}));
     },
     /** ONE write path for a traversal pick (the target step and the repeat

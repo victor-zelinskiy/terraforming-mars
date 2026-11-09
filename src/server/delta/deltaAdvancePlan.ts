@@ -211,6 +211,52 @@ export function actionStockNeed(player: IPlayer, cardName: CardName): Partial<Un
   return need;
 }
 
+/**
+ * THE EXACT ENERGY × STEEL READING of one action — only where its
+ * {@link actionStockNeed} vector is NOT exact. The two resources a move can
+ * take (the payment; Delta Works makes steel part of it) can form an OR-price:
+ * Focused Organization spends «any 1 standard resource», so on a table holding
+ * only energy and steel it needs NEITHER alone and one of the two together —
+ * a vector says «free», and a move taking both would be refused at commit.
+ *
+ * Index = energy at the repeat's point (0 … live), value = the least steel
+ * (0 … live) the card's own `canAct` acts with there, `null` = none. Probed by
+ * the same dry-run; `undefined` when the vector already says exactly this
+ * (the common case — the payload stays byte-identical).
+ */
+export function actionSteelFrontier(player: IPlayer, cardName: CardName, need: Partial<Units>): Array<number | null> | undefined {
+  const card = player.tableau.get(cardName);
+  if (card === undefined || !isIActionCard(card)) {
+    return undefined;
+  }
+  const live = liveStock(player);
+  const actsAt = (energy: number, steel: number): boolean =>
+    withProjectedStock(player, {...live, energy, steel}, () => card.canAct(player));
+  if (!actsAt(live.energy, live.steel)) {
+    return undefined;
+  }
+  const frontier: Array<number | null> = [];
+  for (let e = 0; e <= live.energy; e++) {
+    if (!actsAt(e, live.steel)) {
+      frontier.push(null);
+      continue;
+    }
+    let lo = 0;
+    let hi = live.steel;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (actsAt(e, mid)) {
+        hi = mid;
+      } else {
+        lo = mid + 1;
+      }
+    }
+    frontier.push(lo);
+  }
+  const implied = (e: number): number | null => e < (need.energy ?? 0) ? null : (need.steel ?? 0);
+  return frontier.every((v, e) => v === implied(e)) ? undefined : frontier;
+}
+
 function minus(stock: Units, cost: Partial<Units>): Units {
   const out = {...stock};
   for (const key of Units.keys) {

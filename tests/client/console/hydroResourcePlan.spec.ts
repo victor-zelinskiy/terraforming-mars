@@ -135,6 +135,29 @@ describe('hydroPlanMixVerdict (the ordered mix sweep)', () => {
   });
 });
 
+describe('the OR-price frontier (an «energy or steel» action)', () => {
+  // Focused Organization on a table holding only energy and steel: energy 0
+  // needs 1 steel, any energy needs nothing. The vector cost is empty.
+  const commitment = {position: 7, card: CardName.FOCUSED_ORGANIZATION, cost: {}, frontier: [1, 0, 0]};
+
+  it('a move that takes BOTH the energy and the steel starves it — an explicit conflict, never a refused commit', () => {
+    const v = hydroPlanMixVerdict({
+      start: Units.of({energy: 2, steel: 1}), spend: 3, minSteel: 1, maxSteel: 1,
+      gains: [], commitments: [commitment],
+    });
+    expect(v.feasibleSteelMin).to.eq(undefined);
+    expect(v.conflicts).to.deep.eq([{position: 7, card: CardName.FOCUSED_ORGANIZATION, resource: 'steel'}]);
+  });
+
+  it('a move that leaves one of the two keeps it fed', () => {
+    const v = hydroPlanMixVerdict({
+      start: Units.of({energy: 2, steel: 1}), spend: 2, minSteel: 0, maxSteel: 1,
+      gains: [], commitments: [commitment],
+    });
+    expect(v.feasibleSteelMin).to.eq(0);
+  });
+});
+
 describe('the reward-only claim repeat grading (Dutch Mountains → stage 7)', () => {
   const claimPreview = (energy: number) => ({
     branches: [{

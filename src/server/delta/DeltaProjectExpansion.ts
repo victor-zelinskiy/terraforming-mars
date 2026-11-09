@@ -3,7 +3,7 @@ import {IPlayer} from '../IPlayer';
 import {DeltaProjectPlayerModel} from '../../common/models/DeltaProjectPlayerModel';
 import {DeltaMovementBonusProjection, DeltaTrackDestination, DeltaTrackPreviewModel, DeltaTraversalStep} from '../../common/models/DeltaTrackPreviewModel';
 import {Priority} from '../deferredActions/Priority';
-import {actionStockNeed, deltaAdvancePlanVerdict} from './deltaAdvancePlan';
+import {actionSteelFrontier, actionStockNeed, deltaAdvancePlanVerdict} from './deltaAdvancePlan';
 import {Units} from '../../common/Units';
 import {DELTA_STAGE_NAMES} from '../../common/delta/deltaStages';
 import {systemChoice} from '../inputs/choiceContext';
@@ -439,11 +439,19 @@ export class DeltaProjectExpansion {
     // Dutch Mountains is priced too). The client repeats arithmetic over THESE
     // numbers (its plan mirrors the server's `deltaAdvancePlanVerdict`); it
     // never computes a card cost itself.
+    // An OR-price over the two resources a move takes is served EXACTLY
+    // beside it (`reuseActionFrontiers`) — a vector cannot say «energy or
+    // steel», and the commit would refuse what the vector promised.
     const reuseActionCosts: Partial<Record<CardName, Partial<Units>>> = {};
+    const reuseActionFrontiers: Partial<Record<CardName, ReadonlyArray<number | null>>> = {};
     for (const name of reuseActionCards) {
       const cost = actionStockNeed(player, name);
       if (Object.keys(cost).length > 0) {
         reuseActionCosts[name] = cost;
+      }
+      const frontier = actionSteelFrontier(player, name, cost);
+      if (frontier !== undefined) {
+        reuseActionFrontiers[name] = frontier;
       }
     }
     const animalTargetCards = new AddResourcesToCard(player, CardResource.ANIMAL, {count: 2}).getCards().map((c) => c.name);
@@ -469,6 +477,7 @@ export class DeltaProjectExpansion {
       destinations,
       reuseActionCards,
       ...(Object.keys(reuseActionCosts).length > 0 ? {reuseActionCosts} : {}),
+      ...(Object.keys(reuseActionFrontiers).length > 0 ? {reuseActionFrontiers} : {}),
       animalTargetCards,
       ...(traversalModifier !== undefined ? {traversalModifierCard: traversalModifier.name} : {}),
     };

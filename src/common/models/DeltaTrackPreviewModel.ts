@@ -167,14 +167,25 @@ export type DeltaTrackPreviewModel = {
    *  pre-collected in the overlay before confirm. */
   reuseActionCards: ReadonlyArray<CardName>;
   /**
-   * The MANDATORY declarative stock cost of each reusable action, extracted by
-   * the server from the card's own data-defined behavior (`action.spend`) —
-   * the projected resource plan's per-candidate price. The client only ever
-   * REPEATS ordered arithmetic over these numbers; it never computes a card
-   * cost itself. Sparse: only candidates with a stock cost appear, so the
-   * historical payload stays byte-identical when none of them has one.
+   * The STOCK each reusable action NEEDS, read by the server off the card
+   * itself (its declarative `action.spend` merged with the floor its own
+   * `canAct` holds at — `actionStockNeed`) — the projected resource plan's
+   * per-candidate price. The client only ever REPEATS ordered arithmetic over
+   * these numbers; it never computes a card cost itself. Sparse: only
+   * candidates with a stock need appear, so the historical payload stays
+   * byte-identical when none of them has one.
    */
   reuseActionCosts?: Partial<Record<CardName, Partial<Units>>>;
+  /**
+   * The EXACT energy × steel reading of a candidate whose need is not one
+   * vector — an «energy OR steel» price (Focused Organization's «any 1
+   * standard resource» on a table holding only those two). Index = energy
+   * left at the repeat's point (0 … the live energy); value = the least stock
+   * steel the action then acts with, `null` = it cannot act at that energy.
+   * At that point THIS replaces the energy/steel half of `reuseActionCosts`.
+   * Sparse: present only where the vector is not exact (`actionSteelFrontier`).
+   */
+  reuseActionFrontiers?: Partial<Record<CardName, ReadonlyArray<number | null>>>;
   /** Cards that can receive the pos 9 animals — pre-collected before confirm. */
   animalTargetCards: ReadonlyArray<CardName>;
   /** The tableau card whose effect grants each crossed stage's reward on a

@@ -141,6 +141,14 @@ export type HydroModelInput = {
    * movement legality; only the focus clamp reads it.
    */
   focusReach?: number;
+  /**
+   * THE MOVE'S REAL PRICE when it is not the standard per-step one — a card's
+   * own move (a free bonus step, a tag-waiver toll: always energy, never a
+   * Delta Works mix). The ordered plan then threads THIS spend, so a repeat
+   * the card's move leaves fed is never greyed for energy it does not take.
+   * Absent = the standard advance (1 energy-equivalent per step).
+   */
+  movePrice?: number;
 };
 
 /** A reward that needs a card pick before confirm. */
@@ -567,6 +575,8 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
       position: repeatPickPosition,
       card: repeatPickName,
       cost: preview?.reuseActionCosts?.[repeatPickName] ?? {},
+      ...(preview?.reuseActionFrontiers?.[repeatPickName] !== undefined ?
+        {frontier: preview.reuseActionFrontiers[repeatPickName]} : {}),
     } : undefined;
   const planGains: Array<HydroPlanGain> = !traversalActive ? [] :
     traversalStages
@@ -580,12 +590,15 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
             s.position === 6 ? {plants: input.plantTags ?? 0} : {},
       }))
       .filter((g) => Object.keys(g.gain).length > 0);
-  const baseMinSteel = mode === 'plan' ? Math.max(0, selectedSpend - availableEnergy) : 0;
-  const baseMaxSteel = mode === 'plan' ? Math.min(availableSteelSubstitute, selectedSpend) : 0;
+  // The plan's movement payment: the standard per-step price with its Delta
+  // Works mix, or a card move's own energy-only toll.
+  const planSpend = input.movePrice ?? selectedSpend;
+  const baseMinSteel = mode === 'plan' && input.movePrice === undefined ? Math.max(0, selectedSpend - availableEnergy) : 0;
+  const baseMaxSteel = mode === 'plan' && input.movePrice === undefined ? Math.min(availableSteelSubstitute, selectedSpend) : 0;
   const planMixVerdict = planCommitment !== undefined && preview !== undefined ?
     hydroPlanMixVerdict({
       start: Units.of(input.stock ?? {energy: availableEnergy, steel: availableSteelSubstitute}),
-      spend: selectedSpend,
+      spend: planSpend,
       minSteel: baseMinSteel,
       maxSteel: baseMaxSteel,
       gains: planGains,
@@ -602,20 +615,22 @@ export function buildHydroModel(input: HydroModelInput): HydroModel {
   // can grey the ones no composition of this move can feed — a promise the
   // plan cannot keep is never offered as pickable.
   const reuseInfeasibleCards: Array<{name: CardName, resource: keyof Units | undefined}> = [];
-  if (mode === 'plan' && repeatPickPosition !== undefined && preview?.reuseActionCosts !== undefined &&
+  if (mode === 'plan' && repeatPickPosition !== undefined && preview !== undefined &&
+      (preview.reuseActionCosts !== undefined || preview.reuseActionFrontiers !== undefined) &&
       (traversalActive ? traversalStages.some((s) => s.ask === 'reuse-action') : needsCardSelect === 'reuse-action')) {
     for (const name of preview.reuseActionCards) {
-      const cost = preview.reuseActionCosts[name];
-      if (cost === undefined) {
+      const cost = preview.reuseActionCosts?.[name];
+      const frontier = preview.reuseActionFrontiers?.[name];
+      if (cost === undefined && frontier === undefined) {
         continue;
       }
       const verdict = hydroPlanMixVerdict({
         start: Units.of(input.stock ?? {energy: availableEnergy, steel: availableSteelSubstitute}),
-        spend: selectedSpend,
+        spend: planSpend,
         minSteel: baseMinSteel,
         maxSteel: baseMaxSteel,
         gains: planGains,
-        commitments: [{position: repeatPickPosition, card: name, cost}],
+        commitments: [{position: repeatPickPosition, card: name, cost: cost ?? {}, ...(frontier !== undefined ? {frontier} : {})}],
       });
       // Greyed only for the candidate's OWN failure — an unpayable movement
       // (no named conflict) is not the candidate's fault and greys nothing.

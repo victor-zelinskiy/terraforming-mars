@@ -493,6 +493,25 @@ describe('buildHydroModel — the ordered resource plan', () => {
     expect(m.reuseInfeasibleCards).deep.eq([{name: DC, resource: 'energy'}]);
   });
 
+  it('a CARD move threads ITS price, not the per-step one (a free bonus step leaves the energy to the repeat)', () => {
+    // 2 energy; the card's free step 6 → 7; the action needs 2 energy. The
+    // per-step reading (1 energy) would grey a repeat the free move keeps fed.
+    const at = (movePrice: number | undefined) => buildHydroModel(input({
+      preview: fullPreview(2, {
+        currentPosition: 6,
+        destinations: fullPreview(8).destinations,
+        reuseActionCards: [DC],
+        reuseActionCosts: costs({'Development Center': {energy: 2}}),
+      }),
+      players: [viewer({position: 6})],
+      selectedPosition: 7,
+      movePrice,
+    }));
+    expect(at(0).reuseInfeasibleCards, 'the free step takes nothing').deep.eq([]);
+    expect(at(1).reuseInfeasibleCards, 'the waiver toll takes 1').deep.eq([{name: DC, resource: 'energy'}]);
+    expect(at(undefined).reuseInfeasibleCards, 'the standard advance pays per step').deep.eq([{name: DC, resource: 'energy'}]);
+  });
+
   it('a TRAVERSAL commitment is fed by an EARLIER chosen gain — and starves when the choice changes', () => {
     const surged = (picks: Record<number, unknown>, choices: Record<number, number>) => buildHydroModel(input({
       preview: surgePreview(7, {
