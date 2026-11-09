@@ -436,37 +436,72 @@
                                   :live="tenderView.phase === 'open'" embedded />
         </div>
 
-        <!-- ── CAMPAIGN «ТЕНДЕРЫ»: THE RESTRUCTURING (§16.3 · §19) ─────────
+        <!-- ── CAMPAIGN «ТЕНДЕРЫ»: THE RESTRUCTURING (§19.7, the owner 2026-11-09) ──
              The lineage the dock carries on EVERY page is what it rewrites, so it stands over whichever page the player
-             chose it on: the page parks, the dealt candidates and the lineage stand in two groups; A picks in either, RT
-             replaces, B / LT decline (the candidates go back) and the page surfaces as it was. -->
+             chose it on (the page parks). ONE ROW: the lineage first — already standing, already MARKED «✓ В линейке»
+             (no flight: these cards are the player's) — then the candidates, which come off the corporation deck one by
+             one as the server deals them. The rule is the row's: ONE lineage corporation may be taken out, ONE candidate
+             taken in; RT confirms only a whole lineage (the same count it started with) — a swap, or the lineage kept.
+             The cards are drawn: there is no way back from here (B only folds the workspace; the decision stays). -->
         <div v-show="restructureCovers" class="con-start__body con-start__restructview" ref="restructPane">
-          <div v-if="restructureMode !== undefined" class="con-restructure" data-tender-mode="restructure">
-            <section class="con-restructure__zone" data-tender-zone="offer">
-              <div class="con-restructure__cap">{{ $t('Candidates') }}</div>
-              <div class="con-restructure__row">
-                <div v-for="(card, i) in restructureOfferCards" :key="card.name" class="con-cards__slot con-restructure__slot"
-                     :class="{'con-cards__slot--focused': focusIdx === i, 'con-cards__slot--picked': restructureMode.take === card.name}"
-                     :data-zoom-slot="card.name"
-                     :data-tender-mode-card="card.name" :data-tender-mode-picked="restructureMode.take === card.name ? 'yes' : undefined">
-                  <Card :card="card" :key="card.name" lightweight />
-                  <span v-if="restructureMode.take === card.name" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Taken in') }}</span>
+          <div v-if="restructureMode !== undefined" class="con-restructure" data-tender-mode="restructure"
+               :data-restructure-valid="restructureState.valid ? 'yes' : undefined">
+            <div class="con-restructure__row" data-tender-zone="row">
+              <section class="con-restructure__group" data-tender-zone="lineage">
+                <div class="con-restructure__cap">{{ $t('Lineage') }}</div>
+                <div class="con-restructure__cards">
+                  <div v-for="(card, i) in restructureLineageCards" :key="card.name" class="con-cards__slot con-restructure__slot"
+                       :class="{
+                         'con-cards__slot--focused': focusIdx === i,
+                         'con-cards__slot--picked': restructureMode.replace !== card.name,
+                         'con-cards__slot--release': restructureMode.replace === card.name,
+                       }"
+                       :data-zoom-slot="card.name" :data-restruct-lineage="card.name"
+                       :data-tender-mode-card="card.name" :data-tender-mode-picked="restructureMode.replace !== card.name ? 'yes' : undefined">
+                    <Card :card="card" :key="card.name" lightweight />
+                    <span v-if="restructureMode.replace === card.name" class="con-cards__pickband con-cards__pickband--discard" aria-hidden="true">{{ $t('Leaves the lineage') }}</span>
+                    <span v-else class="con-cards__pickband" aria-hidden="true">✓ {{ $t('In the lineage') }}</span>
+                  </div>
                 </div>
-              </div>
-            </section>
-            <section class="con-restructure__zone con-restructure__zone--lineage" data-tender-zone="lineage">
-              <div class="con-restructure__cap">{{ $t('Lineage') }}</div>
-              <div class="con-restructure__row">
-                <div v-for="(card, i) in restructureLineageCards" :key="card.name" class="con-cards__slot con-restructure__slot"
-                     :class="{'con-cards__slot--focused': focusIdx === restructureOfferCards.length + i, 'con-cards__slot--keep': restructureMode.replace === card.name}"
-                     :data-zoom-slot="card.name" :data-restruct-lineage="card.name"
-                     :data-tender-mode-card="card.name" :data-tender-mode-picked="restructureMode.replace === card.name ? 'yes' : undefined">
-                  <Card :card="card" :key="card.name" lightweight />
-                  <span v-if="restructureMode.replace === card.name" class="con-cards__pickband con-cards__pickband--discard" aria-hidden="true">{{ $t('Leaves the lineage') }}</span>
+              </section>
+              <span class="con-restructure__divider" aria-hidden="true"></span>
+              <section class="con-restructure__group con-restructure__group--offer" data-tender-zone="offer">
+                <div class="con-restructure__cap">{{ $t('Candidates') }}</div>
+                <div class="con-restructure__cards">
+                  <div v-for="(card, i) in restructureOfferCards" :key="card.name" class="con-cards__slot con-restructure__slot"
+                       :class="{
+                         'con-cards__slot--focused': focusIdx === restructureLineageCards.length + i,
+                         'con-cards__slot--picked': restructureMode.take === card.name,
+                         'con-restructure__slot--arriving': restructArriving.has(card.name),
+                       }"
+                       :data-zoom-slot="card.name" :data-restruct-candidate="card.name"
+                       :data-tender-mode-card="card.name" :data-tender-mode-picked="restructureMode.take === card.name ? 'yes' : undefined">
+                    <Card :card="card" :key="card.name" lightweight />
+                    <span v-if="restructureMode.take === card.name" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('In the lineage') }}</span>
+                  </div>
+                  <!-- The candidates' PLACES while the deck deals them (the server's first answer in flight): prepared
+                       card places, never a hole — the row's geometry is final from the first frame. -->
+                  <template v-if="restructureOfferCards.length === 0">
+                    <div v-for="n in restructureCandidateCount" :key="'place' + n" class="con-restructure__place" aria-hidden="true"></div>
+                  </template>
                 </div>
-              </div>
-            </section>
+              </section>
+            </div>
           </div>
+        </div>
+
+        <!-- ── CAMPAIGN «ТЕНДЕРЫ»: THE DECK (§19.7) — the pile a tender's scene plays against: the cards an exchange or a
+             gamble returns fly INTO it, the fresh deal and the restructuring's candidates come OFF it. A real object on
+             the scene (frame-absolute at the body's bottom-right corner — out of flow, the deal never re-fits for it),
+             up only while a tender that touches the deck stands or plays. -->
+        <div class="con-start__tdeck" :class="{'con-start__tdeck--up': tenderDeckUp}" :style="tenderDeckStyle"
+             ref="tenderDeck" data-tender-deck :data-tender-deck-up="tenderDeckUp ? 'yes' : undefined" aria-hidden="true">
+          <div class="con-start__tdeck-pile">
+            <div class="con-card-back con-start__tdeck-c con-start__tdeck-c--3"></div>
+            <div class="con-card-back con-start__tdeck-c con-start__tdeck-c--2"></div>
+            <div class="con-card-back con-start__tdeck-c"></div>
+          </div>
+          <span class="con-start__tdeck-cap">{{ $t('Deck') }}</span>
         </div>
 
         <!-- ── CEREMONY — the DEPLOYMENT ───────────────────────────────
@@ -1474,15 +1509,17 @@ import ConsoleTenderChip from '@/client/components/console/campaign/ConsoleTende
 import ConsoleTenderCard from '@/client/components/console/campaign/ConsoleTenderCard.vue';
 import {
   StartPortfolioContext, TenderPortfolioEntry, TenderStandingPage, tenderDoorList, tenderExecutionOf, tenderPageOf, tenderPortfolio,
-  tenderPortfolioCounts, tenderReadyHere, tenderCardStateOf, tenderPortfolioName, tenderPressResponse, tenderRestructureDecline,
-  tenderRestructureResponse, tenderExchangeResponse, tenderTagResponse,
+  tenderPortfolioCounts, tenderReadyHere, tenderCardStateOf, tenderPortfolioName, tenderPressResponse,
+  tenderRestructureResponse, tenderExchangeResponse, tenderTagResponse, tenderRestructureKeep,
 } from '@/client/console/campaign/tenderPortfolio';
 import {ALL_TAGS, Tag} from '@/common/cards/Tag';
 import {tagIconStyle} from '@/client/components/premiumCard/premiumCardIcons';
 import {tagLabel} from '@/client/cards/tagLabel';
 import {tenderZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {TenderResponse} from '@/common/inputs/InputResponse';
-import {TENDER_COMPENSATION_MC, TENDER_TARGETED_REQUEST_CARDS, TenderId, isGambleTender} from '@/common/campaign/tenders';
+import {TENDER_COMPENSATION_MC, TENDER_RESTRUCTURING_CANDIDATES, TENDER_TARGETED_REQUEST_CARDS, TenderId, isGambleTender} from '@/common/campaign/tenders';
+import {CloneFlightHandle, flyCardClones} from '@/client/console/cardFlight/cloneFlights';
+import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {candidateOutlook} from '@/client/console/deckPick/preludePick';
 import {readingText} from '@/client/console/readingText';
 import {nearestInDirection, rowFitZoom, gridFitPlan} from '@/client/console/consoleStartNav';
@@ -1819,6 +1856,15 @@ export default defineComponent({
       restructFocusReturn: 0,
       /** THE GLIDE: where every standing card of a deal about to grow stood (FLIP's «first»). */
       dealGlide: undefined as Map<string, DOMRect> | undefined,
+      /** THE RESTRUCTURING's candidates still in the air off the tender deck (their slots keep their box, show nothing). */
+      restructArriving: new Set<CardName>(),
+      restructFlight: undefined as CloneFlightHandle | undefined,
+      /** A dealt restructuring found standing (a reload) was put back on the screen once — the decision is owed. */
+      restructResumed: false,
+      /** The tender DECK's place on the frame (its bottom-right corner of the visible body) — measured on its rise. */
+      tenderDeckPos: undefined as {left: number, top: number} | undefined,
+      /** The deal that follows a tender's answer comes OFF the tender deck (armed at the commit, let go at its end). */
+      tenderDealArmed: false,
       /** The summary's TERMINAL WARNING stands: start-window tenders still held — the next press begins anyway. */
       armedTenders: false,
       /** A simple tender's answer is on the wire and its effect lands on `step` — the landing is told there. */
@@ -4353,6 +4399,46 @@ export default defineComponent({
         }
       });
     },
+    /**
+     * THE RESTRUCTURING's row (§19.7 — the owner, 2026-11-09): every lineage corporation starts MARKED; ONE may be
+     * taken out (`replace`), ONE candidate taken in (`take`). The decision is whole only with the lineage's own count
+     * marked — a SWAP (one out, one in) or the lineage KEPT (nothing changed); every other state names what is missing.
+     */
+    restructureState(): {valid: boolean, swap: boolean, marked: number, total: number, missing?: string} {
+      const mode = this.restructureMode;
+      const total = this.campaignLineage.length;
+      if (mode === undefined) {
+        return {valid: false, swap: false, marked: total, total};
+      }
+      const marked = total - (mode.replace !== undefined ? 1 : 0) + (mode.take !== undefined ? 1 : 0);
+      const swap = mode.take !== undefined && mode.replace !== undefined;
+      const keep = mode.take === undefined && mode.replace === undefined;
+      const missing = mode.take !== undefined && mode.replace === undefined ? 'Take one corporation out of the lineage' :
+        mode.replace !== undefined && mode.take === undefined ? 'Choose the candidate that joins' : undefined;
+      return {valid: mode.offer.length > 0 && (swap || keep), swap, marked, total, ...(missing !== undefined ? {missing} : {})};
+    },
+    /** The candidates' count — the places the row prepares while the deck deals them. */
+    restructureCandidateCount(): number {
+      return TENDER_RESTRUCTURING_CANDIDATES;
+    },
+    /** The tender DECK stands while a tender that touches the deck stands in its mode or plays its scene. */
+    tenderDeckUp(): boolean {
+      if (this.mode !== 'wizard') {
+        return false;
+      }
+      if (this.departureActive || this.restructArriving.size > 0 || (this.tenderDealArmed && (this.state.tenderBusy !== undefined || this.deal.state.active))) {
+        return true;
+      }
+      const mode = this.state.tenderMode;
+      if (mode === undefined || !this.tenderModeLive) {
+        return false;
+      }
+      return mode.kind !== 'confirm' || mode.id !== 'researchSubsidy';
+    },
+    tenderDeckStyle(): Record<string, string> {
+      const pos = this.tenderDeckPos;
+      return pos === undefined ? {} : {left: `${pos.left}px`, top: `${pos.top}px`};
+    },
     restructureOfferCards(): ReadonlyArray<CardModel> {
       return (this.restructureMode?.offer ?? []).map((name) => ({name}) as CardModel);
     },
@@ -4404,9 +4490,49 @@ export default defineComponent({
         }
         return {kind: mode.kind, id: entry.id, reading: read(entry.reading.key, entry.reading.params)};
       }
+      case 'restructure': {
+        if (mode.offer.length === 0) {
+          return {kind: mode.kind, id: entry.id, reading: read('Dealing ${0} candidates from the corporation deck…', [String(TENDER_RESTRUCTURING_CANDIDATES)])};
+        }
+        const st = this.restructureState;
+        return {kind: mode.kind, id: entry.id, reading: read('In the lineage: ${0} / ${1}', [String(st.marked), String(st.total)]) +
+          (st.missing !== undefined ? ' · ' + translateText(st.missing) : '')};
+      }
       default:
         return {kind: mode.kind, id: entry.id, reading: read(entry.reading.key, entry.reading.params)};
       }
+    },
+    /**
+     * A on the focused card of the restructuring's row: the lineage first (marked — A takes it OUT; the one out — A
+     * puts it back), then the candidates (A takes one IN; the one in — A leaves it out). A second «out» or a second «in»
+     * is refused by name (the rule of the row, never a silent swap of the player's earlier choice).
+     */
+    restructurePickFacts(): {label: string, enabled: boolean} {
+      const mode = this.restructureMode;
+      if (mode === undefined) {
+        return {label: '', enabled: false};
+      }
+      const lineage = this.restructureLineageCards;
+      const i = this.focusIdx;
+      if (i < lineage.length) {
+        const name = lineage[i].name;
+        if (mode.replace === name) {
+          return {label: 'Back into the lineage', enabled: true};
+        }
+        return mode.replace !== undefined ?
+          {label: 'Only one corporation can leave the lineage', enabled: false} :
+          {label: 'Out of the lineage', enabled: true};
+      }
+      const name = this.restructureOfferCards[i - lineage.length]?.name;
+      if (name === undefined || this.restructArriving.has(name)) {
+        return {label: 'Into the lineage', enabled: false};
+      }
+      if (mode.take === name) {
+        return {label: 'Leave out', enabled: true};
+      }
+      return mode.take !== undefined ?
+        {label: 'Only one candidate can join', enabled: false} :
+        {label: 'Into the lineage', enabled: true};
     },
     /** The bar's facts while a tender's mode stands on its page. */
     tenderModeFacts(): {kind: 'confirm' | 'review' | 'restructure' | 'tag', commitLabel: string, canCommit: boolean, pickLabel: string, pickEnabled: boolean} | undefined {
@@ -4436,12 +4562,12 @@ export default defineComponent({
       }
       const mode = this.restructureMode;
       if (mode !== undefined) {
-        const offerN = this.restructureOfferCards.length;
-        const inOffer = this.focusIdx < offerN;
-        const focused = inOffer ? this.restructureOfferCards[this.focusIdx]?.name : this.restructureLineageCards[this.focusIdx - offerN]?.name;
-        const picked = focused !== undefined && (inOffer ? mode.take === focused : mode.replace === focused);
-        return {kind: 'restructure', commitLabel: 'Replace', canCommit: !busy && mode.take !== undefined && mode.replace !== undefined,
-          pickLabel: picked ? 'Unpick' : (inOffer ? 'Take this candidate' : 'Replace this corporation'), pickEnabled: focused !== undefined && !busy};
+        const st = this.restructureState;
+        const pick = this.restructurePickFacts;
+        return {kind: 'restructure',
+          commitLabel: st.missing ?? (st.swap ? 'Replace' : 'Keep the lineage'),
+          canCommit: !busy && st.valid,
+          pickLabel: pick.label, pickEnabled: pick.enabled && !busy};
       }
       return undefined;
     },
@@ -5044,6 +5170,37 @@ export default defineComponent({
         foldForecastHost('start');
       }
     },
+    /** The tender deck rises at the body's corner (measured on its rise — the body may have changed since). */
+    tenderDeckUp(up: boolean) {
+      if (up) {
+        this.placeTenderDeck();
+      }
+    },
+    /**
+     * A REFUSED deal of candidates (the transport's battery cleared the opening, nothing arrived): the row has nothing to
+     * stand for — it leaves, the page comes back, the tender stays held.
+     */
+    'state.restructureOpening'(now: string | undefined, was: string | undefined) {
+      const mode = this.restructureMode;
+      if (now === undefined && was !== undefined && mode !== undefined && mode.instance === was && mode.offer.length === 0) {
+        const live = (this.wizardInput?.tenders ?? []).find((t) => t.instance === was);
+        if (live?.offer === undefined) {
+          this.state.tenderMode = undefined;
+          this.tenderDealArmed = false;
+          this.leaveRestructureLayer();
+        }
+      }
+    },
+    /** A tender answer that came back with no deal to follow lets the tender deck go. */
+    'state.tenderBusy'(now: string | undefined) {
+      if (now === undefined && this.tenderDealArmed && !this.deal.state.active && !this.departureActive && this.restructArriving.size === 0) {
+        window.setTimeout(() => {
+          if (this.state.tenderBusy === undefined && !this.deal.state.active && this.restructArriving.size === 0 && !this.dealLaunchTimer) {
+            this.tenderDealArmed = false;
+          }
+        }, motionMs(400));
+      }
+    },
     /** The deal identity pins the wizard picks (module state survival). */
     'wizardInput': {
       immediate: true,
@@ -5073,12 +5230,26 @@ export default defineComponent({
               this.returningNames.delete(key);
             }
           }
-          // THE RESTRUCTURING's candidates arrived: its layer stands over the page the player chose it on.
+          // THE RESTRUCTURING's candidates arrived: the standing row receives them off the deck.
           if (openingBefore !== undefined) {
             const entry = tenders.find((t) => t.instance === openingBefore);
             this.state.restructureOpening = undefined;
             if (entry !== undefined && entry.offer !== undefined && entry.status === 'held') {
-              void this.openRestructureMode(entry.instance, entry.offer);
+              const offer = entry.offer;
+              // The row may not stand yet (the page still parking, or a new identity reset the mode): it stands now.
+              if (this.state.tenderMode === undefined) {
+                this.state.tenderMode = {kind: 'restructure', instance: entry.instance, offer: []};
+              }
+              void this.$nextTick(() => void this.dealRestructureCandidates(entry.instance, offer));
+            }
+          }
+          // A DEALT restructuring found standing with no mode (a reload): the decision is owed — its row comes back.
+          if (!this.restructResumed && this.state.tenderMode === undefined && openingBefore === undefined && this.mode === 'wizard') {
+            const owed = tenders.find((t) => t.id === 'restructuring' && t.status === 'held' && t.offer !== undefined);
+            if (owed !== undefined && owed.offer !== undefined) {
+              this.restructResumed = true;
+              const offer = owed.offer;
+              void this.$nextTick(() => void this.openRestructureMode(owed.instance, offer));
             }
           }
           // A standing mode whose tender is executed (or gone) ends: a review's kept card becomes the step's PICK —
@@ -5203,6 +5374,9 @@ export default defineComponent({
      *  the whole step — `--held` hides CONTENT only, never the box — so this
      *  is a settle re-measure, not a size change.) */
     'deal.state.active'(active: boolean) {
+      if (!active && this.tenderDealArmed && this.state.tenderBusy === undefined && this.restructArriving.size === 0) {
+        this.tenderDealArmed = false;
+      }
       if (!active) {
         void this.$nextTick(() => this.fitCardStrip());
       }
@@ -6871,6 +7045,15 @@ export default defineComponent({
           })
           .filter((el): el is HTMLElement => el !== null);
       }
+      // A TENDER's deal comes OFF the tender deck the player watched the cards go into (a real pile — no synthetic
+      // dealer rises); every other deal keeps the dealer.
+      const tenderDeck = this.tenderDealArmed ? (this.$refs.tenderDeck ?? undefined) as HTMLElement | undefined : undefined;
+      const deckRect = tenderDeck?.getBoundingClientRect();
+      if (tenderDeck !== undefined && deckRect !== undefined && deckRect.width > 4) {
+        this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: null, originEl: tenderDeck,
+          originScale: deckRect.width / CARD_NATURAL_W});
+        return;
+      }
       this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl()});
     },
     /** The focus a freshly-entered frame opens on: a wizard step with an
@@ -7213,7 +7396,7 @@ export default defineComponent({
      * under the convoy (the same table the player left — same cards, same size, picks untouched). Resolves when the
      * last certificate has landed; `then` runs once the PAGE is the one on screen (a chosen tender's mode stands there).
      */
-    async closeTenderView(then?: () => void): Promise<void> {
+    async closeTenderView(then?: () => void, keepPageParked = false): Promise<void> {
       if (this.tenderView.phase !== 'open') {
         return;
       }
@@ -7243,7 +7426,11 @@ export default defineComponent({
           this.tenderPageRestored = true;
           then?.();
           then = undefined;
-          void this.$nextTick().then(() => void unparkSurface(this.legacyPageEl() ?? null, 1));
+          // A tender whose own layer takes the page's place (the restructuring) keeps the page PARKED — the list hands
+          // the screen straight to that layer; unparking here raced the layer's own park (a killed tween never resolves).
+          if (!keepPageParked) {
+            void this.$nextTick().then(() => void unparkSurface(this.legacyPageEl() ?? null, 1));
+          }
         }
       }, motionMs(320));
       await flight.flyTo(miniOf,
@@ -7324,10 +7511,11 @@ export default defineComponent({
         this.blockedNudge++;
         return;
       }
-      void this.closeTenderView(() => this.enterTenderMode(entry));
+      const ownLayer = tenderExecutionOf(entry.id) === 'restructure';
+      void this.closeTenderView(() => this.enterTenderMode(entry, ownLayer), ownLayer);
     },
     /** The tender stands on its page: a CONFIRM of the previewed effect · the exchange · the request's tags · the restructuring. */
-    enterTenderMode(entry: TenderPortfolioEntry): void {
+    enterTenderMode(entry: TenderPortfolioEntry, pageParked = false): void {
       if (this.state.tenderMode !== undefined) {
         return;
       }
@@ -7346,11 +7534,15 @@ export default defineComponent({
       case 'restructure': {
         const live = (this.wizardInput?.tenders ?? []).find((t) => t.instance === entry.instance);
         if (live?.offer !== undefined) {
-          void this.openRestructureMode(entry.instance, live.offer);
+          // Already dealt (a return to a standing decision): the candidates are on the table — no flight.
+          void this.openRestructureMode(entry.instance, live.offer, pageParked);
           return;
         }
-        // The candidates are dealt by the server first — the answer opens the layer over this very page.
+        // THE ROW STANDS AT ONCE — the lineage marked, the candidates' places prepared — and the deck deals the
+        // candidates into it the moment the server has drawn them (the answer fills the offer and flies them).
+        void this.openRestructureMode(entry.instance, [], pageParked);
         this.state.restructureOpening = entry.instance;
+        this.tenderDealArmed = true;
         this.submitTender({type: 'tender', instance: entry.instance});
         return;
       }
@@ -7360,17 +7552,127 @@ export default defineComponent({
         this.state.tenderMode = {kind: 'confirm', instance: entry.instance, id: entry.id};
       }
     },
-    /** THE RESTRUCTURING's layer over the page once the candidates are dealt: the page parks, the two groups stand. */
-    async openRestructureMode(instance: string, offer: ReadonlyArray<CardName>): Promise<void> {
+    /** THE RESTRUCTURING's layer over the page: the page parks, the ONE row stands (the lineage marked). */
+    async openRestructureMode(instance: string, offer: ReadonlyArray<CardName>, pageParked = false): Promise<void> {
       this.restructFocusReturn = this.focusIdx;
-      await parkSurface(this.legacyPageEl() ?? null, 1);
-      this.state.tenderMode = {kind: 'restructure', instance, offer: [...offer]};
+      if (!pageParked) {
+        await parkSurface(this.legacyPageEl() ?? null, 1);
+      }
+      // The deal's answer may have arrived while the page was parking — its candidates are already on the mode.
+      const already = this.restructureMode;
+      if (already === undefined || already.instance !== instance) {
+        this.state.tenderMode = {kind: 'restructure', instance, offer: [...offer]};
+      }
       this.focusIdx = 0;
+      void this.$nextTick(() => {
+        this.fitRestructureRow();
+        this.placeTenderDeck();
+      });
+    },
+    /**
+     * THE ROW's card size — ONE zoom for the lineage and the candidates, solved from the pane for the WHOLE row (the
+     * lineage + the candidates' places), so the candidates landing change no box.
+     */
+    fitRestructureRow(): void {
+      const pane = (this.$refs.restructPane ?? undefined) as HTMLElement | undefined;
+      const row = pane?.querySelector<HTMLElement>('.con-restructure');
+      if (pane === undefined || row === null || row === undefined) {
+        return;
+      }
+      const n = this.campaignLineage.length + TENDER_RESTRUCTURING_CANDIDATES;
+      const rem = parseFloat(window.getComputedStyle(row).fontSize) || 16;
+      // Width: the row's paddings, the gaps, the divider. Height: the paddings, the caption + its clearance over the
+      // cards' top band, and the cursor's lift room (the focused card rises — it must not touch the status rail).
+      const availW = pane.clientWidth - 2.4 * rem - (n - 1) * 1.1 * rem - 2.8 * rem;
+      const availH = pane.clientHeight - 0.8 * rem - 2.6 * rem - 1.6 * rem;
+      if (availW <= 0 || availH <= 0) {
+        return;
+      }
+      const zoom = Math.max(0.3, Math.min(availW / (n * 320), availH / 445, 1.2 * conUiScale()));
+      row.style.setProperty('--con-restruct-zoom', zoom.toFixed(3));
     },
     /** The restructuring's layer lets go: the page surfaces back as it was (its cursor too). */
     leaveRestructureLayer(): void {
+      this.restructFlight?.dispose();
+      this.restructFlight = undefined;
+      this.restructArriving = new Set();
       this.focusIdx = this.restructFocusReturn;
       void this.$nextTick().then(() => void unparkSurface(this.legacyPageEl() ?? null, -1));
+    },
+    /**
+     * THE CANDIDATES COME OFF THE DECK: the server drew them — their slots stand held, each card leaves the tender
+     * deck in turn and lands in its place (the face reveals on its own touchdown). Reduced motion / no measurable
+     * deck: they simply stand.
+     */
+    async dealRestructureCandidates(instance: string, offer: ReadonlyArray<CardName>): Promise<void> {
+      const mode = this.restructureMode;
+      if (mode === undefined || mode.instance !== instance) {
+        return;
+      }
+      this.restructArriving = new Set(offer);
+      this.state.tenderMode = {...mode, offer: [...offer]};
+      await this.$nextTick();
+      // The row's size and the deck's place are measured on the layer as it stands NOW (the page may have parked late).
+      this.fitRestructureRow();
+      this.placeTenderDeck();
+      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      const deck = (this.$refs.tenderDeck ?? undefined) as HTMLElement | undefined;
+      const deckRect = deck?.getBoundingClientRect();
+      const root = this.sceneRoot();
+      const faceOf = (n: CardName) => root?.querySelector<HTMLElement>(`[data-restruct-candidate="${CSS.escape(n)}"] :is(.card-container, .pcard)`) ?? null;
+      const to = new Map<CardName, DOMRect>();
+      for (const n of offer) {
+        const r = faceOf(n)?.getBoundingClientRect();
+        if (r !== undefined && r.width > 8) {
+          to.set(n, r);
+        }
+      }
+      if (deckRect === undefined || deckRect.width < 4 || to.size === 0 || consoleReducedMotionActive()) {
+        this.restructArriving = new Set();
+        return;
+      }
+      const from = new Map<CardName, DOMRect>(offer.map((n) => [n, deckRect]));
+      this.restructFlight?.dispose();
+      const flight: CloneFlightHandle = flyCardClones({
+        names: [...offer],
+        sourceEl: faceOf,
+        from,
+        to,
+        layerClass: 'con-start-tdeal',
+        onLand: (n) => {
+          const next = new Set(this.restructArriving);
+          next.delete(n);
+          this.restructArriving = next;
+        },
+        onDone: () => {
+          this.restructArriving = new Set();
+          flight.dispose();
+          if (this.restructFlight === flight) {
+            this.restructFlight = undefined;
+          }
+          this.tenderDealArmed = false;
+        },
+        travelMs: 420,
+        staggerMs: 140,
+      });
+      this.restructFlight = flight;
+    },
+    /** The tender DECK takes its place: the RIGHT END of the dock's row (frame coordinates) — under the body, over no card. */
+    placeTenderDeck(): void {
+      const frame = (this.$refs.frame ?? undefined) as HTMLElement | undefined;
+      const deck = (this.$refs.tenderDeck ?? undefined) as HTMLElement | undefined;
+      const dock = this.sceneRoot()?.querySelector<HTMLElement>('.con-startdock') ?? null;
+      if (frame === undefined || deck === undefined || dock === null) {
+        return;
+      }
+      const f = frame.getBoundingClientRect();
+      const d = dock.getBoundingClientRect();
+      if (d.width < 8) {
+        return;
+      }
+      const w = deck.offsetWidth;
+      const h = deck.offsetHeight;
+      this.tenderDeckPos = {left: Math.round(d.right - f.left - w - 8), top: Math.round(d.top - f.top + (d.height - h) / 2)};
     },
     /** A in a mode: the exchange's mark · the restructuring's candidate / lineage pick · the request's tag · a confirm's commit. */
     toggleTenderModePick(): void {
@@ -7411,17 +7713,21 @@ export default defineComponent({
       if (mode === undefined) {
         return;
       }
-      const offerN = this.restructureOfferCards.length;
-      if (this.focusIdx < offerN) {
-        const name = this.restructureOfferCards[this.focusIdx]?.name;
+      if (!this.restructurePickFacts.enabled) {
+        this.blockedNudge++; // the bar names the rule («only one out» · «only one in») — refused, never silently
+        return;
+      }
+      const lineageN = this.restructureLineageCards.length;
+      if (this.focusIdx < lineageN) {
+        const name = this.restructureLineageCards[this.focusIdx]?.name;
         if (name !== undefined) {
-          this.state.tenderMode = {...mode, take: mode.take === name ? undefined : name};
+          this.state.tenderMode = {...mode, replace: mode.replace === name ? undefined : name};
         }
         return;
       }
-      const name = this.restructureLineageCards[this.focusIdx - offerN]?.name;
+      const name = this.restructureOfferCards[this.focusIdx - lineageN]?.name;
       if (name !== undefined) {
-        this.state.tenderMode = {...mode, replace: mode.replace === name ? undefined : name};
+        this.state.tenderMode = {...mode, take: mode.take === name ? undefined : name};
       }
     },
     /**
@@ -7474,8 +7780,10 @@ export default defineComponent({
         return;
       }
       const mode = this.restructureMode;
-      if (mode !== undefined && mode.take !== undefined && mode.replace !== undefined) {
-        this.submitTender(tenderRestructureResponse(mode.instance, mode.take, mode.replace));
+      if (mode !== undefined && this.restructureState.valid) {
+        this.submitTender(mode.take !== undefined && mode.replace !== undefined ?
+          tenderRestructureResponse(mode.instance, mode.take, mode.replace) :
+          tenderRestructureKeep(mode.instance));
       }
     },
     /** B / LT in a mode: the way out with nothing applied — the restructuring declines (the candidates go back). */
@@ -7485,10 +7793,7 @@ export default defineComponent({
         return;
       }
       if (mode.kind === 'restructure') {
-        this.submitTender(tenderRestructureDecline(mode.instance));
-        this.state.tenderMode = undefined;
-        this.leaveRestructureLayer();
-        return;
+        return; // the cards are drawn — the decision cannot be undone (the owner, 2026-11-09); RT resolves it
       }
       if (mode.kind === 'tag') {
         this.focusIdx = this.tagFocusReturn;
@@ -7554,8 +7859,12 @@ export default defineComponent({
      * within the safety) gives them back. Reduced motion / no measurable deck: nothing flies, nothing is withheld.
      */
     async departToDeck(stepId: StartWizardStepId, names: ReadonlyArray<CardName>): Promise<void> {
-      const layer = (this.$refs.dealLayer ?? undefined) as {deckEl?: () => HTMLElement | null} | undefined;
-      const deck = layer?.deckEl?.() ?? null;
+      // The cards go back to the TENDER DECK — a real pile standing on the scene (the deal layer's own deck lives only
+      // while a deal runs, so a departure aimed at it never flew).
+      this.tenderDealArmed = true;
+      this.placeTenderDeck();
+      await this.$nextTick();
+      const deck = (this.$refs.tenderDeck ?? null) as HTMLElement | null;
       if (deck === null || names.length === 0 || consoleReducedMotionActive()) {
         return;
       }
@@ -8617,7 +8926,7 @@ export default defineComponent({
       case 'inspect':
         // THE RESTRUCTURING's X: the focused candidate / lineage corporation fullscreen.
         if (this.restructureMode !== undefined) {
-          const cards = [...this.restructureOfferCards, ...this.restructureLineageCards];
+          const cards = [...this.restructureLineageCards, ...this.restructureOfferCards];
           if (cards.length > 0) {
             openConsoleCardZoom(cards, Math.min(this.focusIdx, cards.length - 1), undefined, undefined, {contextLabel: tenderPortfolioName('restructuring')});
           }
@@ -8627,7 +8936,7 @@ export default defineComponent({
         this.zoomFocused();
         return;
       case 'prevSection':
-        // A tender's MODE: LT is the way out with nothing applied (the restructuring declines).
+        // A tender's MODE: LT is the way out with nothing applied — the restructuring has none (its cards are drawn).
         if (this.mode === 'wizard' && this.tenderModeFacts !== undefined) {
           this.cancelTenderMode();
           return;
@@ -8670,8 +8979,9 @@ export default defineComponent({
         }
         return;
       case 'back':
-        // A tender's MODE ends with nothing applied — one level.
-        if (this.mode === 'wizard' && this.tenderModeFacts !== undefined) {
+        // A tender's MODE ends with nothing applied — one level. The restructuring has no way back (its cards are
+        // drawn): B folds the workspace like on any page, the decision stays where it stands.
+        if (this.mode === 'wizard' && this.tenderModeFacts !== undefined && this.tenderModeFacts.kind !== 'restructure') {
           this.cancelTenderMode();
           return;
         }

@@ -59,8 +59,10 @@ export function isSelectInitialCardsResponse(response: InputResponse): response 
  *  · `release` — an exchange («Замена»): the dealt cards returned to the deck (as many fresh ones come);
  *  · `take` / `replace` — a restructuring's RESOLUTION: the dealt candidate
  *    joining the lineage in place of `replace`;
- *  · `decline` — a restructuring's candidates are let go (the tender stays
- *    held — the compensation buys it back).
+ *  · `decline` — REFUSED once a restructuring's candidates are dealt (the owner, 2026-11-09: «карты уже вытянулись —
+ *    отменить решение уже нельзя»); kept on the wire so an old client hears the refusal by name;
+ *  · `keep` — a restructuring's RESOLUTION that keeps the company as it is: the candidates go back to the deck and
+ *    the tender is executed (the decision was made — nothing changed).
  */
 export interface TenderResponse {
   type: 'tender',
@@ -70,6 +72,7 @@ export interface TenderResponse {
   take?: CardName;
   replace?: CardName;
   decline?: boolean;
+  keep?: boolean;
   /** «Целевой запрос»: the tag the three requested project cards carry. */
   tag?: Tag;
 }
@@ -78,7 +81,7 @@ export function isTenderResponse(response: InputResponse): response is TenderRes
   if (response.type !== 'tender') {
     return false;
   }
-  const allowed = ['type', 'instance', 'release', 'take', 'replace', 'decline', 'tag'];
+  const allowed = ['type', 'instance', 'release', 'take', 'replace', 'decline', 'keep', 'tag'];
   const keys = Object.keys(response);
   return keys.includes('instance') && keys.every((k) => allowed.includes(k));
 }

@@ -166,7 +166,8 @@ export type StartSceneCommandState = {
   /**
    * …or a tender's MODE stands on its page (§16.3 · §19): a CONFIRM (A executes the previewed effect, B cancels), an
    * EXCHANGE (A marks / unmarks the focused card, RT exchanges, B cancels — nothing sent), the REQUEST (A names a tag,
-   * RT asks) or the RESTRUCTURING (A picks in either group, RT replaces once both are chosen, LT and B decline).
+   * RT asks) or the RESTRUCTURING (one row — A takes one lineage corporation out / one candidate in, RT resolves a
+   * whole lineage: the swap or the lineage kept; no decline — B only folds the workspace).
    */
   tenderMode?: {kind: 'confirm' | 'review' | 'restructure' | 'tag', commitLabel: string, canCommit: boolean, pickLabel: string, pickEnabled: boolean},
   /**
@@ -232,11 +233,10 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
         {control: 'confirm', label: s.tenderMode.pickLabel, enabled: s.tenderMode.pickEnabled},
         {control: 'triggerR', label: s.tenderMode.commitLabel, enabled: s.tenderMode.canCommit, highlight: s.tenderMode.canCommit},
       ];
-      if (s.tenderMode.kind === 'restructure') {
-        mode.push({control: 'triggerL', label: 'Decline the restructuring'});
-      }
       mode.push({control: 'secondary', label: 'Inspect'});
-      mode.push({control: 'back', label: s.tenderMode.kind === 'restructure' ? 'Decline the restructuring' : s.tenderMode.kind === 'tag' ? 'Cancel the request' : 'Cancel the exchange'});
+      // The RESTRUCTURING has no way back — its cards are drawn (the owner, 2026-11-09): B folds the workspace as on
+      // any page, the decision stays; the exchange and the request are previews, B cancels them.
+      mode.push({control: 'back', label: s.tenderMode.kind === 'restructure' ? 'Minimize' : s.tenderMode.kind === 'tag' ? 'Cancel the request' : 'Cancel the exchange'});
       return mode;
     }
     if (s.awaiting) {

@@ -5,7 +5,7 @@ import {TenderInSelectionModel} from '../../src/common/models/PlayerInputModel';
 import {CarryoverTenderModel} from '../../src/common/campaign/CampaignModel';
 import {
   StartPortfolioContext, ThresholdPortfolioContext, TenderStandingPage, tenderDoorList, tenderExecutionOf, tenderPageNoteKey,
-  tenderPageOf, tenderPortfolio, tenderPortfolioCounts, tenderPressResponse, tenderReadyHere, tenderRestructureDecline,
+  tenderPageOf, tenderPortfolio, tenderPortfolioCounts, tenderPressResponse, tenderReadyHere, tenderRestructureKeep,
   tenderRestructureResponse, tenderExchangeResponse, tenderSpeaksAt, tenderSpeaksOnPage,
 } from '../../src/client/console/campaign/tenderPortfolio';
 
@@ -132,13 +132,13 @@ describe('tenderPortfolio — the tender door: where each tender speaks, and why
     expect(tenderDoorList(entries).map((e) => e.instance)).deep.eq(['c-extendedLegacy', 'c-programExtension', 'c-openCall', 'c-pe-2']);
   });
 
-  it('the answers on the wire — the one press, the exchange\'s returned cards, the restructuring\'s take / decline', () => {
+  it('the answers on the wire — the one press, the exchange\'s returned cards, the restructuring\'s take / keep', () => {
     expect(tenderPressResponse({instance: 't1', id: 'openCall'})).deep.eq({type: 'tender', instance: 't1'});
     expect(tenderPressResponse({instance: 't2', id: 'restructuring'})).deep.eq({type: 'tender', instance: 't2'});
     expect(tenderPressResponse({instance: 't2', id: 'restructuring', offer: [CardName.HELION]}), 'dealt — the mode answers, not the press').is.undefined;
     expect(tenderPressResponse({instance: 't3', id: 'preludeReview'})).is.undefined;
     expect(tenderExchangeResponse('t3', [CardName.LOAN, CardName.DONATION])).deep.eq({type: 'tender', instance: 't3', release: [CardName.LOAN, CardName.DONATION]});
     expect(tenderRestructureResponse('t2', CardName.HELION, CardName.ECOLINE)).deep.eq({type: 'tender', instance: 't2', take: CardName.HELION, replace: CardName.ECOLINE});
-    expect(tenderRestructureDecline('t2')).deep.eq({type: 'tender', instance: 't2', decline: true});
+    expect(tenderRestructureKeep('t2'), 'the lineage kept — never a decline once dealt').deep.eq({type: 'tender', instance: 't2', keep: true});
   });
 });

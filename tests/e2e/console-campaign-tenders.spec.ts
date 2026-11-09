@@ -153,20 +153,40 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
     await expect(page.locator('.con-cmdbar .con-cmdbar__cmd--disabled', {hasText: /исполнить/i}), 'A of another page stands DISABLED').toHaveCount(1, {timeout: 3_000});
     await press(page, 'ArrowLeft', 250);
 
-    // ── «Реструктуризация»: A deals two candidates over THIS page; A picks a candidate and the lineage corporation; RT
-    //    rewrites the lineage — the page surfaces back. ──
+    // ── «Реструктуризация» (§19.7): ONE ROW over THIS page — the lineage first, already MARKED, then the two candidates
+    //    off the deck. ONE lineage corporation out, ONE candidate in; RT resolves only a whole lineage; no decline. ──
     await press(page, 'Enter', 900);
     await expect(page.locator('[data-tender-mode="restructure"]')).toHaveCount(1, {timeout: 15_000});
+    const lineageCards = page.locator('[data-tender-zone="lineage"] [data-tender-mode-card]');
+    await expect(lineageCards, 'the lineage stands in the row').toHaveCount(2);
+    await expect(page.locator('[data-tender-zone="lineage"] [data-tender-mode-picked="yes"]'), 'every lineage corporation starts MARKED').toHaveCount(2);
     const offer = page.locator('[data-tender-zone="offer"] [data-tender-mode-card]');
-    await expect(offer).toHaveCount(2);
+    await expect(offer, 'the candidates come off the deck').toHaveCount(2, {timeout: 15_000});
+    await expect(page.locator('.con-restructure__slot--arriving'), 'every candidate has landed').toHaveCount(0, {timeout: 10_000});
+    // ONE row: the two groups' card lines stand on one top (the focused card's lift is a transform — it moves with the
+    // cursor, the layout does not), the lineage left of the candidates.
+    const rowGeometry = await page.evaluate(() => {
+      const lines = Array.from(document.querySelectorAll('[data-tender-mode="restructure"] .con-restructure__cards')).map((el) => el.getBoundingClientRect());
+      const slots = Array.from(document.querySelectorAll<HTMLElement>('[data-tender-mode="restructure"] [data-tender-mode-card]'));
+      return {tops: [...new Set(lines.map((r) => Math.round(r.top)))], lefts: slots.map((el) => Math.round(el.getBoundingClientRect().left))};
+    });
+    expect(rowGeometry.tops, `ONE row ${JSON.stringify(rowGeometry)}`).toHaveLength(1);
+    expect([...rowGeometry.lefts].sort((x, y) => x - y), `the lineage first, the candidates after ${JSON.stringify(rowGeometry)}`).toEqual(rowGeometry.lefts);
     await expect.poll(crumb, {timeout: 5_000}).toMatch(/реструктуризац/i);
+    await expect.poll(bar, {timeout: 5_000, message: 'no decline once the cards are drawn — B only folds'}).not.toMatch(/отказаться/i);
+    // The lineage KEPT is a whole lineage: RT would resolve it now (2 / 2) — the player swaps instead.
+    // A on the focused first lineage card (Ecoline) takes it OUT; a second «out» is refused by name.
+    await press(page, 'Enter', 300);
+    await expect(page.locator('[data-tender-zone="lineage"] [data-tender-mode-card="Ecoline"]')).not.toHaveAttribute('data-tender-mode-picked', 'yes');
+    await press(page, 'ArrowRight', 150);
+    await expect.poll(bar, {timeout: 5_000, message: 'a second «out» is refused by name'}).toMatch(/только одна корпорация|only one corporation/i);
+    // → the first candidate: A takes it IN; RT resolves the swap.
+    await press(page, 'ArrowRight', 150);
     const take = await offer.first().getAttribute('data-tender-mode-card');
     await press(page, 'Enter', 300);
     await expect(offer.first()).toHaveAttribute('data-tender-mode-picked', 'yes');
-    await press(page, 'ArrowRight', 150);
-    await press(page, 'ArrowRight', 150);
-    await press(page, 'Enter', 300);
-    await expect(page.locator('[data-tender-zone="lineage"] [data-tender-mode-card="Ecoline"]')).toHaveAttribute('data-tender-mode-picked', 'yes');
+    await expect(page.locator('[data-tender-mode="restructure"]')).toHaveAttribute('data-restructure-valid', 'yes');
+    await page.screenshot({path: 'screenshots/tenders/door-1b-restructure-row.png'});
     await press(page, 'Period', 900);
     await expect.poll(async () => (await model(request, aliceId!)).campaignLineage?.[0], {timeout: 10_000}).toBe(take);
     await expect(page.locator('[data-tender-mode="restructure"]')).toBeHidden({timeout: 10_000});

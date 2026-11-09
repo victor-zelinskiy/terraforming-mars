@@ -848,16 +848,19 @@ export function executeTender(player: IPlayer, response: TenderResponse): void {
 
 /**
  * «РЕСТРУКТУРИЗАЦИЯ» — two answers on one tender. The first DEALS the
- * candidates (the tender stays held, its `offer` names them); the second takes
- * one of them in place of a lineage corporation (`campaignLineageOverride`)
- * or declines — either way the candidates not taken go back to the deck. It
- * works whether or not the finale drafts a corporation of its own: the
+ * candidates (the tender stays held, its `offer` names them); the second
+ * RESOLVES it: one candidate takes the place of a lineage corporation
+ * (`campaignLineageOverride`), or the company is KEPT as it is — either way the
+ * candidates not taken go back to the deck and the tender is executed. Once the
+ * cards are dealt the decision cannot be undone (the owner, 2026-11-09:
+ * «карты уже вытянулись — отменить решение уже нельзя»): a decline is refused.
+ * It works whether or not the finale drafts a corporation of its own: the
  * override rewrites the LINEAGE, the draft's pick stays the draft's.
  */
 function executeRestructuring(player: IPlayer, tender: PlayerTender, response: TenderResponse): void {
   const game = player.game;
   if (tender.offer === undefined) {
-    if (response.take !== undefined || response.replace !== undefined || response.decline === true) {
+    if (response.take !== undefined || response.replace !== undefined || response.decline === true || response.keep === true) {
       throw new InputError('Deal the candidates first');
     }
     const dealt = game.corporationDeck.drawN(game, TENDER_RESTRUCTURING_CANDIDATES);
@@ -878,9 +881,13 @@ function executeRestructuring(player: IPlayer, tender: PlayerTender, response: T
     }
   };
   if (response.decline === true) {
+    throw new InputError('The candidates are dealt — keep the company or take one of them');
+  }
+  if (response.keep === true) {
     tender.offer = undefined;
+    tender.status = 'executed';
     letGo(offer);
-    game.log('${0} declined the restructuring', (b) => b.player(player));
+    game.log('${0} kept the lineage as it is', (b) => b.player(player));
     return;
   }
   const take = response.take;

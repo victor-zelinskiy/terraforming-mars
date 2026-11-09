@@ -185,11 +185,11 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(review.map((c) => c.control)).to.deep.eq(['confirm', 'triggerR', 'secondary', 'back']);
     expect(labelOf(review, 'triggerR')).to.eq('Redeal the rest');
     expect(labelOf(review, 'back')).to.eq('Cancel the exchange');
-    const restructure = startSceneCommands(state({tenderMode: {kind: 'restructure', commitLabel: 'Replace', canCommit: false, pickLabel: 'Take this candidate', pickEnabled: true}}));
-    expect(restructure.map((c) => c.control)).to.deep.eq(['confirm', 'triggerR', 'triggerL', 'secondary', 'back']);
-    expect(restructure.find((c) => c.control === 'triggerR')?.enabled, 'RT waits for both picks').to.eq(false);
-    expect(labelOf(restructure, 'triggerL')).to.eq('Decline the restructuring');
-    expect(labelOf(restructure, 'back')).to.eq('Decline the restructuring');
+    const restructure = startSceneCommands(state({tenderMode: {kind: 'restructure', commitLabel: 'Choose the candidate that joins', canCommit: false, pickLabel: 'Into the lineage', pickEnabled: true}}));
+    expect(restructure.map((c) => c.control), 'no decline — the cards are drawn').to.deep.eq(['confirm', 'triggerR', 'secondary', 'back']);
+    expect(restructure.find((c) => c.control === 'triggerR')?.enabled, 'RT waits for a whole lineage').to.eq(false);
+    expect(labelOf(restructure, 'triggerR'), 'RT names what is missing').to.eq('Choose the candidate that joins');
+    expect(labelOf(restructure, 'back'), 'B only folds the workspace').to.eq('Minimize');
     const request = startSceneCommands(state({tenderMode: {kind: 'tag', commitLabel: 'Request the three cards', canCommit: false, pickLabel: 'Choose this tag', pickEnabled: true}}));
     expect(request.map((c) => c.control)).to.deep.eq(['confirm', 'triggerR', 'secondary', 'back']);
     expect(request.find((c) => c.control === 'triggerR')?.enabled, 'RT waits for a named tag').to.eq(false);

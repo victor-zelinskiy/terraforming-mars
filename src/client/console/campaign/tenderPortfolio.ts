@@ -293,9 +293,12 @@ export function tenderRestructureResponse(instance: string, take: CardName, repl
   return {type: 'tender', instance, take, replace};
 }
 
-/** THE RESTRUCTURING declined: the candidates go back to the deck, the tender stays held. */
-export function tenderRestructureDecline(instance: string): TenderResponse {
-  return {type: 'tender', instance, decline: true};
+/**
+ * THE RESTRUCTURING resolved with the lineage KEPT: the candidates go back to the deck, the tender is executed — the
+ * cards were drawn, the decision was made (the owner, 2026-11-09: there is no decline once they are dealt).
+ */
+export function tenderRestructureKeep(instance: string): TenderResponse {
+  return {type: 'tender', instance, keep: true};
 }
 
 /** «Целевой запрос»: the named tag on the wire. */

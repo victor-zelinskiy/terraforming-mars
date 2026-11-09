@@ -270,7 +270,7 @@ describe('tender execution at the finale\'s start', () => {
     expect(corpOption.cards.map((c) => c.name), 'the corporation step re-serves the new offer').deep.eq(redealt);
   });
 
-  it('«Реструктуризация»: deal two, decline or take one in place of a lineage corporation — the deployment follows', () => {
+  it('«Реструктуризация»: deal two, then take one in place of a lineage corporation (a decline is refused once dealt) — the deployment follows', () => {
     const {game, p1} = finale(['restructuring']);
     const deck = game.corporationDeck.drawPile.length;
     expect(() => p1.process({type: 'tender', instance: 't0', take: CardName.ECOLINE, replace: CardName.THORGATE})).throws(/Deal the candidates first/);
@@ -280,14 +280,10 @@ describe('tender execution at the finale\'s start', () => {
     expect(p1.campaignTenders![0].status, 'the tender stays held until the choice').eq('held');
     expect(game.corporationDeck.drawPile).has.length(deck - 2);
     expect(selectionOf(p1).toModel(p1).tenders![0].offer).deep.eq(offer);
-    // Decline: the candidates go back, the tender is still held (the compensation can buy it back).
-    p1.process({type: 'tender', instance: 't0', decline: true});
-    expect(p1.campaignTenders![0].offer).is.undefined;
-    expect(p1.campaignTenders![0].status).eq('held');
-    expect(game.corporationDeck.discardPile.map((c) => c.name)).includes(offer[0]);
-    // Deal again, then take.
-    p1.process({type: 'tender', instance: 't0'});
-    const second = p1.campaignTenders![0].offer!;
+    // THE CARDS ARE DEALT — the decision cannot be undone: a decline is refused, the candidates stay dealt.
+    expect(() => p1.process({type: 'tender', instance: 't0', decline: true})).throws(/keep the company or take one/);
+    expect(p1.campaignTenders![0].offer).deep.eq(offer);
+    const second = offer;
     expect(() => p1.process({type: 'tender', instance: 't0', take: CardName.ECOLINE, replace: CardName.THORGATE})).throws(/Take one of the dealt/);
     expect(() => p1.process({type: 'tender', instance: 't0', take: second[0], replace: CardName.ECOLINE})).throws(/Name the lineage corporation/);
     p1.process({type: 'tender', instance: 't0', take: second[0], replace: CardName.THORGATE});
@@ -295,6 +291,7 @@ describe('tender execution at the finale\'s start', () => {
     expect(campaignCorporationQueue(p1).map((c) => c.name)).deep.eq([CardName.CREDICOR, second[0], CardName.PHOBOLOG]);
     expect(p1.campaignTenders![0].status).eq('executed');
     expect(game.corporationDeck.discardPile.map((c) => c.name)).includes(second[1]);
+    expect(() => p1.process({type: 'tender', instance: 't0', keep: true}), 'executed — nothing left to resolve').throws();
     // The deployment plays the REWRITTEN lineage.
     finishSelection(p1, p1.dealtPreludeCards.slice(0, 2).map((c) => c.name));
     runCampaignDeploymentChain(p1, {deferCardPayment: false});
@@ -303,6 +300,19 @@ describe('tender execution at the finale\'s start', () => {
     p1.process({type: 'card', cards: [second[0]]});
     p1.process({type: 'card', cards: [CardName.PHOBOLOG]});
     expect(p1.playedCards.filter(isICorporationCard).map((c) => c.name)).deep.eq([CardName.CREDICOR, second[0], CardName.PHOBOLOG]);
+  });
+
+  it('«Реструктуризация»: KEEP the company — the candidates go back to the deck, the lineage is unchanged, the tender is executed', () => {
+    const {game, p1} = finale(['restructuring']);
+    const before = [...campaignLineageOf(p1)];
+    expect(() => p1.process({type: 'tender', instance: 't0', keep: true})).throws(/Deal the candidates first/);
+    p1.process({type: 'tender', instance: 't0'});
+    const offer = p1.campaignTenders![0].offer!;
+    p1.process({type: 'tender', instance: 't0', keep: true});
+    expect(campaignLineageOf(p1)).deep.eq(before);
+    expect(p1.campaignTenders![0].status).eq('executed');
+    expect(p1.campaignTenders![0].offer).is.undefined;
+    expect(game.corporationDeck.discardPile.map((c) => c.name)).includes.members(offer);
   });
 
   it('«КОМПЕНСАЦИЯ»: the tenders left unexecuted are bought back as the LAST press of the deployment', () => {

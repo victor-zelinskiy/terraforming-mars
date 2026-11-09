@@ -891,18 +891,29 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2.8rem;
   padding: .4rem 1.2rem;
-  &__zone {
+  /* ONE ROW (§19.7): the lineage, a hairline, the candidates — the card size is the row's (`--con-restruct-zoom`,
+     solved by the scene from the pane: the lineage + the candidates' prepared places), so the candidates landing
+     change no box. */
+  &__row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 1.4rem;
+  }
+  &__group {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: .6rem;
+    /* the cards' «✓ В линейке» band rides their top edge — the caption keeps clear of it */
+    gap: 1.3rem;
     min-width: 0;
   }
-  &__zone--lineage {
-    border-left: .05rem solid rgba(214, 178, 106, 0.28);
-    padding-left: 2.8rem;
+  &__divider {
+    align-self: stretch;
+    width: .05rem;
+    margin-top: 1.4rem;
+    background: rgba(214, 178, 106, 0.28);
   }
   &__cap {
     font-family: @con-font;
@@ -911,15 +922,68 @@
     text-transform: uppercase;
     color: rgba(214, 223, 233, 0.62);
   }
-  &__row {
+  &__cards {
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 1.1rem;
   }
   &__slot {
     position: relative;
-    > :is(.card-container, .pcard) { zoom: ~"var(--con-cards-zoom, .9)"; }
+    > :is(.card-container, .pcard) { zoom: ~"var(--con-restruct-zoom, .9)"; }
+    /* A candidate still in the air off the deck: the slot keeps its box, the face waits for its own touchdown. */
+    &--arriving > :is(.card-container, .pcard) { visibility: hidden; }
+  }
+  /* A candidate's PREPARED place while the deck deals (a quiet card-shaped ring — never a hole). */
+  &__place {
+    width: ~"calc(320px * var(--con-restruct-zoom, .9))";
+    aspect-ratio: 320 / 445;
+    border-radius: .45rem;
+    box-shadow: inset 0 0 0 .06rem rgba(174, 185, 198, 0.3);
+  }
+}
+
+/* ── THE TENDER DECK (§19.7) — a real pile on the scene: frame-absolute at the RIGHT END of the dock's row (under the
+   body — it covers no card), up only while a tender that touches the deck stands or plays; the departures land on
+   it, the fresh deal and the candidates leave it. ── */
+.con-start__tdeck {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: .5rem;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity calc(200ms * var(--motion-scale, 1)) linear, visibility 0s linear calc(200ms * var(--motion-scale, 1));
+  &--up {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity calc(240ms * var(--motion-scale, 1)) linear, visibility 0s;
+  }
+  &-pile {
+    position: relative;
+    width: 2.3rem;
+    height: 3.2rem;
+  }
+  /* (two classes — `.con-card-back` alone is `position: relative; width/height: 100%` and is declared later) */
+  &-pile > .con-card-back {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    height: auto;
+    border-radius: .25rem;
+    box-shadow: 0 .12rem .3rem rgba(0, 0, 0, 0.5);
+  }
+  &-pile > .con-start__tdeck-c--3 { transform: translate(.14rem, .2rem) rotate(2.5deg); opacity: .72; }
+  &-pile > .con-start__tdeck-c--2 { transform: translate(-.1rem, .1rem) rotate(-1.6deg); opacity: .88; }
+  &-cap {
+    font-family: @con-font;
+    font-size: .52rem;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: rgba(214, 223, 233, 0.62);
   }
 }
 
@@ -1077,7 +1141,8 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    padding: .35rem .5rem;
+    /* the right end is the tender DECK's place (frame-absolute over the row) — the plate's line never runs under it */
+    padding: .35rem 7.5rem .35rem .5rem;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
