@@ -875,7 +875,9 @@ function absorbChip(piece: TransferStagePiece, at: TransferPoint, beatMs: number
     // still painted at the touchdown (`console-utopia-invest` C under a forced starvation: the price «−1» seen over the
     // board a second after its touchdown).
     absorb?.progress(1);
-    return false;
+    // CAUGHT UP (the absorb is rendered to its end, its `onComplete` resolved the beat already) — the designed road on a
+    // starved renderer, never a ceiling line on the wait graph's worklist.
+    return absorb !== undefined;
   });
 }
 

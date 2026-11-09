@@ -378,6 +378,7 @@ import {BenchSource, benchSourceOf, benchWarnOf} from '@/client/console/parliame
 import {
   setWorkspaceFramePhase, setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameAnchor,
   workspaceFrameHasNested, workspaceFrameHost, workspaceFrameRenders, workspaceFrameStage, workspaceHostYieldsScene, workspaceStackCrumb,
+  workspaceSceneHidden,
 } from '@/client/console/consoleWorkspaceStack';
 import {AGENDA_WALK_STEP_STAGE, DELEGATE_GRANT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import {grantSeriesCountText, grantSeriesShown} from '@/client/console/parliament/grantSeries';
@@ -539,6 +540,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The Parliament's scene is off the screen (collapsed / parked / aside for the board, or its task set aside). */
+    sceneHidden(): boolean {
+      return workspaceSceneHidden('parliament');
+    },
     flow() {
       return parliamentFlow;
     },
@@ -1505,6 +1510,32 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * A BEAT NEVER WAITS ON A SCENE THE PLAYER CANNOT SEE (inventory R16 — the monkey's DUO walk of
+     * `arwind-chairman-quest`: B collapsed the Parliament mid-quest, the office / the step's flights could not land on a
+     * hidden section, and the quest's BLOCKING hold kept every prompt waiting to its 20 s ceiling). The scene leaving the
+     * screen DRIVES the quest's beats to their end — «ДОЖАТЬ», the A path: every flight lands, every step is taken — and a
+     * run that still cannot end is settled honestly. The counters the holds kept tick now; the return shows the outcome.
+     */
+    sceneHidden(hidden: boolean): void {
+      if (!hidden) {
+        return;
+      }
+      // Every figure in the air lands where it is going (a vote's landing hold expired at its 4 s ceiling behind a
+      // collapse — the monkey's DUO shard 2): the hidden section never keeps a flight waiting for frames it cannot see.
+      if (parliamentFlightsAirborne()) {
+        finishParliamentFlights();
+      }
+      if (!chairmanQuestFlow.live) {
+        return;
+      }
+      if (chairmanQuestBeatActive()) {
+        finishChairmanQuestBeats();
+      }
+      if (chairmanQuestBeatActive() || chairmanQuestStalled()) {
+        settleChairmanQuestBeats('the scene left the screen mid-beat');
+      }
+    },
     /** «ПРИЁМКА»: the section publishes whether it may host a draw (the ownership half — `parliamentDraw.ts`). */
     'drawHostable': {
       immediate: true,

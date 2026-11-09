@@ -173,7 +173,7 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
       const consoleTail: Array<string> = [];
       const evidence: Array<Promise<unknown>> = [];
       let shots = 0;
-      const NET = /\[(liveness\] stall|workspace-stall\]|workspace-stale\]|transfer\] (token painted|end not painted)|wait-graph\] (cycle|dangling|dead-end|ceiling))/;
+      const NET = /\[(liveness\] stall|workspace-stall\]|workspace-stale\]|transfer\] (token painted|end not painted)|wait-graph\] (cycle|dangling|dead-end|ceiling)|animation-hold\] .*force-released)/;
       const watch = (p: Page, tag: string): void => {
         p.on('console', (message) => {
           const text = message.text();

@@ -81,3 +81,10 @@ Status: `open` · `fixed <commit>`.
   (the step's own B); a step nothing hosts any more is re-opened through the router's own door (`reopenStartStep` — the
   start strand's confirm and the start director's `step` cure). e2e `console-start-sponsor` § still OPENING (red on the old
   build: `[start-stranded] confirmed`), the monkey's table 3/3 → green.
+- R16 `fixed (monkey wg3 DUO)` — B collapsed the Parliament mid-chairman-quest: the office's / the step's flights could
+  not land on the hidden section and the quest's BLOCKING hold kept every prompt waiting to its 20 s ceiling
+  (`[animation-hold] "parliament-chairman-quest" … force-released`, reproduced 1/3), and a fighter flying to Arwind's
+  capsule inside it had its surface folded under it (`[transfer] surface folded under its token`). Now the scene leaving
+  the screen DRIVES the quest's beats to their end («ДОЖАТЬ» — `ConsoleParliamentSection.sceneHidden`), and a collapse is
+  a fold: it is OWED until the band surfaces' tokens have landed (`collapseWorkspace` → `surfaceClear`, bounded — its own
+  ceiling now on the wait graph's worklist). The table 4/4 green after.

@@ -2519,6 +2519,8 @@ const FINALE_FINISH_HOLD = 'final-greenery-finish';
  */
 /** The wait graph's standing frame: the phase it is in and since when (a plain module holder — read only by the 1 Hz source). */
 const waitSurfacePhase = {key: '', since: 0};
+/** A collapse owed until the band surfaces' tokens have landed (a plain flag — read only by the collapse itself). */
+let collapseOwedOnTokens = false;
 let lastConclusionHold: {kind: WorkspaceFrameKind, reason: string, at: number} | undefined;
 /**
  * A FINISHED FRAME OVER THE FREE TURN LEAVES BY ITSELF after this long with nothing moving (`reapStaleFreeTurnFrame`).
@@ -14997,6 +14999,23 @@ export default defineComponent({
      * colony pick ended up on screen nowhere with no card to return to.
      */
     collapseWorkspace(): void {
+      // A SURFACE NEVER FOLDS UNDER ITS OWN TOKEN — a collapse is a fold too (inventory R16: B collapsed the Parliament
+      // while a fighter flew to Arwind's capsule INSIDE it — `[transfer] surface folded under its token`). The B is OWED:
+      // the collapse waits for the band surfaces' tokens to land (`surfaceClear`, bounded), then runs; a B meanwhile is
+      // the same press, absorbed.
+      const carrying = Array.from(document.querySelectorAll('.con-ws')).find((el) => surfaceHoldsTokens(el));
+      if (carrying !== undefined) {
+        if (!collapseOwedOnTokens) {
+          collapseOwedOnTokens = true;
+          void surfaceClear(carrying).then(() => {
+            collapseOwedOnTokens = false;
+            if (workspaceStackState.frames.length > 0 && !workspaceStackCollapsed()) {
+              this.collapseWorkspace();
+            }
+          });
+        }
+        return;
+      }
       // THE HAND GOES HOME PHYSICALLY. Collapsing a stack whose visible step
       // is the OPEN hand plays the standard gather (grid → dock) first — the
       // bare park v-ifs the grid away and every dock back popped in on one

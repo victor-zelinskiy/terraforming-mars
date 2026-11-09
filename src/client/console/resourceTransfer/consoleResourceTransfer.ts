@@ -196,6 +196,9 @@ export function surfaceClear(surface: Element | null | undefined): Promise<void>
     const ceiling = setTimeout(() => {
       if (!done) {
         trail(undefined, 'surface:ceiling', {surface: describeEl(surface as Element), ends: liveEndsOn(surface as Element)});
+        // …and on the wait graph's worklist: a surface still carrying a token past every honest flight is a lost end.
+        beginCeilingWait({id: 'transfer:surface-clear', owner: 'consoleResourceTransfer', what: 'the tokens on a folding surface landed',
+          maxMs: SURFACE_CLEAR_CEILING_MS, detail: describeEl(surface as Element)}).ceiling();
         settle();
       }
     }, SURFACE_CLEAR_CEILING_MS);
