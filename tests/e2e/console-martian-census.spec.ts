@@ -178,7 +178,13 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
         const parlSeen = seenOpacity(parl);
         const setupSeen = Math.max(0, ...Array.from(document.querySelectorAll('.con-composer__actmain'))
           .map((el) => seenOpacity(el)));
-        const wsSeen = seenOpacity(ws);
+        // THE STAGE IS JUDGED INSIDE A FRAME THAT STANDS: the surface director fades a workspace's PANELS, never its band
+        // root (`surfaceLeaveHook` — `[data-motion-panel]`, every one of them as one), so the root reads 1 for the whole of
+        // the finished action's leave. Measured on the root, the leave's last frames (frozen on a starved one: CI 42591455049
+        // — frame and composer panel both at 0.23, no animation of their own) read as an empty stage between the hero and the
+        // vote. A leaving surface (`data-motion-leaving`) or a frame below 0.9 is not a handover.
+        const wsSeen = ws.closest('[data-motion-leaving]') !== null ? 0 :
+          seenOpacity(ws.querySelector('.con-cardactions__frame') ?? ws);
         if (wsSeen > 0.9 && parlSeen < 0.05 && setupSeen < 0.05 && p.gaps.length < 8) {
           p.gaps.push(`${Date.now() - t0}ms parl=${parlSeen.toFixed(2)} setup=${setupSeen.toFixed(2)}`);
         }
