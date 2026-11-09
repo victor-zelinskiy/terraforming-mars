@@ -23,7 +23,7 @@ Status: `open` · `fixed <commit>`.
 - P2 `open` — the scale-story window held by a standing decision covering the scale-step rating's marker (≤ 8 s).
 - P3 `open` — sitting→draft handoff waits on any-scope holds while the Parliament stands frozen; suppliers of the form
   `…Owed && claimsForeground()` could hold it to 45 s.
-- P4 `open` — Parliament `parkedSubmit` ↔ the funnel's awaited gates that read the Parliament stage; the 6 s safety
+- P4 `fixed (2026-11-09)` — the submit safety is bounded (`SUBMIT_SAFETY_MAX_MS` 30 s from the send or the park), armed for a PARKED answer too (it had no timer at all) and kept across a new answer key; past it the stage goes back to the player and `[wait-graph] ceiling parliament:submit` names it. R2 = P4. Was: Parliament `parkedSubmit` ↔ the funnel's awaited gates that read the Parliament stage; the 6 s safety
   re-arms forever (Sec:3871).
 - P5 `open` — the leak detector's `anyHold` treats notification-only owed holds as serving a stranded prompt (≤ 35 s).
 - H1 `fixed (2026-11-09)` — a ledger handle settles only ITS owe (`owner` token; `presentationLedger.spec`). Was: ledger `handle.settle()` deletes by id, so an old handle can settle a newer story of the same id.
@@ -50,7 +50,7 @@ Status: `open` · `fixed <commit>`.
 
 ## Flow-internal
 - R1 `fixed (wait-graph Э1)` — = W2 from the section side: support / delegate / banner end with their stage standing and beat `done`.
-- R2 `open` — = P4 (parked submit safety loop).
+- R2 `fixed (2026-11-09)` — = P4 (parked submit safety loop).
 - R3 `fixed (wait-graph Э1)` — chairman quest `awaitingReaction`: hold released, NO ceiling, A and B both inert — a deaf screen.
 - R4 `fixed (wait-graph Э1)` — `killSittingMotion` sets `run = undefined` without resolving the run: `runWalk` never returns, `walking`
   stays raised for the section instance's life.

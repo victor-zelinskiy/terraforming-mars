@@ -240,6 +240,7 @@
   </section>
 </template>
 <script lang="ts">
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
@@ -391,6 +392,12 @@ import {
 
 /** How long a submit may stay unanswered before the stage gives the player back their hands (a net over a silent server — the tree's one wall-clock timer). */
 const SUBMIT_SAFETY_MS = 6000;
+/**
+ * How long the safety may keep re-arming for a submit still parked behind the funnel or still on the wire (inventory P4):
+ * past this the wait is a mutual one — the funnel's awaited gates read this very stage — and the stage is given back
+ * (the press can be made again), said once on the wait graph's worklist.
+ */
+const SUBMIT_SAFETY_MAX_MS = 30_000;
 
 /**
  * THE SITTING'S STAGE ZONE — the one selector every hosted step of the sitting is teleported into (the shell
@@ -475,6 +482,8 @@ export default defineComponent({
        */
       frozenView: undefined as PlayerViewModel | undefined,
       submitTimer: undefined as number | undefined,
+      /** When the safety was first armed for the submit standing now (its re-arms are bounded — P4). */
+      submitSafetySince: 0,
       /** The server's answer key at the submit — the answer is whatever changes it. */
       submittedKey: '',
       /**
@@ -2500,7 +2509,8 @@ export default defineComponent({
         // A mode that decides «this key is not my answer — keep waiting» returns with the stage still submitting: the
         // safety must stand again, or nothing but the shell's refusal watcher could ever hand the stage back.
         void this.$nextTick(() => {
-          if (parliamentFlow.stage === 'submitting' && this.submitTimer === undefined && this.parkedSubmit === undefined) {
+          // A PARKED answer keeps its bound too (P4): the funnel that holds it may never free.
+          if (parliamentFlow.stage === 'submitting' && this.submitTimer === undefined) {
             this.armSubmitSafety();
           }
         });
@@ -4021,6 +4031,9 @@ export default defineComponent({
         // The funnel would DROP it: park it, it goes out the moment the funnel is free (the stage already reads its
         // commit — the press is not lost, it is late by one presentation).
         this.parkedSubmit = response;
+        // …and the parked answer is bounded from HERE (P4 — a funnel that never frees would hold it with no timer at all).
+        this.submitSafetySince = Date.now();
+        this.armSubmitSafety();
         return;
       }
       this.emitSubmit(response);
@@ -4028,6 +4041,7 @@ export default defineComponent({
     /** The ONE place a Parliament answer leaves for the wire — the key and the safety are taken HERE, at the real send. */
     emitSubmit(response: InputResponse): void {
       this.parkedSubmit = undefined;
+      this.submitSafetySince = Date.now();
       // The key the answer is told apart from is the one standing NOW: a previous answer applied while this one was
       // parked must never read as this one's.
       this.submittedKey = this.answerKey;
@@ -4047,8 +4061,14 @@ export default defineComponent({
     onSubmitSafety(): void {
       this.submitTimer = undefined;
       if (parliamentFlow.stage === 'submitting' && (transportRequestInProgress() || this.parkedSubmit !== undefined)) {
-        this.armSubmitSafety();
-        return;
+        if (Date.now() - this.submitSafetySince < SUBMIT_SAFETY_MAX_MS) {
+          this.armSubmitSafety();
+          return;
+        }
+        // P4: the answer never left the funnel (or never came back) in 30 s — a wait on gates that read this stage. The
+        // stage goes back to the player, the line names it.
+        beginCeilingWait({id: 'parliament:submit', owner: 'parliamentSection', what: 'the Parliament answer leaving the funnel and answered',
+          maxMs: SUBMIT_SAFETY_MAX_MS, detail: this.parkedSubmit !== undefined ? 'parked behind the funnel' : 'on the wire'}).ceiling();
       }
       this.resetSubmitting();
     },
