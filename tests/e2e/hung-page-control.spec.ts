@@ -3,6 +3,7 @@ import * as path from 'path';
 import {monitorEventLoopDelay} from 'perf_hooks';
 import {test, expect} from './consoleTest';
 import {bootFixture, settle} from './consoleStart';
+import {probeNative, readLongFrames} from './hungPageWatch';
 
 /** The tree the worker server runs from (as `consoleTest.ts` resolves it). */
 const SERVE_ROOT = path.resolve(__dirname, '..', '..', process.env.TM_E2E_ROOT ?? '.');
@@ -106,4 +107,41 @@ test('a hung APP page: settle throws within its bound, the watch files a mapped 
   }
   // the thread comes back once the spin is over
   await expect.poll(() => page.evaluate(() => 1), {timeout: 60_000}).toBe(1);
+});
+
+/**
+ * THE NATIVE PROBE READS THE PROCESSES' OWN CLOCKS (CI 2026-11-09, run 42626840874 — `hand-album-probe` tail 3 hung for
+ * 15 minutes with every pause «never landed»: the main thread was outside JS, and «busy» vs «waiting» was unreadable).
+ * Against a renderer it KNOWS is burning CPU (a JS spin), the probe must read that renderer BUSY, and on Linux name its
+ * main thread running (state R) with ticks spent in the window — the same reading that tells a native layout / raster
+ * loop (busy) from a wait on the GPU process or an IPC (idle, a wait channel) when the pause cannot land.
+ */
+test('the native probe reads a busy renderer as BUSY, its main thread running', async ({page, context}) => {
+  test.setTimeout(60_000);
+  // a MAIN-THREAD animation keeps a rendering update pending, so the spin holds a FRAME (a long-animation-frame
+  // entry is recorded only for a frame that was due) — the same shape as a page held in the middle of a motion
+  await page.setContent('<html><head><style>@keyframes m { to { left: 200px } } #m { position: absolute; left: 0; animation: m 1s linear infinite alternate }</style></head><body><div id="m">control</div></body></html>');
+  await page.evaluate(() => {
+    window.setTimeout(() => {
+      const until = Date.now() + 12_000;
+      let turns = 0;
+      while (Date.now() < until) {
+        turns++; // a renderer burning CPU
+      }
+      return turns;
+    }, 50);
+  });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const reading = await probeNative(context, page);
+  console.log(`[hung-control] native probe:\n    ${reading}`);
+  expect(reading, `a renderer read BUSY:\n${reading}`).toMatch(/renderer pid \d+: cpu \+[\d.]+ s in \d+ s \(\d+%\) — BUSY/);
+  if (process.platform === 'linux') {
+    expect(reading, `its main thread running:\n${reading}`).toMatch(/MAIN .*state R · [1-9]\d* ticks/);
+  }
+  expect(reading, 'the compositor is asked too').toMatch(/compositor: /);
+  await expect.poll(() => page.evaluate(() => 1), {timeout: 30_000}).toBe(1);
+  // …and once it answers again, its own Long Animation Frame record names the frame that held it, split by phase
+  const frames = await readLongFrames(page);
+  console.log(`[hung-control] long frames:\n    ${frames}`);
+  expect(frames, `the held frame is read back with its phases:\n${frames}`).toMatch(/frame \d+ ms @\d+: script \d+ · rAF\/observers \d+ · style\+layout\+paint \d+/);
 });

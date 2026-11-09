@@ -198,6 +198,168 @@ async function attachDebugger(context: BrowserContext, page: Page): Promise<Page
   };
 }
 
+/**
+ * A THREAD OUTSIDE JS IS READ FROM THE OUTSIDE (CI 2026-11-09, run 42626840874 — `hand-album-probe` tail 3: the page did
+ * not answer for 15 minutes and every pause «never landed»: the renderer's main thread was in native code the whole
+ * time). «Not running JS» is two very different things — a native loop BURNING CPU (a style / layout / raster pass that
+ * does not end) or a thread WAITING (on the GPU process, an IPC, a sync call) — and only the processes' own clocks tell
+ * them apart. So when the pause cannot land, the watch reads, across one window of `NATIVE_WINDOW_MS`:
+ *   · every renderer's and the GPU process's CPU time (browser CDP `SystemInfo.getProcessInfo`) — rising = busy;
+ *   · on Linux, each of those processes' THREADS (`/proc/<pid>/task/<tid>`): name, scheduler state (R running, S
+ *     sleeping, D uninterruptible), CPU ticks spent in the window and the kernel wait channel — the main thread
+ *     (`CrRendererMain` / tid = pid) names which of the two it is, `wchan` names what it waits on;
+ *   · whether the COMPOSITOR still produces a frame (`Page.captureScreenshot`, bounded) — raster alive or not.
+ * Every read is bounded; a probe that cannot run says why. Diagnostic only.
+ */
+const NATIVE_WINDOW_MS = 3000;
+
+type ProcInfo = {type: string, id: number, cpuTime: number};
+
+async function within<T>(ms: number, p: Promise<T>): Promise<T | 'timeout'> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const r = await Promise.race([p, new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), ms);
+  })]);
+  clearTimeout(timer);
+  return r;
+}
+
+type ThreadRead = {tid: string, comm: string, state: string, ticks: number, wchan: string};
+
+async function readThreads(pid: number): Promise<Array<ThreadRead>> {
+  const fs = await import('fs/promises');
+  const base = `/proc/${pid}/task`;
+  let tids: Array<string>;
+  try {
+    tids = await fs.readdir(base);
+  } catch {
+    return [];
+  }
+  const out: Array<ThreadRead> = [];
+  for (const tid of tids) {
+    try {
+      const stat = await fs.readFile(`${base}/${tid}/stat`, 'utf8');
+      // «pid (comm) state …» — comm may hold spaces / parens; split after the LAST ')'
+      const close = stat.lastIndexOf(')');
+      const comm = stat.slice(stat.indexOf('(') + 1, close);
+      const rest = stat.slice(close + 2).split(' ');
+      const ticks = Number(rest[11]) + Number(rest[12]); // utime + stime (fields 14, 15)
+      const wchan = (await fs.readFile(`${base}/${tid}/wchan`, 'utf8').catch(() => '?')).trim() || '0';
+      out.push({tid, comm, state: rest[0], ticks, wchan});
+    } catch {
+      // the thread ended between readdir and read
+    }
+  }
+  return out;
+}
+
+async function nativeProbe(context: BrowserContext, page: Page, browserSession: () => Promise<CDPSession | undefined>): Promise<string> {
+  const lines: Array<string> = [];
+  const session = await browserSession();
+  const procInfo = async (): Promise<Array<ProcInfo> | undefined> => {
+    if (session === undefined) {
+      return undefined;
+    }
+    const r = await within(3000, session.send('SystemInfo.getProcessInfo').then((x) => x.processInfo as Array<ProcInfo>).catch(() => undefined));
+    return r === 'timeout' ? undefined : r;
+  };
+  const linux = process.platform === 'linux';
+  const before = await procInfo();
+  const watched = (before ?? []).filter((p) => p.type === 'renderer' || p.type === 'GPU' || p.type === 'gpu-process' || /gpu/i.test(p.type));
+  const threadsBefore = new Map<number, Array<ThreadRead>>();
+  if (linux) {
+    for (const p of watched) {
+      threadsBefore.set(p.id, await readThreads(p.id));
+    }
+  }
+  // the compositor, in the same window
+  const shot = (async () => {
+    const t0 = Date.now();
+    const pageSession = await within(2000, context.newCDPSession(page).catch(() => undefined));
+    if (pageSession === 'timeout' || pageSession === undefined) {
+      return 'compositor: (no page session)';
+    }
+    const r = await within(NATIVE_WINDOW_MS, pageSession.send('Page.captureScreenshot', {format: 'jpeg', quality: 10}).then(() => 'ok').catch((e) => `error ${String(e).slice(0, 80)}`));
+    void pageSession.detach().catch(() => undefined);
+    return r === 'timeout' ? `compositor: NO frame in ${NATIVE_WINDOW_MS} ms` : r === 'ok' ? `compositor: a frame in ${Date.now() - t0} ms` : `compositor: ${r}`;
+  })();
+  await new Promise((resolve) => setTimeout(resolve, NATIVE_WINDOW_MS));
+  const after = await procInfo();
+  if (before === undefined || after === undefined) {
+    lines.push('processes: (SystemInfo.getProcessInfo unavailable)');
+  } else {
+    for (const p of watched) {
+      const q = after.find((x) => x.id === p.id);
+      const delta = q === undefined ? NaN : q.cpuTime - p.cpuTime;
+      const pct = Math.round((delta / (NATIVE_WINDOW_MS / 1000)) * 100);
+      lines.push(`${p.type} pid ${p.id}: cpu +${delta.toFixed(2)} s in ${NATIVE_WINDOW_MS / 1000} s (${pct}%) — ${pct >= 50 ? 'BUSY' : pct <= 5 ? 'idle / WAITING' : 'partly busy'}`);
+      if (linux) {
+        const was = threadsBefore.get(p.id) ?? [];
+        const now = await readThreads(p.id);
+        const rows = now.map((t) => ({...t, spent: t.ticks - (was.find((w) => w.tid === t.tid)?.ticks ?? t.ticks)}))
+          .filter((t) => t.tid === String(p.id) || /CrRendererMain|Compositor|VizCompositor|CrGpuMain|Raster/i.test(t.comm) || t.spent > 0 || t.state === 'R' || t.state === 'D')
+          .sort((a, b) => b.spent - a.spent)
+          .slice(0, 8);
+        for (const t of rows) {
+          lines.push(`    ${t.tid === String(p.id) ? 'MAIN ' : ''}${t.comm} [${t.tid}] state ${t.state} · ${t.spent} ticks · wchan ${t.wchan}`);
+        }
+      }
+    }
+  }
+  lines.push(await shot);
+  return lines.join('\n    ');
+}
+
+/**
+ * A THREAD THAT COMES BACK SAYS WHERE IT WAS. A stall outside JS (the pause never landed) is one rendering frame that
+ * did not end; once the page answers again, its Long Animation Frame record (`long-animation-frame`, buffered) splits
+ * that frame into script · rendering callbacks (rAF / observers) · style + layout (+ paint) and names the scripts that
+ * FORCED a style / layout — so «native for 11 s» becomes «style + layout 10.8 s, forced by X» or «paint / commit».
+ */
+export async function readLongFrames(page: Page): Promise<string> {
+  return await page.evaluate(() => new Promise<string>((resolve) => {
+    type Script = {invoker?: string, sourceURL?: string, sourceFunctionName?: string, duration: number, forcedStyleAndLayoutDuration?: number};
+    type Loaf = PerformanceEntry & {renderStart: number, styleAndLayoutStart: number, scripts?: Array<Script>};
+    const done = (list: Array<Loaf>) => {
+      const long = list.filter((e) => e.duration >= 2000).sort((a, b) => b.duration - a.duration).slice(0, 3);
+      resolve(long.map((e) => {
+        const end = e.startTime + e.duration;
+        const render = e.renderStart > 0 ? e.renderStart : end;
+        const style = e.styleAndLayoutStart > 0 ? e.styleAndLayoutStart : end;
+        const scripts = (e.scripts ?? []).sort((a, b) => b.duration - a.duration).slice(0, 3)
+          .map((s) => `${s.invoker ?? '?'} ${s.sourceFunctionName ?? ''} ${(s.sourceURL ?? '').split('/').pop()} ${Math.round(s.duration)} ms (forced style+layout ${Math.round(s.forcedStyleAndLayoutDuration ?? 0)} ms)`);
+        return `frame ${Math.round(e.duration)} ms @${Math.round(e.startTime)}: script ${Math.round(render - e.startTime)} · rAF/observers ${Math.round(style - render)} · style+layout+paint ${Math.round(end - style)}` +
+          (scripts.length > 0 ? `\n        ${scripts.join('\n        ')}` : '');
+      }).join('\n    '));
+    };
+    try {
+      const seen: Array<Loaf> = [];
+      const obs = new PerformanceObserver((l) => {
+        seen.push(...l.getEntries() as Array<Loaf>);
+      });
+      obs.observe({type: 'long-animation-frame', buffered: true});
+      setTimeout(() => {
+        obs.disconnect();
+        done(seen);
+      }, 300);
+    } catch {
+      resolve('(no long-animation-frame record in this engine)');
+    }
+  }));
+}
+
+/** The native probe on its own — the positive control reads it against a page it knows is busy. */
+export async function probeNative(context: BrowserContext, page: Page): Promise<string> {
+  const browser = context.browser();
+  let session: CDPSession | undefined;
+  return await nativeProbe(context, page, async () => {
+    if (session === undefined && browser !== null) {
+      session = await browser.newBrowserCDPSession();
+    }
+    return session;
+  }).finally(() => void session?.detach().catch(() => undefined));
+}
+
 /** One annotation that is filed at once and REWRITTEN in place when a better reading arrives (the mapped stack). */
 function fileAnnotation(testInfo: TestInfo, type: string, line: string): {description: string} {
   console.log(line);
@@ -213,15 +375,40 @@ export function armHungPageWatch(context: BrowserContext, testInfo: TestInfo, ro
   const loopDelay = monitorEventLoopDelay({resolution: 20});
   loopDelay.enable();
   let stopped = false;
+  let browserSession: Promise<CDPSession | undefined> | undefined;
+  const openBrowserSession = () => {
+    browserSession ??= (async () => {
+      const browser = context.browser();
+      if (browser === null) {
+        return undefined;
+      }
+      const s = await within(3000, browser.newBrowserCDPSession().catch(() => undefined));
+      return s === 'timeout' ? undefined : s;
+    })();
+    return browserSession;
+  };
   const watch = (page: Page) => {
     const dbg = attachDebugger(context, page);
     debuggers.push(dbg);
     let lastAnswer = Date.now();
     let nextReportMs = HUNG_AFTER_MS;
     let inFlight = false;
+    let filedHang: {description: string} | undefined;
     const answered = () => {
       lastAnswer = Date.now();
       nextReportMs = HUNG_AFTER_MS;
+      const hang = filedHang;
+      filedHang = undefined;
+      if (hang !== undefined && !stopped && !page.isClosed()) {
+        // the thread came back: its own record of the frame that held it says WHERE the time went
+        void within(5000, readLongFrames(page)).then((r) => {
+          if (r !== 'timeout' && r !== '') {
+            const line = `[hung-page] the thread answered again — the long frames it recorded:\n    ${r}`;
+            console.log(line);
+            hang.description = `${hang.description}\n${line}`.slice(0, 4000);
+          }
+        });
+      }
     };
     const tick = () => {
       if (stopped || page.isClosed()) {
@@ -243,7 +430,13 @@ export function armHungPageWatch(context: BrowserContext, testInfo: TestInfo, ro
           const result: PauseResult = d === undefined ? {reason: '(no debugger session on this page)'} : await d.pause();
           const head = `[hung-page] the main thread has not answered for ${Math.round(silentMs / 1000)} s — its stack:`;
           if ('reason' in result) {
-            fileAnnotation(testInfo, 'hung-page', `${head}\n    ${result.reason}`);
+            // outside JS: read the processes' own clocks — busy native loop or a wait (see `nativeProbe`)
+            const annotation = fileAnnotation(testInfo, 'hung-page', `${head}\n    ${result.reason}`);
+            filedHang = annotation;
+            const native = await nativeProbe(context, page, openBrowserSession).catch((e) => `(native probe failed: ${String(e).slice(0, 160)})`);
+            const line = `${head}\n    ${result.reason}\n    ${native}`;
+            console.log(`[hung-page] native: \n    ${native}`);
+            annotation.description = line.slice(0, 4000);
             return;
           }
           // the RAW frames are filed at once; the mapping (a thread, bounded) rewrites the same annotation
@@ -274,6 +467,7 @@ export function armHungPageWatch(context: BrowserContext, testInfo: TestInfo, ro
     timers.forEach((t) => clearTimeout(t));
     timers.clear();
     debuggers.forEach((d) => void d.then((x) => x?.close()));
+    void browserSession?.then((s) => s?.detach().catch(() => undefined));
     loopDelay.disable();
     const stallMs = loopDelay.max / 1e6;
     if (stallMs >= WORKER_STALL_MS) {
