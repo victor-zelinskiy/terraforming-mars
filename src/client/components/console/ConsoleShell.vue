@@ -23322,7 +23322,10 @@ export default defineComponent({
           let still: AnimationHold | undefined;
           (window as unknown as {__conStillHold?: () => boolean}).__conStillHold = () => {
             still?.release();
-            still = beginAnimationHold('wait-graph-control:still', {maxHoldMs: 25_000});
+            // The control's own recovery: a ceiling (or a rung) that ends the hold drops the handle — nothing else stood on it.
+            still = beginAnimationHold('wait-graph-control:still', {maxHoldMs: 25_000, expire: () => {
+              still = undefined;
+            }});
             return true;
           };
           return [() => {
