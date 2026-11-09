@@ -494,6 +494,13 @@ describe('electron/consoleExport', () => {
       expect(rows[2]).to.contain('parliament-chairman-quest[blocking]');
     });
 
+    it('prints WHO WAITS ON WHOM — the wait graph\'s digest rides every row (a field freeze arrives with its graph)', () => {
+      const record = JSON.stringify({heartbeats: [beat(10, {graph: 'question:projectCard#7→player | surface:start→player'})]});
+      const out = buildScreenDigest(record, new Date(at(11)));
+      expect(out).to.contain('who waits on whom');
+      expect(out).to.contain('question:projectCard#7→player | surface:start→player');
+    });
+
     it('says so when the page recorded nothing (no recorder, a malformed record)', () => {
       expect(buildScreenDigest('', new Date(at(0)))).to.eq('SCREEN: no heartbeats recorded\n');
       expect(buildScreenDigest('{"heartbeats":[]}', new Date(at(0)))).to.eq('SCREEN: no heartbeats recorded\n');

@@ -88,3 +88,9 @@ Status: `open` · `fixed <commit>`.
   the screen DRIVES the quest's beats to their end («ДОЖАТЬ» — `ConsoleParliamentSection.sceneHidden`), and a collapse is
   a fold: it is OWED until the band surfaces' tokens have landed (`collapseWorkspace` → `surfaceClear`, bounded — its own
   ceiling now on the wait graph's worklist). The table 4/4 green after.
+- R17 `open` (monkey wg3 DUO, `parliament-budget-vote-six`, 3/3 — the SECOND seat's page) — Aridor's first action in the
+  start (a colony tile added — the colonies step hosted by the start): right after the colony's answer the player opened
+  the LT wheel and pressed a slot; the colonies step never ended itself, stood `committed` over the free turn and was
+  concluded by the reaper at 8 s (`[workspace-stale] concluded «colonies» … frames: start:committed` — red), the start
+  left on «ПЕРВОЕ ДЕЙСТВИЕ» with an empty zone until its director released it. 8 s of a stale screen, no freeze; the
+  step's own ending misses a wheel opened inside its committed beat.

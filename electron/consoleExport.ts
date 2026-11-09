@@ -240,7 +240,7 @@ export function buildErrorDigest(entries: ConsoleEntry[], limit: number = DIGEST
  */
 export function buildScreenDigest(recordJson: string, now: Date): string {
   type Beat = {at: number, prompt?: string, accepting?: boolean, inFlight?: Array<string>, frames?: Array<string>,
-    section?: string, quietS?: number, presses?: number, block?: string, start?: string};
+    section?: string, quietS?: number, presses?: number, block?: string, start?: string, graph?: string};
   let beats: Array<Beat> = [];
   try {
     const record = JSON.parse(recordJson) as {heartbeats?: Array<Beat>};
@@ -252,7 +252,7 @@ export function buildScreenDigest(recordJson: string, now: Date): string {
     return 'SCREEN: no heartbeats recorded\n';
   }
   const key = (b: Beat) => [b.prompt ?? '', b.accepting === true ? 'accepting' : 'NOT accepting', (b.inFlight ?? []).join(',') || '-',
-    (b.frames ?? []).join(';') || '-', b.section ?? '', b.block ?? '', b.start ?? ''].join(' | ');
+    (b.frames ?? []).join(';') || '-', b.section ?? '', b.block ?? '', b.start ?? '', b.graph ?? ''].join(' | ');
   const rows: Array<string> = [];
   let runStart = 0;
   for (let i = 1; i <= beats.length; i++) {
@@ -265,7 +265,7 @@ export function buildScreenDigest(recordJson: string, now: Date): string {
     rows.push(`[${span}] ${key(first)} | quiet ${last.quietS ?? 0}s, presses ${last.presses ?? 0}`);
     runStart = i;
   }
-  return [`SCREEN: the last ${beats.length} s before ${clock(now.getTime())} (prompt | accepting | in flight | frames | section | block | start)`,
+  return [`SCREEN: the last ${beats.length} s before ${clock(now.getTime())} (prompt | accepting | in flight | frames | section | block | start | who waits on whom)`,
     ...rows].join('\n') + '\n';
 }
 

@@ -1690,7 +1690,7 @@ import {openBotTurnReviewByKey, skipBotTurnPresentation, stepBotTurnReview} from
 import {acquireForegroundLease, isMandatoryPromptsHeld, isMandatoryPromptsHeldByScreen, registerRevealParkSupplier} from '@/client/components/presentation/presentationFlow';
 import {activeAnimationHoldLabels, AnimationHold, beginAnimationHold, blockingAnimationHoldCount, isAnimationHoldActive, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
 import {isTransientBeat, resetBeatStall, transientSurfaceBeats, WORKSPACE_BEAT_STALL_MS} from '@/client/console/workspaceBeatStall';
-import {registerWaitRecovery, registerWaitSource, tickWaitGraph, waitGraphSnapshot, WaitNodeInput} from '@/client/console/waitGraph/waitGraph';
+import {registerWaitRecovery, registerWaitSource, tickWaitGraph, waitGraphDigest, waitGraphSnapshot, WaitNodeInput} from '@/client/console/waitGraph/waitGraph';
 import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
 import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
 import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGraphSources';
@@ -22792,6 +22792,7 @@ export default defineComponent({
         // What a wait waits FOR, and what the opening says it serves — the two facts the 2026-11-01 13:50 freeze lacked.
         block: wf === undefined ? '' : promptAdmissionBlock(wf.type === 'space' ? 'placement' : 'host', this.admissionSignals) ?? '',
         start: this.startSceneMounted ? consoleStartState.serves ?? '' : '',
+        graph: waitGraphDigest(8),
       });
       // THE WAIT GRAPH (Э2 — a shadow): the same second's waits, judged structurally — a cycle, a dangling wait, a dead
       // end, an overdue one — logged `[wait-graph] …` once per confirmed finding; nothing is acted on yet.

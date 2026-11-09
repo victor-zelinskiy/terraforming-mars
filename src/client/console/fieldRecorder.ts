@@ -42,6 +42,11 @@ export type FieldHeartbeat = {
   block?: string;
   /** The start scene's own verdict (`data-start-serves`) while it is mounted, '' otherwise. */
   start?: string;
+  /**
+   * WHO WAITS ON WHOM — the wait graph's digest (`waitGraphDigest`: `node→targets | …`): a freeze in the field arrives with
+   * its graph, never only with its symptom.
+   */
+  graph?: string;
   at: number;
 };
 
