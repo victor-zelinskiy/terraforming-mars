@@ -1,10 +1,12 @@
 import {expect} from 'chai';
 import {
+  advanceLivenessRung,
   initialLivenessState,
   LIVENESS_GRACE_MS,
   LIVENESS_PRESSED_GRACE_MS,
   LIVENESS_PRESSES_NO_EFFECT,
   LIVENESS_RUNG_GAP_MS,
+  LIVENESS_STRANDED_GRACE_MS,
   LivenessSample,
   LivenessState,
   LivenessRung,
@@ -153,6 +155,34 @@ describe('consoleLiveness', () => {
     const moved = observeLiveness(state, sample(99_000, {signature: 'moved'}));
     expect(moved.verdict.stalled).is.false;
     expect(moved.state.rung).to.equal(0);
+  });
+
+  it('a STRANDED question (no surface serves it) is judged sooner — the Hi-Tech Lab plate stood 10 s before the first rung', () => {
+    const v = walk(seconds(LIVENESS_STRANDED_GRACE_MS / 1000, () => ({stranded: true})));
+    expect(v.slice(0, -1).every((x) => !x.stalled)).is.true;
+    const last = v[v.length - 1];
+    expect(last.stalled && last.reason).to.equal('unserved');
+    expect(LIVENESS_STRANDED_GRACE_MS).to.be.below(LIVENESS_GRACE_MS);
+    // Not stranded: the ordinary grace still holds at the same moment.
+    expect(walk(seconds(LIVENESS_STRANDED_GRACE_MS / 1000)).some((x) => x.stalled)).is.false;
+  });
+
+  it('rungs that had NOTHING to release cost no gap — the shell walks on in the same tick and the next stall rung follows it', () => {
+    for (let t = 0; t < LIVENESS_GRACE_MS; t += 1000) {
+      tickLiveness(sample(t));
+    }
+    const first = tickLiveness(sample(LIVENESS_GRACE_MS));
+    expect(first.stalled && first.rung).to.equal(0);
+    // The shell ran rungs 0, 1, 2 in this tick (0 and 1 were empty) — the next gap runs rung 3, not rung 1.
+    advanceLivenessRung(3);
+    const within = tickLiveness(sample(LIVENESS_GRACE_MS + 1000));
+    expect(within.stalled && within.rung).to.equal(undefined);
+    const next = tickLiveness(sample(LIVENESS_GRACE_MS + LIVENESS_RUNG_GAP_MS));
+    expect(next.stalled && next.rung).to.equal(3);
+    // Never backwards.
+    advanceLivenessRung(1);
+    const after = tickLiveness(sample(LIVENESS_GRACE_MS + 2 * LIVENESS_RUNG_GAP_MS));
+    expect(after.stalled && after.rung).to.equal(4);
   });
 
   it('the registered releases run by RANK, each named, nothing twice', () => {

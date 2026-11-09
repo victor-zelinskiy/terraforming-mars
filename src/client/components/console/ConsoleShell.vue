@@ -1695,7 +1695,7 @@ import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
 import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
 import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGraphSources';
 import {ceilingStats} from '@/client/console/waitGraph/ceilingWait';
-import {LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
+import {advanceLivenessRung, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
 import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
@@ -22853,12 +22853,28 @@ export default defineComponent({
         backJudged: this.backOwedOnStandingFrame(),
         // …and a transient beat owes its end even when nobody is asked (the two-campaign rally, ledger HC).
         beatOwed: beat !== undefined,
+        stranded: leakDetectorState.stranded !== undefined,
         signature,
       });
       if (!verdict.stalled || verdict.rung === undefined) {
         return;
       }
-      const did = runLivenessRung(verdict.rung);
+      // A rung with NOTHING to release costs no gap — the next one runs in the same tick, so the first rung that acts acts
+      // at once (the Hi-Tech Lab field freeze: three empty rungs cost 6 s before the claim's own release was reached).
+      let rungIndex = verdict.rung;
+      const empties: Array<string> = [];
+      let did = runLivenessRung(rungIndex);
+      while (did !== undefined && did.endsWith('nothing to release')) {
+        empties.push(did);
+        rungIndex++;
+        did = runLivenessRung(rungIndex);
+      }
+      if (rungIndex !== verdict.rung) {
+        advanceLivenessRung(rungIndex + 1);
+      }
+      if (empties.length > 0) {
+        did = did === undefined ? `${empties.join(' · ')} — the ladder is spent` : `${empties.join(' · ')} · ${did}`;
+      }
       // …and the claim's own GATES (CI 2026-11-09, P88's max-0 purchase: «claim … awaiting, holds: none» named no cause):
       // the zone it publishes (and whether that node stands), the beat, the arrival — and what the host prompt did with it.
       const claim = workspaceOutcomeState.sourceCard === '' ? 'none' :

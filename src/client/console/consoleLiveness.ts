@@ -37,6 +37,12 @@
 
 /** Nothing in flight and nothing accepting for this long = a stall, even with no press. */
 export const LIVENESS_GRACE_MS = 10_000;
+/**
+ * …and a STRANDED question (the leak detector found NO surface serving it — unambiguous, never a scene still playing) is
+ * judged sooner: the Hi-Tech Lab field freeze of 2026-11-09 stood under the «недоступен» plate for 10 s before the first
+ * rung, and the player reloaded before the ladder reached the one that cured it.
+ */
+export const LIVENESS_STRANDED_GRACE_MS = 4_000;
 /** The player pressed this many times with NOTHING changing (and nothing in flight) = a stall sooner. */
 export const LIVENESS_PRESSES_NO_EFFECT = 3;
 export const LIVENESS_PRESSED_GRACE_MS = 5_000;
@@ -85,6 +91,8 @@ export type LivenessSample = {
    * like an unserved question.
    */
   beatOwed?: boolean;
+  /** The leak detector names the live question STRANDED (no surface serves it) — judged at `LIVENESS_STRANDED_GRACE_MS`. */
+  stranded?: boolean;
   /** An OBSERVABLE-STATE signature: the prompt's identity, the stack, the surfaces, the bar, the focus. A press that
    *  changes nothing leaves it equal; anything the player would SEE change moves it. */
   signature: string;
@@ -156,7 +164,8 @@ export function observeLiveness(state: LivenessState, sample: LivenessSample): {
   }
   const quietMs = sample.now - next.progressAt;
   const pressed = next.pressesSinceProgress >= LIVENESS_PRESSES_NO_EFFECT && quietMs >= LIVENESS_PRESSED_GRACE_MS;
-  const unserved = (sample.promptLive || sample.beatOwed === true) && !sample.accepting && quietMs >= LIVENESS_GRACE_MS;
+  const unserved = (sample.promptLive || sample.beatOwed === true) && !sample.accepting &&
+    quietMs >= (sample.stranded === true ? LIVENESS_STRANDED_GRACE_MS : LIVENESS_GRACE_MS);
   if (!pressed && !unserved) {
     return {state: next, verdict: {stalled: false}};
   }
@@ -243,6 +252,14 @@ export function runLivenessRung(index: number): string | undefined {
 // ── the shell's sampler state ───────────────────────────────────────────────
 
 let tickState: LivenessState = initialLivenessState();
+
+/**
+ * The rungs up to `next` (exclusive) have been run in this tick — a rung that had NOTHING to release costs no gap: the
+ * shell walks on to the next one in the same tick, so the first rung that acts acts at once.
+ */
+export function advanceLivenessRung(next: number): void {
+  tickState = {...tickState, rung: Math.max(tickState.rung, next)};
+}
 
 export function tickLiveness(sample: LivenessSample): LivenessVerdict {
   const r = observeLiveness(tickState, sample);
