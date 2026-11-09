@@ -143,7 +143,7 @@ registerBoardSceneOwed(cityPayoutWaiting);
  * is owed.
  */
 function waitForTheScales(myEpoch: number): Promise<void> {
-  return waitConsoleQuiet(() => boardStorySettling(), {maxMs: CITY_PAYOUT_SCALES_WAIT_MS, alive: () => epoch === myEpoch});
+  return waitConsoleQuiet(() => boardStorySettling(), {maxMs: CITY_PAYOUT_SCALES_WAIT_MS, alive: () => epoch === myEpoch, who: 'city-payout:scales'});
 }
 
 // ── the stage (the layer plugs in) ──────────────────────────────────────────

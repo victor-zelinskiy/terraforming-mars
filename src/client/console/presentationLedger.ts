@@ -79,7 +79,8 @@ export type TruthWitness = {
   diagnose?: () => unknown,
 };
 
-type StoryEntry = OwedStory & {since: number, lastRedriveAt: number};
+/** `owner` — the owe that wrote this entry (a handle settles only its own owe — inventory H1). */
+type StoryEntry = OwedStory & {since: number, lastRedriveAt: number, owner: object};
 type WitnessEntry = TruthWitness & {lyingSince: number | undefined, lastHealAt: number};
 
 const stories = new Map<string, StoryEntry>();
@@ -142,16 +143,22 @@ function stopHeartbeatIfIdle(): void {
  */
 export function owePresentation(story: OwedStory): OwedStoryHandle {
   const existing = stories.get(story.id);
+  const owner = {};
   stories.set(story.id, {
     ...story,
     since: existing?.since ?? now(),
     lastRedriveAt: existing?.lastRedriveAt ?? 0,
+    owner,
   });
   ensureHeartbeat();
   return {
+    // THIS owe only (wait graph inventory H1): an older handle of the same id — a wait that already ended — never settles
+    // the story a newer wait re-owed (it lost its re-drive and its degrade, and waited with no net).
     settle: () => {
-      stories.delete(story.id);
-      stopHeartbeatIfIdle();
+      if (stories.get(story.id)?.owner === owner) {
+        stories.delete(story.id);
+        stopHeartbeatIfIdle();
+      }
     },
   };
 }

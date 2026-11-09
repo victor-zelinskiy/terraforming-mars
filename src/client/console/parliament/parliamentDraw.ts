@@ -36,6 +36,7 @@ import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
 import {embedZoneMounted} from '@/client/console/embedZoneRegistry';
 import {probeTick} from '@/client/console/probeTick';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {parliamentParksReveal} from './parliamentRewardBeat';
 import {rulingChangeParksReveal} from './rulingChangeDraw';
 
@@ -123,14 +124,17 @@ export function parliamentDrawStanding(): boolean {
 }
 
 /** Resolve once `done()` holds — re-asked on every reactive change, bounded by the take's net (named). Never rejects. */
-function waitUntil(done: () => boolean, what: string): Promise<void> {
+function waitUntil(done: () => boolean, what: string, node: {id: string, what: string}): Promise<void> {
   if (done()) {
     return Promise.resolve();
   }
+  // A wait that has to wait is a node of the wait graph; the net ending it is said (`ceilingWait.ts`).
+  const wait = beginCeilingWait({id: node.id, owner: 'parliamentDraw', what: node.what, maxMs: PARLIAMENT_DRAW_TAKE_NET_MS, target: 'player'});
   return new Promise((resolve) => {
     const onNet = (): void => {
       stop();
       console.warn(`[parliament-draw] ${what} — the net let the flow go on`);
+      wait.ceiling();
       resolve();
     };
     const timer = setTimeout(onNet, PARLIAMENT_DRAW_TAKE_NET_MS);
@@ -138,6 +142,7 @@ function waitUntil(done: () => boolean, what: string): Promise<void> {
       if (ok) {
         clearTimeout(timer);
         stop();
+        wait.met();
         resolve();
       }
     }, {flush: 'sync'});
@@ -150,12 +155,14 @@ function waitUntil(done: () => boolean, what: string): Promise<void> {
  * surfaces in turn: the draw stage never stands under the next beat, the next beat never starts under the draw.
  */
 export function parliamentDrawsSettled(): Promise<void> {
-  return waitUntil(() => !parliamentDrawStanding(), 'a Parliament draw was never taken');
+  return waitUntil(() => !parliamentDrawStanding(), 'a Parliament draw was never taken',
+    {id: 'parliament-draw:settled', what: 'the take of every Parliament draw'});
 }
 
 /** Resolves once the batch `id` no longer stands (taken or gone). */
 export function parliamentDrawTaken(id: number): Promise<void> {
-  return waitUntil(() => !pendingRevealEvents().some((e) => e.id === id), `batch ${id} was never taken`);
+  return waitUntil(() => !pendingRevealEvents().some((e) => e.id === id), `batch ${id} was never taken`,
+    {id: 'parliament-draw:taken', what: 'the take of the drawn batch'});
 }
 
 /**
@@ -169,9 +176,16 @@ export function parliamentDrawReady(batch: {id: number, source?: CardDrawRevealS
     return Promise.resolve();
   }
   const started = Date.now();
+  const node = beginCeilingWait({id: 'parliament-draw:zone', owner: 'parliamentDraw', what: 'the draw stage zone of the Parliament', maxMs: PARLIAMENT_DRAW_READY_NET_MS});
   return new Promise((resolve) => {
     const poll = (): void => {
-      if (!parliamentOwnsRevealBatch(batch) || parliamentDrawZone() !== '' || Date.now() - started > PARLIAMENT_DRAW_READY_NET_MS) {
+      if (!parliamentOwnsRevealBatch(batch) || parliamentDrawZone() !== '') {
+        node.met();
+        resolve();
+        return;
+      }
+      if (Date.now() - started > PARLIAMENT_DRAW_READY_NET_MS) {
+        node.ceiling();
         resolve();
         return;
       }

@@ -48,6 +48,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {probeTick} from '@/client/console/probeTick';
+import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {
   CITY_PRESS_MS, CITY_REDUCED_MS, ColonyCityArm, ColonyCityBeat, ColonyCityLanding, ColonyCityProfile, OWN_CITY_PROFILE,
   WATCHER_CITY_PROFILE, armedLandingOf, colonyCityLandings, colonyCityTimeline, landingSignature,
@@ -371,14 +372,31 @@ function seatPainted(colony: string): boolean {
 
 /** Wait (bounded) for the real tile under the proxy — the proxy may never leave a seat that paints nothing. */
 async function awaitSeatPainted(colony: string): Promise<boolean> {
+  let wait: CeilingWait | undefined;
   for (let i = 0; i < SEAT_PAINT_TICKS; i++) {
     await nextTick();
     if (seatPainted(colony) || !colonyCityState.live) {
+      if (seatPainted(colony)) {
+        wait?.met();
+      } else {
+        wait?.end();
+      }
       return true;
     }
+    // A wait that has to wait is a node of the wait graph; its tick ceiling ending it is said (`ceilingWait.ts`).
+    wait ??= beginCeilingWait({
+      id: 'colony-city:seat-painted', owner: 'consoleColonyCity', what: 'the real tile painted under the proxy', maxMs: SEAT_PAINT_TICKS * 16,
+      detail: `${SEAT_PAINT_TICKS} probe ticks, estimated at 16 ms each`,
+    });
     await tick();
   }
-  return seatPainted(colony);
+  const painted = seatPainted(colony);
+  if (painted) {
+    wait?.met();
+  } else {
+    wait?.ceiling();
+  }
+  return painted;
 }
 
 /** The final poses with no flight — reduced motion, or a seat that cannot be measured (confessed by the caller). */

@@ -5,10 +5,10 @@ Read from code by four inventory passes (admission · presentation · workspace 
 Status: `open` · `fixed <commit>`.
 
 ## Admission / announce
-- A1 `open` — the announce gate stuck in PENDING: `mandatoryPresentationReady` reads RAW signals (`consoleRevealMode`,
+- A1 `fixed (wait-graph overdue, 2026-11-09)` — a plate whose first presentation never came is an `overdue` announce node (bound 15 s, the graph's own); its door `announce-serve` acknowledges the beat where the question's surface stands, else lights the chip's beacon — never the player's A. Was: the announce gate stuck in PENDING: `mandatoryPresentationReady` reads RAW signals (`consoleRevealMode`,
   `rawDrawnRevealPending`, `playedHeroHolds`, `tilePlacementHolds`, `nomadMoveHolds`), not the watchdog-masked ones; a
   leaked flag keeps the beat pending, the leak detector says `announce-gate` (served), liveness reads accepting. No timer.
-- A2 `open` — `deferred` with no restore card (no minimizable live task, not parked, start not serving): no plate,
+- A2 `fixed (wait-graph dangling, 2026-11-09)` — the «set aside» node with no restore card is `dangling`; its door `deferred-restore` un-sets it aside and opens the question's surface. Was: `deferred` with no restore card (no minimizable live task, not parked, start not serving): no plate,
   leak detector says `deferred`; the screen director's `restore` verb is unarmed.
 - A3 `open` — a FLOW beat (draft / parliament) not acknowledged gates EVERY prompt of the viewer; released only by A on a
   plate that needs `boardHomeIdle`.
@@ -26,7 +26,7 @@ Status: `open` · `fixed <commit>`.
 - P4 `open` — Parliament `parkedSubmit` ↔ the funnel's awaited gates that read the Parliament stage; the 6 s safety
   re-arms forever (Sec:3871).
 - P5 `open` — the leak detector's `anyHold` treats notification-only owed holds as serving a stranded prompt (≤ 35 s).
-- H1 `open` — ledger `handle.settle()` deletes by id, so an old handle can settle a newer story of the same id.
+- H1 `fixed (2026-11-09)` — a ledger handle settles only ITS owe (`owner` token; `presentationLedger.spec`). Was: ledger `handle.settle()` deletes by id, so an old handle can settle a newer story of the same id.
 - H2 `open` — `surfaceClear` waiters wake only on token events; a surface leaving with no token event waits 9 s.
 
 ## Workspace

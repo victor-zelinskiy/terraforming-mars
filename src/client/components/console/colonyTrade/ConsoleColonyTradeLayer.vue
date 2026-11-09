@@ -52,6 +52,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {presentationTarget} from '@/client/console/boardCardBonus/boardCardBonusModel';
 import {probeTick} from '@/client/console/probeTick';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
@@ -460,8 +461,19 @@ export default defineComponent({
           return;
         }
         const started = Date.now();
+        // The wait has to wait: a node of the wait graph, its net ending it said (`ceilingWait.ts`). A cover reset
+        // drops the poll's timer — the node is abandoned with it (a killed handle of the cycle).
+        const wait = beginCeilingWait({id: 'colony-trade:cause', owner: 'ConsoleColonyTradeLayer', what: 'the end of the payout cause beats', maxMs: CHIP_WAIT_MAX_MS});
+        ctx.handles.push({kill: () => wait.end()});
         const poll = () => {
           if (!colonyTradeState.active || !busy() || Date.now() - started > CHIP_WAIT_MAX_MS) {
+            if (!colonyTradeState.active) {
+              wait.end();
+            } else if (!busy()) {
+              wait.met();
+            } else {
+              wait.ceiling();
+            }
             done();
             return;
           }

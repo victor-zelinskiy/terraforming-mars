@@ -33,6 +33,7 @@ import {verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {beginPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {acceptSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/statusIntake';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 /** The beat's own name — its notification-only hold, its ledger story. */
 export const CELL_RESOURCE_KEY = 'cell-resource';
@@ -185,6 +186,7 @@ function waitForStage(e: Entry): Promise<boolean> {
     return Promise.resolve(true);
   }
   let due = false;
+  let aborted = false;
   debt?.settle();
   const mine = owePresentation({
     id: CELL_RESOURCE_KEY,
@@ -199,8 +201,11 @@ function waitForStage(e: Entry): Promise<boolean> {
     },
     diagnose: () => ({space: e.record.spaceId, watchable: boardBeatBoardWatchable()}),
   });
+  // The wait waits: a node of the wait graph beside its ledger story, the due ending it said (`ceilingWait.ts`).
+  const wait = beginCeilingWait({id: 'cell-resource:stage', owner: 'cellResourceBeat', what: 'the stage of the cell resource', maxMs: STAGE_DUE_MS});
   debt = mine;
   const abort = () => {
+    aborted = true;
     due = true;
     cellResourceState.nudge++;
   };
@@ -223,6 +228,13 @@ function waitForStage(e: Entry): Promise<boolean> {
           }
           if (abortStageWait === abort) {
             abortStageWait = undefined;
+          }
+          if (verdict === 'ready') {
+            wait.met();
+          } else if (aborted) {
+            wait.end();
+          } else {
+            wait.ceiling();
           }
           resolve(verdict === 'ready');
         }

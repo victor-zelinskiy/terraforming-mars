@@ -659,6 +659,7 @@ import {gsap} from 'gsap';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {readingText} from '@/client/console/readingText';
 import {probeTick} from '@/client/console/probeTick';
+import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {addCard3DTurn} from '@/client/console/cardFlight/card3dInner';
 import {colonyResolutionUi, colonyRevealSourceOf, noteColonyBonusFresh} from '@/client/console/colonyTrade/colonyResolution';
 import {cardArrivalTimings, reducedCardArrivalTimings, sealedRevealPlan} from '@/client/console/consoleCardArrival';
@@ -694,6 +695,7 @@ const SEAL_BREAK_NET_MS = 900;
  * screen this waits on). Bounded: a place that never stands turns anyway (the turn is the card's only door).
  */
 function waitPlaceStanding(el: HTMLElement): Promise<void> {
+  const node = beginCeilingWait({id: 'reveal:place-standing', owner: 'revealOverlay', what: 'the place standing painted and still', maxMs: motionMs(PLACE_STANDING_WAIT_MS)});
   return new Promise((done) => {
     const start = performance.now();
     let last = '';
@@ -706,7 +708,13 @@ function waitPlaceStanding(el: HTMLElement): Promise<void> {
         opaque = Number(getComputedStyle(n).opacity) > 0.92;
       }
       const sig = `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}`;
-      if ((painted && opaque && r.width > 2 && sig === last) || performance.now() - start > motionMs(PLACE_STANDING_WAIT_MS)) {
+      if (painted && opaque && r.width > 2 && sig === last) {
+        node.met();
+        done();
+        return;
+      }
+      if (performance.now() - start > motionMs(PLACE_STANDING_WAIT_MS)) {
+        node.ceiling();
         done();
         return;
       }
@@ -2127,8 +2135,10 @@ export default defineComponent({
       }
       return new Promise((done) => {
         const start = performance.now();
+        let wait: CeilingWait | undefined;
         const poll = () => {
           if (!settlementSealStands(place)) {
+            wait?.met();
             done();
             return;
           }
@@ -2137,10 +2147,20 @@ export default defineComponent({
             startSettlementSealBreak(place);
           }
           if (consoleReducedMotionActive() || waited > motionMs(SEAL_TOUCHDOWN_WAIT_MS + SEAL_BREAK_NET_MS)) {
+            if (consoleReducedMotionActive()) {
+              wait?.end();
+            } else {
+              wait?.ceiling();
+            }
             breakSettlementSeal(place);
             done();
             return;
           }
+          // A wait that has to wait is a node of the wait graph; its net ending it is said (`ceilingWait.ts`).
+          wait ??= beginCeilingWait({
+            id: 'reveal:seal-gone', owner: 'ConsoleRevealOverlay', what: 'the break of the settlement seal', maxMs: motionMs(SEAL_TOUCHDOWN_WAIT_MS + SEAL_BREAK_NET_MS),
+            detail: `the break itself is started after ${motionMs(SEAL_TOUCHDOWN_WAIT_MS)} ms without a touchdown`,
+          });
           probeTick(poll);
         };
         poll();

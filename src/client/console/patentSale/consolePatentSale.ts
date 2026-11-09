@@ -57,6 +57,7 @@ import {
 import {ResourceTransferSpec, TransferPoint, transferFlightBudgetMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {PatentSaleAnswer, answerTransferSpec, patentSaleReceivers} from '@/client/console/patentSale/patentSaleAnswers';
 import {cardArtUrlAtTier, premiumCardArt} from '@/client/cards/cardArt';
+import {beginCeilingWait, raceCeiling} from '@/client/console/waitGraph/ceilingWait';
 
 export type SaleFlight = {
   id: number,
@@ -566,18 +567,28 @@ function raiseReceivers(): void {
       patentSaleState.receiversUp = true;
     }
   };
-  void Promise.race([receiversArt, wait(motionMs(SALE_INSERT_MS))]).then(raise);
+  // The race is a node of the wait graph; its ceiling winning is said (`ceilingWait.ts`).
+  void raceCeiling({
+    id: 'patent-sale:receivers-art', owner: 'consolePatentSale', what: 'the decoded art of the receivers', maxMs: motionMs(SALE_INSERT_MS),
+  }, receiversArt).then(raise);
 }
 
 /** The receivers' rise has landed: every receiver card painted at full opacity (bounded — a lost frame never wedges the payout). */
 async function receiversStanding(): Promise<void> {
   const deadline = Date.now() + motionMs(SALE_RECEIVERS_RISE_MS) + 400;
+  const node = beginCeilingWait({id: 'patent-sale:receivers-standing', owner: 'patentSale', what: 'the receivers strip risen and opaque', maxMs: motionMs(SALE_RECEIVERS_RISE_MS) + 400});
   while (patentSaleState.active && Date.now() < deadline) {
     const strip = typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('.con-sale-hero__recvs--up');
     if (strip !== null && Number(getComputedStyle(strip).opacity) >= 0.98) {
+      node.met();
       return;
     }
     await frame();
+  }
+  if (patentSaleState.active) {
+    node.ceiling();
+  } else {
+    node.end();
   }
 }
 

@@ -50,6 +50,7 @@ import {
   TransferWaveSlot, createTransferWaveGate, releaseLandingSlot, releaseWaveSlot,
 } from '@/client/console/resourceTransfer/resourceTransferDirector';
 import {probeTick} from '@/client/console/probeTick';
+import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {effectiveOpacity, firstVisibleEnd, TRANSFER_END_MIN_OPACITY, TransferEndOptions, TransferEndVerdict, transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 
 export type TransferFlight = {
@@ -1392,22 +1393,30 @@ function detachable(run: ResourceTransferRun, spec: ResourceTransferSpec, skippe
 function awaitVisibleDestination(spec: ResourceTransferSpec, budgetMs: number, alive: () => boolean): Promise<TransferPoint | undefined> {
   const deadline = performance.now() + budgetMs;
   let previous: TransferPoint | undefined;
+  let wait: CeilingWait | undefined;
   return new Promise((resolve) => {
     const poll = (): void => {
       if (!alive()) {
+        wait?.end();
         resolve(undefined);
         return;
       }
       const point = targetPointFor(spec, undefined, {strict: true});
       if (point !== undefined && previous !== undefined && Math.abs(point.x - previous.x) <= 1 && Math.abs(point.y - previous.y) <= 1) {
+        wait?.met();
         resolve(point);
         return;
       }
       if (performance.now() >= deadline) {
+        wait?.ceiling();
         resolve(undefined);
         return;
       }
       previous = point;
+      // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
+      wait ??= beginCeilingWait({
+        id: 'resource-transfer:visible-destination', owner: 'consoleResourceTransfer', what: 'a painted and settled destination of the token', maxMs: budgetMs,
+      });
       probeTick(poll);
     };
     poll();

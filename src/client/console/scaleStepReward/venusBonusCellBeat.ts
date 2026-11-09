@@ -41,6 +41,7 @@ import {beginPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {SCALE_STEP_BREATH_MS, SCALE_STEP_STAGE_DUE_MS} from '@/client/console/scaleStepReward/scaleStepRewardModel';
 import {scaleStepRatingBusy, scaleStepRatingQuiet} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const VENUS_BONUS_CELL_KEY = 'venus-bonus-cell';
@@ -273,6 +274,8 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
     },
     diagnose: () => ({to: e.to, watchable: boardBeatBoardWatchable(), parked: boardBeatHoldsParam('venusScaleLevel'), rating: scaleStepRatingBusy()}),
   });
+  // The wait waits: a node of the wait graph beside its ledger story, the due ending it said (`ceilingWait.ts`).
+  const wait = beginCeilingWait({id: 'venus-bonus-cell:stage', owner: 'venusBonusCellBeat', what: 'the stage of the Venus bonus cell', maxMs: SCALE_STEP_STAGE_DUE_MS});
   return new Promise<boolean>((resolve) => {
     const stop: WatchStopHandle = watch(
       () => {
@@ -290,6 +293,13 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
           stop();
           debt?.settle();
           debt = undefined;
+          if (verdict === 'ready') {
+            wait.met();
+          } else if (verdict === 'due') {
+            wait.ceiling();
+          } else {
+            wait.end();
+          }
           resolve(verdict === 'ready');
         }
       });

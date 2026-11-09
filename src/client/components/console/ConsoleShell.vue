@@ -1694,6 +1694,7 @@ import {registerWaitRecovery, registerWaitSource, tickWaitGraph, waitGraphSnapsh
 import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
 import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
 import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGraphSources';
+import {ceilingStats} from '@/client/console/waitGraph/ceilingWait';
 import {LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
@@ -2516,6 +2517,8 @@ const FINALE_FINISH_HOLD = 'final-greenery-finish';
  * reason). Diagnostics only (the conclusion witness's heal warn reads it): plain module state, never reactive — a
  * refusal must not become a render dependency of anything.
  */
+/** The wait graph's standing frame: the phase it is in and since when (a plain module holder — read only by the 1 Hz source). */
+const waitSurfacePhase = {key: '', since: 0};
 let lastConclusionHold: {kind: WorkspaceFrameKind, reason: string, at: number} | undefined;
 /**
  * A FINISHED FRAME OVER THE FREE TURN LEAVES BY ITSELF after this long with nothing moving (`reapStaleFreeTurnFrame`).
@@ -22778,6 +22781,7 @@ export default defineComponent({
         now: Date.now(), accepting,
         requestInFlight: transport?.requestInProgress === true,
         serverOwes: wf === undefined && this.playerView.game.phase !== Phase.END,
+        motionInFlight: inFlight.length > 0,
       });
       const verdict = tickLiveness({
         now: Date.now(),
@@ -22863,8 +22867,20 @@ export default defineComponent({
      * the prompt took the first time), never while the player set the question aside (the restore card is their way back).
      */
     reopenStartStep(): string {
+      if (workspaceFrameHasNested('start')) {
+        return '';
+      }
+      return this.reopenOrphanQuestion();
+    },
+    /**
+     * THE QUESTION GETS ITS SURFACE BACK — the router's own door (`openShellTaskSurface`, the road the prompt took when it
+     * arrived), for a live question no frame serves (or only the start's root, which hosts its steps in nested frames),
+     * never while the player set it aside (the restore card is theirs) or a staged door owns the screen. Says what now
+     * serves it ('' — nothing changed: the caller's net goes on).
+     */
+    reopenOrphanQuestion(): string {
       const task = taskFor(this.playerView);
-      if (task === undefined || this.consoleState.task.deferred || workspaceFrameHasNested('start')) {
+      if (task === undefined || this.consoleState.task.deferred || stagedPlayState.arm !== undefined) {
         return '';
       }
       const serving = frameServing(task.kind);
@@ -22872,7 +22888,8 @@ export default defineComponent({
         return '';
       }
       this.openShellTaskSurface(task);
-      return workspaceFrameHasNested('start') || (frameServing(task.kind)?.kind ?? 'start') !== 'start' ? `reopened the «${task.kind}» step` : '';
+      const now = frameServing(task.kind);
+      return now !== undefined && now.kind !== 'start' ? `reopened the «${task.kind}» question in «${now.kind}»` : '';
     },
     runStartDirectorCure(finding: Pick<StartShadowFinding, 'kind' | 'expected' | 'actual'>, by: 'shadow' | 'liveness'): string {
       const cure = startDirectorCure(finding);
@@ -22994,6 +23011,8 @@ export default defineComponent({
         out.push({
           id: questionId, family: 'question', owner: 'server',
           targets: held !== undefined ? [{kind: 'node', id: held}] : [{kind: 'player', what: 'answer the question'}],
+          // A question nothing holds is answered on its surface — its door opens that surface (a dead end: nothing accepts).
+          ...(held === undefined ? {recovery: 'question-open'} : {}),
           detail: `${wf?.type ?? ''}${task !== undefined ? ` / ${task.kind}` : ''}`,
         });
       }
@@ -23014,6 +23033,8 @@ export default defineComponent({
         out.push({
           id: deferredId, family: 'surface', owner: 'shell:deferred',
           targets: this.mandatoryDeferredActive ? [{kind: 'player', what: 'the restore card'}] : [{kind: 'node', id: 'surface:restore-card'}],
+          // No restore card (inventory A2) — the set-aside question has no way back: its door un-defers it and opens its surface.
+          ...(this.mandatoryDeferredActive ? {} : {recovery: 'deferred-restore'}),
         });
       }
       // THE STANDING FRAME — past its commit it waits for its ending, a transient beat for its motion; a reversible
@@ -23027,8 +23048,16 @@ export default defineComponent({
             questionId !== undefined && task !== undefined && frameServing(task.kind)?.kind === top.kind ? [{kind: 'node', id: questionId}] :
               reversible ? [{kind: 'player', what: 'the player browses — B leaves'}] :
                 [{kind: 'player', what: 'B collapses / A continues'}];
+        // The node's age is the age of THIS PHASE of the frame, never of the frame (a hand that stood `committed` and then
+        // `executing` read 47 s of a 12 s beat — the monkey's wg2 `stratospheric-expedition-sole`): its id stays the frame's
+        // (the plate and the conclusion point at it), its `since` is re-stamped at every phase change.
+        const phaseKey = `${top.kind}:${top.phase}`;
+        if (waitSurfacePhase.key !== phaseKey) {
+          waitSurfacePhase.key = phaseKey;
+          waitSurfacePhase.since = Date.now();
+        }
         out.push({
-          id: `surface:${top.kind}`, family: 'surface', owner: `workspace:${top.kind}`, targets,
+          id: `surface:${top.kind}`, family: 'surface', owner: `workspace:${top.kind}`, targets, since: waitSurfacePhase.since,
           ...(isTransientBeat(top.phase) && owed?.kind !== top.kind ? {boundMs: WORKSPACE_BEAT_STALL_MS} : {}),
           detail: top.phase,
         });
@@ -23050,7 +23079,12 @@ export default defineComponent({
         out.push({
           id: `conclusion:${owed.kind}`, family: 'conclusion', owner: `workspace:${owed.kind}`, targets,
           since: this.owedConclusionSince > 0 ? this.owedConclusionSince : undefined,
-          boundMs: OWED_CONCLUSION_FORCE_MS + OWED_CONCLUSION_GHOST_CONFIRM_MS, recovery: 'workspace-conclusion', detail: reason,
+          // A conclusion that DELEGATES its wait (a nested step, its claim, the question, the player's restore of a parked
+          // flow) carries no clock of its own — the node it waits on does; only a motion edge is the conclusion's own
+          // escalation. Bounded throughout, it read `overdue` behind a nested step the player was answering and behind a
+          // minimized start nobody had restored yet (the monkey's wg2 pass: `red-lawyers-tr-first`, `pluto-settlements-2`).
+          ...(targets[0]?.kind === 'motion' ? {boundMs: OWED_CONCLUSION_FORCE_MS + OWED_CONCLUSION_GHOST_CONFIRM_MS} : {}),
+          recovery: 'workspace-conclusion', detail: reason,
         });
       }
       // A CLAIM — awaiting its answer (bounded by its safety), or presenting its outcome to the player.
@@ -23120,6 +23154,38 @@ export default defineComponent({
           return '';
         }),
         registerWaitRecovery('workspace-outcome', () => (releaseWorkspaceOutcome('wait-graph', {force: true}) ? 'the claim released' : '')),
+        // A QUESTION ASKED OF NOBODY (a dead end — nothing on screen accepts, nothing holds it, nothing in flight): the
+        // router's own door for that question, the road it took when it arrived (R15 generalized — the start's step lost
+        // to a B mid-open was its first field shape).
+        registerWaitRecovery('question-open', () => this.reopenOrphanQuestion()),
+        // «SET ASIDE» WITH NO WAY BACK (inventory A2 — no restore card: no minimizable live task, nothing parked, the start
+        // not serving): the question is un-set-aside and its surface opened through the router — the player is handed the
+        // decision they could not reach, never answered for.
+        registerWaitRecovery('deferred-restore', () => {
+          if (!this.consoleState.task.deferred || this.mandatoryDeferredActive) {
+            return '';
+          }
+          this.consoleState.task.deferred = false;
+          const did = this.reopenOrphanQuestion();
+          return did !== '' ? `un-set-aside — ${did}` : 'un-set-aside (the question stands for its plate)';
+        }),
+        // THE DEAD END's POSITIVE CONTROL (`?waitGraphControl=strand` — never in a game): `__conStrandQuestion()` takes the
+        // frame that serves the live question off the stack WITHOUT setting it aside — the R15 shape on demand; the graph
+        // must give the question its surface back by itself.
+        ...(new URLSearchParams(window.location.search).get('waitGraphControl') === 'strand' ? ((): Array<() => void> => {
+          (window as unknown as {__conStrandQuestion?: () => string}).__conStrandQuestion = () => {
+            const task = taskFor(this.playerView);
+            const frame = task === undefined ? undefined : frameServing(task.kind);
+            if (frame === undefined || workspaceStackTop()?.kind !== frame.kind) {
+              return '';
+            }
+            popWorkspaceFrame();
+            return frame.kind;
+          };
+          return [() => {
+            delete (window as unknown as {__conStrandQuestion?: unknown}).__conStrandQuestion;
+          }];
+        })() : []),
         // THE WAIT GRAPH's POSITIVE CONTROL (`?waitGraphControl=1` — never in a game): a mutual wait put in on purpose (the
         // chairman quest's field shape), so a stand proves the shadow sees, confirms and logs a cycle end to end.
         // Its plate carries a door (Э3): the graph breaks the planted cycle through it, and the cycle is gone after.
@@ -23503,7 +23569,7 @@ export default defineComponent({
         return;
       }
       boardBeatDrainWaitArmed = true;
-      void waitConsoleQuiet(blocked, {alive: () => this.boardBeatsWatchable})
+      void waitConsoleQuiet(blocked, {alive: () => this.boardBeatsWatchable, who: 'board-beat-drain'})
         .then(() => {
           boardBeatDrainWaitArmed = false;
           // A reveal STANDING for the player is not a wedged story: it ends on the player's take, and the scales'
@@ -23537,6 +23603,7 @@ export default defineComponent({
           return;
         }
         void waitConsoleQuiet(chainSettling, {
+          who: 'stack-return',
           alive: () => stackYieldedToBoard() && !this.placementActive,
           maxMs: STACK_RETURN_MAX_MS,
         }).then(() => {
@@ -23574,6 +23641,7 @@ export default defineComponent({
         return;
       }
       void waitConsoleQuiet(settling, {
+        who: 'board-beat-settle',
         alive: () => stackYieldedToBoard() && !this.placementActive,
         maxMs: STACK_RETURN_MAX_MS,
       }).then(() => {
@@ -26929,7 +26997,7 @@ export default defineComponent({
       };
     });
     // THE WAIT GRAPH's evidence (Э2): the last snapshot's nodes, the counts, the standing streaks.
-    (window as unknown as {__conWaitGraph?: () => unknown}).__conWaitGraph = () => JSON.parse(JSON.stringify(waitGraphSnapshot())) as unknown;
+    (window as unknown as {__conWaitGraph?: () => unknown}).__conWaitGraph = () => JSON.parse(JSON.stringify({...waitGraphSnapshot(), ceilings: ceilingStats})) as unknown;
     (window as unknown as {__conScreenShadow?: () => unknown}).__conScreenShadow = () => ({
       findings: [...screenShadowLog.findings], judged: screenShadowLog.judged,
       stats: JSON.parse(JSON.stringify(screenShadowLog.stats)) as unknown,

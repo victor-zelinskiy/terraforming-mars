@@ -83,7 +83,7 @@ import {armedEffectsChange, releaseArmedEffectHolds, releaseStagedArmedSpends, s
 import {Tag} from '@/common/cards/Tag';
 import {VpShare} from '@/common/game/vpAttribution';
 import {claimVpShares, dropVpClaim, flyVpShares, holdsVpShares, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
-import {declareWait} from '@/client/console/waitGraph/waitGraph';
+import {beginCeilingWait, raceCeiling} from '@/client/console/waitGraph/ceilingWait';
 
 /**
  * The score cell's ledger owner of this scene (TR55 — docs/claude/console/score-cell.md): the played card's own
@@ -1370,10 +1370,10 @@ async function shipPrice(mine: () => boolean): Promise<void> {
     const beat = new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
     // …and every token drawn into the card has finished its absorb (`shipAbsorbs`) — bounded: a guarded absorb always
     // reports, but the lift must never wait on a run that lost its callback.
-    const absorbed = Promise.race([
-      Promise.all(shipAbsorbs.splice(0)),
-      new Promise<void>((resolve) => gsap.delayedCall((motionMs(TRANSFER_BEAT_MS) + SHIP_ABSORB_GRACE_MS) / 1000, resolve)),
-    ]);
+    const absorbed = raceCeiling({
+      id: 'played-hero:ship-absorb', owner: 'playedHero', what: 'every shipped token absorbed into the card',
+      maxMs: motionMs(TRANSFER_BEAT_MS) + SHIP_ABSORB_GRACE_MS, detail: playedHeroState.card ?? '',
+    }, Promise.all(shipAbsorbs.splice(0)));
     await Promise.all([beat, absorbed]);
   }
   if (mine() && playedHeroState.shipment === 'flying') {
@@ -1791,7 +1791,10 @@ export async function endPlayedHero(): Promise<void> {
     payingFromStandingCard = false;
     payingComposerView.value = undefined;
     go?.();
-    await Promise.race([landed, wait(motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + PAYBACK_FLIGHT_GRACE_MS)]);
+    await raceCeiling({
+      id: 'played-hero:payback-flight', owner: 'playedHero', what: 'the landing of the lifted card (the commit half of the pay-back waits for it)',
+      maxMs: motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + PAYBACK_FLIGHT_GRACE_MS, detail: playedHeroState.card ?? '',
+    }, landed);
     if (!mine()) {
       return;
     }
@@ -2080,17 +2083,12 @@ async function openGateForPayBack(mine: () => boolean): Promise<void> {
   capturePlayedCardReturnSource();
   freeRunGate();
   // THE WAIT GRAPH (Э4): the lift waits for the play's ANSWER — a node with that target, so a lift waiting for a commit
-  // nobody sends is a dead end the shadow names (no request on the wire, nothing owed) instead of 8 s of a still card.
-  const node = declareWait({
-    id: `flow:played-hero-payback#${playedHeroState.nonce}`, family: 'flow', owner: 'playedHero',
-    targets: [{kind: 'server', what: 'the play\'s answer (the pay-back off the standing card)'}],
-    boundMs: PAYBACK_WAIT_MAX_MS, detail: playedHeroState.card ?? '',
-  });
-  try {
-    await Promise.race([go, wait(PAYBACK_WAIT_MAX_MS)]);
-  } finally {
-    node.end();
-  }
+  // nobody sends is a dead end the shadow names (no request on the wire, nothing owed) instead of 8 s of a still card;
+  // a pay-back that never came is said once (`[wait-graph] ceiling played-hero:payback`).
+  await raceCeiling({
+    id: 'played-hero:payback', owner: 'playedHero', what: 'the play\'s answer (the pay-back off the standing card)',
+    maxMs: PAYBACK_WAIT_MAX_MS, target: 'server', detail: playedHeroState.card ?? '',
+  }, go);
   if (liftGo !== undefined && mine()) {
     // The pay-back never came: lift with nothing paid here (the landing's half pays off the pile, the old road).
     liftGo = undefined;
@@ -2821,9 +2819,21 @@ function awaitHeroRewardPlace(card: string): Promise<void> {
     return Promise.resolve();
   }
   const deadline = performance.now() + motionMs(HERO_REWARD_PLACE_WAIT_MS);
+  const node = beginCeilingWait({id: 'played-hero:reward-place', owner: 'playedHero', what: 'the visible source of the rewards of the card', maxMs: motionMs(HERO_REWARD_PLACE_WAIT_MS), detail: card});
   return new Promise((resolve) => {
     const poll = (): void => {
-      if (heroRewardPlace(card) !== undefined || performance.now() >= deadline || !playedHeroState.active) {
+      if (!playedHeroState.active) {
+        node.end();
+        resolve();
+        return;
+      }
+      if (heroRewardPlace(card) !== undefined) {
+        node.met();
+        resolve();
+        return;
+      }
+      if (performance.now() >= deadline) {
+        node.ceiling();
         resolve();
         return;
       }
@@ -2876,7 +2886,21 @@ function peekTargetRect(): HeroRect | undefined {
   }
 }
 
+/** `measureTargetRect` on the wait graph: a landing slot that never became measurable within the budget is said once. */
 async function awaitTargetRect(budgetMs = TARGET_WAIT_BUDGET_MS): Promise<HeroRect | undefined> {
+  const node = beginCeilingWait({id: 'played-hero:target', owner: 'playedHero', what: 'a measurable landing slot for the card', maxMs: budgetMs, detail: playedHeroState.card ?? ''});
+  const rect = await measureTargetRect(budgetMs);
+  if (rect !== undefined) {
+    node.met();
+  } else if (playedHeroState.active) {
+    node.ceiling();
+  } else {
+    node.end();
+  }
+  return rect;
+}
+
+async function measureTargetRect(budgetMs: number): Promise<HeroRect | undefined> {
   const deadline = Date.now() + budgetMs;
   // An ARM-SCOPED target override (the start scene's effect-source column):
   // this transaction's card deliberately lands at an INTERMEDIATE position —

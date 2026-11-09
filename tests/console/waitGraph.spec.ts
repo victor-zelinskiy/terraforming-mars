@@ -106,6 +106,45 @@ describe('waitGraph registry', () => {
     expect(warns.some((w) => w.startsWith('[wait-graph] cycle'))).eq(true);
   });
 
+  it('a DEAD END (armed by default) is cured through the node\'s own door; a dead end with no door is a worklist row', () => {
+    const calls: Array<string> = [];
+    registerWaitRecovery('question-open', (node) => {
+      calls.push(node.id);
+      return 'reopened the «projectCard» question in «hand»';
+    });
+    registerWaitSource('t', () => [
+      {id: 'question:projectCard#7', family: 'question', owner: 'server', targets: [{kind: 'player', what: 'answer the question'}], recovery: 'question-open'},
+      {id: 'surface:start', family: 'surface', owner: 'workspace:start', targets: [{kind: 'player', what: 'the player browses'}]},
+    ]);
+    const deaf = (now: number): WaitWorld => ({now, accepting: false, requestInFlight: false, serverOwes: false});
+    for (let t = 0; t < WAIT_GRAPH_CONFIRM_TICKS + 2; t++) {
+      tickWaitGraph(deaf(1_000 * (t + 1)));
+    }
+    expect(calls, 'the door called once, on the confirming tick').to.deep.eq(['question:projectCard#7']);
+    expect(warns.some((w) => w === '[wait-graph] cure dead-end at question:projectCard#7 through «question-open» — reopened the «projectCard» question in «hand»')).eq(true);
+    expect(warns.some((w) => w === '[wait-graph] cure dead-end — surface:start has no door: a worklist row')).eq(true);
+  });
+
+  it('OVERDUE acts only on a plate (its bound is the graph\'s own — inventory A1); an overdue hold is left to its own expire', () => {
+    const calls: Array<string> = [];
+    registerWaitRecovery('announce-serve', (node) => {
+      calls.push(node.id);
+      return 'lit the beacon of task#9';
+    });
+    registerWaitRecovery('hold-expire', (node) => {
+      calls.push(node.id);
+      return 'expired';
+    });
+    registerWaitSource('t', () => [
+      {id: 'announce:task#9', family: 'announce', owner: 'gate', targets: [{kind: 'motion', what: 'the first presentation'}], boundMs: 15_000, since: 0, recovery: 'announce-serve'},
+      {id: 'hold:x', family: 'hold', owner: 'h', targets: [{kind: 'motion', what: 'a flight'}], boundMs: 1_000, since: 0, recovery: 'hold-expire'},
+    ]);
+    for (let t = 0; t < WAIT_GRAPH_CONFIRM_TICKS + 1; t++) {
+      tickWaitGraph(world(20_000 + 1_000 * t));
+    }
+    expect(calls).to.deep.eq(['announce:task#9']);
+  });
+
   it('a source that throws is named and skipped — the graph never dies with it', () => {
     registerWaitSource('bad', () => {
       throw new Error('boom');

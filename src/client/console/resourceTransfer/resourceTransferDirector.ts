@@ -15,6 +15,7 @@
  * `killTransferPiece` reverts everything. No game state, no Vue.
  */
 
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {fullscreenCoverAt} from '@/client/console/resourceTransfer/transferEndVisible';
@@ -359,6 +360,9 @@ function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: ()
         // Caught up: its own touchdown now runs at the destination — a short grace for it, then resolved anyway.
         window.setTimeout(finish, CATCH_UP_TOUCHDOWN_GRACE_MS);
       } else {
+        // The token never touched down inside its budget and nothing could catch it up — the safety ends its beat (said on
+        // the wait graph's worklist; a flight CAUGHT UP on a starved renderer is the designed road, never a line).
+        beginCeilingWait({id: 'transfer:touchdown', owner: 'resourceTransferDirector', what: 'the touchdown of a token in flight', maxMs: budgetMs + 1200}).ceiling();
         finish();
       }
     }, budgetMs + 1200);
@@ -682,7 +686,8 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     return absorbChip(piece, restingAt, absorbMs).then(() => 'done' as const);
   });
   // A launch that never fired (a killed timeline, the guard's budget) resolves with the touchdown: never a hang.
-  const launched = Promise.race([launchedAt, touched]);
+  void touched.then(launchedResolve);
+  const launched = launchedAt;
 
   return {launched, touched, finished, report};
 }
@@ -831,7 +836,9 @@ export function runDetachedTransferFlight(piece: TransferStagePiece, opts: Detac
   void touched.then(leaveLandingOrder);
 
   const finished: Promise<'landed' | 'done'> = touched.then(() => (unborn ? undefined : absorbChip(piece, restingAt, motionMs(TRANSFER_BEAT_MS) * pace))).then(() => 'done' as const);
-  const launched = Promise.race([launchedAt, touched]);
+  // A pop that never came resolves the launch with the touchdown (a second leave of the landing order is a no-op).
+  void touched.then(launchedResolve);
+  const launched = launchedAt;
   return {launched, touched, finished, report};
 }
 

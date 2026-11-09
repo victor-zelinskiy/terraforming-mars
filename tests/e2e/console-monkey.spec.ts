@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, FixtureName, sendPlayerInput} from './consoleStart';
+import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, FixtureName, openConsole, sendPlayerInput} from './consoleStart';
 
 /**
  * THE MONKEY — freezes are found by US, never by the field (the owner, 2026-11-08: «делаем глубоко и основательно,
@@ -26,6 +26,12 @@ const ENABLED = process.env.TM_E2E_MONKEY === '1';
 const SEED = process.env.TM_E2E_MONKEY_SEED ?? new Date().toISOString().slice(0, 10);
 const PRESSES = Number(process.env.TM_E2E_MONKEY_PRESSES ?? 120);
 const ONLY = process.env.TM_E2E_MONKEY_ONLY === undefined ? undefined : new RegExp(process.env.TM_E2E_MONKEY_ONLY);
+/**
+ * THE DUO (`TM_E2E_MONKEY_DUO=1`): the owner plays two humans over the LAN, so a table with a second human seat is
+ * walked by TWO monkeys at once — the second seat's own page, its own seeded walk — so a rival's landing, scene and
+ * hand-over arrive WHILE the first player is mid-flow (the API seats only ever answer between presses).
+ */
+const DUO = process.env.TM_E2E_MONKEY_DUO === '1';
 
 /** Every fixture the generator writes — read off the directory, so a new table is walked the day it exists. */
 const FIXTURES: ReadonlyArray<string> = fs.readdirSync(path.resolve(__dirname, 'fixtures'))
@@ -162,41 +168,60 @@ test.describe('THE MONKEY — a seeded random walk over every table', () => {
         return;
       }
       // The console's own account of the walk (the last lines), filed beside the press log — a red names WHAT the screen
-      // said in the seconds before, not only that a net fired.
+      // said in the seconds before, not only that a net fired. THE MOMENT A NET FIRES — the frame, the wait graph and the
+      // readiness probe, filed beside the walk: a red names what the screen looked like and who was waiting on whom.
       const consoleTail: Array<string> = [];
-      // THE MOMENT A NET FIRES — the frame, the wait graph and the readiness probe, filed beside the walk: a red names
-      // what the screen looked like and who was waiting on whom, not only that an arbiter acted.
       const evidence: Array<Promise<unknown>> = [];
       let shots = 0;
-      const NET = /\[(liveness\] stall|workspace-stall\]|workspace-stale\]|transfer\] (token painted|end not painted)|wait-graph\] (cycle|dangling|dead-end))/;
-      page.on('console', (message) => {
-        const text = message.text();
-        consoleTail.push(`${Date.now() % 1_000_000} ${message.type()} ${text.slice(0, 600)}`);
-        if (consoleTail.length > 400) {
-          consoleTail.shift();
-        }
-        if (NET.test(text) && shots < 3 && !page.isClosed()) {
-          const n = ++shots;
-          evidence.push(page.screenshot({path: test.info().outputPath(`net-${n}.png`)}).catch(() => undefined));
-          evidence.push(page.evaluate(() => {
-            const w = window as unknown as {__conWaitGraph?: () => unknown, __conReady?: () => unknown, __conStartDiag?: () => unknown};
-            return {graph: w.__conWaitGraph?.(), ready: w.__conReady?.(), startDiag: w.__conStartDiag?.()};
-          }).then((s) => fs.writeFileSync(test.info().outputPath(`net-${n}.json`), JSON.stringify({line: text, ...s as object}, null, 1)))
-            .catch(() => undefined));
-        }
-      });
+      const NET = /\[(liveness\] stall|workspace-stall\]|workspace-stale\]|transfer\] (token painted|end not painted)|wait-graph\] (cycle|dangling|dead-end|ceiling))/;
+      const watch = (p: Page, tag: string): void => {
+        p.on('console', (message) => {
+          const text = message.text();
+          consoleTail.push(`${Date.now() % 1_000_000} ${tag}${message.type()} ${text.slice(0, 600)}`);
+          if (consoleTail.length > 400) {
+            consoleTail.shift();
+          }
+          if (NET.test(text) && shots < 4 && !p.isClosed()) {
+            const n = ++shots;
+            const suffix = tag === '' ? '' : '-p2';
+            evidence.push(p.screenshot({path: test.info().outputPath(`net-${n}${suffix}.png`)}).catch(() => undefined));
+            evidence.push(p.evaluate(() => {
+              const w = window as unknown as {__conWaitGraph?: () => unknown, __conReady?: () => unknown, __conStartDiag?: () => unknown};
+              return {graph: w.__conWaitGraph?.(), ready: w.__conReady?.(), startDiag: w.__conStartDiag?.()};
+            }).then((st) => fs.writeFileSync(test.info().outputPath(`net-${n}${suffix}.json`), JSON.stringify({line: text, seat: tag, ...st as object}, null, 1)))
+              .catch(() => undefined));
+          }
+        });
+      };
+      watch(page, '');
+      // THE DUO: the second seat, when it is a human (never the bot's), walks its own page beside the first.
+      const second = DUO && seats.length > 1 && !/marsbot/i.test(seats[1]) ? seats[1] : undefined;
+      let page2: Page | undefined;
+      const log2: Array<string> = [];
+      if (second !== undefined) {
+        page2 = await page.context().newPage();
+        watch(page2, 'P2 ');
+        await openConsole(page2, second);
+        test.info().annotations.push({type: 'monkey-duo', description: second});
+      }
       try {
-        await walk(page, request, seats.slice(1), r, log);
+        const apiSeats = seats.slice(second === undefined ? 1 : 2);
+        await Promise.all([
+          walk(page, request, apiSeats, r, log),
+          ...(page2 === undefined ? [] : [walk(page2, request, [], rng(`${seed}:duo`), log2)]),
+        ]);
         // THE LAST WORD: a quiet spell longer than the arbiter's grace — whatever the walk left on screen is judged.
         await cinematicBeat(page, 14_000, 'the last word — a quiet spell past the liveness grace, so the arbiter judges the screen the walk left');
       } finally {
-        const walkLog = `seed=${seed} landing=${landing}\n${log.join(' ')}`;
+        const walkLog = `seed=${seed} landing=${landing}${second !== undefined ? ` duo=${second}` : ''}\n${log.join(' ')}` +
+          (log2.length > 0 ? `\nP2 ${log2.join(' ')}` : '');
         // A FILE beside the error context (pulled back with test-results) — the attachment lives in the report only.
         fs.writeFileSync(test.info().outputPath('monkey-walk.txt'), `${walkLog}\n\n── console (last ${consoleTail.length}) ──\n${consoleTail.join('\n')}\n`);
         await Promise.all(evidence);
         await test.info().attach('monkey-walk', {body: walkLog, contentType: 'text/plain'});
       }
       expect(page.isClosed(), 'the page survived the walk').toBe(false);
+      expect(page2?.isClosed() ?? false, 'the second seat survived the walk').toBe(false);
     });
   }
 });

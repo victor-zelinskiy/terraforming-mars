@@ -25,6 +25,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {
   DiscardPhase,
   DISCARD_SAFETY_MS,
@@ -442,11 +443,24 @@ export function resetCardDiscard(): void {
 function waitForTray(maxFrames: number): Promise<void> {
   return new Promise((resolve) => {
     let left = Math.max(1, maxFrames);
+    let wait: CeilingWait | undefined;
     const step = () => {
       if (discardTrayEl() !== undefined || left <= 0 || !cardDiscardTransaction.active) {
+        if (discardTrayEl() !== undefined) {
+          wait?.met();
+        } else if (!cardDiscardTransaction.active) {
+          wait?.end();
+        } else {
+          wait?.ceiling();
+        }
         resolve();
         return;
       }
+      // A wait that has to wait is a node of the wait graph; its frame ceiling ending it is said (`ceilingWait.ts`).
+      wait ??= beginCeilingWait({
+        id: 'card-discard:tray', owner: 'consoleCardDiscard', what: 'the discard tray mounted', maxMs: Math.max(1, maxFrames) * 16,
+        detail: `${Math.max(1, maxFrames)} frames, estimated at 16 ms each`,
+      });
       left--;
       requestAnimationFrame(step);
     };

@@ -56,6 +56,7 @@ import {consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {boardBeatParksReveal} from '@/client/console/boardBeatPark';
 import {markAgendaCardLifted, parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {probeTick} from '@/client/console/probeTick';
+import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {
   runBonusAbortVisual, runBonusCoverLift, runBonusFanOut, runBonusHandoff,
@@ -472,12 +473,22 @@ export default defineComponent({
     /** The Parliament's marker glide has settled (or its bounded window passed). */
     waitAgendaSettled(): Promise<void> {
       const started = Date.now();
+      let wait: CeilingWait | undefined;
       return new Promise((done) => {
         const poll = () => {
           if (!consoleParliamentUi.agendaSettling || Date.now() - started >= 3000 || !boardCardBonusState.active) {
+            if (!consoleParliamentUi.agendaSettling) {
+              wait?.met();
+            } else if (!boardCardBonusState.active) {
+              wait?.end();
+            } else {
+              wait?.ceiling();
+            }
             done();
             return;
           }
+          // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
+          wait ??= beginCeilingWait({id: 'board-card-bonus:agenda-settled', owner: 'ConsoleBoardCardBonusLayer', what: 'the settle of the Parliament marker glide', maxMs: 3000});
           probeTick(poll);
         };
         poll();
@@ -487,11 +498,24 @@ export default defineComponent({
     waitForHover(): Promise<void> {
       return new Promise((done) => {
         let tries = 0;
+        let wait: CeilingWait | undefined;
         const poll = () => {
           if (!boardCardBonusState.active || boardCardBonusState.phase !== 'lift' || tries > 60) {
+            if (!boardCardBonusState.active) {
+              wait?.end();
+            } else if (boardCardBonusState.phase !== 'lift') {
+              wait?.met();
+            } else {
+              wait?.ceiling();
+            }
             done();
             return;
           }
+          // A wait that has to wait is a node of the wait graph; its frame ceiling ending it is said (`ceilingWait.ts`).
+          wait ??= beginCeilingWait({
+            id: 'board-card-bonus:hover', owner: 'ConsoleBoardCardBonusLayer', what: 'the end of the lift rise', maxMs: 61 * 16,
+            detail: '61 frames, estimated at 16 ms each',
+          });
           tries++;
           requestAnimationFrame(poll);
         };
@@ -579,7 +603,7 @@ export default defineComponent({
     async releaseSingleTakeover(eventId: number, proxy: HTMLElement, reduced: boolean): Promise<void> {
       const alive = () =>
         boardCardBonusState.active && boardCardBonusState.stagedEventId === eventId;
-      await waitRewardPayoutQuiet({alive});
+      await waitRewardPayoutQuiet({alive, who: 'board-card-bonus'});
       if (!alive()) {
         return;
       }
@@ -635,6 +659,7 @@ export default defineComponent({
       // veiled — and the gather/fan take over the moment the payout settles.
       // Bounded; exits with the scene, whose abort visual owns the cleanup.
       await waitRewardPayoutQuiet({
+        who: 'board-card-bonus:cover',
         alive: () => boardCardBonusState.active && boardCardBonusState.stagedEventId === e.id,
       });
       if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {

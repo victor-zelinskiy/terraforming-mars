@@ -77,6 +77,7 @@ import {SCALE_STEP_BREATH_MS, SCALE_STEP_STAGE_DUE_MS, scaleStepTokenOrigins} fr
 import {freshCardReactions} from '@/client/console/cardReaction/cardReactionModel';
 import {SCALE_STEP_RATING_UNIT, claimTeller} from '@/client/console/resourceTransfer/oneTeller';
 import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const SCALE_STEP_RATING_KEY = 'scale-step-rating';
@@ -528,6 +529,8 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
       moves: e.plan.moves.map((m) => `${m.accent}:${m.steps}→${m.after} parked=${boardBeatHoldsParam(m.key)} marker=${JSON.stringify(scaleMarkerPoses[m.accent])}`),
     }),
   });
+  // The wait waits: a node of the wait graph beside its ledger story, the due ending it said (`ceilingWait.ts`).
+  const wait = beginCeilingWait({id: 'scale-step-rating:stage', owner: 'scaleStepRatingBeat', what: 'the stage of the scale step rating', maxMs: SCALE_STEP_STAGE_DUE_MS});
   return new Promise<boolean>((resolve) => {
     const stop: WatchStopHandle = watch(
       () => {
@@ -545,6 +548,13 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
           stop();
           debt?.settle();
           debt = undefined;
+          if (verdict === 'ready') {
+            wait.met();
+          } else if (verdict === 'due') {
+            wait.ceiling();
+          } else {
+            wait.end();
+          }
           resolve(verdict === 'ready');
         }
       });

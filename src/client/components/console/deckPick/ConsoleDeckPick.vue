@@ -212,6 +212,7 @@
  *
  */
 import {probeTick} from '@/client/console/probeTick';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {defineComponent, markRaw, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
@@ -1548,8 +1549,10 @@ export default defineComponent({
         // left, and the workspace folds UNDER the flight into the dock. A run with nothing to lift (no dock on screen,
         // no slot) releases on its own end, as before.
         let markLifted: () => void = () => {};
-        const lifted = new Promise<void>((resolve) => {
+        let failLifted: (err: unknown) => void = () => {};
+        const lifted = new Promise<void>((resolve, reject) => {
           markLifted = resolve;
+          failLifted = reject;
         });
         const intake = this.sendToHand(kept, () => {
           markLifted();
@@ -1557,7 +1560,9 @@ export default defineComponent({
         });
         // The intake runs on after the release; its own end belongs to the dock (never an unhandled rejection here).
         intake.catch(() => undefined);
-        await Promise.race([lifted, intake]);
+        // Released by the lift — or by the intake's own end (its failure included) when nothing lifts.
+        intake.then(() => markLifted(), (err: unknown) => failLifted(err));
+        await lifted;
         await startClearing(0);
       } finally {
         // A REFUSED submit must not leave the player inside a beat that will
@@ -1719,7 +1724,7 @@ export default defineComponent({
         // PL-1469 — THE BURN PAYS FROM THE CARD: the answer's 15 M€ wait on the rail (seeded in the apply block); one
         // token is born on the burnt card's face where it stands, the row ticks on the touchdown; only then does the
         // card follow the others to the discard.
-        await this.until(() => preludeBurnOwed() || this.model === undefined || this.promptKey !== this.frozenKey, 4000);
+        await this.until(() => preludeBurnOwed() || this.model === undefined || this.promptKey !== this.frozenKey, 4000, {id: 'deck-pick:prompt-left', what: 'the server moving off the pick'});
         if (preludeBurnOwed()) {
           const face = this.slotEl(chosen)?.querySelector<HTMLElement>(':is(.pcard, .card-container)') ?? this.slotEl(chosen) ?? undefined;
           await flyPreludeBurn(face !== undefined ? {el: face, fx: 0.5, fy: 0.5} : undefined);
@@ -1729,10 +1734,10 @@ export default defineComponent({
       }
       if (chosen !== undefined) {
         // The hero hands the card over to the seat at its commit — the seat paints it from then on.
-        await this.until(() => playedHeroState.card !== chosen || playedHeroState.revealed || !isPlayedHeroActive(), 6000);
+        await this.until(() => playedHeroState.card !== chosen || playedHeroState.revealed || !isPlayedHeroActive(), 6000, {id: 'deck-pick:hero-revealed', what: 'the chosen card revealed by the play scene'});
         this.seatedPrelude = chosen;
         this.held.add(chosen);
-        await this.until(() => !isPlayedHeroActive() || playedHeroState.card !== chosen, 12000);
+        await this.until(() => !isPlayedHeroActive() || playedHeroState.card !== chosen, 12000, {id: 'deck-pick:hero-done', what: 'the play scene of the chosen card done'});
       }
     },
     /** One prelude to the deck object's discard — from its slot, face up (the pile is public), the count on contact. */
@@ -1759,14 +1764,22 @@ export default defineComponent({
       });
     },
     /** Bounded wait for a condition (the hero's own state) — never a fixed sleep standing in for it. */
-    until(cond: () => boolean, maxMs: number): Promise<void> {
+    until(cond: () => boolean, maxMs: number, wait: {id: string, what: string}): Promise<void> {
       if (cond() || typeof window === 'undefined') {
         return Promise.resolve();
       }
+      // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
+      const node = beginCeilingWait({id: wait.id, owner: 'deckPick', what: wait.what, maxMs});
       return new Promise<void>((resolve) => {
         const deadline = Date.now() + maxMs;
         const tick = () => {
-          if (cond() || Date.now() > deadline) {
+          if (cond()) {
+            node.met();
+            resolve();
+            return;
+          }
+          if (Date.now() > deadline) {
+            node.ceiling();
             resolve();
             return;
           }
@@ -1782,6 +1795,10 @@ export default defineComponent({
       if (this.model === undefined || this.promptKey !== key || typeof window === 'undefined') {
         return Promise.resolve();
       }
+      // The wait has to wait: a node of the wait graph, its grace ending it said (`ceilingWait.ts`).
+      const wait = beginCeilingWait({
+        id: 'deck-pick:prompt-moved', owner: 'ConsoleDeckPick', what: 'the server moving off the answered prompt', maxMs: motionMs(REFUSAL_GRACE_MS), target: 'server',
+      });
       return new Promise<void>((resolve) => {
         let done = false;
         const finish = () => {
@@ -1796,10 +1813,14 @@ export default defineComponent({
           () => this.model === undefined || this.promptKey !== key,
           (moved: boolean) => {
             if (moved) {
+              wait.met();
               finish();
             }
           });
-        const timer = window.setTimeout(finish, motionMs(REFUSAL_GRACE_MS));
+        const timer = window.setTimeout(() => {
+          wait.ceiling();
+          finish();
+        }, motionMs(REFUSAL_GRACE_MS));
       });
     },
     /**

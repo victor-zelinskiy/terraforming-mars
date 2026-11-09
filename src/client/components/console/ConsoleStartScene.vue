@@ -1447,6 +1447,7 @@ import {ReactorEmergence, cardReactionAnswerFlight, markReactionCause} from '@/c
 import {buriedUnderAnotherCard, liftInPlace, placeShowsCard, registerReactorPlace, settleInPlace} from '@/client/console/cardReaction/reactorPlaces';
 import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 import {probeTick} from '@/client/console/probeTick';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
 import {reactionTempo} from '@/client/console/cardReaction/cardReactionModel';
 import {heldCardCapsule} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -8069,16 +8070,23 @@ export default defineComponent({
         return;
       }
       let last: {x: number, y: number} | undefined;
+      // The wait always waits (two frames at least): a node of the wait graph, its frame ceiling said (`ceilingWait.ts`).
+      const wait = beginCeilingWait({
+        id: 'start-scene:queue-stability', owner: 'ConsoleStartScene', what: 'a still target slot of the corporation', maxMs: 30 * 16,
+        detail: '30 frames, estimated at 16 ms each',
+      });
       for (let i = 0; i < 30; i++) {
         await new Promise<void>((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => r()) : setTimeout(r, 16)));
         const el = this.queueTargetEl(probe);
         const r = el?.getBoundingClientRect();
         if (r !== undefined && r.width > 4 && last !== undefined &&
             Math.abs(r.left - last.x) < 0.5 && Math.abs(r.top - last.y) < 0.5) {
+          wait.met();
           return;
         }
         last = r !== undefined && r.width > 4 ? {x: r.left, y: r.top} : undefined;
       }
+      wait.ceiling();
     },
     /**
      * GAME FRAME MATERIALIZATION — a true SCENE TRANSITION between two

@@ -49,6 +49,7 @@ import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTran
 import {beginPanelRewardHold, clearPanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {probeTick} from '@/client/console/probeTick';
+import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 
 /** What the beat owes: where it comes from, and what is arriving. */
@@ -286,20 +287,26 @@ export function awaitVisibleBonusGainSource(
     return Promise.resolve(false);
   }
   const deadline = Date.now() + budgetMs;
+  let wait: CeilingWait | undefined;
   return new Promise((resolve) => {
     const poll = (): void => {
       if (!alive()) {
+        wait?.end();
         resolve(false);
         return;
       }
       if (selectors.some((sel) => firstVisibleEnd(sel) !== undefined)) {
+        wait?.met();
         resolve(true);
         return;
       }
       if (Date.now() >= deadline) {
+        wait?.ceiling();
         resolve(false);
         return;
       }
+      // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
+      wait ??= beginCeilingWait({id: 'start-bonus:visible-source', owner: 'startBonusGain', what: 'a visible source card of the bonus gain', maxMs: budgetMs});
       probeTick(poll);
     };
     poll();

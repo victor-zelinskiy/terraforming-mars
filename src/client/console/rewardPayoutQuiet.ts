@@ -41,6 +41,7 @@
  * cycle); the LAYER is the consumer.
  */
 
+import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {probeTick} from '@/client/console/probeTick';
 import {boardSceneMemberBusy} from '@/client/console/boardSceneMembers';
 import {boardBeatStoryPending} from '@/client/console/boardBeatPark';
@@ -142,17 +143,37 @@ export function boardStorySettling(): boolean {
   return boardSceneSettling() || boardBeatStoryPending();
 }
 
-/** The shared bounded quiet-wait loop (see the two public wrappers). */
-function waitQuiet(settling: () => boolean, opts?: {maxMs?: number, alive?: () => boolean}): Promise<void> {
+/** Who waits for the quiet — named on the wait graph's node and on its ceiling line. */
+export type QuietWaitOpts = {maxMs?: number, alive?: () => boolean, who?: string};
+
+/**
+ * The shared bounded quiet-wait loop (see the public wrappers). A wait that has to wait at all is a node of the wait
+ * graph for its life, and one the CEILING ends rather than the quiet is said once (`[wait-graph] ceiling …`) — a quiet
+ * that never comes is a story that never ends, a defect upstream (`ceilingWait.ts`).
+ */
+function waitQuiet(settling: () => boolean, what: string, opts?: QuietWaitOpts): Promise<void> {
   const cap = opts?.maxMs ?? REWARD_QUIET_MAX_WAIT_MS;
   const alive = opts?.alive ?? (() => true);
   const started = Date.now();
+  let node: CeilingWait | undefined;
   return new Promise((done) => {
     const poll = () => {
-      if (!alive() || !settling() || Date.now() - started >= cap) {
+      if (!alive()) {
+        node?.end();
         done();
         return;
       }
+      if (!settling()) {
+        node?.met();
+        done();
+        return;
+      }
+      if (Date.now() - started >= cap) {
+        node?.ceiling();
+        done();
+        return;
+      }
+      node ??= beginCeilingWait({id: `quiet:${opts?.who ?? 'unnamed'}`, owner: opts?.who ?? 'rewardPayoutQuiet', what, maxMs: cap});
       probeTick(poll);
     };
     poll();
@@ -165,8 +186,8 @@ function waitQuiet(settling: () => boolean, opts?: {maxMs?: number, alive?: () =
  * or the bounded ceiling passed. Resolves synchronously-soon when already
  * quiet; never rejects.
  */
-export function waitRewardPayoutQuiet(opts?: {maxMs?: number, alive?: () => boolean}): Promise<void> {
-  return waitQuiet(rewardPayoutSettling, opts);
+export function waitRewardPayoutQuiet(opts?: QuietWaitOpts): Promise<void> {
+  return waitQuiet(rewardPayoutSettling, 'the reward payout quiet', opts);
 }
 
 /**
@@ -175,13 +196,13 @@ export function waitRewardPayoutQuiet(opts?: {maxMs?: number, alive?: () => bool
  * never be held on a foreign scene), or the bounded ceiling passed. Same
  * contract as `waitRewardPayoutQuiet`; never rejects.
  */
-export function waitBoardSceneQuiet(opts?: {maxMs?: number, alive?: () => boolean}): Promise<void> {
-  return waitQuiet(boardSceneSettling, opts);
+export function waitBoardSceneQuiet(opts?: QuietWaitOpts): Promise<void> {
+  return waitQuiet(boardSceneSettling, 'the board scene quiet', opts);
 }
 
 /** `waitBoardSceneQuiet` + the owed scale story (see `boardStorySettling`). */
-export function waitBoardStoryQuiet(opts?: {maxMs?: number, alive?: () => boolean}): Promise<void> {
-  return waitQuiet(boardStorySettling, opts);
+export function waitBoardStoryQuiet(opts?: QuietWaitOpts): Promise<void> {
+  return waitQuiet(boardStorySettling, 'the board story quiet', opts);
 }
 
 /**
@@ -191,8 +212,8 @@ export function waitBoardStoryQuiet(opts?: {maxMs?: number, alive?: () => boolea
  * trigger folds the reveal/card-arrival admission signals in).
  */
 export function waitConsoleQuiet(
-  settling: () => boolean, opts?: {maxMs?: number, alive?: () => boolean}): Promise<void> {
-  return waitQuiet(settling, opts);
+  settling: () => boolean, opts?: QuietWaitOpts): Promise<void> {
+  return waitQuiet(settling, 'the console quiet', opts);
 }
 
 /*

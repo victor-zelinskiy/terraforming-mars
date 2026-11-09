@@ -39,6 +39,12 @@ describe('waitGraphModel', () => {
     expect(judgeWaitGraph(plate, world({accepting: true})), 'reading is not a stall').to.deep.eq([]);
   });
 
+  it('a press owed with nothing accepting is NOT a dead end while something moves on screen — the arbiter\'s own definition of a stall', () => {
+    const q = [node('question:cardSelect#252', 'question', [{kind: 'player', what: 'answer the question'}])];
+    expect(judgeWaitGraph(q, world({accepting: false, motionInFlight: true})), 'a hand-over / a scene in flight').to.deep.eq([]);
+    expect(judgeWaitGraph(q, world({accepting: false, motionInFlight: false})).map((f) => f.kind)).to.deep.eq(['dead-end']);
+  });
+
   it('an answer with nothing on the wire and nothing owed is a dead end; a request in flight or a server debt is honest', () => {
     const submit = [node('flow:start-first-act', 'flow', [{kind: 'server', what: 'the first action answered'}], {boundMs: 20_000})];
     expect(judgeWaitGraph(submit, world()).map((f) => f.kind)).to.deep.eq(['dead-end']);

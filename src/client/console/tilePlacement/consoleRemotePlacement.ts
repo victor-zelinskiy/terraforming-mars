@@ -78,6 +78,7 @@ import {stackRelease, clearStackRelease, stackDried} from '@/client/console/tile
 import {TileMoveRecordModel} from '@/common/boards/TileMove';
 import {SpaceId} from '@/common/Types';
 import {probeTick} from '@/client/console/probeTick';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {
   AresAdjacencyFlight, ARES_WAVE_LEAD_MS,
@@ -1668,9 +1669,21 @@ function watchableBoardAfterTick(myEpoch: number): Promise<void> {
     const now = Date.now();
     return now > deadline && (boardWaitKeeper?.() !== true || now > started + BOARD_WAIT_KEPT_MAX_MS);
   };
+  // The wait has to wait: a node of the wait graph, its ceiling ending it said (`ceilingWait.ts`).
+  const wait = beginCeilingWait({
+    id: 'remote-placement:watchable-board', owner: 'consoleRemotePlacement', what: 'a board free for the landing of another seat',
+    maxMs: BOARD_WAIT_MAX_MS, detail: `kept up to ${BOARD_WAIT_KEPT_MAX_MS} ms while the keeper holds`,
+  });
   return new Promise<void>((done) => {
     const poll = () => {
       if (epoch !== myEpoch || !boardBusyForRemote() || expired()) {
+        if (epoch !== myEpoch) {
+          wait.end();
+        } else if (!boardBusyForRemote()) {
+          wait.met();
+        } else {
+          wait.ceiling();
+        }
         // The board is back (or we gave up): let the workspace's own leave
         // finish before the tile flies into the space it just vacated.
         // The SETTLE is the scene's own lead-in on a board the player can see,

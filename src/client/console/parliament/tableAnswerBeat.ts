@@ -81,6 +81,7 @@ import {pickPayoutLanding} from './consoleResolutionPayout';
 import {resolveActionCommitAnchors, resolveGainIconOrigins} from '@/client/console/consoleActionCommitMotion';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 /** WHO plays the answer: the chairman quest's flow, the sitting's walk, or a card's walk (the hand / the start / a Parliament of its own). */
 export type TableAnswerHost = 'quest' | 'sitting' | 'walk';
@@ -410,19 +411,27 @@ export function endTableAnswerAsk(): void {
 
 // ── PLAY ────────────────────────────────────────────────────────────────────
 
-function waitUntil(pred: () => boolean, baseMs: number): Promise<boolean> {
+function waitUntil(pred: () => boolean, baseMs: number, node: {id: string, what: string, dead: () => boolean}): Promise<boolean> {
   return new Promise((resolve) => {
     if (pred()) {
       resolve(true);
       return;
     }
     let left = Math.max(1, Math.ceil(baseMs / 50));
+    // A wait that has to wait is a node of the wait graph; its bound ending it is said (`ceilingWait.ts`).
+    const wait = beginCeilingWait({id: node.id, owner: 'tableAnswerBeat', what: node.what, maxMs: left * 50});
     const tick = (): void => {
       if (pred()) {
+        if (node.dead()) {
+          wait.end();
+        } else {
+          wait.met();
+        }
         resolve(true);
         return;
       }
       if (--left <= 0) {
+        wait.ceiling();
         resolve(false);
         return;
       }
@@ -443,7 +452,8 @@ export async function playTableAnswer(answer: TableAnswer, opts: {alive: () => b
     return;
   }
   const alive = (): boolean => opts.alive() && tableAnswerState.showing?.key === answer.key;
-  const entered = await waitUntil(() => tableAnswerState.paneIn || !alive(), ANSWER_PANE_WAIT_MS);
+  const entered = await waitUntil(() => tableAnswerState.paneIn || !alive(), ANSWER_PANE_WAIT_MS,
+    {id: 'table-answer:pane', what: 'the entrance of the answer stage', dead: () => !tableAnswerState.paneIn && !alive()});
   if (!alive() || !entered) {
     tableAnswerState.degraded = entered ? 'host-left' : 'stage-never-entered';
     endTableAnswer();

@@ -80,6 +80,7 @@ import {
 import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {armBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {snapPlanetFocusSettled} from '@/client/console/planetFocus';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 /** A queued remote hop can wait for a covered board — far past this,
  *  something stalled and the committed truth must show. */
@@ -800,9 +801,18 @@ function awaitWatchableBoard(myEpoch: number): Promise<void> {
     return Promise.resolve();
   }
   const deadline = Date.now() + NOMAD_BOARD_WAIT_MAX_MS;
+  // The wait has to wait: a node of the wait graph, its ceiling ending it said (`ceilingWait.ts`).
+  const wait = beginCeilingWait({id: 'nomad-move:watchable-board', owner: 'consoleNomadMove', what: 'an uncovered board for the remote nomad move', maxMs: NOMAD_BOARD_WAIT_MAX_MS});
   return new Promise<void>((done) => {
     const poll = () => {
       if (remoteEpoch !== myEpoch || !boardCovered() || Date.now() > deadline) {
+        if (remoteEpoch !== myEpoch) {
+          wait.end();
+        } else if (!boardCovered()) {
+          wait.met();
+        } else {
+          wait.ceiling();
+        }
         window.setTimeout(done, remoteEpoch === myEpoch ? motionMs(NOMAD_BOARD_SETTLE_MS) : 0);
         return;
       }

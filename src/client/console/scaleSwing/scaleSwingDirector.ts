@@ -66,6 +66,7 @@ import {
   SWING_ARRIVAL_MAX_MS, SWING_HUD_FLIP_MS, SWING_LEG_GAP_MS, SWING_LIMIT_READ_MS, SWING_READ_MS, SWING_STAGE_DUE_MS,
   SwingLeg, SwingPlan, SwingTagKind, freshParameterSwings, swingPlanOf, swingPlanPlays, swingTagOf,
 } from '@/client/console/scaleSwing/scaleSwingModel';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 /** The scene's own name — its holds, its ledger story. */
 export const SCALE_SWING_KEY = 'scale-swing';
@@ -264,10 +265,12 @@ function stageReady(e: Entry): boolean {
 }
 
 /** A bounded wait on a reactive predicate — `true` when it held, `false` at the ceiling or an abort. */
-function waitUntil(predicate: () => boolean, maxMs: number, myEpoch: number): Promise<boolean> {
+function waitUntil(predicate: () => boolean, maxMs: number, myEpoch: number, node: {id: string, what: string}): Promise<boolean> {
   if (predicate()) {
     return Promise.resolve(true);
   }
+  // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
+  const wait = beginCeilingWait({id: node.id, owner: 'scaleSwingDirector', what: node.what, maxMs: Math.max(50, maxMs)});
   return new Promise<boolean>((resolve) => {
     let done = false;
     // Both handles are read only from callbacks that fire after this block (a non-immediate watch, a delayed call).
@@ -279,9 +282,17 @@ function waitUntil(predicate: () => boolean, maxMs: number, myEpoch: number): Pr
         resolve(ok);
       }
     };
-    const timer = gsap.delayedCall(Math.max(0.05, maxMs / 1000), () => finish(false));
+    const timer = gsap.delayedCall(Math.max(0.05, maxMs / 1000), () => {
+      wait.ceiling();
+      finish(false);
+    });
     const stop: WatchStopHandle = watch(() => (epoch !== myEpoch ? 'abort' : predicate() ? 'yes' : 'no'), (v) => {
       if (v !== 'no') {
+        if (v === 'yes') {
+          wait.met();
+        } else {
+          wait.end();
+        }
         finish(v === 'yes');
       }
     });
@@ -315,6 +326,8 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
       held: e.plan.legs.filter((leg) => boardBeatHoldsParam(leg.key)).map((leg) => leg.key),
     }),
   });
+  // The wait waits: a node of the wait graph beside its ledger story, the due ending it said (`ceilingWait.ts`).
+  const wait = beginCeilingWait({id: 'scale-swing:stage', owner: 'scaleSwingDirector', what: 'the stage of the scale swing', maxMs: SWING_STAGE_DUE_MS});
   return new Promise<boolean>((resolve) => {
     const stop: WatchStopHandle = watch(
       () => (epoch !== myEpoch ? 'abort' : scaleSwingState.due ? 'due' : stageReady(e) ? 'ready' : 'wait'),
@@ -323,6 +336,13 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
           stop();
           debt?.settle();
           debt = undefined;
+          if (verdict === 'ready') {
+            wait.met();
+          } else if (verdict === 'due') {
+            wait.ceiling();
+          } else {
+            wait.end();
+          }
           resolve(verdict === 'ready');
         }
       });
@@ -389,7 +409,7 @@ async function arrival(leg: SwingLeg, value: number, myEpoch: number): Promise<v
   const arrived = await waitUntil(() => {
     void scaleMarkerPoses[accent];
     return scaleMarkerRestsOn(accent, value);
-  }, motionMs(SWING_ARRIVAL_MAX_MS), myEpoch);
+  }, motionMs(SWING_ARRIVAL_MAX_MS), myEpoch, {id: 'scale-swing:arrival', what: 'the marker resting on its value'});
   if (!arrived && epoch === myEpoch) {
     scaleSwingState.degraded = true;
   }
@@ -461,7 +481,8 @@ async function play(e: Entry, myEpoch: number): Promise<void> {
     publishDisplay();
   }
   // The raise's story told by the ordinary scale beat (an earlier response's tokens, born at the peak) lands first.
-  await waitUntil(() => !scaleStepRatingBusy(), motionMs(SWING_ARRIVAL_MAX_MS * 3), myEpoch);
+  await waitUntil(() => !scaleStepRatingBusy(), motionMs(SWING_ARRIVAL_MAX_MS * 3), myEpoch,
+    {id: 'scale-swing:rating-landed', what: 'the landing of the scale rating tokens'});
   if (epoch !== myEpoch) {
     return;
   }

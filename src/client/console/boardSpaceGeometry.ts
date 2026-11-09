@@ -22,6 +22,7 @@
 
 import {reactive} from 'vue';
 import {probeTick} from '@/client/console/probeTick';
+import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 const state = reactive({epoch: 0});
 
@@ -64,12 +65,26 @@ export function waitBoardGeometryStable(opts?: {maxMs?: number, alive?: () => bo
   const cap = opts?.maxMs ?? 4000;
   const alive = opts?.alive ?? (() => true);
   const started = Date.now();
+  let wait: CeilingWait | undefined;
   return new Promise((done) => {
     const poll = () => {
-      if (!alive() || boardGeometryStable() || Date.now() - started >= cap) {
+      if (!alive()) {
+        wait?.end();
         done();
         return;
       }
+      if (boardGeometryStable()) {
+        wait?.met();
+        done();
+        return;
+      }
+      if (Date.now() - started >= cap) {
+        wait?.ceiling();
+        done();
+        return;
+      }
+      // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
+      wait ??= beginCeilingWait({id: 'board-geometry:stable', owner: 'boardSpaceGeometry', what: 'a stable board coordinate space', maxMs: cap});
       probeTick(poll);
     };
     poll();

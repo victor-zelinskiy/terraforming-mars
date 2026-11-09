@@ -108,6 +108,16 @@ describe('presentationLedger', function() {
     expect(degraded).to.equal(0);
   });
 
+  it('an OLDER handle never settles the story a newer owe of the same id wrote (wait graph inventory H1)', () => {
+    let degraded = 0;
+    const old = owePresentation({id: 'story', ready: () => false, redrive: () => {}, dueMs: 0, degrade: () => {}});
+    const fresh = owePresentation({id: 'story', ready: () => false, redrive: () => {}, dueMs: 0, degrade: () => degraded++});
+    old.settle();
+    settlePresentationDue();
+    expect(degraded, 'the newer wait kept its net').to.equal(1);
+    fresh.settle();
+  });
+
   it('a re-owe of the same id keeps the ORIGINAL clock', async () => {
     let degraded = 0;
     owePresentation({id: 'story', ready: () => false, redrive: () => {}, dueMs: 40, degrade: () => degraded++});

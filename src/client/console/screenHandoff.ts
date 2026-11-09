@@ -35,6 +35,7 @@
  * Import direction: this module sits ABOVE the presentation systems (it imports them, like `rewardPayoutQuiet`);
  * a system that must consult it takes it by INJECTION (the generation scene — `registerGenerationSceneHandoff`).
  */
+import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {activeAnimationHoldLabels} from '@/client/components/presentation/animationHold';
 import {currentRevealEvent, DrawnCardEntry, pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
@@ -162,16 +163,21 @@ export function waitScreenHandoff(
     dueMs: cap,
     diagnose: () => ({owed: lastReasons, holds: activeAnimationHoldLabels()}),
   });
+  // The ceiling's own record on the wait graph's worklist (`[wait-graph] ceiling screen-handoff:<id>`) — beside the
+  // ledger story, which is the diagnosis; declared only once the wait has to wait.
+  let node: CeilingWait | undefined;
   return new Promise((done) => {
     const poll = () => {
       if (!alive()) {
         story.settle();
+        node?.end();
         done('dead');
         return;
       }
       lastReasons = screenHandoffReasons(opts);
       if (lastReasons.length === 0) {
         story.settle();
+        node?.met();
         done('quiet');
         return;
       }
@@ -179,9 +185,12 @@ export function waitScreenHandoff(
         console.warn(`[screen-handoff] «${id}» took the screen after ${cap} ms with the player still owed: ` +
           `${lastReasons.join(', ')} (holds: ${activeAnimationHoldLabels().join(', ') || 'none'})`);
         story.settle();
+        node?.ceiling();
         done('degraded');
         return;
       }
+      node ??= beginCeilingWait({id: `screen-handoff:${id}`, owner: 'screenHandoff', what: 'the screen owed to the player handed over', maxMs: cap});
+      node.update(lastReasons.join(', '));
       probeTick(poll);
     };
     poll();

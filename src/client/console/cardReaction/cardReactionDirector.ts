@@ -76,6 +76,7 @@ import {
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RailAnswerFlight} from '@/client/console/resourceTransfer/railReward';
 import {waitRewardPayoutQuiet} from '@/client/console/rewardPayoutQuiet';
+import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {boardSceneMemberBusy, boardSceneOwedBusy} from '@/client/console/boardSceneMembers';
 import {scaleStepRatingBusy} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {hydroCeremonyOwed, hydroFlowState} from '@/client/console/hydroFlow/consoleHydroFlow';
@@ -1050,7 +1051,7 @@ async function runStandalone(): Promise<void> {
     cardReactionState.waitingOnOther = false;
     // The board's own story first (a tile's landing, its cell's payout) — a reaction never cuts into the cause's scene;
     // and every BLOCKING scene (a sitting's beats, a landing) plays out before the chain — bounded, never a session.
-    await waitRewardPayoutQuiet({alive: () => epoch === myEpoch && (standaloneQueue.length > 0 || rivalQueue.length > 0)});
+    await waitRewardPayoutQuiet({who: 'card-reaction:queue', alive: () => epoch === myEpoch && (standaloneQueue.length > 0 || rivalQueue.length > 0)});
     await waitBoardScenesOwedQuiet(myEpoch);
     await waitBlockingQuiet(myEpoch);
     await waitSittingQuiet(myEpoch);
@@ -1213,6 +1214,18 @@ function runStep(entry: Standalone, slot: number, t: ReactionTempo, slots: Reado
 }
 
 /**
+ * The frame-loop waits below: one that has to wait is a node of the wait graph, its bound ending it said
+ * (`ceilingWait.ts`); the loop left on its condition is met while the run still stands, abandoned once a newer run took over.
+ */
+function closeReactionWait(wait: CeilingWait | undefined, myEpoch: number): void {
+  if (epoch === myEpoch) {
+    wait?.met();
+  } else {
+    wait?.end();
+  }
+}
+
+/**
  * THE BOARD'S OWN SCENES FIRST — OWED ONES INCLUDED (CI 2026-11-04, `console-red-museum` · Nuclear Zone): a scene the
  * response decided but that still WAITS for the field (the tile's payout to its card waits for the scales' story first)
  * holds the feed only — no blocking hold, no payout flag — so the chain slipped through that window and rose INTO the
@@ -1223,24 +1236,32 @@ function runStep(entry: Standalone, slot: number, t: ReactionTempo, slots: Reado
  */
 async function waitBoardScenesOwedQuiet(myEpoch: number): Promise<void> {
   const started = typeof performance === 'undefined' ? 0 : performance.now();
+  let wait: CeilingWait | undefined;
   while (epoch === myEpoch && (boardSceneOwedBusy() || boardSceneMemberBusy())) {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
+      wait?.ceiling();
       return;
     }
     cardReactionState.waitingOnOther = true;
+    wait ??= beginCeilingWait({id: 'card-reaction:board-scenes-quiet', owner: 'cardReactionDirector', what: 'the board scenes quiet, owed ones included', maxMs: BLOCKING_QUIET_MAX_MS});
     await nextPaintedFrame();
   }
+  closeReactionWait(wait, myEpoch);
 }
 
 /** Wait out every BLOCKING animation hold (bounded) — the chain never cuts into a scene that owns the screen. */
 async function waitBlockingQuiet(myEpoch: number): Promise<void> {
   const started = typeof performance === 'undefined' ? 0 : performance.now();
+  let wait: CeilingWait | undefined;
   while (epoch === myEpoch && blockingAnimationHoldCount() > 0) {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
+      wait?.ceiling();
       return;
     }
+    wait ??= beginCeilingWait({id: 'card-reaction:blocking-quiet', owner: 'cardReactionDirector', what: 'every blocking animation hold released', maxMs: BLOCKING_QUIET_MAX_MS});
     await nextPaintedFrame();
   }
+  closeReactionWait(wait, myEpoch);
 }
 
 /**
@@ -1254,14 +1275,18 @@ async function waitBlockingQuiet(myEpoch: number): Promise<void> {
  */
 async function waitSittingQuiet(myEpoch: number): Promise<void> {
   const started = typeof performance === 'undefined' ? 0 : performance.now();
+  let wait: CeilingWait | undefined;
   const sittingPlays = (): boolean => activeAnimationHoldLabels().some((label) => label.startsWith('parliament-sitting:'));
   while (epoch === myEpoch && sittingPlays()) {
     if (typeof performance !== 'undefined' && performance.now() - started > SITTING_QUIET_MAX_MS) {
+      wait?.ceiling();
       return;
     }
     cardReactionState.waitingOnOther = true;
+    wait ??= beginCeilingWait({id: 'card-reaction:sitting-quiet', owner: 'cardReactionDirector', what: 'the beats of the sitting played', maxMs: SITTING_QUIET_MAX_MS});
     await nextPaintedFrame();
   }
+  closeReactionWait(wait, myEpoch);
 }
 
 /**
@@ -1281,16 +1306,20 @@ async function waitSittingQuiet(myEpoch: number): Promise<void> {
  */
 async function waitHydroStoryQuiet(myEpoch: number): Promise<void> {
   const started = typeof performance === 'undefined' ? 0 : performance.now();
+  let wait: CeilingWait | undefined;
   const busy = (): boolean => hydroFlowState.commit !== undefined &&
     (hydroFlowState.commit.phase === 'moving' || hydroFlowState.commit.phase === 'result' || isHydroMarkerActive() ||
       hydroTraversalPending() || hydroFlowState.ceremonyActive || hydroCeremonyOwed());
   while (epoch === myEpoch && busy()) {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
+      wait?.ceiling();
       return;
     }
     cardReactionState.waitingOnOther = true;
+    wait ??= beginCeilingWait({id: 'card-reaction:hydro-story-quiet', owner: 'cardReactionDirector', what: 'the hydronetwork story quiet', maxMs: BLOCKING_QUIET_MAX_MS});
     await nextPaintedFrame();
   }
+  closeReactionWait(wait, myEpoch);
 }
 
 /**
@@ -1300,13 +1329,17 @@ async function waitHydroStoryQuiet(myEpoch: number): Promise<void> {
  */
 async function waitRatingStoryQuiet(myEpoch: number): Promise<void> {
   const started = typeof performance === 'undefined' ? 0 : performance.now();
+  let wait: CeilingWait | undefined;
   while (epoch === myEpoch && scaleStepRatingBusy() && standaloneQueue.some((s) => s.group.record.channel === 'tr-increase')) {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
+      wait?.ceiling();
       return;
     }
     cardReactionState.waitingOnOther = true;
+    wait ??= beginCeilingWait({id: 'card-reaction:rating-story-quiet', owner: 'cardReactionDirector', what: 'the touchdown of the scale rating', maxMs: BLOCKING_QUIET_MAX_MS});
     await nextPaintedFrame();
   }
+  closeReactionWait(wait, myEpoch);
 }
 
 /**
@@ -1315,13 +1348,17 @@ async function waitRatingStoryQuiet(myEpoch: number): Promise<void> {
  */
 async function waitAttachedQuiet(myEpoch: number): Promise<void> {
   const started = typeof performance === 'undefined' ? 0 : performance.now();
+  let wait: CeilingWait | undefined;
   while (epoch === myEpoch && attachedLive > 0) {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
+      wait?.ceiling();
       return;
     }
     cardReactionState.waitingOnOther = true;
+    wait ??= beginCeilingWait({id: 'card-reaction:attached-quiet', owner: 'cardReactionDirector', what: 'the host flight letting the stage go', maxMs: BLOCKING_QUIET_MAX_MS});
     await nextPaintedFrame();
   }
+  closeReactionWait(wait, myEpoch);
 }
 
 /** A decision surface stands at the centre (a drawn card to take, a deck pick). */
@@ -1342,15 +1379,19 @@ function decisionStands(): boolean {
  */
 async function waitPlaceArrival(card: CardName, myEpoch: number): Promise<void> {
   const started = typeof performance === 'undefined' ? 0 : performance.now();
+  let wait: CeilingWait | undefined;
   let waited = false;
   while (epoch === myEpoch && findReactorPlace(card) === undefined && reactorPlaceArriving(card)) {
     if (typeof performance !== 'undefined' && performance.now() - started > PLACE_ARRIVAL_WAIT_MS) {
+      wait?.ceiling();
       noteTransferTrail('reaction:place-late', {card});
       return;
     }
     waited = true;
+    wait ??= beginCeilingWait({id: 'card-reaction:place-arrival', owner: 'cardReactionDirector', what: 'the landing of the reactor in its place', maxMs: PLACE_ARRIVAL_WAIT_MS});
     await nextPaintedFrame();
   }
+  closeReactionWait(wait, myEpoch);
   if (waited) {
     noteTransferTrail('reaction:place-landed', {card});
   }
@@ -1363,13 +1404,17 @@ async function waitPlaceArrival(card: CardName, myEpoch: number): Promise<void> 
  */
 async function waitDecisionClear(myEpoch: number): Promise<void> {
   const started = typeof performance === 'undefined' ? 0 : performance.now();
+  let wait: CeilingWait | undefined;
   while (epoch === myEpoch && decisionStands()) {
     if (typeof performance !== 'undefined' && performance.now() - started > DECISION_WAIT_MAX_MS) {
+      wait?.ceiling();
       return;
     }
     cardReactionState.waitingOnOther = true;
+    wait ??= beginCeilingWait({id: 'card-reaction:decision-clear', owner: 'cardReactionDirector', what: 'the decision at the centre taken', maxMs: DECISION_WAIT_MAX_MS});
     await nextPaintedFrame();
   }
+  closeReactionWait(wait, myEpoch);
 }
 
 /**

@@ -170,6 +170,7 @@ import {
   markIntakeDealt, rollbackExternalDrawSend, shouldDealIntake,
 } from '@/client/console/externalDraw/consoleExternalDraw';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 
 /** Bounded retry while the row has no layout yet (JSDOM / mid-reload). */
@@ -841,6 +842,11 @@ export default defineComponent({
       if (this.unmounting || this.meta === undefined || this.promptKey !== key || typeof window === 'undefined') {
         return Promise.resolve();
       }
+      // The wait has to wait: a node of the wait graph, its grace ending it said (`ceilingWait.ts`).
+      const wait = beginCeilingWait({
+        id: 'external-draw:prompt-moved', owner: 'ConsoleExternalDrawWorkspace', what: 'the server moving off the answered prompt',
+        maxMs: motionMs(REFUSAL_GRACE_MS), target: 'server',
+      });
       return new Promise<void>((resolve) => {
         let done = false;
         const finish = () => {
@@ -855,11 +861,18 @@ export default defineComponent({
           () => this.meta === undefined || this.promptKey !== key,
           (moved: boolean) => {
             if (moved) {
+              wait.met();
               finish();
             }
           });
-        const timer = window.setTimeout(finish, motionMs(REFUSAL_GRACE_MS));
-        this.goneWaiters.push(finish);
+        const timer = window.setTimeout(() => {
+          wait.ceiling();
+          finish();
+        }, motionMs(REFUSAL_GRACE_MS));
+        this.goneWaiters.push(() => {
+          wait.end();
+          finish();
+        });
       });
     },
     async flyToHand(names: ReadonlyArray<CardName>): Promise<void> {

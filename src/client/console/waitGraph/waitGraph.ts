@@ -130,11 +130,27 @@ export function registerWaitRecovery(name: string, door: WaitRecovery): () => vo
 }
 
 /**
+ * The classes armed by default: `cycle` (Э3), `dead-end` (2026-11-09 — a question asked with nothing on screen
+ * accepting, nothing holding it and nothing in flight: its door re-opens the question's own surface through the router)
+ * and `dangling` (a wait pointing at a node that is not there — «set aside» with no restore card: un-set-aside). A
+ * finding whose node has no door is a worklist row.
+ */
+export const WAIT_GRAPH_DEFAULT_ARMED: ReadonlyArray<WaitFindingKind> = ['cycle', 'dead-end', 'dangling', 'overdue'];
+
+/**
+ * `overdue` acts only on these families — the waits whose bound is the graph's OWN (no other net ends them): the plate
+ * whose first presentation never came (inventory A1 — the gate stuck PENDING on a leaked raw signal, no timer). Every
+ * other family's bound is its owner's ceiling (a hold's expire, a story's degrade, a ceiling wait's line), and that
+ * owner already acts at the same moment.
+ */
+export const WAIT_GRAPH_OVERDUE_FAMILIES: ReadonlySet<WaitNode['family']> = new Set<WaitNode['family']>(['announce']);
+
+/**
  * THE ARMED CLASSES — which confirmed findings the graph acts on (Э3 arms one class at a time, the screen director's
  * discipline). `cycle` is armed: a mutual wait has no other way out but a force teardown seconds later. The rest stay a
  * shadow until their evidence says a door exists for them.
  */
-export const waitGraphArming: {armed: Set<WaitFindingKind>} = {armed: new Set<WaitFindingKind>(['cycle'])};
+export const waitGraphArming: {armed: Set<WaitFindingKind>} = {armed: new Set<WaitFindingKind>(WAIT_GRAPH_DEFAULT_ARMED)};
 
 /** What the last cures did (diagnosis; newest last, bounded). */
 export const waitGraphCures: Array<{at: number, finding: string, member: string, door: string, did: string}> = [];
@@ -145,10 +161,38 @@ export const waitGraphCures: Array<{at: number, finding: string, member: string,
  * yield. Logged `[wait-graph] cure …` (an e2e run reads it as a defect upstream to fix, never a success).
  */
 function actOn(finding: WaitFinding, nodes: ReadonlyArray<WaitNode>, now: number): void {
-  if (!waitGraphArming.armed.has(finding.kind) || finding.kind !== 'cycle') {
+  if (!waitGraphArming.armed.has(finding.kind)) {
     return;
   }
   const byId = new Map(nodes.map((n) => [n.id, n]));
+  if (finding.kind !== 'cycle') {
+    // A ONE-MEMBER finding (a dead end, a dangling wait, an overdue plate): the node's OWN door, or a worklist row.
+    const node = byId.get(finding.members[0]);
+    if (finding.kind === 'overdue' && (node === undefined || !WAIT_GRAPH_OVERDUE_FAMILIES.has(node.family))) {
+      return;
+    }
+    const door = node?.recovery === undefined ? undefined : recoveries.get(node.recovery);
+    if (node === undefined || door === undefined) {
+      console.warn(`[wait-graph] cure ${finding.kind} — ${finding.members[0]} has no door: a worklist row`);
+      return;
+    }
+    let did = '';
+    try {
+      did = door(node);
+    } catch (err) {
+      console.warn(`[wait-graph] door «${node.recovery}» threw on ${node.id} — ${String(err).slice(0, 160)}`);
+    }
+    if (did !== '') {
+      waitGraphCures.push({at: now, finding: findingKey(finding), member: node.id, door: node.recovery ?? '', did});
+      if (waitGraphCures.length > 40) {
+        waitGraphCures.shift();
+      }
+      console.warn(`[wait-graph] cure ${finding.kind} at ${node.id} through «${node.recovery}» — ${did}`);
+    } else {
+      console.warn(`[wait-graph] cure ${finding.kind} — the door «${node.recovery}» of ${node.id} had nothing to do: a worklist row`);
+    }
+    return;
+  }
   const order = [finding.yields, ...finding.members.filter((m) => m !== finding.yields)]
     .filter((m): m is string => m !== undefined)
     .map((m) => byId.get(m))
@@ -230,7 +274,7 @@ export function resetWaitGraph(): void {
   waitGraphStats.recent.splice(0);
   recoveries.clear();
   waitGraphCures.splice(0);
-  waitGraphArming.armed = new Set<WaitFindingKind>(['cycle']);
+  waitGraphArming.armed = new Set<WaitFindingKind>(WAIT_GRAPH_DEFAULT_ARMED);
 }
 
 /** For tests: the key a finding is tracked by. */

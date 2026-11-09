@@ -61,6 +61,7 @@ import {
   scaleStepHoldSpec, scaleStepTokenOrigins, scaleStepTokenSpecs,
 } from '@/client/console/scaleStepReward/scaleStepRewardModel';
 import {scaleStepRatingBusy} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 export type ScaleStepPhase = 'idle' | 'waiting' | 'paying';
 
@@ -268,6 +269,8 @@ function waitForStage(entry: ScaleStepEntry, myEpoch: number): Promise<boolean> 
       marker: scaleMarkerPoses[scaleAccentOf(entry.record.parameter) ?? 'venus'],
     }),
   });
+  // The wait waits: a node of the wait graph beside its ledger story, the due ending it said (`ceilingWait.ts`).
+  const wait = beginCeilingWait({id: 'scale-step-reward:stage', owner: 'scaleStepRewardBeat', what: 'the stage of the scale step reward', maxMs: SCALE_STEP_STAGE_DUE_MS});
   return new Promise<boolean>((resolve) => {
     // A non-immediate watcher: its callback runs only after `stop` is bound.
     const stop: WatchStopHandle = watch(
@@ -286,6 +289,13 @@ function waitForStage(entry: ScaleStepEntry, myEpoch: number): Promise<boolean> 
           stop();
           debt?.settle();
           debt = undefined;
+          if (verdict === 'ready') {
+            wait.met();
+          } else if (verdict === 'due') {
+            wait.ceiling();
+          } else {
+            wait.end();
+          }
           resolve(verdict === 'ready');
         }
       });

@@ -42,6 +42,7 @@
  * console state.
  */
 
+import {raceCeiling} from '@/client/console/waitGraph/ceilingWait';
 import {reactive} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {fastBootRequested} from '@/client/components/boot/bootWarmupState';
@@ -569,10 +570,7 @@ export function navigateWithCurtain(url: string, stage: LoadingStage = 'expediti
   // bounded and best-effort.
   if (curtainOverlayAvailable()) {
     const shown = showCurtainOverlay(buildOverlayPayload(t0));
-    const bound = new Promise<void>((resolve) => {
-      window.setTimeout(resolve, OVERLAY_SHOW_MAX_MS);
-    });
-    void Promise.race([shown, bound]).then(navigate, navigate);
+    void raceCeiling({id: 'curtain:overlay-shown', owner: 'loadingScreen', what: 'the overlay curtain shown before the navigation', maxMs: OVERLAY_SHOW_MAX_MS}, shown).then(navigate, navigate);
   } else {
     navigate();
   }

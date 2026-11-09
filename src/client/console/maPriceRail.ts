@@ -29,6 +29,7 @@ import {flyRailRewardLink, railRewardOwed, railRewardPending, releaseRailReward,
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {centreEndOf} from '@/client/console/consoleActionCommitMotion';
 import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 /** The rail rows a claim / a funding is paid from — the payment's units that live on the rail. */
 export const MA_PRICE_ROWS = ['megacredits', 'heat'] as const;
@@ -128,10 +129,17 @@ function awaitPriceEnd(maxMs: number): Promise<TransferEnd | undefined> {
     return Promise.resolve(now);
   }
   const started = Date.now();
+  // The wait has to wait: a node of the wait graph, its ceiling ending it said (`ceilingWait.ts`).
+  const wait = beginCeilingWait({id: 'ma-price:price-end', owner: 'maPriceRail', what: 'the printed price painted on the face', maxMs});
   return new Promise((resolve) => {
     const tick = () => {
       const end = priceEnd();
       if (end !== undefined || Date.now() - started >= maxMs) {
+        if (end !== undefined) {
+          wait.met();
+        } else {
+          wait.ceiling();
+        }
         resolve(end);
         return;
       }

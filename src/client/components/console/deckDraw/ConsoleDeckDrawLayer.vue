@@ -97,6 +97,7 @@ import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReve
 import {colonyResolutionUi, remoteColonyBonusHold} from '@/client/console/colonyTrade/colonyResolution';
 import {adoptSettlementDeck, settlementClaimsBatch} from '@/client/console/colonyTrade/settlementTable';
 import {probeTick} from '@/client/console/probeTick';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {hydroStepQueuedFor} from '@/client/console/hydroMarker/consoleHydroMarker';
 import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsColonyRevealBatch, workspaceClaimsRevealBatch} from '@/client/console/consoleWorkspaceOutcome';
 import {
@@ -531,8 +532,19 @@ export default defineComponent({
           return;
         }
         const started = Date.now();
+        // The wait has to wait: a node of the wait graph, its bound ending it said (`ceilingWait.ts`). A teardown drops
+        // the poll's timer — the node is abandoned with it (a killed handle of the scene).
+        const wait = beginCeilingWait({id: 'deck-draw:stage', owner: 'ConsoleDeckDrawLayer', what: 'the end of the scene that earned the draw', maxMs: STAGE_WAIT_MAX_MS});
+        ctx.beatHandles.push({kill: () => wait.end()});
         const poll = () => {
           if (!deckDrawState.active || !this.otherSceneOwnsScreen || Date.now() - started > STAGE_WAIT_MAX_MS) {
+            if (!deckDrawState.active) {
+              wait.end();
+            } else if (!this.otherSceneOwnsScreen) {
+              wait.met();
+            } else {
+              wait.ceiling();
+            }
             done();
             return;
           }

@@ -30,6 +30,7 @@ import {
   colonyTrackWaveState, holdColonyTracks, registerColonyInputLock, releaseColonyTrack, requestColonyTrackWave,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 /** The raise a colony prompt carries, with the prompt it rides — `undefined` when the prompt carries none. */
 export type ColonyTrackRaise = {key: string, moves: ReadonlyArray<ColonyTrackMove>};
@@ -113,9 +114,17 @@ function waitWaveIdle(): Promise<void> {
     return Promise.resolve();
   }
   const started = Date.now();
+  // The wait has to wait: a node of the wait graph, its ceiling ending it said (`ceilingWait.ts`).
+  const wait = beginCeilingWait({id: 'colony-track:wave-idle', owner: 'colonyTrackRaise', what: 'the end of the standing colony track wave', maxMs: IDLE_WAIT_MAX_MS});
   return new Promise((done) => {
     const poll = () => {
-      if (!colonyTrackWaveState.active || Date.now() - started > IDLE_WAIT_MAX_MS) {
+      if (!colonyTrackWaveState.active) {
+        wait.met();
+        done();
+        return;
+      }
+      if (Date.now() - started > IDLE_WAIT_MAX_MS) {
+        wait.ceiling();
         done();
         return;
       }

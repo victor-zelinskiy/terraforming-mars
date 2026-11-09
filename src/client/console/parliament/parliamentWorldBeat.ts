@@ -97,6 +97,7 @@ import {
 } from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {consoleParliamentUi} from './consoleParliamentFlow';
 import {holdColonyTracks, releaseColonyTracks, requestColonyTrackWave} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 /** The wait for the board's own story, capped — the frame comes back either way. */
 export const WORLD_STORY_MAX_MS = 9000;
@@ -286,6 +287,7 @@ export function takeWorldReceipt(sitting: string): Array<ParliamentEnactOutcomeM
 function waitForStoryQuiet(): Promise<void> {
   return new Promise<void>((resolve) => {
     const started = Date.now();
+    let wait: CeilingWait | undefined;
     const tick = (): void => {
       // The drain is re-asked on every tick: the shell drives it on the
       // watchable rising edge, and this loop is the guard for the edge that
@@ -296,10 +298,18 @@ function waitForStoryQuiet(): Promise<void> {
       // the moment the frame steps aside — the frame waits it out like a glide.
       // …as is ANOTHER SEAT'S LANDING (PL-764), owed from the moment it is QUEUED (a landing parked for the board is
       // not yet «active» — waiting only for the flight, the frame came straight back over a board still empty).
-      if ((!boardBeatStoryPending() && !isRemotePlacementActive() && !remoteLandingOwed()) || Date.now() - started > WORLD_STORY_MAX_MS) {
+      if (!boardBeatStoryPending() && !isRemotePlacementActive() && !remoteLandingOwed()) {
+        wait?.met();
         resolve();
         return;
       }
+      if (Date.now() - started > WORLD_STORY_MAX_MS) {
+        wait?.ceiling();
+        resolve();
+        return;
+      }
+      // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
+      wait ??= beginCeilingWait({id: 'parliament-world:story-quiet', owner: 'parliamentWorldBeat', what: 'the board story quiet', maxMs: WORLD_STORY_MAX_MS});
       probeTick(tick);
     };
     probeTick(tick);

@@ -79,6 +79,37 @@ beats the conclusion; a fresh record beats the stale one.» A member with no doo
   and a claim whose answer was already IN read `dead-end` (it waits for its presentation, a motion). The freeze of the
   evening was a wait nobody had declared (R14 of the inventory) — declared now.
 
+## 2b. CEILINGS — the worklist of hidden mutual waits (2026-11-09)
+
+The owner's field freeze of 2026-11-08 (Flooding, 9 s) was a wait NOBODY had declared, ended only by its ceiling: the
+played hero's lift waited for a pay-back whose commit waited for the lift. Such a wait is invisible to every structural
+judge until it is a node — so a wait whose only way out is a ceiling stands on ONE primitive, `console/waitGraph/
+ceilingWait.ts` (`beginCeilingWait` → `met` / `ceiling` / `end` · `raceCeiling`): a node for its life (owner, what it waits
+for, the ceiling as its bound), and a ceiling that ends it rather than the awaited thing is SAID once —
+`[wait-graph] ceiling <id> (<owner>: <what held it>) — «<what>» did not come in N ms`. A ceiling is a safety, never a
+schedule: every such line is a mutual wait or a lost signal upstream. Harvested per e2e test (`test-results/wait-graph/`)
+and per monkey walk (a net — the frame and the graph filed); counted in `__conWaitGraph().ceilings`. The shared waits are
+on it by construction (`waitQuiet` and its wrappers, `waitScreenHandoff`). **Guard `ceilingWaitGuard.spec`**: no
+`Promise.race(` outside the primitive; every `wait…` / `await…` helper whose body carries a ceiling reaches the
+primitive or is listed with its reason.
+
+## 2c. `dead-end` is ARMED (2026-11-09)
+
+A question the server asks with nothing on screen accepting, nothing holding it (no plate, no «set aside», no admission
+block) and nothing in flight is cured through its own door, `question-open` (`ConsoleShell.reopenOrphanQuestion` → the
+router's `openShellTaskSurface`, the road the prompt took when it arrived; never while the player set it aside, never over
+a staged door). Its first field shape was R15 (the start's play-from-hand step lost to a B mid-open). A one-member finding
+whose node has no door is logged as a worklist row (`cure dead-end — <node> has no door`). Positive control: e2e
+`console-wait-graph-dead-end` (`?waitGraphControl=strand` → `__conStrandQuestion()` strips the serving frame; the graph
+gives the question its surface back with no key pressed).
+
+## 2d. `dangling` and `overdue` (announce only) are ARMED (2026-11-09)
+
+`dangling` — a wait pointing at a node that is not there: «set aside» with no restore card (inventory A2) is un-set-aside
+through `deferred-restore` and its question's surface opened. `overdue` acts on ONE family, the plate (`announce` — its
+15 s bound is the graph's own, no other net ends a gate stuck PENDING: inventory A1), through `announce-serve`; every
+other family's bound is its owner's ceiling, which acts at the same moment (`WAIT_GRAPH_OVERDUE_FAMILIES`).
+
 ## 3. Phases
 
 - **Э0** inventory — done (§0).

@@ -85,6 +85,13 @@ export type WaitWorld = {
   requestInFlight: boolean;
   /** The server owes the viewer something it has not delivered (a prompt is expected — another seat moves, etc.). */
   serverOwes: boolean;
+  /**
+   * Something is IN FLIGHT on screen (the liveness arbiter's own list — a request, a blocking hold under its ceiling, a
+   * story within its grace, a flight). A press cannot come while a scene plays — but the screen is not dead either: a dead
+   * end is «nothing accepts AND nothing moves», the arbiter's own definition of a stall (the e2e harvest of 2026-11-09:
+   * three false dead ends inside a long hand-over and a law's play).
+   */
+  motionInFlight?: boolean;
 };
 
 export type WaitFindingKind = 'cycle' | 'dangling' | 'dead-end' | 'overdue' | 'unbounded';
@@ -180,7 +187,7 @@ export function yieldingMember(nodes: ReadonlyArray<WaitNode>, members: Readonly
  */
 function externalCanCome(t: WaitTarget, world: WaitWorld): boolean {
   switch (t.kind) {
-  case 'player': return world.accepting;
+  case 'player': return world.accepting || world.motionInFlight === true;
   case 'server': return world.requestInFlight || world.serverOwes;
   case 'motion': return true;
   case 'node': return true;
