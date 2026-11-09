@@ -1913,6 +1913,15 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
       await page.waitForTimeout(700);
     }
   }
+  if (await live.count() === 0) {
+    // Name what held the dock (`handDockInteractive`'s terms) — «still showing [".con-board"]» says nothing.
+    const why = await page.evaluate(() => ({
+      dock: document.querySelector('.con-handdock')?.className ?? 'no dock',
+      root: document.querySelector('.con-root')?.className ?? '',
+      ready: (window as unknown as {__conReady?: () => unknown}).__conReady?.(),
+    })).catch(() => undefined);
+    console.log('── board home never became live ──\n' + JSON.stringify(why));
+  }
   expect(await live.count(), `board home never became live — still showing ${JSON.stringify(await visibleSurfaces(page))}`)
     .toBeGreaterThan(0);
 }

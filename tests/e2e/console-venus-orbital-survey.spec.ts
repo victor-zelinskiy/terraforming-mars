@@ -101,8 +101,25 @@ const stageRow = (page: Page) => page.evaluate((sel) => [...document.querySelect
 
 async function confirmToStage(page: Page, posts: Array<string>): Promise<void> {
   await expect(page.locator('.con-composer__cta--ready'), 'the commit is armed').toBeVisible({timeout: 15_000});
+  const logs: Array<string> = [];
+  page.on('console', (m) => {
+    if (m.type() === 'warning' || m.type() === 'error' || /\[(workspace|liveness|wait-graph|screen-shadow)/.test(m.text())) {
+      logs.push(`${m.type()} ${m.text().slice(0, 400)}`);
+    }
+  });
   await commitOnce(page, posts, 0);
-  await expect(page.locator(HOST), 'the purchase is EMBEDDED in the workspace').toHaveCount(1, {timeout: 30_000});
+  const embedded = await expect(page.locator(HOST)).toHaveCount(1, {timeout: 30_000}).then(() => true, () => false);
+  if (!embedded) {
+    // THE DIAGNOSIS FIRST (CI 2026-11-09, the max-0 stall): which gate held the claimed stage out of its zone.
+    const diag = await page.evaluate(() => ({
+      ready: (window as unknown as {__conReady?: () => unknown}).__conReady?.(),
+      zones: [...document.querySelectorAll('[data-embed-slot]')].map((el) => el.getAttribute('data-embed-slot')),
+      hosts: [...document.querySelectorAll('.con-task-host')].map((el) => el.className),
+      wf: document.querySelector('.con-cardactions')?.className ?? '',
+    }));
+    console.log('── the purchase never embedded ──\n' + JSON.stringify(diag, null, 1) + '\n── console ──\n' + logs.join('\n'));
+  }
+  expect(embedded, 'the purchase is EMBEDDED in the workspace').toBe(true);
   expect(await page.locator('.con-task-host:not(.con-task-host--embedded)').count(), 'never a standalone band').toBe(0);
   await settle(page, {timeoutMs: 40_000});
 }

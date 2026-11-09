@@ -22844,8 +22844,14 @@ export default defineComponent({
         return;
       }
       const did = runLivenessRung(verdict.rung);
+      // …and the claim's own GATES (CI 2026-11-09, P88's max-0 purchase: «claim … awaiting, holds: none» named no cause):
+      // the zone it publishes (and whether that node stands), the beat, the arrival — and what the host prompt did with it.
       const claim = workspaceOutcomeState.sourceCard === '' ? 'none' :
-        `${workspaceOutcomeState.host}/${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ${workspaceOutcomeState.stage}`;
+        `${workspaceOutcomeState.host}/${workspaceOutcomeState.sourceCard} [${workspaceOutcomeState.kinds.join(',')}] ${workspaceOutcomeState.stage}` +
+        ` (zone ${workspaceOutcomeState.embedSlot === '' ? '-' : workspaceOutcomeZone() === '' ? 'unmounted' : 'up'}` +
+        `, beat ${workspaceOutcomeBeatPending() ? 'pending' : 'done'}, arrival ${workspaceOutcomeState.arrivalDone ? 'done' : 'pending'}` +
+        `, task ${this.hostTask?.kind ?? (this.nativeCompositeTask?.kind ?? '-')}${this.taskHeldForWorkspace ? ' held' : ''}` +
+        `${this.taskHostRendered ? ' rendered' : ''}${this.deckPickActive ? ' deckpick' : ''})`;
       console.warn(`[liveness] stall (${verdict.reason}): ${Math.round(verdict.quietMs / 1000)}s without progress, ${verdict.presses} presses; ` +
         `asked: ${wf?.type ?? 'none'}; beat: ${beat ?? 'none'}; stranded: ${leakDetectorState.stranded?.inputType ?? 'no'}; ` +
         `last in flight: ${verdict.lastInFlight.join(', ') || 'nothing'}; claim: ${claim}; holds: ${activeAnimationHoldLabels().join(', ') || 'none'} — ` +

@@ -41,7 +41,7 @@ import {transferTrailTail} from '@/client/console/resourceTransfer/consoleResour
 import {reactionIdentitySnapshot} from '@/client/console/cardReaction/reactionIdentity';
 import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
 import {playedHeroState} from '@/client/console/played/consolePlayedHero';
-import {workspaceOutcomeLastChainClose, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceOutcomeLastChainClose, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkState} from '@/client/console/boardBeatPark';
 import {scaleStepRatingState} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {presentationLedgerSnapshot} from '@/client/console/presentationLedger';
@@ -83,7 +83,9 @@ export type ConsoleReadinessSnapshot = {
   /** The workspace OUTCOME claim's gates — who holds it, how far the answer / the beat / the arrival are (an embedded stage swallows presses while `arrivalDone` is false). */
   outcome: {host: string, stage: string, answerIn: boolean, beatDone: boolean, arrivalDone: boolean, arrivalFlown: boolean,
     /** The kinds the claim still admits, and why / when its press's chain was last closed (`closeWorkspaceOutcomeChain`). */
-    kinds: Array<string>, chainClose: string};
+    kinds: Array<string>, chainClose: string,
+    /** The zone the claim publishes, and whether its node stands (`''` = claimed but not ready — the surface renders nowhere). */
+    slot: string, zone: string};
   /**
    * THE OPTIONAL EFFECT DECISION as the shell sees it (the field lock of 2026-11-02): read off the raw prompt, admitted,
    * owned by a workspace claim, held for it, rendered — and the announce's own facts (the gate, the presentation, the
@@ -121,6 +123,7 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
       host: workspaceOutcomeState.host ?? '', stage: workspaceOutcomeState.stage, answerIn: workspaceOutcomeState.answerIn,
       beatDone: workspaceOutcomeState.beatDone, arrivalDone: workspaceOutcomeState.arrivalDone, arrivalFlown: workspaceOutcomeState.arrivalFlown,
       kinds: [...workspaceOutcomeState.kinds], chainClose: workspaceOutcomeLastChainClose(),
+      slot: workspaceOutcomeState.embedSlot, zone: workspaceOutcomeZone(),
     },
     decision: decisionDiag?.(),
     scaleStory: {
