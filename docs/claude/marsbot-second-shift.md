@@ -29,7 +29,7 @@ The cap is a LADDER of seven generation bands (five until 2026-11-07 — the lon
 | Hard | 0 | 1 | 2 | 3 | 4 | 4 | 5 |
 | Brutal | 0 | 2 | 3 | 4 | 4 | 4 | 4 |
 
-**THE LONG MAP'S BONUS (the owner, 2026-11-08):** on a map with a bot pace offset (Amazonis Planitia) every ACTIVE band reads higher BY DIFFICULTY — Easy / Normal +1, Hard / Brutal +1 in the 5th–6th band and +2 from the 7th (`SECOND_SHIFT_LONG_MAP_BONUS`, `SecondShift.cap` → `secondShiftCap(difficulty, generation, isLongMapForBot(board))`); the sleeping band stays 0. Hard there: 0 / 2 / 4 / 5 / 6 / 6 / 7, Brutal 0 / 3 / 5 / 6 / 6 / 6 / 6. Read off the campaign mission the bot lost 164 : 173 in eight generations with 1 / 1 / 2 / 2 extra cards against humans taking 25–38 actions a generation late — `docs/claude/amazonis-planitia-marsbot.md` §4.
+**THE LONG MAP'S BONUS (the owner, 2026-11-08):** on a map with a bot pace offset (Amazonis Planitia) every ACTIVE band reads one card higher on every difficulty — `SECOND_SHIFT_LONG_MAP_BONUS = 1`, `SecondShift.cap` → `secondShiftCap(difficulty, generation, isLongMapForBot(board))`; the sleeping band stays 0. Hard there: 0 / 2 / 3 / 4 / 5 / 5 / 6. (A by-difficulty variant — Hard / Brutal +2 from the 7th — lived one day and was withdrawn by the owner on 2026-11-09 as an overbuff.) Read off the campaign mission the bot lost 164 : 173 in eight generations with 1 / 1 / 2 / 2 extra cards against humans taking 25–38 actions a generation late — `docs/claude/amazonis-planitia-marsbot.md` §4.
 
 **THE LONG GAME (2026-11-07, with Amazonis Planitia's longer parameters — `docs/claude/amazonis-planitia-marsbot.md` §4):** the
 ladder used to end at «10+», designed for games that end by the 13th generation; two bands were added FOR EVERY MAP (the

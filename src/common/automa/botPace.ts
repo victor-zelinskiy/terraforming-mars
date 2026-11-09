@@ -16,9 +16,8 @@ import {BoardName} from '../boards/BoardName';
  *
  * The second-shift cap ladder does NOT shift by it (the length of a GENERATION — how many actions a human takes
  * before passing — is the engine's doing, not the planet's); instead a long map lifts every ACTIVE rung of the ladder
- * (`SECOND_SHIFT_LONG_MAP_BONUS`, the owner 2026-11-08 — Easy / Normal one card, Hard / Brutal one in the 5th–6th
- * and two from the 7th; the bot must keep its share of a longer planet against humans who take three times its
- * actions late; `isLongMapForBot`).
+ * by one card on every difficulty (`SECOND_SHIFT_LONG_MAP_BONUS`, the owner 2026-11-08 / 11-09 — the bot must keep
+ * its share of a longer planet against humans who take three times its actions late; `isLongMapForBot`).
  */
 export const BOT_PACE_OFFSETS: Readonly<Partial<Record<BoardName, number>>> = {
   [BoardName.AMAZONIS_PLANITIA]: 3,

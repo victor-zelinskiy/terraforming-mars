@@ -60,45 +60,30 @@ export const SECOND_SHIFT_BAND_STARTS: readonly [number, number, number, number,
  * carried engines, 8 generations): the humans took 25–38 actions a generation in the 5th–8th against the bot's 9–11
  * turns with 1 / 1 / 2 / 2 extra cards; an extra card there was worth 1.2–1.6 TR in the 5th–7th and, in a campaign,
  * ≈ 2–3 VP through the holdings' dividends in the 8th (the bot ended two cheap cards short of C01's +10 and two Earth
- * tags short of CF2's +8). The bonus is BY DIFFICULTY (the owner, the same day): Easy and Normal +1 in every active
- * band; Hard and Brutal +1 in the 5th–6th band and +2 from the 7th generation on — in that game 2 / 2 / 4 / 4, six
- * cards, two of them in the 8th where both goal tiers lay two cards away. The humans' share of a longer planet is
- * what it answers, so a standard-length map reads the ladder as printed.
+ * tags short of CF2's +8). The bonus gives 2 / 2 / 3 / 3 in such a game — four cards, one in each late generation;
+ * the humans' share of a longer planet is what it answers, so a standard-length map reads the ladder as printed.
+ * ONE card on every difficulty (the owner, 2026-11-09): a by-difficulty variant (Hard / Brutal +2 from the 7th
+ * generation — 2 / 2 / 4 / 4 in that game) shipped for a day and was withdrawn as an overbuff; the steady +1 stays.
  */
-export const SECOND_SHIFT_LONG_MAP_BONUS: Readonly<Record<DifficultyLevel, {readonly first: number, readonly later: number}>> = {
-  easy: {first: 1, later: 1},
-  normal: {first: 1, later: 1},
-  hard: {first: 1, later: 2},
-  brutal: {first: 1, later: 2},
-};
-
-/** The long map's bonus on a band: the first active band (5–6) `first`, every later band `later`; the sleeping band 0. */
-export function secondShiftLongMapBonus(difficulty: DifficultyLevel, band: number): number {
-  if (band === 0) {
-    return 0;
-  }
-  const bonus = SECOND_SHIFT_LONG_MAP_BONUS[difficulty];
-  return band === 1 ? bonus.first : bonus.later;
-}
+export const SECOND_SHIFT_LONG_MAP_BONUS = 1;
 
 /** Whether the difficulty has the rule at all — any rung above zero (every difficulty today); the creator's generation-free reading. */
 export function secondShiftRuleApplies(difficulty: DifficultyLevel): boolean {
   return SECOND_SHIFT_CAP_LADDER[difficulty].some((cap) => cap > 0);
 }
 
-/** The most the difficulty can ever draw in one generation — the ladder's top rung (with the long map's bonus on it). */
+/** The most the difficulty can ever draw in one generation — the ladder's top rung (one higher on a long map). */
 export function secondShiftMaxCap(difficulty: DifficultyLevel, longMap = false): number {
-  return Math.max(...SECOND_SHIFT_CAP_LADDER[difficulty].map((_, band) => capOfBand(difficulty, band, longMap)));
+  return withLongMapBonus(Math.max(...SECOND_SHIFT_CAP_LADDER[difficulty]), longMap);
 }
 
 /** The cap of THIS generation on this difficulty — `longMap`: the map carries a bot pace offset (`botPaceOffset > 0`). */
 export function secondShiftCap(difficulty: DifficultyLevel, generation: number, longMap = false): number {
   const band = SECOND_SHIFT_BAND_STARTS.filter((start) => generation >= start).length;
-  return capOfBand(difficulty, band, longMap);
+  return withLongMapBonus(SECOND_SHIFT_CAP_LADDER[difficulty][band], longMap);
 }
 
-/** The ladder's rung with the long map's bonus on an ACTIVE rung only — a sleeping rung (cap 0) stays asleep. */
-function capOfBand(difficulty: DifficultyLevel, band: number, longMap: boolean): number {
-  const cap = SECOND_SHIFT_CAP_LADDER[difficulty][band];
-  return longMap && cap > 0 ? cap + secondShiftLongMapBonus(difficulty, band) : cap;
+/** The long map's +1 on an ACTIVE rung only — a sleeping band (cap 0) stays asleep. */
+function withLongMapBonus(cap: number, longMap: boolean): number {
+  return longMap && cap > 0 ? cap + SECOND_SHIFT_LONG_MAP_BONUS : cap;
 }

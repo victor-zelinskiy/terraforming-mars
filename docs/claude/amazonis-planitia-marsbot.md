@@ -105,11 +105,11 @@ all three milestones by the 3rd generation and funded all three awards by the 4t
 its 9–11 turns with 1 / 1 / 2 / 2 extra cards. The pace bench on the game's own snapshots: an extra card was worth
 1.2–1.6 TR in the 5th–7th and — in a campaign — ≈ 2–3 VP through the holdings' dividends in the 8th (the bot ended two
 cheap cards short of C01's +10 and two Earth tags short of CF2's +8). The owner's decision: **on a long map (a bot
-pace offset) every ACTIVE band of the ladder is higher BY DIFFICULTY** — Easy / Normal +1 in every active band, Hard /
-Brutal +1 in the 5th–6th band and +2 from the 7th generation on (`SECOND_SHIFT_LONG_MAP_BONUS`, read by
-`SecondShift.cap` through `isLongMapForBot`); the sleeping first band stays asleep, a standard-length map reads the
-printed ladder. Hard there: 0 / 2 / 4 / 5 / 6 / 6 / 7. In that game: 2 / 2 / 4 / 4 — six more cards, two of them in
-the 8th where both goal tiers lay two cards away. Not chosen: shifting the
+pace offset) every ACTIVE band of the ladder is one card higher on every difficulty** — `SECOND_SHIFT_LONG_MAP_BONUS
+= 1`, read by `SecondShift.cap` through `isLongMapForBot`; the sleeping first band stays asleep, a standard-length map
+reads the printed ladder. Hard there: 0 / 2 / 3 / 4 / 5 / 5 / 6. In that game: 2 / 2 / 3 / 3 — four more cards, one in
+each late generation. A by-difficulty variant (Hard / Brutal +2 from the 7th generation — 2 / 2 / 4 / 4) shipped on
+2026-11-08 and was withdrawn the next day by the owner as an overbuff. Not chosen: shifting the
 bands by the pace offset (+11 cards, two of them early — the October complaint), a table-size shift of the ladder
 (it was calibrated on the owner's two-human campaigns), touching the clock (irrelevant in an 8-generation game).
 
