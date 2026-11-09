@@ -55,7 +55,7 @@ import {
   HERO_RESULT_PAUSE_MS, HERO_REDUCED_MS, HERO_REDUCED_PAUSE_MS, HERO_SAFETY_TIMEOUT_MS,
 } from '@/client/console/played/playedHeroModel';
 import {
-  placeHeroProxy, playHeroLift, playHeroFlight, playHeroReducedHop, disposeHeroProxy, glideHeroOnto, hideHeroProxyNextFrame,
+  placeHeroProxy, playHeroLift, playHeroFlight, playHeroReducedHop, disposeHeroProxy, glideHeroOnto, hideHeroProxyNextFrame, heroPoseNextFrame,
   killHeroTweens, HeroStageEls,
 } from '@/client/console/played/playedHeroDirector';
 import {
@@ -1792,6 +1792,15 @@ export async function endPlayedHero(): Promise<void> {
     payingComposerView.value = undefined;
     go?.();
     await Promise.race([landed, wait(motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + PAYBACK_FLIGHT_GRACE_MS)]);
+    if (!mine()) {
+      return;
+    }
+    // THE TOUCHDOWN IS PAINTED BEFORE THE REVEAL (animations.md § A MOTION IS RIGHT ON A SLOW FRAME, law 9). This half
+    // was WAITING on the landing, so it ran in the very task of the flight's last tick: the card's rest pose and the real
+    // card's reveal went into one frame, and on a starved frame the last pose the player saw in the air was the one
+    // before — a step short of the slot (CI 2026-11-09, `console-play-landing-geometry`: the event alone, 1–3 px at FHD,
+    // 47 / 81 px at 4K). Every other card reaches this half a commit later; the event waits for its rest to paint.
+    await heroPoseNextFrame();
     if (!mine()) {
       return;
     }

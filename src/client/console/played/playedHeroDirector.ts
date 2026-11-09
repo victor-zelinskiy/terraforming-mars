@@ -86,10 +86,17 @@ export function placeHeroProxy(els: HeroStageEls, rect: HeroRect): boolean {
   return true;
 }
 
-/** Bounded-promise wrapper (the guarded() discipline of cardExitDirector). */
-function guarded(run: (done: () => void) => void, budgetMs: number): Promise<void> {
+/**
+ * Bounded-promise wrapper (the guarded() discipline of cardExitDirector). The safety is on the WALL clock and GSAP's
+ * is not (`lagSmoothing` books a long frame as 33 ms), so on a starved frame it fires mid-arc: it CATCHES the motion
+ * UP — the run's timeline is finished (`progress(1)`: its last frame puts the piece on its live end, its own
+ * `onComplete` resolves) — and never resolves a card still in the air (animations.md § A MOTION IS RIGHT ON A SLOW
+ * FRAME, law 1). A run that hands back no animation resolves as before.
+ */
+function guarded(run: (done: () => void) => gsap.core.Animation | void, budgetMs: number): Promise<void> {
   return new Promise<void>((resolve) => {
     let settled = false;
+    let anim: gsap.core.Animation | void = undefined;
     const done = () => {
       if (!settled) {
         settled = true;
@@ -97,8 +104,13 @@ function guarded(run: (done: () => void) => void, budgetMs: number): Promise<voi
         resolve();
       }
     };
-    const safety = window.setTimeout(done, budgetMs + 1200);
-    run(done);
+    const safety = window.setTimeout(() => {
+      if (anim !== undefined && !settled) {
+        anim.progress(1);
+      }
+      done();
+    }, budgetMs + 1200);
+    anim = run(done);
   });
 }
 
@@ -134,6 +146,7 @@ export function playHeroLift(els: HeroStageEls, durationMs: number): Promise<voi
       tl.to(els.shade, {autoAlpha: 0.5, scaleX: 1.06, duration: durationMs / 1000, ease: 'power2.out'}, 0);
     }
     tl.call(done, undefined, (durationMs / 1000) * HERO_LIFT_HANDOFF);
+    return tl;
   }, durationMs);
 }
 
@@ -190,13 +203,18 @@ export function playHeroFlight(els: HeroStageEls, plan: HeroPathPlan, opts: Hero
       ease: 'none',
       onUpdate: () => {
         const p = heroProgressAt(prog.q);
-        // The read is taken on the first frame past the mark that CAN read the slot — an unreadable
-        // look (the stage's emergence window) is asked again on the next frame, never given up for the
-        // whole flight; and a read on the touchdown frame itself is applied whole (`heroRetargetWeight`).
-        if (corr.from < 0 && prog.q >= HERO_RETARGET_AT && opts.retarget !== undefined) {
+        // The slot is read on EVERY frame past the mark that can read it — the ramp starts at the first
+        // readable frame, and the correction follows the slot wherever it is NOW: a stage still finishing
+        // its own emergence under the arc moved the slot after a one-shot read, and the card touched down
+        // 1.6–3 px off it (CI 2026-11-09, `console-play-landing-geometry` fhd) before the commit glided it
+        // the rest. An unreadable look is asked again on the next frame; a read on the touchdown frame is
+        // applied whole (`heroRetargetWeight`), so the last painted pose IS the live slot.
+        if (prog.q >= HERO_RETARGET_AT && opts.retarget !== undefined) {
           const live = opts.retarget();
           if (live !== undefined && live.w > 4 && live.h > 4) {
-            corr.from = p;
+            if (corr.from < 0) {
+              corr.from = p;
+            }
             corr.x = live.x + live.w / 2 - plan.p1.x;
             corr.y = live.y + live.h / 2 - plan.p1.y;
             corr.scale = live.w / Math.max(1, g.restRect.w) - plan.targetScale;
@@ -240,6 +258,7 @@ export function playHeroFlight(els: HeroStageEls, plan: HeroPathPlan, opts: Hero
         }
       },
     }, 0);
+    return tl;
   }, opts.durationMs);
 }
 
@@ -274,6 +293,7 @@ export function playHeroReducedHop(els: HeroStageEls, target: HeroRect, duration
     if (flip && els.flip !== undefined) {
       tl.set(els.flip, {rotationY: 180}, durationMs / 2000);
     }
+    return tl;
   }, durationMs);
 }
 
@@ -334,11 +354,30 @@ export function hideHeroProxyNextFrame(els: HeroStageEls): Promise<void> {
   });
 }
 
+/**
+ * The proxy's CURRENT pose reaches the screen: resolves after the next painted frame (two rAFs — the first runs before
+ * the paint, the second after it). Bounded on the wall clock for a compositor that never paints (a suspended TV); the
+ * bound only lets the flow go on, it never moves the proxy.
+ */
+export function heroPoseNextFrame(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (typeof requestAnimationFrame !== 'function') {
+      resolve();
+      return;
+    }
+    const safety = window.setTimeout(resolve, 400);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      window.clearTimeout(safety);
+      resolve();
+    }));
+  });
+}
+
 /** The proxy dissolves in place (the no-target fallback / the staged
  *  landing's exit WITH its workspace) — a short fade, nothing underneath. */
 export function disposeHeroProxy(els: HeroStageEls, durationMs: number): Promise<void> {
   return guarded((done) => {
-    gsap.to(els.proxy, {autoAlpha: 0, duration: durationMs / 1000, ease: 'power1.out', onComplete: done});
+    return gsap.to(els.proxy, {autoAlpha: 0, duration: durationMs / 1000, ease: 'power1.out', onComplete: done});
   }, durationMs);
 }
 

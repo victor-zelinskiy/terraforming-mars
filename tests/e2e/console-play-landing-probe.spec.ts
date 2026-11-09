@@ -25,6 +25,7 @@
  */
 import {expect, test, Page, APIRequestContext} from './consoleTest';
 import {press} from './consoleStart';
+import {readTransient, recordTransient} from './transientRecorder';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -154,6 +155,12 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
   expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
   const model = await created.json() as {players: Array<{id: string}>};
   await page.goto(`/player?id=${model.players[0].id}&console=1`);
+  // THE TERMINAL «READY» IS A TRANSIENT — recorded off the product's own writes, never sampled between presses (tests.md
+  // ②). It stands ~2 s while the scene releases, and the release swallows presses on purpose (`start-flow-motion`, a
+  // global gate on the input-absorb ledger): a loop that presses A on a standing embed zone waited that gate out and
+  // slept through the whole READY pose (CI 2026-11-09 — 3/3 red, the box 9/9, the scene's own release beat shown).
+  await recordTransient(page, 'start-ready', () => document.querySelector('.con-start') !== null &&
+    document.querySelector('.con-jrail')?.getAttribute('data-presentation') === 'complete');
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
   // The ASSET WARM-UP veil (.boot-loader) sits over the scene long on a cold
@@ -419,6 +426,11 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
     await page.waitForTimeout(300);
   }
   await expect(page.locator('.con-start')).toHaveCount(0, {timeout: 30_000});
+  const ready = await readTransient<boolean>(page, 'start-ready');
+  if (ready.some((x) => x.v)) {
+    log.sawReady = true;
+  }
+  log.trace.push(`[ready] ${ready.map((x) => `${x.v ? 'READY' : '-'}@${Math.round(x.t)}`).join(' ')}`);
   await page.waitForTimeout(4500); // hand intake settle (slower at 4K)
   return log;
 }
