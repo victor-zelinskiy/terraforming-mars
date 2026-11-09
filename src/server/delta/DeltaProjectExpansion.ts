@@ -3,7 +3,7 @@ import {IPlayer} from '../IPlayer';
 import {DeltaProjectPlayerModel} from '../../common/models/DeltaProjectPlayerModel';
 import {DeltaMovementBonusProjection, DeltaTrackDestination, DeltaTrackPreviewModel, DeltaTraversalStep} from '../../common/models/DeltaTrackPreviewModel';
 import {Priority} from '../deferredActions/Priority';
-import {declaredActionCost, deltaAdvancePlanVerdict} from './deltaAdvancePlan';
+import {actionStockNeed, deltaAdvancePlanVerdict} from './deltaAdvancePlan';
 import {Units} from '../../common/Units';
 import {DELTA_STAGE_NAMES} from '../../common/delta/deltaStages';
 import {systemChoice} from '../inputs/choiceContext';
@@ -433,14 +433,15 @@ export class DeltaProjectExpansion {
     // pos 9 add-animals). Computed from current state via the same helpers the
     // reward resolution uses, so the lists are authoritative.
     const reuseActionCards = DeltaProjectExpansion.getUsedActionCards(player).map((c) => c.name);
-    // …and each candidate's MANDATORY declarative stock cost — the ordered
-    // resource plan's per-candidate price, extracted from the card's own
-    // data-defined behavior. The client repeats arithmetic over THESE numbers
-    // (its plan mirrors the server's `deltaAdvancePlanVerdict`); it never
-    // computes a card cost itself.
+    // …and the STOCK each candidate NEEDS — the ordered resource plan's
+    // per-candidate price, read off the card itself (its declarative spend
+    // merged with the floor its own `canAct` holds at — a bespoke action like
+    // Dutch Mountains is priced too). The client repeats arithmetic over THESE
+    // numbers (its plan mirrors the server's `deltaAdvancePlanVerdict`); it
+    // never computes a card cost itself.
     const reuseActionCosts: Partial<Record<CardName, Partial<Units>>> = {};
     for (const name of reuseActionCards) {
-      const cost = declaredActionCost(player, name);
+      const cost = actionStockNeed(player, name);
       if (Object.keys(cost).length > 0) {
         reuseActionCosts[name] = cost;
       }

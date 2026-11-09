@@ -122,6 +122,14 @@ export function planConflictReasonKey(resource: string | undefined): string {
     'The movement payment conflicts with this action';
 }
 
+/** The REWARD-ONLY claim's twin wording (Dutch Mountains): no movement is
+ *  paid — the claim's OWN price is what leaves the repeat short. */
+export function claimConflictReasonKey(resource: string | undefined): string {
+  return resource === 'energy' ?
+    'Not enough energy left after the claim price' :
+    'The claim price leaves too little for this action';
+}
+
 /** The final CTA's focus node — always the LAST stop of the rail. */
 export const HYDRO_RAIL_CTA = 'cta';
 

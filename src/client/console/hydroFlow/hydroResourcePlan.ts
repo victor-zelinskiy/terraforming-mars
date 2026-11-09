@@ -18,13 +18,14 @@
  *  3. what stands RESERVED at the payment point (the panel names it).
  *
  * NOTHING here computes a card cost: every commitment's cost arrives from
- * the server preview (`reuseActionCosts` — extracted from the card's own
- * declarative behavior), and the authoritative verdict is re-checked
+ * the server preview (`reuseActionCosts` — the stock the card's own action
+ * needs: its declarative spend merged with its `canAct` floor), and the authoritative verdict is re-checked
  * atomically at commit by the server (`plannedActions` on the move step).
  * Unit-tested; no Vue / DOM / i18n.
  */
 import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
+import type {ActionPreview} from '@/common/models/ActionPreviewModel';
 
 /** One guaranteed stage gain of the plan, in path order. */
 export type HydroPlanGain = {
@@ -36,7 +37,7 @@ export type HydroPlanGain = {
 export type HydroPlanCommitment = {
   position: number;
   card: CardName;
-  /** The server-served mandatory stock cost (empty = cost-free / bespoke). */
+  /** The server-served stock the action needs (empty = needs no stock). */
   cost: Partial<Units>;
 };
 
@@ -164,4 +165,59 @@ export function hydroPlanMixVerdict(input: HydroPlanMixInput): HydroPlanMixVerdi
     reservedSteel += c.cost.steel ?? 0;
   }
   return {feasibleSteelMin: min, feasibleSteelMax: max, conflicts: [], reserved: {energy: reservedEnergy, steel: reservedSteel}};
+}
+
+/**
+ * THE PRICE A REWARD-ONLY CLAIM PAYS before the claimed stage resolves (Dutch
+ * Mountains: 3 energy, then the stage's reward — on stage 7 a repeated
+ * action). Read off the SOURCE's served action preview — the branch whose
+ * step IS the stage claim (`deltaStageReward`), its declared stock cost
+ * chips — never a per-card number. No such branch (Corporate Espionage's free
+ * own step) → no price.
+ */
+export function claimTollOf(preview: Pick<ActionPreview, 'branches'> | undefined): Partial<Units> {
+  const branch = preview?.branches.find((b) =>
+    b.steps.some((st) => st.kind === 'input' && st.input.type === 'deltaStageReward'));
+  const toll: Partial<Units> = {};
+  for (const e of branch?.effects ?? []) {
+    if (e.direction === 'cost' && (Units.keys as ReadonlyArray<string>).includes(e.icon)) {
+      const key = e.icon as keyof Units;
+      toll[key] = (toll[key] ?? 0) + e.amount;
+    }
+  }
+  return toll;
+}
+
+/**
+ * The repeat candidates a REWARD-ONLY claim cannot feed — the claim twin of
+ * the advance plan's greyed rows. There is no movement payment: the claim's
+ * own price ({@link claimTollOf}) leaves first, then the repeated action
+ * needs its served stock at the claimed stage. The same walk, spend 0.
+ */
+export function claimRepeatInfeasible(input: {
+  start: Readonly<Units>,
+  toll: Partial<Units>,
+  position: number,
+  candidates: ReadonlyArray<CardName>,
+  costs: Partial<Record<CardName, Partial<Units>>> | undefined,
+}): Array<{name: CardName, resource: keyof Units | undefined}> {
+  const start: Units = {...input.start};
+  for (const key of Units.keys) {
+    start[key] -= input.toll[key] ?? 0;
+  }
+  const out: Array<{name: CardName, resource: keyof Units | undefined}> = [];
+  for (const name of input.candidates) {
+    const cost = input.costs?.[name];
+    if (cost === undefined) {
+      continue;
+    }
+    const verdict = hydroPlanMixVerdict({
+      start, spend: 0, minSteel: 0, maxSteel: 0, gains: [],
+      commitments: [{position: input.position, card: name, cost}],
+    });
+    if (verdict.feasibleSteelMin === undefined && verdict.conflicts.length > 0) {
+      out.push({name, resource: verdict.conflicts[0]?.resource});
+    }
+  }
+  return out;
 }

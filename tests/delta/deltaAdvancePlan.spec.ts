@@ -3,7 +3,8 @@ import {testGame} from '../TestGame';
 import {TestPlayer} from '../TestPlayer';
 import {IGame} from '../../src/server/IGame';
 import {DELTA_TRACK_TAGS, DeltaProjectExpansion} from '../../src/server/delta/DeltaProjectExpansion';
-import {declaredActionCost, deltaAdvancePlanVerdict, guaranteedStockGainAt, withProjectedStock} from '../../src/server/delta/deltaAdvancePlan';
+import {actionStockNeed, declaredActionCost, deltaAdvancePlanVerdict, guaranteedStockGainAt, withProjectedStock} from '../../src/server/delta/deltaAdvancePlan';
+import {DutchMountains} from '../../src/server/cards/delta/DutchMountains';
 import {DevelopmentCenter} from '../../src/server/cards/base/DevelopmentCenter';
 import {DeltaWorks} from '../../src/server/cards/delta/DeltaWorks';
 import {DeltaSurge} from '../../src/server/cards/delta/DeltaSurge';
@@ -302,6 +303,41 @@ describe('deltaAdvancePlan (the ordered projected resource plan)', () => {
       const preview = DeltaProjectExpansion.getPreview(player);
       expect(preview.reuseActionCards).to.have.members([CardName.DEVELOPMENT_CENTER, CardName.REGOLITH_EATERS]);
       expect(preview.reuseActionCosts).deep.eq({[CardName.DEVELOPMENT_CENTER]: {energy: 1}});
+    });
+
+    it('a BESPOKE action is priced by its own canAct floor (Dutch Mountains: 3 energy, no declarative spend)', () => {
+      // The field bug of 2026-11-09: 4 energy, a 3-step move onto stage 7 and
+      // Dutch Mountains pre-selected for the repeat. Served as free, the
+      // client offered it; the commit refused the whole move.
+      player.energy = 4;
+      player.deltaProjectData!.position = 4;
+      player.playedCards.push(new DutchMountains());
+      player.actionsThisGeneration.add(CardName.DUTCH_MOUNTAINS);
+      expect(declaredActionCost(player, CardName.DUTCH_MOUNTAINS)).deep.eq({});
+      expect(actionStockNeed(player, CardName.DUTCH_MOUNTAINS)).deep.eq({energy: 3});
+      expect(player.energy, 'the probe is a dry run').eq(4);
+
+      const preview = DeltaProjectExpansion.getPreview(player);
+      expect(preview.reuseActionCards).to.include(CardName.DUTCH_MOUNTAINS);
+      expect(preview.reuseActionCosts?.[CardName.DUTCH_MOUNTAINS]).deep.eq({energy: 3});
+
+      const verdict = deltaAdvancePlanVerdict(player, {
+        fromPosition: 4, toPosition: 7,
+        payment: {energy: 3, steel: 0},
+        actions: [{position: 7, card: CardName.DUTCH_MOUNTAINS}],
+      });
+      expect(verdict.feasible).eq(false);
+      expect(verdict.conflicts[0]).deep.include({card: CardName.DUTCH_MOUNTAINS, reason: 'resources', resource: 'energy'});
+    });
+
+    it('an OR-price needs neither resource while both are held (Electro Catapult)', () => {
+      player.plants = 2;
+      player.steel = 2;
+      player.playedCards.push(new ElectroCatapult());
+      player.actionsThisGeneration.add(CardName.ELECTRO_CATAPULT);
+      expect(actionStockNeed(player, CardName.ELECTRO_CATAPULT)).deep.eq({});
+      player.plants = 0;
+      expect(actionStockNeed(player, CardName.ELECTRO_CATAPULT)).deep.eq({steel: 1});
     });
 
     it('stays byte-identical when no candidate has a declarative cost', () => {

@@ -1,5 +1,6 @@
 import {expect} from 'chai';
-import {hydroPlanMixVerdict} from '@/client/console/hydroFlow/hydroResourcePlan';
+import {claimRepeatInfeasible, claimTollOf, hydroPlanMixVerdict} from '@/client/console/hydroFlow/hydroResourcePlan';
+import type {ActionPreview} from '@/common/models/ActionPreviewModel';
 import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
 
@@ -131,5 +132,32 @@ describe('hydroPlanMixVerdict (the ordered mix sweep)', () => {
       commitments: [{position: 7, card: CardName.BIRDS, cost: {}}],
     });
     expect(v.feasibleSteelMin).to.eq(undefined);
+  });
+});
+
+describe('the reward-only claim repeat grading (Dutch Mountains → stage 7)', () => {
+  const claimPreview = (energy: number) => ({
+    branches: [{
+      effects: [{direction: 'cost', icon: 'energy', amount: energy}],
+      steps: [{kind: 'input', input: {type: 'deltaStageReward', title: '', buttonLabel: '', claimable: [7]}}],
+    }],
+  }) as unknown as Pick<ActionPreview, 'branches'>;
+
+  it('the toll is the claim branch declared stock cost — nothing without a claim step', () => {
+    expect(claimTollOf(claimPreview(3))).to.deep.eq({energy: 3});
+    expect(claimTollOf(undefined)).to.deep.eq({});
+    expect(claimTollOf({branches: [{effects: [{direction: 'cost', icon: 'energy', amount: 2}], steps: []}]} as unknown as Pick<ActionPreview, 'branches'>))
+      .to.deep.eq({});
+  });
+
+  it('a repeat the claim own price starves is greyed with its short resource', () => {
+    const out = claimRepeatInfeasible({
+      start: Units.of({energy: 4}),
+      toll: {energy: 3},
+      position: 7,
+      candidates: [CardName.DEVELOPMENT_CENTER, CardName.DUTCH_MOUNTAINS, CardName.REGOLITH_EATERS],
+      costs: {[CardName.DEVELOPMENT_CENTER]: {energy: 1}, [CardName.DUTCH_MOUNTAINS]: {energy: 3}},
+    });
+    expect(out).to.deep.eq([{name: CardName.DUTCH_MOUNTAINS, resource: 'energy'}]);
   });
 });

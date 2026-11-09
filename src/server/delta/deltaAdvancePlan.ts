@@ -2,6 +2,7 @@ import {IPlayer} from '../IPlayer';
 import {Units} from '../../common/Units';
 import {CardName} from '../../common/cards/CardName';
 import {Tag} from '../../common/cards/Tag';
+import {isIActionCard} from '../cards/ICard';
 import {DELTA_TRACK_TAGS, DeltaProjectExpansion} from './DeltaProjectExpansion';
 
 /**
@@ -23,13 +24,15 @@ import {DELTA_TRACK_TAGS, DeltaProjectExpansion} from './DeltaProjectExpansion';
  *    apply themselves: Delta Works's steel-for-energy substitution exists
  *    only inside the movement payment (`resolveAdvancePayment`), and no
  *    projection ever turns steel into energy for a card's own cost.
- *  - The MANDATORY stock cost threaded to LATER points comes from the
- *    action's own declarative behavior (`card.actionBehavior.spend`) — the
- *    single place a data-defined action already states it. A bespoke action
- *    without a declarative spend still gets the full `canAct` dry-run at its
- *    own point; it merely cannot promise a structural cost to points after
- *    it (there is at most one costed commitment per move today — stage 7 is
- *    unique — and the walk stays general for more).
+ *  - The STOCK an action NEEDS ({@link actionStockNeed}) is read off the
+ *    card itself, never a table: its declarative spend
+ *    (`card.actionBehavior.spend`) merged with the floor its OWN `canAct`
+ *    holds at, probed by the same dry-run. The floor is what makes a BESPOKE
+ *    action honest — Dutch Mountains states no declarative spend, so a
+ *    spend-only reading served it as free, the client offered the repeat
+ *    after a payment that left 1 of its 3 energy, and the commit refused the
+ *    whole move (2026-11-09). The same number is served to the client
+ *    (`reuseActionCosts`) and threaded to later points here.
  *  - Guaranteed stage gains are the PROJECTION MIRROR of
  *    `DeltaProjectExpansion.resolveReward` — see {@link guaranteedStockGainAt},
  *    kept deliberately tiny and co-maintained with that switch.
@@ -151,6 +154,63 @@ export function declaredActionCost(player: IPlayer, card: CardName): Partial<Uni
   return cost;
 }
 
+function liveStock(player: IPlayer): Units {
+  return {
+    megacredits: player.megaCredits,
+    steel: player.steel,
+    titanium: player.titanium,
+    plants: player.plants,
+    energy: player.energy,
+    heat: player.heat,
+  };
+}
+
+/**
+ * THE STOCK ONE ACTION NEEDS to be performable — per resource, the larger of
+ * its declarative spend and the FLOOR its own `canAct` holds at.
+ *
+ * The floor is probed by dry-run ({@link withProjectedStock}): with every
+ * other resource at its live value, the lowest amount of THIS resource the
+ * card still acts at (binary search over `[1, live]` — an action's need is
+ * monotone in a resource). A resource the card acts without at 0 needs
+ * nothing (an OR-price like Electro Catapult's plant-or-steel needs neither
+ * while the player holds both). A card that cannot act on the live stock at
+ * all is not probed — it is not a candidate.
+ *
+ * Probed against the LIVE stock, so it answers for the resources the
+ * Hydronetwork move can take away (the payment, an earlier commitment); the
+ * authoritative gate stays the `canAct` dry-run at the projected point.
+ */
+export function actionStockNeed(player: IPlayer, cardName: CardName): Partial<Units> {
+  const need = declaredActionCost(player, cardName);
+  const card = player.tableau.get(cardName);
+  if (card === undefined || !isIActionCard(card)) {
+    return need;
+  }
+  const live = liveStock(player);
+  const actsAt = (stock: Units): boolean => withProjectedStock(player, stock, () => card.canAct(player));
+  if (!actsAt(live)) {
+    return need;
+  }
+  for (const key of Units.keys) {
+    if (live[key] === 0 || actsAt({...live, [key]: 0})) {
+      continue;
+    }
+    let lo = 1;
+    let hi = live[key];
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (actsAt({...live, [key]: mid})) {
+        hi = mid;
+      } else {
+        lo = mid + 1;
+      }
+    }
+    need[key] = Math.max(need[key] ?? 0, lo);
+  }
+  return need;
+}
+
 function minus(stock: Units, cost: Partial<Units>): Units {
   const out = {...stock};
   for (const key of Units.keys) {
@@ -187,14 +247,7 @@ export function deltaAdvancePlanVerdict(player: IPlayer, input: DeltaAdvancePlan
   // The starting snapshot, minus the movement payment — the first point of
   // the sequence. (The payment's own validity — the mix shape, the Delta
   // Works gate — is `resolveAdvancePayment`'s question, asked by the caller.)
-  let stock: Units = minus({
-    megacredits: player.megaCredits,
-    steel: player.steel,
-    titanium: player.titanium,
-    plants: player.plants,
-    energy: player.energy,
-    heat: player.heat,
-  }, {energy: input.payment.energy, steel: input.payment.steel});
+  let stock: Units = minus(liveStock(player), {energy: input.payment.energy, steel: input.payment.steel});
 
   const actionsAt = new Map<number, DeltaPlannedAction>();
   for (const a of input.actions ?? []) {
@@ -222,9 +275,9 @@ export function deltaAdvancePlanVerdict(player: IPlayer, input: DeltaAdvancePlan
     // the balance THIS point actually holds.
     const eligible = withProjectedStock(player, stock, () =>
       DeltaProjectExpansion.getUsedActionCards(player).some((c) => c.name === planned.card));
+    const need = actionStockNeed(player, planned.card);
     if (!eligible) {
-      const cost = declaredActionCost(player, planned.card);
-      const short = firstShortfall(stock, cost);
+      const short = firstShortfall(stock, need);
       conflicts.push({
         position: step.position,
         card: planned.card,
@@ -233,9 +286,9 @@ export function deltaAdvancePlanVerdict(player: IPlayer, input: DeltaAdvancePlan
       });
       continue;
     }
-    // The action's mandatory cost leaves HERE — a later commitment (or a
-    // later prefix check) sees the balance after it.
-    stock = minus(stock, declaredActionCost(player, planned.card));
+    // The action's need leaves HERE — a later commitment (or a later prefix
+    // check) sees the balance after it (the same number the client threads).
+    stock = minus(stock, need);
   }
 
   return {feasible: conflicts.length === 0, conflicts};

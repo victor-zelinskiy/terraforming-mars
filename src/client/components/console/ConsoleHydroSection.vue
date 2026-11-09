@@ -1240,6 +1240,7 @@ import {
   initialRailFocus,
   nextRailFocus,
   planConflictReasonKey,
+  claimConflictReasonKey,
   railFocusNodes,
   railIdOf,
   railNodeOf,
@@ -1263,6 +1264,7 @@ import {Resource} from '@/common/Resource';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {actionPreviewMap, previewBranchByIndex} from '@/client/console/actionPreviewStore';
+import {claimRepeatInfeasible, claimTollOf} from '@/client/console/hydroFlow/hydroResourcePlan';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DeltaTrackDestination, DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {EffectForecast} from '@/common/models/EffectForecastModel';
@@ -5374,6 +5376,23 @@ export default defineComponent({
         reason: translateText(planConflictReasonKey(c.resource)),
       }));
     },
+    /** The CLAIM's greyed browser rows (Dutch Mountains → stage 7): the
+     *  claim's own price leaves first, so a repeat it starves is greyed with
+     *  the reason — never a pick the commit then silently drops. Published
+     *  on every open, so a previous plan's rows can never leak in. */
+    publishClaimRepeatDisabled(): void {
+      const offer = this.rewardOffer;
+      const preview = this.preview;
+      const p = this.playerView.thisPlayer;
+      consoleHydroUi.repeatDisabled = offer === undefined || preview === undefined ? [] :
+        claimRepeatInfeasible({
+          start: {megacredits: p.megacredits, steel: p.steel, titanium: p.titanium, plants: p.plants, energy: p.energy, heat: p.heat},
+          toll: claimTollOf(actionPreviewMap().get(offer.source)),
+          position: this.model.selectedPosition,
+          candidates: preview.reuseActionCards,
+          costs: preview.reuseActionCosts,
+        }).map((c) => ({name: c.name, reason: translateText(claimConflictReasonKey(c.resource))}));
+    },
     /** ONE write path for a traversal pick (the target step and the repeat
      *  bridge both land here): the per-position draft + the rail hand-off. */
     applyTraversalPick(position: number, card: CardName): void {
@@ -5429,6 +5448,7 @@ export default defineComponent({
       default:
         // The stage-7 repeat browser — the shell's bridge writes
         // `hydroNetworkState.selectedCard` + `consoleHydroUi.repeatResult`.
+        this.publishClaimRepeatDisabled();
         this.$emit('pick');
         return;
       }
