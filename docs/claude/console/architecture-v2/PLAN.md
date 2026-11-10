@@ -13,11 +13,11 @@
 | L1 | lifecycle 4 — the submit transport on the kernel | **done** — `submitMachine`, tickets, `gate()`; the ticket-first ARMING of scenes rides the domain slices (below) |
 | L2 | lifecycle 2 — the workspace frame (scopes, locations, bounded beats) | **done** — every frame is a scope (`workspaceFrameScope`), its phase the `frameMachine` (beats bounded, on stage only), the beat's LEASE puts a frame back when its press did not land |
 | L3 | lifecycle 1 — the outcome claim, owned by its host frame | **done** — `claimMachine` (the three backstops and the host binding are states), `consoleWorkspaceOutcome.ts` is its facade; the shell's `releaseOrphanedClaim` is deleted |
-| L4 | lifecycle 3 — the announce plate and «set aside» | — |
+| L4 | lifecycle 3 — the announce plate and «set aside» | **the plate: done** — `announceMachine`, one run per beat key, `pending` bounded (its door is the shell's); **«set aside»: with S4** (it is a state of the QUESTION, which the prompt router owns) |
 | S1 | the shell: session root + the supervisor out of the shell | — |
 | S2 | the shell: the extraction tool + the first islands | — |
 | S3… | the shell: surface registry (pad / bar / context — one table), routing, conclusion | — |
-| N1 | native stalls: LoAF in the field log, a trace on `unresponsive` | — |
+| N1 | native stalls: LoAF in the field log, a trace on `unresponsive` | **done (diagnosis)** — `longFrameWatch.ts` (`[long-frame]` lines with the frame's split), `electron/hangTrace.ts` (a Chromium trace of every stop, named in the hang line); reducing what the first traces name is open |
 
 **Branch / tree.** The work is done in the worktree `C:\Projects\Mods\tm-arch` (branch `arch-v2`, rebased on
 `origin/main` before every push; pushed to `main` slice by slice). After a push the main clone is moved onto it
@@ -272,8 +272,20 @@ forwards to the new owner, it never keeps a second copy of the state.
   re-binds, `rehome` re-binds to the new host). Deleted: the three module timers and their arm / clear calls, the
   shell's `releaseOrphanedClaim` + `claimHostGoneSince` (the 1 Hz «known nowhere» sample that had to learn the frame's
   third home). The release funnel's serving guard is unchanged (`workspaceFrameKnown` — live or parked).
-- **L4 — announce / set aside.** `announceMachine`; `mandatoryGateState` is its mirror; the deferred flag becomes a
-  projection of the chain's location.
+- **L4 — announce (done) / set aside (S4).** `consoleMandatoryAnnounce.ts`: `pending` (a BEAT — the first
+  presentation waits for the scenes of the screen, 15 s) → `late` (what stands past the bound is the player's own
+  time; entering it runs the plate's door) / `presented` → `acknowledged`; one run per beat key in its own scope —
+  `noteMandatoryBeatIdentity` starts and ends it, so the latches die with their beat by construction. The three keys
+  of `mandatoryGateState` keep their meaning and their writers (each tells the machine in the same call — a beat may
+  be acknowledged BEFORE it becomes the current one, which a per-key machine alone cannot hold). The bound that was
+  the wait graph's `overdue` judgement for the `announce` family (inventory A1) is the state's own; the shell
+  registers the door (`registerAnnounceDoor` → `yieldAnnounceInCycle`).
+  *Deliberately not in this slice:* the readiness watchers (`mandatoryBeatKey` / `mandatoryPresentationReady`) stay in
+  the shell — replacing them with a level-triggered wait changes their flush order against the 140 other watchers, and
+  goes with the announce controller's extraction; **«set aside»** (`consoleState.task.deferred`, 5 writers that set
+  it, 25 that clear it, the restore card's four-family predicate — inventory A2) is a state of the QUESTION, not of
+  the plate: it becomes the question scope's `aside` location in S4, where «set aside with no restore card» stops
+  being expressible. Until then A2 keeps its wait-graph door (`deferred-restore`).
 
 ### Phase 2 — the shell
 
@@ -302,7 +314,7 @@ park and the ledger stories as `story` scopes with declared waits (`WAITS_ON.sto
 screen hand-over as a wait on the table instead of a reasons list, then the directors' runs (start, sitting, quest,
 walk, rally, generation scene, finale) — each run keyed by its own scope.
 
-### N1 — native rendering stalls (independent of the phases)
+### N1 — native rendering stalls (independent of the phases) — diagnosis DONE
 
 - Renderer: a `PerformanceObserver` for `long-animation-frame` → one field-log line per long frame with its split
   (blocking duration · script time with the top script's source · style-and-layout time · render start → end), so a
@@ -361,6 +373,8 @@ kernel, a net that still covers legacy code stays, and the table says what it st
 
 | Slice | What moved | Specs |
 | --- | --- | --- |
+| L4 | a beat pending 15 s runs the plate's door from the machine (was: the wait graph's overdue finding after 3 more ticks, and only when no frame stood on top); nothing else moves | `console-parliament-announce`, `console-parliament-aquifer`, `console-pluto-bonus-discard`, `console-external-draw`, `console-bot-attack`, `console-corp-first-action`, `console-screen-director-cure` (the blind announce's beacon), `console-draft-workspace` |
+| N1 | a `[long-frame]` warn line per ≥ 500 ms frame (rate-limited) — harvested, never red | none expected; a spec that asserts «no console.warn at all» would see it |
 | L3 | the claim's timers are machine states (same numbers); an orphaned claim is released exactly 1.5 s after its host's last frame ended (was 1.5–2.5 s, sampled); the arrival gate of a claim that never got an answer opens at 20 s | `console-hi-tech-lab`, `console-wait-graph-dead-end` § orphaned claim, `console-hydro-copied-tile`, every embedded draw / pick / verdict (`console-viron-repeat-draw`, `console-deck-pick-collapse`, `console-start-sponsor`, card-actions specs) |
 | L2 | every frame verb now also opens / ends scopes; the phase is written through a machine (same value, same call); a frame whose press did not land goes back by the lease (after the surface's own rollback); a beat standing 180 s on stage is ended | anything with park / restore / yield for the board (`console-hydro-copied-tile`, `console-hi-tech-lab`, `console-workspace-stack*`, `console-start-sponsor`, `console-mu-colony-question`), a refused submit inside a workspace (`console-resource-distribute`), reload restore (`console-draft-workspace`) |
 | L1 | the funnel: every gate now runs as a child scope (a few microtasks later than a bare `await`); a gate that throws no longer aborts the whole answer; the supervisor's release ends the gate instead of lowering the flag | any spec that plays a card / trades / advances the hydro marker / converts / places a tile — pointwise check on the box: `smoke`, `console-workspace-band`, `console-stdp-workspace`, `console-colony-venus-trade`, `console-hydro-terminal-field`, `console-generation-scene`, `console-hand-play-return`, `console-hazard-placement` |

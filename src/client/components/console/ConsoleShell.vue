@@ -2346,6 +2346,7 @@ import {
   acknowledgeMandatoryBeat,
   markMandatoryBeatPresented,
   noteMandatoryBeatIdentity,
+  registerAnnounceDoor,
   resetMandatoryGate,
   setMandatoryGateHeld, isResolutionAsk, isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startStranded, startYieldsForHeldPlacement} from '@/client/console/startServing';
@@ -23131,8 +23132,8 @@ export default defineComponent({
             top !== undefined ? [{kind: 'node', id: `surface:${top.kind}`}] :
               [{kind: 'motion', what: 'the first presentation'}];
         out.push({
+          // (No bound here: the first presentation's bound is the announce machine's own state — `pending` → `late`.)
           id: announceId, family: 'announce', owner: 'consoleMandatoryGate', targets, recovery: 'announce-serve',
-          ...(targets[0].kind === 'motion' ? {boundMs: 15_000} : {}),
           detail: isMandatoryBeatPresented(beat) ? 'presented' : 'pending',
         });
       }
@@ -23255,6 +23256,17 @@ export default defineComponent({
         // one an EXISTING path (the plate acknowledged where its question's surface already stands, the conclusion's
         // question door, the claim's forced release), never a press on the player's behalf.
         registerWaitRecovery('announce-serve', () => this.yieldAnnounceInCycle()),
+        // …and the same door for a plate whose FIRST PRESENTATION is overdue: the bound is the announce machine's own
+        // (`consoleMandatoryAnnounce.ts` — `pending` is a beat), no longer the wait graph's `overdue` judgement.
+        (() => {
+          registerAnnounceDoor(() => {
+            const did = this.yieldAnnounceInCycle();
+            if (did !== '') {
+              console.warn(`[mandatory-gate] the plate's door — ${did}`);
+            }
+          });
+          return () => registerAnnounceDoor(undefined);
+        })(),
         registerWaitRecovery('workspace-conclusion', (node) => {
           const kind = node.id.slice('conclusion:'.length) as WorkspaceFrameKind;
           const result = openFrameQuestionDoor(kind);

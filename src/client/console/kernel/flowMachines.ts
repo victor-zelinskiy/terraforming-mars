@@ -7,6 +7,7 @@
  * here — a lifecycle that skips the law is how «a state with no exit» comes back.
  */
 import {AnyStateMachine, EventObject} from 'xstate';
+import {ANNOUNCE_SAMPLE_EVENTS, announceMachine} from '@/client/console/consoleMandatoryAnnounce';
 import {CLAIM_SAMPLE_EVENTS, claimMachine, claimMachineServing} from '@/client/console/consoleWorkspaceClaim';
 import {FRAME_SAMPLE_EVENTS, frameMachine, frameSnapshotKey} from '@/client/console/consoleWorkspaceFrame';
 import {SUBMIT_SAMPLE_EVENTS, submitMachine} from '@/client/console/transport/submitMachine';
@@ -40,5 +41,13 @@ export const FLOW_MACHINES: ReadonlyArray<FlowMachineEntry> = [
   {
     name: 'claim (serving for ever)', file: 'console/consoleWorkspaceClaim.ts',
     machine: claimMachineServing, events: CLAIM_SAMPLE_EVENTS, input: {gated: true, hosted: true},
+  },
+  {
+    name: 'announce', file: 'console/consoleMandatoryAnnounce.ts',
+    machine: announceMachine, events: ANNOUNCE_SAMPLE_EVENTS, input: {key: 'task:x#1', acknowledged: false},
+  },
+  {
+    name: 'announce (born acknowledged)', file: 'console/consoleMandatoryAnnounce.ts',
+    machine: announceMachine, events: ANNOUNCE_SAMPLE_EVENTS, input: {key: 'draft:gen2', acknowledged: true},
   },
 ];

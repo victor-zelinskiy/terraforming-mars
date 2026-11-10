@@ -79,6 +79,9 @@
  * with its own signals, so it is unit-testable under the server runner.
  */
 import {reactive} from 'vue';
+import {FlowScope, openFlowRoot} from '@/client/console/kernel/flowScope';
+import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
+import {announceMachine} from '@/client/console/consoleMandatoryAnnounce';
 import {ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {sittingAskResolution} from '@/client/console/promptSource';
@@ -345,6 +348,61 @@ export function mandatoryBeatFor(input: MandatoryBeatInput): MandatoryBeat | und
   return undefined;
 }
 
+/*
+ * ── THE CURRENT BEAT'S RUN (architecture v2, lifecycle 3 — `consoleMandatoryAnnounce.ts`) ───────────────────────────
+ *
+ * The three keys above say WHERE a beat stands; the run below is the beat in TIME: one scope with its machine per beat
+ * key (`noteMandatoryBeatIdentity` starts it, a new key or no beat ends it). Every function that writes a key tells
+ * the machine in the same call, so the two cannot disagree — and the machine owns what the keys never had: the bound
+ * of `pending`. A gate whose first presentation never came (a leaked raw signal — inventory A1) no longer stands
+ * PENDING for ever with its surface suppressed: at the bound the plate's DOOR is run (the shell registers it —
+ * acknowledge where the question's own surface already stands and serves it, else light the chip's beacon).
+ */
+type LiveAnnounce = {key: string, scope: FlowScope<'announce'>, flow: FlowActor<typeof announceMachine>};
+let liveAnnounce: LiveAnnounce | undefined;
+let announceRoot: FlowScope<'chain'> | undefined;
+let announceDoor: ((key: string) => void) | undefined;
+
+/** The plate's DOOR — what is done for a beat whose first presentation is overdue (the shell: `yieldAnnounceInCycle`). */
+export function registerAnnounceDoor(door: ((key: string) => void) | undefined): void {
+  announceDoor = door;
+}
+
+function endAnnounceRun(reason: string): void {
+  const run = liveAnnounce;
+  liveAnnounce = undefined;
+  run?.scope.end({how: 'cancelled', reason});
+}
+
+function startAnnounceRun(key: string): void {
+  if (announceRoot === undefined || announceRoot.ended !== undefined) {
+    announceRoot = openFlowRoot('chain', 'announce');
+  }
+  const scope = announceRoot.open('announce', key);
+  const flow = startFlowActor(scope, announceMachine, {
+    input: {key, acknowledged: mandatoryGateState.acknowledgedKey === key}, endScopeOnDone: false,
+  });
+  const run: LiveAnnounce = {key, scope, flow};
+  liveAnnounce = run;
+  flow.actor.on('overdue', () => {
+    if (liveAnnounce !== run) {
+      return;
+    }
+    console.warn(`[mandatory-gate] the first presentation of «${key}» did not come in its bound — the plate's door is run`);
+    try {
+      announceDoor?.(key);
+    } catch (error) {
+      console.warn('[mandatory-gate] the plate\'s door threw', error);
+    }
+  });
+  if (mandatoryGateState.presentedKey === key) {
+    flow.send({type: 'PRESENTED'});
+  }
+  if (mandatoryGateState.beaconKey === key) {
+    flow.send({type: 'BEACON'});
+  }
+}
+
 /** Is this beat still HELD (announced but not yet opened by the player)? PURE. */
 export function isMandatoryBeatHeld(beat: MandatoryBeat | undefined): boolean {
   return beat !== undefined && beat.key !== mandatoryGateState.acknowledgedKey;
@@ -353,6 +411,9 @@ export function isMandatoryBeatHeld(beat: MandatoryBeat | undefined): boolean {
 /** Record that the player OPENED (acknowledged) the beat with this key. */
 export function acknowledgeMandatoryBeat(key: string): void {
   mandatoryGateState.acknowledgedKey = key;
+  if (liveAnnounce?.key === key) {
+    liveAnnounce.flow.send({type: 'ACK'});
+  }
 }
 
 /** Has this beat had its FIRST PRESENTATION (plate / chip)? PURE. */
@@ -367,11 +428,17 @@ export function isMandatoryBeatPresented(beat: MandatoryBeat | undefined): boole
  */
 export function markMandatoryBeatPresented(key: string): void {
   mandatoryGateState.presentedKey = key;
+  if (liveAnnounce?.key === key) {
+    liveAnnounce.flow.send({type: 'PRESENTED'});
+  }
 }
 
 /** The screen director's cure for a BLIND announce: light the chip's beacon for this beat (never open it). */
 export function forceMandatoryBeacon(key: string): void {
   mandatoryGateState.beaconKey = key;
+  if (liveAnnounce?.key === key) {
+    liveAnnounce.flow.send({type: 'BEACON'});
+  }
 }
 
 /** Is the beacon of this beat lit by the director? PURE. */
@@ -401,6 +468,14 @@ export function noteMandatoryBeatIdentity(currentKey: string | undefined): void 
   if (mandatoryGateState.beaconKey !== '' && mandatoryGateState.beaconKey !== currentKey) {
     mandatoryGateState.beaconKey = '';
   }
+  // …and the beat's RUN follows its identity: a different key (or no beat) ends the old run with everything it armed;
+  // a new key starts a new one — `pending`, unless it was acknowledged before it became the current beat.
+  if (liveAnnounce?.key !== currentKey) {
+    endAnnounceRun(currentKey === undefined ? 'the beat is gone' : `superseded by ${currentKey}`);
+    if (currentKey !== undefined) {
+      startAnnounceRun(currentKey);
+    }
+  }
 }
 
 /**
@@ -416,6 +491,7 @@ export function noteMandatoryBeatIdentity(currentKey: string | undefined): void 
  * lifecycle: the watcher while mounted, an explicit clear on unmount.
  */
 export function resetMandatoryGate(): void {
+  endAnnounceRun('the gate was reset');
   mandatoryGateState.acknowledgedKey = '';
   mandatoryGateState.presentedKey = '';
   mandatoryGateState.beaconKey = '';
