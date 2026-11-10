@@ -357,11 +357,19 @@ for (const preset of PRESETS) {
       // a flight that re-poses the row, and an A in that window is swallowed by design (CI 2026-11-01: «the take press
       // never landed», the server's hand flat for 20 s). Stand on `ready`, then a press counts only once the flow LEFT
       // it (`sending`) or the row lost the card — a retry happens only while the same take still stands ready.
+      // …AND THE SERVER is the witness that ends the retries (CI 2026-11-10, run 42841378154: the row read 0, both
+      // cards gone). On a starved 4K frame the take's flight outlasts the 1.6 s settle: the answer is back, the flow
+      // is `ready` again for the NEXT card and the taken one still stands in the row until its flight lands — the
+      // client-side witness read «not landed» and the retry's A took the second card. A press counts once the
+      // server's hand grew; only a take the server never saw is pressed again.
       const takeSurface = page.locator('.con-extdraw');
       await expect(takeSurface, 'the take is ready for A').toHaveAttribute('data-flow', 'ready', {timeout: 20_000});
       expect(await pressUntil(page, 'Enter', async () =>
+        (await wireOf(request, playerId)).thisPlayer.cardsInHandNbr > handBefore ||
         await takeSurface.getAttribute('data-flow').catch(() => null) !== 'ready' ||
         await page.locator('.con-extdraw .con-cards__slot').count() < 2, {tries: 3, settleMs: 1600}), 'A took the card').toBe(true);
+      expect((await wireOf(request, playerId)).thisPlayer.cardsInHandNbr, 'ONE press took ONE card — never the retry\'s second')
+        .toBeLessThanOrEqual(handBefore + 1);
       await settle(page, {timeoutMs: 20_000});
       await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.cardsInHandNbr, {timeout: 20_000})
         .toBeGreaterThanOrEqual(handBefore + 1);
@@ -395,7 +403,10 @@ for (const preset of PRESETS) {
       expect(flight.shade, `the shared dim stayed off through the whole take (${why})`).toBe(0);
 
       // ── …and the rest: the political phase moves on only when the take is done.
-      await pressUntil(page, 'Enter', async () => await page.locator('.con-extdraw').count() === 0, {tries: 6, settleMs: 1600});
+      // The same law for the last card: once the server holds both, a retry would land on whatever comes next.
+      await pressUntil(page, 'Enter', async () =>
+        (await wireOf(request, playerId)).thisPlayer.cardsInHandNbr >= handBefore + 2 ||
+        await page.locator('.con-extdraw').count() === 0, {tries: 6, settleMs: 1600});
       await settle(page, {timeoutMs: 25_000});
       const after = await wireOf(request, playerId);
       expect(after.thisPlayer.cardsInHandNbr, 'both drawn cards reached the hand').toBe(handBefore + 2);
