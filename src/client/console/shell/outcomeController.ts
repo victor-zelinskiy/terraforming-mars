@@ -4,12 +4,12 @@
  * THE OUTCOME CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
-import {computed, ref} from 'vue';
+import {computed, ref, onBeforeUnmount, onMounted} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import {ConsoleHandEntry} from '@/client/components/console/consoleHandSectionTypes';
 import {ConsoleColonyPick} from '@/client/components/console/consoleColoniesSectionTypes';
-import {hostedStepLiveBeat, hostedStepLiveIn, hostedStepOwedTo} from '@/client/console/parliament/hostedParliamentStep';
+import {hostedStepLiveIn, hostedStepOwedTo} from '@/client/console/parliament/hostedParliamentStep';
 import {closeWorkspaceRoot, stackYieldedToBoard, handFrameToQuestion, frameServing, goBoardHome, popWorkspaceFrame, pushWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameDescended, workspaceFrameHasNested, workspaceFrameIndex, workspaceFramePhase, workspaceStackTop, workspaceFrameStage, workspaceFrameAnchor, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked, workspaceHostForStep, workspaceFrameOffStage, workspaceSceneHidden, workspaceSceneOnStage, FrameAnchor, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
 import {openFrameQuestionDoor} from '@/client/console/frameQuestionDoor';
@@ -40,7 +40,7 @@ import {runResourceTransfers, releasePanelRewardHold} from '@/client/console/res
 import {ActionCommitPlan, actionCommitHolding, releaseActionCommit} from '@/client/console/consoleActionCommit';
 import {consoleState, closeConsoleLayers} from '@/client/console/consoleRouter';
 import {clearLawPlayDraft, endLawPlayLanding} from '@/client/console/consolePlayPick';
-import {conclusionRefusal, OWED_CONCLUSION_FORCE_MS, OWED_CONCLUSION_GHOST_CONFIRM_MS} from '@/client/console/shell/shellFlowState';
+import {conclusionRefusal} from '@/client/console/shell/shellFlowState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {PromptSurface} from '@/client/console/consolePromptAdmission';
 import {stagedPlayState, stagedHostedTarget, armStagedPlay} from '@/client/console/stagedPlay';
@@ -53,6 +53,7 @@ import type {RevealController} from '@/client/console/shell/revealController';
 import type {SupervisorController} from '@/client/console/supervisor/supervisorController';
 import type {PlacementController} from '@/client/console/shell/placementController';
 import type {StdProjectsController} from '@/client/console/shell/stdProjectsController';
+import {ConclusionReask, oweConclusion, registerConclusionOwePort, withdrawConclusionOwe, owedConclusionFactsKey, reaskMovedConclusions} from '@/client/console/workspaceConclusionOwe';
 
 /** PL-127: the composer's unfold is over by then — the warm mount of a declared hosted step lands in the reading pause. */
 const PARLIAMENT_WARM_SETTLE_MS = 450;
@@ -143,26 +144,6 @@ export function createOutcomeController(shell: OutcomePort) {
   const questionDoorLogged = ref('');
   /** The last guarded conclusion handed its frame to the frame's own question (`openHeldFrameQuestionDoor`) — '' = no. */
   const questionDoorServedKind = ref('' as WorkspaceFrameKind | '');
-  /** The workspace-conclusion time-net witness' uninstaller (presentationLedger). */
-  const offConclusionWitness = ref(undefined as (() => void) | undefined);
-  /**
-   * A FLOW FINISHED, BUT ITS CONCLUSION WAS REFUSED — the same intent
-   * law as the colony release above, generalized to every host that
-   * concludes. `concludeWorkspaceFlow` holds on transient witnesses (a
-   * live-outcome echo, a serving blink), and the callers that reach it
-   * fire exactly ONCE (a take's last card, a flow-complete report), so a
-   * refusal used to leave the workspace standing — committed and empty —
-   * until something unrelated happened. The intent stands here and is
-   * re-executed on the conclusion signal's own changes; invalidated when
-   * a NEW claim arms for the same host (a fresh flow owns its ending).
-   */
-  const owedConclusion = ref(undefined as {kind: WorkspaceFrameKind, servedPromptHolds: boolean} | undefined);
-  /** Epoch ms the CURRENT owed conclusion was armed — the escalation clock
-   *  for `retryOwedConclusion`'s force phase (0 = nothing owed). */
-  const owedConclusionSince = ref(0);
-  /** Epoch ms the force phase FIRST read the owed workspace as a ghost — reset the moment it reads otherwise (the
-   *  continuous grace, `OWED_CONCLUSION_GHOST_CONFIRM_MS`; 0 = not a ghost on the last read). */
-  const owedConclusionGhostSince = ref(0);
   /**
    * A dismiss deferred behind the ACTION COMMIT's minimum readable beat
    * (a fast server answer must not cut the activation short). Executed
@@ -393,57 +374,12 @@ export function createOutcomeController(shell: OutcomePort) {
   });
 
   /**
-   * THE FACTS AN OWED CONCLUSION IS MADE OF (see `owedConclusion`) — the
-   * same ingredient-watching law as `stdpConclusionSignal`, over the hold
-   * reasons `workspaceConclusionFor` reads for the owed kind. Empty while
-   * nothing is owed, so the watcher below is inert for the whole ordinary
-   * life of the console.
+   * THE FACTS OF THE CONCLUSIONS THAT ARE OWED — what the shell's `owedConclusionFacts` row watches (`''` while nothing
+   * is owed: the row is inert for the whole ordinary life of the console). Built by the owed runs' module from
+   * `conclusionFactsKey` below — the SAME object the decision is made from, never a second list of its ingredients.
    */
-  const owedConclusionSignal = computed((): string => {
-    const owed = owedConclusion.value;
-    if (owed === undefined) {
-      return '';
-    }
-    const kind = owed.kind;
-    if (!workspaceFrameKnown(kind) && !workspaceFrameOffStage(kind)) {
-      return 'gone';
-    }
-    const task = taskFor(shell.playerView);
-    return [
-      // THE FRAME'S RETURN is an ingredient (the hidden-scene class): an ending owed while the frame stood aside for
-      // the board is re-asked on the very edge it comes back on (`workspaceFrameOffStage` is reactive).
-      workspaceFrameOffStage(kind) ? 'off-stage' : '',
-      workspaceFrameHasNested(kind) ? 'nested' : '',
-      (followUpStepOwed.value && workspaceHostForStep() === kind) || (kind === 'card-actions' && shell.politicalDiscardOwed) ? 'owed-step' : '',
-      kind === 'card-actions' && shell.politicalPayoutOwed ? 'payout' : '',
-      kind === 'hand' && hostedStepOwedTo('hand') ? 'step-owed' : '',
-      kind === 'hand' ? hostedStepLiveBeat('hand') : '',
-      workspaceOutcomeState.host === kind && workspaceOutcomeClaimed() ?
-        `claim:${workspaceOutcomeState.stage}` : '',
-      workspaceOutcomeServingNow.value ? 'serving' : '',
-      task?.kind ?? '',
-      shell.taskBelongsToWorkspace ? 'task-ws' : '',
-      shell.deckPickBelongsToWorkspace ? 'pick-ws' : '',
-      kind === 'card-actions' && shell.lawStepOwed ? 'law-step' : '',
-      workspaceFrameParked(kind) ? 'parked' : '',
-      // …and every OTHER hold the conclusion reads (wait-graph inventory W7): their fall must re-ask the ending, never
-      // leave it to the 2.5 s time net (which skips nested / parked / serving cases) — the chairmanship playing in the
-      // Parliament, a colony bonus payout, the decision / Venus bonus belonging to the workspace, the frame's `serves`.
-      kind === 'parliament' && chairmanQuestFlow.live ? 'chair-live' : '',
-      kind === 'card-actions' && colonyBonusPayoutLive() ? 'colony-payout' : '',
-      shell.venusBonusBelongsToWorkspace ? 'venus-ws' : '',
-      task !== undefined && frameServing(task.kind)?.kind === kind ? 'serves' : '',
-      // …AND THE BOARD-BEAT PARK'S OWN STATE. A play that raised a global
-      // parameter seeds the park (`noteBoardScaleAdvance`), and the park can
-      // only DRAIN over a board the workspace is covering — so «park owed»
-      // and «workspace up» wait on each other, and NO other ingredient here
-      // moves when the park finally drains or degrades. Without this term a
-      // conclusion left owed behind the park re-fired on nothing until the
-      // park's 30 s safety (field log 2026-09-11: `board-beat-park degraded
-      // after 30s` was the sole event of a 30 s workspace hang). The park's
-      // falling edge is now a conclusion-retry trigger.
-      boardBeatParkPending() ? 'park-owed' : '',
-    ].join('|');
+  const owedConclusionFacts = computed((): string => {
+    return owedConclusionFactsKey();
   });
 
   // ── verbs ────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -473,6 +409,84 @@ export function createOutcomeController(shell: OutcomePort) {
       // flow earned — see `concludeWorkspaceFlow`.
       concludeWorkspaceFlowOrOwe(host, host !== 'hand');
     }
+  }
+
+  /**
+   * THE FACTS A CONCLUSION IS DECIDED BY — ONE object, read here and nowhere else: `concludeWorkspaceFlow` hands it to
+   * the policy (`workspaceConclusionFor`), and the owed run wakes on its key (`conclusionFactsKey`). A hold the
+   * decision gains is, by that, a fact the wake has — the hand-written signal list that had to be kept in step with
+   * this object (and lost a term every few weeks) is gone. Pure: reads, never writes.
+   */
+  function conclusionFacts(kind: WorkspaceFrameKind, servedPromptHolds: boolean) {
+    // MY claim, never «somebody holds one»: a foreign host's live outcome
+    // says nothing about whether THIS flow is finished.
+    const mine = workspaceOutcomeState.host === kind && workspaceOutcomeClaimed();
+    const task = taskFor(shell.playerView);
+    return {
+      nested: workspaceFrameHasNested(kind),
+      // …and a step this flow OWES but has not been handed yet: the door is
+      // held behind the effect that arrived with it, and THIS workspace is the
+      // host it will teleport into (`workspaceHostForStep` is the same lookup
+      // `openColoniesForPrompt` will make). Concluding here would drop the
+      // player on the board and then throw the second effect at them as a
+      // screen of its own.
+      // …and a WALK this hand owes (TR04): promised by the play's preview and
+      // not yet played — the record on its way, or the landing ritual still
+      // telling its story before the Parliament takes the zone.
+      owedStep: (followUpStepOwed.value && workspaceHostForStep() === kind) || (kind === 'hand' && hostedStepOwedTo('hand')) ||
+        // …and the discard a party's action owes to the card composer that committed it (the one-framework door).
+        (kind === 'card-actions' && shell.politicalDiscardOwed),
+      // …and a walk PLAYING inside it: the marker moving, a chip in the air, the read.
+      // …and a LEDGER still paying inside it (TR23 — «all your colony bonuses»):
+      // the rows in turn, a take, a discard, the read — the flow's own body.
+      // …and a PARTY DISCARD'S PAYOUT (the Reds): awaited from the submit (the transport took the prompt down, so the
+      // discard's `owed-step` let go and the conclusion owed since the draw's take FIRED — the box's stack trace:
+      // `closeWorkspaceRoot:card-actions` before the answer) or held on the rail until its wave has flown.
+      // …and «ПРЕДСЕДАТЕЛЬСТВО» playing in the Parliament (the office and the step play AFTER the gate's answer — the
+      // vote that closed the quest went on into it in place, ledger HC: its earlier ending must not take the beats down).
+      outcomeLive: mine || (kind === 'hand' && hostedStepLiveIn('hand')) || (kind === 'parliament' && chairmanQuestFlow.live) ||
+        (kind === 'card-actions' && (colonyBonusPayoutLive() || shell.politicalPayoutOwed)),
+      // The second half of a pick-then-pay and a DRAW & SELECT still standing
+      // in our zone are both this activation, still being answered — and so
+      // is any prompt this FRAME earned the right to serve.
+      //
+      // …EARNED being the word. `servedPromptHolds: false` is for a flow whose
+      // frame carries REGISTRY DEFAULTS instead (the hand's `projectCard` /
+      // `handSelect`): a discard the played card just forced is not this
+      // play's outcome, and holding the workspace for it would stand the
+      // flow around a PARKED browse layer — the picker the prompt needs,
+      // invisible behind a finished stage.
+      ownsPrompt: (mine && (shell.taskBelongsToWorkspace || shell.deckPickBelongsToWorkspace || shell.venusBonusBelongsToWorkspace)) ||
+        (servedPromptHolds && task !== undefined && frameServing(task.kind)?.kind === kind) ||
+        // THE ENACTED LAW'S ACTION still owes a step (Turmoil Redux, RX36): its card landing in the stage, or the live
+        // play pick a bill with a payment of its own raised after it — neither a prompt this frame «serves» by registry.
+        (kind === 'card-actions' && shell.lawStepOwed),
+      parked: workspaceFrameParked(kind),
+      // …and a frame off the live stack in any other way (aside for the board): a flow never finishes where nobody
+      // sees it — owed, re-asked on the frame's return (the owed run wakes on this very object — `conclusionFactsKey`).
+      offStage: workspaceFrameOffStage(kind),
+    };
+  }
+
+  /**
+   * …and its KEY, for the owed run (`workspaceConclusionOwe.ts`): the facts above, plus what the claim's RECONCILE
+   * reads to let a claim go with no response behind it (its stage, whether it serves, the board-beat park) — a re-ask
+   * reconciles first, so those moving is a reason to ask again even while the verdict would still be «hold». And the
+   * three ways a debt simply ends: the frame is on no stack, a NEW claim of this host owns the ending, the flow was
+   * handed to its own question.
+   */
+  function conclusionFactsKey(kind: WorkspaceFrameKind, servedPromptHolds: boolean): string {
+    if (!workspaceFrameKnown(kind) && !workspaceFrameOffStage(kind)) {
+      return 'gone';
+    }
+    const mine = workspaceOutcomeState.host === kind && workspaceOutcomeClaimed();
+    return JSON.stringify([
+      conclusionFacts(kind, servedPromptHolds),
+      mine ? workspaceOutcomeState.stage : '',
+      workspaceOutcomeServingNow.value,
+      boardBeatParkPending(),
+      questionDoorServedKind.value === kind,
+    ]);
   }
 
   /**
@@ -518,54 +532,8 @@ export function createOutcomeController(shell: OutcomePort) {
     if (!workspaceFrameKnown(kind) && !workspaceFrameOffStage(kind)) {
       return true; // already gone (a second, idempotent report) — nothing to end
     }
-    // MY claim, never «somebody holds one»: a foreign host's live outcome
-    // says nothing about whether THIS flow is finished.
-    const mine = workspaceOutcomeState.host === kind && workspaceOutcomeClaimed();
     const task = taskFor(shell.playerView);
-    const conclusion = workspaceConclusionFor({
-      nested: workspaceFrameHasNested(kind),
-      // …and a step this flow OWES but has not been handed yet: the door is
-      // held behind the effect that arrived with it, and THIS workspace is the
-      // host it will teleport into (`workspaceHostForStep` is the same lookup
-      // `openColoniesForPrompt` will make). Concluding here would drop the
-      // player on the board and then throw the second effect at them as a
-      // screen of its own.
-      // …and a WALK this hand owes (TR04): promised by the play's preview and
-      // not yet played — the record on its way, or the landing ritual still
-      // telling its story before the Parliament takes the zone.
-      owedStep: (followUpStepOwed.value && workspaceHostForStep() === kind) || (kind === 'hand' && hostedStepOwedTo('hand')) ||
-        // …and the discard a party's action owes to the card composer that committed it (the one-framework door).
-        (kind === 'card-actions' && shell.politicalDiscardOwed),
-      // …and a walk PLAYING inside it: the marker moving, a chip in the air, the read.
-      // …and a LEDGER still paying inside it (TR23 — «all your colony bonuses»):
-      // the rows in turn, a take, a discard, the read — the flow's own body.
-      // …and a PARTY DISCARD'S PAYOUT (the Reds): awaited from the submit (the transport took the prompt down, so the
-      // discard's `owed-step` let go and the conclusion owed since the draw's take FIRED — the box's stack trace:
-      // `closeWorkspaceRoot:card-actions` before the answer) or held on the rail until its wave has flown.
-      // …and «ПРЕДСЕДАТЕЛЬСТВО» playing in the Parliament (the office and the step play AFTER the gate's answer — the
-      // vote that closed the quest went on into it in place, ledger HC: its earlier ending must not take the beats down).
-      outcomeLive: mine || (kind === 'hand' && hostedStepLiveIn('hand')) || (kind === 'parliament' && chairmanQuestFlow.live) ||
-        (kind === 'card-actions' && (colonyBonusPayoutLive() || shell.politicalPayoutOwed)),
-      // The second half of a pick-then-pay and a DRAW & SELECT still standing
-      // in our zone are both this activation, still being answered — and so
-      // is any prompt this FRAME earned the right to serve.
-      //
-      // …EARNED being the word. `servedPromptHolds: false` is for a flow whose
-      // frame carries REGISTRY DEFAULTS instead (the hand's `projectCard` /
-      // `handSelect`): a discard the played card just forced is not this
-      // play's outcome, and holding the workspace for it would stand the
-      // flow around a PARKED browse layer — the picker the prompt needs,
-      // invisible behind a finished stage.
-      ownsPrompt: (mine && (shell.taskBelongsToWorkspace || shell.deckPickBelongsToWorkspace || shell.venusBonusBelongsToWorkspace)) ||
-        (servedPromptHolds && task !== undefined && frameServing(task.kind)?.kind === kind) ||
-        // THE ENACTED LAW'S ACTION still owes a step (Turmoil Redux, RX36): its card landing in the stage, or the live
-        // play pick a bill with a payment of its own raised after it — neither a prompt this frame «serves» by registry.
-        (kind === 'card-actions' && shell.lawStepOwed),
-      parked: workspaceFrameParked(kind),
-      // …and a frame off the live stack in any other way (aside for the board): a flow never finishes where nobody
-      // sees it — owed, re-asked on the frame's return (`owedConclusionSignal` reads the same predicate).
-      offStage: workspaceFrameOffStage(kind),
-    });
+    const conclusion = workspaceConclusionFor(conclusionFacts(kind, servedPromptHolds));
     if (conclusion.verdict === 'hold') {
       conclusionRefusal.last = {kind, reason: conclusion.reason, at: Date.now()};
       if (conclusion.reason === 'owned-prompt') {
@@ -622,16 +590,6 @@ export function createOutcomeController(shell: OutcomePort) {
   }
 
   /**
-   * CONCLUDE, AND IF REFUSED — OWE IT. The callers of a flow's ending fire
-   * exactly once (the last card's take, a flow-complete report), while the
-   * conclusion legitimately holds on TRANSIENT witnesses (a serving echo, a
-   * mid-flush blink, a parked batch). A one-shot meeting a transient
-   * refusal is how a finished workspace stood committed-and-empty until
-   * something unrelated happened; the owed intent is re-executed by the
-   * `owedConclusionSignal` watcher the moment an ingredient falls — the
-   * same law as `colonyResolutionReleaseOwed`, for the ending itself.
-   */
-  /**
    * A CONCLUSION HELD FOR THE FRAME'S OWN QUESTION IS A HAND-OVER (`frameQuestionDoor.ts`, ledger HC — the chairman
    * quest riding the vote's answer stood 8 s on a finished vote nobody could leave): the frame standing on screen at
    * the top of the stack is asked to serve the standing question in place. Only a live, on-stage, un-deferred top
@@ -656,100 +614,54 @@ export function createOutcomeController(shell: OutcomePort) {
     }
   }
 
+  /**
+   * CONCLUDE, AND IF REFUSED — OWE IT. The callers of a flow's ending fire exactly once (the last card's take, a
+   * flow-complete report), while the conclusion legitimately holds on TRANSIENT witnesses (a serving echo, a mid-flush
+   * blink, a parked batch). A one-shot meeting a transient refusal is how a finished workspace stood
+   * committed-and-empty until something unrelated happened; the owed ending is a RUN in the frame's own scope
+   * (`workspaceConclusionOwe.ts`) that asks again the moment the decision's facts move — and takes itself away with
+   * the frame.
+   */
   function concludeWorkspaceFlowOrOwe(kind: WorkspaceFrameKind, servedPromptHolds = true): boolean {
     const done = concludeWorkspaceFlow(kind, servedPromptHolds);
-    if (!done && questionDoorServedKind.value === kind) {
-      // HANDED TO ITS QUESTION (ledger HC): the flow goes on in place — nothing is owed; the question's own flow
+    if (done || questionDoorServedKind.value === kind) {
+      // Concluded — or HANDED TO ITS QUESTION (ledger HC): the flow goes on in place and the question's own flow
       // reports its own ending. An owe kept here concluded the Parliament the instant the gate was answered, under
       // the chairmanship's beats (the e2e of the field lock, 2026-11-08).
-      if (owedConclusion.value?.kind === kind) {
-        owedConclusion.value = undefined;
-        owedConclusionSince.value = 0;
-        owedConclusionGhostSince.value = 0;
-      }
-      return false;
+      withdrawConclusionOwe(kind);
+      return done;
     }
-    if (!done) {
-      // Keep the ESCALATION CLOCK from an existing owe of the same kind — a
-      // re-owe is the same debt still unpaid, not a fresh one; a different
-      // kind (or a first owe) starts the clock now.
-      if (owedConclusion.value?.kind !== kind || owedConclusionSince.value === 0) {
-        owedConclusionSince.value = Date.now();
-        owedConclusionGhostSince.value = 0;
-      }
-      owedConclusion.value = {kind, servedPromptHolds};
-    } else if (owedConclusion.value?.kind === kind) {
-      owedConclusion.value = undefined;
-      owedConclusionSince.value = 0;
-      owedConclusionGhostSince.value = 0;
-    }
-    return done;
+    // REFUSED: the ending is OWED — a run in this frame's scope (`workspaceConclusionOwe.ts`), woken by the decision's
+    // own facts. A re-owe of the same frame is the same debt (its clock is kept).
+    oweConclusion(kind, servedPromptHolds);
+    return false;
   }
 
   /**
-   * RE-DRIVE AN OWED CONCLUSION — called both by the ingredient watcher
-   * (`owedConclusionSignal`, on any enumerated fall) and by the ledger time
-   * net (`workspace-conclusion-owed`, on a bounded cadence for a fall the
-   * enumeration missed). Idempotent and safe: it re-reconciles a play claim
-   * (releasing one that now answers for nothing — the funnel still guards a
-   * serving claim) and re-asks the ONE guarded conclusion (which holds
-   * honestly for a real nested step / owned prompt / park).
+   * ASK AN OWED CONCLUSION AGAIN (the owed run's `reask` — on its facts moving, on its cadence, from a recovery door).
+   * Idempotent and safe: it re-reconciles a claim (releasing one that now answers for nothing — the funnel still
+   * guards a serving claim) and re-asks the ONE guarded conclusion (which holds honestly for a real nested step /
+   * owned prompt / park).
    */
-  function retryOwedConclusion(): void {
-    const owed = owedConclusion.value;
-    if (owed === undefined) {
-      return;
+  function reaskConclusion(kind: WorkspaceFrameKind, servedPromptHolds: boolean): ConclusionReask {
+    if (!workspaceFrameKnown(kind) && !workspaceFrameOffStage(kind)) {
+      return 'done';
     }
-    if (!workspaceFrameKnown(owed.kind) && !workspaceFrameOffStage(owed.kind)) {
-      owedConclusion.value = undefined;
-      owedConclusionSince.value = 0;
-      owedConclusionGhostSince.value = 0;
-      return;
+    // A NEW claim armed for the same host: a fresh flow owns its ending.
+    if (workspaceOutcomeState.host === kind && workspaceOutcomeState.stage === 'awaiting') {
+      return 'done';
     }
-    if (workspaceOutcomeState.host === owed.kind && workspaceOutcomeState.stage === 'awaiting') {
-      owedConclusion.value = undefined;
-      owedConclusionSince.value = 0;
-      owedConclusionGhostSince.value = 0;
-      return;
-    }
-    // ── SOFT PHASE: reconcile the claim off-response, then re-ask the
-    //    guarded conclusion. A claim is released only by the reconciler,
-    //    which runs on RESPONSES — but what makes it releasable (the
-    //    board-beat park draining, a beat settling) can arise with no
-    //    response. Reconcile is HOST-AWARE (its own «ours» arms keep a
-    //    colony/hydro claim alive through a genuine resolution), so running
-    //    it for ANY host is safe — it releases only a non-serving, non-owned
-    //    claim. (Was play-host-only, which left every OTHER host's stuck
-    //    claim uncurable — the 2026-09-11 field hang.)
-    if (workspaceOutcomeState.host === owed.kind && workspaceOutcomeClaimed()) {
+    // A claim is released only by the reconciler, which runs on RESPONSES — but what makes it releasable (the
+    // board-beat park draining, a beat settling) can arise with no response. Reconcile is HOST-AWARE (its own «ours»
+    // arms keep a colony / hydro claim alive through a genuine resolution), so running it for ANY host is safe — it
+    // releases only a non-serving, non-owned claim.
+    if (workspaceOutcomeState.host === kind && workspaceOutcomeClaimed()) {
       reconcileWorkspaceOutcome();
     }
-    if (concludeWorkspaceFlow(owed.kind, owed.servedPromptHolds) || questionDoorServedKind.value === owed.kind) {
-      // Concluded — or handed to its question in place (ledger HC): either way nothing is owed any more.
-      owedConclusion.value = undefined;
-      owedConclusionSince.value = 0;
-      owedConclusionGhostSince.value = 0;
-      return;
+    if (concludeWorkspaceFlow(kind, servedPromptHolds)) {
+      return 'done';
     }
-    // ── FORCE PHASE: a flow that REPORTED FINISHED and still cannot dismiss
-    //    after the escalation grace, with NOTHING the player could be acting
-    //    on, is a ghost workspace — the class the four field hangs share. No
-    //    soft re-ask can cure it (the hold is a phantom claim / a serving
-    //    echo the funnel keeps refusing), so the authority to tear it down
-    //    lives here: the workspace-scope analogue of `recoverStalledForeground`.
-    if (!shell.stuckWorkspaceIsGhost(owed.kind)) {
-      owedConclusionGhostSince.value = 0;
-      return;
-    }
-    const now = Date.now();
-    if (owedConclusionGhostSince.value === 0) {
-      owedConclusionGhostSince.value = now;
-    }
-    if (owedConclusionSince.value > 0 &&
-        now - owedConclusionSince.value >= OWED_CONCLUSION_FORCE_MS &&
-        now - owedConclusionGhostSince.value >= OWED_CONCLUSION_GHOST_CONFIRM_MS) {
-      shell.forceRecoverStuckWorkspace(owed.kind);
-    }
+    return questionDoorServedKind.value === kind ? 'handed' : 'held';
   }
 
   /** The frame is the registry home of the live (non-optional) question and the screen accepts input (liveness). */
@@ -1351,17 +1263,6 @@ export function createOutcomeController(shell: OutcomePort) {
     }
   }
 
-  /**
-   * THE OWED CONCLUSION RE-EXECUTES when an ingredient falls (see
-   * `owedConclusion` / `concludeWorkspaceFlowOrOwe`). Re-checked against
-   * the live state every time: a frame already gone clears the intent, and
-   * a FRESH claim armed for the same host invalidates it — that new flow's
-   * own ending owns the conclusion now.
-   */
-  function whenOwedConclusionSignalChanges(): void {
-    retryOwedConclusion();
-  }
-
   /** WATCH `hostedStepDeclaredCard` — the reaction's body (the shell's `watch` table delegates here, in its order). */
   function whenHostedStepDeclaredCardChanges(card: string): void {
     window.clearTimeout(shell.parliamentWarmTimer);
@@ -1513,13 +1414,36 @@ export function createOutcomeController(shell: OutcomePort) {
     });
   }
 
+  /**
+   * WATCH `owedConclusionFacts` — the facts of an owed conclusion moved: every debt whose facts differ from the ones it
+   * was last refused with is asked again (`workspaceConclusionOwe.ts`).
+   */
+  function whenOwedConclusionFactsChanges(): void {
+    reaskMovedConclusions();
+  }
+
+  // ── lifecycle ────────────────────────────────────────────────────────────────────────────────────────────────────
+  // THE OWED CONCLUSION'S RUN asks THIS controller how an ending is decided and made (`workspaceConclusionOwe.ts`).
+  onMounted(() => {
+    registerConclusionOwePort({
+      facts: conclusionFactsKey,
+      reask: reaskConclusion,
+      // The cadence stays out of the player's own time: a nested step being answered, a parked flow, a claim serving
+      // a prompt or a batch on screen (PL-292 — the heal could only re-ask a held conclusion every half second and
+      // print a lie into the field log).
+      cadenceApplies: (kind) => workspaceFrameKnown(kind) && !workspaceFrameHasNested(kind) && !workspaceFrameParked(kind) &&
+        !workspaceOutcomeServingNow.value,
+      ghost: (kind) => shell.stuckWorkspaceIsGhost(kind),
+      force: (kind, owedForMs) => shell.forceRecoverStuckWorkspace(kind, undefined, owedForMs),
+    });
+  });
+  onBeforeUnmount(() => registerConclusionOwePort(undefined));
+
   return {
+    owedConclusionFacts,
+    whenOwedConclusionFactsChanges,
     questionDoorLogged,
     questionDoorServedKind,
-    offConclusionWitness,
-    owedConclusion,
-    owedConclusionSince,
-    owedConclusionGhostSince,
     pendingCommitDismiss,
     commitFoldOwed,
     hostedStepDeclaredCard,
@@ -1534,12 +1458,11 @@ export function createOutcomeController(shell: OutcomePort) {
     outcomeAdoptionPending,
     followUpStepOwed,
     followUpStepStageKey,
-    owedConclusionSignal,
     foldWorkspaceAfterResult,
     concludeWorkspaceFlow,
     openHeldFrameQuestionDoor,
     concludeWorkspaceFlowOrOwe,
-    retryOwedConclusion,
+    reaskConclusion,
     frameServesLiveQuestion,
     frameAnchorIsDead,
     onWorkspaceResultDetached,
@@ -1555,7 +1478,6 @@ export function createOutcomeController(shell: OutcomePort) {
     whenCommitHoldingChanges,
     whenOutcomeAdoptionDecisionChanges,
     whenWorkspaceOutcomeServingNowChanges,
-    whenOwedConclusionSignalChanges,
     whenHostedStepDeclaredCardChanges,
     whenWorkspaceOutcomeAnswerArrivedChanges,
     whenHandOutcomeLiveChanges,

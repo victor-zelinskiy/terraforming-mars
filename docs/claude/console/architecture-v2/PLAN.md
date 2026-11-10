@@ -9,7 +9,7 @@
 | Slice | What | State |
 | --- | --- | --- |
 | P0 | the plan, the dependencies (`xstate`, `fast-check`) | **done** |
-| K1 | the flow kernel: scopes · bounded waits · the wait table · machines · the law (`KERNEL.md`) | **done** — nothing uses it yet |
+| K1 | the flow kernel: scopes · bounded waits · the wait table · machines · the law (`KERNEL.md`) | **done** — the four shared lifecycles, the session and the owed conclusion stand on it |
 | L1 | lifecycle 4 — the submit transport on the kernel | **done** — `submitMachine`, tickets, `gate()`; the ticket-first ARMING of scenes rides the domain slices (below) |
 | L2 | lifecycle 2 — the workspace frame (scopes, locations, bounded beats) | **done** — every frame is a scope (`workspaceFrameScope`), its phase the `frameMachine` (beats bounded, on stage only), the beat's LEASE puts a frame back when its press did not land |
 | L3 | lifecycle 1 — the outcome claim, owned by its host frame | **done** — `claimMachine` (the three backstops and the host binding are states), `consoleWorkspaceOutcome.ts` is its facade; the shell's `releaseOrphanedClaim` is deleted |
@@ -17,7 +17,8 @@
 | S1 | the shell: session root + the supervisor out of the shell | **done** — `console/session/consoleSession.ts` (ONE root scope for the transport, the frames, the claims and the plates; it ends when the shell is unmounted); `console/supervisor/supervisorController.ts` (the 1 Hz sampler, the rungs, the wait-graph source, the reapers, the cures) — its 39-row PORT is the list of what the nets sample in the shell |
 | S2 | the shell: the extraction tool + the first islands | **done** — `scripts/shell-extract.mjs`; ten controllers under `console/shell/` (viewer · milestones/awards · wheel · cell · info · convert · rail · journal · surface · notice), each with its typed PORT; **every watcher is a one-line delegate** — the `watch` block is the ordered table of the shell's 145 reactions and their bodies are methods (`when<Key>Changes`) that move with their domains; the types the shell shares with its SFC children live in `.ts` modules. The shell is 25.2k lines (was 27.8k). The region components (template) ride S3 / S6 |
 | S6 · mechanical | the shell: EVERY domain is a controller | **done** — 33 controllers (table in §5 · S6); `ConsoleShell.vue` is 4.3k lines (was 27.8k): the template (1.6k), the composition root, the module-state mirrors, the ordered `watch` table, the two hooks and a 450-line view-apply reaction. What is left in it is NOT domain code |
-| S3… | the shell: surface registry (pad / bar / context — one table), routing, conclusion | — (they are now redesigns of ONE controller each: `padRouter` + `commandBar`, `router` + `mandatory`, `outcome`) |
+| S5 · the owed conclusion | an ending that was refused is a RUN in its frame's scope | **done** — `console/workspaceConclusionOwe.ts`; the mailbox (`owedConclusion` + `…Since` + `…GhostSince`), the hand-written `owedConclusionSignal` (25 terms), `retryOwedConclusion` and the truth witness `workspace-conclusion-owed` are deleted; the wake is one row of the watch table over the key of the decision's OWN facts. *Open in S5:* owed STEPS as children of the frame's scope; the stale free-turn reaper |
+| S3 · S4 | the shell: surface registry (pad / bar / context — one table); the prompt router and «set aside» | — (each is now the redesign of named controllers: `padRouter` + `commandBar`; `router` + `mandatory`) |
 | N1 | native stalls: LoAF in the field log, a trace on `unresponsive` | **done (diagnosis)** — `longFrameWatch.ts` (`[long-frame]` lines with the frame's split), `electron/hangTrace.ts` (a Chromium trace of every stop, named in the hang line); reducing what the first traces name is open |
 
 **Branch / tree.** The work is done in the worktree `C:\Projects\Mods\tm-arch` (branch `arch-v2`, rebased on
@@ -346,10 +347,68 @@ forwards to the new owner, it never keeps a second copy of the state.
   still add to the shell; it becomes a guard in S-last.
 - **S3 — the surface registry.** The three ladders become one ordered table; each branch moves to its surface's
   entry with its condition verbatim. The pad path stops using `$refs`: a surface registers its handler while mounted.
+  **First step done — the router no longer vouches for a surface that is not there.** The ladder decides who owns
+  the pad from the game's state and reaches the surface through a ref; all 25 dispatches read
+  `ref?.handleIntent(intent); return true` — a press routed to a surface whose node was not mounted was reported
+  TAKEN, so the deaf screen was invisible to the liveness arbiter (it judged it only later, as «presses that change
+  nothing»). They go through `handedTo(surface, name, intent)` (`padRouterController.ts`): the intent is still
+  consumed (nothing may act under an owned pad), the verb is counted DROPPED (`inputEcho.noteUnreceivedPress` →
+  `verbDropped` — the arbiter's existing deaf-screen evidence), and the surface is named once
+  (`[pad] «…» owns the pad and is not mounted`). This is the typed FACT the registry will make unnecessary: with a
+  surface registering its handler while mounted, «owns the pad» and «is there to receive it» are one thing.
 - **S4 — the prompt router.** Admission and the ownership trios as one controller; the screen director's
   `expectedScreenOwners` table becomes the router's own table (the shadow has nothing left to compare against).
+  **Where «set aside» (inventory A2) stands, for whoever takes S4** — now that its writers are in named files:
+  `consoleState.task.deferred` is ONE boolean for the whole console, set at 5 sites (`mandatoryController.deferShellTask`,
+  `routerController` — the task's own B, `workspaceController.parkWorkspaceStack`, `placementController.deferFinalGreenery`,
+  one row of the shell's view-apply) and cleared at 25 (colony 6, router 4, mandatory 3, parliament 3, …). Every
+  surface's `v-if` carries `!deferred`, and the way back is the board-home card, shown by
+  `mandatoryController.mandatoryDeferredActive` = `deferred && (a MINIMIZABLE task of one of four families is live ||
+  the start serves || the stack is parked) || a collapsed finale`. The soft-lock class is the gap between the two
+  halves: `deferred` true (so the surface is hidden) while no family claims the question (so there is no card) — a
+  family the predicate forgot (the dedicated composites, 2026-10), or a flag left standing from an EARLIER prompt
+  (it has no identity: nothing says WHICH question was set aside). The by-construction form is not a better
+  predicate but a different datum: «set aside» is a record `{what: the question's `promptIdentityKey` + promptId | the
+  parked stack | the start | the finale}` owned by the question's scope — it cannot outlive its question (no clear
+  sites), and the card is shown for the record itself (no family list). Until then the wait graph's `deferred-restore`
+  door is the net.
 - **S5 — conclusion as a join.** Owed steps become children of the frame's scope (declared at the press that owes
   them); the conclusion is decided by level over the scope; the owed-conclusion apparatus is deleted.
+  **Done — the owed conclusion** (`console/workspaceConclusionOwe.ts`). A flow reports its ending once and the one
+  guarded conclusion may refuse on a transient hold; the ending is then owed. It was a mailbox — ONE field for the
+  whole console (a second workspace's debt overwrote the first), re-driven by a watcher over `owedConclusionSignal`,
+  a hand-written string of the hold's ingredients that had to be kept in step with the decision and lost a term every
+  few weeks (the board-beat park's drain, the chairmanship, the hidden scene, wait-graph inventory W7), with a
+  truth-witness time net re-asking every half second for the terms still missing and a wait-graph door behind that.
+  Now: (1) **the decision has ONE facts object** — `conclusionFacts(kind)` in the outcome controller is handed to the
+  policy (`workspaceConclusionFor`) AND, as a key, to the run (`conclusionFactsKey` adds what the claim's reconcile
+  reads); a hold the decision gains is a fact the wake has, by construction; (2) **the debt is a run in the FRAME's
+  scope** — one per frame, gone with the frame from any of its three homes, never «gone» to detect; (3) it is
+  **re-asked when its facts' key differs from the one it was last refused with**, by ONE row of the shell's watch
+  table (`owedConclusionFacts` → `reaskMovedConclusions`, where the signal's watcher stood), and **bounded** by its
+  own cadence (500 ms after a 2.5 s grace, only where the hold is not the player's own time); (4) **the escalation
+  is the run's** — the same 8 s + 2.5 s continuous ghost confirm, then the owner's force path; (5) an ending the
+  CADENCE made is NAMED (`[workspace-conclusion] … on the re-ask cadence` — a term of the decision that is not
+  reactive, harvested by the e2e harness). Spec: `tests/console/workspaceConclusionOwe.spec.ts` (each old failure
+  shape as a path that ends).
+  **THE LESSON OF THIS SLICE — WHEN in the tick a decision is asked — cost two runs on the box and no unit spec shows
+  it.** The facts of a conclusion move in TWO steps inside one tick: the owed step's door falls (`owedStep: false`)
+  and a reaction of the shell then pushes the step's frame (`nested: true`); between the two the decision reads
+  «nothing holds». The wake was first taken OFF the watch table, onto the kernel's reactive wait: (a) as a pre-flush
+  watcher of no component — Vue 3.5 queues such a job BEFORE every component's watchers — it asked between the two
+  steps and closed the hand under its own colony step (`console-multi-effect-sequence`, 2 red); (b) post-flush, it
+  asked after the RENDER, so the conclusion's DOM came a patch late and the Pluto trade's closing beat split the
+  workspace (`console-colony-pluto-embed`, 1 red). The right place — after the reactions the same write woke, before
+  the render — is a watcher OF THE SHELL, among its own. So the wake is a row again (same place, same shape as the
+  signal's), and what changed is only what its key IS. **For every later slice:** a reaction that leaves the watch
+  table must be given its place in the tick explicitly, and the kernel has no primitive for «the end of the shell's
+  pre-flush» yet — that is a piece of S-last (the session owning the tick: one ordered pass of decisions per flush),
+  not something to improvise per reaction. Until then: a decision that ACTS stays a row; the kernel's `until` (sync)
+  is for waits that only record.
+  *Still open in S5:* the owed STEPS (`followUpStepOwed`, `hostedStepOwedTo`, `politicalDiscardOwed`, `lawStepOwed`
+  — each a computed over module state today) as children of the frame's scope declared at the press that owes them,
+  which turns `conclusionFacts.owedStep` into «the frame's scope has a live `step` child»; the stale free-turn
+  reaper (`reapStaleFreeTurnFrame`) and `stuckWorkspaceIsGhost`, which need that to be decidable by structure.
 - **S6 — the domains, the MECHANICAL half (done).** With the watchers delegated (S2) every remaining member of the
   shell was assigned to a domain — seeds by name, then affinity over the `graph` (who reads whom) — and taken out
   with the tool, in one reproducible pipeline (pristine shell → hand preps → `delegate-watchers` → `lift` of the
@@ -431,8 +490,10 @@ kernel, a net that still covers legacy code stays, and the table says what it st
 | `[workspace-anchor] reaped`, the dead-phase reaper | L2 (+S6 for the phase owners) | a phase root's frame is a child of the phase's scope |
 | orphaned-claim release, `claim-safety` re-arm, liveness rung `workspace-outcome` (20) | L3 | the claim is a child of its host; its states are bounded |
 | wait-graph doors `announce-serve` / `deferred-restore` (A1, A2) | L4 | `pending` is bounded; «set aside» has its card by construction |
-| owed-conclusion signal + retry + truth witness + ghost test, the stale free-turn reaper | S5 | the conclusion is a join decided by level |
-| the three-ladder lock-step, `inputEcho`'s «dropped» evidence for unmounted refs | S3 | one table |
+| the hand-written owed-conclusion signal, `retryOwedConclusion`, the truth witness `workspace-conclusion-owed`, the single-slot mailbox | **retired (S5)** | the debt is a run in the frame's scope, re-asked on the key of the decision's own facts object (one row of the watch table), bounded by its own cadence |
+| the ghost test + forced teardown of an owed workspace, the stale free-turn reaper | S5 (owed steps as scope children) | still a net: «nothing the player could act on» is sampled, not structural, until the owed steps are children of the frame |
+| the router vouching for an unmounted surface (a press reported taken that nobody received) | **retired (S3 · first step)** | `handedTo` says it: dropped, and named |
+| the three-ladder lock-step | S3 | one table |
 | screen director shadow, start director shadow, leak detector's stranded check | S4 (+ the start scene's controller) | the router's table is the mechanism |
 | ceiling-wait guard, wait-graph observer + its adapters | when the last adapter's source is on the kernel | the wait table is the graph |
 | motion witness, hold-expire ratchet, foreground watchdog | Phase 3 | a hold is a scope |
@@ -470,6 +531,8 @@ kernel, a net that still covers legacy code stays, and the table says what it st
 
 | Slice | What moved | Specs |
 | --- | --- | --- |
+| S3 · first step | a press the router hands to a surface whose ref is not mounted is counted `verbDropped` (was: taken) and warns `[pad] … is not mounted` once — harvested by the harness, never red by itself; the liveness arbiter may now judge such a screen at once | a spec that presses A / B INTO a surface before it has mounted (it was a silently lost press before; now the echo says so): look for a new `[pad]` line in the stall harvest and a `[liveness] stall (presses-dropped…)` that was not there |
+| S5 · owed conclusion | a refused ending is re-asked when the decision's FACTS move (was: when a hand-listed signal moved) — by a row of the watch table in the place the signal's row stood (the same moment of the tick); where only the claim's reconcile could unlock it, on the facts it reads or on the 500 ms cadence after a 2.5 s grace (was: on every ingredient edge); the `[presentation-ledger] witness «workspace-conclusion-owed» healing` line is gone, `[workspace-conclusion] … on the re-ask cadence` says a cadence-made ending | every flow that ends through `concludeWorkspaceFlowOrOwe` while something still holds: `console-play-scale-conclusion`, `console-hi-tech-lab`, `console-viron-repeat-draw`, `console-deck-pick-collapse`, `console-blue-action-purchase` / `-receive`, `console-parliament-chairman-quest`, `console-parliament-actions`, `console-reds-campaign`, `console-colony-pluto-embed`, `console-pluto-bonus-discard`, `console-hydro-copied-tile`, `console-delta-surge`, `console-wg-play-from-hand`, `console-start-sponsor`, `console-one-framework-draw`, `console-multi-effect-sequence` |
 | S6 · mechanical | every domain's members are setup-state of the shell (same names; the template, the watch table and the hooks unchanged); the series' input gate registers in the pad router's `onMounted` (a setup hook runs before the shell's `mounted`); `COPIED_ACTION_STANCES['deck-check'].file` names the reveal controller | ANY console spec — this is the slice a wholesale regression would come from. Pointwise on the box (63 files across every domain — the list is in the commit): green. Look first at whatever mounts late or reads a `$refs` instance: the hand album's transition targets, the Parliament's leave, the colony roster's ceremony |
 | S1 | the four flow trees hang under one `session` root that ends on the shell's `unmounted` (was: four roots that lived for the page); the supervisor's start / stop are two calls in the same hook rows; nothing else moves | `console-wait-graph-control`, `console-wait-graph-dead-end`, `console-screen-director-cure`, `console-screen-shadow-control` (the control stand's `declareDefect` goes through the supervisor), anything that leaves a game and enters another (rematch, campaign thresholds) |
 | S2 · watchers | every watcher is `key(v) { this.when<Key>Changes(v); }` — same order, same options (`immediate` / `flush` / `deep`), the body one call deeper | none expected (pointwise: hydro, colonies, hand, draft, generation scene, std projects — green) |

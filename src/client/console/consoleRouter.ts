@@ -19,7 +19,7 @@ import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {AlbumFilter, HandTagFilter} from '@/client/components/console/consoleHandFilter';
 import {loadingScreenState, sceneTransitionInputLocked} from '@/client/console/loadingScreenState';
-import {recordVerbPress} from '@/client/console/inputEcho';
+import {recordVerbPress, takeUnreceivedPress} from '@/client/console/inputEcho';
 import {beginInputDispatch, endInputDispatch, noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import {
   registerWorkspaceTaskSetAside,
@@ -271,6 +271,7 @@ export function dispatchConsoleIntent(intent: GamepadIntent): boolean {
 }
 
 function dispatchConsoleIntentInner(intent: GamepadIntent): boolean {
+  takeUnreceivedPress(); // a note left by an intent that was not a verb is not this press's
   // The liveness arbiter's witness of «the player is trying»: A / B from any device (`inputEcho.verbPresses`), and
   // whether anybody TOOK it (`verbDropped`).
   const verb = intent.kind === 'press' && (intent.button === 'confirm' || intent.button === 'back');
@@ -299,7 +300,8 @@ function dispatchConsoleIntentInner(intent: GamepadIntent): boolean {
   }
   const taken = handler !== undefined ? handler(intent) : false;
   if (verb) {
-    recordVerbPress(taken, intent.kind === 'press' && intent.button === 'back');
+    // …and a press the shell CONSUMED for a surface that was not mounted to receive it was taken by nobody.
+    recordVerbPress(taken && takeUnreceivedPress() === undefined, intent.kind === 'press' && intent.button === 'back');
   }
   return taken;
 }

@@ -10,9 +10,9 @@ import {reactive} from 'vue';
 import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 
 /**
- * THE WORKSPACE-STALL FORCE GRACE. A flow that reported FINISHED
- * (`owedConclusion`) and still cannot dismiss for this long, with nothing the
- * player could act on, is a ghost — `retryOwedConclusion` force-tears it down.
+ * THE WORKSPACE-STALL FORCE GRACE. A flow that reported FINISHED (its ending is
+ * OWED — `workspaceConclusionOwe.ts`) and still cannot dismiss for this long, with
+ * nothing the player could act on, is a ghost — the owed run force-tears it down.
  * Above every legitimate transient (the soft reconcile + re-ask window ≈ 5 s),
  * well below the board-beat park's 30 s cliff and the claim's 20 s backstop,
  * so the player never waits those out again. The universal net the four field

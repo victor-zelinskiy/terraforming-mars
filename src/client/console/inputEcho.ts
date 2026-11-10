@@ -96,6 +96,26 @@ export function recordInputEcho(code: string, kind: string, outcome: InputEchoOu
   }
 }
 
+/**
+ * THE PRESS WAS ROUTED TO A SURFACE THAT IS NOT THERE. The shell's router decides who owns the pad from the game's
+ * state (`padRouterController.handleIntent`) and hands the intent to that surface's own handler; a surface the state
+ * says owns the pad but that is not MOUNTED receives nothing. The router still consumes the intent (nothing may act
+ * under an owned pad) — and says here that nobody received it, so the verb is counted DROPPED (`verbDropped`, the deaf
+ * screen's signature) instead of taken. Read and cleared by the dispatch that is in progress.
+ */
+let unreceivedBy: string | undefined;
+
+export function noteUnreceivedPress(surface: string): void {
+  unreceivedBy = surface;
+}
+
+/** The surface the dispatch in progress was routed to and that was not there (`undefined` — somebody received it). */
+export function takeUnreceivedPress(): string | undefined {
+  const by = unreceivedBy;
+  unreceivedBy = undefined;
+  return by;
+}
+
 /** A/B reached the console router (any device) — see `verbPresses`; `taken` = a handler consumed it. */
 export function recordVerbPress(taken: boolean, back = false): void {
   state.verbPresses++;
@@ -121,6 +141,7 @@ export function installInputEchoProbe(): void {
 }
 
 export function resetInputEchoForTest(): void {
+  unreceivedBy = undefined;
   state.seq = 0;
   state.presses = 0;
   state.verbPresses = 0;

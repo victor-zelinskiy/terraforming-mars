@@ -137,6 +137,7 @@ import type {CommandBarController} from '@/client/console/shell/commandBarContro
 import type {NoticeController} from '@/client/console/shell/noticeController';
 import type {StartController} from '@/client/console/shell/startController';
 import type {OutcomeController} from '@/client/console/shell/outcomeController';
+import {noteUnreceivedPress} from '@/client/console/inputEcho';
 
 /** PC04 · GS — the ledger's name of the series' visit standing between two questions (`seriesHeld`). */
 const SERIES_VISIT_ABSORBER = 'series-visit';
@@ -315,6 +316,30 @@ export function createPadRouterController(shell: PadRouterPort) {
   });
 
   // ── verbs ────────────────────────────────────────────────────────────────────────────────────────────────────────
+  /**
+   * THE PAD GOES TO A SURFACE'S OWN HANDLER — and the router says when nobody was there to receive it.
+   *
+   * Who owns the pad is decided from the game's state (the ladder below); the surface itself is a mounted component
+   * reached through a ref. The two can disagree — a surface the state says stands while its node is not mounted (a
+   * `v-if` one term apart, a leave that outlived its frame) — and a bare `ref?.handleIntent(intent); return true`
+   * then reported a press NOBODY received as taken: the deaf screen, invisible to the liveness arbiter because the
+   * router vouched for it. The intent is still consumed (nothing may act under an owned pad); the verb is counted
+   * DROPPED (`inputEcho.noteUnreceivedPress`), and the surface is named once while it stays away.
+   */
+  const deafSurfaces = new Set<string>();
+  function handedTo(surface: {handleIntent(intent: GamepadIntent): unknown} | undefined | null, name: string, intent: GamepadIntent): void {
+    if (surface === undefined || surface === null) {
+      noteUnreceivedPress(name);
+      if (intent.kind === 'press' && !deafSurfaces.has(name)) {
+        deafSurfaces.add(name);
+        console.warn(`[pad] «${name}» owns the pad and is not mounted — the press went to nobody (counted as dropped)`);
+      }
+      return;
+    }
+    deafSurfaces.delete(name);
+    surface.handleIntent(intent);
+  }
+
   // ── input ────────────────────────────────────────────────────────────
   function handleIntent(intent: GamepadIntent): boolean {
     // Foundation: presses resolve to SEMANTIC actions (consoleActionOf) —
@@ -641,7 +666,7 @@ export function createPadRouterController(shell: PadRouterPort) {
       // the player cannot see instead of the content in front of them.
       if (consoleState.sheet === 'cardActions' && !shell.handPickActive &&
           !shell.workspaceOutcomeEmbedded) {
-        ((shell.$refs.cardActions ?? undefined) as InstanceType<typeof ConsoleCardActions> | undefined)?.handleIntent(intent);
+        handedTo((shell.$refs.cardActions ?? undefined) as InstanceType<typeof ConsoleCardActions> | undefined, 'cardActions', intent);
         return true;
       }
       scrollActiveConsole(intent.dy, intent.dx);
@@ -671,10 +696,10 @@ export function createPadRouterController(shell: PadRouterPort) {
       // silent loss, even at the finish line.
       if (shell.consoleRevealMode !== undefined) {
         const overlay = (shell.$refs.revealOverlay ?? undefined) as InstanceType<typeof ConsoleRevealOverlay> | undefined;
-        overlay?.handleIntent(intent);
+        handedTo(overlay, 'revealOverlay', intent);
         return true;
       }
-      ((shell.$refs.endgameWs ?? undefined) as InstanceType<typeof ConsoleEndgameWorkspace> | undefined)?.handleIntent(intent);
+      handedTo((shell.$refs.endgameWs ?? undefined) as InstanceType<typeof ConsoleEndgameWorkspace> | undefined, 'endgameWs', intent);
       return true;
     }
     // Information Mode owns everything while open (read-only).
@@ -710,7 +735,7 @@ export function createPadRouterController(shell: PadRouterPort) {
         return true;
       }
       const panel = (shell.$refs.journalPanel ?? undefined) as InstanceType<typeof ConsoleJournalPanel> | undefined;
-      panel?.handleIntent(intent);
+      handedTo(panel, 'journalPanel', intent);
       return true;
     }
     // The MANDATORY corp first-action modal owns the pad while open
@@ -722,7 +747,7 @@ export function createPadRouterController(shell: PadRouterPort) {
         return true;
       }
       const confirm = (shell.$refs.corpFirstConfirm ?? undefined) as InstanceType<typeof ConsoleCorpFirstActionConfirm> | undefined;
-      confirm?.handleIntent(intent);
+      handedTo(confirm, 'corpFirstConfirm', intent);
       return true;
     }
     // «Разыграно» (X from the board home) owns the pad while open — a
@@ -736,7 +761,7 @@ export function createPadRouterController(shell: PadRouterPort) {
         return true;
       }
       const overlay = (shell.$refs.playedOverlay ?? undefined) as InstanceType<typeof ConsolePlayedOverlay> | undefined;
-      overlay?.handleIntent(intent);
+      handedTo(overlay, 'playedOverlay', intent);
       return true;
     }
     // P27b: Y = INFORMATION MODE — ALWAYS (every surface's former local
@@ -782,7 +807,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // must be taken; the result / viewer close on any confirm).
     if (shell.consoleRevealMode !== undefined) {
       const overlay = (shell.$refs.revealOverlay ?? undefined) as InstanceType<typeof ConsoleRevealOverlay> | undefined;
-      overlay?.handleIntent(intent);
+      handedTo(overlay, 'revealOverlay', intent);
       return true;
     }
     // CTS T5: the start scene owns input while it serves (B inside =
@@ -809,14 +834,14 @@ export function createPadRouterController(shell: PadRouterPort) {
     // deliberately swallows everything, so a committed move can never be
     // re-submitted by a stray press.
     if (shell.deckPickServing) {
-      ((shell.$refs.deckPick ?? undefined) as InstanceType<typeof ConsoleDeckPick> | undefined)?.handleIntent(intent);
+      handedTo((shell.$refs.deckPick ?? undefined) as InstanceType<typeof ConsoleDeckPick> | undefined, 'deckPick', intent);
       return true;
     }
     // THE DRAFT WORKSPACE owns the pad while it is the serving surface.
     // `hostTask === undefined` inside the predicate yields it to the
     // embedded payment / the Underworld research choice (host-served).
     if (shell.draftWorkspaceOwnsPad) {
-      ((shell.$refs.draftWs ?? undefined) as InstanceType<typeof ConsoleDraftWorkspace> | undefined)?.handleIntent(intent);
+      handedTo((shell.$refs.draftWs ?? undefined) as InstanceType<typeof ConsoleDraftWorkspace> | undefined, 'draftWs', intent);
       return true;
     }
     // THE EXTERNAL-DRAW WORKSPACE owns the pad outright while it stands —
@@ -824,12 +849,12 @@ export function createPadRouterController(shell: PadRouterPort) {
     // NOTHING below it may see a press. Its own phases absorb input during
     // the deal and the take flights.
     if (shell.externalDrawOwnsPad) {
-      ((shell.$refs.extDrawWs ?? undefined) as InstanceType<typeof ConsoleExternalDrawWorkspace> | undefined)?.handleIntent(intent);
+      handedTo((shell.$refs.extDrawWs ?? undefined) as InstanceType<typeof ConsoleExternalDrawWorkspace> | undefined, 'extDrawWs', intent);
       return true;
     }
     if (shell.startSceneOwnsPad) {
       const scene = (shell.$refs.startScene ?? undefined) as InstanceType<typeof ConsoleStartScene> | undefined;
-      scene?.handleIntent(intent);
+      handedTo(scene, 'startScene', intent);
       return true;
     }
     // THE DECISION SETTLE (`promptSequence.ts`): a decision modal that has just
@@ -846,31 +871,31 @@ export function createPadRouterController(shell: PadRouterPort) {
     // while it serves (before the generic host branch below).
     if (shell.govSupportActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
       const panel = (shell.$refs.govSupport ?? undefined) as InstanceType<typeof ConsoleGovernmentSupport> | undefined;
-      panel?.handleIntent(intent);
+      handedTo(panel, 'govSupport', intent);
       return true;
     }
     // Production loss (Ares hazard) — the dedicated surface owns input while
     // it serves (before the generic host branch below).
     if (shell.productionLossActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
       const panel = (shell.$refs.prodLoss ?? undefined) as InstanceType<typeof ConsoleProductionLoss> | undefined;
-      panel?.handleIntent(intent);
+      handedTo(panel, 'prodLoss', intent);
       return true;
     }
     // The three dedicated COMPOSITE surfaces own the pad on the same terms.
     if (shell.spendHeatActive) {
-      ((shell.$refs.spendHeat ?? undefined) as InstanceType<typeof ConsoleSpendHeat> | undefined)?.handleIntent(intent);
+      handedTo((shell.$refs.spendHeat ?? undefined) as InstanceType<typeof ConsoleSpendHeat> | undefined, 'spendHeat', intent);
       return true;
     }
     if (shell.venusBonusActive) {
-      ((shell.$refs.venusBonus ?? undefined) as InstanceType<typeof ConsoleVenusBonus> | undefined)?.handleIntent(intent);
+      handedTo((shell.$refs.venusBonus ?? undefined) as InstanceType<typeof ConsoleVenusBonus> | undefined, 'venusBonus', intent);
       return true;
     }
     if (shell.aresGlobalsActive) {
-      ((shell.$refs.aresGlobals ?? undefined) as InstanceType<typeof ConsoleAresGlobals> | undefined)?.handleIntent(intent);
+      handedTo((shell.$refs.aresGlobals ?? undefined) as InstanceType<typeof ConsoleAresGlobals> | undefined, 'aresGlobals', intent);
       return true;
     }
     if (shell.botAttackActive) {
-      ((shell.$refs.botAttack ?? undefined) as InstanceType<typeof ConsoleBotAttack> | undefined)?.handleIntent(intent);
+      handedTo((shell.$refs.botAttack ?? undefined) as InstanceType<typeof ConsoleBotAttack> | undefined, 'botAttack', intent);
       return true;
     }
     // The EFFECT DECISION screen owns input while it stands in for the host
@@ -878,7 +903,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // claim the pad).
     if (shell.effectDecisionActive) {
       const panel = (shell.$refs.effectDecision ?? undefined) as InstanceType<typeof ConsoleEffectDecision> | undefined;
-      panel?.handleIntent(intent);
+      handedTo(panel, 'effectDecision', intent);
       return true;
     }
     // THE FINALE between «open» and the board pick (one flush): A hands the pick over now, B minimizes, RT holds.
@@ -922,7 +947,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // LOCK-STEP — a mismatch silently swallows the pad.
     if (shell.hostTask !== undefined && !consoleState.task.deferred && shell.taskSpacePending === undefined && !shell.handPickActive) {
       const host = (shell.$refs.taskHost ?? undefined) as InstanceType<typeof ConsoleTaskHost> | undefined;
-      host?.handleIntent(intent);
+      handedTo(host, 'taskHost', intent);
       return true;
     }
     // …and while it stands between two questions of ONE series (PC04 · GS), the answered question is a picture: every
@@ -951,7 +976,7 @@ export function createPadRouterController(shell: PadRouterPort) {
       const hydroDeeper = workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick');
       if (deltaInstrumentUp && (!shell.repeatPickActive || hydroDeeper)) {
         const section = (shell.$refs.hydroSection ?? undefined) as InstanceType<typeof ConsoleHydroSection> | undefined;
-        section?.handleIntent(intent);
+        handedTo(section, 'hydroSection', intent);
         return true;
       }
     }
@@ -960,7 +985,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // (v-show) must not swallow input. Routed BEFORE every composer branch.
     if (shell.repeatPickActive) {
       const panel = (shell.$refs.repeatPick ?? undefined) as InstanceType<typeof ConsoleCardActions> | undefined;
-      panel?.handleIntent(intent);
+      handedTo(panel, 'repeatPick', intent);
       return true;
     }
     // CLIENT HAND PICK (composer → hand bridge): the hand section owns the
@@ -980,7 +1005,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // T8: the native play-card confirm owns input while open.
     if (shell.pendingPlayCard !== undefined) {
       const confirm = (shell.$refs.playConfirm ?? undefined) as InstanceType<typeof ConsolePlayCardConfirm> | undefined;
-      confirm?.handleIntent(intent);
+      handedTo(confirm, 'playConfirm', intent);
       return true;
     }
     // T8: the COLONY FOCUS STAGE owns input while open (the section routes
@@ -1033,7 +1058,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // tie, the same rule presence already uses.
     if (consoleState.sheet === 'cardActions' && workspaceStackTopAxis() !== 'section') {
       const panel = (shell.$refs.cardActions ?? undefined) as InstanceType<typeof ConsoleCardActions> | undefined;
-      panel?.handleIntent(intent);
+      handedTo(panel, 'cardActions', intent);
       return true;
     }
     if (consoleState.sheet !== undefined && workspaceStackTopAxis() !== 'section') {
@@ -1711,13 +1736,13 @@ export function createPadRouterController(shell: PadRouterPort) {
     // global (handled before this point); the journal is board-home only.
     if (shell.padSection === 'hydro') {
       const hydro = (shell.$refs.hydroSection ?? undefined) as InstanceType<typeof ConsoleHydroSection> | undefined;
-      hydro?.handleIntent(intent);
+      handedTo(hydro, 'hydroSection', intent);
       return true;
     }
     // The Parliament owns its whole grammar too (zones / stages / submits).
     if (shell.padSection === 'parliament') {
       const parliament = (shell.$refs.parliamentSection ?? undefined) as InstanceType<typeof ConsoleParliamentSection> | undefined;
-      parliament?.handleIntent(intent);
+      handedTo(parliament, 'parliamentSection', intent);
       return true;
     }
     if (intent.kind === 'nav') {

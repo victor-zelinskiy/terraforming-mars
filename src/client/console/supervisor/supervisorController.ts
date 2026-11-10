@@ -51,6 +51,7 @@ import {MandatoryBeat, isMandatoryBeatPresented, forceMandatoryBeacon, isMandato
 import {ActualStartOwner, StartOwner, StartShadowFinding, startDirectorCure, startShadowInScope, startShadowVerdict} from '@/client/console/startDirector';
 import {AdmissionSignals, PromptSurface, promptAdmissionBlock} from '@/client/console/consolePromptAdmission';
 import {stagedPlayState} from '@/client/console/stagedPlay';
+import {owedConclusions, reaskOwedConclusion, withdrawConclusionOwe} from '@/client/console/workspaceConclusionOwe';
 
 /** How long an owed commit fold counts as «in flight» for the liveness arbiter (its tokens' 9 s fold ceiling + a beat). */
 const COMMIT_FOLD_OWED_GRACE_MS = 12_000;
@@ -102,10 +103,6 @@ export type SupervisorPort = {
   readonly mandatoryGateHeld: boolean,
   readonly nativeCompositeTask: ConsoleTask | undefined,
   openShellTaskSurface(task: ConsoleTask): void,
-  /** WRITTEN here. */ owedConclusion: {kind: WorkspaceFrameKind, servedPromptHolds: boolean} | undefined,
-  /** WRITTEN here. */ owedConclusionGhostSince: number,
-  readonly owedConclusionSignal: string,
-  /** WRITTEN here. */ owedConclusionSince: number,
   parliamentLeaving: boolean,
   readonly placementActive: boolean,
   readonly playerView: PlayerViewModel,
@@ -113,7 +110,6 @@ export type SupervisorPort = {
   readonly politicalPayoutOwed: boolean,
   reconcileWorkspaceOutcome(): void,
   restoreDeferredTask(): void,
-  retryOwedConclusion(): void,
   readonly startSceneMounted: boolean,
   readonly startShadowNow: {expected: StartOwner, actual: ActualStartOwner, held: string | undefined, prompt: string},
   /** WRITTEN here. */ startStrandPrompt: number | undefined,
@@ -179,12 +175,12 @@ export function createSupervisorController(shell: SupervisorPort) {
    * not a mechanism — every ordinary ending still routes through
    * `concludeWorkspaceFlow`; this only ever runs after the escalation grace.
    */
-  function forceRecoverStuckWorkspace(kind: WorkspaceFrameKind, why?: string): void {
-    const diag = shell.owedConclusionSignal;
+  function forceRecoverStuckWorkspace(kind: WorkspaceFrameKind, why?: string, owedForMs = 0): void {
+    const refused = conclusionRefusal.last?.kind === kind ? conclusionRefusal.last.reason : 'unknown';
     console.warn(why ?? (
       `[workspace-stall] «${kind}» reported finished but could not dismiss for ` +
-      `${Math.round((Date.now() - shell.owedConclusionSince) / 1000)}s with nothing served — ` +
-      `forcing teardown (signal: ${diag})`));
+      `${Math.round(owedForMs / 1000)}s with nothing served — ` +
+      `forcing teardown (held: ${refused})`));
     if (workspaceOutcomeState.host === kind) {
       releaseWorkspaceOutcome('workspace-stall-recovery', {force: true});
     }
@@ -193,9 +189,7 @@ export function createSupervisorController(shell: SupervisorPort) {
       releaseDiscardExchange(consoleCardActionsUi.draft?.cardName, 'workspace-stall-recovery');
     }
     resetConsoleActionComposerUi();
-    shell.owedConclusion = undefined;
-    shell.owedConclusionSince = 0;
-    shell.owedConclusionGhostSince = 0;
+    withdrawConclusionOwe(kind);
     if (workspaceFrameAnchor(kind)?.type === 'phase') {
       goBoardHome();
     } else {
@@ -651,7 +645,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     const questionId = wf === undefined || wf.optional === true ? undefined : `question:${task?.kind ?? wf.type}#${wf.promptId ?? ''}`;
     const announceId = shell.mandatoryGateHeld && beat !== undefined ? `announce:${beat.key}` : undefined;
     const deferredId = consoleState.task.deferred && wf !== undefined ? `deferred:${wf.promptId ?? ''}` : undefined;
-    const owed = shell.owedConclusion;
+    const owedNow = owedConclusions();
     const admission = (family: PromptSurface): string | undefined => {
       const block = promptAdmissionBlock(family, signals);
       if (block === undefined) {
@@ -707,7 +701,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     // `dangling … surface:card-actions — not there` while the player browsed «Действия карт» over a pending plate).
     if (top !== undefined) {
       const reversible = !isTransientBeat(top.phase) && top.phase !== 'committed';
-      const targets: Array<WaitTarget> = owed?.kind === top.kind ? [{kind: 'node', id: `conclusion:${top.kind}`}] :
+      const targets: Array<WaitTarget> = owedNow.some((o) => o.kind === top.kind) ? [{kind: 'node', id: `conclusion:${top.kind}`}] :
         isTransientBeat(top.phase) ? [{kind: 'motion', what: `${top.kind}:${top.phase}`}] :
           questionId !== undefined && task !== undefined && frameServing(task.kind)?.kind === top.kind ? [{kind: 'node', id: questionId}] :
             reversible ? [{kind: 'player', what: 'the player browses — B leaves'}] :
@@ -722,12 +716,13 @@ export function createSupervisorController(shell: SupervisorPort) {
       }
       out.push({
         id: `surface:${top.kind}`, family: 'surface', owner: `workspace:${top.kind}`, targets, since: waitSurfacePhase.since,
-        ...(isTransientBeat(top.phase) && owed?.kind !== top.kind ? {boundMs: WORKSPACE_BEAT_STALL_MS} : {}),
+        ...(isTransientBeat(top.phase) && !owedNow.some((o) => o.kind === top.kind) ? {boundMs: WORKSPACE_BEAT_STALL_MS} : {}),
         detail: top.phase,
       });
     }
-    // A HELD / OWED CONCLUSION — by the reason it held on.
-    if (owed !== undefined) {
+    // A HELD / OWED CONCLUSION — by the reason it held on. One node per frame that owes (a debt is the frame's own
+    // run now — `workspaceConclusionOwe.ts`; two workspaces owe independently).
+    for (const owed of owedNow) {
       const reason = conclusionRefusal.last?.kind === owed.kind ? conclusionRefusal.last.reason : 'unknown';
       const claimed = workspaceOutcomeState.host === owed.kind && workspaceOutcomeClaimed();
       // The edge by the hold's REASON — one typed table (`CONCLUSION_HOLD_EDGE`, exhaustive: a new reason names its edge).
@@ -742,7 +737,7 @@ export function createSupervisorController(shell: SupervisorPort) {
                   [{kind: 'motion', what: `held: ${reason}`}];
       out.push({
         id: `conclusion:${owed.kind}`, family: 'conclusion', owner: `workspace:${owed.kind}`, targets,
-        since: shell.owedConclusionSince > 0 ? shell.owedConclusionSince : undefined,
+        since: owed.since,
         // A conclusion that DELEGATES its wait (a nested step, its claim, the question, the player's restore of a parked
         // flow) carries no clock of its own — the node it waits on does; only a motion edge is the conclusion's own
         // escalation. Bounded throughout, it read `overdue` behind a nested step the player was answering and behind a
@@ -804,7 +799,7 @@ export function createSupervisorController(shell: SupervisorPort) {
         const kind = node.id.slice('conclusion:'.length) as WorkspaceFrameKind;
         const result = openFrameQuestionDoor(kind);
         if (result === 'served') {
-          shell.retryOwedConclusion();
+          reaskOwedConclusion(kind);
           return `«${kind}»'s question door opened the question in place`;
         }
         return '';

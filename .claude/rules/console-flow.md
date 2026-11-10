@@ -9,6 +9,7 @@ paths:
   - "src/client/console/consoleWorkspaceClaim.ts"
   - "src/client/console/consoleMandatoryAnnounce.ts"
   - "src/client/console/consoleMandatoryGate.ts"
+  - "src/client/console/workspaceConclusionOwe.ts"
   - "src/client/console/shell/**"
   - "src/client/console/session/**"
   - "src/client/console/supervisor/**"
@@ -39,6 +40,22 @@ a new safety timer, or a new watcher mailbox.**
    `kernel/flowMachines.ts`; every state is `rest` · `player` (+ `meta.accepts`) · `beat` (+ `after` + `meta.waitsOn`).
    `tests/console/kernel/flowLaw.spec.ts` judges the definition and the reachable snapshots;
    `flowMachineRegister.spec.ts` fails on an unregistered `createMachine(`.
+
+## A decision that ACTS has a place in the tick
+- A reaction taken off the `watch` table loses its ROW — and the row was its place in the tick. The facts of one
+  decision routinely move in two steps inside one tick (a door falls, a reaction of the shell then stands the step
+  up); read between the two, the decision is wrong. Both free forms were tried on the box and both failed e2e: a
+  watcher of no component, pre-flush, runs BEFORE every component's watchers (Vue 3.5) — the owed conclusion closed
+  the hand under its own colony step (`console-multi-effect-sequence`); post-flush runs after the RENDER — a second
+  DOM patch in the tick split the Pluto trade's closing beat (`console-colony-pluto-embed`).
+- **So: a decision that ACTS (closes a workspace, opens a door) is asked from a row of the shell's watch table** —
+  a watcher of the shell, among its own, before the render. The kernel's `until` (sync) is for a wait that only
+  RECORDS. A primitive for «the end of the shell's pre-flush» is S-last's (the session owning the tick), not
+  something to improvise per reaction.
+- **«A decision owed» is a run, not a mailbox** (`console/workspaceConclusionOwe.ts` is the model): opened in the
+  scope of what owes it; re-asked on the key of the SAME facts object the decision is made from (never a second,
+  hand-written list of its ingredients — the row watches that key); bounded by its re-ask cadence; gone with its
+  scope.
 
 ## The submit transport (lifecycle 4 — on the kernel)
 - **One submit = one scope + `submitMachine`** (`sending` → `presenting` → `applied | staged | refused | failed |

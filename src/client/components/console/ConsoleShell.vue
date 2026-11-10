@@ -1649,7 +1649,7 @@ import {SpaceId} from '@/common/Types';
 
 import ConsoleBoardBinder from '@/client/components/console/ConsoleBoardBinder.vue';
 import {submitInput, submitBatch as transportSubmitBatch, SubmitTicket} from '@/client/console/transport/gameTransport';
-import {registerTruthWitness, resetPresentationLedger} from '@/client/console/presentationLedger';
+import {resetPresentationLedger} from '@/client/console/presentationLedger';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import ConsoleBoardInput from '@/client/components/console/ConsoleBoardInput.vue';
 
@@ -1706,7 +1706,7 @@ import ConsoleRevealOverlay from '@/client/components/console/ConsoleRevealOverl
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 import ConsoleTeleport from '@/client/components/console/foundation/ConsoleTeleport.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
-import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, discardWorkspacePark, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, popWorkspaceFrame, resetWorkspaceStack, setWorkspaceFramePhase, workspaceFrameHasNested, workspaceFrameMounted, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceFrameParked, parkServes, workspaceStackCollapsed, workspaceStackState, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, discardWorkspacePark, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, popWorkspaceFrame, resetWorkspaceStack, setWorkspaceFramePhase, workspaceFrameHasNested, workspaceFrameMounted, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, parkServes, workspaceStackCollapsed, workspaceStackState, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {installConsoleReadinessProbe, registerReadinessDecisionDiag} from '@/client/console/e2eReadiness';
 import {resetStdProjectsFlow, stdProjectsFlow} from '@/client/console/consoleStdProjects';
 import {resetStdProjectCommit, stdProjectCommitState} from '@/client/console/consoleStdProjectCommit';
@@ -1849,7 +1849,7 @@ import {setAlbumLayoutRecomposer} from '@/client/console/consoleAlbumLayout';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {StageHost, useWorkspaceBandGeometry} from '@/client/console/composables/useWorkspaceBandGeometry';
 import {useConsoleSession} from '@/client/console/session/consoleSession';
-import {conclusionRefusal, handoffPendingEntries} from '@/client/console/shell/shellFlowState';
+import {handoffPendingEntries} from '@/client/console/shell/shellFlowState';
 // Only as the DEGRADE default for a player model that predates `maCosts` (an
 // old save, a test fixture) — the live price always comes from the server.
 import {notificationBus} from '@/client/components/notifications/notificationBus';
@@ -2315,8 +2315,12 @@ export default defineComponent({
     workspaceOutcomeServingNow(serving: boolean): void {
       this.whenWorkspaceOutcomeServingNowChanges(serving);
     },
-    owedConclusionSignal(): void {
-      this.whenOwedConclusionSignalChanges();
+    // THE OWED CONCLUSIONS' FACTS — the row `owedConclusionSignal` stood in, and a watcher OF THE SHELL on purpose: the
+    // facts of a conclusion move in two steps inside one tick (an owed step's door falls, a reaction of the shell then
+    // pushes the step's frame), and an ending asked between the two — or after the render — is wrong
+    // (`workspaceConclusionOwe.ts` says how both were found). Do not turn it into a free watcher.
+    owedConclusionFacts(): void {
+      this.whenOwedConclusionFactsChanges();
     },
     boardBeatsWatchable(watchable: boolean): void {
       this.whenBoardBeatsWatchableChanges(watchable);
@@ -3697,48 +3701,9 @@ export default defineComponent({
       drive: () => this.driveHydroFlowStuck(),
     });
     this.offHydroWitnesses = installHydroFlowWitnesses();
-    // THE WORKSPACE-CONCLUSION TIME NET — the general close-gate safety.
-    //
-    // Every finished play/card-actions/stdp flow routes its ending through
-    // `owedConclusion`, re-driven by `owedConclusionSignal` — a watcher over an
-    // ENUMERATED set of ingredients. That set is the fragile part: a releasing
-    // condition the list forgot (the board-beat park draining, a beat settling
-    // with no response behind it) never re-fires the watcher, and the workspace
-    // stands finished-but-held until some unrelated 20–30 s safety (field logs
-    // 2026-09-10/11 — a `board-beat-park degraded after 30s` as the sole event
-    // of a 30 s hang). This witness re-drives the SAME owed conclusion on a
-    // bounded cadence, so a missed ingredient costs ≤ one grace window instead
-    // of the park's whole ceiling. It only ever RE-ASKS the existing guarded
-    // conclusion (which holds honestly for a real nested step / prompt / park),
-    // so it can never tear down a flow the player is still working — and it
-    // NAMES itself in the ledger warn when it heals.
-    this.offConclusionWitness = registerTruthWitness({
-      id: 'workspace-conclusion-owed',
-      // A conclusion owed for a NESTED step or a PARK is the player genuinely
-      // working / having set the flow aside — those are legitimately long, so
-      // the net stays out of them (the ingredient watcher already covers their
-      // own falls). It fires only for the finished-but-STUCK shape: a flow that
-      // reported done and cannot dismiss for a reason no ingredient re-surfaced.
-      lying: () => {
-        const o = this.owedConclusion;
-        // …and NOT a claim still SERVING a live prompt / batch (PL-292): the player has something to answer on
-        // screen (drawn cards not taken yet), the funnel refuses that release anyway, and the force phase needs
-        // a non-serving ghost — the heal could only re-ask a held conclusion every half second and print a lie
-        // into the field log (the four 00:40 heals of 2026-10-14 were a prelude's three cards waiting to be taken).
-        return o !== undefined && workspaceFrameKnown(o.kind) &&
-          !workspaceFrameHasNested(o.kind) && !workspaceFrameParked(o.kind) && !this.workspaceOutcomeServingNow;
-      },
-      graceMs: 2500,
-      heal: () => this.retryOwedConclusion(),
-      // The heal NAMES the hold — the owed kind, the hold `workspaceConclusionFor` last refused it with, and the
-      // ingredient signature (a bare «healing» line was all the field log of 2026-10-14 had to go on).
-      diagnose: () => ({
-        owed: this.owedConclusion?.kind,
-        owedForMs: this.owedConclusionSince === 0 ? 0 : Date.now() - this.owedConclusionSince,
-        refused: conclusionRefusal.last === undefined ? undefined : `${conclusionRefusal.last.kind}:${conclusionRefusal.last.reason}`,
-        signal: this.owedConclusionSignal,
-      }),
-    });
+    // (THE WORKSPACE-CONCLUSION TIME NET is gone — architecture v2 · S5. An owed ending is a run in its frame's scope
+    // that wakes on the decision's own facts and re-asks on its own cadence, `workspaceConclusionOwe.ts`; the truth
+    // witness that re-drove a hand-listed signal's misses every half second has nothing left to witness.)
     // THE BOARD-BEAT PARK'S «watchable» verdict (boardBeatPark) — coverage
     // facts only, shell-owned. Registered at mount, so a reload that lands
     // with a parked batch (server reveals survive the trip) re-parks or
@@ -4117,8 +4082,6 @@ export default defineComponent({
     this.offWsPresence?.();
     this.offHydroWitnesses?.();
     this.offHydroWitnesses = undefined;
-    this.offConclusionWitness?.();
-    this.offConclusionWitness = undefined;
     registerHydroFlowProbe(undefined); // a dead shell's closures must not drive the next game
     this.offPlanetFocusParams?.();
     clearGameExitTarget(); // the exit funnel must not outlive the game it points from

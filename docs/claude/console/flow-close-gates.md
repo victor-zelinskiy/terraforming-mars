@@ -349,6 +349,25 @@ not on screen, or read over facts that are not its own.**
 Should the turn wait for the step cards to be taken? No: the draw is instant and asks nothing; holding the turn for a
 presentation would be a rules change. The presentation is the client's and must finish whatever the server does next.
 
+## Iteration 8 (2026-11-11 — architecture v2 · S5: THE OWED CONCLUSION IS A RUN, the signal list is gone)
+
+Iterations 4 – 7 above each added a term to `owedConclusionSignal` (or a net behind it) after a field hang: the
+mechanism was «a watcher over a hand-written list of the decision's ingredients», and the list could not be kept in
+step with the decision. It is deleted — with the single-slot `owedConclusion` mailbox, `retryOwedConclusion` and the
+truth witness `workspace-conclusion-owed`:
+
+- `conclusionFacts(kind)` (the outcome controller) is the ONE object the policy decides by; a debt is re-asked when
+  its key moves (`conclusionFactsKey` — plus what the claim's reconcile reads), by the `owedConclusionFacts` row of
+  the shell's watch table, in the place the signal's row stood. A hold the decision gains is a fact the wake has.
+- The debt is a run in the FRAME's scope (`console/workspaceConclusionOwe.ts`): one per frame, bounded by its re-ask
+  cadence (500 ms after 2.5 s, never over the player's own time), gone with the frame; the 8 s + 2.5 s ghost
+  escalation is the run's own and ends in the same `forceRecoverStuckWorkspace`.
+- An ending the cadence made is named: `[workspace-conclusion] … on the re-ask cadence` (a term that is not reactive).
+
+Everything iterations 4 – 7 say about WHICH facts hold a conclusion still stands — they are the fields of
+`conclusionFacts`. What no longer applies is every sentence about the signal gaining a term. Spec:
+`tests/console/workspaceConclusionOwe.spec.ts`. Plan: `docs/claude/console/architecture-v2/PLAN.md` §5 · S5.
+
 ## Guards
 
 Iteration 7: `partyAlliance.spec` § the rating claims the foreground only while its consumer stands,

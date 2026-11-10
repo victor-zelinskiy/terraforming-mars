@@ -454,7 +454,7 @@ const VUE_ERROR_TAG = '[vue-error]';
  */
 const STALL_MARKERS: ReadonlyArray<string> = [
   '[presentation-ledger]', '[workspace-stall]', '[console-foreground-watchdog]', '[bot-turn]', '[notifications]',
-  '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]', '[reactivity]', '[workspace-anchor]', '[workspace-stale]', '[teleport]', '[workspace-question]', '[parliament]',
+  '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]', '[reactivity]', '[workspace-anchor]', '[workspace-stale]', '[teleport]', '[workspace-question]', '[workspace-conclusion]', '[pad]', '[parliament]',
 ];
 
 /**
