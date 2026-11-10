@@ -60,14 +60,22 @@ export function describeEnd(end: ScopeEnd): string {
  *  is said once, `[flow] bound …`: a safety that fired is a lost signal or a hidden mutual wait upstream. */
 export type Bound = {ms: number, quiet?: string};
 
-export type WaitOptions =
+export type WaitOptions<T = unknown> = (
   | {bound: Bound}
   /**
    * The PLAYER may take as long as they like — but only while something ACCEPTS the press: `accepts` is the scope of
    * the surface that takes it, and the wait is cancelled when that surface ends. «Waiting for a press nobody accepts»
    * is not a state.
    */
-  | {bound: 'player', accepts: FlowScope};
+  | {bound: 'player', accepts: FlowScope}
+) & {
+  /**
+   * Told SYNCHRONOUSLY, in the very call that settles the wait — before the promise's continuation (a microtask
+   * later). For a reaction that must not lose a race with a timer armed for the same moment (a claim re-binding to its
+   * host before its orphan bound fires).
+   */
+  onSettle?: (result: WaitResult<T>) => void,
+};
 
 export type WaitResult<T> =
   | {status: 'met', value: T}
@@ -144,7 +152,7 @@ export interface FlowScope<K extends FlowKind = FlowKind> extends Disposable {
    */
   run<T>(label: string, task: (scope: FlowScope<K>) => Promise<T> | T, options?: RunOptions): Promise<RunOutcome<T>>;
   /** Wait — bounded, declared, refused if it would close a cycle. Never rejects. */
-  wait<T>(target: WaitTarget<T, WaitsOn<K>>, options: WaitOptions): Promise<WaitResult<T>>;
+  wait<T>(target: WaitTarget<T, WaitsOn<K>>, options: WaitOptions<T>): Promise<WaitResult<T>>;
   /** Sleep on the kernel's clock; `false` if the scope ended first. */
   sleep(ms: number): Promise<boolean>;
 }
@@ -389,17 +397,27 @@ class ScopeImpl implements FlowScope {
     });
   }
 
-  wait<T>(target: WaitTarget<T, FlowKind>, options: WaitOptions): Promise<WaitResult<T>> {
+  wait<T>(target: WaitTarget<T, FlowKind>, options: WaitOptions<T>): Promise<WaitResult<T>> {
     const clock = flowClock();
     const since = clock.now();
+    const told = (result: WaitResult<T>): WaitResult<T> => {
+      if (options.onSettle !== undefined) {
+        try {
+          options.onSettle(result);
+        } catch (error) {
+          flowAnomaly(clock.now(), this.id, `the wait's onSettle threw («${target.what}»)`, error);
+        }
+      }
+      return result;
+    };
     if (this.result !== undefined) {
-      return Promise.resolve({status: 'cancelled', reason: `${this.id} had ended`});
+      return Promise.resolve(told({status: 'cancelled', reason: `${this.id} had ended`}));
     }
     const on = target.on as ScopeImpl | undefined;
     if (on !== undefined && on.ended === undefined) {
       const refused = this.refusal(target, on);
       if (refused !== undefined) {
-        return Promise.resolve(refused);
+        return Promise.resolve(told(refused));
       }
     }
     const boundMs = options.bound === 'player' ? undefined : options.bound.ms;
@@ -432,7 +450,7 @@ class ScopeImpl implements FlowScope {
         } else if (result.status === 'cancelled') {
           traceFlow(now, 'cancel', this.id, `«${target.what}» — ${result.reason}`);
         }
-        resolve(result);
+        resolve(told(result));
       };
       const cancel = (reason: string): void => settle({status: 'cancelled', reason});
       this.cancels.add(cancel);

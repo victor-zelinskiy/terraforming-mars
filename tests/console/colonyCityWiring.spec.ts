@@ -94,7 +94,8 @@ describe('a city on a colony tile — the wiring', () => {
       expect(city, 'after the roster').to.be.greaterThan(roster);
       expect(build, 'before the build').to.be.greaterThan(city);
       const gate = transport.slice(city, build);
-      expect(gate).to.match(/transportHolds\.colonyCity = true;\s*try \{\s*await runColonyCity\(colonyCityEvent\);\s*\} finally \{\s*transportHolds\.colonyCity = false;/);
+      // A gate is a bounded child of the submit (architecture v2, lifecycle 4): its named hold is the child's life.
+      expect(gate).to.match(/await gate\(submit, 'colonyCity', \(\) => runColonyCity\(colonyCityEvent\)\)/);
       expect(transport, 'the hold is a transport hold like every cinematic gate').to.match(/h\.colonyRoster \|\| h\.colonyCity/);
     });
 

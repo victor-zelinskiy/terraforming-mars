@@ -70,7 +70,7 @@ module registers its own release (`registerLivenessRelease({rank, name, release}
 | 10 | `foreground` | the foreground watchdog's cure, scope-free: animation holds expire (with their owners' `expire`), foreground holds and admission claims lift |
 | 15 | `start-director` (shell) | a standing START SHADOW disagreement is cured through the scene's own doors (`startDirectorCure`: heal / yield — `docs/claude/console/start-director.md` § Phase 1) |
 | 20 | `workspace-outcome` · `colony-trade` · `card-discard` | a claim released with force (its artifact falls to the standalone presenter — still seen), a trade concluded to committed truth, a disposal aborted |
-| 22 | `transport` | a funnel whose answer ARRIVED but whose gates never let go is released and the view re-fetched; a request still on the wire is left to the network |
+| 22 | `transport` | a submit whose answer ARRIVED and whose gate never let go: the GATE is ended as expired and the commit goes on without it (the chain that owns the answer applies it); hung outside any gate → the submit is abandoned and the view re-fetched; a request still on the wire is left to its own bound (`submitMachine`, architecture v2) |
 | 25 | `workspace-beat` (shell) | a stalled transient beat torn down through `forceRecoverStuckWorkspace` |
 | 30 | `stack-home` (shell) | the stack goes home; the mandatory plate re-announces whatever the server still asks |
 
@@ -124,11 +124,15 @@ stall marker).
 
 The funnel (`isServerSideRequestInProgress`) had no ceiling: a request the network lost — no headers, no error —
 held it for the rest of the session, every later press silently dropped, the arbiter reading «in flight» forever.
-`console/transport/submitCeiling.ts` arms an `AbortController` per submit for `SUBMIT_NO_RESPONSE_MS` (60 s) and
-fires ONLY when not a single response header has arrived in that time (`transportState.responseArrived` stands it
-down — a slow server that HAS answered is never cut). On a fire the transactions roll back
+Since architecture v2 (lifecycle 4) the ceiling is the BOUND OF A STATE: one submit is one scope with its machine
+(`console/transport/submitMachine.ts`), and `sending` — the wait for the server's answer — carries `after
+SUBMIT_NO_RESPONSE_MS` (60 s) → `silent`. The answer's headers leave the state (`ANSWERED`), so a slow server that HAS
+answered is never cut. On `silent` the request is cancelled, the transactions roll back
 (`abortAllConsoleTransactions`), the player sees the explicit «Сервер не отвечает» alert, and the view is re-fetched
-(`waitForUpdate(true)`). A plain network error keeps the old alert. Guard: `tests/console/submitCeiling.spec.ts`.
+(`waitForUpdate(true)`). A plain network error keeps the old alert. The presentation that follows an answer is a state
+too (`presenting`, bounded; each cinematic gate a bounded child) — contract `.claude/rules/console-flow.md`. Guards:
+`tests/console/submitMachine.spec.ts`, `tests/client/console/gameTransportFunnel.spec.ts`. (`submitCeiling.ts` and its
+spec are retired — the module was this one timer.)
 
 ## 5. The audit of 2026-10-31 (the Venus trade)
 

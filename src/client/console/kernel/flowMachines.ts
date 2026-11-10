@@ -7,6 +7,8 @@
  * here — a lifecycle that skips the law is how «a state with no exit» comes back.
  */
 import {AnyStateMachine, EventObject} from 'xstate';
+import {FRAME_SAMPLE_EVENTS, frameMachine, frameSnapshotKey} from '@/client/console/consoleWorkspaceFrame';
+import {SUBMIT_SAMPLE_EVENTS, submitMachine} from '@/client/console/transport/submitMachine';
 
 export type FlowMachineEntry = {
   /** The machine's name (its file says where it lives). */
@@ -23,4 +25,9 @@ export type FlowMachineEntry = {
 };
 
 export const FLOW_MACHINES: ReadonlyArray<FlowMachineEntry> = [
+  {name: 'submit', file: 'console/transport/submitMachine.ts', machine: submitMachine, events: SUBMIT_SAMPLE_EVENTS},
+  {
+    name: 'frame', file: 'console/consoleWorkspaceFrame.ts', machine: frameMachine, events: FRAME_SAMPLE_EVENTS,
+    input: {kind: 'hand', phase: 'browse', away: false}, key: frameSnapshotKey,
+  },
 ];

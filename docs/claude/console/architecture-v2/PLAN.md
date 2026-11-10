@@ -10,8 +10,8 @@
 | --- | --- | --- |
 | P0 | the plan, the dependencies (`xstate`, `fast-check`) | **done** |
 | K1 | the flow kernel: scopes · bounded waits · the wait table · machines · the law (`KERNEL.md`) | **done** — nothing uses it yet |
-| L1 | lifecycle 4 — the submit transport on the kernel | — |
-| L2 | lifecycle 2 — the workspace frame (scopes, locations, bounded beats) | — |
+| L1 | lifecycle 4 — the submit transport on the kernel | **done** — `submitMachine`, tickets, `gate()`; the ticket-first ARMING of scenes rides the domain slices (below) |
+| L2 | lifecycle 2 — the workspace frame (scopes, locations, bounded beats) | **done** — every frame is a scope (`workspaceFrameScope`), its phase the `frameMachine` (beats bounded, on stage only), the beat's LEASE puts a frame back when its press did not land |
 | L3 | lifecycle 1 — the outcome claim, owned by its host frame | — |
 | L4 | lifecycle 3 — the announce plate and «set aside» | — |
 | S1 | the shell: session root + the supervisor out of the shell | — |
@@ -242,13 +242,27 @@ forwards to the new owner, it never keeps a second copy of the state.
 
 ### Phase 1 — the four shared lifecycles
 
-- **L1 — transport.** As §2.2 (4). Call sites: `ConsoleShell.submit / submitBatch` (the funnel of ~200 shell
-  callers), `ConsoleBoardBinder`, three direct `submitInput` calls. `transportHolds` / `transportState` /
-  `root.isServerSideRequestInProgress` stay as mirrors written by the machine only. The order of the gates is kept
-  verbatim (it is documented per gate and load-bearing).
-- **L2 — frames.** Scopes + location + `frameMachine`; `setWorkspaceFramePhase` and the five direct writes go through
-  the machine; the beat bound replaces the beat-stall guard for stack frames (a surface-reported beat keeps the old
-  path until its surface is a controller).
+- **L1 — transport (done).** As §2.2 (4): `submitMachine.ts` (one actor per submit, in its own scope under the
+  transport's), `gameTransport.fetchPlayerInput` = the funnel (ticket · mirrors · the three endings), `presentAnswer`
+  = the gate pipeline with every awaited scene a `gate()` child (order verbatim — it is documented per gate and
+  load-bearing). `transportHolds` / `transportState` / `root.isServerSideRequestInProgress` are mirrors.
+  `submitCeiling.ts` retired. **What L1 does not do yet:** a caller that ARMS a scene before it submits still arms on
+  module state, so a refused press (`accepted: false`) leaves that arm to the caller. The by-construction form —
+  `openSubmit()` returns the ticket FIRST, scenes are armed ON it (their abort is the ticket's), and a ticket not sent
+  in the task it was opened in is void — is adopted domain by domain in S6…, where each `arm…()` site is touched
+  anyway; the last slice removes the ticket-less `submitInput(out)` form.
+- **L2 — frames (done).** `consoleWorkspaceStack.ts` keeps its data model and verbs; `syncFrameLifetimes` (one
+  reconciler, called at the end of every verb that moves or removes frames) gives every frame a scope — a child of the
+  frame below it — and ends the scope of a frame that left all three homes. `consoleWorkspaceFrame.ts` is the phase
+  machine: `setWorkspaceFramePhase` and the stack's own phase writes go through `writeFramePhase`; the record's
+  `phase` is the mirror. `executing` / `completing` are beats with a bound that runs only ON STAGE
+  (`FRAME_BEAT_MAX_MS` — the structural net; the liveness arbiter still cuts a QUIET beat in seconds, which is why the
+  beat-stall guard's sampler was already a witness of the arbiter and not a judge of its own). **The beat's lease**:
+  a beat entered in the same synchronous stretch as a press is bound to that press's ticket (`onSubmitTicket`); a
+  press that did not land — refused busy, refused by the server, failed, silent — puts the frame back where the beat
+  came from. A surface's own rollback still runs first; where one was forgotten this is the rollback.
+  *Not yet:* owed steps and the conclusion as children of the frame's scope (S5); the twelve «flag may not outlive its
+  frame» watchers become `workspaceFrameScope(kind).defer(...)` with their domains (S6…).
 - **L3 — claim.** `claimMachine` in the host frame's scope; the facade keeps every exported function; the shell's
   orphan release and the `claim-safety` re-arm loop are deleted in the same diff.
 - **L4 — announce / set aside.** `announceMachine`; `mandatoryGateState` is its mirror; the deferred flag becomes a
@@ -340,4 +354,5 @@ kernel, a net that still covers legacy code stays, and the table says what it st
 
 | Slice | What moved | Specs |
 | --- | --- | --- |
-| — | — | — |
+| L2 | every frame verb now also opens / ends scopes; the phase is written through a machine (same value, same call); a frame whose press did not land goes back by the lease (after the surface's own rollback); a beat standing 180 s on stage is ended | anything with park / restore / yield for the board (`console-hydro-copied-tile`, `console-hi-tech-lab`, `console-workspace-stack*`, `console-start-sponsor`, `console-mu-colony-question`), a refused submit inside a workspace (`console-resource-distribute`), reload restore (`console-draft-workspace`) |
+| L1 | the funnel: every gate now runs as a child scope (a few microtasks later than a bare `await`); a gate that throws no longer aborts the whole answer; the supervisor's release ends the gate instead of lowering the flag | any spec that plays a card / trades / advances the hydro marker / converts / places a tile — pointwise check on the box: `smoke`, `console-workspace-band`, `console-stdp-workspace`, `console-colony-venus-trade`, `console-hydro-terminal-field`, `console-generation-scene`, `console-hand-play-return`, `console-hazard-placement` |

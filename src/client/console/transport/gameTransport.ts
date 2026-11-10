@@ -16,7 +16,11 @@
  *      → POST /player/input(-batch), then the console cinematic-gate
  *      pipeline: each armed transaction detects against the authoritative
  *      response, HOLDS the commit through its physical scene, and unwinds
- *      cleanly on a refusal/network failure.
+ *      cleanly on a refusal/network failure. ONE SUBMIT IS ONE SCOPE with
+ *      its machine (`submitMachine.ts` — architecture v2, lifecycle 4): the
+ *      funnel is busy exactly while that scope lives, a press it cannot take
+ *      is a typed refusal in the caller's hand (`SubmitTicket`), every gate
+ *      is a bounded child, and every submit settles exactly once.
  *   3. THE VIEW APPLY — structural sharing (`nextViewSnapshot`) + the
  *      transient-UI reset epoch (`playerkey`), with the card-pick preserve
  *      guards.
@@ -29,7 +33,7 @@
  */
 /* global RequestInit */
 
-import {reactive, nextTick} from 'vue';
+import {nextTick, reactive, shallowRef} from 'vue';
 import * as constants from '@/common/constants';
 import raw_settings from '@/genfiles/settings.json';
 import {onRealtimeWake} from '@/client/components/realtime/realtimeSync';
@@ -227,7 +231,10 @@ import {registerBotTurnApplied} from '@/client/components/marsbot/marsBotStagedC
 import {startSceneHeld} from '@/client/console/consoleStartState';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
-import {armSubmitCeiling} from '@/client/console/transport/submitCeiling';
+import {FlowScope, openFlowRoot} from '@/client/console/kernel/flowScope';
+import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
+import {submitMachine, SubmitStatus} from '@/client/console/transport/submitMachine';
+import {announceSubmitTicket, SubmitSettle, SubmitTicket} from '@/client/console/transport/submitTicket';
 import {
   applyHazardTileSwap,
   detectHazardCleanup,
@@ -249,7 +256,7 @@ const WGT_MARKER_HOLD_MS = 1100;
 
 const CANNOT_CONTACT_SERVER = 'Unable to reach the server. It may be restarting or down for maintenance.';
 
-/** The words of the submit ceiling (`submitCeiling.ts`) — the server's silence, named. */
+/** The words of the server's silence (the `sending` state's bound — `submitMachine.ts`), named. */
 const SERVER_NOT_RESPONDING_TITLE = 'The server is not responding';
 const SERVER_NOT_RESPONDING = 'The server has not answered your move for a minute. It may still be processing it — the game will reload its current state.';
 
@@ -363,27 +370,39 @@ export const transportState = reactive({
   requestSince: 0,
   /** The server ANSWERED this request (its gates are what still holds the funnel) — the arbiter may release it. */
   responseArrived: false,
+  /** Where the standing submit is — the machine's own state, mirrored (`idle` = the funnel is free). */
+  phase: 'idle' as 'idle' | 'sending' | 'presenting',
+  /** Presses REFUSED because the funnel was busy (evidence — a surface that offers a verb the funnel would refuse). */
+  refusedWhileBusy: 0,
 });
 
 /**
- * THE LIVENESS ARBITER'S RUNG (rank 22): a funnel that stands with the server's answer already in hand is held by
- * its own presentation gates — the awaited scenes. The holds they wait on were expired a rung earlier; a funnel that
- * still stands is let go, and the truth is re-fetched so the applied view cannot lag the answer. A request still ON
- * THE WIRE is never cut here — the network decides that one (the fetch's own timeout).
+ * THE SUPERVISOR'S RELEASE (the liveness ladder's rung 22): a submit that stands with the server's answer already in
+ * hand is held by its own presentation — an awaited scene. The holds that scene waits on were expired a rung earlier; a
+ * GATE that still stands is ended as expired, and THE COMMIT GOES ON WITHOUT IT: the rest of the pipeline runs and the
+ * answer is applied by the chain that owns it (the old release only lowered the flag — the hung chain, if it ever
+ * woke, applied a view older than the one re-fetched meanwhile). With no gate standing the presentation is hung
+ * somewhere else and the submit is abandoned (`RELEASE` → `abandoned` — the funnel reopens, the truth is re-fetched).
+ * A request still ON THE WIRE is never cut here — its own bound (the server's silence) decides that one.
  */
 export function releaseTransportFunnel(): string {
-  const r = root;
-  if (r === undefined || !r.isServerSideRequestInProgress) {
+  const submit = liveSubmit.value;
+  if (root === undefined || submit === undefined) {
     return '';
   }
   const ageS = Math.round((Date.now() - transportState.requestSince) / 1000);
-  if (!transportState.responseArrived) {
+  if (submit.flow.snapshot.value.value !== 'presenting') {
     return `request on the wire for ${ageS}s — left to the network`;
   }
-  r.isServerSideRequestInProgress = false;
-  transportState.requestInProgress = false;
-  r.updatePlayer();
-  return `funnel released after ${ageS}s (the answer arrived; its gates never let go) — the view re-fetched`;
+  if (submit.gates.size > 0) {
+    const names = [...submit.gates].map((gateScope) => gateScope.label);
+    for (const gateScope of [...submit.gates]) {
+      gateScope.end({how: 'expired', bound: 'released by the supervisor'});
+    }
+    return `funnel released after ${ageS}s (the answer arrived; its gate «${names.join('», «')}» never let go) — the commit goes on without it`;
+  }
+  submit.flow.send({type: 'RELEASE'});
+  return `funnel released after ${ageS}s (the answer arrived; its presentation never ended) — the view re-fetched`;
 }
 
 registerLivenessRelease({rank: 22, name: 'transport', release: releaseTransportFunnel});
@@ -429,6 +448,78 @@ let pollStopped = true;
 let onVisibilityChange: (() => void) | undefined;
 let realtimeWakeOff: (() => void) | undefined;
 let freshnessWitnessOff: (() => void) | undefined;
+
+// ── ONE SUBMIT = ONE SCOPE (architecture v2, lifecycle 4) ───────────────────────────────────────────────────────────
+
+export type {SubmitSettle, SubmitTicket} from '@/client/console/transport/submitTicket';
+
+type LiveSubmit = {
+  scope: FlowScope<'submit'>,
+  flow: FlowActor<typeof submitMachine>,
+  /** The gates playing right now (the supervisor's release ends them). */
+  gates: Set<FlowScope>,
+};
+
+let transportFlow: FlowScope<'transport'> | undefined;
+const liveSubmit = shallowRef<LiveSubmit | undefined>(undefined);
+const settleListeners = new Set<(settle: SubmitSettle) => void>();
+
+function transportScope(): FlowScope<'transport'> {
+  if (transportFlow === undefined || transportFlow.ended !== undefined) {
+    transportFlow = openFlowRoot('transport');
+  }
+  return transportFlow;
+}
+
+/**
+ * EVERY SUBMIT SETTLES HERE — applied, staged, refused, failed, silent, abandoned. What a surface keeps «while my
+ * answer is on its way» (a `submitting` flag, a sealed pose, a dimmed verb) resets on this, whichever way the answer
+ * went — the refusal battery could only recall the transactions somebody had listed in it.
+ */
+export function onSubmitSettled(listener: (settle: SubmitSettle) => void): () => void {
+  settleListeners.add(listener);
+  return () => settleListeners.delete(listener);
+}
+
+/**
+ * A gate's own bound. Deliberately ABOVE the hold registry's ceiling (35 s) and so above every scene's own safety: the
+ * scene's owner ends its wedge first (its `expire`), and this is only what guarantees that a gate — whatever its
+ * module does — cannot hold a submit for ever.
+ */
+export const GATE_MAX_MS = 45_000;
+
+function submitStatusOf(flow: FlowActor<typeof submitMachine>): SubmitStatus {
+  const snapshot = flow.snapshot.value;
+  return snapshot.status === 'done' ? snapshot.value as SubmitStatus : 'abandoned';
+}
+
+/**
+ * ONE CINEMATIC GATE of a submit's presentation, as a BOUNDED CHILD of the submit: its `transportHolds` flag is the
+ * child's life (raised here, lowered on every way out — `keep` leaves it up for the gates whose flag stands until
+ * the commit), a scene that THROWS is that child's failed end (said once by the kernel — the commit goes on; it used
+ * to surface as a «network error» with the view never applied), a scene that never ends is ended by its bound or by
+ * the supervisor's release, and the pipeline moves on. Returns `false` only when the SUBMIT itself is over (abandoned,
+ * the transport stopped) — the caller stops: nothing of this answer may be applied any more.
+ */
+async function gate(submit: LiveSubmit, hold: keyof typeof transportHolds, run: () => unknown, options?: {keep?: boolean}): Promise<boolean> {
+  transportHolds[hold] = true;
+  let gateScope: FlowScope | undefined;
+  const outcome = await submit.scope.run(hold, (scope) => {
+    gateScope = scope;
+    submit.gates.add(scope);
+    return run();
+  }, {kind: 'gate', bound: {ms: GATE_MAX_MS, quiet: 'named by the transport'}});
+  if (gateScope !== undefined) {
+    submit.gates.delete(gateScope);
+  }
+  if (options?.keep !== true) {
+    transportHolds[hold] = false;
+  }
+  if (outcome.status === 'expired') {
+    console.warn(`[transport] gate «${hold}» of ${submit.scope.id} outlived its bound (${outcome.bound}) — the commit goes on without it`);
+  }
+  return submit.scope.ended === undefined;
+}
 
 function theRoot(): TransportRoot {
   if (root === undefined) {
@@ -520,6 +611,10 @@ export function stopGameTransport(): void {
   pollStopped = true;
   window.clearTimeout(ui_update_timeout_id);
   ui_update_timeout_id = undefined;
+  // The transport's scope ends with the game screen — a submit still standing is over with it (its funnel reopens,
+  // its gates are cancelled, its ticket settles `abandoned`).
+  transportFlow?.end({how: 'cancelled', reason: 'the game screen left'});
+  transportFlow = undefined;
   root = undefined;
 }
 
@@ -565,7 +660,7 @@ function animateTitle(): void {
 }
 
 /** Submit ONE input response (the whole console funnels through here). */
-export function submitInput(out: InputResponse): void {
+export function submitInput(out: InputResponse): SubmitTicket {
   // The decision sequence: this press opens (or continues) a chain — the prompt it raises is its follow-up.
   notePromptSubmit();
   /*
@@ -575,7 +670,7 @@ export function submitInput(out: InputResponse): void {
    * but defensive).
    */
   const wgtSubmit = currentPromptIsWGT();
-  fetchPlayerInput(
+  return fetchPlayerInput(
     apiUrl(paths.PLAYER_INPUT) + '?id=' + currentView().id,
     {
       method: 'POST',
@@ -601,11 +696,11 @@ export function submitInput(out: InputResponse): void {
  * one action menu and confirmed later). Omitted, the prompt standing now is
  * the stamp, exactly as before.
  */
-export function submitBatch(responses: ReadonlyArray<InputResponse>, composedFor?: number): void {
+export function submitBatch(responses: ReadonlyArray<InputResponse>, composedFor?: number): SubmitTicket {
   // The «re-asked» witness remembers what this batch answered (`preselectWitness.ts`).
   notePreselectBatch(responses);
   notePromptSubmit();
-  fetchPlayerInput(
+  return fetchPlayerInput(
     apiUrl(paths.PLAYER_INPUT_BATCH) + '?id=' + currentView().id,
     {
       method: 'POST',
@@ -625,8 +720,8 @@ export function submitBatch(responses: ReadonlyArray<InputResponse>, composedFor
 /** Cancel a pending, cancellable tile placement (a pay-on-commit standard
  *  project). Submits a CancelResponse; the server discards the placement
  *  without charging and returns the player to the action menu. */
-export function cancelPlacement(): void {
-  submitInput({type: 'cancel'});
+export function cancelPlacement(): SubmitTicket {
+  return submitInput({type: 'cancel'});
 }
 
 /** The viewer's six stock rows, as a view reads them (the tile hero's price check — PL-306). */
@@ -855,758 +950,824 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   seedVpShares(currentView(), newView);
 }
 
-function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean): void {
+/**
+ * THE PRESENTATION OF AN ANSWER — the console cinematic-gate pipeline, then the commit. Each armed transaction
+ * detects against the AUTHORITATIVE response (a refused move can never fake a success), HOLDS the commit through its
+ * physical scene (`gate` — a bounded child of the submit), and hands its post-commit half to the next tick. Order is
+ * load-bearing and documented per gate. The funnel stays busy through every hold (the submit's scope lives), so
+ * nothing else can submit while a scene is presenting.
+ *
+ * Returns how the answer went: `applied` (committed here), `staged` (the MarsBot pipeline commits it with the bot's
+ * last turn) or `over` (the submit ended under it — nothing of this answer is applied any more).
+ */
+async function presentAnswer(submit: LiveSubmit, newView: PlayerViewModel, wgtSubmit: boolean): Promise<'applied' | 'staged' | 'over'> {
+  /*
+   * The console cinematic-gate pipeline. Each armed transaction
+   * detects against the AUTHORITATIVE response (a refused move can
+   * never fake a success), HOLDS the commit through its physical
+   * scene, and hands its post-commit half to the next tick. Order is
+   * load-bearing and documented per gate. `isServerSideRequestInProgress`
+   * stays raised through every hold (cleared in `.finally`), so
+   * nothing else can submit while a scene is presenting.
+   */
+  /*
+   * Console PLAYED-CARD HERO gate (the "card lands on my tableau"
+   * scene). HOLD the commit through the pre-commit half (lift →
+   * overlay swap → arc → landing), so the delta chips + the committed
+   * tableau land on a card that has PHYSICALLY arrived. Runs BEFORE
+   * the bot staging: the bot's turn (which rides this same response)
+   * is presented only after the player's own card has landed.
+   */
+  const playedHeroEvent = detectPlayedHero(newView);
+  /*
+   * THE PLAY'S CARD PRICE (P86 — PL-1128): a discard the play composer PRE-SELECTED is armed at the press and
+   * is the play's PRICE — the server discards it FIRST. So it is detected HERE, before the hero, and its ONE
+   * scene (the shared discard transaction — the discard gate below never plays it a second time) starts beside
+   * the hero's shipment: the hero lifts once the packet has LEFT the dock (`shipPlayDiscard`), the packet lands
+   * on the pile while the card flies. Price before result, no beat of its own.
+   */
+  const playDiscardEvent = playedHeroEvent !== undefined ? detectCardDiscard(newView) : undefined;
+  let playDiscardGate: Promise<boolean> | undefined;
+  if (playDiscardEvent !== undefined) {
+    playDiscardGate = gate(submit, 'cardDiscard', () => runCardDiscard());
+    shipPlayDiscard(cardDiscardDeparted());
+  }
+  if (playedHeroEvent !== undefined) {
+    // The play's RETURN BEAT (Astra Mechanica): work out from the
+    // authoritative diff which cards travelled table → hand and
+    // withhold them from the dock NOW, so the commit below cannot
+    // show them in the pack before they have physically flown there.
+    stagePlayedCardReturns(currentView(), newView);
+    // The applied view rides along: the shipment beat (the price the play takes off the rail) checks
+    // its promise against the diff of the two before it flies — before anything is committed.
+    if (!await gate(submit, 'playedHero', () => runPlayedHero(newView, currentView()))) {
+      return 'over';
+    }
+  }
+  if (playDiscardGate !== undefined && !await playDiscardGate) {
+    return 'over';
+  }
+  /*
+   * Console PATENT-SALE gate (the "cards feed the trade terminal"
+   * scene). HOLD the commit until the dispensed M€ chip LANDS on the
+   * resource rail — the new counter value + the standard delta chip
+   * appear exactly at the touchdown.
+   */
+  /*
+   * Console RESOLUTION-PAYOUT gate (Turmoil Redux). The viewer answered an
+   * enacted resolution's card-resource pick and the server RECORDED the
+   * payout: HOLD the commit while the chip flies from the stage's payout
+   * reading onto the chosen candidate (still on screen — the pick is the
+   * standing view), so the stage leaves on a card that has visibly
+   * received it. Detected from the authoritative outcome record only.
+   */
+  const resolutionPayoutEvent = detectResolutionPayout(currentView(), newView);
+  if (resolutionPayoutEvent !== undefined) {
+    if (!await gate(submit, 'resolutionPayout', () => runResolutionPayout(resolutionPayoutEvent))) {
+      return 'over';
+    }
+  }
+  /*
+   * Console LIVE-PICK RECEIVE gate (TR53 iteration «ресурс на карту — один стандарт»). The viewer answered a
+   * live «on which card» pick (`resourceGainPrompt` — an Ares adjacency, a cell's printed bonus, a foreign
+   * trade's colony bonus, a card's gift) and the card really took it: HOLD the commit while the answer plays
+   * as a SCENE — the chosen card presented, the token out of its real source (the paying cell, the planet, the
+   * source card's printed icon) onto its capsule, the read, the card home — instead of the draft's dive. The
+   * field family plays the SERVER's record (`cardAdjacencyPayouts`, `asked`).
+   */
+  const promptReceiveEvent = detectPromptReceive(currentView(), newView);
+  if (promptReceiveEvent !== undefined) {
+    if (!await gate(submit, 'promptReceive', () => runPromptReceive(promptReceiveEvent))) {
+      return 'over';
+    }
+  }
+  /*
+   * Console TABLE-ANSWER LAYOUT gate (TR78 — «ОТВЕТ СТОЛА»): the viewer laid a walk's units out over its holders
+   * (the family's distribution, asked by a card of the table) and the server RECORDED the landing: HOLD the commit
+   * while the tokens leave the asker's face on the answer stage onto the chosen capsules (the layout is the
+   * standing view). Detected from the authoritative reaction record only.
+   */
+  const tableAnswerEvent = detectTableAnswerPayout(currentView(), newView);
+  if (tableAnswerEvent !== undefined) {
+    if (!await gate(submit, 'tableAnswer', () => runTableAnswerPayout(tableAnswerEvent))) {
+      return 'over';
+    }
+  }
+  const patentSaleEvent = detectPatentSale(newView);
+  if (patentSaleEvent !== undefined) {
+    if (!await gate(submit, 'patentSale', () => runPatentSale())) {
+      return 'over';
+    }
+  }
+  /*
+   * Console TERMINAL STANDARD-PROJECT gate. HOLD the commit while the
+   * pressed row's gold sweep runs, and release it AT ITS PEAK: the
+   * counters and their delta chips then land on the crest of the
+   * confirmation, which is the causal order the player reads.
+   */
+  if (detectStdProjectCommit()) {
+    if (!await gate(submit, 'stdProject', () => runStdProjectCommit())) {
+      return 'over';
+    }
+  }
+  /*
+   * Console CARD-DISCARD gate — the ONE "a card physically leaves the
+   * hand" scene every discard ends at. HOLD the commit until the
+   * cards have LANDED on the pile; the scene closes the pick surface
+   * itself at its hand-off phase, and only then does the shorter hand
+   * commit. Runs ABOVE the bot staging on purpose: a discard can be
+   * the last thing a turn does, so its response carries the bot's
+   * turns, and an early `return` down there would skip everything
+   * below it.
+   */
+  const discardEvent = playDiscardEvent ?? detectCardDiscard(newView);
+  if (discardEvent !== undefined && playDiscardEvent === undefined) {
+    if (!await gate(submit, 'cardDiscard', () => runCardDiscard())) {
+      return 'over';
+    }
+  }
+  /*
+   * Console TILE-PLACEMENT HERO gate. VERIFIES the server actually put
+   * a tile on the armed space and CAPTURES the cell's printed bonus
+   * icons while it is still uncovered. HOLD the commit through the
+   * flight + touchdown — the real tile paints silently under the
+   * landed proxy via the targeted preview, so the generic tile hold
+   * below sees no remaining diff for that space.
+   */
+  const tileHeroEvent = detectTilePlacement(
+    currentView().game?.spaces, newView.game?.spaces,
+    {
+      aresExtension: currentView().game?.gameOptions?.expansions?.ares === true,
+      // The server's own ocean-adjacency breakdown for this response.
+      // Accepted only when it names the space we armed — the scene
+      // never re-derives board adjacency or the M€ rule.
+      oceanBonus: newView.lastOceanBonus,
+      // …and its Ares adjacency manifest: WHICH neighbouring tile paid
+      // WHAT to WHOM — the adjacency beat's authority, same principle.
+      aresGrants: newView.game?.aresAdjacencyGrants,
+      viewerColor: newView.thisPlayer?.color,
+      // …and what the enacted LAW paid on THIS cell (Development Craze
+      // repeats the engine's bonuses, Forestry Support makes the
+      // neighbouring groves pay): the law's own wave.
+      lawPayout: newView.lastPlacementLawPayout,
+      // …and the server's move ring: a MOVE the hero plays claims its
+      // own record, so the remote stage can never replay it.
+      tileMoves: newView.game?.tileMoves,
+      // …and what the MOVE itself paid beyond the cell (TR39: its rating, the
+      // table's measured answer) — the landing's own last beats, held to the
+      // touchdown and paid in the engine's order; nothing re-derived.
+      moveReward: newView.lastTileMoveReward,
+      // …and its per-neighbour card payouts (TR21: the data the cities paid onto the chosen
+      // card) — the hero plays THIS cell's record and claims it; the card's face comes from the tableau.
+      cardPayouts: newView.game?.cardAdjacencyPayouts,
+      prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
+      viewerCards: newView.thisPlayer?.tableau,
+      // …and the viewer's stock in both views: the price a conversion pays off the rail (PL-306) is flown only
+      // when its row moved by exactly that price plus what the placement pays back.
+      viewerStock: {before: stockReadingOf(currentView().thisPlayer), after: stockReadingOf(newView.thisPlayer)},
+      // …and the server's record of what the cell's printed bonus PAID — a multiple (TR79 Ferrus Academy) plays the
+      // printed beat once per multiple, never a guessed «×2».
+      placements: newView.game?.tilePlacements,
+    });
+  if (tileHeroEvent !== undefined) {
+    if (!await gate(submit, 'tilePlacementHero', () => runTilePlacement(currentView().game.spaces, newView.game.spaces))) {
+      return 'over';
+    }
+  }
+  /*
+   * Console MARS NOMADS MOVE gate. VERIFIES the server actually moved
+   * the camp onto the armed space (the from→to diff) and CAPTURES the
+   * destination's printed bonus icons while the displayed board still
+   * shows the pre-move state. HOLD the commit through lift + hop +
+   * touchdown — the real destination token paints silently under the
+   * settled proxy (targeted preview + marker-baseline pre-adoption),
+   * so the marker hold below sees no remaining nomad diff.
+   */
+  const nomadMoveEvent = detectNomadMove(
+    currentView().game?.spaces, newView.game?.spaces,
+    // …and the server's own ocean-adjacency breakdown for this response:
+    // a camp that moves next to water is paid by that water exactly as a
+    // build is, so it plays the SAME coin beat (accepted only when the
+    // manifest names the destination we armed).
+    {oceanBonus: newView.lastOceanBonus});
+  if (nomadMoveEvent !== undefined) {
+    if (!await gate(submit, 'nomadMove', () => runNomadMove(currentView().game.spaces, newView.game.spaces))) {
+      return 'over';
+    }
+  }
+  /*
+   * Console COLONY-TRADE launch gate (send a trade fleet to the
+   * planet). The ship is already flying to the target berth; HOLD the
+   * commit until it DOCKS. Runs BEFORE the bot staging: a trade that
+   * ENDS the turn carries the bot's turns in this same response, and
+   * the ship must dock — and the trade transaction must claim its
+   * manifest — before the bot's story starts.
+   */
+  const tradeFleetEvent = detectTradeFleet();
+  if (tradeFleetEvent !== undefined) {
+    if (!await gate(submit, 'tradeFleet', () => runTradeFleet(), {keep: true})) {
+      return 'over';
+    }
+  }
+  /*
+   * The colony-trade REWARD transaction: CLAIM this response's
+   * authoritative trade manifest BEFORE any commit path — claiming
+   * freezes the traded colony's track display at its pre-trade
+   * position and marks the tradeId, so the reveal batch can never be
+   * grabbed by the deck-draw scene, whichever path (gated commit
+   * below or the staged bot pipeline) applies the view.
+   */
+  const colonyTradeEvent = detectColonyTrade(newView);
+  /*
+   * THE GENERATION SCENE (TR61): the seat's OWN production record on the
+   * new view — detected and CLAIMED before either commit path, so a
+   * re-fetched view never replays it. The gated path below plays the whole
+   * phrase (flip → conversion → income → rise); a STAGED response (fresh
+   * bot turns) commits in the closure, so there the flip is the strip's
+   * own reaction to the committed view and the income flies after it.
+   */
+  const generationScene = detectGenerationScene(currentView(), newView);
+  // …and the flip a seat's SITTING deferred: owed to the screen at the seat's own close (P89 · EA).
+  detectDeferredGenerationFlip(currentView(), newView);
+  /*
+   * MarsBot turns (the MAIN path — ending your turn is what lets the
+   * bot act, so its resolved turn(s) ride THIS response).
+   * NOTIFICATION-FIRST with STAGED visual commits: when fresh bot
+   * turns arrive, the latest view is NOT committed here — each turn's
+   * visual footprint applies to the presented view when its compact
+   * card is DELIVERED, and the LAST turn's delivery runs the closure
+   * below. The marker/tile/conversion holds are deliberately skipped
+   * on a staged response: the bot's tiles animate per turn through
+   * the staging itself.
+   */
+  if (!startSceneHeld() && presentFreshBotTurns(currentView(), newView, {
+    commitLatest: () => {
+      // Console: the batch's LAST-turn tiles (this closure IS that
+      // full commit) land with the premium remote flight — staged in
+      // the same synchronous block, committed hidden, revealed at
+      // each proxy's touchdown.
+      stageRemotePlacements(currentView().game?.spaces, newView.game?.spaces, {
+        aresExtension: newView.game?.gameOptions?.expansions?.ares === true,
+        gamePhase: newView.game?.phase,
+        viewerColor: newView.thisPlayer?.color,
+        aresGrants: newView.game?.aresAdjacencyGrants,
+        tileMoves: newView.game?.tileMoves,
+        cardPayouts: newView.game?.cardAdjacencyPayouts,
+        prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
+        viewerCards: newView.thisPlayer?.tableau,
+        placements: newView.game?.tilePlacements,
+        prevPlacements: currentView().game?.tilePlacements,
+        players: {before: currentView().players ?? [], after: newView.players ?? []},
+      });
+      // …and a nomad camp that moved in the batch (a concurrent human's
+      // move riding the bot's turns): commit hidden, hop at reveal.
+      stageRemoteNomadMove(currentView().game?.spaces, newView.game?.spaces, {
+        gamePhase: newView.game?.phase,
+      });
+      if (shouldHoldForTilePlacement(currentView().game.spaces, newView.game.spaces)) {
+        armPlacementAnimations();
+      }
+      seedRewardHolds(newView);
+      applyPlayerView(newView);
+      if (generationScene !== undefined) {
+        // The staged path has no pre-commit beat: the strip flips off the commit, the income flies after it.
+        void nextTick(() => {
+          void runGenerationIncomeFlights(() => currentView());
+        });
+      }
+    },
+  })) {
+    // A staged bot response defers the commit to the bot pipeline —
+    // each gate's post-commit half still runs so nothing is left
+    // proxy-frozen on screen.
+    if (playedHeroEvent !== undefined) {
+      void nextTick(() => {
+        void endPlayedHero();
+      });
+    }
+    if (patentSaleEvent !== undefined) {
+      void nextTick(() => {
+        void endPatentSale();
+      });
+    }
+    if (resolutionPayoutEvent !== undefined) {
+      void nextTick(() => endResolutionPayout());
+    }
+    if (promptReceiveEvent !== undefined) {
+      void nextTick(() => endPromptReceive());
+    }
+    if (tableAnswerEvent !== undefined) {
+      void nextTick(() => endTableAnswerPayout());
+    }
+    if (discardEvent !== undefined) {
+      void nextTick(() => {
+        void endCardDiscard();
+      });
+    }
+    if (tileHeroEvent !== undefined) {
+      void nextTick(() => {
+        void endTilePlacement();
+      });
+    }
+    if (nomadMoveEvent !== undefined) {
+      void nextTick(() => {
+        void endNomadMove();
+      });
+    }
+    // …and the docked trade fleet: the ship has landed (the gate
+    // above awaited the dock); release the proxy now — the staged
+    // pipeline commits the docked board state with the bot's last
+    // turn, and the trade-reward transaction (already claimed)
+    // continues from that commit via the shell's playerView watcher.
+    if (tradeFleetEvent !== undefined) {
+      transportHolds.tradeFleet = false;
+      void nextTick(() => endTradeFleet());
+    }
+    return 'staged';
+  }
+  /*
+   * Console REMOTE placements riding the viewer's OWN submit response
+   * (a concurrent human's build that resolved while the POST was in
+   * flight). Staged BEFORE the generic tile preview below paints
+   * them: they commit hidden behind the reveal hold and land with the
+   * premium remote flight at their proxy's touchdown. The viewer's
+   * own armed placement was already consumed by the tile hero above;
+   * hazards are excluded and keep the generic ominous entrance.
+   */
+  stageRemotePlacements(currentView().game?.spaces, newView.game?.spaces, {
+    aresExtension: newView.game?.gameOptions?.expansions?.ares === true,
+    gamePhase: newView.game?.phase,
+    viewerColor: newView.thisPlayer?.color,
+    aresGrants: newView.game?.aresAdjacencyGrants,
+    // …and the server's word that a removal + a landing are ONE move (TR14
+    // — a parked pin landing, a concurrent human's move): never paired by geometry.
+    tileMoves: newView.game?.tileMoves,
+    // …and the server's per-neighbour card payouts (TR21 — another seat's cities paying their card).
+    cardPayouts: newView.game?.cardAdjacencyPayouts,
+    prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
+    viewerCards: newView.thisPlayer?.tableau,
+    // …and the record of who placed each tile and what the cell paid them (the tile language).
+    placements: newView.game?.tilePlacements,
+    prevPlacements: currentView().game?.tilePlacements,
+    players: {before: currentView().players ?? [], after: newView.players ?? []},
+  });
+  // …and a REMOTE nomad hop riding the viewer's own submit response (a
+  // concurrent human's move that resolved while the POST was in
+  // flight). The viewer's own armed move was already consumed by the
+  // nomad gate above; an undo restore also lands here (the camp
+  // honestly walks back).
+  stageRemoteNomadMove(currentView().game?.spaces, newView.game?.spaces, {
+    gamePhase: newView.game?.phase,
+  });
+  const markerHold = wgtSubmit && shouldHoldForMarkerAnimation(newView);
+  const tileHold = shouldHoldForTilePlacement(
+    currentView().game.spaces,
+    newView.game.spaces,
+  );
+  // An OVERLAY MARKER landed on an existing tile (St. Joseph's
+  // cathedral): NOT an `undefined → tile` placement, so neither the
+  // generic tile hold above nor the console hero ever fires for it —
+  // without this the marker popped in together with the prompt it
+  // causes.
+  const cathedralHold = shouldHoldForMarkerPlacement(
+    currentView().game.spaces,
+    newView.game.spaces,
+  );
+  // Measured NOW — the preview below mutates the displayed spaces, and
+  // a duration read after it would see no landed markers left. The diff
+  // picks the longest landing this response contains (a nomads first
+  // landing outlasts the cathedral's drop).
+  const cathedralHoldMs = cathedralHold ? markerPlacementHoldDurationMs(
+    currentView().game.spaces, newView.game.spaces) : 0;
+  // A PLAYER MARKER claimed an empty cell (Land Claim, an Arcadian
+  // community): a colour-only diff — the cube popped in without this.
+  // A claim collects NOTHING, so this branch stays a pure landing.
+  // …and the markers a LANDING brought (TR79 Ferrus Academy's ring of cubes around its first city) land IN TURN,
+  // one by one, after the city and its own cube — never one frame (`landOwnerCubesInTurn`, awaited below).
+  // The viewer's OWN ring rides its own city (the hero); a rival's ring was claimed by the remote stage above and
+  // lands after the rival's city does.
+  const freshOwnerCubes = freshOwnerCubeIds(currentView().game.spaces, newView.game.spaces).length;
+  const ownerCubeRing = tileHeroEvent !== undefined && freshOwnerCubes > 0;
+  const ownerCubeHold = !ownerCubeRing && shouldHoldForOwnerCubePlacement(
+    currentView().game.spaces,
+    newView.game.spaces,
+  );
+  /*
+   * Energy→heat conversion hold (end of generation). Detect BEFORE
+   * the marker/tile previews mutate the displayed view; claims the
+   * dedup key so the poll path doesn't double-fire it.
+   */
+  const conversionEvent = detectEnergyConversion(currentView(), newView);
+  // Building over a hazard zone (erosion / dust storm): play the
+  // premium cleanup sequence and hold the follow-up until it ends. (A
+  // hazard→tile swap is NOT an `undefined→tile` placement, so the
+  // tile-placement hold above never fires for it.)
+  const hazardCleanups = detectHazardCleanup(currentView(), newView);
+  if (markerHold || tileHold || cathedralHold || ownerCubeHold) {
+    if (markerHold) {
+      applyGlobalParamPreview(newView);
+      transportHolds.marker = true;
+    }
+    if (tileHold) {
+      /*
+       * Arm the placement-animation gate BEFORE mutating the
+       * displayed spaces — observeTilePlacement on the BoardSpaceTile
+       * watcher fires synchronously from Vue's reactivity, so if we
+       * arm after the mutation the gate is still closed at the moment
+       * the watcher checks it and the animation gets silently
+       * skipped. Without this gate the very first render of the board
+       * on F5 / direct nav would also animate every existing tile.
+       */
+      armPlacementAnimations();
+      applyTilePlacementPreview(
+        currentView().game.spaces,
+        newView.game.spaces,
+      );
+      transportHolds.tilePlacement = true;
+    }
+    if (cathedralHold) {
+      // Arm BEFORE mutating the spaces — same ordering contract as
+      // the tile branch above.
+      armPlacementAnimations();
+      applyMarkerPlacementPreview(
+        currentView().game.spaces,
+        newView.game.spaces,
+      );
+      transportHolds.tilePlacement = true;
+    }
+    if (ownerCubeHold) {
+      // Same ordering contract as the two branches above.
+      armPlacementAnimations();
+      applyOwnerCubePlacementPreview(
+        currentView().game.spaces,
+        newView.game.spaces,
+      );
+      transportHolds.tilePlacement = true;
+    }
+    const holdMs = Math.max(
+      markerHold ? motionMs(WGT_MARKER_HOLD_MS) : 0,
+      tileHold ? placementHoldDurationMs() : 0,
+      // The FULL landing (not the shorter perceptual window): the
+      // prompt this marker causes opens strictly after it settles.
+      cathedralHoldMs,
+      ownerCubeHold ? ownerCubeHoldDurationMs() : 0,
+    );
+    try {
+      await submit.scope.sleep(holdMs);
+    } finally {
+      transportHolds.marker = false;
+      transportHolds.tilePlacement = false;
+    }
+    if (submit.scope.ended !== undefined) {
+      return 'over';
+    }
+  }
+  if (ownerCubeRing) {
+    // THE RING (TR79): every fresh cube held hidden with its colour, then set down one by one, clockwise from the
+    // top of the city it rings (the hero's own cell when it placed one) — the commit waits for the LAST contact,
+    // and the registry knows the scene owns the foreground (the start's completion barrier waits on it too).
+    transportHolds.tilePlacement = true;
+    const pivotRect = tileHeroEvent !== undefined ? measureBoardHexRect(tileHeroEvent.spaceId) : undefined;
+    const centreOf = (id: string) => {
+      const r = measureBoardHexRect(id);
+      return r === undefined ? undefined : {x: r.x + r.w / 2, y: r.y + r.h / 2};
+    };
+    const ringLanded = await gate(submit, 'tilePlacement', () =>
+      holdAnimationWhile('owner-cube-ring', landOwnerCubesInTurn(currentView().game.spaces, newView.game.spaces, {
+        order: (ids) => clockwiseFromTop(ids, centreOf, pivotRect === undefined ? undefined : {x: pivotRect.x + pivotRect.w / 2, y: pivotRect.y + pivotRect.h / 2}),
+        wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+        scale: motionMs,
+      })));
+    if (!ringLanded) {
+      return 'over';
+    }
+  }
+  if (hazardCleanups.length > 0) {
+    transportHolds.hazardCleanup = true;
+    // The swap callback fires mid-sequence (after the hazard
+    // dissolves) to reveal the new tile on the STILL-DISPLAYED old
+    // view; the full view commits below.
+    if (!await gate(submit, 'hazardCleanup', () => runHazardCleanup(
+      hazardCleanups,
+      () => applyHazardTileSwap(currentView().game.spaces, newView.game.spaces, hazardCleanups),
+    ), {keep: true})) {
+      return 'over';
+    }
+  }
+  /*
+   * THE GENERATION SCENE, beat 1 (TR61): the counter FLIPS first — the
+   * displayed view's generation is set ahead of the commit (the marker
+   * hold's own precedent) and the strip's completion signal releases the
+   * beat. The conversion gate below is the scene's second beat.
+   */
+  if (generationScene !== undefined) {
+    if (!await gate(submit, 'generationScene', () => runGenerationFlip(generationScene, currentView()))) {
+      return 'over';
+    }
+    markGenerationConversion();
+  }
+  if (conversionEvent !== undefined) {
+    transportHolds.conversion = true;
+    // The override seeds the change-feedback baselines on completion,
+    // so committing right after shows the production REMAINDER chips,
+    // not the full pre-conversion delta.
+    //
+    // HANDOFF beat (console): when the conversion was ANSWERED on a
+    // console prompt surface (the Supercapacitors amount — the still-
+    // displayed old view names it), that surface hides on the sync
+    // `active` flip and needs its leave to finish before the visible
+    // motion starts. The automatic conversion keeps 0.
+    const conversionLeadInMs =
+      consoleModeState.enabled && currentWaitingFor()?.type === 'amount' ?
+        motionMs(320) : 0;
+    if (!await gate(submit, 'conversion', () => runEnergyConversion(conversionEvent, {leadInMs: conversionLeadInMs}), {keep: true})) {
+      return 'over';
+    }
+  }
+  /*
+   * Console HYDRONETWORK marker-advance gate. The marker is already
+   * gliding to the new stop; HOLD the commit until it LOCKS IN.
+   * Composed after the other holds (an advance never places a tile /
+   * converts energy / trades a colony).
+   */
+  const hydroMarkerEvent = detectHydroMarker();
+  if (hydroMarkerEvent !== undefined) {
+    if (!await gate(submit, 'hydroMarker', () => runHydroMarker(), {keep: true})) {
+      return 'over';
+    }
+  }
+  /*
+   * Console COLONY-BUILD hero gate. VERIFY the viewer's cube landed
+   * in the armed colony's next slot + CAPTURE the slot's benefit
+   * glyph while it is still rendered. HOLD the commit through the
+   * cube drop. A build response never carries fresh bot turns
+   * (building doesn't end the turn), so it composes here — never in
+   * the staged path.
+   */
+  /*
+   * Console COLONY-ROSTER gate (the player's OWN change of the table —
+   * TR10 Fringe Colony, Aridor's first action, the solo setup trim).
+   * VERIFY the answer carries the armed change; HOLD the commit while
+   * the stage plays it (the leaving planet lets go, the new one
+   * docks). Composed BEFORE the build hero: a colony built by the same
+   * answer lands on the planet that has just docked.
+   */
+  const colonyRosterBuilds = colonyRosterState.armed?.builds === true;
+  const colonyRosterEvent = detectColonyRosterChange(currentView(), newView);
+  if (colonyRosterEvent !== undefined) {
+    if (!await gate(submit, 'colonyRoster', () => runColonyRosterCeremony(colonyRosterEvent, colonyRosterBuilds))) {
+      return 'over';
+    }
+  }
+  /*
+   * Console COLONY-CITY gate (the player's OWN city laid on a colony
+   * tile — TR22 Nova City). VERIFY the answer carries exactly the armed
+   * tile on the armed colony tile; HOLD the commit while the piece
+   * materializes above its seat and descends. The gate opens AT THE
+   * FRAME OF CONTACT — the commit applies under the proxy, so every
+   * counter a trigger moves ticks after the touch by itself; the cube,
+   * the count and the read play past the gate under the scene's own hold.
+   */
+  const colonyCityEvent = detectColonyCity(currentView(), newView);
+  if (colonyCityEvent !== undefined) {
+    if (!await gate(submit, 'colonyCity', () => runColonyCity(colonyCityEvent))) {
+      return 'over';
+    }
+  }
+  const colonyBuildEvent = detectColonyBuild(currentView(), newView);
+  if (colonyBuildEvent !== undefined) {
+    if (!await gate(submit, 'colonyBuild', () => runColonyBuild())) {
+      return 'over';
+    }
+  }
+  seedRewardHolds(newView);
+  applyPlayerView(newView);
+  if (resolutionPayoutEvent !== undefined) {
+    // Post-commit: the committed view carries the paid count (and has
+    // taken the picker away) — the landing tick's scope may close now.
+    void nextTick(() => endResolutionPayout());
+  }
+  if (tableAnswerEvent !== undefined) {
+    void nextTick(() => endTableAnswerPayout());
+  }
+  if (promptReceiveEvent !== undefined) {
+    // Post-commit: the pick is gone and the card is home — its seal, its recede and its ticks let go.
+    void nextTick(() => endPromptReceive());
+  } else {
+    // An armed press whose answer did not verify (or did not come with this response) leaves no pose behind.
+    disarmPromptReceive();
+  }
+  if (hazardCleanups.length > 0) {
+    transportHolds.hazardCleanup = false;
+    void nextTick(() => endHazardCleanup());
+  }
+  if (conversionEvent !== undefined) {
+    transportHolds.conversion = false;
+    // Clear the panel override on the next tick — AFTER the committed
+    // panel reads the canonical final values and fires the seeded
+    // production chips — so there's no value flash.
+    void nextTick(() => endEnergyConversion());
+  }
+  if (generationScene !== undefined) {
+    // Beat 3 — the income FLIES after the commit (the real values stand under the held rows), then the scene
+    // concludes (beat 4: the research rises). After the conversion's own end, in the same tick order.
+    void nextTick(() => {
+      void runGenerationIncomeFlights(() => currentView());
+    });
+  }
+  if (tradeFleetEvent !== undefined) {
+    transportHolds.tradeFleet = false;
+    // Hand the flight off AFTER the commit: the real docked ship just
+    // materialized under the (gone) proxy — end on the next tick so
+    // it gets the one-shot settle glow + the composer closes.
+    void nextTick(() => endTradeFleet());
+  }
+  if (colonyTradeEvent !== undefined) {
+    // The reward waves start only now — the ship has docked, the view
+    // committed (metrics held, track frozen): the trade income
+    // physically leaves the «ТОРГОВАТЬ» cell, then the own colony
+    // bonuses leave «БОНУС»; drawn cards ride the staged reveal and
+    // the track reset glide follows the last confirmation.
+    void nextTick(() => {
+      void runColonyTradeRewards();
+    });
+  }
+  if (hydroMarkerEvent !== undefined) {
+    transportHolds.hydroMarker = false;
+    // Hand the advance off AFTER the commit: the real marker just
+    // materialized on the new stop under the locked proxy.
+    void nextTick(() => endHydroMarker());
+  }
+  if (colonyBuildEvent !== undefined) {
+    // Post-commit handoff: the real filled-cell cube just painted
+    // pixel-identical under the settled proxy — remove the proxy in
+    // one frame + absorb the resting resource chip.
+    void nextTick(() => {
+      void endColonyBuild();
+    });
+  }
+  if (playedHeroEvent !== undefined) {
+    // Post-commit half of the hero scene: the real slot just painted
+    // under the proxy (identical geometry) — reveal, dissolve the
+    // proxy, play the result beat, close the system-opened table.
+    void nextTick(() => {
+      void endPlayedHero();
+    });
+  }
+  if (patentSaleEvent !== undefined) {
+    // Post-commit settle: absorb the chip into the row (one-shot
+    // halo) and retract the terminal.
+    void nextTick(() => {
+      void endPatentSale();
+    });
+  }
+  if (discardEvent !== undefined) {
+    // Post-commit half of the discard: hold the pile's
+    // acknowledgement for a beat, then withdraw the tray.
+    void nextTick(() => {
+      void endCardDiscard();
+    });
+  }
+  if (tileHeroEvent !== undefined) {
+    // The REWARD BEAT of the placement: the cell's printed icons rise
+    // through the placed tile, become physical chips and pay out —
+    // then a STAGED play's own card gains fly from the same tile
+    // (the card-seal wave; no-op unless a staged commit armed one).
+    void nextTick(() => {
+      void endTilePlacement().then(() => runStagedSealWave());
+    });
+  } else if (stagedSealPending()) {
+    // A staged commit whose placement hero degraded (a parked space
+    // tail, an unmeasurable board) still owes the card's gains — the
+    // wave itself degrades honestly when the hex can't be measured.
+    void nextTick(() => {
+      void runStagedSealWave();
+    });
+  }
+  if (nomadMoveEvent !== undefined) {
+    // The REWARD + RESTORE beats of the move: the displaced icons
+    // become physical chips and pay out, then the cell's printed
+    // bonuses materialize back — the field is not exhausted.
+    void nextTick(() => {
+      void endNomadMove();
+    });
+  }
+  return 'applied';
+}
+
+let presenter: typeof presentAnswer = presentAnswer;
+
+function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean): SubmitTicket {
   const r = theRoot();
-  if (r.isServerSideRequestInProgress) {
-    console.warn('Server request in progress');
-    return;
+  const standing = liveSubmit.value;
+  if (standing !== undefined) {
+    // THE FUNNEL IS BUSY — the press is REFUSED and the caller holds the refusal (inventory R11: it used to be this
+    // console line and nothing else, with whatever the caller had armed for the press left standing).
+    transportState.refusedWhileBusy++;
+    console.warn(`[transport] submit refused — ${standing.scope.id} is ${String(standing.flow.snapshot.value.value)} for ` +
+      `${Math.round((Date.now() - transportState.requestSince) / 1000)}s (server request in progress)`);
+    const refused: SubmitTicket = {accepted: false, id: '', reason: 'busy', settled: Promise.resolve({id: '', status: 'rejected'})};
+    announceSubmitTicket(refused);
+    return refused;
   }
   // The player ACTED — playing on is an implicit acknowledgement of any
   // still-visible flow-holding card (the compact AI-turn notification), so
   // the follow-up prompt of THIS submit is never held behind it.
   acknowledgeFlowHoldingCards();
 
+  const scope = transportScope().open('submit');
+  const flow = startFlowActor(scope, submitMachine, {endScopeOnDone: false});
+  const request = typeof AbortController === 'function' ? new AbortController() : undefined;
+  const submit: LiveSubmit = {scope, flow, gates: new Set()};
+  liveSubmit.value = submit;
   r.isServerSideRequestInProgress = true;
   transportState.requestInProgress = true;
   transportState.requestSince = Date.now();
   transportState.responseArrived = false;
-  // THE CEILING (`submitCeiling.ts`): only the silence before the server's answer; cleared the moment it speaks.
-  const ceiling = armSubmitCeiling((ms) => console.warn(`[transport] the server did not answer the submit for ${Math.round(ms / 1000)}s — the request is cancelled, the state re-fetched`));
-  fetch(url, ceiling.signal === undefined ? options : {...options, signal: ceiling.signal})
+  transportState.phase = 'sending';
+  let settle: (result: SubmitSettle) => void = () => {};
+  const settled = new Promise<SubmitSettle>((resolve) => {
+    settle = resolve;
+  });
+  // THE FUNNEL REOPENS — once, on every way a submit ends: the scope's end is the old `.finally`, and it can no longer
+  // be skipped by a chain that never comes back.
+  scope.defer(() => {
+    if (liveSubmit.value === submit) {
+      liveSubmit.value = undefined;
+    }
+    r.isServerSideRequestInProgress = false;
+    transportState.requestInProgress = false;
+    transportState.phase = 'idle';
+    const result: SubmitSettle = {id: scope.id, status: submitStatusOf(flow)};
+    settle(result);
+    for (const listener of [...settleListeners]) {
+      try {
+        listener(result);
+      } catch (error) {
+        console.warn('[transport] a settle listener threw', error);
+      }
+    }
+    /*
+     * ⚠️ RE-ASK THE SERVER THE MOMENT THIS SUBMIT IS FULLY PROCESSED.
+     *
+     * A turn-ending submit's commit is HELD through its own cinematic
+     * (`runPlayedHero` and friends), and the world moves DURING
+     * that hold: the bot's paced turn resolves ~200 ms in and its
+     * GAME_STATE_INVALIDATED wake fires `/api/waitingfor` while the
+     * current waitingFor still reads the OLD prompt — so the GO is
+     * skipped as «viewer mid-input» and the one wake is consumed for
+     * nothing. With a healthy WS the next fallback poll is ~20 s away:
+     * measured 21.4 s from the play's confirm to control back, with the
+     * screen free at 3.8 s.
+     *
+     * A skipped refresh is a DEBT. The submit's processing end is the one
+     * moment the staleness is guaranteed gone (the commit either landed
+     * or was refused), so the guarded check re-runs HERE — the viewer-
+     * mid-prompt guard then reads fresh state and the GO is honoured. On
+     * an ordinary submit (the response carried the next prompt) the
+     * re-check costs one WAIT round trip and changes nothing.
+     */
+    waitForUpdate(true);
+  });
+  flow.actor.subscribe((snapshot) => {
+    if (snapshot.value === 'presenting') {
+      transportState.phase = 'presenting';
+    } else if (snapshot.value === 'silent') {
+      // THE SERVER'S SILENCE (the `sending` state's bound): only the silence before the server's answer — the request
+      // is cancelled, its `catch` says so in so many words and re-fetches.
+      console.warn(`[transport] the server did not answer the submit for ${Math.round((Date.now() - transportState.requestSince) / 1000)}s — the request is cancelled, the state re-fetched`);
+      request?.abort();
+    } else if (snapshot.value === 'abandoned' && scope.ended === undefined) {
+      // The presentation never ended and no gate was standing to release: the submit is over. Whatever hangs can no
+      // longer apply anything (`presentAnswer` stops at its next step); the funnel reopens and the truth is re-fetched.
+      console.warn(`[transport] ${scope.id} abandoned — its presentation never ended; the funnel reopens, the state is re-fetched`);
+      for (const key of Object.keys(transportHolds) as Array<keyof typeof transportHolds>) {
+        transportHolds[key] = false;
+      }
+      scope.end({how: 'expired', bound: 'its presentation never ended'});
+      r.updatePlayer();
+    }
+  });
+  fetch(url, request === undefined ? options : {...options, signal: request.signal})
     .then(async (response) => {
-      ceiling.clear();
       transportState.responseArrived = true;
       if (response.ok) {
+        // THE SERVER SPOKE: the bound of its silence stands down, the presentation's own begins.
+        flow.send({type: 'ANSWERED'});
         const newView = await response.json() as PlayerViewModel;
-        /*
-         * The console cinematic-gate pipeline. Each armed transaction
-         * detects against the AUTHORITATIVE response (a refused move can
-         * never fake a success), HOLDS the commit through its physical
-         * scene, and hands its post-commit half to the next tick. Order is
-         * load-bearing and documented per gate. `isServerSideRequestInProgress`
-         * stays raised through every hold (cleared in `.finally`), so
-         * nothing else can submit while a scene is presenting.
-         */
-        /*
-         * Console PLAYED-CARD HERO gate (the "card lands on my tableau"
-         * scene). HOLD the commit through the pre-commit half (lift →
-         * overlay swap → arc → landing), so the delta chips + the committed
-         * tableau land on a card that has PHYSICALLY arrived. Runs BEFORE
-         * the bot staging: the bot's turn (which rides this same response)
-         * is presented only after the player's own card has landed.
-         */
-        const playedHeroEvent = detectPlayedHero(newView);
-        /*
-         * THE PLAY'S CARD PRICE (P86 — PL-1128): a discard the play composer PRE-SELECTED is armed at the press and
-         * is the play's PRICE — the server discards it FIRST. So it is detected HERE, before the hero, and its ONE
-         * scene (the shared discard transaction — the discard gate below never plays it a second time) starts beside
-         * the hero's shipment: the hero lifts once the packet has LEFT the dock (`shipPlayDiscard`), the packet lands
-         * on the pile while the card flies. Price before result, no beat of its own.
-         */
-        const playDiscardEvent = playedHeroEvent !== undefined ? detectCardDiscard(newView) : undefined;
-        let playDiscardRun: Promise<void> | undefined;
-        if (playDiscardEvent !== undefined) {
-          transportHolds.cardDiscard = true;
-          playDiscardRun = runCardDiscard();
-          shipPlayDiscard(cardDiscardDeparted());
-        }
-        if (playedHeroEvent !== undefined) {
-          // The play's RETURN BEAT (Astra Mechanica): work out from the
-          // authoritative diff which cards travelled table → hand and
-          // withhold them from the dock NOW, so the commit below cannot
-          // show them in the pack before they have physically flown there.
-          stagePlayedCardReturns(currentView(), newView);
-          transportHolds.playedHero = true;
-          try {
-            // The applied view rides along: the shipment beat (the price the play takes off the rail) checks
-            // its promise against the diff of the two before it flies — before anything is committed.
-            await runPlayedHero(newView, currentView());
-          } finally {
-            transportHolds.playedHero = false;
-          }
-        }
-        if (playDiscardRun !== undefined) {
-          try {
-            await playDiscardRun;
-          } finally {
-            transportHolds.cardDiscard = false;
-          }
-        }
-        /*
-         * Console PATENT-SALE gate (the "cards feed the trade terminal"
-         * scene). HOLD the commit until the dispensed M€ chip LANDS on the
-         * resource rail — the new counter value + the standard delta chip
-         * appear exactly at the touchdown.
-         */
-        /*
-         * Console RESOLUTION-PAYOUT gate (Turmoil Redux). The viewer answered an
-         * enacted resolution's card-resource pick and the server RECORDED the
-         * payout: HOLD the commit while the chip flies from the stage's payout
-         * reading onto the chosen candidate (still on screen — the pick is the
-         * standing view), so the stage leaves on a card that has visibly
-         * received it. Detected from the authoritative outcome record only.
-         */
-        const resolutionPayoutEvent = detectResolutionPayout(currentView(), newView);
-        if (resolutionPayoutEvent !== undefined) {
-          transportHolds.resolutionPayout = true;
-          try {
-            await runResolutionPayout(resolutionPayoutEvent);
-          } finally {
-            transportHolds.resolutionPayout = false;
-          }
-        }
-        /*
-         * Console LIVE-PICK RECEIVE gate (TR53 iteration «ресурс на карту — один стандарт»). The viewer answered a
-         * live «on which card» pick (`resourceGainPrompt` — an Ares adjacency, a cell's printed bonus, a foreign
-         * trade's colony bonus, a card's gift) and the card really took it: HOLD the commit while the answer plays
-         * as a SCENE — the chosen card presented, the token out of its real source (the paying cell, the planet, the
-         * source card's printed icon) onto its capsule, the read, the card home — instead of the draft's dive. The
-         * field family plays the SERVER's record (`cardAdjacencyPayouts`, `asked`).
-         */
-        const promptReceiveEvent = detectPromptReceive(currentView(), newView);
-        if (promptReceiveEvent !== undefined) {
-          transportHolds.promptReceive = true;
-          try {
-            await runPromptReceive(promptReceiveEvent);
-          } finally {
-            transportHolds.promptReceive = false;
-          }
-        }
-        /*
-         * Console TABLE-ANSWER LAYOUT gate (TR78 — «ОТВЕТ СТОЛА»): the viewer laid a walk's units out over its holders
-         * (the family's distribution, asked by a card of the table) and the server RECORDED the landing: HOLD the commit
-         * while the tokens leave the asker's face on the answer stage onto the chosen capsules (the layout is the
-         * standing view). Detected from the authoritative reaction record only.
-         */
-        const tableAnswerEvent = detectTableAnswerPayout(currentView(), newView);
-        if (tableAnswerEvent !== undefined) {
-          transportHolds.tableAnswer = true;
-          try {
-            await runTableAnswerPayout(tableAnswerEvent);
-          } finally {
-            transportHolds.tableAnswer = false;
-          }
-        }
-        const patentSaleEvent = detectPatentSale(newView);
-        if (patentSaleEvent !== undefined) {
-          transportHolds.patentSale = true;
-          try {
-            await runPatentSale();
-          } finally {
-            transportHolds.patentSale = false;
-          }
-        }
-        /*
-         * Console TERMINAL STANDARD-PROJECT gate. HOLD the commit while the
-         * pressed row's gold sweep runs, and release it AT ITS PEAK: the
-         * counters and their delta chips then land on the crest of the
-         * confirmation, which is the causal order the player reads.
-         */
-        if (detectStdProjectCommit()) {
-          transportHolds.stdProject = true;
-          try {
-            await runStdProjectCommit();
-          } finally {
-            transportHolds.stdProject = false;
-          }
-        }
-        /*
-         * Console CARD-DISCARD gate — the ONE "a card physically leaves the
-         * hand" scene every discard ends at. HOLD the commit until the
-         * cards have LANDED on the pile; the scene closes the pick surface
-         * itself at its hand-off phase, and only then does the shorter hand
-         * commit. Runs ABOVE the bot staging on purpose: a discard can be
-         * the last thing a turn does, so its response carries the bot's
-         * turns, and an early `return` down there would skip everything
-         * below it.
-         */
-        const discardEvent = playDiscardEvent ?? detectCardDiscard(newView);
-        if (discardEvent !== undefined && playDiscardEvent === undefined) {
-          transportHolds.cardDiscard = true;
-          try {
-            await runCardDiscard();
-          } finally {
-            transportHolds.cardDiscard = false;
-          }
-        }
-        /*
-         * Console TILE-PLACEMENT HERO gate. VERIFIES the server actually put
-         * a tile on the armed space and CAPTURES the cell's printed bonus
-         * icons while it is still uncovered. HOLD the commit through the
-         * flight + touchdown — the real tile paints silently under the
-         * landed proxy via the targeted preview, so the generic tile hold
-         * below sees no remaining diff for that space.
-         */
-        const tileHeroEvent = detectTilePlacement(
-          currentView().game?.spaces, newView.game?.spaces,
-          {
-            aresExtension: currentView().game?.gameOptions?.expansions?.ares === true,
-            // The server's own ocean-adjacency breakdown for this response.
-            // Accepted only when it names the space we armed — the scene
-            // never re-derives board adjacency or the M€ rule.
-            oceanBonus: newView.lastOceanBonus,
-            // …and its Ares adjacency manifest: WHICH neighbouring tile paid
-            // WHAT to WHOM — the adjacency beat's authority, same principle.
-            aresGrants: newView.game?.aresAdjacencyGrants,
-            viewerColor: newView.thisPlayer?.color,
-            // …and what the enacted LAW paid on THIS cell (Development Craze
-            // repeats the engine's bonuses, Forestry Support makes the
-            // neighbouring groves pay): the law's own wave.
-            lawPayout: newView.lastPlacementLawPayout,
-            // …and the server's move ring: a MOVE the hero plays claims its
-            // own record, so the remote stage can never replay it.
-            tileMoves: newView.game?.tileMoves,
-            // …and what the MOVE itself paid beyond the cell (TR39: its rating, the
-            // table's measured answer) — the landing's own last beats, held to the
-            // touchdown and paid in the engine's order; nothing re-derived.
-            moveReward: newView.lastTileMoveReward,
-            // …and its per-neighbour card payouts (TR21: the data the cities paid onto the chosen
-            // card) — the hero plays THIS cell's record and claims it; the card's face comes from the tableau.
-            cardPayouts: newView.game?.cardAdjacencyPayouts,
-            prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
-            viewerCards: newView.thisPlayer?.tableau,
-            // …and the viewer's stock in both views: the price a conversion pays off the rail (PL-306) is flown only
-            // when its row moved by exactly that price plus what the placement pays back.
-            viewerStock: {before: stockReadingOf(currentView().thisPlayer), after: stockReadingOf(newView.thisPlayer)},
-            // …and the server's record of what the cell's printed bonus PAID — a multiple (TR79 Ferrus Academy) plays the
-            // printed beat once per multiple, never a guessed «×2».
-            placements: newView.game?.tilePlacements,
-          });
-        if (tileHeroEvent !== undefined) {
-          transportHolds.tilePlacementHero = true;
-          try {
-            await runTilePlacement(currentView().game.spaces, newView.game.spaces);
-          } finally {
-            transportHolds.tilePlacementHero = false;
-          }
-        }
-        /*
-         * Console MARS NOMADS MOVE gate. VERIFIES the server actually moved
-         * the camp onto the armed space (the from→to diff) and CAPTURES the
-         * destination's printed bonus icons while the displayed board still
-         * shows the pre-move state. HOLD the commit through lift + hop +
-         * touchdown — the real destination token paints silently under the
-         * settled proxy (targeted preview + marker-baseline pre-adoption),
-         * so the marker hold below sees no remaining nomad diff.
-         */
-        const nomadMoveEvent = detectNomadMove(
-          currentView().game?.spaces, newView.game?.spaces,
-          // …and the server's own ocean-adjacency breakdown for this response:
-          // a camp that moves next to water is paid by that water exactly as a
-          // build is, so it plays the SAME coin beat (accepted only when the
-          // manifest names the destination we armed).
-          {oceanBonus: newView.lastOceanBonus});
-        if (nomadMoveEvent !== undefined) {
-          transportHolds.nomadMove = true;
-          try {
-            await runNomadMove(currentView().game.spaces, newView.game.spaces);
-          } finally {
-            transportHolds.nomadMove = false;
-          }
-        }
-        /*
-         * Console COLONY-TRADE launch gate (send a trade fleet to the
-         * planet). The ship is already flying to the target berth; HOLD the
-         * commit until it DOCKS. Runs BEFORE the bot staging: a trade that
-         * ENDS the turn carries the bot's turns in this same response, and
-         * the ship must dock — and the trade transaction must claim its
-         * manifest — before the bot's story starts.
-         */
-        const tradeFleetEvent = detectTradeFleet();
-        if (tradeFleetEvent !== undefined) {
-          transportHolds.tradeFleet = true;
-          await runTradeFleet();
-        }
-        /*
-         * The colony-trade REWARD transaction: CLAIM this response's
-         * authoritative trade manifest BEFORE any commit path — claiming
-         * freezes the traded colony's track display at its pre-trade
-         * position and marks the tradeId, so the reveal batch can never be
-         * grabbed by the deck-draw scene, whichever path (gated commit
-         * below or the staged bot pipeline) applies the view.
-         */
-        const colonyTradeEvent = detectColonyTrade(newView);
-        /*
-         * THE GENERATION SCENE (TR61): the seat's OWN production record on the
-         * new view — detected and CLAIMED before either commit path, so a
-         * re-fetched view never replays it. The gated path below plays the whole
-         * phrase (flip → conversion → income → rise); a STAGED response (fresh
-         * bot turns) commits in the closure, so there the flip is the strip's
-         * own reaction to the committed view and the income flies after it.
-         */
-        const generationScene = detectGenerationScene(currentView(), newView);
-        // …and the flip a seat's SITTING deferred: owed to the screen at the seat's own close (P89 · EA).
-        detectDeferredGenerationFlip(currentView(), newView);
-        /*
-         * MarsBot turns (the MAIN path — ending your turn is what lets the
-         * bot act, so its resolved turn(s) ride THIS response).
-         * NOTIFICATION-FIRST with STAGED visual commits: when fresh bot
-         * turns arrive, the latest view is NOT committed here — each turn's
-         * visual footprint applies to the presented view when its compact
-         * card is DELIVERED, and the LAST turn's delivery runs the closure
-         * below. The marker/tile/conversion holds are deliberately skipped
-         * on a staged response: the bot's tiles animate per turn through
-         * the staging itself.
-         */
-        if (!startSceneHeld() && presentFreshBotTurns(currentView(), newView, {
-          commitLatest: () => {
-            // Console: the batch's LAST-turn tiles (this closure IS that
-            // full commit) land with the premium remote flight — staged in
-            // the same synchronous block, committed hidden, revealed at
-            // each proxy's touchdown.
-            stageRemotePlacements(currentView().game?.spaces, newView.game?.spaces, {
-              aresExtension: newView.game?.gameOptions?.expansions?.ares === true,
-              gamePhase: newView.game?.phase,
-              viewerColor: newView.thisPlayer?.color,
-              aresGrants: newView.game?.aresAdjacencyGrants,
-              tileMoves: newView.game?.tileMoves,
-              cardPayouts: newView.game?.cardAdjacencyPayouts,
-              prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
-              viewerCards: newView.thisPlayer?.tableau,
-              placements: newView.game?.tilePlacements,
-              prevPlacements: currentView().game?.tilePlacements,
-              players: {before: currentView().players ?? [], after: newView.players ?? []},
-            });
-            // …and a nomad camp that moved in the batch (a concurrent human's
-            // move riding the bot's turns): commit hidden, hop at reveal.
-            stageRemoteNomadMove(currentView().game?.spaces, newView.game?.spaces, {
-              gamePhase: newView.game?.phase,
-            });
-            if (shouldHoldForTilePlacement(currentView().game.spaces, newView.game.spaces)) {
-              armPlacementAnimations();
-            }
-            seedRewardHolds(newView);
-            applyPlayerView(newView);
-            if (generationScene !== undefined) {
-              // The staged path has no pre-commit beat: the strip flips off the commit, the income flies after it.
-              void nextTick(() => {
-                void runGenerationIncomeFlights(() => currentView());
-              });
-            }
-          },
-        })) {
-          // A staged bot response defers the commit to the bot pipeline —
-          // each gate's post-commit half still runs so nothing is left
-          // proxy-frozen on screen.
-          if (playedHeroEvent !== undefined) {
-            void nextTick(() => {
-              void endPlayedHero();
-            });
-          }
-          if (patentSaleEvent !== undefined) {
-            void nextTick(() => {
-              void endPatentSale();
-            });
-          }
-          if (resolutionPayoutEvent !== undefined) {
-            void nextTick(() => endResolutionPayout());
-          }
-          if (promptReceiveEvent !== undefined) {
-            void nextTick(() => endPromptReceive());
-          }
-          if (tableAnswerEvent !== undefined) {
-            void nextTick(() => endTableAnswerPayout());
-          }
-          if (discardEvent !== undefined) {
-            void nextTick(() => {
-              void endCardDiscard();
-            });
-          }
-          if (tileHeroEvent !== undefined) {
-            void nextTick(() => {
-              void endTilePlacement();
-            });
-          }
-          if (nomadMoveEvent !== undefined) {
-            void nextTick(() => {
-              void endNomadMove();
-            });
-          }
-          // …and the docked trade fleet: the ship has landed (the gate
-          // above awaited the dock); release the proxy now — the staged
-          // pipeline commits the docked board state with the bot's last
-          // turn, and the trade-reward transaction (already claimed)
-          // continues from that commit via the shell's playerView watcher.
-          if (tradeFleetEvent !== undefined) {
-            transportHolds.tradeFleet = false;
-            void nextTick(() => endTradeFleet());
-          }
+        if (scope.ended !== undefined) {
           return;
         }
-        /*
-         * Console REMOTE placements riding the viewer's OWN submit response
-         * (a concurrent human's build that resolved while the POST was in
-         * flight). Staged BEFORE the generic tile preview below paints
-         * them: they commit hidden behind the reveal hold and land with the
-         * premium remote flight at their proxy's touchdown. The viewer's
-         * own armed placement was already consumed by the tile hero above;
-         * hazards are excluded and keep the generic ominous entrance.
-         */
-        stageRemotePlacements(currentView().game?.spaces, newView.game?.spaces, {
-          aresExtension: newView.game?.gameOptions?.expansions?.ares === true,
-          gamePhase: newView.game?.phase,
-          viewerColor: newView.thisPlayer?.color,
-          aresGrants: newView.game?.aresAdjacencyGrants,
-          // …and the server's word that a removal + a landing are ONE move (TR14
-          // — a parked pin landing, a concurrent human's move): never paired by geometry.
-          tileMoves: newView.game?.tileMoves,
-          // …and the server's per-neighbour card payouts (TR21 — another seat's cities paying their card).
-          cardPayouts: newView.game?.cardAdjacencyPayouts,
-          prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
-          viewerCards: newView.thisPlayer?.tableau,
-          // …and the record of who placed each tile and what the cell paid them (the tile language).
-          placements: newView.game?.tilePlacements,
-          prevPlacements: currentView().game?.tilePlacements,
-          players: {before: currentView().players ?? [], after: newView.players ?? []},
-        });
-        // …and a REMOTE nomad hop riding the viewer's own submit response (a
-        // concurrent human's move that resolved while the POST was in
-        // flight). The viewer's own armed move was already consumed by the
-        // nomad gate above; an undo restore also lands here (the camp
-        // honestly walks back).
-        stageRemoteNomadMove(currentView().game?.spaces, newView.game?.spaces, {
-          gamePhase: newView.game?.phase,
-        });
-        const markerHold = wgtSubmit && shouldHoldForMarkerAnimation(newView);
-        const tileHold = shouldHoldForTilePlacement(
-          currentView().game.spaces,
-          newView.game.spaces,
-        );
-        // An OVERLAY MARKER landed on an existing tile (St. Joseph's
-        // cathedral): NOT an `undefined → tile` placement, so neither the
-        // generic tile hold above nor the console hero ever fires for it —
-        // without this the marker popped in together with the prompt it
-        // causes.
-        const cathedralHold = shouldHoldForMarkerPlacement(
-          currentView().game.spaces,
-          newView.game.spaces,
-        );
-        // Measured NOW — the preview below mutates the displayed spaces, and
-        // a duration read after it would see no landed markers left. The diff
-        // picks the longest landing this response contains (a nomads first
-        // landing outlasts the cathedral's drop).
-        const cathedralHoldMs = cathedralHold ? markerPlacementHoldDurationMs(
-          currentView().game.spaces, newView.game.spaces) : 0;
-        // A PLAYER MARKER claimed an empty cell (Land Claim, an Arcadian
-        // community): a colour-only diff — the cube popped in without this.
-        // A claim collects NOTHING, so this branch stays a pure landing.
-        // …and the markers a LANDING brought (TR79 Ferrus Academy's ring of cubes around its first city) land IN TURN,
-        // one by one, after the city and its own cube — never one frame (`landOwnerCubesInTurn`, awaited below).
-        // The viewer's OWN ring rides its own city (the hero); a rival's ring was claimed by the remote stage above and
-        // lands after the rival's city does.
-        const freshOwnerCubes = freshOwnerCubeIds(currentView().game.spaces, newView.game.spaces).length;
-        const ownerCubeRing = tileHeroEvent !== undefined && freshOwnerCubes > 0;
-        const ownerCubeHold = !ownerCubeRing && shouldHoldForOwnerCubePlacement(
-          currentView().game.spaces,
-          newView.game.spaces,
-        );
-        /*
-         * Energy→heat conversion hold (end of generation). Detect BEFORE
-         * the marker/tile previews mutate the displayed view; claims the
-         * dedup key so the poll path doesn't double-fire it.
-         */
-        const conversionEvent = detectEnergyConversion(currentView(), newView);
-        // Building over a hazard zone (erosion / dust storm): play the
-        // premium cleanup sequence and hold the follow-up until it ends. (A
-        // hazard→tile swap is NOT an `undefined→tile` placement, so the
-        // tile-placement hold above never fires for it.)
-        const hazardCleanups = detectHazardCleanup(currentView(), newView);
-        if (markerHold || tileHold || cathedralHold || ownerCubeHold) {
-          if (markerHold) {
-            applyGlobalParamPreview(newView);
-            transportHolds.marker = true;
-          }
-          if (tileHold) {
-            /*
-             * Arm the placement-animation gate BEFORE mutating the
-             * displayed spaces — observeTilePlacement on the BoardSpaceTile
-             * watcher fires synchronously from Vue's reactivity, so if we
-             * arm after the mutation the gate is still closed at the moment
-             * the watcher checks it and the animation gets silently
-             * skipped. Without this gate the very first render of the board
-             * on F5 / direct nav would also animate every existing tile.
-             */
-            armPlacementAnimations();
-            applyTilePlacementPreview(
-              currentView().game.spaces,
-              newView.game.spaces,
-            );
-            transportHolds.tilePlacement = true;
-          }
-          if (cathedralHold) {
-            // Arm BEFORE mutating the spaces — same ordering contract as
-            // the tile branch above.
-            armPlacementAnimations();
-            applyMarkerPlacementPreview(
-              currentView().game.spaces,
-              newView.game.spaces,
-            );
-            transportHolds.tilePlacement = true;
-          }
-          if (ownerCubeHold) {
-            // Same ordering contract as the two branches above.
-            armPlacementAnimations();
-            applyOwnerCubePlacementPreview(
-              currentView().game.spaces,
-              newView.game.spaces,
-            );
-            transportHolds.tilePlacement = true;
-          }
-          const holdMs = Math.max(
-            markerHold ? motionMs(WGT_MARKER_HOLD_MS) : 0,
-            tileHold ? placementHoldDurationMs() : 0,
-            // The FULL landing (not the shorter perceptual window): the
-            // prompt this marker causes opens strictly after it settles.
-            cathedralHoldMs,
-            ownerCubeHold ? ownerCubeHoldDurationMs() : 0,
-          );
-          try {
-            await new Promise<void>((resolve) => setTimeout(resolve, holdMs));
-          } finally {
-            transportHolds.marker = false;
-            transportHolds.tilePlacement = false;
-          }
-        }
-        if (ownerCubeRing) {
-          // THE RING (TR79): every fresh cube held hidden with its colour, then set down one by one, clockwise from the
-          // top of the city it rings (the hero's own cell when it placed one) — the commit waits for the LAST contact,
-          // and the registry knows the scene owns the foreground (the start's completion barrier waits on it too).
-          transportHolds.tilePlacement = true;
-          const pivotRect = tileHeroEvent !== undefined ? measureBoardHexRect(tileHeroEvent.spaceId) : undefined;
-          const centreOf = (id: string) => {
-            const r = measureBoardHexRect(id);
-            return r === undefined ? undefined : {x: r.x + r.w / 2, y: r.y + r.h / 2};
-          };
-          try {
-            await holdAnimationWhile('owner-cube-ring', landOwnerCubesInTurn(currentView().game.spaces, newView.game.spaces, {
-              order: (ids) => clockwiseFromTop(ids, centreOf, pivotRect === undefined ? undefined : {x: pivotRect.x + pivotRect.w / 2, y: pivotRect.y + pivotRect.h / 2}),
-              wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-              scale: motionMs,
-            }));
-          } finally {
-            transportHolds.tilePlacement = false;
-          }
-        }
-        if (hazardCleanups.length > 0) {
-          transportHolds.hazardCleanup = true;
-          // The swap callback fires mid-sequence (after the hazard
-          // dissolves) to reveal the new tile on the STILL-DISPLAYED old
-          // view; the full view commits below.
-          await runHazardCleanup(
-            hazardCleanups,
-            () => applyHazardTileSwap(currentView().game.spaces, newView.game.spaces, hazardCleanups),
-          );
-        }
-        /*
-         * THE GENERATION SCENE, beat 1 (TR61): the counter FLIPS first — the
-         * displayed view's generation is set ahead of the commit (the marker
-         * hold's own precedent) and the strip's completion signal releases the
-         * beat. The conversion gate below is the scene's second beat.
-         */
-        if (generationScene !== undefined) {
-          transportHolds.generationScene = true;
-          try {
-            await runGenerationFlip(generationScene, currentView());
-          } finally {
-            transportHolds.generationScene = false;
-          }
-          markGenerationConversion();
-        }
-        if (conversionEvent !== undefined) {
-          transportHolds.conversion = true;
-          // The override seeds the change-feedback baselines on completion,
-          // so committing right after shows the production REMAINDER chips,
-          // not the full pre-conversion delta.
-          //
-          // HANDOFF beat (console): when the conversion was ANSWERED on a
-          // console prompt surface (the Supercapacitors amount — the still-
-          // displayed old view names it), that surface hides on the sync
-          // `active` flip and needs its leave to finish before the visible
-          // motion starts. The automatic conversion keeps 0.
-          const conversionLeadInMs =
-            consoleModeState.enabled && currentWaitingFor()?.type === 'amount' ?
-              motionMs(320) : 0;
-          await runEnergyConversion(conversionEvent, {leadInMs: conversionLeadInMs});
-        }
-        /*
-         * Console HYDRONETWORK marker-advance gate. The marker is already
-         * gliding to the new stop; HOLD the commit until it LOCKS IN.
-         * Composed after the other holds (an advance never places a tile /
-         * converts energy / trades a colony).
-         */
-        const hydroMarkerEvent = detectHydroMarker();
-        if (hydroMarkerEvent !== undefined) {
-          transportHolds.hydroMarker = true;
-          await runHydroMarker();
-        }
-        /*
-         * Console COLONY-BUILD hero gate. VERIFY the viewer's cube landed
-         * in the armed colony's next slot + CAPTURE the slot's benefit
-         * glyph while it is still rendered. HOLD the commit through the
-         * cube drop. A build response never carries fresh bot turns
-         * (building doesn't end the turn), so it composes here — never in
-         * the staged path.
-         */
-        /*
-         * Console COLONY-ROSTER gate (the player's OWN change of the table —
-         * TR10 Fringe Colony, Aridor's first action, the solo setup trim).
-         * VERIFY the answer carries the armed change; HOLD the commit while
-         * the stage plays it (the leaving planet lets go, the new one
-         * docks). Composed BEFORE the build hero: a colony built by the same
-         * answer lands on the planet that has just docked.
-         */
-        const colonyRosterBuilds = colonyRosterState.armed?.builds === true;
-        const colonyRosterEvent = detectColonyRosterChange(currentView(), newView);
-        if (colonyRosterEvent !== undefined) {
-          transportHolds.colonyRoster = true;
-          try {
-            await runColonyRosterCeremony(colonyRosterEvent, colonyRosterBuilds);
-          } finally {
-            transportHolds.colonyRoster = false;
-          }
-        }
-        /*
-         * Console COLONY-CITY gate (the player's OWN city laid on a colony
-         * tile — TR22 Nova City). VERIFY the answer carries exactly the armed
-         * tile on the armed colony tile; HOLD the commit while the piece
-         * materializes above its seat and descends. The gate opens AT THE
-         * FRAME OF CONTACT — the commit applies under the proxy, so every
-         * counter a trigger moves ticks after the touch by itself; the cube,
-         * the count and the read play past the gate under the scene's own hold.
-         */
-        const colonyCityEvent = detectColonyCity(currentView(), newView);
-        if (colonyCityEvent !== undefined) {
-          transportHolds.colonyCity = true;
-          try {
-            await runColonyCity(colonyCityEvent);
-          } finally {
-            transportHolds.colonyCity = false;
-          }
-        }
-        const colonyBuildEvent = detectColonyBuild(currentView(), newView);
-        if (colonyBuildEvent !== undefined) {
-          transportHolds.colonyBuild = true;
-          try {
-            await runColonyBuild();
-          } finally {
-            transportHolds.colonyBuild = false;
-          }
-        }
-        seedRewardHolds(newView);
-        applyPlayerView(newView);
-        if (resolutionPayoutEvent !== undefined) {
-          // Post-commit: the committed view carries the paid count (and has
-          // taken the picker away) — the landing tick's scope may close now.
-          void nextTick(() => endResolutionPayout());
-        }
-        if (tableAnswerEvent !== undefined) {
-          void nextTick(() => endTableAnswerPayout());
-        }
-        if (promptReceiveEvent !== undefined) {
-          // Post-commit: the pick is gone and the card is home — its seal, its recede and its ticks let go.
-          void nextTick(() => endPromptReceive());
-        } else {
-          // An armed press whose answer did not verify (or did not come with this response) leaves no pose behind.
-          disarmPromptReceive();
-        }
-        if (hazardCleanups.length > 0) {
-          transportHolds.hazardCleanup = false;
-          void nextTick(() => endHazardCleanup());
-        }
-        if (conversionEvent !== undefined) {
-          transportHolds.conversion = false;
-          // Clear the panel override on the next tick — AFTER the committed
-          // panel reads the canonical final values and fires the seeded
-          // production chips — so there's no value flash.
-          void nextTick(() => endEnergyConversion());
-        }
-        if (generationScene !== undefined) {
-          // Beat 3 — the income FLIES after the commit (the real values stand under the held rows), then the scene
-          // concludes (beat 4: the research rises). After the conversion's own end, in the same tick order.
-          void nextTick(() => {
-            void runGenerationIncomeFlights(() => currentView());
-          });
-        }
-        if (tradeFleetEvent !== undefined) {
-          transportHolds.tradeFleet = false;
-          // Hand the flight off AFTER the commit: the real docked ship just
-          // materialized under the (gone) proxy — end on the next tick so
-          // it gets the one-shot settle glow + the composer closes.
-          void nextTick(() => endTradeFleet());
-        }
-        if (colonyTradeEvent !== undefined) {
-          // The reward waves start only now — the ship has docked, the view
-          // committed (metrics held, track frozen): the trade income
-          // physically leaves the «ТОРГОВАТЬ» cell, then the own colony
-          // bonuses leave «БОНУС»; drawn cards ride the staged reveal and
-          // the track reset glide follows the last confirmation.
-          void nextTick(() => {
-            void runColonyTradeRewards();
-          });
-        }
-        if (hydroMarkerEvent !== undefined) {
-          transportHolds.hydroMarker = false;
-          // Hand the advance off AFTER the commit: the real marker just
-          // materialized on the new stop under the locked proxy.
-          void nextTick(() => endHydroMarker());
-        }
-        if (colonyBuildEvent !== undefined) {
-          // Post-commit handoff: the real filled-cell cube just painted
-          // pixel-identical under the settled proxy — remove the proxy in
-          // one frame + absorb the resting resource chip.
-          void nextTick(() => {
-            void endColonyBuild();
-          });
-        }
-        if (playedHeroEvent !== undefined) {
-          // Post-commit half of the hero scene: the real slot just painted
-          // under the proxy (identical geometry) — reveal, dissolve the
-          // proxy, play the result beat, close the system-opened table.
-          void nextTick(() => {
-            void endPlayedHero();
-          });
-        }
-        if (patentSaleEvent !== undefined) {
-          // Post-commit settle: absorb the chip into the row (one-shot
-          // halo) and retract the terminal.
-          void nextTick(() => {
-            void endPatentSale();
-          });
-        }
-        if (discardEvent !== undefined) {
-          // Post-commit half of the discard: hold the pile's
-          // acknowledgement for a beat, then withdraw the tray.
-          void nextTick(() => {
-            void endCardDiscard();
-          });
-        }
-        if (tileHeroEvent !== undefined) {
-          // The REWARD BEAT of the placement: the cell's printed icons rise
-          // through the placed tile, become physical chips and pay out —
-          // then a STAGED play's own card gains fly from the same tile
-          // (the card-seal wave; no-op unless a staged commit armed one).
-          void nextTick(() => {
-            void endTilePlacement().then(() => runStagedSealWave());
-          });
-        } else if (stagedSealPending()) {
-          // A staged commit whose placement hero degraded (a parked space
-          // tail, an unmeasurable board) still owes the card's gains — the
-          // wave itself degrades honestly when the hex can't be measured.
-          void nextTick(() => {
-            void runStagedSealWave();
-          });
-        }
-        if (nomadMoveEvent !== undefined) {
-          // The REWARD + RESTORE beats of the move: the displaced icons
-          // become physical chips and pay out, then the cell's printed
-          // bonuses materialize back — the field is not exhausted.
-          void nextTick(() => {
-            void endNomadMove();
-          });
+        const outcome = await presenter(submit, newView, wgtSubmit);
+        if (outcome === 'applied') {
+          flow.send({type: 'PRESENTED'});
+        } else if (outcome === 'staged') {
+          flow.send({type: 'STAGED'});
         }
         return;
       }
 
+      flow.send({type: 'REFUSED'});
       // A rejected submit (bad request / unexpected) must RECALL every armed
       // console transaction immediately (else it hovers until the safety) —
       // the action did not happen. No-op when none armed.
@@ -1643,12 +1804,19 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
       }
     })
     .catch((e) => {
-      ceiling.clear();
+      if (scope.ended !== undefined) {
+        // The submit was already over (abandoned, the transport stopped) — what its chain threw afterwards is said,
+        // and unwinds nothing: the transactions on screen may be a later submit's.
+        console.warn(`[transport] ${scope.id} threw after its end`, e);
+        return;
+      }
+      const silent = flow.snapshot.value.value === 'silent';
+      flow.send({type: 'FAILED'});
       // Network failure — same full unwind as a refusal: no ghost card, no
       // ghost cube, no gold, no credit; every composer CTA re-arms.
       abortAllConsoleTransactions();
-      if (ceiling.silent()) {
-        // THE SERVER NEVER ANSWERED: say exactly that, and let the next view tell whether the move landed.
+      if (silent) {
+        // THE SERVER NEVER ANSWERED: say exactly that, and let the next view tell whether the move landed anyway.
         r.showAlert(SERVER_NOT_RESPONDING_TITLE, SERVER_NOT_RESPONDING, () => waitForUpdate(true));
         r.updatePlayer();
         return;
@@ -1656,31 +1824,10 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
       r.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
       console.error(e);
     })
-    .finally(() => {
-      r.isServerSideRequestInProgress = false;
-      transportState.requestInProgress = false;
-      /*
-       * ⚠️ RE-ASK THE SERVER THE MOMENT THIS SUBMIT IS FULLY PROCESSED.
-       *
-       * A turn-ending submit's commit is HELD through its own cinematic
-       * (`await runPlayedHero` and friends), and the world moves DURING
-       * that hold: the bot's paced turn resolves ~200 ms in and its
-       * GAME_STATE_INVALIDATED wake fires `/api/waitingfor` while the
-       * current waitingFor still reads the OLD prompt — so the GO is
-       * skipped as «viewer mid-input» and the one wake is consumed for
-       * nothing. With a healthy WS the next fallback poll is ~20 s away:
-       * measured 21.4 s from the play's confirm to control back, with the
-       * screen free at 3.8 s.
-       *
-       * A skipped refresh is a DEBT. The submit's processing end is the one
-       * moment the staleness is guaranteed gone (the commit either landed
-       * or was refused), so the guarded check re-runs HERE — the viewer-
-       * mid-prompt guard then reads fresh state and the GO is honoured. On
-       * an ordinary submit (the response carried the next prompt) the
-       * re-check costs one WAIT round trip and changes nothing.
-       */
-      waitForUpdate(true);
-    });
+    .finally(() => scope.end());
+  const ticket: SubmitTicket = {accepted: true, id: scope.id, settled};
+  announceSubmitTicket(ticket);
+  return ticket;
 }
 
 /** The full refusal/network unwind battery — every armed console
@@ -1965,8 +2112,22 @@ function notifyTurn(): void {
 /** Test-only: reset module state between specs. */
 export function __resetGameTransportForTesting(): void {
   stopGameTransport();
+  presenter = presentAnswer;
+  settleListeners.clear();
+  transportState.phase = 'idle';
+  transportState.requestInProgress = false;
+  transportState.responseArrived = false;
+  transportState.refusedWhileBusy = 0;
   transportState.playersWaitingFor = [];
   for (const key of Object.keys(transportHolds) as Array<keyof typeof transportHolds>) {
     transportHolds[key] = false;
   }
+}
+
+/** Test-only: replace the presentation of an answer (the gate pipeline needs a whole game on screen); `undefined` puts
+ *  the real one back. The fake gets the real `gate` so a spec can play a scene of its own as a bounded child. */
+export function __setTransportPresenterForTesting(
+  fake: ((newView: PlayerViewModel, gateOf: (hold: keyof typeof transportHolds, run: () => unknown, options?: {keep?: boolean}) => Promise<boolean>) => Promise<'applied' | 'staged' | 'over'>) | undefined,
+): void {
+  presenter = fake === undefined ? presentAnswer : (submit, newView) => fake(newView, (hold, run, options) => gate(submit, hold, run, options));
 }

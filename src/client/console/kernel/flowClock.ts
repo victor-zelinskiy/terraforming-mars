@@ -17,7 +17,13 @@ export type FlowClock = {
 
 const REAL_CLOCK: FlowClock = {
   now: () => Date.now(),
-  setTimeout: (fn, ms) => setTimeout(fn, ms),
+  setTimeout: (fn, ms) => {
+    const handle = setTimeout(fn, ms);
+    // Under Node (the spec runners) a standing bound must not keep the process alive after the last test: a frame left
+    // in a beat by a spec holds a three-minute timer. A browser's handle is a number — nothing to do.
+    (handle as unknown as {unref?: () => void}).unref?.();
+    return handle;
+  },
   clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 

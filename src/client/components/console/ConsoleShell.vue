@@ -1674,7 +1674,7 @@ import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import {SpaceId} from '@/common/Types';
 
 import ConsoleBoardBinder from '@/client/components/console/ConsoleBoardBinder.vue';
-import {submitInput, submitBatch as transportSubmitBatch, cancelPlacement, waitForUpdate, transportDiagFacts, transportState} from '@/client/console/transport/gameTransport';
+import {submitInput, submitBatch as transportSubmitBatch, cancelPlacement, waitForUpdate, transportDiagFacts, transportState, SubmitTicket} from '@/client/console/transport/gameTransport';
 import {serverAheadOfView} from '@/client/components/realtime/viewFreshness';
 import {presentationLedgerSnapshot, registerTruthWitness, resetPresentationLedger, settlePresentationDue} from '@/client/console/presentationLedger';
 import {InputResponse} from '@/common/inputs/InputResponse';
@@ -1860,6 +1860,7 @@ import {
   pruneOffStageDeadFrames,
   registerAnchorDropListener,
   registerFrameAnchorDead,
+  registerFrameBeatExpired,
   closeWorkspaceSheet,
   discardWorkspacePark,
   collapseWorkspaceStack,
@@ -27085,12 +27086,13 @@ export default defineComponent({
       });
     },
     // ── transport ────────────────────────────────────────────────────────
-    submit(response: unknown): void {
-      submitInput(response as InputResponse);
+    /** The press's TICKET comes back: `accepted: false` = the funnel was busy and nothing was sent (`gameTransport.SubmitTicket`). */
+    submit(response: unknown): SubmitTicket {
+      return submitInput(response as InputResponse);
     },
     /** `promptId` — the prompt the batch was COMPOSED for (default: the one standing now; see `gameTransport.submitBatch`). */
-    submitBatch(responses: ReadonlyArray<unknown>, promptId?: number): void {
-      transportSubmitBatch(responses as ReadonlyArray<InputResponse>, promptId);
+    submitBatch(responses: ReadonlyArray<unknown>, promptId?: number): SubmitTicket {
+      return transportSubmitBatch(responses as ReadonlyArray<InputResponse>, promptId);
     },
     showNotice(key: string): void {
       this.notice = key;
@@ -27142,6 +27144,9 @@ export default defineComponent({
     registerScreenCureExecutor((plan) => this.runScreenDirectorCure(plan));
     // THE ANCHOR RULE: the stack's return doors and prunes ask the shell which phases are over, and name what they drop.
     registerFrameAnchorDead((anchor) => this.frameAnchorIsDead(anchor));
+    // A frame's beat past its own bound (the frame machine's structural net — the arbiter cuts a quiet beat much sooner):
+    // the same teardown the arbiter's rung runs.
+    registerFrameBeatExpired((kind, phase) => this.forceRecoverStuckWorkspace(kind, `[workspace-stall] beat «${kind}:${phase}» torn down at the frame's own bound`));
     registerAnchorDropListener(({home, kinds}) => {
       console.warn(`[workspace-anchor] dropped ${kinds.join(', ')} (${home}) — its phase is over; it does not come back`);
     });
@@ -27644,6 +27649,7 @@ export default defineComponent({
     registerScreenShadowContext(undefined);
     registerScreenCureExecutor(undefined);
     registerFrameAnchorDead(undefined);
+    registerFrameBeatExpired(undefined);
     registerAnchorDropListener(undefined);
     registerReadinessDecisionDiag(undefined);
     delete (window as unknown as {__conScreenShadow?: unknown}).__conScreenShadow;

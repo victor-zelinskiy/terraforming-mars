@@ -44,6 +44,14 @@
  *     makes a RELOAD honest: the same walk that heals a dead claim in-session
  *     is the one that decides how much of a persisted stack may come back.
  *
+ *   ▸ INVARIANT 3 (architecture v2) — A FRAME IS A SCOPE. Every frame owns a `FlowScope`, opened by the verb that
+ *     creates the frame (a child of the frame below it) and ended by every way the frame goes — pop, truncate, an
+ *     anchor drop, a discarded park, a closed phase, a reset. Whatever belongs to the frame is opened IN that scope
+ *     (`workspaceFrameScope(kind)`): it ends with the frame, wherever the frame stands at that moment — the live
+ *     stack, the park, aside for the board. «A thing that outlived its host» (a claim, a lent zone, a module's flow
+ *     record) stops being expressible. The frame's PHASE is the scope's machine (`consoleWorkspaceFrame.ts`): its
+ *     beats are bounded, and a press that did not land puts the frame back by one rule (§ the beat's lease).
+ *
  * Everything else falls out of those two. B is `pop`. «Свернуть» parks the
  * WHOLE stack rather than closing one surface. The breadcrumb is the stack read
  * left to right. Nesting is `slot of the frame below me`. «Does anything serve
@@ -61,7 +69,7 @@
  * PURE-ish: one reactive record + pure accessors. No DOM, no Vue components,
  * no i18n. The surfaces own rendering; this owns the shape of the flow.
  */
-import {reactive} from 'vue';
+import {reactive, shallowRef, toRaw} from 'vue';
 import {reactivePredicate} from '@/client/components/presentation/reactivityWitness';
 import {
   WorkspacePhase,
@@ -76,6 +84,10 @@ import {
 // cycle. At runtime this file depends on nothing but Vue and the phase model.
 import type {TaskKind} from '@/client/console/consoleTaskRouter';
 import type {ConsoleSection, ConsoleSheetId} from '@/client/console/consoleRouter';
+import {FlowScope, openFlowRoot} from '@/client/console/kernel/flowScope';
+import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
+import {frameMachine, isBeatPhase} from '@/client/console/consoleWorkspaceFrame';
+import {onSubmitTicket, submitDidNotLand, SubmitTicket} from '@/client/console/transport/submitTicket';
 
 /**
  * The screens that can be a frame. A CLOSED union on purpose: a frame has to
@@ -1198,7 +1210,7 @@ export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
     const live = workspaceStackState.frames[existing];
     live.subject = frame.subject;
     live.stage = frame.stage;
-    live.phase = frame.phase;
+    writeFramePhase(live, frame.phase);
     live.serves = [...frame.serves];
     live.anchor = frame.anchor;
     live.overlay = frame.overlay === true || hostHandsOverTheScene(existing, frame.kind);
@@ -1226,6 +1238,7 @@ export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
     sourceCard: frame.sourceCard ?? '',
     nested: isNestedInstrument,
   });
+  syncFrameLifetimes();
   return workspaceStackState.frames.length - 1;
 }
 
@@ -1374,7 +1387,7 @@ export function descendWorkspaceFrame(
   const frame = workspaceStackState.frames[depth];
   frame.subject = subject;
   frame.stage = stage;
-  frame.phase = 'configure';
+  writeFramePhase(frame, 'configure');
   if (anchor !== undefined) {
     // The frame's right to exist now depends on the object it picked up: a
     // card that leaves the hand takes its own configure stage with it.
@@ -1390,7 +1403,7 @@ export function foldWorkspaceFrame(): void {
   }
   frame.subject = '';
   frame.stage = '';
-  frame.phase = 'browse';
+  writeFramePhase(frame, 'browse');
 }
 
 /**
@@ -1408,7 +1421,7 @@ export function handFrameToQuestion(kind: WorkspaceFrameKind): void {
   frame.subject = '';
   frame.stage = '';
   frame.sourceCard = '';
-  frame.phase = 'browse';
+  writeFramePhase(frame, 'browse');
   frame.anchor = {type: 'always'};
 }
 
@@ -1435,6 +1448,7 @@ export function closeWorkspaceSheet(): void {
 export function popWorkspaceFrame(): void {
   traceVerb('popWorkspaceFrame');
   workspaceStackState.frames.pop();
+  syncFrameLifetimes();
 }
 
 /**
@@ -1469,6 +1483,7 @@ export function truncateWorkspaceStack(depth: number): void {
   }
   traceVerb('truncate:' + keep + ' drops ' + workspaceStackState.frames.slice(keep).map((f) => f.kind + '/' + f.anchor.type).join(','));
   workspaceStackState.frames.splice(keep);
+  syncFrameLifetimes();
 }
 
 /**
@@ -1557,7 +1572,7 @@ export function workspaceStepSourceCard(kind: WorkspaceFrameKind, isCard: (name:
 export function setWorkspaceFramePhase(kind: WorkspaceFrameKind, phase: WorkspacePhase): void {
   const frame = frameAnywhere(kind);
   if (frame !== undefined) {
-    frame.phase = phase;
+    writeFramePhase(frame, phase);
   }
 }
 
@@ -1638,6 +1653,7 @@ export function yieldStackToBoard(): boolean {
     return false;
   }
   boardYielded.push(...frames.splice(0));
+  syncFrameLifetimes();
   return true;
 }
 
@@ -1663,6 +1679,7 @@ export function yieldStackForStagedPlay(): boolean {
     return false;
   }
   boardYielded.push(...workspaceStackState.frames.splice(0));
+  syncFrameLifetimes();
   return true;
 }
 
@@ -1673,6 +1690,7 @@ export function yieldStackForStagedPlay(): boolean {
  */
 export function discardYieldedStack(): void {
   boardYielded.splice(0);
+  syncFrameLifetimes();
 }
 
 /** The board's business is over — take the screen back at the SAME depth. */
@@ -1682,6 +1700,7 @@ export function resumeStackFromBoard(): boolean {
   // back over the next generation's action menu, and no edge was left to close it.
   dropDeadAnchoredFrom(boardYielded, 'aside');
   if (boardYielded.length === 0) {
+    syncFrameLifetimes();
     return false;
   }
   const frames = boardYielded.splice(0);
@@ -1692,6 +1711,7 @@ export function resumeStackFromBoard(): boolean {
     frame.slot = '';
   }
   workspaceStackState.frames.splice(0, workspaceStackState.frames.length, ...frames);
+  syncFrameLifetimes();
   return true;
 }
 
@@ -1771,10 +1791,14 @@ function dropDeadAnchoredFrom(home: Array<WorkspaceFrame>, name: DroppedFrames['
 /** The OFF-STAGE homes (the park, aside for the board) cut at their first dead frame — a frame off screen has nothing
  *  left to show once its phase is over, so it goes at once. Returns what went. */
 export function pruneOffStageDeadFrames(): ReadonlyArray<WorkspaceFrameKind> {
-  return [
+  const dropped = [
     ...dropDeadAnchoredFrom(workspaceStackState.parked, 'parked'),
     ...dropDeadAnchoredFrom(boardYielded, 'aside'),
   ];
+  if (dropped.length > 0) {
+    syncFrameLifetimes();
+  }
+  return dropped;
 }
 
 /** Off-stage frames whose anchor is dead (reactive — the shell's prune watcher keys on it). */
@@ -1815,6 +1839,7 @@ export function closePhaseRoot(kind: WorkspaceFrameKind): void {
       home.splice(at);
     }
   }
+  syncFrameLifetimes();
 }
 
 /*
@@ -1886,6 +1911,7 @@ export function collapseWorkspaceStack(): void {
   // wants to go, and the parked one cannot be destroyed by going there.
   workspaceStackState.parked.splice(0, workspaceStackState.parked.length,
     ...workspaceStackState.frames.splice(0));
+  syncFrameLifetimes();
 }
 
 /**
@@ -1898,6 +1924,7 @@ export function restoreWorkspaceStack(): void {
   // The same return-door rule as `resumeStackFromBoard`: a parked frame of a phase that is over never comes back.
   dropDeadAnchoredFrom(workspaceStackState.parked, 'parked');
   if (workspaceStackState.parked.length === 0) {
+    syncFrameLifetimes();
     return;
   }
   // Whatever the player was browsing gives way — coming back to a set-aside
@@ -1909,6 +1936,7 @@ export function restoreWorkspaceStack(): void {
     frame.slot = '';
   }
   workspaceStackState.frames.splice(0, workspaceStackState.frames.length, ...frames);
+  syncFrameLifetimes();
 }
 
 /**
@@ -1931,6 +1959,7 @@ export function restoreWorkspaceStack(): void {
 export function discardWorkspacePark(): void {
   const root = workspaceStackState.parked[0];
   workspaceStackState.parked.splice(root !== undefined && root.anchor.type === 'phase' ? 1 : 0);
+  syncFrameLifetimes();
 }
 
 /** Full reset (game switch, shell unmount, test cleanup). */
@@ -1939,7 +1968,211 @@ export function resetWorkspaceStack(): void {
   workspaceStackState.frames.splice(0);
   workspaceStackState.parked.splice(0);
   boardYielded.splice(0);
+  syncFrameLifetimes();
 }
+
+// ── invariant 3: a frame is a scope, its phase a machine ─────────────────────
+
+/*
+ * THE FRAME'S RUNTIME — its scope and its phase machine. Kept BESIDE the record (a map keyed by the raw frame), not in
+ * it: the record is plain reactive data that is serialized, spread and compared; a scope is neither.
+ *
+ * ONE function keeps the two in step — `syncFrameLifetimes`, called at the end of every verb that changes which frames
+ * stand where. It is a RECONCILER on purpose, not a hook in each verb: a move (a park, a yield, a restore) takes the
+ * frames out of one home and puts them into another, and only the END of the verb can tell a move from a removal. A
+ * frame in any home has a runtime; a runtime whose frame is in no home is ended (and takes everything opened in it).
+ */
+type FrameRuntime = {
+  /** The reactive record (the machine's mirror is written through it). */
+  frame: WorkspaceFrame,
+  scope: FlowScope<'frame'>,
+  flow: FlowActor<typeof frameMachine>,
+  /** The synchronous stretch the standing beat was entered in (see § the beat's lease). */
+  beatStretch: number,
+};
+
+const frameRuntimes = new Map<object, FrameRuntime>();
+/**
+ * Bumped whenever a frame's scope opens or ends. `workspaceFrameScope` reads it, so «a frame of this kind has a scope»
+ * is a REACTIVE fact (CLAUDE.md invariant 17): the runtimes live in a plain map, and a wait on «the host stands» armed
+ * between a frame's push and its scope's opening would otherwise never wake.
+ */
+const lifetimesEpoch = shallowRef(0);
+let stackScope: FlowScope<'chain'> | undefined;
+
+function stackRootScope(): FlowScope<'chain'> {
+  if (stackScope === undefined || stackScope.ended !== undefined) {
+    stackScope = openFlowRoot('chain', 'workspace');
+  }
+  return stackScope;
+}
+
+/** What a frame's beat does when its bound ends it (the shell registers its recovery — `forceRecoverStuckWorkspace`). */
+let beatExpiredHandler: ((kind: WorkspaceFrameKind, phase: WorkspacePhase) => void) | undefined;
+export function registerFrameBeatExpired(handler: ((kind: WorkspaceFrameKind, phase: WorkspacePhase) => void) | undefined): void {
+  beatExpiredHandler = handler;
+}
+
+function openFrameRuntime(frame: WorkspaceFrame, parent: FlowScope, away: boolean): FrameRuntime {
+  const scope = parent.open('frame', frame.kind);
+  const flow = startFlowActor(scope, frameMachine, {input: {kind: frame.kind, phase: frame.phase, away}, endScopeOnDone: false});
+  const runtime: FrameRuntime = {frame, scope, flow, beatStretch: isBeatPhase(frame.phase) ? currentStretch() : -1};
+  // THE MIRROR: whatever moves the machine (a verb here, its own bound) writes the record — one writer.
+  flow.actor.subscribe((snapshot) => {
+    if (frame.phase !== snapshot.context.phase) {
+      frame.phase = snapshot.context.phase;
+    }
+  });
+  flow.actor.on('beatExpired', (event) => {
+    console.warn(`[workspace] «${event.kind}» stood in «${event.phase}» on stage past its bound — the beat is over (the frame takes the pad back)`);
+    try {
+      beatExpiredHandler?.(event.kind as WorkspaceFrameKind, event.phase);
+    } catch (error) {
+      console.warn('[workspace] the beat-expired handler threw', error);
+    }
+  });
+  frameRuntimes.set(toRaw(frame), runtime);
+  return runtime;
+}
+
+function syncFrameLifetimes(): void {
+  const present = new Set<object>();
+  let opened = false;
+  const homes: ReadonlyArray<{frames: ReadonlyArray<WorkspaceFrame>, away: boolean}> = [
+    {frames: workspaceStackState.frames, away: false},
+    {frames: workspaceStackState.parked, away: true},
+    {frames: boardYielded, away: true},
+  ];
+  for (const home of homes) {
+    let parent: FlowScope = stackRootScope();
+    for (const frame of home.frames) {
+      const raw = toRaw(frame);
+      present.add(raw);
+      let runtime = frameRuntimes.get(raw);
+      if (runtime === undefined || runtime.scope.ended !== undefined) {
+        // A new frame — a child of the frame below it: an inner frame cannot outlive its host by construction.
+        runtime = openFrameRuntime(frame, parent, home.away);
+        opened = true;
+      } else if (runtime.flow.snapshot.value.context.away !== home.away) {
+        runtime.flow.send({type: home.away ? 'AWAY' : 'BACK'});
+      }
+      parent = runtime.scope;
+    }
+  }
+  let changed = false;
+  for (const [raw, runtime] of [...frameRuntimes]) {
+    if (!present.has(raw)) {
+      frameRuntimes.delete(raw);
+      changed = true;
+      runtime.scope.end({how: 'cancelled', reason: 'the frame left the stack'});
+    }
+  }
+  if (changed || opened) {
+    lifetimesEpoch.value++;
+  }
+}
+
+/** THE ONE WRITER of a frame's phase: through its machine when it has one (every frame in a home does). */
+function writeFramePhase(frame: WorkspaceFrame, phase: WorkspacePhase): void {
+  const runtime = frameRuntimes.get(toRaw(frame));
+  if (runtime === undefined || runtime.scope.ended !== undefined) {
+    frame.phase = phase;
+    return;
+  }
+  const before = runtime.flow.snapshot.value.context;
+  runtime.flow.send({type: 'PHASE', phase});
+  const after = runtime.flow.snapshot.value.context;
+  if (after.beat !== before.beat) {
+    runtime.beatStretch = currentStretch();
+    // The press may have been made a line EARLIER in the same stretch (submit, then «executing»): bind it now.
+    if (lastTicket !== undefined && lastTicket.stretch === runtime.beatStretch) {
+      leaseBeat(runtime, lastTicket.ticket);
+    }
+  }
+  if (frame.phase !== runtime.flow.snapshot.value.context.phase) {
+    frame.phase = runtime.flow.snapshot.value.context.phase;
+  }
+}
+
+/**
+ * THE SCOPE OF A FRAME, wherever it stands (live, parked, aside) — open in it whatever must not outlive the frame: a
+ * claim, an owed step, a lent zone, a module's flow record (`scope.defer(reset)`). `undefined` = no such frame.
+ */
+export function workspaceFrameScope(kind: WorkspaceFrameKind): FlowScope<'frame'> | undefined {
+  void lifetimesEpoch.value;
+  const frame = frameAnywhere(kind);
+  const runtime = frame === undefined ? undefined : frameRuntimes.get(toRaw(frame));
+  return runtime !== undefined && runtime.scope.ended === undefined ? runtime.scope : undefined;
+}
+
+/*
+ * ── THE BEAT'S LEASE — a press that did not land puts the frame back ──────────────────────────────────────────────
+ *
+ * A frame crosses its commit boundary FOR A PRESS: «executing» is written and the answer is sent in one synchronous
+ * stretch. If that press never lands — the funnel was busy and refused it, the server refused it, the network lost it,
+ * the server never answered — the frame must come back to where it stood, or it absorbs every press over a move that
+ * was never made (the rule «a server refusal rolls the frame's phase back» was a line each surface had to remember to
+ * write beside its own `resetSubmitting()`; a busy refusal had no line at all — inventory R11).
+ *
+ * So the binding is made HERE, once, for every door a press can come through (`onSubmitTicket`): a beat entered in the
+ * same synchronous stretch as a press is LEASED to that press's ticket. Unlanded → the frame goes back to the phase the
+ * beat came from (`context.before` — only a place, never another beat; a frame BORN in a beat has nowhere to go back
+ * to and is its owner's to pop). A surface's own rollback runs first (its watcher is queued before the ticket settles)
+ * and then this finds nothing to do; where a surface forgot, this is the rollback.
+ */
+let stretch = 0;
+let stretchScheduled = false;
+let lastTicket: {ticket: SubmitTicket, stretch: number} | undefined;
+
+/** A token for «the current synchronous stretch» — it changes at the next microtask checkpoint. */
+function currentStretch(): number {
+  if (!stretchScheduled) {
+    stretchScheduled = true;
+    void Promise.resolve().then(() => {
+      stretch++;
+      stretchScheduled = false;
+      lastTicket = undefined;
+    });
+  }
+  return stretch;
+}
+
+function rollBackBeat(runtime: FrameRuntime, beat: number, why: string): void {
+  const context = runtime.flow.snapshot.value.context;
+  if (runtime.scope.ended !== undefined || context.beat !== beat || context.phase !== 'executing' || isBeatPhase(context.before)) {
+    return;
+  }
+  console.warn(`[workspace] «${context.kind}» goes back ${context.phase} → ${context.before} — ${why}`);
+  writeFramePhase(runtime.frame, context.before);
+}
+
+function leaseBeat(runtime: FrameRuntime, ticket: SubmitTicket): void {
+  const context = runtime.flow.snapshot.value.context;
+  if (context.phase !== 'executing' || context.leased) {
+    return;
+  }
+  const beat = context.beat;
+  if (!ticket.accepted) {
+    rollBackBeat(runtime, beat, 'its press was refused (the funnel was busy): nothing was sent');
+    return;
+  }
+  runtime.flow.send({type: 'LEASED'});
+  void ticket.settled.then((settle) => {
+    if (submitDidNotLand(settle.status)) {
+      rollBackBeat(runtime, beat, `its answer did not land (${settle.status})`);
+    }
+  });
+}
+
+onSubmitTicket((ticket) => {
+  const now = currentStretch();
+  lastTicket = {ticket, stretch: now};
+  for (const runtime of [...frameRuntimes.values()]) {
+    if (runtime.beatStretch === now) {
+      leaseBeat(runtime, ticket);
+    }
+  }
+});
 
 // ── invariant 2: the anchor reconciler ──────────────────────────────────────
 
@@ -2108,6 +2341,7 @@ export function hydrateWorkspaceStack(
       nested: false,
     });
   }
+  syncFrameLifetimes();
   const depth = reconcileWorkspaceStack(isAnchorLive);
   if (depth > 0 && stored.parked.length > 0) {
     collapseWorkspaceStack();
