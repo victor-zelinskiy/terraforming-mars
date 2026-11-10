@@ -60,17 +60,10 @@
 import {defineComponent, PropType} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import type {AlbumSpinePosition} from '@/client/components/console/foundation/consoleAlbumSpineTypes';
 
-/**
- * An album's page position (POSITION ONLY — a card-index range is an admin-paginator fact the player never needs).
- */
-export type AlbumSpinePosition = {
-  /** 1-based current page and the page count. */
-  page: number,
-  pages: number,
-  canPrev: boolean,
-  canNext: boolean,
-};
+export type {AlbumSpinePosition};
+
 
 /**
  * @console-shared LIVE — the album spine (P87). Hosts: `ConsoleHandDock` (the bay, variant `dock`) and

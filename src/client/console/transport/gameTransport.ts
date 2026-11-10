@@ -231,7 +231,8 @@ import {registerBotTurnApplied} from '@/client/components/marsbot/marsBotStagedC
 import {startSceneHeld} from '@/client/console/consoleStartState';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
-import {FlowScope, openFlowRoot} from '@/client/console/kernel/flowScope';
+import {FlowScope} from '@/client/console/kernel/flowScope';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
 import {submitMachine, SubmitStatus} from '@/client/console/transport/submitMachine';
 import {announceSubmitTicket, SubmitSettle, SubmitTicket} from '@/client/console/transport/submitTicket';
@@ -466,7 +467,7 @@ const settleListeners = new Set<(settle: SubmitSettle) => void>();
 
 function transportScope(): FlowScope<'transport'> {
   if (transportFlow === undefined || transportFlow.ended !== undefined) {
-    transportFlow = openFlowRoot('transport');
+    transportFlow = consoleSessionScope().open('transport');
   }
   return transportFlow;
 }

@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
+import {shellCode} from './shellSource';
 
 /*
  * THE HYDRONETWORK'S RESULT IS READ ON A STAGE THE PLAYER SEES — and the table's answer rises AFTER it.
@@ -25,11 +26,13 @@ describe('the hydro result is handed over — never spent off screen, never unde
   });
 
   it('the settle refuses a hidden stage through the ONE predicate, and the frame\'s return re-syncs and re-asks', () => {
-    const shell = read('components/console/ConsoleShell.vue');
+    const shell = shellCode({comments: true});
     const settle = shell.slice(shell.indexOf('settleHydroResolution(): void {'));
     expect(settle.slice(0, settle.indexOf('\n    },\n')), 'a park, a deferred task and a yield alike').to.include('if (hydroFlowSetAside() || this.hydroResolutionBusy) {');
-    const watcher = shell.slice(shell.indexOf('hydroFrameStands(stands: boolean) {'));
-    expect(watcher.indexOf('hydroFrameStands(stands: boolean) {'), 'the frame\'s return is watched').to.be.greaterThan(-1);
+    // The watch table delegates (architecture v2): the reaction's body is the method the `hydroFrameStands` row calls.
+    expect(shell, 'the frame\'s return is watched').to.include('this.whenHydroFrameStandsChanges(stands);');
+    const watcher = shell.slice(shell.indexOf('whenHydroFrameStandsChanges(stands: boolean): void {'));
+    expect(watcher.indexOf('whenHydroFrameStandsChanges(stands: boolean): void {'), 'the reaction has a body').to.be.greaterThan(-1);
     const arm = watcher.slice(0, watcher.indexOf('\n    },\n'));
     expect(arm, 'a phase written while away is re-read').to.include('this.syncHydroFramePhase();');
     expect(arm, 'the refused settle is asked again').to.include('this.settleHydroResolution()');

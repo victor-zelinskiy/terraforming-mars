@@ -314,6 +314,9 @@ import {effectRuleText, effectRules} from '@/client/components/effects/effectDes
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import ConsoleTradeTargetValue from '@/client/components/console/ConsoleTradeTargetValue.vue';
 import ConsoleTradeReceivingCards from '@/client/components/console/ConsoleTradeReceivingCards.vue';
+import type {FleetDockConfirmPayload} from '@/client/components/console/consoleFleetDockStageTypes';
+
+export type {FleetDockConfirmPayload};
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -376,17 +379,6 @@ type TargetRow = {card: string | undefined, impact: string, iconClass: string, p
 /** What the stage asks of its target step's host (`ConsoleTradeTargetStep`). */
 type TradeTargetStepHandle = {nav: (dir: NavDirection) => void, cycleOwner: (delta: number) => void, confirm: () => void, inspect: () => void, close: (done: () => void) => void};
 
-export type FleetDockConfirmPayload = {
-  paymentIndex: number,
-  steps: ReadonlyArray<TradeStep>,
-  captures: Readonly<Record<number, unknown>>,
-  /**
-   * The reward lands on a CARD (a card target in the preview): the shell claims
-   * the trade's `pick` for the colonies workspace, so a question re-asked live
-   * stands inside it — never as a band over it.
-   */
-  asksCard: boolean,
-};
 
 export default defineComponent({
   name: 'ConsoleFleetDockStage',

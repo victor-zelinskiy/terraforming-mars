@@ -84,7 +84,8 @@ import {
 // cycle. At runtime this file depends on nothing but Vue and the phase model.
 import type {TaskKind} from '@/client/console/consoleTaskRouter';
 import type {ConsoleSection, ConsoleSheetId} from '@/client/console/consoleRouter';
-import {FlowScope, openFlowRoot} from '@/client/console/kernel/flowScope';
+import {FlowScope} from '@/client/console/kernel/flowScope';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
 import {frameMachine, isBeatPhase} from '@/client/console/consoleWorkspaceFrame';
 import {onSubmitTicket, submitDidNotLand, SubmitTicket} from '@/client/console/transport/submitTicket';
@@ -2002,7 +2003,7 @@ let stackScope: FlowScope<'chain'> | undefined;
 
 function stackRootScope(): FlowScope<'chain'> {
   if (stackScope === undefined || stackScope.ended !== undefined) {
-    stackScope = openFlowRoot('chain', 'workspace');
+    stackScope = consoleSessionScope().open('chain', 'workspace');
   }
   return stackScope;
 }

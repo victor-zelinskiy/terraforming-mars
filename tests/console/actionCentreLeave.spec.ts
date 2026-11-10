@@ -1,7 +1,6 @@
 import {expect} from 'chai';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import {ActionCentreLeaveFacts, actionCentreLeavesOnPromptChange} from '../../src/client/console/actionCentreLeave';
+import {shellCode} from './shellSource';
 
 /*
  * THE VOLUNTARY ACTION CENTRE (T09 «ПОВЕРХНОСТЬ НЕ СКЛАДЫВАЕТСЯ ПОД СВОИМ ЖЕТОНОМ», ledger BY — H6). The owner's field
@@ -32,7 +31,7 @@ describe('actionCentreLeavesOnPromptChange', () => {
   });
 
   it('the shell asks THIS function, with the commit\'s handoff, its owed fold and its parked dismissal as the one fact', () => {
-    const shell = fs.readFileSync(path.resolve('src/client/components/console/ConsoleShell.vue'), 'utf8');
+    const shell = shellCode({comments: true});
     expect(shell).to.include('actionCentreLeavesOnPromptChange({');
     expect(shell).to.match(/commitOwnsSurface: isSurfaceAwaitingHandoff\(\) \|\| this\.commitFoldOwed \|\| this\.pendingCommitDismiss !== undefined/);
     // No second hand-written copy of the rule beside it.

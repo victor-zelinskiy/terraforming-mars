@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
+import {shellCode} from './shellSource';
 
 /*
  * A COLONY BUILT BY A CARD — THE WIRING OF THE DOOR (Turmoil Redux TR25
@@ -25,7 +26,8 @@ function memberOf(source: string, name: string): string {
 }
 
 describe('a colony built by a card — the wiring of the door', () => {
-  const shell = code(read('src', 'client', 'components', 'console', 'ConsoleShell.vue'));
+  // The shell's code wherever it lives — the SFC and its controllers, in the monolith's dialect (`shellSource.ts`).
+  const shell = shellCode();
   const section = code(read('src', 'client', 'components', 'console', 'ConsoleColoniesSection.vue'));
   const stage = code(read('src', 'client', 'components', 'console', 'ConsoleColonyFocusStage.vue'));
   const model = code(read('src', 'client', 'console', 'consoleColoniesModel.ts'));

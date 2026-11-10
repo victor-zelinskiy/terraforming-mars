@@ -674,6 +674,9 @@ import {cardDiscardState} from '@/client/console/cardDiscard/cardDiscardState';
 import {claimNotificationCorner} from '@/client/components/notifications/notificationState';
 import {cardDiscardAskedBy, cardDiscardSettlementPair} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
+import type {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
+
+export type {ConsoleRevealMode};
 
 /**
  * THE SETTLEMENT TABLE's place bodies + their running turns — DOM/GSAP handles, never reactive state (one instance
@@ -736,8 +739,6 @@ const BONUS_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['lift', 'hover', 'g
  */
 const DECK_DRAW_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['search', 'settle', 'assemble']);
 
-
-export type ConsoleRevealMode = 'drawn' | 'result' | 'viewer';
 
 /** The compact source chip descriptor (multi-card drawn header). */
 type SourceChip = {name: string, inspectable: boolean};

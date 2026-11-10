@@ -13,6 +13,7 @@ import {
   freeBerths,
   nextBuildSlot,
 } from '../../src/client/console/colonyBuild/colonyBerths';
+import {shellFiles} from './shellSource';
 
 /*
  * THE BERTHS MODEL — the places of a colony tile as every console surface
@@ -198,11 +199,13 @@ describe('colonyBerths — the places of a colony tile', () => {
           }
         }
       }
-      // The shell is one file for the whole console: its colony lines only.
-      const shell = path.join(ROOT, 'src', 'client', 'components', 'console', 'ConsoleShell.vue');
-      for (const {line, n} of codeLines(shell)) {
-        if (/colon/i.test(line) && (LITERAL.test(line) || CLAMP.test(line))) {
-          offenders.push(`${path.relative(ROOT, shell)}:${n}: ${line.trim()}`);
+      // The shell is the whole console's code — the SFC and the controllers taken out of it (`shellSource.ts`): its
+      // colony lines only.
+      for (const shell of shellFiles().filter((file) => !files.includes(file))) {
+        for (const {line, n} of codeLines(shell)) {
+          if (/colon/i.test(line) && (LITERAL.test(line) || CLAMP.test(line))) {
+            offenders.push(`${path.relative(ROOT, shell)}:${n}: ${line.trim()}`);
+          }
         }
       }
       expect(offenders, 'read the berths through `colonyBerthsOf` / `nextBuildSlot` (console/colonyBuild/colonyBerths.ts):\n' + offenders.join('\n')).deep.eq([]);

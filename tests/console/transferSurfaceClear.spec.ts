@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {shellCode, shellFiles} from './shellSource';
 
 /*
  * THE LAW OF THE FOLD — the source guard (T09 «ПОВЕРХНОСТЬ НЕ СКЛАДЫВАЕТСЯ ПОД СВОИМ ЖЕТОНОМ», ledger BY;
@@ -69,12 +70,18 @@ describe('the law of the fold — source guard', () => {
       'src/client/console/colonyTrade/consoleColonyTrade.ts',
     ]);
     const offenders: Array<string> = [];
+    // THE SHELL'S CODE IS ONE HOST (architecture v2): the SFC and the controllers taken out of it. The action commit's
+    // wave is launched in one of them (`runCommitRewardWave` — its `onLeft`) and the fold that waits for it asks the
+    // surface in another (`Promise.all([rail.foldable, waveLeft]).then(() => surfaceClear(…))`), as in one file before.
+    const shellHost = new Set(shellFiles().map((file) => path.relative(process.cwd(), file).split(path.sep).join('/')));
+    const shellText = shellCode({comments: true});
+    expect(/\bonLeft\b/.test(shellText) && /\bsurfaceClear\b/.test(shellText), 'the shell hears `onLeft` and asks the surface').to.equal(true);
     const walk = (dir: string) => {
       for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
         const rel = path.posix.join(dir, entry.name);
         if (entry.isDirectory()) {
           walk(rel);
-        } else if (/\.(ts|vue)$/.test(entry.name) && !framework.has(rel)) {
+        } else if (/\.(ts|vue)$/.test(entry.name) && !framework.has(rel) && !shellHost.has(rel)) {
           const text = fs.readFileSync(rel, 'utf8');
           if (/\bonLeft\b/.test(text) && !/\bsurfaceClear\b/.test(text)) {
             offenders.push(rel);
@@ -94,7 +101,7 @@ describe('the law of the fold — source guard', () => {
   });
 
   it('the shell folds the workspace through the law, the claimed path settles after it, the commit resolves ONCE', () => {
-    const shell = read('src/client/components/console/ConsoleShell.vue');
+    const shell = shellCode({comments: true});
     expect(shell).to.include('Promise.all([rail.foldable, waveLeft]).then(() => surfaceClear(surfaceEl))');
     expect(shell).to.include('claimedRail.foldable.then(() => surfaceClear(claimedSurface)).then(() => this.reconcileWorkspaceOutcome())');
     expect(shell, 'H5b — the parked dismissal is the commit\'s owed fold from the moment it is parked')

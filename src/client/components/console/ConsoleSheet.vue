@@ -48,25 +48,10 @@
 import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
-import {Color} from '@/common/Color';
+import type {ConsoleSheetRow} from '@/client/components/console/consoleSheetTypes';
 
-export type ConsoleSheetRow = {
-  key: string,
-  /** 'header' = a non-selectable group caption (nav skips it). */
-  kind?: 'header',
-  /** Icon CSS class (e.g. a std-icon pictogram) — premium rows are never bare text. */
-  icon?: string,
-  /** English i18n key (or literal already-translated text). */
-  title: string,
-  /** Rule / effect description (translated via v-i18n). */
-  sub?: string,
-  /** Cost / progress annotation (already formatted). */
-  meta?: string,
-  available: boolean,
-  /** English i18n key ('' → no line). */
-  reason?: string,
-  takenBy?: {color: Color, name: string},
-};
+export type {ConsoleSheetRow};
+
 
 export default defineComponent({
   name: 'ConsoleSheet',

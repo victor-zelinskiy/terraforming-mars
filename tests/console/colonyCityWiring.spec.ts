@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
+import {shellCode} from './shellSource';
 
 /*
  * A CITY ON A COLONY TILE — THE WIRING (Turmoil Redux TR22 Nova City;
@@ -24,7 +25,8 @@ function memberOf(source: string, name: string): string {
 }
 
 describe('a city on a colony tile — the wiring', () => {
-  const shell = code(read('src', 'client', 'components', 'console', 'ConsoleShell.vue'));
+  // The shell's code wherever it lives — the SFC and its controllers, in the monolith's dialect (`shellSource.ts`).
+  const shell = shellCode();
   const transport = code(read('src', 'client', 'console', 'transport', 'gameTransport.ts'));
   const section = code(read('src', 'client', 'components', 'console', 'ConsoleColoniesSection.vue'));
   const app = code(read('src', 'client', 'components', 'App.vue'));

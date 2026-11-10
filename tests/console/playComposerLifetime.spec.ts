@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
 import {composerReArms, playComposerOutlived} from '../../src/client/console/played/playComposerLifetime';
+import {shellCode} from './shellSource';
 
 /**
  * THE PLAY COMPOSER ANSWERS ONE PROMPT (`playComposerLifetime.ts`) — the field report of 2026-10-23: «Корпоративный
@@ -66,7 +67,7 @@ describe('playComposerLifetime — the composer answers ONE prompt', () => {
     const code = (file: string) => fs.readFileSync(path.join(ROOT, file), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').replace(/<!--[\s\S]*?-->/g, '');
     const composer = code(path.join('components', 'console', 'ConsolePlayCardConfirm.vue'));
-    const shell = code(path.join('components', 'console', 'ConsoleShell.vue'));
+    const shell = shellCode();
     const transport = code(path.join('console', 'transport', 'gameTransport.ts'));
 
     it('the composer re-arms on a view only through composerReArms, and records what it answered', () => {

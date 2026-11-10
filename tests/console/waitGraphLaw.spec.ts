@@ -82,8 +82,9 @@ describe('the wait graph law — a flow is in the graph by construction', () => 
     for (const name of ['holds', 'stories', 'park']) {
       expect(src, name).to.contain(`registerWaitSource('${name}'`);
     }
-    const shell = fs.readFileSync(path.resolve(__dirname, '../../src/client/components/console/ConsoleShell.vue'), 'utf8');
-    expect(shell).to.contain('registerWaitSource(\'shell\'');
-    expect(shell).to.contain('...registerConstructionWaitSources()');
+    // The shell's own source and the registries are registered by the SUPERVISOR (architecture v2 · S1 — it was a method of the shell).
+    const supervisor = fs.readFileSync(path.join(CONSOLE, 'supervisor/supervisorController.ts'), 'utf8');
+    expect(supervisor).to.contain('registerWaitSource(\'shell\'');
+    expect(supervisor).to.contain('...registerConstructionWaitSources()');
   });
 });

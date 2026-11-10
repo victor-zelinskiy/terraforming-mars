@@ -14,8 +14,8 @@
 | L2 | lifecycle 2 — the workspace frame (scopes, locations, bounded beats) | **done** — every frame is a scope (`workspaceFrameScope`), its phase the `frameMachine` (beats bounded, on stage only), the beat's LEASE puts a frame back when its press did not land |
 | L3 | lifecycle 1 — the outcome claim, owned by its host frame | **done** — `claimMachine` (the three backstops and the host binding are states), `consoleWorkspaceOutcome.ts` is its facade; the shell's `releaseOrphanedClaim` is deleted |
 | L4 | lifecycle 3 — the announce plate and «set aside» | **the plate: done** — `announceMachine`, one run per beat key, `pending` bounded (its door is the shell's); **«set aside»: with S4** (it is a state of the QUESTION, which the prompt router owns) |
-| S1 | the shell: session root + the supervisor out of the shell | — |
-| S2 | the shell: the extraction tool + the first islands | — |
+| S1 | the shell: session root + the supervisor out of the shell | **done** — `console/session/consoleSession.ts` (ONE root scope for the transport, the frames, the claims and the plates; it ends when the shell is unmounted); `console/supervisor/supervisorController.ts` (the 1 Hz sampler, the rungs, the wait-graph source, the reapers, the cures) — its 39-row PORT is the list of what the nets sample in the shell |
+| S2 | the shell: the extraction tool + the first islands | **done** — `scripts/shell-extract.mjs`; ten controllers under `console/shell/` (viewer · milestones/awards · wheel · cell · info · convert · rail · journal · surface · notice), each with its typed PORT; **every watcher is a one-line delegate** — the `watch` block is the ordered table of the shell's 145 reactions and their bodies are methods (`when<Key>Changes`) that move with their domains; the types the shell shares with its SFC children live in `.ts` modules. The shell is 25.2k lines (was 27.8k). The region components (template) ride S3 / S6 |
 | S3… | the shell: surface registry (pad / bar / context — one table), routing, conclusion | — |
 | N1 | native stalls: LoAF in the field log, a trace on `unresponsive` | **done (diagnosis)** — `longFrameWatch.ts` (`[long-frame]` lines with the frame's split), `electron/hangTrace.ts` (a Chromium trace of every stop, named in the hang line); reducing what the first traces name is open |
 
@@ -289,13 +289,60 @@ forwards to the new owner, it never keeps a second copy of the state.
 
 ### Phase 2 — the shell
 
-- **S1 — session + supervisor.** `ConsoleSession` (root scope, the transport, the stack); the liveness sampler, the
-  wait-graph source, the rungs, the reapers and their seven module `let`s move out of the shell into
-  `console/supervisor/` behind a typed port (what the supervisor reads of the shell is then a list, not `this`).
-- **S2 — the extraction tool + first islands.** `scripts/shell-extract.mjs`; proven on the islands the map found
-  closed: the card viewer (60 members, 340 template lines), milestones / awards (45), Information Mode (15), the
-  notice toast, the boot curtain, the test seams. Each island = one controller (+ one region component where the
-  template block is contiguous).
+- **S1 — session + supervisor (done).** **The session** (`console/session/consoleSession.ts`): ONE root scope of
+  kind `session`; the four lifecycle modules open their trees inside it (`consoleSessionScope().open(…)` — they ask
+  every time, never cache a dead root), `useConsoleSession()` in the shell's `setup()` ends it on `unmounted` (after
+  the children — the transport's binder — are gone). «The game screen left» is then one event for every flow on the
+  kernel, whatever the 120-row `reset…()` list in `beforeUnmount` forgot (the session-leak class); module state that
+  is not a flow yet can hang its reset on the session (`onConsoleSessionEnd`) — adopted as each module is touched, and
+  the list shrinks to nothing in S-last. `dumpFlowTree()` is one tree. Spec: `tests/console/consoleSession.spec.ts`.
+  **The supervisor** (`console/supervisor/supervisorController.ts`, taken out with the S2 tool): `startSupervisor` /
+  `stopSupervisor` (called from the shell's hooks in the rows they always stood in), `checkLiveness` (the one 1 Hz
+  sampler), `registerLivenessRungs`, `shellWaitNodes`, the reapers, the forced recovery, the two directors' cures,
+  with their module state (`pageStill`, `waitSurfacePhase`, the control stand's declared defect). **Its port is the
+  deliverable**: 39 rows — every fact a net samples in the shell because no owner ends it. A net retires by rows of
+  that port going away (§6); nothing may be added to it. State two domains share went to
+  `console/shell/shellFlowState.ts` by name (`conclusionRefusal`, `handoffPendingEntries`, the owed-conclusion
+  graces) — it shrinks with S5.
+- **S2 — the extraction tool + first islands (done).** `scripts/shell-extract.mjs` (its header is the manual):
+  `index` lists every member, `report <spec>` prints a member set's PORT (every foreign member it reads / calls /
+  WRITES), who else uses the set, the watchers that touch it and what blocks a verbatim move; `apply <spec>` writes
+  `create<Name>Controller(shell: <Name>Port)` and patches the SFC (members cut, the controller constructed in
+  `setup()` and spread into its return, a conformance row added to `shellPortsConform()`, unused imports pruned);
+  `prune <file>` drops imports a file no longer names; `delegate-watchers` turns every watcher's body into a method
+  (`when<Key>Changes`) and the watcher into a one-line delegate — the `watch` block stays in the shell IN ITS ORDER
+  (creation order is load-bearing) as the table of reactions, and a reaction's body then moves with its domain like
+  any method; `lift <target.ts> NAME…` moves module-level types / constants several domains read into a module;
+  `graph` prints who uses whom (the input of clustering the remaining members into domains). What the tool
+  guarantees by construction: `this.x` of a moved
+  member is a local (`x.value` / `x`), of a module mirror the import itself, of anything else `shell.x` — typed off the
+  member's own declaration (or the sibling controller that already owns it: `UnwrapRef<ViewerController['x']>`); a
+  member whose name also occurs FREE in the moving code (`maPriceWaiverOf` the method vs the import, `const game =
+  this.game`) is declared under an alias `ownX` and returned under its real name; it REFUSES a bare `this`, a `this`
+  inside a plain `function`, a data initializer that reads the instance (a controller is built before the options
+  exist), a local that would shadow the port or a mirror, a module-level declaration both sides read (move it to a
+  shared module first, or name the owner in `spec.exports`).
+  **The procedure for the next domain** (S6…): (1) `index` → pick the members; (2) `report` until the port reads as
+  the domain's real dependencies (a surprising row is a finding — usually a member that belongs to the set);
+  (3) `apply`, `eslint --fix`, `npm run lint:client`; (4) the console guard specs (`tests/console/**`) — a
+  source-scanning spec that looked the member up in the shell is pointed at the controller in the same diff;
+  (5) what the domain registers in the shell's hooks moves into the controller's own `onMounted` /
+  `onBeforeUnmount` by hand (the viewer's input-absorber gate is the example). Watchers stay (their order is
+  load-bearing) until the domain's lifecycle is a machine.
+  **Two things the first build taught (both now refused by the tool or said in the rule):** (a) a `.ts` module
+  cannot import a NAMED export of a `.vue` file — `vue-tsc` lets it through and the production build's checker
+  (plain tsc, the shim) fails it; the types the shell shares with its SFC children moved into sibling
+  `<component>Types.ts` modules (the SFC re-exports them), and a `$refs` answer a controller reads is typed by name
+  (`HandTransitionTargets`), because plain tsc sees a `.vue` instance as `any`; **run plain tsc on `src/**/*.ts`
+  (≈ 30 s) or `npm run build` before calling a shell slice green.** (b) A new dependency in `package.json` is not
+  installed in a clone that shares nothing with yours — the mirror tree collected ZERO tests on a missing `xstate`.
+  **Done on:** the card viewer, milestones / awards, the action wheel, the board cell, Information Mode, the
+  conversions, the player rail, the journal, the surface shade, the notice. **Not done here, and why:** the region
+  components — a template block reads members of several domains by bare name, so cutting it out is only mechanical
+  once its surface has an entry of its own (S3 gives every surface one; the block then moves with it); the boot
+  curtain and the test seams the map listed are rows of the shell's `mounted`, not members — they move with S1.
+  **A ratchet («the shell may only shrink») is deliberately not a guard yet**: `main` is shared and other sessions
+  still add to the shell; it becomes a guard in S-last.
 - **S3 — the surface registry.** The three ladders become one ordered table; each branch moves to its surface's
   entry with its condition verbatim. The pad path stops using `$refs`: a surface registers its handler while mounted.
 - **S4 — the prompt router.** Admission and the ownership trios as one controller; the screen director's
@@ -373,6 +420,9 @@ kernel, a net that still covers legacy code stays, and the table says what it st
 
 | Slice | What moved | Specs |
 | --- | --- | --- |
+| S1 | the four flow trees hang under one `session` root that ends on the shell's `unmounted` (was: four roots that lived for the page); the supervisor's start / stop are two calls in the same hook rows; nothing else moves | `console-wait-graph-control`, `console-wait-graph-dead-end`, `console-screen-director-cure`, `console-screen-shadow-control` (the control stand's `declareDefect` goes through the supervisor), anything that leaves a game and enters another (rematch, campaign thresholds) |
+| S2 · watchers | every watcher is `key(v) { this.when<Key>Changes(v); }` — same order, same options (`immediate` / `flush` / `deep`), the body one call deeper | none expected (pointwise: hydro, colonies, hand, draft, generation scene, std projects — green) |
+| S2 | ten member sets of the shell are setup-state now (same names, same template): a `data` field became a `ref`, an options `computed` a `computed()`; the viewer's input-absorber gate registers in the controller's `onMounted` (a setup hook runs BEFORE the shell's own `mounted` — it was the second row of it) | the card viewer (`console-played-zoom-return`, `console-inspect-history`, anything that presses X on a card), `console-ma-workspace` / `-price` / `-states`, `console-info-*`, `wheel-rework`, `console-convert-plants-source`, `console-journal-chronicle`, `console-cell-dossier`, `console-rail-*` |
 | L4 | a beat pending 15 s runs the plate's door from the machine (was: the wait graph's overdue finding after 3 more ticks, and only when no frame stood on top); nothing else moves | `console-parliament-announce`, `console-parliament-aquifer`, `console-pluto-bonus-discard`, `console-external-draw`, `console-bot-attack`, `console-corp-first-action`, `console-screen-director-cure` (the blind announce's beacon), `console-draft-workspace` |
 | N1 | a `[long-frame]` warn line per ≥ 500 ms frame (rate-limited) — harvested, never red | none expected; a spec that asserts «no console.warn at all» would see it |
 | L3 | the claim's timers are machine states (same numbers); an orphaned claim is released exactly 1.5 s after its host's last frame ended (was 1.5–2.5 s, sampled); the arrival gate of a claim that never got an answer opens at 20 s | `console-hi-tech-lab`, `console-wait-graph-dead-end` § orphaned claim, `console-hydro-copied-tile`, every embedded draw / pick / verdict (`console-viron-repeat-draw`, `console-deck-pick-collapse`, `console-start-sponsor`, card-actions specs) |

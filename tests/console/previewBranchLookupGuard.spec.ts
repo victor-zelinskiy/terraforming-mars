@@ -20,6 +20,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {branchOutcomeClaimPlan, previewBranchByIndex} from '@/client/console/actionPreviewStore';
 import type {ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
+import {shellFiles} from './shellSource';
 
 function branch(partial: Partial<ActionPreviewBranch> & {index: number}): ActionPreviewBranch {
   return {
@@ -95,7 +96,8 @@ describe('branchOutcomeClaimPlan — the ONE structural claim derivation', () =>
 describe('previewBranchLookupGuard — no `.branches[` subscript at the claim sites', () => {
   const root = path.join(__dirname, '..', '..');
   const files = [
-    'src/client/components/console/ConsoleShell.vue',
+    // the shell's code — the SFC and the controllers taken out of it (`shellSource.ts`)
+    ...shellFiles().map((file) => path.relative(root, file).split(path.sep).join('/')),
     'src/client/components/console/ConsoleCardActions.vue',
     'src/client/components/console/ConsoleHydroSection.vue',
     'src/client/console/hydroFlow/deltaRewardEntry.ts',

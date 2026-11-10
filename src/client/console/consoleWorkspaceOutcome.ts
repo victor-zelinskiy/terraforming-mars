@@ -36,7 +36,8 @@ import {CardDrawRevealSource, CardIntakeBatchRef, intakeBatchSources} from '@/co
 import type {ZoomOrigin} from '@/client/console/consoleCardZoom';
 import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {workspaceFrameKnown, workspaceFrameScope} from '@/client/console/consoleWorkspaceStack';
-import {FlowScope, openFlowRoot, until} from '@/client/console/kernel/flowScope';
+import {FlowScope, until} from '@/client/console/kernel/flowScope';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
 import {CLAIM_HOST_GONE_GRACE_MS, claimMachine} from '@/client/console/consoleWorkspaceClaim';
 import {partyTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
@@ -307,7 +308,7 @@ let claimsRoot: FlowScope<'chain'> | undefined;
 
 function claimsRootScope(): FlowScope<'chain'> {
   if (claimsRoot === undefined || claimsRoot.ended !== undefined) {
-    claimsRoot = openFlowRoot('chain', 'claims');
+    claimsRoot = consoleSessionScope().open('chain', 'claims');
   }
   return claimsRoot;
 }

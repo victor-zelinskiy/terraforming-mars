@@ -178,18 +178,12 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleArmedEffectsStrip from '@/client/components/console/ConsoleArmedEffectsStrip.vue';
-import ConsoleAlbumSpine, {AlbumSpinePosition} from '@/client/components/console/foundation/ConsoleAlbumSpine.vue';
+import ConsoleAlbumSpine from '@/client/components/console/foundation/ConsoleAlbumSpine.vue';
 import {PresentedArmedEffect} from '@/client/console/armedEffectFlight';
+import type {HandDockAlbum} from '@/client/components/console/consoleHandDockTypes';
 
-/**
- * The album spine's live state (undefined → the plain «КАРТЫ n/m» line).
- *
- * POSITION ONLY, deliberately: a card-index range («9–12 из 14») is an
- * admin-paginator fact the player never needs — the total already stands in
- * the header's «ВСЕ 14» chip and the page's own cards are on screen. What
- * they need is where they are and how far the album goes.
- */
-export type HandDockAlbum = AlbumSpinePosition;
+export type {HandDockAlbum};
+
 
 export default defineComponent({
   name: 'ConsoleHandDock',

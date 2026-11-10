@@ -114,8 +114,10 @@ import {
   foldForecastHost, forecastHostIntent, forecastOwnerColors, forecastStatsByColor, openForecastHost, pulseForecastDoor,
 } from '@/client/console/consoleForecastHost';
 import {VersionedView} from '@/client/console/gameStateVersion';
+import type {ActionConfirmKind} from '@/client/components/console/consoleActionConfirmTypes';
 
-export type ActionConfirmKind = 'pass' | 'convertHeat' | 'convertPlants';
+export type {ActionConfirmKind};
+
 
 /** The ask per verb — the operation's own words, never the shell's generic «Подтверждение». */
 const TITLE_KEY: Readonly<Record<ActionConfirmKind, string>> = {
