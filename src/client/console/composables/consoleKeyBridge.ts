@@ -30,6 +30,7 @@ import {useEventListener} from '@vueuse/core';
 import {installInputEchoProbe, recordInputEcho} from '@/client/console/inputEcho';
 import {installInputAbsorbProbe, lastDispatchAbsorbedBy} from '@/client/console/inputAbsorb';
 import {installFieldRecorder} from '@/client/console/fieldRecorder';
+import {installLongFrameWatch} from '@/client/console/longFrameWatch';
 import {CONSOLE_KEY_BUTTON, CONSOLE_KEY_NAV, keyboardConsoleIntent} from '@/client/console/composables/consoleActionModel';
 import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
 import {dispatchConsoleIntent} from '@/client/console/consoleRouter';
@@ -148,6 +149,9 @@ export function installConsoleKeyBridge(): void {
   // THE FIELD FLIGHT RECORDER (phase 2 of the start director): the console's tagged warnings and the arbiter's
   // heartbeats, kept across a reload and posted to the embedded server beside the saves.
   installFieldRecorder();
+  // …and WHERE A SLOW FRAME WENT (`longFrameWatch.ts`): every frame over half a second is one tagged line — script,
+  // forced layout, style + layout, or the renderer's own native work — which the recorder above copies to the field log.
+  installLongFrameWatch();
   const stopDown = useEventListener(window, 'keydown', onKeydown);
   const stopUp = useEventListener(window, 'keyup', onKeyup);
   stop = () => {

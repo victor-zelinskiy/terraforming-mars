@@ -14,7 +14,8 @@
 // Self-contained: imports only from 'electron', Node built-ins, and the sibling
 // protocol module — no @/ path-alias rewriting, a plain `tsc -p` compiles it.
 
-import {app, BrowserWindow, Menu, powerSaveBlocker, screen, shell, ipcMain, type IpcMainInvokeEvent} from 'electron';
+import {app, BrowserWindow, contentTracing, Menu, powerSaveBlocker, screen, shell, ipcMain, type IpcMainInvokeEvent} from 'electron';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import {registerAppScheme, registerAppProtocolHandler, appUrl, APP_ORIGIN} from './protocol';
@@ -25,8 +26,9 @@ import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
 import {applyPerformanceSwitches, describePowerShellFailure, logGpuStatus, parseAffinityPref, parseCliEnvOverrides, pCoreAffinityMask, processPriorityPref} from './perf';
 import {execFile} from 'child_process';
 import {installDevtoolsPadCursor} from './devtoolsPadCursor';
-import {installConsoleCapture} from './consoleExport';
+import {installConsoleCapture, resolveExportDir} from './consoleExport';
 import {createRendererHangWatch, PROBE_SCRIPT} from './rendererHangWatch';
+import {createHangTrace} from './hangTrace';
 import {installNativeGamepads} from './nativeGamepadLinux';
 import {installCurtainOverlay} from './curtainOverlay';
 import {beginShutdown, isShuttingDown} from './shutdown';
@@ -583,6 +585,31 @@ function createWindow(): void {
     now: () => Date.now(),
     setTimer: (fn, ms) => setTimeout(fn, ms),
     clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+    // WHERE THE FRAME WENT (`hangTrace.ts`): a Chromium trace of the stop, written beside the console export.
+    trace: createHangTrace({
+      startRecording: (categories) => contentTracing.startRecording({
+        recording_mode: 'record-as-much-as-possible', included_categories: [...categories], excluded_categories: ['*'],
+      }),
+      stopRecording: (file) => {
+        fs.mkdirSync(path.dirname(file), {recursive: true});
+        return contentTracing.stopRecording(file);
+      },
+      dir: () => resolveExportDir(app),
+      list: (dir) => {
+        try {
+          return fs.readdirSync(dir);
+        } catch {
+          return [];
+        }
+      },
+      remove: (file) => fs.rmSync(file, {force: true}),
+      now: () => Date.now(),
+      note: (line) => {
+        consoleExporter.note(line);
+        // eslint-disable-next-line no-console
+        console.warn(line);
+      },
+    }),
   });
   const hangProbeTimer = setInterval(() => {
     if (!hangWin.isDestroyed()) {

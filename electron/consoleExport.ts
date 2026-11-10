@@ -323,7 +323,7 @@ function pageProbe<T>(work: Promise<T>, fallbackValue: T): Promise<T> {
 }
 
 /** Where to write the export — mirror the wrapper's log location, with sane fallbacks. */
-function resolveExportDir(app: App): string {
+export function resolveExportDir(app: App): string {
   const dir = (process.env.TM_LOG_DIR ?? '').trim();
   if (dir !== '') {
     return dir;

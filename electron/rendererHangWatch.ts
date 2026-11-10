@@ -14,7 +14,12 @@
  *  - still silent after `reloadAfterMs` → the renderer is crashed on purpose and the page reloads — a reload raises
  *    the start / the live prompt by itself (the game is the server's), so the player gets the table back instead of a
  *    frozen picture; bounded (`maxReloads` per `reloadWindowMs`) so a page that hangs on boot is not reloaded forever;
- *  - `responsive` → how long the stop lasted; `render-process-gone` (not a clean exit) → named and reloaded.
+ *  - `responsive` → how long the stop lasted; `render-process-gone` (not a clean exit) → named and reloaded;
+ *  - THE STOP IS TRACED (architecture v2 · N1): the lines above say WHERE THE SCREEN STOOD, never where the FRAME went
+ *    — style, layout, paint, raster, the compositor or the GPU process. A Chromium trace is started the moment the
+ *    page stops answering (`trace.start` — the main process's `contentTracing`, the one recorder that sees every
+ *    process's threads), stopped when it answers again, after `traceMaxMs`, or just before the renderer is restarted,
+ *    and the file is NAMED in the line: a field report of a native stall arrives with what the threads were doing.
  *
  * The core is PURE of Electron (`createRendererHangWatch(deps)`) — unit-tested with fake timers.
  */
@@ -47,6 +52,14 @@ export type HangWatchDeps = {
   now: () => number,
   setTimer: (fn: () => void, ms: number) => unknown,
   clearTimer: (handle: unknown) => void,
+  /**
+   * The trace recorder (optional — a build without one keeps every other behaviour). `start` begins recording;
+   * `stop` ends it and resolves with the file it wrote ('' — nothing was written). Both must never throw.
+   */
+  trace?: {
+    start: () => void,
+    stop: (label: string) => Promise<string>,
+  },
 };
 
 export type HangWatchOptions = {
@@ -55,9 +68,11 @@ export type HangWatchOptions = {
   /** Reload budget: at most `maxReloads` within `reloadWindowMs`. */
   maxReloads: number,
   reloadWindowMs: number,
+  /** How long a stop is traced at most (a trace of a 30 s stop is tens of megabytes; the first seconds name the cause). */
+  traceMaxMs?: number,
 };
 
-export const HANG_WATCH_DEFAULTS: HangWatchOptions = {reloadAfterMs: 30_000, maxReloads: 3, reloadWindowMs: 5 * 60_000};
+export const HANG_WATCH_DEFAULTS: HangWatchOptions = {reloadAfterMs: 30_000, maxReloads: 3, reloadWindowMs: 5 * 60_000, traceMaxMs: 8_000};
 
 /** «where the screen stood» — the last heartbeat in one line (PURE). */
 export function describeLastScreen(last: HangProbe | undefined, readAt: number, now: number): string {
@@ -78,6 +93,8 @@ export function createRendererHangWatch(deps: HangWatchDeps, options: HangWatchO
   let probing = false;
   let hungSince = 0;
   let reloadTimer: unknown;
+  let traceTimer: unknown;
+  let tracing = false;
   let crashedOnPurpose = false;
   const reloads: Array<number> = [];
 
@@ -89,6 +106,22 @@ export function createRendererHangWatch(deps: HangWatchDeps, options: HangWatchO
   const say = (kind: string, text: string): void => {
     deps.note(text);
     deps.post({kind, record: record(text)});
+  };
+  /** End the trace of this stop (idempotent) and name its file — the line is said when the file is written. */
+  const endTrace = (why: string): Promise<void> => {
+    if (traceTimer !== undefined) {
+      deps.clearTimer(traceTimer);
+      traceTimer = undefined;
+    }
+    if (!tracing || deps.trace === undefined) {
+      return Promise.resolve();
+    }
+    tracing = false;
+    return deps.trace.stop(why).then((file) => {
+      if (file !== '') {
+        say('renderer-hang', `[renderer-hang] trace of the stop (${why}): ${file} — open it in chrome://tracing / ui.perfetto.dev`);
+      }
+    }).catch(() => undefined);
   };
   const reloadBudgetLeft = (): boolean => {
     const now = deps.now();
@@ -128,6 +161,14 @@ export function createRendererHangWatch(deps: HangWatchDeps, options: HangWatchO
       }
       hungSince = deps.now();
       say('renderer-hang', `[renderer-hang] the page stopped answering — the last screen (${describeLastScreen(last, lastAt, hungSince)})`);
+      if (deps.trace !== undefined) {
+        tracing = true;
+        deps.trace.start();
+        traceTimer = deps.setTimer(() => {
+          traceTimer = undefined;
+          void endTrace('its first seconds');
+        }, options.traceMaxMs ?? 8_000);
+      }
       reloadTimer = deps.setTimer(() => {
         reloadTimer = undefined;
         if (hungSince === 0) {
@@ -135,11 +176,20 @@ export function createRendererHangWatch(deps: HangWatchDeps, options: HangWatchO
         }
         const s = Math.round((deps.now() - hungSince) / 1000);
         say('renderer-hang', `[renderer-hang] still not answering after ${s}s — the renderer is restarted and the page reloads (the game restores itself)`);
-        if (reloadBudgetLeft()) {
-          crashedOnPurpose = true;
-          deps.crash();
+        const restart = (): void => {
+          if (reloadBudgetLeft()) {
+            crashedOnPurpose = true;
+            deps.crash();
+          } else {
+            reloadNow(`not answering after ${s}s`);
+          }
+        };
+        // A trace still recording is written BEFORE the renderer goes (its threads' last seconds are in the recorder's
+        // buffers); with none standing the restart is immediate.
+        if (tracing) {
+          void endTrace('before the restart').then(restart);
         } else {
-          reloadNow(`not answering after ${s}s`);
+          restart();
         }
       }, options.reloadAfterMs);
     },
@@ -154,6 +204,7 @@ export function createRendererHangWatch(deps: HangWatchDeps, options: HangWatchO
         reloadTimer = undefined;
       }
       say('renderer-hang', `[renderer-hang] the page answers again after ${s}s`);
+      void endTrace(`${s}s, the page answered again`);
     },
     onGone(reason: string, exitCode: number): void {
       if (reloadTimer !== undefined) {
@@ -161,6 +212,7 @@ export function createRendererHangWatch(deps: HangWatchDeps, options: HangWatchO
         reloadTimer = undefined;
       }
       hungSince = 0;
+      void endTrace('the renderer process went');
       const purposeful = crashedOnPurpose;
       crashedOnPurpose = false;
       if (reason === 'clean-exit') {
