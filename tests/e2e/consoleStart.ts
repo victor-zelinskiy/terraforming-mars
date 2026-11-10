@@ -1742,8 +1742,12 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
   const researchBuy = page.locator('.con-draftws__stage--buy');
   /** A colony grid / stage the player can SEE — it owns the input over a start scene that hosts it. */
   const coloniesOnTop = async () => await colonies.count() > 0 && await colonies.first().isVisible();
+  /** The FULLSCREEN card viewer — it covers every surface, so nothing below it can be walked home. */
+  const zoom = page.locator('dialog.con-zoom[open]');
   /** Consecutive rounds the task host has been up with nothing above it. */
   let taskRounds = 0;
+  /** Consecutive rounds an action composer has stood with nothing above it. */
+  let composerRounds = 0;
   for (let i = 0; i < maxRounds; i++) {
     if (await live.count() > 0 && await placement.count() === 0 && await hand.count() === 0 &&
         await start.count() === 0 && await composer.count() === 0 && await colonies.count() === 0 &&
@@ -1754,7 +1758,10 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
     // ORDER MATTERS — always drive the surface that is ON TOP, or the driver
     // fights a covered one (pressing into the start while the hand overlay
     // owns the input is how this used to spin until the budget died).
-    if (await researchBuy.count() > 0 && await researchBuy.first().isVisible()) {
+    if (await zoom.count() > 0) {
+      // The viewer is the topmost surface whatever stands under it: B (the verified close) first.
+      await closeZoomViewer(page);
+    } else if (await researchBuy.count() > 0 && await researchBuy.first().isVisible()) {
       // THE RESEARCH BUY BETWEEN GENERATIONS (TR61): the generation scene ENTERS the research workspace by itself
       // (`--buy` stage), so a walk home across a generation boundary meets it — the Parliament specs that close a
       // sitting into generation 2 reported «board home never became live — still showing [".con-board"]» in the
@@ -1871,7 +1878,25 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
       }
     } else if (await composer.count() > 0) {
       const corpFirst = await page.locator('.con-composer--corpfirst').count() > 0;
-      await press(page, corpFirst ? 'Enter' : 'KeyX', 1500);
+      if (corpFirst) {
+        await press(page, 'Enter', 1500);
+      } else {
+        // AN ACTION COMPOSER IS NEVER PRESSED X. X was the old start composer's «skip» (d5627ffed2); in today's
+        // composer it is INSPECT — the source card fullscreen. A walk home that met a composer still standing for its
+        // commit beat (the price flying off the rail, the step, the scale's bonus) pressed X into it the moment the
+        // phase reached `committed` (which accepts input), opened the viewer over the leaving workspace, and then
+        // had no branch for the viewer: `console-palladin-shipping` D — «board home never became live — still
+        // showing [".con-board"]» with the last press KeyX, consumed (CI 42626840874, 42814564770). A committed
+        // composer resolves by itself: wait it out; only a composer that STILL stands after ~5 s is a reversible
+        // setup nobody answers — B folds it (one level back), never X.
+        composerRounds++;
+        if (composerRounds > 6) {
+          await press(page, 'Escape', 1400);
+        } else {
+          // A state wait, never a sleep: the commit's beat is quiet when its holds and the transport are.
+          await settle(page, {timeoutMs: 1500}).catch(() => undefined);
+        }
+      }
     } else if (await placement.count() > 0) {
       await placeTile(page);
     } else if (await colonies.count() > 0) {
@@ -1910,6 +1935,7 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
       }
     } else {
       taskRounds = 0;
+      composerRounds = 0;
       await page.waitForTimeout(700);
     }
   }
@@ -1920,7 +1946,13 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
       root: document.querySelector('.con-root')?.className ?? '',
       ready: (window as unknown as {__conReady?: () => unknown}).__conReady?.(),
     })).catch(() => undefined);
-    console.log('── board home never became live ──\n' + JSON.stringify(why));
+    // The ONE line a CI brief keeps (it cuts long lines): the stack, the holds, the outcome claim, the viewer — then the full dump.
+    const r = why?.ready as {wsFrames?: Array<string>, wsYielded?: boolean, holds?: Array<string>, absorbers?: Array<string>,
+      outcome?: {host: string, stage: string}, input?: {lastPress?: {code: string, outcome: string}}} | undefined;
+    console.log(`── board home never became live ── frames=[${(r?.wsFrames ?? []).join(' > ')}]${r?.wsYielded === true ? ' (yielded)' : ''}` +
+      ` holds=[${(r?.holds ?? []).join(',')}] absorbers=[${(r?.absorbers ?? []).join(',')}] outcome=${r?.outcome?.host ?? ''}/${r?.outcome?.stage ?? ''}` +
+      ` zoom=${await zoom.count()} lastPress=${r?.input?.lastPress?.code ?? '-'}:${r?.input?.lastPress?.outcome ?? '-'}`);
+    console.log(JSON.stringify(why));
   }
   expect(await live.count(), `board home never became live — still showing ${JSON.stringify(await visibleSurfaces(page))}`)
     .toBeGreaterThan(0);
@@ -2004,7 +2036,8 @@ export async function placementState(page: Page): Promise<'none' | 'aiming' | 'l
 export async function visibleSurfaces(page: Page): Promise<Array<string>> {
   return page.evaluate(() => {
     const roots = ['.con-start', '.con-start__summary', '.con-hand', '.con-composer', '.con-reveal',
-      '.con-mandatory', '.con-task', '.con-deckdraw', '.con-draftws', '.con-handdock--live', '.con-board'];
+      '.con-mandatory', '.con-task', '.con-deckdraw', '.con-draftws', '.con-cardactions', 'dialog.con-zoom[open]',
+      '.con-handdock--live', '.con-board'];
     return roots.filter((sel) => {
       const el = document.querySelector(sel);
       return el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});

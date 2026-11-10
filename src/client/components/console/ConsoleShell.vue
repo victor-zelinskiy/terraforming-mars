@@ -2523,6 +2523,14 @@ const FINALE_FINISH_HOLD = 'final-greenery-finish';
 const waitSurfacePhase = {key: '', since: 0};
 /** Since when blocking holds stood with NOTHING moving on the page (`motionWitness.ts`) — the graph's `stillMs`; read only by the 1 Hz tick. */
 let pageStill: StillHoldState = {since: 0, named: false};
+/**
+ * THE CONTROL STAND'S DECLARED DEFECT (`?screenControl=1` only — `__conScreenControl.declareDefect(ms)`): until this
+ * moment a positive control has taken a question's surface off the screen ON PURPOSE, so the liveness arbiter counts the
+ * window as a NAMED thing in flight (`screen-control-defect`) instead of curing it — bounded, never longer than
+ * `SCREEN_CONTROL_DEFECT_MAX_MS`. Read only by the 1 Hz liveness tick.
+ */
+let screenControlDefectUntil = 0;
+const SCREEN_CONTROL_DEFECT_MAX_MS = 15_000;
 /** A collapse owed until the band surfaces' tokens have landed (a plain flag — read only by the collapse itself). */
 let collapseOwedOnTokens = false;
 /** Since when the live claim's host frame has been known nowhere (0 — it is, or there is no claim). */
@@ -22806,6 +22814,9 @@ export default defineComponent({
       if (isResourceTransferActive()) {
         inFlight.push('resource-transfer');
       }
+      if (Date.now() < screenControlDefectUntil) {
+        inFlight.push('screen-control-defect');
+      }
       for (const story of presentationLedgerSnapshot().stories) {
         if (story.ageMs < LIVENESS_STORY_GRACE_MS) {
           inFlight.push(`story:${story.id}`);
@@ -27148,6 +27159,12 @@ export default defineComponent({
           const release = () => owned.hold?.release();
           owned.hold = beginAnimationHold('screen-control-owed', {scope: 'notification-only', expire: release});
           window.setTimeout(release, ms);
+        },
+        // A DEFECT PUT IN ON PURPOSE is declared to the liveness arbiter: the screen shadow's live control hides a
+        // question's surface for a few seconds to prove the shadow names it, and the arbiter (a stranded question is
+        // judged at 4 s) would cure that very defect first. The window is named and bounded; `0` ends it.
+        declareDefect: (ms: number) => {
+          screenControlDefectUntil = ms <= 0 ? 0 : Date.now() + Math.min(ms, SCREEN_CONTROL_DEFECT_MAX_MS);
         },
       };
     }

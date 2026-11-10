@@ -1230,8 +1230,21 @@ export default defineComponent({
             fill: 'forwards',
           });
           // Seed the pass's own clock: a node renewed mid-pass joins the
-          // turn at the phase it would be in, never from zero.
-          anim.currentTime = elapsed;
+          // turn at the phase it would be in, never from zero. Through the
+          // START time, never `currentTime`: a currentTime written into a
+          // fresh animation is a HOLD — the animation stays pending on it
+          // until the compositor's ready, and on a starved 4K frame that
+          // froze the turn (`running/122` for 200+ ms) while the slot's CSS
+          // exit faded the card out: it left without turning (CI
+          // 2026-11-10, `console-draft-workspace` § pass-flip, max 0°). A
+          // start time on the document timeline resolves the pending play
+          // at once — the turn and the exit run on one clock (law 7).
+          const timelineNow = document.timeline?.currentTime;
+          if (typeof timelineNow === 'number') {
+            anim.startTime = timelineNow - elapsed;
+          } else {
+            anim.currentTime = elapsed;
+          }
         });
       };
       this.passFlipTimer = window.setInterval(tick, 50) as unknown as number;

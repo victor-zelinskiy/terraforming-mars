@@ -472,7 +472,7 @@ test.describe('draft workspace · the between-generations flow', () => {
       w.__flipMo?.disconnect(); // the probe may not keep taxing the rest of the tour
       (w as unknown as {__flipRef?: HTMLElement}).__flipRef?.remove();
       return {samples: w.__flip.samples, mid: w.__flip.mid, max: Math.round(w.__flip.max),
-        refMax: Math.round(w.__flip.refMax), midWindow: w.__flip.midWindow, first: w.__flip.first, ts: w.__flip.ts.slice(0, 12)};
+        refMax: Math.round(w.__flip.refMax), midWindow: w.__flip.midWindow, first: w.__flip.first, ts: w.__flip.ts.slice(0, 40)};
     });
     console.log('[pass-flip]', JSON.stringify(flip));
     expect(flip.samples, 'the pass exit was sampled at all').toBeGreaterThan(2);

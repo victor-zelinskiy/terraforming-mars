@@ -10,8 +10,10 @@ import {bootFixture, pressUntilVisible, settle} from './consoleStart';
  * `cardSelect:draft`, served by the draft workspace) and the surface that serves it taken off the screen behind the
  * product's back, with a foreign surface standing instead — then the bare version, nothing standing. Each must be named
  * by the shadow within its confirmation window, with the owners it expected and what it saw; and before the defect, the
- * same question must be judged AGREED with the draft as its observed owner. The defect is lifted within seconds (well
- * inside the liveness arbiter's 10 s), so nothing else in the product reacts to it.
+ * same question must be judged AGREED with the draft as its observed owner. The defect is lifted within seconds, and it
+ * is DECLARED to the liveness arbiter for exactly that window (`__conScreenControl.declareDefect` — the boot's
+ * `?screenControl=1` seam): a stranded question is judged at 4 s since 5d700e61a5, so an undeclared control was cured
+ * (and the run reddened by the harness's `livenessGuard`) before the shadow's own 3-pass confirmation could name it.
  *
  * Functional class: it reads the shadow's own record (`window.__conScreenShadow()`), never a frame.
  */
@@ -32,6 +34,7 @@ async function readout(page: Page): Promise<Readout> {
 /** Hide the draft workspace's root and, optionally, stand a FOREIGN surface of its own (`.con-sheet`) over the opening. */
 async function breakScreen(page: Page, foreign: boolean): Promise<void> {
   await page.evaluate((withForeign) => {
+    (window as unknown as {__conScreenControl: {declareDefect: (ms: number) => void}}).__conScreenControl.declareDefect(12_000);
     for (const el of document.querySelectorAll<HTMLElement>('.con-draftws')) {
       el.dataset.shadowControl = el.style.display;
       el.style.display = 'none';
@@ -48,6 +51,7 @@ async function breakScreen(page: Page, foreign: boolean): Promise<void> {
 
 async function healScreen(page: Page): Promise<void> {
   await page.evaluate(() => {
+    (window as unknown as {__conScreenControl: {declareDefect: (ms: number) => void}}).__conScreenControl.declareDefect(0);
     for (const el of document.querySelectorAll<HTMLElement>('.con-draftws')) {
       el.style.display = el.dataset.shadowControl ?? '';
       delete el.dataset.shadowControl;
@@ -67,7 +71,7 @@ test.describe('the screen shadow — live positive control', () => {
         lines.push(m.text());
       }
     });
-    await bootFixture(page, request, 'draft-showcase-pick', {query: QUERY, landing: 'prompt'});
+    await bootFixture(page, request, 'draft-showcase-pick', {query: QUERY + '&screenControl=1', landing: 'prompt'});
     if (!await page.locator('.con-draftws').isVisible()) {
       await pressUntilVisible(page, 'Enter', '.con-draftws', {settleMs: 1500});
     }
