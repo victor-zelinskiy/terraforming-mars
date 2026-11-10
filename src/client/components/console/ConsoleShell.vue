@@ -1906,6 +1906,7 @@ import {
   workspaceStepSourceCard,
   workspaceFrameIsOverlay,
   workspaceFrameKnown,
+  workspaceFrameAnywhere,
   workspaceFrameKnownPhase,
   workspaceFrameParked,
   workspaceFrameRoot,
@@ -22982,7 +22983,12 @@ export default defineComponent({
      */
     releaseOrphanedClaim(): void {
       const host = workspaceOutcomeState.host;
-      if (!workspaceOutcomeClaimed() || host === undefined || workspaceFrameKnown(host)) {
+      // «Known NOWHERE» means all THREE homes — the live stack, the park AND aside for the board
+      // (`workspaceFrameAnywhere`). Asked of the live stack + the park only, a host standing ASIDE for its own
+      // board step lost its claim 1.5 s into the player's pick: the Hydronetwork's stage-7 copy of Mars Nomads
+      // (`console-hydro-copied-tile`) came back with no claim, its restore plan folded the flow, and the track
+      // never played its result.
+      if (!workspaceOutcomeClaimed() || host === undefined || workspaceFrameAnywhere(host)) {
         claimHostGoneSince = 0;
         return;
       }
@@ -23223,7 +23229,7 @@ export default defineComponent({
         // read as the server's, every optimistic play claim was a false `dead-end` (the field export of 2026-11-08).
         const answered = awaiting && workspaceOutcomeState.answerIn;
         // A claim whose HOST is gone waits on a surface that is not there — dangling (the Hi-Tech Lab field freeze).
-        const hostGone = workspaceOutcomeState.host !== undefined && !workspaceFrameKnown(workspaceOutcomeState.host);
+        const hostGone = workspaceOutcomeState.host !== undefined && !workspaceFrameAnywhere(workspaceOutcomeState.host);
         out.push({
           id: `claim:${workspaceOutcomeState.host}`, family: 'claim', owner: 'consoleWorkspaceOutcome',
           targets: hostGone ? [{kind: 'node', id: `surface:${workspaceOutcomeState.host}`}] :

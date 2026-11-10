@@ -49,6 +49,8 @@ import {
   workspaceFrameIsOverlay,
   workspaceFrameMounted,
   workspaceFrameParked,
+  workspaceFrameAnywhere,
+  workspaceFrameKnown,
   workspaceFrameRenders,
   workspaceHostForStep,
   workspaceHostYieldsScene,
@@ -1167,6 +1169,23 @@ describe('a frame off stage — one answer, writes that land, one return edge', 
     expect(workspaceFramePhase('hydro'), 'the write made while away was NOT lost').eq('committed');
     expect(workspaceStackState.frames[0].stage).eq('Result');
     expect(workspaceStackState.frames[0].subject).eq('Ice Asteroid');
+  });
+
+  it('a frame ASIDE for the board is still SOMEWHERE — the question «is a claim\'s host known nowhere?» asks all three homes', () => {
+    // The Hydronetwork's stage-7 copy of Mars Nomads: the track stands aside while the player picks the nomads'
+    // cell. `workspaceFrameKnown` (live + park) does not see it — asked that, the orphaned-claim release dropped the
+    // track's claim 1.5 s into the pick and the flow folded on its return (`console-hydro-copied-tile`).
+    enterWorkspace('hydro');
+    expect(yieldStackForStagedPlay()).eq(true);
+    expect(workspaceFrameKnown('hydro'), 'live + park only').eq(false);
+    expect(workspaceFrameAnywhere('hydro'), 'the aside counts').eq(true);
+    collapseWorkspaceStack();
+    expect(workspaceFrameAnywhere('hydro'), 'still aside under a park of nothing').eq(true);
+    resetWorkspaceStack();
+    expect(workspaceFrameAnywhere('hydro'), 'gone means gone').eq(false);
+    enterWorkspace('hand');
+    collapseWorkspaceStack();
+    expect(workspaceFrameAnywhere('hand'), 'the park counts').eq(true);
   });
 
   it('…and the same for a PARKED frame; a live frame of the kind wins over the parked one', () => {
