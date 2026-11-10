@@ -15,6 +15,9 @@
  * probes), the motion-grammar guards, and the four the first broad sample named.
  */
 export const TIMING_SPECS: ReadonlySet<string> = new Set([
+  // Campaign «Тендеры» (2026-11-09): the start's every tender scene at TV 4K — a CDP-screencast storyboard per beat (the
+  // list's rise, the sheets, the growing deals' glide and deal, the ledger's tick); frames are the subject.
+  'console-tenders-storyboard.spec.ts',
   // PC05 Spire (2026-11-05): the first action «+4 / −3» is ONE phrase — the draw's batch inside the start, then the album
   // of the discard in the start's own hand slot, sampled from before the press (a transient record and a storyboard).
   'console-spire.spec.ts',

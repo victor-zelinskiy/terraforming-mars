@@ -26,7 +26,7 @@
            :data-tport-focused="i === focus ? 'yes' : undefined"
            :data-zoom-slot="i === focus ? e.instance : undefined"
            :ref="(el) => setSlotRef(e.instance, el)">
-        <ConsoleTenderCard :id="e.id" size="table" :state="tenderCardStateOf(e.status)" :focused="i === focus" />
+        <ConsoleTenderCard :id="e.id" size="table" :state="tenderCardStateOf(e.status)" :focused="i === focus" :dim="e.state !== 'ready'" />
         <!-- The certificate's word on THIS page: it executes here (a kant), or WHY not — the server's reason / the page it
              speaks on — under the document (never a dim alone). -->
         <span v-if="e.state === 'ready'" class="con-tport__here" data-tport-here>{{ $t('Executes here') }}</span>

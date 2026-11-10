@@ -187,12 +187,17 @@ function newBatch(): ProxyBatch {
 const START_BACK_HTML = '<div class="con-card-back con-card-back--flyer"></div>';
 
 /** Spawn one Card3DInner proxy on the layer, over `from`. */
-function spawnProxy(batch: ProxyBatch, from: Rect, faceUp: boolean): Card3DInner | undefined {
+function spawnProxy(batch: ProxyBatch, from: Rect, faceUp: boolean, under = false): Card3DInner | undefined {
   if (layerEl === undefined || !layerEl.isConnected) {
     return undefined;
   }
   const outer = document.createElement('div');
-  layerEl.appendChild(outer);
+  // `under`: a body that belongs to the PAGE (a layout's slide) paints beneath every card in the air above it.
+  if (under) {
+    layerEl.insertBefore(outer, layerEl.firstChild);
+  } else {
+    layerEl.appendChild(outer);
+  }
   batch.own(outer);
   const card = buildCard3DInner(outer, {
     faceUp,
@@ -922,22 +927,23 @@ export async function reseatCards(
 export type GlidePair = {name: CardName, from: Rect, toEl: HTMLElement};
 
 /**
- * A layout that changed while its cards stood still (a deal that GREW in place — a tender's +2 / +3 / +4): every card
- * that stays is carried from where the player LAST SAW it (`from`, remembered before the change) to its new place —
- * the re-seat grammar (face-up, a light regrip, the convoy in the reading order of the destinations). The proxy wears
- * the NEW place's own face (crisp at the landing); `onLanded` fires per card at its touchdown (the host reveals the
- * slot in that frame). A pair whose place did not move resolves at once (no proxy for a card that stays put). Reduced
- * motion / no layer: everything lands at once.
+ * A LAYOUT CHANGE told as ONE SLIDE (§20 — the owner, 2026-11-09: «добавление новых карт в ряд грамотно масштабирует
+ * существующие карты, и они все красиво выстраиваются в новую раскладку — максимально плавно»). The cards that stay are
+ * not picked up — nothing takes, arcs or turns: each moves IN THE PLANE from where the player last saw it to its new
+ * place and size, position and scale on ONE eased clock, the row as one wave (a hair of stagger, left to right). With
+ * `fadeInMs` the proxies surface with the page they belong to (the page's own un-park beat) and only then slide. Every
+ * card hands over to its real slot on its own touchdown (show, then remove — never a fade). Reduced motion: nothing
+ * flies, every card shows at once.
  */
-export async function glideFromRects(pairs: ReadonlyArray<GlidePair>, onLanded?: (name: CardName) => void): Promise<void> {
+export async function slideIntoLayout(pairs: ReadonlyArray<GlidePair>, onLanded?: (name: CardName) => void,
+  opts: {fadeInMs?: number, onSettling?: () => void} = {}): Promise<void> {
   const moved: Array<{name: CardName, from: Rect, to: Rect, toEl: HTMLElement, card: HTMLElement | undefined}> = [];
   for (const p of pairs) {
+    // The PAINTED rect (`getBoundingClientRect`): the row's card size is a CSS `zoom`, which the resting (offset-chain)
+    // measure does not see — measured that way every card slid towards a half-size copy and grew back on its landing.
     const to = cardRectOf(p.toEl);
-    if (to === undefined || to.w < 4) {
-      onLanded?.(p.name);
-      continue;
-    }
-    if (Math.abs(to.x - p.from.x) < 1 && Math.abs(to.y - p.from.y) < 1 && Math.abs(to.w - p.from.w) < 1) {
+    if (to === undefined || to.w < 4 ||
+        (Math.abs(to.x - p.from.x) < 1 && Math.abs(to.y - p.from.y) < 1 && Math.abs(to.w - p.from.w) < 1)) {
       onLanded?.(p.name);
       continue;
     }
@@ -945,17 +951,24 @@ export async function glideFromRects(pairs: ReadonlyArray<GlidePair>, onLanded?:
   }
   if (moved.length === 0 || layerEl === undefined || consoleReducedMotionActive()) {
     moved.forEach((m) => onLanded?.(m.name));
+    opts.onSettling?.();
     return;
   }
-  moved.sort((a, b) => (a.to.y - b.to.y) || (a.to.x - b.to.x));
+  moved.sort((a, b) => (a.from.y - b.from.y) || (a.from.x - b.from.x));
   const batch = newBatch();
+  let latest = 0;
+  const fade = Math.max(0, opts.fadeInMs ?? 0) / 1000;
   const proxies = moved.map((m) => {
-    const card = spawnProxy(batch, m.from, true);
+    // The row is the PAGE's: its cards slide UNDER whatever flies over the page (the certificate going home).
+    const card = spawnProxy(batch, m.from, true, true);
     if (card !== undefined) {
       fillFace(card, m.card);
+      gsap.set(card.outer, {boxShadow: CARD3D_SHADOW.contact, opacity: fade > 0 ? 0 : 1});
     }
     return card;
   });
+  const ui = conUiScale();
+  const stagger = Math.min(0.03, 0.18 / Math.max(1, moved.length));
   await guarded((done) => {
     const tl = gsap.timeline({onComplete: done});
     moved.forEach((m, i) => {
@@ -964,16 +977,53 @@ export async function glideFromRects(pairs: ReadonlyArray<GlidePair>, onLanded?:
         onLanded?.(m.name);
         return;
       }
-      addFlight(tl, card, m.from, m.to, {
-        at: (flightMs(staggerFor(moved.length)) * i) / 1000 * 0.5,
-        reseat: true,
-        retarget: () => restingCardRectOf(m.toEl),
-        onDock: () => onLanded?.(m.name),
-      });
+      const outer = card.outer;
+      if (fade > 0) {
+        tl.to(outer, {opacity: 1, duration: fade, ease: 'power1.out'}, 0);
+      }
+      const s = {x: m.from.x + m.from.w / 2, y: m.from.y + m.from.h / 2};
+      const t = {x: m.to.x + m.to.w / 2, y: m.to.y + m.to.h / 2};
+      const dist = Math.hypot(t.x - s.x, t.y - s.y);
+      const dur = flightMs(560 * Math.max(0.85, Math.min(1.2, 0.8 + dist / (1400 * ui)))) / 1000;
+      const ts = m.to.w / Math.max(1, m.from.w);
+      const corr = {x: 0, y: 0, scale: 0};
+      const drive = {q: 0};
+      const at = fade + stagger * i;
+      tl.to(drive, {
+        q: 1,
+        duration: dur,
+        ease: 'power3.inOut',
+        onUpdate: () => {
+          const q = drive.q;
+          const cw = q <= 0.75 ? 0 : (q - 0.75) / 0.25;
+          gsap.set(outer, {
+            x: s.x + (t.x - s.x) * q - m.from.w / 2 + corr.x * cw,
+            y: s.y + (t.y - s.y) * q - m.from.h / 2 + corr.y * cw,
+            scale: 1 + (ts - 1) * q + corr.scale * cw,
+          });
+        },
+      }, at);
+      // THE LATE RE-READ at three quarters (the page may still have been settling its un-park when the slide was
+      // planned): the correction ramps in over the last quarter — the path stays continuous, the landing exact.
+      tl.call(() => {
+        const live = cardRectOf(m.toEl);
+        if (live !== undefined) {
+          corr.x = live.x + live.w / 2 - t.x;
+          corr.y = live.y + live.h / 2 - t.y;
+          corr.scale = live.w / Math.max(1, m.from.w) - ts;
+        }
+      }, undefined, at + dur * 0.75);
+      tl.call(() => handoff(outer, () => onLanded?.(m.name)), undefined, at + dur);
+      latest = Math.max(latest, at + dur);
     });
-  }, batchBudget(moved.length, true));
+    // THE ROW SETTLES — its last third: what follows the layout (a deal into the new places) may begin now.
+    if (opts.onSettling !== undefined) {
+      tl.call(opts.onSettling, undefined, Math.max(0, latest - (latest - fade) / 3));
+    }
+  }, batchBudget(moved.length, true) + (opts.fadeInMs ?? 0));
   batch.dispose();
   moved.forEach((m) => onLanded?.(m.name));
+  opts.onSettling?.();
 }
 
 /** The rect of the card a slot hosts, as the dock flights measure it (the remembered «from» of a glide). */

@@ -91,7 +91,6 @@ export function startActivationPlan(id: TenderId, f: ActivationFacts): TenderAct
     kind = 'tag';
     verb = 'Request the three cards';
     rows.push({label: 'Projects in the deal', from: f.projectsDealt, to: f.projectsDealt + Math.min(TENDER_TARGETED_REQUEST_CARDS, f.tagCount ?? TENDER_TARGETED_REQUEST_CARDS), unit: 'project', tone: 'gain'});
-    notes.push({key: 'Name a tag: ${0} project cards with it come off the deck into your deal', params: [n(TENDER_TARGETED_REQUEST_CARDS)], tone: 'info'});
     break;
   case 'researchSubsidy': {
     const next = Math.max(TENDER_SUBSIDY_FLOOR_MC, f.cardCost - 1);
@@ -163,6 +162,17 @@ export type LegacyActivationFacts = {
 };
 
 /** THE SHEET's plan for a legacy tender on the threshold. */
+/**
+ * The tag chooser's columns — ONE number the sheet lays out and the host walks (↑↓ a row, ←→ a tile): two rows while the
+ * tags fit in two rows of six, three beyond (Pathfinders, the Moon, Underworld widen the set).
+ */
+export function tagGridCols(count: number): number {
+  if (count <= 0) {
+    return 1;
+  }
+  return count <= 12 ? Math.ceil(count / 2) : Math.ceil(count / 3);
+}
+
 export function legacyActivationPlan(id: TenderId, f: LegacyActivationFacts): TenderActivationPlan {
   const rows: Array<ActivationRow> = [];
   const notes: Array<ActivationNote> = [];

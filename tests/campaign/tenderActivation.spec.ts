@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {TENDER_COMPENSATION_MC} from '../../src/common/campaign/tenders';
-import {ActivationFacts, legacyActivationPlan, startActivationPlan} from '../../src/client/console/campaign/tenderActivation';
+import {ActivationFacts, legacyActivationPlan, startActivationPlan, tagGridCols} from '../../src/client/console/campaign/tenderActivation';
 
 /*
  * CAMPAIGN «ТЕНДЕРЫ» — THE ACTIVATION SHEET's pure half (docs/CAMPAIGN_CONCESSIONS_DESIGN.md §20): every start tender
@@ -53,6 +53,15 @@ describe('tenderActivation — the sheet speaks the table\'s numbers', () => {
     const restructure = startActivationPlan('restructuring', facts());
     expect(restructure).include({kind: 'restructure', verb: 'Deal the candidates'});
     expect(restructure.notes.some((n) => n.key.includes('cannot be undone') && n.tone === 'warn')).is.true;
+  });
+
+  it('the tag chooser is ONE grid — two rows while they fit in six columns, three beyond', () => {
+    expect(tagGridCols(10)).eq(5);
+    expect(tagGridCols(11)).eq(6);
+    expect(tagGridCols(12)).eq(6);
+    expect(tagGridCols(14)).eq(5);
+    expect(tagGridCols(0)).eq(1);
+    expect(startActivationPlan('targetedRequest', facts()).notes.every((n) => !n.key.startsWith('Name a tag')), 'the rule above already says it').is.true;
   });
 
   it('every sheet names the compensation it gives up; the legacy tenders read the seat and the preludes', () => {

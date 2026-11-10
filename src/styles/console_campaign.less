@@ -1270,6 +1270,10 @@
 .con-carry__foot--tenders {
   justify-content: center;
 }
+/* The activation sheet rises in the list's place (the layer itself is never animated — the park owns its opacity). */
+.con-carry__sheet {
+  animation: con-legview-rise calc(220ms * var(--motion-scale, 1)) ease both;
+}
 .con-carry__status-hint {
   color: rgba(214, 223, 233, 0.62);
 }

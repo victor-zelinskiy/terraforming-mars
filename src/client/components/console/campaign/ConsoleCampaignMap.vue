@@ -525,6 +525,14 @@ export default defineComponent({
           carryCmds.push({control: 'back', label: 'Back'});
           return carryCmds;
         }
+        // …a tender's ACTIVATION SHEET (§20): A executes it (the stamp, then the album with its new place), X reads the
+        // certificate, B goes one level back to the list.
+        if (this.carryBar.stage === 'sheet') {
+          carryCmds.push({control: 'confirm', label: this.carryBar.primary, enabled: this.carryBar.primaryEnabled, highlight: this.carryBar.primaryEnabled});
+          carryCmds.push({control: 'secondary', label: 'Inspect'});
+          carryCmds.push({control: 'back', label: 'Back'});
+          return carryCmds;
+        }
         // …a tender standing in its MODE on the album: its place is previewed in the manifest — A executes, B cancels.
         if (this.carryBar.stage === 'mode') {
           carryCmds.push({control: 'confirm', label: this.carryBar.primary, enabled: this.carryBar.primaryEnabled, highlight: this.carryBar.primaryEnabled});

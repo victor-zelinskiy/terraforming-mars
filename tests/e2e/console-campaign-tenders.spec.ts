@@ -157,7 +157,15 @@ test.describe('campaign «Тендеры» — the finale\'s start', () => {
           places[id] = [...known, r];
         }
       }
-      return Object.entries(places).filter(([, at]) => at.length > 1).map(([id, at]) => `${id}x${at.length}`).sort().join(',');
+      const dups = Object.entries(places).filter(([, at]) => at.length > 1).map(([id, at]) => `${id}x${at.length}`).sort().join(',');
+      if (dups === '') {
+        return '';
+      }
+      const where = Object.entries(places).filter(([, at]) => at.length > 1)
+        .map(([k, at]) => `${k}@` + at.map((b) => `${Math.round(b.left)},${Math.round(b.top)},${Math.round(b.width)}`).join('/')).join(' ');
+      const sheetId = document.querySelector('[data-tender-sheet]')?.getAttribute('data-tender-sheet-id') ?? '-';
+      const live = document.querySelector('[data-tender-portfolio]')?.classList.contains('con-tport--live') ? 'live' : 'idle';
+      return `${dups} | sheet=${sheetId} list=${live} | ${where}`;
     });
     const twins = async () => (await readTransient<string>(page, 'tender-twins')).map((x) => x.v).filter((v) => v !== '');
     /** Every card the deal layer held (= dealt) since the recorder was armed — a deal that grows deals its new cards only. */

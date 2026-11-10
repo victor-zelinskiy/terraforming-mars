@@ -81,7 +81,9 @@
                }]"
                :data-tender-dock-chip="t.instance" :data-tender-dock-status="t.status"
                :aria-label="$t(tenderNameKey(t.id))">
-            <ConsoleTenderCard :id="t.id" size="table" :state="tenderCardStateOf(t.status)" />
+            <!-- Only the certificates that execute on THIS page stand bright in the dock; the rest step back (the face's own
+                 dim — the same one the list and every flight carry). -->
+            <ConsoleTenderCard :id="t.id" size="table" :state="tenderCardStateOf(t.status)" :dim="!readyTenders.includes(t.instance)" />
           </div>
         </div>
       </div>
@@ -201,6 +203,8 @@ export default defineComponent({
     tenderReady: {type: Number, required: false, default: 0},
     /** Miniatures whose certificate is UP in the door's list (held empty — the flight home aims at them). */
     heldTenders: {type: Array as PropType<ReadonlyArray<string>>, required: false, default: () => []},
+    /** The holdings that execute on the page standing now (bright in the dock; every other one dimmed). */
+    readyTenders: {type: Array as PropType<ReadonlyArray<string>>, required: false, default: () => []},
     /** The tender standing in its mode on the page (its miniature is marked). */
     activeTender: {type: String, required: false, default: undefined},
     /** A tender's mode plate covers the shelf's row (the `plate` slot). */

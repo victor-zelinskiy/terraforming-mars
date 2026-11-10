@@ -3,6 +3,7 @@ import * as path from 'path';
 import {expect, test, Page} from './consoleTest';
 import {cinematicBeat, press} from './consoleStart';
 import {campaignBase, campaignModelAs, createCampaign, devCommit, launchMission, openMapAs} from './campaignFixtures';
+import {readTransient, recordTransient} from './transientRecorder';
 
 /**
  * The «ДВЕРЬ» iteration's NEW copy (§19), read in either language: the box's locale bundle is ONE shared copy every
@@ -300,7 +301,7 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     expect(after.carryover?.yourPreludes).toEqual(['Biofuels']);
   });
 
-  test('F — «Тендеры» before the finale (§19): the album first; L3 opens the door\'s list; a tender STANDS on the album in its mode with its GHOST place, A materializes it in place — the seat, the prelude seat and the band (reserved, nothing re-flows); the readiness warns while one is still held', async ({page, request}) => {
+  test('F — «Тендеры» before the finale (§19 · §20): the album first; L3 opens the door\'s list; A carries a tender onto its ACTIVATION SHEET (the result in the seat\'s numbers, B back to the list); A stamps it and the album returns with the GHOST place, which materializes in place — the seat, the prelude seat and the band (reserved, nothing re-flows); the readiness warns while one is still held', async ({page, request}) => {
     test.setTimeout(240_000);
     const {id} = await createCampaign(request, {}, {rewardMode: 'tenders', missionCount: 3});
     await launchMission(request, id);
@@ -339,8 +340,15 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     const album0 = await albumBox();
     await shoot(page, 'f-01-album-door');
 
-    // ── L3: the list — both READY (they execute here); A: «Расширенное наследие» stands on the album in its MODE: the
-    //    crumb names it, the manifest shows its GHOST seat «+3», the foot reads «2 → 3». ──
+    // The ghost seat is a moment of the hand-over now (the sheet's A brings the album back with it, the answer follows):
+    // recorded off the product's own writes, never sampled.
+    await recordTransient(page, 'carry-ghosts', () => Array.from(document.querySelectorAll('.con-carry [data-carry-seat-ghost="yes"]'))
+      .map((el) => el.getAttribute('data-carry-seat') ?? 'p' + (el.getAttribute('data-carry-prelude-seat') ?? '')).join(','));
+    const ghostsSeen = async () => (await readTransient<string>(page, 'carry-ghosts')).map((x) => x.v).filter((v) => v !== '');
+    const sheet = page.locator('.con-carry [data-tender-sheet]');
+
+    // ── L3: the list — both READY (they execute here); A: «Расширенное наследие» is carried onto its ACTIVATION SHEET —
+    //    the crumb names it, the result reads «Места наследия 2 → 3»; B is one level back to the list. ──
     await openDoor();
     await expect(page.locator('.con-carry [data-tport-slot]')).toHaveCount(2);
     await expect(page.locator('.con-carry [data-tport-slot]').first()).toHaveAttribute('data-tport-kind', 'extendedLegacy');
@@ -348,21 +356,32 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     await expect(page.locator('.con-carry [data-tport-reading]')).toContainText('2 → 3');
     await shoot(page, 'f-02-list');
     await press(page, 'Enter', 900);
-    await expect(page.locator('.con-carry [data-carry-album-stage]')).toBeVisible({timeout: 10_000});
+    await expect(sheet).toHaveAttribute('data-tender-sheet-id', 'extendedLegacy', {timeout: 10_000});
+    await expect(sheet).toHaveAttribute('data-tender-sheet-open', 'yes', {timeout: 10_000});
+    await expect(page.locator('.con-carry [data-tender-portfolio]'), 'the list yields its layer to the sheet').toBeHidden();
     await expect.poll(head, {timeout: 5_000}).toMatch(/расширенное наследие/i);
-    await expect(page.locator('.con-carry [data-carry-seat="3"]')).toHaveAttribute('data-carry-seat-ghost', 'yes');
-    await expect(page.locator('.con-carry [data-carry-tender-reading]')).toContainText('2 → 3');
+    const seatRow = sheet.locator('[data-tsheet-row="Legacy seats"]');
+    await expect(seatRow.locator('[data-tsheet-from]')).toHaveText('2');
+    await expect(seatRow.locator('[data-tsheet-to]')).toHaveText('3');
     await expect.poll(bar, {timeout: 5_000}).toMatch(NEW_COPY.executeTender);
-    expect(posts.length).toBe(0);
-    await shoot(page, 'f-03-ghost-seat');
-
-    // ── A: the activation lands — the ghost IS the seat now (the same place, its tag), the server opened it. ──
+    await shoot(page, 'f-03-sheet');
+    await press(page, 'Escape', 900);
+    await expect(sheet, 'B — one level back: the list').toHaveCount(0, {timeout: 10_000});
+    await expect(page.locator('.con-carry [data-tender-portfolio].con-tport--live')).toBeVisible();
     await press(page, 'Enter', 900);
+    await expect(sheet).toHaveAttribute('data-tender-sheet-open', 'yes', {timeout: 10_000});
+    expect(posts.length).toBe(0);
+
+    // ── A: the stamp, the album back with the GHOST seat «+3», the certificate home — then the activation lands: the
+    //    ghost IS the seat now (the same place, its tag), the server opened it. ──
+    await press(page, 'Enter', 900);
+    await expect(page.locator('.con-carry [data-carry-album-stage]')).toBeVisible({timeout: 10_000});
     await expect(page.locator('.con-carry [data-carry-seat="3"]')).not.toHaveAttribute('data-carry-seat-ghost', 'yes', {timeout: 10_000});
     await expect(page.locator('.con-carry [data-carry-seat="3"]')).toHaveAttribute('data-carry-seat-tender', 'yes');
     await expect(page.locator('.con-carry [data-carry-seat]')).toHaveCount(3);
     expect((await campaignModelAs(request, id, 'Bruno')).carryover?.yourLimit, 'the server opened the seat').toBe(3);
     await expect.poll(head, {timeout: 5_000}).not.toMatch(/расширенное наследие/i);
+    expect(await ghostsSeen(), 'the album came back with the GHOST seat before the server opened it').toContain('3');
     expect(await albumBox(), 'the album\'s box never moved').toBe(album0);
     await shoot(page, 'f-04-seat-opened');
 
@@ -378,9 +397,13 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     await openDoor();
     await expect(page.locator('.con-carry [data-tport-slot]').first()).toHaveAttribute('data-tport-kind', 'programExtension');
     await press(page, 'Enter', 900);
-    await expect(page.locator('.con-carry [data-carry-prelude-seat="1"]')).toHaveAttribute('data-carry-seat-ghost', 'yes', {timeout: 10_000});
+    await expect(sheet).toHaveAttribute('data-tender-sheet-id', 'programExtension', {timeout: 10_000});
+    await expect(sheet).toHaveAttribute('data-tender-sheet-open', 'yes', {timeout: 10_000});
     await expect.poll(head, {timeout: 5_000}).toMatch(/продление программы/i);
-    await shoot(page, 'f-05-prelude-ghost');
+    const preludeRow = sheet.locator('[data-tsheet-row="Preludes into the finale"]');
+    await expect(preludeRow.locator('[data-tsheet-from]')).toHaveText('0');
+    await expect(preludeRow.locator('[data-tsheet-to]')).toHaveText('1');
+    await shoot(page, 'f-05-prelude-sheet');
     await press(page, 'Enter', 900);
     await expect(page.locator('.con-carry [data-carry-prelude-seat="1"]')).not.toHaveAttribute('data-carry-seat-ghost', 'yes', {timeout: 10_000});
     await expect(page.locator('.con-carry [data-carry-preludes]')).not.toHaveAttribute('data-carry-preludes-locked', 'yes');
@@ -388,6 +411,7 @@ test.describe('«Наследие проектов» — the hand album\'s chass
     await expect(page.locator('.con-carry [data-carry-prelude-count]')).toHaveText('0 / 1');
     expect(await albumBox(), 'the band was reserved — the album\'s box never moved').toBe(album0);
     await expect(door).toHaveAttribute('data-carry-tender-door-ready', '0');
+    expect(await ghostsSeen(), 'the prelude seat stood as its GHOST first').toContain('p1');
     await shoot(page, 'f-06-band-unlocked');
 
     // ── The cursor went where the choice is (the band): A carries Allied Bank (its seat takes the name); ↓ A keeps a card;

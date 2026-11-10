@@ -34,14 +34,27 @@
   <div class="con-carry" :class="{'con-carry--embedded': embedded, 'con-carry--confirmed': confirmed, 'con-carry--tendermode': tenderMode !== undefined}"
        role="dialog" :aria-label="$t('Project legacy')" data-carry-stage :data-carry-tender-mode="tenderMode?.id">
     <div class="con-carry__shade" aria-hidden="true"></div>
+    <!-- The certificates' flight layer (the start's own engine — `startDockMotion`; the start scene is not mounted here). -->
+    <div class="con-startdock-layer" ref="flightLayer" aria-hidden="true"></div>
     <div class="con-carry__stage">
       <ConsoleWsHead class="con-carry__head" :root="root" :subject="missionLabel" subject-raw
                      :stage="headStage" :committed="stage === 'album' && confirmed" />
 
       <!-- THE DOOR's LIST (§19) — a layer of the step: the album rests parked under it and comes back as the same nodes. -->
       <div v-if="hasTenders" v-show="stage === 'list'" ref="listLayer" class="con-carry__layer con-carry__layer--tenders" data-carry-tenders-stage>
-        <ConsoleTenderPortfolio ref="portfolio" :entries="doorEntries" :focus="tenderFocus" place="threshold"
-                                :busy="tenderBusy" :live="stage === 'list'" embedded />
+        <ConsoleTenderPortfolio v-show="sheet === undefined" ref="portfolio" :entries="doorEntries" :focus="tenderFocus" place="threshold"
+                                :busy="tenderBusy" :live="stage === 'list'" :held-names="listHeld" embedded />
+        <!-- THE ACTIVATION SHEET (§20 — the start's one grammar, here for the legacy tenders): A on a certificate of this
+             step CARRIES it out of its slot onto the sheet's hero seat, the RESULT beside it in the seat's numbers
+             («Места наследия 2 → 3», «Прологов в финал 0 → 1»); A stamps it, the sheet folds, the album returns with the
+             GHOST of the place it opens, the certificate flies home into its miniature — and only then does the answer
+             go out, so the place materializes on the screen the player is looking at. B — back to the list. -->
+        <ConsoleTenderActivation v-if="sheet !== undefined && sheetPlan !== undefined" ref="sheetEl"
+                                 class="con-carry__sheet"
+                                 :plan="sheetPlan" :hero-held="sheetHeroHeld"
+                                 :open="sheet.phase === 'open' || sheet.phase === 'committing'"
+                                 :committed="sheetCommitted" :stamping="sheetStamping"
+                                 :leaving="sheet.phase === 'leaving'" :busy="tenderBusy !== undefined" />
         <div class="con-carry__foot con-carry__foot--tenders">
           <span class="con-carry__status">
             <span v-if="notice !== ''" class="con-carry__status-warn" data-carry-notice>{{ $t(notice) }}</span>
@@ -87,9 +100,9 @@
           </span>
           <span class="con-carry__door-row">
             <span v-for="e in portfolioEntries" :key="e.instance" class="con-tmini"
-                  :class="[`con-tmini--${e.status}`, {'con-tmini--active': tenderMode?.instance === e.instance, 'con-tmini--just-executed': stamped === e.instance}]"
+                  :class="[`con-tmini--${e.status}`, {'con-tmini--active': tenderMode?.instance === e.instance, 'con-tmini--just-executed': stamped === e.instance, 'con-tmini--aloft': miniHeld.includes(e.instance)}]"
                   :data-carry-tender-mini="e.instance">
-              <ConsoleTenderCard :id="e.id" size="table" :state="tenderCardStateOf(e.status)" />
+              <ConsoleTenderCard :id="e.id" size="table" :state="tenderCardStateOf(e.status)" :dim="e.state !== 'ready'" />
             </span>
           </span>
         </div>
@@ -190,7 +203,9 @@ import {CloneFlightHandle, flyCardClones} from '@/client/console/cardFlight/clon
 import {closeConsoleCardZoom, consoleCardZoom, openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {parkSurface, unparkSurface} from '@/client/console/startDockMotion';
+import {CapturedFlight, captureCards, parkSurface, registerStartDockLayer, unparkSurface} from '@/client/console/startDockMotion';
+import ConsoleTenderActivation from './ConsoleTenderActivation.vue';
+import {legacyActivationPlan, TenderActivationPlan} from '@/client/console/campaign/tenderActivation';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleCardAlbum, {CardAlbumEntry, CardAlbumPosition} from '@/client/components/console/foundation/ConsoleCardAlbum.vue';
 import ConsoleAlbumSpine from '@/client/components/console/foundation/ConsoleAlbumSpine.vue';
@@ -209,6 +224,17 @@ import {
 import {readingText} from '@/client/console/readingText';
 import {tenderZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
+
+/** Two painted frames (a layout settled before a flight measures it) — none to wait for where nothing paints. */
+function twoFrames(): Promise<void> {
+  return new Promise<void>((r) => {
+    if (typeof requestAnimationFrame !== 'function') {
+      r();
+      return;
+    }
+    requestAnimationFrame(() => requestAnimationFrame(() => r()));
+  });
+}
 
 /** The door's phrase (park / unpark) or an activation on the wire — a press now is absorbed, and SAID so (the ledger). */
 const CARRY_TENDER_ABSORBER = 'carry-tender-door';
@@ -231,8 +257,8 @@ const NOTICE_MS = 2400;
 export type CarryoverBarFacts = {
   primary: string,
   pages: number,
-  /** The album · the door's LIST · a tender standing in its MODE on the album. */
-  stage: 'album' | 'list' | 'mode',
+  /** The album · the door's LIST · a tender's activation SHEET · a tender standing in its MODE on the album. */
+  stage: 'album' | 'list' | 'sheet' | 'mode',
   primaryEnabled: boolean,
   /** The tender door (L3) stands; `ready` = how many execute here (the verb is lit then). */
   door?: {ready: number},
@@ -240,7 +266,7 @@ export type CarryoverBarFacts = {
 
 export default defineComponent({
   name: 'ConsoleCarryoverPicker',
-  components: {ConsoleWsHead, ConsoleCardAlbum, ConsoleAlbumSpine, Card, ConsoleTenderPortfolio, ConsoleTenderCard, GamepadGlyph},
+  components: {ConsoleWsHead, ConsoleCardAlbum, ConsoleAlbumSpine, Card, ConsoleTenderPortfolio, ConsoleTenderCard, ConsoleTenderActivation, GamepadGlyph},
   props: {
     /** The recorded terminal hand (owner-only wire data). */
     eligible: {type: Array as PropType<ReadonlyArray<CardName>>, required: true},
@@ -301,10 +327,21 @@ export default defineComponent({
       stamped: undefined as string | undefined,
       landTimer: undefined as number | undefined,
       absorbOff: undefined as (() => void) | undefined,
+      /** The ACTIVATION SHEET (§20): the tender chosen in the list, as the hero of its own scene. */
+      sheet: undefined as {instance: string, id: TenderId, phase: 'entering' | 'open' | 'committing' | 'leaving'} | undefined,
+      sheetHeroHeld: false,
+      sheetCommitted: false,
+      sheetStamping: false,
+      /** List slots / door miniatures whose certificate is in the air (each waits for its own touchdown). */
+      listHeld: [] as Array<string>,
+      miniHeld: [] as Array<string>,
+      sheetFlight: undefined as CapturedFlight | undefined,
     };
   },
   mounted() {
-    this.absorbOff = registerInputAbsorber(CARRY_TENDER_ABSORBER, () => this.stageMoving || this.tenderBusy !== undefined, {scope: 'all'});
+    this.absorbOff = registerInputAbsorber(CARRY_TENDER_ABSORBER,
+      () => this.stageMoving || this.tenderBusy !== undefined || (this.sheet !== undefined && this.sheet.phase !== 'open'), {scope: 'all'});
+    registerStartDockLayer((this.$refs.flightLayer ?? undefined) as HTMLElement | undefined);
   },
   computed: {
     /** Cards that no longer resolve in this build (post-update loss, §2.12). */
@@ -365,6 +402,9 @@ export default defineComponent({
     },
     /** The crumb's tail: the page · the door's list · the tender standing in its mode (its NAME — §19). */
     headStage(): string {
+      if (this.sheet !== undefined) {
+        return tenderPortfolioName(this.sheet.id);
+      }
       if (this.stage === 'list') {
         return 'Tenders';
       }
@@ -382,7 +422,18 @@ export default defineComponent({
     full(): boolean {
       return this.selected.length >= this.limit;
     },
+    /** The sheet's RESULT in the seat's own numbers. */
+    sheetPlan(): TenderActivationPlan | undefined {
+      const sheet = this.sheet;
+      return sheet === undefined ? undefined : legacyActivationPlan(sheet.id, {
+        limit: this.limit, handSize: this.eligible.length, preludeLimit: this.preludeLimit, playedPreludes: this.eligiblePreludes.length,
+      });
+    },
     barFacts(): CarryoverBarFacts {
+      if (this.sheet !== undefined) {
+        return {primary: this.sheetPlan?.verb ?? 'Execute the tender', pages: 1, stage: 'sheet',
+          primaryEnabled: this.sheet.phase === 'open' && this.tenderBusy === undefined};
+      }
       if (this.stage === 'list') {
         const e = this.focusedTender;
         return {primary: 'Execute', pages: 1, stage: 'list', primaryEnabled: e !== undefined && e.state === 'ready' && this.tenderBusy === undefined};
@@ -495,6 +546,8 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.absorbOff?.();
+    this.sheetFlight?.dispose();
+    registerStartDockLayer(undefined);
     for (const f of this.flights) {
       f.dispose();
     }
@@ -538,6 +591,7 @@ export default defineComponent({
         this.tenderFocus = 0;
         this.stage = 'list';
         await this.$nextTick();
+        this.fitList();
         await unparkSurface((this.$refs.listLayer ?? null) as HTMLElement | null, 1);
       } finally {
         this.stageMoving = false;
@@ -571,9 +625,169 @@ export default defineComponent({
         }
         return;
       }
-      void this.closeTenderList(() => {
-        this.tenderMode = {instance: e.instance, id: e.id};
-      });
+      void this.openSheet(e);
+    },
+    // ── THE ACTIVATION SHEET (§20) ──
+    sheetHeroEl(): HTMLElement | null {
+      const sheet = (this.$refs.sheetEl ?? undefined) as {heroEl?: () => HTMLElement | undefined} | undefined;
+      return sheet?.heroEl?.() ?? null;
+    },
+    listSlotEl(instance: string): HTMLElement | null {
+      return (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-tport-slot="${instance}"]`);
+    },
+    doorMiniEl(instance: string): HTMLElement | null {
+      return (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-carry-tender-mini="${instance}"]`);
+    },
+    /** The list's certificate size — as large as the layer allows for the whole row (the start's own rule). */
+    fitList(): void {
+      const pane = (this.$refs.listLayer ?? undefined) as HTMLElement | undefined;
+      const list = pane?.querySelector<HTMLElement>('.con-tport');
+      if (pane === undefined || list === null || list === undefined || pane.clientHeight < 40) {
+        return;
+      }
+      const rem = parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+      const count = Math.max(1, this.doorEntries.length);
+      const gap = 1.6 * rem;
+      const foot = pane.querySelector<HTMLElement>('.con-carry__foot--tenders')?.offsetHeight ?? 0;
+      const availW = pane.clientWidth - 2.4 * rem - gap * (count - 1);
+      const availH = pane.clientHeight - foot - 7.2 * rem;
+      const w = Math.max(6 * rem, Math.min(availW / count, availH / 1.42, 20 * rem));
+      list.style.setProperty('--tport-w', `${Math.round(w)}px`);
+    },
+    /** The hero's size — solved from the list layer's own box (the certificate is the scene's hero by size). */
+    fitSheet(): void {
+      const pane = (this.$refs.listLayer ?? undefined) as HTMLElement | undefined;
+      const sheet = pane?.querySelector<HTMLElement>('.con-tsheet');
+      if (pane === undefined || sheet === null || sheet === undefined || pane.clientHeight < 40) {
+        return;
+      }
+      const foot = pane.querySelector<HTMLElement>('.con-carry__foot--tenders')?.offsetHeight ?? 0;
+      const h = (pane.clientHeight - foot) * 0.88;
+      sheet.style.setProperty('--tsheet-hero-w', `${Math.round(Math.min(h / 1.42, pane.clientWidth * 0.34))}px`);
+      const panel = sheet.querySelector<HTMLElement>('.con-tsheet__panel');
+      if (panel !== null) {
+        sheet.style.removeProperty('--tsheet-type');
+        const room = (pane.clientHeight - foot) * 0.96;
+        if (panel.scrollHeight > room) {
+          const rem = parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+          sheet.style.setProperty('--tsheet-type', `${(Math.max(0.7, room / panel.scrollHeight) * rem).toFixed(2)}px`);
+        }
+      }
+    },
+    /** A on a certificate of this step: the list lets it go — it is CARRIED onto the sheet's hero seat (one object). */
+    async openSheet(e: TenderPortfolioEntry): Promise<void> {
+      if (this.sheet !== undefined) {
+        return;
+      }
+      const from = this.listSlotEl(e.instance);
+      const flight = captureCards(from !== null ? [{name: e.instance as CardName, el: from}] : []);
+      this.sheetFlight = flight;
+      this.sheetHeroHeld = true;
+      this.sheetCommitted = false;
+      this.sheet = {instance: e.instance, id: e.id, phase: 'entering'};
+      await this.$nextTick();
+      this.fitSheet();
+      await twoFrames();
+      await flight.flyTo(() => this.sheetHeroEl(), () => {
+        this.sheetHeroHeld = false;
+      }, {reseat: true});
+      this.sheetFlight = undefined;
+      this.sheetHeroHeld = false;
+      if (this.sheet?.instance === e.instance && this.sheet.phase === 'entering') {
+        this.sheet = {...this.sheet, phase: 'open'};
+      }
+    },
+    /** B on the sheet — ONE level: the hero is carried back into its list slot. */
+    async closeSheet(): Promise<void> {
+      const sheet = this.sheet;
+      if (sheet === undefined || sheet.phase !== 'open') {
+        return;
+      }
+      const hero = this.sheetHeroEl();
+      const flight = captureCards(hero !== null ? [{name: sheet.instance as CardName, el: hero}] : []);
+      this.sheetFlight = flight;
+      this.listHeld = [sheet.instance];
+      this.sheet = undefined;
+      this.tenderFocus = Math.max(0, this.doorEntries.findIndex((d) => d.instance === sheet.instance));
+      await this.$nextTick();
+      await twoFrames();
+      await flight.flyTo(() => this.listSlotEl(sheet.instance), () => {
+        this.listHeld = [];
+      }, {reseat: true});
+      this.sheetFlight = undefined;
+      this.listHeld = [];
+    },
+    /**
+     * THE ACTIVATION — the stamp comes down on the hero, the sheet folds, the album comes back with the GHOST of the
+     * place this tender opens, the certificate flies home into its miniature; then the answer goes out and the ghost
+     * materializes in place (the `tenders` watcher's landing). A refusal leaves the ghost standing — B cancels it.
+     */
+    async commitSheet(): Promise<void> {
+      const sheet = this.sheet;
+      if (sheet === undefined || sheet.phase !== 'open' || this.tenderBusy !== undefined) {
+        return;
+      }
+      this.sheet = {...sheet, phase: 'committing'};
+      this.sheetCommitted = true;
+      this.sheetStamping = true;
+      window.setTimeout(() => {
+        this.sheetStamping = false;
+      }, motionMs(620));
+      await new Promise<void>((r) => window.setTimeout(r, motionMs(560)));
+      const hero = this.sheetHeroEl();
+      const flight = captureCards(hero !== null ? [{name: sheet.instance as CardName, el: hero}] : []);
+      this.sheetFlight = flight;
+      this.sheetHeroHeld = true;
+      this.sheet = {...sheet, phase: 'leaving'};
+      this.stageMoving = true;
+      try {
+        await parkSurface((this.$refs.listLayer ?? null) as HTMLElement | null, -1);
+        this.sheet = undefined;
+        this.miniHeld = [sheet.instance];
+        this.stage = 'album';
+        this.tenderMode = {instance: sheet.instance, id: sheet.id};
+        await this.$nextTick();
+        await Promise.all([
+          unparkSurface((this.$refs.albumLayer ?? null) as HTMLElement | null, -1),
+          flight.flyTo(() => this.doorMiniEl(sheet.instance), () => {
+            this.miniHeld = [];
+          }, {reseat: false, pressElFor: () => this.doorMiniEl(sheet.instance)}),
+        ]);
+      } finally {
+        this.sheetFlight = undefined;
+        this.miniHeld = [];
+        this.sheetHeroHeld = false;
+        this.stageMoving = false;
+      }
+      this.$emit('executeTender', sheet.instance);
+    },
+    /** The sheet's pad: A executes, X reads the hero, B / L3 one level back to the list; nothing else moves. */
+    sheetIntent(intent: GamepadIntent): boolean {
+      const sheet = this.sheet;
+      if (sheet === undefined || sheet.phase !== 'open') {
+        noteInputAbsorbed(CARRY_TENDER_ABSORBER);
+        return true;
+      }
+      if (intent.kind !== 'press') {
+        return true;
+      }
+      if (intent.button === 'stickL') {
+        void this.closeSheet();
+        return true;
+      }
+      switch (consoleActionOf(intent, {})) {
+      case 'primary':
+        void this.commitSheet();
+        return true;
+      case 'inspect':
+        this.openTenderZoom(this.doorEntries.findIndex((d) => d.instance === sheet.instance));
+        return true;
+      case 'back':
+        void this.closeSheet();
+        return true;
+      default:
+        return true;
+      }
     },
     /** The list's pad: ◀ ▶ walk the certificates, A chooses, X reads, B / L3 return to the album. */
     tenderIntent(intent: GamepadIntent): boolean {
@@ -719,6 +933,9 @@ export default defineComponent({
       if (consoleCardZoom.card !== undefined || this.submitting) {
         return true; // the zoom host owns the pad while its viewer is up
       }
+      if (this.sheet !== undefined) {
+        return this.sheetIntent(intent);
+      }
       if (this.stage === 'list' || this.stageMoving) {
         return this.tenderIntent(intent);
       }
@@ -827,6 +1044,9 @@ export default defineComponent({
             const e = entries[i];
             if (e === undefined) {
               return null;
+            }
+            if (this.sheet !== undefined && this.sheet.instance === e.instance) {
+              return this.sheetHeroEl();
             }
             return this.stage === 'list' ?
               portfolio?.slotEl?.(e.instance) ?? null :

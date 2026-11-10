@@ -1,6 +1,6 @@
 <template>
   <div class="con-tender"
-       :class="[`con-tender--${size}`, `con-tender--${state}`, `con-tender--tier-${tier}`, {'con-tender--focused': focused, 'con-tender--art': artUrl !== undefined}]"
+       :class="[`con-tender--${size}`, `con-tender--${state}`, `con-tender--tier-${tier}`, {'con-tender--focused': focused, 'con-tender--art': artUrl !== undefined, 'con-tender--dim': dim}]"
        :data-tender="id" :data-tender-state="state" :data-name-tier="nameTier">
     <!--
       A TENDER — the Committee's CONTRACT (the face's third pass, 2026-11-08 — the owner: «оформление и цветовую гамму
@@ -79,6 +79,12 @@ export default defineComponent({
     /** The seat that holds it (the stamp). */
     owner: {type: Object as PropType<{name: string, color: Color} | undefined>, default: undefined},
     focused: {type: Boolean, default: false},
+    /**
+     * NOT ON THIS PAGE — the face steps back under its own scrim. A property of the FACE (never of a host's slot): a
+     * flight clones the face, so a certificate rising out of the dock or flying home is already dimmed in the air — a
+     * slot-scoped dim popped on at the touchdown (the storyboard of 2026-11-09).
+     */
+    dim: {type: Boolean, default: false},
   },
   computed: {
     /**

@@ -777,7 +777,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: .45rem;
+    /* The certificate under the cursor steps up and grows its ring — its word keeps clear of it (it once sat under
+       the lifted face on the TV). */
+    gap: 1.05rem;
     padding: .35rem;
     border-radius: .55rem;
     /* The certificate's size is the LIST's (`--tport-w`, solved by the host from the layer: as large as the row allows —
@@ -794,26 +796,9 @@
     /* A certificate still IN THE AIR (the rise out of the dock): the slot keeps its box, the face waits for its own
        touchdown — visibility only, the row never re-lays out. */
     &--aloft > .con-tender { visibility: hidden; }
-    /* NOT ON THIS PAGE — the face steps back under a SCRIM (the console strips every `filter` — paint baseline — so a
-       filtered dim never painted: the owner's frame of 2026-11-09 read five equally bright certificates), the word under
-       it says why. The scrim is the face's own layer (it clips it), opaque glass over opaque paint — never a
-       whole-element opacity. A done one steps back less: it is history, not a refusal. */
-    &--elsewhere > .con-tender::after,
-    &--blocked > .con-tender::after,
-    &--executed > .con-tender::after,
-    &--cashed > .con-tender::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      z-index: 6;
-      pointer-events: none;
-      /* The focused one reads in full even when it cannot go — the reading names why; the scrim thins under the cursor:
-         ONE value written as a function of the face's own `--con-cursor-on` (`.con-tender--focused`), never a second
-         hand-painted focus rule (the cursor grammar, TR58). */
-      background: rgba(7, 11, 17, calc(0.62 - 0.32 * var(--con-cursor-on, 0)));
-    }
-    &--executed > .con-tender::after,
-    &--cashed > .con-tender::after { background: rgba(7, 11, 17, calc(0.42 - 0.12 * var(--con-cursor-on, 0))); }
+    /* NOT ON THIS PAGE — the face's own dim (`.con-tender--dim`, below); under the cursor it thins (the reading names
+       why). */
+    &--focused > .con-tender--dim::after { background: rgba(7, 11, 17, 0.3); }
     /* EXECUTES HERE — a kant on the slot, never a glow (invariant 15). */
     &--ready { box-shadow: inset 0 0 0 .07rem fade(@con-mint, 70%); }
     /* THE STAMP LANDS — the one event of an execution (ends on its own). */
@@ -919,14 +904,14 @@
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    gap: 1.4rem;
+    gap: 2.2rem;
   }
   &__group {
     display: flex;
     flex-direction: column;
     align-items: center;
-    /* the cards' «✓ В линейке» band rides their top edge — the caption keeps clear of it */
-    gap: 1.3rem;
+    /* the cards' «✓ В линейке» band rides their top edge and the cursor LIFTS its card — the caption keeps clear of both */
+    gap: 2rem;
     min-width: 0;
   }
   &__divider {
@@ -937,15 +922,17 @@
   }
   &__cap {
     font-family: @con-font;
-    font-size: .58rem;
-    letter-spacing: .18em;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .2em;
     text-transform: uppercase;
-    color: rgba(214, 223, 233, 0.62);
+    color: rgba(214, 223, 233, 0.7);
   }
   &__cards {
     display: flex;
     align-items: center;
-    gap: 1.1rem;
+    /* the cursor's card steps up and grows — its neighbours keep clear of it */
+    gap: 1.9rem;
   }
   &__slot {
     position: relative;
@@ -1459,16 +1446,30 @@
   &__row[data-tone='cost'] &__to { color: @con-amber; }
   &__mc { width: 1.15em; height: 1.15em; }
   /* A unit is a card SHAPE (its kind by its tint) — what the number counts, read by form. */
+  /* A unit is a CARD'S SILHOUETTE — what the number counts, read by form: a dark body, the kind's header band (prelude
+     copper · project steel-blue · corporation gold), an art window, a hairline kant in the kind's tone. A seat is the
+     empty place itself (a dashed kant). Never a light. */
   &__unit {
+    --unit-tone: rgba(214, 223, 233, 0.7);
+    position: relative;
     display: inline-block;
-    width: .78em;
-    height: 1.08em;
+    width: .92em;
+    height: 1.3em;
     border-radius: .14em;
-    box-shadow: inset 0 0 0 .07em rgba(214, 223, 233, 0.55);
-    &--prelude { background: linear-gradient(180deg, rgba(196, 120, 76, 0.55), rgba(120, 66, 40, 0.45)); }
-    &--project { background: linear-gradient(180deg, rgba(76, 160, 196, 0.5), rgba(40, 86, 120, 0.45)); }
-    &--corporation { background: linear-gradient(180deg, rgba(214, 178, 106, 0.6), rgba(140, 108, 50, 0.45)); }
-    &--seat { background: transparent; box-shadow: inset 0 0 0 .07em fade(@con-mint, 75%); border-radius: .2em; }
+    background:
+      linear-gradient(180deg, var(--unit-tone) 0 22%, transparent 22%),
+      linear-gradient(180deg, transparent 32%, rgba(120, 150, 180, 0.28) 32% 66%, transparent 66%) .14em 0 / calc(100% - .28em) 100% no-repeat,
+      #101822;
+    box-shadow: inset 0 0 0 .06em var(--unit-tone), 0 .08em .18em rgba(0, 0, 0, 0.5);
+    &--prelude { --unit-tone: #c98653; }
+    &--project { --unit-tone: #5f9cc4; }
+    &--corporation { --unit-tone: #d4b06a; }
+    &--seat {
+      background: transparent;
+      box-shadow: none;
+      border: .07em dashed fade(@con-mint, 80%);
+      border-radius: .18em;
+    }
   }
   &__notes {
     list-style: none;
@@ -1507,51 +1508,59 @@
     text-transform: uppercase;
     color: fade(@con-amber, 88%);
   }
-  /* «ЦЕЛЕВОЙ ЗАПРОС»: the tag is named HERE — large medallions, the deck's count on each, the named one a kant. */
-  &__tags {
+  /* «ЦЕЛЕВОЙ ЗАПРОС»: the tag is named HERE on the PRE-SELECT grammar — every tile is a `con-vchoice__opt` (its cursor,
+     its answer layer and seal, its recede, its refusal: `console_variant_choice.less`), laid out as ONE grid whose columns
+     the host walks (`--tag-cols` ← `tagGridCols`). The tile's hero is the tag's own medallion, large; its word under it. */
+  &__tags.con-vchoice {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(8.4em, 1fr));
-    gap: .45em;
+    grid-template-columns: repeat(var(--tag-cols, 5), minmax(0, 1fr));
+    gap: .7em .6em;
+    padding-block: .45em .3em;
   }
-  &__tag {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: .5em;
-    padding: .35em .55em .35em .35em;
-    border-radius: .5em;
-    background: rgba(16, 24, 34, 0.78);
-    box-shadow: inset 0 0 0 .05em rgba(125, 142, 163, 0.32);
-    font-family: @con-font;
-    letter-spacing: .05em;
-    text-transform: uppercase;
-    color: #dfe8f2;
-    .con-cursor(inset 0 0 0 .12em @con-cyan; .5em; none; 3; after);
-    &--focused { .con-cursor-on(); }
-    &--picked {
-      background: rgba(24, 38, 54, 0.92);
-      box-shadow: inset 0 0 0 .1em fade(@con-amber, 85%);
-    }
-    &--off {
-      color: rgba(223, 232, 242, 0.4);
-      .con-tsheet__tag-icon { opacity: .4; }
-    }
-    &--short .con-tsheet__tag-count { color: fade(@con-amber, 95%); }
+  &__tag.con-vchoice__opt {
+    min-width: 0;
+    max-width: none;
+    gap: .55em;
+    padding: 1em .4em .8em;
   }
   &__tag-icon {
     flex: none;
-    width: 1.5em;
-    height: 1.5em;
+    width: 3.6em;
+    height: 3.6em;
     border-radius: 50%;
     background-size: cover;
     background-position: center;
+    box-shadow: 0 .18em .5em rgba(0, 0, 0, 0.45);
+    transition: transform var(--con-cursor-ms, 160ms) var(--con-cursor-ease, ease);
   }
-  &__tag-name { flex: 1; min-width: 0; font-size: .72em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  &__tag-count {
-    font-variant-numeric: tabular-nums;
+  /* The answer's medallion sits a hair proud (form, not light). */
+  &__tag.con-vchoice__opt--selected &__tag-icon { transform: scale(1.06); }
+  &__tag-name {
+    max-width: 100%;
+    font-family: @con-font;
     font-size: .8em;
-    color: rgba(214, 223, 233, 0.82);
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #e6edf5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
+  /* A tag the deck has run out of: the refused tile's faded print (children's opacity — the tile stays opaque) and its
+     mark; the bar names the reason under the cursor. */
+  &__tag.con-vchoice__opt--off &__tag-icon,
+  &__tag.con-vchoice__opt--off &__tag-name { opacity: .34; }
+  &__tag-off {
+    position: absolute;
+    top: .5em;
+    left: .6em;
+    font-size: .8em;
+    font-weight: 800;
+    color: rgba(239, 138, 122, 0.85);
+  }
+  /* The tag sheet's panel is wider — the grid is its decision. */
+  &--tags &__panel { flex-basis: 46em; }
 }
 .con-start__tenderview > .con-tsheet {
   animation: con-legview-rise calc(220ms * var(--motion-scale, 1)) ease both;
@@ -1598,3 +1607,26 @@
 @media (prefers-reduced-motion: reduce) {
   .con-start__ledger-num { animation: none; }
 }
+
+/* The step's status rail VEILED under a tender's layer (§20 — its frame read as an unfinished empty box under the scene):
+   it outranks the rail's own state kants (`--picked`, `--warn`, the TV profile's paint), which come later in the cascade. */
+html .con-start .con-start__statusrail.con-start__statusrail--veiled {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 .05rem transparent;
+}
+
+/* A certificate NOT ON THIS PAGE steps back under its own SCRIM (the console strips every `filter` — paint baseline — so a
+   filtered dim never painted). A property of the FACE: the list, the dock's miniatures and every flight's clone carry it,
+   so nothing pops dim at a touchdown. A done one steps back less — it is history, not a refusal. Opaque glass over
+   opaque paint, never a whole-element opacity. */
+.con-tender--dim::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  border-radius: inherit;
+  background: rgba(7, 11, 17, 0.62);
+}
+.con-tender--dim.con-tender--executed::after,
+.con-tender--dim.con-tender--cashed::after { background: rgba(7, 11, 17, 0.42); }

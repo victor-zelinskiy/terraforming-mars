@@ -1,6 +1,6 @@
 <template>
   <div class="con-tsheet"
-       :class="{'con-tsheet--open': open, 'con-tsheet--leaving': leaving, 'con-tsheet--committed': committed}"
+       :class="{'con-tsheet--open': open, 'con-tsheet--leaving': leaving, 'con-tsheet--committed': committed, 'con-tsheet--tags': tags !== undefined}"
        data-tender-sheet :data-tender-sheet-id="plan.id" :data-tender-sheet-kind="plan.kind"
        :data-tender-sheet-open="open ? 'yes' : undefined">
     <!--
@@ -34,22 +34,23 @@
           </span>
         </div>
       </div>
-      <!-- «ЦЕЛЕВОЙ ЗАПРОС»: the tag is named HERE — the decision about the tender itself — each medallion with the deck's
-           own count (a tag with none is off, with its reason on the bar). -->
-      <div v-if="tags !== undefined" class="con-tsheet__tags" data-tender-mode="tag">
-        <div v-for="(t, i) in tags" :key="t.tag" class="con-tsheet__tag"
-             :class="{
-               'con-tsheet__tag--focused': i === tagFocus,
-               'con-tsheet__tag--picked': t.tag === tagPicked,
-               'con-tsheet__tag--off': t.count === 0,
-               'con-tsheet__tag--short': t.count > 0 && t.count < 3,
-             }"
+      <!-- «ЦЕЛЕВОЙ ЗАПРОС»: the tag is named HERE — the decision about the tender itself — on the console's PRE-SELECT
+           grammar (the variant tiles: `con-vchoice__opt` — the cursor's cold lift and ring, the answer's SEAL in the
+           corner and its mint kant that stays while the cursor walks on, the unchosen RECEDE). Each tile is the tag's own
+           large medallion and its word; no deck count (the owner, 2026-11-09: at the start the deck has them — it was
+           noise). A tag the deck has run out of is a refused tile, shown with its mark, never hidden. ONE grid, its
+           columns the host's walk (`tagGridCols`). -->
+      <div v-if="tags !== undefined" class="con-tsheet__tags con-vchoice" :class="{'con-vchoice--decided': tagPicked !== undefined}"
+           :style="{'--tag-cols': String(cols)}" role="radiogroup" data-tender-mode="tag">
+        <div v-for="(t, i) in tags" :key="t.tag" class="con-vchoice__opt con-tsheet__tag"
+             :class="tileClasses(t, i)" role="radio" :aria-checked="t.tag === tagPicked" :aria-disabled="t.count === 0"
              :data-tender-tag="t.tag" :data-tender-tag-count="t.count === Infinity ? undefined : t.count"
              :data-tender-tag-off="t.count === 0 ? 'yes' : undefined"
              :data-tender-mode-picked="t.tag === tagPicked ? 'yes' : undefined">
+          <span class="con-vchoice__seal" :class="{'con-vchoice__seal--on': t.tag === tagPicked}" aria-hidden="true"></span>
           <i class="con-tsheet__tag-icon" :style="t.iconStyle" aria-hidden="true"></i>
           <span class="con-tsheet__tag-name">{{ t.label }}</span>
-          <b v-if="t.count !== Infinity" class="con-tsheet__tag-count">{{ t.count }}</b>
+          <span v-if="t.count === 0" class="con-tsheet__tag-off" aria-hidden="true">✕</span>
         </div>
       </div>
       <ul v-if="plan.notes.length > 0" class="con-tsheet__notes">
@@ -66,7 +67,8 @@
 import {defineComponent, PropType} from 'vue';
 import {Tag} from '@/common/cards/Tag';
 import ConsoleTenderCard from './ConsoleTenderCard.vue';
-import {ActivationNote, TenderActivationPlan} from '@/client/console/campaign/tenderActivation';
+import {ActivationNote, TenderActivationPlan, tagGridCols} from '@/client/console/campaign/tenderActivation';
+import {variantOptionClasses} from '@/client/console/variantChoiceModel';
 import {tenderMeta} from '@/client/console/campaign/tenderMeta';
 import {readingText} from '@/client/console/readingText';
 
@@ -100,8 +102,16 @@ export default defineComponent({
     ruleKey(): string {
       return tenderMeta(this.plan.id).ruleKey;
     },
+    cols(): number {
+      return tagGridCols(this.tags?.length ?? 0);
+    },
   },
   methods: {
+    /** A tag tile's three facts on the variant grammar's ONE mapping (cursor · answer · rules). */
+    tileClasses(t: ActivationTag, i: number): Record<string, boolean> {
+      return variantOptionClasses({focused: i === this.tagFocus, selected: t.tag === this.tagPicked, off: t.count === 0},
+        this.tagPicked !== undefined);
+    },
     noteText(note: ActivationNote): string {
       return readingText({label: note.key, params: [...note.params]});
     },

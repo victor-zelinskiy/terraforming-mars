@@ -85,24 +85,24 @@
                  what is left — the money the start brings (the lineage's merges and bonus, the preludes' own M€) minus
                  the picks × the card's price. Each number is keyed on its value: a change (a pick, «Субсидия»'s price)
                  replays its one-shot tick in place — the line never re-lays out. -->
-            <span v-if="ledgerShown && budget !== undefined" class="con-start__ledger"
-                  :class="{'con-start__ledger--broke': ledgerLeft < 0}" data-purchase-ledger
-                  :data-purchase-cost="budget.cardCost" :data-purchase-left="ledgerLeft">
+            <span v-if="ledgerShown && ledgerView !== undefined" class="con-start__ledger"
+                  :class="{'con-start__ledger--broke': ledgerView.left < 0}" data-purchase-ledger
+                  :data-purchase-cost="ledgerView.cost" :data-purchase-left="ledgerView.left">
               <span class="con-start__ledger-cap">{{ $t('Purchase') }}</span>
               <!-- The purchase carries the price's WHY (TerraLabs, a lineage merge, «Субсидия»…) — the one hint the
                    status rail's money chip carried before this line replaced it on the project step. -->
               <span class="con-start__ledger-sum con-price-hint" data-purchase-price :data-hint="startPriceHint">
-                <b :key="'n' + budget.buys" class="con-start__ledger-num">{{ budget.buys }}</b>
+                <b :key="'n' + ledgerView.buys" class="con-start__ledger-num">{{ ledgerView.buys }}</b>
                 <span class="con-start__ledger-op" aria-hidden="true">×</span>
-                <b :key="'c' + budget.cardCost" class="con-start__ledger-num con-start__ledger-num--price" data-purchase-price-value>{{ budget.cardCost }}</b>
+                <b :key="'c' + ledgerView.cost" class="con-start__ledger-num con-start__ledger-num--price" data-purchase-price-value>{{ ledgerView.cost }}</b>
                 <i class="resource_icon resource_icon--megacredits con-start__ledger-mc" aria-hidden="true"></i>
                 <span class="con-start__ledger-op" aria-hidden="true">=</span>
-                <b :key="'t' + budget.buys * budget.cardCost" class="con-start__ledger-num">{{ budget.buys * budget.cardCost }}</b>
+                <b :key="'t' + ledgerView.buys * ledgerView.cost" class="con-start__ledger-num">{{ ledgerView.buys * ledgerView.cost }}</b>
               </span>
               <span class="con-start__ledger-sep" aria-hidden="true"></span>
               <span class="con-start__ledger-cap">{{ $t('Left') }}</span>
               <span class="con-start__ledger-sum">
-                <b :key="'l' + ledgerLeft" class="con-start__ledger-num con-start__ledger-num--left" data-purchase-left-value>{{ ledgerLeft }}</b>
+                <b :key="'l' + ledgerView.left" class="con-start__ledger-num con-start__ledger-num--left" data-purchase-left-value>{{ ledgerView.left }}</b>
                 <i class="resource_icon resource_icon--megacredits con-start__ledger-mc" aria-hidden="true"></i>
               </span>
             </span>
@@ -463,7 +463,7 @@
           <!-- THE ACTIVATION SHEET (§20): the chosen tender as the hero of its own scene — the RESULT beside it. -->
           <ConsoleTenderActivation v-if="tenderSheet !== undefined && tenderSheetPlan !== undefined" ref="tenderSheetEl"
                                    :plan="tenderSheetPlan" :hero-held="sheetHeroHeld"
-                                   :open="tenderSheet.phase === 'open' || tenderSheet.phase === 'committing'"
+                                   :open="tenderSheet.phase === 'open' || tenderSheet.phase === 'committing' || sheetPanelOpen"
                                    :committed="sheetCommitted" :stamping="sheetStamping"
                                    :leaving="tenderSheet.phase === 'leaving'" :busy="state.tenderBusy !== undefined"
                                    :tags="sheetTags" :tag-focus="sheetTagFocus" :tag-picked="sheetTagPicked" />
@@ -1201,7 +1201,7 @@
 
         <div v-if="mode === 'wizard' && currentStep !== undefined"
              class="con-start__statusrail"
-             :class="statusRailClass">
+             :class="[statusRailClass, {'con-start__statusrail--veiled': tenderViewOwnsScreen || restructureCovers}]">
           <!-- The rail's HEIGHT is reserved for the whole card step; only its
                CONTENT is hidden until the FOCUS COMMIT (--held: opacity, never
                an unmount) — so the card area never resizes / jumps when the
@@ -1286,7 +1286,7 @@
                                    :stamped="dockStamped"
                                    :tender-door="tenderDoorAvailable"
                                    :tender-ready="tenderReadyCount"
-                                   :held-tenders="tenderDockHeld"
+                                   :held-tenders="tenderDockHeld" :ready-tenders="tenderReadyInstances"
                                    :active-tender="state.tenderMode?.instance"
                                    :plated="tenderPlate !== undefined"
                                    :held-names="legacyDockHeld"
@@ -1465,9 +1465,9 @@ import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState
 import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
-import {captureCards, CapturedFlight, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource, parkSurface, unparkSurface, clearSurfaceParking, measureTargets, pressPile, riseToSeats, RiseConvoy, glideFromRects, GlidePair, cardRectNow, Rect} from '@/client/console/startDockMotion';
+import {captureCards, CapturedFlight, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource, parkSurface, unparkSurface, clearSurfaceParking, measureTargets, pressPile, riseToSeats, RiseConvoy, slideIntoLayout, GlidePair, cardRectNow, Rect} from '@/client/console/startDockMotion';
 import ConsoleTenderActivation, {ActivationTag} from '@/client/components/console/campaign/ConsoleTenderActivation.vue';
-import {ActivationFacts, TenderActivationPlan, startActivationPlan} from '@/client/console/campaign/tenderActivation';
+import {ActivationFacts, TenderActivationPlan, startActivationPlan, tagGridCols} from '@/client/console/campaign/tenderActivation';
 import {FACE_DOWN_DEG, FACE_UP_DEG} from '@/client/console/cardFlight/card3dInner';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {
@@ -1893,6 +1893,12 @@ export default defineComponent({
       pageSlotRects: undefined as Map<string, Rect> | undefined,
       /** A tender that GROWS the deal was executed: its answer's new layout plays as a glide, then a deal. */
       dealGlideArmed: false,
+      /** The RESULT unfolds at the hero's own touchdown (the siblings may still be flying home — the panel never waits). */
+      sheetPanelOpen: false,
+      /** The purchase ledger's values held through a sheet's hand-over (`ledgerView`). */
+      ledgerHold: undefined as {buys: number, cost: number, left: number} | undefined,
+      /** The sheet's RESULT as it stood at the press (what was decided — never re-read off the reshaped table). */
+      sheetPlanFrozen: undefined as TenderActivationPlan | undefined,
       /** A deal that changed while a tender's layer covered the page — dealt the moment the page is the player's again. */
       dealOwed: false,
       glideActive: false,
@@ -4122,6 +4128,18 @@ export default defineComponent({
       const b = this.budget;
       return b === undefined ? 0 : b.remaining + b.preludes;
     },
+    /**
+     * What the purchase ledger SHOWS: the live money — or, while a tender's sheet still hands the screen back, the values
+     * it stood at before the press: a price «Субсидия» changed ticks on the purchase page the player returns to, never
+     * under the sheet's stamp (the storyboard of 2026-11-09).
+     */
+    ledgerView(): {buys: number, cost: number, left: number} | undefined {
+      if (this.ledgerHold !== undefined) {
+        return this.ledgerHold;
+      }
+      const b = this.budget;
+      return b === undefined ? undefined : {buys: b.buys, cost: b.cardCost, left: this.ledgerLeft};
+    },
     budget(): {start: number, buys: number, cardCost: number, remaining: number, preludes: number} | undefined {
       const corp = this.state.corp;
       const base = this.startCorpMc;
@@ -4376,6 +4394,10 @@ export default defineComponent({
     focusedDoorEntry(): TenderPortfolioEntry | undefined {
       return this.tenderView.phase === 'open' ? this.doorEntries[this.tenderView.focus] : undefined;
     },
+    /** The holdings that execute on the page standing now — the dock lights only these. */
+    tenderReadyInstances(): ReadonlyArray<string> {
+      return this.doorEntries.filter((e) => e.state === 'ready').map((e) => e.instance);
+    },
     /** The sheet's certificate (its live entry). */
     tenderSheetEntry(): TenderPortfolioEntry | undefined {
       const sheet = this.tenderSheet;
@@ -4404,7 +4426,13 @@ export default defineComponent({
     },
     tenderSheetPlan(): TenderActivationPlan | undefined {
       const sheet = this.tenderSheet;
-      return sheet === undefined ? undefined : startActivationPlan(sheet.id, this.activationFacts);
+      if (sheet === undefined) {
+        return undefined;
+      }
+      // Past the press the sheet tells what WAS decided: the answer reshapes the table under it at once, and a live plan
+      // read «6 → 8» over a press that made «4 → 6» (the storyboard of 2026-11-09).
+      return sheet.phase !== 'open' && sheet.phase !== 'entering' && this.sheetPlanFrozen !== undefined ?
+        this.sheetPlanFrozen : startActivationPlan(sheet.id, this.activationFacts);
     },
     /** «Целевой запрос»'s medallions on the sheet — the table's printed tags with the deck's own counts. */
     sheetTags(): ReadonlyArray<ActivationTag> | undefined {
@@ -7738,8 +7766,8 @@ export default defineComponent({
       const rem = parseFloat(window.getComputedStyle(row).fontSize) || 16;
       // Width: the row's paddings, the gaps, the divider. Height: the paddings, the caption + its clearance over the
       // cards' top band, and the cursor's lift room (the focused card rises — it must not touch the status rail).
-      const availW = pane.clientWidth - 2.4 * rem - (n - 1) * 1.1 * rem - 2.8 * rem;
-      const availH = pane.clientHeight - 0.8 * rem - 2.6 * rem - 1.6 * rem;
+      const availW = pane.clientWidth - 2.4 * rem - (n - 1) * 1.9 * rem - 4.4 * rem;
+      const availH = pane.clientHeight - 0.8 * rem - 3.2 * rem - 1.8 * rem;
       if (availW <= 0 || availH <= 0) {
         return;
       }
@@ -7982,6 +8010,8 @@ export default defineComponent({
       this.sheetCommitted = false;
       this.sheetTagFocus = 0;
       this.sheetTagPicked = undefined;
+      this.sheetPlanFrozen = undefined;
+      this.sheetPanelOpen = false;
       this.tenderSheet = {instance: entry.instance, id: entry.id, phase: 'entering'};
       await this.$nextTick();
       this.fitTenderSheet();
@@ -7991,6 +8021,7 @@ export default defineComponent({
         (n) => {
           if (n === entry.instance) {
             this.sheetHeroHeld = false;
+            this.sheetPanelOpen = true;
           } else {
             this.tenderDockHeld = this.tenderDockHeld.filter((held) => held !== n);
           }
@@ -8020,6 +8051,7 @@ export default defineComponent({
       const flight = captureCards(hero !== null ? [{name: sheet.instance as CardName, el: hero}] : []);
       this.tenderFlight = flight;
       this.tenderListHeld = this.doorEntries.map((e) => e.instance);
+      this.sheetPanelOpen = false;
       this.tenderSheet = undefined;
       this.tenderView.focus = Math.max(0, this.doorEntries.findIndex((e) => e.instance === sheet.instance));
       this.tenderView.phase = 'entering';
@@ -8065,8 +8097,13 @@ export default defineComponent({
       const tags = this.sheetTags;
       if (intent.kind === 'nav') {
         if (tags !== undefined && tags.length > 0) {
-          const step = intent.dir === 'right' || intent.dir === 'down' ? 1 : -1;
-          this.sheetTagFocus = Math.min(tags.length - 1, Math.max(0, this.sheetTagFocus + step));
+          // ONE grid (`tagGridCols`): ←→ a tile, ↑↓ a row — the column kept, never wrapping past an edge.
+          const cols = tagGridCols(tags.length);
+          const step = intent.dir === 'right' ? 1 : intent.dir === 'left' ? -1 : intent.dir === 'down' ? cols : -cols;
+          const next = this.sheetTagFocus + step;
+          if (next >= 0 && next < tags.length) {
+            this.sheetTagFocus = next;
+          }
         }
         return;
       }
@@ -8153,6 +8190,8 @@ export default defineComponent({
       if (response === undefined) {
         return;
       }
+      this.sheetPlanFrozen = plan;
+      this.ledgerHold = this.ledgerView;
       this.tenderSheet = {...sheet, phase: 'committing'};
       this.sheetCommitted = true;
       this.sheetStamping = true;
@@ -8194,6 +8233,7 @@ export default defineComponent({
       const flight = captureCards(hero !== null ? [{name: sheet.instance as CardName, el: hero}] : []);
       this.tenderFlight = flight;
       this.sheetHeroHeld = true;
+      this.sheetPanelOpen = false;
       this.tenderSheet = {...sheet, phase: 'leaving'};
       this.tenderView.phase = 'leaving';
       window.clearTimeout(this.tenderRestoreTimer);
@@ -8214,6 +8254,8 @@ export default defineComponent({
       }, {reseat: false, pressElFor: miniOf});
       this.tenderFlight = undefined;
       this.tenderSheet = undefined;
+      // The page is the player's again: the ledger lets go of the held values — a changed number ticks in place now.
+      this.ledgerHold = undefined;
       if (this.tenderView.phase === 'leaving') {
         if (keepPageParked) {
           this.tenderPageRestored = true; // nothing to unpark — the layer that follows takes the page's seat
@@ -8224,6 +8266,29 @@ export default defineComponent({
       const waiters = this.handoffWaiters;
       this.handoffWaiters = [];
       waiters.forEach((w) => w());
+    },
+    /** Resolves once no tender layer covers the page (its un-park has begun) — bounded: a stuck cover never strands a glide. */
+    whenPageUncovered(): Promise<void> {
+      if (!this.pageCovered && this.tenderSheet === undefined) {
+        return Promise.resolve();
+      }
+      return new Promise<void>((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (!settled) {
+            settled = true;
+            stop();
+            window.clearTimeout(bound);
+            resolve();
+          }
+        };
+        const stop = this.$watch(() => !this.pageCovered, (open) => {
+          if (open) {
+            finish();
+          }
+        });
+        const bound = window.setTimeout(finish, motionMs(4000));
+      });
     },
     /** Resolves once no hand-over is running (a page change plays on a page the player SEES). */
     whenHandoffDone(): Promise<void> {
@@ -8292,7 +8357,10 @@ export default defineComponent({
       keys.forEach((k) => this.returningNames.add(k));
       this.glideActive = true;
       try {
-        await this.whenHandoffDone();
+        // ON A PAGE THE PLAYER SEES: the answer routinely lands while the sheet still covers the page (the stamp's beat),
+        // and a glide played under the cover was a page that came back already re-laid (the storyboard of 2026-11-09).
+        // The slide starts with the page's own un-park — its proxies surface WITH the page, then move.
+        await this.whenPageUncovered();
         await this.$nextTick();
         this.fitCardStrip();
         await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
@@ -8305,7 +8373,14 @@ export default defineComponent({
             pairs.push({name, from, toEl});
           }
         }
-        await glideFromRects(pairs, (n) => this.returningNames.delete(`${step}|${n}`));
+        // The new cards come off the deck as the row SETTLES (its last third — their places are final from the first
+        // frame of the slide), never after an idle beat of empty places.
+        await slideIntoLayout(pairs, (n) => this.returningNames.delete(`${step}|${n}`), {
+          fadeInMs: motionMs(230),
+          onSettling: () => {
+            this.glideActive = false;
+          },
+        });
       } finally {
         keys.forEach((k) => this.returningNames.delete(k));
         this.glideActive = false;
@@ -9334,6 +9409,12 @@ export default defineComponent({
         strip.style.removeProperty('--con-cards-zoom');
         strip.style.removeProperty('--con-cards-grid-zoom');
         strip.style.removeProperty('max-width');
+        return;
+      }
+      // A strip NOT RENDERED (its page parked under a tender's layer — `v-show`) has no box to fit: a fit taken there
+      // read a zero width and set the row to its floor zoom, so a deal that grew under the sheet slid its cards towards
+      // half-size copies (the storyboard of 2026-11-09). The page's own return re-fits it (`playDealGlide`, the observer).
+      if (strip.offsetParent === null || strip.clientWidth === 0) {
         return;
       }
       const n = strip.children.length;

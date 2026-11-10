@@ -152,14 +152,18 @@ describe('ConsoleCarryoverPicker — the album chassis (P87)', () => {
     expect(wrapper.emitted('toggle')?.[0]).deep.eq([HAND[0]]);
   });
 
-  it('«Тендеры» (§19): the ALBUM stands first; the door (L3) opens the LIST — A on a ready legacy tender stands its MODE on the album with the GHOST seat; A executes (one emit), B cancels; a blocked one names its reason; the readiness RT WARNS while one is still executable', async () => {
+  it('«Тендеры» (§19 · §20): the ALBUM stands first; the door (L3) opens the LIST — A on a ready legacy tender carries it onto its ACTIVATION SHEET (the result in the seat\'s numbers; B back to the list); A stamps it: the album returns with the GHOST seat and ONE emit; a blocked one names its reason', async () => {
     const tenders = [
       {instance: 'c1', id: 'extendedLegacy', status: 'held', window: 'legacy'},
       {instance: 'c2', id: 'openCall', status: 'held', window: 'start', blocked: 'Executed at the finale\'s start'},
     ];
     const w = mountPicker({tenders});
-    const vm = w.vm as unknown as {handleIntent(i: GamepadIntent): boolean, stage: string, tenderMode?: {instance: string}};
+    const vm = w.vm as unknown as {handleIntent(i: GamepadIntent): boolean, stage: string, tenderMode?: {instance: string}, sheet?: {instance: string, phase: string}};
     const settle = () => new Promise((r) => setTimeout(r, 650));
+    /** The sheet's commit: the stamp's beat, the park of the list, the album's return (the motion's own clocks). */
+    const settleCommit = () => new Promise((r) => setTimeout(r, 3200));
+    /** A sheet's flight in or out (the flight measures its target for up to 40 frames where nothing paints). */
+    const settleSheet = () => new Promise((r) => setTimeout(r, 1500));
     // (The wrapper is not attached to the document — a layer's presence is its v-show, never isVisible.)
     const shown = (sel: string) => (w.find(sel).element as HTMLElement).style.display !== 'none';
     expect(vm.stage, 'the album first — the page the legacy tenders change').to.eq('album');
@@ -183,28 +187,33 @@ describe('ConsoleCarryoverPicker — the album chassis (P87)', () => {
     vm.handleIntent(press('confirm'));
     await w.vm.$nextTick();
     expect(vm.tenderMode).to.eq(undefined);
-    // ◀ back, A → the album with the MODE: the ghost seat «+3» previews the place, the crumb and the foot name the tender.
+    // ◀ back, A → the ACTIVATION SHEET: the certificate as its hero, the RESULT in the seat's numbers («2 → 3»).
     vm.handleIntent(nav('left'));
     vm.handleIntent(press('confirm'));
-    await settle();
+    await settleSheet();
+    expect(vm.sheet?.instance).to.eq('c1');
+    expect(vm.sheet?.phase).to.eq('open');
+    expect(w.find('[data-tender-sheet]').attributes('data-tender-sheet-id')).to.eq('extendedLegacy');
+    expect(w.find('[data-tsheet-row="Legacy seats"] [data-tsheet-from]').text()).to.eq('2');
+    expect(w.find('[data-tsheet-row="Legacy seats"] [data-tsheet-to]').text()).to.eq('3');
+    bar = w.emitted('bar')!.at(-1)![0] as {stage: string};
+    expect(bar).to.deep.include({stage: 'sheet', primary: 'Execute the tender', primaryEnabled: true});
+    // B — one level back to the list, nothing sent.
+    vm.handleIntent(press('back'));
+    await settleSheet();
+    expect(vm.sheet).to.eq(undefined);
+    expect(vm.stage).to.eq('list');
+    expect(w.emitted('executeTender')).to.eq(undefined);
+    // A → the sheet again; A executes: the stamp, the album back with the GHOST seat «+3», then ONE emit.
+    vm.handleIntent(press('confirm'));
+    await settleSheet();
+    vm.handleIntent(press('confirm'));
+    await settleCommit();
     expect(vm.stage).to.eq('album');
+    expect(vm.sheet).to.eq(undefined);
     expect(vm.tenderMode?.instance).to.eq('c1');
     expect(w.findAll('[data-carry-seat]')).to.have.length(3);
     expect(w.find('[data-carry-seat="3"]').attributes('data-carry-seat-ghost')).to.eq('yes');
-    expect(w.find('[data-carry-tender-reading]').text()).to.contain('Extended Legacy').and.contain('3');
-    bar = w.emitted('bar')!.at(-1)![0] as {stage: string};
-    expect(bar).to.deep.include({stage: 'mode', primary: 'Execute the tender'});
-    // B cancels with nothing sent; A again (from the list) and A executes: ONE emit.
-    vm.handleIntent(press('back'));
-    await w.vm.$nextTick();
-    expect(vm.tenderMode).to.eq(undefined);
-    expect(w.findAll('[data-carry-seat]'), 'the ghost leaves with the mode').to.have.length(2);
-    expect(w.emitted('executeTender')).to.eq(undefined);
-    vm.handleIntent(press('stickL'));
-    await settle();
-    vm.handleIntent(press('confirm'));
-    await settle();
-    vm.handleIntent(press('confirm'));
     expect(w.emitted('executeTender')?.map((e) => e[0])).to.deep.eq(['c1']);
     // The activation LANDED: the ghost is the REAL seat now (the same place), the mode ends.
     await w.setProps({tenders: [{...tenders[0], status: 'executed'}, tenders[1]], limit: 3, tenderSeats: 1});
@@ -240,7 +249,7 @@ describe('ConsoleCarryoverPicker — the album chassis (P87)', () => {
       tenders: [{instance: 'p1', id: 'programExtension', status: 'held', window: 'legacy'}],
       eligiblePreludes: [CardName.ALLIED_BANK, CardName.BIOFUELS],
     });
-    const vm = w.vm as unknown as {handleIntent(i: GamepadIntent): boolean, tenderMode?: {instance: string}};
+    const vm = w.vm as unknown as {handleIntent(i: GamepadIntent): boolean, tenderMode?: {instance: string}, sheet?: {phase: string}};
     expect(w.find('[data-carry-preludes]').attributes('data-carry-preludes-locked'), 'reserved, locked').to.eq('yes');
     expect(w.findAll('[data-carry-prelude-seat]')).to.have.length(0);
     // ↑ into a LOCKED band is refused — the album keeps the cursor.
@@ -249,7 +258,11 @@ describe('ConsoleCarryoverPicker — the album chassis (P87)', () => {
     vm.handleIntent(press('stickL'));
     await new Promise((r) => setTimeout(r, 650));
     vm.handleIntent(press('confirm'));
-    await new Promise((r) => setTimeout(r, 650));
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(vm.sheet?.phase, 'the sheet stands first').to.eq('open');
+    expect(w.find('[data-tsheet-row="Preludes into the finale"] [data-tsheet-to]').text()).to.eq('1');
+    vm.handleIntent(press('confirm'));
+    await new Promise((r) => setTimeout(r, 3200));
     expect(vm.tenderMode?.instance).to.eq('p1');
     expect(w.find('[data-carry-prelude-seat="1"]').attributes('data-carry-seat-ghost')).to.eq('yes');
     await w.setProps({tenders: [{instance: 'p1', id: 'programExtension', status: 'executed', window: 'legacy'}], preludeLimit: 1});
