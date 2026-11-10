@@ -73,7 +73,6 @@ import {armColonyCity, clearColonyCity, colonyCityAnswered, colonyCityPending, c
 import type {SeatController} from '@/client/console/shell/seatController';
 import type {StdProjectsController} from '@/client/console/shell/stdProjectsController';
 import type {StagedController} from '@/client/console/shell/stagedController';
-import type {MaController} from '@/client/console/shell/maController';
 import type {JournalController} from '@/client/console/shell/journalController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
 
@@ -116,7 +115,7 @@ export type ColonyPort = {
   focusFirstSelectableHandCard(): void,
   foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void,
   readonly followUpStepOwed: boolean,
-  game: UnwrapRef<MaController['game']>,
+  game: UnwrapRef<SeatController['game']>,
   readonly handAlbumParked: boolean,
   /** WRITTEN here. */ journalColonyInspect: UnwrapRef<JournalController['journalColonyInspect']>,
   readonly mandatoryBeat: MandatoryBeat | undefined,

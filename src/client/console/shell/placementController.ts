@@ -67,7 +67,6 @@ import {PendingPlayCard} from '@/client/console/shell/shellShared';
 import type {StagedController} from '@/client/console/shell/stagedController';
 import type {ConvertController} from '@/client/console/shell/convertController';
 import type {FinaleController} from '@/client/console/shell/finaleController';
-import type {MaController} from '@/client/console/shell/maController';
 import type {ParliamentController} from '@/client/console/shell/parliamentController';
 import type {ColonyController} from '@/client/console/shell/colonyController';
 import type {CellController} from '@/client/console/shell/cellController';
@@ -106,7 +105,7 @@ export type PlacementPort = {
   /** WRITTEN here. */ convertPlantsPending: UnwrapRef<ConvertController['convertPlantsPending']>,
   convertPlantsPrompt: UnwrapRef<ConvertController['convertPlantsPrompt']>,
   finaleSessionEngaged: UnwrapRef<FinaleController['finaleSessionEngaged']>,
-  game: UnwrapRef<MaController['game']>,
+  game: UnwrapRef<SeatController['game']>,
   govSupportActive: UnwrapRef<ParliamentController['govSupportActive']>,
   readonly handPickActive: boolean,
   readonly hostTask: ConsoleTask | undefined,

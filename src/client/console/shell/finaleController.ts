@@ -17,7 +17,6 @@ import {Phase} from '@/common/Phase';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {liveWaitingSignal} from '@/client/components/overview/playerLabels';
 import {screenHandoffOwed, waitScreenHandoff} from '@/client/console/screenHandoff';
-import type {MaController} from '@/client/console/shell/maController';
 import type {JournalController} from '@/client/console/shell/journalController';
 import type {SeatController} from '@/client/console/shell/seatController';
 
@@ -30,7 +29,7 @@ export type FinalePort = {
   finalGreeneryCommitting: boolean,
   finalGreeneryPickPending: boolean,
   readonly finalGreeneryRawVm: FinalGreeneryViewModel | undefined,
-  game: UnwrapRef<MaController['game']>,
+  game: UnwrapRef<SeatController['game']>,
   /** WRITTEN here. */ journalColonyInspect: UnwrapRef<JournalController['journalColonyInspect']>,
   /** WRITTEN here. */ playedOpen: boolean,
   readonly playerView: PlayerViewModel,

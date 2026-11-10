@@ -40,8 +40,8 @@ import {ActualStartOwner, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOw
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {AdmissionSignals, PromptSurface, promptAdmissionBlock} from '@/client/console/consolePromptAdmission';
 import type {ConvertController} from '@/client/console/shell/convertController';
-import type {MaController} from '@/client/console/shell/maController';
 import type {SupervisorController} from '@/client/console/supervisor/supervisorController';
+import type {SeatController} from '@/client/console/shell/seatController';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -57,7 +57,7 @@ export type StartPort = {
   readonly consoleRevealMode: ConsoleRevealMode | undefined,
   convertPlantsPending: UnwrapRef<ConvertController['convertPlantsPending']>,
   readonly deckPickServing: boolean,
-  game: UnwrapRef<MaController['game']>,
+  game: UnwrapRef<SeatController['game']>,
   readonly nomadMoveHolds: boolean,
   readonly placementActive: boolean,
   readonly playerView: PlayerViewModel,

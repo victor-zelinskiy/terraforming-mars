@@ -3,7 +3,6 @@
  *
  * THE SEAT CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
-import type {UnwrapRef} from 'vue';
 import {computed} from 'vue';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
@@ -18,7 +17,7 @@ import {hasTurn} from '@/client/console/turnIntents';
 import {infoModeState} from '@/client/console/infoModeState';
 import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overview/playerLabels';
 import type {StagedColonyModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
-import type {MaController} from '@/client/console/shell/maController';
+import {GameModel} from '@/common/models/GameModel';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -28,7 +27,6 @@ export type SeatPort = {
   readonly endgameCollapsed: boolean,
   readonly endgameFrameLive: boolean,
   readonly endgameWorkspaceMounted: boolean,
-  game: UnwrapRef<MaController['game']>,
   readonly mandatoryDeferredActive: boolean,
   readonly placementActive: boolean,
   readonly playerView: PlayerViewModel,
@@ -39,6 +37,11 @@ export type SeatPort = {
 
 export function createSeatController(shell: SeatPort) {
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
+  /** The game as this seat sees it (the view's own model). */
+  const game = computed((): GameModel => {
+    return shell.playerView.game;
+  });
+
   const thisPlayer = computed(() => {
     return shell.playerView.thisPlayer;
   });
@@ -135,7 +138,7 @@ export function createSeatController(shell: SeatPort) {
    * nobody's turn is running and a law's live play from the hand legitimately hosts its own woken effect.
    */
   const viewerAskedOffTurn = computed((): boolean => {
-    return shell.playerView.waitingFor !== undefined && generationPhaseOf(shell.game) === Phase.ACTION && thisPlayer.value?.isActive !== true;
+    return shell.playerView.waitingFor !== undefined && generationPhaseOf(game.value) === Phase.ACTION && thisPlayer.value?.isActive !== true;
   });
 
   const viewerForcedReaction = computed((): boolean => {
@@ -242,6 +245,7 @@ export function createSeatController(shell: SeatPort) {
   }
 
   return {
+    game,
     thisPlayer,
     myTurn,
     awaitingInput,

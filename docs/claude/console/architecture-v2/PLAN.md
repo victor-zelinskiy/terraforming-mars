@@ -16,9 +16,9 @@
 | L4 | lifecycle 3 — the announce plate and «set aside» | **the plate: done** — `announceMachine`, one run per beat key, `pending` bounded (its door is the shell's); **«set aside»: with S4** (it is a state of the QUESTION, which the prompt router owns) |
 | S1 | the shell: session root + the supervisor out of the shell | **done** — `console/session/consoleSession.ts` (ONE root scope for the transport, the frames, the claims and the plates; it ends when the shell is unmounted); `console/supervisor/supervisorController.ts` (the 1 Hz sampler, the rungs, the wait-graph source, the reapers, the cures) — its 39-row PORT is the list of what the nets sample in the shell |
 | S2 | the shell: the extraction tool + the first islands | **done** — `scripts/shell-extract.mjs`; ten controllers under `console/shell/` (viewer · milestones/awards · wheel · cell · info · convert · rail · journal · surface · notice), each with its typed PORT; **every watcher is a one-line delegate** — the `watch` block is the ordered table of the shell's 145 reactions and their bodies are methods (`when<Key>Changes`) that move with their domains; the types the shell shares with its SFC children live in `.ts` modules. The shell is 25.2k lines (was 27.8k). The region components (template) ride S3 / S6 |
-| S6 · mechanical | the shell: EVERY domain is a controller | **done** — 33 controllers (table in §5 · S6); `ConsoleShell.vue` is 4.3k lines (was 27.8k): the template (1.6k), the composition root, the module-state mirrors, the ordered `watch` table, the two hooks and a 450-line view-apply reaction. What is left in it is NOT domain code |
+| S6 · mechanical | the shell: EVERY domain is a controller | **done** — 34 controllers (table in §5 · S6); `ConsoleShell.vue` is 3.8k lines (was 27.8k): the template (1.6k), the composition root, the module-state mirrors, the ordered `watch` table and the two hooks. What is left in it is NOT domain code, and it ONLY SHRINKS (`shellControllers.spec.ts` — a ratchet on its data / computed / methods / watch rows / lines) |
 | S5 · the owed conclusion | an ending that was refused is a RUN in its frame's scope | **done** — `console/workspaceConclusionOwe.ts`; the mailbox (`owedConclusion` + `…Since` + `…GhostSince`), the hand-written `owedConclusionSignal` (25 terms), `retryOwedConclusion` and the truth witness `workspace-conclusion-owed` are deleted; the wake is one row of the watch table over the key of the decision's OWN facts. *Open in S5:* owed STEPS as children of the frame's scope; the stale free-turn reaper |
-| S3 · S4 | the shell: surface registry (pad / bar / context — one table); the prompt router and «set aside» | — (each is now the redesign of named controllers: `padRouter` + `commandBar`; `router` + `mandatory`) |
+| S3 · S4 | the shell: surface registry (pad / bar / context — one table); the prompt router and «set aside» | **S3, first step: done** — the pad router says when a surface it routed a press to is not mounted (`handedTo`: dropped, named). The rest is open — each the redesign of named controllers: `padRouter` + `commandBar`; `router` + `mandatory` |
 | N1 | native stalls: LoAF in the field log, a trace on `unresponsive` | **done (diagnosis)** — `longFrameWatch.ts` (`[long-frame]` lines with the frame's split), `electron/hangTrace.ts` (a Chromium trace of every stop, named in the hang line); reducing what the first traces name is open |
 
 **Branch / tree.** The work is done in the worktree `C:\Projects\Mods\tm-arch` (branch `arch-v2`, rebased on
@@ -26,6 +26,35 @@
 (`git fetch` → HEAD = `origin/main`, own paths checked out) — the owner looks at the main clone.
 
 **Specs whose hooks or timing a slice touched** (the CI run at the end is the verdict — look here first): see §9.
+
+**What is open, in the order to take it** (each is a redesign of named controllers now, not an excavation):
+
+1. **S5, the rest** — owed STEPS as children of the frame's scope (`followUpStepOwed`, `hostedStepOwedTo`,
+   `politicalDiscardOwed`, `lawStepOwed` are computeds over module state; declared at the press that owes them they
+   make `conclusionFacts.owedStep` a structural fact). Then the ghost test, the forced teardown and
+   `reapStaleFreeTurnFrame` (the supervisor) can go: «nothing the player could act on» stops being sampled.
+2. **S4** — the prompt router (`routerController` 68 rows + `mandatoryController` 46): admission and the ownership
+   trios as one table; «set aside» as a record owned by its question (§5 · S4 has the analysis); the view-apply
+   reaction's twelve written rows (`viewApplyController`) become ends of their own flows. Retires the screen / start
+   director shadows, the leak detector's stranded check, the `deferred-restore` door.
+3. **S3, the rest** — the surface registry: `padRouterController` (150 rows) and `commandBarController` (108) ask
+   the same ~100 facts in two orders; one ordered table of surface entries, a surface registering its handler while
+   mounted (the pad path stops using `$refs` — `handedTo` is the bridge until then), then the region components (the
+   template block of a surface moves with its entry).
+4. **S6, the lifecycle half** — per domain, its reactions (`when…Changes` in its controller) and latches become
+   machine states / scoped runs: colonies and hydro first. A reaction of the shape «my frame is gone → reset my
+   flag» is NOT simply `workspaceFrameScope(kind).defer(…)`: those watchers key on `workspaceFrameKnown` (live or
+   parked), the scope lives through the THIRD home too (aside for the board) — decide per flag whether surviving
+   the excursion is the fix or a change (repeat pick, the delta reward / espionage picks, the card's hydro entry).
+5. **L1, the rest** — ticket-first arming (`openSubmit()` returns the ticket, scenes are armed ON it) at each
+   `arm…()` site, domain by domain; then the ticket-less `submitInput(out)` form goes.
+6. **Phase 3** — holds as scoped runs, the board stories and the directors' runs on the wait table; then the
+   wait-graph observer reads the kernel's table through one adapter and its hand-fed sources (`shellWaitNodes`) go.
+7. **S-last** — the session wires the controllers' ports directly (no instance in between), the 120-row `reset…()`
+   list in `beforeUnmount` becomes `onConsoleSessionEnd` registrations, and the session OWNS THE TICK: one ordered
+   pass of decisions per flush, after the reactions that complete the facts and before the render — the primitive
+   the watch table's rows need before they can leave it (§5 · S5 — the lesson of the owed conclusion).
+8. **N1** — read the first field traces (`hang-*.json` beside the logs, `[long-frame]` lines) and reduce what they name.
 
 ---
 
@@ -187,6 +216,16 @@ aside with no restore card» (A2) is not a state.
   what the decision reads — the «signal lacks a term» class is gone), acting under the run's identity so it acts once.
   Where real memory is needed it is a machine state, never a data-field latch.
 
+**As built so far** (the target above is reached in this order — §0 «What is open»): the composition root is still
+the shell's `setup()` — it opens the session (`useConsoleSession`) and constructs the 34 controllers, each reaching
+its siblings through its typed port over the shell instance (S-last wires the ports directly); the session is the
+root SCOPE and not yet a constructor of controllers; the controllers are flat under `console/shell/` (one file per
+domain — a directory per domain comes when a domain gains its machine); the surface registry and the region
+components are open (S3). «Decide by level» has its first instance (the owed conclusion: one facts object for the
+decision and the wake) and one amendment learned on the box: a decision that ACTS has a PLACE IN THE TICK — a
+reaction that leaves the watch table loses its row, and the row was that place (§5 · S5 — two free forms failed
+e2e); the wake stays a row until the session owns the tick.
+
 The vehicle for the bulk of the 27,801 lines is **mechanical** (§5.S2): a codemod over the SFC's script (TypeScript
 compiler API) moves a named member set — data, computeds, methods, with their comments — into a controller module,
 rewrites `this.` accesses (own members → locals, foreign members → the controller's typed port) and reports the
@@ -343,8 +382,9 @@ forwards to the new owner, it never keeps a second copy of the state.
   components — a template block reads members of several domains by bare name, so cutting it out is only mechanical
   once its surface has an entry of its own (S3 gives every surface one; the block then moves with it); the boot
   curtain and the test seams the map listed are rows of the shell's `mounted`, not members — they move with S1.
-  **A ratchet («the shell may only shrink») is deliberately not a guard yet**: `main` is shared and other sessions
-  still add to the shell; it becomes a guard in S-last.
+  **The ratchet («the shell may only shrink») is a guard since the mechanical half landed**
+  (`tests/console/shellControllers.spec.ts` — bounds on the shell's data fields, computeds, methods, watch rows and
+  lines; and «every watch row only delegates»): a new member of the shell is a domain member in the wrong place.
 - **S3 — the surface registry.** The three ladders become one ordered table; each branch moves to its surface's
   entry with its condition verbatim. The pad path stops using `$refs`: a surface registers its handler while mounted.
   **First step done — the router no longer vouches for a surface that is not there.** The ladder decides who owns
@@ -414,9 +454,12 @@ forwards to the new owner, it never keeps a second copy of the state.
   with the tool, in one reproducible pipeline (pristine shell → hand preps → `delegate-watchers` → `lift` of the
   shared module-level types / constants → `apply` × 33, imports kept whole until the last step → `prune`). The shell
   keeps: the template, `setup()` (the composition root: the session, the 33 controllers), the mirrors of module
-  state in `data()`, the `watch` table, `mounted` / `beforeUnmount`, the view-apply reaction
-  (`whenPlayerViewChanges`, 450 lines — the last knot that is not a domain; it goes with S4), and a handful of
-  one-line verbs.
+  state in `data()`, the `watch` table, `mounted` / `beforeUnmount`, and a handful of one-line verbs. The view-apply
+  reaction (`whenPlayerViewChanges`, 450 lines — what the shell does when a new view is applied) is a controller of
+  its own, `viewApplyController.ts`, and **its port is a finding**: 31 rows, TWELVE of them written without being
+  owned — one reaction that resets seven domains' «pending» latches on every view (`pendingPlayCard`,
+  `pendingClientPick`, `taskSpacePending`, `commitFoldOwed`, `finalGreeneryPickPending`, `stdProjectPickResponse`,
+  …). Each is a latch that should end with its own flow; the reaction shrinks by rows as they do (S4 / S5).
 
   **The dependency matrix the monolith never had** (members · lines · PORT rows — W = rows the domain writes without
   owning). A port is everything the controller reads of the rest of the shell; the big ones ARE the knots, by number:
@@ -438,6 +481,7 @@ forwards to the new owner, it never keeps a second copy of the state.
   | `journal` | 7 | 139 | 9 | | `cardActions` | 7 | 150 | 8 (W1) |
   | `info` · `cell` | 9 · 11 | 181 · 187 | 5 · 5 | | `rail` · `draft` | 7 · 12 | 113 · 181 | 4 · 4 |
   | `convert` | 7 | 76 | 2 | | `notice` · `surface` | 3 · 7 | 38 · 54 | 0 · 0 |
+  | `viewApply` (the reaction to a new view) | 1 | 562 | 31 (**W12**) | | | | | |
 
   Read it as the work list of the next slices: **S3** is `padRouter` + `commandBar` (258 rows between them — two
   ladders asking the same ~100 facts in two orders); **S4** is `router` + `mandatory`; **S5** is `outcome` (the W10 are
@@ -531,6 +575,7 @@ kernel, a net that still covers legacy code stays, and the table says what it st
 
 | Slice | What moved | Specs |
 | --- | --- | --- |
+| S6 · tidy | the view-apply reaction is a controller (`viewApplyController.ts` — the body of the `playerView` watch row, verbatim); `game` moved from the milestones / awards controller to the seat's (it had landed there by affinity); the shell's size is a ratchet | none expected — the same code, one call deeper |
 | S3 · first step | a press the router hands to a surface whose ref is not mounted is counted `verbDropped` (was: taken) and warns `[pad] … is not mounted` once — harvested by the harness, never red by itself; the liveness arbiter may now judge such a screen at once | a spec that presses A / B INTO a surface before it has mounted (it was a silently lost press before; now the echo says so): look for a new `[pad]` line in the stall harvest and a `[liveness] stall (presses-dropped…)` that was not there |
 | S5 · owed conclusion | a refused ending is re-asked when the decision's FACTS move (was: when a hand-listed signal moved) — by a row of the watch table in the place the signal's row stood (the same moment of the tick); where only the claim's reconcile could unlock it, on the facts it reads or on the 500 ms cadence after a 2.5 s grace (was: on every ingredient edge); the `[presentation-ledger] witness «workspace-conclusion-owed» healing` line is gone, `[workspace-conclusion] … on the re-ask cadence` says a cadence-made ending | every flow that ends through `concludeWorkspaceFlowOrOwe` while something still holds: `console-play-scale-conclusion`, `console-hi-tech-lab`, `console-viron-repeat-draw`, `console-deck-pick-collapse`, `console-blue-action-purchase` / `-receive`, `console-parliament-chairman-quest`, `console-parliament-actions`, `console-reds-campaign`, `console-colony-pluto-embed`, `console-pluto-bonus-discard`, `console-hydro-copied-tile`, `console-delta-surge`, `console-wg-play-from-hand`, `console-start-sponsor`, `console-one-framework-draw`, `console-multi-effect-sequence` |
 | S6 · mechanical | every domain's members are setup-state of the shell (same names; the template, the watch table and the hooks unchanged); the series' input gate registers in the pad router's `onMounted` (a setup hook runs before the shell's `mounted`); `COPIED_ACTION_STANCES['deck-check'].file` names the reveal controller | ANY console spec — this is the slice a wholesale regression would come from. Pointwise on the box (63 files across every domain — the list is in the commit): green. Look first at whatever mounts late or reads a `$refs` instance: the hand album's transition targets, the Parliament's leave, the colony roster's ceremony |

@@ -65,7 +65,6 @@ import type {PlayedController} from '@/client/console/shell/playedController';
 import type {HandSelectController} from '@/client/console/shell/handSelectController';
 import type {DraftController} from '@/client/console/shell/draftController';
 import type {OutcomeController} from '@/client/console/shell/outcomeController';
-import type {MaController} from '@/client/console/shell/maController';
 import type {ParliamentController} from '@/client/console/shell/parliamentController';
 import type {RouterController} from '@/client/console/shell/routerController';
 import type {JournalController} from '@/client/console/shell/journalController';
@@ -94,7 +93,7 @@ export type HandPort = {
   executeRtEntry(id: string): void,
   externalDrawWorkspaceMounted: UnwrapRef<RevealController['externalDrawWorkspaceMounted']>,
   followUpStepStageKey: UnwrapRef<OutcomeController['followUpStepStageKey']>,
-  game: UnwrapRef<MaController['game']>,
+  game: UnwrapRef<SeatController['game']>,
   govSupportActive: UnwrapRef<ParliamentController['govSupportActive']>,
   handOutcomeLive: UnwrapRef<OutcomeController['handOutcomeLive']>,
   handPickActive: UnwrapRef<HandSelectController['handPickActive']>,

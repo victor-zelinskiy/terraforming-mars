@@ -17,14 +17,14 @@ import {seatRestricted} from '@/common/models/ParliamentModel';
 import {PristarMark, RatingSkipMark, pristarMarkOf, ratingSkipMarkOf} from '@/client/console/railMarks';
 import {infoModeState} from '@/client/console/infoModeState';
 import {translateText} from '@/client/directives/i18n';
-import type {MaController} from '@/client/console/shell/maController';
+import type {SeatController} from '@/client/console/shell/seatController';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
 export type RailPort = {
-  game: UnwrapRef<MaController['game']>,
+  game: UnwrapRef<SeatController['game']>,
   readonly inspectedPlayer: PublicPlayerModel,
   readonly playerView: PlayerViewModel,
   readonly thisPlayer: PublicPlayerModel,

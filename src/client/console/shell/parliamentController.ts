@@ -70,7 +70,6 @@ import {PendingPlayCard, PendingClientPayment, PARLIAMENT_LEAVE_NET_MS, PARLIAME
 import type {StagedController} from '@/client/console/shell/stagedController';
 import type {CardActionsController} from '@/client/console/shell/cardActionsController';
 import type {StartController} from '@/client/console/shell/startController';
-import type {MaController} from '@/client/console/shell/maController';
 import type {PlayedController} from '@/client/console/shell/playedController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
 import type {SeatController} from '@/client/console/shell/seatController';
@@ -97,7 +96,7 @@ export type ParliamentPort = {
   enterStagedHostedStep(arm: StagedPlayArm, frame: Parameters<typeof pushWorkspaceFrame>[0]): Promise<void>,
   enterWorkspaceAfterHandoff(kind: WorkspaceFrameKind, opts: {anchor: FrameAnchor}): void,
   focusFirstSelectableHandCard(): void,
-  game: UnwrapRef<MaController['game']>,
+  game: UnwrapRef<SeatController['game']>,
   handDissolveArmed: boolean,
   readonly handEntries: ReadonlyArray<ConsoleHandEntry>,
   hostedStepEntered(): boolean,

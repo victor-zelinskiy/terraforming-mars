@@ -60,7 +60,6 @@ import type {StagedController} from '@/client/console/shell/stagedController';
 import type {OutcomeController} from '@/client/console/shell/outcomeController';
 import type {ConvertController} from '@/client/console/shell/convertController';
 import type {PlacementController} from '@/client/console/shell/placementController';
-import type {MaController} from '@/client/console/shell/maController';
 import type {PlayedController} from '@/client/console/shell/playedController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
 import type {SeatController} from '@/client/console/shell/seatController';
@@ -89,7 +88,7 @@ export type PlayCardPort = {
   enterStagedPlacement: UnwrapRef<PlacementController['enterStagedPlacement']>,
   foldHandStage(): void,
   followUpStepOwed: UnwrapRef<OutcomeController['followUpStepOwed']>,
-  game: UnwrapRef<MaController['game']>,
+  game: UnwrapRef<SeatController['game']>,
   readonly handEntries: ReadonlyArray<ConsoleHandEntry>,
   handExitSlot(name: CardName): HTMLElement | null,
   handOutcomeLive: UnwrapRef<OutcomeController['handOutcomeLive']>,

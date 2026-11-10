@@ -24,7 +24,7 @@ import {WheelArmEvent, WheelInputState, initialWheelInput} from '@/client/consol
 import {ensureActionPreviews} from '@/client/console/actionPreviewStore';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {findEndTurnPath, findPassPath} from '@/client/console/turnIntents';
-import type {MaController} from '@/client/console/shell/maController';
+import type {SeatController} from '@/client/console/shell/seatController';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -41,7 +41,7 @@ export type WheelPort = {
   readonly convertHeatVetoed: boolean,
   readonly convertPlantsReady: boolean,
   feedWheelArm(event: WheelArmEvent): void,
-  game: UnwrapRef<MaController['game']>,
+  game: UnwrapRef<SeatController['game']>,
   readonly myTurn: boolean,
   readonly playerView: PlayerViewModel,
   readonly postGame: boolean,

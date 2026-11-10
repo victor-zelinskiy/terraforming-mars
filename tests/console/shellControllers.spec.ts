@@ -48,29 +48,48 @@ function controllers(): ReadonlyArray<Controller> {
   return out;
 }
 
-/** The names the shell's own options declare: props, data fields, computeds, methods (each at its block's indent). */
-function shellOwnNames(shell: string): ReadonlyArray<string> {
+type ShellOwn = {props: Array<string>, data: Array<string>, computed: Array<string>, methods: Array<string>, watchers: Array<string>};
+
+/** What the shell's own options declare: props, data fields, computeds, methods, watch rows (each at its block's indent). */
+function shellOwn(shell: string): ShellOwn {
   const script = shell.slice(shell.indexOf('<script lang="ts">'));
-  const names: Array<string> = [];
-  const block = (open: string, close: string, row: RegExp) => {
+  const block = (open: string, close: string, row: RegExp): Array<string> => {
     const from = script.indexOf(open);
     if (from === -1) {
-      return;
+      return [];
     }
-    const body = script.slice(from, script.indexOf(close, from));
-    for (const line of body.split('\n')) {
+    const names: Array<string> = [];
+    for (const line of script.slice(from, script.indexOf(close, from)).split('\n')) {
       const key = row.exec(line);
       if (key !== null) {
         names.push(key[1]);
       }
     }
+    return names;
   };
-  block('\n  props: {\n', '\n  },\n', /^ {4}(\w+): \{/);
-  block('\n  data() {\n', '\n  },\n', /^ {6}(\w+)[,:]/);
-  block('\n  computed: {\n', '\n  watch: {\n', /^ {4}(?:async )?(\w+)\(/);
-  block('\n  methods: {\n', '\n  mounted() {\n', /^ {4}(?:async )?(\w+)\(/);
-  return names;
+  return {
+    props: block('\n  props: {\n', '\n  },\n', /^ {4}(\w+): \{/),
+    data: block('\n  data() {\n', '\n  },\n', /^ {6}(\w+)[,:]/),
+    computed: block('\n  computed: {\n', '\n  watch: {\n', /^ {4}(?:async )?(\w+)\(/),
+    methods: block('\n  methods: {\n', '\n  mounted() {\n', /^ {4}(?:async )?(\w+)\(/),
+    watchers: block('\n  watch: {\n', '\n  methods: {\n', /^ {4}('[^']+'|\w+)(?:\(|: \{)/),
+  };
 }
+
+/** …as one list of names. */
+function shellOwnNames(shell: string): ReadonlyArray<string> {
+  const own = shellOwn(shell);
+  return [...own.props, ...own.data, ...own.computed, ...own.methods];
+}
+
+/**
+ * THE SHELL ONLY SHRINKS. What it still declares is not domain code: the mirrors of module state the template and the
+ * path watchers need, three facts of the phase anchors, a handful of one-line verbs, and the `watch` table (the ordered
+ * list of reactions — each a one-line delegate). A NEW data field, computed, method or watch row here is a domain member
+ * in the wrong place: it belongs in a controller (`.claude/rules/console-flow.md` § The shell is being taken apart).
+ * When a member LEAVES the shell, lower its bound in the same diff.
+ */
+const SHELL_BOUNDS = {data: 38, computed: 3, methods: 28, watchers: 145, lines: 3800};
 
 describe('the shell is a composition root — its controllers', () => {
   const shell = read(SHELL);
@@ -137,6 +156,29 @@ describe('the shell is a composition root — its controllers', () => {
       }
     }
     expect(offenders, 'move the type into the SFC\'s sibling `<component>Types.ts` and import it from there').to.deep.equal([]);
+  });
+
+  it('THE SHELL ONLY SHRINKS: no new data field, computed, method or watch row', () => {
+    const own = shellOwn(shell);
+    const counts = {
+      data: own.data.length, computed: own.computed.length, methods: own.methods.length, watchers: own.watchers.length,
+      lines: shell.split('\n').length,
+    };
+    expect(own.watchers.length, 'the watch table is read').to.be.greaterThan(100);
+    for (const key of Object.keys(SHELL_BOUNDS) as Array<keyof typeof SHELL_BOUNDS>) {
+      expect(counts[key], `the shell's ${key}: ${counts[key]} — new shell behaviour is a CONTROLLER member, not a member of ` +
+        'ConsoleShell.vue (lower the bound when one leaves)').to.be.at.most(SHELL_BOUNDS[key]);
+    }
+  });
+
+  it('the watch block is a TABLE: every row only delegates to its reaction\'s body (`this.when<Key>Changes(…)`)', () => {
+    const watch = shell.slice(shell.indexOf('\n  watch: {\n'), shell.indexOf('\n  methods: {\n'));
+    const delegates = watch.match(/this\.when\w+Changes\d*\(/g) ?? [];
+    expect(delegates.length, 'the delegates are read').to.be.greaterThan(100);
+    // Whatever uses the instance in the table and is not a delegate is a body that stayed behind.
+    const stray = watch.split('\n').filter((line) => /\bthis\./.test(line) && !/^\s*(?:return )?this\.when\w+Changes\d*\([\w, ]*\);$/.test(line))
+      .filter((line) => !/^\s*(?:\/\/|\*|\/\*)/.test(line));
+    expect(stray, 'move the body into its controller as `when<Key>Changes` — the table keeps the order, nothing else').to.deep.equal([]);
   });
 
   it('the shell proves it provides every port: one conformance row per controller that has one', () => {

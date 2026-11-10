@@ -52,7 +52,6 @@ import {journalState} from '@/client/components/journal/journalState';
 import {MandatoryBeat, MandatoryFlowBeat, mandatoryBeatFor, isMandatoryBeatHeld, isMandatoryBeatPresented, forceMandatoryBeacon, isMandatoryBeaconForced, acknowledgeMandatoryBeat, markMandatoryBeatPresented, noteMandatoryBeatIdentity, isResolutionAsk} from '@/client/console/consoleMandatoryGate';
 import type {ColonyController} from '@/client/console/shell/colonyController';
 import type {FinaleController} from '@/client/console/shell/finaleController';
-import type {MaController} from '@/client/console/shell/maController';
 import type {ParliamentController} from '@/client/console/shell/parliamentController';
 import type {PlacementController} from '@/client/console/shell/placementController';
 import type {PlayedController} from '@/client/console/shell/playedController';
@@ -80,7 +79,7 @@ export type MandatoryPort = {
   enterWorkspaceAfterHandoff(kind: WorkspaceFrameKind, opts: {anchor: FrameAnchor}): void,
   finaleCollapsed: UnwrapRef<FinaleController['finaleCollapsed']>,
   finaleSessionEngaged: UnwrapRef<FinaleController['finaleSessionEngaged']>,
-  game: UnwrapRef<MaController['game']>,
+  game: UnwrapRef<SeatController['game']>,
   readonly handPickActive: boolean,
   readonly handSelectSingle: boolean,
   readonly hostTask: ConsoleTask | undefined,

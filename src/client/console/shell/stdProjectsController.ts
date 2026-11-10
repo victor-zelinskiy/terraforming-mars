@@ -30,7 +30,6 @@ import {translateTextWithParams} from '@/client/directives/i18n';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {PendingClientPayment, PendingClientPick} from '@/client/console/shell/shellShared';
 import type {SeatController} from '@/client/console/shell/seatController';
-import type {MaController} from '@/client/console/shell/maController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
 
 /**
@@ -44,7 +43,7 @@ export type StdProjectsPort = {
   readonly cardsTotalCount: number,
   readonly colonyResolutionLive: boolean,
   concludeWorkspaceFlow(kind: WorkspaceFrameKind, servedPromptHolds?: boolean): boolean,
-  game: UnwrapRef<MaController['game']>,
+  game: UnwrapRef<SeatController['game']>,
   readonly handEntries: ReadonlyArray<ConsoleHandEntry>,
   myTurn: UnwrapRef<SeatController['myTurn']>,
   openHandWithReveal(opts?: {keepTask?: boolean, overlay?: boolean}): Promise<void>,

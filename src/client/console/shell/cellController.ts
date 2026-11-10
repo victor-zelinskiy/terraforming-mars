@@ -18,14 +18,14 @@ import {consoleState} from '@/client/console/consoleRouter';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {boardInfoState, fetchBoardCellPreview} from '@/client/components/board/boardInfoState';
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
-import type {MaController} from '@/client/console/shell/maController';
+import type {SeatController} from '@/client/console/shell/seatController';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
 export type CellPort = {
-  game: UnwrapRef<MaController['game']>,
+  game: UnwrapRef<SeatController['game']>,
   readonly placementActive: boolean,
   readonly placementMoveFrom: SpaceId | undefined,
   readonly placementSpaceModel: SelectSpaceModel | undefined,

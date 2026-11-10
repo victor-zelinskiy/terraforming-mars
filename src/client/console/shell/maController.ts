@@ -13,7 +13,6 @@ import {claimMaVp, dropMaVp, flyMaVp} from '@/client/console/scoreCell/maVp';
 import {addressed, AddressableInput, promptAddressOf} from '@/common/inputs/preselectAddress';
 import {computed, ref} from 'vue';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
-import {GameModel} from '@/common/models/GameModel';
 import {Message} from '@/common/logs/Message';
 import {SelectPaymentModel} from '@/common/models/PlayerInputModel';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
@@ -40,6 +39,8 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {AWARD_COSTS, MILESTONE_COST} from '@/common/constants';
 import {findAwardOptionPath, findMilestoneOptionPath, inputTitleText, wrapPath} from '@/client/console/turnIntents';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import type {SeatController} from '@/client/console/shell/seatController';
+import type {UnwrapRef} from 'vue';
 
 /**
  * Identity-stable MA HUD zones (perf iteration 3). `buildMaHudZone` returns a
@@ -63,6 +64,7 @@ const MA_COMMIT_SAFETY_MS = 15_000;
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
 export type MaPort = {
+  game: UnwrapRef<SeatController['game']>,
   $refs: Record<string, unknown>,
   readonly actionBlockedReason: string,
   readonly awaitingInput: boolean,
@@ -82,21 +84,17 @@ export function createMaController(shell: MaPort) {
   const maFocusSafetyTimer = ref(undefined as number | undefined);
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
-  const game = computed((): GameModel => {
-    return shell.playerView.game;
-  });
-
   /** Award names for the translation-proof structure fallback (the fund
    *  OrOptions title is a Message that i18n mutates in place). */
   const awardNames = computed((): Array<string> => {
-    return game.value.awards.map((a) => a.name);
+    return shell.game.awards.map((a) => a.name);
   });
 
   /** P30: the right STRATEGY RAIL's Milestones/Awards projections — the
    *  same authoritative sources as the workspaces (models + the live
    *  waitingFor option set + the server's own `maCosts` prices). */
   const hudMilestoneZone = computed((): MaHudZone => {
-    const next = buildMaHudZone('milestones', game.value.milestones, {
+    const next = buildMaHudZone('milestones', shell.game.milestones, {
       myColor: shell.thisPlayer.color,
       availableNow: claimableTitles(findMilestoneOptionPath(shell.playerView.waitingFor)?.options),
       maxSlots: 3,
@@ -107,7 +105,7 @@ export function createMaController(shell: MaPort) {
   });
 
   const hudAwardZone = computed((): MaHudZone => {
-    const next = buildMaHudZone('awards', game.value.awards, {
+    const next = buildMaHudZone('awards', shell.game.awards, {
       myColor: shell.thisPlayer.color,
       availableNow: claimableTitles(findAwardOptionPath(shell.playerView.waitingFor, awardNames.value)?.options),
       maxSlots: 3,
@@ -148,7 +146,7 @@ export function createMaController(shell: MaPort) {
   });
 
   const awardCostValue = computed((): number => {
-    const funded = game.value.awards.filter((a) => a.playerName !== undefined && a.playerName !== '').length;
+    const funded = shell.game.awards.filter((a) => a.playerName !== undefined && a.playerName !== '').length;
     return shell.playerView.maCosts?.award ?? (AWARD_COSTS[funded] ?? AWARD_COSTS[AWARD_COSTS.length - 1]);
   });
 
@@ -198,7 +196,7 @@ export function createMaController(shell: MaPort) {
       return undefined;
     }
     const kind = maFocusState.kind;
-    const models = kind === 'milestone' ? game.value.milestones : game.value.awards;
+    const models = kind === 'milestone' ? shell.game.milestones : shell.game.awards;
     const source = models.find((m) => m.name === maFocusState.name);
     if (source === undefined) {
       return undefined;
@@ -329,7 +327,7 @@ export function createMaController(shell: MaPort) {
     // FUNDING order, by the server's `slot` (PC01 · GO): the model lists the awards in BOARD order, so a ladder that
     // paired board order with the slot prices seated a sponsor on somebody else's price. A model without the field
     // keeps the board order (the degrade it always had).
-    return game.value.awards
+    return shell.game.awards
       .filter((a) => a.playerName !== undefined && a.playerName !== '' && a.color !== undefined)
       .map((a, i) => ({a, order: a.slot ?? i}))
       .sort((x, y) => x.order - y.order)
@@ -378,7 +376,7 @@ export function createMaController(shell: MaPort) {
         return '';
       }
     };
-    return buildConsoleMaItems(kind, kind === 'milestones' ? game.value.milestones : game.value.awards, {
+    return buildConsoleMaItems(kind, kind === 'milestones' ? shell.game.milestones : shell.game.awards, {
       myColor: shell.thisPlayer.color,
       blockedReason: awardFundingActive.value ? '' : shell.actionBlockedReason,
       myTurn: shell.myTurn,
@@ -481,7 +479,7 @@ export function createMaController(shell: MaPort) {
     // held from the view that pays it and flown into the detail's printed price before the ceremony.
     armMaPrice(item.name, view.free ? {} : payment !== undefined ?
       {megacredits: payment.megacredits, heat: payment.heat} : {megacredits: view.cost});
-    beginMaFocusCommit({gameAge: game.value.gameAge, undoCount: game.value.undoCount});
+    beginMaFocusCommit({gameAge: shell.game.gameAge, undoCount: shell.game.undoCount});
     claimMaCeremonyEmbed(item.kind, item.name);
     armMaCeremony({kind: item.kind, name: item.name, cost: view.cost, free: view.free, price: view.price});
     // THE SCORE CELL (TR55): the milestone's +5 / the award's place is the ceremony's to show — held to its token.
@@ -584,7 +582,7 @@ export function createMaController(shell: MaPort) {
     if (committed === undefined) {
       return;
     }
-    const models = maFocusState.kind === 'milestone' ? game.value.milestones : game.value.awards;
+    const models = maFocusState.kind === 'milestone' ? shell.game.milestones : shell.game.awards;
     const model = models.find((m) => m.name === maFocusState.name);
     const takenColor = model !== undefined && model.playerName !== undefined && model.playerName !== '' ?
       model.color : undefined;
@@ -596,7 +594,7 @@ export function createMaController(shell: MaPort) {
       takenByViewer: takenColor !== undefined && takenColor === shell.thisPlayer.color,
       takenByOther: takenColor !== undefined && takenColor !== shell.thisPlayer.color,
       paymentPromptUp: shell.playerView.waitingFor?.type === 'payment',
-      viewAdvanced: game.value.gameAge !== committed.gameAge || game.value.undoCount !== committed.undoCount,
+      viewAdvanced: shell.game.gameAge !== committed.gameAge || shell.game.undoCount !== committed.undoCount,
     });
     switch (outcome.kind) {
     case 'wait':
@@ -695,7 +693,6 @@ export function createMaController(shell: MaPort) {
 
   return {
     maFocusSafetyTimer,
-    game,
     awardNames,
     hudMilestoneZone,
     hudAwardZone,
