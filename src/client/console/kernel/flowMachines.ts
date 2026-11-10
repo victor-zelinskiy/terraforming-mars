@@ -7,6 +7,7 @@
  * here — a lifecycle that skips the law is how «a state with no exit» comes back.
  */
 import {AnyStateMachine, EventObject} from 'xstate';
+import {CLAIM_SAMPLE_EVENTS, claimMachine, claimMachineServing} from '@/client/console/consoleWorkspaceClaim';
 import {FRAME_SAMPLE_EVENTS, frameMachine, frameSnapshotKey} from '@/client/console/consoleWorkspaceFrame';
 import {SUBMIT_SAMPLE_EVENTS, submitMachine} from '@/client/console/transport/submitMachine';
 
@@ -29,5 +30,15 @@ export const FLOW_MACHINES: ReadonlyArray<FlowMachineEntry> = [
   {
     name: 'frame', file: 'console/consoleWorkspaceFrame.ts', machine: frameMachine, events: FRAME_SAMPLE_EVENTS,
     input: {kind: 'hand', phase: 'browse', away: false}, key: frameSnapshotKey,
+  },
+  // The claim in its four worlds: a card outcome (its input gate shut) or not, hosted or orphaned at birth — and the
+  // one whose release funnel always refuses (it serves for ever: the safety must lead to the player's time, not a loop).
+  ...[true, false].flatMap((gated) => [true, false].map((hosted): FlowMachineEntry => ({
+    name: `claim (${gated ? 'cards' : 'verdict'}, ${hosted ? 'hosted' : 'orphaned'})`, file: 'console/consoleWorkspaceClaim.ts',
+    machine: claimMachine, events: CLAIM_SAMPLE_EVENTS, input: {gated, hosted},
+  }))),
+  {
+    name: 'claim (serving for ever)', file: 'console/consoleWorkspaceClaim.ts',
+    machine: claimMachineServing, events: CLAIM_SAMPLE_EVENTS, input: {gated: true, hosted: true},
   },
 ];

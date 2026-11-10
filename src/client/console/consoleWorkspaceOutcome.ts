@@ -35,7 +35,10 @@ import {reactive} from 'vue';
 import {CardDrawRevealSource, CardIntakeBatchRef, intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import type {ZoomOrigin} from '@/client/console/consoleCardZoom';
 import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
-import {workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
+import {workspaceFrameKnown, workspaceFrameScope} from '@/client/console/consoleWorkspaceStack';
+import {FlowScope, openFlowRoot, until} from '@/client/console/kernel/flowScope';
+import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
+import {CLAIM_HOST_GONE_GRACE_MS, claimMachine} from '@/client/console/consoleWorkspaceClaim';
 import {partyTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
 import {embedZoneMounted} from '@/client/console/embedZoneRegistry';
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
@@ -278,80 +281,154 @@ export const workspaceOutcomeState = reactive({
   arrivalFlown: false,
 });
 
-/**
- * Backstop only: the beat must never withhold the outcome forever if its
- * flight never runs (no DOM, a stalled GSAP timeline in a backgrounded tab).
+// ── THE CLAIM'S LIFE IN TIME — one machine in one scope (consoleWorkspaceClaim.ts) ─────────────────────────────────
+
+/*
+ * The record above is WHAT the claim is; this is the run that carries it. One claim = one scope with its machine: the
+ * three backstops (the execution beat, the arrival, «claimed and nothing came») are states with a bound, and the claim
+ * is BOUND TO ITS HOST FRAME'S SCOPE — when the last frame of the host goes (from the live stack, the park or aside for
+ * the board: `workspaceFrameScope` is one answer for all three), the claim is told, and a host that does not stand
+ * again within the grace releases it. The shell's 1 Hz `releaseOrphanedClaim` and its «known nowhere» predicate are
+ * gone: there is no place left to forget.
  *
- * DELIBERATELY SHORT. A backstop is a failure path, and its duration is what
- * the player experiences WHEN IT FIRES — at 6 s the first bug in the release
- * chain read as an eight-second dead screen followed by the old animation,
- * which is far worse than no beat at all. The healthy flight settles in ~1.4 s,
- * so anything past ~2.5 s already means something is wrong; failing fast turns
- * a broken beat into a slightly abrupt one instead of a hang.
- *
- * The honest face-down hold on a genuinely slow server is NOT bounded by this:
- * that path ends when the answer lands, and this timer only releases the
- * OUTCOME gate — it never fakes a flip.
+ * `stage`, `beatDone` and `arrivalDone` of the record are this machine's MIRRORS.
  */
-const BEAT_SAFETY_MS = 2600;
+type LiveClaim = {
+  scope: FlowScope<'claim'>,
+  flow: FlowActor<typeof claimMachine>,
+  /** Unsubscribes from the bound host frame's end. */
+  offHost: (() => void) | undefined,
+  /** A wait for the host to stand (again) is already armed. */
+  awaitingHost: boolean,
+};
 
-let beatTimer: ReturnType<typeof setTimeout> | undefined;
+let liveClaim: LiveClaim | undefined;
+let claimsRoot: FlowScope<'chain'> | undefined;
 
-function clearBeat(): void {
-  if (beatTimer !== undefined) {
-    clearTimeout(beatTimer);
-    beatTimer = undefined;
+function claimsRootScope(): FlowScope<'chain'> {
+  if (claimsRoot === undefined || claimsRoot.ended !== undefined) {
+    claimsRoot = openFlowRoot('chain', 'claims');
   }
+  return claimsRoot;
 }
 
-/**
- * The ARRIVAL's own backstop. The gate is a courtesy to the animation, never
- * its hostage: a flight that never launched, a killed timeline or a stage torn
- * down mid-air must not leave the player looking at a stage with no focus ring,
- * no verbs and every press swallowed.
- *
- * Armed from the ANSWER, not from the claim, because the surface cannot exist
- * before the answer does — an honest wait on a slow server is not the failure
- * this guards. Generous next to the batch it covers (~1.1 s for a pair, ~1.6 s
- * for the seven-card reveal once the landing cadence has spread it), and short
- * enough that the failure reads as an abrupt arrival rather than a dead screen.
- */
-const ARRIVAL_SAFETY_MS = 5000;
-
-let arrivalTimer: ReturnType<typeof setTimeout> | undefined;
-
-function clearArrival(): void {
-  if (arrivalTimer !== undefined) {
-    clearTimeout(arrivalTimer);
-    arrivalTimer = undefined;
-  }
+/** The release funnel's guard — a claim that SERVES and whose host stands may not be released (see § the serving probe). */
+function releaseGuarded(): boolean {
+  return workspaceOutcomeServing() &&
+    workspaceOutcomeState.host !== undefined && workspaceFrameKnown(workspaceOutcomeState.host);
 }
 
-function armArrivalSafety(): void {
-  if (workspaceOutcomeState.arrivalDone || typeof setTimeout !== 'function') {
+const claimLogic = claimMachine.provide({guards: {mayRelease: () => !releaseGuarded()}});
+
+function mirrorClaim(snapshot: {value: unknown, context: {stage: 'awaiting' | 'presenting'}}): void {
+  const regions = (snapshot.value as {live?: {beat?: string, arrival?: string}}).live;
+  if (regions === undefined) {
     return;
   }
-  clearArrival();
-  arrivalTimer = setTimeout(() => {
-    arrivalTimer = undefined;
-    workspaceOutcomeState.arrivalDone = true;
-  }, ARRIVAL_SAFETY_MS);
+  workspaceOutcomeState.stage = snapshot.context.stage;
+  workspaceOutcomeState.beatDone = regions.beat === 'over';
+  workspaceOutcomeState.arrivalDone = regions.arrival === 'open';
+}
+
+/**
+ * BIND THE CLAIM TO ITS HOST'S FRAME. The frame's scope ending is the event «the host went» — whichever home it went
+ * from; a frame of the host's kind standing (again) re-binds (a claim placed a line before its frame is pushed, a
+ * workspace re-entered, a claim moved to another host by `rehomeWorkspaceOutcome`).
+ */
+function bindClaimHost(claim: LiveClaim): void {
+  claim.offHost?.();
+  claim.offHost = undefined;
+  const host = workspaceOutcomeState.host;
+  const hostScope = host === undefined ? undefined : workspaceFrameScope(host);
+  if (hostScope !== undefined) {
+    claim.flow.send({type: 'HOST_BACK'});
+    claim.offHost = hostScope.onEnd(() => {
+      claim.offHost = undefined;
+      if (liveClaim === claim) {
+        bindClaimHost(claim);
+      }
+    });
+    return;
+  }
+  claim.flow.send({type: 'HOST_GONE'});
+  if (claim.awaitingHost) {
+    return;
+  }
+  claim.awaitingHost = true;
+  void claim.scope.wait(until('a frame of its host stands', () => {
+    const now = workspaceOutcomeState.host;
+    return now !== undefined && workspaceFrameScope(now) !== undefined;
+  }), {
+    bound: {ms: CLAIM_HOST_GONE_GRACE_MS * 4, quiet: 'the orphan bound is the machine\'s own'},
+    // SYNCHRONOUSLY: the re-bind must not lose a race with the orphan bound armed for the same moment.
+    onSettle: (result) => {
+      claim.awaitingHost = false;
+      if (result.status === 'met' && liveClaim === claim) {
+        bindClaimHost(claim);
+      }
+    },
+  });
+}
+
+function endClaim(reason: string): void {
+  const claim = liveClaim;
+  if (claim === undefined) {
+    return;
+  }
+  liveClaim = undefined;
+  claim.offHost?.();
+  claim.scope.end({how: 'cancelled', reason});
+}
+
+/** A claim STARTS (the record's fields are already written): the previous one's run is over, a new one begins. */
+function startClaim(gated: boolean): void {
+  endClaim('replaced by a new claim');
+  const host = workspaceOutcomeState.host;
+  const hosted = host !== undefined && workspaceFrameScope(host) !== undefined;
+  const scope = claimsRootScope().open('claim', `${host ?? '-'}/${workspaceOutcomeState.sourceCard}`);
+  const flow = startFlowActor(scope, claimLogic, {input: {gated, hosted}, endScopeOnDone: false});
+  const claim: LiveClaim = {scope, flow, offHost: undefined, awaitingHost: false};
+  liveClaim = claim;
+  flow.actor.subscribe((snapshot) => {
+    if (liveClaim !== claim) {
+      return;
+    }
+    if (snapshot.status === 'done') {
+      claimEndedItself(snapshot.context.ended);
+      return;
+    }
+    mirrorClaim(snapshot);
+  });
+  mirrorClaim(flow.snapshot.value);
+  bindClaimHost(claim);
+}
+
+/** The machine reached its end by one of ITS OWN bounds — «claimed and nothing came», or its host stayed gone. */
+function claimEndedItself(reason: string): void {
+  if (reason === 'host-gone') {
+    const host = workspaceOutcomeState.host;
+    const card = workspaceOutcomeState.sourceCard;
+    const kinds = workspaceOutcomeState.kinds.join(',');
+    performRelease('host-gone');
+    console.warn(`[workspace-outcome] the claim of «${host}» (${card} [${kinds}]) outlived its host — released; its question presents on its own surface`);
+    return;
+  }
+  performRelease(reason === '' ? 'claim-safety' : reason);
 }
 
 /** The shell: the artifact exists — the card may turn over. */
 export function markWorkspaceOutcomeAnswerIn(): void {
   if (workspaceOutcomeState.sourceCard !== '') {
     workspaceOutcomeState.answerIn = true;
-    if (arrivalTimer === undefined) {
-      armArrivalSafety();
-    }
+    // The arrival's backstop is armed from the ANSWER (the surface cannot exist before it does) — once.
+    liveClaim?.flow.send({type: 'ANSWER_IN'});
   }
 }
 
 /** The execution beat finished (the flight settled, or the backstop fired). */
 export function markWorkspaceOutcomeBeatDone(): void {
-  clearBeat();
   workspaceOutcomeState.beatDone = true;
+  liveClaim?.flow.send({type: 'BEAT_DONE'});
 }
 
 /**
@@ -379,15 +456,7 @@ export function rearmWorkspaceOutcomeBeat(): void {
   if (workspaceOutcomeState.sourceCard === '' || workspaceOutcomeState.stage !== 'awaiting') {
     return;
   }
-  clearBeat();
-  workspaceOutcomeState.beatDone = false;
-  if (typeof setTimeout === 'function') {
-    beatTimer = setTimeout(() => {
-      markWorkspaceOutcomeBeatDone();
-    }, BEAT_SAFETY_MS);
-  } else {
-    workspaceOutcomeState.beatDone = true;
-  }
+  liveClaim?.flow.send({type: 'REARM_BEAT'});
 }
 
 /** Is the execution beat still playing? */
@@ -397,8 +466,8 @@ export function workspaceOutcomeBeatPending(): boolean {
 
 /** The batch has fully arrived (landed, opened, handed over) — input may open. */
 export function markWorkspaceOutcomeArrivalDone(): void {
-  clearArrival();
   workspaceOutcomeState.arrivalDone = true;
+  liveClaim?.flow.send({type: 'ARRIVAL_DONE'});
 }
 
 /** The claim's own beat has physically launched this outcome's cards off the
@@ -506,36 +575,6 @@ export function setWorkspaceOutcomePhase(key: string): void {
 }
 
 /**
- * A claim can never outlive its flow. The surface's own unmount releases it in
- * the normal case; this backstop covers the abnormal ones (a lost response, a
- * server that answers with nothing card-shaped, a torn-down component whose
- * hook did not run). It is deliberately LONGER than the surface-motion awaiting
- * safety (6 s) — that one dismisses the stage, and only once the stage is gone
- * does an orphaned claim start suppressing standalone presenters.
- */
-const CLAIM_SAFETY_MS = 20_000;
-
-let safetyTimer: ReturnType<typeof setTimeout> | undefined;
-
-function clearSafety(): void {
-  if (safetyTimer !== undefined) {
-    clearTimeout(safetyTimer);
-    safetyTimer = undefined;
-  }
-}
-
-function armSafety(): void {
-  clearSafety();
-  if (typeof setTimeout !== 'function') {
-    return;
-  }
-  safetyTimer = setTimeout(() => {
-    safetyTimer = undefined;
-    releaseWorkspaceOutcome('claim-safety');
-  }, CLAIM_SAFETY_MS);
-}
-
-/**
  * A workspace COMMITS an action and claims whatever it produces. Called
  * synchronously at submit time — before the response can land — so no artifact
  * can slip past the claim and open a standalone surface for one frame.
@@ -565,25 +604,12 @@ export function claimWorkspaceOutcome(
   workspaceOutcomeState.expectedCards = Math.max(0, Math.floor(expectedCards));
   workspaceOutcomeState.arrivalFlown = false;
   workspaceOutcomeState.arrivalBy = 'host';
-  clearArrival();
-  // Only a CARD outcome arrives by flying; a deck-check presents in the
-  // composer's own slot and must not leave the input gate closed behind it.
-  workspaceOutcomeState.arrivalDone =
-    !(kinds.includes('draw') || kinds.includes('pick'));
-  // The execution beat starts owing its minimum time from the confirm — not
-  // from when the answer happens to land, or a fast server would shorten the
-  // very beat that explains what the action is doing.
   workspaceOutcomeState.answerIn = false;
-  workspaceOutcomeState.beatDone = false;
-  clearBeat();
-  if (typeof setTimeout === 'function') {
-    beatTimer = setTimeout(() => {
-      markWorkspaceOutcomeBeatDone();
-    }, BEAT_SAFETY_MS);
-  } else {
-    workspaceOutcomeState.beatDone = true;
-  }
-  armSafety();
+  // A new claim is a new RUN (`startClaim`): its execution beat starts owing its minimum time from the confirm — not
+  // from when the answer happens to land, or a fast server would shorten the very beat that explains what the action
+  // is doing; its «claimed and nothing came» safety starts now; and its input gate starts shut only for a CARD
+  // outcome — a deck-check presents in the composer's own slot and must not leave the gate closed behind it.
+  startClaim(kinds.includes('draw') || kinds.includes('pick'));
 }
 
 /**
@@ -598,15 +624,11 @@ export function claimWorkspaceOutcome(
  */
 export function markWorkspaceOutcomePresenting(): void {
   if (workspaceOutcomeState.sourceCard !== '') {
-    workspaceOutcomeState.stage = 'presenting';
-    clearSafety();
-    // …and the ARRIVAL backstop restarts from HERE. It covers «the flight never
-    // completed», and the flight cannot start before the surface it lands in
-    // exists: a play's own cinematic (the card lifting out of the hand, landing
-    // on its pile, paying its rewards) legitimately stands between the answer
-    // and this moment, and armed from the answer alone the backstop could spend
-    // itself during it — opening the input gate over slots that are still empty.
-    armArrivalSafety();
+    // `PRESENTING` settles «claimed, and nothing came» (the safety stands down — a long read never expires the claim
+    // under the player) and restarts the ARRIVAL's backstop from here: it covers «the flight never completed», and
+    // the flight cannot start before the surface it lands in exists — a play's own cinematic (the card lifting out
+    // of the hand, landing on its pile, paying its rewards) legitimately stands between the answer and this moment.
+    liveClaim?.flow.send({type: 'PRESENTING'});
   }
 }
 
@@ -633,15 +655,14 @@ export function retainWorkspaceOutcomeForNextBatch(expectedCards = 0): void {
   if (workspaceOutcomeState.sourceCard === '') {
     return;
   }
-  workspaceOutcomeState.stage = 'awaiting';
   workspaceOutcomeState.expectedCards = Math.max(0, Math.floor(expectedCards));
   workspaceOutcomeState.arrivalFlown = false;
-  clearArrival();
-  workspaceOutcomeState.arrivalDone =
-    !(workspaceOutcomeState.kinds.includes('draw') || workspaceOutcomeState.kinds.includes('pick'));
-  // The next batch is a fresh «claimed, and nothing came yet» question — the
-  // backstop guards it exactly as it guarded the first one.
-  armSafety();
+  // The next batch is a fresh «claimed, and nothing came yet» question — the same lease awaits again (its safety
+  // guards it exactly as it guarded the first one) and its arrival starts over.
+  liveClaim?.flow.send({
+    type: 'RETAIN',
+    gated: workspaceOutcomeState.kinds.includes('draw') || workspaceOutcomeState.kinds.includes('pick'),
+  });
 }
 
 /**
@@ -678,6 +699,10 @@ export function rehomeWorkspaceOutcome(host: WorkspaceOutcomeHost, slot: string)
   }
   workspaceOutcomeState.host = host;
   workspaceOutcomeState.embedSlot = slot;
+  // The claim moved house: it is bound to its NEW host's frame from here.
+  if (liveClaim !== undefined) {
+    bindClaimHost(liveClaim);
+  }
 }
 
 /*
@@ -764,19 +789,22 @@ registerLivenessRelease({
 });
 
 export function releaseWorkspaceOutcome(reason = 'unspecified', opts?: {force?: boolean}): boolean {
-  if (opts?.force !== true && workspaceOutcomeServing() &&
-      workspaceOutcomeState.host !== undefined && workspaceFrameKnown(workspaceOutcomeState.host)) {
+  if (opts?.force !== true && releaseGuarded()) {
     lastOutcomeReleaseRefusal = `refused:${reason} @${typeof performance !== 'undefined' ? Math.round(performance.now()) : 0}`;
     // The net re-arms: if the serving ends with nobody left to release the
     // claim, the safety re-checks — and is itself refused for as long as the
     // player is genuinely still being asked.
-    armSafety();
+    liveClaim?.flow.send({type: 'REFUSED'});
     return false;
   }
+  performRelease(reason);
+  return true;
+}
+
+/** THE RELEASE — the claim's run ends (its scope, its machine, its bounds) and the record is clean. */
+function performRelease(reason: string): void {
   lastOutcomeReleaseStack = `${reason} @${typeof performance !== 'undefined' ? Math.round(performance.now()) : 0}`;
-  clearSafety();
-  clearBeat();
-  clearArrival();
+  endClaim(`released: ${reason}`);
   workspaceOutcomeState.answerIn = false;
   workspaceOutcomeState.beatDone = false;
   workspaceOutcomeState.expectedCards = 0;
@@ -791,7 +819,6 @@ export function releaseWorkspaceOutcome(reason = 'unspecified', opts?: {force?: 
   workspaceOutcomeState.stage = 'idle';
   workspaceOutcomeState.embedSlot = '';
   workspaceOutcomeState.phaseKey = '';
-  return true;
 }
 
 /** The kinds a claim holds for a QUESTION the press's chain may still ask — never an artifact already on its way. */

@@ -3,6 +3,10 @@ description: Console architecture v2 — the flow kernel (scopes, bounded waits,
 paths:
   - "src/client/console/kernel/**"
   - "src/client/console/transport/**"
+  - "src/client/console/consoleWorkspaceStack.ts"
+  - "src/client/console/consoleWorkspaceFrame.ts"
+  - "src/client/console/consoleWorkspaceOutcome.ts"
+  - "src/client/console/consoleWorkspaceClaim.ts"
   - "tests/console/kernel/**"
   - "docs/claude/console/architecture-v2/**"
 ---
@@ -40,6 +44,23 @@ a new safety timer, or a new watcher mailbox.**
   `GATE_MAX_MS` does not hold the submit: the commit goes on. Keep the documented ORDER of the gates; a flag that must
   stand until the commit is `{keep: true}`.
 - A gate's `false` means the SUBMIT is over — `return 'over'`, apply nothing.
-- Specs: `tests/console/submitMachine.spec.ts` (the protocol, on a manual clock),
+## The workspace frame (lifecycle 2) and the outcome claim (lifecycle 1)
+- **A frame is a scope** — `workspaceFrameScope(kind)` (one answer for the live stack, the park and aside for the
+  board). What belongs to a frame is opened / `defer`-red THERE: it ends with the frame by every verb. Never a watcher
+  of the shape «if my frame is gone, reset my flag».
+- **A verb that moves or removes frames ends with `syncFrameLifetimes()`**; a frame's phase is written only through
+  `writeFramePhase` (`setWorkspaceFramePhase` outside the stack) — the record's `phase` is the `frameMachine`'s mirror.
+- **A beat (`executing` · `completing`) is bounded on stage** and LEASED to the press made in the same synchronous
+  stretch: a press that did not land puts the frame back. Cross the commit boundary and submit in ONE stretch — a
+  frame put in `executing` for a submit that is sent after an `await` is not leased (roll it back yourself on
+  `ticket.settled`).
+- **A claim is bound to its host frame's scope** (`consoleWorkspaceOutcome.bindClaimHost`): never sample «is the host
+  still somewhere». Its timers are `claimMachine` states — a new backstop is a state with an `after`, never a module
+  `setTimeout`. `stage` / `beatDone` / `arrivalDone` of `workspaceOutcomeState` are mirrors: write them through the
+  facade's functions only.
+- Specs: `tests/console/workspaceFrameLifetime.spec.ts`, `tests/console/workspaceClaimLifetime.spec.ts`.
+
+## Specs of the transport
+- `tests/console/submitMachine.spec.ts` (the protocol, on a manual clock),
   `tests/client/console/gameTransportFunnel.spec.ts` (the funnel with a fake root / fetch — use
   `__setTransportPresenterForTesting` to play a scene of your own as a gate).

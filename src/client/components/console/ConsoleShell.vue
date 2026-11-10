@@ -2534,10 +2534,6 @@ let screenControlDefectUntil = 0;
 const SCREEN_CONTROL_DEFECT_MAX_MS = 15_000;
 /** A collapse owed until the band surfaces' tokens have landed (a plain flag — read only by the collapse itself). */
 let collapseOwedOnTokens = false;
-/** Since when the live claim's host frame has been known nowhere (0 — it is, or there is no claim). */
-let claimHostGoneSince = 0;
-/** A claim placed in the same press its host's frame is pushed in is never «orphaned» — a beat of grace. */
-const CLAIM_HOST_GONE_GRACE_MS = 1500;
 let lastConclusionHold: {kind: WorkspaceFrameKind, reason: string, at: number} | undefined;
 /**
  * A FINISHED FRAME OVER THE FREE TURN LEAVES BY ITSELF after this long with nothing moving (`reapStaleFreeTurnFrame`).
@@ -22858,7 +22854,6 @@ export default defineComponent({
       // THE WAIT GRAPH (Э2 — a shadow): the same second's waits, judged structurally — a cycle, a dangling wait, a dead
       // end, an overdue one — logged `[wait-graph] …` once per confirmed finding; nothing is acted on yet.
       this.lastLivenessAccepting = accepting;
-      this.releaseOrphanedClaim();
       tickWaitGraph({
         now: Date.now(), accepting,
         requestInFlight: transport?.requestInProgress === true,
@@ -22984,40 +22979,6 @@ export default defineComponent({
         return '';
       }
       return this.reopenOrphanQuestion();
-    },
-    /**
-     * A CLAIM NEVER OUTLIVES ITS HOST (the field freeze of 2026-11-09, Hi-Tech Lab: «Действия карт» claimed the deck pick
-     * its action raised, the workspace left, the claim stood — and while it stood the pick's own surface stayed suppressed
-     * as «a workspace owns it», a question asked of nobody: «Этот запрос пока недоступен», healed only by a reload). The
-     * release funnel never refuses a claim whose host frame is gone; nothing asked it to. Once a second, a claim whose host
-     * is known NOWHERE (not on the stack, not parked, not aside) for more than a beat is released — its question then
-     * presents on its own surface, and the line names it.
-     */
-    releaseOrphanedClaim(): void {
-      const host = workspaceOutcomeState.host;
-      // «Known NOWHERE» means all THREE homes — the live stack, the park AND aside for the board
-      // (`workspaceFrameAnywhere`). Asked of the live stack + the park only, a host standing ASIDE for its own
-      // board step lost its claim 1.5 s into the player's pick: the Hydronetwork's stage-7 copy of Mars Nomads
-      // (`console-hydro-copied-tile`) came back with no claim, its restore plan folded the flow, and the track
-      // never played its result.
-      if (!workspaceOutcomeClaimed() || host === undefined || workspaceFrameAnywhere(host)) {
-        claimHostGoneSince = 0;
-        return;
-      }
-      const now = Date.now();
-      if (claimHostGoneSince === 0) {
-        claimHostGoneSince = now;
-        return;
-      }
-      if (now - claimHostGoneSince < CLAIM_HOST_GONE_GRACE_MS) {
-        return;
-      }
-      claimHostGoneSince = 0;
-      const card = workspaceOutcomeState.sourceCard;
-      const kinds = workspaceOutcomeState.kinds.join(',');
-      if (releaseWorkspaceOutcome('host-gone', {force: true})) {
-        console.warn(`[workspace-outcome] the claim of «${host}» (${card} [${kinds}]) outlived its host — released; its question presents on its own surface`);
-      }
     },
     /**
      * THE QUESTION GETS ITS SURFACE BACK — the router's own door (`openShellTaskSurface`, the road the prompt took when it

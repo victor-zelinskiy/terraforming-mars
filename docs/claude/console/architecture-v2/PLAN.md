@@ -12,7 +12,7 @@
 | K1 | the flow kernel: scopes · bounded waits · the wait table · machines · the law (`KERNEL.md`) | **done** — nothing uses it yet |
 | L1 | lifecycle 4 — the submit transport on the kernel | **done** — `submitMachine`, tickets, `gate()`; the ticket-first ARMING of scenes rides the domain slices (below) |
 | L2 | lifecycle 2 — the workspace frame (scopes, locations, bounded beats) | **done** — every frame is a scope (`workspaceFrameScope`), its phase the `frameMachine` (beats bounded, on stage only), the beat's LEASE puts a frame back when its press did not land |
-| L3 | lifecycle 1 — the outcome claim, owned by its host frame | — |
+| L3 | lifecycle 1 — the outcome claim, owned by its host frame | **done** — `claimMachine` (the three backstops and the host binding are states), `consoleWorkspaceOutcome.ts` is its facade; the shell's `releaseOrphanedClaim` is deleted |
 | L4 | lifecycle 3 — the announce plate and «set aside» | — |
 | S1 | the shell: session root + the supervisor out of the shell | — |
 | S2 | the shell: the extraction tool + the first islands | — |
@@ -263,8 +263,15 @@ forwards to the new owner, it never keeps a second copy of the state.
   came from. A surface's own rollback still runs first; where one was forgotten this is the rollback.
   *Not yet:* owed steps and the conclusion as children of the frame's scope (S5); the twelve «flag may not outlive its
   frame» watchers become `workspaceFrameScope(kind).defer(...)` with their domains (S6…).
-- **L3 — claim.** `claimMachine` in the host frame's scope; the facade keeps every exported function; the shell's
-  orphan release and the `claim-safety` re-arm loop are deleted in the same diff.
+- **L3 — claim (done).** `consoleWorkspaceClaim.ts`: four parallel regions — `stage` (awaiting · held · presenting ·
+  presentingOwed: «claimed and nothing came» is 20 s, a claim that SERVES is the player's time, a refused release keeps
+  being re-asked), `beat` (2.6 s), `arrival` (the input gate: closed → timed 5 s → open), `host` (bound · orphaned
+  1.5 s → released). `consoleWorkspaceOutcome.ts` keeps every exported function and the reactive record (`stage` /
+  `beatDone` / `arrivalDone` are the machine's mirrors); a claim is one scope, BOUND to its host frame's scope
+  (`bindClaimHost` — the frame's end is an event, whichever home it ended in; a frame of the kind standing again
+  re-binds, `rehome` re-binds to the new host). Deleted: the three module timers and their arm / clear calls, the
+  shell's `releaseOrphanedClaim` + `claimHostGoneSince` (the 1 Hz «known nowhere» sample that had to learn the frame's
+  third home). The release funnel's serving guard is unchanged (`workspaceFrameKnown` — live or parked).
 - **L4 — announce / set aside.** `announceMachine`; `mandatoryGateState` is its mirror; the deferred flag becomes a
   projection of the chain's location.
 
@@ -354,5 +361,6 @@ kernel, a net that still covers legacy code stays, and the table says what it st
 
 | Slice | What moved | Specs |
 | --- | --- | --- |
+| L3 | the claim's timers are machine states (same numbers); an orphaned claim is released exactly 1.5 s after its host's last frame ended (was 1.5–2.5 s, sampled); the arrival gate of a claim that never got an answer opens at 20 s | `console-hi-tech-lab`, `console-wait-graph-dead-end` § orphaned claim, `console-hydro-copied-tile`, every embedded draw / pick / verdict (`console-viron-repeat-draw`, `console-deck-pick-collapse`, `console-start-sponsor`, card-actions specs) |
 | L2 | every frame verb now also opens / ends scopes; the phase is written through a machine (same value, same call); a frame whose press did not land goes back by the lease (after the surface's own rollback); a beat standing 180 s on stage is ended | anything with park / restore / yield for the board (`console-hydro-copied-tile`, `console-hi-tech-lab`, `console-workspace-stack*`, `console-start-sponsor`, `console-mu-colony-question`), a refused submit inside a workspace (`console-resource-distribute`), reload restore (`console-draft-workspace`) |
 | L1 | the funnel: every gate now runs as a child scope (a few microtasks later than a bare `await`); a gate that throws no longer aborts the whole answer; the supervisor's release ends the gate instead of lowering the flag | any spec that plays a card / trades / advances the hydro marker / converts / places a tile — pointwise check on the box: `smoke`, `console-workspace-band`, `console-stdp-workspace`, `console-colony-venus-trade`, `console-hydro-terminal-field`, `console-generation-scene`, `console-hand-play-return`, `console-hazard-placement` |
