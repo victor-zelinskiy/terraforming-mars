@@ -160,6 +160,8 @@ export function isTradeFleetActive(): boolean {
 // The ceiling's owner recovery is the module's own recall — the hydro-marker
 // sibling law: past every net a still-active flight is a dead transaction.
 registerAnimationHoldSupplier('trade-fleet', isTradeFleetActive, {
+  // Waits for the SERVER — never judged as a still motion (`motionWitness.ts`): the ship hovers at the berth while the server answers.
+  waitsFor: 'server',
   expire: () => abortTradeFleet(),
 });
 

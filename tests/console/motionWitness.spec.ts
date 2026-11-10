@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {MotionSources, STILL_HOLD_SHADOW_MS, StillHoldState, motionWitnessed, observeStillHold, witnessMotion} from '@/client/console/waitGraph/motionWitness';
+import {MotionSources, STILL_HOLD_SHADOW_MS, StillHoldState, motionWitnessed, observeStillHold, pageMoves, witnessMotion} from '@/client/console/waitGraph/motionWitness';
 
 /**
  * THE MOTION WITNESS — a blocking hold claims a story is playing; the witness asks the page whether anything moves.
@@ -19,6 +19,20 @@ describe('motionWitness', () => {
     expect(w).to.deep.equal({gsap: 2, css: 1});
     expect(motionWitnessed(w)).is.true;
     expect(motionWitnessed(witnessMotion(sources([tween({repeat: -1})], [anim('running', Infinity)])))).is.false;
+  });
+
+  it('pageMoves answers from a running tween WITHOUT asking the document (getAnimations forces a style recalc)', () => {
+    let asked = 0;
+    const lazy = (tweens: ReturnType<typeof tween>[], animations: ReturnType<typeof anim>[]): MotionSources =>
+      ({tweens: () => tweens, animations: () => {
+        asked++;
+        return animations;
+      }});
+    expect(pageMoves(lazy([tween()], [anim('running')]))).is.true;
+    expect(asked, 'a tween proved motion — the document was not asked').to.equal(0);
+    expect(pageMoves(lazy([tween({repeat: -1})], [anim('running')]))).is.true;
+    expect(asked).to.equal(1);
+    expect(pageMoves(lazy([], [anim('running', Infinity), anim('finished')]))).is.false;
   });
 
   it('a blocking hold standing STILL is named once per still spell; motion or no hold restarts the clock', () => {

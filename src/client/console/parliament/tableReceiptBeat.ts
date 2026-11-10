@@ -292,6 +292,8 @@ export function resetTableReceiptBeat(): void {
  * registry's ceiling is the one wedge net; its `expire` releases the counters honestly.
  */
 registerAnimationHoldSupplier('parliament-table-receipt', tableReceiptClaimsForeground, {
+  // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): played at the reward page's receipt beat — after the walk's stops.
+  waitsFor: 'player',
   diagnose: () => ({
     sitting: tableReceiptState.sitting,
     owed: tableReceiptState.owed.map((r) => r.key),

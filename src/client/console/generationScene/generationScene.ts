@@ -112,6 +112,8 @@ let flipNet: ReturnType<typeof setTimeout> | undefined;
 // The scene owns the foreground from its first beat to its conclusion — the next prompt, the feed and the bot's
 // story wait. Bounded by the registry's ceiling; its `expire` ends the WEDGE, not just the hold.
 registerAnimationHoldSupplier('generation-scene', () => generationSceneState.phase !== 'idle', {
+  // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): the rise waits for the player's take of a reveal (`waitScreenHandoff`).
+  waitsFor: 'player',
   diagnose: () => ({phase: generationSceneState.phase, generation: generationSceneState.generation, pending: railRewardPending(GENERATION_INCOME_KEY)}),
   expire: () => endGenerationScene('expired'),
 });

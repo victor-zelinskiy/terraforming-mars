@@ -1695,7 +1695,7 @@ import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
 import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
 import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGraphSources';
 import {ceilingStats} from '@/client/console/waitGraph/ceilingWait';
-import {motionWitnessed, observeStillHold, StillHoldState, witnessMotion} from '@/client/console/waitGraph/motionWitness';
+import {observeStillHold, pageMoves, StillHoldState} from '@/client/console/waitGraph/motionWitness';
 import {advanceLivenessRung, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
@@ -2520,8 +2520,8 @@ const FINALE_FINISH_HOLD = 'final-greenery-finish';
  */
 /** The wait graph's standing frame: the phase it is in and since when (a plain module holder — read only by the 1 Hz source). */
 const waitSurfacePhase = {key: '', since: 0};
-/** Blocking holds standing with NOTHING moving on the page (`motionWitness.ts` — a shadow; read only by the 1 Hz tick). */
-let stillHold: StillHoldState = {since: 0, named: false};
+/** Since when blocking holds stood with NOTHING moving on the page (`motionWitness.ts`) — the graph's `stillMs`; read only by the 1 Hz tick. */
+let pageStill: StillHoldState = {since: 0, named: false};
 /** A collapse owed until the band surfaces' tokens have landed (a plain flag — read only by the collapse itself). */
 let collapseOwedOnTokens = false;
 /** Since when the live claim's host frame has been known nowhere (0 — it is, or there is no claim). */
@@ -22792,13 +22792,15 @@ export default defineComponent({
       }
       // THE MOTION WITNESS (shadow): a blocking hold claims a story is playing — is anything on the page moving at all?
       // A hold that stood STILL is named once; the arbiter still counts it in flight until it is measured (`motionWitness.ts`).
+      // Asked ONLY while a blocking hold stands (the one wait it judges): `getAnimations()` forces a style recalc, never
+      // paid on a screen with nothing to judge.
       const blockingHeld = blockingAnimationHoldCount() > 0;
-      const still = observeStillHold(stillHold, Date.now(), blockingHeld,
-        blockingHeld && (transport?.requestInProgress === true || motionWitnessed(witnessMotion())));
-      stillHold = still.state;
-      if (still.cross) {
+      const pageMoving = !blockingHeld || transport?.requestInProgress === true || pageMoves();
+      const page = observeStillHold(pageStill, Date.now(), blockingHeld, pageMoving);
+      pageStill = page.state;
+      if (page.cross) {
         console.warn(`[liveness] still hold — ${activeAnimationHoldLabels().filter((l) => l.endsWith('[blocking]')).join(', ')} ` +
-          `stand ${Math.round(still.stillMs / 1000)}s with nothing moving on the page (shadow: nothing acted on)`);
+          `stand ${Math.round(page.stillMs / 1000)}s with nothing moving on the page — the wait graph judges them (dead end → hold-expire)`);
       }
       if (isResourceTransferActive()) {
         inFlight.push('resource-transfer');
@@ -22849,6 +22851,8 @@ export default defineComponent({
         requestInFlight: transport?.requestInProgress === true,
         serverOwes: wf === undefined && this.playerView.game.phase !== Phase.END,
         motionInFlight: inFlight.length > 0,
+        // …and how long nothing has moved on the page: a blocking hold claiming a story while nothing plays is a dead end.
+        stillMs: page.stillMs,
       });
       const verdict = tickLiveness({
         now: Date.now(),

@@ -64,11 +64,11 @@ test.describe('the wait graph cures a question asked of nobody', () => {
       {timeout: 10_000, message: `the orphaned claim was released (lines: ${lines.join(' | ')})`}).toBe(true);
     expect(lines.filter((l) => l.includes('outlived its host')), 'released ONCE').toHaveLength(1);
   });
-  test('a blocking hold with NOTHING moving on the page is named — the motion witness sees stillness (its positive control)', async ({page, request}) => {
+  test('a blocking hold with NOTHING moving on the page is a dead end — named, then ended through its owner\'s door («hold-expire»)', async ({page, request}) => {
     test.setTimeout(120_000);
     const lines: Array<string> = [];
     page.on('console', (m) => {
-      if (m.text().startsWith('[liveness] still hold')) {
+      if (m.text().startsWith('[liveness] still hold') || m.text().startsWith('[wait-graph]')) {
         lines.push(m.text());
       }
     });
@@ -76,8 +76,12 @@ test.describe('the wait graph cures a question asked of nobody', () => {
     await settle(page);
     const planted = await page.evaluate(() => (window as unknown as {__conStillHold?: () => boolean}).__conStillHold?.() ?? false);
     expect(planted, 'the seam planted a blocking hold').toBe(true);
-    await expect.poll(() => lines.some((l) => l.includes('wait-graph-control:still')),
-      {timeout: 20_000, message: `the still hold was named (lines: ${lines.join(' | ')})`}).toBe(true);
-    expect(lines, 'named ONCE per still spell').toHaveLength(1);
+    await expect.poll(() => lines.some((l) => l.startsWith('[liveness] still hold') && l.includes('wait-graph-control:still')),
+      {timeout: 20_000, message: `the still hold was named (lines: ${lines.join(' | ').slice(0, 600)})`}).toBe(true);
+    await expect.poll(() => lines.some((l) => /\[wait-graph\] cure dead-end at hold:wait-graph-control:still through «hold-expire»/.test(l)),
+      {timeout: 15_000, message: `the still hold was ended through its door (lines: ${lines.join(' | ').slice(0, 600)})`}).toBe(true);
+    // Well before its own 25 s ceiling — the cure is the graph's, not the leak net's.
+    expect(lines.filter((l) => l.includes('force-released')), 'never the ceiling').toEqual([]);
+    expect(lines.filter((l) => l.startsWith('[liveness] still hold')), 'named ONCE per still spell').toHaveLength(1);
   });
 });

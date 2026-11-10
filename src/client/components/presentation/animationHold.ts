@@ -93,6 +93,13 @@ export type AnimationHoldOptions = {
    * warned, never propagated); called once per rising edge.
    */
   expire?: () => void,
+  /**
+   * WHAT THE HOLD WAITS FOR when it is not an animation (the wait graph's target — `waitGraphSources.ts`): `player` —
+   * its release is the player's (a press, a reading); `server` — another seat's / the server's event. Undeclared = a
+   * VISIBLE motion: a blocking hold standing with nothing moving on the page is then a dead end, ended through `expire`
+   * (`motionWitness.ts`). Declare it on any hold that may honestly stand STILL.
+   */
+  waitsFor?: 'player' | 'server',
 };
 
 /** Idempotent release token — safe to call from every exit path, twice over. */
@@ -103,6 +110,7 @@ export const DEFAULT_MAX_HOLD_MS = 35_000;
 
 type SupplierEntry = {
   scope: AnimationHoldScope,
+  waitsFor: 'player' | 'server' | undefined,
   maxHoldMs: number,
   /** The flow's predicate, DECLARED through the reactivity witness (see `registerAnimationHoldSupplier`). */
   supplier: ReactivePredicate<boolean>,
@@ -154,7 +162,7 @@ const store = reactive({
   /** Bumped on (un)register so the counts computed re-scans the Map. */
   version: 0,
   /** Live imperative holds (beginAnimationHold). */
-  manual: new Map<number, {label: string, scope: AnimationHoldScope, since: number, maxHoldMs: number}>(),
+  manual: new Map<number, {label: string, scope: AnimationHoldScope, since: number, maxHoldMs: number, waitsFor?: 'player' | 'server'}>(),
   /** Supplier labels past the safety ceiling — excluded until they go false. */
   expired: new Set<string>(),
   /**
@@ -233,6 +241,7 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
   unregisterAnimationHoldSupplier(label);
   const entry: SupplierEntry = {
     scope: options?.scope ?? 'blocking',
+    waitsFor: options?.waitsFor,
     maxHoldMs: options?.maxHoldMs ?? DEFAULT_MAX_HOLD_MS,
     // EVERY SUPPLIER IS WITNESSED (`reactivityWitness.ts`): the counts and the ceiling's watch below are caches over
     // a predicate the registry does not own, so a non-reactive term in it is a latch — the witness names it and
@@ -307,7 +316,7 @@ export function unregisterAnimationHoldSupplier(label: string): void {
 export function beginAnimationHold(label: string, options?: AnimationHoldOptions): AnimationHold {
   const id = nextHoldId++;
   const maxHoldMs = options?.maxHoldMs ?? DEFAULT_MAX_HOLD_MS;
-  store.manual.set(id, {label, scope: options?.scope ?? 'blocking', since: Date.now(), maxHoldMs});
+  store.manual.set(id, {label, scope: options?.scope ?? 'blocking', since: Date.now(), maxHoldMs, waitsFor: options?.waitsFor});
   if (options?.diagnose !== undefined || options?.expire !== undefined) {
     manualRecovery.set(id, {diagnose: options.diagnose, expire: options.expire});
   }
@@ -526,16 +535,16 @@ export function activeAnimationHoldLabels(): Array<string> {
  * THE HOLDS AS WAITS (the wait graph, Э4 — a mechanism enters the graph BY CONSTRUCTION): every hold standing now, with
  * its scope, since when it holds and its ceiling. Read by the graph's hold source once a tick (never reactive).
  */
-export function activeAnimationHoldWaits(): Array<{label: string, scope: AnimationHoldScope, since: number, maxHoldMs: number}> {
-  const out: Array<{label: string, scope: AnimationHoldScope, since: number, maxHoldMs: number}> = [];
+export function activeAnimationHoldWaits(): Array<{label: string, scope: AnimationHoldScope, since: number, maxHoldMs: number, waitsFor?: 'player' | 'server'}> {
+  const out: Array<{label: string, scope: AnimationHoldScope, since: number, maxHoldMs: number, waitsFor?: 'player' | 'server'}> = [];
   for (const [label, entry] of suppliers) {
     if (entry.heldSince !== undefined && !store.expired.has(label) && !store.quarantined.has(label)) {
-      out.push({label, scope: entry.scope, since: entry.heldSince, maxHoldMs: entry.maxHoldMs});
+      out.push({label, scope: entry.scope, since: entry.heldSince, maxHoldMs: entry.maxHoldMs, waitsFor: entry.waitsFor});
     }
   }
   for (const hold of store.manual.values()) {
     if (!store.quarantined.has(hold.label)) {
-      out.push({label: hold.label, scope: hold.scope, since: hold.since, maxHoldMs: hold.maxHoldMs});
+      out.push({label: hold.label, scope: hold.scope, since: hold.since, maxHoldMs: hold.maxHoldMs, waitsFor: hold.waitsFor});
     }
   }
   return out;

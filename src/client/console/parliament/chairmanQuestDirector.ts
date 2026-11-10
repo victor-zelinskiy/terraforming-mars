@@ -187,6 +187,8 @@ export function startChairmanQuestBeats(ctx: ChairmanQuestDirectorContext): void
     // «in a beat» — B absorbed, A «дожать» with nothing left to drive — over the next action menu, `accepting` and
     // quiet). The flow's own honest end runs instead: every beat cut, every flight landed, `done` — A / B close it.
     hold: beginAnimationHold('parliament-chairman-quest', {
+      // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): the seat pick and the reading are the player's; the answer the server's.
+      waitsFor: 'player',
       maxHoldMs: 20000,
       diagnose: () => ({beat: chairmanQuestFlow.beat, answered: chairmanQuestFlow.answered,
         seatPick: run?.awaitingSeatPick ?? false, reaction: run?.awaitingReaction ?? false,

@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  confirmWaitFindings, initialWaitGraphConfirm, judgeWaitGraph, WAIT_GRAPH_CONFIRM_TICKS, waitCycles, WaitNode, WaitWorld, yieldingMember,
+  confirmWaitFindings, initialWaitGraphConfirm, judgeWaitGraph, WAIT_GRAPH_CONFIRM_TICKS, WAIT_STILL_MOTION_MS, waitCycles, WaitNode, WaitWorld, yieldingMember,
 } from '@/client/console/waitGraph/waitGraphModel';
 
 /*
@@ -43,6 +43,27 @@ describe('waitGraphModel', () => {
     const q = [node('question:cardSelect#252', 'question', [{kind: 'player', what: 'answer the question'}])];
     expect(judgeWaitGraph(q, world({accepting: false, motionInFlight: true})), 'a hand-over / a scene in flight').to.deep.eq([]);
     expect(judgeWaitGraph(q, world({accepting: false, motionInFlight: false})).map((f) => f.kind)).to.deep.eq(['dead-end']);
+  });
+
+  it('a VISIBLE motion with the page standing still is a dead end — a blocking hold claiming a story while nothing plays', () => {
+    const hold = [node('hold:rail-reward', 'hold', [{kind: 'motion', what: 'rail-reward', witnessed: true}], {boundMs: 35_000, recovery: 'hold-expire'})];
+    // The wait is 9 s old (since 1 000, now 10 000): the page still as long as the threshold → it cannot come.
+    expect(judgeWaitGraph(hold, world({stillMs: WAIT_STILL_MOTION_MS})).map((f) => f.kind)).to.deep.eq(['dead-end']);
+    expect(judgeWaitGraph(hold, world({stillMs: WAIT_STILL_MOTION_MS - 1})), 'the page moved recently').to.deep.eq([]);
+    // A wait YOUNGER than the threshold is not judged by an old stillness (a hold just begun on an idle page).
+    expect(judgeWaitGraph(hold, world({now: 1_000 + WAIT_STILL_MOTION_MS - 1, stillMs: 60_000}))).to.deep.eq([]);
+    // An unwitnessed motion (a notification-only hold, a story) stays its own clock.
+    const quiet = [node('hold:feed', 'hold', [{kind: 'motion', what: 'feed'}], {boundMs: 35_000})];
+    expect(judgeWaitGraph(quiet, world({stillMs: 60_000}))).to.deep.eq([]);
+    // A hold that declares it waits for the PLAYER is the player's time while a surface accepts.
+    const reading = [node('hold:reveal', 'hold', [{kind: 'player', what: 'reveal'}, {kind: 'motion', what: 'reveal', witnessed: true}], {recovery: 'hold-expire'})];
+    expect(judgeWaitGraph(reading, world({stillMs: 60_000, accepting: true}))).to.deep.eq([]);
+    // …and one that waits for the SERVER plays on after the answer came: dead only when the server cannot come AND the
+    // page stood still (the hydro marker's lock, cut at 3 s by a server-only target in the armed slice).
+    const lock = [node('hold:hydro-marker', 'hold', [{kind: 'server', what: 'hydro-marker'}, {kind: 'motion', what: 'hydro-marker', witnessed: true}], {recovery: 'hold-expire'})];
+    expect(judgeWaitGraph(lock, world({stillMs: 1_000})), 'the answer came, the lock still plays').to.deep.eq([]);
+    expect(judgeWaitGraph(lock, world({requestInFlight: true, stillMs: 60_000})), 'the answer is on the wire').to.deep.eq([]);
+    expect(judgeWaitGraph(lock, world({stillMs: WAIT_STILL_MOTION_MS})).map((f) => f.kind)).to.deep.eq(['dead-end']);
   });
 
   it('an answer with nothing on the wire and nothing owed is a dead end; a request in flight or a server debt is honest', () => {

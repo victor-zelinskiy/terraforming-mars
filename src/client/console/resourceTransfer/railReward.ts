@@ -168,6 +168,8 @@ const reactionCalls = new Map<string, {call: gsap.core.Tween, settle: () => void
 // A reward seeded and not yet landed holds the foreground: the next prompt, the notification feed and the bot's
 // turn wait for the gain's own story. Bounded by the registry's ceiling, whose `expire` releases every row honestly.
 registerAnimationHoldSupplier('rail-reward', () => railRewardState.entries.length > 0, {
+  // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): a seeded reward flies when its owner's surface shows it (a covered board clears by the player's leave).
+  waitsFor: 'player',
   diagnose: () => railRewardState.entries.map((entry) => ({
     key: entry.key, phase: entry.phase,
     cause: entry.cause.map(describe), reactions: entry.reactions.map(describe),

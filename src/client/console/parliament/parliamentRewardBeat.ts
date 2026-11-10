@@ -189,6 +189,8 @@ function claimsForeground(): boolean {
  * the counters honestly and names what was still in the air.
  */
 registerAnimationHoldSupplier('parliament-reward-owed', () => parliamentRewardPending() && claimsForeground(), {
+  // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): owed records wait for the walk's own stops (an ask of this seat, a wait on another).
+  waitsFor: 'player',
   diagnose: () => ({
     sitting: parliamentRewardState.sitting,
     owed: parliamentRewardState.owed.map((r) => r.key),
@@ -337,6 +339,8 @@ function flushAgendaAnswers(why: RewardReleaseReason | string): void {
 
 /** The Agenda bonuses ride the same law: held until each step's own landing, bounded by the registry's ceiling alone. */
 registerAnimationHoldSupplier('parliament-agenda-bonus-owed', () => parliamentAgendaBonusHeld() && claimsForeground(), {
+  // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): a later bonus waits through the walk's card take.
+  waitsFor: 'player',
   diagnose: () => ({
     sitting: parliamentRewardState.sitting,
     bonuses: parliamentRewardState.agendaBonuses.map((bonus) => ({kind: bonus.kind, step: bonus.step, generation: bonus.generation})),

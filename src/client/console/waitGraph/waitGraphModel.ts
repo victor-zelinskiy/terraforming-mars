@@ -57,7 +57,9 @@ export type WaitTarget =
   | {kind: 'node', id: string}
   | {kind: 'player', what: string}
   | {kind: 'server', what: string}
-  | {kind: 'motion', what: string};
+  /** `witnessed`: the motion is a VISIBLE one — the page moves while it plays; a page standing still past
+   *  `WAIT_STILL_MOTION_MS` (and the wait as old) proves it is not playing (the motion witness, `motionWitness.ts`). */
+  | {kind: 'motion', what: string, witnessed?: boolean};
 
 export type WaitNode = {
   /** Names the RUN the wait belongs to (`conclusion:parliament`, `flow:rally#42`) — never a bare flag. */
@@ -92,7 +94,17 @@ export type WaitWorld = {
    * three false dead ends inside a long hand-over and a law's play).
    */
   motionInFlight?: boolean;
+  /**
+   * How long NOTHING has moved on the page (no GSAP tween, no running animation, no request — `motionWitness.ts`). A
+   * WITNESSED motion target cannot come once the page and the wait have both stood still this long: a blocking hold that
+   * claims a story is playing while nothing plays is a dead end, cured through its owner's door (`hold-expire`) — not
+   * a 35 s ceiling (the Hi-Tech Lab lesson: a cure after the player gave up is no cure).
+   */
+  stillMs?: number;
 };
+
+/** How long a witnessed motion may stand with nothing moving before it is judged unable to come. */
+export const WAIT_STILL_MOTION_MS = 6_000;
 
 export type WaitFindingKind = 'cycle' | 'dangling' | 'dead-end' | 'overdue' | 'unbounded';
 
@@ -185,11 +197,12 @@ export function yieldingMember(nodes: ReadonlyArray<WaitNode>, members: Readonly
  * Can this external ever come? A press needs something accepting; an answer needs a request on the wire or a debt of
  * the server; a motion is its own clock (judged by the node's bound, never here).
  */
-function externalCanCome(t: WaitTarget, world: WaitWorld): boolean {
+function externalCanCome(t: WaitTarget, world: WaitWorld, ageMs: number): boolean {
   switch (t.kind) {
   case 'player': return world.accepting || world.motionInFlight === true;
   case 'server': return world.requestInFlight || world.serverOwes;
-  case 'motion': return true;
+  // A motion is its own clock — unless it is a VISIBLE one and the page stood still as long as the wait has stood.
+  case 'motion': return t.witnessed !== true || Math.min(world.stillMs ?? 0, ageMs) < WAIT_STILL_MOTION_MS;
   case 'node': return true;
   }
 }
@@ -222,7 +235,7 @@ export function judgeWaitGraph(nodes: ReadonlyArray<WaitNode>, world: WaitWorld)
     }
     const externals = n.targets.filter((t) => t.kind !== 'node');
     const internals = nodeEdges(n).filter((id) => byId.has(id));
-    if (internals.length === 0 && externals.length > 0 && externals.every((t) => !externalCanCome(t, world))) {
+    if (internals.length === 0 && externals.length > 0 && externals.every((t) => !externalCanCome(t, world, world.now - n.since))) {
       findings.push({
         kind: 'dead-end', members: [n.id], ageMs: age([n.id]),
         why: externals.map((t) => `${t.kind}:${(t as {what: string}).what}`).join(', ') + ' cannot come',

@@ -56,10 +56,11 @@ const plugins = [
         console.log('🚀 Webpack Build Started...');
       });
 
-      compiler.hooks.done.tap('BuildEndPlugin', () => {
-        // Pushes the log to the very end of the execution queue
+      compiler.hooks.done.tap('BuildEndPlugin', (stats) => {
+        // Pushes the log to the very end of the execution queue. A FAILED build never reads «Finished»: a terser
+        // out-of-memory (2026-11-09) printed ✅ over a bundle that was never written, and a stale one went to e2e.
         process.nextTick(() => {
-          console.log('✅ Webpack Build Finished!');
+          console.log(stats.hasErrors() ? '❌ Webpack Build FAILED — see the errors above; the bundle was not written' : '✅ Webpack Build Finished!');
         });
       });
     },

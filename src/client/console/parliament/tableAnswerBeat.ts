@@ -608,6 +608,8 @@ export function endTableAnswerPayout(): void {
 }
 
 registerAnimationHoldSupplier('parliament-table-answer', claimsForeground, {
+  // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): an owed answer holds while its host stands — the quest's seat pick among them.
+  waitsFor: 'player',
   maxHoldMs: ANSWER_HOLD_CEILING_MS,
   diagnose: () => ({
     owed: tableAnswerState.owed.map((a) => `${a.host}:${a.asker}:${a.amount}`),

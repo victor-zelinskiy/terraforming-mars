@@ -176,7 +176,11 @@ export function patentSaleHolding(): boolean {
 // The whole trade-terminal scene — incl. the post-commit settle — holds the
 // presentation (notifications queue, mandatory surfaces wait); releases the
 // instant the phase drops on end/abort (the scene's real completion signal).
-registerAnimationHoldSupplier('patent-sale', patentSaleHolding, {expire: expirePatentSale});
+registerAnimationHoldSupplier('patent-sale', patentSaleHolding, {
+  expire: expirePatentSale,
+  // Waits for the SERVER — never judged as a still motion (`motionWitness.ts`): `processing` hides the round-trip.
+  waitsFor: 'server',
+});
 
 /**
  * THE OWNER'S RECOVERY for the `patent-sale` hold, keyed on the sale standing NOW. Past the commit (the response was

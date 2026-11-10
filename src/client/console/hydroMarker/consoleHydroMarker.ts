@@ -418,6 +418,8 @@ export function isHydroMarkerActive(): boolean {
 // a still-active marker is a dead transaction, and masking the hold alone
 // left the input gate and the flow's close gate wedged on `active`.
 registerAnimationHoldSupplier('hydro-marker', isHydroMarkerActive, {
+  // Waits for the SERVER — never judged as a still motion (`motionWitness.ts`): the arm waits for the response's lock.
+  waitsFor: 'server',
   diagnose: () => ({
     phase: hydroMarkerState.phase,
     from: hydroMarkerState.fromPosition,

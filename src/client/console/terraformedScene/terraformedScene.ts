@@ -144,6 +144,8 @@ export function registerTerraformedSceneProbes(next: TerraformedSceneProbes | un
 // (a reveal to take — `playerOwned`): there the scene holds nothing, or it would hold the press that ends the wait.
 // Bounded by the armed cap and the registry's ceiling; `expire` ends the WEDGE, not just the hold.
 registerAnimationHoldSupplier('terraformed-scene', terraformedSceneUp, {
+  // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): armed, it waits for a quiet world — other holds, the player's reveal among them.
+  waitsFor: 'player',
   diagnose: () => ({
     phase: terraformedSceneState.phase, stage: terraformedSceneState.stage, receded: terraformedSceneState.receded,
     camera: planetFocusState.phase, sceneHeld: boardBeatParkState.sceneHeld,

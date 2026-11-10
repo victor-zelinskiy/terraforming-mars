@@ -213,6 +213,8 @@ export function releaseUntoldRulingRatings(why: string): void {
 // A rating owed to the tail holds the foreground — the next prompt waits for its own story. Bounded by the registry's
 // ceiling, whose `expire` releases the counters honestly.
 registerAnimationHoldSupplier('ruling-change-rating-owed', rulingRatingClaimsForeground, {
+  // Waits for the PLAYER — never judged as a still motion (`motionWitness.ts`): the enactment may pause on a table's answer.
+  waitsFor: 'player',
   diagnose: () => rulingChangeDrawState.ratings.map((owed) => owed.key),
   expire: () => releaseRulingRatings('ceiling'),
 });

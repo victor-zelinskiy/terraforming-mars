@@ -9,8 +9,10 @@ import {gsap} from 'gsap';
  * Why: the liveness arbiter counts a blocking hold as «in flight» for `ANIMATION_STALL_GRACE_MS` (20 s) whatever it
  * holds, so a hold that outlived its motion (a seeder deferring its fly for a covered board, a story whose tween was
  * killed) kept the screen dead ~30 s before the first rung — longer than a player waits (the Hi-Tech Lab lesson of
- * 2026-11-09: a cure that comes after the reload is no cure). SHADOW first: the shell names a hold standing STILL
- * (`[liveness] still hold`) and acts on nothing; the monkey's net and the field log measure it before it is armed.
+ * 2026-11-09: a cure that comes after the reload is no cure). ARMED (2026-11-09, after a shadow of 528 e2e specs with
+ * 0 still holds): the shell names a hold standing STILL (`[liveness] still hold`) and feeds the wait graph its
+ * `stillMs`; a blocking hold's motion target is then a dead end, ended through the owner's `expire` (`hold-expire`).
+ * A hold that may honestly stand still declares `waitsFor: 'player' | 'server'` (the audit of all 76 holds).
  */
 export type MotionWitness = {gsap: number, css: number};
 
@@ -45,6 +47,25 @@ export function witnessMotion(sources: MotionSources = PAGE_SOURCES): MotionWitn
 
 export function motionWitnessed(w: MotionWitness): boolean {
   return w.gsap + w.css > 0;
+}
+
+/**
+ * Does ANYTHING move? — the cheap form the shell polls: a running GSAP tween answers at once; only with none is the
+ * document asked (`getAnimations()` forces a style recalc — never paid while a tween already proves motion).
+ */
+export function pageMoves(sources: MotionSources = PAGE_SOURCES): boolean {
+  for (const t of sources.tweens()) {
+    if (!t.paused() && t.progress() < 1 && t.repeat() !== -1) {
+      return true;
+    }
+  }
+  for (const a of sources.animations()) {
+    const iterations = a.effect?.getTiming().iterations ?? 1;
+    if (a.playState === 'running' && Number.isFinite(iterations)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** How long blocking holds may stand with NOTHING moving before the shadow names them. */

@@ -29,7 +29,14 @@ export function holdWaitNodes(): Array<WaitNodeInput> {
   const now = Date.now();
   return activeAnimationHoldWaits().map((h) => ({
     id: `hold:${h.label}`, family: 'hold' as const, owner: `hold:${h.label}`,
-    since: Math.min(h.since, now), targets: [{kind: 'motion', what: h.label}] as Array<WaitTarget>,
+    since: Math.min(h.since, now),
+    // What it waits for: a motion — a VISIBLE one when it blocks the player (a page standing still then proves it is not
+    // playing — `motionWitness.ts`); a hold that says so waits for the player / the server TOO: it is dead only when that
+    // cannot come AND nothing plays (the hydro marker plays its lock AFTER the answer came — `server` alone cut it at 3 s).
+    targets: [
+      ...(h.waitsFor === 'player' ? [{kind: 'player', what: h.label}] : h.waitsFor === 'server' ? [{kind: 'server', what: h.label}] : []),
+      {kind: 'motion', what: h.label, ...(h.scope === 'blocking' ? {witnessed: true} : {})},
+    ] as Array<WaitTarget>,
     boundMs: h.maxHoldMs, recovery: 'hold-expire', detail: h.scope,
   }));
 }

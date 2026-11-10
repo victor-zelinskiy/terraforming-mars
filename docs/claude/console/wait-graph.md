@@ -124,6 +124,22 @@ other family's bound is its owner's ceiling, which acts at the same moment (`WAI
 - **The monkey reloads** (`TM_E2E_MONKEY_RELOAD=1` — ≈ 1 press in 120, its own seeded stream): the restore paths are
   walked like any press.
 
+## 2f. The MOTION WITNESS — a blocking hold's motion is checked against the page (2026-11-09)
+
+A `motion` target was «its own clock», and a blocking hold certified its own motion: the arbiter counted it in flight for
+20 s whatever it held, so a hold that outlived its motion kept the screen dead ~30 s (and a question held back by ANY
+hold reads `accepting`, so the arbiter could not judge it at all — only the registry's 35 s ceiling ended it). Now the
+shell asks the page while a blocking hold stands (`motionWitness.ts` · `pageMoves`: a GSAP tween first, the document's
+running animations only if none — `getAnimations()` forces a style recalc) and passes `WaitWorld.stillMs`. A hold node's
+target is `{kind: 'motion', witnessed: true}`; it cannot come once the page AND the wait stood still
+`WAIT_STILL_MOTION_MS` (6 s) → `dead-end` → `hold-expire` (the owner's `expire`). A hold that may stand still declares
+`waitsFor: 'player' | 'server'` and its node targets the player / the server TOO — dead only when that cannot come AND
+the page stood still (the armed slice cut the hydro marker's post-answer lock at 3 s with a server-only target) (13 of 76 after the audit:
+chairman quest, generation scene, agenda bonus, the Parliament's owed answers / receipts / ratings, rail reward,
+terraformed scene; trade fleet, hydro marker, patent sale, gov-scale focus). Shadow before arming: 528 e2e specs, 0 still
+holds. Positive control: `console-wait-graph-dead-end.spec.ts` (`__conStillHold()` → named, cured through «hold-expire»,
+never the ceiling).
+
 ## 3. Phases
 
 - **Э0** inventory — done (§0).

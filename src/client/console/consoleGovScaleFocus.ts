@@ -53,6 +53,8 @@ export const govScaleFocusState = reactive({
 // release (the lost-commit path) — the arm dropped, the accent cleared, the
 // hidden modal / the next modal let go.
 registerAnimationHoldSupplier('gov-scale-focus', () => govScaleFocusState.closing || govScaleFocusState.holding, {
+  // Waits for the SERVER — never judged as a still motion (`motionWitness.ts`): `closing` stands until the next server commit.
+  waitsFor: 'server',
   diagnose: () => ({closing: govScaleFocusState.closing, holding: govScaleFocusState.holding,
     param: govScaleFocusState.param, armed: armedParam}),
   expire: () => {
