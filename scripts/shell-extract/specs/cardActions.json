@@ -1,0 +1,17 @@
+{
+  "name": "cardActions",
+  "module": "src/client/console/shell/cardActionsController.ts",
+  "members": [
+    "cardActionsDissolveArmed",
+    "actionsAvailableCount",
+    "onCardActionsSubmitBatch",
+    "onCardActionsClose",
+    "onCardActionsCollapse",
+    "onCardActionsFlowComplete",
+    "cardActionsLeaveHook"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  }
+}

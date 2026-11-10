@@ -1,0 +1,23 @@
+{
+  "name": "finale",
+  "module": "src/client/console/shell/finaleController.ts",
+  "members": [
+    "finalePanel",
+    "finaleForeignPrompt",
+    "finaleSessionEngaged",
+    "finaleCollapsed",
+    "finaleStage",
+    "finalePromptOwned",
+    "finaleOverForViewer",
+    "endgameFrameLive",
+    "endgameWorkspaceMounted",
+    "endgameCollapsed",
+    "endgameStageUp",
+    "openEndgameWorkspaceOverQuietBoard",
+    "whenEndgameFrameLiveChanges"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  }
+}

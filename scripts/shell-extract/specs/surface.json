@@ -1,0 +1,18 @@
+{
+  "name": "surface",
+  "module": "src/client/console/shell/surfaceController.ts",
+  "members": [
+    "surfaceShadeVisible",
+    "surfaceShadeVeil",
+    "surfaceShadeClear",
+    "surfaceEnterHook",
+    "surfaceLeaveHook",
+    "surfaceEnterCancelledHook",
+    "surfaceLeaveCancelledHook"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  },
+  "header": "THE SURFACE SHADE CONTROLLER — the shade behind a workspace surface and the transition hooks every surface's\n`<Transition>` in the shell's template is given (`consoleSurfaceMotion`).\n\nTaken out of ConsoleShell.vue by scripts/shell-extract.mjs (architecture v2 — docs/claude/console/architecture-v2/\nPLAN.md §5 · S2): the members are verbatim, every `this.` rewritten — own members are locals, the rest of the shell\nis the PORT below. The template still lives in the shell and reads these members by name."
+}

@@ -1,0 +1,36 @@
+{
+  "name": "stdProjects",
+  "module": "src/client/console/shell/stdProjectsController.ts",
+  "members": [
+    "stdpVenusStep",
+    "stdProjectPickResponse",
+    "stdpHostsVenusBonus",
+    "standardProjectsAction",
+    "saleSellableNames",
+    "saleAllSelected",
+    "salePatentModel",
+    "stdProjectItems",
+    "stdpStepUp",
+    "stdpConclusionSignal",
+    "stdpGhostParam",
+    "stdBackLabel",
+    "activateStdItem",
+    "useStandardProject",
+    "submitStandardProjectPayment",
+    "armStdProjectSafety",
+    "armStdpStepOrigin",
+    "rollbackStdProjectFlow",
+    "reconcileStdProjectsFlow",
+    "playStdProjectCommitBeat",
+    "endStdProjectsFlow",
+    "confirmSale",
+    "toggleSalePick",
+    "toggleSelectAllSale",
+    "whenStdpConclusionSignalChanges",
+    "whenStdProjectCommitStateAbortNonceChanges"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "rail",
+  "module": "src/client/console/shell/railController.ts",
+  "members": [
+    "railTrVeto",
+    "railPristarMark",
+    "railRatingSkipMark",
+    "railPlayer",
+    "railShowsSelf",
+    "railAutoma",
+    "railVpHidden"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  },
+  "header": "THE PLAYER RAIL CONTROLLER — whose rail the side column shows (mine, the inspected seat's, the automa's) and the\nmarks it carries (the TR veto, the skipped rating, hidden VP).\n\nTaken out of ConsoleShell.vue by scripts/shell-extract.mjs (architecture v2 — docs/claude/console/architecture-v2/\nPLAN.md §5 · S2): the members are verbatim, every `this.` rewritten — own members are locals, the rest of the shell\nis the PORT below. The template still lives in the shell and reads these members by name."
+}

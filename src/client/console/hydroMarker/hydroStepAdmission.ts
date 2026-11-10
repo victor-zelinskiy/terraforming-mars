@@ -123,7 +123,7 @@ export const COPIED_ACTION_STANCES: Readonly<Record<CopiedActionArtifact, Copied
   },
   'deck-check': {
     stance: 'gated',
-    file: 'src/client/components/console/ConsoleShell.vue',
+    file: 'src/client/console/shell/revealController.ts',
     why: '`lastReveal.action` names the acting card, and the verdict stage reads it ' +
       'straight off the view — nothing else stood between it and the screen.',
   },

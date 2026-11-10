@@ -1,0 +1,22 @@
+{
+  "name": "cell",
+  "module": "src/client/console/shell/cellController.ts",
+  "members": [
+    "cellPreview",
+    "cellPreviewToken",
+    "cellPreviewKey",
+    "selectedCellLegal",
+    "selectedCellIllegalReason",
+    "selectedCellLore",
+    "selectedCellInfo",
+    "selectedCellPreview",
+    "cellInfoLoading",
+    "loadCellPreview",
+    "whenCellPreviewKeyChanges"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  },
+  "header": "THE BOARD CELL CONTROLLER — what the shell says about the cell under the cursor: its legality for the standing\nplacement and the reason when it is not legal, its lore and info, and the server's preview of placing there.\n\nTaken out of ConsoleShell.vue by scripts/shell-extract.mjs (architecture v2 — docs/claude/console/architecture-v2/\nPLAN.md §5 · S2): the members are verbatim, every `this.` rewritten — own members are locals, the rest of the shell\nis the PORT below. The template still lives in the shell and reads these members by name."
+}

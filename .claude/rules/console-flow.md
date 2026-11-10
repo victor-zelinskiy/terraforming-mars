@@ -15,6 +15,7 @@ paths:
   - "tests/console/shellSource.ts"
   - "src/client/components/console/ConsoleShell.vue"
   - "scripts/shell-extract.mjs"
+  - "scripts/shell-extract/**"
   - "tests/console/kernel/**"
   - "docs/claude/console/architecture-v2/**"
 ---
@@ -89,6 +90,15 @@ a new safety timer, or a new watcher mailbox.**
 - **Moving members out is mechanical**: `node scripts/shell-extract.mjs report|apply <sfc> <spec.json>` (the header of
   the script is its manual; PLAN §5 · S2 the procedure). It refuses what cannot be moved verbatim (a bare `this`, an
   eager data read, a local shadowing the port) and aliases a member whose name also occurs free (`ownX`).
+- **Every domain of the shell is out** — 33 controllers; PLAN §5 · S6 has the table of their ports (the big ones are
+  the knots: `padRouter`, `commandBar`, `router`, `outcome`, `mandatory`). They are ordinary source: edit them by
+  hand. `scripts/shell-extract/` keeps the inputs of that one-time extraction (its README says the one case for
+  re-running it). What is left in `ConsoleShell.vue` is the template, the composition root, the mirrors of module
+  state, the `watch` table and the hooks — nothing new goes there.
+- **The composition is guarded** (`tests/console/shellControllers.spec.ts`): one member, one owner (two controllers
+  returning a name, or a name both returned and still declared in the shell, is a silent shadow); no template
+  `ref="x"` named like a member (Vue would write the element into it); every controller constructed once and spread;
+  every port has its conformance row; no named import from a `.vue`.
 - **The `watch` block is a TABLE, in its order.** Every watcher is `key(v) { this.when<Key>Changes(v); }`; the
   reaction's body is the method (it moves with its domain). Never reorder the rows, never put a body back in one —
   creation order is load-bearing; a new reaction is a level-triggered decision in its controller, not a new row.

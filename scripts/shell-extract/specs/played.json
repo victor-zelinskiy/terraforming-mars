@@ -1,0 +1,27 @@
+{
+  "name": "played",
+  "module": "src/client/console/shell/playedController.ts",
+  "members": [
+    "playedOpen",
+    "playedHeroHolds",
+    "corpFirstActionOpen",
+    "playedTableVisible",
+    "corpFirstActionNames",
+    "playedHeroIncoming",
+    "playedHeroTold",
+    "playedHeroComposerView",
+    "openPlayedOverlay",
+    "closePlayedOverlay",
+    "onCorpFirstActionConfirm",
+    "onCorpFirstActionDefer",
+    "whenJournalHardBlockedChanges",
+    "whenPlayedHeroStatePhaseChanges",
+    "whenCorpFirstActionOpenChanges",
+    "whenPlayedHeroToldChanges",
+    "whenPlayedHeroStateActiveChanges"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  }
+}

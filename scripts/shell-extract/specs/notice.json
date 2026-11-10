@@ -1,0 +1,14 @@
+{
+  "name": "notice",
+  "module": "src/client/console/shell/noticeController.ts",
+  "members": [
+    "notice",
+    "noticeTimer",
+    "showNotice"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  },
+  "header": "THE NOTICE CONTROLLER — the shell's one-line toast («not now» said where the player is looking): its text and the\ntimer that takes it away.\n\nTaken out of ConsoleShell.vue by scripts/shell-extract.mjs (architecture v2 — docs/claude/console/architecture-v2/\nPLAN.md §5 · S2): the members are verbatim, every `this.` rewritten — own members are locals, the rest of the shell\nis the PORT below. The template still lives in the shell and reads these members by name."
+}

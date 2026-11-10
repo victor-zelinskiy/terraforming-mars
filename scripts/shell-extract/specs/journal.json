@@ -1,0 +1,18 @@
+{
+  "name": "journal",
+  "module": "src/client/console/shell/journalController.ts",
+  "members": [
+    "journalColonyInspect",
+    "journalPanelVisible",
+    "journalHardBlocked",
+    "toggleJournal",
+    "closeJournal",
+    "openJournalToNotification",
+    "openJournalColonyInspect"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  },
+  "header": "THE JOURNAL CONTROLLER — the shell's side of the journal panel: when it may show, what hard-blocks it, opening it\nat a notification and the colony inspection it hosts.\n\nTaken out of ConsoleShell.vue by scripts/shell-extract.mjs (architecture v2 — docs/claude/console/architecture-v2/\nPLAN.md §5 · S2): the members are verbatim, every `this.` rewritten — own members are locals, the rest of the shell\nis the PORT below. The template still lives in the shell and reads these members by name."
+}

@@ -1,0 +1,22 @@
+{
+  "name": "wheel",
+  "module": "src/client/console/shell/wheelController.ts",
+  "members": [
+    "wheelInput",
+    "wheelCounts",
+    "wheelCountsTotal",
+    "wheelCountsUseful",
+    "quickEntries",
+    "quickTitle",
+    "quickTrigger",
+    "handleQuickIntent",
+    "openQuick",
+    "whenConsoleStateQuickChanges",
+    "whenWheelControlModeChanges"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  },
+  "header": "THE ACTION WHEEL CONTROLLER — the quick wheel of the console shell: its entries (each mirroring the PRESENCE of a\nserver option — invariant 2), the counts on its tiles, its title and trigger, and the pad's path through it.\n\nTaken out of ConsoleShell.vue by scripts/shell-extract.mjs (architecture v2 — docs/claude/console/architecture-v2/\nPLAN.md §5 · S2): the members are verbatim, every `this.` rewritten — own members are locals, the rest of the shell\nis the PORT below. The template still lives in the shell and reads these members by name."
+}

@@ -16,7 +16,8 @@
 | L4 | lifecycle 3 — the announce plate and «set aside» | **the plate: done** — `announceMachine`, one run per beat key, `pending` bounded (its door is the shell's); **«set aside»: with S4** (it is a state of the QUESTION, which the prompt router owns) |
 | S1 | the shell: session root + the supervisor out of the shell | **done** — `console/session/consoleSession.ts` (ONE root scope for the transport, the frames, the claims and the plates; it ends when the shell is unmounted); `console/supervisor/supervisorController.ts` (the 1 Hz sampler, the rungs, the wait-graph source, the reapers, the cures) — its 39-row PORT is the list of what the nets sample in the shell |
 | S2 | the shell: the extraction tool + the first islands | **done** — `scripts/shell-extract.mjs`; ten controllers under `console/shell/` (viewer · milestones/awards · wheel · cell · info · convert · rail · journal · surface · notice), each with its typed PORT; **every watcher is a one-line delegate** — the `watch` block is the ordered table of the shell's 145 reactions and their bodies are methods (`when<Key>Changes`) that move with their domains; the types the shell shares with its SFC children live in `.ts` modules. The shell is 25.2k lines (was 27.8k). The region components (template) ride S3 / S6 |
-| S3… | the shell: surface registry (pad / bar / context — one table), routing, conclusion | — |
+| S6 · mechanical | the shell: EVERY domain is a controller | **done** — 33 controllers (table in §5 · S6); `ConsoleShell.vue` is 4.3k lines (was 27.8k): the template (1.6k), the composition root, the module-state mirrors, the ordered `watch` table, the two hooks and a 450-line view-apply reaction. What is left in it is NOT domain code |
+| S3… | the shell: surface registry (pad / bar / context — one table), routing, conclusion | — (they are now redesigns of ONE controller each: `padRouter` + `commandBar`, `router` + `mandatory`, `outcome`) |
 | N1 | native stalls: LoAF in the field log, a trace on `unresponsive` | **done (diagnosis)** — `longFrameWatch.ts` (`[long-frame]` lines with the frame's split), `electron/hangTrace.ts` (a Chromium trace of every stop, named in the hang line); reducing what the first traces name is open |
 
 **Branch / tree.** The work is done in the worktree `C:\Projects\Mods\tm-arch` (branch `arch-v2`, rebased on
@@ -349,9 +350,54 @@ forwards to the new owner, it never keeps a second copy of the state.
   `expectedScreenOwners` table becomes the router's own table (the shadow has nothing left to compare against).
 - **S5 — conclusion as a join.** Owed steps become children of the frame's scope (declared at the press that owes
   them); the conclusion is decided by level over the scope; the owed-conclusion apparatus is deleted.
-- **S6… — the domains.** Hand, colonies, hydro, parliament, start, draft / endgame, placement: extraction, then the
-  domain's watchers and latches become machine states / scoped runs. Order by freeze history: colonies and hydro
-  first (most mailbox fields), then the hand, then the phase scenes.
+- **S6 — the domains, the MECHANICAL half (done).** With the watchers delegated (S2) every remaining member of the
+  shell was assigned to a domain — seeds by name, then affinity over the `graph` (who reads whom) — and taken out
+  with the tool, in one reproducible pipeline (pristine shell → hand preps → `delegate-watchers` → `lift` of the
+  shared module-level types / constants → `apply` × 33, imports kept whole until the last step → `prune`). The shell
+  keeps: the template, `setup()` (the composition root: the session, the 33 controllers), the mirrors of module
+  state in `data()`, the `watch` table, `mounted` / `beforeUnmount`, the view-apply reaction
+  (`whenPlayerViewChanges`, 450 lines — the last knot that is not a domain; it goes with S4), and a handful of
+  one-line verbs.
+
+  **The dependency matrix the monolith never had** (members · lines · PORT rows — W = rows the domain writes without
+  owning). A port is everything the controller reads of the rest of the shell; the big ones ARE the knots, by number:
+
+  | Controller | Members | Lines | Port | | Controller | Members | Lines | Port |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | `padRouter` (`handleIntent` + the section / sheet ladders) | 18 | 2374 | **150** (W4) | | `commandBar` (`commands`, `commandContext`) | 9 | 1638 | **108** |
+  | `router` (admission, the task trios, the effect decision) | 68 | 1731 | **68** (W2) | | `hand` (dock, album, presence) | 59 | 1411 | **58** |
+  | `outcome` (claim serving, conclusion, hosted steps) | 46 | 1567 | **54** (W10) | | `mandatory` (the plate, «set aside») | 31 | 921 | **46** |
+  | `supervisor` | 22 | 978 | 39 (W5) | | `reveal` (reveals, deck pick, external draw) | 42 | 1067 | 39 (W2) |
+  | `colony` | 124 | 2986 | 35 (W1) | | `placement` (board placement, final greenery) | 84 | 1532 | 31 (W2) |
+  | `handSelect` (hand select / pick / discard / filters) | 75 | 1328 | 31 (W3) | | `parliament` | 80 | 1490 | 30 |
+  | `playCard` (the play composer, the confirm sheet) | 36 | 941 | 27 | | `workspace` (collapse / park / sheets) | 19 | 546 | 25 |
+  | `stdProjects` | 26 | 695 | 20 (W2) | | `hydro` | 67 | 1854 | 19 |
+  | `played` | 17 | 371 | 19 (W5) | | `start` | 36 | 892 | 18 |
+  | `wheel` | 11 | 269 | 17 | | `staged` | 15 | 552 | 15 (W1) |
+  | `viewer` | 68 | 1108 | 12 | | `ma` | 42 | 743 | 11 |
+  | `finale` | 13 | 273 | 11 (W3) | | `seat` (game, thisPlayer, myTurn, …) | 17 | 266 | 10 |
+  | `journal` | 7 | 139 | 9 | | `cardActions` | 7 | 150 | 8 (W1) |
+  | `info` · `cell` | 9 · 11 | 181 · 187 | 5 · 5 | | `rail` · `draft` | 7 · 12 | 113 · 181 | 4 · 4 |
+  | `convert` | 7 | 76 | 2 | | `notice` · `surface` | 3 · 7 | 38 · 54 | 0 · 0 |
+
+  Read it as the work list of the next slices: **S3** is `padRouter` + `commandBar` (258 rows between them — two
+  ladders asking the same ~100 facts in two orders); **S4** is `router` + `mandatory`; **S5** is `outcome` (the W10 are
+  the owed-conclusion mailbox and the claim's serving flags). The coarse domains (`colony` 3k lines, `hydro`, `hand` /
+  `handSelect`) are internally cohesive by the graph but large: they split further only when their lifecycle becomes a
+  machine — a split by line count would cut a flow in two.
+
+  **How a controller reads a sibling**: through its port, typed off the sibling (`UnwrapRef<ColonyController['x']>`)
+  and reached through the shell instance (`shell.x`) — one indirection, lazily, so construction order in `setup()` is
+  free. The session wiring ports directly (no instance in between) is S-last: it needs every row to be an explicit
+  import first, which it now is.
+
+  **What the mechanical half does NOT do** — and must not be mistaken for: the watchers are still edge mailboxes
+  (they only moved), the latches are still latches, `$refs` is still the pad path. Nothing here retires a net. It
+  makes each of those a property of ONE file with a stated port, which is what S3 – S5 need to be redesigns rather
+  than excavations.
+- **S6… — the domains, the LIFECYCLE half.** Per domain: its watchers and latches become machine states / scoped
+  runs in the frame's scope. Order by freeze history: colonies and hydro first (most mailbox fields), then the hand,
+  then the phase scenes.
 - **S-last.** `ConsoleShell.vue` is layout: the regions, the session's provide, no `watch`, no lifecycle logic.
 
 ### Phase 3 — stories and directors
@@ -404,6 +450,10 @@ kernel, a net that still covers legacy code stays, and the table says what it st
 - per lifecycle: the machine's spec (every field case of §2 of the brief as a path that now ends), a model-based
   spec, and the facade's existing specs unchanged and green.
 - the existing guard specs stay green or are replaced in the same diff by the stronger form (listed per slice in §9).
+- the shell's structure: `tests/console/shellControllers.spec.ts` (one member, one owner; no template ref named like
+  a member; every controller constructed and spread; every port conformed; no named import from a `.vue`), and
+  `tests/console/shellSource.ts` — the source guards read the shell's code as ONE corpus (the SFC and its controllers,
+  in the monolith's dialect), so a guard keeps its teeth when a member moves.
 
 ## 8. Risks
 
@@ -420,6 +470,7 @@ kernel, a net that still covers legacy code stays, and the table says what it st
 
 | Slice | What moved | Specs |
 | --- | --- | --- |
+| S6 · mechanical | every domain's members are setup-state of the shell (same names; the template, the watch table and the hooks unchanged); the series' input gate registers in the pad router's `onMounted` (a setup hook runs before the shell's `mounted`); `COPIED_ACTION_STANCES['deck-check'].file` names the reveal controller | ANY console spec — this is the slice a wholesale regression would come from. Pointwise on the box (63 files across every domain — the list is in the commit): green. Look first at whatever mounts late or reads a `$refs` instance: the hand album's transition targets, the Parliament's leave, the colony roster's ceremony |
 | S1 | the four flow trees hang under one `session` root that ends on the shell's `unmounted` (was: four roots that lived for the page); the supervisor's start / stop are two calls in the same hook rows; nothing else moves | `console-wait-graph-control`, `console-wait-graph-dead-end`, `console-screen-director-cure`, `console-screen-shadow-control` (the control stand's `declareDefect` goes through the supervisor), anything that leaves a game and enters another (rematch, campaign thresholds) |
 | S2 · watchers | every watcher is `key(v) { this.when<Key>Changes(v); }` — same order, same options (`immediate` / `flush` / `deep`), the body one call deeper | none expected (pointwise: hydro, colonies, hand, draft, generation scene, std projects — green) |
 | S2 | ten member sets of the shell are setup-state now (same names, same template): a `data` field became a `ref`, an options `computed` a `computed()`; the viewer's input-absorber gate registers in the controller's `onMounted` (a setup hook runs BEFORE the shell's own `mounted` — it was the second row of it) | the card viewer (`console-played-zoom-return`, `console-inspect-history`, anything that presses X on a card), `console-ma-workspace` / `-price` / `-states`, `console-info-*`, `wheel-rework`, `console-convert-plants-source`, `console-journal-chronicle`, `console-cell-dossier`, `console-rail-*` |

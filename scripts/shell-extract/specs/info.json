@@ -1,0 +1,20 @@
+{
+  "name": "info",
+  "module": "src/client/console/shell/infoController.ts",
+  "members": [
+    "botExtrasCtx",
+    "infoWorkspaceUp",
+    "toggleInfoMode",
+    "onInfoModeLeaveSettled",
+    "infoExtrasChipList",
+    "infoViewedKind",
+    "infoZoneCtx",
+    "infoGo",
+    "infoBack"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  },
+  "header": "THE INFORMATION MODE CONTROLLER — the shell's side of the Information Workspace (`infoModeState`): entering and\nleaving it, its route (go / back), the inspected seat's extras and the zone context a screen is asked with.\n\nTaken out of ConsoleShell.vue by scripts/shell-extract.mjs (architecture v2 — docs/claude/console/architecture-v2/\nPLAN.md §5 · S2): the members are verbatim, every `this.` rewritten — own members are locals, the rest of the shell\nis the PORT below. The template still lives in the shell and reads these members by name."
+}

@@ -1,0 +1,27 @@
+{
+  "name": "seat",
+  "module": "src/client/console/shell/seatController.ts",
+  "members": [
+    "thisPlayer",
+    "myTurn",
+    "awaitingInput",
+    "viewerPassed",
+    "questionTableKey",
+    "viewerHandNames",
+    "postGame",
+    "postGameInspection",
+    "viewerAskedNothing",
+    "viewerAskedOffTurn",
+    "viewerForcedReaction",
+    "actionBlockedReason",
+    "inspectedPlayer",
+    "parliamentSeatName",
+    "whenViewerAskedNothingChanges",
+    "whenViewerAskedOffTurnChanges",
+    "whenQuestionTableKeyChanges"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  }
+}

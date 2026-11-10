@@ -1,0 +1,28 @@
+{
+  "name": "padRouter",
+  "module": "src/client/console/shell/padRouterController.ts",
+  "members": [
+    "notifTapReplay",
+    "offIntent",
+    "topNotification",
+    "handleIntent",
+    "cycleInspectedPlayer",
+    "onAuxCellPressed",
+    "handleInfoIntent",
+    "feedWheelArm",
+    "activateQuickSlot",
+    "executeRtEntry",
+    "executeLtEntry",
+    "handleSheetIntent",
+    "handleSectionIntent",
+    "handleSectionNav",
+    "handleSectionConfirm",
+    "handleSectionBack",
+    "scrollActiveConsole",
+    "scrollReviewFeed"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  }
+}

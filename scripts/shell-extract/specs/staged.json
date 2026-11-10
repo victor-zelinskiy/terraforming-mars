@@ -1,0 +1,25 @@
+{
+  "name": "staged",
+  "module": "src/client/console/shell/stagedController.ts",
+  "members": [
+    "stagedBackOwed",
+    "stagedLandingInFlight",
+    "stagedPlayPrompt",
+    "stagedPlayLevelPrompt",
+    "stagedHandCard",
+    "beginStagedPlayLanding",
+    "commitStagedTail",
+    "onStagedPlaySpacePicked",
+    "beginStagedLawLanding",
+    "stagedBackOwedNow",
+    "stagedBackOwable",
+    "stagedHandoffHolding",
+    "runOwedStagedBack",
+    "cancelStagedPlay",
+    "reconcileStagedPlayWorldMove"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  }
+}

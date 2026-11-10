@@ -1,0 +1,19 @@
+{
+  "name": "commandBar",
+  "module": "src/client/console/shell/commandBarController.ts",
+  "members": [
+    "contextMode",
+    "contextOverlayMode",
+    "bannerText",
+    "sheetTitle",
+    "sheetRows",
+    "commandContext",
+    "commands",
+    "dockArmedEffects",
+    "activeTaskSummary"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  }
+}

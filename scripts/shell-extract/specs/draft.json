@@ -1,0 +1,22 @@
+{
+  "name": "draft",
+  "module": "src/client/console/shell/draftController.ts",
+  "members": [
+    "draftWaitActive",
+    "draftTrayMounted",
+    "draftFrameLive",
+    "draftWorkspaceMounted",
+    "draftPaymentServeSignal",
+    "draftClaimsTask",
+    "draftWorkspaceOwnsPad",
+    "draftedCards",
+    "onDraftSubmit",
+    "onDraftDefer",
+    "whenDraftFrameLiveChanges",
+    "whenDraftPaymentServeSignalChanges"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  }
+}

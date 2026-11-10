@@ -1,0 +1,29 @@
+{
+  "name": "workspace",
+  "module": "src/client/console/shell/workspaceController.ts",
+  "members": [
+    "workspaceCollapsed",
+    "strategyRailCovered",
+    "workspaceScreenUp",
+    "workspaceStackShown",
+    "strategyRailReplaced",
+    "conRootClasses",
+    "conMainClasses",
+    "workspaceFrameRenders",
+    "leaveWorkspace",
+    "collapseWorkspace",
+    "parkWorkspaceStack",
+    "enterOrRestoreWorkspace",
+    "openSheet",
+    "seedSheetCursor",
+    "activateSheetRow",
+    "resumePartyActionWorkspace",
+    "enterWorkspaceAfterHandoff",
+    "restoreParkedWorkspace",
+    "whenWorkspaceCollapsedChanges"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  }
+}

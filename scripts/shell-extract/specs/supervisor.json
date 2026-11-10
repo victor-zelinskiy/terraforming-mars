@@ -1,0 +1,33 @@
+{
+  "name": "supervisor",
+  "module": "src/client/console/supervisor/supervisorController.ts",
+  "members": [
+    "beatStallTimer",
+    "livenessRungStops",
+    "staleFreeTurnKey",
+    "lastLivenessAccepting",
+    "deadLiveFramePasses",
+    "commitFoldOwedSince",
+    "stuckWorkspaceIsGhost",
+    "forceRecoverStuckWorkspace",
+    "reapStaleFreeTurnFrame",
+    "reapDeadPhaseFrames",
+    "startSupervisor",
+    "stopSupervisor",
+    "declareScreenControlDefect",
+    "checkLiveness",
+    "backOwedOnStandingFrame",
+    "judgedTransientBeat",
+    "reopenStartStep",
+    "reopenOrphanQuestion",
+    "runStartDirectorCure",
+    "runScreenDirectorCure",
+    "shellWaitNodes",
+    "registerLivenessRungs"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  },
+  "header": "THE SUPERVISOR — the console's ONE sampler (1 Hz) and what hangs off it: the liveness arbiter's tick and the shell's\nrungs of its ladder, the wait graph's shell source and its recovery doors, the reapers (a frame of a phase that is\nover, a stale free-turn frame), the forced recovery of a stuck workspace and the two directors' cures.\n\nTaken out of ConsoleShell.vue by scripts/shell-extract.mjs (architecture v2 — docs/claude/console/architecture-v2/\nPLAN.md §5 · S1). THE PORT BELOW IS THE POINT OF THE SLICE: it is everything the supervisor reads of the shell, as a\nlist — every row is a fact some net samples because no owner ends it (PLAN §6 says which slice makes each row go).\nThe nets shrink by rows of this port; nothing may be added to it."
+}

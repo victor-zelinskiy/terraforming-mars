@@ -1,0 +1,41 @@
+{
+  "name": "mandatory",
+  "module": "src/client/console/shell/mandatoryController.ts",
+  "members": [
+    "deferredWhileOnOwnSurface",
+    "mandatoryFlowBeats",
+    "mandatoryBeat",
+    "mandatoryBeatKey",
+    "mandatoryGateHeld",
+    "taskGateHeld",
+    "minimizableTaskLive",
+    "mandatoryDeferredActive",
+    "boardHomeIdle",
+    "mandatoryPresentationReady",
+    "mandatoryActionPresented",
+    "mandatoryAnnounceVisible",
+    "mandatoryChipAttention",
+    "promptServedWhereIStand",
+    "promptOwnedByClaim",
+    "promptServedByStandingFrame",
+    "mandatoryAnnounceView",
+    "handPickDeferLive",
+    "deferredDiscardFresh",
+    "deferReturnLabel",
+    "deferKicker",
+    "deferAsk",
+    "deferSourceCard",
+    "openMandatoryAnnounce",
+    "yieldAnnounceInCycle",
+    "deferShellTask",
+    "restoreDeferredTask",
+    "whenConsoleStateTaskDeferredChanges",
+    "whenDeferredWhileOnOwnSurfaceChanges",
+    "whenMandatoryBeatKeyChanges",
+    "whenMandatoryPresentationReadyChanges"
+  ],
+  "port": {
+    "foldWorkspaceAfterResult": "foldWorkspaceAfterResult(host?: WorkspaceFrameKind): void",
+    "thisPlayer": "PublicPlayerModel"
+  }
+}
