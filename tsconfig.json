@@ -12,7 +12,10 @@
         // polyfills lib methods, so the EMIT is unchanged. `target` deliberately
         // stays es2021: raising it flips useDefineForClassFields (class-field
         // semantics) for zero benefit here.
-        "lib": ["dom", "es2023"],
+        // `esnext.disposable`: the TYPES of `Symbol.dispose` / `Disposable` / `using` (explicit resource management) —
+        // the console's flow kernel ends a scope through them. Chromium 134+ and Node 24 run them natively; for the
+        // es2021 target tsc downlevels `using` to try / finally.
+        "lib": ["dom", "es2023", "esnext.disposable"],
         "incremental": true,
         "module": "commonjs",
         "strict": true,
