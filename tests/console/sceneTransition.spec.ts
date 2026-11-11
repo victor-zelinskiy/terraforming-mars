@@ -39,12 +39,12 @@ class ManualScheduler {
   now(): number {
     return this.time;
   }
-  setTimeout(fn: () => void, ms: number): number {
+  later(fn: () => void, ms: number): number {
     const id = this.seq++;
     this.timers.push({id, at: this.time + ms, fn});
     return id;
   }
-  clearTimeout(id: number): void {
+  cancel(id: number): void {
     this.timers = this.timers.filter((t) => t.id !== id);
   }
   settle(fn: () => void): void {

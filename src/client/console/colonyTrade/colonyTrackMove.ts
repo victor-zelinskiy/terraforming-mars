@@ -29,6 +29,7 @@
  * a promise until the flow that made it ends (`clearColonyTrackMove`).
  */
 import {reactive} from 'vue';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {CardName} from '@/common/cards/CardName';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -38,6 +39,13 @@ import {
 
 /** The confirmed pick: the tile, the card whose effect it is (absent on a live pick with no named giver), the projection. */
 export type ColonyTrackMovePromise = {colony: ColonyName, card?: CardName, before: number, after: number};
+
+/**
+ * THE MOVE'S RUN: from the owed glide taken to play until the marker has landed — `scene:colony-track-move#n` in the flow tree (architecture v2 — PLAN §10 · C4). The tree names it while it stands, and
+ * when the game screen leaves under it the module is brought to rest through `clearColonyTrackMove` — no row of the shell's
+ * teardown is what keeps it out of the next game.
+ */
+const run = createFlowRun('colony-track-move', {kind: 'scene', orphaned: () => clearColonyTrackMove()});
 
 export const colonyTrackMoveFlow = reactive({
   /** The pick the player CONFIRMED, awaiting its answer. */
@@ -110,9 +118,11 @@ export async function playOwedColonyTrackMove(): Promise<boolean> {
   }
   colonyTrackMoveFlow.owed = undefined;
   colonyTrackMoveFlow.live = true;
+  run.begin();
   colonyTrackMoveFlow.degraded = '';
   await requestColonyTrackWave([move], {anchors: 'stage', rhythm: 'rail'});
   colonyTrackMoveFlow.live = false;
+  run.end();
   const finish = colonyTrackWaveState.lastFinish;
   if (finish !== 'landed') {
     colonyTrackMoveFlow.degraded = `${move.colony}: ${finish}`;
@@ -137,6 +147,7 @@ export function clearColonyTrackMove(): void {
   if (colonyTrackMoveFlow.live) {
     finishColonyTrackWave('abort');
     colonyTrackMoveFlow.live = false;
+    run.end();
   }
   colonyTrackMoveFlow.promised = undefined;
   colonyTrackMoveFlow.owed = undefined;

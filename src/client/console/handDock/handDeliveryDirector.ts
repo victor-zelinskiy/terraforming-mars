@@ -69,7 +69,7 @@ import {
   releaseInFlight, removeDeliveryFlights,
 } from '@/client/console/handDock/handDeliveryState';
 import {span} from '@/client/console/session/sessionWaits';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 export type HandIntakeRect = {left: number, top: number, width: number, height: number};
 
@@ -1307,3 +1307,8 @@ export function resetHandDelivery(): void {
   });
   clearDeliveryFlights();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Never leak a mid-flight delivery / held dock
+sessionState('hand-delivery', resetHandDelivery, 120);

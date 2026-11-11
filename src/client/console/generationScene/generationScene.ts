@@ -70,7 +70,7 @@ import {enterWorkspace, workspaceFrameKnown} from '@/client/console/consoleWorks
 import {betweenGenResearchLive, draftMandatoryFlowBeat} from '@/client/console/draft/consoleDraftFlow';
 import {parliamentSittingFlowBeat, presentedGeneration} from '@/client/console/parliament/consoleSittingFlow';
 import {noteDeferredGenerationFlipEnd, oweDeferredGenerationFlip, resetDeferredGenerationFlip} from '@/client/console/generationScene/deferredGenerationFlip';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /** The rail-reward key of the income wave (one scene at a time). */
 export const GENERATION_INCOME_KEY = 'generation-income';
@@ -515,3 +515,8 @@ export function resetGenerationScene(): void {
   generationSceneState.lastEnd = '';
   generationSceneState.rose = '';
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The generation scene (TR61): a dead shell's held rows tick, nothing stands up
+sessionState('generation-scene', resetGenerationScene, 230);

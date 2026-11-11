@@ -50,7 +50,6 @@
  * Liner: the trade's +1 TR — `colonyTrade/fleetDockScene.ts`).
  */
 import {reactive} from 'vue';
-import {gsap} from 'gsap';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -64,6 +63,7 @@ import {
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {noteVpHeldElsewhere} from '@/client/console/scoreCell/vpShareLedger';
 import {SCALE_STEP_RATING_UNIT, claimTeller} from '@/client/console/resourceTransfer/oneTeller';
+import {motionGuarantee} from '@/client/console/session/sessionWaits';
 import type {Tag} from '@/common/cards/Tag';
 
 /** One printed cause of a card's answer on a played card: the tag that woke it and the share it pays (T06). */
@@ -162,8 +162,8 @@ export const railRewardState = reactive({
   lastAnswer: undefined as {key: string, flown: Array<string>, ticked: Array<string>} | undefined,
 });
 
-/** The pending reaction beats (the GSAP clock), per owner key — a release kills its own and settles its promise. */
-const reactionCalls = new Map<string, {call: gsap.core.Tween, settle: () => void}>();
+/** The pending reaction beats (the GSAP clock), per owner key — a release disarms its own and settles its promise. */
+const reactionCalls = new Map<string, {disarm: () => void, settle: () => void}>();
 
 // A reward seeded and not yet landed holds the foreground: the next prompt, the notification feed and the bot's
 // turn wait for the gain's own story. Bounded by the registry's ceiling, whose `expire` releases every row honestly.
@@ -662,7 +662,9 @@ function answerRailReward(key: string, answer?: RailAnswerFlight): Promise<void>
         resolve();
       });
     };
-    const call = gsap.delayedCall(motionMs(TOUCHDOWN_TICK_GAP_MS) / 1000, () => {
+    // On the motion clock, GUARANTEED (the session's): the answer's promise is somebody's `await` — the beat comes due at
+    // its time, or when the game screen leaves first.
+    const disarm = motionGuarantee(motionMs(TOUCHDOWN_TICK_GAP_MS), 'the rail reward\'s answer beat after the touchdown', () => {
       reactionCalls.delete(key);
       if (entryOf(key) === undefined) {
         settle();
@@ -676,7 +678,7 @@ function answerRailReward(key: string, answer?: RailAnswerFlight): Promise<void>
       void answer.prepare().then(launchAnswer, launchAnswer);
     });
     // A release from outside kills the beat — it settles the promise itself (a killed call fires nothing).
-    reactionCalls.set(key, {call, settle});
+    reactionCalls.set(key, {disarm, settle});
   });
 }
 
@@ -695,7 +697,7 @@ export function releaseRailReward(key: string, why: string): void {
   [...entry.cause].forEach((spec) => releaseSpec(entry.cause, spec, entry.vp));
   [...entry.reactions].forEach((spec) => releaseSpec(entry.reactions, spec));
   dropEntry(key);
-  pending?.call.kill();
+  pending?.disarm();
   pending?.settle();
   if (process.env.NODE_ENV !== 'production' && why !== 're-seed') {
     console.warn(`[rail-reward] ${key}: released before its flight had finished — ${why}`);
@@ -722,7 +724,7 @@ export function railRewardDiag(): RailRewardDiag {
 export function resetRailRewards(): void {
   [...railRewardState.entries].forEach((entry) => releaseRailReward(entry.key, 're-seed'));
   reactionCalls.forEach((pending) => {
-    pending.call.kill();
+    pending.disarm();
     pending.settle();
   });
   reactionCalls.clear();

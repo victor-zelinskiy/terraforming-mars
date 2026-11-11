@@ -37,7 +37,6 @@
  */
 
 import {reactive, nextTick, shallowRef} from 'vue';
-import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -84,9 +83,9 @@ import {Tag} from '@/common/cards/Tag';
 import {VpShare} from '@/common/game/vpAttribution';
 import {claimVpShares, dropVpClaim, flyVpShares, holdsVpShares, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
 import {beginCeilingWait, raceCeiling} from '@/client/console/waitGraph/ceilingWait';
-import {span, whenPainted} from '@/client/console/session/sessionWaits';
+import {motionGuarantee, motionSpan, span, whenPainted} from '@/client/console/session/sessionWaits';
 import {createFlowRun} from '@/client/console/session/flowRun';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /**
  * The score cell's ledger owner of this scene (TR55 — docs/claude/console/score-cell.md): the played card's own
@@ -556,7 +555,7 @@ async function answerHeroAfterWave(): Promise<void> {
   if (answers.length === 0) {
     return;
   }
-  await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TOUCHDOWN_TICK_GAP_MS) / 1000, resolve));
+  await motionSpan(motionMs(TOUCHDOWN_TICK_GAP_MS), heroRun.scope ?? consoleSessionScope());
   const card = playedHeroState.card ?? '';
   // «СРАБАТЫВАНИЕ КАРТЫ»: the REACTOR that paid rises first (out of its place on the receiving stage, or at a seat beside
   // the rail) and its share is born on its effect row; the printed tag that woke it is marked. What no reactor records
@@ -1334,7 +1333,7 @@ async function shipPrice(mine: () => boolean): Promise<void> {
     if (!mine()) {
       return;
     }
-    await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
+    await motionSpan(motionMs(TRANSFER_BEAT_MS), heroRun.scope ?? consoleSessionScope());
     if (!mine()) {
       return;
     }
@@ -1372,7 +1371,7 @@ async function shipPrice(mine: () => boolean): Promise<void> {
   // its touchdown: five stands saw the steel / titanium token absorbed under the hand's glass (2026-11-06).
   const intoCard = [stock, cards, alloys, target];
   if (intoCard.some((run) => run !== undefined)) {
-    const beat = new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
+    const beat = motionSpan(motionMs(TRANSFER_BEAT_MS), heroRun.scope ?? consoleSessionScope());
     // …and every token drawn into the card has finished its absorb (`shipAbsorbs`) — bounded: a guarded absorb always
     // reports, but the lift must never wait on a run that lost its callback.
     const absorbed = raceCeiling({
@@ -2777,7 +2776,7 @@ async function flyHeroCardVp(card: string): Promise<void> {
   if (badge !== undefined) {
     // The badge ANSWERS the birth — one short press (an attribute: the badge's own `:class` never wipes it).
     badge.setAttribute('data-vp-emit', '');
-    gsap.delayedCall(motionMs(VP_EMIT_PRESS_MS) / 1000, () => badge.removeAttribute('data-vp-emit'));
+    motionGuarantee(motionMs(VP_EMIT_PRESS_MS), 'the VP badge\'s press comes off', () => badge.removeAttribute('data-vp-emit'), heroRun.scope ?? consoleSessionScope());
   }
   await flyVpShares(PLAYED_HERO_VP_OWNER, () => heroVpOrigin(card), {filter: own});
 }
@@ -2839,7 +2838,8 @@ function awaitHeroRewardPlace(card: string): Promise<void> {
         resolve();
         return;
       }
-      gsap.delayedCall(0.05, poll);
+      // The next look — a link of the reward's `await`, so a GUARANTEED one, still on the motion clock.
+      motionGuarantee(50, 'the rewards\' source card is painted (the next look)', poll, heroRun.scope ?? consoleSessionScope());
     };
     poll();
   });
@@ -2987,3 +2987,8 @@ function clearTimers(): void {
   cancelArmSafety();
   cancelSceneSafety();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Unwind any in-flight played-card hero scene (zombie-safe)
+sessionState('played-hero', abortPlayedHero, 550);

@@ -163,6 +163,7 @@ import {
 import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
 import {promptSequenceKey} from '@/client/console/promptSequence';
 import {promptIdentityKey} from '@/client/console/turnIntents';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** The commit BEAT: the chosen cube visibly leaves before the answer is sent —
  *  short, once, and never a substitute for the server's own confirmation. */
@@ -189,6 +190,9 @@ export default defineComponent({
     vm: {type: Object as PropType<BotAttackViewModel>, required: true},
   },
   emits: ['submit', 'defer'],
+  setup() {
+    return {flow: useFlowScope('bot-attack')};
+  },
   data() {
     return {
       // The module-level store is MIRRORED into `data` on purpose: a path
@@ -204,7 +208,8 @@ export default defineComponent({
       targetsHeight: 0,
       targetsWidth: 0,
       stopResizeObs: undefined as (() => void) | undefined,
-      beat: undefined as ReturnType<typeof setTimeout> | undefined,
+      /** The commit beat's cancel (undefined ⇔ no beat pending); the screen's scope takes it back on unmount. */
+      beat: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -382,9 +387,6 @@ export default defineComponent({
     clearPanelCommands('botAttack');
     this.stopResizeObs?.();
     this.stopResizeObs = undefined;
-    if (this.beat !== undefined) {
-      clearTimeout(this.beat);
-    }
   },
   methods: {
     measure(): void {
@@ -482,10 +484,10 @@ export default defineComponent({
     runCommit(card: CardName): void {
       this.committing = true;
       this.submitting = true;
-      this.beat = setTimeout(() => {
+      this.beat = this.flow.after(Math.max(1, consoleMotionMs(COMMIT_BEAT_MS)), 'the attack\'s commit beat, then the answer is sent', () => {
         this.beat = undefined;
         this.$emit('submit', {type: 'card', cards: [card]});
-      }, Math.max(1, consoleMotionMs(COMMIT_BEAT_MS)));
+      });
     },
     /** A rollback the abort signal triggers when the server REFUSES the answer:
      *  the beat is undone and the choice becomes editable again. */
@@ -493,7 +495,7 @@ export default defineComponent({
       this.submitting = false;
       this.committing = false;
       if (this.beat !== undefined) {
-        clearTimeout(this.beat);
+        this.beat();
         this.beat = undefined;
       }
     },

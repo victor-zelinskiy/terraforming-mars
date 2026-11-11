@@ -72,6 +72,7 @@ import {rematchState, fetchRematch, submitRematch, rematchJoinHref} from '@/clie
 import {startRealtimePoller} from '@/client/components/realtime/realtimePoller';
 import {realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
 import RematchPromptModal from '@/client/components/rematch/RematchPromptModal.vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 const POLL_INTERVAL_MS = 2000;
 const DECLINED_TOAST_MS = 7000;
@@ -84,10 +85,14 @@ export default defineComponent({
     /** Console mode: keep polling, render nothing (the workspace owns the verbs). */
     headless: {type: Boolean, required: false, default: false},
   },
+  setup() {
+    return {flow: useFlowScope('rematch-layer')};
+  },
   data() {
     return {
       stopPoller: undefined as (() => void) | undefined,
-      declinedTimer: undefined as number | undefined,
+      /** The declined toast's pending auto-dismiss — its cancel (a beat of the layer's own scope, taken back with it). */
+      declinedTimer: undefined as (() => void) | undefined,
       promptMinimized: false,
       createdDismissedFor: undefined as string | undefined,
       declinedDismissed: false,
@@ -165,13 +170,13 @@ export default defineComponent({
     },
     armDeclinedTimer(): void {
       this.clearDeclinedTimer();
-      this.declinedTimer = window.setTimeout(() => {
+      this.declinedTimer = this.flow.after(DECLINED_TOAST_MS, 'the declined rematch toast dismisses itself', () => {
         this.declinedDismissed = true;
-      }, DECLINED_TOAST_MS);
+      });
     },
     clearDeclinedTimer(): void {
       if (this.declinedTimer !== undefined) {
-        window.clearTimeout(this.declinedTimer);
+        this.declinedTimer();
         this.declinedTimer = undefined;
       }
     },
@@ -189,7 +194,6 @@ export default defineComponent({
       this.stopPoller();
       this.stopPoller = undefined;
     }
-    this.clearDeclinedTimer();
   },
 });
 </script>

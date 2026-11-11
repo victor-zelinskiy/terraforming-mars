@@ -242,6 +242,7 @@
 <script lang="ts">
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {defineComponent, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -454,6 +455,10 @@ export default defineComponent({
     stagedFlow: {type: String as PropType<'play' | 'action'>, default: 'play'},
   },
   emits: ['close', 'submit', 'notice', 'inspect', 'inspect-source', 'open-action', 'open-resolution-action', 'flow-complete', 'collapse', 'staged-back', 'to-board'],
+  setup() {
+    // The section's own scope (architecture v2 — PLAN §10 · C1): its two nets are timers of it, taken back with it.
+    return {flowScope: useFlowScope('console-parliament-section')};
+  },
   data() {
     return {
       /**
@@ -462,7 +467,7 @@ export default defineComponent({
        */
       cellGiverLatch: undefined as ChoiceContextSource | undefined,
       /** «ПРИЁМКА»'s readiness net: armed while a hosted batch waits for a stage that has not entered. */
-      drawNetTimer: undefined as number | undefined,
+      cancelDrawNet: undefined as (() => void) | undefined,
       /** The chairman quest's DOSSIER stands over the hall (X on the quest — Парламент v8 § 7). */
       questDossierOpen: false,
       /** …and the career's (X on the career). */
@@ -482,7 +487,8 @@ export default defineComponent({
        * prop), so no tier re-computes on its way out: the surface leaves WHOLE, as one motion.
        */
       frozenView: undefined as PlayerViewModel | undefined,
-      submitTimer: undefined as number | undefined,
+      /** The submit safety's cancel — `undefined` while no safety stands. */
+      cancelSubmitSafety: undefined as (() => void) | undefined,
       /** When the safety was first armed for the submit standing now (its re-arms are bounded — P4). */
       submitSafetySince: 0,
       /** The server's answer key at the submit — the answer is whatever changes it. */
@@ -1567,12 +1573,12 @@ export default defineComponent({
     'drawAwaitingZone': {
       immediate: true,
       handler(id: number | undefined): void {
-        if (this.drawNetTimer !== undefined) {
-          window.clearTimeout(this.drawNetTimer);
-          this.drawNetTimer = undefined;
+        if (this.cancelDrawNet !== undefined) {
+          this.cancelDrawNet();
+          this.cancelDrawNet = undefined;
         }
         if (id !== undefined && typeof window !== 'undefined') {
-          this.drawNetTimer = window.setTimeout(() => this.onDrawNet(id), PARLIAMENT_DRAW_READY_NET_MS);
+          this.cancelDrawNet = this.flowScope.after(PARLIAMENT_DRAW_READY_NET_MS, 'the draw stage\'s readiness net', () => this.onDrawNet(id));
         }
       },
     },
@@ -2200,7 +2206,6 @@ export default defineComponent({
   beforeUnmount() {
     this.stopFitObs?.();
     this.stopQuestionDoor?.();
-    this.clearSubmitTimer();
     this.parkedSubmit = undefined;
     resetSittingDirector();
     // «ПРЕДСЕДАТЕЛЬСТВО» ends with its section: a beat has nowhere to play and
@@ -2256,10 +2261,6 @@ export default defineComponent({
     // «ПРИЁМКА»: no stage stands any more — a batch still owed takes the ordinary reveal (the ownership falls with it).
     setParliamentDrawHost(this.$.uid, false);
     noteParliamentDrawPaneOut();
-    if (this.drawNetTimer !== undefined) {
-      window.clearTimeout(this.drawNetTimer);
-      this.drawNetTimer = undefined;
-    }
     // «ОТВЕТ СТОЛА» (TR78): a receipt no stage will play ticks now, honestly late; a question's stage is gone with the section.
     releaseTableAnswers();
     endTableAnswerAsk();
@@ -2541,7 +2542,7 @@ export default defineComponent({
         // safety must stand again, or nothing but the shell's refusal watcher could ever hand the stage back.
         void this.$nextTick(() => {
           // A PARKED answer keeps its bound too (P4): the funnel that holds it may never free.
-          if (parliamentFlow.stage === 'submitting' && this.submitTimer === undefined) {
+          if (parliamentFlow.stage === 'submitting' && this.cancelSubmitSafety === undefined) {
             this.armSubmitSafety();
           }
         });
@@ -3773,7 +3774,7 @@ export default defineComponent({
      */
     /** The readiness net fired: the stage never entered for `id` — the ordinary reveal takes the batch. */
     onDrawNet(id: number): void {
-      this.drawNetTimer = undefined;
+      this.cancelDrawNet = undefined;
       if (this.drawAwaitingZone === id) {
         refuseParliamentDraw(id, 'stage-never-entered');
       }
@@ -4087,10 +4088,10 @@ export default defineComponent({
      */
     armSubmitSafety(): void {
       this.clearSubmitTimer();
-      this.submitTimer = window.setTimeout(() => this.onSubmitSafety(), SUBMIT_SAFETY_MS);
+      this.cancelSubmitSafety = this.flowScope.after(SUBMIT_SAFETY_MS, 'the Parliament submit\'s safety', () => this.onSubmitSafety());
     },
     onSubmitSafety(): void {
-      this.submitTimer = undefined;
+      this.cancelSubmitSafety = undefined;
       if (parliamentFlow.stage === 'submitting' && (transportRequestInProgress() || this.parkedSubmit !== undefined)) {
         if (Date.now() - this.submitSafetySince < SUBMIT_SAFETY_MAX_MS) {
           this.armSubmitSafety();
@@ -4153,9 +4154,9 @@ export default defineComponent({
       }
     },
     clearSubmitTimer(): void {
-      if (this.submitTimer !== undefined) {
-        window.clearTimeout(this.submitTimer);
-        this.submitTimer = undefined;
+      if (this.cancelSubmitSafety !== undefined) {
+        this.cancelSubmitSafety();
+        this.cancelSubmitSafety = undefined;
       }
     },
   },

@@ -1,6 +1,7 @@
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {reducedMotionActive} from '@/client/utils/reducedMotion';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /**
  * turnHandoffState — the TurnHandoff presentation layer.
@@ -85,22 +86,22 @@ export const turnHandoffState = reactive<TurnHandoffStore>({
 });
 
 // ── Non-reactive controller internals ───────────────────────────────────────
-let burstTimer: number | undefined;
-let beamTimer: number | undefined;
-let idlePulseTimer: number | undefined;
-let idlePulseHideTimer: number | undefined;
-let idleHintTimer: number | undefined;
+/*
+ * The beats of ONE game's turn hand-off, owned by the GAME session (`consoleSessionScope()`). Two kinds, never mixed:
+ *  · a MARK taken down later (the burst, the beam, the showing micro-pulse, the CTA class on `document.body`) is a
+ *    guaranteed RELEASE — it comes down at its length OR when the game screen leaves, never stranded lit;
+ *  · the idle ESCALATION (the pulse / the hint coming ON) is PACING — it must not light anything once the game is gone.
+ * Each handle is the beat's disarm / cancel (idempotent).
+ */
+let disarmBurst: () => void = () => {};
+let disarmBeam: () => void = () => {};
+let cancelIdlePulse: () => void = () => {};
+let disarmIdlePulseHide: () => void = () => {};
+let cancelIdleHint: () => void = () => {};
 let beamSeq = 0;
 let pointerOrigin: {x: number; y: number} | undefined;
 let listenersInstalled = false;
-let cardCtaPulseTimer: number | undefined;
-
-function clearTimer(id: number | undefined): undefined {
-  if (id !== undefined) {
-    window.clearTimeout(id);
-  }
-  return undefined;
-}
+let disarmCardCtaPulse: () => void = () => {};
 
 // ── Pure decision core (unit-tested) ────────────────────────────────────────
 
@@ -192,16 +193,15 @@ export function noteTurnState(input: {
 function fireBurst(color: Color, isLocal: boolean, reduced: boolean): void {
   turnHandoffState.burstColor = color;
   turnHandoffState.burstIsLocal = isLocal;
-  burstTimer = clearTimer(burstTimer);
-  burstTimer = window.setTimeout(() => {
+  disarmBurst();
+  disarmBurst = consoleSessionScope().guarantee(reduced ? BURST_MS_REDUCED : BURST_MS, 'the turn hand-off burst settles', () => {
     turnHandoffState.burstColor = undefined;
     turnHandoffState.burstIsLocal = false;
-    burstTimer = undefined;
-  }, reduced ? BURST_MS_REDUCED : BURST_MS);
+  });
 }
 
 function cancelBurst(): void {
-  burstTimer = clearTimer(burstTimer);
+  disarmBurst();
   turnHandoffState.burstColor = undefined;
   turnHandoffState.burstIsLocal = false;
 }
@@ -209,15 +209,14 @@ function cancelBurst(): void {
 function fireBeam(from: Color, to: Color): void {
   beamSeq++;
   turnHandoffState.beam = {from, to, id: beamSeq};
-  beamTimer = clearTimer(beamTimer);
-  beamTimer = window.setTimeout(() => {
+  disarmBeam();
+  disarmBeam = consoleSessionScope().guarantee(BEAM_MS, 'the turn hand-off beam fades', () => {
     turnHandoffState.beam = undefined;
-    beamTimer = undefined;
-  }, BEAM_MS);
+  });
 }
 
 function cancelBeam(): void {
-  beamTimer = clearTimer(beamTimer);
+  disarmBeam();
   turnHandoffState.beam = undefined;
 }
 
@@ -230,25 +229,23 @@ function cancelBeam(): void {
 function armIdle(): void {
   cancelIdle();
   pointerOrigin = undefined;
-  idlePulseTimer = window.setTimeout(() => {
+  const owner = consoleSessionScope();
+  cancelIdlePulse = owner.after(IDLE_PULSE_MS, 'the idle micro-pulse of an untouched turn', () => {
     turnHandoffState.idlePulseColor = turnHandoffState.localColor;
-    idlePulseHideTimer = clearTimer(idlePulseHideTimer);
-    idlePulseHideTimer = window.setTimeout(() => {
+    disarmIdlePulseHide();
+    disarmIdlePulseHide = owner.guarantee(IDLE_PULSE_VISIBLE_MS, 'the idle micro-pulse fades', () => {
       turnHandoffState.idlePulseColor = undefined;
-      idlePulseHideTimer = undefined;
-    }, IDLE_PULSE_VISIBLE_MS);
-    idlePulseTimer = undefined;
-  }, IDLE_PULSE_MS);
-  idleHintTimer = window.setTimeout(() => {
+    });
+  });
+  cancelIdleHint = owner.after(IDLE_HINT_MS, 'the idle hint of an untouched turn', () => {
     turnHandoffState.idleHintActive = true;
-    idleHintTimer = undefined;
-  }, IDLE_HINT_MS);
+  });
 }
 
 function cancelIdle(): void {
-  idlePulseTimer = clearTimer(idlePulseTimer);
-  idlePulseHideTimer = clearTimer(idlePulseHideTimer);
-  idleHintTimer = clearTimer(idleHintTimer);
+  cancelIdlePulse();
+  disarmIdlePulseHide();
+  cancelIdleHint();
   turnHandoffState.idlePulseColor = undefined;
   turnHandoffState.idleHintActive = false;
 }
@@ -279,12 +276,11 @@ function fireCtaPulse(): void {
   if (typeof document === 'undefined' || reducedMotionActive()) {
     return;
   }
-  cardCtaPulseTimer = clearTimer(cardCtaPulseTimer);
+  disarmCardCtaPulse();
   document.body.classList.add('turn-cta-flash');
-  cardCtaPulseTimer = window.setTimeout(() => {
+  disarmCardCtaPulse = consoleSessionScope().guarantee(1200, 'the turn CTA flash leaves the body', () => {
     document.body.classList.remove('turn-cta-flash');
-    cardCtaPulseTimer = undefined;
-  }, 1200);
+  });
 }
 
 // ── Window input tracking (install once, App-level) ──────────────────────────
@@ -335,7 +331,7 @@ export function resetTurnHandoff(): void {
   cancelBurst();
   cancelIdle();
   cancelBeam();
-  cardCtaPulseTimer = clearTimer(cardCtaPulseTimer);
+  disarmCardCtaPulse();
   if (typeof document !== 'undefined') {
     document.body.classList.remove('turn-cta-flash');
   }

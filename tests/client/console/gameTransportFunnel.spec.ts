@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {createManualClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
-import {dumpFlowTree} from '@/client/console/kernel/flowScope';
+import {dumpFlowTree, waitTable} from '@/client/console/kernel/flowScope';
 import {
   __resetGameTransportForTesting, __setTransportPresenterForTesting, GATE_MAX_MS, onSubmitSettled, releaseTransportFunnel,
   startGameTransport, stopGameTransport, submitBatch, submitInput, SubmitSettle, transportHolds, transportRequestInProgress,
@@ -102,7 +102,11 @@ describe('the submit funnel', () => {
     expect(transportState.phase).to.eq('idle');
     expect(settles).to.deep.eq([settle]);
     expect(dumpFlowTree().some((line) => line.includes('submit#')), 'the submit\'s scope is gone').to.eq(false);
-    expect(clock.pending(), 'no bound outlives the submit').to.eq(0);
+    // What still stands on the clock is the SESSION's and the TRANSPORT's own (the presentation ledger's heartbeat over
+    // the transport's truth witness, the poll's next look — owned ticks of the kernel since the coverage round), never
+    // a bound of the submit.
+    expect(waitTable().filter((row) => /^(submit|gate)[:#]/.test(row.owner) || row.ownerKind === 'submit' || row.ownerKind === 'gate').map((row) => row.what),
+      'no bound outlives the submit').to.deep.eq([]);
   });
 
   it('a press the funnel cannot take is REFUSED IN THE CALLER\'S HAND — never dropped (inventory R11)', async () => {

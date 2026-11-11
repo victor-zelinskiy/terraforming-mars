@@ -82,6 +82,8 @@ import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackM
 import {buildCardAnnotations, stripKindPrefix, segmentAnyPlayer, CardAnnotation, CardAnnotationRow, AnnotationTextSegment} from './annotationModel';
 import {solveAnnotationLayout, routeTether, AnnotationSide, TetherRect} from './annotationLayout';
 import {AnnotationTraversal, registerAnnotationTraversal, unregisterAnnotationTraversal} from './annotationFocusBus';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {probeTick} from '@/client/console/probeTick';
 
 type RenderedRow = CardAnnotationRow & {
   displayText: string;
@@ -135,12 +137,13 @@ type AnnotationFx = {
   hoverStage?: HTMLElement;
   /** the element ringed by a ROW-level hover (sub-anchor precision). */
   rowFocusEl?: HTMLElement;
-  /** pending connection-pulse cleanups. */
-  pulseTimers: Set<number>;
+  /** pending connection-pulse cleanups (the cancels of the layer's owned timers). */
+  pulseTimers: Set<() => void>;
   /** the registered right-stick traversal handler (console). */
   traversal?: AnnotationTraversal;
   timeline?: gsap.core.Timeline;
-  resizeRaf?: number;
+  /** the coalesced resize frame's cancel — `undefined` while none is pending. */
+  cancelResize?: () => void;
   /** Invalidates an in-flight stage-stability poll (new replay / cleanup). */
   revealToken: number;
 };
@@ -181,7 +184,7 @@ export default defineComponent({
       pulseTimers: new Set(),
       revealToken: 0,
     };
-    return {fx};
+    return {fx, flow: useFlowScope('card-annotations-layer')};
   },
   data() {
     return {
@@ -366,7 +369,8 @@ export default defineComponent({
           }
           return; // zero-width after the budget: silent no-op
         }
-        requestAnimationFrame(step);
+        // A probe tick (the next painted frame, or shortly): the poll never stands on a quiet compositor.
+        probeTick(step);
       };
       step();
     },
@@ -642,11 +646,12 @@ export default defineComponent({
       void el.offsetWidth; // reflow → the animation restarts
       el.classList.add(...classes);
       this.fx.markedTargets.add(el);
-      const timer = window.setTimeout(() => {
-        this.fx.pulseTimers.delete(timer);
+      // PACING, owned by the layer: `cleanup()` (every replay, the unmount) strips the classes itself.
+      const cancel = this.flow.after(motionMs(820), 'a connection pulse ends', () => {
+        this.fx.pulseTimers.delete(cancel);
         el.classList.remove(...PULSE_CLASSES);
-      }, motionMs(820));
-      this.fx.pulseTimers.add(timer);
+      });
+      this.fx.pulseTimers.add(cancel);
     },
 
     /* ── focus interplay (block ↔ card element, both directions) ─────── */
@@ -760,11 +765,11 @@ export default defineComponent({
 
     /* ── resize ──────────────────────────────────────────────────────── */
     onResize() {
-      if (this.rendered.length === 0 || this.fx.resizeRaf !== undefined) {
+      if (this.rendered.length === 0 || this.fx.cancelResize !== undefined) {
         return;
       }
-      this.fx.resizeRaf = window.requestAnimationFrame(() => {
-        this.fx.resizeRaf = undefined;
+      this.fx.cancelResize = this.flow.afterFrame('the annotations re-position after a resize', () => {
+        this.fx.cancelResize = undefined;
         this.killTimeline();
         this.position(false);
       });
@@ -783,12 +788,12 @@ export default defineComponent({
       if (this.fx.traversal !== undefined) {
         unregisterAnnotationTraversal(this.fx.traversal);
       }
-      if (this.fx.resizeRaf !== undefined) {
-        window.cancelAnimationFrame(this.fx.resizeRaf);
-        this.fx.resizeRaf = undefined;
+      if (this.fx.cancelResize !== undefined) {
+        this.fx.cancelResize();
+        this.fx.cancelResize = undefined;
       }
-      for (const timer of this.fx.pulseTimers) {
-        window.clearTimeout(timer);
+      for (const cancel of this.fx.pulseTimers) {
+        cancel();
       }
       this.fx.pulseTimers.clear();
       for (const el of this.fx.markedTargets) {

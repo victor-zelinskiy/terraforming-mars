@@ -24,6 +24,7 @@ import {endLawPlayLanding, lawPlayLandingOf} from '@/client/console/consolePlayP
 import {journalState} from '@/client/components/journal/journalState';
 import {PendingPlayCard} from '@/client/console/shell/shellShared';
 import type {JournalController} from '@/client/console/shell/journalController';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -36,7 +37,6 @@ export type PlayedPort = {
   /** WRITTEN here. */ commitFoldOwed: boolean,
   deferShellTask(destination: ShellTaskDestination): void,
   /** WRITTEN here. */ departingPlayCard: CardName | undefined,
-  /** WRITTEN here. */ departingTimer: number | undefined,
   endPlayCardFlow(): void,
   enterHostedParliamentStep(kind: HostedParliamentStepKind): Promise<void>,
   enterLiveGrantStep(): Promise<void>,
@@ -52,7 +52,11 @@ export type PlayedPort = {
 };
 
 export function createPlayedController(shell: PlayedPort) {
+  // The controller's own scope (architecture v2 — PLAN §10 · C1): it ends with the shell, and its timers with it.
+  const flow = useFlowScope('played-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
+  /** The departing card's safety — its cancel (the scope owns the timer; re-armed only here, where the card is set). */
+  let cancelDepartingSafety: () => void = () => {};
   /* (The COLONY EMBED LATCH and `colonyOpenedByPrompt` are gone: a
      SelectColony arriving inside a live flow PUSHES a colonies frame onto
      that flow's stack, and «who brought the player here» is the frame's own
@@ -224,7 +228,8 @@ export function createPlayedController(shell: PlayedPort) {
       if (pending !== undefined) {
         shell.clearDepartingPlayCard();
         shell.departingPlayCard = pending.cardName;
-        shell.departingTimer = window.setTimeout(() => shell.clearDepartingPlayCard(), 6000);
+        cancelDepartingSafety();
+        cancelDepartingSafety = flow.after(6000, 'the departing card\'s safety', () => shell.clearDepartingPlayCard());
       }
       shell.pendingPlayCard = undefined;
       closeConsoleLayers();

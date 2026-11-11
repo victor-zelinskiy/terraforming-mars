@@ -953,6 +953,7 @@ import {
 import {armVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCellBeat';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** What the stage asks of its target step's host (`ConsoleTradeTargetStep`). */
 type TradeTargetStepHandle = {nav: (dir: NavDirection) => void, cycleOwner: (delta: number) => void, confirm: () => void, inspect: () => void};
@@ -1140,6 +1141,9 @@ export default defineComponent({
     city: {type: Object as PropType<ColonyCityStageView | undefined>, default: undefined},
   },
   emits: ['confirm', 'build-confirm', 'pick-confirm', 'cancel', 'path-offset', 'inspect'],
+  setup() {
+    return {flow: useFlowScope('colony-focus-stage')};
+  },
   data() {
     return {
       payIdx: 0,
@@ -1165,7 +1169,8 @@ export default defineComponent({
       venusFocus: {zone: 'lane', index: 0} as VenusInnerFocus,
       /** The MEASURED height the panel's columns want (see `measureFit`). */
       fitNeedPx: 0,
-      fitRaf: undefined as number | undefined,
+      /** The pending measure frame's cancel (`flow.afterFrame`) — `undefined` when none is owed. */
+      fitRaf: undefined as (() => void) | undefined,
       stopFitObs: undefined as (() => void) | undefined,
       /**
        * THE PRESENTED TARGETS — the card-resource destinations of the
@@ -1177,9 +1182,10 @@ export default defineComponent({
       /** The presented scene has finished (all chips landed + a read beat, or
        *  a card payout took the area over) and is receding. */
       cardlandReleased: false,
-      cardlandDwell: undefined as number | undefined,
-      /** The departure's own timer — the card is unmounted when it lands. */
-      cardlandLeave: undefined as number | undefined,
+      /** The read beat's cancel (a timer of `flow`) — `undefined` when no dwell stands. */
+      cardlandDwell: undefined as (() => void) | undefined,
+      /** The departure's own timer (its cancel) — the card is unmounted when it lands. */
+      cardlandLeave: undefined as (() => void) | undefined,
       paymentCounts: {} as Partial<Record<SpendableResource, number>>,
       payFlashNonce: 0,
       tradeFleetState,
@@ -1209,8 +1215,8 @@ export default defineComponent({
       outcomeHandoffPlayed: false,
       /** The stage is coming BACK from the discard step — the return's own transition runs (see `receded`). */
       unreceding: false,
-      /** The «working area is back» dwell (see the `workingAreaYielded` watcher). */
-      stageBackTimer: undefined as number | undefined,
+      /** The «working area is back» dwell (see the `workingAreaYielded` watcher) — its cancel. */
+      stageBackTimer: undefined as (() => void) | undefined,
       /** Each rise / fall of `stageBusy` — a release waiting on the working area's transitions is THIS fall's only. */
       stageBackToken: 0,
       /**
@@ -2726,7 +2732,7 @@ export default defineComponent({
       immediate: true,
       handler(busy: boolean) {
         if (this.stageBackTimer !== undefined) {
-          window.clearTimeout(this.stageBackTimer);
+          this.stageBackTimer();
           this.stageBackTimer = undefined;
         }
         const back = ++this.stageBackToken;
@@ -2734,7 +2740,8 @@ export default defineComponent({
           setColonyStageYielded(true);
           return;
         }
-        this.stageBackTimer = window.setTimeout(() => {
+        // PACING (the stage's own dwell): a stage that is gone lowers the flag itself, in `beforeUnmount`.
+        this.stageBackTimer = this.flow.after(motionMs(WORKING_AREA_BACK_MS), 'the working area is back — its dwell', () => {
           this.stageBackTimer = undefined;
           void workingAreaSettled((this.$refs.mainEl ?? undefined) as Element | undefined, motionMs(WORKING_AREA_BACK_CEILING_MS)).then(() => {
             // Only THIS fall may release — a pose re-raised meanwhile (a second colony's payout) owns the stage again.
@@ -2742,7 +2749,7 @@ export default defineComponent({
               setColonyStageYielded(false);
             }
           });
-        }, motionMs(WORKING_AREA_BACK_MS));
+        });
       },
     },
     /**
@@ -2762,21 +2769,21 @@ export default defineComponent({
       if (!released || this.presentedTargets.length === 0) {
         return;
       }
-      this.cardlandLeave = window.setTimeout(() => {
+      this.cardlandLeave = this.flow.after(motionMs(CARDLAND_LEAVE_MS), 'the presented card\'s departure', () => {
         this.cardlandLeave = undefined;
         this.presentedTargets = [];
         this.cardlandReleased = false;
-      }, motionMs(CARDLAND_LEAVE_MS));
+      });
     },
     cardlandAllLanded(landed: boolean) {
       if (!landed || !this.cardlandVisible || this.cardlandReleased) {
         return;
       }
       this.clearCardlandDwell();
-      this.cardlandDwell = window.setTimeout(() => {
+      this.cardlandDwell = this.flow.after(motionMs(CARDLAND_READ_MS), 'the landed reward\'s read beat', () => {
         this.cardlandDwell = undefined;
         this.cardlandReleased = true;
-      }, motionMs(CARDLAND_READ_MS));
+      });
     },
     /** A CARD payout took the working area over (Miranda: animals landed,
      *  now the drawn card's covers own the room) — the presented scene must
@@ -2801,10 +2808,10 @@ export default defineComponent({
           this.cardlandAllLanded || this.cardlandDwell !== undefined) {
         return;
       }
-      this.cardlandDwell = window.setTimeout(() => {
+      this.cardlandDwell = this.flow.after(motionMs(CARDLAND_READ_MS), 'the presented scene\'s own net — the chip phase is over', () => {
         this.cardlandDwell = undefined;
         this.cardlandReleased = true;
-      }, motionMs(CARDLAND_READ_MS));
+      });
     },
     outcomeContentIn(landed: boolean) {
       if (landed) {
@@ -2842,10 +2849,10 @@ export default defineComponent({
           return;
         }
         this.clearCardlandDwell();
-        this.cardlandDwell = window.setTimeout(() => {
+        this.cardlandDwell = this.flow.after(motionMs(CARDLAND_NET_MS), 'the presented card\'s net — a chip that never arrives', () => {
           this.cardlandDwell = undefined;
           this.cardlandReleased = true;
-        }, motionMs(CARDLAND_NET_MS));
+        });
       }
     },
     /** The scene's own presence, published for the SECTION's completion: the
@@ -3438,7 +3445,7 @@ export default defineComponent({
       if (this.fitRaf !== undefined) {
         return;
       }
-      this.fitRaf = window.requestAnimationFrame(() => {
+      this.fitRaf = this.flow.afterFrame('the colony stage\'s fit measure', () => {
         this.fitRaf = undefined;
         const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
         const surface = root?.querySelector<HTMLElement>('.con-colfocus__surface');
@@ -3575,7 +3582,7 @@ export default defineComponent({
     },
     clearCardlandDwell(): void {
       if (this.cardlandDwell !== undefined) {
-        window.clearTimeout(this.cardlandDwell);
+        this.cardlandDwell();
         this.cardlandDwell = undefined;
       }
     },
@@ -3584,7 +3591,7 @@ export default defineComponent({
      *  there would strand the card on stage with no edge left to restart it. */
     clearCardlandLeave(): void {
       if (this.cardlandLeave !== undefined) {
-        window.clearTimeout(this.cardlandLeave);
+        this.cardlandLeave();
         this.cardlandLeave = undefined;
       }
     },
@@ -3766,10 +3773,7 @@ export default defineComponent({
   beforeUnmount() {
     this.stopFitObs?.();
     this.stopFitObs = undefined;
-    if (this.fitRaf !== undefined) {
-      window.cancelAnimationFrame(this.fitRaf);
-      this.fitRaf = undefined;
-    }
+    // (The measure frame, the stage-back dwell and the presented card's two timers are `flow`'s — taken back with it.)
     consoleColoniesUi.composerSub = '';
     consoleColoniesUi.composerReady = false;
     consoleColoniesUi.composerEditable = false;
@@ -3783,13 +3787,7 @@ export default defineComponent({
     // A stage that is GONE hides nothing: the closing beat must never wait on
     // a screen that no longer exists (the discard closes this stage mid-flow,
     // and the reset then plays on the restored one — or on the overview tile).
-    if (this.stageBackTimer !== undefined) {
-      window.clearTimeout(this.stageBackTimer);
-      this.stageBackTimer = undefined;
-    }
     this.stageBackToken++;
-    this.clearCardlandDwell();
-    this.clearCardlandLeave();
     colonyResolutionUi.cardSceneLive = false;
     setColonyStageYielded(false);
   },

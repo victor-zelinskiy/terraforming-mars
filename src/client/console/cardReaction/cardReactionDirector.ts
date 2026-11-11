@@ -50,7 +50,6 @@
  * bounded (the registry's ceiling) and NOTIFICATION-ONLY — a reaction never
  * holds a question; reduced motion holds nothing and flies nothing.
  */
-import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
@@ -77,6 +76,8 @@ import {
 import {RailAnswerFlight} from '@/client/console/resourceTransfer/railReward';
 import {waitRewardPayoutQuiet} from '@/client/console/rewardPayoutQuiet';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {motionGuarantee} from '@/client/console/session/sessionWaits';
 import {boardSceneMemberBusy, boardSceneOwedBusy} from '@/client/console/boardSceneMembers';
 import {scaleStepRatingBusy} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {hydroCeremonyOwed, hydroFlowState} from '@/client/console/hydroFlow/consoleHydroFlow';
@@ -847,7 +848,7 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
       }
       cardReactionState.phase = 'receding';
       await Promise.all(faces.map((r, i) => new Promise<void>((resolve) => {
-        gsap.delayedCall(motionMs(60 * i) / paceNow() / 1000, () => {
+        motionGuarantee(motionMs(60 * i) / paceNow(), 'a reactor\'s face recedes in its turn', () => {
           void recede(r).then(resolve);
         });
       })));
@@ -882,7 +883,7 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
       overflow.forEach((g) => noteReactionLetGo(g.card, g.record.seq, 'no-slot'));
       // Every claimed reactor comes forward together, a beat apart — the answer's own stagger then orders the births.
       const rises = groups.map((group, i) => new Promise<Risen>((resolve) => {
-        gsap.delayedCall(motionMs(80 * i) / paceNow() / 1000, () => {
+        motionGuarantee(motionMs(80 * i) / paceNow(), 'a reactor rises in its turn', () => {
           const p = plan[i];
           void rise(group, p.via === 'stage' ? p.slot : -1, opts.view, opts.emergence, {slots, readMs: t.holdMs + TRANSFER_POP_MS, place: p.via === 'place' ? places[i] : null}).then(resolve);
         });
@@ -1007,7 +1008,9 @@ export function markReactionCause(el: Element | null | undefined): void {
   // Re-trigger the one-shot animation on a re-mark (a reflow between the removal and the set).
   void el.offsetWidth;
   el.setAttribute('data-reaction-cause', '1');
-  window.setTimeout(() => el.removeAttribute('data-reaction-cause'), motionMs(700));
+  // A RELEASE (the mark stands on an element this module does not own): it comes off at its beat, or when the game
+  // screen leaves.
+  consoleSessionScope().guarantee(motionMs(700), 'the reaction cause\'s one-shot mark comes off', () => el.removeAttribute('data-reaction-cause'));
 }
 
 /**

@@ -31,6 +31,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {descendCascade, descendUnfold} from '@/client/console/surfaceMotion/workspaceDescend';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {whenPainted} from '@/client/console/session/sessionWaits';
 
 const FRESH_MS = 900;
 
@@ -161,7 +162,8 @@ export function playScoreHandoff(
       el.style.visibility = '';
     }
     hiddenTargets = [];
-    requestAnimationFrame(() => {
+    // A RELEASE (the proxies and the sources' visibility are taken down even if no frame comes, or the session ends).
+    void whenPainted(1, 50).then(() => {
       episode.total?.proxy.remove();
       episode.bar?.proxy.remove();
       episode.total?.source.style.removeProperty('visibility');

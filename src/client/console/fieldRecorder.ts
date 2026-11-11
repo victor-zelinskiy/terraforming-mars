@@ -21,6 +21,7 @@
 
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
 
 export type FieldHeartbeat = {
   /** The game id (the shell knows it; the URL does not carry it). */
@@ -151,7 +152,9 @@ export class FieldRecorder {
 
   constructor(private readonly deps: FieldRecorderDeps) {
     this.batchMs = deps.batchMs ?? FIELD_BATCH_MS;
-    this.schedule = deps.schedule ?? ((fn, ms) => setTimeout(fn, ms));
+    // PAGE-LIFETIME: the recorder outlives every game screen (it is what tells a session's story after it), so its
+    // batch flush is a guaranteed release of the APP scope — never of a game session it would die with.
+    this.schedule = deps.schedule ?? ((fn, ms) => consoleAppScope().guarantee(ms, 'the field recorder\'s batch', fn));
     this.record = {
       session: `${deps.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
       startedAt: deps.now(),

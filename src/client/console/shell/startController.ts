@@ -39,6 +39,8 @@ import {START_STRAND_CONFIRM_MS, START_STRAND_YIELD_MS, startStranded, startYiel
 import {ActualStartOwner, START_SHADOW_CONFIRM_MS, START_SHADOW_HELD_MS, StartOwner, StartShadowFinding, actualStartOwner, expectedStartOwner, recordStartShadowFinding, startShadowInScope, startShadowLog, startShadowVerdict} from '@/client/console/startDirector';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {AdmissionSignals, PromptSurface, promptAdmissionBlock} from '@/client/console/consolePromptAdmission';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {whenPainted} from '@/client/console/session/sessionWaits';
 import type {ConvertController} from '@/client/console/shell/convertController';
 import type {SupervisorController} from '@/client/console/supervisor/supervisorController';
 import type {SeatController} from '@/client/console/shell/seatController';
@@ -69,14 +71,18 @@ export type StartPort = {
 };
 
 export function createStartController(shell: StartPort) {
+  // The controller's own scope (architecture v2 — PLAN §10 · C1): it ends with the shell, and the watchdog's and the
+  // shadow's timers with it.
+  const flow = useFlowScope('start-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** THE START WATCHDOG (`startServing.ts`): a strand the heal could not end hands its question to the shell's own
    *  surfaces (the scene yields) until the prompt changes; the two timers are the confirm and the heal's grace. */
   const startStrandYield = ref(false);
-  const startStrandTimer = ref(undefined as number | undefined);
+  let cancelStartStrand: () => void = () => {};
   const startStrandPrompt = ref(undefined as number | undefined);
-  /** THE START SHADOW (`startDirector.ts`, phase 0): the confirm timer of a disagreement / a long hold. */
-  const startShadowTimer = ref(undefined as number | undefined);
+  /** THE START SHADOW (`startDirector.ts`, phase 0): the confirm timer of a disagreement / a long hold — a timer of
+   *  `flow` (it dies with the shell). */
+  let cancelStartShadow: () => void = () => {};
   /** Stale-release token of the start excursion's quiet re-check (the
    *  release is confirmed one tick + one frame later, so a one-flush
    *  hand-off between two chain signals can never slip through). */
@@ -663,7 +669,8 @@ export function createStartController(shell: StartPort) {
         }
       };
       if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(confirm);
+        // A RELEASE (the excursion's barrier): the frame, or shortly when none comes, or the shell's own end.
+        void whenPainted(1, 50, flow).then(confirm);
       } else {
         confirm(); // server-runner / jsdom — no frame clock to wait on
       }
@@ -733,8 +740,7 @@ export function createStartController(shell: StartPort) {
    * the shell's surfaces (`startStrandYield`) — the player is never left in front of an empty start.
    */
   function whenStartStrandedNowChanges(now: boolean): void {
-    window.clearTimeout(startStrandTimer.value);
-    startStrandTimer.value = undefined;
+    cancelStartStrand();
     if (!now) {
       return;
     }
@@ -751,8 +757,7 @@ export function createStartController(shell: StartPort) {
         diag: diag ?? null,
       }));
     };
-    startStrandTimer.value = window.setTimeout(() => {
-      startStrandTimer.value = undefined;
+    cancelStartStrand = flow.after(START_STRAND_CONFIRM_MS, 'the start strand\'s confirm', () => {
       if (!startStrandedNow.value) {
         return;
       }
@@ -761,16 +766,15 @@ export function createStartController(shell: StartPort) {
       // …and a step of the start that nothing hosts any more is re-opened through the router's own door (R15).
       const healed = sceneHeal === 'nothing-to-heal' || sceneHeal === 'no-scene' ? shell.reopenStartStep() || sceneHeal : sceneHeal;
       report('confirmed', {heal: healed});
-      startStrandTimer.value = window.setTimeout(() => {
-        startStrandTimer.value = undefined;
+      cancelStartStrand = flow.after(START_STRAND_YIELD_MS, 'the strand heal\'s grace', () => {
         if (!startStrandedNow.value) {
           return;
         }
         report('yielded to the shell (the heal did not end it)', {heal: healed});
         startStrandPrompt.value = shell.playerView.waitingFor?.promptId;
         startStrandYield.value = true;
-      }, START_STRAND_YIELD_MS);
-    }, START_STRAND_CONFIRM_MS);
+      });
+    });
   }
 
   /**
@@ -779,8 +783,7 @@ export function createStartController(shell: StartPort) {
    * admission block for `START_SHADOW_HELD_MS` is one too. Logged once per (kind, owners, prompt) — never acted on.
    */
   function whenStartShadowSigChanges(sig: string): void {
-    window.clearTimeout(startShadowTimer.value);
-    startShadowTimer.value = undefined;
+    cancelStartShadow();
     const s = startShadowNow.value;
     // The boot curtain is not the start: nothing is mounted under it yet (the field's «wizard → game» 5.5 s after
     // the page loaded, 2026-10-31 22:14).
@@ -793,8 +796,7 @@ export function createStartController(shell: StartPort) {
       return;
     }
     const held = verdict === 'held';
-    startShadowTimer.value = window.setTimeout(() => {
-      startShadowTimer.value = undefined;
+    cancelStartShadow = flow.after(held ? START_SHADOW_HELD_MS : START_SHADOW_CONFIRM_MS, 'the start shadow\'s confirm', () => {
       if (startShadowSig.value !== sig) {
         return;
       }
@@ -816,7 +818,7 @@ export function createStartController(shell: StartPort) {
       }));
       // PHASE 1 — THE SHADOW ACTS: a confirmed finding is cured through the existing doors (`startDirectorCure`).
       shell.runStartDirectorCure(finding, 'shadow');
-    }, held ? START_SHADOW_HELD_MS : START_SHADOW_CONFIRM_MS);
+    });
   }
 
   /** The question the strand was yielded for is answered (or replaced): the start takes its screen back. */
@@ -850,9 +852,7 @@ export function createStartController(shell: StartPort) {
 
   return {
     startStrandYield,
-    startStrandTimer,
     startStrandPrompt,
-    startShadowTimer,
     excursionReleaseToken,
     setupHandPending,
     startTask,

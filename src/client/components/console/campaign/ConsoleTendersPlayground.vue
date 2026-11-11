@@ -109,6 +109,7 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {Color} from '@/common/Color';
 import {CampaignSeat} from '@/common/campaign/CampaignTypes';
 import {
@@ -151,6 +152,9 @@ export default defineComponent({
   props: {
     embedded: {type: Boolean, default: false},
   },
+  setup() {
+    return {flow: useFlowScope('console-tenders-playground')};
+  },
   data() {
     return {
       cursor: 0,
@@ -162,7 +166,7 @@ export default defineComponent({
       bidding: undefined as BiddingState | undefined,
       /** The table owns the pad (◀ ▶ / A / X go to the scene). */
       tableFocus: false,
-      rivalTimer: undefined as number | undefined,
+      cancelRival: (() => {}) as () => void,
       STATES: [
         {key: 'open', label: 'Open lot', state: 'open'},
         {key: 'focused', label: 'Under the cursor', state: 'open', focused: true},
@@ -211,9 +215,6 @@ export default defineComponent({
   created() {
     this.deal();
   },
-  beforeUnmount() {
-    this.clearRival();
-  },
   methods: {
     tierKey(id: TenderId): string {
       return tenderTierKey(id);
@@ -226,10 +227,7 @@ export default defineComponent({
       return this.preludes || !TENDER_CATALOG[id].needsPreludes;
     },
     clearRival(): void {
-      if (this.rivalTimer !== undefined) {
-        window.clearTimeout(this.rivalTimer);
-        this.rivalTimer = undefined;
-      }
+      this.cancelRival();
     },
     /** A fresh table: the mission deck shuffled by the seed, dealt by the server's own engine, the order a lot of the seed. */
     deal(): void {
@@ -263,8 +261,7 @@ export default defineComponent({
       if (turn === undefined || turn === 0 || this.seats[turn]?.kind !== 'human') {
         return;
       }
-      this.rivalTimer = window.setTimeout(() => {
-        this.rivalTimer = undefined;
+      this.cancelRival = this.flow.after(RIVAL_PICK_MS, 'the rival\'s pick arrives', () => {
         const live = this.bidding;
         if (live === undefined || live.done || biddingTurnSeat(live) !== turn) {
           return;
@@ -273,7 +270,7 @@ export default defineComponent({
         if (pick !== undefined) {
           this.apply(applyBid(live, turn, pick.instance));
         }
-      }, RIVAL_PICK_MS);
+      });
     },
     apply(next: BiddingState): void {
       this.bidding = advanceBots(next, (seat) => this.seats[seat]?.kind === 'bot');

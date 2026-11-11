@@ -279,6 +279,8 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {motionAfter} from '@/client/console/session/sessionWaits';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {buildPlayedZones} from '@/client/components/console/consolePlayedModel';
 import {botTableauCards} from '@/client/components/marsbot/marsBotView';
@@ -373,6 +375,9 @@ export default defineComponent({
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     myTurn: {type: Boolean, default: false},
+  },
+  setup() {
+    return {flow: useFlowScope('info-mode')};
   },
   data() {
     return {
@@ -1085,10 +1090,10 @@ export default defineComponent({
         const tl = gsap.timeline({onComplete: () => {
           // The plate dissolves UNDER the revealed rows (a CSS opacity transition), then lets go of the host.
           host.style.setProperty('--con-unfold-plate', '0');
-          gsap.delayedCall(motionMs(280) / 1000, () => {
+          motionAfter(motionMs(280), 'the unfold plate dissolves, then lets go of its host', () => {
             host.classList.remove('con-info__unfolding');
             host.style.removeProperty('--con-unfold-plate');
-          });
+          }, this.flow);
           done();
         }});
         // The door gives from its FIRST frame (power3.out): the plate is the continuity, a slow start reads as a stall.

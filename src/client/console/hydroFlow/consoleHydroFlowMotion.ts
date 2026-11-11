@@ -24,6 +24,7 @@ import {
   killDescendEpisode, takeDescendRect,
 } from '@/client/console/surfaceMotion/workspaceDescend';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {playCeremonyBurst} from '@/client/console/ceremony/ceremonyFx';
 import type {CeremonyBurstHandle} from '@/client/console/ceremony/ceremonyFx';
 
@@ -228,7 +229,7 @@ const CEREMONY_REDUCED_DWELL_MS = 1000;
 export function runHydroCeremony(args: HydroCeremonyArgs): HydroCeremonyHandle {
   let burst: CeremonyBurstHandle | undefined;
   let doneFired = false;
-  let dwellTimer: ReturnType<typeof setTimeout> | undefined;
+  let disarmDwell: () => void = () => {};
   const finish = (): void => {
     if (doneFired) {
       return;
@@ -240,11 +241,9 @@ export function runHydroCeremony(args: HydroCeremonyArgs): HydroCeremonyHandle {
   if (args.reduced) {
     args.onCulmination();
     burst = playCeremonyBurst({host: args.seatEl, accent: 'gold', reduced: true});
-    dwellTimer = setTimeout(finish, motionMs(CEREMONY_REDUCED_DWELL_MS));
+    disarmDwell = consoleSessionScope().guarantee(motionMs(CEREMONY_REDUCED_DWELL_MS), 'the hydro ceremony\'s read dwell (reduced motion)', finish);
     return {kill: () => {
-      if (dwellTimer !== undefined) {
-        clearTimeout(dwellTimer);
-      }
+      disarmDwell();
       burst?.stop();
       finish();
     }};
@@ -258,15 +257,11 @@ export function runHydroCeremony(args: HydroCeremonyArgs): HydroCeremonyHandle {
   // shape: the real signal stays the timeline's own call; the timer is the
   // BOUNDED BACKSTOP beside it (the director-lock/`DEAL_START_SAFETY`
   // idiom), idempotent through `doneFired`, cleared by the normal finish.
-  dwellTimer = setTimeout(() => {
-    dwellTimer = undefined;
+  disarmDwell = consoleSessionScope().guarantee(motionMs(560 + CEREMONY_DWELL_MS) + 1500, 'the hydro ceremony\'s finish net', () => {
     finish();
-  }, motionMs(560 + CEREMONY_DWELL_MS) + 1500);
+  });
   const clearNet = () => {
-    if (dwellTimer !== undefined) {
-      clearTimeout(dwellTimer);
-      dwellTimer = undefined;
-    }
+    disarmDwell();
   };
   // The VALUE — born at the stop, settles in the seat. FLIP via the measured
   // delta so the number is ONE object travelling, not two crossfading.

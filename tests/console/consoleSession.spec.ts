@@ -2,8 +2,8 @@ import {expect} from 'chai';
 import {createManualClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {dumpFlowTree, resetFlowKernel} from '@/client/console/kernel/flowScope';
 import {
-  beginConsoleSession, consoleSessionLive, consoleSessionScope, endConsoleSession, onConsoleSessionEnd, resetConsoleSession,
-  sessionChild,
+  beginConsoleSession, consoleSessionLive, consoleSessionScope, declaredSessionStates, endConsoleSession, leaveConsoleSession,
+  onConsoleSessionEnd, resetConsoleSession, sessionChild, sessionState,
 } from '@/client/console/session/consoleSession';
 import {
   enterWorkspace, resetWorkspaceStack, workspaceFrameScope,
@@ -171,5 +171,55 @@ describe('console session · one root for every flow', () => {
       console.warn = warn;
     }
     expect(ran).to.deep.equal(['c', 'a']);
+  });
+
+  it('`sessionState` — module state DECLARES itself; the leaving screen takes every declared state down in ONE ordered pass', () => {
+    const ran: Array<string> = [];
+    // Declared in any order (the order modules happen to be evaluated in) — the pass is ordered by `at`.
+    sessionState('spec:c', () => ran.push('c'), 9_000_030);
+    sessionState('spec:a', () => ran.push('a'), 9_000_010);
+    sessionState('spec:b', () => ran.push('b'), 9_000_020);
+    const places = declaredSessionStates().map((state) => state.at);
+    expect(places, 'the pass is sorted').to.deep.equal([...places].sort((x, y) => x - y));
+
+    beginConsoleSession();
+    leaveConsoleSession();
+    expect(ran).to.deep.equal(['a', 'b', 'c']);
+    leaveConsoleSession(); // a declaration STANDS — it serves every game screen of the page, and the pass is idempotent
+    expect(ran).to.deep.equal(['a', 'b', 'c', 'a', 'b', 'c']);
+
+    // A module evaluated again: its newest declaration stands, in its (new) place.
+    sessionState('spec:a', () => ran.push('a2'), 9_000_040);
+    ran.length = 0;
+    leaveConsoleSession();
+    expect(ran).to.deep.equal(['b', 'c', 'a2']);
+    for (const label of ['spec:a', 'spec:b', 'spec:c']) {
+      sessionState(label, () => {}, 9_000_000);
+    }
+  });
+
+  it('a session state that throws in its reset is said by name — and the pass goes on', () => {
+    const ran: Array<string> = [];
+    const said: Array<string> = [];
+    const warn = console.warn;
+    console.warn = (...args: Array<unknown>) => {
+      said.push(String(args[0]));
+    };
+    try {
+      sessionState('spec:first', () => ran.push('first'), 9_100_010);
+      sessionState('spec:boom', () => {
+        throw new Error('boom');
+      }, 9_100_020);
+      sessionState('spec:last', () => ran.push('last'), 9_100_030);
+      beginConsoleSession();
+      leaveConsoleSession();
+    } finally {
+      console.warn = warn;
+      for (const label of ['spec:first', 'spec:boom', 'spec:last']) {
+        sessionState(label, () => {}, 9_100_000);
+      }
+    }
+    expect(ran).to.deep.equal(['first', 'last']);
+    expect(said.filter((line) => line.includes('the session state «spec:boom» threw in its reset'))).to.have.length(1);
   });
 });

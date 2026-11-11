@@ -20,6 +20,8 @@
  */
 
 import {reactive} from 'vue';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 const WARMUP_DONE_FLAG = 'tm_boot_warmup_done';
 
@@ -54,6 +56,10 @@ export function shouldRunBootWarmup(): boolean {
     return true;
   }
 }
+
+/** THE WARM-UP IS A RUN of the page's scope (architecture v2 — PLAN §10 · C4), derived from its flag: it stands in the
+ *  flow tree while the loader is up — before any game screen exists, so never a game session's. */
+deriveFlowRun('boot-warmup', () => bootWarmupState.active, {owner: () => consoleAppScope()});
 
 export function beginBootWarmup(): void {
   bootWarmupState.active = true;

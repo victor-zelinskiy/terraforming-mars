@@ -34,7 +34,8 @@ describe('a resource chip is born at its source — the flight starts on the ani
     expect(flight.indexOf('gsap.set(chip, {'), 'the hidden source pose is set at once').to.be.lessThan(deferred);
     const birth = raw.slice(raw.indexOf('function bornThenFlown('), raw.indexOf('function guarded('));
     expect(birth, 'the birth turns the chip visible at its source').to.include('gsap.set(chip, {autoAlpha: TRANSFER_BIRTH_ALPHA});');
-    expect(birth, 'on a tick, after the wave\'s stagger').to.include('gsap.delayedCall(delayMs / 1000,');
+    // …on the MOTION clock, with an owner (`motionAfter` = `gsap.delayedCall` as a row of the session's wait table).
+    expect(birth, 'on a tick, after the wave\'s stagger').to.include('motionAfter(delayMs, ');
     expect(birth, 'the flight waits for a LATER tick (a painted frame between them)').to.include('if (gsap.ticker.frame <= bornFrame) {');
     expect(birth, 'never a wall clock').to.not.match(/setTimeout|requestAnimationFrame/);
   });
@@ -71,7 +72,9 @@ describe('a resource chip is born at its source — the flight starts on the ani
     expect(guard, 'on the animation clock').to.include('gsap.ticker.add(waiter);');
     expect(guard, 'every way out releases the next touchdown').to.include('releaseLandingSlot(wave.gate, wave.index);');
     // The safety resolves WITHOUT waiting for the turn — the bound stays the token's own.
-    expect(guard.slice(guard.indexOf('const safety = window.setTimeout(')), 'the safety never waits for a predecessor').to.not.include('done()');
+    const safety = guard.indexOf('const disarmSafety = owner.guarantee(');
+    expect(safety, 'the safety is a guaranteed release of the session').to.be.greaterThan(-1);
+    expect(guard.slice(safety), 'the safety never waits for a predecessor').to.not.include('done()');
     const ready = raw.slice(raw.indexOf('function landingSlotReady('), raw.indexOf('function waveSlotReady('));
     expect(ready, 'only after every predecessor touched down (or never will)').to.include('gate.landNext >= slot.index');
     expect(ready, 'in a LATER frame').to.include('gsap.ticker.frame > gate.landFrame');
@@ -106,7 +109,8 @@ describe('a resource chip is born at its source — the flight starts on the ani
     // (A GUARANTEED release of the flow kernel: at the grace, or when the game screen leaves — the promise is never left pending.)
     expect(guard, 'a caught-up beat gets its own touchdown\'s grace, then resolves anyway — never a hang')
       .to.match(/disarmGrace = consoleSessionScope\(\)\.guarantee\(CATCH_UP_TOUCHDOWN_GRACE_MS, '[^\n]*', finish\);/);
-    expect(guard, 'the safety itself is a guaranteed release at the beat\'s budget').to.include('consoleSessionScope().guarantee(budgetMs + 1200,');
+    expect(guard, 'the safety itself is a guaranteed release at the beat\'s budget').to.include('owner.guarantee(budgetMs + 1200,');
+    expect(guard, '…and silent when it comes due because the game screen left (not a ceiling)').to.include('if (owner.ended !== undefined) {');
     for (const name of ['runTransferFlight', 'runDetachedTransferFlight']) {
       const flight = body(name);
       expect(flight, `${name}: the timeline is kept for the safety`).to.match(/flight = (tl|arc);/);

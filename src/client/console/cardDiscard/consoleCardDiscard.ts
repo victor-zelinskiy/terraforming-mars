@@ -27,7 +27,7 @@ import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {untilCeiling} from '@/client/console/waitGraph/ceilingWait';
 import {frames as paintedFrames} from '@/client/console/kernel/flowScope';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 import {
   DiscardPhase,
@@ -461,3 +461,8 @@ async function waitForTray(maxFrames: number): Promise<void> {
     detail: `${frames} frames, estimated at 16 ms each`,
   }, () => discardTrayEl() !== undefined || !cardDiscardTransaction.active, run.scope, 16);
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The discard cinematic is module state too — never carry a live scene (or its animation hold) across a game switch.
+sessionState('card-discard', resetCardDiscard, 320);

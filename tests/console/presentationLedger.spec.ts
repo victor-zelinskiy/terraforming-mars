@@ -18,6 +18,8 @@ import {
   owePresentation, presentationLedgerSnapshot, presentationLedgerStats,
   registerTruthWitness, resetPresentationLedger, settlePresentationDue,
 } from '../../src/client/console/presentationLedger';
+import {dumpFlowTree} from '../../src/client/console/kernel/flowScope';
+import {beginConsoleSession, endConsoleSession} from '../../src/client/console/session/consoleSession';
 
 function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -39,6 +41,33 @@ describe('presentationLedger', function() {
     // Module state is process-shared — a leaked story would tick its
     // heartbeat under every later spec.
     resetPresentationLedger();
+  });
+
+  it('AN OWED STORY IS A `story` SCOPE of the session: it stands in the tree until it settles — and ends with its session', () => {
+    beginConsoleSession();
+    const standing = (): Array<string> => dumpFlowTree().filter((line) => line.includes('owed:spec-park'));
+    const first = owePresentation({id: 'spec-park', ready: () => false, redrive: () => {}, dueMs: 60_000});
+    expect(standing(), 'one scope per story').to.have.length(1);
+    expect(standing()[0]).to.include('story:owed:spec-park#');
+    // A re-owe is the same story deferring again: the same scope, as the same clock.
+    const second = owePresentation({id: 'spec-park', ready: () => false, redrive: () => {}, dueMs: 60_000});
+    expect(standing()).to.have.length(1);
+    first.settle(); // an older handle never settles the newer owe
+    expect(standing()).to.have.length(1);
+    second.settle();
+    expect(standing(), 'settled: the scope ended').to.deep.eq([]);
+    expect(presentationLedgerSnapshot().stories).to.deep.eq([]);
+
+    // A debt of a game screen that LEFT is not re-driven into the next one: the story leaves the book with its session.
+    let redriven = 0;
+    let degraded = 0;
+    owePresentation({id: 'spec-park', ready: () => true, redrive: () => redriven++, dueMs: 60_000, degrade: () => degraded++});
+    endConsoleSession();
+    expect(standing()).to.deep.eq([]);
+    expect(presentationLedgerSnapshot().stories).to.deep.eq([]);
+    settlePresentationDue();
+    expect(redriven, 'no redrive for a story whose session ended').to.equal(0);
+    expect(degraded, 'and no degrade: the owner\'s own reset lets its values go').to.equal(0);
   });
 
   it('re-drives a ready story through the owner entry, once per min-gap', () => {

@@ -34,7 +34,7 @@ import {CardName} from '@/common/cards/CardName';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {holdDeckDisplay, releaseDeckDisplay, releaseDeckSeed, seedDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import type {PlayerViewModel} from '@/common/models/PlayerModel';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 
 export type DeckDrawPhase =
@@ -541,3 +541,8 @@ export function resetDeckDraw(): void {
   // window in which their ownership expires.
   deckDrawState.foreign = [];
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Drop any in-flight deck-draw scene (zombie-safe)
+sessionState('deck-draw', abortDeckDraw, 540);

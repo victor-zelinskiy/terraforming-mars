@@ -47,6 +47,8 @@ import type {MandatoryController} from '@/client/console/shell/mandatoryControll
 import type {HydroController} from '@/client/console/shell/hydroController';
 import type {PlacementController} from '@/client/console/shell/placementController';
 import type {PlayedController} from '@/client/console/shell/playedController';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {whenPainted} from '@/client/console/session/sessionWaits';
 
 /**
  * THE SCENE-EXIT BARRIER'S NAMED NET (see `revealHeldForWorkspace`). Long
@@ -103,11 +105,13 @@ export type RevealPort = {
 };
 
 export function createRevealController(shell: RevealPort) {
+  // The controller's own scope (architecture v2 — PLAN §10 · C1): it ends with the shell, and its timers with it.
+  const flow = useFlowScope('reveal-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** The reveal QUEUE park's restore fn (registered at mount beside the board-beat probe). */
   const releaseRevealQueuePark = ref(undefined as (() => void) | undefined);
-  /** The scene-exit barrier's net + the batch id it has released. */
-  const revealExitBarrierNetId = ref(undefined as number | undefined);
+  /** The scene-exit barrier's net (its cancel — the scope owns the timer) + the batch id it has released. */
+  let cancelRevealExitBarrierNet: () => void = () => {};
   const revealExitBarrierPassed = ref(undefined as number | undefined);
   /** The reveal-result the player already acknowledged (until the server clears). */
   const dismissedRevealKey = ref('');
@@ -826,7 +830,7 @@ export function createRevealController(shell: RevealPort) {
       await shell.$nextTick();
       let t: HandTransitionTargets = {pairs: [], scrollTop: 0};
       for (let i = 0; i < 10 && t.pairs.length === 0; i++) {
-        await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+        await whenPainted(1, 50, flow);
         const section = (shell.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
         if (section !== undefined) {
           t = section.transitionTargets();
@@ -942,17 +946,15 @@ export function createRevealController(shell: RevealPort) {
    * this only guarantees the wait ENDS (see `revealHeldForWorkspace`).
    */
   function whenExitBarrierHeldBatchChanges(id: number | undefined): void {
-    if (revealExitBarrierNetId.value !== undefined) {
-      window.clearTimeout(revealExitBarrierNetId.value);
-      revealExitBarrierNetId.value = undefined;
-    }
+    cancelRevealExitBarrierNet();
+    cancelRevealExitBarrierNet = () => {};
     if (id === undefined) {
       return;
     }
-    revealExitBarrierNetId.value = window.setTimeout(() => {
-      revealExitBarrierNetId.value = undefined;
+    cancelRevealExitBarrierNet = flow.after(REVEAL_EXIT_BARRIER_NET_MS, 'the reveal\'s scene-exit barrier (net)', () => {
+      cancelRevealExitBarrierNet = () => {};
       revealExitBarrierPassed.value = id;
-    }, REVEAL_EXIT_BARRIER_NET_MS);
+    });
   }
 
   // The deck pick's life ended (submitted, closing beats done) — release a
@@ -1019,7 +1021,6 @@ export function createRevealController(shell: RevealPort) {
 
   return {
     releaseRevealQueuePark,
-    revealExitBarrierNetId,
     revealExitBarrierPassed,
     dismissedRevealKey,
     releaseRevealParkSupplier,

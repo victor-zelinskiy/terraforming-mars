@@ -29,6 +29,7 @@ import {ColonyBonusDiscardMeta, PlayerInputModel} from '@/common/models/PlayerIn
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {Reading, readingText} from '@/client/console/readingText';
 import {adoptDeckSeed, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** The ONE in-place turn of a sealed place: owed (its card arrived) → turning (the turn plays) → done. */
 export type SettlementTurnPhase = 'none' | 'owed' | 'turning' | 'done';
@@ -170,7 +171,8 @@ export function liftSettlementSeal(place: number): void {
 // (it never flies the card off the deck) and lets go of it as the card starts to turn — «the deck answers in the
 // same beat». Bounded: a turn that never plays lets the counter fall to the server's number.
 let deckHeld = false;
-let deckNet: ReturnType<typeof setTimeout> | undefined;
+/** The net's disarm — a GUARANTEED release of the session: the counter is let go at the net, or when the game screen leaves. */
+let disarmDeckNet: () => void = () => {};
 const SETTLEMENT_DECK_NET_MS = 10_000;
 
 /** Take the apply-block seed over (the batch is the table's — see the deck-draw layer's verdict). */
@@ -179,21 +181,15 @@ export function adoptSettlementDeck(): void {
     return;
   }
   deckHeld = true;
-  if (deckNet !== undefined) {
-    clearTimeout(deckNet);
-  }
-  deckNet = setTimeout(() => {
-    deckNet = undefined;
+  disarmDeckNet();
+  disarmDeckNet = consoleSessionScope().guarantee(SETTLEMENT_DECK_NET_MS, 'the settlement table\'s hold of the deck counter', () => {
     releaseSettlementDeck();
-  }, SETTLEMENT_DECK_NET_MS);
+  });
 }
 
 /** The card turns (or is simply shown): the counter falls to the server's number. Idempotent. */
 export function releaseSettlementDeck(): void {
-  if (deckNet !== undefined) {
-    clearTimeout(deckNet);
-    deckNet = undefined;
-  }
+  disarmDeckNet();
   if (deckHeld) {
     deckHeld = false;
     releaseDeckDisplay();

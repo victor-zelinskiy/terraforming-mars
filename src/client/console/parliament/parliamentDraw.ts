@@ -37,6 +37,7 @@ import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsStat
 import {embedZoneMounted} from '@/client/console/embedZoneRegistry';
 import {probeTick} from '@/client/console/probeTick';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {parliamentParksReveal} from './parliamentRewardBeat';
 import {rulingChangeParksReveal} from './rulingChangeDraw';
 
@@ -133,14 +134,24 @@ function waitUntil(done: () => boolean, what: string, node: {id: string, what: s
   return new Promise((resolve) => {
     const onNet = (): void => {
       stop();
+      forget();
       console.warn(`[parliament-draw] ${what} — the net let the flow go on`);
       wait.ceiling();
       resolve();
     };
-    const timer = setTimeout(onNet, PARLIAMENT_DRAW_TAKE_NET_MS);
+    // The net WARNS, so it is a pacing timer of the session (a wall-clock bound, never a beat); a session that ends
+    // under the wait lets the awaiting flow go SILENTLY — the take was not late, the game left.
+    const owner = consoleSessionScope();
+    const cancelNet = owner.after(PARLIAMENT_DRAW_TAKE_NET_MS, 'the take of a Parliament draw (the net)', onNet);
+    const forget = owner.defer(() => {
+      stop();
+      wait.end();
+      resolve();
+    });
     const stop = watch(done, (ok) => {
       if (ok) {
-        clearTimeout(timer);
+        cancelNet();
+        forget();
         stop();
         wait.met();
         resolve();

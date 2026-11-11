@@ -67,6 +67,7 @@ import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValu
 import AdditionalResourceTooltip from '@/client/components/additionalResources/AdditionalResourceTooltip.vue';
 import {additionalResourceGroups, additionalResourceMetricKey, AdditionalResourceGroup} from '@/client/components/additionalResources/additionalResources';
 import {openAdditionalResourceDetail} from '@/client/components/additionalResources/additionalResourcesState';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 const HOVER_DELAY_MS = 140;
 
@@ -84,12 +85,15 @@ export default defineComponent({
       default: '',
     },
   },
+  setup() {
+    return {flow: useFlowScope('additional-resources-panel')};
+  },
   data() {
     return {
       hoveredResource: undefined as CardResource | undefined,
       hoverAnchor: undefined as DOMRect | undefined,
       tooltipVisible: false,
-      hoverTimer: undefined as number | undefined,
+      cancelHover: (() => {}) as () => void,
     };
   },
   computed: {
@@ -115,9 +119,9 @@ export default defineComponent({
       this.hoveredResource = group.resource;
       const target = event.currentTarget as HTMLElement | null;
       this.hoverAnchor = target?.getBoundingClientRect();
-      this.hoverTimer = window.setTimeout(() => {
+      this.cancelHover = this.flow.after(HOVER_DELAY_MS, 'the row\'s hover delay', () => {
         this.tooltipVisible = true;
-      }, HOVER_DELAY_MS);
+      });
     },
     onRowLeave(): void {
       this.clearHoverTimer();
@@ -131,14 +135,8 @@ export default defineComponent({
       openAdditionalResourceDetail(group.resource, this.player.color);
     },
     clearHoverTimer(): void {
-      if (this.hoverTimer !== undefined) {
-        window.clearTimeout(this.hoverTimer);
-        this.hoverTimer = undefined;
-      }
+      this.cancelHover();
     },
-  },
-  beforeUnmount() {
-    this.clearHoverTimer();
   },
 });
 </script>

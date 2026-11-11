@@ -27,6 +27,7 @@
 import {reactive} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {sittingBaselineOf} from './sittingBaseline';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** The longest the board stays covered for a sitting that has not come up (the generation scene rises in ~2–4 s). */
 export const SITTING_RISE_NET_MS = 15_000;
@@ -36,11 +37,12 @@ export const sittingRiseState = reactive({
   owed: false,
 });
 
-let net: number | undefined;
+/** The net's disarm — a guaranteed RELEASE of the session: the board is given back at the bound, or when the game leaves. */
+let net: (() => void) | undefined;
 
 function clearNet(): void {
   if (net !== undefined) {
-    window.clearTimeout(net);
+    net();
     net = undefined;
   }
 }
@@ -60,7 +62,7 @@ export function noteSittingRise(before: PlayerViewModel | undefined, after: Play
   sittingRiseState.owed = true;
   clearNet();
   if (typeof window !== 'undefined') {
-    net = window.setTimeout(giveUpRise, SITTING_RISE_NET_MS);
+    net = consoleSessionScope().guarantee(SITTING_RISE_NET_MS, 'a sitting on its way up (the board\'s cover)', giveUpRise);
   }
 }
 

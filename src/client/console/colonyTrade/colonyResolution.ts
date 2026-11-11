@@ -51,6 +51,7 @@ import {colonyTradeState} from '@/client/console/colonyTrade/consoleColonyTrade'
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /** The resolution's derived phase (observability + the crumb's vocabulary). */
 export type ColonyResolutionPhase =
@@ -737,3 +738,9 @@ export function remoteColonyBonusHold(
     claimedByColonies: workspaceOutcomeState.host === 'colonies',
   }), source);
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The colony-bonus entry is module state as well: a live wait (and its net) must never carry a stale «a payout is
+// owed here» into the next game.
+sessionState('colony-bonus-entry', clearColonyBonusEntry, 340);

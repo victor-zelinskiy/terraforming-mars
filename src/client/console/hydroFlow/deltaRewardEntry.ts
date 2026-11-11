@@ -23,6 +23,7 @@
  */
 
 import {reactive} from 'vue';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {CardName} from '@/common/cards/CardName';
 import type {DeltaStageAnswer, DeltaStageRewardResponse, InputResponse} from '@/common/inputs/InputResponse';
 import type {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -39,6 +40,7 @@ import {resetHydroFlow} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {consoleHydroUi} from '@/client/console/consoleHydroState';
 import {popWorkspaceFrame, pushWorkspaceFrame, workspaceFrameKnown, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
 import {suspendHydroInstance} from '@/client/console/hydroFlow/hydroInstanceSuspension';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /** The composed claim of ONE stage — everything the pick surface collected. */
 export type DeltaRewardDraft = {
@@ -68,6 +70,13 @@ export type DeltaRewardPickRequest = {
    */
   advanceFrom?: number;
 };
+
+/**
+ * THE PICK'S RUN: from the moment the stage-reward pick opens to its answer (resolved, cancelled, reset) — `surface:delta-reward-pick#n` in the flow tree (architecture v2 — PLAN §10 · C4). The tree names it while it stands, and
+ * when the game screen leaves under it the module is brought to rest through `resetDeltaRewardPick` — no row of the shell's
+ * teardown is what keeps it out of the next game.
+ */
+const run = createFlowRun('delta-reward-pick', {kind: 'surface', orphaned: () => resetDeltaRewardPick()});
 
 export const deltaRewardPickState = reactive({
   active: false,
@@ -111,6 +120,7 @@ export function enterDeltaRewardPick(
   resolveCb = onResolve;
   cancelCb = onCancel;
   deltaRewardPickState.active = true;
+  run.begin();
   pushWorkspaceFrame({
     kind: 'hydro',
     subject: '',
@@ -162,6 +172,7 @@ export function resetDeltaRewardPick(): void {
     popRewardPickFrame();
   }
   deltaRewardPickState.active = false;
+  run.end();
   deltaRewardPickState.request = undefined;
   resolveCb = undefined;
   cancelCb = undefined;
@@ -307,3 +318,8 @@ export function deltaRewardCommitSpecs(
   const view = deltaRewardPreviewView(draft, playerView);
   return view === undefined ? [] : hydroRewardTransfers(view);
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The stage-reward pick bridge (Dutch Mountains)
+sessionState('delta-reward-pick', resetDeltaRewardPick, 250);

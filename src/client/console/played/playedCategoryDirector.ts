@@ -27,7 +27,7 @@
  */
 
 import {gsap} from 'gsap';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -370,3 +370,9 @@ export function resetCategoryDirector(): void {
   handoffFade = undefined;
   clearCategoryFlightEls();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// A composer's TABLEAU pick is module state too — fold it (cancel) so a game switch never carries a live pick / dead
+// callbacks across sessions.
+sessionState('category-director', resetCategoryDirector, 290);

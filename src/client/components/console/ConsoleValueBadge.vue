@@ -41,12 +41,14 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import {FlowScope} from '@/client/console/kernel/flowScope';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 
 // jsdom (the unit runner) exposes no requestAnimationFrame by design — the
 // re-arm frame is an optimization, not a contract, so fall through directly.
-const nextFrame: (cb: () => void) => void =
-  typeof requestAnimationFrame === 'function' ? (cb) => requestAnimationFrame(() => cb()) : (cb) => cb();
+const nextFrame: (owner: FlowScope, cb: () => void) => void =
+  typeof requestAnimationFrame === 'function' ? (owner, cb) => owner.afterFrame('the badge\'s pulse re-arms', cb) : (_owner, cb) => cb();
 
 export default defineComponent({
   name: 'ConsoleValueBadge',
@@ -66,10 +68,13 @@ export default defineComponent({
      */
     scopeKey: {type: String, default: ''},
   },
+  setup() {
+    return {flow: useFlowScope('console-value-badge')};
+  },
   data() {
     return {
       pulsing: false,
-      pulseTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+      cancelPulse: (() => {}) as () => void,
     };
   },
   computed: {
@@ -85,11 +90,6 @@ export default defineComponent({
       }
     },
   },
-  beforeUnmount() {
-    if (this.pulseTimer !== undefined) {
-      clearTimeout(this.pulseTimer);
-    }
-  },
   methods: {
     firePulse(): void {
       if (consoleReducedMotionActive()) {
@@ -99,15 +99,12 @@ export default defineComponent({
       // Re-arm cleanly: drop the class for a frame so a rapid second change
       // restarts the animation instead of being swallowed mid-run.
       this.pulsing = false;
-      if (this.pulseTimer !== undefined) {
-        clearTimeout(this.pulseTimer);
-      }
-      nextFrame(() => {
+      this.cancelPulse();
+      nextFrame(this.flow, () => {
         this.pulsing = true;
-        this.pulseTimer = setTimeout(() => {
+        this.cancelPulse = this.flow.after(duration, 'the badge\'s pulse ends', () => {
           this.pulsing = false;
-          this.pulseTimer = undefined;
-        }, duration);
+        });
       });
     },
   },

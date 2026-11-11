@@ -183,8 +183,8 @@ import {cardResourceLanded} from '@/client/console/resourceTransfer/consoleResou
 import {playLandingShowing} from '@/client/console/played/consolePlayOutcomeClaim';
 import {HeroRect} from '@/client/console/played/playedHeroModel';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
-import {span} from '@/client/console/session/sessionWaits';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {span, whenPainted} from '@/client/console/session/sessionWaits';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** Emergence flight (ms @ motion scale 1) — strip → forward presentation. */
 const EMERGE_MS = 260;
@@ -219,6 +219,9 @@ export default defineComponent({
   components: {ConsolePlayedCardLite},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  },
+  setup() {
+    return {flow: useFlowScope('played-receiving-stage')};
   },
   data() {
     return {
@@ -562,14 +565,9 @@ export default defineComponent({
       const r = restingRectOf(el);
       return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
     },
+    /** One tick of the stability loop: the next painted frame, or shortly (a quiet compositor), or the stage left. */
     frame(): Promise<void> {
-      return new Promise((resolve) => {
-        if (typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(() => resolve());
-        } else {
-          consoleSessionScope().guarantee(16, 'ConsolePlayedReceivingStage: a release\'s bound', resolve);
-        }
-      });
+      return whenPainted(1, 50, this.flow);
     },
     // ── the stage emergence ────────────────────────────────────────────
     /**

@@ -21,6 +21,7 @@ import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {VersionedView, gameStateVersion} from '@/client/console/gameStateVersion';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 type StatsEntry = {
   version: string;
@@ -98,3 +99,8 @@ export function resetEffectStats(): void {
   state.entries = {};
   inFlight.clear();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The per-seat effect-stats cache with it
+sessionState('effect-stats', resetEffectStats, 440);

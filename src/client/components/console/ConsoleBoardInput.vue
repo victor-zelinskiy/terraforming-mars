@@ -51,6 +51,7 @@ the always-mounted board:
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {getPreferences, PreferencesManager} from '@/client/utils/PreferencesManager';
@@ -97,8 +98,9 @@ type DataModel = {
   spaceId: SpaceId | undefined;
   /** The placement-rearm hook's unregister (placementFlow). */
   unregisterRearm: (() => void) | undefined;
-  /** Strips the one-shot availability entry wave once it has played. */
-  waveTimer: number;
+  /** Strips the one-shot availability entry wave once it has played — the disarm of a guaranteed release of `flow`
+   *  (`undefined` when no wave stands). */
+  waveTimer: (() => void) | undefined;
   // Premium placement-reason popover state (replaces the native `title`).
   hoverReasons: ReadonlyArray<UnplayableReason>;
   hoverAnchor: DOMRect | undefined;
@@ -169,13 +171,16 @@ export default defineComponent({
       }
     },
   },
+  setup() {
+    return {flow: useFlowScope('board-input')};
+  },
   data(): DataModel {
     return {
       spaces: new Set(this.playerinput.spaces),
       selectedTile: undefined,
       spaceId: undefined,
       unregisterRearm: undefined,
-      waveTimer: 0,
+      waveTimer: undefined,
       hoverReasons: [],
       hoverAnchor: undefined,
       hoverSpaceId: undefined,
@@ -243,7 +248,7 @@ export default defineComponent({
      * still declared on it (the known v-show restart trap).
      */
     playAvailabilityWave(lit: ReadonlyArray<HTMLElement>) {
-      if (this.waveTimer !== 0 || lit.length === 0 || typeof window === 'undefined') {
+      if (this.waveTimer !== undefined || lit.length === 0 || typeof window === 'undefined') {
         return;
       }
       const rects = lit.map((el) => el.getBoundingClientRect());
@@ -259,15 +264,16 @@ export default defineComponent({
         el.style.setProperty('--con-wave-d', `${Math.round((dists[i] / maxDist) * 220)}ms`);
         el.classList.add('con-avail-in');
       });
-      this.waveTimer = window.setTimeout(() => {
-        this.waveTimer = 0;
+      // A RELEASE: the wave's classes sit on the BOARD's cells — they come off at the wave's end, or when the binder leaves.
+      this.waveTimer = this.flow.guarantee(consoleMotionMs(560), 'the availability wave\'s classes come off the cells', () => {
+        this.waveTimer = undefined;
         this.clearAvailabilityWave();
-      }, consoleMotionMs(560));
+      });
     },
     clearAvailabilityWave() {
-      if (this.waveTimer !== 0) {
-        window.clearTimeout(this.waveTimer);
-        this.waveTimer = 0;
+      if (this.waveTimer !== undefined) {
+        this.waveTimer();
+        this.waveTimer = undefined;
       }
       document.querySelectorAll('.con-avail-in').forEach((el) => {
         el.classList.remove('con-avail-in');

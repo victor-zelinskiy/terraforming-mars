@@ -37,10 +37,10 @@
  * `played-hero`) — the director never replaces it.
  */
 import {reactive} from 'vue';
-import {gsap} from 'gsap';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {motionSpan} from '@/client/console/session/sessionWaits';
 
 /** WHERE the scene plays — the four hosts, the prompt split by its source (the colony stage is a prompt's host too). */
 export type CardReceiveHost = 'played' | 'composer' | 'prompt' | 'colony' | 'board' | 'resolution';
@@ -123,9 +123,7 @@ function beat(ms: number): Promise<void> {
   if (ms <= 0) {
     return Promise.resolve();
   }
-  return new Promise((resolve) => {
-    gsap.delayedCall(motionMs(ms) / 1000, () => resolve());
-  });
+  return motionSpan(motionMs(ms));
 }
 
 /**

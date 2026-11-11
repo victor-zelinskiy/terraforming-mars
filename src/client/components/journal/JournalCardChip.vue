@@ -66,6 +66,7 @@ import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardPreviewPopover from '@/client/components/journal/CardPreviewPopover.vue';
 import HydronetPreviewPopover from '@/client/components/journal/HydronetPreviewPopover.vue';
 import StandardProjectPreviewPopover from '@/client/components/journal/StandardProjectPreviewPopover.vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /**
  * A single inline card token inside the journal feed.
@@ -100,7 +101,7 @@ const HOVER_DELAY = 170;
 type DataModel = {
   previewVisible: boolean;
   anchor: DOMRect | undefined;
-  hoverTimer: number | undefined;
+  cancelHover: () => void;
   showZoom: boolean;
   // Suppresses hover-preview re-show while fullscreen is open AND for a
   // short window after it closes. When a <dialog> closes over a stationary
@@ -108,7 +109,7 @@ type DataModel = {
   // re-evaluated on top-layer change, no pointer move) — without this the
   // preview would pop back up after the player closes the fullscreen card.
   blockHover: boolean;
-  blockTimer: number | undefined;
+  cancelBlock: () => void;
 };
 
 export default defineComponent({
@@ -124,14 +125,17 @@ export default defineComponent({
       default: undefined,
     },
   },
+  setup() {
+    return {flow: useFlowScope('journal-card-chip')};
+  },
   data(): DataModel {
     return {
       previewVisible: false,
       anchor: undefined,
-      hoverTimer: undefined,
+      cancelHover: () => {},
       showZoom: false,
       blockHover: false,
-      blockTimer: undefined,
+      cancelBlock: () => {},
     };
   },
   computed: {
@@ -198,7 +202,7 @@ export default defineComponent({
       }
       this.anchor = chip.getBoundingClientRect();
       this.clearHoverTimer();
-      this.hoverTimer = window.setTimeout(() => {
+      this.cancelHover = this.flow.after(HOVER_DELAY, 'the chip\'s hover delay', () => {
         // Guard again at fire time — fullscreen may have opened during the
         // delay.
         if (this.showZoom || this.blockHover) {
@@ -207,17 +211,14 @@ export default defineComponent({
         // Re-read the rect in case the feed scrolled during the delay.
         this.anchor = chip.getBoundingClientRect();
         this.previewVisible = true;
-      }, HOVER_DELAY);
+      });
     },
     onLeave(): void {
       this.clearHoverTimer();
       this.previewVisible = false;
     },
     clearHoverTimer(): void {
-      if (this.hoverTimer !== undefined) {
-        window.clearTimeout(this.hoverTimer);
-        this.hoverTimer = undefined;
-      }
+      this.cancelHover();
     },
     onClick(): void {
       // Standard projects + the Гидросеть system chip never open fullscreen.
@@ -239,20 +240,11 @@ export default defineComponent({
       // phantom mouseenter fired as the dialog leaves the top layer can't
       // re-open the popover. A genuine re-hover after this window works.
       this.onLeave();
-      if (this.blockTimer !== undefined) {
-        window.clearTimeout(this.blockTimer);
-      }
-      this.blockTimer = window.setTimeout(() => {
+      this.cancelBlock();
+      this.cancelBlock = this.flow.after(250, 'the chip\'s hover block lifts', () => {
         this.blockHover = false;
-        this.blockTimer = undefined;
-      }, 250);
+      });
     },
-  },
-  beforeUnmount(): void {
-    this.clearHoverTimer();
-    if (this.blockTimer !== undefined) {
-      window.clearTimeout(this.blockTimer);
-    }
   },
 });
 </script>

@@ -203,6 +203,7 @@
  * modules, so desktop and console can never drift.
  */
 import {computed, defineComponent, watch} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -309,7 +310,7 @@ export default defineComponent({
     const creatorWide = computed(() => viewport.width.value >= CREATE_WIDE_MIN_WIDTH);
     // The model orders a sub-setting by the grid it stands in.
     watch(creatorWide, (wide) => setCreateLayoutWide(wide), {immediate: true});
-    return {creatorWide};
+    return {creatorWide, flow: useFlowScope('console-create-game')};
   },
   data() {
     return {
@@ -322,7 +323,7 @@ export default defineComponent({
       offDecks: undefined as (() => void) | undefined,
       shakeDeck: undefined as CreateDeckId | undefined,
       shakeRow: -1,
-      shakeTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+      cancelShake: (() => {}) as () => void,
     };
   },
   computed: {
@@ -937,17 +938,13 @@ export default defineComponent({
       this.clearShake();
       this.shakeDeck = deck;
       this.shakeRow = row;
-      this.shakeTimer = setTimeout(() => {
+      this.cancelShake = this.flow.after(SHAKE_MS, 'the refused row\'s shake ends', () => {
         this.shakeDeck = undefined;
         this.shakeRow = -1;
-        this.shakeTimer = undefined;
-      }, SHAKE_MS);
+      });
     },
     clearShake(): void {
-      if (this.shakeTimer !== undefined) {
-        clearTimeout(this.shakeTimer);
-        this.shakeTimer = undefined;
-      }
+      this.cancelShake();
       this.shakeDeck = undefined;
       this.shakeRow = -1;
     },

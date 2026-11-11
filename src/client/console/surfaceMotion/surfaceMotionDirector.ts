@@ -59,6 +59,7 @@ import {
 } from '@/client/console/surfaceMotion/promptHandoffModel';
 import {playPromptArrive, playPromptRelease, promptComposeItems} from '@/client/console/surfaceMotion/promptHandoffMotion';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {probeTick} from '@/client/console/probeTick';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
 
@@ -917,9 +918,9 @@ function settledRects(nodes: ReadonlyArray<HTMLElement>, done: () => void): void
       return;
     }
     last = sig;
-    requestAnimationFrame(sample);
+    probeTick(sample);
   };
-  requestAnimationFrame(sample);
+  probeTick(sample);
 }
 
 // ── the wheel's COMMIT PIN ──────────────────────────────────────────────────

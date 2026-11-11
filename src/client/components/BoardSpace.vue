@@ -112,16 +112,17 @@ import {stackBuriedTile, stackTopTile} from '@/common/boards/cityStack';
 import {buriedTileOf} from '@/common/boards/cellPieces';
 import {TileType} from '@/common/TileType';
 import {clearActiveMarker, observeMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 type Data = {
   cathedralPlacing: boolean;
   markerDurationMs: number;
   markerDelayMs: number;
-  markerTimer: number | null;
+  cancelMarker: () => void;
   nomadPlacing: boolean;
   nomadDurationMs: number;
   nomadDelayMs: number;
-  nomadTimer: number | null;
+  cancelNomad: () => void;
 };
 
 export default defineComponent({
@@ -143,16 +144,19 @@ export default defineComponent({
       required: true,
     },
   },
+  setup() {
+    return {flow: useFlowScope('board-space')};
+  },
   data(): Data {
     return {
       cathedralPlacing: false,
       markerDurationMs: 0,
       markerDelayMs: 0,
-      markerTimer: null,
+      cancelMarker: () => {},
       nomadPlacing: false,
       nomadDurationMs: 0,
       nomadDelayMs: 0,
-      nomadTimer: null,
+      cancelNomad: () => {},
     };
   },
   components: {
@@ -190,16 +194,6 @@ export default defineComponent({
       },
     },
   },
-  beforeUnmount() {
-    if (this.markerTimer !== null) {
-      clearTimeout(this.markerTimer);
-      this.markerTimer = null;
-    }
-    if (this.nomadTimer !== null) {
-      clearTimeout(this.nomadTimer);
-      this.nomadTimer = null;
-    }
-  },
   methods: {
     artClassOf(tileType: TileType): string {
       const suffix = tileCssClassOf(tileType, this.aresExtension);
@@ -216,10 +210,7 @@ export default defineComponent({
       return piece === undefined ? '' : this.artClassOf(piece);
     },
     refreshMarkerPlacement(): void {
-      if (this.markerTimer !== null) {
-        clearTimeout(this.markerTimer);
-        this.markerTimer = null;
-      }
+      this.cancelMarker();
       const result = observeMarkerPlacement(this.space);
       if (result === null) {
         this.cathedralPlacing = false;
@@ -230,17 +221,15 @@ export default defineComponent({
       this.markerDelayMs = result.delayMs;
       const spaceId = this.space.id;
       const remaining = Math.max(0, result.durationMs + result.delayMs) + 40;
-      this.markerTimer = window.setTimeout(() => {
+      // PACING, owned by this cell (flow kernel — PLAN §10 · C1): taken back at unmount ON PURPOSE, as the cleared
+      // timer was — a landing in flight stays in the module's ledger so a mid-beat remount resumes the keyframe.
+      this.cancelMarker = this.flow.after(remaining, 'the overlay marker\'s landing ends', () => {
         this.cathedralPlacing = false;
-        this.markerTimer = null;
         clearActiveMarker(spaceId);
-      }, remaining);
+      });
     },
     refreshNomadPlacement(): void {
-      if (this.nomadTimer !== null) {
-        clearTimeout(this.nomadTimer);
-        this.nomadTimer = null;
-      }
+      this.cancelNomad();
       const result = observeMarkerPlacement(this.space, 'nomads');
       if (result === null) {
         this.nomadPlacing = false;
@@ -251,11 +240,10 @@ export default defineComponent({
       this.nomadDelayMs = result.delayMs;
       const spaceId = this.space.id;
       const remaining = Math.max(0, result.durationMs + result.delayMs) + 40;
-      this.nomadTimer = window.setTimeout(() => {
+      this.cancelNomad = this.flow.after(remaining, 'the nomads\' first landing ends', () => {
         this.nomadPlacing = false;
-        this.nomadTimer = null;
         clearActiveMarker(spaceId, 'nomads');
-      }, remaining);
+      });
     },
   },
   computed: {

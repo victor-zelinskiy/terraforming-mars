@@ -31,6 +31,7 @@ import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {discardPileStackEl, landOnDiscardPile, releaseDiscardPile, settleDiscardPile} from '@/client/console/discardPile/discardPile';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {motionGuarantee} from '@/client/console/session/sessionWaits';
 import {
   HAND_DISCARD_PILE_LEASE,
   cardDiscardState,
@@ -382,7 +383,7 @@ export function runDiscardPileSettle(t: DiscardTimings): Promise<void> {
   // here would be two answers to one touch (and a CSS animation and a tween fighting over one transform). The scene
   // keeps only the beat's length, on the motion clock.
   return guarded((done) => {
-    gsap.delayedCall(s(t.landMs), done);
+    motionGuarantee(motionMs(t.landMs), 'the pile takes the packet\'s weight', done);
   }, motionMs(t.landMs));
 }
 
@@ -398,7 +399,7 @@ export function runDiscardTrayWithdraw(t: DiscardTimings): Promise<void> {
   // …and it READS THE TRUTH (P86): a touchdown the timeline never reached is settled here, before the read.
   settleDiscardPile(HAND_DISCARD_PILE_LEASE);
   return guarded((done) => {
-    gsap.delayedCall(hold, () => {
+    motionGuarantee(hold * 1000, 'the pile\'s new count is read before the scene lets go of it', () => {
       releaseDiscardPile(HAND_DISCARD_PILE_LEASE);
       done();
     });

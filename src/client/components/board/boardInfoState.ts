@@ -14,6 +14,7 @@ import {CardName} from '@/common/cards/CardName';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {fetchPreview} from '@/client/utils/previewFetch';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /**
  * Module-level reactive store for the premium BoardInformation hover inspector.
@@ -65,7 +66,9 @@ const previewCache = new Map<string, BoardPlacementPreview>();
 /** Bumped every time the caches are dropped, so an answer that left before the drop never lands after it. */
 let cacheEpoch = 0;
 const prefetchEpochOf = new Map<string, number>();
-let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+// ON THE FLOW KERNEL (architecture v2 — PLAN §10 · C1): the hover's debounce is a GUARANTEED release of the session —
+// the hover raised `loading`, and only the fetch behind this beat lowers it again.
+let disarmDebounce: () => void = () => {};
 let hoverToken = 0;
 
 export function configureBoardInfo(cfg: Partial<Config>): void {
@@ -184,10 +187,8 @@ export function hoverBoardCell(spaceId: SpaceId, rect?: DOMRect, opts?: {quiet?:
   boardInfoState.info = undefined;
   boardInfoState.loading = true;
   const myToken = ++hoverToken;
-  if (debounceTimer !== undefined) {
-    clearTimeout(debounceTimer);
-  }
-  debounceTimer = setTimeout(() => fetchInfo(spaceId, key, myToken), 110);
+  disarmDebounce();
+  disarmDebounce = consoleSessionScope().guarantee(110, 'the cell hover\'s debounce', () => fetchInfo(spaceId, key, myToken));
 }
 
 function fetchInfo(spaceId: SpaceId, key: string, myToken: number): void {

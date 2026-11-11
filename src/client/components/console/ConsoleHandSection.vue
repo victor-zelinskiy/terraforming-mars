@@ -647,6 +647,7 @@ import {paymentUnitIcon} from '@/client/console/paymentPlan';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import type {ConsoleHandEntry, ConsoleHandSelectMode, ConsoleHandStage, HandTransitionTargets} from '@/client/components/console/consoleHandSectionTypes';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 export type {ConsoleHandEntry, ConsoleHandSelectMode, ConsoleHandStage, HandTransitionTargets};
 
@@ -798,6 +799,9 @@ export default defineComponent({
   },
   /** `pick-resumed`: the pick's RESUME phrase is done (or needed no phrase) — the shell releases the shelf's frozen look. */
   emits: ['pick-resumed'],
+  setup() {
+    return {flow: useFlowScope('hand-section')};
+  },
   data() {
     return {
       box: {w: 0, h: 0},
@@ -810,10 +814,10 @@ export default defineComponent({
       albumLayout: albumLayoutState,
       /** A page slide is airborne — `will-change` scoped to the turn only. */
       turning: false,
-      turnSafety: undefined as number | undefined,
+      cancelTurnSafety: (() => {}) as () => void,
       /** The edge that answered the last page press (one-shot impulse). */
       edgePulse: undefined as 'left' | 'right' | undefined,
-      pulseTimer: undefined as number | undefined,
+      cancelEdgePulse: (() => {}) as () => void,
       /** The strip transition arms only after the mount has settled — the
        *  first paint (and every fresh open) must land on its page with no
        *  slide from x=0. */
@@ -829,9 +833,10 @@ export default defineComponent({
       wheelAcc: 0,
       wheelAt: 0,
       ro: undefined as ResizeObserver | undefined,
-      rafMeasure: undefined as number | undefined,
+      /** A measure is scheduled for the next frame (its cancel) — `undefined` when none stands. */
+      cancelMeasure: undefined as (() => void) | undefined,
       /** Debounce handle for the focused card's full-art prewarm. */
-      prewarmTimer: undefined as number | undefined,
+      cancelPrewarm: (() => {}) as () => void,
     };
   },
   computed: {
@@ -1331,18 +1336,14 @@ export default defineComponent({
     focusName: {
       immediate: true,
       handler() {
-        if (this.prewarmTimer !== undefined) {
-          window.clearTimeout(this.prewarmTimer);
-          this.prewarmTimer = undefined;
-        }
+        this.cancelPrewarm();
         const name = this.focusName;
         if (this.handArtTier !== 'thumb' || name === undefined) {
           return;
         }
-        this.prewarmTimer = window.setTimeout(() => {
-          this.prewarmTimer = undefined;
+        this.cancelPrewarm = this.flow.after(160, 'the focused card\'s art prewarm (debounced)', () => {
           preloadPremiumCardArt([name as CardName]);
-        }, 160);
+        });
       },
     },
     /**
@@ -1454,14 +1455,11 @@ export default defineComponent({
         return;
       }
       this.turning = true;
-      if (this.turnSafety !== undefined) {
-        clearTimeout(this.turnSafety);
-      }
-      this.turnSafety = window.setTimeout(() => {
+      this.cancelTurnSafety();
+      this.cancelTurnSafety = this.flow.after(TURN_SAFETY_MS, 'the page turn\'s safety release', () => {
         this.turning = false;
         this.settledPage = this.activePage;
-        this.turnSafety = undefined;
-      }, TURN_SAFETY_MS);
+      });
     },
   },
   methods: {
@@ -1528,10 +1526,7 @@ export default defineComponent({
       }
       this.turning = false;
       this.settledPage = this.activePage;
-      if (this.turnSafety !== undefined) {
-        clearTimeout(this.turnSafety);
-        this.turnSafety = undefined;
-      }
+      this.cancelTurnSafety();
     },
     isSaleSelected(name: string): boolean {
       return this.saleSelected.includes(name);
@@ -1648,13 +1643,10 @@ export default defineComponent({
     /** The edge's press response (CSS `--pulse`, one shot). */
     pulseEdge(side: 'left' | 'right'): void {
       this.edgePulse = side;
-      if (this.pulseTimer !== undefined) {
-        clearTimeout(this.pulseTimer);
-      }
-      this.pulseTimer = window.setTimeout(() => {
+      this.cancelEdgePulse();
+      this.cancelEdgePulse = this.flow.after(EDGE_PULSE_MS, 'the edge\'s press impulse reads', () => {
         this.edgePulse = undefined;
-        this.pulseTimer = undefined;
-      }, EDGE_PULSE_MS);
+      });
     },
     /**
      * Right stick — the PAGE FLICK (replaces the old free vertical scroll):
@@ -1813,11 +1805,11 @@ export default defineComponent({
       }
     },
     scheduleMeasure(): void {
-      if (this.rafMeasure !== undefined) {
+      if (this.cancelMeasure !== undefined) {
         return;
       }
-      this.rafMeasure = requestAnimationFrame(() => {
-        this.rafMeasure = undefined;
+      this.cancelMeasure = this.flow.afterFrame('the album is re-measured', () => {
+        this.cancelMeasure = undefined;
         this.measure();
       });
     },
@@ -1835,16 +1827,12 @@ export default defineComponent({
     // a fresh open (possibly restored onto page 3) must LAND on its page,
     // never slide to it from x = 0.
     void this.$nextTick(() => {
-      requestAnimationFrame(() => {
+      this.flow.afterFrame('the first paint settles', () => {
         this.pageMotionLive = true;
       });
     });
   },
   beforeUnmount() {
-    if (this.prewarmTimer !== undefined) {
-      window.clearTimeout(this.prewarmTimer);
-      this.prewarmTimer = undefined;
-    }
     // Retract the target HERE, never from the flow side: a stale selector
     // teleports the next surface into a detached node, and the unmount watcher
     // does not fire (Vue tears the component down before its watchers run).
@@ -1891,15 +1879,6 @@ export default defineComponent({
       }
     }
     this.ro?.disconnect();
-    if (this.rafMeasure !== undefined) {
-      cancelAnimationFrame(this.rafMeasure);
-    }
-    if (this.turnSafety !== undefined) {
-      clearTimeout(this.turnSafety);
-    }
-    if (this.pulseTimer !== undefined) {
-      clearTimeout(this.pulseTimer);
-    }
   },
 });
 </script>

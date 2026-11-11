@@ -1223,6 +1223,7 @@ import {vEmbedZone} from '@/client/console/embedZoneRegistry';
  * a park); this component renders it and routes input.
  */
 import {defineComponent, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {gsap} from 'gsap';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
@@ -1513,7 +1514,8 @@ export default defineComponent({
   emits: ['close', 'confirm', 'pick', 'notice', 'collapse', 'result-done', 'bonus-answer', 'card-advance', 'inspect-source', 'reward-picked', 'espionage-picked', 'blockade-picked'],
   setup() {
     const {reduced} = useConsoleReducedMotion();
-    return {reducedMotion: reduced};
+    // The section's own scope (`flowScope` — `flow` is the hydro flow's state here): its timers end with it.
+    return {reducedMotion: reduced, flowScope: useFlowScope('hydro-section')};
   },
   data() {
     return {
@@ -1527,8 +1529,8 @@ export default defineComponent({
        *  live in the rail's own coordinate space, so they scale with it. */
       ghostLinkPaths: [] as Array<{key: string, d: string, tip: string, dir: 'fwd' | 'back'}>,
       /** The settle re-measure timer (the focused cell's growth re-lays the
-       *  rail out over the stopin transition). */
-      ghostLinkTimer: undefined as number | undefined,
+       *  rail out over the stopin transition) — its cancel (a timer of `flowScope`). */
+      ghostLinkTimer: undefined as (() => void) | undefined,
       ghostLinkRo: undefined as ResizeObserver | undefined,
       /**
        * The player's Delta Works mix PREFERENCE — the steel share they dialed
@@ -4243,10 +4245,7 @@ export default defineComponent({
     setWorkspaceFrameStage('hydro', '');
     this.ghostLinkRo?.disconnect();
     this.ghostLinkRo = undefined;
-    if (this.ghostLinkTimer !== undefined) {
-      window.clearTimeout(this.ghostLinkTimer);
-      this.ghostLinkTimer = undefined;
-    }
+    // (The settle re-measure timer is `flowScope`'s — taken back with it.)
     // A leave that will never play (the whole section is going) must still
     // end the presence — a sequence awaiting the card's exit would hang.
     if (this.landReportedPosition >= 0) {
@@ -4286,7 +4285,7 @@ export default defineComponent({
      *  that is still moving). Bounded: one timer, no loop. */
     scheduleGhostLinkMeasure(): void {
       if (this.ghostLinkTimer !== undefined) {
-        window.clearTimeout(this.ghostLinkTimer);
+        this.ghostLinkTimer();
         this.ghostLinkTimer = undefined;
       }
       if (this.ghostLinks.length === 0) {
@@ -4295,10 +4294,10 @@ export default defineComponent({
       }
       this.$nextTick(() => {
         this.measureGhostLinks();
-        this.ghostLinkTimer = window.setTimeout(() => {
+        this.ghostLinkTimer = this.flowScope.after(motionMs(420), 'the movement links\' re-measure after the stop settles', () => {
           this.ghostLinkTimer = undefined;
           this.measureGhostLinks();
-        }, motionMs(420));
+        });
       });
     },
     /** MEASURED off the real marker rows (`[data-hydro-marker]`), in the

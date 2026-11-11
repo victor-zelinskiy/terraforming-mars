@@ -5,6 +5,7 @@ import {DeckCompositionModel} from '@/common/models/DeckCompositionModel';
 import {NewGameConfig} from '@/common/game/NewGameConfig';
 import {createGameState} from '@/client/components/create/premium/createGameState';
 import {buildCreateGamePayloadFromPremiumState} from '@/client/components/create/premium/buildCreateGamePayload';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
 
 /*
  * THE CREATOR'S DECKS, AS THE SERVER COUNTS THEM (T04 «the deck is visible before
@@ -83,7 +84,7 @@ async function ask(body: NewGameConfig): Promise<void> {
  * at once; later changes coalesce into one ask per task (a burst of toggles is one ask).
  */
 export function trackDeckComposition(): () => void {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let cancelAsk: () => void = () => {};
   let lastKey = '';
   const stop = watch(
     () => buildCreateGamePayloadFromPremiumState(createGameState.config),
@@ -93,21 +94,16 @@ export function trackDeckComposition(): () => void {
         return;
       }
       lastKey = key;
-      if (timer !== undefined) {
-        clearTimeout(timer);
-      }
-      timer = setTimeout(() => {
-        timer = undefined;
+      cancelAsk();
+      cancelAsk = consoleAppScope().after(0, 'the decks\' coalesced ask', () => {
         void ask(body);
-      }, 0);
+      });
     },
     {immediate: true, deep: true},
   );
   return () => {
     stop();
-    if (timer !== undefined) {
-      clearTimeout(timer);
-    }
+    cancelAsk();
   };
 }
 

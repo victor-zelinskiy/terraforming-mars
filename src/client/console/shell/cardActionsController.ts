@@ -16,6 +16,7 @@ import {surfaceLeaveHook} from '@/client/console/surfaceMotion/surfaceMotionDire
 import {type LawPlayDetail} from '@/client/console/consolePlayPick';
 import {armBlockadeExecution, beginBlockadeExecution, consumeBlockadeExecution, deltaBlockadeResponseOf} from '@/client/console/hydroFlow/deltaBlockadeEntry';
 import type {WheelController} from '@/client/console/shell/wheelController';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -33,6 +34,8 @@ export type CardActionsPort = {
 };
 
 export function createCardActionsController(shell: CardActionsPort) {
+  // The controller's own scope (architecture v2 — PLAN §10 · C1): it ends with the shell, and its timers with it.
+  const flow = useFlowScope('card-actions-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** …and «Действия карт» is ending WITH its hosted Parliament step (TR15): the step rides `cardActionsLeaveHook`. */
   const cardActionsDissolveArmed = ref(false);
@@ -77,12 +80,12 @@ export function createCardActionsController(shell: CardActionsPort) {
     // fire; this timer needs nothing). Fingerprinted by startedAt so a
     // newer awaiting is never clobbered.
     const startedAt = surfaceMotionState.awaiting?.startedAt;
-    window.setTimeout(() => {
+    flow.after(AWAITING_SAFETY_MS + 250, 'the awaiting handoff\'s expiry', () => {
       if (surfaceMotionState.awaiting !== undefined && surfaceMotionState.awaiting.startedAt === startedAt) {
         clearAwaitingHandoff();
         closeConsoleLayers();
       }
-    }, AWAITING_SAFETY_MS + 250);
+    });
     shell.submitBatch(responses);
   }
 

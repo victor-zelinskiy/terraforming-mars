@@ -35,6 +35,7 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {hazardCleanupState} from '@/client/components/feedback/hazardCleanupTransition';
 import {HazardCleanupEvent, HazardCleanupFx, hazardFxAt} from '@/client/components/feedback/hazardCleanupModel';
 import {CLAIM_COLOR_HEX} from '@/client/components/board/scaleBonusZones';
@@ -50,6 +51,9 @@ type Data = {
 
 export default defineComponent({
   name: 'HazardCleanupOverlay',
+  setup() {
+    return {flow: useFlowScope('hazard-cleanup-overlay')};
+  },
   data(): Data {
     return {rects: {}, scheduled: false, onReposition: undefined};
   },
@@ -118,7 +122,7 @@ export default defineComponent({
         this.measure();
       };
       if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(run);
+        this.flow.afterFrame('the cleanup overlay measures', run);
       } else {
         this.$nextTick(run);
       }

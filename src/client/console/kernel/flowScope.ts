@@ -176,6 +176,13 @@ export interface FlowScope<K extends FlowKind = FlowKind> extends Disposable {
    */
   everyFrame(what: string, tick: () => boolean | void): () => void;
   /**
+   * A TICK owned by the scope: `tick` is called every `ms` on the kernel's clock until it returns `false`, the
+   * returned `stop` is called, or the scope ends — ONE row of the wait table for the tick's whole life. What a
+   * `setInterval` becomes (a sampler, a heartbeat): it cannot go on ticking for an owner that is gone. Each tick is
+   * armed after the previous one returned (a slow tick delays the next, it never stacks).
+   */
+  every(ms: number, what: string, tick: () => boolean | void): () => void;
+  /**
    * A RELEASE that is GUARANTEED: `release` is called exactly once — when `ms` have passed, OR when the scope ends,
    * whichever comes first — unless the returned `disarm` is called before either (the thing it backs came by itself).
    * The opposite of `after`, and the two must not be confused: `after` is for what must NOT happen once the owner is
@@ -185,6 +192,12 @@ export interface FlowScope<K extends FlowKind = FlowKind> extends Disposable {
    * called inside the `guarantee()` call itself (an owner already gone releases a microtask later).
    */
   guarantee(ms: number, what: string, release: () => void): () => void;
+  /**
+   * A ROW for a wait that ANOTHER clock keeps (a GSAP `delayedCall`, a tween's own completion): the table names it
+   * for as long as it stands and `withdraw` — called by the returned function, and by the scope's end — takes the
+   * foreign timer back. The kernel does not time it; it owns it.
+   */
+  note(what: string, withdraw: () => void, boundMs?: number): () => void;
 }
 
 type WaitRow = {
@@ -574,6 +587,34 @@ class ScopeImpl implements FlowScope {
     };
   }
 
+  note(what: string, withdraw: () => void, boundMs?: number): () => void {
+    if (this.result !== undefined) {
+      this.runGuarded(withdraw, `the withdrawal of «${what}» threw`);
+      return () => {};
+    }
+    const row: WaitRow = {id: nextWaitId++, owner: this, family: 'timer', what, on: undefined, since: flowClock().now(), boundMs};
+    table.set(row.id, row);
+    let standing = true;
+    // The scope's end takes the foreign timer back; the returned function only FORGETS the row (the timer fired or was
+    // taken back by its own keeper).
+    const atEnd = (): void => {
+      if (standing) {
+        standing = false;
+        table.delete(row.id);
+        this.cancels.delete(atEnd);
+        this.runGuarded(withdraw, `the withdrawal of «${what}» threw`);
+      }
+    };
+    this.cancels.add(atEnd);
+    return () => {
+      if (standing) {
+        standing = false;
+        table.delete(row.id);
+        this.cancels.delete(atEnd);
+      }
+    };
+  }
+
   afterFrame(what: string, run: () => void, count = 1): () => void {
     if (this.result !== undefined) {
       return () => {};
@@ -583,12 +624,22 @@ class ScopeImpl implements FlowScope {
     table.set(row.id, row);
     let left = Math.max(1, count);
     let cancelFrame: () => void = () => {};
+    // The take is the KERNEL's: a host whose frame cannot be cancelled (a spec's stand-in clock lends only the request)
+    // still delivers it — and the callback then finds the wait taken.
+    let taken = false;
     const take = (): void => {
+      if (taken) {
+        return;
+      }
+      taken = true;
       table.delete(row.id);
       this.cancels.delete(take);
       cancelFrame();
     };
     const step = (): void => {
+      if (taken) {
+        return;
+      }
       if (--left > 0) {
         cancelFrame = clock.nextFrame(step);
         return;
@@ -599,6 +650,46 @@ class ScopeImpl implements FlowScope {
     this.cancels.add(take);
     cancelFrame = clock.nextFrame(step);
     return take;
+  }
+
+  every(ms: number, what: string, tick: () => boolean | void): () => void {
+    if (this.result !== undefined) {
+      return () => {};
+    }
+    const clock = flowClock();
+    const row: WaitRow = {id: nextWaitId++, owner: this, family: 'timer', what, on: undefined, since: clock.now(), boundMs: ms};
+    table.set(row.id, row);
+    let stopped = false;
+    let timer: unknown = undefined;
+    const stop = (): void => {
+      if (stopped) {
+        return;
+      }
+      stopped = true;
+      table.delete(row.id);
+      this.cancels.delete(stop);
+      clock.clearTimeout(timer);
+    };
+    const step = (): void => {
+      if (stopped) {
+        return;
+      }
+      let more: boolean | void = undefined;
+      try {
+        more = tick();
+      } catch (error) {
+        // A tick that throws is said and the tick GOES ON: a sampler must not die of one bad sample.
+        flowAnomaly(clock.now(), this.id, `the tick «${what}» threw`, error);
+      }
+      if (more === false || stopped) {
+        stop();
+        return;
+      }
+      timer = clock.setTimeout(step, ms);
+    };
+    this.cancels.add(stop);
+    timer = clock.setTimeout(step, ms);
+    return stop;
   }
 
   everyFrame(what: string, tick: () => boolean | void): () => void {

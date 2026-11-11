@@ -29,6 +29,8 @@
  */
 
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {FlowScope} from '@/client/console/kernel/flowScope';
 
 /** The heartbeat cadence. A missed release edge costs at most one beat. */
 export const LEDGER_TICK_MS = 250;
@@ -80,12 +82,45 @@ export type TruthWitness = {
 };
 
 /** `owner` — the owe that wrote this entry (a handle settles only its own owe — inventory H1). */
-type StoryEntry = OwedStory & {since: number, lastRedriveAt: number, owner: object};
+/**
+ * AN OWED STORY IS A `story` SCOPE OF THE SESSION (architecture v2 — PLAN §10 · C3): it stands in the flow tree from
+ * its first deferral to its settle / degrade (`story:owed:<id>#n`, its release edge a row of the wait table bounded by
+ * `dueMs`), and it ENDS WITH ITS SESSION — a debt of a game screen that left is not re-driven into the next one. The
+ * book (`stories`) is that scope's mirror in the ledger's vocabulary: redrive, due, degrade.
+ */
+type StoryEntry = OwedStory & {since: number, lastRedriveAt: number, owner: object, scope: FlowScope<'story'>};
+
+function openStoryScope(id: string, dueMs: number): FlowScope<'story'> {
+  const scope = consoleSessionScope().open('story', `owed:${id}`);
+  scope.note('its release edge (re-driven by the ledger)', () => {}, dueMs);
+  // The session ended under an owed story: it leaves the book (its owner's own reset lets its values go).
+  scope.defer(() => {
+    if (stories.get(id)?.scope === scope) {
+      stories.delete(id);
+      presentationLedgerStats.owedNow = stories.size;
+      stopHeartbeatIfIdle();
+    }
+  });
+  return scope;
+}
+
+/** Take a story out of the book and end its scope (`how` — settled by its owner, or degraded at its due / by a rung). */
+function retireStory(entry: StoryEntry, how: 'settled' | 'degraded'): void {
+  if (stories.get(entry.id) === entry) {
+    stories.delete(entry.id);
+  }
+  if (how === 'settled') {
+    entry.scope.end();
+  } else {
+    entry.scope.end({how: 'expired', bound: `its due ${entry.dueMs}ms (degraded)`});
+  }
+}
 type WitnessEntry = TruthWitness & {lyingSince: number | undefined, lastHealAt: number};
 
 const stories = new Map<string, StoryEntry>();
 const witnesses = new Map<string, WitnessEntry>();
-let heartbeat: ReturnType<typeof setInterval> | undefined;
+/** The heartbeat's stop — an owned tick of the session, standing only while a story or a witness does. */
+let heartbeat: (() => void) | undefined;
 
 /** Diagnostics (the `__foregroundDiag` idiom): every silent-degrade class
  *  becomes a visible counter. */
@@ -120,18 +155,30 @@ function storyDiagnose(story: {diagnose?: () => unknown}): string {
 }
 
 function ensureHeartbeat(): void {
-  if (heartbeat !== undefined || typeof setInterval !== 'function') {
+  if (heartbeat !== undefined) {
     return;
   }
   if (stories.size === 0 && witnesses.size === 0) {
     return;
   }
-  heartbeat = setInterval(settlePresentationDue, LEDGER_TICK_MS);
+  const owner = consoleSessionScope();
+  const stopTick = owner.every(LEDGER_TICK_MS, 'the presentation ledger\'s heartbeat', () => settlePresentationDue());
+  // The session ending under it takes the tick back: the mark goes too, so the next story arms a fresh one.
+  const forget = owner.defer(() => {
+    if (heartbeat === stop) {
+      heartbeat = undefined;
+    }
+  });
+  const stop = (): void => {
+    stopTick();
+    forget();
+  };
+  heartbeat = stop;
 }
 
 function stopHeartbeatIfIdle(): void {
   if (heartbeat !== undefined && stories.size === 0 && witnesses.size === 0) {
-    clearInterval(heartbeat);
+    heartbeat();
     heartbeat = undefined;
   }
 }
@@ -149,14 +196,17 @@ export function owePresentation(story: OwedStory): OwedStoryHandle {
     since: existing?.since ?? now(),
     lastRedriveAt: existing?.lastRedriveAt ?? 0,
     owner,
+    // A re-owe is the SAME story deferring again: it keeps its scope, as it keeps its clock.
+    scope: existing !== undefined && existing.scope.ended === undefined ? existing.scope : openStoryScope(story.id, story.dueMs),
   });
   ensureHeartbeat();
   return {
     // THIS owe only (wait graph inventory H1): an older handle of the same id — a wait that already ended — never settles
     // the story a newer wait re-owed (it lost its re-drive and its degrade, and waited with no net).
     settle: () => {
-      if (stories.get(story.id)?.owner === owner) {
-        stories.delete(story.id);
+      const entry = stories.get(story.id);
+      if (entry !== undefined && entry.owner === owner) {
+        retireStory(entry, 'settled');
         stopHeartbeatIfIdle();
       }
     },
@@ -186,7 +236,7 @@ export function settlePresentationDue(): void {
     if (t - story.since >= story.dueMs) {
       // PAST DUE — the honest degrade, NAMED. Never silent: this line is the
       // whole point («the safety fired» stops being invisible).
-      stories.delete(story.id);
+      retireStory(story, 'degraded');
       presentationLedgerStats.degrades++;
       console.warn(`[presentation-ledger] story «${story.id}» degraded after ${Math.round((t - story.since) / 1000)}s — the release edge never came${storyDiagnose(story)}`);
       try {
@@ -260,7 +310,7 @@ export function degradePresentationStories(reason: string): string {
   const degraded: Array<string> = [];
   const t = now();
   for (const story of [...stories.values()]) {
-    stories.delete(story.id);
+    retireStory(story, 'degraded');
     presentationLedgerStats.degrades++;
     degraded.push(`${story.id}@${Math.round((t - story.since) / 1000)}s`);
     console.warn(`[presentation-ledger] story «${story.id}» degraded by ${reason} after ${Math.round((t - story.since) / 1000)}s${storyDiagnose(story)}`);
@@ -284,7 +334,7 @@ export function degradePresentationStory(id: string, reason: string): boolean {
   if (story === undefined) {
     return false;
   }
-  stories.delete(id);
+  retireStory(story, 'degraded');
   presentationLedgerStats.degrades++;
   console.warn(`[presentation-ledger] story «${id}» degraded by ${reason} after ${Math.round((now() - story.since) / 1000)}s${storyDiagnose(story)}`);
   try {
@@ -320,10 +370,13 @@ export function presentationLedgerSnapshot(): {
 
 /** Full reset (game switch / tests). Retires everything, stops the beat. */
 export function resetPresentationLedger(): void {
-  stories.clear();
+  for (const story of [...stories.values()]) {
+    stories.delete(story.id);
+    story.scope.end({how: 'cancelled', reason: 'the ledger was reset'});
+  }
   witnesses.clear();
   if (heartbeat !== undefined) {
-    clearInterval(heartbeat);
+    heartbeat();
     heartbeat = undefined;
   }
   presentationLedgerStats.owedNow = 0;
@@ -337,3 +390,9 @@ if (typeof window !== 'undefined') {
     ...presentationLedgerSnapshot(),
   });
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The presentation ledger with it: a dead shell's closures must never redrive the next game (the transport
+// re-registers its witness at the next start; the park re-owes on its next seed).
+sessionState('presentation-ledger', resetPresentationLedger, 100);

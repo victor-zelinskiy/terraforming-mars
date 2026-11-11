@@ -93,6 +93,7 @@ import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 // `color` is either a player Color (mapped to a chart hex) or a literal hex
 // string (e.g. '#e8743b' for a global-parameter line, which has no player).
@@ -122,6 +123,9 @@ export default defineComponent({
     annotations: {type: Array as () => ReadonlyArray<ChartAnnotation>, required: false, default: () => []},
     // Show "−N to the leader" deltas in the tooltip (used by the VP chart).
     showDeltas: {type: Boolean, default: false},
+  },
+  setup() {
+    return {flow: useFlowScope('endgame-line-chart')};
   },
   data() {
     return {
@@ -291,9 +295,9 @@ export default defineComponent({
     // Release the line-draw (dashoffset → 0) on the next frame so the CSS
     // transition animates the lines in. No-op visually under reduced motion.
     if (this.animate && typeof requestAnimationFrame !== 'undefined') {
-      requestAnimationFrame(() => requestAnimationFrame(() => {
+      this.flow.afterFrame('the chart\'s line-draw is released', () => {
         this.drawn = true;
-      }));
+      }, 2);
     } else {
       this.drawn = true;
     }

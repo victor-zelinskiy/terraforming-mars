@@ -28,6 +28,7 @@ import {markRaw, reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /**
  * `idle`     — nothing running (the surface is not up, or it is waiting for a
@@ -141,21 +142,20 @@ const DEAL_CEILING_MS = 8_000;
 
 /** The deal run's own identity — a ceiling armed for an older deal never ends a newer one. */
 let dealSeq = 0;
-let dealCeilingId: ReturnType<typeof setTimeout> | undefined;
+/** Takes the standing ceiling back — its timer and its session-end release (a no-op when none stands). */
+let cancelDealCeiling: () => void = () => {};
 /** The surface's own handover (the real cards under the proxies, the bodies gone) — absent once it unmounted. */
 let dealHandover: (() => void) | undefined;
 
 function clearDealCeiling(): void {
-  if (dealCeilingId !== undefined) {
-    clearTimeout(dealCeilingId);
-    dealCeilingId = undefined;
-  }
+  cancelDealCeiling();
+  cancelDealCeiling = () => {};
   dealHandover = undefined;
 }
 
 /** The ceiling fired on deal `seq`: the deal ends where it stands — handed over to the player, or let go. */
 function endDealAtCeiling(seq: number): void {
-  dealCeilingId = undefined;
+  cancelDealCeiling = () => {};
   if (seq !== dealSeq || deckPickState.phase !== 'dealing') {
     return;
   }
@@ -181,7 +181,24 @@ export function beginDeckPickDeal(handover?: () => void, ceilingMs: number = DEA
   clearDealCeiling();
   const seq = ++dealSeq;
   dealHandover = handover;
-  dealCeilingId = setTimeout(() => endDealAtCeiling(seq), motionMs(ceilingMs));
+  // PACING, not a guarantee (PLAN §10 · C1): the ceiling WARNS when it fires, so it must not come due when the game
+  // screen leaves — there the deal is let go silently (the session's own cleanup: no surface stands, the flow rests).
+  const owner = consoleSessionScope();
+  const cancelTimer = owner.after(motionMs(ceilingMs), 'the deck pick\'s deal ceiling', () => {
+    forgetRelease();
+    endDealAtCeiling(seq);
+  });
+  const forgetRelease = owner.defer(() => {
+    if (seq === dealSeq && deckPickState.phase === 'dealing') {
+      dealHandover = undefined;
+      clearDeckPickFlight();
+      deckPickState.phase = 'idle';
+    }
+  });
+  cancelDealCeiling = () => {
+    cancelTimer();
+    forgetRelease();
+  };
   return seq;
 }
 
@@ -318,3 +335,8 @@ export function resetDeckPick(): void {
   pickDraft = undefined;
   clearDeckPickFlight();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Never carry a live draw-and-select commit across games
+sessionState('deck-pick', resetDeckPick, 380);

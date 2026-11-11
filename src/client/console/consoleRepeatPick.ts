@@ -25,6 +25,7 @@
  */
 
 import {reactive} from 'vue';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {CardName} from '@/common/cards/CardName';
 import {popWorkspaceFrame, pushWorkspaceFrame, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
 import {Message} from '@/common/logs/Message';
@@ -33,6 +34,7 @@ import {resetConsoleRepeatPickFilter} from '@/client/console/consoleRepeatPickUi
 // Type-only on purpose: `deltaRewardEntry` imports THIS module's result type
 // the same way, and only the erased type edges keep that cycle harmless.
 import type {DeltaRewardDraft} from '@/client/console/hydroFlow/deltaRewardEntry';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 export type ConsoleRepeatPickRequest = {
   /** The server prompt title (i18n key / Message) — names the ask. */
@@ -79,6 +81,13 @@ export type ConsoleRepeatPickResult = {
   stageReward?: DeltaRewardDraft;
 };
 
+/**
+ * THE PICK'S RUN: from the moment the repeat-action picker opens to its answer (resolved, cancelled, reset) — `surface:repeat-pick#n` in the flow tree (architecture v2 — PLAN §10 · C4). The tree names it while it stands, and
+ * when the game screen leaves under it the module is brought to rest through `resetConsoleRepeatPick` — no row of the shell's
+ * teardown is what keeps it out of the next game.
+ */
+const run = createFlowRun('repeat-pick', {kind: 'surface', orphaned: () => resetConsoleRepeatPick()});
+
 export const consoleRepeatPickState = reactive({
   active: false,
   request: undefined as ConsoleRepeatPickRequest | undefined,
@@ -109,6 +118,7 @@ export function enterConsoleRepeatPick(
   resolveCb = onResolve;
   cancelCb = onCancel;
   consoleRepeatPickState.active = true;
+  run.begin();
   // …AND IT IS A STEP OF THE FLOW THAT ASKED, so it stands in the STACK.
   // `overlay` is the sanctioned exception the contract already names (this
   // IS the client pick bridge): the browser needs the whole band and has no
@@ -166,7 +176,13 @@ export function cancelConsoleRepeatPick(): void {
 export function resetConsoleRepeatPick(): void {
   popRepeatPickFrame();
   consoleRepeatPickState.active = false;
+  run.end();
   consoleRepeatPickState.request = undefined;
   resolveCb = undefined;
   cancelCb = undefined;
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Same for a repeat-action pick + its command store
+sessionState('console-repeat-pick', resetConsoleRepeatPick, 220);

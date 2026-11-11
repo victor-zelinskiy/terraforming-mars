@@ -1648,13 +1648,12 @@ import {SpaceId} from '@/common/Types';
 
 import ConsoleBoardBinder from '@/client/components/console/ConsoleBoardBinder.vue';
 import {submitInput, submitBatch as transportSubmitBatch, SubmitTicket} from '@/client/console/transport/gameTransport';
-import {resetPresentationLedger} from '@/client/console/presentationLedger';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import ConsoleBoardInput from '@/client/components/console/ConsoleBoardInput.vue';
 
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
 import ConsoleTerraformedTitle from '@/client/components/console/ConsoleTerraformedTitle.vue';
-import {registerTerraformedSceneProbes, resetTerraformedScene, terraformedSceneState, terraformedSceneUp} from '@/client/console/terraformedScene/terraformedScene';
+import {registerTerraformedSceneProbes, terraformedSceneState, terraformedSceneUp} from '@/client/console/terraformedScene/terraformedScene';
 import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnReview.vue';
 import {botTurnReviewState} from '@/client/components/marsbot/botTurnReviewState';
 import {acquireForegroundLease, registerRevealParkSupplier} from '@/client/components/presentation/presentationFlow';
@@ -1693,11 +1692,11 @@ import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
 import ConsoleGovernmentSupport from '@/client/components/console/ConsoleGovernmentSupport.vue';
 import ConsoleEffectDecision from '@/client/components/console/ConsoleEffectDecision.vue';
 import {EffectDecisionAction} from '@/client/console/effectDecision/effectDecisionModel';
-import {endFinaleSession, resetFinaleSession} from '@/client/console/finalGreenery/finalGreenerySession';
+import {endFinaleSession} from '@/client/console/finalGreenery/finalGreenerySession';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
 import ConsoleDeckPick from '@/client/components/console/deckPick/ConsoleDeckPick.vue';
 import ConsoleDeckPickLayer from '@/client/components/console/deckPick/ConsoleDeckPickLayer.vue';
-import {deckPickState, resetDeckPick} from '@/client/console/deckPick/consoleDeckPick';
+import {deckPickState} from '@/client/console/deckPick/consoleDeckPick';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
 import {boardSceneSettling} from '@/client/console/rewardPayoutQuiet';
@@ -1705,44 +1704,36 @@ import ConsoleRevealOverlay from '@/client/components/console/ConsoleRevealOverl
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 import ConsoleTeleport from '@/client/components/console/foundation/ConsoleTeleport.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
-import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, resetWorkspaceStack, setWorkspaceFramePhase, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceStackCollapsed, workspaceStackState, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, offStageDeadFrames, pruneOffStageDeadFrames, registerAnchorDropListener, registerFrameAnchorDead, registerFrameBeatExpired, stackYieldedToBoard, enterWorkspace, goBoardHome, leaveWorkspace, setWorkspaceFramePhase, workspaceFrameRenders, workspaceStackTop, workspaceFrameHost, workspaceFrameKnown, workspaceStackCollapsed, workspaceStackState, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {installConsoleReadinessProbe, registerReadinessDecisionDiag} from '@/client/console/e2eReadiness';
 import {resetStdProjectsFlow, stdProjectsFlow} from '@/client/console/consoleStdProjects';
-import {resetStdProjectCommit, stdProjectCommitState} from '@/client/console/consoleStdProjectCommit';
-import {resetMaFocusMotion} from '@/client/console/consoleMaFocusMotion';
-import {resetHandStageMotion} from '@/client/console/consoleHandStageMotion';
-import {resetHandPlayPrewarm} from '@/client/console/consoleHandPlayPrewarm';
+import {stdProjectCommitState} from '@/client/console/consoleStdProjectCommit';
 import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCorpFirstActionConfirm.vue';
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
 import ConsoleCardDiscardLayer from '@/client/components/console/cardDiscard/ConsoleCardDiscardLayer.vue';
 import ConsoleDiscardPile from '@/client/components/console/discardPile/ConsoleDiscardPile.vue';
-import {resetDiscardPile} from '@/client/console/discardPile/discardPile';
-import {cardDiscardTransaction, registerDiscardOverlayHandoff, registerPreselectedDiscardArm, resetCardDiscard} from '@/client/console/cardDiscard/consoleCardDiscard';
-import {clearColonyBonusEntry, colonyBonusEntry, colonyBonusSequence, colonyResolutionUi, remoteColonyBonusParksReveal} from '@/client/console/colonyTrade/colonyResolution';
+import {cardDiscardTransaction, registerDiscardOverlayHandoff, registerPreselectedDiscardArm} from '@/client/console/cardDiscard/consoleCardDiscard';
+import {colonyBonusEntry, colonyBonusSequence, colonyResolutionUi, remoteColonyBonusParksReveal} from '@/client/console/colonyTrade/colonyResolution';
 import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevealLayer.vue';
 import ConsoleHandDeliveryLayer from '@/client/components/console/ConsoleHandDeliveryLayer.vue';
 import ConsoleParliamentFlightLayer from '@/client/components/console/parliament/ConsoleParliamentFlightLayer.vue';
 import {handRevealState} from '@/client/console/handDock/handRevealState';
-import {resetDockIntakeAccent} from '@/client/console/handDock/consoleDockAccent';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
-import {resetHandReveal, setHandRevealHooks} from '@/client/console/handDock/handRevealDirector';
+import {setHandRevealHooks} from '@/client/console/handDock/handRevealDirector';
 import ConsoleDraftTray from '@/client/components/console/cardDeal/ConsoleDraftTray.vue';
 import ConsoleDraftWorkspace from '@/client/components/console/draft/ConsoleDraftWorkspace.vue';
 import ConsoleExternalDrawWorkspace from '@/client/components/console/externalDraw/ConsoleExternalDrawWorkspace.vue';
 import {Phase} from '@/common/Phase';
 import ConsoleTradeFleetLayer from '@/client/components/console/colonyFleet/ConsoleTradeFleetLayer.vue';
-import {abortTradeFleet, tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
+import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import ConsoleColonyTradeLayer from '@/client/components/console/colonyTrade/ConsoleColonyTradeLayer.vue';
-import {abortColonyTrade, colonyTradeState, isColonyTradeInputLocked, colonyTradeDiagnostics} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {colonyTradeState, isColonyTradeInputLocked, colonyTradeDiagnostics} from '@/client/console/colonyTrade/consoleColonyTrade';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
 import ConsolePlayedHeroLayer from '@/client/components/console/played/ConsolePlayedHeroLayer.vue';
 import {conWsPresence, installConWsPresenceBridge} from '@/client/console/conWsPresenceBridge';
-import {resetPlayedCategoryView} from '@/client/console/played/playedCategoryView';
-import {resetPlayedCardReturns} from '@/client/console/played/playedCardReturn';
-import {resetCategoryDirector} from '@/client/console/played/playedCategoryDirector';
-import {abortPlayedHero, playedHeroState} from '@/client/console/played/consolePlayedHero';
+import {playedHeroState} from '@/client/console/played/consolePlayedHero';
 import {colonyFocusState} from '@/client/console/consoleColoniesModel';
 import {consoleStartState, startSceneHeld} from '@/client/console/consoleStartState';
 import {boardExcursionActive, releaseBoardExcursion} from '@/client/console/boardExcursion';
@@ -1761,11 +1752,9 @@ import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard} from '@/client/components/card/cardZoomTypes';
 import ConsoleBotDividendLedger from '@/client/components/console/ConsoleBotDividendLedger.vue';
 import {consoleCardZoom} from '@/client/console/consoleCardZoom';
-import {releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {currentRevealEvent, drawnCardsState, registerRevealQueuePark, revealPresented} from '@/client/components/drawnCards/drawnCardsState';
-import {resetRevealHandoff} from '@/client/console/revealHandoff';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
-import {generationSceneState, registerGenerationSceneHandoff, resetGenerationScene} from '@/client/console/generationScene/generationScene';
+import {generationSceneState, registerGenerationSceneHandoff} from '@/client/console/generationScene/generationScene';
 import {ConsoleTask, taskFor, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
@@ -1773,32 +1762,28 @@ import ConsoleBotAttack from '@/client/components/console/ConsoleBotAttack.vue';
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
 
 
-import {leakDetectorState, registerScreenCureExecutor, registerScreenShadowContext, screenShadowStanding, startConsoleLeakDetector, stopConsoleLeakDetector, setConsoleTaskHandoffPending} from '@/client/console/consoleLeakDetector';
+import {leakDetectorState, registerScreenCureExecutor, registerScreenShadowContext, screenShadowStanding, startConsoleLeakDetector, setConsoleTaskHandoffPending} from '@/client/console/consoleLeakDetector';
 import {resetScreenShadowLog, screenCureArming, screenCureArmingFor, screenCurePlanText, screenShadowLog} from '@/client/console/screenDirector';
-import {armSceneDestination, clearGameExitTarget, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
+import {armSceneDestination, deferSceneReveal, loadingScreenState, registerGameExitTarget} from '@/client/console/loadingScreenState';
 import {paths} from '@/common/app/paths';
-import {govScaleFocusState, resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
+import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
-import {abortHydroMarker, isHydroMarkerActive, hydroMarkerState, hydroRewardHoldOwed, hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
-import {hydroCeremonyOwed, hydroFlowState, hydroFlowTrail, installHydroFlowWitnesses, isHydroCeremonyActive, registerHydroFlowProbe, resetHydroFlow} from '@/client/console/hydroFlow/consoleHydroFlow';
+import {isHydroMarkerActive, hydroMarkerState, hydroRewardHoldOwed, hydroTraversalPending} from '@/client/console/hydroMarker/consoleHydroMarker';
+import {hydroCeremonyOwed, hydroFlowState, hydroFlowTrail, installHydroFlowWitnesses, isHydroCeremonyActive, registerHydroFlowProbe} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {preludePlayChainState} from '@/client/console/deckPick/preludePlayChain';
-import {workspaceOutcomeBeatPending, lastOutcomeReleaseStack, resetWorkspaceOutcome, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {boardBeatParkState, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
+import {workspaceOutcomeBeatPending, lastOutcomeReleaseStack, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {boardBeatParkState, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe} from '@/client/console/boardBeatPark';
 import {colonyBonusPayoutParksReveal} from '@/client/console/colonyLedger/colonyBonusPayout';
-import {resetBonusGainReward} from '@/client/console/startBonusGain';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
-import {abortBoardCardBonus, boardCardBonusState} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {boardCardBonusState} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {OutcomeAdoptionDecision} from '@/client/console/consoleOutcomeAdoption';
-import {planetFocusState, captureGlobalParams, resetPlanetFocus, isPlanetFocusEngaged} from '@/client/console/planetFocus';
+import {planetFocusState, captureGlobalParams, isPlanetFocusEngaged} from '@/client/console/planetFocus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
-import {abortDeckDraw, deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
+import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import ConsolePatentSaleLayer from '@/client/components/console/patentSale/ConsolePatentSaleLayer.vue';
-import {abortPatentSale, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
+import {patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
-import {abortResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {abortConsoleActionCommit} from '@/client/console/consoleActionCommit';
-import {abortActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
 import ConsoleCityPayoutLayer from '@/client/components/console/tilePlacement/ConsoleCityPayoutLayer.vue';
 import ConsoleScaleStepRewardLayer from '@/client/components/console/scaleStepReward/ConsoleScaleStepRewardLayer.vue';
@@ -1806,50 +1791,36 @@ import ConsoleCardReactionLayer from '@/client/components/console/cardReaction/C
 import {cardReactionPending, hurryCardReactions} from '@/client/console/cardReaction/cardReactionDirector';
 import ConsoleScaleSwingLayer from '@/client/components/console/scaleSwing/ConsoleScaleSwingLayer.vue';
 import {PlacementPeek} from '@/client/console/tilePlacement/placementPeek';
-import {resetScaleStepRewards} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
-import {resetScaleStepRating} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
-import {resetVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCellBeat';
-import {resetScaleSwing} from '@/client/console/scaleSwing/scaleSwingDirector';
 import ConsoleNomadMoveLayer from '@/client/components/console/nomads/ConsoleNomadMoveLayer.vue';
-import {abortTilePlacement, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {placementFlowState} from '@/client/console/tilePlacement/placementFlow';
-import {abortRemotePlacements, registerBoardShownDespiteStack} from '@/client/console/tilePlacement/consoleRemotePlacement';
-import {abortOceanBeat} from '@/client/console/tilePlacement/adjacencyPayoutBeat';
-import {abortNomadMove, nomadMoveState} from '@/client/console/nomads/consoleNomadMove';
+import {registerBoardShownDespiteStack} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {nomadMoveState} from '@/client/console/nomads/consoleNomadMove';
 import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
 import ConsoleColonyCityLayer from '@/client/components/console/colonyCity/ConsoleColonyCityLayer.vue';
-import {abortColonyBuild, isColonyBuildActive} from '@/client/console/colonyBuild/consoleColonyBuild';
+import {isColonyBuildActive} from '@/client/console/colonyBuild/consoleColonyBuild';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
-import {resetConsoleHydroUi} from '@/client/console/consoleHydroState';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 import {consoleState, closeConsoleLayers, registerConsoleIntentHandler} from '@/client/console/consoleRouter';
-import {resetSurfaceMotion} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {wheelControlState} from '@/client/console/quickWheel/wheelControlMode';
-import {resetActionPreviews} from '@/client/console/actionPreviewStore';
-import {consoleHandPickState, resetConsoleHandPick} from '@/client/console/consoleHandPick';
-import {consoleRepeatPickState, resetConsoleRepeatPick} from '@/client/console/consoleRepeatPick';
-import {clearLawPlayDraft, endLawPlayLanding, resetConsolePlayPick} from '@/client/console/consolePlayPick';
+import {consoleHandPickState} from '@/client/console/consoleHandPick';
+import {consoleRepeatPickState} from '@/client/console/consoleRepeatPick';
 import {cardDeltaAdvanceCard, clearCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
-import {resetDeltaRewardPick} from '@/client/console/hydroFlow/deltaRewardEntry';
-import {resetDeltaEspionagePick} from '@/client/console/hydroFlow/deltaEspionageEntry';
-import {resetBlockadeExecution, resetDeltaBlockadePick} from '@/client/console/hydroFlow/deltaBlockadeEntry';
-import {resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {setAlbumLayoutRecomposer} from '@/client/console/consoleAlbumLayout';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {StageHost, useWorkspaceBandGeometry} from '@/client/console/composables/useWorkspaceBandGeometry';
-import {useConsoleSession} from '@/client/console/session/consoleSession';
+import {useConsoleSession, leaveConsoleSession} from '@/client/console/session/consoleSession';
 import {handoffPendingEntries} from '@/client/console/shell/shellFlowState';
 // Only as the DEGRADE default for a player model that predates `maCosts` (an
 // old save, a test fixture) — the live price always comes from the server.
 import {notificationBus} from '@/client/components/notifications/notificationBus';
 import {infoModeState} from '@/client/console/infoModeState';
-import {resetEffectStats} from '@/client/console/effectStatsStore';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import ConsoleMandatoryAnnounce from '@/client/components/console/ConsoleMandatoryAnnounce.vue';
 import {isMandatoryBeatPresented, resetMandatoryGate, setMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {startShadowLog} from '@/client/console/startDirector';
-import {AdmissionSignals, promptAdmissionBlock, releasePromptPresence, resetPromptAdmission} from '@/client/console/consolePromptAdmission';
+import {AdmissionSignals, promptAdmissionBlock, releasePromptPresence} from '@/client/console/consolePromptAdmission';
 import {waitScreenHandoff} from '@/client/console/screenHandoff';
 import {PARLIAMENT_DOOR} from '@/client/console/parliament/parliamentDoorHandoff';
 import {setConsoleBoardHomeIdle} from '@/client/console/consoleForegroundWatchdog';
@@ -3599,11 +3570,11 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    // ── THE SHELL'S OWN WIRING GOES FIRST: a dead shell's closures (its probes, suppliers, hooks and leases) must not
+    //    drive what the teardown below does — or the next game. ──
     registerGenerationSceneHandoff(undefined); // a dead shell's director must not gate the next game's rise
     handoffPendingEntries.clear();
-    window.clearTimeout(this.startStrandTimer); // the start watchdog dies with its shell
-    this.stopSupervisor(); // …and so does the liveness arbiter
-    window.clearTimeout(this.startShadowTimer); // …and its shadow
+    this.stopSupervisor(); // the liveness arbiter dies with its shell (the start watchdog and its shadow are its scope's)
     delete (window as unknown as {__conStartShadow?: unknown}).__conStartShadow;
     registerScreenShadowContext(undefined);
     registerScreenCureExecutor(undefined);
@@ -3624,81 +3595,12 @@ export default defineComponent({
     this.offHydroWitnesses = undefined;
     registerHydroFlowProbe(undefined); // a dead shell's closures must not drive the next game
     this.offPlanetFocusParams?.();
-    clearGameExitTarget(); // the exit funnel must not outlive the game it points from
-    resetPlanetFocus(); // never carry a held HUD / mid-exit phase across games
     registerTerraformedSceneProbes(undefined);
-    resetTerraformedScene(); // …and the terraformed scene (TR70): a dead shell's held scales let go, nothing recedes
-    // The board-beat park dies with the shell (drops the probe too — a dead
-    // shell's computeds must never decide the next game's parks; held values
-    // and a parked batch release honestly, without the show).
-    resetBoardBeatPark();
-    // …and what a scale step still owed to tell (TR24): its holds release honestly, no record replays.
-    resetScaleStepRewards();
-    resetScaleStepRating();
-    resetVenusBonusCell();
-    resetFinaleSession(); // …and the finale's session (PL-303): a dead shell's context must not outlive it.
-    resetScaleSwing(); // …and a parameter swing's scene (TR47): its display lets go, its held rating ticks.
     this.releaseRevealQueuePark?.();
     this.releaseRevealQueuePark = undefined;
-    // …and the presentation ledger with it: a dead shell's closures must
-    // never redrive the next game (the transport re-registers its witness
-    // at the next start; the park re-owes on its next seed).
-    resetPresentationLedger();
-    resetHandReveal(); // never leak a mid-episode timeline / held dock
-    resetHandDelivery(); // never leak a mid-flight delivery / held dock
-    releaseBoardExcursion(); // a leaked barrier would hide the next game's start scene
-    resetDockIntakeAccent(); // a leaked lease would disable the compact pose
-    resetConsoleHandPick(); // never leak a client pick across games/sessions
-    resetConsolePlayPick(); // …nor a law's play pick (RX36)
-    endLawPlayLanding(); // …nor its landing (PL-726)
-    clearLawPlayDraft(); // …nor its composed play
-    // The stack can never outlive the shell: an orphaned frame suppresses the
-    // standalone band, so the next prompt would be presented NOWHERE.
-    resetWorkspaceStack();
-    resetHandStageMotion();
-    resetHandPlayPrewarm(); // pending dwell timers + version-keyed previews
-    resetConsoleRepeatPick(); // same for a repeat-action pick + its command store
-    resetGenerationScene(); // …and the generation scene (TR61): a dead shell's held rows tick, nothing stands up
-    resetConsoleRepeatPickUi();
-    resetDeltaRewardPick(); // …and the stage-reward pick bridge (Dutch Mountains)
-    resetDeltaEspionagePick(); // …and the espionage target-pick bridge (DP10)
-    resetDeltaBlockadePick(); // …and the blockade target-pick bridge (DP11)
-    resetBlockadeExecution(); // …and its execution surface
-    // A composer's TABLEAU pick is module state too — fold it (cancel) so a
-    // game switch never carries a live pick / dead callbacks across sessions.
-    resetCategoryDirector();
-    resetPlayedCategoryView();
-    // The play's return beat is module state as well — never carry a live
-    // flight (or its dock withhold) across a game switch.
-    resetPlayedCardReturns();
-    // The discard cinematic is module state too — never carry a live scene (or
-    // its animation hold) across a game switch.
-    resetCardDiscard();
-    // …and the ONE discard pile (its leases, its count): a game switch starts with the pile under the strip.
-    resetDiscardPile();
     registerDiscardOverlayHandoff(undefined);
     registerPreselectedDiscardArm(undefined);
     setAlbumLayoutRecomposer(undefined);
-    // The colony-bonus entry is module state as well: a live wait (and its net)
-    // must never carry a stale «a payout is owed here» into the next game.
-    clearColonyBonusEntry();
-    if (this.colonyEntryWaitTimer !== undefined) {
-      window.clearTimeout(this.colonyEntryWaitTimer);
-      this.colonyEntryWaitTimer = undefined;
-    }
-    if (this.noticeTimer !== undefined) {
-      window.clearTimeout(this.noticeTimer);
-    }
-    // These two write motion/flow state when they fire — a torn-down root must
-    // never receive either (they were the only shell timers missing here).
-    if (this.hydroResultTimer !== undefined) {
-      window.clearTimeout(this.hydroResultTimer);
-      this.hydroResultTimer = undefined;
-    }
-    if (this.maFocusSafetyTimer !== undefined) {
-      window.clearTimeout(this.maFocusSafetyTimer);
-      this.maFocusSafetyTimer = undefined;
-    }
     this.releasePresentationLease?.();
     this.releasePresentationLease = undefined;
     // Restore the default reveal-park supplier: a dead shell's closure reads
@@ -3708,53 +3610,19 @@ export default defineComponent({
     this.releaseNotificationCorner?.();
     this.releaseNotificationCorner = undefined;
     this.consoleState.shellMounted = false;
-    resetMandatoryGate(); // never carry an acknowledgment across games/sessions
     setMandatoryGateHeld(false); // shell gone → clear the held mirror (the watcher won't fire on unmount)
-    resetPromptAdmission(); // shell gone → the placement can never stay held (desktop reads the mirror too)
-    // A workspace outcome claim SUPPRESSES standalone presenters, so an
-    // orphaned one is worse than a leak: a drawn batch in the next game would
-    // be routed to a workspace that no longer exists and never be shown.
-    // (The probe goes first — a dead shell's computeds must never guard the
-    // next game's releases; the reset itself is forced either way.)
+    // The claim's serving probe goes before the claim's own reset (in the pass below): a dead shell's computeds must
+    // never guard the next game's releases — the reset itself is forced either way.
     setWorkspaceOutcomeServingProbe(undefined);
-    resetWorkspaceOutcome();
-    resetDeckPick(); // never carry a live draw-and-select commit across games
-    // …and never carry a PANEL HOLD across games: the «Фора» beat holds the
-    // rail to a flight that a dead shell can no longer fly.
-    resetBonusGainReward();
-    // …and the verdict's held stock reward (TR13 «+5 M€») — released unflown, never somebody else's hold.
-    resetRevealHandoff();
-    resetNotifHold(); // never leak a hold timer across games/sessions
-    resetSurfaceMotion(); // never leak a held handoff / shade owner across sessions
-    resetActionPreviews(); // per-game preview cache dies with the shell
-    resetEffectStats(); // …and the per-seat effect-stats cache with it
-    stopConsoleLeakDetector();
-    resetGovScaleFocus();
-    releaseZoomMotion();
+    // ── THE GAME SCREEN LEAVES. Every module that keeps state of the running game DECLARED it beside its own reset
+    //    (`sessionState(label, reset, at)`), and the session takes all of it down here in ONE ordered pass — the list
+    //    of `reset…()` rows this hook used to be (66 of them; a module missing from it leaked into the next game) is
+    //    gone (architecture v2 — PLAN §10 · C5). The session's SCOPE — every flow, hold, timer and wait of the game —
+    //    ends in `unmounted`, after the shell's children. ──
+    leaveConsoleSession();
+    // ── …and what is the shell instance's own. ──
     this.zoomOpenToken++; // fence out any stale open-sequence callback
     this.clearZoomOpenFlight();
-    abortTradeFleet(); // recall any in-flight fleet (zombie-safe on teardown)
-    abortColonyTrade(); // unwind any trade-reward transaction (zombie-safe)
-    abortHydroMarker(); // recall any in-flight marker glide (zombie-safe)
-    resetHydroFlow(); // drop any in-flight hydro commit presentation (zombie-safe)
-    resetConsoleHydroUi(); // …and its console-only draft (commands + composed repeat)
-    abortBoardCardBonus('instant'); // recall any in-flight bonus cover (zombie-safe)
-    abortDeckDraw(); // drop any in-flight deck-draw scene (zombie-safe)
-    abortPlayedHero(); // unwind any in-flight played-card hero scene (zombie-safe)
-    // The rest of the module-scene family. These were reachable only from the
-    // transport's REFUSAL path — a game switch with one of them live carried a
-    // stale scene (timers, holds, a ceremony timeline) into the next game.
-    abortPatentSale();
-    abortTilePlacement();
-    abortRemotePlacements();
-    abortOceanBeat();
-    abortNomadMove();
-    abortResourceTransfers();
-    abortColonyBuild();
-    abortConsoleActionCommit();
-    abortActionCommitMotion(); // the beat's own timeline + overlay layer
-    resetMaFocusMotion(); // kills a live coronation timeline (nothing else can)
-    resetStdProjectCommit(); // drops the hold gate + both its timers
     document.body.classList.remove('con-zoom-open');
     document.body.classList.remove('con-play-modal-open');
     this.clearDepartingPlayCard();

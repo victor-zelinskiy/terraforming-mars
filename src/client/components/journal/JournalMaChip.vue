@@ -16,6 +16,7 @@ import {defineComponent} from 'vue';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
 import MaPreviewPopover from '@/client/components/journal/MaPreviewPopover.vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 const HOVER_DELAY = 160;
 
@@ -37,35 +38,32 @@ export default defineComponent({
       required: true,
     },
   },
+  setup() {
+    return {flow: useFlowScope('journal-ma-chip')};
+  },
   data() {
     return {
       previewVisible: false,
       anchor: undefined as DOMRect | undefined,
-      hoverTimer: undefined as number | undefined,
+      cancelHover: (() => {}) as () => void,
     };
   },
   methods: {
     onEnter(): void {
       this.clearTimer();
-      this.hoverTimer = window.setTimeout(() => {
+      this.cancelHover = this.flow.after(HOVER_DELAY, 'the chip\'s hover delay', () => {
         const el = (this.$refs.chip ?? undefined) as HTMLElement | undefined;
         this.anchor = el?.getBoundingClientRect();
         this.previewVisible = true;
-      }, HOVER_DELAY);
+      });
     },
     onLeave(): void {
       this.clearTimer();
       this.previewVisible = false;
     },
     clearTimer(): void {
-      if (this.hoverTimer !== undefined) {
-        window.clearTimeout(this.hoverTimer);
-        this.hoverTimer = undefined;
-      }
+      this.cancelHover();
     },
-  },
-  beforeUnmount(): void {
-    this.clearTimer();
   },
 });
 </script>

@@ -54,6 +54,7 @@ import {armPlacementAnimations} from '@/client/components/board/tilePlacementAni
 import {stageRemoteTileEvents} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {noteBotTurnStage} from './marsBotTurnTiming';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 type StagedBatch = {
   /** The view the player is LOOKING at (the committed object — mutated in place). */
@@ -87,18 +88,23 @@ type StagedBatch = {
 export const RUN_STEP_MS = 900;
 
 let batch: StagedBatch | undefined;
-let drainTimer: ReturnType<typeof setTimeout> | undefined;
+/**
+ * The standing drain step's disarm. A guaranteed RELEASE of the session: the step is what finally COMMITS the staged
+ * authoritative view (`commitBotStagingNow`), so it is never taken back — it comes due at its beat, or when the game
+ * screen leaves.
+ */
+let disarmDrain: (() => void) | undefined;
 
 function clearRunDrain(): void {
-  if (drainTimer !== undefined) {
-    clearTimeout(drainTimer);
-    drainTimer = undefined;
+  if (disarmDrain !== undefined) {
+    disarmDrain();
+    disarmDrain = undefined;
   }
 }
 
 /** Walk one turn of the run onto the board, then commit when the last is due. */
 function stepRunDrain(): void {
-  drainTimer = undefined;
+  disarmDrain = undefined;
   if (batch === undefined) {
     return;
   }
@@ -112,10 +118,10 @@ function stepRunDrain(): void {
 }
 
 function armRunDrain(): void {
-  if (drainTimer !== undefined || batch === undefined) {
+  if (disarmDrain !== undefined || batch === undefined) {
     return;
   }
-  drainTimer = setTimeout(stepRunDrain, motionMs(RUN_STEP_MS));
+  disarmDrain = consoleSessionScope().guarantee(motionMs(RUN_STEP_MS), 'the bot run\'s next turn on the board', stepRunDrain);
 }
 
 /** Reactive mirror (for guards / debug displays). */

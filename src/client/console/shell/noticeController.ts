@@ -10,26 +10,27 @@
  */
 import {ref} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 export function createNoticeController() {
+  // The controller's own scope (architecture v2 — PLAN §10 · C1): it ends with the shell, and the toast's timer with it.
+  const flow = useFlowScope('notice-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   const notice = ref('');
-  const noticeTimer = ref(undefined as number | undefined);
+  /** The standing toast's cancel (the scope owns the timer). */
+  let cancelNotice: () => void = () => {};
 
   // ── verbs ────────────────────────────────────────────────────────────────────────────────────────────────────────
   function showNotice(key: string): void {
     notice.value = key;
-    if (noticeTimer.value !== undefined) {
-      window.clearTimeout(noticeTimer.value);
-    }
-    noticeTimer.value = window.setTimeout(() => {
+    cancelNotice();
+    cancelNotice = flow.after(motionMs(2400), 'the notice\'s toast', () => {
       notice.value = '';
-    }, motionMs(2400));
+    });
   }
 
   return {
     notice,
-    noticeTimer,
     showNotice,
   };
 }

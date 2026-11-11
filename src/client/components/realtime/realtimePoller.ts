@@ -1,4 +1,5 @@
 import {onRealtimeWake} from './realtimeSync';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
 
 /**
  * Adaptive, WS-aware fallback poller for the SECONDARY feeds (journal /
@@ -8,29 +9,33 @@ import {onRealtimeWake} from './realtimeSync';
  * the safe rate otherwise. So: real-time updates when WS is up, an unchanged
  * fast poll when it's down. The fallback is never removed.
  *
- * Kept Vue/DOM-free (the interval provider is injected) so it is unit-testable
- * under the server runner and reusable by a future Electron client. Returns a
- * `stop()` function; store it on the component and call it in beforeUnmount.
+ * Kept component/DOM-free (the interval provider is injected) so it is
+ * unit-testable under the server runner and reusable by a future Electron
+ * client. Returns a `stop()` function; store it on the component and call it in
+ * beforeUnmount.
+ *
+ * The fallback tick is a LIVENESS chain (each tick re-arms the next), so it is
+ * owned by the PAGE's scope (`consoleAppScope()`) — never by a game session,
+ * whose end would take the pending tick back with nothing left to re-arm it.
+ * Its lifetime is the caller's `stop()`.
  */
 export function startRealtimePoller(
   fetchFn: () => void,
   safeIntervalMs: number,
   intervalMsFn: (safeMs: number) => number,
 ): () => void {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let cancelTick: () => void = () => {};
   let stopped = false;
 
   const arm = (): void => {
     if (stopped) {
       return;
     }
-    if (timer !== undefined) {
-      clearTimeout(timer);
-    }
-    timer = setTimeout(() => {
+    cancelTick();
+    cancelTick = consoleAppScope().after(intervalMsFn(safeIntervalMs), 'the realtime poller\'s fallback tick', () => {
       fetchFn();
       arm();
-    }, intervalMsFn(safeIntervalMs));
+    });
   };
 
   const wakeOff = onRealtimeWake(() => {
@@ -46,10 +51,7 @@ export function startRealtimePoller(
 
   return () => {
     stopped = true;
-    if (timer !== undefined) {
-      clearTimeout(timer);
-      timer = undefined;
-    }
+    cancelTick();
     wakeOff();
   };
 }

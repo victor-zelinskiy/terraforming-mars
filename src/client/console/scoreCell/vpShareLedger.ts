@@ -40,6 +40,7 @@ import {VpShare, VpSource, vpAttribution, vpCardReadsBoard, vpSourceKey} from '@
 import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
 import {ResourceTransferSpec, TransferEndLike, vpTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
@@ -88,7 +89,8 @@ const claims = new Map<string, VpClaim>();
 let claimSeq = 0;
 let heldSeq = 0;
 let reasonSeq = 0;
-let ceilingTimer: number | undefined;
+/** The ceiling's disarm (a guaranteed release of the session) — `undefined` while no ceiling is armed. */
+let disarmCeiling: (() => void) | undefined;
 
 /**
  * What other writers hold for the NEXT seed, by source key (signed points). Written by the writers' own seeders —
@@ -406,11 +408,13 @@ export async function flyVpShares(
 // ── the ceiling ─────────────────────────────────────────────────────────────
 
 function armCeiling(): void {
-  if (ceilingTimer !== undefined || vpShareState.held.length === 0 || typeof window === 'undefined') {
+  if (disarmCeiling !== undefined || vpShareState.held.length === 0 || typeof window === 'undefined') {
     return;
   }
-  ceilingTimer = window.setTimeout(() => {
-    ceilingTimer = undefined;
+  // GUARANTEED (the session's): the look always happens — at the ceiling, or when the game screen leaves — so the arm
+  // is never left standing over a timer that was taken back (it re-arms itself while anything is still held).
+  disarmCeiling = consoleSessionScope().guarantee(VP_SHARE_CEILING_MS, 'the VP shares\' ceiling — a share its host never flew', () => {
+    disarmCeiling = undefined;
     const now = Date.now();
     const stale = vpShareState.held.filter((h) => !h.flying && now - h.since >= VP_SHARE_CEILING_MS);
     const owners = new Set(stale.map((h) => h.owner));
@@ -418,7 +422,7 @@ function armCeiling(): void {
       releaseVpShares(owner, {filter: (share) => stale.some((h) => h.owner === owner && h.share === share), why: 'the host never flew it (ceiling)'});
     }
     armCeiling();
-  }, VP_SHARE_CEILING_MS);
+  });
 }
 
 /** Test seam: forget every claim and hold (the panel's holds are the transfer module's own to reset). */
@@ -432,8 +436,8 @@ export function resetVpShareLedgerForTests(): void {
   vpShareState.last = undefined;
   vpShareState.flown = [];
   blockNotes = new Map();
-  if (ceilingTimer !== undefined) {
-    window.clearTimeout(ceilingTimer);
-    ceilingTimer = undefined;
+  if (disarmCeiling !== undefined) {
+    disarmCeiling();
+    disarmCeiling = undefined;
   }
 }

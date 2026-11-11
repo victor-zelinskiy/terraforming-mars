@@ -72,6 +72,9 @@
  *     they take precedence over any stylesheet rule.
  */
 
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {whenPainted} from '@/client/console/session/sessionWaits';
+
 export type DraggablePosition = {
   x: number;
   y: number;
@@ -135,7 +138,8 @@ export function makeDraggable(
   const scheduleFlush = () => {
     if (gesture !== null && !gesture.rafScheduled) {
       gesture.rafScheduled = true;
-      requestAnimationFrame(flush);
+      // An owned frame of the session (flow kernel — PLAN §10 · C1): pacing — a flush only writes the dragged element.
+      consoleSessionScope().afterFrame('the drag\'s coalesced flush', flush);
     }
   };
 
@@ -250,9 +254,12 @@ export function makeDraggable(
         element.removeEventListener('click', suppress, true);
       };
       element.addEventListener('click', suppress, true);
-      window.setTimeout(
-        () => element.removeEventListener('click', suppress, true),
+      // A GUARANTEED release (flow kernel): the suppressor must come off the element even when the session ends
+      // inside the grace — a listener left there swallows the next real click.
+      consoleSessionScope().guarantee(
         SUPPRESS_CLICK_GRACE_MS,
+        'the post-drag click suppressor comes off',
+        () => element.removeEventListener('click', suppress, true),
       );
     }
   };
@@ -267,7 +274,8 @@ export function makeDraggable(
       return;
     }
     resizeRafScheduled = true;
-    requestAnimationFrame(() => {
+    // «The next painted frame» as a kernel wait (never dropped — the coalescing flag below cannot be left raised).
+    void whenPainted(1, 50).then(() => {
       resizeRafScheduled = false;
       if (gesture !== null) {
         return;

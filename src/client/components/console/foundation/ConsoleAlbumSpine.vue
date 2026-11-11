@@ -61,6 +61,7 @@ import {defineComponent, PropType} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import type {AlbumSpinePosition} from '@/client/components/console/foundation/consoleAlbumSpineTypes';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 export type {AlbumSpinePosition};
 
@@ -80,13 +81,16 @@ export default defineComponent({
     variant: {type: String as PropType<'dock' | 'foot'>, default: 'dock'},
   },
   emits: ['page'],
+  setup() {
+    return {flow: useFlowScope('album-spine')};
+  },
   data() {
     return {
       /** Which way the last page turn went — the number enters from the opposite side. */
       turnDir: 'next' as 'next' | 'prev',
       /** An ACTUAL page change just landed — the side chip of its direction fires once. */
       pageFlash: undefined as 'next' | 'prev' | undefined,
-      pageFlashTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+      cancelPageFlash: (() => {}) as () => void,
     };
   },
   computed: {
@@ -105,19 +109,11 @@ export default defineComponent({
       }
       this.turnDir = now > was ? 'next' : 'prev';
       this.pageFlash = this.turnDir;
-      if (this.pageFlashTimer !== undefined) {
-        clearTimeout(this.pageFlashTimer);
-      }
-      this.pageFlashTimer = setTimeout(() => {
+      this.cancelPageFlash();
+      this.cancelPageFlash = this.flow.after(motionMs(300), 'the page chip\'s flash reads', () => {
         this.pageFlash = undefined;
-        this.pageFlashTimer = undefined;
-      }, motionMs(300));
+      });
     },
-  },
-  beforeUnmount() {
-    if (this.pageFlashTimer !== undefined) {
-      clearTimeout(this.pageFlashTimer);
-    }
   },
   methods: {
     /** A side clicked — the host turns the page. A muted side still swallows the click (the edge is felt). */

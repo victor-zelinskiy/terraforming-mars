@@ -10,6 +10,7 @@ import {
   unsubscribeLobby,
 } from '@/common/realtime/Protocol';
 import {realtimeClientEnabled} from '@/client/components/realtime/realtimeConfig';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
 
 /**
  * THE LOBBY PUSH CHANNEL — one WebSocket per SERVER, saying only «the set of
@@ -67,8 +68,13 @@ type Channel = {
   revision: number | undefined;
   lastPongAt: number | undefined;
   attempts: number;
-  pingTimer: number | undefined;
-  reconnectTimer: number | undefined;
+  /*
+   * The keep-alive tick's stop and the pending reconnect's cancel — both owned by the PAGE's scope
+   * (`consoleAppScope()`): a lobby channel outlives every game screen, and its reconnect is LIVENESS (a retry taken
+   * back with nothing to re-arm it would leave the channel dead for the rest of the page).
+   */
+  cancelPing: (() => void) | undefined;
+  cancelReconnect: (() => void) | undefined;
   /** The server rejected the lobby subscription — an older build. */
   unsupported: boolean;
   closed: boolean;
@@ -97,27 +103,27 @@ function send(channel: Channel, message: Parameters<typeof serializeMessage>[0])
 }
 
 function clearTimers(channel: Channel): void {
-  if (channel.pingTimer !== undefined) {
-    window.clearInterval(channel.pingTimer);
-    channel.pingTimer = undefined;
+  if (channel.cancelPing !== undefined) {
+    channel.cancelPing();
+    channel.cancelPing = undefined;
   }
-  if (channel.reconnectTimer !== undefined) {
-    window.clearTimeout(channel.reconnectTimer);
-    channel.reconnectTimer = undefined;
+  if (channel.cancelReconnect !== undefined) {
+    channel.cancelReconnect();
+    channel.cancelReconnect = undefined;
   }
 }
 
 function scheduleReconnect(channel: Channel): void {
-  if (channel.closed || channel.unsupported || channel.reconnectTimer !== undefined) {
+  if (channel.closed || channel.unsupported || channel.cancelReconnect !== undefined) {
     return;
   }
   const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, channel.attempts), RECONNECT_MAX_MS);
   channel.attempts++;
   channel.status = 'reconnecting';
-  channel.reconnectTimer = window.setTimeout(() => {
-    channel.reconnectTimer = undefined;
+  channel.cancelReconnect = consoleAppScope().after(delay, 'the lobby channel\'s reconnect', () => {
+    channel.cancelReconnect = undefined;
     connect(channel);
-  }, delay);
+  });
 }
 
 function onMessage(channel: Channel, raw: string): void {
@@ -235,7 +241,7 @@ function connect(channel: Channel): void {
     channel.attempts = 0;
     channel.lastPongAt = now();
     send(channel, clientHello(clientVersion, undefined));
-    channel.pingTimer = window.setInterval(() => send(channel, clientPing()), PING_INTERVAL_MS);
+    channel.cancelPing = consoleAppScope().every(PING_INTERVAL_MS, 'the lobby channel\'s keep-alive ping', () => send(channel, clientPing()));
   };
   socket.onmessage = (event) => {
     if (channel.socket === socket && typeof event.data === 'string') {
@@ -288,8 +294,8 @@ export function openLobbyChannel(wsBase: string, onInvalidate: Listener, onHealt
       revision: undefined,
       lastPongAt: undefined,
       attempts: 0,
-      pingTimer: undefined,
-      reconnectTimer: undefined,
+      cancelPing: undefined,
+      cancelReconnect: undefined,
       unsupported: false,
       closed: false,
     };

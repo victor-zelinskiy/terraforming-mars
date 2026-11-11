@@ -78,6 +78,7 @@ import type {NoticeController} from '@/client/console/shell/noticeController';
 import {span} from '@/client/console/session/sessionWaits';
 import {whenPainted} from '@/client/console/session/sessionWaits';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** The roster's LANDING: the stage's fold home into the slot (the focus motion's own fold + the grid breathing back), base ms. */
 const COLONY_ROSTER_LANDING_MS = 420;
@@ -139,6 +140,9 @@ export type ColonyPort = {
 };
 
 export function createColonyController(shell: ColonyPort) {
+  // The controller's own scope (architecture v2 — PLAN §10 · C1): it ends with the shell, and the two bounded waits of
+  // the colony-bonus resolution come due with it.
+  const flow = useFlowScope('colony-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /**
    * …and the hosted COLONIES' (a staged colony's step, TR07): the frame pops first, the section stays MOUNTED
@@ -149,7 +153,8 @@ export function createColonyController(shell: ColonyPort) {
   const coloniesLeaving = ref(false);
   const colonyEmbedLatch = ref('');
   const colonyPickLatch = ref(undefined as ConsoleColonyPick | undefined);
-  const coloniesLeaveNet = ref(undefined as number | undefined);
+  /** The ride's net — the DISARM of a guaranteed release (armed by the outcome controller on its own scope). */
+  const coloniesLeaveNet = ref(undefined as (() => void) | undefined);
   /**
    * THE POST-DISCARD RESTORE is owed: the hand has answered and is on its
    * way back to the dock, and the colony focus must re-expand from the
@@ -174,10 +179,10 @@ export function createColonyController(shell: ColonyPort) {
    */
   const colonyResolutionReleaseOwed = ref(false);
   /** The armed entry's BOUNDED WAIT (COLONY_BONUS_ENTRY_WAIT_MS) — the net
-   *  under «entered, and nothing ever arrived». */
-  const colonyEntryWaitTimer = ref(undefined as number | undefined);
-  /** …and the SEQUENCE's own net (COLONY_BONUS_CYCLE_WAIT_MS). */
-  const colonyCycleNetId = ref(undefined as number | undefined);
+   *  under «entered, and nothing ever arrived»: a guaranteed release of `flow` (it comes at its time, or with the shell). */
+  let disarmColonyEntryWait: () => void = () => {};
+  /** …and the SEQUENCE's own net (COLONY_BONUS_CYCLE_WAIT_MS) — a guaranteed release of `flow` as well. */
+  let disarmColonyCycleNet: () => void = () => {};
   /** Where the colony cursor lands on the NEXT rail (a roster pick's level change names it; '' = follow the colony). */
   const colonyCursorTarget = ref('');
 
@@ -2474,7 +2479,7 @@ export function createColonyController(shell: ColonyPort) {
 
   /** The hosted colonies' ride is over (the hand's dissolve ended, or its net): the section may unmount now. */
   function releaseColoniesLeave(): void {
-    window.clearTimeout(coloniesLeaveNet.value);
+    coloniesLeaveNet.value?.();
     coloniesLeaveNet.value = undefined;
     if (!coloniesLeaving.value) {
       return;
@@ -2542,17 +2547,13 @@ export function createColonyController(shell: ColonyPort) {
    * latch it exists to replace.
    */
   function whenBonusSequenceAwaitingChanges(awaiting: boolean): void {
-    if (colonyCycleNetId.value !== undefined) {
-      window.clearTimeout(colonyCycleNetId.value);
-      colonyCycleNetId.value = undefined;
-    }
+    disarmColonyCycleNet();
     if (!awaiting) {
       return;
     }
-    colonyCycleNetId.value = window.setTimeout(() => {
-      colonyCycleNetId.value = undefined;
+    disarmColonyCycleNet = flow.guarantee(COLONY_BONUS_CYCLE_WAIT_MS, 'the colony-bonus sequence\'s next cycle (its bounded wait)', () => {
       noteColonyBonusCycleWaitOver();
-    }, COLONY_BONUS_CYCLE_WAIT_MS);
+    });
   }
 
   /** WATCH `colonyResolutionEvidence` — the reaction's body (the shell's `watch` table delegates here, in its order). */
@@ -2570,17 +2571,13 @@ export function createColonyController(shell: ColonyPort) {
    * resolution carries on unaffected.
    */
   function whenColonyEntryAwaitingChanges(awaiting: boolean): void {
-    if (colonyEntryWaitTimer.value !== undefined) {
-      window.clearTimeout(colonyEntryWaitTimer.value);
-      colonyEntryWaitTimer.value = undefined;
-    }
+    disarmColonyEntryWait();
     if (!awaiting) {
       return;
     }
-    colonyEntryWaitTimer.value = window.setTimeout(() => {
-      colonyEntryWaitTimer.value = undefined;
+    disarmColonyEntryWait = flow.guarantee(COLONY_BONUS_ENTRY_WAIT_MS, 'the colony-bonus entry\'s first evidence (its bounded wait)', () => {
       noteColonyBonusEntryWaitOver();
-    }, COLONY_BONUS_ENTRY_WAIT_MS);
+    });
   }
 
   /**
@@ -2858,8 +2855,6 @@ export function createColonyController(shell: ColonyPort) {
     colonyFocusRestorePending,
     colonyBonusCollected,
     colonyResolutionReleaseOwed,
-    colonyEntryWaitTimer,
-    colonyCycleNetId,
     colonyCursorTarget,
     settlementMarkerKey,
     settlementTableParked,

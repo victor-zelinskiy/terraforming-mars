@@ -339,6 +339,7 @@ import {whenParliamentSurfaceGone} from '@/client/console/parliament/consoleParl
 import {draftCommands, setConsoleDraftCommands, resetConsoleDraftUi, DraftCommandState} from '@/client/console/draft/consoleDraftUi';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 type CardEntry = {name: CardName, key: string, card: CardModel};
 
@@ -355,6 +356,9 @@ export default defineComponent({
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
   emits: ['submit', 'defer'],
+  setup() {
+    return {flow: useFlowScope('draft-workspace')};
+  },
   data() {
     return {
       draftTrayState,
@@ -372,11 +376,11 @@ export default defineComponent({
       passingActive: false,
       /** The deal sequence (packet arrivals + the research rise). */
       deal: createCardDealSequence(),
-      dealLaunchTimer: undefined as number | undefined,
-      doneTimer: undefined as number | undefined,
-      passTimer: undefined as number | undefined,
+      cancelDealLaunch: (() => {}) as () => void,
+      cancelDoneBeat: (() => {}) as () => void,
+      cancelPass: (() => {}) as () => void,
       /** The pass-flip re-arm loop (WAAPI turn survives node renewal). */
-      passFlipTimer: undefined as number | undefined,
+      cancelPassFlip: (() => {}) as () => void,
       /** The packet standing when the workspace MOUNTED (a reload straight
        *  into a live draft): presented instantly, never re-dealt. */
       hydratedPacketKey: '',
@@ -392,7 +396,7 @@ export default defineComponent({
       shelfDeparted: [] as Array<CardName>,
       /** Seats already re-filled by the RETURN flight (per-card landings). */
       shelfReturned: [] as Array<CardName>,
-      inspectFlightTimer: undefined as number | undefined,
+      cancelInspectFlight: (() => {}) as () => void,
       cloneFlight: undefined as CloneFlightHandle | undefined,
       /** The collection has handed its cards to the purchase row (lift-off):
        *  the shelf dissolves and never returns for the rest of the flow. */
@@ -403,16 +407,16 @@ export default defineComponent({
       /** The unbought cards' exit has visually settled — the terminal plate
        *  may take the stage while the intake still flies to the dock. */
       discardsSettled: false,
-      discardTimer: undefined as number | undefined,
+      cancelDiscardSettle: (() => {}) as () => void,
       /** Guards the exit promise's settle against a torn-down frame. */
       discardWaitNonce: 0,
       /** The zero-buy path's completion gate (no intake flight to ride). */
-      completionFlightsTimer: undefined as number | undefined,
+      cancelCompletionFlights: (() => {}) as () => void,
       /** The pick stage's FROZEN presentation while the pass exit reads —
        *  a fast answer must not swap the v-for under the leaving cards. */
       presentedPacketFrozen: undefined as ReadonlyArray<CardEntry> | undefined,
       /** Deferred packet-swap presentation (bounded by `passUntil`). */
-      packetSwapTimer: undefined as number | undefined,
+      cancelPacketSwap: (() => {}) as () => void,
       /** Wall-clock deadline of the running pass exit's read. */
       passUntil: 0,
       /** Solved stage layouts (CSS custom-property maps). */
@@ -424,11 +428,11 @@ export default defineComponent({
       /** Row shape (cards per row) for 2D d-pad navigation. */
       perRowByZone: {pick: 5, buy: 5, inspect: 5} as Record<string, number>,
       shelfPulsing: false,
-      shelfPulseTimer: undefined as number | undefined,
+      cancelShelfPulse: (() => {}) as () => void,
       /** Per-seat one-shot settle accent (a landing accents ITSELF — the
        *  whole-row pulse is the set-complete beat only). */
       shelfJustLanded: {} as Record<string, boolean>,
-      shelfLandTimers: {} as Record<string, number>,
+      shelfLandCancels: {} as Record<string, () => void>,
     };
   },
   computed: {
@@ -780,13 +784,9 @@ export default defineComponent({
         // never completed. The swap's PRESENTATION defers until the leavers
         // are ~faded (bounded by `passUntil`); the server state is already
         // here, only the paint order changes.
-        if (this.packetSwapTimer !== undefined) {
-          window.clearTimeout(this.packetSwapTimer);
-          this.packetSwapTimer = undefined;
-        }
+        this.cancelPacketSwap();
         const wait = this.passUntil - Date.now();
         const present = () => {
-          this.packetSwapTimer = undefined;
           this.presentedPacketFrozen = undefined; // the swap paints NOW
           this.resetPickState();
           if (this.inspecting) {
@@ -796,7 +796,7 @@ export default defineComponent({
           this.preparePacketArrival();
         };
         if (wait > 16) {
-          this.packetSwapTimer = window.setTimeout(present, Math.min(wait, 1900));
+          this.cancelPacketSwap = this.flow.after(Math.min(wait, 1900), 'the pass exit finishes its read', present);
           return;
         }
         present();
@@ -830,9 +830,8 @@ export default defineComponent({
       // completion UNDER the payment stage — `paymentPending`'s own guard in
       // the tick is the belt, this is the braces, and the beat re-arms with
       // its full read window when the zone returns to 'done'.
-      if (prev === 'done' && this.doneTimer !== undefined) {
-        window.clearTimeout(this.doneTimer);
-        this.doneTimer = undefined;
+      if (prev === 'done') {
+        this.cancelDoneBeat();
       }
       if (next === 'inspect' || prev === 'inspect') {
         this.focusIdx = 0;
@@ -851,18 +850,15 @@ export default defineComponent({
       }
     },
     'draftTrayState.pulseNonce'() {
-      if (this.shelfPulseTimer !== undefined) {
-        window.clearTimeout(this.shelfPulseTimer);
-      }
+      this.cancelShelfPulse();
       this.shelfPulsing = false;
       void this.$nextTick(() => {
         this.shelfPulsing = true;
         // Covers the set-complete ring warm (con-draftws-setglow, ~640ms) —
         // dropping the class mid-animation cuts the glow's release.
-        this.shelfPulseTimer = window.setTimeout(() => {
+        this.cancelShelfPulse = this.flow.after(consoleMotionMs(680), 'the shelf\'s set-complete pulse reads', () => {
           this.shelfPulsing = false;
-          this.shelfPulseTimer = undefined;
-        }, consoleMotionMs(680));
+        });
       });
     },
     /** A touchdown settles ITS OWN seat (never the whole row). */
@@ -871,16 +867,14 @@ export default defineComponent({
       if (name === '') {
         return;
       }
-      if (this.shelfLandTimers[name] !== undefined) {
-        window.clearTimeout(this.shelfLandTimers[name]);
-      }
+      this.shelfLandCancels[name]?.();
       delete this.shelfJustLanded[name];
       void this.$nextTick(() => {
         this.shelfJustLanded[name] = true;
-        this.shelfLandTimers[name] = window.setTimeout(() => {
+        this.shelfLandCancels[name] = this.flow.after(consoleMotionMs(300), 'a shelf seat\'s landing accent reads', () => {
           delete this.shelfJustLanded[name];
-          delete this.shelfLandTimers[name];
-        }, consoleMotionMs(300));
+          delete this.shelfLandCancels[name];
+        });
       });
     },
     /** The marks OUTLIVE this component: «свернуть» parks the stack, which
@@ -943,37 +937,8 @@ export default defineComponent({
   beforeUnmount() {
     registerTraySlotResolver(undefined);
     resetConsoleDraftUi();
-    if (this.dealLaunchTimer !== undefined) {
-      window.clearTimeout(this.dealLaunchTimer);
-    }
-    if (this.doneTimer !== undefined) {
-      window.clearTimeout(this.doneTimer);
-    }
-    if (this.passTimer !== undefined) {
-      window.clearTimeout(this.passTimer);
-    }
-    if (this.passFlipTimer !== undefined) {
-      window.clearInterval(this.passFlipTimer);
-    }
-    if (this.shelfPulseTimer !== undefined) {
-      window.clearTimeout(this.shelfPulseTimer);
-    }
-    for (const key of Object.keys(this.shelfLandTimers)) {
-      window.clearTimeout(this.shelfLandTimers[key]);
-    }
-    if (this.inspectFlightTimer !== undefined) {
-      window.clearTimeout(this.inspectFlightTimer);
-    }
-    if (this.discardTimer !== undefined) {
-      window.clearTimeout(this.discardTimer);
-    }
+    // The workspace's timers are waits of its own scope (`flow`) — taken back when the component is unmounted.
     this.discardWaitNonce++; // a late exit promise may not touch a dead frame
-    if (this.completionFlightsTimer !== undefined) {
-      window.clearTimeout(this.completionFlightsTimer);
-    }
-    if (this.packetSwapTimer !== undefined) {
-      window.clearTimeout(this.packetSwapTimer);
-    }
     this.disposeClones();
     this.deal.dispose();
     // An engaged rise scene can't outlive its frame — hand the shelf off
@@ -1192,9 +1157,7 @@ export default defineComponent({
       const passT0 = performance.now();
       const totalMs = consoleMotionMs(260 + 70 * Math.max(0, names.length - 1) + 820) + 120;
       let rearms = 0;
-      if (this.passFlipTimer !== undefined) {
-        window.clearInterval(this.passFlipTimer);
-      }
+      this.cancelPassFlip();
       const tick = () => {
         const root = this.$el as HTMLElement | undefined;
         if (root === undefined || typeof root.querySelectorAll !== 'function') {
@@ -1202,8 +1165,7 @@ export default defineComponent({
         }
         const elapsed = performance.now() - passT0;
         if (elapsed > totalMs) {
-          window.clearInterval(this.passFlipTimer);
-          this.passFlipTimer = undefined;
+          this.cancelPassFlip();
           if (process.env.NODE_ENV !== 'production' && rearms > names.length) {
             console.log(`[pass-flip-rearm] flip nodes were renewed ${rearms - names.length}x mid-pass`);
           }
@@ -1247,20 +1209,22 @@ export default defineComponent({
           }
         });
       };
-      this.passFlipTimer = window.setInterval(tick, 50) as unknown as number;
+      // The re-arm loop: the next look is armed BEFORE this one runs, so the look that ends the loop takes it back.
+      const beat = () => {
+        this.cancelPassFlip = this.flow.after(50, 'the pass flip\'s next look', beat);
+        tick();
+      };
+      this.cancelPassFlip = this.flow.after(50, 'the pass flip\'s next look', beat);
       void this.$nextTick(tick);
       // The read the packet swap defers to: the sequencing base, the last
       // leaver's stagger and ~85% of the 820ms flight (the cards are
       // essentially faded by then — cutting later buys nothing).
       this.passUntil = Date.now() + consoleMotionMs(260 + 70 * Math.max(0, names.length - 1) + 820 * 0.85);
-      if (this.passTimer !== undefined) {
-        window.clearTimeout(this.passTimer);
-      }
+      this.cancelPass();
       // Base delay + scaled stagger + the 820ms flight (see passingSlotStyle).
-      this.passTimer = window.setTimeout(() => {
+      this.cancelPass = this.flow.after(consoleMotionMs(260 + 70 * Math.max(0, names.length - 1) + 940), 'the pass exit reads', () => {
         this.passingActive = false;
-        this.passTimer = undefined;
-      }, consoleMotionMs(260 + 70 * Math.max(0, names.length - 1) + 940));
+      });
     },
     passingSlotStyle(name: CardName, index: number): Record<string, string> {
       const order = this.passingNames.indexOf(name);
@@ -1305,10 +1269,7 @@ export default defineComponent({
       this.buySnapshot = undefined;
     },
     preparePacketArrival(): void {
-      if (this.dealLaunchTimer !== undefined) {
-        window.clearTimeout(this.dealLaunchTimer);
-        this.dealLaunchTimer = undefined;
-      }
+      this.cancelDealLaunch();
       const entries = this.packetEntries;
       if (entries.length === 0) {
         return;
@@ -1324,12 +1285,11 @@ export default defineComponent({
         return;
       }
       if (this.deal.prepare(dealKey, names, keys)) {
-        this.dealLaunchTimer = window.setTimeout(() => {
-          this.dealLaunchTimer = undefined;
+        this.cancelDealLaunch = this.flow.after(motionMs(300), 'the packet\'s deal launches', () => {
           // The first packet comes off the HUD deck over a CLEAR screen: a Parliament that handed the screen over
           // («К драфту» — P89 · EA) finishes its leave first; the slots hold the cards hidden until then.
-          void whenPickBeatDone().then(() => whenParliamentSurfaceGone()).then(() => requestAnimationFrame(() => this.launchPacketDeal()));
-        }, motionMs(300));
+          void whenPickBeatDone().then(() => whenParliamentSurfaceGone()).then(() => this.flow.afterFrame('the packet\'s deal launches on a frame', () => this.launchPacketDeal()));
+        });
       }
     },
     launchPacketDeal(): void {
@@ -1393,10 +1353,7 @@ export default defineComponent({
     },
     // ── the buy chapter ─────────────────────────────────────────────────
     prepareBuyArrival(): void {
-      if (this.dealLaunchTimer !== undefined) {
-        window.clearTimeout(this.dealLaunchTimer);
-        this.dealLaunchTimer = undefined;
-      }
+      this.cancelDealLaunch();
       const entries = this.buyEntries;
       if (entries.length === 0) {
         return;
@@ -1405,10 +1362,9 @@ export default defineComponent({
       const keys = entries.map((e) => e.key);
       const dealKey = `draft-buy|${this.playerView.id}|${this.playerView.game.generation}`;
       if (this.deal.prepare(dealKey, names, keys)) {
-        this.dealLaunchTimer = window.setTimeout(() => {
-          this.dealLaunchTimer = undefined;
-          void whenPickBeatDone().then(() => whenParliamentSurfaceGone()).then(() => requestAnimationFrame(() => this.launchBuyDeal()));
-        }, motionMs(300));
+        this.cancelDealLaunch = this.flow.after(motionMs(300), 'the buy row\'s deal launches', () => {
+          void whenPickBeatDone().then(() => whenParliamentSurfaceGone()).then(() => this.flow.afterFrame('the buy row\'s deal launches on a frame', () => this.launchBuyDeal()));
+        });
       } else if (riseSceneEngaged()) {
         // Already presented once (defer/restore) — never replay the scene.
         finishRiseScene();
@@ -1514,10 +1470,7 @@ export default defineComponent({
         rest.map((e) => this.slotCardEl(e.name)).filter((el): el is HTMLElement => el !== null),
         {delayMs: 160},
       );
-      if (this.discardTimer !== undefined) {
-        window.clearTimeout(this.discardTimer);
-        this.discardTimer = undefined;
-      }
+      this.cancelDiscardSettle();
       if (rest.length > 0) {
         void exit.then(() => {
           if (this.discardWaitNonce === settleToken && draftWorkspaceState.completion !== 'none') {
@@ -1527,23 +1480,19 @@ export default defineComponent({
       } else {
         // Everything was bought — a short beat while the intake proxies
         // stand over their sources, then the receipt.
-        this.discardTimer = window.setTimeout(() => {
-          this.discardTimer = undefined;
+        this.cancelDiscardSettle = this.flow.after(consoleMotionMs(200), 'the intake proxies stand over their sources', () => {
           this.discardsSettled = true;
-        }, consoleMotionMs(200));
+        });
       }
       if (bought.length === 0) {
         this.submitCards([]);
         // No intake flight to ride on this path — the gate is the discard
         // exit's read window. Stored + cleared on unmount, so a torn-down
         // frame can never receive the completion flip.
-        if (this.completionFlightsTimer !== undefined) {
-          window.clearTimeout(this.completionFlightsTimer);
-        }
-        this.completionFlightsTimer = window.setTimeout(() => {
-          this.completionFlightsTimer = undefined;
+        this.cancelCompletionFlights();
+        this.cancelCompletionFlights = this.flow.after(consoleMotionMs(720), 'the zero-buy discard exit reads', () => {
           markDraftCompletionFlightsDone();
-        }, consoleMotionMs(720));
+        });
         return;
       }
       const entries = bought
@@ -1561,12 +1510,9 @@ export default defineComponent({
      * board under cards still in the air.
      */
     armDoneBeat(): void {
-      if (this.doneTimer !== undefined) {
-        window.clearTimeout(this.doneTimer);
-      }
+      this.cancelDoneBeat();
       const started = Date.now();
       const tick = () => {
-        this.doneTimer = undefined;
         // NEVER finish while the post-buy payment stands: the completion latch
         // is what keeps the frame's whole pay stage alive, and finishing it
         // mid-payment tore the embedded panel out into a standalone band over
@@ -1578,9 +1524,9 @@ export default defineComponent({
           finishDraftCompletion();
           return;
         }
-        this.doneTimer = window.setTimeout(tick, consoleMotionMs(400));
+        this.cancelDoneBeat = this.flow.after(consoleMotionMs(400), 'the terminal beat\'s next look', tick);
       };
-      this.doneTimer = window.setTimeout(tick, consoleMotionMs(2100));
+      this.cancelDoneBeat = this.flow.after(consoleMotionMs(2100), 'the terminal beat reads', tick);
     },
     // ── the LT sub-stage («ОТОБРАННЫЕ › ОСМОТР») ───────────────────────
     /**
@@ -1610,7 +1556,7 @@ export default defineComponent({
       this.beginInspectFlight();
       void this.$nextTick(() => {
         this.fitStage();
-        void this.$nextTick(() => requestAnimationFrame(() => {
+        void this.$nextTick(() => this.flow.afterFrame('the inspect row is laid out', () => {
           const to = this.measureRects(names, (n) => this.inspectCardEl(n));
           if (to === undefined) {
             this.shelfDeparted = [...names];
@@ -1677,17 +1623,12 @@ export default defineComponent({
     },
     beginInspectFlight(): void {
       this.inspectFlightActive = true;
-      if (this.inspectFlightTimer !== undefined) {
-        window.clearTimeout(this.inspectFlightTimer);
-      }
+      this.cancelInspectFlight();
       // Bounded: a stranded flight may absorb input for at most this long.
-      this.inspectFlightTimer = window.setTimeout(() => this.finishInspectFlight(), consoleMotionMs(2600));
+      this.cancelInspectFlight = this.flow.after(consoleMotionMs(2600), 'the inspect flight\'s bound', () => this.finishInspectFlight());
     },
     finishInspectFlight(): void {
-      if (this.inspectFlightTimer !== undefined) {
-        window.clearTimeout(this.inspectFlightTimer);
-        this.inspectFlightTimer = undefined;
-      }
+      this.cancelInspectFlight();
       this.inspectFlightActive = false;
       this.inspectHeldNames = [];
       this.disposeClones();

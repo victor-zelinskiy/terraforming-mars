@@ -11,6 +11,7 @@ import {reactive} from 'vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {ActionFilterState} from '@/client/components/actions/actionModel';
 import {defaultRepeatFilter} from '@/client/console/consoleCardActions';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 export const consoleRepeatPickUi = reactive({
   commands: [] as ReadonlyArray<ConsoleCommand>,
@@ -36,3 +37,7 @@ export function resetConsoleRepeatPickUi(): void {
   consoleRepeatPickUi.commands = [];
   consoleRepeatPickUi.filter = defaultRepeatFilter();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('console-repeat-pick-ui', resetConsoleRepeatPickUi, 240);

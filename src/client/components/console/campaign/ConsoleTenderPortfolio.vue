@@ -48,6 +48,7 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import ConsoleTenderCard from './ConsoleTenderCard.vue';
 import {
   TenderPlace, TenderPortfolioEntry, TenderReading, tenderCardStateOf, tenderReadyHere,
@@ -75,12 +76,16 @@ export default defineComponent({
     live: {type: Boolean, required: false, default: false},
     embedded: {type: Boolean, required: false, default: false},
   },
+  setup() {
+    return {flow: useFlowScope('console-tender-portfolio')};
+  },
   data() {
     return {
       slotEls: new Map<string, HTMLElement>(),
       /** Instances whose stamp is landing right now (a one-shot class). */
       stamping: new Set<string>(),
-      stampTimers: new Map<string, number>(),
+      /** Each landing stamp's timer, by instance — its cancel. */
+      stampTimers: new Map<string, () => void>(),
     };
   },
   computed: {
@@ -90,11 +95,6 @@ export default defineComponent({
     readyCount(): number {
       return tenderReadyHere(this.entries);
     },
-  },
-  beforeUnmount() {
-    for (const t of this.stampTimers.values()) {
-      window.clearTimeout(t);
-    }
   },
   methods: {
     tenderCardStateOf,
@@ -119,15 +119,15 @@ export default defineComponent({
     playStamp(instance: string): void {
       const prev = this.stampTimers.get(instance);
       if (prev !== undefined) {
-        window.clearTimeout(prev);
+        prev();
       }
       this.stamping.add(instance);
       this.stamping = new Set(this.stamping);
-      this.stampTimers.set(instance, window.setTimeout(() => {
+      this.stampTimers.set(instance, this.flow.after(motionMs(STAMP_MS), 'the certificate\'s stamp has landed', () => {
         this.stamping.delete(instance);
         this.stamping = new Set(this.stamping);
         this.stampTimers.delete(instance);
-      }, motionMs(STAMP_MS)));
+      }));
     },
   },
 });

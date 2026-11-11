@@ -655,6 +655,91 @@ describe('flow kernel · scope', () => {
       expect(waitTable()).to.deep.eq([]);
     });
 
+    it('THE TAKE IS THE KERNEL\'S: on a host whose frame cannot be cancelled (only `requestAnimationFrame` is lent) a taken frame still comes — and acts on nothing', async () => {
+      // A unit spec's stand-in frame clock lends the request and no cancel (`consoleScrollArea.spec`); the real clock must
+      // neither throw on the missing `cancelAnimationFrame` nor let the delivered frame run a callback that was taken back.
+      const host = globalThis as unknown as {requestAnimationFrame?: unknown, cancelAnimationFrame?: unknown};
+      const lent = {raf: host.requestAnimationFrame, caf: host.cancelAnimationFrame};
+      host.requestAnimationFrame = (cb: (t: number) => void) => setTimeout(() => cb(0), 0);
+      delete host.cancelAnimationFrame;
+      setFlowClock(undefined); // the REAL clock
+      try {
+        const root = openFlowRoot('test', 'root');
+        let ran = 0;
+        const cancel = root.afterFrame('a taken frame', () => ran++);
+        root.afterFrame('a kept frame', () => ran += 10);
+        cancel();
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(ran, 'only the kept one ran').to.equal(10);
+        expect(waitTable()).to.deep.eq([]);
+        root.end();
+      } finally {
+        host.requestAnimationFrame = lent.raf;
+        host.cancelAnimationFrame = lent.caf;
+        if (lent.raf === undefined) {
+          delete host.requestAnimationFrame;
+        }
+        if (lent.caf === undefined) {
+          delete host.cancelAnimationFrame;
+        }
+      }
+    });
+
+    it('`every` — an owned TICK: one row for its life; it survives a tick that throws; it stops with its handle, its own `false`, its scope', () => {
+      const root = openFlowRoot('test', 'root');
+      const sampler = root.open('test', 'sampler');
+      let ticks = 0;
+      const stop = sampler.every(1000, 'the supervisor', () => {
+        ticks++;
+        if (ticks === 2) {
+          throw new Error('one bad sample');
+        }
+      });
+      expect(waitTable().map((row) => `${row.what} ${row.boundMs}`)).to.deep.eq(['the supervisor 1000']);
+      clock.advance(3_000);
+      expect(ticks, 'a tick that threw did not end the sampler').to.equal(3);
+      expect(warned.filter((line) => line.includes('the tick «the supervisor» threw'))).to.have.length(1);
+      stop();
+      clock.advance(5_000);
+      expect(ticks).to.equal(3);
+
+      let beats = 0;
+      sampler.every(100, 'a heartbeat', () => ++beats < 2);
+      clock.advance(1_000);
+      expect(beats, 'it stopped itself').to.equal(2);
+
+      sampler.every(100, 'a heartbeat', () => {
+        beats++;
+      });
+      clock.advance(100);
+      root.end(); // the PARENT ends: the tick cannot go on for an owner that is gone
+      clock.advance(1_000);
+      expect(beats).to.equal(3);
+      expect(clock.pending()).to.equal(0);
+      expect(waitTable()).to.deep.eq([]);
+    });
+
+    it('`note` — a row for a wait ANOTHER clock keeps: named while it stands, the foreign timer taken back at the scope\'s end', () => {
+      const root = openFlowRoot('test', 'root');
+      const scene = root.open('test', 'scene');
+      const withdrawn: Array<string> = [];
+
+      const forget = scene.note('a beat on the motion clock', () => withdrawn.push('fired-by-itself'), 420);
+      expect(waitTable().map((row) => `${row.what} ${row.boundMs}`)).to.deep.eq(['a beat on the motion clock 420']);
+      forget(); // the foreign timer fired: the row is forgotten, nothing is withdrawn
+      forget();
+      expect(waitTable()).to.deep.eq([]);
+      expect(withdrawn).to.deep.eq([]);
+
+      scene.note('another', () => withdrawn.push('taken back'));
+      root.end(); // the owner ends first: the foreign timer is taken back
+      expect(withdrawn).to.deep.eq(['taken back']);
+      expect(waitTable()).to.deep.eq([]);
+
+      root.note('late', () => withdrawn.push('late')); // asked of an owner that is gone: taken back at once
+      expect(withdrawn).to.deep.eq(['taken back', 'late']);
+    });
+
     it('a timer does not show in the one-line digest (it is not what a flow WAITS for), and the dump names it', () => {
       const root = openFlowRoot('session', 'g');
       const scene = root.open('scene', 'hero');

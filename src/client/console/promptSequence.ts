@@ -34,6 +34,7 @@
  */
 
 import {reactive} from 'vue';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
@@ -181,7 +182,9 @@ let chain: PromptChain = EMPTY_CHAIN;
 let lastPresented: PromptPresentation | undefined;
 let settleUntil = 0;
 let nonce = 0;
-let settleTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+/** The settle's disarm — a GUARANTEED release of the session: `settling` is lowered at its time, or when the game
+ *  screen leaves (a flag nobody lowers would hold the next prompt's entry). */
+let settleTimer: (() => void) | undefined;
 
 function now(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -190,15 +193,15 @@ function now(): number {
 function armSettle(ms: number): void {
   settleUntil = now() + ms;
   if (settleTimer !== undefined) {
-    globalThis.clearTimeout(settleTimer);
+    settleTimer();
     settleTimer = undefined;
   }
   promptSequenceState.settling = ms > 0;
   if (ms > 0) {
-    settleTimer = globalThis.setTimeout(() => {
+    settleTimer = consoleSessionScope().guarantee(ms, 'the settle between two prompts', () => {
       settleTimer = undefined;
       promptSequenceState.settling = false;
-    }, ms);
+    });
   }
 }
 

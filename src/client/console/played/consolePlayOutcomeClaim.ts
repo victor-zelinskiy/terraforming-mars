@@ -54,6 +54,7 @@ import {playedHeroLandingPrewarm, playedHeroLandingUp} from '@/client/console/pl
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import type {PlayerInputModel, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {deckDrawDealing} from '@/client/console/deckDraw/consoleDeckDraw';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {nextTick, reactive} from 'vue';
 
 /** The landing scene's EXIT window — see `playLandingReleasing`. */
@@ -65,13 +66,12 @@ const landingRelease = reactive({releasing: false});
  */
 const LANDING_RELEASE_SAFETY_MS = 1_200;
 
-let releaseBackstop: ReturnType<typeof setTimeout> | undefined;
+/** Disarms the standing backstop — a GUARANTEED release of the session (PLAN §10 · C1); a no-op when none stands. */
+let disarmReleaseBackstop: () => void = () => {};
 
 function clearReleaseBackstop(): void {
-  if (releaseBackstop !== undefined) {
-    clearTimeout(releaseBackstop);
-    releaseBackstop = undefined;
-  }
+  disarmReleaseBackstop();
+  disarmReleaseBackstop = () => {};
 }
 
 /**
@@ -266,7 +266,8 @@ export function beginPlayLandingRelease(): void {
   landingRelease.releasing = true;
   clearReleaseBackstop();
   if (typeof setTimeout === 'function') {
-    releaseBackstop = setTimeout(() => markPlayLandingReleased(), LANDING_RELEASE_SAFETY_MS);
+    // A RELEASE (the flag keeps the scene mounted): lowered at the backstop, or when the game screen leaves.
+    disarmReleaseBackstop = consoleSessionScope().guarantee(LANDING_RELEASE_SAFETY_MS, 'the landing scene\'s dissolve reports', () => markPlayLandingReleased());
   }
 }
 

@@ -26,6 +26,7 @@
  * Module-level reactive (the shell mounts ONE `ConsoleDiscardPile`; every director reads this module).
  */
 import {reactive} from 'vue';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /** A plain rect (screen px) — DOMRect-compatible, test-friendly. */
 export type PileRect = {left: number, top: number, width: number, height: number};
@@ -274,3 +275,8 @@ export function resetDiscardPile(): void {
   closedWaiters = [];
   waiters.forEach((w) => w());
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The ONE discard pile (its leases, its count): a game switch starts with the pile under the strip.
+sessionState('discard-pile', resetDiscardPile, 330);

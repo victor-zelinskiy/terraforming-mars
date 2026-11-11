@@ -49,6 +49,7 @@
 <script lang="ts">
 
 import {defineComponent} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import DeltaChip from '@/client/components/feedback/DeltaChip.vue';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 
@@ -73,6 +74,9 @@ function rayBoxExit(halfW: number, halfH: number, ux: number, uy: number): numbe
 export default defineComponent({
   name: 'EnergyConversionOverlay',
   components: {DeltaChip},
+  setup() {
+    return {flow: useFlowScope('energy-conversion-overlay')};
+  },
   data() {
     return {
       state: energyConversionState,
@@ -201,7 +205,7 @@ export default defineComponent({
         this.measure();
       };
       if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(run);
+        this.flow.afterFrame('the conversion overlay measures', run);
       } else {
         this.$nextTick(run);
       }

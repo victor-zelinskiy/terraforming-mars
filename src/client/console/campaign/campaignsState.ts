@@ -30,6 +30,7 @@ import {ServerEndpoint, pinServerEndpoint} from '../../utils/serverEndpoints';
 import {ensureIdentityLoaded, identityState} from '../../components/mainMenu/identity/identityState';
 import {LOCAL_SOURCE_ID, lobbyState} from '../../components/mainMenu/lobbyState';
 import {CampaignSourceRow, CampaignSourceSlice, CampaignsTab, mergeCampaignSources} from './campaignListModel';
+import {consoleAppScope} from '../session/consoleSession';
 
 export type CampaignsListStatus = 'idle' | 'loading' | 'ok' | 'error';
 
@@ -109,7 +110,8 @@ async function refreshLocalCampaigns(name: string): Promise<LocalOutcome> {
 async function refreshLanCampaigns(sourceId: string, hostLabel: string, endpoint: ServerEndpoint, name: string): Promise<void> {
   const seq = nextSeq(sourceId);
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), LAN_CAMPAIGNS_TIMEOUT_MS);
+  // A RELEASE: the abort is what lets the awaited fetch (and the refresh funnel behind it) go.
+  const disarm = consoleAppScope().guarantee(LAN_CAMPAIGNS_TIMEOUT_MS, 'a LAN host\'s campaigns answer', () => controller.abort());
   try {
     const res = await fetch(`${endpoint.apiBase}/${paths.API_CAMPAIGNS}${campaignsQuery(name)}`, {signal: controller.signal});
     if (res.status === 404) {
@@ -132,7 +134,7 @@ async function refreshLanCampaigns(sourceId: string, hostLabel: string, endpoint
     // Keep what we last saw — the rebuild marks the rows stale off the LOBBY
     // source's status, and the lobby's staleness engine owns dropping the host.
   } finally {
-    window.clearTimeout(timer);
+    disarm();
   }
 }
 
@@ -236,27 +238,27 @@ export async function refreshCampaigns(): Promise<void> {
 
 // Poll floor while the overlay is open (push via the lobby channels is primary).
 const CAMPAIGNS_POLL_MS = 15_000;
-let pollTimer: number | undefined;
+/** The pending poll's cancel — defined for as long as the watch stands (the PAGE's scope owns the timer). */
+let cancelPoll: (() => void) | undefined;
 
 export function startCampaignsWatch(): void {
   stopCampaignsWatch();
   const arm = () => {
-    // window.setTimeout paired with window.clearTimeout (the jsdom rule).
-    pollTimer = window.setTimeout(() => {
+    cancelPoll = consoleAppScope().after(CAMPAIGNS_POLL_MS, 'the campaigns list\'s next poll', () => {
       void refreshCampaigns().finally(() => {
-        if (pollTimer !== undefined) {
+        if (cancelPoll !== undefined) {
           arm();
         }
       });
-    }, CAMPAIGNS_POLL_MS);
+    });
   };
   arm();
 }
 
 export function stopCampaignsWatch(): void {
-  if (pollTimer !== undefined) {
-    window.clearTimeout(pollTimer);
-    pollTimer = undefined;
+  if (cancelPoll !== undefined) {
+    cancelPoll();
+    cancelPoll = undefined;
   }
 }
 

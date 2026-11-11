@@ -48,6 +48,7 @@ import {beginPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from
 import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 import {discardOpenCards} from '@/client/console/cardDiscard/discardOpenCard';
 import {revealKey, revealRewardStock} from '@/client/console/revealReading';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /** The attribute a degraded handoff leaves on <html> (an e2e reads its ABSENCE). */
 export const REVEAL_HANDOFF_DEGRADED_ATTR = 'data-reveal-handoff-degraded';
@@ -212,3 +213,8 @@ export function runRevealHandoff(args: RevealHandoffArgs): void {
   detach();
   flyStockReward(stock, point);
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The verdict's held stock reward (TR13 «+5 M€») — released unflown, never somebody else's hold.
+sessionState('reveal-handoff', resetRevealHandoff, 400);

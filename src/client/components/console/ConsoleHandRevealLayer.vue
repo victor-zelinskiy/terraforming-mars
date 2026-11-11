@@ -73,6 +73,7 @@ import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /* ── THE SILENT RETURN's motion (resettleBodies) — the tray's own arrival
    vocabulary, never a journey: the rise matches the fresh-body pop above, and
@@ -95,6 +96,9 @@ export default defineComponent({
     /** The pack-level pose (rest / compact / raised) — shell-derived from
      *  the same flags that used to drive the dock's CSS pose classes. */
     pose: {type: String as PropType<PackPose>, default: 'rest'},
+  },
+  setup() {
+    return {flow: useFlowScope('hand-bodies')};
   },
   data() {
     return {handRevealState, handBodiesState, layout: consoleLayoutState, anchorRetries: 0, dockPresentation: handDockPresentation};
@@ -327,7 +331,7 @@ export default defineComponent({
         // depend on one arriving).
         if (this.anchorRetries < 60) {
           this.anchorRetries++;
-          window.setTimeout(() => this.applyDockedPoses(animate, ride), 60);
+          this.flow.after(60, 'the dock chassis becomes measurable (the pack is seated)', () => this.applyDockedPoses(animate, ride));
         }
         return;
       }
@@ -420,7 +424,7 @@ export default defineComponent({
         // compositor withholds frames exactly at load).
         if (this.anchorRetries < 60) {
           this.anchorRetries++;
-          window.setTimeout(() => this.resettleBodies(names), 60);
+          this.flow.after(60, 'the dock chassis becomes measurable (the pack re-settles)', () => this.resettleBodies(names));
         }
         return;
       }

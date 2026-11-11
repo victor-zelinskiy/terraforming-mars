@@ -52,7 +52,8 @@ import {
   RETURN_READ_MS, RETURN_SAFETY_MS,
 } from '@/client/console/played/playedReturnModel';
 import {span} from '@/client/console/session/sessionWaits';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {createFlowRun} from '@/client/console/session/flowRun';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /** The premium face's natural box (320×460) — the flight scale reference. */
 const CARD_NATURAL_H = 460;
@@ -65,6 +66,14 @@ export type ReturnFlight = {
   name: CardName,
   faceDown: boolean,
 };
+
+/**
+ * THE BEAT'S RUN (architecture v2 — PLAN §10 · C4): `scene:played-card-return#n` in the flow tree, from the moment the
+ * returned cards are WITHHELD from the dock (the arm at the response) to the beat's end — delivered, aborted, reset.
+ * When the game screen leaves under it the beat is aborted (`orphaned`): a withheld card is given back to the dock
+ * instead of standing withheld into the next game.
+ */
+const run = createFlowRun('played-card-return', {orphaned: () => abortPlayedCardReturns()});
 
 export const playedReturnState = reactive({
   /** TRUE while the rise/turn/pose beat owns its proxies. */
@@ -129,6 +138,7 @@ export function stagePlayedCardReturns(prev: ReturnDiffView | undefined, next: R
   pending = cards;
   withheld = cards.map((c) => c.name);
   withholdDockCards(withheld);
+  run.begin(`${cards.length} card(s)`);
 }
 
 /**
@@ -313,6 +323,7 @@ function finishBeat(): void {
   playedReturnState.flights = [];
   els.clear();
   scene = undefined;
+  run.end();
 }
 
 function releaseWithhold(names: ReadonlyArray<CardName>): void {
@@ -384,3 +395,9 @@ function withSafety(work: Promise<void>): Promise<void> {
     void work.then(settle, settle);
   });
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The play's return beat is module state as well — never carry a live flight (or its dock withhold) across a game
+// switch.
+sessionState('played-card-returns', resetPlayedCardReturns, 310);

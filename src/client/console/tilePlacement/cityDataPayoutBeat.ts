@@ -59,7 +59,7 @@ import {
   Rect, SELF_TOKEN_REACH, SELF_WAKE_REACH, cityPayoutPlate, cityPayoutTickAt, cityTokenPlan, directionToward, pointToward,
   sentByTheTile, tokenSpread,
 } from '@/client/console/tilePlacement/cityDataPayoutModel';
-import {span} from '@/client/console/session/sessionWaits';
+import {motionSpan, span} from '@/client/console/session/sessionWaits';
 
 export type CityPayoutPhase = 'idle' | 'waiting' | 'rising' | 'paying' | 'reading' | 'returning' | 'answering';
 
@@ -302,9 +302,7 @@ function wait(ms: number): Promise<void> {
 
 /** A wait on the GSAP clock (the clock every proxy of the scene animates on). */
 function gsapWait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    gsap.delayedCall(ms / 1000, () => resolve());
-  });
+  return motionSpan(ms);
 }
 
 /** A GSAP tween as a promise that settles on completion AND on interruption (an abort never strands a caller). */

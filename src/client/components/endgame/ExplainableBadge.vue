@@ -53,6 +53,7 @@
 import {defineComponent} from 'vue';
 import type {ChipDetail} from '@/client/components/endgame/insightDetail';
 import {$t} from '@/client/directives/i18n';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 const CONFIDENCE_LABEL: Record<string, string> = {
   exact: 'Exact', measured: 'Measured', partial: 'Partial', ruleOnly: 'Rule',
@@ -72,8 +73,11 @@ export default defineComponent({
     // so the marker never lands inside a «…» quoted name.
     markless: {type: Boolean, required: false, default: false},
   },
+  setup() {
+    return {flow: useFlowScope('explainable-badge')};
+  },
   data() {
-    return {open: false, popStyle: {} as Record<string, string>, closeTimer: 0};
+    return {open: false, popStyle: {} as Record<string, string>, cancelClose: (() => {}) as () => void};
   },
   computed: {
     ariaLabel(): string {
@@ -87,23 +91,20 @@ export default defineComponent({
       return 'eg-detail--fam-' + (this.detail?.accent ?? 'generic');
     },
   },
-  beforeUnmount() {
-    window.clearTimeout(this.closeTimer);
-  },
   methods: {
     onEnter() {
       if (this.detail === undefined) {
         return;
       }
-      window.clearTimeout(this.closeTimer);
+      this.cancelClose();
       this.position();
       this.open = true;
     },
     onLeave() {
       // Small delay so a flick of the cursor doesn't strobe the popover.
-      this.closeTimer = window.setTimeout(() => {
+      this.cancelClose = this.flow.after(90, 'the badge popover\'s close delay', () => {
         this.open = false;
-      }, 90);
+      });
     },
     onToggle(e: MouseEvent) {
       if (this.detail === undefined) {

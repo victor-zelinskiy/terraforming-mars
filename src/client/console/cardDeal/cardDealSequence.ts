@@ -36,6 +36,8 @@ import {shouldRunDealOnce} from '@/client/console/cardDeal/cardDealMemory';
 import {dealTimings, REDUCED_REVEAL_STEP_MS, riseTimings} from '@/client/console/cardDeal/cardDealModel';
 import {DealHandle, DealTargetRect, runCardDealTimeline} from '@/client/console/cardDeal/cardDealDirector';
 import {runCardRiseTimeline} from '@/client/console/cardDeal/cardRiseDirector';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {probeTick} from '@/client/console/probeTick';
 
 /**
  * The RESEARCH-RISE variant (the draft→research transition): instead of
@@ -124,7 +126,8 @@ export function createCardDealSequence() {
   let handle: DealHandle | undefined;
   let retries = 0;
   let probeSig = '';
-  let reducedTimers: Array<ReturnType<typeof setTimeout>> = [];
+  /** The reduced-motion reveals still owed (their disarms) — GUARANTEED releases of the session (PLAN §10 · C1). */
+  let reducedTimers: Array<() => void> = [];
   /** Presentation hold for the whole cinematic (finish() is the ONE funnel
    *  every exit path — onDone, skip, dispose, degenerate measure — runs
    *  through, so the release can never be missed). 'notification-only': the
@@ -157,8 +160,8 @@ export function createCardDealSequence() {
     state.active = false;
     state.cards = [];
     pending.forEach((k, i) => {
-      const t = setTimeout(() => state.revealed.add(k),
-        Math.min(i * REDUCED_REVEAL_STEP_MS, REDUCED_MOTION_CAP_MS));
+      const t = consoleSessionScope().guarantee(Math.min(i * REDUCED_REVEAL_STEP_MS, REDUCED_MOTION_CAP_MS),
+        'a slot\'s reduced-motion reveal', () => state.revealed.add(k));
       reducedTimers.push(t);
     });
   };
@@ -246,7 +249,7 @@ export function createCardDealSequence() {
       if (retries < MEASURE_RETRIES && (degenerate || sig !== probeSig)) {
         probeSig = sig;
         retries++;
-        requestAnimationFrame(() => this.launch(args));
+        probeTick(() => this.launch(args));
         return;
       }
       if (degenerate) {
@@ -316,7 +319,7 @@ export function createCardDealSequence() {
 
     /** Unmount / re-prepare: tear down timers + timeline. */
     dispose(): void {
-      reducedTimers.forEach(clearTimeout);
+      reducedTimers.forEach((disarm) => disarm());
       reducedTimers = [];
       if (handle !== undefined) {
         handle.kill();

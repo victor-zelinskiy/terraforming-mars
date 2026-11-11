@@ -232,7 +232,7 @@ import {startSceneHeld} from '@/client/console/consoleStartState';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 import {FlowScope} from '@/client/console/kernel/flowScope';
-import {sessionChild} from '@/client/console/session/consoleSession';
+import {consoleAppScope, sessionChild} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
 import {submitMachine, SubmitStatus} from '@/client/console/transport/submitMachine';
 import {announceSubmitTicket, SubmitSettle, SubmitTicket} from '@/client/console/transport/submitTicket';
@@ -434,8 +434,15 @@ export function transportRequestInProgress(): boolean {
 }
 
 let root: TransportRoot | undefined;
-let ui_update_timeout_id: number | undefined;
-let documentTitleTimer: number | undefined;
+/**
+ * THE POLL'S NEXT LOOK — a GUARANTEED release of the transport's scope (architecture v2 — PLAN §10): the chain is the
+ * game's fallback liveness, so its next look can never be silently taken back with its owner (a scope re-homed under
+ * it would have ended the chain for good) — it comes at its time, or at once when the scope ends un-disarmed; the
+ * teardown disarms it first. `disarmPoll` is where `clearTimeout(ui_update_timeout_id)` stood.
+ */
+let disarmPoll: () => void = () => {};
+/** The tab title's spinner — an owned tick of the transport's scope. */
+let stopTitleSpinner: () => void = () => {};
 let animationFrame = 0;
 /**
  * Set true in `stopGameTransport` so the self-re-arming poll chain can't
@@ -607,10 +614,11 @@ export function stopGameTransport(): void {
     realtimeWakeOff();
     realtimeWakeOff = undefined;
   }
-  window.clearInterval(documentTitleTimer);
+  stopTitleSpinner();
+  stopTitleSpinner = () => {};
   pollStopped = true;
-  window.clearTimeout(ui_update_timeout_id);
-  ui_update_timeout_id = undefined;
+  disarmPoll();
+  disarmPoll = () => {};
   // The transport's scope ends with the game screen — a submit still standing is over with it (its funnel reopens,
   // its gates are cancelled, its ticket settles `abandoned`).
   transportFlow?.end({how: 'cancelled', reason: 'the game screen left'});
@@ -635,9 +643,10 @@ export function syncTurnPresentation(): void {
   if (getPreferences().experimental_ui) {
     setFaviconStatus(hasRequiredPrompt ? 'turn' : 'idle');
   }
-  window.clearInterval(documentTitleTimer);
+  stopTitleSpinner();
+  stopTitleSpinner = () => {};
   if (currentView().players.length > 1 && hasRequiredPrompt) {
-    documentTitleTimer = window.setInterval(() => animateTitle(), 1000);
+    stopTitleSpinner = transportScope().every(1000, 'the tab title\'s spinner', () => animateTitle());
   }
 }
 
@@ -1781,7 +1790,7 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           // product made on its own: every page-side witness of the run went with the old document).
           cb = () => {
             console.warn('[transport] reload — INVALID_RUN_ID: the server game is a different run than this page\'s');
-            setTimeout(() => window.location.reload(), 100);
+            consoleAppScope().guarantee(100, 'the reload after INVALID_RUN_ID', () => window.location.reload());
           };
         }
         if (resp.id === STALE_PROMPT) {
@@ -1944,7 +1953,7 @@ export function waitForUpdate(immediate = false): void {
     return;
   }
   const r = theRoot();
-  clearTimeout(ui_update_timeout_id);
+  disarmPoll();
   // The game is over — there is nothing left to poll for. Stopping the chain
   // here keeps the board from being re-fetched every tick after END; the
   // endgame screen already holds the final view.
@@ -2074,7 +2083,7 @@ export function waitForUpdate(immediate = false): void {
     // strictly healthy (and reduction is enabled); otherwise the safe
     // `waitingForTimeout`. Re-evaluated every re-arm, and a WS drop wakes
     // an immediate re-arm so we fall back to the safe interval fast.
-    ui_update_timeout_id = window.setTimeout(askForUpdate, realtimePollIntervalMs(raw_settings.waitingForTimeout));
+    disarmPoll = transportScope().guarantee(realtimePollIntervalMs(raw_settings.waitingForTimeout), 'the poll\'s next look', askForUpdate);
   }
 }
 

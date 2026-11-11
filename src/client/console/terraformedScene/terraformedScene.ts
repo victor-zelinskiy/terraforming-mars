@@ -57,6 +57,8 @@
  * return. A reload into a terraformed game seeds silently and plays nothing.
  */
 import {reactive, shallowRef} from 'vue';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -156,7 +158,18 @@ registerAnimationHoldSupplier('terraformed-scene', terraformedSceneUp, {
 let seeded = false;
 let wasTerraformed = false;
 let wake: (() => void) | undefined;
-let timers: Array<ReturnType<typeof setTimeout>> = [];
+
+/**
+ * THE SCENE IS A RUN (architecture v2 — PLAN §10 · C4): derived from its phase (anything but `idle`), so every road
+ * into and out of the scene moves it by construction. Its beats are the run's own timers — the run ending (the
+ * phase back at `idle`) takes every pending beat back, which is what the hand-kept `timers` list did; a scene whose
+ * game screen left ends honestly (`orphaned`).
+ */
+const sceneRun = deriveFlowRun('terraformed-scene', () => terraformedSceneState.phase !== 'idle', {
+  kind: 'scene',
+  detail: () => `generation ${terraformedSceneState.generation}`,
+  orphaned: () => endTerraformedScene('orphaned'),
+});
 
 /**
  * DETECT (and arm) off the SERVER's word — `game.isTerraformed` flipping between the view on screen and the view
@@ -236,24 +249,19 @@ function wait(ms: number): Promise<void> {
         return;
       }
       done = true;
-      clearTimeout(t);
-      timers = timers.filter((x) => x !== t);
+      cancel();
       if (wake === finish) {
         wake = undefined;
       }
       resolve();
     };
-    const t = setTimeout(finish, Math.max(0, ms));
-    timers.push(t);
+    const cancel = (sceneRun.scope ?? consoleSessionScope()).after(Math.max(0, ms), 'a beat of the terraformed scene', finish);
     wake = finish;
   });
 }
 
+/** The pending beats go with the run (the phase back at `idle`); the skip's wake is dropped here. */
 function clearTimers(): void {
-  for (const t of timers) {
-    clearTimeout(t);
-  }
-  timers = [];
   wake = undefined;
 }
 
@@ -389,11 +397,7 @@ async function play(nonce: number): Promise<void> {
 /** A wait of the RETURN — a skip never cuts the return short (the camera must land where it left from). */
 function waitUnskippable(ms: number): Promise<void> {
   return new Promise<void>((resolve) => {
-    const t = setTimeout(() => {
-      timers = timers.filter((x) => x !== t);
-      resolve();
-    }, Math.max(0, ms));
-    timers.push(t);
+    (sceneRun.scope ?? consoleSessionScope()).after(Math.max(0, ms), 'a beat of the terraformed scene\'s return', resolve);
   });
 }
 
@@ -430,3 +434,8 @@ export function resetTerraformedScene(): void {
   terraformedSceneState.skipped = false;
   terraformedSceneState.returning = false;
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The terraformed scene (TR70): a dead shell's held scales let go, nothing recedes
+sessionState('terraformed-scene', resetTerraformedScene, 30);

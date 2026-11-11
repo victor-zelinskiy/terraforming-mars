@@ -20,9 +20,9 @@
  * A/B can retarget the scene without stranding a half-played phase.
  */
 import {reactive} from 'vue';
-import {gsap} from 'gsap';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {OVERVIEW_TAB_ORDER, OverviewTabKey} from '@/client/console/endgame/consoleOverviewModel';
+import {motionGuarantee} from '@/client/console/session/sessionWaits';
 
 export type OverviewScenePhase = 'closed' | 'entering' | 'open' | 'leaving';
 
@@ -82,11 +82,12 @@ export const consoleOverviewUi = reactive({
   revealed: {} as Record<string, boolean>,
 });
 
-let phaseCall: gsap.core.Tween | undefined;
+/** The standing phase beat's disarm — a RELEASE on the motion clock: a phase never stays `entering` / `leaving`. */
+let disarmPhaseCall: (() => void) | undefined;
 
 function killPhaseCall(): void {
-  phaseCall?.kill();
-  phaseCall = undefined;
+  disarmPhaseCall?.();
+  disarmPhaseCall = undefined;
 }
 
 /** «Обзор партии» — the scoring scene yields, the overview unfolds in place. */
@@ -97,7 +98,7 @@ export function openEndgameOverview(): void {
   }
   killPhaseCall();
   s.phase = 'entering';
-  phaseCall = gsap.delayedCall(consoleMotionMs(OVERVIEW_MS.enter) / 1000, () => {
+  disarmPhaseCall = motionGuarantee(consoleMotionMs(OVERVIEW_MS.enter), 'the endgame overview unfolds', () => {
     if (consoleOverviewUi.phase === 'entering') {
       consoleOverviewUi.phase = 'open';
     }
@@ -113,7 +114,7 @@ export function closeEndgameOverview(): void {
   killPhaseCall();
   s.detail = undefined;
   s.phase = 'leaving';
-  phaseCall = gsap.delayedCall(consoleMotionMs(OVERVIEW_MS.leave) / 1000, () => {
+  disarmPhaseCall = motionGuarantee(consoleMotionMs(OVERVIEW_MS.leave), 'the endgame overview folds', () => {
     if (consoleOverviewUi.phase === 'leaving') {
       consoleOverviewUi.phase = 'closed';
     }

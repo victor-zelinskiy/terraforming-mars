@@ -66,11 +66,12 @@
  * tab, focus, detail, chart-reveal memory — survives collapse and re-entry).
  */
 import {defineComponent, PropType} from 'vue';
-import {gsap} from 'gsap';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {motionAfter, motionGuarantee} from '@/client/console/session/sessionWaits';
 import type {EndgameModel} from '@/client/components/endgame/endgameModel';
 import type {ConsoleEndgameVm} from '@/client/console/endgame/consoleEndgameModel';
 import {
@@ -102,9 +103,13 @@ export default defineComponent({
     model: {type: Object as PropType<EndgameModel>, required: true},
     egVm: {type: Object as PropType<ConsoleEndgameVm>, required: true},
   },
+  setup() {
+    return {flow: useFlowScope('endgame-overview')};
+  },
   data() {
     return {
-      paneCall: undefined as gsap.core.Tween | undefined,
+      /** The pane swap's pending beat — its cancel (the scene's scope takes it back on unmount). */
+      paneCall: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -160,18 +165,16 @@ export default defineComponent({
     // The landing tab settles its chart-reveal memory once the entrance ends.
     this.markRevealedSoon();
   },
-  beforeUnmount() {
-    this.paneCall?.kill();
-  },
   methods: {
     revealFor(tab: OverviewTabKey): boolean {
       return this.ui.revealed[tab] !== true;
     },
     markRevealedSoon(): void {
       const tab = this.ui.tab;
-      gsap.delayedCall(consoleMotionMs(900) / 1000, () => {
+      // A mark in the MODULE's memory (it outlives this scene): it lands even when the scene leaves first.
+      motionGuarantee(consoleMotionMs(900), 'the landed tab\'s charts count as revealed', () => {
         consoleOverviewUi.revealed[tab] = true;
-      });
+      }, this.flow);
     },
     // ── the pane-swap machine (never parallel, never queued) ──────────────
     switchTab(dir: 1 | -1): void {
@@ -184,8 +187,8 @@ export default defineComponent({
     },
     beginPaneOut(): void {
       this.ui.paneStage = 'out';
-      this.paneCall?.kill();
-      this.paneCall = gsap.delayedCall(consoleMotionMs(OVERVIEW_MS.paneOut) / 1000, () => this.completePaneSwap());
+      this.paneCall?.();
+      this.paneCall = motionAfter(consoleMotionMs(OVERVIEW_MS.paneOut), 'the overview pane leaves, then the tabs swap', () => this.completePaneSwap(), this.flow);
     },
     completePaneSwap(): void {
       const ui = this.ui;
@@ -195,11 +198,11 @@ export default defineComponent({
       }
       ui.pendingTab = undefined;
       ui.paneStage = 'in';
-      this.paneCall?.kill();
-      this.paneCall = gsap.delayedCall(consoleMotionMs(OVERVIEW_MS.paneIn) / 1000, () => {
+      this.paneCall?.();
+      this.paneCall = motionAfter(consoleMotionMs(OVERVIEW_MS.paneIn), 'the overview pane lands', () => {
         ui.paneStage = 'idle';
         this.markRevealedSoon();
-      });
+      }, this.flow);
     },
     // ── the pad (delegated by the endgame workspace) ──────────────────────
     handleIntent(intent: GamepadIntent): void {

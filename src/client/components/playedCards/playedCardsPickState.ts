@@ -1,4 +1,5 @@
 import {reactive} from 'vue';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 
@@ -104,6 +105,10 @@ export function exitPlayedCardsPick(): void {
   playedCardsPickState.alreadyPicked = [];
   resolveCb = undefined;
 }
+
+/** THE PICK IS A RUN of the session (architecture v2 — PLAN §10 · C4), derived from its flag — a run that stands for the
+ *  player; a pick whose game screen left is exited (never carried into the next game with a dead callback). */
+deriveFlowRun('played-cards-pick', () => playedCardsPickState.active, {kind: 'surface', orphaned: () => exitPlayedCardsPick()});
 
 export function isPlayedPickCandidate(name: CardName): boolean {
   return playedCardsPickState.active && playedCardsPickState.selectable.includes(name);

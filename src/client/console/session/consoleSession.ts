@@ -13,8 +13,9 @@
  * What that replaces is the list. A dead shell used to be cleaned by ~120 hand-written `reset…()` rows in its
  * `beforeUnmount`; a module that was not on the list leaked its state into the next game («иногда зависает» after a
  * rematch — the session-leak class). A flow opened in the session cannot be forgotten: there is nothing to list.
- * Module state that is not a flow yet hangs its reset on the session with `onConsoleSessionEnd` — the same guarantee
- * for the modules still on the list, adopted as each one is touched.
+ * Module state that is not a flow DECLARES itself beside its own definition — `sessionState(label, reset, at)` — and
+ * the leaving shell says ONE thing, `leaveConsoleSession()`: every declared state is taken down in one ordered pass
+ * (PLAN §10 · C5). The shell holds no list of modules any more; a module that has state of the game says so itself.
  *
  * TWO ROOTS, NEVER MIXED:
  *  · the GAME session (`session:game#n`) — opened by the shell's `setup()`, ended by THAT shell's unmount. A session
@@ -29,10 +30,12 @@
  * its own under it (the transport, the frame chain) goes through `sessionChild`, which re-homes a root whose session
  * is no longer the one that stands.
  */
-import {onUnmounted} from 'vue';
+import {getCurrentInstance, inject, onUnmounted, provide} from 'vue';
+import type {InjectionKey} from 'vue';
 import {FlowKind} from '@/client/console/kernel/flowKinds';
 import {dumpFlowTree, FlowScope, liveScopeCount, openFlowRoot, waitTable} from '@/client/console/kernel/flowScope';
-import {flowTraceLines, flowTraceStats} from '@/client/console/kernel/flowTrace';
+import {flowAnomaly, flowTraceLines, flowTraceStats} from '@/client/console/kernel/flowTrace';
+import {flowClock} from '@/client/console/kernel/flowClock';
 
 let game: FlowScope<'session'> | undefined;
 let lobby: FlowScope<'session'> | undefined;
@@ -42,6 +45,16 @@ export function consoleSessionScope(): FlowScope<'session'> {
   if (game !== undefined && game.ended === undefined) {
     return game;
   }
+  return consoleAppScope();
+}
+
+/**
+ * THE PAGE's own scope — for what lives as long as the PAGE does, whatever game screen comes and goes: the gamepad's
+ * poll, the layout profile, the loading curtain, the campaign's channel, the field recorder, a menu. (It is the lobby's
+ * root: «no game screen is up» and «not a game's» are the same owner.) A wait armed here during a game is NOT taken
+ * back — or released — when that game's screen leaves; use it only for what is truly not the game's.
+ */
+export function consoleAppScope(): FlowScope<'session'> {
   if (lobby === undefined || lobby.ended !== undefined) {
     lobby = openFlowRoot('session', 'lobby');
   }
@@ -82,6 +95,58 @@ export function onConsoleSessionEnd(reset: () => void): () => void {
   return consoleSessionScope().defer(reset);
 }
 
+type SessionState = {label: string, reset: () => void, at: number};
+const sessionStates: Array<SessionState> = [];
+
+/**
+ * MODULE STATE OF THE GAME SCREEN, DECLARED BY ITS MODULE (PLAN §10 · C5). A module that keeps state of the running
+ * game outside a scope — a pick's request, a store's cache, a director's ledger, an arm waiting for its answer — says
+ * so ONCE, at module scope, beside the reset it already has:
+ *
+ *   sessionState('hand-pick', resetConsoleHandPick, 150);
+ *
+ * and `leaveConsoleSession()` (the shell's `beforeUnmount`) takes every declared state down in ONE pass, ordered by
+ * `at`. This replaces the hand-written list of `reset…()` rows in the shell: the declaration lives with the state, so
+ * a new module cannot be «forgotten by the shell» — and a reset that throws no longer keeps the rest from running.
+ *
+ * `at` IS THE STATE'S PLACE IN THE PASS (lower first). The teardown is ordered on purpose — a scene's abort recalls
+ * the scenes it staged, the stack falls before the picks that pop their frames from it — and the numbers are the order
+ * the shell's list had. A new state takes a free number where it belongs (beside its family; before what it must
+ * precede). Two states never share one (`kernelCoverage.spec` — the pass is a total order, not a coincidence of
+ * import order).
+ *
+ * A flow whose whole state is its RUN needs no declaration: its run ends with the session (`orphaned`).
+ */
+export function sessionState(label: string, reset: () => void, at: number): void {
+  // A module evaluated again (HMR, a spec's fresh bundle): its newest declaration stands.
+  const standing = sessionStates.findIndex((state) => state.label === label);
+  if (standing >= 0) {
+    sessionStates.splice(standing, 1);
+  }
+  sessionStates.push({label, reset, at});
+  sessionStates.sort((a, b) => a.at - b.at);
+}
+
+/**
+ * THE GAME SCREEN IS LEAVING (the shell's `beforeUnmount`, after it dropped its own probes and suppliers): every
+ * declared module state is reset, in order, each on its own — one that throws is said by name and the pass goes on.
+ * Idempotent like the resets it runs; the session's SCOPE ends later (`unmounted` — after the shell's children).
+ */
+export function leaveConsoleSession(): void {
+  for (const state of [...sessionStates]) {
+    try {
+      state.reset();
+    } catch (error) {
+      flowAnomaly(flowClock().now(), game?.id ?? 'session', `the session state «${state.label}» threw in its reset`, error);
+    }
+  }
+}
+
+/** The declared session states, in the order of the pass (diagnostics; a spec). */
+export function declaredSessionStates(): Array<{label: string, at: number}> {
+  return sessionStates.map(({label, at}) => ({label, at}));
+}
+
 /** Does a GAME session stand right now (diagnostics; a spec)? */
 export function consoleSessionLive(): boolean {
   return game !== undefined && game.ended === undefined;
@@ -112,8 +177,37 @@ export function sessionChild<K extends FlowKind>(held: FlowScope<K> | undefined,
  */
 export function useConsoleSession(): FlowScope<'session'> {
   const scope = beginConsoleSession();
+  // THE SESSION IS HANDED DOWN THE COMPONENT TREE: whatever is rendered INSIDE this shell belongs to this session —
+  // `componentSessionScope()` reads it — and whatever is rendered outside any shell does not.
+  provide(SESSION_OF_THE_SHELL, scope);
+  const instance = getCurrentInstance();
+  if (instance !== null) {
+    shellSessions.set(instance, scope);
+  }
   onUnmounted(() => endConsoleSession('the game screen left', scope));
   return scope;
+}
+
+const SESSION_OF_THE_SHELL: InjectionKey<FlowScope<'session'>> = Symbol('the console session of the shell above');
+/** The shell's own instance → its session (`inject` does not see what the same component provided). */
+const shellSessions = new WeakMap<object, FlowScope<'session'>>();
+
+/**
+ * WHOSE IS A COMPONENT SET UP RIGHT NOW (called in `setup()` — `useFlowScope` is its one caller)? Decided by WHERE THE
+ * COMPONENT STANDS IN THE TREE, never by «which session happens to stand»:
+ *  · inside a console shell (or the shell's own `setup()` — its controllers) → THAT shell's session: the component
+ *    dies with that shell, and so does its scope;
+ *  · outside any shell — a menu, an app-level layer beside the shell (a zoom host, the curtain, a rematch layer), a
+ *    spec's bare mount → the PAGE's scope.
+ * «The session that stands» is the wrong owner for a component: an app-level layer set up while a game is on screen
+ * would be handed that game's session and lose every timer it arms the moment the game screen leaves — while the
+ * layer itself lives on; and a component set up in the patch that swaps two shells would get the dying one's.
+ */
+export function componentSessionScope(): FlowScope<'session'> {
+  const instance = getCurrentInstance();
+  const own = instance === null ? undefined : shellSessions.get(instance);
+  const scope = own ?? (instance === null ? undefined : inject(SESSION_OF_THE_SHELL, undefined));
+  return scope !== undefined && scope.ended === undefined ? scope : consoleAppScope();
 }
 
 /**

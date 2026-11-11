@@ -19,6 +19,7 @@
  */
 import {reactive} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** The flip's own choreography length (ConsoleFlipValue's FLIP_TOTAL_MS) plus room — the net for a wedged signal. */
 const DEFERRED_FLIP_NET_MS = 940 + 600;
@@ -26,18 +27,17 @@ const DEFERRED_FLIP_NET_MS = 940 + 600;
 /** The generation the strip still owes its flip to (0 = nothing owed). Reactive: a cached reader re-evaluates. */
 export const deferredGenerationFlipState = reactive({owed: 0});
 
-let net: ReturnType<typeof setTimeout> | undefined;
+/** The net's disarm — a GUARANTEED release of the session: the debt is dropped at the net, or when the game screen leaves. */
+let disarmNet: () => void = () => {};
 
 /** Declare the debt: the strip is about to flip to `generation`. */
 export function oweDeferredGenerationFlip(generation: number): void {
   deferredGenerationFlipState.owed = generation;
-  if (net !== undefined) {
-    clearTimeout(net);
-  }
-  net = setTimeout(() => {
-    net = undefined;
+  disarmNet();
+  disarmNet = consoleSessionScope().guarantee(motionMs(DEFERRED_FLIP_NET_MS), 'the strip\'s deferred generation flip (the net of a wedged signal)', () => {
+    disarmNet = () => {};
     deferredGenerationFlipState.owed = 0;
-  }, motionMs(DEFERRED_FLIP_NET_MS));
+  });
 }
 
 /** The strip finished a flip to `generation` (its own `flip-end`). */
@@ -54,9 +54,7 @@ export function deferredGenerationFlipOwed(): boolean {
 
 /** Game switch / tests. */
 export function resetDeferredGenerationFlip(): void {
-  if (net !== undefined) {
-    clearTimeout(net);
-    net = undefined;
-  }
+  disarmNet();
+  disarmNet = () => {};
   deferredGenerationFlipState.owed = 0;
 }

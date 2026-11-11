@@ -23,7 +23,7 @@
  * never came back to the board → the rows tick, nothing flies). Reduced motion holds nothing.
  */
 import {reactive, watch, WatchStopHandle} from 'vue';
-import {gsap} from 'gsap';
+import {motionSpan} from '@/client/console/session/sessionWaits';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {MAX_VENUS_SCALE} from '@/common/constants';
@@ -42,6 +42,7 @@ import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTran
 import {SCALE_STEP_BREATH_MS, SCALE_STEP_STAGE_DUE_MS} from '@/client/console/scaleStepReward/scaleStepRewardModel';
 import {scaleStepRatingBusy, scaleStepRatingQuiet} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const VENUS_BONUS_CELL_KEY = 'venus-bonus-cell';
@@ -307,9 +308,7 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
 }
 
 function gsapWait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    gsap.delayedCall(ms / 1000, () => resolve());
-  });
+  return motionSpan(ms);
 }
 
 /** The centre of a bonus cell as painted, or undefined (no cell on screen). */
@@ -418,3 +417,7 @@ export function resetVenusBonusCell(): void {
   quietResolve = undefined;
   r?.();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('venus-bonus-cell', resetVenusBonusCell, 70);

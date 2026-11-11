@@ -44,9 +44,13 @@ a new safety timer, or a new watcher mailbox.**
    `flowMachineRegister.spec.ts` fails on an unregistered `createMachine(`.
 
 ## Timers, frames and runs — nothing waits outside a scope (PLAN §10)
-- **No raw `setTimeout` / `setInterval` / `requestAnimationFrame` / `delayedCall`-as-a-timer in console code.** The
-  ledger (`tests/console/kernelCoverage.spec.ts` over `kernelCoverageBaseline.json`) counts them per file: a file may
-  not grow, **a new file starts at zero**. When you remove one, run `npm run coverage:kernel` (it only lowers rows).
+- **No raw `setTimeout` / `setInterval` / `requestAnimationFrame` / `delayedCall`-as-a-timer in CLIENT code** — the
+  console, and the shared layer under it (`src/client/**`). The ledger (`tests/console/kernelCoverage.spec.ts` over
+  `kernelCoverageBaseline.json`) counts them per file: a file may not grow, **a new file starts at zero**, and the
+  baseline is EMPTY — the whole client waits on the kernel. The two files that may hold a raw primitive are named in
+  the spec's `DEVICE_CLOCKS` with their reason and their exact count (the gamepad's sampling loop and its one
+  coalesced frame: a device driver is not a wait, and the kernel's clock is not free per tick) — a new row there is a
+  decision to defend in review, not a place to park a timer.
 - **Pick the OWNER first**: the run the wait serves — a module flow's (`createFlowRun(label, {orphaned})`), a hold's
   (`beginAnimationHold(…).scope`), a frame's (`workspaceFrameScope(kind)`), a submit's; a component's own
   (`setup() { return {flow: useFlowScope('<label>')}; }`); the session's (`consoleSessionScope()`) only for what
@@ -64,6 +68,44 @@ a new safety timer, or a new watcher mailbox.**
   for ever on a quiet compositor); a poll against a ceiling is `await untilCeiling(spec, read, owner)`; a frame loop
   (a counter's interpolation) is `owner.everyFrame(what, tick)` with a `guarantee` beside it for what must happen
   when no frame comes.
+- **A beat that paces TWEENS rides GSAP's clock, with an owner** — `motionAfter(ms, what, run, owner?)` (pacing) ·
+  `motionGuarantee(ms, what, release, owner?)` (release) · `await motionSpan(ms, owner?)` (`session/sessionWaits.ts`):
+  a bare `gsap.delayedCall` has no owner; a wall-clock timer beside a tween fires early on a starved frame (GSAP's lag
+  smoothing stretches the tween, not the timer). Never move a `delayedCall` onto `after` / `guarantee` — keep its
+  clock, give it an owner.
+- **In a COMPONENT** the owner is the component: `setup() { return {flow: useFlowScope('<kebab-name>')}; }`, then
+  `this.flow.after(…)` / `this.flow.afterFrame(…)` / `this.flow.guarantee(…)`; the `beforeUnmount` list of
+  `clearTimeout`s goes with it. **The scope is parented by WHERE THE COMPONENT STANDS** (`componentSessionScope`):
+  inside a console shell — that shell's session; outside any shell (a menu, an app-level layer beside the shell, a
+  bare mount in a spec) — the page's scope. Never «the session that stands»: an app-level layer set up while a game is
+  on screen would lose every timer when that game's screen leaves, and live on. **⚠ The setup key SHADOWS a member of
+  the same name** (`data` / `computed` / `methods` / `props`) at run time, silently — vue-tsc does not see it. A
+  component that already has a `flow` (its module's flow state — the Parliament section, the deck pick, the hydro
+  section) names the key `flowScope`; the ledger fails on a collision. **The scope is LAZY** — opened by the first
+  thing asked of it — so a leaf component with hundreds of instances (a board cell, a card's art, a journal chip)
+  costs nothing and writes nothing to the flow trace until one of them actually waits. The test for each callback:
+  **does anything OUTSIDE the component depend on it running** — a promise's `resolve`, a module function, a hold's release, a class on `document.body`, an `$emit` a
+  parent waits for? Then it is a RELEASE (`this.flow.guarantee` — it also comes due at unmount). If it only touches
+  the component's own state or refs it is PACING (`this.flow.after` — taken back at unmount).
+- **In a MODULE with no run of its own** (a director, a state module's one stray timer) the owner is
+  `consoleSessionScope()` and the default is a RELEASE (`guarantee` / `span` / `whenPainted`): the sequence that
+  awaits it runs out on its own terms when the game screen leaves, exactly as it did on a raw timer — only an
+  ABORT-style safety («nothing answered — recall») or a poll that should die with its flow is `after`, and a module
+  that has that many of them wants a run (`createFlowRun`).
+- **What lives as long as the PAGE** (the gamepad's poll, the layout profile, the loading curtain, the campaign's
+  channel, a menu's own beat, the field recorder) is owned by `consoleAppScope()` — never by the game session, which
+  would take it back (or release it) when a game screen leaves.
+- **A safety that WARNS when it fires** («never signalled ready in N ms») must not come due at the owner's end — it
+  is `after` plus a `defer`-ed silent release, never a `guarantee` whose release prints the warn.
+- **A tick is `owner.every(ms, what, tick)`** (a sampler, a heartbeat, a poll chain — one row for its life, stopped by
+  its handle, by its own `false`, or with its owner; a tick that throws is said and the tick goes on). A LIVENESS
+  chain — the transport's poll, a reconnect — is never a pacing timer of a scope that can be re-homed under it: it is
+  a `guarantee` of its own root (`transportScope().guarantee(ms, 'the poll\'s next look', askForUpdate)`), disarmed
+  by its teardown.
+- **A flow whose state has MANY WRITERS is a DERIVED run** — `deriveFlowRun(label, () => state.promised ||
+  state.live, {orphaned})` (`session/flowRun.ts`): a sync watcher that only records opens and ends the run with the
+  flag, so no writer can forget it (the Parliament's walk / rally / quest, the board's story, the terraformed scene,
+  the loading curtain). One writer → `createFlowRun` with `begin` / `end` beside the flag.
 - **A remote queue is a run too** (`consoleRemotePlacement`, the nomads' remote leg): opened by the first staged
   event (`remoteRun.scope ?? remoteRun.begin()`), ended where the queue drains or aborts; its links of an `await`
   (the settle before a landing, the next look at a covered board) are `guarantee`s of `remoteRun.scope ??
@@ -74,7 +116,13 @@ a new safety timer, or a new watcher mailbox.**
   stays a SUPPLIER derived from state** — never turn a supplier into a handle: derived cannot diverge.
 - **`await` of a frame is `scope.wait(frames(n), {bound})`** — a raw rAF promise never resolves in a window that does
   not paint; a poll built on it never re-reads its own deadline.
-- A new flow-state module (`reactive` state with a `live` / `active` flag) whose run is not a scope fails the ledger.
+- A new flow-state module (`reactive` state with a `live` / `active` flag) whose run is not a scope fails the ledger
+  (a flag that is NOT a lifetime — a cursor's on/off — is declared in the spec's `NOT_A_FLOW` with its reason).
+- **A registry the nets read is a VIEW of the tree, never a second book**: a hold is `scene:hold:<label>`, a ceiling
+  wait (`beginCeilingWait` / `raceCeiling` / `untilCeiling`) is a row of the session's wait table bounded by its
+  ceiling, an owed story of the presentation ledger is `story:owed:<id>` — each ends with its session. A new registry
+  of «things somebody waits for» opens scopes / notes rows (`scope.note(what, withdraw, boundMs)`); it does not keep
+  a Map that the session cannot end.
 
 ## A decision that ACTS has a place in the tick
 - A reaction taken off the `watch` table loses its ROW — and the row was its place in the tick. The facts of one
@@ -169,8 +217,19 @@ a new safety timer, or a new watcher mailbox.**
   them (taken down through its `expire`). A flow is opened inside `consoleSessionScope()`, asked every time — never
   cached: with no game screen up it answers the LOBBY's root (the menus, the campaign, a spec), which a game that
   comes and goes does not end. A module that keeps a root of its own goes through `sessionChild(held, kind, label)`.
-- Module state that is not a flow yet hangs its reset on the session (`onConsoleSessionEnd(reset)`) instead of
-  adding a row to the shell's `beforeUnmount`.
+- **Module state of the running game DECLARES itself** — `sessionState('<label>', resetX, <at>)` at module scope,
+  beside its own reset — and the leaving shell says ONE thing: `leaveConsoleSession()` (its `beforeUnmount`, after it
+  dropped its own probes and suppliers) takes every declared state down in one ordered pass; a reset that throws is
+  said and the pass goes on. **The shell's `beforeUnmount` holds NO `reset…()` / `abort…()` row** (the ledger's ⑤ is
+  zero and may not grow). `at` is the state's place in the pass, and the pass is a total order (two states never share
+  a label or a number — guarded): the order matters (a scene's abort recalls what it staged; the stack falls before
+  the picks that pop their frames from it), so a new state takes a free number beside its family. A flow whose whole
+  state is its RUN declares nothing — `orphaned` is its ending. (`onConsoleSessionEnd(reset)` is the one-shot form,
+  for a reset that belongs to ONE session.)
+- **Two edges, in this order:** the shell's `beforeUnmount` → `leaveConsoleSession()` (module state, while the
+  shell's children still stand); the shell's `unmounted` → the session's SCOPE ends (every flow, hold, timer and wait
+  of the game — after the children's own scopes). A `guarantee` of the session therefore fires AFTER the resets: its
+  release must be the idempotent «let go» it is named for, never a step that re-arms state.
 - **The supervisor** (`console/supervisor/supervisorController.ts`) is the one sampler. Its PORT is the list of what
   the nets read of the shell — it only shrinks; a new net is a state with an `after` in a machine, not a new row.
 

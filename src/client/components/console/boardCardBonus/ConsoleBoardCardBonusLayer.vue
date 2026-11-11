@@ -56,6 +56,7 @@ import {consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {boardBeatParksReveal} from '@/client/console/boardBeatPark';
 import {markAgendaCardLifted, parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {probeTick} from '@/client/console/probeTick';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {
@@ -138,8 +139,10 @@ type SceneCtx = {
   abortHandle?: BonusSceneHandle,
   cellRect?: RectLike,
   liftedEls: Array<HTMLElement>,
-  timers: Array<ReturnType<typeof setTimeout>>,
-  noRevealTimer?: ReturnType<typeof setTimeout>,
+  /** The scene's pending beats — each is its cancel / disarm in the layer's scope. */
+  timers: Array<() => void>,
+  /** The «no cards came» recall's cancel. */
+  noRevealTimer?: () => void,
 };
 const ctx: SceneCtx = {liftedEls: [], timers: []};
 
@@ -148,6 +151,9 @@ export default defineComponent({
   components: {ConsoleCardFaceLite},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  },
+  setup() {
+    return {flow: useFlowScope('board-card-bonus-layer')};
   },
   data() {
     return {
@@ -305,7 +311,8 @@ export default defineComponent({
       if (ctx.noRevealTimer !== undefined) {
         return;
       }
-      ctx.noRevealTimer = setTimeout(() => {
+      // An ABORT-style safety, PACING of the layer: it recalls a cover nobody answered — never after the layer left.
+      ctx.noRevealTimer = this.flow.after(motionMs(NO_REVEAL_GRACE_MS), 'the cell bonus\'s reveal (the «no cards came» recall)', () => {
         ctx.noRevealTimer = undefined;
         if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== undefined) {
           return;
@@ -318,7 +325,7 @@ export default defineComponent({
           mode = space?.tileType !== undefined ? 'absorb' : 'return';
         }
         abortBoardCardBonus(mode);
-      }, motionMs(NO_REVEAL_GRACE_MS));
+      });
     },
   },
   methods: {
@@ -465,7 +472,7 @@ export default defineComponent({
         return;
       }
       if (ctx.noRevealTimer !== undefined) {
-        clearTimeout(ctx.noRevealTimer);
+        ctx.noRevealTimer();
         ctx.noRevealTimer = undefined;
       }
       void this.startTransfer(e);
@@ -616,14 +623,15 @@ export default defineComponent({
         // The reduced zoom open is a bare fade (no slot hold) — fade the
         // proxy ourselves so the card never doubles.
         gsap.to(proxy, {autoAlpha: 0, duration: motionMs(140) / 1000, ease: 'power1.out'});
-        ctx.timers.push(setTimeout(() => this.finishScene(), motionMs(120)));
+        // A RELEASE: the scene ends (its gate with it) at the beat, or when the layer leaves first; a teardown disarms it.
+        ctx.timers.push(this.flow.guarantee(motionMs(120), 'the single cover handed to the viewer — the scene ends (reduced motion)', () => this.finishScene()));
         return;
       }
       await this.waitZoomTakeover(alive);
       if (!alive()) {
         return;
       }
-      ctx.timers.push(setTimeout(() => this.finishScene(), motionMs(300)));
+      ctx.timers.push(this.flow.guarantee(motionMs(300), 'the single cover handed to the viewer — the scene ends', () => this.finishScene()));
     },
     /** The fullscreen viewer has TAKEN OVER (it is open — its FLIP resolved
      *  the standing proxy at that instant). Bounded: a viewer that never
@@ -733,10 +741,10 @@ export default defineComponent({
           if (ownCount < e.cards.length) {
             // The cell's cards HOVER in their slots while the trigger cards deal the rest («карты с поля
             // зависают, рядом всплывает карта-триггер»); the handoff waits for the last run.
-            continueIntakeAssembly(e, ownCount, () => ctx.timers.push(setTimeout(handoff, motionMs(t.frameMs))));
+            continueIntakeAssembly(e, ownCount, () => ctx.timers.push(this.flow.after(motionMs(t.frameMs), 'the frame around the landed row — then the handoff (after the trigger runs)', handoff)));
             return;
           }
-          ctx.timers.push(setTimeout(handoff, motionMs(t.frameMs)));
+          ctx.timers.push(this.flow.after(motionMs(t.frameMs), 'the frame around the landed row — then the handoff', handoff));
         },
       });
     },
@@ -802,10 +810,10 @@ export default defineComponent({
       ctx.liftedEls = [];
     },
     clearTimers(): void {
-      ctx.timers.forEach((timer) => clearTimeout(timer));
+      ctx.timers.forEach((cancel) => cancel());
       ctx.timers = [];
       if (ctx.noRevealTimer !== undefined) {
-        clearTimeout(ctx.noRevealTimer);
+        ctx.noRevealTimer();
         ctx.noRevealTimer = undefined;
       }
     },

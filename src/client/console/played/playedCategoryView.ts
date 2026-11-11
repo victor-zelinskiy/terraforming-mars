@@ -28,6 +28,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {PlayedCategoryKey} from '@/client/components/console/consolePlayedCategoryModel';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 export type PlayedCategoryPhase = 'closed' | 'opening' | 'open' | 'closing';
 
@@ -168,3 +169,7 @@ export function categoryFlightEl(id: number): HTMLElement | undefined {
 export function clearCategoryFlightEls(): void {
   flightEls.clear();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('played-category-view', resetPlayedCategoryView, 300);

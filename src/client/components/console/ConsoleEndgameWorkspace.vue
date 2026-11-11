@@ -389,6 +389,8 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {clearPanelCommands, setPanelCommands} from '@/client/console/consolePanelUi';
 import {consoleMotionMs, useConsoleReducedMotion} from '@/client/console/composables/useConsoleReducedMotion';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {motionAfter} from '@/client/console/session/sessionWaits';
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
 import {playCeremonyBurst, CeremonyBurstHandle} from '@/client/console/ceremony/ceremonyFx';
 import {EndgameModel} from '@/client/components/endgame/endgameModel';
@@ -540,7 +542,9 @@ export default defineComponent({
     const {width: vpWidth} = useConsoleViewport();
     // The light's live paint (hotspot + tone) — a plain object, never reactive: a glide writes it every frame.
     const light: LightPaint = {x: 0.5, r: 138, g: 164, b: 192};
-    return {reduced, vpWidth, light, campaignState};
+    // The workspace's own scope: its frames and the pill's commit beat are taken back when it is unmounted.
+    const flow = useFlowScope('endgame-workspace');
+    return {reduced, vpWidth, light, campaignState, flow};
   },
   data() {
     return {
@@ -548,11 +552,13 @@ export default defineComponent({
       bursts: [] as Array<CeremonyBurstHandle>,
       /** The «Обзор партии» pill's short commit response (pressed → scene). */
       overviewCommitFx: false,
-      commitCall: undefined as gsap.core.Tween | undefined,
+      /** The pill's commit beat — its cancel (undefined ⇔ none pending). */
+      commitCall: undefined as (() => void) | undefined,
       /** Suppresses every CSS TRANSITION for the skip's atomic jump frame
        *  (never animations — a re-enabled keyframe animation restarts). */
       noanim: false,
-      noanimRaf: 0,
+      /** The cancel of the pending «transitions back on» frames. */
+      noanimRaf: (() => {}) as () => void,
       /** The podium's MEASURED box (the seats' stage), px — the planner's one DOM input; 0 while hidden. */
       stageW: 0,
       stageH: 0,
@@ -1095,12 +1101,10 @@ export default defineComponent({
       // The skip lands on the canonical final state — no light may still stand over it.
       this.putOutLight();
       this.writeAllTotals();
-      cancelAnimationFrame(this.noanimRaf);
-      this.noanimRaf = requestAnimationFrame(() => {
-        this.noanimRaf = requestAnimationFrame(() => {
-          this.noanim = false;
-        });
-      });
+      this.noanimRaf();
+      this.noanimRaf = this.flow.afterFrame('the skip\'s atomic jump has painted — transitions come back', () => {
+        this.noanim = false;
+      }, 2);
     },
     // The canonical settle record (per-beat boundaries, resets, reloads) —
     // mirror it into the unbound number nodes.
@@ -1619,7 +1623,7 @@ export default defineComponent({
       consoleEndgameUi.collapsed = false;
       // Resume only after the scene has painted again — the player must see
       // where the count stood before it moves on.
-      requestAnimationFrame(() => {
+      this.flow.afterFrame('the scene paints again before the count resumes', () => {
         this.handle?.resume();
       });
     },
@@ -1627,7 +1631,7 @@ export default defineComponent({
       this.handle?.kill();
       this.handle = undefined;
       this.putOutLight();
-      this.commitCall?.kill();
+      this.commitCall?.();
       this.commitCall = undefined;
       for (const b of this.bursts.splice(0)) {
         b.stop();
@@ -1643,11 +1647,11 @@ export default defineComponent({
         return;
       }
       this.overviewCommitFx = true;
-      this.commitCall?.kill();
-      this.commitCall = gsap.delayedCall(consoleMotionMs(OVERVIEW_MS.commit) / 1000, () => {
+      this.commitCall?.();
+      this.commitCall = motionAfter(consoleMotionMs(OVERVIEW_MS.commit), 'the overview pill\'s commit, then the scene descends', () => {
         this.overviewCommitFx = false;
         openEndgameOverview();
-      });
+      }, this.flow);
     },
     /**
      * THE RANKING FLIP — capture, reorder, invert, play. Transform-only; the

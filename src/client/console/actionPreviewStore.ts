@@ -42,6 +42,7 @@ import {findPerformActionCard} from '@/client/console/turnIntents';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {isResolutionActionSource, partyTileKey, resolutionTileKey} from '@/client/console/consoleCardActions';
 import {parliamentActionSources} from '@/client/console/parliament/parliamentActionSources';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 export const actionPreviewStore = reactive({
   /** The version the LATEST ensure() asked about. */
@@ -457,3 +458,8 @@ export function resetActionPreviews(): void {
   fetchQueue.length = 0;
   abortActiveFetches();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Per-game preview cache dies with the shell
+sessionState('action-previews', resetActionPreviews, 430);

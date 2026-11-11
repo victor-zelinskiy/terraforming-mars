@@ -251,6 +251,7 @@
  * tick the numbers — only on a REAL diff, never on a poll re-render.
  */
 import {defineComponent, markRaw, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {Color} from '@/common/Color';
 import {MaHudItem, MaHudZone} from '@/client/console/consoleMaHudModel';
@@ -353,6 +354,9 @@ export default defineComponent({
     replaced: {type: Boolean, default: false},
   },
   emits: ['open'],
+  setup() {
+    return {flow: useFlowScope('console-strategy-rail')};
+  },
   data() {
     return {
       /** key → taken colour ('' = open) — the seed-then-diff ledger. */
@@ -374,8 +378,8 @@ export default defineComponent({
       repulseKeys: [] as Array<string>,
       /** Activations observed while covered — played on the uncover (TTL). */
       pendingActivations: [] as Array<{key: string, at: number, first: boolean}>,
-      /** Live timers — cleared on unmount (no orphan state flips). */
-      timers: [] as Array<ReturnType<typeof setTimeout>>,
+      /** Live timers (their cancels) — the component's scope takes them back on unmount (no orphan state flips). */
+      timers: [] as Array<() => void>,
       flushing: false,
       /** THE FREEZE (PL-155): while the rail is not drawn the render reads
        *  the view as it was last drawn — raw, so nothing it holds is
@@ -453,12 +457,6 @@ export default defineComponent({
       nowPrev: [...this.ledgers().nowPrev.entries()],
       everNow: [...this.ledgers().everNow],
     });
-  },
-  beforeUnmount() {
-    for (const t of this.timers) {
-      clearTimeout(t);
-    }
-    this.timers = [];
   },
   methods: {
     artStyle(name: string): Record<string, string> {
@@ -588,7 +586,7 @@ export default defineComponent({
     // ── seed-then-diff ─────────────────────────────────────────────────────
     reseed(): void {
       for (const t of this.timers) {
-        clearTimeout(t);
+        t();
       }
       this.timers = [];
       this.seen = {};
@@ -941,10 +939,10 @@ export default defineComponent({
       }, afterMs);
     },
     later(fn: () => void, ms: number): void {
-      const t = setTimeout(() => {
+      const t = this.flow.after(ms, 'a strategy rail beat', () => {
         this.timers = this.timers.filter((x) => x !== t);
         fn();
-      }, ms);
+      });
       this.timers.push(t);
     },
     /** FLIP hygiene: a leaving row goes `position: absolute` — pin it to the

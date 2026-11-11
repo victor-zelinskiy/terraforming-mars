@@ -5,6 +5,7 @@
  */
 import type {UnwrapRef} from 'vue';
 import {computed, ref} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
 import {isReduxParty, REDUX_PARTIES, ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -115,6 +116,8 @@ export type ParliamentPort = {
 };
 
 export function createParliamentController(shell: ParliamentPort) {
+  // The controller's own scope (architecture v2 — PLAN §10 · C1): it ends with the shell, and its timers with it.
+  const flow = useFlowScope('parliament-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /**
    * «ПРИЁМКА»: the reveal instance was last re-homed into the PARLIAMENT's draw stage — latched past the take (the
@@ -131,7 +134,7 @@ export function createParliamentController(shell: ParliamentPort) {
    * layout — a sticky A). Cleared with the declaration (the composer closed, another card).
    */
   const parliamentWarmArmed = ref(false);
-  const parliamentWarmTimer = ref(undefined as number | undefined);
+  const parliamentWarmTimer = ref(undefined as (() => void) | undefined);
   /** The zone the Parliament was hosted in, LATCHED for its leave: the frame pops first, and a leaving step
    *  re-rendered as a standalone band (`con-ws`, its own head) is the flash the embed contract forbids. */
   const parliamentEmbedLatch = ref('');
@@ -140,8 +143,9 @@ export function createParliamentController(shell: ParliamentPort) {
   const stagedVoteLatch = ref(undefined as {vote: StagedVoteModel, receipt: StagedReceipt | undefined, flow: 'play' | 'action'} | undefined);
   /** …and the hosted Parliament's release rides that dissolve instead of fading on its own under it. */
   const parliamentLeaveRelease = ref(undefined as (() => void) | undefined);
-  /** …and its bounded net: a leave that never reports back may not latch the surface for the session. */
-  const parliamentLeaveNet = ref(undefined as number | undefined);
+  /** …and its bounded net: a leave that never reports back may not latch the surface for the session — the DISARM
+   *  of a guaranteed release of `flow` (it comes at its time, or with the shell). */
+  const parliamentLeaveNet = ref(undefined as (() => void) | undefined);
   /** Each show / hide edge of the section bumps it: a leave's release is honoured only by its own edge. */
   const parliamentLeaveToken = ref(0);
   /**
@@ -710,7 +714,7 @@ export function createParliamentController(shell: ParliamentPort) {
 
   /** The Parliament's leave has played (v3 В1): the section may unmount now — nothing of it is on screen. */
   function onParliamentAfterLeave(): void {
-    window.clearTimeout(parliamentLeaveNet.value);
+    parliamentLeaveNet.value?.();
     parliamentLeaveNet.value = undefined;
     parliamentLeaving.value = false;
   }
@@ -1301,7 +1305,7 @@ export function createParliamentController(shell: ParliamentPort) {
 
   /** WATCH `parliamentShown` — the reaction's body (the shell's `watch` table delegates here, in its order). */
   function whenParliamentShownChanges(shown: boolean, was: boolean): void {
-    window.clearTimeout(parliamentLeaveNet.value);
+    parliamentLeaveNet.value?.();
     parliamentLeaveNet.value = undefined;
     // Every edge retires the leave before it: a release still owed by an older leave answers for a section that is
     // no longer leaving.
@@ -1330,7 +1334,7 @@ export function createParliamentController(shell: ParliamentPort) {
       if (token !== parliamentLeaveToken.value) {
         return; // a later edge (the step re-shown) owns the section now
       }
-      window.clearTimeout(parliamentLeaveNet.value);
+      parliamentLeaveNet.value?.();
       parliamentLeaveNet.value = undefined;
       parliamentLeaveRelease.value = undefined;
       el.dataset.motionVariant = 'headless';
@@ -1338,7 +1342,7 @@ export function createParliamentController(shell: ParliamentPort) {
       parliamentEmbedLatch.value = '';
       stagedVoteLatch.value = undefined;
     };
-    parliamentLeaveNet.value = window.setTimeout(release, PARLIAMENT_LEAVE_NET_MS);
+    parliamentLeaveNet.value = flow.guarantee(PARLIAMENT_LEAVE_NET_MS, 'the Parliament\'s leave reports back (its net)', release);
     // ITS HOST IS LEAVING WITH IT (the staged vote's end — the hand's own
     // dissolve, `handLeaveHook`): the step rides that ONE motion. Fading here
     // too would multiply the two alphas — the Parliament gone before its own

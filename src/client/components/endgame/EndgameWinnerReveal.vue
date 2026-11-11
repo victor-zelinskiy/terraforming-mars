@@ -79,6 +79,7 @@ import {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endg
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {openEndgameResults, skipEndgameReveal} from '@/client/components/endgame/endgameState';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 // When the score count-up starts / how long it runs — tuned to land right
 // after the score block's CSS entrance (see endgame.less choreography).
@@ -90,11 +91,12 @@ export default defineComponent({
   props: {
     model: {type: Object as () => EndgameModel, required: true},
   },
+  setup() {
+    return {flow: useFlowScope('endgame-winner-reveal')};
+  },
   data() {
     return {
       shownScore: 0,
-      countTimer: undefined as number | undefined,
-      raf: undefined as number | undefined,
     };
   },
   computed: {
@@ -150,15 +152,13 @@ export default defineComponent({
     startCountUp(): void {
       const total = this.winner?.total ?? 0;
       const t0 = performance.now();
-      const tick = (now: number) => {
-        const k = Math.min(1, (now - t0) / COUNT_DURATION_MS);
+      // An owned frame loop of the reveal (flow kernel — PLAN §10 · C1): it ends at the total, or with the component.
+      this.flow.everyFrame('the winner\'s score counts up', () => {
+        const k = Math.min(1, (performance.now() - t0) / COUNT_DURATION_MS);
         const eased = 1 - Math.pow(1 - k, 3);
         this.shownScore = Math.round(total * eased);
-        if (k < 1) {
-          this.raf = requestAnimationFrame(tick);
-        }
-      };
-      this.raf = requestAnimationFrame(tick);
+        return k < 1;
+      });
     },
   },
   mounted(): void {
@@ -167,17 +167,11 @@ export default defineComponent({
     if (prefersReducedMotion() || typeof requestAnimationFrame === 'undefined') {
       this.shownScore = total;
     } else {
-      this.countTimer = window.setTimeout(() => this.startCountUp(), COUNT_DELAY_MS);
+      this.flow.after(COUNT_DELAY_MS, 'the score block\'s entrance ends', () => this.startCountUp());
     }
   },
   beforeUnmount(): void {
     window.removeEventListener('keydown', this.onKeydown);
-    if (this.countTimer !== undefined) {
-      window.clearTimeout(this.countTimer);
-    }
-    if (this.raf !== undefined) {
-      cancelAnimationFrame(this.raf);
-    }
   },
 });
 </script>

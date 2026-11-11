@@ -21,6 +21,7 @@
  */
 
 import {reactive} from 'vue';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {DiscardPromptMeta, SelectCardModel} from '@/common/models/PlayerInputModel';
@@ -28,6 +29,7 @@ import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {isHandPick} from '@/client/console/handPickRouting';
 import type {DeclineModel} from '@/client/console/optionalChoice';
 import type {DeferPlateModel} from '@/client/console/tableQuestionRow';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 export type ConsoleHandPickRequest = {
   /** The server prompt title (i18n key / Message) — names the ask. */
@@ -105,6 +107,13 @@ export type ConsoleHandPickRequest = {
   backLabel?: string;
 };
 
+/**
+ * THE PICK'S RUN: from the moment the hand opens as a picker to its answer (resolved, declined, deferred, cancelled, reset) — `surface:hand-pick#n` in the flow tree (architecture v2 — PLAN §10 · C4). The tree names it while it stands, and
+ * when the game screen leaves under it the module is brought to rest through `resetConsoleHandPick` — no row of the shell's
+ * teardown is what keeps it out of the next game.
+ */
+const run = createFlowRun('hand-pick', {kind: 'surface', orphaned: () => resetConsoleHandPick()});
+
 export const consoleHandPickState = reactive({
   active: false,
   request: undefined as ConsoleHandPickRequest | undefined,
@@ -158,6 +167,7 @@ export function enterConsoleHandPick(
   declineCb = request.decline !== undefined ? onDecline : undefined;
   deferCb = request.defer !== undefined ? onDefer : undefined;
   consoleHandPickState.active = true;
+  run.begin();
 }
 
 /** RT on an optional pick: deliver the DECLINE to the waiting composer (a no-op when the pick has none). */
@@ -204,6 +214,7 @@ export function cancelConsoleHandPick(): void {
 /** Hard reset (game switch / shell unmount) — fires NO callbacks. */
 export function resetConsoleHandPick(): void {
   consoleHandPickState.active = false;
+  run.end();
   consoleHandPickState.request = undefined;
   consoleHandPickState.selected = [];
   consoleHandPickState.suitableOnly = true;
@@ -223,3 +234,8 @@ export {isCardSelectionWithin} from '@/client/console/handPickRouting';
 export function isHandCardSelection(model: SelectCardModel, handNames: ReadonlySet<string>): boolean {
   return isHandPick(model, handNames);
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Never leak a client pick across games/sessions
+sessionState('console-hand-pick', resetConsoleHandPick, 150);

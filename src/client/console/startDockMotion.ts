@@ -66,7 +66,7 @@ import {
   addCard3DTurn, buildCard3DInner, Card3DInner, CARD3D_SHADOW, FACE_UP_DEG,
   readCard3DInner, setCard3DFace,
 } from '@/client/console/cardFlight/card3dInner';
-import {span} from '@/client/console/session/sessionWaits';
+import {span, whenPainted} from '@/client/console/session/sessionWaits';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 export type DockFlightSource = {name: CardName, el: HTMLElement};
@@ -396,8 +396,7 @@ type FlightOpts = {
 
 /** One animation frame (the honest "let the layout settle" wait). */
 function frame(): Promise<void> {
-  return new Promise<void>((r) => (typeof requestAnimationFrame === 'function' ?
-    requestAnimationFrame(() => r()) : setTimeout(r, 16)));
+  return whenPainted(1, 50);
 }
 
 /**
@@ -420,9 +419,9 @@ function handoff(outer: HTMLElement, reveal: (() => void) | undefined): void {
     outer.style.visibility = 'hidden';
     return;
   }
-  requestAnimationFrame(() => requestAnimationFrame(() => {
+  consoleSessionScope().afterFrame('the flight\'s proxy hands over to its slot', () => {
     outer.style.visibility = 'hidden';
-  }));
+  }, 2);
 }
 
 /**

@@ -17,6 +17,7 @@
 import {
   confirmWaitFindings, findingKey, initialWaitGraphConfirm, judgeWaitGraph, WaitFinding, WaitFindingKind, WaitGraphConfirm, WaitNode, WaitWorld,
 } from '@/client/console/waitGraph/waitGraphModel';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** A node as a source returns it — `since` optional (the registry stamps the first sighting). */
 export type WaitNodeInput = Omit<WaitNode, 'since'> & {since?: number};
@@ -57,10 +58,24 @@ export function registerWaitSource(name: string, read: () => ReadonlyArray<WaitN
   };
 }
 
-/** Declare an imperative wait — the returned handle updates its targets and ENDS it (idempotent). */
+/**
+ * Declare an imperative wait — the returned handle updates its targets and ENDS it (idempotent).
+ *
+ * THE DECLARATION IS A ROW OF THE FLOW KERNEL'S WAIT TABLE (architecture v2 — PLAN §10 · C3): owned by the session that
+ * stands, bounded by the node's own bound, named by its owner and what it waits for. `declared` is the row's mirror in
+ * the graph's vocabulary (the judge reads nodes), never a second book: the session ending WITHDRAWS the row and the
+ * node with it — a ceiling wait whose run forgot to end it can no longer stand into the next game as an «overdue»
+ * nobody owns.
+ */
 export function declareWait(node: WaitNodeInput, now: number = Date.now()): {update: (patch: Partial<WaitNodeInput>) => void, end: () => void} {
   const full: WaitNode = {...node, since: node.since ?? now};
   declared.set(full.id, full);
+  const waitsFor = full.targets.map((target) => (target.kind === 'node' ? target.id : target.what)).join(' + ');
+  const forget = consoleSessionScope().note(`${full.id} (${full.owner}) — ${waitsFor}`, () => {
+    if (declared.get(full.id)?.since === full.since) {
+      declared.delete(full.id);
+    }
+  }, full.boundMs);
   return {
     // Only THIS declaration's node — a newer declaration of the same id is another run's, never patched or ended here.
     update: (patch) => {
@@ -70,6 +85,7 @@ export function declareWait(node: WaitNodeInput, now: number = Date.now()): {upd
       }
     },
     end: () => {
+      forget();
       if (declared.get(full.id)?.since === full.since) {
         declared.delete(full.id);
       }

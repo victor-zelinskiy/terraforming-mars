@@ -303,6 +303,7 @@ import {isTilePlacementActive} from '@/client/console/tilePlacement/consoleTileP
 import {isNomadMoveActive, stageRemoteNomadMove} from '@/client/console/nomads/consoleNomadMove';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {armDeferredViewRefresh, disarmDeferredViewRefresh} from '@/client/components/deferredViewRefresh';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
 import {
   applyHazardTileSwap,
   detectHazardCleanup,
@@ -1107,7 +1108,10 @@ export default defineComponent({
     // and the client doesn't know about them. In that case, reload the page.
     if (err instanceof Error && err.name === 'ChunkLoadError') {
       console.error(err);
-      this.showAlert('Page out of date', 'This page is out of date. Click OK to refresh it.', () => setTimeout(() => window.location.reload(), 100));
+      // A RELEASE of the PAGE's scope: once OK is pressed the reload is owed, whatever game screen comes or goes.
+      this.showAlert('Page out of date', 'This page is out of date. Click OK to refresh it.', () => {
+        consoleAppScope().guarantee(100, 'the reload after a chunk load error', () => window.location.reload());
+      });
     }
   },
 });

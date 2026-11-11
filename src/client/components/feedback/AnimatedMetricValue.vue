@@ -43,6 +43,7 @@
 <script lang="ts">
 
 import {defineComponent, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import DeltaChip, {DeltaChipVariant} from '@/client/components/feedback/DeltaChip.vue';
 import {changeFeedbackManager, prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {perfMark} from '@/client/utils/perfMarks';
@@ -114,6 +115,9 @@ export default defineComponent({
       required: true,
     },
   },
+  setup() {
+    return {flow: useFlowScope('animated-metric-value')};
+  },
   data() {
     return {
       displayedDelta: 0,
@@ -121,8 +125,8 @@ export default defineComponent({
       polarity: 'neutral' as 'positive' | 'negative' | 'neutral',
       /** The chip on screen is being REPLACED by one of the opposite sign (see `applyEvent`). */
       flipLeave: false,
-      hideTimerId: 0,
-      clearActiveTimerId: 0,
+      cancelHide: (() => {}) as () => void,
+      cancelClearActive: (() => {}) as () => void,
       fullScopeKey: '',
     };
   },
@@ -197,9 +201,6 @@ export default defineComponent({
     changeFeedbackManager.recordScopeObservation(this.fullScopeKey, this.metricKey);
     changeFeedbackManager.report(
       this.fullScopeKey, this.metricKey, this.value, CHIP_VISIBLE_MS[this.variant]);
-  },
-  beforeUnmount() {
-    this.clearTimers();
   },
   methods: {
     computeFullScopeKey(): string {
@@ -303,31 +304,23 @@ export default defineComponent({
       }
 
       const lifetime = motionMs(CHIP_VISIBLE_MS[this.variant]);
-      this.hideTimerId = (window.setTimeout(() => {
+      this.cancelHide = this.flow.after(lifetime, 'the delta chip\'s visible life ends', () => {
         this.flipLeave = false;
         this.displayedDelta = 0;
-        this.hideTimerId = 0;
-      }, lifetime) as unknown as number);
+      });
 
       // Clear the manager's active-delta window slightly after the
       // chip starts fading. Any further change will then start a
       // fresh chip with the raw delta rather than merging into the
       // already-faded chip. The tail scales with the preset too — a raw
       // constant would outlive the chip at the `swift` setting.
-      this.clearActiveTimerId = (window.setTimeout(() => {
+      this.cancelClearActive = this.flow.after(lifetime + motionMs(150), 'the faded chip\'s merge window closes', () => {
         changeFeedbackManager.clearActive(this.fullScopeKey, this.metricKey);
-        this.clearActiveTimerId = 0;
-      }, lifetime + motionMs(150)) as unknown as number);
+      });
     },
     clearTimers(): void {
-      if (this.hideTimerId !== 0) {
-        window.clearTimeout(this.hideTimerId);
-        this.hideTimerId = 0;
-      }
-      if (this.clearActiveTimerId !== 0) {
-        window.clearTimeout(this.clearActiveTimerId);
-        this.clearActiveTimerId = 0;
-      }
+      this.cancelHide();
+      this.cancelClearActive();
     },
   },
 });

@@ -18,13 +18,15 @@
  *
  * The measurement mathematics is PURE (`classifyRootOverflow` /
  * `rankOverflowOffenders`) and unit-tested; the installer is a thin DOM
- * shell (VueUse: `useEventListener` for auto-cleanup-by-handle,
- * `useDebounceFn` for the coalesced check, `useDocumentVisibility` is NOT
- * needed — checks are event-driven and the tick self-gates).
+ * shell (VueUse `useEventListener` for auto-cleanup-by-handle; the coalesced
+ * check and the slow tick are owned timers of the page's scope;
+ * `useDocumentVisibility` is NOT needed — checks are event-driven and the
+ * tick self-gates).
  */
 
-import {useDebounceFn, useEventListener} from '@vueuse/core';
+import {useEventListener} from '@vueuse/core';
 import {consoleNativeActive} from '@/client/console/composables/consoleNativeSurface';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
 
 // ── PURE measurement model ─────────────────────────────────────────────────
 
@@ -169,21 +171,33 @@ export function installConsoleOverflowGuard(): void {
   if (uninstall !== undefined || typeof window === 'undefined' || !consoleOverflowGuardEnabled()) {
     return;
   }
-  const schedule = useDebounceFn(runCheck, CHECK_DEBOUNCE_MS);
+  // The coalesced check — a trailing debounce on an owned timer of the page's scope.
+  let cancelCheck: () => void = () => {};
+  const schedule = (): void => {
+    cancelCheck();
+    cancelCheck = consoleAppScope().after(CHECK_DEBOUNCE_MS, 'the overflow guard\'s coalesced check', runCheck);
+  };
   const stops = [
     useEventListener(window, 'resize', schedule, {passive: true}),
     // Capture: transitions/animations end on arbitrary descendants.
     useEventListener(window, 'transitionend', schedule, {capture: true, passive: true}),
     useEventListener(window, 'animationend', schedule, {capture: true, passive: true}),
   ];
-  const tick = window.setInterval(() => {
-    if (consoleNativeActive() && document.visibilityState === 'visible') {
-      void schedule();
-    }
-  }, GUARD_TICK_MS);
+  // The slow tick is the PAGE's (installed once at the App's bootstrap — a game screen leaving must not take it back).
+  let cancelTick: () => void = () => {};
+  const armTick = (): void => {
+    cancelTick = consoleAppScope().after(GUARD_TICK_MS, 'the overflow guard\'s slow tick', () => {
+      armTick();
+      if (consoleNativeActive() && document.visibilityState === 'visible') {
+        schedule();
+      }
+    });
+  };
+  armTick();
   uninstall = () => {
     stops.forEach((stop) => stop());
-    window.clearInterval(tick);
+    cancelTick();
+    cancelCheck();
   };
 }
 

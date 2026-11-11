@@ -42,6 +42,7 @@ import type {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward'
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import type {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /** An embedded pre-select step standing INSIDE the workspace scene.
  *  `payment` is the Delta Works COMPOSITION step — entered from the plan's
@@ -784,3 +785,8 @@ export function installHydroFlowWitnesses(): () => void {
     offStuck();
   };
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Drop any in-flight hydro commit presentation (zombie-safe)
+sessionState('hydro-flow', resetHydroFlow, 510);

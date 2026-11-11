@@ -36,6 +36,7 @@ import {apiUrl} from '@/client/utils/runtimeConfig';
 import {fetchPreview} from '@/client/utils/previewFetch';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {activePlayPickLaw} from '@/client/console/consolePlayPick';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /** Stable focus this long → the card is being CONSIDERED, not riffled past. */
 export const HAND_PLAY_DWELL_MS = 90;
@@ -47,7 +48,8 @@ type CacheEntry = {version: string, preview: ActionPreview | undefined};
 
 const cache = new Map<string, CacheEntry>();
 
-let armedTimer: ReturnType<typeof setTimeout> | undefined;
+/** Takes the pending dwell back (PACING — a dwell of the session: it dies with the game screen). */
+let cancelArmed: () => void = () => {};
 let armedName = '';
 
 /** The game-state version a preparation is only valid under — the SHARED
@@ -113,8 +115,7 @@ export function armHandPlayPrewarm(
     return; // already warm for THIS game state
   }
   armedName = cardName;
-  armedTimer = setTimeout(() => {
-    armedTimer = undefined;
+  cancelArmed = consoleSessionScope().after(dwellMs, 'the focused card\'s play-preview dwell', () => {
     if (armedName !== cardName) {
       return;
     }
@@ -123,15 +124,13 @@ export function armHandPlayPrewarm(
       // request flew, the entry simply never matches a read.
       store(key, {version, preview});
     });
-  }, dwellMs);
+  });
 }
 
 /** Focus left the playable card (or the hand) — the pending dwell dies. */
 export function cancelHandPlayPrewarm(): void {
-  if (armedTimer !== undefined) {
-    clearTimeout(armedTimer);
-    armedTimer = undefined;
-  }
+  cancelArmed();
+  cancelArmed = () => {};
   armedName = '';
 }
 
@@ -168,3 +167,8 @@ export function resetHandPlayPrewarm(): void {
   cancelHandPlayPrewarm();
   cache.clear();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Pending dwell timers + version-keyed previews
+sessionState('hand-play-prewarm', resetHandPlayPrewarm, 210);

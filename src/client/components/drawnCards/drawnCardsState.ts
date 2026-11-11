@@ -4,6 +4,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardDrawRevealModel, CardDrawRevealSource, CardDrawRevealStep, CardIntakeBatchRef, CardIntakePendingAnswer, CardIntakeSegment, ColonyTradeRevealSegment, DrawSearchModel, tradeSegmentsOf} from '@/common/models/CardDrawRevealModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
+import {whenPainted} from '@/client/console/session/sessionWaits';
 
 /**
  * Module-level reactive state for the "you drew cards" reveal flow
@@ -408,9 +409,15 @@ export function acknowledgeDraw(viewId: string, id: number): void {
  * Close the reveal NOW (dismiss → the hosting surface unmounts via its
  * v-if → the blurred backdrop leaves the DOM), then release the
  * hand-staging (`releaseFn` marks the cards taken → the КАРТЫ count +
- * delta-chip fire) only AFTER the backdrop has painted out (two nested
- * rAFs = at least one clean frame), then ack. Module-state only — safe
+ * delta-chip fire) only AFTER the backdrop has painted out (two painted
+ * frames = at least one clean frame), then ack. Module-state only — safe
  * to run after the calling component unmounts.
+ *
+ * The two frames are a wait of the GAME session (`whenPainted` — the running
+ * game's drawn cards), and a RELEASE: the staging is let go and the server
+ * acked after the frames, at the 400 ms bound in a window that does not paint,
+ * or at once when the game screen leaves — never left held by a frame that
+ * did not come.
  */
 export function closeAndReleaseEvent(viewId: string, id: number, releaseFn: () => void): void {
   const ev = drawnCardsState.events.find((e) => e.id === id);
@@ -419,8 +426,8 @@ export function closeAndReleaseEvent(viewId: string, id: number, releaseFn: () =
   }
   setAcking(id, true);
   dismissEvent(id);
-  requestAnimationFrame(() => requestAnimationFrame(() => {
+  void whenPainted().then(() => {
     releaseFn();
     acknowledgeDraw(viewId, id);
-  }));
+  });
 }

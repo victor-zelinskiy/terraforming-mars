@@ -41,7 +41,7 @@
 import {reactive} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 export type StdProjectCommitPhase = 'idle' | 'press' | 'committing' | 'committed';
 
@@ -209,3 +209,8 @@ export function resetStdProjectCommit(): void {
 export function stdProjectCommitBeatMs(): number {
   return motionMs(STDP_SWEEP_PEAK_MS + STDP_HOLD_MS);
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Drops the hold gate + both its timers
+sessionState('std-project-commit', resetStdProjectCommit, 660);

@@ -1,6 +1,8 @@
 import {expect} from 'chai';
 import {beginCeilingWait, ceilingStats, raceCeiling, resetCeilingStats} from '@/client/console/waitGraph/ceilingWait';
 import {collectWaitNodes, resetWaitGraph} from '@/client/console/waitGraph/waitGraph';
+import {waitTable} from '@/client/console/kernel/flowScope';
+import {beginConsoleSession, endConsoleSession} from '@/client/console/session/consoleSession';
 
 /*
  * A WAIT WHOSE ONLY WAY OUT IS A CEILING (the owner's field freeze of 2026-11-08 — Flooding's 8 s): a node of the wait
@@ -32,6 +34,26 @@ describe('ceilingWait — a ceiling is a node, and a ceiling hit is said', () =>
     expect(collectWaitNodes(300)).to.deep.eq([]);
     expect(ceilingStats).to.include({met: 1, hits: 0});
     expect(warns).to.deep.eq([]);
+  });
+
+  it('THE WAIT IS A ROW OF THE FLOW KERNEL\'S TABLE — owned by the session, bounded by its ceiling; it leaves with either', () => {
+    beginConsoleSession();
+    const rows = (): Array<string> => waitTable().filter((row) => row.what.includes('ceiling:deck-pick:deal#')).map((row) => `${row.owner} ${row.boundMs}`);
+    const w = beginCeilingWait({id: 'deck-pick:deal', owner: 'deckPick', what: 'the deal to land', maxMs: 4_000});
+    expect(rows().length, 'one row while the wait stands').to.equal(1);
+    expect(rows()[0]).to.match(/^session:game#\d+ 4000$/);
+    w.met();
+    expect(rows(), 'met: the row is gone with the node').to.deep.eq([]);
+
+    // A run that FORGOT its wait (no met / ceiling / end): the game screen leaving withdraws the row and the node —
+    // it can no longer stand into the next game as an «overdue» nobody owns.
+    beginCeilingWait({id: 'deck-pick:deal', owner: 'deckPick', what: 'the deal to land', maxMs: 4_000});
+    expect(collectWaitNodes(Date.now()).filter((n) => n.id.startsWith('ceiling:deck-pick:deal#'))).to.have.length(1);
+    endConsoleSession();
+    expect(rows()).to.deep.eq([]);
+    expect(collectWaitNodes(Date.now()).filter((n) => n.id.startsWith('ceiling:deck-pick:deal#'))).to.deep.eq([]);
+    expect(warns, 'a wait withdrawn with its session is not a ceiling hit').to.deep.eq([]);
+    expect(ceilingStats.hits).to.equal(0);
   });
 
   it('a ceiling hit is said ONCE with who waited and for what, counted, and the node is gone', () => {

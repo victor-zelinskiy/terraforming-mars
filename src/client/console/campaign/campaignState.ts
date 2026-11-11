@@ -16,6 +16,7 @@ import {CampaignModel} from '@/common/campaign/CampaignModel';
 import {apiUrl, wsBaseUrl} from '@/client/utils/runtimeConfig';
 import {CampaignChannelHandle, campaignChannelHealthy, openCampaignChannel} from '@/client/console/campaign/campaignChannel';
 import {ensureIdentityLoaded, identityState} from '@/client/components/mainMenu/identity/identityState';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
 
 export type CampaignLoadStatus = 'idle' | 'loading' | 'ok' | 'error';
 
@@ -44,7 +45,8 @@ export const campaignState = reactive<{
   submittingTender: false,
 });
 
-let pollTimer: number | undefined;
+/** The pending poll's cancel (the PAGE's scope owns the timer — the campaign outlives any game screen). */
+let cancelPoll: () => void = () => {};
 
 /**
  * In-game hosts (the endgame workspace) resolve the viewer from THE GAME
@@ -168,12 +170,10 @@ function rearmPoll(delayMs?: number): void {
   if (!watching) {
     return;
   }
-  if (pollTimer !== undefined) {
-    window.clearTimeout(pollTimer);
-  }
-  pollTimer = window.setTimeout(() => {
+  cancelPoll();
+  cancelPoll = consoleAppScope().after(delayMs ?? pollDelayMs(), 'the campaign\'s next poll', () => {
     void refreshCampaign().finally(() => rearmPoll());
-  }, delayMs ?? pollDelayMs());
+  });
 }
 
 /**
@@ -191,10 +191,8 @@ export function startCampaignWatch(): void {
 export function stopCampaignWatch(): void {
   watching = false;
   closeChannel();
-  if (pollTimer !== undefined) {
-    window.clearTimeout(pollTimer);
-    pollTimer = undefined;
-  }
+  cancelPoll();
+  cancelPoll = () => {};
 }
 
 export function resetCampaignState(): void {

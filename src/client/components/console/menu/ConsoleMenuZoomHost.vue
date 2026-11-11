@@ -164,6 +164,8 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {probeTick} from '@/client/console/probeTick';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -210,6 +212,9 @@ export default defineComponent({
     CardZoomModal, CardZoomCard, GamepadGlyph, ConsoleCardRulesPanel, ConsoleResolutionAside, ConsoleResolutionStatus,
     ConsoleInfluenceYield, ConsoleWinnerReward, ConsoleTileGrant, ConsoleAgendaGrant, ConsolePartyReaction,
   },
+  setup() {
+    return {flow: useFlowScope('console-menu-zoom-host')};
+  },
   data() {
     return {
       consoleState,
@@ -220,7 +225,7 @@ export default defineComponent({
       zoomOpening: false,
       zoomOpenProxy: undefined as {card: ZoomCard, zoom: number} | undefined,
       zoomOpenToken: 0,
-      zoomOpenClearTimer: undefined as number | undefined,
+      cancelZoomOpenClear: (() => {}) as () => void,
       offZoomIntent: undefined as (() => void) | undefined,
     };
   },
@@ -365,7 +370,7 @@ export default defineComponent({
           const el = zoom?.$el as HTMLElement | undefined;
           if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
             if (attempt < 10) {
-              requestAnimationFrame(() => tryOpen(attempt + 1));
+              probeTick(() => tryOpen(attempt + 1));
             } else {
               this.onCardZoomClosed(); // never strand an open-but-empty zoom state
             }
@@ -479,11 +484,11 @@ export default defineComponent({
       if (landing === undefined || consoleReducedMotionActive()) {
         zoom.show();
         this.zoomOpening = false;
-        window.setTimeout(() => {
+        this.flow.after(motionMs(140), 'the zoom\'s chrome returns', () => {
           if (token === this.zoomOpenToken) {
             this.zoomFlight = false;
           }
-        }, motionMs(140));
+        });
         return;
       }
       const source = zoomOpenSourceRect(index);
@@ -505,15 +510,12 @@ export default defineComponent({
           }
           this.zoomOpening = false;
           this.zoomFlight = false;
-          this.zoomOpenClearTimer = window.setTimeout(() => this.clearZoomOpenFlight(), motionMs(160));
+          this.cancelZoomOpenClear = this.flow.after(motionMs(160), 'the open flight\'s proxy is cleared', () => this.clearZoomOpenFlight());
         },
       });
     },
     clearZoomOpenFlight(): void {
-      if (this.zoomOpenClearTimer !== undefined) {
-        window.clearTimeout(this.zoomOpenClearTimer);
-        this.zoomOpenClearTimer = undefined;
-      }
+      this.cancelZoomOpenClear();
       this.zoomOpenProxy = undefined;
     },
     /** Choreographed close: chrome hides, the card flies back into the CURRENT

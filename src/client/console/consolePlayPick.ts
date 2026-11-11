@@ -35,6 +35,7 @@
  * the fold, end the scene's way), the conclusion policy (the flow still owes).
  */
 import {reactive} from 'vue';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
 import {PreselectAddress} from '@/common/inputs/preselectAddress';
@@ -47,6 +48,7 @@ import type {ArmedPlayEffectModel} from '@/common/models/ArmedPlayEffectModel';
 import type {StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import type {PlayComposerDraft} from '@/client/console/stagedPlay';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 export type ConsolePlayPickRequest = {
   /** The PROMISED pick (the law's `ResolutionPlayModel.input`): every hand card, the law's candidates enabled. */
@@ -146,6 +148,13 @@ export function lawPlayStagedDoor(result: ConsolePlayPickResult | undefined): 'c
   return composed.stagedColony !== undefined ? 'colony' : undefined;
 }
 
+/**
+ * THE PICK'S RUN: from the moment the hand opens as a play picker to its answer (resolved, cancelled, reset) — `surface:play-pick#n` in the flow tree (architecture v2 — PLAN §10 · C4). The tree names it while it stands, and
+ * when the game screen leaves under it the module is brought to rest through `resetConsolePlayPick` — no row of the shell's
+ * teardown is what keeps it out of the next game.
+ */
+const run = createFlowRun('play-pick', {kind: 'surface', orphaned: () => resetConsolePlayPick()});
+
 export const consolePlayPickState = reactive({
   active: false,
   request: undefined as ConsolePlayPickRequest | undefined,
@@ -182,6 +191,7 @@ export function enterConsolePlayPick(
   resolveCb = onResolve;
   cancelCb = onCancel;
   consolePlayPickState.active = true;
+  run.begin();
 }
 
 /** The composer confirmed — the composed play goes back to the asking stage. */
@@ -207,6 +217,7 @@ export function cancelConsolePlayPick(): void {
 /** Hard reset (game switch / shell unmount) — fires NO callbacks. */
 export function resetConsolePlayPick(): void {
   consolePlayPickState.active = false;
+  run.end();
   consolePlayPickState.request = undefined;
   resolveCb = undefined;
   cancelCb = undefined;
@@ -243,3 +254,12 @@ export function lawPlayDraftOf(resolution: ResolutionId | undefined): ConsolePla
 export function clearLawPlayDraft(): void {
   consolePlayPickState.draft = undefined;
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// A law's play pick (RX36)
+sessionState('console-play-pick', resetConsolePlayPick, 160);
+// Its landing (PL-726)
+sessionState('law-play-landing', endLawPlayLanding, 170);
+// Its composed play
+sessionState('law-play-draft', clearLawPlayDraft, 180);

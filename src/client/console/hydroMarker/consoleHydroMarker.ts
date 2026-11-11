@@ -42,7 +42,7 @@ import type {HydroMarkerDirectorHandle} from '@/client/console/hydroMarker/hydro
 import {arriveReadyMs, markerTimings, reducedMarkerTimings} from '@/client/console/hydroMarker/hydroMarkerModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {FlowScope} from '@/client/console/kernel/flowScope';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
@@ -1189,3 +1189,8 @@ export function resetHydroMarker(): void {
   activationLedger.rev++;
   trace = [];
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Recall any in-flight marker glide (zombie-safe)
+sessionState('hydro-marker', abortHydroMarker, 500);

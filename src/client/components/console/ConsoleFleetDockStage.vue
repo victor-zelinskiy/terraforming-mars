@@ -245,7 +245,8 @@
 <script lang="ts">
 import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 import {defineComponent, PropType} from 'vue';
-import {gsap} from 'gsap';
+import {motionAfter} from '@/client/console/session/sessionWaits';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {useResizeObserver} from '@vueuse/core';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
@@ -431,6 +432,9 @@ export default defineComponent({
     entering: {type: Boolean, default: false},
   },
   emits: ['confirm', 'cancel', 'inspect', 'flow-complete'],
+  setup() {
+    return {flow: useFlowScope('fleet-dock-stage')};
+  },
   data() {
     return {
       payIdx: 0,
@@ -1452,11 +1456,12 @@ export default defineComponent({
      */
     sceneWait(ms: number, then: () => void): void {
       this.sceneCall?.kill();
-      const call = gsap.delayedCall(consoleReducedMotionActive() ? 0 : motionMs(ms) / 1000, () => {
+      // PACING on the motion clock, owned by the stage: a stage that left ends its scene itself (`beforeUnmount`).
+      const cancel = motionAfter(consoleReducedMotionActive() ? 0 : motionMs(ms), 'a beat of the fleet dock\'s scene', () => {
         this.sceneCall = undefined;
         then();
-      });
-      this.sceneCall = {kill: () => call.kill()};
+      }, this.flow);
+      this.sceneCall = {kill: cancel};
     },
     /** …and only then the workspace leaves as one surface; the shell concludes it and the hold falls at the END of that leave. */
     /** The room's height from the stage's own box — never while the entry is in flight (the hero's zoom is frozen). */
@@ -1511,8 +1516,7 @@ export default defineComponent({
   beforeUnmount() {
     this.stopRoomObs?.();
     this.sceneMotion?.kill();
-    this.sceneCall?.kill();
-    this.sceneCall = undefined;
+    // (The scene's beat — `sceneCall` — is `flow`'s: taken back with it.)
     this.pulseCall?.kill();
     this.pulseCall = undefined;
     setFleetDockStageCard('');

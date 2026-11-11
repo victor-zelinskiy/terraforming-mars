@@ -47,6 +47,9 @@ import {reactive} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {fastBootRequested} from '@/client/components/boot/bootWarmupState';
 import {probeTick} from '@/client/console/probeTick';
+import {consoleAppScope, sessionState} from '@/client/console/session/consoleSession';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
+import {whenPainted} from '@/client/console/session/sessionWaits';
 import {supportsNativeFullscreen} from '@/client/console/runtimeMode';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {curtainOverlayAvailable, showCurtainOverlay, hideCurtainOverlay, CurtainOverlayPayload} from '@/client/console/curtainOverlayBridge';
@@ -200,18 +203,46 @@ export const loadingScreenState = reactive({
 // ── Test seam: the director's clock/scheduler is injectable ────────────────
 type SceneScheduler = {
   now(): number;
-  setTimeout(fn: () => void, ms: number): number;
-  clearTimeout(id: number): void;
+  /** `fn` after `ms` — returns its id (the real one is an owned timer of the page scope). */
+  later(fn: () => void, ms: number): number;
+  cancel(id: number): void;
   /** One settled-paint tick (rAF with a timer fallback — see probeTick). */
   settle(fn: () => void): void;
 };
 
+/**
+ * THE REAL SCHEDULER STANDS ON THE FLOW KERNEL (architecture v2 — PLAN §10 · C4): every timer of the director is an
+ * owned timer of the PAGE's scope (`consoleAppScope()` — a transition crosses game screens, so it is never a game
+ * session's) and a row of the wait table while it stands. The director keeps its own ids and its epoch guard; only
+ * the clock under them changed.
+ */
+const realTimers = new Map<number, () => void>();
+let realTimerSeq = 0;
 const realScheduler: SceneScheduler = {
   now: () => Date.now(),
-  setTimeout: (fn, ms) => setTimeout(fn, ms) as unknown as number,
-  clearTimeout: (id) => clearTimeout(id as never),
+  later: (fn, ms) => {
+    const id = ++realTimerSeq;
+    realTimers.set(id, consoleAppScope().after(ms, 'a beat of the scene transition', () => {
+      realTimers.delete(id);
+      fn();
+    }));
+    return id;
+  },
+  cancel: (id) => {
+    realTimers.get(id)?.();
+    realTimers.delete(id);
+  },
   settle: probeTick,
 };
+
+/**
+ * THE TRANSITION'S RUN: `scene:scene-transition#n` under the page's scope, DERIVED from the director's own state — it
+ * stands exactly while the curtain is up (`active`), whoever raised or dropped it.
+ */
+deriveFlowRun('scene-transition', () => loadingScreenState.active, {
+  owner: () => consoleAppScope(),
+  detail: () => loadingScreenState.phase,
+});
 
 let sched: SceneScheduler = realScheduler;
 
@@ -238,7 +269,7 @@ let revealedCallbacks: Array<() => void> = [];
 
 function schedule(ms: number, fn: () => void): number {
   const at = epoch;
-  const id = sched.setTimeout(() => {
+  const id = sched.later(() => {
     timers.delete(id);
     if (at === epoch) {
       fn();
@@ -250,11 +281,11 @@ function schedule(ms: number, fn: () => void): number {
 
 function clearAllTimers(): void {
   for (const id of timers) {
-    sched.clearTimeout(id);
+    sched.cancel(id);
   }
   timers.clear();
   for (const id of holds.values()) {
-    sched.clearTimeout(id);
+    sched.cancel(id);
   }
   holds.clear();
 }
@@ -377,11 +408,11 @@ export function deferSceneReveal(name: string, maxMs: number = DEFAULT_HOLD_MAX_
     if (at !== epoch || boundTimer === undefined) {
       return;
     }
-    sched.clearTimeout(boundTimer);
+    sched.cancel(boundTimer);
     holds.delete(key);
     maybeReveal();
   };
-  const boundId = sched.setTimeout(() => {
+  const boundId = sched.later(() => {
     if (at === epoch && holds.has(key)) {
       console.warn(`[scene-transition] hold "${key}" hit its ${maxMs}ms bound — force-released`);
       holds.delete(key);
@@ -560,9 +591,11 @@ export function navigateWithCurtain(url: string, stage: LoadingStage = 'expediti
   } catch {
     // sessionStorage unavailable — the next page just boots without the handoff.
   }
-  const navigate = () => requestAnimationFrame(() => requestAnimationFrame(() => {
+  // One painted frame under the curtain, then go — BOUNDED: a window that does not paint still navigates (the bare
+  // double frame never came there, and the curtain stood over a page that never left).
+  const navigate = () => void whenPainted(2, 400, consoleAppScope()).then(() => {
     window.location.assign(url);
-  }));
+  });
   // ELECTRON: raise the persistent overlay curtain (its own renderer process —
   // its animation cannot freeze while THIS document tears down and the next
   // one parses). This page's own curtain is already up beneath it, so a late
@@ -669,3 +702,8 @@ export function resetSceneTransitionForTest(): void {
   loadingScreenState.textShown = false;
   loadingScreenState.longWait = false;
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The exit funnel must not outlive the game it points from
+sessionState('game-exit-target', clearGameExitTarget, 10);

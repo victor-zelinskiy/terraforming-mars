@@ -683,6 +683,8 @@ import {choiceSeriesOf} from '@/client/console/promptSeries';
  */
 import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {defineComponent, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {probeTick} from '@/client/console/probeTick';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -929,6 +931,9 @@ export default defineComponent({
     embedded: {type: Boolean, default: false},
   },
   emits: ['submit', 'submit-batch', 'defer', 'space-pick', 'hand-pick', 'result-detached'],
+  setup() {
+    return {flow: useFlowScope('console-task-host')};
+  },
   data() {
     return {
       focusIdx: 0,
@@ -961,8 +966,8 @@ export default defineComponent({
       submitting: false,
       /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
       deal: createCardDealSequence(),
-      dealLaunchTimer: undefined as number | undefined,
-      settleFitTimer: undefined as number | undefined,
+      cancelDealLaunch: (() => {}) as () => void,
+      cancelSettleFit: (() => {}) as () => void,
       /** The draft-tray brain (pick beats / research rise) — module state. */
       draftTrayState,
       /** A live pick's answer playing as a scene (TR53 iteration) — module state: the seal, the board hand-off, the home. */
@@ -2785,12 +2790,6 @@ export default defineComponent({
     }
     this.stopStripObs?.();
     this.stopResize?.();
-    if (this.dealLaunchTimer !== undefined) {
-      window.clearTimeout(this.dealLaunchTimer);
-    }
-    if (this.settleFitTimer !== undefined) {
-      window.clearTimeout(this.settleFitTimer);
-    }
     this.deal.dispose();
     // An engaged rise scene can't outlive its frame — hand the tray off
     // (the watcher may not flush during teardown).
@@ -2917,10 +2916,7 @@ export default defineComponent({
      * clears any previous hold.
      */
     prepareDeal(): void {
-      if (this.dealLaunchTimer !== undefined) {
-        window.clearTimeout(this.dealLaunchTimer);
-        this.dealLaunchTimer = undefined;
-      }
+      this.cancelDealLaunch();
       const cards = this.activeTask.kind === 'cardSelect' ? this.cardEntries.map((e) => e.card) : [];
       const names = cards.map((c) => c.name);
       const keys = cards.map((c, i) => c.name + '#' + i);
@@ -2941,10 +2937,9 @@ export default defineComponent({
         // fitCardStrip has sized the row — the measured rects are final.
         // A still-landing draft pick (the hero flying into the tray) is
         // AWAITED first: consequences never precede their explanation.
-        this.dealLaunchTimer = window.setTimeout(() => {
-          this.dealLaunchTimer = undefined;
-          void whenPickBeatDone().then(() => requestAnimationFrame(() => this.launchDeal()));
-        }, motionMs(260));
+        this.cancelDealLaunch = this.flow.after(motionMs(260), 'the task frame settles before the deal', () => {
+          void whenPickBeatDone().then(() => this.flow.afterFrame('the deal launches', () => this.launchDeal()));
+        });
       } else if (riseSceneEngaged() && this.isBuyMode) {
         // The buy set was already dealt once (defer/restore path) — never
         // replay the scene; the tray hands off instantly.
@@ -3275,7 +3270,7 @@ export default defineComponent({
         return;
       }
       this.fitScheduled = true;
-      requestAnimationFrame(() => {
+      this.flow.afterFrame('the card strip re-fits', () => {
         this.fitScheduled = false;
         this.fitCardStrip();
       });
@@ -3335,13 +3330,10 @@ export default defineComponent({
      *  the safety net for the buy modal, whose first fit could race the wide
      *  panel / rise flight and leave small cards. Cheap + idempotent. */
     scheduleSettleFit(): void {
-      if (this.settleFitTimer !== undefined) {
-        window.clearTimeout(this.settleFitTimer);
-      }
-      this.settleFitTimer = window.setTimeout(() => {
-        this.settleFitTimer = undefined;
+      this.cancelSettleFit();
+      this.cancelSettleFit = this.flow.after(motionMs(380), 'the settle re-fit', () => {
         this.fitCardStrip();
-      }, motionMs(380));
+      });
     },
     /**
      * Size the SINGLE-ROW card strip so N cards ALWAYS fit its width — the
@@ -3394,7 +3386,7 @@ export default defineComponent({
         // Not laid out yet (JSDOM / mid-reload) — retry a bounded number of frames.
         if (this.fitRetries < 20) {
           this.fitRetries++;
-          requestAnimationFrame(() => this.fitCardStrip());
+          probeTick(() => this.fitCardStrip());
         }
         return;
       }

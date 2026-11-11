@@ -80,7 +80,7 @@
  */
 import {reactive} from 'vue';
 import {FlowScope} from '@/client/console/kernel/flowScope';
-import {sessionChild} from '@/client/console/session/consoleSession';
+import {sessionChild, sessionState} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
 import {announceMachine} from '@/client/console/consoleMandatoryAnnounce';
 import {ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
@@ -495,3 +495,8 @@ export function resetMandatoryGate(): void {
   mandatoryGateState.presentedKey = '';
   mandatoryGateState.beaconKey = '';
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Never carry an acknowledgment across games/sessions
+sessionState('mandatory-gate', resetMandatoryGate, 350);

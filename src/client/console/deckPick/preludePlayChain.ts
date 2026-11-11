@@ -23,6 +23,7 @@
  * OWN host — the frame that steps aside for the board, the frame whose unmount ends the chain — never the hand by name.
  */
 import {reactive} from 'vue';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
 import {taskFor} from '@/client/console/consoleTaskRouter';
@@ -33,6 +34,13 @@ import {stackYieldedToBoard, workspaceFrameDescended, workspaceFrameMounted} fro
 /** The workspaces a prelude pick that PLAYS can stand in. */
 export type PreludeChainHost = 'hand' | 'card-actions';
 
+/**
+ * THE CHAIN'S RUN: from the prelude taken off the deck pick to the end of its play — `surface:prelude-play-chain#n` in the flow tree (architecture v2 — PLAN §10 · C4). The tree names it while it stands, and
+ * when the game screen leaves under it the module is brought to rest through `endPreludePlayChain` — no row of the shell's
+ * teardown is what keeps it out of the next game.
+ */
+const run = createFlowRun('prelude-play-chain', {kind: 'surface', orphaned: () => endPreludePlayChain()});
+
 export const preludePlayChainState = reactive({
   live: false,
   card: '' as string,
@@ -42,12 +50,14 @@ export const preludePlayChainState = reactive({
 /** The pick played `card` (not a burn): its follow-ups are this chain's until its HOST's flow is over. */
 export function beginPreludePlayChain(card: CardName, host: PreludeChainHost = 'hand'): void {
   preludePlayChainState.live = true;
+  run.begin();
   preludePlayChainState.card = card;
   preludePlayChainState.host = host;
 }
 
 export function endPreludePlayChain(): void {
   preludePlayChainState.live = false;
+  run.end();
   preludePlayChainState.card = '';
   preludePlayChainState.host = 'hand';
 }

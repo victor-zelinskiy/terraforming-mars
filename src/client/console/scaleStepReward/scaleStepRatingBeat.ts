@@ -50,7 +50,7 @@
  * second yields and the sentinel `[transfer] told twice` turns every e2e spec red.
  */
 import {reactive, watch, WatchStopHandle} from 'vue';
-import {gsap} from 'gsap';
+import {motionSpan} from '@/client/console/session/sessionWaits';
 import {Phase} from '@/common/Phase';
 import {getGlobalParameterTracks} from '@/common/boards/GlobalParameterTracks';
 import {BoardName} from '@/common/boards/BoardName';
@@ -78,6 +78,7 @@ import {freshCardReactions} from '@/client/console/cardReaction/cardReactionMode
 import {SCALE_STEP_RATING_UNIT, claimTeller} from '@/client/console/resourceTransfer/oneTeller';
 import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const SCALE_STEP_RATING_KEY = 'scale-step-rating';
@@ -563,9 +564,7 @@ function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
 
 /** A wait on the GSAP clock — the clock the tokens animate on. */
 function gsapWait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    gsap.delayedCall(ms / 1000, () => resolve());
-  });
+  return motionSpan(ms);
 }
 
 /** The birth point of each token: the marker's rim (fanned per marker), the 16 % chip's centre for the bonus. */
@@ -711,3 +710,7 @@ export function resetScaleStepRating(): void {
   scaleStepRatingState.degraded = false;
   resolveQuiet();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('scale-step-rating', resetScaleStepRating, 60);

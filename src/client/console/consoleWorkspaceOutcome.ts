@@ -37,7 +37,7 @@ import type {ZoomOrigin} from '@/client/console/consoleCardZoom';
 import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {workspaceFrameKnown, workspaceFrameScope} from '@/client/console/consoleWorkspaceStack';
 import {FlowScope, until} from '@/client/console/kernel/flowScope';
-import {sessionChild} from '@/client/console/session/consoleSession';
+import {sessionChild, sessionState} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
 import {CLAIM_HOST_GONE_GRACE_MS, claimMachine} from '@/client/console/consoleWorkspaceClaim';
 import {partyTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
@@ -1143,3 +1143,7 @@ export function workspaceSourceZoomOrigin(name: string): ZoomOrigin {
     },
   };
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('workspace-outcome', resetWorkspaceOutcome, 370);

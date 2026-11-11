@@ -26,6 +26,7 @@
  * `chairmanQuestDirector.ts`).
  */
 import {reactive} from 'vue';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 import {Color} from '@/common/Color';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -94,6 +95,16 @@ function freshFlow() {
     player: undefined, seatWas: undefined, seatSource: 'reserve' as const, move: undefined, bonus: undefined, reactionKey: '',
   };
 }
+
+/**
+ * THE QUEST'S RUN (architecture v2 — PLAN §10 · C4): `scene:chairman-quest#n` in the flow tree, DERIVED from the record
+ * — it stands while the flow is the Parliament's subject (`live`), and when the game screen leaves under it the record
+ * is reset (`orphaned`).
+ */
+deriveFlowRun('chairman-quest', () => chairmanQuestFlow.live, {
+  orphaned: () => resetChairmanQuestFlow(),
+  detail: () => chairmanQuestFlow.stage,
+});
 
 export function resetChairmanQuestFlow(): void {
   Object.assign(chairmanQuestFlow, freshFlow());

@@ -28,7 +28,8 @@
  *
  * `live()` is reactive: a computed / a hold supplier may read «the flow is running» off the run itself.
  */
-import {shallowRef} from 'vue';
+import {effectScope, shallowRef, watch} from 'vue';
+import {FlowKind} from '@/client/console/kernel/flowKinds';
 import {FlowScope, ScopeEnd} from '@/client/console/kernel/flowScope';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
@@ -38,6 +39,17 @@ export type FlowRunOptions = {
    * to rest (its abort — final poses, holds released, flags lowered). Called once, after the run's scope has ended.
    */
   orphaned?: () => void,
+  /**
+   * What the run IS in the tree (default `scene` — a flow that plays). `surface` for a run that stands for the PLAYER
+   * (a pick, a step's entry: it does not play, it waits to be answered); `story` for one the board owes; `step` for a
+   * step a frame owes.
+   */
+  kind?: Extract<FlowKind, 'scene' | 'surface' | 'story' | 'step'>,
+  /**
+   * Whose the run is (default: the session that stands when it begins — `consoleSessionScope()`). A flow that lives
+   * across game screens (the scene transition itself) names the page: `() => consoleAppScope()`.
+   */
+  owner?: () => FlowScope,
 };
 
 export type FlowRun = {
@@ -53,6 +65,8 @@ export type FlowRun = {
   after(ms: number, what: string, fn: () => void): () => void,
   /** A callback `count` frames from now, owned by the standing run (nothing at rest). Returns the cancel. */
   afterFrame(what: string, fn: () => void, count?: number): () => void,
+  /** A tick of the standing run every `ms` (`tick` returns `false` to stop) — nothing at rest. Returns the stop. */
+  every(ms: number, what: string, tick: () => boolean | void): () => void,
   /** A frame loop of the standing run (`tick` returns `false` to stop) — nothing at rest. Returns the stop. */
   everyFrame(what: string, tick: () => boolean | void): () => void,
   /** A span of the standing run: `true` when it passed, `false` when the run ended first (or none stands). */
@@ -77,7 +91,7 @@ export function createFlowRun(label: string, options: FlowRunOptions = {}): Flow
   return {
     begin: (detail) => {
       end({how: 'cancelled', reason: 'a new run began'});
-      const scope = consoleSessionScope().open('scene', label);
+      const scope = (options.owner?.() ?? consoleSessionScope()).open(options.kind ?? 'scene', label) as FlowScope<'scene'>;
       if (detail !== undefined) {
         scope.detail = detail;
       }
@@ -102,6 +116,7 @@ export function createFlowRun(label: string, options: FlowRunOptions = {}): Flow
     end,
     after: (ms, what, fn) => current.value?.after(ms, what, fn) ?? (() => {}),
     afterFrame: (what, fn, count) => current.value?.afterFrame(what, fn, count) ?? (() => {}),
+    every: (ms, what, tick) => current.value?.every(ms, what, tick) ?? (() => {}),
     everyFrame: (what, tick) => current.value?.everyFrame(what, tick) ?? (() => {}),
     sleep: (ms) => current.value?.sleep(ms) ?? Promise.resolve(false),
     guarantee: (ms, what, release) => {
@@ -123,3 +138,51 @@ export function createFlowRun(label: string, options: FlowRunOptions = {}): Flow
     },
   };
 }
+
+/**
+ * A RUN DERIVED FROM STATE — for a flow kept as a reactive RECORD that several writers move (a module seeds it, a
+ * section component plays it, a reset `Object.assign`s it away): there is no one `begin` and no one `end` to hook, and
+ * a pair written beside every writer is exactly the bookkeeping that diverges. The run instead STANDS WHILE the
+ * record says the flow does: `standing()` is a reactive predicate over the record («something is promised, owed or
+ * playing»); the run opens on its rising edge and ends on its falling one — whoever wrote the state. Derived cannot
+ * diverge (the lesson of the hold suppliers).
+ *
+ * The watcher is synchronous and only RECORDS (it opens / ends a scope, it decides nothing), so the tree is exact at
+ * every instant. When the session ends under a standing run, `orphaned` brings the module to rest (its reset) — the
+ * predicate then falls by itself.
+ */
+export function deriveFlowRun(label: string, standing: () => boolean, options: FlowRunOptions & {detail?: () => string} = {}): {
+  /** The run that stands — `undefined` at rest. */
+  readonly scope: FlowScope<'scene'> | undefined,
+  /** Stop deriving (a test's teardown; a module is never unloaded). */
+  stop(): void,
+} {
+  const run = createFlowRun(label, options);
+  const read = (): boolean => {
+    try {
+      return standing() === true;
+    } catch {
+      return false; // a predicate that throws reads as «at rest» — a diagnosis must never break the flow it describes
+    }
+  };
+  // Detached: the watcher is the module's, not a component's that happened to import it first.
+  const es = effectScope(true);
+  es.run(() => {
+    watch(read, (on) => {
+      if (on) {
+        if (!run.live()) {
+          run.begin(options.detail?.());
+        }
+      } else {
+        run.end();
+      }
+    }, {immediate: true, flush: 'sync'});
+  });
+  return {
+    get scope() {
+      return run.scope;
+    },
+    stop: () => es.stop(),
+  };
+}
+

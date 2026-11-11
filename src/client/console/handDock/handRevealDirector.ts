@@ -49,6 +49,7 @@
 import {nextTick, shallowRef} from 'vue';
 import {gsap} from 'gsap';
 import {whenPainted} from '@/client/console/session/sessionWaits';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -115,12 +116,15 @@ type Episode = {
   tl: gsap.core.Timeline,
   els: Array<HTMLElement>,
   pairs: ReadonlyArray<RevealPair>,
-  safety: number,
+  /** Takes the progress safety's standing check back (it re-arms itself — always the LATEST one). */
+  cancelSafety: () => void,
   onResize: () => void,
   scrollTop: number,
   finished: boolean,
   stopDriver?: () => void,
   accentRelease?: () => void,
+  /** Forgets the session-end release of this episode (`installEpisode`) — called by `teardown`. */
+  forgetOrphan?: () => void,
 };
 
 let episode: Episode | undefined;
@@ -215,18 +219,25 @@ const MAX_STEP_MS = 28;
  *  are exactly the reported «веер прореживается за один кадр»). */
 const RAF_DEAD_MS = 260;
 
+/*
+ * ON THE FLOW KERNEL (architecture v2 — PLAN §10 · C1): the paint-locked loop is ONE owned frame loop of the session
+ * (`everyFrame` — re-armed after each step, exactly as the hand-written chain was) and the dead-compositor watchdog a
+ * self-re-arming owned timer beside it. Both are PACING: `stop` takes them back, and so does the game screen leaving
+ * (the episode itself is let go there by `installEpisode`'s cleanup — never by a step of a dead driver).
+ */
 function startEpisodeDriver(ep: Episode): void {
   const tl = ep.tl;
+  const owner = consoleSessionScope();
   let last = performance.now();
-  let rafId = 0;
-  let iv = 0;
+  let stopFrames: () => void = () => {};
+  let cancelWatchdog: () => void = () => {};
   let running = true;
   let expectedTime = tl.time();
   const stop = () => {
     if (running) {
       running = false;
-      window.clearInterval(iv);
-      window.cancelAnimationFrame(rafId);
+      cancelWatchdog();
+      stopFrames();
     }
   };
   ep.stopDriver = stop;
@@ -267,20 +278,23 @@ function startEpisodeDriver(ep: Episode): void {
     tl.time(next, false);
   };
   let lastRafAt = performance.now();
-  const loop = () => {
+  const loop = (): boolean => {
     if (!running) {
-      return;
+      return false;
     }
     lastRafAt = performance.now();
     step();
-    rafId = window.requestAnimationFrame(loop);
+    return running;
   };
-  iv = window.setInterval(() => {
+  const watchdog = () => {
+    // The next look is armed BEFORE this one runs: a step that ends the episode (`stop`) takes it back with it.
+    cancelWatchdog = owner.after(DRIVER_INTERVAL_MS, 'the hand reveal\'s dead-compositor watchdog', watchdog);
     if (running && performance.now() - lastRafAt > RAF_DEAD_MS) {
       step();
     }
-  }, DRIVER_INTERVAL_MS);
-  rafId = window.requestAnimationFrame(loop);
+  };
+  cancelWatchdog = owner.after(DRIVER_INTERVAL_MS, 'the hand reveal\'s dead-compositor watchdog', watchdog);
+  stopFrames = owner.everyFrame('the hand reveal\'s paint-locked clock', loop);
 }
 
 /* ── seize / release ────────────────────────────────────────────────── */
@@ -402,7 +416,9 @@ function teardown(): void {
   if (ep === undefined) {
     return;
   }
-  clearTimeout(ep.safety);
+  ep.cancelSafety();
+  ep.forgetOrphan?.();
+  ep.forgetOrphan = undefined;
   ep.stopDriver?.();
   window.removeEventListener('resize', ep.onResize);
   ep.accentRelease?.();
@@ -823,6 +839,9 @@ function finalizeFilter(visibleNow: ReadonlySet<string>): void {
 
 function installEpisode(kind: Episode['kind'], tl: gsap.core.Timeline, els: Array<HTMLElement | undefined>, pairs: ReadonlyArray<RevealPair>, scrollTop: number, budgetMs: number): void {
   const onResize = () => finishInstant();
+  // The episode's timers are the session's (PLAN §10 · C1). The safety below WARNS when it fires, so it is PACING — it
+  // must not come due when the game screen leaves; the episode itself is let go there silently (`forgetOrphan`, below).
+  const owner = consoleSessionScope();
   // PROGRESS-AWARE SAFETY: the paint-locked clock may legitimately run
   // slower than wall time — only a genuinely STOPPED playhead is snapped,
   // judged across a REAL interval (a long block drains queued checks
@@ -837,7 +856,7 @@ function installEpisode(kind: Episode['kind'], tl: gsap.core.Timeline, els: Arra
     }
     const now = performance.now();
     if (now - lastCheckAt < 350) {
-      cur.safety = window.setTimeout(safetyCheck, Math.max(400, budgetMs / 2));
+      cur.cancelSafety = owner.after(Math.max(400, budgetMs / 2), 'the hand reveal\'s progress safety', safetyCheck);
       return;
     }
     lastCheckAt = now;
@@ -846,16 +865,16 @@ function installEpisode(kind: Episode['kind'], tl: gsap.core.Timeline, els: Arra
     lastProgress = p;
     checks++;
     if (moving && checks < 6) {
-      cur.safety = window.setTimeout(safetyCheck, Math.max(400, budgetMs / 2));
+      cur.cancelSafety = owner.after(Math.max(400, budgetMs / 2), 'the hand reveal\'s progress safety', safetyCheck);
       return;
     }
     console.warn(`[hand-reveal] safety snap kind=${kind} progress=${p.toFixed(2)} moving=${String(moving)}`);
     finishInstant();
   };
-  const safety = window.setTimeout(safetyCheck, budgetMs);
+  const cancelSafety = owner.after(budgetMs, 'the hand reveal\'s progress safety', safetyCheck);
   window.addEventListener('resize', onResize);
   const ep: Episode = {
-    kind, tl, scrollTop, onResize, finished: false, safety, pairs,
+    kind, tl, scrollTop, onResize, finished: false, cancelSafety, pairs,
     els: els.map((e) => e as HTMLElement),
     // THE INTAKE LEASE LIVES WITH THE EPISODE (P86 — the owner's «веер руки при продаже патентов не виден»): the
     // shell's lease covers only the PREPARATION (measure + two frames) and is let go as this episode is INSTALLED —
@@ -865,6 +884,13 @@ function installEpisode(kind: Episode['kind'], tl: gsap.core.Timeline, els: Arra
     // Released in `teardown` (every way out); leases nest, and each one is bounded by `ACCENT_MAX_MS`.
     accentRelease: beginDockIntakeAccent(`hand-${kind}`),
   };
+  // THE SESSION ENDED UNDER A LIVE EPISODE (its driver and its safety were taken back with it): the episode snaps to
+  // its end state — silently, no warn — instead of standing «running» into the next game. `teardown` forgets this.
+  ep.forgetOrphan = owner.defer(() => {
+    if (episode === ep && !ep.finished) {
+      finishInstant();
+    }
+  });
   episode = ep;
   markEpisodeEdge();
   armLog(`arm ${kind} n=${pairs.length} rev=${handRevealState.rev}`);
@@ -1044,3 +1070,8 @@ export function holdHandBodiesForAlbum(): void {
     }
   }
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Never leak a mid-episode timeline / held dock
+sessionState('hand-reveal', resetHandReveal, 110);

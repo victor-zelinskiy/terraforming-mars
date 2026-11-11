@@ -15,13 +15,13 @@
  * `openSeatIntake` → fly to `seatIntakeEnd` → `acceptSeatIntake` on each touchdown.
  */
 import {nextTick, reactive} from 'vue';
-import {gsap} from 'gsap';
 import {Color} from '@/common/Color';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ResourceTransferSpec, TransferEnd} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 import {probeTick} from '@/client/console/probeTick';
+import {motionGuarantee} from '@/client/console/session/sessionWaits';
 
 /** What the intake reads of a token: its resource, its amount and whether it is PRODUCTION (the spec's channel). */
 export type IntakeToken = Pick<ResourceTransferSpec, 'resource' | 'amount'> & Partial<Pick<ResourceTransferSpec, 'channel'>>;
@@ -71,7 +71,8 @@ export const statusIntakeState = reactive({
   intakes: [] as Array<SeatIntake>,
 });
 
-const folds = new Map<Color, gsap.core.Tween>();
+/** The standing fold of each seat's plaque — its disarm (a guaranteed release on the motion clock). */
+const folds = new Map<Color, () => void>();
 
 /** PURE: the plaque's items with these specs merged in — one item per resource AND channel, the order of first arrival. */
 export function mergeIntakeItems(items: ReadonlyArray<SeatIntakeItem>, specs: ReadonlyArray<IntakeToken>): Array<SeatIntakeItem> {
@@ -105,7 +106,7 @@ function intakeOf(seat: Color): SeatIntake | undefined {
 }
 
 function cancelFold(seat: Color): void {
-  folds.get(seat)?.kill();
+  folds.get(seat)?.();
   folds.delete(seat);
 }
 
@@ -121,7 +122,7 @@ export function openSeatIntake(seat: Color, specs: ReadonlyArray<IntakeToken>): 
     return Promise.resolve();
   }
   cancelFold(seat);
-  folds.set(seat, gsap.delayedCall(motionMs(INTAKE_SAFETY_MS) / 1000, () => foldSeatIntake(seat)));
+  folds.set(seat, motionGuarantee(motionMs(INTAKE_SAFETY_MS), 'a seat intake whose tokens never came', () => foldSeatIntake(seat)));
   const standing = intakeOf(seat);
   if (standing !== undefined) {
     standing.items = mergeIntakeItems(standing.items, specs);
@@ -166,7 +167,7 @@ export function acceptSeatIntake(seat: Color, spec: IntakeToken): void {
   }
   intake.phase = 'received';
   cancelFold(seat);
-  folds.set(seat, gsap.delayedCall(motionMs(INTAKE_READ_MS) / 1000, () => foldSeatIntake(seat)));
+  folds.set(seat, motionGuarantee(motionMs(INTAKE_READ_MS), 'the read of a received seat intake', () => foldSeatIntake(seat)));
 }
 
 /** Fold the seat's plaque back into its chip (the strip's leave transition plays it). */

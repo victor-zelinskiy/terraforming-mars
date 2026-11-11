@@ -60,6 +60,7 @@ import {
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TransferEndLike, TransferPoint, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {span} from '@/client/console/session/sessionWaits';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /**
  * THE REACTOR AS THE BIRTH PLACE («СРАБАТЫВАНИЕ КАРТЫ», iteration 4): a payout an ENACTED LAW makes (Forestry
@@ -570,3 +571,7 @@ export function greeneryBonusFor(
     bonus.greenerySpaceIds.length > 0 &&
     (bonus.megacredits > 0 || bonus.plants > 0) ? bonus : undefined;
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('ocean-beat', abortOceanBeat, 590);

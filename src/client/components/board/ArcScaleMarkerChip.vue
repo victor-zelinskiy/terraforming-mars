@@ -40,6 +40,7 @@ import {defineComponent, PropType} from 'vue';
 import {BonusZoneTier, BonusZoneState} from '@/client/components/board/scaleBonusZones';
 import {consumeNewScaleBonusClaim} from '@/client/components/board/scaleBonusClaimState';
 import {ScaleTooltipContent, showScaleTooltip, hideScaleTooltip} from '@/client/components/board/scaleTooltipState';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 export type ArcScaleMarkerVariant = 'reward' | 'standard-bonus' | 'planetary-event' | 'hazard-event' | 'custom';
 
@@ -73,6 +74,9 @@ export default defineComponent({
     /** Unified hover tooltip content (reward / event). Null → no tooltip. */
     tooltip: {type: Object as PropType<ScaleTooltipContent | null>, default: null},
   },
+  setup() {
+    return {flow: useFlowScope('arc-scale-marker-chip')};
+  },
   data() {
     return {
       // Plays the premium capture animation once per claim TRANSITION the
@@ -101,9 +105,9 @@ export default defineComponent({
         return;
       }
       this.justClaimed = true;
-      window.setTimeout(() => {
+      this.flow.after(1100, 'the chip\'s capture animation ends', () => {
         this.justClaimed = false;
-      }, 1100);
+      });
     },
   },
   computed: {

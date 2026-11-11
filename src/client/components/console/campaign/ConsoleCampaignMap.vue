@@ -266,6 +266,7 @@
  * the creator's first arrival (sessionStorage latch, never server state).
  */
 import {defineComponent} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
 import {paths} from '@/common/app/paths';
@@ -344,6 +345,7 @@ export default defineComponent({
     if (!props.embedded) {
       useConsoleNativeSurface();
     }
+    return {flow: useFlowScope('console-campaign-map')};
   },
   data() {
     return {
@@ -812,9 +814,9 @@ export default defineComponent({
           window.sessionStorage.removeItem(REVEAL_LATCH);
           onSceneRevealed(() => {
             this.revealPlaying = true;
-            window.setTimeout(() => {
+            this.flow.after(2600, 'the generation reveal ends', () => {
               this.revealPlaying = false;
-            }, 2600);
+            });
           });
         } else {
           window.sessionStorage.removeItem(REVEAL_LATCH);
@@ -1133,7 +1135,7 @@ export default defineComponent({
       const revise = this.carryDraft.length > 0 || this.vm?.carryoverConfirmed === true;
       this.overlay = {kind: 'carryover'};
       if (!revise) {
-        void this.$nextTick(() => requestAnimationFrame(() => this.dealCarryIn()));
+        void this.$nextTick(() => this.flow.afterFrame('the carried hand is dealt in', () => this.dealCarryIn()));
       }
     },
     /** THE ENTRY: the terminal hand arrives from the viewer's seat row (the cards of your hand from the mission just played). */
@@ -1178,9 +1180,9 @@ export default defineComponent({
           this.carryHeldCount = undefined;
           flight.dispose();
           this.carryFlights = this.carryFlights.filter((x) => x !== flight);
-          window.setTimeout(() => {
+          this.flow.after(motionMs(520), 'the mission card\'s receiving impulse ends', () => {
             this.carryReceiving = false;
-          }, motionMs(520));
+          });
         },
         travelMs: 420,
         staggerMs: 90,

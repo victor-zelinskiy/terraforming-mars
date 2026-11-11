@@ -46,6 +46,7 @@
 
 import {reactive} from 'vue';
 import {desktopBridge} from '@/client/components/desktop/desktopUpdateState';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
 
 export type ConsoleLayoutProfile = 'handheld' | 'standard' | 'large' | 'tv';
 
@@ -437,10 +438,10 @@ export function installConsoleLayoutProfile(): void {
     consoleLayoutState.uiScale = seed.uiScale;
     syncDisplayCssVars();
     seedGuardUntil = Date.now() + 1400;
-    window.setTimeout(() => {
+    consoleAppScope().after(1500, 'the settled window\'s recompute', () => {
       recompute(true);
       logDecision();
-    }, 1500);
+    });
   } else {
     recompute();
   }
@@ -450,7 +451,7 @@ export function installConsoleLayoutProfile(): void {
       return;
     }
     rafPending = true;
-    requestAnimationFrame(() => {
+    consoleAppScope().afterFrame('the resize\'s recompute', () => {
       rafPending = false;
       const before = consoleLayoutState.profile;
       recompute();

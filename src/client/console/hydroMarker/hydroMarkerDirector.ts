@@ -93,7 +93,7 @@ export function runHydroMarkerGlide(args: RunMarkerArgs): HydroMarkerDirectorHan
   let lockCb: (() => void) | undefined;
   let arriveReached = false;
   let lockRequested = false;
-  let safetyId = 0;
+  let disarmSafety: () => void = () => {};
 
   const half = marker.offsetWidth / 2 || 8;
   const halfH = marker.offsetHeight / 2 || 8;
@@ -112,10 +112,8 @@ export function runHydroMarkerGlide(args: RunMarkerArgs): HydroMarkerDirectorHan
   gsap.set(marker, {autoAlpha: 1});
 
   function clearSafety(): void {
-    if (safetyId !== 0) {
-      clearTimeout(safetyId);
-      safetyId = 0;
-    }
+    disarmSafety();
+    disarmSafety = () => {};
   }
 
   const tl = gsap.timeline();
@@ -190,11 +188,12 @@ export function runHydroMarkerGlide(args: RunMarkerArgs): HydroMarkerDirectorHan
     lock: (onLand: () => void) => {
       lockCb = onLand;
       lockRequested = true;
-      safetyId = setTimeout(() => {
+      // A GUARANTEED release (the kernel's): the lock's gate is resolved at its budget, or when the game screen leaves.
+      disarmSafety = consoleSessionScope().guarantee(motionMs(arriveReadyMs(t) + t.lockMs) + 1000, 'hydroMarkerDirector: the lock\'s landing', () => {
         const cb = lockCb;
         lockCb = undefined;
         cb?.();
-      }, motionMs(arriveReadyMs(t) + t.lockMs) + 1000) as unknown as number;
+      });
       tryLock();
     },
     release: (onGone: () => void) => {

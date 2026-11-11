@@ -23,6 +23,7 @@
 import {reactive} from 'vue';
 import {observeConsoleIntents} from '@/client/console/consoleRouter';
 import type {SemanticButton} from '@/client/gamepad/gamepadPollModel';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** Long enough to be a decision, short enough not to be a chore. */
 export const HOLD_CONFIRM_MS = 700;
@@ -34,7 +35,8 @@ export const holdConfirmState = reactive({
   progress: 0,
 });
 
-let frame: number | undefined;
+/** The ring's frame loop — owned by the session: a hold cannot go on counting (or complete) under a screen that left. */
+let stopLoop: () => void = () => {};
 let startedAt = 0;
 let pending: (() => void) | undefined;
 let watching: (() => void) | undefined;
@@ -47,10 +49,12 @@ function now(): number {
 }
 
 function stopFrame(): void {
-  if (frame !== undefined && typeof cancelAnimationFrame === 'function') {
-    cancelAnimationFrame(frame);
-  }
-  frame = undefined;
+  stopLoop();
+  stopLoop = () => {};
+}
+
+function startFrame(): void {
+  stopLoop = consoleSessionScope().everyFrame('the hold-to-confirm ring', () => tick(now()));
 }
 
 function stopWatch(): void {
@@ -58,19 +62,16 @@ function stopWatch(): void {
   watching = undefined;
 }
 
-function tick(now: number): void {
-  frame = undefined;
+/** One step of the hold. Returns whether it goes on (the frame loop's own answer: `false` ends it). */
+function tick(now: number): boolean {
   if (holdConfirmState.key === '') {
-    return;
+    return false;
   }
   const elapsed = now - startedAt;
   const progress = Math.max(0, Math.min(1, elapsed / HOLD_CONFIRM_MS));
   holdConfirmState.progress = progress;
   if (progress < 1) {
-    if (typeof requestAnimationFrame === 'function') {
-      frame = requestAnimationFrame(tick);
-    }
-    return;
+    return true;
   }
   // COMPLETE. Clear the state BEFORE running the callback: the callback almost
   // always tears down the very surface that armed this, and a hold left
@@ -81,6 +82,7 @@ function tick(now: number): void {
   holdConfirmState.key = '';
   holdConfirmState.progress = 0;
   done?.();
+  return false;
 }
 
 /**
@@ -118,7 +120,7 @@ export function beginHoldConfirm(
     // must not be able to commit the irreversible action behind it.
     return;
   }
-  frame = requestAnimationFrame(tick);
+  startFrame();
 }
 
 /**
@@ -153,5 +155,7 @@ export function advanceHoldConfirmForTest(ms: number): void {
   }
   stopFrame();
   startedAt -= ms;
-  tick(now());
+  if (tick(now()) && typeof requestAnimationFrame === 'function') {
+    startFrame();
+  }
 }

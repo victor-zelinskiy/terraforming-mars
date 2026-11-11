@@ -123,6 +123,7 @@
  * loading (the real screen loads underneath and is revealed on fade-out).
  */
 import {defineComponent} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import Card from '@/client/components/card/CardFace.vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
@@ -192,6 +193,16 @@ const WARM_SCALES = [
 export default defineComponent({
   name: 'AppBootLoader',
   components: {Card, BoardSpace, PlayerCube, ArcScale},
+  setup() {
+    /*
+     * The loader's own scope. The loader stands outside any console shell, so the scope is the PAGE's (`useFlowScope`
+     * reads the component tree) — never a game session's: the warm-up's phase chain is LIVENESS (it is what lowers
+     * `bootWarmupState.active`), and a game screen that came and went under it must not take the chain back. It ends
+     * with the component, and its beats with it.
+     */
+    const flow = useFlowScope('app-boot-loader');
+    return {flow};
+  },
   data() {
     return {
       // Built in data() so the cards render from the FIRST loader frame (warm-up
@@ -208,10 +219,7 @@ export default defineComponent({
       orbitDelay: `${orbitPhaseDelayMs()}ms`,
       phase: 0,
       progress: 8,
-      timer: undefined as number | undefined,
-      readyFallback: undefined as number | undefined,
       gpuReadyHandler: undefined as (() => void) | undefined,
-      warmDialogTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -240,14 +248,15 @@ export default defineComponent({
     step(perPhase: number): void {
       this.progress = Math.round(((this.phase + 1) / STAGES.length) * 100);
       if (this.phase >= STAGES.length - 1) {
-        // Last phase: hold briefly at 100%, then finish + let the fade play.
-        this.timer = window.setTimeout(() => finishBootWarmup(), perPhase);
+        // Last phase: hold briefly at 100%, then finish + let the fade play. A RELEASE: the module flag App's
+        // `v-if` reads is lowered at the hold's length — or when the loader leaves first, never left raised.
+        this.flow.guarantee(perPhase, 'the boot warm-up finishes', () => finishBootWarmup());
         return;
       }
-      this.timer = window.setTimeout(() => {
+      this.flow.after(perPhase, 'the boot warm-up\'s next phase', () => {
         this.phase += 1;
         this.step(perPhase);
-      }, perPhase);
+      });
     },
   },
   mounted() {
@@ -286,13 +295,13 @@ export default defineComponent({
         } catch {
           // unsupported / already open — the real zoom then just pays first-use
         }
-        this.warmDialogTimer = window.setTimeout(() => {
+        this.flow.after(motionMs(500), 'the top-layer warm-up dialog closes', () => {
           try {
             dlg?.close();
           } catch {
             // already closed — fine
           }
-        }, motionMs(500));
+        });
       });
     };
     const w = window as {__tmGpuReady?: boolean};
@@ -301,21 +310,12 @@ export default defineComponent({
     } else {
       this.gpuReadyHandler = start;
       window.addEventListener('tm-gpu-ready', start, {once: true});
-      this.readyFallback = window.setTimeout(start, 1400);
+      this.flow.after(1400, 'the GPU-ready signal\'s fallback', start);
     }
   },
   beforeUnmount() {
-    if (this.timer !== undefined) {
-      window.clearTimeout(this.timer);
-    }
-    if (this.readyFallback !== undefined) {
-      window.clearTimeout(this.readyFallback);
-    }
     if (this.gpuReadyHandler !== undefined) {
       window.removeEventListener('tm-gpu-ready', this.gpuReadyHandler);
-    }
-    if (this.warmDialogTimer !== undefined) {
-      window.clearTimeout(this.warmDialogTimer);
     }
     // The warm-up dialog must NEVER outlive the loader in the top layer.
     try {

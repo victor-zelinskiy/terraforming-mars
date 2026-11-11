@@ -15,6 +15,7 @@ import {reactive} from 'vue';
 import type {CardName} from '@/common/cards/CardName';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import type {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 export const consoleHydroUi = reactive({
   /** The live command contract of the hydro screen (the bar never guesses). */
@@ -42,3 +43,8 @@ export function resetConsoleHydroUi(): void {
 // (The flow-record half of the console hydro state lives in
 // hydroFlow/consoleHydroFlow.ts — this module keeps only what must survive
 // the workspace's own unmount.)
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Its console-only draft (commands + composed repeat)
+sessionState('console-hydro-ui', resetConsoleHydroUi, 520);

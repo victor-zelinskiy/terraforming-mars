@@ -18,6 +18,7 @@
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {gsap} from 'gsap';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {motionAfter} from '@/client/console/session/sessionWaits';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {fullscreenCoverAt} from '@/client/console/resourceTransfer/transferEndVisible';
 import {
@@ -206,7 +207,9 @@ function bornThenFlown(chip: HTMLElement, delayMs: number, fly: () => void, plac
     };
     gsap.ticker.add(listener);
   };
-  const birth = gsap.delayedCall(delayMs / 1000, () => {
+  // PACING on the motion clock, owned by the session: a chip is not born once the game screen has left (its touchdown's
+  // promise is `guarded` — released there all the same).
+  const cancelBirth = motionAfter(delayMs, 'a token\'s birth at its source', () => {
     if (wave === undefined || waveSlotReady(wave)) {
       born();
       return;
@@ -225,7 +228,7 @@ function bornThenFlown(chip: HTMLElement, delayMs: number, fly: () => void, plac
     gsap.ticker.add(waiter);
   });
   const cancel = (): void => {
-    birth.kill();
+    cancelBirth();
     if (waiter !== undefined) {
       gsap.ticker.remove(waiter);
       waiter = undefined;
@@ -371,7 +374,13 @@ function guarded(run: (done: () => void) => void, budgetMs: number, catchUp?: ()
     // GUARANTEED releases (the kernel's): the touchdown's promise is resolved at its budget, or when the game screen
     // leaves — never left pending.
     let disarmGrace: () => void = () => {};
-    const disarmSafety = consoleSessionScope().guarantee(budgetMs + 1200, 'the touchdown of a token in flight', () => {
+    const owner = consoleSessionScope();
+    const disarmSafety = owner.guarantee(budgetMs + 1200, 'the touchdown of a token in flight', () => {
+      if (owner.ended !== undefined) {
+        // The game screen left under the flight: the promise is let go — silently (not a ceiling: nothing was late).
+        finish();
+        return;
+      }
       if (catchUp?.() === true) {
         // Caught up: its own touchdown now runs at the destination — a short grace for it, then resolved anyway.
         disarmGrace = consoleSessionScope().guarantee(CATCH_UP_TOUCHDOWN_GRACE_MS, 'a caught-up token\'s own touchdown', finish);

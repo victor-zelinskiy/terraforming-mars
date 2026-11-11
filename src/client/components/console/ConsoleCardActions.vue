@@ -522,6 +522,7 @@ import {claimLawPlayOutcome, lawPlayOutcomeLive, resetLawPlayOutcome} from '@/cl
 import {isPlayedHeroActive, playedHeroState} from '@/client/console/played/consolePlayedHero';
 import type {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /**
  * A slot's VERDICT: its status, or `futile` — AVAILABLE and changing nothing right now (the server's proven verdict).
@@ -586,6 +587,9 @@ export default defineComponent({
     blockedReason: {type: String, default: ''},
   },
   emits: ['close', 'submit-batch', 'staged-placement', 'staged-vote', 'staged-law-play', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'delta-step', 'flow-complete'],
+  setup() {
+    return {flow: useFlowScope('card-actions')};
+  },
   data() {
     return {
       consoleCardActionsUi,
@@ -676,15 +680,16 @@ export default defineComponent({
        * from an animation's side effects.
        */
       flowState: 'browse' as 'browse' | 'entering' | 'configure' | 'returning',
-      shakeTimer: undefined as number | undefined,
-      /** The pending canvas-fit frame (one per paint, never per slot). */
-      canvasFitFrame: undefined as number | undefined,
+      /** The pending shake's cancel (the workspace's scope takes every one of these back on unmount). */
+      shakeTimer: undefined as (() => void) | undefined,
+      /** The pending canvas-fit frame — its cancel (one per paint, never per slot). */
+      canvasFitFrame: undefined as (() => void) | undefined,
       /** A resize asks the caption fit to clear its steps (a wider column grows them back — PL-123). */
       descRegrow: false,
       /** The Smart Detail Composer's current rung (0 = comfortable). */
       detailFit: 0,
-      /** The pending detail measurement (a fast walk cancels the previous). */
-      detailFitFrame: undefined as number | undefined,
+      /** The pending detail measurement — its cancel (a fast walk cancels the previous). */
+      detailFitFrame: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -1927,16 +1932,6 @@ export default defineComponent({
       consoleCardActionsUi.payoutAwaited = false;
     }
     window.removeEventListener('resize', this.onViewportResize);
-    if (typeof window.cancelAnimationFrame === 'function') {
-      if (this.canvasFitFrame !== undefined) {
-        window.cancelAnimationFrame(this.canvasFitFrame);
-        this.canvasFitFrame = undefined;
-      }
-      if (this.detailFitFrame !== undefined) {
-        window.cancelAnimationFrame(this.detailFitFrame);
-        this.detailFitFrame = undefined;
-      }
-    }
     // (The canvas fits need no cleanup at all: they are inline properties on
     // nodes that die with this mount, and `fitActionCanvases` resets every
     // pair before it measures — see the ⚠️ at the top of this hook.)
@@ -1946,9 +1941,6 @@ export default defineComponent({
       clearPanelCommands('cardActions');
     }
     resetActionFocusMotion();
-    if (this.shakeTimer !== undefined) {
-      window.clearTimeout(this.shakeTimer);
-    }
   },
   methods: {
     resIconClass(icon: string | CardResource): string {
@@ -2126,11 +2118,11 @@ export default defineComponent({
       // that a blocked control explains itself rather than disappearing).
       if (this.blockedReason !== '' || (this.collapsed && workspaceOutcomeClaimed())) {
         this.shakeKey = tile.key;
-        window.setTimeout(() => {
+        this.flow.after(420, 'the blocked tile\'s shake ends', () => {
           if (this.shakeKey === tile.key) {
             this.shakeKey = '';
           }
-        }, 420);
+        });
         this.$emit('blocked', this.blockedReason !== '' ?
           this.blockedReason : 'Finish your current action first');
         return;
@@ -2197,7 +2189,7 @@ export default defineComponent({
         typeof window.requestAnimationFrame !== 'function') {
         return;
       }
-      this.canvasFitFrame = window.requestAnimationFrame(() => {
+      this.canvasFitFrame = this.flow.afterFrame('the action canvases fit after the paint', () => {
         this.canvasFitFrame = undefined;
         fitActionCanvases((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
         // The caption's tier is the column's to decide (PL-123) — measured in the same paint.
@@ -2216,9 +2208,9 @@ export default defineComponent({
         return;
       }
       if (this.detailFitFrame !== undefined) {
-        window.cancelAnimationFrame(this.detailFitFrame);
+        this.detailFitFrame();
       }
-      this.detailFitFrame = window.requestAnimationFrame(() => {
+      this.detailFitFrame = this.flow.afterFrame('the detail panel fits after the paint', () => {
         this.detailFitFrame = undefined;
         const panel = (this.$refs.detailEl ?? undefined) as HTMLElement | undefined;
         if (panel === undefined || panel === null || panel.clientHeight <= 0) {
@@ -3086,11 +3078,11 @@ export default defineComponent({
     shake(key: string): void {
       this.shakeKey = key;
       if (this.shakeTimer !== undefined) {
-        window.clearTimeout(this.shakeTimer);
+        this.shakeTimer();
       }
-      this.shakeTimer = window.setTimeout(() => {
+      this.shakeTimer = this.flow.after(340, 'the unavailable tile\'s shake ends', () => {
         this.shakeKey = '';
-      }, 340);
+      });
     },
     scrollList(dy: number): void {
       // Foundation: right-stick scroll through the ConsoleScrollArea API.

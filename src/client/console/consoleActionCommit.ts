@@ -20,6 +20,8 @@
  * consoleActionCommitMotion.ts; game logic stays in the existing systems.
  */
 import {reactive} from 'vue';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {CardName} from '@/common/cards/CardName';
 import {ActionEffect, ActionPreviewBranch, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {TEMPERATURE_BONUS_FOR_HEAT_1, TEMPERATURE_BONUS_FOR_HEAT_2, TEMPERATURE_BONUS_FOR_PLANT} from '@/common/constants';
@@ -143,13 +145,18 @@ export const actionCommitState = reactive({
  */
 const SETTLE_SAFETY_MS = 1400;
 
-let settleTimer: ReturnType<typeof setTimeout> | undefined;
+/**
+ * THE COMMIT'S RUN (architecture v2 — PLAN §10 · C4): `scene:action-commit#n` in the flow tree, from the arm at the
+ * submit to the release (the fold, a hosted claim, a refusal, a reset). The settle's backstop OPENS THE DISMISS GATE,
+ * so it is a guaranteed release of the run — at its time, or when the run ends. When the game screen leaves under it
+ * the commit is released (`orphaned`): no rail row stays held for a flight nobody will fly.
+ */
+const run = createFlowRun('action-commit', {orphaned: () => releaseActionCommit('the game screen left')});
+let disarmSettle: () => void = () => {};
 
 function clearSettleTimer(): void {
-  if (settleTimer !== undefined) {
-    clearTimeout(settleTimer);
-    settleTimer = undefined;
-  }
+  disarmSettle();
+  disarmSettle = () => {};
 }
 
 /** Arm the commit at submit (synchronous — before the response can land). */
@@ -158,14 +165,8 @@ export function armActionCommit(plan: ActionCommitPlan): void {
   actionCommitState.settled = false;
   actionCommitState.plan = plan;
   clearSettleTimer();
-  if (typeof setTimeout === 'function') {
-    settleTimer = setTimeout(() => {
-      settleTimer = undefined;
-      markActionCommitSettled();
-    }, SETTLE_SAFETY_MS);
-  } else {
-    actionCommitState.settled = true;
-  }
+  run.begin(plan.sourceCard);
+  disarmSettle = run.guarantee(SETTLE_SAFETY_MS, 'the commit\'s minimum beat (the dismiss gate)', () => markActionCommitSettled());
 }
 
 /** The visual beat finished (the motion's own completion, or the backstop). */
@@ -218,6 +219,7 @@ export function releaseActionCommit(why = 'released'): void {
   actionCommitState.active = false;
   actionCommitState.settled = true;
   actionCommitState.plan = undefined;
+  run.end();
   releaseListeners.forEach((listener) => listener(why));
 }
 
@@ -256,7 +258,8 @@ export function resetActionCommit(): void {
 const impulseLatch = {
   live: false,
   waiters: [] as Array<() => void>,
-  net: undefined as ReturnType<typeof setTimeout> | undefined,
+  /** The net's disarm — a guaranteed release of the session: the waiters run at the net, or when the game screen leaves. */
+  net: undefined as (() => void) | undefined,
 };
 
 /** A stalled timeline (a backgrounded tab) must not hold a waiter past the whole commit's own backstop. */
@@ -266,18 +269,16 @@ const IMPULSE_NET_MS = SETTLE_SAFETY_MS;
 export function armCommitImpulse(): void {
   landCommitImpulse();
   impulseLatch.live = true;
-  if (typeof setTimeout === 'function') {
-    impulseLatch.net = setTimeout(() => {
-      impulseLatch.net = undefined;
-      landCommitImpulse();
-    }, IMPULSE_NET_MS);
-  }
+  impulseLatch.net = consoleSessionScope().guarantee(IMPULSE_NET_MS, 'the commit impulse\'s landing', () => {
+    impulseLatch.net = undefined;
+    landCommitImpulse();
+  });
 }
 
 /** The impulse landed (or its episode ended any other way) — every waiter runs, once, in arrival order. */
 export function landCommitImpulse(): void {
   if (impulseLatch.net !== undefined) {
-    clearTimeout(impulseLatch.net);
+    impulseLatch.net();
     impulseLatch.net = undefined;
   }
   impulseLatch.live = false;
@@ -1297,3 +1298,7 @@ export function commitRewardSpecs(
   });
   return mergeTransferSpecs(all);
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('console-action-commit', abortConsoleActionCommit, 630);

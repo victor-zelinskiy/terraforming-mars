@@ -41,7 +41,8 @@
  * arrival has its own ceiling. Reduced motion seeds nothing — the values snap.
  */
 import {reactive, watch, WatchStopHandle} from 'vue';
-import {gsap} from 'gsap';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {motionAfter, motionSpan} from '@/client/console/session/sessionWaits';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
@@ -278,12 +279,20 @@ function waitUntil(predicate: () => boolean, maxMs: number, myEpoch: number, nod
       if (!done) {
         done = true;
         stop();
-        timer.kill();
+        cancelCeiling();
+        forget();
         resolve(ok);
       }
     };
-    const timer = gsap.delayedCall(Math.max(0.05, maxMs / 1000), () => {
+    // The ceiling SAYS itself when it fires, so it is PACING on the motion clock (never due at the session's end); the
+    // game screen leaving first lets the wait go silently — its promise is resolved all the same.
+    const owner = consoleSessionScope();
+    const cancelCeiling = motionAfter(Math.max(50, maxMs), `scaleSwingDirector: ${node.what}`, () => {
       wait.ceiling();
+      finish(false);
+    }, owner);
+    const forget = owner.defer(() => {
+      wait.end();
       finish(false);
     });
     const stop: WatchStopHandle = watch(() => (epoch !== myEpoch ? 'abort' : predicate() ? 'yes' : 'no'), (v) => {
@@ -301,9 +310,7 @@ function waitUntil(predicate: () => boolean, maxMs: number, myEpoch: number, nod
 
 /** A wait on the GSAP clock — the clock the markers and the tokens animate on. */
 function beat(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    gsap.delayedCall(Math.max(0, ms) / 1000, () => resolve());
-  });
+  return motionSpan(ms);
 }
 
 function waitForStage(e: Entry, myEpoch: number): Promise<boolean> {
@@ -605,3 +612,8 @@ export function resetScaleSwing(): void {
   scaleSwingState.degraded = false;
   resolveQuiet();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// A parameter swing's scene (TR47): its display lets go, its held rating ticks.
+sessionState('scale-swing', resetScaleSwing, 90);

@@ -1,4 +1,5 @@
 import {SpaceId} from '@/common/Types';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /**
  * Premium board-cell highlight used by the journal when the player asks
@@ -26,7 +27,10 @@ const PULSE_DURATION = 1900;
 
 // One timer per space so repeated clicks on the same cell restart cleanly
 // instead of stacking timeouts that strip the class mid-animation.
-const activeTimers = new Map<SpaceId, number>();
+// ON THE FLOW KERNEL (architecture v2 — PLAN §10 · C1): each is a GUARANTEED release of the session (the class sits
+// on the board's own element — it comes off at the pulse's end, or when the game screen leaves first); the value is
+// its disarm.
+const activeTimers = new Map<SpaceId, () => void>();
 
 // The board is split across a few independent regions depending on the
 // expansions in play. Searching all of them keeps Mars + Moon working
@@ -66,18 +70,18 @@ export function highlightBoardSpace(spaceId: SpaceId): void {
   // Restart cleanly if the same cell is already pulsing.
   const prev = activeTimers.get(spaceId);
   if (prev !== undefined) {
-    window.clearTimeout(prev);
+    prev();
     el.classList.remove(PULSE_CLASS);
     // Force reflow so re-adding the class replays the animation from 0.
     void el.offsetWidth;
   }
 
   el.classList.add(PULSE_CLASS);
-  const timer = window.setTimeout(() => {
+  const disarm = consoleSessionScope().guarantee(PULSE_DURATION, 'a board cell\'s journal pulse ends', () => {
     el.classList.remove(PULSE_CLASS);
     activeTimers.delete(spaceId);
-  }, PULSE_DURATION);
-  activeTimers.set(spaceId, timer);
+  });
+  activeTimers.set(spaceId, disarm);
 }
 
 /** Pulse SEVERAL cells at once — one «показать» that references N tiles. */
@@ -97,7 +101,7 @@ export function highlightBoardSpaces(spaceIds: ReadonlyArray<SpaceId>): void {
 // shared timer suffices. When stopped, the last pulse fades out on its own
 // per-cell timer, so the highlight disappears cleanly with no leftover ring.
 const PEEK_REPULSE_INTERVAL = 2000;
-let peekPulseTimer = 0;
+let stopPeekPulse: () => void = () => {};
 let peekPulseSpaces: ReadonlyArray<SpaceId> = [];
 
 export function startBoardHighlightPulse(spaceIds: ReadonlyArray<SpaceId>): void {
@@ -107,13 +111,12 @@ export function startBoardHighlightPulse(spaceIds: ReadonlyArray<SpaceId>): void
   }
   peekPulseSpaces = spaceIds;
   highlightBoardSpaces(peekPulseSpaces);
-  peekPulseTimer = window.setInterval(() => highlightBoardSpaces(peekPulseSpaces), PEEK_REPULSE_INTERVAL);
+  // An owned tick of the session: the re-pulse cannot go on for a game screen that left.
+  stopPeekPulse = consoleSessionScope().every(PEEK_REPULSE_INTERVAL, 'the board peek\'s re-pulse', () => highlightBoardSpaces(peekPulseSpaces));
 }
 
 export function stopBoardHighlightPulse(): void {
-  if (peekPulseTimer !== 0) {
-    window.clearInterval(peekPulseTimer);
-    peekPulseTimer = 0;
-  }
+  stopPeekPulse();
+  stopPeekPulse = () => {};
   peekPulseSpaces = [];
 }

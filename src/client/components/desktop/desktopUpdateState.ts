@@ -1,4 +1,5 @@
 import {reactive} from 'vue';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
 
 /**
  * Renderer-side desktop update state (Phase 7). Fed over IPC from the Electron main
@@ -261,7 +262,9 @@ export function initDesktopUpdates(): void {
  * short-circuits to `idle`).
  */
 const MENU_RECHECK_MS = 30_000;
-let menuTimer: number | undefined;
+/** The menu re-check tick's stop — a tick of the PAGE's scope (`consoleAppScope()`: the menu and the updater are the
+ *  page's, never a game session's), whose lifetime is the menu's start / stop. */
+let menuTimer: (() => void) | undefined;
 
 export function startMenuUpdateWatch(intervalMs: number = MENU_RECHECK_MS): void {
   stopMenuUpdateWatch();
@@ -277,14 +280,14 @@ export function startMenuUpdateWatch(intervalMs: number = MENU_RECHECK_MS): void
     }).catch(() => undefined);
   };
   check(); // on entry: the player who just left a game to update gets it now, not in a minute
-  menuTimer = window.setInterval(check, intervalMs);
+  menuTimer = consoleAppScope().every(intervalMs, 'the menu\'s update re-check', check);
 }
 
 export function stopMenuUpdateWatch(): void {
   if (menuTimer !== undefined) {
-    // window.clearInterval, to pair with the window.setInterval above: a bare clearInterval
-    // resolves to a DIFFERENT timer system under JSDOM and silently leaves the watch running.
-    window.clearInterval(menuTimer);
+    // The tick's own stop (never a bare clearInterval: under JSDOM `window.*` and the Node globals
+    // are DIFFERENT timer systems, and a mismatched clear silently leaves the watch running).
+    menuTimer();
     menuTimer = undefined;
   }
 }

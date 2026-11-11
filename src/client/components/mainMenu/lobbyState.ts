@@ -8,6 +8,7 @@ import {lanState, ManualHost} from './lanState';
 import {openLobbyChannel, LobbyChannelHandle, lobbyChannelHealthy} from './lobbyChannel';
 import {lobbyAge, lobbyAgeTickMs} from './lobbyAge';
 import {$t} from '@/client/directives/i18n';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
 
 /**
  * «МОИ ПАРТИИ» — THE LOBBY MODEL.
@@ -439,10 +440,11 @@ function apiBaseOf(address: string, port: number): string {
 async function fetchFrom(base: string, name: string): Promise<Array<JoinableGameSummary>> {
   const controller = new AbortController();
   let timedOut = false;
-  const timer = window.setTimeout(() => {
+  // A RELEASE: the abort is what lets the awaited fetch (and the refresh funnel behind it) go.
+  const disarm = consoleAppScope().guarantee(LAN_PROBE_TIMEOUT_MS, 'a LAN host\'s lobby answer', () => {
     timedOut = true;
     controller.abort();
-  }, LAN_PROBE_TIMEOUT_MS);
+  });
   try {
     const res = await fetch(`${base}/${paths.API_GAMES_JOINABLE}${joinableQuery(name, 'active')}`, {signal: controller.signal});
     if (!res.ok) {
@@ -455,7 +457,7 @@ async function fetchFrom(base: string, name: string): Promise<Array<JoinableGame
     }
     throw new Error(errorText(err));
   } finally {
-    window.clearTimeout(timer);
+    disarm();
   }
 }
 
@@ -521,20 +523,22 @@ function markNew(ids: ReadonlyArray<string>): void {
   for (const id of ids) {
     const existing = decayTimers.get(id);
     if (existing !== undefined) {
-      window.clearTimeout(existing);
+      existing();
     }
-    decayTimers.set(id, window.setTimeout(() => {
+    // A RELEASE: the «новая» mark is taken down at its length — a mark is never left standing by a timer taken back.
+    decayTimers.set(id, consoleAppScope().guarantee(NEW_HIGHLIGHT_MS, 'a new lobby row\'s highlight fades', () => {
       lobbyState.newIds = lobbyState.newIds.filter((x) => x !== id);
       decayTimers.delete(id);
-    }, NEW_HIGHLIGHT_MS));
+    }));
   }
 }
 
-const decayTimers = new Map<string, number>();
+/** Row id → the disarm of its highlight's guaranteed fade. */
+const decayTimers = new Map<string, () => void>();
 
 function clearHighlights(): void {
-  for (const timer of decayTimers.values()) {
-    window.clearTimeout(timer);
+  for (const disarm of decayTimers.values()) {
+    disarm();
   }
   decayTimers.clear();
   lobbyState.newIds = [];
@@ -701,7 +705,8 @@ export function loadLobbyArchive(): Promise<void> {
 
 const channels = new Map<string, LobbyChannelHandle>();
 const channelBases = new Map<string, string>();
-let pushTimer: number | undefined;
+/** The pending push debounce's cancel — defined exactly while one re-ask is owed (the debounce's own guard). */
+let cancelPush: (() => void) | undefined;
 
 function openChannel(sourceId: string, wsBase: string): void {
   if (channelBases.get(sourceId) === wsBase) {
@@ -737,13 +742,13 @@ function closeAllChannels(): void {
  * bumps (a save that also finished a game), and they must cost one re-ask.
  */
 function onPush(_sourceId: string): void {
-  if (pushTimer !== undefined) {
+  if (cancelPush !== undefined) {
     return;
   }
-  pushTimer = window.setTimeout(() => {
-    pushTimer = undefined;
+  cancelPush = consoleAppScope().after(PUSH_DEBOUNCE_MS, 'the lobby\'s debounced re-ask after a push', () => {
+    cancelPush = undefined;
     void refreshLobby();
-  }, PUSH_DEBOUNCE_MS);
+  });
 }
 
 function onChannelHealthChanged(): void {
@@ -775,14 +780,18 @@ function allLive(): boolean {
 
 // ── The age clock ──────────────────────────────────────────────────────────
 //
-// ⚠️ Every timer in this module is created with `window.setTimeout` and cleared
-// with `window.clearTimeout` — the PAIR matters. In a browser the bare global
-// is the same function, but under jsdom (the client test runner) `window.*` and
-// the Node globals are two different implementations, so a bare `clearTimeout`
-// on a jsdom handle silently does nothing and the timer outlives its screen.
-// Module state is shared across specs here, so that leak corrupts later ones.
+// ⚠️ Every timer in this module is OWNED by the PAGE's scope (`consoleAppScope()`
+// — the lobby lives as long as the page does and is never ended by a game that
+// comes and goes) and is taken back through the cancel / disarm it was armed
+// with — never a bare `setTimeout` / `clearTimeout` pair (under jsdom `window.*`
+// and the Node globals are two different timer systems, so a mismatched clear
+// silently does nothing and the timer outlives its screen). Module state is
+// shared across specs here, so that leak corrupts later ones. The age clock and
+// the fallback poll are LIVENESS chains (each tick re-arms the next): they ride
+// the page's scope precisely because it is never taken back under them.
 
-let ageTimer: number | undefined;
+/** The pending age tick's cancel (idempotent). */
+let cancelAgeTick: () => void = () => {};
 
 /**
  * Creation times of rows ANOTHER screen hangs on this clock, by consumer (the
@@ -819,10 +828,7 @@ function tickAges(): void {
 }
 
 function armAgeClock(): void {
-  if (ageTimer !== undefined) {
-    window.clearTimeout(ageTimer);
-    ageTimer = undefined;
-  }
+  cancelAgeTick();
   if (!lobbyState.open) {
     return;
   }
@@ -836,19 +842,17 @@ function armAgeClock(): void {
   const next = created.reduce(
     (fastest, at) => Math.min(fastest, lobbyAgeTickMs(lobbyAge(at, lobbyState.nowMs))),
     60_000);
-  ageTimer = window.setTimeout(tickAges, next);
+  cancelAgeTick = consoleAppScope().after(next, 'the lobby age clock\'s next tick', tickAges);
 }
 
 function stopAgeClock(): void {
-  if (ageTimer !== undefined) {
-    window.clearTimeout(ageTimer);
-    ageTimer = undefined;
-  }
+  cancelAgeTick();
 }
 
 // ── The fallback poll ──────────────────────────────────────────────────────
 
-let pollTimer: number | undefined;
+/** The pending fallback poll's cancel (idempotent). */
+let cancelPoll: () => void = () => {};
 
 function pollIntervalMs(): number {
   updateLiveFlags();
@@ -865,17 +869,13 @@ function pollIntervalMs(): number {
  * after every refresh, so a channel that drops is answered within one tick.
  */
 function armPoll(): void {
-  if (pollTimer !== undefined) {
-    window.clearTimeout(pollTimer);
-    pollTimer = undefined;
-  }
+  cancelPoll();
   if (!watching) {
     return;
   }
-  pollTimer = window.setTimeout(() => {
-    pollTimer = undefined;
+  cancelPoll = consoleAppScope().after(pollIntervalMs(), 'the lobby\'s next fallback poll', () => {
     void refreshLobby();
-  }, pollIntervalMs());
+  });
 }
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -931,13 +931,10 @@ export function stopLobbyWatch(): void {
   watching = false;
   lobbyState.open = false;
   stopAgeClock();
-  if (pollTimer !== undefined) {
-    window.clearTimeout(pollTimer);
-    pollTimer = undefined;
-  }
-  if (pushTimer !== undefined) {
-    window.clearTimeout(pushTimer);
-    pushTimer = undefined;
+  cancelPoll();
+  if (cancelPush !== undefined) {
+    cancelPush();
+    cancelPush = undefined;
   }
   stopLanWatch?.();
   stopLanWatch = undefined;

@@ -283,6 +283,7 @@ import {openEndgameResults} from '@/client/components/endgame/endgameState';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import FinalScoringInspector from '@/client/components/endgame/FinalScoringInspector.vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 // Base step durations (ms). Reduced motion snaps them.
 const D = {
@@ -326,6 +327,9 @@ export default defineComponent({
     // inspector's resource-card detail. Optional → absent rows just omit it.
     cardResources: {type: Object as () => Partial<Record<Color, Partial<Record<CardName, number>>>> | undefined, default: undefined},
   },
+  setup() {
+    return {flow: useFlowScope('final-scoring-reveal')};
+  },
   data() {
     return {
       phase: 'intro' as Phase,
@@ -351,11 +355,12 @@ export default defineComponent({
       inspector: undefined as FinalScoringInspectorContent | undefined,
       inspectorAnchor: undefined as HTMLElement | undefined,
       inspectorPos: {top: -9999, left: -9999} as {top: number; left: number},
-      closeTimer: undefined as number | undefined,
-      repositionRaf: undefined as number | undefined,
+      // ON THE FLOW KERNEL (architecture v2 — PLAN §10 · C1): every timer / frame below is owned by the reveal's scope
+      // (`flow`) and taken back when it unmounts; the fields are the cancels.
+      cancelCloseTimer: (() => {}) as () => void,
+      cancelReposition: undefined as (() => void) | undefined,
       popupObserver: undefined as ResizeObserver | undefined,
-      timers: [] as Array<number>,
-      raf: undefined as number | undefined,
+      timers: [] as Array<() => void>,
     };
   },
   computed: {
@@ -640,11 +645,11 @@ export default defineComponent({
       if (this.inspector === undefined || typeof requestAnimationFrame === 'undefined') {
         return;
       }
-      if (this.repositionRaf !== undefined) {
+      if (this.cancelReposition !== undefined) {
         return;
       }
-      this.repositionRaf = requestAnimationFrame(() => {
-        this.repositionRaf = undefined;
+      this.cancelReposition = this.flow.afterFrame('the inspector re-positions', () => {
+        this.cancelReposition = undefined;
         this.reposition();
       });
     },
@@ -820,13 +825,10 @@ export default defineComponent({
     },
     scheduleClose(): void {
       this.cancelClose();
-      this.closeTimer = window.setTimeout(() => this.clearHover(), INSPECTOR_CLOSE_MS);
+      this.cancelCloseTimer = this.flow.after(INSPECTOR_CLOSE_MS, 'the inspector\'s close bridge', () => this.clearHover());
     },
     cancelClose(): void {
-      if (this.closeTimer !== undefined) {
-        window.clearTimeout(this.closeTimer);
-        this.closeTimer = undefined;
-      }
+      this.cancelCloseTimer();
     },
     clearHover(): void {
       this.cancelClose();
@@ -869,7 +871,8 @@ export default defineComponent({
       if (typeof requestAnimationFrame === 'undefined') {
         return;
       }
-      const tick = () => {
+      // An owned frame loop of the reveal: it runs for the component's whole life and ends with it.
+      this.flow.everyFrame('the running totals ease', () => {
         for (const p of this.reveal.players) {
           const cur = this.displayed[p.color] ?? 0;
           const tgt = this.targets[p.color] ?? 0;
@@ -879,16 +882,15 @@ export default defineComponent({
             this.displayed[p.color] = tgt;
           }
         }
-        this.raf = requestAnimationFrame(tick);
-      };
-      this.raf = requestAnimationFrame(tick);
+        return true;
+      });
     },
     later(fn: () => void, ms: number): void {
-      this.timers.push(window.setTimeout(fn, ms));
+      this.timers.push(this.flow.after(ms, 'the next step of the scoring reveal', fn));
     },
     clearTimers(): void {
-      for (const id of this.timers) {
-        window.clearTimeout(id);
+      for (const cancel of this.timers) {
+        cancel();
       }
       this.timers = [];
     },
@@ -974,19 +976,11 @@ export default defineComponent({
     this.runSequence();
   },
   beforeUnmount(): void {
-    this.clearTimers();
-    this.cancelClose();
     this.popupObserver?.disconnect();
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', this.scheduleReposition);
       window.removeEventListener('scroll', this.scheduleReposition, true);
       document.removeEventListener('fullscreenchange', this.scheduleReposition);
-    }
-    if (this.repositionRaf !== undefined && typeof cancelAnimationFrame !== 'undefined') {
-      cancelAnimationFrame(this.repositionRaf);
-    }
-    if (this.raf !== undefined && typeof cancelAnimationFrame !== 'undefined') {
-      cancelAnimationFrame(this.raf);
     }
   },
 });

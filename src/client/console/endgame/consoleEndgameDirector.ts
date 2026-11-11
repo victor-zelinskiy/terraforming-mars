@@ -51,6 +51,7 @@ import {
   CEREMONY_MS, CeremonyBeat, ceremonyBeats, finalSums, hurriedBeats, igniteOffsets, igniteSpanMs, luminousMs,
 } from '@/client/console/endgame/consoleEndgameScript';
 import {consoleEndgameUi, finalizeCeremony, registerEndgameCeremony} from '@/client/console/endgame/consoleEndgameState';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /**
  * The ONE light (CI): `rise` (it comes on with the first category), `glide` (it moves to the next category — hotspot
@@ -517,9 +518,11 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
   // from the LAID timeline: a capped sum (reduced motion caps the WHOLE total
   // at one window) once cut the ceremony short.
   const netDelay = tl.duration() * 1000 * 1.6 + 2500;
-  let safety = 0;
+  // A RELEASE: the net is what lets the ceremony's hold go (the supplier's ceiling defers to a live director's net),
+  // so it is guaranteed — it comes due at the session's end too, exactly as the raw timer came due on its own.
+  let disarmSafety: () => void = () => {};
   const armSafety = () => {
-    safety = window.setTimeout(() => {
+    disarmSafety = consoleSessionScope().guarantee(netDelay, 'the endgame ceremony\'s net', () => {
       if (done || consoleEndgameUi.phase === 'actions') {
         return;
       }
@@ -528,7 +531,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
         return;
       }
       skip();
-    }, netDelay);
+    });
   };
   armSafety();
 
@@ -537,7 +540,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
       return;
     }
     done = true;
-    window.clearTimeout(safety);
+    disarmSafety();
     tl.kill();
     for (const tween of attached) {
       tween.kill();

@@ -23,6 +23,7 @@
 import {gsap} from 'gsap';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {motionAfter} from '@/client/console/session/sessionWaits';
 import {
   TRADE_COVER_FLIGHT_MS, TRADE_COVER_LIFT_MS, TRADE_FAN_MS,
 } from '@/client/console/colonyTrade/colonyTradeModel';
@@ -300,7 +301,7 @@ export function runColonyTrackGlide(args: {
   // crossed before the marker sat on it (CI-like box runs of `console-colony-sponsors`, ~1 in 8). The birth is its own
   // beat (painted on the source, the glide built in a LATER frame) and the landing follows the last touch's frame.
   let tl: gsap.core.Timeline | undefined;
-  let birth: gsap.core.Tween | undefined;
+  let cancelBirth: () => void = () => {};
   const waiters = new Set<() => void>();
   const laterFrame = (run: () => void): void => {
     const since = gsap.ticker.frame;
@@ -368,12 +369,12 @@ export function runColonyTrackGlide(args: {
     laterFrame(glide);
   };
   if ((args.delayMs ?? 0) > 0) {
-    birth = gsap.delayedCall(s(args.delayMs ?? 0), born);
+    cancelBirth = motionAfter(s(args.delayMs ?? 0) * 1000, 'a track marker\'s start in its wave', born);
   } else {
     born();
   }
   return {kill: () => {
-    birth?.kill();
+    cancelBirth();
     tl?.kill();
     waiters.forEach((w) => gsap.ticker.remove(w));
     waiters.clear();

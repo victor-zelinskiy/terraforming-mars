@@ -37,7 +37,16 @@
  * whole registry», animations.md). A 200 ms tick over plain function calls
  * cannot be starved by a non-reactive read, costs nothing while disarmed, and
  * is poll infrastructure pacing a poll — not an animation gate.
+ *
+ * WHOSE TICK. The GAME session's (`consoleSessionScope().every`): the parked
+ * refresh is of the view of the game on screen, and the eight predicates are
+ * that game's scenes. When the game screen leaves, the session takes the tick
+ * back — and the park is DROPPED WITH IT (a cleanup of the same scope disarms
+ * the module): `timer` doubles as the «already ticking» guard of the next arm,
+ * so a handle left standing over a tick that was taken back would park every
+ * later refresh behind a waiter that never looks again.
  */
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** How often a parked refresh re-checks the blocking predicate. */
 export const DEFERRED_REFRESH_CHECK_MS = 200;
@@ -45,7 +54,8 @@ export const DEFERRED_REFRESH_CHECK_MS = 200;
 /** Past this, fire anyway (with a warn) — never go silent behind a stuck flag. */
 export const DEFERRED_REFRESH_MAX_MS = 15_000;
 
-let timer: ReturnType<typeof setInterval> | undefined;
+/** The parked tick's stop — defined exactly while a refresh is parked. */
+let timer: (() => void) | undefined;
 let armedAt = 0;
 let pendingBlocked: (() => boolean) | undefined;
 let pendingRefresh: (() => void) | undefined;
@@ -67,7 +77,8 @@ export function armDeferredViewRefresh(blocked: () => boolean, refresh: () => vo
   }
   deferredViewRefreshStats.deferred++;
   armedAt = Date.now();
-  timer = setInterval(() => {
+  const owner = consoleSessionScope();
+  const stopTick = owner.every(DEFERRED_REFRESH_CHECK_MS, 'the parked view refresh re-checks the screen', () => {
     const waited = Date.now() - armedAt;
     const overdue = waited > DEFERRED_REFRESH_MAX_MS;
     if (!overdue && pendingBlocked?.() === true) {
@@ -82,7 +93,19 @@ export function armDeferredViewRefresh(blocked: () => boolean, refresh: () => vo
       console.warn(`[deferred-refresh] the screen stayed busy for over ${DEFERRED_REFRESH_MAX_MS}ms — refreshing anyway`);
     }
     run?.();
-  }, DEFERRED_REFRESH_CHECK_MS);
+  });
+  // The session ending under a parked refresh drops the park with its handle (see WHOSE TICK above).
+  let forgetOwner: () => void = () => {};
+  const parked = (): void => {
+    forgetOwner();
+    stopTick();
+  };
+  forgetOwner = owner.defer(() => {
+    if (timer === parked) {
+      disarmDeferredViewRefresh();
+    }
+  });
+  timer = parked;
 }
 
 /**
@@ -92,7 +115,7 @@ export function armDeferredViewRefresh(blocked: () => boolean, refresh: () => vo
  */
 export function disarmDeferredViewRefresh(): void {
   if (timer !== undefined) {
-    clearInterval(timer);
+    timer();
     timer = undefined;
   }
   pendingBlocked = undefined;

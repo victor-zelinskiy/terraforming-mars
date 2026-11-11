@@ -48,7 +48,7 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gateCursorDuringEntry} from '@/client/console/cursorArrival';
 import {span} from '@/client/console/session/sessionWaits';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {probeTick} from '@/client/console/probeTick';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ───────────────
@@ -399,7 +399,9 @@ function artSettled(browse: HTMLElement): Promise<void> {
         resolve();
         return;
       }
-      window.setTimeout(check, 16);
+      // The next look — a link of the bloom's `await`, so a GUARANTEED one (asked of the session that stands NOW:
+      // a look that came due because its session ended re-arms in the one that lives, never in a spin).
+      consoleSessionScope().guarantee(16, 'the album\'s art settles before the bloom', check);
     };
     check();
   });
@@ -584,3 +586,7 @@ export function handStageReveal(root: HTMLElement | undefined): void {
     {autoAlpha: 0, y: 9 * conUiScale()},
     {autoAlpha: 1, y: 0, duration: s(CASCADE_MS), ease: 'expo.out', stagger: CASCADE_STAGGER_S, clearProps: 'transform,opacity,visibility'});
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('hand-stage-motion', resetHandStageMotion, 200);

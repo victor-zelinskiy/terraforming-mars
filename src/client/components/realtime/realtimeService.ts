@@ -13,6 +13,7 @@ import {
 import {isRealtimeDebug, realtimeClientEnabled, realtimePollReductionEnabled, realtimeRefreshEnabled, realtimeWsUrl} from './realtimeConfig';
 import {notifyGameInvalidated, resetRealtimeSync, wakeNow} from './realtimeSync';
 import {isPongStale, isRealtimeHealthy, pollIntervalMs} from './pollPolicy';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
 
 /**
  * Phase 1 realtime client service — a module SINGLETON (survives the App-level
@@ -123,8 +124,14 @@ class RealtimeService {
   private ws: WebSocket | undefined;
   private started = false;
   private participantId: string | undefined;
-  private pingTimer: ReturnType<typeof setInterval> | undefined;
-  private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  /*
+   * The heartbeat tick's stop and the pending reconnect's cancel — both owned by the PAGE's scope
+   * (`consoleAppScope()`), never by a game session: the service is a singleton that outlives every game screen, and
+   * its reconnect is LIVENESS (a retry taken back with nothing to re-arm it would leave the socket dead for the rest
+   * of the page).
+   */
+  private cancelPing: (() => void) | undefined;
+  private cancelReconnect: (() => void) | undefined;
 
   /**
    * On returning to the tab (after sleep / background), if the socket isn't
@@ -342,7 +349,7 @@ class RealtimeService {
 
   private startPing(): void {
     this.stopPing();
-    this.pingTimer = setInterval(() => {
+    this.cancelPing = consoleAppScope().every(PING_INTERVAL_MS, 'the realtime socket\'s heartbeat', () => {
       // Liveness: if the server has gone silent past the stale threshold the
       // socket is a zombie — force a reconnect so health + resume recover and
       // the poller falls back to the safe interval.
@@ -352,7 +359,7 @@ class RealtimeService {
         return;
       }
       this.sendRaw(serializeMessage(clientPing()));
-    }, PING_INTERVAL_MS);
+    });
   }
 
   /** Tear down a (possibly zombie) socket and drive a reconnect ourselves. */
@@ -385,9 +392,9 @@ class RealtimeService {
   }
 
   private stopPing(): void {
-    if (this.pingTimer !== undefined) {
-      clearInterval(this.pingTimer);
-      this.pingTimer = undefined;
+    if (this.cancelPing !== undefined) {
+      this.cancelPing();
+      this.cancelPing = undefined;
     }
   }
 
@@ -401,13 +408,13 @@ class RealtimeService {
     const exponent = Math.min(realtimeState.reconnectAttempts - 1, RECONNECT_MAX_EXPONENT);
     const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * (2 ** exponent));
     log('reconnect in', delay, 'ms (attempt', realtimeState.reconnectAttempts, ')');
-    this.reconnectTimer = setTimeout(() => this.connect(), delay);
+    this.cancelReconnect = consoleAppScope().after(delay, 'the realtime socket\'s reconnect', () => this.connect());
   }
 
   private clearReconnect(): void {
-    if (this.reconnectTimer !== undefined) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = undefined;
+    if (this.cancelReconnect !== undefined) {
+      this.cancelReconnect();
+      this.cancelReconnect = undefined;
     }
   }
 

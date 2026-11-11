@@ -23,6 +23,7 @@
  * action at the point of attention (§6).
  */
 import {defineComponent} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {focusState} from '@/client/gamepad/focusEngine';
 import {inputModeState} from '@/client/gamepad/inputModeState';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -31,12 +32,18 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 export default defineComponent({
   name: 'GamepadFocusRing',
   components: {GamepadGlyph},
+  setup() {
+    // The ring's own scope (flow kernel — PLAN §10 · C1). It stands outside any console shell (its host is the
+    // app-level `GamepadLayer`), so it is the PAGE's: a game screen that comes and goes never ends it.
+    const flow = useFlowScope('gamepad-focus-ring');
+    return {flow};
+  },
   data() {
     return {
       focusState,
       inputModeState,
       deniedFlash: false,
-      deniedTimer: undefined as number | undefined,
+      cancelDenied: (() => {}) as () => void,
     };
   },
   computed: {
@@ -61,21 +68,14 @@ export default defineComponent({
     'focusState.ring.deniedEpoch'() {
       // A refused action: short refusal shake, re-armable.
       this.deniedFlash = false;
-      if (this.deniedTimer !== undefined) {
-        window.clearTimeout(this.deniedTimer);
-      }
+      this.cancelDenied();
       void this.$nextTick(() => {
         this.deniedFlash = true;
-        this.deniedTimer = window.setTimeout(() => {
+        this.cancelDenied = this.flow.after(motionMs(260), 'the ring\'s refusal shake ends', () => {
           this.deniedFlash = false;
-        }, motionMs(260));
+        });
       });
     },
-  },
-  beforeUnmount() {
-    if (this.deniedTimer !== undefined) {
-      window.clearTimeout(this.deniedTimer);
-    }
   },
 });
 </script>

@@ -401,6 +401,7 @@
  * Read-only; data straight from the PublicPlayerModel.
  */
 import {defineComponent, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Tag as CardTag} from '@/common/cards/Tag';
@@ -618,6 +619,9 @@ export default defineComponent({
      */
     botCtx: {type: Object as PropType<MarsBotExtrasContext>, default: undefined},
   },
+  setup() {
+    return {flow: useFlowScope('console-resource-panel')};
+  },
   data() {
     return {
       /** The LB/RB seat switch is in flight — the satellite's transition
@@ -626,10 +630,10 @@ export default defineComponent({
        *  that swaps the cells), released on a short timer; rapid presses
        *  re-arm it (coalesce). */
       auxSwapMode: false,
-      auxSwapTimer: undefined as number | undefined,
+      cancelAuxSwap: (() => {}) as () => void,
       /** The named cause standing beside the VP cell (its ledger `seq`) — shown for one read, then gone. */
       vpReasonSeq: 0,
-      vpReasonTimer: undefined as number | undefined,
+      cancelVpReason: (() => {}) as () => void,
       vpShareState,
     };
   },
@@ -640,34 +644,18 @@ export default defineComponent({
         return;
       }
       this.vpReasonSeq = seq;
-      if (this.vpReasonTimer !== undefined) {
-        window.clearTimeout(this.vpReasonTimer);
-      }
-      this.vpReasonTimer = window.setTimeout(() => {
+      this.cancelVpReason();
+      this.cancelVpReason = this.flow.after(VP_REASON_READ_MS, 'the VP cause has been read', () => {
         this.vpReasonSeq = 0;
-        this.vpReasonTimer = undefined;
-      }, VP_REASON_READ_MS);
+      });
     },
     'player.color'(): void {
       this.auxSwapMode = true;
-      if (this.auxSwapTimer !== undefined) {
-        window.clearTimeout(this.auxSwapTimer);
-      }
-      this.auxSwapTimer = window.setTimeout(() => {
+      this.cancelAuxSwap();
+      this.cancelAuxSwap = this.flow.after(320, 'the seat switch\'s in-place swap ends', () => {
         this.auxSwapMode = false;
-        this.auxSwapTimer = undefined;
-      }, 320);
+      });
     },
-  },
-  beforeUnmount() {
-    if (this.auxSwapTimer !== undefined) {
-      window.clearTimeout(this.auxSwapTimer);
-      this.auxSwapTimer = undefined;
-    }
-    if (this.vpReasonTimer !== undefined) {
-      window.clearTimeout(this.vpReasonTimer);
-      this.vpReasonTimer = undefined;
-    }
   },
   computed: {
     /**

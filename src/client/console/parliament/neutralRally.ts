@@ -34,6 +34,7 @@
  * Pure + a reactive record: no DOM, no i18n, no timers.
  */
 import {reactive} from 'vue';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentModel, ParliamentRallyModel, ParliamentRallySupportModel, ParliamentRallyVoteModel} from '@/common/models/ParliamentModel';
@@ -101,6 +102,17 @@ function freshFlow() {
 }
 
 export const neutralRallyFlow = reactive(freshFlow());
+
+/**
+ * THE RALLY'S RUN (architecture v2 — PLAN §10 · C4): `scene:neutral-rally#n` in the flow tree, DERIVED from the record —
+ * it stands while a rally is promised, owed, playing or queued, whoever wrote that, and when the game screen leaves
+ * under it the record is reset (`orphaned`).
+ */
+deriveFlowRun('neutral-rally',
+  () => neutralRallyFlow.promised !== undefined || neutralRallyFlow.owed !== undefined || neutralRallyFlow.live || neutralRallyFlow.queued.length > 0, {
+    orphaned: () => resetNeutralRallyFlow(),
+    detail: () => neutralRallyFlow.owed?.host ?? neutralRallyFlow.promised?.host ?? '',
+  });
 
 export function resetNeutralRallyFlow(): void {
   Object.assign(neutralRallyFlow, freshFlow());

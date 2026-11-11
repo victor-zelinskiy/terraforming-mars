@@ -57,6 +57,7 @@ import {
 } from '@/client/components/console/consoleHandAlbum';
 import {albumLayoutState} from '@/client/console/consoleAlbumLayout';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** One card of the album, with the states the host decided. */
 export type CardAlbumEntry = {
@@ -97,6 +98,9 @@ export default defineComponent({
     heldNames: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
   },
   emits: ['pick', 'position'],
+  setup() {
+    return {flow: useFlowScope('card-album')};
+  },
   data() {
     return {
       layout: consoleLayoutState,
@@ -105,9 +109,10 @@ export default defineComponent({
       motionLive: false,
       turning: false,
       settledPage: 0,
-      turnSafety: undefined as number | undefined,
+      cancelTurnSafety: (() => {}) as () => void,
       ro: undefined as ResizeObserver | undefined,
-      rafMeasure: undefined as number | undefined,
+      /** A measure is scheduled for the next frame (its cancel) — `undefined` when none stands. */
+      cancelMeasure: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -163,14 +168,11 @@ export default defineComponent({
         return;
       }
       this.turning = true;
-      if (this.turnSafety !== undefined) {
-        window.clearTimeout(this.turnSafety);
-      }
-      this.turnSafety = window.setTimeout(() => {
+      this.cancelTurnSafety();
+      this.cancelTurnSafety = this.flow.after(TURN_SAFETY_MS, 'the page turn\'s safety release', () => {
         this.turning = false;
         this.settledPage = this.activePage;
-        this.turnSafety = undefined;
-      }, TURN_SAFETY_MS);
+      });
     },
     position: {
       immediate: true,
@@ -188,18 +190,12 @@ export default defineComponent({
     this.measure();
     this.settledPage = this.activePage;
     // The slide arms only after the first paint settled: a fresh open lands ON its page, it never slides there.
-    void this.$nextTick(() => requestAnimationFrame(() => {
+    void this.$nextTick(() => this.flow.afterFrame('the first paint settles', () => {
       this.motionLive = true;
     }));
   },
   beforeUnmount() {
     this.ro?.disconnect();
-    if (this.rafMeasure !== undefined) {
-      cancelAnimationFrame(this.rafMeasure);
-    }
-    if (this.turnSafety !== undefined) {
-      window.clearTimeout(this.turnSafety);
-    }
   },
   methods: {
     pagePlanFor(page: number): AlbumPagePlan {
@@ -243,10 +239,7 @@ export default defineComponent({
       }
       this.turning = false;
       this.settledPage = this.activePage;
-      if (this.turnSafety !== undefined) {
-        window.clearTimeout(this.turnSafety);
-        this.turnSafety = undefined;
-      }
+      this.cancelTurnSafety();
     },
     /** The d-pad step — the hand's own walk (across the page edge IS the page turn; rows within a page). */
     step(from: number, dir: HandNavDir): number {
@@ -297,11 +290,11 @@ export default defineComponent({
       }
     },
     scheduleMeasure(): void {
-      if (this.rafMeasure !== undefined) {
+      if (this.cancelMeasure !== undefined) {
         return;
       }
-      this.rafMeasure = requestAnimationFrame(() => {
-        this.rafMeasure = undefined;
+      this.cancelMeasure = this.flow.afterFrame('the album is re-measured', () => {
+        this.cancelMeasure = undefined;
         this.measure();
       });
     },

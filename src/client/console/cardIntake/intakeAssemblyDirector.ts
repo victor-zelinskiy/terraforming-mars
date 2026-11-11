@@ -10,7 +10,6 @@
  * Every run flies through `runBatchArrival({from})` — the SAME director every deck flight in the fork uses — so a
  * card dealt by a trigger and a card dealt by the deck are physically the same object.
  */
-import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {CardIntakeSegment} from '@/common/models/CardDrawRevealModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -25,6 +24,8 @@ import {
   IntakeAssemblyPlan, IntakeAssemblyTimings, IntakeRun, RectLike, intakeAssemblyTimings, planIntakeAssembly,
   reducedIntakeAssemblyTimings, rowRectOf, triggerSeatRect,
 } from '@/client/console/cardIntake/intakeAssemblyPlan';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {motionSpan} from '@/client/console/session/sessionWaits';
 
 export type IntakeAssemblyHost = {
   /** The room the trigger seat is solved in (a workspace's band, the opening, the viewport). */
@@ -138,12 +139,15 @@ export function playIntakeAssembly(args: IntakeAssemblyArgs): IntakeAssemblyHand
   const reduced = consoleReducedMotionActive();
   const t = reduced ? reducedIntakeAssemblyTimings() : intakeAssemblyTimings();
   const runs = args.plan.runs.filter((r) => r.first >= (args.fromCard ?? 0) && r.first < (args.untilCard ?? Number.POSITIVE_INFINITY));
-  const timers: Array<ReturnType<typeof setTimeout>> = [];
+  // The scene's beats — GUARANTEED releases of the session (PLAN §10 · C1): each links an `await` of this sequence or
+  // a callback its host waits for, so none is ever dropped; `kill` disarms them all (fires nothing), and `alive()`
+  // guards every one that comes due.
+  const timers: Array<() => void> = [];
   const handles: Array<BatchArrivalHandle> = [];
   let dead = false;
   const kill = () => {
     dead = true;
-    timers.forEach((timer) => clearTimeout(timer));
+    timers.forEach((disarm) => disarm());
     timers.length = 0;
     handles.forEach((h) => h.kill());
     handles.length = 0;
@@ -159,7 +163,7 @@ export function playIntakeAssembly(args: IntakeAssemblyArgs): IntakeAssemblyHand
   let settled = 0;
   let approached = false;
   const sleep = (ms: number) => new Promise<void>((resolve) => {
-    timers.push(setTimeout(resolve, Math.max(0, ms)));
+    timers.push(consoleSessionScope().guarantee(Math.max(0, ms), 'the beat before a run of the intake deals', resolve));
   });
   const deal = (run: IntakeRun) => {
     const from = originOf(run, args.host);
@@ -184,11 +188,11 @@ export function playIntakeAssembly(args: IntakeAssemblyArgs): IntakeAssemblyHand
         settled++;
         if (settled === runs.length) {
           // The last trigger's recede is the scene's tail.
-          timers.push(setTimeout(() => {
+          timers.push(consoleSessionScope().guarantee(run.origin.kind === 'card' ? motionMs(t.recedeMs) : 0, 'the last trigger recedes (the intake is done)', () => {
             if (alive()) {
               args.onDone();
             }
-          }, run.origin.kind === 'card' ? motionMs(t.recedeMs) : 0));
+          }));
         }
       },
     });
@@ -196,11 +200,11 @@ export function playIntakeAssembly(args: IntakeAssemblyArgs): IntakeAssemblyHand
     if (!approached) {
       approached = true;
       const firstLand = handle.plan.beats[0]?.landAtMs ?? 0;
-      timers.push(setTimeout(() => {
+      timers.push(consoleSessionScope().guarantee(Math.max(0, motionMs(firstLand) - motionMs(70)), 'the first card\'s final approach (the host cues its frame)', () => {
         if (alive()) {
           args.onFirstApproach?.();
         }
-      }, Math.max(0, motionMs(firstLand) - motionMs(70))));
+      }));
     }
   };
   void (async () => {
@@ -219,9 +223,7 @@ export function playIntakeAssembly(args: IntakeAssemblyArgs): IntakeAssemblyHand
             return;
           }
           // The read beat between the surfaced face and its first card — on the rise's own clock.
-          await new Promise<void>((resolve) => {
-            gsap.delayedCall(motionMs(t.holdMs) / 1000, resolve);
-          });
+          await motionSpan(motionMs(t.holdMs));
         } else {
           // No face to raise (an unmeasurable stage): the run deals at its planned moment, and the trail says why.
           noteTransferTrail('intake:no-trigger', {run: run.index, face: face !== null, seat: seat !== undefined});

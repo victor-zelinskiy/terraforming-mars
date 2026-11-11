@@ -28,6 +28,7 @@ import {probeTick} from '@/client/console/probeTick';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import {CURSOR_PENDING_MAX_MS} from '@/client/console/cursorArrival';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 export type CommitArrivalRecord = {
   /** The arrival in force — `undefined` when the cursor WALKED onto the commit row (or stands elsewhere). */
@@ -40,7 +41,8 @@ export type CommitArrivalRecord = {
   label: string;
 };
 
-type Watch = {observer?: MutationObserver, backstop?: ReturnType<typeof setTimeout>};
+/** `backstop` — the disarm of the gate's bounded backstop (a guaranteed release of the session). */
+type Watch = {observer?: MutationObserver, backstop?: () => void};
 const watches = new WeakMap<object, Watch>();
 const live = new Set<CommitArrivalRecord>();
 
@@ -62,7 +64,7 @@ function disconnect(r: CommitArrivalRecord): void {
   w.observer?.disconnect();
   w.observer = undefined;
   if (w.backstop !== undefined) {
-    clearTimeout(w.backstop);
+    w.backstop();
     w.backstop = undefined;
   }
 }
@@ -115,12 +117,13 @@ export function arriveAtCommit(r: CommitArrivalRecord, root: () => HTMLElement |
     });
     const w = watchOf(r);
     w.observer = observer;
-    w.backstop = setTimeout(() => {
+    // A RELEASE: the paint is what ends the absorb window — it must come even when the session ends under the gate.
+    w.backstop = consoleSessionScope().guarantee(CURSOR_PENDING_MAX_MS, 'the commit arrival\'s gate (backstop)', () => {
       if (r.seq === seq && r.arrival?.paintedAt === undefined) {
         disconnect(r);
         paint(r, seq);
       }
-    }, CURSOR_PENDING_MAX_MS);
+    });
     observer.observe(gate, {attributes: true, attributeFilter: ['data-cursor-pending']});
   });
 }

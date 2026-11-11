@@ -228,6 +228,7 @@
  * "your turn" transition that replaced the central «ВАШ ХОД» pill.
  */
 import {defineComponent, markRaw, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {MIN_TEMPERATURE} from '@/common/constants';
 import {GlobalParameterMaximums, getGlobalParameterMaximums} from '@/common/boards/GlobalParameterMaximums';
 import {GameModel} from '@/common/models/GameModel';
@@ -321,17 +322,21 @@ export default defineComponent({
      */
     pendingCoalesceMs: {type: Number, default: 120},
   },
+  setup() {
+    return {flow: useFlowScope('console-status-strip')};
+  },
   data() {
     return {
       /** One-shot "turn passed to YOU" attention burst on the viewer's chip. */
       turnBurst: false,
-      burstTimer: undefined as number | undefined,
+      cancelBurst: (() => {}) as () => void,
       /** Debounced RAW pending state — half of the beacon (see `attention`). */
       attentionEngaged: false,
-      attentionTimer: undefined as number | undefined,
+      /** The dwell's cancel — `undefined` while no dwell stands. */
+      cancelAttention: undefined as (() => void) | undefined,
       /** One-shot terraforming-complete pulse on the Temp/O₂/Oceans group. */
       celebrating: false,
-      celebrateTimer: undefined as number | undefined,
+      cancelCelebrate: (() => {}) as () => void,
       /**
        * The generic pending-events signal, ENGAGED — the 500 ms dwell ran to
        * completion with the raw state continuously true. The raw state is
@@ -340,11 +345,13 @@ export default defineComponent({
        * eye, so nothing shows until the dwell survives. Release is instant.
        */
       evqEngaged: false,
-      evqTimer: undefined as number | undefined,
+      /** The dwell's cancel — `undefined` while no dwell stands. */
+      cancelEvq: undefined as (() => void) | undefined,
       /** The DISPLAYED count («0» dormant / «N» / «9+») — follows the live
        *  queue through the coalescing window, never a stale number. */
       shownCountText: '0',
-      evqCountTimer: undefined as number | undefined,
+      /** The coalescing window's cancel — `undefined` while no fire is pending. */
+      cancelEvqCount: undefined as (() => void) | undefined,
       /** The generation-order chip conveyor — DOM choreography state, kept
        *  out of reactivity (it holds Animations, clones and rects). */
       conveyor: markRaw(createChipConveyor()),
@@ -495,17 +502,17 @@ export default defineComponent({
       immediate: true,
       handler(pending: boolean): void {
         if (pending) {
-          if (this.attentionEngaged || this.attentionTimer !== undefined) {
+          if (this.attentionEngaged || this.cancelAttention !== undefined) {
             return;
           }
-          this.attentionTimer = window.setTimeout(() => {
-            this.attentionTimer = undefined;
+          this.cancelAttention = this.flow.after(this.attentionEngageMs, 'the attention beacon\'s dwell', () => {
+            this.cancelAttention = undefined;
             this.attentionEngaged = true;
-          }, this.attentionEngageMs);
+          });
         } else {
-          if (this.attentionTimer !== undefined) {
-            window.clearTimeout(this.attentionTimer);
-            this.attentionTimer = undefined;
+          if (this.cancelAttention !== undefined) {
+            this.cancelAttention();
+            this.cancelAttention = undefined;
           }
           this.attentionEngaged = false;
         }
@@ -514,12 +521,10 @@ export default defineComponent({
     myCategory(now: StatusPresentation['category'], before: StatusPresentation['category']) {
       if (now === 'active' && before !== 'active') {
         this.turnBurst = true;
-        if (this.burstTimer !== undefined) {
-          window.clearTimeout(this.burstTimer);
-        }
-        this.burstTimer = window.setTimeout(() => {
+        this.cancelBurst();
+        this.cancelBurst = this.flow.after(motionMs(2600), 'the turn burst ends', () => {
           this.turnBurst = false;
-        }, motionMs(2600));
+        });
       }
     },
     // The generic pending-events signal — the 500 ms DWELL. A rising raw
@@ -534,17 +539,17 @@ export default defineComponent({
       immediate: true,
       handler(raw: boolean): void {
         if (raw) {
-          if (this.evqEngaged || this.evqTimer !== undefined) {
+          if (this.evqEngaged || this.cancelEvq !== undefined) {
             return;
           }
-          this.evqTimer = window.setTimeout(() => {
-            this.evqTimer = undefined;
+          this.cancelEvq = this.flow.after(this.pendingEngageMs, 'the pending-events signal\'s dwell', () => {
+            this.cancelEvq = undefined;
             this.evqEngaged = true;
-          }, this.pendingEngageMs);
+          });
         } else {
-          if (this.evqTimer !== undefined) {
-            window.clearTimeout(this.evqTimer);
-            this.evqTimer = undefined;
+          if (this.cancelEvq !== undefined) {
+            this.cancelEvq();
+            this.cancelEvq = undefined;
           }
           this.evqEngaged = false;
         }
@@ -563,20 +568,20 @@ export default defineComponent({
           return;
         }
         if (target === '0' || this.shownCountText === '0') {
-          if (this.evqCountTimer !== undefined) {
-            window.clearTimeout(this.evqCountTimer);
-            this.evqCountTimer = undefined;
+          if (this.cancelEvqCount !== undefined) {
+            this.cancelEvqCount();
+            this.cancelEvqCount = undefined;
           }
           this.shownCountText = target;
           return;
         }
-        if (this.evqCountTimer !== undefined) {
+        if (this.cancelEvqCount !== undefined) {
           return; // the pending fire reads the live target — nothing to re-arm
         }
-        this.evqCountTimer = window.setTimeout(() => {
-          this.evqCountTimer = undefined;
+        this.cancelEvqCount = this.flow.after(this.pendingCoalesceMs, 'the pending count\'s coalescing window', () => {
+          this.cancelEvqCount = undefined;
           this.shownCountText = this.evqTarget;
-        }, this.pendingCoalesceMs);
+        });
       },
     },
     // One-shot pulse on the Temp/O₂/Oceans group when the terraformed scene
@@ -584,12 +589,10 @@ export default defineComponent({
     // calm --complete state carries the persistent look).
     sceneShowNonce() {
       this.celebrating = true;
-      if (this.celebrateTimer !== undefined) {
-        window.clearTimeout(this.celebrateTimer);
-      }
-      this.celebrateTimer = window.setTimeout(() => {
+      this.cancelCelebrate();
+      this.cancelCelebrate = this.flow.after(motionMs(3400), 'the terraformed pulse ends', () => {
         this.celebrating = false;
-      }, motionMs(3400));
+      });
     },
   },
   mounted() {
@@ -608,21 +611,6 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.conveyor.dispose();
-    if (this.burstTimer !== undefined) {
-      window.clearTimeout(this.burstTimer);
-    }
-    if (this.celebrateTimer !== undefined) {
-      window.clearTimeout(this.celebrateTimer);
-    }
-    if (this.attentionTimer !== undefined) {
-      window.clearTimeout(this.attentionTimer);
-    }
-    if (this.evqTimer !== undefined) {
-      window.clearTimeout(this.evqTimer);
-    }
-    if (this.evqCountTimer !== undefined) {
-      window.clearTimeout(this.evqCountTimer);
-    }
   },
   methods: {
     /**

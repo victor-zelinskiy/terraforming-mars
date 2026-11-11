@@ -262,6 +262,7 @@ import ConsoleMaRail from '@/client/components/console/ConsoleMaRail.vue';
 import {ConsoleMaItem, ConsoleMaKind, maAwardGap, maFieldLanes, MaFieldLane} from '@/client/components/console/consoleMaModel';
 import {buildMaRail, MaRailView} from '@/client/components/console/consoleMaRail';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {MaConfirmView} from '@/client/components/ma/maConfirmModel';
 import ConsoleMaWaivedPrice from '@/client/components/console/foundation/ConsoleMaWaivedPrice.vue';
@@ -321,6 +322,9 @@ export default defineComponent({
     priceWaiver: {type: Object as PropType<MaPriceWaiver | undefined>, default: undefined},
   },
   emits: ['ceremony-done', 'pick'],
+  setup() {
+    return {flow: useFlowScope('ma-screen')};
+  },
   data() {
     return {
       /**
@@ -334,14 +338,15 @@ export default defineComponent({
       availSeed: undefined as Set<string> | undefined,
       /** The LB/RB ARRIVE beat — the side the family's other workspace came in from ('' = standing). */
       kindArrive: '' as '' | 'left' | 'right',
-      arriveTimer: undefined as number | undefined,
+      /** The arrive beat's cancel (the screen's scope takes its beats back on unmount). */
+      arriveTimer: (() => {}) as () => void,
       /**
        * THE OPENING ROLL CALL — the one-shot phrase that answers «what can I take?» the moment the milestones screen
        * stands (mount / LB·RB arrive): the claimable tiles' shelves draw, their plates stamp, their checks draw, one
        * after another. It ENDS on its own; the standing state is the material it leaves behind.
        */
       rollcall: false,
-      rollcallTimer: undefined as number | undefined,
+      rollcallTimer: (() => {}) as () => void,
     };
   },
   computed: {
@@ -522,10 +527,10 @@ export default defineComponent({
       this.availSeed = undefined;
       this.revealNames = [];
       this.kindArrive = next === 'awards' && prev === 'milestones' ? 'right' : 'left';
-      window.clearTimeout(this.arriveTimer);
-      this.arriveTimer = window.setTimeout(() => {
+      this.arriveTimer();
+      this.arriveTimer = this.flow.after(motionMs(260), 'the other family\'s list arrives', () => {
         this.kindArrive = '';
-      }, motionMs(260));
+      });
       this.startRollcall();
     },
     /**
@@ -548,9 +553,9 @@ export default defineComponent({
         for (const name of now) {
           if (!seed.has(name) && !this.revealNames.includes(name)) {
             this.revealNames.push(name);
-            window.setTimeout(() => {
+            this.flow.after(motionMs(1400), 'a tile\'s availability reveal ends', () => {
               this.revealNames = this.revealNames.filter((n) => n !== name);
-            }, motionMs(1400));
+            });
           }
         }
       },
@@ -567,8 +572,6 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
-    window.clearTimeout(this.arriveTimer);
-    window.clearTimeout(this.rollcallTimer);
     if (maFocusState.open) {
       if (maFocusState.phase === 'detail') {
         // A lateral move / a defer under a live PRE-COMMIT detail — keep the
@@ -598,14 +601,14 @@ export default defineComponent({
      * (keyed by name), so an LB/RB arrive replays it on them by construction — no frame-apart re-arm is needed.
      */
     startRollcall(): void {
-      window.clearTimeout(this.rollcallTimer);
+      this.rollcallTimer();
       this.rollcall = this.offerCount > 0 && !maFocusState.open;
       if (!this.rollcall) {
         return;
       }
-      this.rollcallTimer = window.setTimeout(() => {
+      this.rollcallTimer = this.flow.after(motionMs(1100 + 120 * this.offerCount), 'the opening roll call ends', () => {
         this.rollcall = false;
-      }, motionMs(1100 + 120 * this.offerCount));
+      });
     },
     /** The emblem at ONE optical size — the measured fit the strategy rail reads (the player's language's file). */
     artStyle(it: ConsoleMaItem): Record<string, string> {

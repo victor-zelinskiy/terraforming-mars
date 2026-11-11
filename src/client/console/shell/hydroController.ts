@@ -56,6 +56,7 @@ import {offTurnReason} from '@/client/console/offTurnReason';
 import {findHydroActionPath, optionResponseForPath, findPerformActionCard} from '@/client/console/turnIntents';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {PromptSurface} from '@/client/console/consolePromptAdmission';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {PendingPlayCard} from '@/client/console/shell/shellShared';
 import type {SeatController} from '@/client/console/shell/seatController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
@@ -63,6 +64,13 @@ import type {NoticeController} from '@/client/console/shell/noticeController';
 /** The hydro RESULT stage's read hold — long enough for the route + reward
  *  lines, skippable by A/B (both land in `finishHydroFlow`). */
 const HYDRO_RESULT_HOLD_MS = 2400;
+
+/**
+ * The ARMED mark of the result's read hold (`hydroResultTimer`). The hold itself is a timer of the controller's own
+ * scope (`cancelHydroResult`); the ref only says «armed» to its readers (the stuck-flow probe, the doors below). Never
+ * a timer id — negative on purpose, so the shell's teardown, which still hands it to `clearTimeout`, clears nothing.
+ */
+const HYDRO_RESULT_ARMED = -1;
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -91,11 +99,16 @@ export type HydroPort = {
 };
 
 export function createHydroController(shell: HydroPort) {
+  // The controller's own scope (architecture v2 — PLAN §10 · C1): it ends with the shell, and the result's read hold
+  // with it.
+  const flow = useFlowScope('hydro-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** The hydro flow-close truth witnesses' uninstaller (presentationLedger). */
   const offHydroWitnesses = ref(undefined as (() => void) | undefined);
-  /** The hydro result stage's read-hold timer (A/B skip it). */
+  /** The hydro result stage's read hold (A/B skip it): `HYDRO_RESULT_ARMED` while it stands, `undefined` at rest —
+   *  the timer itself is `flow`'s (`cancelHydroResult`). */
   const hydroResultTimer = ref(undefined as number | undefined);
+  let cancelHydroResult: () => void = () => {};
   /** The Hydronetwork was opened BY a card's bonus offer (not by the
    *  player), so answering it hands the screen back. */
   const hydroBonusBorrowed = ref(false);
@@ -1480,17 +1493,18 @@ export function createHydroController(shell: HydroPort) {
       return;
     }
     if (c.phase === 'result' && hydroResultTimer.value === undefined) {
-      hydroResultTimer.value = window.setTimeout(() => {
+      hydroResultTimer.value = HYDRO_RESULT_ARMED;
+      cancelHydroResult = flow.after(motionMs(HYDRO_RESULT_HOLD_MS), 'the hydro result\'s read hold (re-armed by the stuck-flow witness)', () => {
         hydroResultTimer.value = undefined;
         finishHydroFlow();
-      }, motionMs(HYDRO_RESULT_HOLD_MS));
+      });
     }
   }
 
   /** The flow is over (result read / skipped) — reset and go home. */
   function finishHydroFlow(): void {
     if (hydroResultTimer.value !== undefined) {
-      window.clearTimeout(hydroResultTimer.value);
+      cancelHydroResult();
       hydroResultTimer.value = undefined;
     }
     if (hydroFlowState.commit === undefined) {
@@ -1505,10 +1519,11 @@ export function createHydroController(shell: HydroPort) {
     // funnel would refuse the claim's end, but `goBoardHome` below would
     // still destroy the frame — the prompt's zone — with the claim alive).
     if (workspaceOutcomeState.host === 'hydro' && shell.workspaceOutcomeServingNow) {
-      hydroResultTimer.value = window.setTimeout(() => {
+      hydroResultTimer.value = HYDRO_RESULT_ARMED;
+      cancelHydroResult = flow.after(motionMs(HYDRO_RESULT_HOLD_MS), 'the hydro result\'s read hold (the claim still serves — a retry)', () => {
         hydroResultTimer.value = undefined;
         finishHydroFlow();
-      }, motionMs(HYDRO_RESULT_HOLD_MS));
+      });
       return;
     }
     if (workspaceOutcomeState.host === 'hydro') {
@@ -1588,14 +1603,15 @@ export function createHydroController(shell: HydroPort) {
   // A/B skip the hold through the same door (`finishHydroFlow`).
   function whenHydroFlowCommitPhaseChanges(phase: string | undefined): void {
     if (hydroResultTimer.value !== undefined) {
-      window.clearTimeout(hydroResultTimer.value);
+      cancelHydroResult();
       hydroResultTimer.value = undefined;
     }
     if (phase === 'result') {
-      hydroResultTimer.value = window.setTimeout(() => {
+      hydroResultTimer.value = HYDRO_RESULT_ARMED;
+      cancelHydroResult = flow.after(motionMs(HYDRO_RESULT_HOLD_MS), 'the hydro result\'s read hold', () => {
         hydroResultTimer.value = undefined;
         finishHydroFlow();
-      }, motionMs(HYDRO_RESULT_HOLD_MS));
+      });
     }
     syncHydroFramePhase();
   }

@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {createManualClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {
   ACCENT_MAX_MS, beginDockIntakeAccent, dockIntakeAccentActive, dockIntakeAccentLabels,
   holdDockIntakeAccent, resetDockIntakeAccent,
@@ -62,23 +63,22 @@ describe('consoleDockAccent — the intake accent is a BOUNDED lease', () => {
 
   /** THE LOAD-BEARING GUARANTEE: a lease nobody releases still expires. */
   it('a LEAKED lease expires on its own ceiling', async () => {
-    const originalTimeout = window.setTimeout;
-    const fired: Array<() => void> = [];
-    let seenDelay = -1;
-    (window as unknown as {setTimeout: unknown}).setTimeout =
-      ((fn: () => void, ms: number) => {
-        seenDelay = ms;
-        fired.push(fn);
-        return 1 as unknown as number;
-      }) as unknown as typeof window.setTimeout;
+    // The ceiling is an OWNED timer of the flow kernel (architecture v2): the spec drives the kernel's clock.
+    const clock = createManualClock(0);
+    setFlowClock(clock);
+    const warn = console.warn;
+    console.warn = () => {};
     try {
       beginDockIntakeAccent('leaked'); // release deliberately dropped
       expect(dockIntakeAccentActive()).to.eq(true);
-      expect(seenDelay, 'armed with the ceiling').to.eq(ACCENT_MAX_MS);
-      fired.forEach((fn) => fn()); // the ceiling elapses
+      clock.advance(ACCENT_MAX_MS - 1);
+      expect(dockIntakeAccentActive(), 'armed with the ceiling — not a millisecond earlier').to.eq(true);
+      clock.advance(1); // the ceiling elapses
       expect(dockIntakeAccentActive(), 'the leak released itself').to.eq(false);
+      expect(clock.pending(), 'nothing of the lease is left on the clock').to.eq(0);
     } finally {
-      (window as unknown as {setTimeout: unknown}).setTimeout = originalTimeout;
+      console.warn = warn;
+      setFlowClock(undefined);
     }
   });
 

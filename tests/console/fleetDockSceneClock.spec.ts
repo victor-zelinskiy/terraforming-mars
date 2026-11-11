@@ -36,11 +36,13 @@ describe('the fleet-dock scene — one clock (static guard)', () => {
         }
       });
     }
-    expect(offenders, 'wall-clock timers in the dock scene (wait on gsap.delayedCall; release a hold by its own completion signal):\n' + offenders.join('\n')).deep.eq([]);
+    expect(offenders, 'wall-clock timers in the dock scene (wait on the motion clock — `motionAfter`; release a hold by its own completion signal):\n' + offenders.join('\n')).deep.eq([]);
   });
 
   it('the stage\'s waits are on the animation clock', () => {
     const stage = stripComments(fs.readFileSync(path.join(ROOT, FILES[0]), 'utf8'));
-    expect(stage, 'the scene waits through gsap.delayedCall').to.match(/gsap\.delayedCall\(/);
+    // `motionAfter` IS `gsap.delayedCall` with an owner (the stage's own scope) — session/sessionWaits.ts.
+    expect(stage, 'the scene waits on the motion clock, owned by the stage').to.match(/motionAfter\(/);
+    expect(stage, 'never a bare delayedCall — a wait nobody owns').to.not.match(/gsap\.delayedCall\(/);
   });
 });

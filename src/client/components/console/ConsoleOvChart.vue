@@ -59,6 +59,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {useConsoleReducedMotion} from '@/client/console/composables/useConsoleReducedMotion';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 // The series shape lives in the pure model module — a type export from a
 // .vue breaks the mochapack test bundle of every spec that imports it.
 import type {OvChartSeries} from '@/client/console/endgame/consoleOverviewModel';
@@ -91,7 +92,7 @@ export default defineComponent({
   },
   setup() {
     const {reduced} = useConsoleReducedMotion();
-    return {reduced};
+    return {reduced, flow: useFlowScope('console-ov-chart')};
   },
   data() {
     return {
@@ -251,9 +252,9 @@ export default defineComponent({
       this.ro.observe(this.$refs.root as HTMLElement);
     }
     if (this.revealArmed && !this.reduced && typeof requestAnimationFrame !== 'undefined') {
-      requestAnimationFrame(() => requestAnimationFrame(() => {
+      this.flow.afterFrame('the chart\'s line draw starts', () => {
         this.drawn = true;
-      }));
+      }, 2);
     } else {
       this.drawn = true;
     }

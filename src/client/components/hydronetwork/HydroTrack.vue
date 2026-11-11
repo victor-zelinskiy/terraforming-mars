@@ -64,6 +64,7 @@
 import {defineComponent, markRaw} from 'vue';
 import {HydroStageVM} from './hydroNetworkModel';
 import HydroStageCell from './HydroStageCell.vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 type Pt = [number, number];
 
@@ -101,6 +102,9 @@ export default defineComponent({
     },
   },
   emits: ['select'],
+  setup() {
+    return {flow: useFlowScope('hydro-track')};
+  },
   data() {
     return {
       svgW: 0,
@@ -110,7 +114,8 @@ export default defineComponent({
       enterPathD: '',
       enterArrow: '',
       _ro: undefined as ResizeObserver | undefined,
-      _raf: 0,
+      /** The coalesced measure frame's cancel — `undefined` while none is pending (an owned frame of this track). */
+      _cancelMeasure: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -167,9 +172,6 @@ export default defineComponent({
   beforeUnmount() {
     this._ro?.disconnect();
     window.removeEventListener('resize', this.scheduleMeasure);
-    if (this._raf) {
-      cancelAnimationFrame(this._raf);
-    }
   },
   methods: {
     linkClass(vm: HydroStageVM | undefined): Record<string, boolean> {
@@ -182,11 +184,11 @@ export default defineComponent({
       };
     },
     scheduleMeasure() {
-      if (this._raf) {
+      if (this._cancelMeasure !== undefined) {
         return;
       }
-      this._raf = requestAnimationFrame(() => {
-        this._raf = 0;
+      this._cancelMeasure = this.flow.afterFrame('the hydro track measures its conduits', () => {
+        this._cancelMeasure = undefined;
         this.$nextTick(() => this.measure());
       });
     },

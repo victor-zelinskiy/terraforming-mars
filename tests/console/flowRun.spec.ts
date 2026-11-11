@@ -1,9 +1,9 @@
 import {expect} from 'chai';
-import {computed} from 'vue';
+import {computed, reactive} from 'vue';
 import {createManualClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {dumpFlowTree, resetFlowKernel} from '@/client/console/kernel/flowScope';
 import {beginConsoleSession, endConsoleSession, resetConsoleSession} from '@/client/console/session/consoleSession';
-import {createFlowRun} from '@/client/console/session/flowRun';
+import {createFlowRun, deriveFlowRun} from '@/client/console/session/flowRun';
 
 /** Let every pending promise continuation run. */
 async function flush(): Promise<void> {
@@ -191,5 +191,44 @@ describe('flow run · a module flow\'s run is a scope of the session', () => {
       console.warn = warn;
     }
     expect(warned.filter((line) => line.includes('«orphaned» recovery threw'))).to.have.length(1);
+  });
+
+  it('a run DERIVED from a record stands exactly while the record says so — whoever wrote it — and its orphaning resets the record', () => {
+    beginConsoleSession();
+    const record = reactive({promised: undefined as string | undefined, owed: undefined as string | undefined, live: false});
+    let orphaned = 0;
+    const derived = deriveFlowRun('spec-walk', () => record.promised !== undefined || record.owed !== undefined || record.live, {
+      orphaned: () => {
+        orphaned++;
+        Object.assign(record, {promised: undefined, owed: undefined, live: false});
+      },
+      detail: () => record.owed ?? record.promised ?? '',
+    });
+    try {
+      expect(derived.scope, 'at rest').to.equal(undefined);
+
+      record.promised = 'hand'; // the press
+      const run = derived.scope;
+      expect(run?.ended).to.equal(undefined);
+      expect(run?.detail).to.equal('hand');
+      record.owed = 'hand'; // the seed — the same run, no second scope
+      record.promised = undefined;
+      record.live = true; // the section plays it
+      expect(derived.scope).to.equal(run);
+
+      Object.assign(record, {promised: undefined, owed: undefined, live: false}); // a reset, by assignment
+      expect(run?.ended?.how).to.equal('done');
+      expect(derived.scope).to.equal(undefined);
+      expect(orphaned, 'ended by its own state — not orphaned').to.equal(0);
+
+      record.owed = 'parliament';
+      const second = derived.scope;
+      endConsoleSession(); // the game screen leaves under it
+      expect(second?.ended?.how).to.equal('cancelled');
+      expect(orphaned).to.equal(1);
+      expect(record.owed, 'the record was brought to rest by the flow itself').to.equal(undefined);
+    } finally {
+      derived.stop();
+    }
   });
 });

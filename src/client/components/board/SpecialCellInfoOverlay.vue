@@ -48,6 +48,7 @@ import {defineComponent} from 'vue';
 import {specialCellHoverState} from '@/client/components/board/specialCellHoverState';
 import {getSpecialCellInfoById, SpecialCellInfo, PanelPlacement} from '@/client/components/board/specialCellInfo';
 import {translateText} from '@/client/directives/i18n';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 const PANEL_WIDTH = 320;
 /** Initial estimate; refined to the panel's real height after mount. */
@@ -61,6 +62,9 @@ type Box = {left: number; top: number; width: number; height: number};
 
 export default defineComponent({
   name: 'SpecialCellInfoOverlay',
+  setup() {
+    return {flow: useFlowScope('special-cell-info-overlay')};
+  },
   data() {
     return {
       PANEL_WIDTH,
@@ -68,7 +72,8 @@ export default defineComponent({
       vh: typeof window !== 'undefined' ? window.innerHeight : 1080,
       markerRect: undefined as DOMRect | undefined,
       panelHeight: PANEL_HEIGHT_ESTIMATE,
-      rafHandle: 0,
+      /** The coalesced refresh frame's cancel — `undefined` while none is pending (an owned frame of this overlay). */
+      cancelRefresh: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -203,9 +208,6 @@ export default defineComponent({
   beforeUnmount() {
     window.removeEventListener('scroll', this.scheduleRefresh, true);
     window.removeEventListener('resize', this.onViewportResize);
-    if (this.rafHandle !== 0) {
-      cancelAnimationFrame(this.rafHandle);
-    }
   },
   watch: {
     'active'() {
@@ -219,11 +221,11 @@ export default defineComponent({
       this.scheduleRefresh();
     },
     scheduleRefresh(): void {
-      if (this.rafHandle !== 0) {
+      if (this.cancelRefresh !== undefined) {
         return;
       }
-      this.rafHandle = requestAnimationFrame(() => {
-        this.rafHandle = 0;
+      this.cancelRefresh = this.flow.afterFrame('the special-cell overlay re-measures', () => {
+        this.cancelRefresh = undefined;
         this.refreshFromState();
       });
     },

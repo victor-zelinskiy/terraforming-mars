@@ -39,6 +39,7 @@ import {ParticipantId, SpaceId} from '@/common/Types';
 import LogMessageComponent from '@/client/components/logpanel/LogMessageComponent.vue';
 import CardPanel from '@/client/components/logpanel/CardPanel.vue';
 import {isMarsSpace} from '@/common/boards/spaces';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 let logAbortController: AbortController | undefined;
 
@@ -64,6 +65,9 @@ export default defineComponent({
       required: false,
       default: 0,
     },
+  },
+  setup() {
+    return {flow: useFlowScope('log-panel')};
   },
   data(): LogPanelModel {
     return {
@@ -94,9 +98,11 @@ export default defineComponent({
             const element = array[i] as HTMLElement;
             if (element.getAttribute('data_log_highlight_id') === spaceId) {
               element.classList.add('highlight');
-              setTimeout(() => {
+              // A GUARANTEED release (flow kernel — PLAN §10 · C1): the class sits on the BOARD's element, not the
+              // panel's — it comes off after the blink, or when the panel leaves first.
+              this.flow.guarantee(3000, 'the clicked cell\'s highlight comes off', () => {
                 element.classList.remove('highlight');
-              }, 3000);
+              });
               return;
             }
           }

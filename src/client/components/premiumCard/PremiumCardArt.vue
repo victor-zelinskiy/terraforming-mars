@@ -31,6 +31,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {CARD_ART_FALLBACK_URL, CardArtTier, cardArtUrlAtTier, PremiumCardArt} from '@/client/cards/cardArt';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /**
  * The art viewport. Failure chain is one-shot per link and can never loop:
@@ -54,6 +55,9 @@ export default defineComponent({
       default: 'full',
     },
   },
+  setup() {
+    return {flow: useFlowScope('premium-card-art')};
+  },
   data() {
     return {
       loaded: false,
@@ -70,7 +74,7 @@ export default defineComponent({
       exhausted: false,
       /** The file a TIER CHANGE replaces, kept under the new one until it has faded in ('' = none). */
       prevSrc: '',
-      prevTimer: 0,
+      cancelPrev: (() => {}) as () => void,
     };
   },
   computed: {
@@ -101,9 +105,6 @@ export default defineComponent({
       this.loaded = true;
     }
   },
-  beforeUnmount() {
-    window.clearTimeout(this.prevTimer);
-  },
   methods: {
     /** The URL the chain would paint at `tier` right now (the failure links the chain has already taken included). */
     srcAt(tier: CardArtTier): string {
@@ -116,12 +117,12 @@ export default defineComponent({
       this.loaded = true;
       if (this.prevSrc !== '') {
         // The fade's own end drops the old picture; the bound covers a fade that never runs (reduced motion).
-        window.clearTimeout(this.prevTimer);
-        this.prevTimer = window.setTimeout(() => this.dropPrev(), 600);
+        this.cancelPrev();
+        this.cancelPrev = this.flow.after(600, 'the old picture\'s fade bound', () => this.dropPrev());
       }
     },
     dropPrev(): void {
-      window.clearTimeout(this.prevTimer);
+      this.cancelPrev();
       this.prevSrc = '';
     },
     resetChain(): void {

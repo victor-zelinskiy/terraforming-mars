@@ -28,6 +28,7 @@ import {reactive} from 'vue';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {createFlowRun} from '@/client/console/session/flowRun';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /**
  * WHERE the lifting cover comes from. `board-cell` carries the placed
@@ -385,3 +386,8 @@ export function resetBoardCardBonus(): void {
   boardCardBonusState.stagedCount = 0;
   boardCardBonusState.zoomEntryReady = false;
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Recall any in-flight bonus cover (zombie-safe)
+sessionState('board-card-bonus', () => abortBoardCardBonus('instant'), 530);

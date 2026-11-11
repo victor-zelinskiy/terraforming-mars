@@ -1,4 +1,5 @@
 import {isRealtimeDebug} from './realtimeConfig';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
 
 /**
  * Realtime -> refresh coordinator (Phase 4).
@@ -18,9 +19,11 @@ import {isRealtimeDebug} from './realtimeConfig';
  * gameAge/undoCount comparison in /api/waitingfor dedups the rest: a wake that
  * finds nothing new returns WAIT and fetches no full model.
  *
- * Deliberately free of Vue/DOM so it is unit-testable under the server runner
- * and reusable by a future Electron client. WaitingFor subscribes via
- * `onRealtimeWake` (mirroring the existing manual visibility/focus listeners).
+ * Deliberately free of components and the DOM so it is unit-testable under the
+ * server runner and reusable by a future Electron client (its one dependency is
+ * the flow kernel's page scope, which owns the coalescing timer). WaitingFor
+ * subscribes via `onRealtimeWake` (mirroring the existing manual
+ * visibility/focus listeners).
  */
 
 // Collapse a burst arriving within this window into a single wake.
@@ -40,7 +43,13 @@ const stats: RealtimeSyncStats = {invalidationsSeen: 0, wakesDelivered: 0, wakes
 const listeners = new Set<WakeListener>();
 let scheduled = false;
 let lastWakeAt = 0;
-let timer: ReturnType<typeof setTimeout> | undefined;
+/*
+ * The pending coalesced wake's DISARM. The wake is a guaranteed RELEASE of the PAGE's scope (`consoleAppScope()` — the
+ * sync serves the realtime singleton, which outlives every game screen): it is what lowers `scheduled` and delivers
+ * the invalidation to the listeners, so it must never ride a timer that could be taken back — a `scheduled` left
+ * raised would fold every later invalidation into a wake that never comes.
+ */
+let disarmWake: () => void = () => {};
 
 /** Register a wake listener (WaitingFor). Returns an unsubscribe function. */
 export function onRealtimeWake(listener: WakeListener): () => void {
@@ -61,12 +70,11 @@ export function notifyGameInvalidated(): void {
   scheduled = true;
   const sinceLast = Date.now() - lastWakeAt;
   const delay = Math.max(COALESCE_WINDOW_MS, MIN_WAKE_INTERVAL_MS - sinceLast);
-  timer = setTimeout(fireWake, delay);
+  disarmWake = consoleAppScope().guarantee(delay, 'the coalesced realtime wake', fireWake);
 }
 
 function fireWake(): void {
   scheduled = false;
-  timer = undefined;
   lastWakeAt = Date.now();
   stats.wakesDelivered += 1;
   if (isRealtimeDebug()) {
@@ -88,20 +96,14 @@ function fireWake(): void {
  * back to the safe interval without waiting out a stretched one.
  */
 export function wakeNow(): void {
-  if (timer !== undefined) {
-    clearTimeout(timer);
-    timer = undefined;
-  }
+  disarmWake();
   scheduled = false;
   fireWake();
 }
 
 /** Clear any pending wake (e.g. when leaving the game). Keeps counters. */
 export function resetRealtimeSync(): void {
-  if (timer !== undefined) {
-    clearTimeout(timer);
-    timer = undefined;
-  }
+  disarmWake();
   scheduled = false;
   lastWakeAt = 0;
 }

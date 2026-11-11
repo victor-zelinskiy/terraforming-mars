@@ -23,6 +23,7 @@ import {reactive} from 'vue';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /** Modal-close beat before the submit (≥ the con-layer leave fade ~140ms). */
 export const GOV_CLOSE_MS = 200;
@@ -68,15 +69,12 @@ registerAnimationHoldSupplier('gov-scale-focus', () => govScaleFocusState.closin
 });
 
 let armedParam: string | undefined;
-let closeTimer: number | undefined;
-let releaseTimer: number | undefined;
-let safetyTimer: number | undefined;
-
-function clearTimer(t: number | undefined): void {
-  if (t !== undefined && typeof window !== 'undefined') {
-    window.clearTimeout(t);
-  }
-}
+// The beat's three waits, owned by the session: the close beat is PACING (its submit must not go into a game that
+// left); the hold's end and the lost-commit safety are RELEASES (the hidden modal is let go at their time, or when the
+// game screen leaves).
+let cancelClose: () => void = () => {};
+let disarmRelease: () => void = () => {};
+let disarmSafety: () => void = () => {};
 
 function applyFocusClass(param: string): void {
   if (typeof document !== 'undefined') {
@@ -100,24 +98,24 @@ function clearFocusClass(): void {
 export function beginGovScaleClose(param: string, submit: () => void): void {
   govScaleFocusState.closing = true;
   govScaleFocusState.param = param;
-  clearTimer(closeTimer);
-  clearTimer(safetyTimer);
+  cancelClose();
+  disarmSafety();
   const delay = prefersReducedMotion() ? REDUCED_CLOSE_MS : motionMs(GOV_CLOSE_MS);
   const fire = () => {
     armedParam = param;
     submit();
     // Safety: if the commit never arrives, don't strand the hidden modal.
     if (typeof window !== 'undefined') {
-      safetyTimer = window.setTimeout(() => {
+      disarmSafety = consoleSessionScope().guarantee(SAFETY_MS, 'the government-support raise\'s commit (the hidden modal\'s safety)', () => {
         if (armedParam !== undefined) {
           armedParam = undefined;
           releaseGovScaleFocus();
         }
-      }, SAFETY_MS);
+      });
     }
   };
   if (typeof window !== 'undefined') {
-    closeTimer = window.setTimeout(fire, delay);
+    cancelClose = consoleSessionScope().after(delay, 'the modal\'s close beat — then the submit', fire);
   } else {
     fire();
   }
@@ -135,15 +133,15 @@ export function commitGovScaleFocus(): boolean {
   }
   const param = armedParam;
   armedParam = undefined;
-  clearTimer(safetyTimer);
+  disarmSafety();
   govScaleFocusState.closing = false;
   govScaleFocusState.holding = true;
   govScaleFocusState.param = param;
   applyFocusClass(param); // one-shot scale accent (CSS in console.less)
-  clearTimer(releaseTimer);
+  disarmRelease();
   const hold = prefersReducedMotion() ? REDUCED_HOLD_MS : motionMs(GOV_HOLD_MS);
   if (typeof window !== 'undefined') {
-    releaseTimer = window.setTimeout(releaseGovScaleFocus, hold);
+    disarmRelease = consoleSessionScope().guarantee(hold, 'the raised scale\'s accent hold', releaseGovScaleFocus);
   } else {
     releaseGovScaleFocus();
   }
@@ -151,9 +149,9 @@ export function commitGovScaleFocus(): boolean {
 }
 
 export function releaseGovScaleFocus(): void {
-  clearTimer(closeTimer);
-  clearTimer(releaseTimer);
-  clearTimer(safetyTimer);
+  cancelClose();
+  disarmRelease();
+  disarmSafety();
   clearFocusClass();
   govScaleFocusState.closing = false;
   govScaleFocusState.holding = false;
@@ -165,3 +163,7 @@ export function resetGovScaleFocus(): void {
   armedParam = undefined;
   releaseGovScaleFocus();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('gov-scale-focus', resetGovScaleFocus, 460);

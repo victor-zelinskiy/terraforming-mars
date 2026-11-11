@@ -50,6 +50,7 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {RailProtectionKind} from '@/client/console/railProtectionModel';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 
@@ -60,10 +61,12 @@ export default defineComponent({
     /** The full accessible sentence — the glyph alone states no rule. */
     label: {type: String, required: true},
   },
+  setup() {
+    return {flow: useFlowScope('console-protection-mark')};
+  },
   data() {
     return {
       entering: false,
-      enterTimer: undefined as ReturnType<typeof setTimeout> | undefined,
     };
   },
   mounted() {
@@ -74,15 +77,9 @@ export default defineComponent({
       return;
     }
     this.entering = true;
-    this.enterTimer = setTimeout(() => {
+    this.flow.after(consoleMotionMs(460), 'the protection mark\'s settle ends', () => {
       this.entering = false;
-      this.enterTimer = undefined;
-    }, consoleMotionMs(460));
-  },
-  beforeUnmount() {
-    if (this.enterTimer !== undefined) {
-      clearTimeout(this.enterTimer);
-    }
+    });
   },
 });
 </script>

@@ -35,7 +35,8 @@
  * motion: nothing flies, the counter ticks as the marker settles.
  */
 import {nextTick, reactive, watch, WatchStopHandle} from 'vue';
-import {gsap} from 'gsap';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {motionSpan} from '@/client/console/session/sessionWaits';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ScaleStepRewardModel} from '@/common/models/ScaleStepRewardModel';
@@ -304,9 +305,7 @@ function waitForStage(entry: ScaleStepEntry, myEpoch: number): Promise<boolean> 
 
 /** A wait on the GSAP clock — the clock the tokens animate on (never the wall clock between two beats). */
 function gsapWait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    gsap.delayedCall(ms / 1000, () => resolve());
-  });
+  return motionSpan(ms);
 }
 
 /** Release whatever the viewer's counter still holds for this record (a degrade, an abort). */
@@ -399,10 +398,14 @@ async function pay(entry: ScaleStepEntry, myEpoch: number): Promise<void> {
     } else {
       // A TASK per tick (never the animation clock): GSAP's ticker runs every callback due in one frame inside ONE
       // task, and two releases in one task are one render — «4 → 6» on a starved 4K renderer (measured).
-      ticks = Promise.all([ticks, new Promise<void>((resolve) => setTimeout(() => {
-        apply();
-        resolve();
-      }, lastTick - now))]);
+      // (GUARANTEED, the session's: the tick releases a held counter and `ticks` is awaited — it comes at its time, or
+      // when the game screen leaves first.)
+      ticks = Promise.all([ticks, new Promise<void>((resolve) => {
+        consoleSessionScope().guarantee(lastTick - now, 'a touchdown\'s tick, in a task of its own', () => {
+          apply();
+          resolve();
+        });
+      })]);
     }
   };
   await intakeOpen;
@@ -507,3 +510,8 @@ export function resetScaleStepRewards(): void {
   scaleStepRewardState.degraded = false;
   claimed.clear();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// What a scale step still owed to tell (TR24): its holds release honestly, no record replays.
+sessionState('scale-step-rewards', resetScaleStepRewards, 50);

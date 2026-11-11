@@ -70,6 +70,7 @@ import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMot
 import {
   draftTrayState, isTraySlotHeld, registerTraySlotResolver, trayDisplayCards,
 } from '@/client/console/cardDeal/consoleDraftTray';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 export default defineComponent({
   name: 'ConsoleDraftTray',
@@ -79,15 +80,18 @@ export default defineComponent({
     /** The optional-repick wait state (the shell's draftWaitActive). */
     waiting: {type: Boolean, default: false},
   },
+  setup() {
+    return {flow: useFlowScope('draft-tray')};
+  },
   data() {
     return {
       draftTrayState,
       pulsing: false,
-      pulseTimer: undefined as number | undefined,
+      cancelPulse: (() => {}) as () => void,
       /** Per-slot one-shot settle accent (a landing accents ITSELF —
        *  the whole-pile pulse is reserved for set-complete). */
       justLanded: {} as Record<string, boolean>,
-      landTimers: {} as Record<string, number>,
+      landCancels: {} as Record<string, () => void>,
     };
   },
   computed: {
@@ -121,30 +125,25 @@ export default defineComponent({
       if (name === '') {
         return;
       }
-      if (this.landTimers[name] !== undefined) {
-        window.clearTimeout(this.landTimers[name]);
-      }
+      this.landCancels[name]?.();
       delete this.justLanded[name];
       void this.$nextTick(() => {
         this.justLanded[name] = true;
-        this.landTimers[name] = window.setTimeout(() => {
+        this.landCancels[name] = this.flow.after(consoleMotionMs(300), 'a tray slot\'s landing accent reads', () => {
           delete this.justLanded[name];
-          delete this.landTimers[name];
-        }, consoleMotionMs(300));
+          delete this.landCancels[name];
+        });
       });
     },
     /** One-shot pile pulse — the set-complete beat only. */
     'draftTrayState.pulseNonce'() {
-      if (this.pulseTimer !== undefined) {
-        window.clearTimeout(this.pulseTimer);
-      }
+      this.cancelPulse();
       this.pulsing = false;
       void this.$nextTick(() => {
         this.pulsing = true;
-        this.pulseTimer = window.setTimeout(() => {
+        this.cancelPulse = this.flow.after(consoleMotionMs(260), 'the tray\'s set-complete pulse reads', () => {
           this.pulsing = false;
-          this.pulseTimer = undefined;
-        }, consoleMotionMs(260));
+        });
       });
     },
   },
@@ -153,12 +152,6 @@ export default defineComponent({
   },
   beforeUnmount() {
     registerTraySlotResolver(undefined);
-    if (this.pulseTimer !== undefined) {
-      window.clearTimeout(this.pulseTimer);
-    }
-    for (const key of Object.keys(this.landTimers)) {
-      window.clearTimeout(this.landTimers[key]);
-    }
   },
   methods: {
     isHeld(name: CardName): boolean {

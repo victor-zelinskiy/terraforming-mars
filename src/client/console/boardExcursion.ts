@@ -90,6 +90,7 @@
 import {reactive} from 'vue';
 import {TaskKind} from '@/client/console/consoleTaskRouter';
 import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 export const boardExcursionState = reactive({
   /** WHICH workspace has yielded to a board placement whose causal chain has
@@ -179,3 +180,8 @@ export function boardExcursionQuiet(s: BoardExcursionSignals): boolean {
   }
   return s.followUpKind === undefined || !EXCURSION_BLOCKING_KINDS.has(s.followUpKind);
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// A leaked barrier would hide the next game's start scene
+sessionState('board-excursion', releaseBoardExcursion, 130);

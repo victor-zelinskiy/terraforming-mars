@@ -29,6 +29,7 @@ import {flyRailRewardLink, railRewardOwed, railRewardPending, releaseRailReward,
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {centreEndOf} from '@/client/console/consoleActionCommitMotion';
 import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {probeTick} from '@/client/console/probeTick';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 
 /** The rail rows a claim / a funding is paid from — the payment's units that live on the rail. */
@@ -143,9 +144,9 @@ function awaitPriceEnd(maxMs: number): Promise<TransferEnd | undefined> {
         resolve(end);
         return;
       }
-      window.requestAnimationFrame(tick);
+      probeTick(tick);
     };
-    window.requestAnimationFrame(tick);
+    probeTick(tick);
   });
 }
 

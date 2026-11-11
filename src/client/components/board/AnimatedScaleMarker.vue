@@ -52,6 +52,7 @@ import {defineComponent, PropType} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {reducedMotionActive} from '@/client/utils/reducedMotion';
 import {noteScaleMarkerMoving, noteScaleMarkerSettled} from '@/client/components/board/scaleMarkerArrival';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 type AccentName = 'temperature' | 'oxygen' | 'venus' | 'oceans';
 
@@ -192,12 +193,15 @@ export default defineComponent({
       required: true,
     },
   },
+  setup() {
+    return {flow: useFlowScope('animated-scale-marker')};
+  },
   data() {
     return {
       anchors: [] as Array<Anchor>,
       currentValue: undefined as number | undefined,
       activeAnimation: null as Animation | null,
-      settleTimeout: null as ReturnType<typeof setTimeout> | null,
+      cancelSettle: (() => {}) as () => void,
       resizeObserver: null as ResizeObserver | null,
       /**
        * The marker HAS a real position on the dial (an anchor was found for
@@ -299,10 +303,6 @@ export default defineComponent({
     if (this.activeAnimation !== null) {
       this.activeAnimation.cancel();
       this.activeAnimation = null;
-    }
-    if (this.settleTimeout !== null) {
-      clearTimeout(this.settleTimeout);
-      this.settleTimeout = null;
     }
     if (this.resizeObserver !== null) {
       this.resizeObserver.disconnect();
@@ -775,13 +775,10 @@ export default defineComponent({
 
       void marker.offsetWidth;
       marker.classList.add('scale-marker--settling');
-      if (this.settleTimeout !== null) {
-        clearTimeout(this.settleTimeout);
-      }
-      this.settleTimeout = setTimeout(() => {
+      this.cancelSettle();
+      this.cancelSettle = this.flow.after(motionMs(SETTLE_DURATION_MS), 'the scale marker\'s settle pulse ends', () => {
         marker.classList.remove('scale-marker--settling');
-        this.settleTimeout = null;
-      }, motionMs(SETTLE_DURATION_MS));
+      });
     },
     prefersReducedMotion(): boolean {
       return reducedMotionActive();

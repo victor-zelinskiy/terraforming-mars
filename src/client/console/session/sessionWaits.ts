@@ -15,6 +15,7 @@
  * The owner is the run the wait serves when the caller has one (`run.scope`, `hold.scope`, a frame's scope) and the
  * session otherwise. Neither ever rejects, neither ever hangs.
  */
+import {gsap} from 'gsap';
 import {FlowScope, frames} from '@/client/console/kernel/flowScope';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
@@ -30,3 +31,72 @@ export function whenPainted(count = 2, boundMs = 400, owner: FlowScope = console
 export function span(ms: number, owner: FlowScope = consoleSessionScope()): Promise<void> {
   return owner.sleep(ms).then(() => undefined);
 }
+
+/*
+ * ── THE MOTION CLOCK ─────────────────────────────────────────────────────────────────────────────────────────────────
+ * A beat that paces TWEENS rides GSAP's clock (`gsap.delayedCall`), not the wall clock: on a starved frame GSAP's lag
+ * smoothing stretches every timeline, and a wall-clock timer beside them fires early relative to the motion it was
+ * meant to follow (animations.md § A MOTION IS RIGHT ON A SLOW FRAME). What a bare `delayedCall` lacks is an OWNER: it
+ * fires into a surface that left, and nobody can see it standing. These three are `delayedCall` WITH an owner — a row
+ * of the wait table, taken back (or released) when the owner ends. The time is in MILLISECONDS, already through the
+ * motion scale of the caller (`motionMs(…)`).
+ */
+
+/**
+ * PACING on the motion clock: `run` is called `ms` of GSAP time from now — and never after the owner has ended.
+ * Returns the cancel (idempotent).
+ */
+export function motionAfter(ms: number, what: string, run: () => void, owner: FlowScope = consoleSessionScope()): () => void {
+  let forget: () => void = () => {};
+  const call = gsap.delayedCall(Math.max(0, ms) / 1000, () => {
+    forget();
+    run();
+  });
+  forget = owner.note(what, () => call.kill(), ms);
+  return () => {
+    forget();
+    call.kill();
+  };
+}
+
+/**
+ * A RELEASE on the motion clock: `release` is called exactly once — at `ms` of GSAP time, OR when the owner ends,
+ * whichever comes first — unless the returned `disarm` is called before either. (An owner already gone: a microtask
+ * later, never inside this call.)
+ */
+export function motionGuarantee(ms: number, what: string, release: () => void, owner: FlowScope = consoleSessionScope()): () => void {
+  let owed = true;
+  let call: gsap.core.Tween | undefined = undefined;
+  let forget: () => void = () => {};
+  const fire = (): void => {
+    if (!owed) {
+      return;
+    }
+    owed = false;
+    forget();
+    call?.kill();
+    release();
+  };
+  if (owner.ended !== undefined) {
+    void Promise.resolve().then(fire);
+    return () => {
+      owed = false;
+    };
+  }
+  call = gsap.delayedCall(Math.max(0, ms) / 1000, fire);
+  // The owner ending first is the other way it comes due: the row's withdrawal IS the release.
+  forget = owner.note(what, fire, ms);
+  return () => {
+    owed = false;
+    forget();
+    call?.kill();
+  };
+}
+
+/** A beat of `ms` on the motion clock: resolves when it has passed, or at once when the owner ended first. */
+export function motionSpan(ms: number, owner: FlowScope = consoleSessionScope()): Promise<void> {
+  return new Promise<void>((resolve) => {
+    motionGuarantee(ms, `${Math.round(ms)}ms of motion`, resolve, owner);
+  });
+}
+

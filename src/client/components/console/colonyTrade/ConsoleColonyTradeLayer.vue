@@ -52,6 +52,8 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {presentationTarget} from '@/client/console/boardCardBonus/boardCardBonusModel';
 import {probeTick} from '@/client/console/probeTick';
+import {motionGuarantee} from '@/client/console/session/sessionWaits';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
@@ -285,22 +287,22 @@ function pickAnchor(selectors: ReadonlyArray<string>): HTMLElement | null {
  * own safety net.
  */
 type SceneCtx = {
-  /** The current cover cycle's timelines + timers (reset per batch). */
+  /** The current cover cycle's timelines + timers (reset per batch) — each timer is its cancel / disarm in the layer's scope. */
   handles: Array<TradeDirectorHandle>,
-  timers: Array<ReturnType<typeof setTimeout>>,
+  timers: Array<() => void>,
   /** The marker glide's own timeline + cell-pulse timers (transaction-lived). */
   glideHandles: Array<TradeDirectorHandle>,
-  glideTimers: Array<ReturnType<typeof setTimeout>>,
+  glideTimers: Array<() => void>,
   /** A law's WAVE over every track (its own lifetime — a trade's teardown never kills it, nor it a trade's). */
   waveHandles: Array<TradeDirectorHandle>,
-  waveTimers: Array<ReturnType<typeof setTimeout>>,
+  waveTimers: Array<() => void>,
 };
 const ctx: SceneCtx = {handles: [], timers: [], glideHandles: [], glideTimers: [], waveHandles: [], waveTimers: []};
 
 function clearWave(): void {
   ctx.waveHandles.forEach((h) => h.kill());
   ctx.waveHandles = [];
-  ctx.waveTimers.forEach((t) => clearTimeout(t));
+  ctx.waveTimers.forEach((cancel) => cancel());
   ctx.waveTimers = [];
 }
 
@@ -308,7 +310,7 @@ function clearWave(): void {
 function clearCovers(): void {
   ctx.handles.forEach((h) => h.kill());
   ctx.handles = [];
-  ctx.timers.forEach((t) => clearTimeout(t));
+  ctx.timers.forEach((cancel) => cancel());
   ctx.timers = [];
 }
 
@@ -316,13 +318,16 @@ function clearScene(): void {
   clearCovers();
   ctx.glideHandles.forEach((h) => h.kill());
   ctx.glideHandles = [];
-  ctx.glideTimers.forEach((t) => clearTimeout(t));
+  ctx.glideTimers.forEach((cancel) => cancel());
   ctx.glideTimers = [];
 }
 
 export default defineComponent({
   name: 'ConsoleColonyTradeLayer',
   components: {ConsoleCardFaceLite},
+  setup() {
+    return {flow: useFlowScope('colony-trade-layer')};
+  },
   data() {
     return {
       colonyTradeState,
@@ -477,7 +482,7 @@ export default defineComponent({
             done();
             return;
           }
-          ctx.timers.push(setTimeout(poll, 90));
+          ctx.timers.push(this.flow.after(90, 'the payout\'s cause beats — the next look', poll));
         };
         poll();
       });
@@ -521,7 +526,7 @@ export default defineComponent({
       const firstBonus = plan.find((p) => p.role === 'bonus');
       setColonyTradeBeat(firstIncome !== undefined ? 'income' : 'bonus');
       if (firstIncome !== undefined && firstBonus !== undefined) {
-        ctx.timers.push(setTimeout(() => setColonyTradeBeat('bonus'), motionMs(firstBonus.delayMs)));
+        ctx.timers.push(this.flow.after(motionMs(firstBonus.delayMs), 'the bonus wave\'s launch — its narration', () => setColonyTradeBeat('bonus')));
       }
       await this.$nextTick();
 
@@ -559,10 +564,11 @@ export default defineComponent({
         if (el === null || colonyTradeState.reducedMotion) {
           return;
         }
-        ctx.timers.push(setTimeout(() => {
+        ctx.timers.push(this.flow.after(motionMs(delayMs), 'a cover\'s departure — its source cell answers', () => {
           el.classList.add('con-colcell--dealt');
-          ctx.timers.push(setTimeout(() => el.classList.remove('con-colcell--dealt'), motionMs(420)));
-        }, motionMs(delayMs)));
+          // The cell is the stage's, not the layer's: its mark comes off even when the layer leaves first.
+          ctx.timers.push(this.flow.guarantee(motionMs(420), 'the source cell\'s dealt pulse', () => el.classList.remove('con-colcell--dealt')));
+        }));
       };
       if (!colonyTradeState.active) {
         return;
@@ -693,21 +699,21 @@ export default defineComponent({
         //     резко»: by then the eye has already followed the cards away, so
         //     the change arrives as a cut rather than as part of their
         //     departure.
-        ctx.timers.push(setTimeout(() => {
+        ctx.timers.push(this.flow.after(motionMs(liftAnchor.delayMs + Math.round(TRADE_COVER_LIFT_MS * TRADE_LIFTOFF_AT_F)), 'the covers\' lift-off cue', () => {
           if (colonyTradeState.active) {
             markColonyPayoutLiftOff();
           }
-        }, motionMs(liftAnchor.delayMs + Math.round(TRADE_COVER_LIFT_MS * TRADE_LIFTOFF_AT_F))));
+        }));
         // 2 · ASCEND — the first cover deep into its travel and almost grown:
         //     «Получены карты» materializes under it. One-shot, guarded — a
         //     fast scene that already reached 'frame' must not be pulled back.
         const ascendAtMs = first.delayMs + TRADE_COVER_LIFT_MS +
           Math.round((TRADE_COVER_FLIGHT_MS - TRADE_COVER_LIFT_MS) * 0.45);
-        ctx.timers.push(setTimeout(() => {
+        ctx.timers.push(this.flow.after(motionMs(ascendAtMs), 'the covers\' ascend cue', () => {
           if (colonyTradeState.cardScene === 'fly') {
             setColonyTradeCardScene('ascend');
           }
-        }, motionMs(ascendAtMs)));
+        }));
       } else if (first !== undefined) {
         markColonyPayoutLiftOff(); // reduced motion: the cue is immediate
       }
@@ -746,14 +752,16 @@ export default defineComponent({
           // gate promptly, never swallow the «A Взять» press.
           setColonyTradeCardScene('frame');
           markColonyTradeZoomReady();
-          ctx.timers.push(setTimeout(() => {
+          // A RELEASE: the trade's card scene goes back to rest (its input gate with it) — at the beat, or when the
+          // layer leaves first; a cover reset disarms it, as it cleared the timer.
+          ctx.timers.push(this.flow.guarantee(motionMs(320), 'the single cover handed to the viewer — the card scene rests', () => {
             this.covers = [];
             setColonyTradeCardScene('idle');
             // The card is delivered — this payout's lift-off cue is spent, the
             // same as on the multi path (a cue left standing would dissolve the
             // stage the instant the NEXT cycle's zone opened).
             clearColonyPayoutLiftOff();
-          }, motionMs(320)));
+          }));
         },
       }));
     },
@@ -765,7 +773,7 @@ export default defineComponent({
         return;
       }
       setColonyTradeCardScene('frame');
-      ctx.timers.push(setTimeout(() => {
+      ctx.timers.push(this.flow.after(motionMs(TRADE_FRAME_MS), 'the frame around the landed covers — then the handoff', () => {
         if (!colonyTradeState.active) {
           return;
         }
@@ -785,7 +793,7 @@ export default defineComponent({
             clearColonyPayoutLiftOff();
           },
         }));
-      }, motionMs(TRADE_FRAME_MS)));
+      }));
     },
 
     /** Honest degrade: unveil + release instantly, no flight, no teleport. */
@@ -864,7 +872,7 @@ export default defineComponent({
           const cell = cellEls[i];
           if (cell !== null && cell !== undefined) {
             cell.classList.add('con-coltile__track-cell--sweep');
-            ctx.glideTimers.push(setTimeout(() => cell.classList.remove('con-coltile__track-cell--sweep'), motionMs(360)));
+            ctx.glideTimers.push(this.flow.guarantee(motionMs(360), 'a passed track cell\'s sweep', () => cell.classList.remove('con-coltile__track-cell--sweep')));
           }
         },
         onLanded: () => {
@@ -966,7 +974,7 @@ export default defineComponent({
             const cell = cellEls[k];
             if (cell !== null && cell !== undefined && !colonyTrackWaveState.reduced) {
               cell.classList.add('con-coltile__track-cell--sweep');
-              ctx.waveTimers.push(setTimeout(() => cell.classList.remove('con-coltile__track-cell--sweep'), motionMs(360)));
+              ctx.waveTimers.push(this.flow.guarantee(motionMs(360), 'a passed track cell\'s sweep (the wave)', () => cell.classList.remove('con-coltile__track-cell--sweep')));
             }
           },
           onLanded: () => {
@@ -976,8 +984,16 @@ export default defineComponent({
             gsap.to(marker, {autoAlpha: 0, duration: motionMs(220) / 1000, ease: 'power1.out'});
             landed++;
             if (landed === legs.length) {
-              // THE READ: the table is looked at for a beat before the scene is declared over.
-              ctx.waveHandles.push({kill: gsap.delayedCall(motionMs(plan.readMs) / 1000, () => finishColonyTrackWave('landed')).kill});
+              // THE READ: the table is looked at for a beat before the scene is declared over. A GUARANTEED release of
+              // the layer's scope, deliberately NOT one of the wave's killable handles: the wave's holds are let go at
+              // the beat's end or when the layer leaves, whichever comes first (the raw `delayedCall` this replaces
+              // was never killed either — its `kill` was pushed unbound). It ends only the wave it read.
+              const read = colonyTrackWaveState.nonce;
+              motionGuarantee(motionMs(plan.readMs), 'the wave\'s table is read — then the wave is over', () => {
+                if (colonyTrackWaveState.nonce === read) {
+                  finishColonyTrackWave('landed');
+                }
+              }, this.flow);
             }
           },
         }));

@@ -43,6 +43,7 @@
  *    straight into the target — the stack's own «ownership ≠ readiness» gap.
  */
 import {defineComponent, h, markRaw, nextTick, PropType, Teleport, VNode} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 type TeleportTo = string | HTMLElement;
 
@@ -104,7 +105,8 @@ export default defineComponent({
   setup() {
     // The wait's bookkeeping — plain, never reactive (the render reads it).
     return {
-      wait: markRaw({frame: undefined as number | undefined, timer: undefined as number | undefined, active: false, warned: false, since: 0, stranded: false, key: 0}),
+      wait: markRaw({cancelFrame: (() => {}) as () => void, cancelTimer: (() => {}) as () => void, active: false, warned: false, since: 0, stranded: false, key: 0}),
+      flow: useFlowScope('console-teleport'),
     };
   },
   data() {
@@ -119,14 +121,8 @@ export default defineComponent({
   methods: {
     stopWaiting(): void {
       const wait = this.wait;
-      if (wait.frame !== undefined) {
-        window.cancelAnimationFrame(wait.frame);
-        wait.frame = undefined;
-      }
-      if (wait.timer !== undefined) {
-        window.clearTimeout(wait.timer);
-        wait.timer = undefined;
-      }
+      wait.cancelFrame();
+      wait.cancelTimer();
       wait.active = false;
     },
     awaitTarget(): void {
@@ -150,8 +146,6 @@ export default defineComponent({
         return false;
       };
       const loop = (): void => {
-        wait.frame = undefined;
-        wait.timer = undefined;
         if (check()) {
           return;
         }
@@ -160,9 +154,9 @@ export default defineComponent({
           console.warn(`[teleport] stranded — ${typeof this.to === 'string' ? `«${this.to}»` : 'an element target'} absent for ${STRANDED_MS / 1000} s; the content stands nowhere`);
         }
         if (frames++ < FAST_RETRY_FRAMES && typeof window.requestAnimationFrame === 'function') {
-          wait.frame = window.requestAnimationFrame(loop);
+          wait.cancelFrame = this.flow.afterFrame('the teleport\'s target is looked for', loop);
         } else {
-          wait.timer = window.setTimeout(loop, SLOW_RETRY_MS);
+          wait.cancelTimer = this.flow.after(SLOW_RETRY_MS, 'the teleport\'s target is looked for (the slow cadence)', loop);
         }
       };
       void nextTick(() => {

@@ -49,6 +49,7 @@ import {
   uninstallTurnInputTracking,
   resetTurnHandoff,
 } from '@/client/components/overview/turnHandoffState';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 type BeamGeom = {top: number; left: number; height: number};
 
@@ -60,7 +61,8 @@ type DataModel = {
   beamGeom: BeamGeom | undefined;
   lastBeamId: number | undefined;
   hintRect: {top: number; left: number} | undefined;
-  reposTimer: number | undefined;
+  /** The pending resize debounce's cancel (a beat of the layer's own scope — taken back with it). */
+  reposTimer: (() => void) | undefined;
 };
 
 /**
@@ -81,6 +83,9 @@ export default defineComponent({
       type: Object as PropType<PlayerViewModel>,
       required: true,
     },
+  },
+  setup() {
+    return {flow: useFlowScope('turn-handoff-layer')};
   },
   data(): DataModel {
     return {
@@ -156,9 +161,6 @@ export default defineComponent({
   beforeUnmount(): void {
     uninstallTurnInputTracking();
     window.removeEventListener('resize', this.onReposition);
-    if (this.reposTimer !== undefined) {
-      window.clearTimeout(this.reposTimer);
-    }
     resetTurnHandoff();
   },
   methods: {
@@ -234,14 +236,14 @@ export default defineComponent({
     onReposition(): void {
       // Keep the hint glued to the card across resize (debounced).
       if (this.reposTimer !== undefined) {
-        window.clearTimeout(this.reposTimer);
+        this.reposTimer();
       }
-      this.reposTimer = window.setTimeout(() => {
+      this.reposTimer = this.flow.after(120, 'the idle hint re-anchors after a resize', () => {
         if (this.idleHintActive) {
           this.captureHintAnchor();
         }
         this.reposTimer = undefined;
-      }, 120);
+      });
     },
   },
 });

@@ -34,7 +34,7 @@
  */
 
 import {reactive, nextTick} from 'vue';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -919,6 +919,11 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     }
   };
   markRun(true);
+  // THE WAVE IS A RUN OF THE FLOW TREE (architecture v2 — PLAN §10 · C4): `scene:transfer-wave#n` in the session, from
+  // its first birth to its last touchdown. The tree names every wave in the air; its safety is the wave's own
+  // guaranteed release — and a wave whose game screen leaves lets everything go at that moment.
+  const wave = consoleSessionScope().open('scene', 'transfer-wave');
+  wave.detail = `${flights.length} token(s)${inSurface ? ' in-surface' : ''}`;
   resourceTransferState.nonce++;
   const pace = clampTransferPace(run.pace);
   const entries = flights.map((f, i) => ({
@@ -965,7 +970,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     let safetyFired = false;
     // A GUARANTEED release (the kernel's): at the wave's budget, or when the game screen leaves — the caller's await and
     // every hold of the wave are let go either way.
-    const disarmSafety = consoleSessionScope().guarantee(waveBudget, 'a wave of resource transfers', () => {
+    const disarmSafety = wave.guarantee(waveBudget, 'the wave\'s touchdowns', () => {
       // rAF stall / lost stage — release everything, never wedge the caller.
       safetyFired = true;
       trail(runId, 'run:safety', {arrival: run.arrival, ids: entries.map((e) => e.id)});
@@ -1080,6 +1085,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     void Promise.all(absorbs).then(absorbedOnce);
     disarmSafety();
     markRun(false);
+    wave.end();
     trail(runId, 'run:end', {arrival: run.arrival});
   } catch (e) {
     // Documented contract: this function NEVER rejects. A throw here (e.g. a
@@ -1093,6 +1099,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       removeFlight(entry.id);
     });
     markRun(false);
+    wave.end({how: 'failed', error: e});
     leftOnce();
     absorbedOnce();
   }
@@ -1784,3 +1791,7 @@ export function takeDeclaredAnswers(): ReadonlyArray<ResourceTransferSpec> {
 export function registerRewardHoldKeeper(keeper: () => ReadonlyArray<ResourceTransferSpec>): void {
   rewardHoldKeepers.push(keeper);
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('resource-transfers', abortResourceTransfers, 610);

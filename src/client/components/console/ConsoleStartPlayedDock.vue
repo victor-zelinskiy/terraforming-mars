@@ -122,6 +122,8 @@ import {HeroRect} from '@/client/console/played/playedHeroModel';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {heldCardCapsule} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {whenPainted} from '@/client/console/session/sessionWaits';
 
 /** Visible depth strips under the top card (history, never a column). */
 const STRIP_CAP = 2;
@@ -168,6 +170,10 @@ export default defineComponent({
      *  the embed step's source column) — its slot keeps geometry, the face
      *  hides REACTIVELY (an imperative class would be wiped by any patch). */
     awayCard: {type: String as PropType<CardName | undefined>, default: undefined},
+  },
+  setup() {
+    // The dock's own scope (architecture v2 — PLAN §10 · C1): what it waits for ends with it.
+    return {flow: useFlowScope('start-played-dock')};
   },
   data() {
     return {
@@ -367,7 +373,9 @@ export default defineComponent({
         return cs !== undefined && (cs.visibility === 'hidden' || Number(cs.opacity) < 0.05);
       };
       for (let i = 0; i < 30; i++) {
-        await new Promise<void>((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => r()) : setTimeout(r, 16)));
+        // The hero's flight AWAITS this measure: one painted frame — or shortly when none comes, or at once when the
+        // dock is gone (the loop then runs out on its own count).
+        await whenPainted(1, 50, this.flow);
         const r = el.getBoundingClientRect();
         if (parked()) {
           last = undefined; // wait for the un-recede; never latch a parked box

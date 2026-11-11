@@ -11,7 +11,7 @@
  */
 import {claimMaVp, dropMaVp, flyMaVp} from '@/client/console/scoreCell/maVp';
 import {addressed, AddressableInput, promptAddressOf} from '@/common/inputs/preselectAddress';
-import {computed, ref} from 'vue';
+import {computed} from 'vue';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Message} from '@/common/logs/Message';
 import {SelectPaymentModel} from '@/common/models/PlayerInputModel';
@@ -41,6 +41,7 @@ import {findAwardOptionPath, findMilestoneOptionPath, inputTitleText, wrapPath} 
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import type {SeatController} from '@/client/console/shell/seatController';
 import type {UnwrapRef} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /**
  * Identity-stable MA HUD zones (perf iteration 3). `buildMaHudZone` returns a
@@ -79,9 +80,11 @@ export type MaPort = {
 };
 
 export function createMaController(shell: MaPort) {
+  // The controller's own scope (architecture v2 — PLAN §10 · C1): it ends with the shell, and its timers with it.
+  const flow = useFlowScope('ma-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
-  /** The MA workspace commit's safety backstop (a verdict may never hang). */
-  const maFocusSafetyTimer = ref(undefined as number | undefined);
+  /** The MA workspace commit's safety backstop (a verdict may never hang) — its cancel; the scope owns the timer. */
+  let cancelMaFocusSafety: () => void = () => {};
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   /** Award names for the translation-proof structure fallback (the fund
@@ -549,8 +552,8 @@ export function createMaController(shell: MaPort) {
    *  the reversible detail with an honest reason. */
   function armMaFocusSafety(): void {
     clearMaFocusSafety();
-    maFocusSafetyTimer.value = window.setTimeout(() => {
-      maFocusSafetyTimer.value = undefined;
+    cancelMaFocusSafety = flow.after(MA_COMMIT_SAFETY_MS, 'the MA commit\'s verdict (safety)', () => {
+      cancelMaFocusSafety = () => {};
       if (maFocusState.phase === 'committing') {
         abandonMaCeremonyEmbed();
         disarmMaCeremony();
@@ -558,14 +561,12 @@ export function createMaController(shell: MaPort) {
         releaseMaPrice('the claim never resolved');
         failMaFocusCommit('Unavailable right now');
       }
-    }, MA_COMMIT_SAFETY_MS);
+    });
   }
 
   function clearMaFocusSafety(): void {
-    if (maFocusSafetyTimer.value !== undefined) {
-      window.clearTimeout(maFocusSafetyTimer.value);
-      maFocusSafetyTimer.value = undefined;
-    }
+    cancelMaFocusSafety();
+    cancelMaFocusSafety = () => {};
   }
 
   /**
@@ -692,7 +693,6 @@ export function createMaController(shell: MaPort) {
   }
 
   return {
-    maFocusSafetyTimer,
     awardNames,
     hudMilestoneZone,
     hudAwardZone,

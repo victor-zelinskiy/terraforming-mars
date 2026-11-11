@@ -31,6 +31,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {PendingClientPayment, PendingClientPick} from '@/client/console/shell/shellShared';
 import type {SeatController} from '@/client/console/shell/seatController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -60,6 +61,8 @@ export type StdProjectsPort = {
 };
 
 export function createStdProjectsController(shell: StdProjectsPort) {
+  // The controller's own scope (architecture v2 — PLAN §10 · C1): it ends with the shell, and its timers with it.
+  const flow = useFlowScope('std-projects-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** The standard projects' terminal commit is HOSTING the Venus bonus its step earned (P89 · EE). */
   const stdpVenusStep = ref(false);
@@ -351,14 +354,14 @@ export function createStdProjectsController(shell: StdProjectsPort) {
    */
   function armStdProjectSafety(): void {
     const card = stdProjectsFlow.card;
-    window.setTimeout(() => {
+    flow.after(12_000, 'a standard project\'s answer (safety)', () => {
       // …never while the response DID land and the project hosts its Venus bonus (P89 · EE): the player is reading
       // a live question, not waiting on a lost submit.
       if (stdProjectsFlow.state === 'submitting' && stdProjectsFlow.card === card && !stdpVenusStep.value) {
         rollbackStdProjectFlow();
         shell.showNotice('Unavailable right now');
       }
-    }, 12_000);
+    });
   }
 
   /** Arm the std-projects DESCEND phrase from the focused row (the screen
@@ -514,13 +517,13 @@ export function createStdProjectsController(shell: StdProjectsPort) {
     if (workspaceFrameMounted('standard-projects')) {
       setWorkspaceFramePhase('standard-projects', stdProjectsFramePhase('commit'));
     }
-    window.setTimeout(() => {
+    flow.after(Math.max(motionMs(STDP_HOLD_MS), 1), 'the committed standard project\'s read', () => {
       if (stdProjectsFlow.state !== 'commit') {
         return;
       }
       releaseStdProjectCommit();
       endStdProjectsFlow();
-    }, Math.max(motionMs(STDP_HOLD_MS), 1));
+    });
   }
 
   /**

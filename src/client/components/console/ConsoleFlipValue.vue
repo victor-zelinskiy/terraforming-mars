@@ -52,6 +52,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** The one-shot beat's tint — matches the readout it belongs to. */
 export type FlipAccent = 'cyan' | 'mint' | 'gold';
@@ -74,6 +75,9 @@ export default defineComponent({
   /** `flip-end` (the value shown): the one-shot swap finished — a scene that waits for the flip waits for THIS,
    *  never for a timer of its own (the generation scene, TR61). A snap (a decrease, a silent mount) emits nothing. */
   emits: ['flip-end'],
+  setup() {
+    return {flow: useFlowScope('flip-value')};
+  },
   data() {
     return {
       shown: this.value,
@@ -83,7 +87,11 @@ export default defineComponent({
       /** The running flip is a DECREASE (rolls the other way). */
       falling: false,
       flipNonce: 0,
-      clearTimer: undefined as number | undefined,
+      /**
+       * The running flip's end — the DISARM of a guaranteed release: `flip-end` is what a scene waits for, so it is
+       * said at the flip's length OR when this readout leaves first (never dropped with the instance); a snap disarms it.
+       */
+      clearTimer: undefined as (() => void) | undefined,
     };
   },
   watch: {
@@ -112,17 +120,14 @@ export default defineComponent({
       this.flipNonce++; // re-keys the cards so a rapid re-flip restarts cleanly
       this.flipping = true;
       if (this.clearTimer !== undefined) {
-        window.clearTimeout(this.clearTimer);
+        this.clearTimer();
       }
-      this.clearTimer = window.setTimeout(() => {
+      this.clearTimer = this.flow.guarantee(motionMs(FLIP_TOTAL_MS), 'the readout\'s flip ends', () => {
         this.flipping = false;
         this.clearTimer = undefined;
         this.$emit('flip-end', this.shown);
-      }, motionMs(FLIP_TOTAL_MS));
+      });
     },
-  },
-  beforeUnmount() {
-    this.stopFlip();
   },
   methods: {
     display(value: number, text: string | undefined): string {
@@ -130,7 +135,7 @@ export default defineComponent({
     },
     stopFlip(): void {
       if (this.clearTimer !== undefined) {
-        window.clearTimeout(this.clearTimer);
+        this.clearTimer();
         this.clearTimer = undefined;
       }
       this.flipping = false;

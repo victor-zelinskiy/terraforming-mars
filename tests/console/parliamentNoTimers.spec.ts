@@ -9,9 +9,10 @@ import * as path from 'path';
  * ends on its own `animationend` — never `setTimeout` / `setInterval`. The
  * results scene that this rule retired paced its whole story on timers
  * (`RECAP_BEAT_MS × N`), fired into unmounted surfaces and ignored the
- * motion scale; the one timer the tree keeps is the section's SUBMIT SAFETY
- * — a net over a server that never answered, which is exactly what a wall
- * clock is for. Static, so a regression fails in seconds and names the line.
+ * motion scale. A NET over something that may never answer (the submit
+ * safety, a draw that never enters) is an OWNED wait of the flow kernel
+ * (`this.flow.after` / `scope.guarantee`), never a raw timer. Static, so a
+ * regression fails in seconds and names the line.
  */
 const ROOT = path.join(__dirname, '..', '..');
 const TREES = [
@@ -22,41 +23,14 @@ const FILES = [
   path.join('src', 'client', 'components', 'console', 'ConsoleParliamentSection.vue'),
 ];
 
-/** The allowed timers, by file and by the reason written next to them. */
-const ALLOWED: ReadonlyArray<{file: string, marker: string, why: string}> = [
-  {
-    file: path.join('src', 'client', 'console', 'parliament', 'sittingRise.ts'),
-    marker: 'SITTING_RISE_NET_MS',
-    why: 'the soft gates: a sitting on its way up that never stands gives the board back — a bound, not a beat',
-  },
-  {
-    file: path.join('src', 'client', 'components', 'console', 'ConsoleParliamentSection.vue'),
-    marker: 'SUBMIT_SAFETY_MS',
-    why: 'the submit safety net — a bound over a silent server, not a beat',
-  },
-  {
-    file: path.join('src', 'client', 'console', 'parliament', 'rulingChangeDraw.ts'),
-    marker: 'PARK_NET_MS',
-    why: 'TR62: the park of a card\'s answer to a change of power — a bound over a sitting that never tells its enactment, not a beat',
-  },
-  {
-    file: path.join('src', 'client', 'console', 'parliament', 'parliamentDraw.ts'),
-    marker: 'PARLIAMENT_DRAW_TAKE_NET_MS',
-    why: '«ПРИЁМКА»: the wait for the player\'s take — a bound over a batch that neither presents nor leaves, not a beat',
-  },
-  {
-    file: path.join('src', 'client', 'components', 'console', 'ConsoleParliamentSection.vue'),
-    marker: 'PARLIAMENT_DRAW_READY_NET_MS',
-    why: '«ПРИЁМКА»: a draw stage that never enters lets its batch go to the ordinary reveal — a bound, not a beat',
-  },
-  {
-    file: path.join('src', 'client', 'console', 'parliament', 'bannerCubeScene.ts'),
-    marker: 'showUnflown',
-    why: 'Septem Tribus:redux: a cube held for a flight nobody plays is SHOWN (9 s for the first action, 60 s for a sitting) — a bound over a missing scene, not a beat',
-  },
-  // (v2: the reward ledger keeps NO net of its own — a counter's hold is released by its chip's touchdown, by an
-  // explicit end of the stage, or by the hold registry's ceiling with a diagnosis; never by a wall clock.)
-];
+/**
+ * The allowed timers, by file and by the reason written next to them. EMPTY since the coverage phase of architecture v2
+ * (PLAN §10 · C1): the nets this list used to keep — the sitting's rise, the submit safety, the park of a card's answer,
+ * the draw's take and its stage, the unflown cube — are owned waits of the flow kernel now (`scope.after` /
+ * `scope.guarantee` — a row of the wait table, taken back or released with its owner), so the tree holds no raw timer
+ * at all. A row added here is a wait nobody owns: put it on a scope instead.
+ */
+const ALLOWED: ReadonlyArray<{file: string, marker: string, why: string}> = [];
 
 function sourceFiles(): Array<string> {
   const out: Array<string> = [];

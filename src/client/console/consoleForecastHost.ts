@@ -10,7 +10,6 @@
  * stage (TR26, PL-060) and the colony stage (PL-066) read these; the two
  * composers still carry their own copies of the same phrase.
  */
-import {gsap} from 'gsap';
 import {Color} from '@/common/Color';
 import {EffectForecast, forecastSourceIsCardless} from '@/common/models/EffectForecastModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
@@ -24,6 +23,7 @@ import {armForecastDoor, armForecastInstantFold, armForecastRow} from '@/client/
 import {effectStatsFor, ensureEffectStats} from '@/client/console/effectStatsStore';
 import {descendRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 import {VersionedView} from '@/client/console/gameStateVersion';
+import {motionGuarantee} from '@/client/console/session/sessionWaits';
 
 /** What the layer component exposes to its host's input path. */
 export type ForecastLayerHandle = {
@@ -99,8 +99,9 @@ export function openForecastHost(
 export function pulseForecastDoor(set: (on: boolean) => void, previous: {kill: () => void} | undefined): {kill: () => void} {
   previous?.kill();
   set(true);
-  const call = gsap.delayedCall(motionMs(FORECAST_DOOR_PULSE_MS) / 1000, () => set(false));
-  return {kill: () => call.kill()};
+  // A RELEASE on the motion clock: the flare's flag is the host's, and it comes down even when the session ends first.
+  const disarm = motionGuarantee(motionMs(FORECAST_DOOR_PULSE_MS), 'the forecast door\'s flare', () => set(false));
+  return {kill: disarm};
 }
 
 /** The layer lives ONLY on the setup level — a sub-step, the commit boundary and a refusal fold it instantly. */

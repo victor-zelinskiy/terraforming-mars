@@ -26,7 +26,9 @@ describe('the colony track glide — a birth painted on its cell, a landing afte
     const born = glide.slice(glide.indexOf('const born = (): void => {'));
     expect(born, 'the birth turns the proxy visible where it stands').to.include('gsap.set(marker, {autoAlpha: 1});');
     expect(born, 'the glide waits for a later frame').to.include('laterFrame(glide);');
-    expect(glide, 'the stagger is the birth\'s, never a delay on the timeline').to.include('gsap.delayedCall(s(args.delayMs ?? 0), born)');
+    // …on the MOTION clock, with an owner (`motionAfter` = `gsap.delayedCall` as a row of the session's wait table).
+    expect(glide, 'the stagger is the birth\'s, never a delay on the timeline').to.include('motionAfter(s(args.delayMs ?? 0) * 1000, ');
+    expect(glide, 'the birth is the stagger\'s callback').to.match(/motionAfter\(s\(args\.delayMs \?\? 0\) \* 1000, '[^\n]*', born\)/);
     expect(glide, 'a later frame is counted on the ticker').to.include('if (gsap.ticker.frame <= since) {');
     expect(glide, 'never a wall clock').to.not.match(/setTimeout|requestAnimationFrame/);
   });
@@ -41,7 +43,7 @@ describe('the colony track glide — a birth painted on its cell, a landing afte
 
   it('a kill cancels the birth, the glide and every frame waiter', () => {
     const kill = glide.slice(glide.lastIndexOf('return {kill: () => {'));
-    expect(kill).to.include('birth?.kill();');
+    expect(kill).to.include('cancelBirth();');
     expect(kill).to.include('tl?.kill();');
     expect(kill).to.include('gsap.ticker.remove(w)');
   });

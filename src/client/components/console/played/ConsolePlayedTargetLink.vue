@@ -71,6 +71,7 @@ import {defineComponent} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import {playedTargetSelfState} from '@/client/console/played/consolePlayedTargetSelf';
 import {effectiveZoom} from '@/client/console/cssUnits';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** The solved wire, in the frame's own layout px. */
 type Wire = {left: number, top: number, width: number};
@@ -80,6 +81,9 @@ const MIN_SPAN_PX = 8;
 
 export default defineComponent({
   name: 'ConsolePlayedTargetLink',
+  setup() {
+    return {flow: useFlowScope('played-target-link')};
+  },
   data() {
     return {
       link: playedTargetSelfState,
@@ -94,7 +98,8 @@ export default defineComponent({
        */
       pulseKey: playedTargetSelfState.pulse,
       stopResizeObs: undefined as (() => void) | undefined,
-      rafId: 0,
+      /** A measure is scheduled for the next frame (its cancel) — `undefined` when none stands. */
+      cancelMeasure: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -152,10 +157,6 @@ export default defineComponent({
   beforeUnmount() {
     this.stopResizeObs?.();
     this.stopResizeObs = undefined;
-    if (this.rafId !== 0 && typeof cancelAnimationFrame === 'function') {
-      cancelAnimationFrame(this.rafId);
-    }
-    this.rafId = 0;
   },
   methods: {
     /**
@@ -165,7 +166,7 @@ export default defineComponent({
      * property, and the row it re-flows is one style recalculation later.
      */
     scheduleMeasure(): void {
-      if (this.rafId !== 0) {
+      if (this.cancelMeasure !== undefined) {
         return;
       }
       // A HEADLESS MOUNT has no rAF (the composer unit specs mount the whole
@@ -176,8 +177,8 @@ export default defineComponent({
         void this.$nextTick(() => this.measure());
         return;
       }
-      this.rafId = requestAnimationFrame(() => {
-        this.rafId = 0;
+      this.cancelMeasure = this.flow.afterFrame('the wire is re-measured', () => {
+        this.cancelMeasure = undefined;
         void this.$nextTick(() => this.measure());
       });
     },

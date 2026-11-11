@@ -39,6 +39,7 @@ import {Phase} from '@/common/Phase';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ExitSource, runDraftPickToTray, DraftPickHandle} from '@/client/console/cardDeal/cardExitDirector';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 export const draftTrayState = reactive({
   /** Optimistic additions (hero in flight / landed, not yet in the server list). */
@@ -121,7 +122,7 @@ export function riseSceneEngaged(): boolean {
 let pickHandle: DraftPickHandle | undefined;
 let pickWaiters: Array<() => void> = [];
 let responseSeen = false;
-let safetyTimer: ReturnType<typeof setTimeout> | undefined;
+let cancelSafety: () => void = () => {};
 
 function flushPickWaiters(): void {
   const waiters = pickWaiters;
@@ -151,10 +152,8 @@ function releaseSlot(name: CardName): void {
 }
 
 function clearSafety(): void {
-  if (safetyTimer !== undefined) {
-    clearTimeout(safetyTimer);
-    safetyTimer = undefined;
-  }
+  cancelSafety();
+  cancelSafety = () => {};
 }
 
 /**
@@ -175,7 +174,9 @@ function settlePickBeat(): void {
   }
   draftTrayState.processing = true;
   clearSafety();
-  safetyTimer = setTimeout(() => recoverDraftBeat(), 6000);
+  // PACING (an abort-style safety — «nothing answered, recall»): taken back when the game screen leaves, never fired
+  // into the next game.
+  cancelSafety = consoleSessionScope().after(6000, 'the draft pick\'s submit safety (no answer)', () => recoverDraftBeat());
 }
 
 export type DraftPickBeatArgs = {

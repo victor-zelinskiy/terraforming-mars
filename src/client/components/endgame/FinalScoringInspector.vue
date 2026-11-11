@@ -74,6 +74,7 @@ import {defineComponent} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {FinalScoringInspectorContent} from '@/client/components/endgame/finalScoringRevealModel';
 import CardPreviewPopover from '@/client/components/journal/CardPreviewPopover.vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 const HOVER_DELAY = 150;
 
@@ -84,12 +85,15 @@ export default defineComponent({
     content: {type: Object as () => FinalScoringInspectorContent, required: true},
   },
   emits: ['keep', 'release'],
+  setup() {
+    return {flow: useFlowScope('final-scoring-inspector')};
+  },
   data() {
     return {
       previewName: undefined as CardName | undefined,
       previewVisible: false,
       previewAnchor: undefined as DOMRect | undefined,
-      hoverTimer: undefined as number | undefined,
+      cancelHover: (() => {}) as () => void,
     };
   },
   methods: {
@@ -107,23 +111,17 @@ export default defineComponent({
       this.previewName = name;
       this.previewAnchor = el.getBoundingClientRect();
       this.clearTimer();
-      this.hoverTimer = window.setTimeout(() => {
+      this.cancelHover = this.flow.after(HOVER_DELAY, 'the card row\'s hover delay', () => {
         this.previewVisible = true;
-      }, HOVER_DELAY);
+      });
     },
     onCardLeave(): void {
       this.clearTimer();
       this.previewVisible = false;
     },
     clearTimer(): void {
-      if (this.hoverTimer !== undefined) {
-        window.clearTimeout(this.hoverTimer);
-        this.hoverTimer = undefined;
-      }
+      this.cancelHover();
     },
-  },
-  beforeUnmount(): void {
-    this.clearTimer();
   },
 });
 </script>

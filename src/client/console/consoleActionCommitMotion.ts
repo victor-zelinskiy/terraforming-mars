@@ -36,7 +36,7 @@ import type {ActionCommitKind} from '@/client/console/consoleActionCommit';
 import {armCommitImpulse, landCommitImpulse} from '@/client/console/consoleActionCommit';
 import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {ResourceTransferSpec, TransferEnd, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
 // Tuned for READABILITY over snap (player feedback: the first cut was too
@@ -699,3 +699,8 @@ export function runActionCommitMotion(args: ActionCommitMotionArgs): ActionCommi
     },
   };
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The beat's own timeline + overlay layer
+sessionState('action-commit-motion', abortActionCommitMotion, 640);

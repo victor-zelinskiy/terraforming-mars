@@ -40,7 +40,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {playCeremonyBurst, CeremonyBurstHandle} from '@/client/console/ceremony/ceremonyFx';
 import {MaKind} from '@/client/components/ma/maArt';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {
   armDescendRect,
   armDescendOrigin,
@@ -631,3 +631,8 @@ export function runMaCeremonyStage(
   tl.to({}, {duration: Math.max(0.01, dwellEndS - tl.duration())}, '>');
   cereEpisode = {tl, burst: undefined, consumed: false};
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Kills a live coronation timeline (nothing else can)
+sessionState('ma-focus-motion', resetMaFocusMotion, 650);

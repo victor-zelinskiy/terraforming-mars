@@ -107,6 +107,7 @@ import {flyMaVp} from '@/client/console/scoreCell/maVp';
 import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
 import ConsoleMaWaivedPrice from '@/client/components/console/foundation/ConsoleMaWaivedPrice.vue';
 import {advanceQuestCeremony, questCeremonyState, QuestCeremonyEvent} from '@/client/console/parliament/questCeremony';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** The own coronation lingers a beat longer than the seal / a rival's beat. */
 const MILESTONE_LIFETIME_MS = 3600;
@@ -119,15 +120,19 @@ const REDUCED_LIFETIME_MS = 1600;
 export default defineComponent({
   name: 'ConsoleMaCeremony',
   components: {MaHeroArt, PremiumChairGlyph, ConsoleMaWaivedPrice},
+  setup() {
+    return {flow: useFlowScope('ma-ceremony')};
+  },
   data() {
     return {
       visible: false,
-      hideTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+      /** The strip's lifetime — its cancel (the shell's scope takes both lifetimes back on unmount). */
+      hideTimer: undefined as (() => void) | undefined,
       /** The beat this shell put on screen — its leave advances the queue only while it is still the current one. */
       shownEvent: undefined as MaCeremonyEvent | undefined,
       fx: undefined as CeremonyBurstHandle | undefined,
       questVisible: false,
-      questTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+      questTimer: undefined as (() => void) | undefined,
       questFx: undefined as CeremonyBurstHandle | undefined,
     };
   },
@@ -169,12 +174,6 @@ export default defineComponent({
     this.showQuest();
   },
   beforeUnmount() {
-    if (this.hideTimer !== undefined) {
-      clearTimeout(this.hideTimer);
-    }
-    if (this.questTimer !== undefined) {
-      clearTimeout(this.questTimer);
-    }
     this.stopFx();
     this.questFx?.stop();
   },
@@ -196,7 +195,7 @@ export default defineComponent({
         return;
       }
       if (this.hideTimer !== undefined) {
-        clearTimeout(this.hideTimer);
+        this.hideTimer();
       }
       this.visible = true;
       this.shownEvent = this.event;
@@ -208,7 +207,7 @@ export default defineComponent({
           this.event.kind === 'milestone' ? MILESTONE_LIFETIME_MS : AWARD_LIFETIME_MS;
       const own = this.event.own;
       const kind = this.event.kind;
-      this.hideTimer = setTimeout(() => {
+      this.hideTimer = this.flow.after(motionMs(base), 'the ceremony strip\'s lifetime', () => {
         this.hideTimer = undefined;
         const hide = () => {
           this.visible = false;
@@ -221,7 +220,7 @@ export default defineComponent({
         } else {
           hide();
         }
-      }, motionMs(base));
+      });
     },
     /** The coronation gets the full burst; a rival's remote beat only a calm
      *  ring ping — it must stay unobtrusive by contract. */
@@ -271,12 +270,12 @@ export default defineComponent({
           this.questFx = playCeremonyBurst({host, accent: 'quest', reduced: prefersReducedMotion(), intensity: 'ping', delayMs: 140});
         }
       });
-      this.questTimer = setTimeout(() => {
+      this.questTimer = this.flow.after(motionMs(prefersReducedMotion() ? REDUCED_LIFETIME_MS : QUEST_LIFETIME_MS), 'the quest strip\'s lifetime', () => {
         this.questTimer = undefined;
         this.questVisible = false;
         this.questFx?.stop();
         this.questFx = undefined;
-      }, motionMs(prefersReducedMotion() ? REDUCED_LIFETIME_MS : QUEST_LIFETIME_MS));
+      });
     },
     onQuestGone(): void {
       advanceQuestCeremony();

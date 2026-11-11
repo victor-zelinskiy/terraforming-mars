@@ -53,6 +53,8 @@
  */
 
 import {reactive, shallowRef} from 'vue';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 import {reactivePredicate} from '@/client/components/presentation/reactivityWitness';
 import {Color} from '@/common/Color';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
@@ -302,7 +304,8 @@ export const BOARD_BEAT_LEAVE_WAIT_MAX_MS = 1200;
 const LEAVE_POLL_MS = 40;
 
 let ledgerStory: OwedStoryHandle | undefined;
-let drainTimers: Array<ReturnType<typeof setTimeout>> = [];
+/** The story's steps — each the cancel of a timer the STORY'S RUN owns (`boardStoryRun`). */
+let drainTimers: Array<() => void> = [];
 
 function clearSafety(): void {
   ledgerStory?.settle();
@@ -310,8 +313,8 @@ function clearSafety(): void {
 }
 
 function clearDrainTimers(): void {
-  for (const t of drainTimers) {
-    clearTimeout(t);
+  for (const cancel of drainTimers) {
+    cancel();
   }
   drainTimers = [];
 }
@@ -527,12 +530,19 @@ export const boardBeatParkPending = reactivePredicate('board-beat-park-pending',
     (watchableProbeRef.value !== undefined && parkedBatchPending());
 });
 
+/**
+ * THE BOARD'S STORY IS A RUN (architecture v2 — PLAN §10 · C4): derived from the two flags that say it is being told
+ * (a drain in flight, a scale story's blocking window), so every writer of them moves the run by construction. Its
+ * steps are the run's own timers; a story whose game screen left is RELEASED without the show (`orphaned` — the
+ * honest degrade `releaseBoardBeatPark` already is), never left holding the next game's board.
+ */
+const boardStoryRun = deriveFlowRun('board-beat-story', () => boardBeatParkState.draining || boardBeatParkState.scaleStory, {
+  kind: 'story',
+  orphaned: () => releaseBoardBeatPark(),
+});
+
 function schedule(run: () => void, ms: number): void {
-  if (typeof setTimeout !== 'function') {
-    run();
-    return;
-  }
-  drainTimers.push(setTimeout(run, ms));
+  drainTimers.push((boardStoryRun.scope ?? consoleSessionScope()).after(ms, 'a step of the board\'s story', run));
 }
 
 /** The settle, started only once no surface is still leaving (bounded — see `registerBoardBeatSurfaceProbe`). */
@@ -695,3 +705,9 @@ export function resetBoardBeatPark(): void {
   redriveHook = undefined;
   liveParamsSource = undefined;
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The board-beat park dies with the shell (drops the probe too — a dead shell's computeds must never decide the next
+// game's parks; held values and a parked batch release honestly, without the show).
+sessionState('board-beat-park', resetBoardBeatPark, 40);

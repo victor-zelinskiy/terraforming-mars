@@ -224,6 +224,7 @@ import TurmoilAgendaContainer from '@/client/components/cardlist/TurmoilAgendaCo
 import {CardResource} from '@/common/CardResource';
 import {cardResourceCSS} from '../common/cardResources';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 
 type Refs = {
@@ -240,6 +241,9 @@ export default defineComponent({
     Award,
     TurmoilAgendaContainer,
     PreferencesIcon,
+  },
+  setup() {
+    return {flow: useFlowScope('card-list')};
   },
   data(): CardListModel {
     return hashToModel(window.location.hash);
@@ -351,10 +355,11 @@ export default defineComponent({
   },
   methods: {
     delayedSetLocationHash(delayms: number = 200) {
-      setTimeout(() => {
+      // An owned timer of the list (flow kernel — PLAN §10 · C1): the self-re-arming sync ends with the screen.
+      this.flow.after(delayms, 'the card list\'s next hash sync', () => {
         const changed = this.setLocationHash();
         this.delayedSetLocationHash(changed ? 10 : 100);
-      }, delayms);
+      });
     },
     setLocationHash(): boolean {
       const hash = modelToHash(this as unknown as CardListModel);

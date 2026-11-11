@@ -115,7 +115,6 @@ export function createPlayCardController(shell: PlayCardPort) {
   /** The card just PLAYED (success) — its hand slot stays held until the
    *  server response removes it from the hand (never a fake return). */
   const departingPlayCard = ref(undefined as CardName | undefined);
-  const departingTimer = ref(undefined as number | undefined);
   const pendingClientPayment = ref(undefined as PendingClientPayment | undefined);
   /** A client-hosted PICK (RX35's «where» on a one-press door) — see `PendingClientPick`. */
   const pendingClientPick = ref(undefined as PendingClientPick | undefined);
@@ -459,10 +458,6 @@ export function createPlayCardController(shell: PlayCardPort) {
 
   function clearDepartingPlayCard(): void {
     departingPlayCard.value = undefined;
-    if (departingTimer.value !== undefined) {
-      window.clearTimeout(departingTimer.value);
-      departingTimer.value = undefined;
-    }
   }
 
   function onPlayCardConfirmNative(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, reactions?: ReadonlyArray<PlayReaction>, rail?: RailReward, spends?: RailReward, alloyPrice?: RailReward, known?: Readonly<Record<string, number>>, targetSpends?: ReadonlyArray<ResourceTransferSpec>, discards?: ReadonlyArray<PreselectedDiscard>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, armedSpends?: ReadonlyArray<ArmedPlayEffectModel>, composerDraft?: PlayComposerDraft}): void {
@@ -900,7 +895,6 @@ export function createPlayCardController(shell: PlayCardPort) {
     pendingPlayCard,
     returningPlayCard,
     departingPlayCard,
-    departingTimer,
     pendingClientPayment,
     pendingClientPick,
     playAction,

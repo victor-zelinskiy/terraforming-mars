@@ -25,6 +25,7 @@
  */
 
 import {reactive} from 'vue';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import type {DeltaEspionageProjectionModel, DeltaEspionageTargetProjection} from '@/common/models/DeltaEspionageModel';
@@ -34,6 +35,7 @@ import {resetHydroFlow} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {consoleHydroUi} from '@/client/console/consoleHydroState';
 import {popWorkspaceFrame, pushWorkspaceFrame, workspaceFrameKnown, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
 import {suspendHydroInstance} from '@/client/console/hydroFlow/hydroInstanceSuspension';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /** The pick's one result: WHO to push back (a legal candidate's color), or
  *  undefined when the projection offers no legal target (the system outcome —
@@ -58,6 +60,13 @@ export type DeltaEspionagePickRequest = {
    */
   mandatory?: boolean;
 };
+
+/**
+ * THE PICK'S RUN: from the moment the target pick opens to its answer (resolved, cancelled, reset) — `surface:delta-espionage-pick#n` in the flow tree (architecture v2 — PLAN §10 · C4). The tree names it while it stands, and
+ * when the game screen leaves under it the module is brought to rest through `resetDeltaEspionagePick` — no row of the shell's
+ * teardown is what keeps it out of the next game.
+ */
+const run = createFlowRun('delta-espionage-pick', {kind: 'surface', orphaned: () => resetDeltaEspionagePick()});
 
 export const deltaEspionagePickState = reactive({
   active: false,
@@ -95,6 +104,7 @@ export function enterDeltaEspionagePick(
   resolveCb = onResolve;
   cancelCb = onCancel;
   deltaEspionagePickState.active = true;
+  run.begin();
   pushWorkspaceFrame({
     kind: 'hydro',
     subject: '',
@@ -144,6 +154,7 @@ export function resetDeltaEspionagePick(): void {
     popEspionagePickFrame();
   }
   deltaEspionagePickState.active = false;
+  run.end();
   deltaEspionagePickState.request = undefined;
   resolveCb = undefined;
   cancelCb = undefined;
@@ -193,3 +204,8 @@ export function deltaEspionageResponseOf(response: unknown): DeltaEspionageRespo
 export function espionageLegalTargets(projection: DeltaEspionageProjectionModel): ReadonlyArray<DeltaEspionageTargetProjection> {
   return projection.targets.filter((t) => t.legal);
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The espionage target-pick bridge (DP10)
+sessionState('delta-espionage-pick', resetDeltaEspionagePick, 260);

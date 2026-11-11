@@ -1228,6 +1228,8 @@ import {IntakeAssemblyHandle, IntakeTriggerFace, planAssemblyFor, playIntakeAsse
 /** The merged batch's assembly in flight (module scope — a GSAP handle never rides Vue reactivity). */
 let composerAssembly: IntakeAssemblyHandle | undefined;
 import {probeTick} from '@/client/console/probeTick';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {motionAfter} from '@/client/console/session/sessionWaits';
 import {resolveCardArrivalMode} from '@/client/console/consoleCardArrival';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
@@ -1568,6 +1570,10 @@ export default defineComponent({
     repeatPickDisabled: {type: Boolean, default: false},
   },
   emits: ['confirm', 'committing', 'staged-placement', 'staged-vote', 'staged-law-play', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands', 'ledger-done'],
+  setup() {
+    // The composer's own scope: its beats' timers and the ledger walk's clocks are taken back when it is unmounted.
+    return {flow: useFlowScope('action-composer')};
+  },
   data() {
     return {
       /** The decision column that stops re-centring once the player presses (`settledColumn.ts`). */
@@ -1607,10 +1613,10 @@ export default defineComponent({
       captured: {} as Record<number, unknown>,
       /** The live ACTION COMMIT episode (killed on unmount / rollback). */
       commitHandle: undefined as ActionCommitMotionHandle | undefined,
-      /** The draw beat's commit-handoff delay (cleared on abort/unmount). */
-      beatDelayTimer: undefined as number | undefined,
-      /** A SEARCH's beat waiting for the server's answer — its bounded net (PL-261; cleared with the delay). */
-      beatAnswerNet: undefined as number | undefined,
+      /** The draw beat's commit-handoff delay — its cancel (called on abort; the composer's scope takes it back on unmount). */
+      beatDelayTimer: undefined as (() => void) | undefined,
+      /** A SEARCH's beat waiting for the server's answer — its bounded net's cancel (PL-261; cleared with the delay). */
+      beatAnswerNet: undefined as (() => void) | undefined,
       /** The net fired: the beat goes on without the answer (the find as before). Reset with the delay. */
       beatSearchNetSpent: false,
       /** Path-watcher mirror of the commit lifecycle (the abort rollback). */
@@ -1678,10 +1684,11 @@ export default defineComponent({
       colonyBonusPayout,
       /** The reveal queue (the walk reads which of the payout's cards are still untaken). */
       drawnCardsState,
-      /** The walk's clocks — on GSAP's own time (the row gap, the read, the stall net), killed on unmount. */
-      ledgerGap: undefined as gsap.core.Tween | undefined,
-      ledgerRead: undefined as gsap.core.Tween | undefined,
-      ledgerStall: undefined as gsap.core.Tween | undefined,
+      /** The walk's clocks — on GSAP's own time (the row gap, the read, the stall net), each the CANCEL of a beat owned
+       *  by the composer's scope (taken back on unmount). */
+      ledgerGap: undefined as (() => void) | undefined,
+      ledgerRead: undefined as (() => void) | undefined,
+      ledgerStall: undefined as (() => void) | undefined,
       /** The setup column is PARKED under a hosted Parliament step (released in place, hidden — never unmounted). */
       parliamentSetupParked: false,
       /** The release / return fades of the setup column (cancelled by the opposite edge). */
@@ -1742,7 +1749,7 @@ export default defineComponent({
       revealGainHandle: undefined as RevealGainFlightHandle | undefined,
       /** One-shot pop on the counter + the «на этой карте» chip. */
       revealGainPop: false,
-      revealGainPopTimer: undefined as number | undefined,
+      revealGainPopTimer: undefined as (() => void) | undefined,
       /** «OK» was pressed and the revealed card is being handed over (the
        *  workspace concludes on the handoff's own seam) — further presses are
        *  swallowed, so one verdict can never hand its card over twice. */
@@ -4004,10 +4011,10 @@ export default defineComponent({
         // re-arms, because the answer may firm the count up in the meantime —
         // but only ever BEFORE the first frame of flight.
         this.armBeatBatch();
-        this.beatDelayTimer = window.setTimeout(() => {
+        this.beatDelayTimer = this.flow.after(consoleMotionMs(COMMIT_HANDOFF_AT_MS), 'the draw beat follows the commit\'s handoff', () => {
           this.beatDelayTimer = undefined;
           void this.$nextTick(() => this.beginBeatFlight());
-        }, consoleMotionMs(COMMIT_HANDOFF_AT_MS));
+        });
       } else {
         this.clearBeatDelay();
         // NOT an abort: the beat is leaving because the real surface has taken
@@ -4246,7 +4253,6 @@ export default defineComponent({
     this.stopBranchObs = undefined;
     this.stopHeroFaceObs?.();
     this.stopHeroFaceObs = undefined;
-    this.killLedgerClocks();
     // THE LEDGER LEAVES THE SCREEN with this stage (a collapse, the flow's end): a row whose chips could only be
     // born on it is released honestly — the counter ticks now, late, never lost. The rows the SERVER still owes
     // an answer for (a take, a discard) keep waiting in the module record.
@@ -4261,7 +4267,6 @@ export default defineComponent({
       colonyBonusPayout.flying = false;
       colonyBonusPayout.active = '';
     }
-    this.clearBeatDelay();
     this.commitHandle?.kill();
     this.commitHandle = undefined;
     this.abortRevealFlight();
@@ -4282,9 +4287,6 @@ export default defineComponent({
     }
     this.cancelSetupFades();
     resetOutcomeOrigin();
-    if (this.revealGainPopTimer !== undefined) {
-      window.clearTimeout(this.revealGainPopTimer);
-    }
     // Only the OWNER of the shared store resets it — the nested repeat-pick
     // instance must not clobber the outer composer's contract on unmount.
     if (this.publishCommands) {
@@ -4354,9 +4356,9 @@ export default defineComponent({
       const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       armForecastRow(descendRectOf(root?.querySelector<HTMLElement>('[data-forecast-row]')));
       this.forecastPulse = true;
-      window.setTimeout(() => {
+      this.flow.after(320, 'the forecast row\'s commit pulse ends', () => {
         this.forecastPulse = false;
-      }, 320);
+      });
       for (const color of this.forecastOwnerColors) {
         ensureEffectStats(this.playerView, color as Color);
       }
@@ -7009,21 +7011,13 @@ export default defineComponent({
         inFlight: this.ledgerRequestInFlight,
       };
     },
-    killLedgerClocks(): void {
-      this.ledgerGap?.kill();
-      this.ledgerRead?.kill();
-      this.ledgerStall?.kill();
-      this.ledgerGap = undefined;
-      this.ledgerRead = undefined;
-      this.ledgerStall = undefined;
-    },
     /** The next step, one row gap later — on the animation clock, never a wall clock. */
     queueLedgerAdvance(): void {
-      this.ledgerGap?.kill();
-      this.ledgerGap = markRaw(gsap.delayedCall(consoleMotionMs(LEDGER_ROW_GAP_MS) / 1000, () => {
+      this.ledgerGap?.();
+      this.ledgerGap = motionAfter(consoleMotionMs(LEDGER_ROW_GAP_MS), 'the ledger walk\'s next row', () => {
         this.ledgerGap = undefined;
         this.advanceLedgerPayout();
-      }));
+      }, this.flow);
     },
     /**
      * THE STALL NET: the walk is waiting on something only the server can bring (a resource parked behind a
@@ -7033,8 +7027,8 @@ export default defineComponent({
      * never a stall (the server owes → the net re-arms).
      */
     armLedgerStall(): void {
-      this.ledgerStall?.kill();
-      this.ledgerStall = markRaw(gsap.delayedCall(LEDGER_STALL_MS / 1000, () => {
+      this.ledgerStall?.();
+      this.ledgerStall = motionAfter(LEDGER_STALL_MS, 'the ledger walk\'s stall net', () => {
         this.ledgerStall = undefined;
         if (!this.ledgerPaying || colonyBonusPayout.done) {
           return;
@@ -7046,7 +7040,7 @@ export default defineComponent({
         console.warn('[colony-ledger] the payout stalled with nothing owed — ended', JSON.stringify(colonyBonusPayout.rows.map((r) => `${r.colony}:${r.kind}:${r.state}`)));
         finishColonyBonusPayout(true);
         this.$emit('ledger-done');
-      }));
+      }, this.flow);
     },
     /**
      * ONE STEP OF THE WALK. The rows pay strictly in the ledger's order (the engine's own): a chips row flies its
@@ -7112,7 +7106,7 @@ export default defineComponent({
         this.queueLedgerAdvance();
       };
       row.state = 'paying';
-      this.ledgerStall?.kill();
+      this.ledgerStall?.();
       this.ledgerStall = undefined;
       if (consoleReducedMotionActive() || root === undefined) {
         // No flights: the counters and «received» at once.
@@ -7144,16 +7138,16 @@ export default defineComponent({
     },
     /** Every row has paid: the ledger stands for ONE read (RX07's own beat), then the flow leaves. */
     beginLedgerRead(): void {
-      this.ledgerStall?.kill();
+      this.ledgerStall?.();
       this.ledgerStall = undefined;
       colonyBonusPayout.active = '';
       colonyBonusPayout.reading = true;
-      this.ledgerRead = markRaw(gsap.delayedCall(consoleMotionMs(LEDGER_READ_MS) / 1000, () => {
+      this.ledgerRead = motionAfter(consoleMotionMs(LEDGER_READ_MS), 'the ledger stands for its one read', () => {
         this.ledgerRead = undefined;
         colonyBonusPayout.reading = false;
         colonyBonusPayout.done = true;
         this.$emit('ledger-done');
-      }));
+      }, this.flow);
     },
     /**
      * ── ACTION COMMIT — the universal activation beat, for THIS branch. Armed and MEASURED synchronously at the
@@ -7561,11 +7555,11 @@ export default defineComponent({
       this.revealGainApplied = true;
       this.revealGainPop = true;
       if (this.revealGainPopTimer !== undefined) {
-        window.clearTimeout(this.revealGainPopTimer);
+        this.revealGainPopTimer();
       }
-      this.revealGainPopTimer = window.setTimeout(() => {
+      this.revealGainPopTimer = this.flow.after(750, 'the reveal gain\'s pop ends', () => {
         this.revealGainPop = false;
-      }, 750);
+      });
     },
     abortRevealFlight(): void {
       this.revealHandingOff = false;
@@ -7653,7 +7647,7 @@ export default defineComponent({
         row.style.removeProperty('--con-cards-zoom');
         if (this.beatFitRetries < 20) {
           this.beatFitRetries++;
-          requestAnimationFrame(() => this.fitBeatStage());
+          probeTick(() => this.fitBeatStage());
         }
         return;
       }
@@ -7709,11 +7703,12 @@ export default defineComponent({
           // The deal is DEFERRED by this wait: its backstop counts from here (the net, 2.5 s, fires before it), or it
           // runs out before the launch and a late answer presents the cards with no deal at all.
           rearmWorkspaceOutcomeBeat();
-          this.beatAnswerNet = window.setTimeout(() => {
+          // A NET, not a motion: never scaled (reduced motion caps motions at 160 ms).
+          this.beatAnswerNet = this.flow.after(BEAT_SEARCH_ANSWER_NET_MS, 'the search beat\'s answer net', () => {
             this.beatAnswerNet = undefined;
             this.beatSearchNetSpent = true;
             this.beginBeatFlight();
-          }, BEAT_SEARCH_ANSWER_NET_MS); // a NET, not a motion: never scaled (reduced motion caps motions at 160 ms)
+          });
         }
         return;
       }
@@ -7816,7 +7811,7 @@ export default defineComponent({
     },
     clearBeatAnswerNet(): void {
       if (this.beatAnswerNet !== undefined) {
-        window.clearTimeout(this.beatAnswerNet);
+        this.beatAnswerNet();
         this.beatAnswerNet = undefined;
       }
     },
@@ -7948,7 +7943,7 @@ export default defineComponent({
     /** Cancel a scheduled commit-delayed beat launch (abort / unmount). */
     clearBeatDelay(): void {
       if (this.beatDelayTimer !== undefined) {
-        window.clearTimeout(this.beatDelayTimer);
+        this.beatDelayTimer();
         this.beatDelayTimer = undefined;
       }
       this.clearBeatAnswerNet();

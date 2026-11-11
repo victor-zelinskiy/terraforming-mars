@@ -24,6 +24,7 @@
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+import {whenPainted} from '@/client/console/session/sessionWaits';
 
 /** Rects for every name, or undefined when ANY is unmeasurable — a
  *  half-measured convoy teleports half its cards, so it never flies. */
@@ -78,8 +79,9 @@ export function flyCardClones(opts: CloneFlightOptions): CloneFlightHandle {
     opts.onLand(name);
     landed++;
     if (landed >= total) {
-      // Handoff: reveal happened per-card; the layer leaves next frame.
-      requestAnimationFrame(() => opts.onDone());
+      // Handoff: reveal happened per-card; the layer leaves next frame — a RELEASE (the host waits for `onDone`): it
+      // comes on the frame, or shortly when none paints, or when the session ends.
+      void whenPainted(1, 50).then(() => opts.onDone());
     }
   };
   opts.names.forEach((name, i) => {
@@ -123,7 +125,7 @@ export function flyCardClones(opts: CloneFlightOptions): CloneFlightHandle {
     // leaves on the next frame (never a crossfade of identical twins).
     const settle = () => {
       finishOne(name);
-      requestAnimationFrame(() => clone.remove());
+      void whenPainted(1, 50).then(() => clone.remove());
     };
     tl.eventCallback('onComplete', settle);
     tl.eventCallback('onInterrupt', settle);

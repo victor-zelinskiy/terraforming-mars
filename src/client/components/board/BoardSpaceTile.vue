@@ -25,6 +25,7 @@ import {
 } from '@/client/components/board/tilePlacementAnimation';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
 import {isRemoteRevealHeld, heldPrevTileOf, cellVacatedNonce, clearCellVacated} from '@/client/console/tilePlacement/remoteRevealHold';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 const tileTypeToCssClass: Record<TileType, string> = {
   [TileType.OCEAN]: 'ocean',
@@ -134,9 +135,9 @@ type Data = {
   placementKind: PlacementKind | null;
   placementDurationMs: number;
   placementDelayMs: number;
-  placementTimer: number | null;
+  cancelPlacement: () => void;
   intensifyDelayMs: number | null;
-  intensifyTimer: number | null;
+  cancelIntensify: () => void;
 };
 
 export default defineComponent({
@@ -170,14 +171,17 @@ export default defineComponent({
       default: undefined,
     },
   },
+  setup() {
+    return {flow: useFlowScope('board-space-tile')};
+  },
   data(): Data {
     return {
       placementKind: null,
       placementDurationMs: 0,
       placementDelayMs: 0,
-      placementTimer: null,
+      cancelPlacement: () => {},
       intensifyDelayMs: null,
-      intensifyTimer: null,
+      cancelIntensify: () => {},
     };
   },
   computed: {
@@ -345,16 +349,6 @@ export default defineComponent({
       },
     },
   },
-  beforeUnmount() {
-    if (this.placementTimer !== null) {
-      clearTimeout(this.placementTimer);
-      this.placementTimer = null;
-    }
-    if (this.intensifyTimer !== null) {
-      clearTimeout(this.intensifyTimer);
-      this.intensifyTimer = null;
-    }
-  },
   methods: {
     /** The vacated cell's settle ended — the one-shot mark is cleared so it can play again another day. */
     onAnimationEnd(e: AnimationEvent) {
@@ -363,10 +357,7 @@ export default defineComponent({
       }
     },
     refreshPlacement() {
-      if (this.placementTimer !== null) {
-        clearTimeout(this.placementTimer);
-        this.placementTimer = null;
-      }
+      this.cancelPlacement();
       const result = observeTilePlacement(this.space);
       if (result === null) {
         this.placementKind = null;
@@ -402,11 +393,12 @@ export default defineComponent({
        */
       const spaceId = this.space.id;
       const remaining = Math.max(0, result.durationMs + result.delayMs) + 40;
-      this.placementTimer = window.setTimeout(() => {
+      // PACING, owned by this tile (flow kernel — PLAN §10 · C1): taken back at unmount ON PURPOSE, as the cleared
+      // timer was — a placement in flight stays in the module's ledger so the remounted tile resumes it.
+      this.cancelPlacement = this.flow.after(remaining, 'the tile\'s placement animation ends', () => {
         this.placementKind = null;
-        this.placementTimer = null;
         clearActivePlacement(spaceId);
-      }, remaining);
+      });
     },
     /*
      * One-shot hazard-intensify pulse (mild → severe), DATA + timer like the
@@ -419,10 +411,7 @@ export default defineComponent({
      * workspace closed. The class must leave the DOM when the pulse ends.
      */
     refreshIntensify() {
-      if (this.intensifyTimer !== null) {
-        clearTimeout(this.intensifyTimer);
-        this.intensifyTimer = null;
-      }
+      this.cancelIntensify();
       const elapsed = (this.tileType !== undefined && HAZARD_TILES.has(this.tileType)) ?
         hazardIntensifyElapsed(this.space.id, this.tileType) : -1;
       if (elapsed < 0) {
@@ -431,10 +420,9 @@ export default defineComponent({
       }
       this.intensifyDelayMs = elapsed;
       const remaining = Math.max(0, HAZARD_INTENSIFY_MS - elapsed) + 40;
-      this.intensifyTimer = window.setTimeout(() => {
+      this.cancelIntensify = this.flow.after(remaining, 'the hazard\'s intensify pulse ends', () => {
         this.intensifyDelayMs = null;
-        this.intensifyTimer = null;
-      }, remaining);
+      });
     },
   },
 });

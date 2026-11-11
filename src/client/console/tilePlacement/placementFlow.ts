@@ -41,6 +41,7 @@
 import {reactive} from 'vue';
 import {SpaceId} from '@/common/Types';
 import {observeConsoleIntents} from '@/client/console/consoleRouter';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 export type PlacementFlowPhase = 'navigate' | 'locked' | 'committing';
 
@@ -81,7 +82,7 @@ export const placementFlowState = reactive({
 let lockedAtMs = 0;
 let intentWatchStarted = false;
 let rearmBoard: (() => void) | undefined;
-let commitSafety: ReturnType<typeof setTimeout> | undefined;
+let cancelCommitSafety: () => void = () => {};
 
 function now(): number {
   return typeof performance === 'object' && performance !== null &&
@@ -218,14 +219,15 @@ export function beginPlacementCommit(spaceId: SpaceId): void {
   clearCommitSafety();
   placementFlowState.phase = 'committing';
   placementFlowState.lockedSpaceId = spaceId;
-  commitSafety = setTimeout(() => {
-    commitSafety = undefined;
+  // An ABORT-style safety, PACING of the session: it recalls a commit nobody answered — never into a game that left.
+  cancelCommitSafety = consoleSessionScope().after(COMMIT_ROLLBACK_SAFETY_MS, 'the placement commit\'s answer (its rollback safety)', () => {
+    cancelCommitSafety = () => {};
     // No answer ever arrived for this commit (dropped submit) — fall back to
     // a phase where the player has agency again.
     if (placementFlowState.phase === 'committing') {
       rollbackPlacementCommit();
     }
-  }, COMMIT_ROLLBACK_SAFETY_MS);
+  });
 }
 
 /**
@@ -266,10 +268,8 @@ export function registerPlacementRearm(fn: () => void): () => void {
 }
 
 function clearCommitSafety(): void {
-  if (commitSafety !== undefined) {
-    clearTimeout(commitSafety);
-    commitSafety = undefined;
-  }
+  cancelCommitSafety();
+  cancelCommitSafety = () => {};
 }
 
 // ── test seams ─────────────────────────────────────────────────────────────

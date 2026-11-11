@@ -49,6 +49,7 @@ import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTran
 import {beginPanelRewardHold, clearPanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {probeTick} from '@/client/console/probeTick';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 
@@ -105,13 +106,10 @@ let armedClaim: BonusGainReward | undefined;
  */
 const BONUS_GAIN_HOLD_SAFETY_MS = 6_000;
 
-let safety: ReturnType<typeof setTimeout> | undefined;
+let disarmSafety: () => void = () => {};
 
 function clearSafety(): void {
-  if (safety !== undefined) {
-    clearTimeout(safety);
-    safety = undefined;
-  }
+  disarmSafety();
 }
 
 /**
@@ -226,11 +224,11 @@ export function seedBonusGainRewardHold(
   beginPanelRewardHold(reward.specs);
   clearSafety();
   if (typeof setTimeout === 'function') {
-    safety = setTimeout(() => {
-      safety = undefined;
+    // A RELEASE: the panel's hold lets go at the backstop — or when the game screen leaves first.
+    disarmSafety = consoleSessionScope().guarantee(BONUS_GAIN_HOLD_SAFETY_MS, 'the bonus gain\'s hold backstop (no surface flew it)', () => {
       bonusGainRewardState.owed = undefined;
       clearPanelRewardHold();
-    }, BONUS_GAIN_HOLD_SAFETY_MS);
+    });
   }
 }
 
@@ -327,3 +325,9 @@ export function bonusGainSourceSelectors(source: CardName | undefined): Array<st
     `.con-played [data-played-key="${esc}"]`,
   ];
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Never carry a PANEL HOLD across games: the «Фора» beat holds the rail to a flight that a dead shell can no longer
+// fly.
+sessionState('bonus-gain-reward', resetBonusGainReward, 390);

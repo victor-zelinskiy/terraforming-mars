@@ -131,6 +131,7 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 export type JourneyItemState = 'completed' | 'current' | 'available' | 'locked';
 
@@ -191,6 +192,9 @@ export default defineComponent({
     pulseKey: {type: Number, default: 0},
     pulseDir: {type: Number, default: 0},
   },
+  setup() {
+    return {flow: useFlowScope('console-journey-rail')};
+  },
   data() {
     return {
       /**
@@ -201,12 +205,7 @@ export default defineComponent({
        * only: topology stays the host's business.
        */
       arrivedKeys: new Set<string>(),
-      arrivedTimers: [] as Array<number>,
     };
-  },
-  beforeUnmount() {
-    this.arrivedTimers.forEach((t) => window.clearTimeout(t));
-    this.arrivedTimers = [];
   },
   watch: {
     phases(now: ReadonlyArray<JourneyPhase>, was: ReadonlyArray<JourneyPhase> | undefined) {
@@ -222,14 +221,12 @@ export default defineComponent({
       }
       fresh.forEach((key) => this.arrivedKeys.add(key));
       // Cosmetic cleanup only — the keyframe has long finished; dropping the
-      // marker just keeps a much later re-render from replaying it. Tracked
-      // and cleared on unmount so a torn-down instance's state is never
-      // written to.
-      const t = window.setTimeout(() => {
-        this.arrivedTimers = this.arrivedTimers.filter((h) => h !== t);
+      // marker just keeps a much later re-render from replaying it. A timer
+      // of the component's own scope — taken back on unmount, so a torn-down
+      // instance's state is never written to.
+      this.flow.after(900, 'the arrived items\' marker drops', () => {
         fresh.forEach((key) => this.arrivedKeys.delete(key));
-      }, 900);
-      this.arrivedTimers.push(t);
+      });
     },
   },
   methods: {

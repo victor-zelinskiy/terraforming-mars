@@ -470,6 +470,7 @@ import {vEmbedZone} from '@/client/console/embedZoneRegistry';
  */
 import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {defineComponent, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
@@ -671,6 +672,9 @@ export default defineComponent({
     docks: {type: Array as PropType<ReadonlyArray<FleetDockView>>, default: () => []},
   },
   emits: ['trade-confirm', 'build-confirm', 'pick-confirm', 'flow-complete', 'inspect-enter', 'dock-confirm', 'dock-inspect', 'dock-flow-complete'],
+  setup() {
+    return {flow: useFlowScope('colonies-section')};
+  },
   data() {
     return {
       /** The fleet berth the step last stood in while its frame lived (see `fleetBerth`). */
@@ -723,7 +727,8 @@ export default defineComponent({
       tileScale: 1,
       /** The fit-set grid max-width so the layout's column count holds. */
       gridMaxW: 0,
-      fitRaf: undefined as number | undefined,
+      /** The pending fit frame's cancel (`flow.afterFrame`) — `undefined` when none is owed. */
+      fitRaf: undefined as (() => void) | undefined,
       /** THE HOST'S SOURCE SEAT, reserved once for this whole surface — see
        *  `fit()`. Written by the fit (the one thing that runs on mount, on
        *  resize and on every zone change) and read straight into the root's
@@ -732,8 +737,8 @@ export default defineComponent({
       /** VueUse stop-handles (auto-managed listeners; no raw addEventListener). */
       stopResize: undefined as (() => void) | undefined,
       stopResizeObs: undefined as (() => void) | undefined,
-      /** The completion dwell (a breathing beat, never a gate). */
-      completeTimer: undefined as number | undefined,
+      /** The completion dwell (a breathing beat, never a gate) — its cancel (a timer of `flow`). */
+      completeTimer: undefined as (() => void) | undefined,
       /**
        * THE TRADE FELL WHILE ITS FLEET STILL FLEW (wait graph R7): the trade's falling edge stands its completion down
        * while the fleet is active, so the ending is OWED to the fleet's own fall — latched here, consumed there.
@@ -2015,7 +2020,7 @@ export default defineComponent({
       if (this.fitRaf !== undefined || typeof window === 'undefined') {
         return;
       }
-      this.fitRaf = window.requestAnimationFrame(() => {
+      this.fitRaf = this.flow.afterFrame('the colonies grid\'s fit', () => {
         this.fitRaf = undefined;
         this.fit();
       });
@@ -2412,14 +2417,15 @@ export default defineComponent({
       if (this.buildAnswered) {
         return;
       }
-      this.completeTimer = window.setTimeout(() => {
+      // PACING: a section that left has nothing to fold and nobody to tell — the dwell is taken back with it.
+      this.completeTimer = this.flow.after(motionMs(COMPLETION_SETTLE_MS), 'the colony flow\'s completion dwell', () => {
         this.completeTimer = undefined;
         if (workspaceOutcomeClaimed() || !this.focusState.open || this.resolutionUi.cardSceneLive) {
           return;
         }
         closeColonyFocus();
         this.$emit('flow-complete');
-      }, motionMs(COMPLETION_SETTLE_MS));
+      });
     },
     /** The stage confirmed the trade — hand the payload UP. The stage STAYS:
      *  the fleet, the reward waves, the Pluto reveal and the track glide all
@@ -2597,13 +2603,7 @@ export default defineComponent({
     consoleColoniesUi.receipt = false;
     this.stopResizeObs?.();
     this.stopResize?.();
-    if (this.completeTimer !== undefined) {
-      window.clearTimeout(this.completeTimer);
-      this.completeTimer = undefined;
-    }
-    if (this.fitRaf !== undefined && typeof window !== 'undefined') {
-      window.cancelAnimationFrame(this.fitRaf);
-    }
+    // (The completion dwell and the fit frame are `flow`'s — taken back with it.)
     // Retract OUR zone before it unmounts (a stale selector teleports the
     // next batch into a detached node — embed rule 4). Checked on the RAW
     // claim, not `revealEmbedActive`: a COLLAPSE parks the frames BEFORE this

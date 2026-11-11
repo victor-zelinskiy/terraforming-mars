@@ -55,6 +55,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotations/annotationModel';
 import {cardRuleAnnotations, RulesLengthTier, rulesLengthTier, steppedRulesTier} from '@/client/components/console/consoleCardRules';
 import {probeTick} from '@/client/console/probeTick';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {actionRuleText} from '@/client/components/actions/actionDescription';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 
@@ -121,6 +122,9 @@ export default defineComponent({
      * size — the denser of the two). Undefined: the panel's own tier.
      */
     tier: {type: String as PropType<RulesLengthTier | undefined>, default: undefined},
+  },
+  setup() {
+    return {flow: useFlowScope('card-rules-panel')};
   },
   data() {
     return {
@@ -271,7 +275,7 @@ export default defineComponent({
     scheduleMeasure(): void {
       // Two rAFs: the landed card's zoom/layout must be committed before
       // rects are read (the settle nonce fires right at landing).
-      requestAnimationFrame(() => requestAnimationFrame(() => this.measure()));
+      this.flow.afterFrame('the landed card\'s layout commits before the rules measure', () => this.measure(), 2);
     },
     measure(): void {
       if (this.closing) {

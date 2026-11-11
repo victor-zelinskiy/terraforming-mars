@@ -1,5 +1,7 @@
 import {normalizePlayerName, validatePlayerName, PLAYER_NAME_MAX_LENGTH} from '@/common/utils/playerName';
 import {desktopBridge} from '@/client/components/desktop/desktopUpdateState';
+import {consoleAppScope} from '@/client/console/session/consoleSession';
+import {span} from '@/client/console/session/sessionWaits';
 import {DEFAULT_IDENTITY_COLOR} from './playerIdentity';
 import {ensureIdentityLoaded, identityState, setIdentity} from './identityState';
 
@@ -24,7 +26,8 @@ const STEAM_NAME_TIMEOUT_MS = 1500;
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | undefined> {
   return Promise.race([
     p,
-    new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ms)),
+    // The time box is the PAGE's span (the identity is asked from the menus, before and across any game).
+    span(ms, consoleAppScope()).then(() => undefined),
   ]);
 }
 

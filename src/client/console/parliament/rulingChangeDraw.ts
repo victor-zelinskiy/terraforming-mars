@@ -19,6 +19,7 @@ import {probeTick} from '@/client/console/probeTick';
 import {parliamentDrawTaken} from './parliamentDraw';
 import {sittingBaselineOf} from './sittingBaseline';
 import {sittingRiseOwed} from './sittingRise';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /*
  * A CARD ANSWERS A CHANGE OF POWER (Turmoil Redux — TR62 Tharsis Alliance: «draw a card when either of those parties
@@ -219,11 +220,12 @@ registerAnimationHoldSupplier('ruling-change-rating-owed', rulingRatingClaimsFor
   expire: () => releaseRulingRatings('ceiling'),
 });
 
-let net: ReturnType<typeof setTimeout> | undefined;
+/** The park's net — its cancel (the timer and the silent release at the session's end). */
+let net: (() => void) | undefined;
 
 function clearNet(): void {
   if (net !== undefined) {
-    clearTimeout(net);
+    net();
     net = undefined;
   }
 }
@@ -249,15 +251,28 @@ export function openRulingChangePark(key: string): void {
   }
   rulingChangeDrawState.owedKey = key;
   clearNet();
-  // The one wall clock here is a NET over a sitting that never tells its enactment (a bound, never a beat).
-  net = setTimeout(() => releaseUntoldPark(key), PARK_NET_MS);
+  // The one wall clock here is a NET over a sitting that never tells its enactment (a bound, never a beat). It WARNS,
+  // so it is a pacing timer of the session — and a session that ends under the park lets it go SILENTLY (the park is
+  // module state: left standing, it would hold the next game's batch with no net at all).
+  const owner = consoleSessionScope();
+  const cancelNet = owner.after(PARK_NET_MS, 'a sitting\'s enactment (the park\'s net)', () => releaseUntoldPark(key, true));
+  const forget = owner.defer(() => releaseUntoldPark(key, false));
+  net = () => {
+    cancelNet();
+    forget();
+  };
 }
 
-/** The net fired: the sitting never told its enactment — the batch takes the ordinary road, named. */
-function releaseUntoldPark(key: string): void {
-  net = undefined;
+/**
+ * The net fired (`late`): the sitting never told its enactment — the batch takes the ordinary road, named. The session
+ * ended under the park (not `late`): the same release, unsaid.
+ */
+function releaseUntoldPark(key: string, late: boolean): void {
+  clearNet();
   if (rulingChangeDrawState.owedKey === key && !rulingChangeDrawState.delivering) {
-    console.warn(`[ruling-change-draw] the sitting ${key} never told its enactment — the batch takes the ordinary road`);
+    if (late) {
+      console.warn(`[ruling-change-draw] the sitting ${key} never told its enactment — the batch takes the ordinary road`);
+    }
     rulingChangeDrawState.owedKey = undefined;
     // …and a rating owed to that same tail, with no stage to tell it, ticks with the batch.
     releaseOrphanRulingRatings('untold');

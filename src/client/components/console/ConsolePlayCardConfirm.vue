@@ -810,6 +810,7 @@
  * payment math).
  */
 import {defineComponent, markRaw, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {SettledColumn} from '@/client/console/settledColumn';
 import Card from '@/client/components/card/CardFace.vue';
 import {Color} from '@/common/Color';
@@ -1174,6 +1175,9 @@ export default defineComponent({
     passReading: {type: Object as PropType<PassWarnings>, default: undefined},
   },
   emits: ['confirm', 'cancel'],
+  setup() {
+    return {flow: useFlowScope('console-play-card-confirm')};
+  },
   data() {
     return {
       /** The decision column that stops re-centring once the player presses (`settledColumn.ts`). */
@@ -3217,9 +3221,9 @@ export default defineComponent({
       const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
       armForecastRow(descendRectOf(root?.querySelector<HTMLElement>('[data-forecast-row]')));
       this.forecastPulse = true;
-      window.setTimeout(() => {
+      this.flow.after(320, 'the forecast row\'s commit pulse ends', () => {
         this.forecastPulse = false;
-      }, 320);
+      });
       for (const color of this.forecastOwnerColors) {
         ensureEffectStats(this.playerView, color as Color);
       }

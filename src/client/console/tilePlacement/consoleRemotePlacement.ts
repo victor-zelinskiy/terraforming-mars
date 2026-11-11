@@ -125,7 +125,7 @@ import {isDeckDrawActive} from '@/client/console/deckDraw/consoleDeckDraw';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
 import {span} from '@/client/console/session/sessionWaits';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 
 /** A whole queue can legitimately take several seconds (N sequential
@@ -1749,3 +1749,7 @@ function clearStageSafety(): void {
   cancelStageSafety = () => {};
   remoteRun.end();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('remote-placements', abortRemotePlacements, 580);

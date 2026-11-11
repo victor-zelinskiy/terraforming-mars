@@ -1,5 +1,6 @@
 import {reactive} from 'vue';
 import {ArcScaleName} from '@/client/components/board/arcScaleTheme';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /**
  * UNIFIED tooltip for the dynamic global-parameter scale HUD.
@@ -62,25 +63,22 @@ export const scaleTooltipState = reactive<State>({
 const SHOW_DELAY = 110;
 const HIDE_DELAY = 90;
 
-let showTimer: ReturnType<typeof setTimeout> | undefined;
-let hideTimer: ReturnType<typeof setTimeout> | undefined;
+// ON THE FLOW KERNEL (architecture v2 — PLAN §10 · C1), owned by the session: the SHOW is pacing (a tooltip must not
+// open over a screen that left), the HIDE is a release (the store's `visible` is lowered even when the session ends
+// inside the grace).
+let cancelShow: () => void = () => {};
+let disarmHide: () => void = () => {};
 // The element the tooltip is anchored to (re-measured on scroll/resize). Null
 // when anchored to a cursor point (band/rail) — those just hide on scroll.
 let activeEl: HTMLElement | null = null;
 let listenersAttached = false;
 
 function clearShow(): void {
-  if (showTimer !== undefined) {
-    clearTimeout(showTimer);
-    showTimer = undefined;
-  }
+  cancelShow();
 }
 
 function clearHide(): void {
-  if (hideTimer !== undefined) {
-    clearTimeout(hideTimer);
-    hideTimer = undefined;
-  }
+  disarmHide();
 }
 
 function hideNow(): void {
@@ -136,10 +134,9 @@ export function showScaleTooltip(el: HTMLElement, content: ScaleTooltipContent):
     return;
   }
   clearShow();
-  showTimer = setTimeout(() => {
-    showTimer = undefined;
+  cancelShow = consoleSessionScope().after(SHOW_DELAY, 'the scale tooltip\'s show delay', () => {
     apply(el.getBoundingClientRect(), content, el);
-  }, SHOW_DELAY);
+  });
 }
 
 /** Show the tooltip anchored to a CURSOR point (the band/rail, which has no
@@ -154,20 +151,18 @@ export function showScaleTooltipAt(x: number, y: number, content: ScaleTooltipCo
     return;
   }
   clearShow();
-  showTimer = setTimeout(() => {
-    showTimer = undefined;
+  cancelShow = consoleSessionScope().after(SHOW_DELAY, 'the scale tooltip\'s show delay', () => {
     apply(rect, content, null);
-  }, SHOW_DELAY);
+  });
 }
 
 /** Begin hiding the tooltip (a short grace so moving between surfaces doesn't flicker). */
 export function hideScaleTooltip(): void {
   clearShow();
   clearHide();
-  hideTimer = setTimeout(() => {
-    hideTimer = undefined;
+  disarmHide = consoleSessionScope().guarantee(HIDE_DELAY, 'the scale tooltip\'s hide grace', () => {
     hideNow();
-  }, HIDE_DELAY);
+  });
 }
 
 /** Viewport region the tooltip must stay inside (excludes the bottom toolbar /

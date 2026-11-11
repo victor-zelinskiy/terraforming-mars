@@ -181,6 +181,7 @@ import ConsoleArmedEffectsStrip from '@/client/components/console/ConsoleArmedEf
 import ConsoleAlbumSpine from '@/client/components/console/foundation/ConsoleAlbumSpine.vue';
 import {PresentedArmedEffect} from '@/client/console/armedEffectFlight';
 import type {HandDockAlbum} from '@/client/components/console/consoleHandDockTypes';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 export type {HandDockAlbum};
 
@@ -268,11 +269,14 @@ export default defineComponent({
     armed: {type: Array as PropType<ReadonlyArray<PresentedArmedEffect>>, default: () => []},
   },
   emits: ['open', 'page'],
+  setup() {
+    return {flow: useFlowScope('hand-dock')};
+  },
   data() {
     return {
       /** A card just landed — the short "the pack accepts it" pulse. */
       receiving: false,
-      receiveTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+      cancelReceive: (() => {}) as () => void,
     };
   },
   computed: {
@@ -299,21 +303,13 @@ export default defineComponent({
      *  spread-breathe + plate glow, riding the cards' own transitions. */
     count(now: number, was: number) {
       if (now > was) {
-        if (this.receiveTimer !== undefined) {
-          clearTimeout(this.receiveTimer);
-        }
+        this.cancelReceive();
         this.receiving = true;
-        this.receiveTimer = setTimeout(() => {
+        this.cancelReceive = this.flow.after(motionMs(240), 'the pack\'s receive pulse reads', () => {
           this.receiving = false;
-          this.receiveTimer = undefined;
-        }, motionMs(240));
+        });
       }
     },
-  },
-  beforeUnmount() {
-    if (this.receiveTimer !== undefined) {
-      clearTimeout(this.receiveTimer);
-    }
   },
   methods: {
     onClick(): void {

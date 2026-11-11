@@ -229,7 +229,8 @@ import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePla
 import {publicFaceModel} from '@/client/components/premiumCard/premiumFleetDock';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {whenPainted} from '@/client/console/session/sessionWaits';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** Rows kept mounted above/below the viewport (hand-section discipline). */
 const OVERSCAN = 2;
@@ -293,6 +294,9 @@ export default defineComponent({
     /** The episode fully settled CLOSED — the overlay drops the mount. */
     'settled-closed': () => true,
   },
+  setup() {
+    return {flow: useFlowScope('played-category-view')};
+  },
   data() {
     return {
       state: playedCategoryState,
@@ -306,8 +310,9 @@ export default defineComponent({
       scrollFrac: 0,
       lastFirstRow: -1,
       ro: undefined as ResizeObserver | undefined,
-      rafScroll: undefined as number | undefined,
-      frameTimer: undefined as number | undefined,
+      /** A scroll read is scheduled for the next frame (its cancel) — `undefined` when none stands. */
+      cancelScrollRead: undefined as (() => void) | undefined,
+      cancelFrameBeat: (() => {}) as () => void,
       /** Grid faces are mounted (deferred past the open flight — see the
        *  template note). Seeded true for a view that mounts already open. */
       facesOn: playedCategoryState.phase === 'open',
@@ -320,7 +325,7 @@ export default defineComponent({
       unfolded: playedCategoryState.phase === 'open',
       fromInset: {} as Record<string, string>,
       /** Focused-card full-art prewarm debounce (thumb-tier grids only). */
-      prewarmTimer: undefined as number | undefined,
+      cancelPrewarm: (() => {}) as () => void,
       /** The album's strip slides only once the view stands (a fresh mount lands on its page, never slides there). */
       stripLive: false,
       lastFlickAt: 0,
@@ -503,19 +508,16 @@ export default defineComponent({
     'state.focusIndex': {
       immediate: true,
       handler() {
-        if (this.prewarmTimer !== undefined) {
-          window.clearTimeout(this.prewarmTimer);
-        }
+        this.cancelPrewarm();
         if (this.catArtTier !== 'thumb' || this.state.phase !== 'open') {
           return;
         }
-        this.prewarmTimer = window.setTimeout(() => {
-          this.prewarmTimer = undefined;
+        this.cancelPrewarm = this.flow.after(160, 'the focused card\'s art prewarm (debounced)', () => {
           const focused = this.cards[this.state.focusIndex];
           if (focused !== undefined) {
             preloadPremiumCardArt([focused.name]);
           }
-        }, 160);
+        });
       },
     },
   },
@@ -544,13 +546,6 @@ export default defineComponent({
     consolePlayedUi.page = 0;
     consolePlayedUi.pageCount = 1;
     this.ro?.disconnect();
-    if (this.rafScroll !== undefined) {
-      cancelAnimationFrame(this.rafScroll);
-    }
-    if (this.prewarmTimer !== undefined) {
-      window.clearTimeout(this.prewarmTimer);
-      this.prewarmTimer = undefined;
-    }
     this.clearFrameTimer();
     resetCategoryDirector();
   },
@@ -594,10 +589,7 @@ export default defineComponent({
       }
     },
     clearFrameTimer(): void {
-      if (this.frameTimer !== undefined) {
-        window.clearTimeout(this.frameTimer);
-        this.frameTimer = undefined;
-      }
+      this.cancelFrameBeat();
     },
     /**
      * The opened stack's rect as insets of this view — the floor's starting clip. Read off the table's own stack
@@ -658,11 +650,12 @@ export default defineComponent({
       const go = (): void => {
         if (!done) {
           done = true;
-          window.clearTimeout(timer);
+          disarm();
           started();
         }
       };
-      const timer = window.setTimeout(go, FLOOR_START_WAIT_MS);
+      // A RELEASE: the held lift waits for `started` — it comes at the backstop, or when the view leaves.
+      const disarm = this.flow.guarantee(FLOOR_START_WAIT_MS, 'the floor\'s real start (the held lift goes)', go);
       fade.ready.then(go, go);
     },
     // ── the OPEN flight (mounted at phase 'opening') ────────────────────
@@ -719,8 +712,7 @@ export default defineComponent({
       this.state.frameOn = true;
       this.facesOn = true;
       this.clearFrameTimer();
-      this.frameTimer = window.setTimeout(() => {
-        this.frameTimer = undefined;
+      this.cancelFrameBeat = this.flow.after(motionMs(CATEGORY_FRAME_MS), 'the frame assembles around the landed cards', () => {
         // The dissolve GATES on the real faces being flushed + painted (two
         // frames past the tick): on a throttled main thread the face mount
         // can outlive the frame beat, and a dissolve over unpainted slots is
@@ -754,7 +746,7 @@ export default defineComponent({
                 });
               });
           });
-      }, motionMs(CATEGORY_FRAME_MS));
+      });
     },
     // ── the CLOSE flight ────────────────────────────────────────────────
     requestClose(): void {
@@ -960,14 +952,13 @@ export default defineComponent({
       const r = el.getBoundingClientRect();
       return r.width > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : this.offPageRect?.(name);
     },
+    /**
+     * One PAINTED frame — a wait of the view's own scope (over at once when the view leaves). The bound only lets the
+     * flow go on in a window that does not paint; it is wide on purpose: this frame is the paint GATE of the open
+     * flight's handoff (law 9), and a tight bound would let a timer win over a starved frame — the very frame it gates.
+     */
     frame(): Promise<void> {
-      return new Promise((resolve) => {
-        if (typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(() => resolve());
-        } else {
-          consoleSessionScope().guarantee(16, 'ConsolePlayedCategoryView: a release\'s bound', resolve);
-        }
-      });
+      return whenPainted(1, 400, this.flow);
     },
     // ── input (delegated by the overlay) ────────────────────────────────
     handleIntent(intent: GamepadIntent): void {
@@ -1179,11 +1170,11 @@ export default defineComponent({
       grid.scrollBy({top: dy * STICK_SCROLL_STEP * conUiScale(), behavior: 'auto'});
     },
     onScroll(): void {
-      if (this.rafScroll !== undefined) {
+      if (this.cancelScrollRead !== undefined) {
         return;
       }
-      this.rafScroll = requestAnimationFrame(() => {
-        this.rafScroll = undefined;
+      this.cancelScrollRead = this.flow.afterFrame('the grid\'s scroll is read (coalesced)', () => {
+        this.cancelScrollRead = undefined;
         const grid = (this.$refs.grid ?? undefined) as HTMLElement | undefined;
         if (grid === undefined) {
           return;

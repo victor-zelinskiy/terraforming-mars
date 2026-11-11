@@ -7,6 +7,7 @@ import {flyBannerCube, rectOf} from './parliamentFlights';
 import {Rect} from './consoleParliamentVoteMotion';
 import {bannerCubesOn} from './consoleParliamentModel';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /*
  * THE CUBE ON THE BANNER — SEEN ARRIVING (Septem Tribus:redux).
@@ -40,7 +41,8 @@ export const bannerCubeState = reactive({
   landed: {} as Record<string, true>,
 });
 
-const nets = new Map<string, ReturnType<typeof setTimeout>>();
+/** `party|color` → the cancel of that hold's net (its timer and its silent release at the session's end). */
+const nets = new Map<string, () => void>();
 
 function keyOf(party: ReduxParty, color: Color): string {
   return `${party}|${color}`;
@@ -64,17 +66,30 @@ export function holdBannerCube(party: ReduxParty, color: Color, netMs: number = 
   bannerCubeState.held[key] = true;
   const net = nets.get(key);
   if (net !== undefined) {
-    clearTimeout(net);
+    net();
   }
   // A cube nobody flew is SHOWN, never kept hidden: a hidden cube is a worse lie than a missed flight (a bound).
   const showUnflown = () => {
     nets.delete(key);
+    forget();
     if (bannerCubeState.held[key] === true) {
       console.warn(`[banner-cube] ${key} was held ${netMs} ms with no flight — shown without one`);
       releaseBannerCube(party, color);
     }
   };
-  nets.set(key, setTimeout(showUnflown, netMs));
+  // The net WARNS, so it is a pacing timer of the session (a wall-clock bound, never a beat) — and a session that ends
+  // under a held cube shows it SILENTLY: the hold is module state, and nothing was late.
+  const owner = consoleSessionScope();
+  const cancelNet = owner.after(netMs, 'a banner cube\'s flight (the net)', showUnflown);
+  const forget = owner.defer(() => {
+    if (bannerCubeState.held[key] === true) {
+      releaseBannerCube(party, color);
+    }
+  });
+  nets.set(key, () => {
+    cancelNet();
+    forget();
+  });
 }
 
 export function releaseBannerCube(party: ReduxParty, color: Color, landed = false): void {
@@ -82,7 +97,7 @@ export function releaseBannerCube(party: ReduxParty, color: Color, landed = fals
   delete bannerCubeState.held[key];
   const net = nets.get(key);
   if (net !== undefined) {
-    clearTimeout(net);
+    net();
     nets.delete(key);
   }
   if (landed) {
@@ -186,7 +201,7 @@ export function forgetBannerCubeLanding(party: ReduxParty, color: Color): void {
 /** The game switch: nothing held, nothing landed. */
 export function resetBannerCubeScene(): void {
   for (const net of nets.values()) {
-    clearTimeout(net);
+    net();
   }
   nets.clear();
   bannerCubeState.held = {};

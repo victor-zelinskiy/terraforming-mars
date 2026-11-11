@@ -49,6 +49,7 @@ import {SpaceId} from '@/common/Types';
 import {SpaceType} from '@/common/boards/SpaceType';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /** The board-growth transition (the planet expands / returns). The landing
  *  is deliberately the LONGER of the two — the opening was asked for, the
@@ -141,11 +142,13 @@ registerAnimationHoldSupplier('planet-focus', planetFocusExitHolds, {
   },
 });
 
-let settleTimer: number | undefined;
-let exitPrepRaf: number | undefined;
-let exitTimer: number | undefined;
-let arcsTimer: number | undefined;
-let storyTimer: number | undefined;
+// Each is the DISARM of a guaranteed release of the session (`schedule`) — the frame's is the cancel of an owned frame
+// (`nextFrame`); `undefined` at rest.
+let settleTimer: (() => void) | undefined;
+let exitPrepRaf: (() => void) | undefined;
+let exitTimer: (() => void) | undefined;
+let arcsTimer: (() => void) | undefined;
+let storyTimer: (() => void) | undefined;
 
 /** Snapshot the four displayed parameters off a game model. */
 export function captureGlobalParams(game: GameModel): HeldGlobalParams {
@@ -230,7 +233,7 @@ export function enterPlanetFocus(mode: PlanetFocusMode = 'placement'): void {
   planetFocusState.nonce++;
   planetFocusState.phase = 'entering';
   clearTimer(settleTimer);
-  settleTimer = schedule(() => {
+  settleTimer = schedule('the planet focus settles on its grown stage', () => {
     if (planetFocusState.phase === 'entering') {
       planetFocusState.phase = 'active';
     }
@@ -270,19 +273,19 @@ export function beginPlanetFocusExit(): void {
   clearTimer(settleTimer);
   settleTimer = undefined;
   planetFocusState.phase = 'exit-prep';
-  exitPrepRaf = nextFrame(() => {
+  exitPrepRaf = nextFrame('the planet focus exit\'s prep frame', () => {
     exitPrepRaf = undefined;
     if (planetFocusState.phase !== 'exit-prep') {
       return; // a reversal (chained placement) claimed the mode back
     }
     planetFocusState.phase = 'exiting';
-    storyTimer = schedule(() => {
+    storyTimer = schedule('the scales become readable inside the planet\'s landing', () => {
       storyTimer = undefined;
       if (planetFocusState.phase === 'exiting') {
         planetFocusState.storyReady = true;
       }
     }, consoleMotionMs(PLANET_STORY_READY_MS));
-    exitTimer = schedule(() => {
+    exitTimer = schedule('the planet lands back from its focus', () => {
       exitTimer = undefined;
       if (planetFocusState.phase === 'exiting') {
         // The planet has landed. Dropping the phase is what lets the CSS
@@ -292,7 +295,7 @@ export function beginPlanetFocusExit(): void {
         planetFocusState.arcsReturning = true;
         // The story may already be playing (the ready moment came inside the landing); it stays readable.
         planetFocusState.storyReady = true;
-        arcsTimer = schedule(() => {
+        arcsTimer = schedule('the instruments\' return after the planet\'s landing', () => {
           arcsTimer = undefined;
           planetFocusState.arcsReturning = false;
           planetFocusState.storyReady = false;
@@ -335,38 +338,42 @@ function clearExitTimers(): void {
   planetFocusState.storyReady = false;
 }
 
-function schedule(run: () => void, ms: number): number | undefined {
+/**
+ * A phase's own time, as a GUARANTEED release of the session (the kernel's): every one of these lets something go —
+ * the settle, the story's ready moment, the landing, the arcs' return (the `planet-focus` hold reads them) — so it
+ * happens at `ms`, or when the game screen leaves first; never left standing. Returns the disarm.
+ */
+function schedule(what: string, run: () => void, ms: number): (() => void) | undefined {
   if (typeof window === 'undefined') {
     run();
     return undefined;
   }
-  return window.setTimeout(run, ms);
+  return consoleSessionScope().guarantee(ms, what, run);
 }
 
-function clearTimer(t: number | undefined): void {
+function clearTimer(t: (() => void) | undefined): void {
   if (t !== undefined && typeof window !== 'undefined') {
-    window.clearTimeout(t);
+    t();
   }
 }
 
-function nextFrame(run: () => void): number | undefined {
+/** The next frame, owned by the session (the kernel's clock falls back to ~one frame of time where there is no rAF). */
+function nextFrame(what: string, run: () => void): (() => void) | undefined {
   if (typeof window === 'undefined') {
     run();
     return undefined;
   }
-  if (typeof window.requestAnimationFrame === 'function') {
-    return window.requestAnimationFrame(run);
-  }
-  return window.setTimeout(run, 16);
+  return consoleSessionScope().afterFrame(what, run);
 }
 
-function cancelFrame(id: number): void {
+function cancelFrame(cancel: () => void): void {
   if (typeof window === 'undefined') {
     return;
   }
-  if (typeof window.requestAnimationFrame === 'function') {
-    window.cancelAnimationFrame(id);
-  } else {
-    window.clearTimeout(id);
-  }
+  cancel();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Never carry a held HUD / mid-exit phase across games
+sessionState('planet-focus', resetPlanetFocus, 20);

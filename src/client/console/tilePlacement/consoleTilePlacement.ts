@@ -202,6 +202,7 @@ import {boardGeometryStable, boardSpaceEpoch, waitBoardGeometryStable} from '@/c
 import {TileMoveRewardModel} from '@/common/models/TileMoveRewardModel';
 import {isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {snapPlanetFocusSettled} from '@/client/console/planetFocus';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 export type BonusProxy = {
   id: number,
@@ -2200,3 +2201,7 @@ function clearTimers(): void {
   cancelArmSafety();
   cancelSceneSafety();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('tile-placement', abortTilePlacement, 570);

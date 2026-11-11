@@ -1568,6 +1568,7 @@ import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResour
 import {span} from '@/client/console/session/sessionWaits';
 import {whenPainted} from '@/client/console/session/sessionWaits';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 
 function textOf(v: string | Message | undefined): string {
@@ -1738,6 +1739,11 @@ export default defineComponent({
     yielded: {type: Boolean, default: false},
   },
   emits: ['submit', 'submit-batch', 'defer'],
+  setup() {
+    // The scene's own scope (architecture v2 — PLAN §10 · C1): its timers and frames end with it. A handle below
+    // (`…Timer` / `…Safety`) is the timer's CANCEL while it stands and `undefined` otherwise.
+    return {flow: useFlowScope('start-scene')};
+  },
   data() {
     return {
       state: consoleStartState,
@@ -1767,7 +1773,7 @@ export default defineComponent({
       effectLostFor: undefined as CardName | undefined,
       /** …and whether its short beat is on screen right now. */
       effectLostShown: false,
-      effectLostTimer: undefined as number | undefined,
+      effectLostTimer: undefined as (() => void) | undefined,
       /** A pressed on a limit-blocked card → the rail message replays its
        *  one-shot settle (restrained feedback; state never changes). */
       blockedNudge: 0,
@@ -1785,7 +1791,7 @@ export default defineComponent({
       COMPENSATION_KEY,
       /** The deal cinematic lifecycle (holds slots, flies proxies, skips). */
       deal: createCardDealSequence(),
-      dealLaunchTimer: undefined as number | undefined,
+      dealLaunchTimer: undefined as (() => void) | undefined,
       /** Wizard-card fit (sets --con-cards-zoom / --con-cards-grid-zoom so the
        *  cards always fit BOTH axes → never scroll/clip on focus). Observers
        *  run it on resize; never per focus. */
@@ -1797,7 +1803,7 @@ export default defineComponent({
       fitRetries: 0,
       /** The post-frame-swap re-verify fit (out-in leaves no strip to measure
        *  at the watcher's nextTick). */
-      fitTimer: undefined as number | undefined,
+      fitTimer: undefined as (() => void) | undefined,
       /**
        * PRE-FETCHED on-play rewards per ceremony card — the CORPORATION (its
        * starting M€ + its own on-play production/stock) and each PRELUDE. The
@@ -1888,7 +1894,7 @@ export default defineComponent({
       tenderRise: undefined as RiseConvoy | undefined,
       tenderFlight: undefined as CapturedFlight | undefined,
       tenderPageRestored: false,
-      tenderRestoreTimer: undefined as number | undefined,
+      tenderRestoreTimer: undefined as (() => void) | undefined,
       /** The page's cursor before a mode took the d-pad (the request's tags, the restructuring's groups) — given back. */
       tagFocusReturn: 0,
       restructFocusReturn: 0,
@@ -1930,7 +1936,7 @@ export default defineComponent({
       tenderLanding: undefined as {instance: string, step: StartWizardStepId | undefined} | undefined,
       /** The dock chip that just took its stamp (a one-shot class). */
       dockStamped: undefined as string | undefined,
-      dockStampTimer: undefined as number | undefined,
+      dockStampTimer: undefined as (() => void) | undefined,
       /** The BUYOUT's chips whose coins are leaving right now. */
       cashing: new Set<string>(),
       /** Per rail position: the deal NAMES already on the table — a grown deal flies only its new cards. */
@@ -1939,7 +1945,7 @@ export default defineComponent({
       dealSlotIdx: [] as Array<number>,
       /** A redeal's DEPARTURE is in the air (the cards the review / the gamble gives back are flying to the deck). */
       departureActive: false,
-      departureSafety: undefined as number | undefined,
+      departureSafety: undefined as (() => void) | undefined,
       /** Shelf tiles whose card is UP in the overview (held empty — the tile
        *  stays the flight's measured home; the shelf never re-lays out).
        *  Filled per-card at its DEPART (the take's end), emptied per-card at
@@ -1957,7 +1963,7 @@ export default defineComponent({
        *  the body must not stand empty while the cards travel to the shelf). */
       legacyPageRestored: false,
       /** The stage-fold choreographic offset (cleared on teardown). */
-      legacyRestoreTimer: undefined as number | undefined,
+      legacyRestoreTimer: undefined as (() => void) | undefined,
       stopLegacyResize: undefined as (() => void) | undefined,
       /** The summary pane is mounted INVISIBLE at its final box so its tiles
        *  can be laid out and measured before any card leaves (§prewarm). */
@@ -1981,7 +1987,7 @@ export default defineComponent({
        *  is accepted only after this — the destination-readiness gate. */
       ceremonyRevealed: false,
       /** The commit's refusal safety (a submit that never flips the mode). */
-      commitSafety: undefined as number | undefined,
+      commitSafety: undefined as (() => void) | undefined,
       /** Summary tiles whose card is being STOWED back into its pile (held
        *  empty under the departing proxies — one visual owner on the way
        *  back too, never an open tile below a flying copy). */
@@ -5361,11 +5367,11 @@ export default defineComponent({
     /** A tender answer that came back with no deal to follow lets the tender deck go. */
     'state.tenderBusy'(now: string | undefined) {
       if (now === undefined && this.tenderDealArmed && !this.deal.state.active && !this.departureActive && this.restructArriving.size === 0) {
-        window.setTimeout(() => {
+        this.flow.after(motionMs(400), 'the tender deck lets go (no deal followed the answer)', () => {
           if (this.state.tenderBusy === undefined && !this.deal.state.active && this.restructArriving.size === 0 && !this.dealLaunchTimer) {
             this.tenderDealArmed = false;
           }
-        }, motionMs(400));
+        });
       }
     },
     /** The deal identity pins the wizard picks (module state survival). */
@@ -5566,14 +5572,12 @@ export default defineComponent({
         return;
       }
       this.effectLostShown = true;
-      if (this.effectLostTimer !== undefined) {
-        window.clearTimeout(this.effectLostTimer);
-      }
-      this.effectLostTimer = window.setTimeout(() => {
+      this.effectLostTimer?.();
+      this.effectLostTimer = this.flow.after(motionMs(EFFECT_LOST_BEAT_MS), 'the lost effect\'s beat clears itself', () => {
         this.effectLostTimer = undefined;
         this.effectLostShown = false;
         this.effectLostFor = undefined;
-      }, motionMs(EFFECT_LOST_BEAT_MS));
+      });
     },
     focusables(now: Array<Focusable>) {
       // Only clamp the CEREMONY focus cursor here — the wizard summary reuses
@@ -5639,7 +5643,7 @@ export default defineComponent({
           this.state.flow = 'idle';
         }
         if (this.commitSafety !== undefined) {
-          window.clearTimeout(this.commitSafety);
+          this.commitSafety();
           this.commitSafety = undefined;
         }
       }
@@ -5905,7 +5909,9 @@ export default defineComponent({
           }
         };
         if (typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(confirm);
+          // A RELEASE: the leave advances the stage's MODULE machine, so it is asked at the frame — or shortly when
+          // none comes, or at once when the scene is gone (as the bare frame did on a scene that had left).
+          void whenPainted(1, 50, this.flow).then(confirm);
         } else {
           confirm();
         }
@@ -6301,9 +6307,6 @@ export default defineComponent({
     // armed it (a live hold with nothing on screen would complete into a
     // component that no longer exists).
     this.clearRiskStage();
-    if (this.effectLostTimer !== undefined) {
-      window.clearTimeout(this.effectLostTimer);
-    }
     document.body.classList.remove('con-start-ceremony');
     document.body.classList.remove('con-start-prep');
     this.disposeMaterializationFreeze(true);
@@ -6340,15 +6343,8 @@ export default defineComponent({
     this.stopStripObs?.();
     this.stopBodyObs?.();
     this.stopResize?.();
-    if (this.dealLaunchTimer !== undefined) {
-      window.clearTimeout(this.dealLaunchTimer);
-    }
-    if (this.fitTimer !== undefined) {
-      window.clearTimeout(this.fitTimer);
-    }
-    if (this.commitSafety !== undefined) {
-      window.clearTimeout(this.commitSafety);
-    }
+    // The deal's launch, the re-verify fit, the commit's refusal safety and the lost effect's beat are timers of the
+    // scene's own scope (`flow`) — taken back with it.
     this.completionTimeline?.kill();
     this.completionTimeline = undefined;
     // NOTE the lifetime HOLD deliberately survives an unmount (a defer keeps
@@ -6437,14 +6433,12 @@ export default defineComponent({
           gateCursorUntilAnimationsEnd(pane);
         }
       });
-      if (this.fitTimer !== undefined) {
-        window.clearTimeout(this.fitTimer);
-      }
-      this.fitTimer = window.setTimeout(() => {
+      this.fitTimer?.();
+      this.fitTimer = this.flow.after(motionMs(240), 'the frame\'s re-verify fit', () => {
         this.fitTimer = undefined;
         this.fitCardStrip();
         this.fitSummary();
-      }, motionMs(240));
+      });
     },
     /** Parked-pane strip refs (index = step position). */
     setStripRef(i: number, el: unknown): void {
@@ -7140,7 +7134,7 @@ export default defineComponent({
      */
     prepareDeal(): void {
       if (this.dealLaunchTimer !== undefined) {
-        window.clearTimeout(this.dealLaunchTimer);
+        this.dealLaunchTimer();
         this.dealLaunchTimer = undefined;
       }
       if (this.pageCovered) {
@@ -7166,10 +7160,10 @@ export default defineComponent({
       if (this.deal.prepare(dealKey, names, keys)) {
         // Launch after the con-task-swap frame transition (160ms) settles +
         // fitCardStrip has sized the row — the measured rects are final.
-        this.dealLaunchTimer = window.setTimeout(() => {
+        this.dealLaunchTimer = this.flow.after(motionMs(260), 'the deal\'s launch (the frame swap settles first)', () => {
           this.dealLaunchTimer = undefined;
-          requestAnimationFrame(() => this.launchDeal());
-        }, motionMs(260));
+          this.flow.afterFrame('the deal launches on a painted frame', () => this.launchDeal());
+        });
       }
     },
     launchDeal(): void {
@@ -7185,10 +7179,10 @@ export default defineComponent({
       if (this.roomSettling || this.departureActive || this.glideActive || this.tenderHandoffActive) {
         // …and a REDEAL's new cards come off the deck only once the cards it took away have reached it (the review's
         // and the gamble's departure, §16.3): the deck answers after it has received.
-        this.dealLaunchTimer = window.setTimeout(() => {
+        this.dealLaunchTimer = this.flow.after(motionMs(120), 'the deal\'s launch (the room is still settling)', () => {
           this.dealLaunchTimer = undefined;
-          requestAnimationFrame(() => this.launchDeal());
-        }, motionMs(120));
+          this.flow.afterFrame('the deal launches on a painted frame', () => this.launchDeal());
+        });
         return;
       }
       const layer = (this.$refs.dealLayer ?? undefined) as InstanceType<typeof ConsoleCardDealLayer> | undefined;
@@ -7427,14 +7421,14 @@ export default defineComponent({
       // keyframe's length), the parked page surfaces while the cards are
       // still landing on the shelf. The body never stands empty behind a
       // travelling convoy — the LT step-return's own parallelism.
-      window.clearTimeout(this.legacyRestoreTimer);
-      this.legacyRestoreTimer = window.setTimeout(() => {
+      this.legacyRestoreTimer?.();
+      this.legacyRestoreTimer = this.flow.after(motionMs(320), 'the parked page surfaces under the legacy convoy', () => {
         this.legacyRestoreTimer = undefined;
         if (this.legacyView.phase === 'leaving') {
           this.legacyPageRestored = true;
           void this.$nextTick().then(() => void unparkSurface(this.legacyPageEl() ?? null, 1));
         }
-      }, motionMs(320));
+      });
       await flight.flyTo(tileOf,
         (n) => {
           this.legacyDockHeld = this.legacyDockHeld.filter((held) => held !== n);
@@ -7454,7 +7448,7 @@ export default defineComponent({
      * no holds, convoys or captured proxies behind.
      */
     settleLegacyClosed(teardown = false): void {
-      window.clearTimeout(this.legacyRestoreTimer);
+      this.legacyRestoreTimer?.();
       this.legacyRestoreTimer = undefined;
       this.legacyRise?.dispose();
       this.legacyRise = undefined;
@@ -7598,8 +7592,8 @@ export default defineComponent({
         this.tenderFlight = undefined;
         return;
       }
-      window.clearTimeout(this.tenderRestoreTimer);
-      this.tenderRestoreTimer = window.setTimeout(() => {
+      this.tenderRestoreTimer?.();
+      this.tenderRestoreTimer = this.flow.after(motionMs(320), 'the parked page surfaces under the tender convoy', () => {
         this.tenderRestoreTimer = undefined;
         if (this.tenderView.phase === 'leaving') {
           this.tenderPageRestored = true;
@@ -7611,7 +7605,7 @@ export default defineComponent({
             void this.$nextTick().then(() => void unparkSurface(this.legacyPageEl() ?? null, 1));
           }
         }
-      }, motionMs(320));
+      });
       await flight.flyTo(miniOf,
         (n) => {
           this.tenderDockHeld = this.tenderDockHeld.filter((held) => held !== n);
@@ -7625,7 +7619,7 @@ export default defineComponent({
     },
     /** The list is gone, the page is back. Also the teardown target (mode flip / unmount): no holds, no proxies left. */
     settleTenderViewClosed(teardown = false): void {
-      window.clearTimeout(this.tenderRestoreTimer);
+      this.tenderRestoreTimer?.();
       this.tenderRestoreTimer = undefined;
       this.tenderRise?.dispose();
       this.tenderRise = undefined;
@@ -8196,9 +8190,9 @@ export default defineComponent({
       this.tenderSheet = {...sheet, phase: 'committing'};
       this.sheetCommitted = true;
       this.sheetStamping = true;
-      window.setTimeout(() => {
+      this.flow.after(motionMs(620), 'the sheet\'s stamp one-shot ends', () => {
         this.sheetStamping = false;
-      }, motionMs(620));
+      });
       const gamble = isGambleTender(sheet.id);
       const grows = sheet.id === 'openCall' || sheet.id === 'broadPortfolio' || sheet.id === 'targetedRequest';
       this.tenderLanding = {instance: sheet.instance, step: page};
@@ -8237,8 +8231,8 @@ export default defineComponent({
       this.sheetPanelOpen = false;
       this.tenderSheet = {...sheet, phase: 'leaving'};
       this.tenderView.phase = 'leaving';
-      window.clearTimeout(this.tenderRestoreTimer);
-      this.tenderRestoreTimer = window.setTimeout(() => {
+      this.tenderRestoreTimer?.();
+      this.tenderRestoreTimer = this.flow.after(motionMs(260), 'the parked page surfaces under the sheet\'s hero', () => {
         this.tenderRestoreTimer = undefined;
         if (this.tenderView.phase === 'leaving') {
           this.tenderPageRestored = true;
@@ -8246,7 +8240,7 @@ export default defineComponent({
             void this.$nextTick().then(() => void unparkSurface(this.legacyPageEl() ?? null, 1));
           }
         }
-      }, motionMs(260));
+      });
       await flight.flyTo(miniOf, (n) => {
         this.tenderDockHeld = this.tenderDockHeld.filter((held) => held !== n);
         if (this.sheetCommitted) {
@@ -8279,7 +8273,7 @@ export default defineComponent({
           if (!settled) {
             settled = true;
             stop();
-            window.clearTimeout(bound);
+            disarmBound();
             resolve();
           }
         };
@@ -8288,7 +8282,8 @@ export default defineComponent({
             finish();
           }
         });
-        const bound = window.setTimeout(finish, motionMs(4000));
+        // A RELEASE: a glide awaits this promise — it resolves at the bound, or when the scene is gone.
+        const disarmBound = this.flow.guarantee(motionMs(4000), 'the page is uncovered (a stuck cover never strands a glide)', finish);
       });
     },
     /** Resolves once no hand-over is running (a page change plays on a page the player SEES). */
@@ -8430,14 +8425,12 @@ export default defineComponent({
       const keys = capture.names.map((n) => `${stepId}|${n}`);
       keys.forEach((k) => this.returningNames.add(k));
       this.departureActive = true;
-      if (this.departureSafety !== undefined) {
-        window.clearTimeout(this.departureSafety);
-      }
+      this.departureSafety?.();
       // The SAFETY: a refused answer changes no view — the held originals come back on their own.
-      this.departureSafety = window.setTimeout(() => {
+      this.departureSafety = this.flow.after(motionMs(4000), 'the departure\'s safety (a refused redeal gives the cards back)', () => {
         this.departureSafety = undefined;
         keys.forEach((k) => this.returningNames.delete(k));
-      }, motionMs(4000));
+      });
       try {
         await capture.impulse();
         await capture.flyTo(() => deck, undefined, {flipTo: FACE_DOWN_DEG, pressElFor: () => deck});
@@ -8489,14 +8482,12 @@ export default defineComponent({
     },
     /** The dock chip of an executed tender takes the stamp — a one-shot class the CSS keyframe reads. */
     stampDockChip(instance: string): void {
-      if (this.dockStampTimer !== undefined) {
-        window.clearTimeout(this.dockStampTimer);
-      }
+      this.dockStampTimer?.();
       this.dockStamped = instance;
-      this.dockStampTimer = window.setTimeout(() => {
+      this.dockStampTimer = this.flow.after(motionMs(620), 'the dock chip\'s stamp one-shot ends', () => {
         this.dockStamped = undefined;
         this.dockStampTimer = undefined;
-      }, motionMs(620));
+      });
     },
     /** «КОМПЕНСАЦИЯ»: the M€ chip flies from the plate into the rail (the bonus plate's own language). */
     launchCompensationFlight(): void {
@@ -8937,7 +8928,7 @@ export default defineComponent({
         detail: '30 frames, estimated at 16 ms each',
       });
       for (let i = 0; i < 30; i++) {
-        await new Promise<void>((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => r()) : setTimeout(r, 16)));
+        await whenPainted(1, 50, this.flow);
         const el = this.queueTargetEl(probe);
         const r = el?.getBoundingClientRect();
         if (r !== undefined && r.width > 4 && last !== undefined &&
@@ -8980,7 +8971,7 @@ export default defineComponent({
       this.sentAwaiting = false;
       this.state.flow = 'materializing';
       if (this.commitSafety !== undefined) {
-        window.clearTimeout(this.commitSafety);
+        this.commitSafety();
         this.commitSafety = undefined;
       }
       const capture = this.matCapture;
@@ -9196,14 +9187,15 @@ export default defineComponent({
          * generous ceiling so its callbacks, terminal commit and release all
          * run in their canonical order. Normal Calm/Standard/Swift timings are
          * 3.7s or less, so this path is strictly degraded-render recovery. */
-        const releaseSafety = window.setTimeout(() => {
+        // PACING: it finishes a timeline of a scene that STANDS — a scene that left has killed it (`settled` resolved).
+        const cancelReleaseSafety = this.flow.after(6_000, 'the start\'s completion sequence is finished by hand (a starved ticker)', () => {
           if (this.completionTimeline === timeline && el.isConnected) {
             timeline.progress(1);
           }
-        }, 6_000);
+        });
         timeline.play(0);
         await settled;
-        window.clearTimeout(releaseSafety);
+        cancelReleaseSafety();
         if (this.completionTimeline === timeline) {
           this.completionTimeline = undefined;
         }
@@ -9240,7 +9232,7 @@ export default defineComponent({
         return;
       }
       this.fitScheduled = true;
-      requestAnimationFrame(() => {
+      this.flow.afterFrame('the coalesced fit of a resize burst', () => {
         this.fitScheduled = false;
         this.fitCardStrip();
         this.fitSummary();
@@ -9400,7 +9392,7 @@ export default defineComponent({
         // strip instead of leaving the CSS fallback zoom.
         if (this.mode === 'wizard' && this.currentStep !== undefined && this.fitRetries < 30) {
           this.fitRetries++;
-          requestAnimationFrame(() => this.fitCardStrip());
+          probeTick(() => this.fitCardStrip());
         } else {
           this.fitRetries = 0;
         }
@@ -9437,7 +9429,7 @@ export default defineComponent({
       if (slotW <= 0 || slotH <= 0) {
         if (this.fitRetries < 20) {
           this.fitRetries++;
-          requestAnimationFrame(() => this.fitCardStrip());
+          probeTick(() => this.fitCardStrip());
         }
         return;
       }
@@ -9786,10 +9778,8 @@ export default defineComponent({
       // safety below un-arms everything if the submit is refused.
       holdStartScene();
       this.state.flow = 'committing';
-      if (this.commitSafety !== undefined) {
-        window.clearTimeout(this.commitSafety);
-      }
-      this.commitSafety = window.setTimeout(() => {
+      this.commitSafety?.();
+      this.commitSafety = this.flow.after(20000, 'the commit\'s refusal safety (the server never accepted)', () => {
         this.commitSafety = undefined;
         if (this.state.flow === 'committing' && this.mode === 'wizard') {
           // The server never accepted (error / network) — the preparation
@@ -9801,7 +9791,7 @@ export default defineComponent({
           this.state.flow = 'idle';
           releaseStartScene();
         }
-      }, 20000);
+      });
       this.$emit('submit', buildInitialCardsResponse(input, this.picks));
     },
     backStep(): void {

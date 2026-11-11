@@ -38,6 +38,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {RectLike} from '@/client/console/cardIntake/intakeAssemblyPlan';
 import {probeTick} from '@/client/console/probeTick';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {REACTOR_NATURAL_H, ReactionTempo} from '@/client/console/cardReaction/cardReactionModel';
 import {effectRowFor} from '@/client/console/cardReaction/effectIconEnds';
@@ -257,10 +258,12 @@ export function markReactionRow(face: HTMLElement | undefined, printedEffect: nu
   void row.offsetWidth;
   row.style.setProperty('--con-reaction-row-ms', `${Math.max(240, Math.round(ms))}ms`);
   row.setAttribute('data-reaction-row', '1');
-  window.setTimeout(() => {
+  // A RELEASE (the mark stands on a face this module does not own): it comes off after its beat, or when the game
+  // screen leaves.
+  consoleSessionScope().guarantee(Math.max(240, Math.round(ms)) + 80, 'the reaction row\'s one-shot kant comes off', () => {
     row.removeAttribute('data-reaction-row');
     row.style.removeProperty('--con-reaction-row-ms');
-  }, Math.max(240, Math.round(ms)) + 80);
+  });
   return row;
 }
 

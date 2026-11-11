@@ -59,6 +59,7 @@
 import {defineComponent, PropType} from 'vue';
 import {PlacementFlowPhase} from '@/client/console/tilePlacement/placementFlow';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** The focused cell's bonus-cluster box in cell-local board px (keep-px) —
  *  measured by ConsoleBoardSection, drives the ghost's quiet-zone mask. */
@@ -108,11 +109,15 @@ export default defineComponent({
     /** THE LANDING MARKER (W1): the hero scene owns the cell and the tile is in the air — hold the place it will land. */
     marker: {type: Boolean, default: false},
   },
+  setup() {
+    return {flow: useFlowScope('board-cursor')};
+  },
   data() {
     return {
       /** The reticle is mid-glide (kept true through a held-direction run). */
       traveling: false,
-      settleTimer: 0,
+      /** The settle timer's cancel (a timer of `flow`) — `undefined` when none stands. */
+      settleTimer: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -168,19 +173,14 @@ export default defineComponent({
         return;
       }
       this.traveling = true;
-      if (this.settleTimer !== 0) {
-        window.clearTimeout(this.settleTimer);
+      if (this.settleTimer !== undefined) {
+        this.settleTimer();
       }
-      this.settleTimer = window.setTimeout(() => {
-        this.settleTimer = 0;
+      this.settleTimer = this.flow.after(consoleMotionMs(TRAVEL_MS) + SETTLE_SLACK_MS, 'the reticle lands after its glide', () => {
+        this.settleTimer = undefined;
         this.traveling = false;
-      }, consoleMotionMs(TRAVEL_MS) + SETTLE_SLACK_MS);
+      });
     },
-  },
-  beforeUnmount() {
-    if (this.settleTimer !== 0) {
-      window.clearTimeout(this.settleTimer);
-    }
   },
 });
 </script>

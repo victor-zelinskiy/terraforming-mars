@@ -5,6 +5,7 @@
  */
 import type {UnwrapRef} from 'vue';
 import {computed, ref, onBeforeUnmount, onMounted} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import {ConsoleHandEntry} from '@/client/components/console/consoleHandSectionTypes';
@@ -139,6 +140,8 @@ export type OutcomePort = {
 };
 
 export function createOutcomeController(shell: OutcomePort) {
+  // The controller's own scope (architecture v2 — PLAN §10 · C1): it ends with the shell, and its timers with it.
+  const flow = useFlowScope('outcome-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** The held conclusion's question door already named (`<kind>|<promptId>|<result>`) — one line per standing. */
   const questionDoorLogged = ref('');
@@ -805,7 +808,8 @@ export function createOutcomeController(shell: OutcomePort) {
       if (lastTick <= now) {
         apply();
       } else {
-        window.setTimeout(apply, lastTick - now);
+        // A RELEASE: the tick is what lets a touchdown's counter (and its hold) go — it comes at its gap, or with the shell.
+        flow.guarantee(lastTick - now, 'a touchdown\'s tick stands its gap', apply);
       }
     };
     void runResourceTransfers({
@@ -1186,8 +1190,8 @@ export function createOutcomeController(shell: OutcomePort) {
       if (shell.handDissolveArmed && shell.colonyEmbedLatch !== '') {
         // The hand leaves: the colonies ride its dissolve, mounted in its zone, released by its own leave.
         shell.coloniesLeaving = true;
-        window.clearTimeout(shell.coloniesLeaveNet);
-        shell.coloniesLeaveNet = window.setTimeout(() => shell.releaseColoniesLeave(), PARLIAMENT_LEAVE_NET_MS);
+        shell.coloniesLeaveNet?.();
+        shell.coloniesLeaveNet = flow.guarantee(PARLIAMENT_LEAVE_NET_MS, 'the hosted colonies ride the hand\'s leave (its net)', () => shell.releaseColoniesLeave());
       } else {
         // The hand HOLDS (the play still owes something): the step lets go in place.
         shell.colonyEmbedLatch = '';
@@ -1265,16 +1269,17 @@ export function createOutcomeController(shell: OutcomePort) {
 
   /** WATCH `hostedStepDeclaredCard` — the reaction's body (the shell's `watch` table delegates here, in its order). */
   function whenHostedStepDeclaredCardChanges(card: string): void {
-    window.clearTimeout(shell.parliamentWarmTimer);
+    shell.parliamentWarmTimer?.();
     shell.parliamentWarmTimer = undefined;
     if (card === '') {
       shell.parliamentWarmArmed = false;
       return;
     }
-    shell.parliamentWarmTimer = window.setTimeout(() => {
+    // PACING: the warm-up is armed for a step that still stands — a shell that left has nothing to warm.
+    shell.parliamentWarmTimer = flow.after(motionMs(PARLIAMENT_WARM_SETTLE_MS), 'the hosted step\'s declared card settles', () => {
       shell.parliamentWarmTimer = undefined;
       shell.parliamentWarmArmed = hostedStepDeclaredCard.value === card;
-    }, motionMs(PARLIAMENT_WARM_SETTLE_MS));
+    });
   }
 
   /** Publish the answer the moment it exists — the beat flips its card on it. */

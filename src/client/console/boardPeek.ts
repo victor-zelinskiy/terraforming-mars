@@ -24,6 +24,7 @@ import {CountedWhy} from '@/client/console/countedPlay';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {probeTick} from '@/client/console/probeTick';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {findBoardOverlay} from '@/client/components/journal/boardCellHighlight';
 
 export type BoardPeekTone = 'counted' | 'excluded';
@@ -101,13 +102,11 @@ function eachCell(peek: BoardPeek, fn: (el: HTMLElement, group: BoardPeekGroup) 
   }
 }
 
-let beatTimer = 0;
+let cancelBeat: () => void = () => {};
 
 function stopRollCall(): void {
-  if (beatTimer !== 0) {
-    window.clearInterval(beatTimer);
-    beatTimer = 0;
-  }
+  cancelBeat();
+  cancelBeat = () => {};
 }
 
 /** Light ONE beat: its cells take the one-shot pulse (re-armed every beat), every other cell stands marked. */
@@ -136,10 +135,15 @@ function markCells(peek: BoardPeek): void {
   }
   let i = 0;
   lightBeat(peek, beats[0]);
-  beatTimer = window.setInterval(() => {
+  // The roll call is the session's own pacing: a self-re-arming beat, taken back when the peek closes or the game screen leaves.
+  const owner = consoleSessionScope();
+  const beatMs = motionMs(PEEK_BEAT_MS);
+  const beat = (): void => {
+    cancelBeat = owner.after(beatMs, 'the board peek\'s roll call — the next beat', beat);
     i = (i + 1) % beats.length;
     lightBeat(peek, beats[i]);
-  }, motionMs(PEEK_BEAT_MS));
+  };
+  cancelBeat = owner.after(beatMs, 'the board peek\'s roll call — the next beat', beat);
 }
 
 function clearCells(peek: BoardPeek): void {
@@ -216,11 +220,12 @@ export function closeBoardPeek(instant = false): void {
     boardPeekState.peek = undefined;
     return;
   }
-  window.setTimeout(() => {
+  // A RELEASE: the board leaves the screen at the fade's end, or when the game screen leaves first — never left shown.
+  consoleSessionScope().guarantee(motionMs(PEEK_FADE_MS) + 40, 'the board peek leaves once the workspace covers it', () => {
     if (boardPeekState.seq === seq) {
       boardPeekState.peek = undefined;
     }
-  }, motionMs(PEEK_FADE_MS) + 40);
+  });
 }
 
 /** Is a peek open (from the press until the workspace has fully returned)? */

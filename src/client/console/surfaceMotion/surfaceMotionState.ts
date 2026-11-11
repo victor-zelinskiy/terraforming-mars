@@ -26,7 +26,7 @@
  */
 
 import {reactive} from 'vue';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {
   AwaitingHandoff,
   CapturedRect,
@@ -361,3 +361,8 @@ export function resetSurfaceMotion(): void {
   // A pose held for a travel that the boundary just cancelled.
   endAnchorCarry();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Never leak a held handoff / shade owner across sessions
+sessionState('surface-motion', resetSurfaceMotion, 420);

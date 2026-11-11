@@ -172,6 +172,7 @@ import {
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** Bounded retry while the row has no layout yet (JSDOM / mid-reload). */
 const FIT_RETRIES = 20;
@@ -208,6 +209,11 @@ export default defineComponent({
     embedded: {type: Boolean, default: false},
   },
   emits: ['submit'],
+  setup() {
+    // `flowScope`, not `flow`: this component's `flow` is the external draw's module state (`data()`), and a setup
+    // binding of the same name would shadow it.
+    return {flowScope: useFlowScope('external-draw-workspace')};
+  },
   data() {
     return {
       focusIdx: 0,
@@ -603,7 +609,7 @@ export default defineComponent({
       if (slotW <= 0 || slotH <= 0) {
         if (this.fitRetries < FIT_RETRIES) {
           this.fitRetries++;
-          requestAnimationFrame(() => this.fitRow());
+          this.flowScope.afterFrame('the row gets its layout', () => this.fitRow());
         }
         return;
       }
@@ -853,7 +859,7 @@ export default defineComponent({
           if (!done) {
             done = true;
             stop();
-            window.clearTimeout(timer);
+            cancelGrace();
             resolve();
           }
         };
@@ -865,10 +871,12 @@ export default defineComponent({
               finish();
             }
           });
-        const timer = window.setTimeout(() => {
+        // PACING: the grace's end is SAID (the ceiling line) — a surface that leaves lets the wait go silently
+        // (`goneWaiters`, below), never through this timer.
+        const cancelGrace = this.flowScope.after(motionMs(REFUSAL_GRACE_MS), 'the server moving off the answered prompt', () => {
           wait.ceiling();
           finish();
-        }, motionMs(REFUSAL_GRACE_MS));
+        });
         this.goneWaiters.push(() => {
           wait.end();
           finish();

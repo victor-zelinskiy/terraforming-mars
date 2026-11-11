@@ -24,6 +24,7 @@
  */
 
 import {reactive} from 'vue';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /** The press-and-hold threshold, ms (fixed — see the header). */
 export const NOTIF_HOLD_MS = 500;
@@ -33,7 +34,8 @@ export const notifHoldState = reactive({
   noteId: undefined as string | undefined,
 });
 
-let timer: ReturnType<typeof setTimeout> | undefined;
+/** The hold's cancel — PACING: a hold whose game screen left never fires (nothing is waiting for it). */
+let timer: (() => void) | undefined;
 /** A completed hold's trailing release edge is consumed exactly once. */
 let pendingReleaseConsume = false;
 
@@ -46,12 +48,26 @@ export function beginNotifHold(noteId: string, onFire: () => void, delayMs: numb
   cancelNotifHold();
   pendingReleaseConsume = false;
   notifHoldState.noteId = noteId;
-  timer = setTimeout(() => {
+  const owner = consoleSessionScope();
+  const cancelFill = owner.after(delayMs, 'the X-hold on a notification fills', () => {
+    forget();
     timer = undefined;
     notifHoldState.noteId = undefined;
     pendingReleaseConsume = true;
     onFire();
-  }, delayMs);
+  });
+  // …and its mark goes with the session (the fill must not stand on the next game's feed).
+  const forget = owner.defer(() => {
+    if (timer === cancel) {
+      timer = undefined;
+      notifHoldState.noteId = undefined;
+    }
+  });
+  const cancel = (): void => {
+    cancelFill();
+    forget();
+  };
+  timer = cancel;
 }
 
 /**
@@ -63,7 +79,7 @@ export function beginNotifHold(noteId: string, onFire: () => void, delayMs: numb
 export function cancelNotifHold(): boolean {
   const wasHolding = notifHoldState.noteId !== undefined;
   if (timer !== undefined) {
-    clearTimeout(timer);
+    timer();
     timer = undefined;
   }
   notifHoldState.noteId = undefined;
@@ -92,3 +108,8 @@ export function resetNotifHold(): void {
   cancelNotifHold();
   pendingReleaseConsume = false;
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Never leak a hold timer across games/sessions
+sessionState('notif-hold', resetNotifHold, 410);

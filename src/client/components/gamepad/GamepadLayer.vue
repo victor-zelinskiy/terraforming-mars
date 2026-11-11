@@ -88,7 +88,7 @@
  * `gamepad_enabled` preference — invariant 2.
  */
 import {defineComponent} from 'vue';
-import {useIntervalFn} from '@vueuse/core';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {gamepadCoreState, installGamepadCore, onGamepadIntent, uninstallGamepadCore} from '@/client/gamepad/gamepadCore';
 import {clearGamepadFocus, focusState, gamepadFocusTick, handleGamepadIntent} from '@/client/gamepad/focusEngine';
@@ -163,11 +163,23 @@ export default defineComponent({
     screen: {type: String, default: ''},
   },
   setup() {
-    // VueUse pausable interval for the focus-validity tick (was a hand-managed
-    // setInterval + clearInterval + tickTimer guard). start/stopTick just
-    // resume/pause it; it also auto-pauses on unmount (belt-and-braces).
-    const focusTick = useIntervalFn(() => gamepadFocusTick(), FOCUS_TICK_MS, {immediate: false});
-    return {focusTick};
+    // The layer's own scope (flow kernel — PLAN §10 · C1). The layer is mounted by the app on every screen, outside any
+    // console shell — so its scope is the PAGE's (`useFlowScope` reads the component tree): a game session ending
+    // beside it never takes its toast's timer away.
+    const flow = useFlowScope('gamepad-layer');
+    // The focus-validity tick — an OWNED tick of that scope (it stops with the layer), paused and resumed by the
+    // input mode: `resume` is idempotent (a standing tick is kept), `pause` stops it.
+    let stopFocusTick: (() => void) | undefined = undefined;
+    const focusTick = {
+      resume: (): void => {
+        stopFocusTick ??= flow.every(FOCUS_TICK_MS, 'the focus validity tick', () => gamepadFocusTick());
+      },
+      pause: (): void => {
+        stopFocusTick?.();
+        stopFocusTick = undefined;
+      },
+    };
+    return {focusTick, flow};
   },
   data() {
     return {
@@ -192,7 +204,7 @@ export default defineComponent({
       systemMenuSettings: undefined as ConsoleSettingsCategoryId | undefined,
       legendOpen: false,
       toast: '',
-      toastTimer: undefined as number | undefined,
+      cancelToast: (() => {}) as () => void,
       intentLog: [] as Array<string>,
       offIntent: undefined as (() => void) | undefined,
       offMode: undefined as (() => void) | undefined,
@@ -520,19 +532,17 @@ export default defineComponent({
       }
     },
     startTick(): void {
-      this.focusTick.resume(); // VueUse pausable interval (idempotent)
+      this.focusTick.resume(); // idempotent
     },
     stopTick(): void {
       this.focusTick.pause();
     },
     showToast(text: string): void {
       this.toast = text;
-      if (this.toastTimer !== undefined) {
-        window.clearTimeout(this.toastTimer);
-      }
-      this.toastTimer = window.setTimeout(() => {
+      this.cancelToast();
+      this.cancelToast = this.flow.after(motionMs(2600), 'the gamepad toast\'s visible life ends', () => {
         this.toast = '';
-      }, motionMs(2600));
+      });
     },
   },
   mounted() {
@@ -574,9 +584,6 @@ export default defineComponent({
     this.offMode?.();
     setConsoleSystemMenuInput(undefined);
     this.stopTick();
-    if (this.toastTimer !== undefined) {
-      window.clearTimeout(this.toastTimer);
-    }
     clearGamepadFocus();
     uninstallGamepadCore();
     uninstallConsoleKeyBridge();

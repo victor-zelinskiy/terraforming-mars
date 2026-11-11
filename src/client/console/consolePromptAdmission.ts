@@ -35,6 +35,7 @@
  * the signals, this module owns the policy, so it is unit-testable with no DOM.
  */
 import {reactive} from 'vue';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /**
  * The surface FAMILIES that serve a server prompt. Each declares its own wait
@@ -427,3 +428,8 @@ export function resetPromptAdmission(): void {
   promptAdmissionState.placementHeld = false;
   releasePromptPresence();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Shell gone → the placement can never stay held (desktop reads the mirror too)
+sessionState('prompt-admission', resetPromptAdmission, 360);

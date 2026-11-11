@@ -181,7 +181,8 @@ import ConsolePlayedEventsPile from '@/client/components/console/played/ConsoleP
 import ConsolePlayedCategoryView from '@/client/components/console/played/ConsolePlayedCategoryView.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {whenPainted} from '@/client/console/session/sessionWaits';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** The table's focusable keys: the card categories + the bot's corporation slot. */
 type TableFocusKey = PlayedCategoryKey | 'botcorp' | '';
@@ -227,6 +228,9 @@ export default defineComponent({
   },
   emits: {
     'close': () => true,
+  },
+  setup() {
+    return {flow: useFlowScope('played-overlay')};
   },
   data() {
     return {
@@ -905,14 +909,9 @@ export default defineComponent({
       const r = restingRectOf(el);
       return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
     },
+    /** One tick of the stability loop: the next painted frame, or shortly (a quiet compositor), or the table left. */
     heroFrame(): Promise<void> {
-      return new Promise((resolve) => {
-        if (typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(() => resolve());
-        } else {
-          consoleSessionScope().guarantee(16, 'ConsolePlayedOverlay: a release\'s bound', resolve);
-        }
-      });
+      return whenPainted(1, 50, this.flow);
     },
     // ── viewed player (LB/RB) ───────────────────────────────────────────
     cycleViewedPlayer(step: 1 | -1): void {

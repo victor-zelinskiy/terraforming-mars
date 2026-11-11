@@ -11,6 +11,7 @@
  * The nets shrink by rows of this port; nothing may be added to it.
  */
 import {ref} from 'vue';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {transportDiagFacts, transportState} from '@/client/console/transport/gameTransport';
@@ -125,7 +126,8 @@ export type SupervisorPort = {
 export function createSupervisorController(shell: SupervisorPort) {
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** The LIVENESS ARBITER's 1 Hz sampler (`consoleLiveness.ts`; the beat stall guard is one of its witnesses). */
-  const beatStallTimer = ref(undefined as number | undefined);
+  /** The sampler's stop — the tick is an owned tick of the SESSION (it cannot go on sampling a game screen that left). */
+  const beatStallTimer = ref(undefined as (() => void) | undefined);
   /** The shell's own rungs of the liveness ladder — unregistered with the shell. */
   const livenessRungStops = ref([] as Array<() => void>);
   /** The stale frame over the free turn whose HOLD was already named (`<kind>|<promptId>`) — one line per standing. */
@@ -308,12 +310,14 @@ export function createSupervisorController(shell: SupervisorPort) {
    */
   function startSupervisor(): void {
     registerLivenessRungs();
-    beatStallTimer.value = window.setInterval(() => checkLiveness(), 1000);
+    beatStallTimer.value?.();
+    beatStallTimer.value = consoleSessionScope().every(1000, 'the supervisor\'s tick', () => checkLiveness());
   }
 
   /** …and ends with it: the sampler, every registration, the arbiter's and the beat guard's own state. */
   function stopSupervisor(): void {
-    window.clearInterval(beatStallTimer.value);
+    beatStallTimer.value?.();
+    beatStallTimer.value = undefined;
     for (const stop of livenessRungStops.value) {
       stop();
     }

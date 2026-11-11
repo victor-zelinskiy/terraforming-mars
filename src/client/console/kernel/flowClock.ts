@@ -33,7 +33,13 @@ const REAL_CLOCK: FlowClock = {
   nextFrame: (fn) => {
     if (typeof requestAnimationFrame === 'function') {
       const handle = requestAnimationFrame(() => fn());
-      return () => cancelAnimationFrame(handle);
+      // A host that lends only the request (a spec's stand-in frame clock) has nothing to cancel with: the frame then
+      // simply comes, and the kernel's own guard (`stopped` / the scope's end) keeps its callback from acting.
+      return () => {
+        if (typeof cancelAnimationFrame === 'function') {
+          cancelAnimationFrame(handle);
+        }
+      };
     }
     const timer = setTimeout(fn, FRAME_MS);
     (timer as unknown as {unref?: () => void}).unref?.();

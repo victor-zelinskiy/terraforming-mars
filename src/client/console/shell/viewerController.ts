@@ -61,6 +61,8 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import type {StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {EffectForecast} from '@/common/models/EffectForecastModel';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {probeTick} from '@/client/console/probeTick';
 
 /** The fullscreen viewer's OPEN / CLOSE flight swallows the pad on purpose (the card is mid-air) — said on the ledger. */
 const ZOOM_FLIGHT_ABSORBER = 'zoom-flight';
@@ -88,6 +90,8 @@ export type ViewerPort = {
 };
 
 export function createViewerController(shell: ViewerPort) {
+  // The controller's own scope (architecture v2 — PLAN §10 · C1): it ends with the shell, and its timers with it.
+  const flow = useFlowScope('viewer-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
   const zoomFlight = ref(false);
@@ -107,8 +111,8 @@ export function createViewerController(shell: ViewerPort) {
   const zoomVoteNudge = ref(0);
   /** Stale-callback fence for the async open sequence (measure/flight). */
   const zoomOpenToken = ref(0);
-  /** Deferred proxy removal after the top layer has covered it. */
-  const zoomOpenClearTimer = ref(undefined as number | undefined);
+  /** Deferred proxy removal after the top layer has covered it — its cancel (the scope owns the timer). */
+  let cancelZoomOpenClear: () => void = () => {};
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   // ── P15: the fullscreen viewer's select context ─────────────────────
@@ -603,11 +607,11 @@ export function createViewerController(shell: ViewerPort) {
       // path): show immediately — first frame final and fully visible.
       zoom.show();
       zoomOpening.value = false;
-      window.setTimeout(() => {
+      flow.after(motionMs(140), 'the viewer\'s chrome fades in', () => {
         if (token === zoomOpenToken.value) {
           zoomFlight.value = false;
         }
-      }, motionMs(140));
+      });
       return;
     }
     // Premium flight: proxy flies slot→landing while the veil (the ONE
@@ -637,17 +641,15 @@ export function createViewerController(shell: ViewerPort) {
         // dialog card, or their halos stack into a bright contour flash).
         // This is only the UNMOUNT of an already-hidden element, so its
         // timing is free — a beat later keeps it off the hand-off frame.
-        zoomOpenClearTimer.value = window.setTimeout(() => clearZoomOpenFlight(), motionMs(160));
+        cancelZoomOpenClear = flow.after(motionMs(160), 'the open-flight proxy\'s unmount', () => clearZoomOpenFlight());
       },
     });
   }
 
   /** Drop the open-flight proxy (idempotent; any close path). */
   function clearZoomOpenFlight(): void {
-    if (zoomOpenClearTimer.value !== undefined) {
-      window.clearTimeout(zoomOpenClearTimer.value);
-      zoomOpenClearTimer.value = undefined;
-    }
+    cancelZoomOpenClear();
+    cancelZoomOpenClear = () => {};
     zoomOpenProxy.value = undefined;
   }
 
@@ -1020,7 +1022,7 @@ export function createViewerController(shell: ViewerPort) {
         const el = zoom?.$el as HTMLElement | undefined;
         if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
           if (attempt < 10) {
-            requestAnimationFrame(() => tryOpen(attempt + 1));
+            probeTick(() => tryOpen(attempt + 1));
           } else {
             onCardZoomClosed(); // never strand an open-but-empty zoom state
           }
@@ -1053,7 +1055,6 @@ export function createViewerController(shell: ViewerPort) {
     zoomOpenProxy,
     zoomVoteNudge,
     zoomOpenToken,
-    zoomOpenClearTimer,
     zoomHasRules,
     zoomCoveredRequirements,
     zoomSideVisible,

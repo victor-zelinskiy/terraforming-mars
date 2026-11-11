@@ -34,6 +34,7 @@
  */
 import {defineComponent, ref, computed, CSSProperties, onBeforeUnmount} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cursorEnsureVisible, cursorScrollTo, stopCursorScroll} from '@/client/console/cursorScroll';
 
@@ -92,6 +93,7 @@ export default defineComponent({
     /** 0..1 scroll progress + viewport/content ratio for the thumb. */
     const progress = ref(0);
     const ratio = ref(1);
+    const flow = useFlowScope('console-scroll-area');
 
     let measurePending = false;
     const measure = (): void => {
@@ -99,7 +101,7 @@ export default defineComponent({
         return;
       }
       measurePending = true;
-      requestAnimationFrame(() => {
+      flow.afterFrame('the scroll area measures', () => {
         measurePending = false;
         const vp = viewport.value;
         const body = content.value;

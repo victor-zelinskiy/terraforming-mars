@@ -4,6 +4,7 @@
  * Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.
  */
 import {reactive, shallowRef, watch} from 'vue';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {Color} from '@/common/Color';
 import {NotificationModel, LiveNotification, NotificationKind, MAX_VISIBLE_TRANSIENT, NOTIFICATION_PRIORITY, NOTIFICATION_TTL} from './notificationTypes';
 import {ImpactSign} from './notificationSemantics';
@@ -603,12 +604,11 @@ export const DECISION_READ_BEAT_MS = 1500;
 const decisionReadBeatClock = reactive({tick: 0});
 
 function armDecisionReadBeat(): void {
-  if (typeof setTimeout !== 'function') {
-    return;
-  }
-  setTimeout(() => {
+  // A RELEASE: a decision waiting beside the feed re-asks on this tick — it comes at its time, or when the game screen
+  // leaves (the kernel's guaranteed release).
+  consoleSessionScope().guarantee(DECISION_READ_BEAT_MS + 30, 'a visible notification\'s read beat', () => {
     decisionReadBeatClock.tick++;
-  }, DECISION_READ_BEAT_MS + 30);
+  });
 }
 
 /**

@@ -66,7 +66,7 @@ import {
   trackAdvancePlan, trackGlidePlan, TrackGlidePlan, TRACK_SETTLE_MS, trackWavePlan, TrackWavePlan, TrackMoveRhythm,
 } from '@/client/console/colonyTrade/colonyTradeModel';
 import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 
 /**
@@ -1686,3 +1686,8 @@ registerWaitSource('flow:colony-trade', () => (colonyTradeState.active ? [{
   id: `flow:colony-trade#${tradeRun}`, family: 'flow' as const, owner: 'colonyTrade',
   targets: [{kind: 'motion' as const, what: `the trade (${colonyTradeState.phase})`}], boundMs: 60_000,
 }] : []));
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Unwind any trade-reward transaction (zombie-safe)
+sessionState('colony-trade', abortColonyTrade, 490);

@@ -35,7 +35,7 @@ import {CardName} from '@/common/cards/CardName';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import type {FlowScope} from '@/client/console/kernel/flowScope';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 import type {TradeFleetDirectorHandle} from '@/client/console/colonyFleet/tradeFleetDirector';
 
@@ -373,3 +373,8 @@ export function resetTradeFleet(): void {
   tradeFleetState.dockedColonyName = '';
   tradeFleetState.dockedCard = '';
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// Recall any in-flight fleet (zombie-safe on teardown)
+sessionState('trade-fleet', abortTradeFleet, 480);

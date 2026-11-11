@@ -56,7 +56,7 @@ import {ZoomOrigin} from '@/client/console/consoleCardZoom';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {probeTick} from '@/client/console/probeTick';
 
 const HOLD_CLASS = 'con-zoom-hold';
@@ -66,8 +66,8 @@ type ZoomMotionCtx = {
   heldSlot?: HTMLElement,
   origin?: ZoomOrigin,
   closing: boolean,
-  /** The open flight's stall-safety timer (show+settle must always happen). */
-  openSafety?: number,
+  /** The disarm of the open flight's stall-safety (show+settle must always happen — a guaranteed release). */
+  openSafety?: () => void,
 };
 
 const ctx: ZoomMotionCtx = {closing: false};
@@ -79,7 +79,7 @@ function killTween(): void {
 
 function clearOpenSafety(): void {
   if (ctx.openSafety !== undefined) {
-    window.clearTimeout(ctx.openSafety);
+    ctx.openSafety();
     ctx.openSafety = undefined;
   }
 }
@@ -246,7 +246,7 @@ export function playZoomOpenFlight(
     cb.onDone();
   };
   // Safety: a stalled rAF / killed tween can never leave the dialog unshown.
-  ctx.openSafety = window.setTimeout(finish, motionMs(420) + 600);
+  ctx.openSafety = consoleSessionScope().guarantee(motionMs(420) + 600, 'the zoom\'s open flight (safety)', finish);
   if (proxy === undefined) {
     finish(); // no proxy element — vanilla show
     return;
@@ -543,7 +543,7 @@ export function playZoomSwap(dialog: HTMLElement | undefined, swapState: () => v
     if (consoleReducedMotionActive()) {
       swapState();
       // One frame for the re-render, then a short fade-in over the new card.
-      requestAnimationFrame(() => {
+      consoleSessionScope().afterFrame('the swapped card\'s re-render', () => {
         refit();
         ctx.tween = gsap.fromTo(stage, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(120) / 1000, ease: 'power1.out', onComplete: finish});
       });
@@ -556,7 +556,7 @@ export function playZoomSwap(dialog: HTMLElement | undefined, swapState: () => v
       onComplete: () => {
         swapState();
         // The re-point re-renders the card next flush; fit + rise it in then.
-        requestAnimationFrame(() => {
+        consoleSessionScope().afterFrame('the swapped card\'s re-render', () => {
           refit();
           ctx.tween = gsap.fromTo(stage,
             {autoAlpha: 0, scale: 0.94, y: 14},
@@ -575,3 +575,7 @@ export function releaseZoomMotion(): void {
   ctx.origin = undefined;
   ctx.closing = false;
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('zoom-motion', releaseZoomMotion, 470);

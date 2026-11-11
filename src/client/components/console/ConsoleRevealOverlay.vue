@@ -659,6 +659,7 @@ import {gsap} from 'gsap';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {readingText} from '@/client/console/readingText';
 import {probeTick} from '@/client/console/probeTick';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {addCard3DTurn} from '@/client/console/cardFlight/card3dInner';
 import {colonyResolutionUi, colonyRevealSourceOf, noteColonyBonusFresh} from '@/client/console/colonyTrade/colonyResolution';
@@ -789,6 +790,9 @@ export default defineComponent({
     parked: {type: Boolean, default: false},
   },
   emits: ['dismiss-result', 'discard-pick', 'drawn-complete', 'result-detached'],
+  setup() {
+    return {flow: useFlowScope('reveal-overlay')};
+  },
   data() {
     return {
       /* (The colony-bonus card no longer opens ON the table: it TURNS IN THE
@@ -898,13 +902,14 @@ export default defineComponent({
       verdictFit: 0,
       stopVerdictResize: undefined as (() => void) | undefined,
       stopVerdictObs: undefined as (() => void) | undefined,
-      verdictSettleTimer: undefined as number | undefined,
+      cancelVerdictSettle: (() => {}) as () => void,
       stopFitResize: undefined as (() => void) | undefined,
       stopFitObs: undefined as (() => void) | undefined,
       /** …and the ROW's own observer (attached on the first real measure —
        *  see `fitEmbeddedStrip`; the row is what the fit reads). */
       stopRowObs: undefined as (() => void) | undefined,
-      settleFitTimer: undefined as number | undefined,
+      /** The fit's settle pass / deferred re-solve standing on a timer (its cancel) — `undefined` when none stands. */
+      cancelSettleFit: undefined as (() => void) | undefined,
       // ── The 'result' deck→slot reveal flight (reuses the in-frame director) ──
       /** pending → the card is flying / flipping (status shows); settled → the
        *  face is up and the real card + verdict are shown. */
@@ -912,7 +917,7 @@ export default defineComponent({
       /** The fixed flight proxy is mounted (the face-down card in transit). */
       resultFlightOn: false,
       resultHandle: undefined as ActionRevealFlightHandle | undefined,
-      resultLaunchTimer: undefined as number | undefined,
+      cancelResultLaunch: (() => {}) as () => void,
       /** «OK» pressed: the revealed card is being handed over (one press only). */
       resultHandingOff: false,
     };
@@ -2336,10 +2341,10 @@ export default defineComponent({
       if (root !== undefined && root !== null) {
         this.stopFitObs = useResizeObserver(root, () => this.scheduleEmbedFit()).stop;
       }
-      this.settleFitTimer = window.setTimeout(() => {
-        this.settleFitTimer = undefined;
+      this.cancelSettleFit = this.flow.after(motionMs(480), 'the embedded fit\'s settle pass', () => {
+        this.cancelSettleFit = undefined;
         this.fitEmbeddedStrip();
-      }, motionMs(480));
+      });
     },
     /** The embed ended (re-homed standalone / unmount) — release the handles
      *  and drop the solved zoom so the ladder honestly serves standalone. */
@@ -2348,10 +2353,8 @@ export default defineComponent({
       this.stopFitResize = undefined;
       this.stopFitObs?.();
       this.stopFitObs = undefined;
-      if (this.settleFitTimer !== undefined) {
-        window.clearTimeout(this.settleFitTimer);
-        this.settleFitTimer = undefined;
-      }
+      this.cancelSettleFit?.();
+      this.cancelSettleFit = undefined;
       this.embedFitZoom = 0;
       this.embedShelves = undefined;
       this.fitSolvedKey = '';
@@ -2372,20 +2375,16 @@ export default defineComponent({
       if (root !== undefined && root !== null) {
         this.stopVerdictObs = useResizeObserver(root, () => this.fitVerdictStage()).stop;
       }
-      this.verdictSettleTimer = window.setTimeout(() => {
-        this.verdictSettleTimer = undefined;
+      this.cancelVerdictSettle = this.flow.after(motionMs(480), 'the verdict fit\'s settle pass', () => {
         this.fitVerdictStage();
-      }, motionMs(480));
+      });
     },
     teardownVerdictFit(): void {
       this.stopVerdictResize?.();
       this.stopVerdictResize = undefined;
       this.stopVerdictObs?.();
       this.stopVerdictObs = undefined;
-      if (this.verdictSettleTimer !== undefined) {
-        window.clearTimeout(this.verdictSettleTimer);
-        this.verdictSettleTimer = undefined;
-      }
+      this.cancelVerdictSettle();
       this.verdictFit = 0;
     },
     /**
@@ -2455,7 +2454,7 @@ export default defineComponent({
         return;
       }
       this.embedFitScheduled = true;
-      requestAnimationFrame(() => {
+      this.flow.afterFrame('the embedded fit (coalesced)', () => {
         this.embedFitScheduled = false;
         this.fitEmbeddedStrip();
       });
@@ -2499,11 +2498,11 @@ export default defineComponent({
       if (this.fitSolvedKey === this.revealKey &&
           (colonyTradeState.cardScene === 'fly' || colonyTradeState.cardScene === 'ascend' ||
             colonyTradeState.cardScene === 'frame')) {
-        if (this.settleFitTimer === undefined) {
-          this.settleFitTimer = window.setTimeout(() => {
-            this.settleFitTimer = undefined;
+        if (this.cancelSettleFit === undefined) {
+          this.cancelSettleFit = this.flow.after(motionMs(180), 'the covers land before the row is re-solved', () => {
+            this.cancelSettleFit = undefined;
             this.fitEmbeddedStrip();
-          }, motionMs(180));
+          });
         }
         return;
       }
@@ -2522,7 +2521,7 @@ export default defineComponent({
         strip.style.removeProperty('--con-cards-zoom');
         if (this.embedFitRetries < 20) {
           this.embedFitRetries++;
-          requestAnimationFrame(() => this.fitEmbeddedStrip());
+          this.flow.afterFrame('the strip gets its layout', () => this.fitEmbeddedStrip());
         }
         return;
       }
@@ -2695,10 +2694,9 @@ export default defineComponent({
       this.resultHandingOff = false;
       this.resultStage = 'pending';
       this.resultFlightOn = true;
-      this.resultLaunchTimer = window.setTimeout(() => {
-        this.resultLaunchTimer = undefined;
+      this.cancelResultLaunch = this.flow.after(motionMs(220), 'the frame\'s entrance settles before the reveal flight', () => {
         void this.$nextTick(() => this.beginResultFlight());
-      }, motionMs(220));
+      });
     },
     beginResultFlight(): void {
       if (this.mode !== 'result' || this.lastReveal === undefined) {
@@ -2737,10 +2735,7 @@ export default defineComponent({
       this.resultHandle.notifyPayload();
     },
     abortResultFlight(): void {
-      if (this.resultLaunchTimer !== undefined) {
-        window.clearTimeout(this.resultLaunchTimer);
-        this.resultLaunchTimer = undefined;
-      }
+      this.cancelResultLaunch();
       this.resultHandle?.kill();
       this.resultHandle = undefined;
       this.resultFlightOn = false;

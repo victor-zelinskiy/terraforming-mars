@@ -24,6 +24,7 @@
  */
 
 import {reactive} from 'vue';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import type {DeltaBlockadeProjectionModel, DeltaBlockadeTargetProjection} from '@/common/models/DeltaBlockadeModel';
@@ -33,6 +34,7 @@ import {resetHydroFlow} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {consoleHydroUi} from '@/client/console/consoleHydroState';
 import {popWorkspaceFrame, pushWorkspaceFrame, workspaceFrameKnown, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
 import {suspendHydroInstance} from '@/client/console/hydroFlow/hydroInstanceSuspension';
+import {sessionState} from '@/client/console/session/consoleSession';
 
 /** The pick's one result: WHO to block (a legal candidate's color). Unlike
  *  the espionage draft it is never empty — the deploy variant does not exist
@@ -57,6 +59,13 @@ export type DeltaBlockadePickRequest = {
    */
   mandatory?: boolean;
 };
+
+/**
+ * THE PICK'S RUN: from the moment the blockade's target pick opens to its answer (resolved, cancelled, reset) — `surface:delta-blockade-pick#n` in the flow tree (architecture v2 — PLAN §10 · C4). The tree names it while it stands, and
+ * when the game screen leaves under it the module is brought to rest through `resetDeltaBlockadePick` — no row of the shell's
+ * teardown is what keeps it out of the next game.
+ */
+const deltaBlockadePickRun = createFlowRun('delta-blockade-pick', {kind: 'surface', orphaned: () => resetDeltaBlockadePick()});
 
 export const deltaBlockadePickState = reactive({
   active: false,
@@ -96,6 +105,7 @@ export function enterDeltaBlockadePick(
   resolveCb = onResolve;
   cancelCb = onCancel;
   deltaBlockadePickState.active = true;
+  deltaBlockadePickRun.begin();
   pushWorkspaceFrame({
     kind: 'hydro',
     subject: '',
@@ -145,6 +155,7 @@ export function resetDeltaBlockadePick(): void {
     popBlockadePickFrame();
   }
   deltaBlockadePickState.active = false;
+  deltaBlockadePickRun.end();
   deltaBlockadePickState.request = undefined;
   resolveCb = undefined;
   cancelCb = undefined;
@@ -168,6 +179,13 @@ export function resetDeltaBlockadePick(): void {
 // ARM at submit, CONSUME at flow-complete: a refused batch never completes
 // its flow, so a stale arm simply expires (bounded window) — it can neither
 // leak into a later action nor hold a workspace.
+
+/**
+ * THE EXECUTION'S RUN: from the blockade landing on its target to the end of its surface — `scene:blockade-execution#n` in the flow tree (architecture v2 — PLAN §10 · C4). The tree names it while it stands, and
+ * when the game screen leaves under it the module is brought to rest through `resetBlockadeExecution` — no row of the shell's
+ * teardown is what keeps it out of the next game.
+ */
+const blockadeExecutionRun = createFlowRun('blockade-execution', {kind: 'scene', orphaned: () => resetBlockadeExecution()});
 
 export const blockadeExecutionState = reactive({
   active: false,
@@ -202,6 +220,7 @@ export function beginBlockadeExecution(target: Color, source: CardName): void {
   blockadeExecutionState.target = target;
   blockadeExecutionState.source = source;
   blockadeExecutionState.active = true;
+  blockadeExecutionRun.begin();
   pushWorkspaceFrame({
     kind: 'hydro',
     subject: '',
@@ -223,6 +242,7 @@ export function endBlockadeExecution(): void {
     popWorkspaceFrame();
   }
   blockadeExecutionState.active = false;
+  blockadeExecutionRun.end();
   blockadeExecutionState.target = undefined;
   blockadeExecutionState.source = undefined;
 }
@@ -231,6 +251,7 @@ export function endBlockadeExecution(): void {
 export function resetBlockadeExecution(): void {
   pendingExecution = undefined;
   blockadeExecutionState.active = false;
+  blockadeExecutionRun.end();
   blockadeExecutionState.target = undefined;
   blockadeExecutionState.source = undefined;
 }
@@ -269,3 +290,10 @@ export function deltaBlockadeResponseOf(response: unknown): DeltaBlockadeRespons
 export function blockadeLegalTargets(projection: DeltaBlockadeProjectionModel): ReadonlyArray<DeltaBlockadeTargetProjection> {
   return projection.targets.filter((t) => t.legal);
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The blockade target-pick bridge (DP11)
+sessionState('delta-blockade-pick', resetDeltaBlockadePick, 270);
+// Its execution surface
+sessionState('blockade-execution', resetBlockadeExecution, 280);

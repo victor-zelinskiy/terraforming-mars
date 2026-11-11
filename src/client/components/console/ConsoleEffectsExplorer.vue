@@ -441,6 +441,7 @@ import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {EffectEntry, ExplorerEntry, PoliticalEffectEntry, isPoliticalEntry, playerEffects} from '@/client/components/effects/effectExtraction';
 import {partyEffectZoomEntry, resolutionZoomEntry, ZoomCard} from '@/client/components/card/cardZoomTypes';
@@ -605,12 +606,16 @@ export default defineComponent({
      *  and «сразу после выполнения» for a card action. */
     operation: {type: String as PropType<ForecastOperation>, default: 'play'},
   },
+  setup() {
+    return {flow: useFlowScope('effects-explorer')};
+  },
   data() {
     return {
       /** The one-shot CSS commit pulse on the pressed tile. */
       descendKey: '',
       lastFlatIndex: 0,
-      fitFrame: undefined as number | undefined,
+      /** The pending canvas-fit frame — its cancel (the explorer's scope takes it back on unmount). */
+      fitFrame: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -953,9 +958,6 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.ui.barCommands = undefined;
-    if (this.fitFrame !== undefined && typeof cancelAnimationFrame === 'function') {
-      cancelAnimationFrame(this.fitFrame);
-    }
   },
   methods: {
     iconClassFor,
@@ -1508,9 +1510,9 @@ export default defineComponent({
         return;
       }
       if (this.fitFrame !== undefined) {
-        cancelAnimationFrame(this.fitFrame);
+        this.fitFrame();
       }
-      this.fitFrame = requestAnimationFrame(() => {
+      this.fitFrame = this.flow.afterFrame('the effect canvases fit after the paint', () => {
         this.fitFrame = undefined;
         fitActionCanvases((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, {
           graphicSelector: '.con-efx__graphic',

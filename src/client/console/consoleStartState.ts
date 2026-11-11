@@ -41,6 +41,7 @@ import * as titles from '@/common/inputs/SelectInitialCards';
 import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overview/playerLabels';
 import {presentPlayerStatus, StatusPresentation} from '@/client/components/overview/playerStatusPresenter';
 import {inputLocked, resetStartTransition, startTransitionActive, StartTransitionPhase} from '@/client/console/startStageDirector';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /**
  * The wizard's steps — the server's own options, in its order. (The campaign «Тендеры» finale once prepended a
@@ -284,13 +285,10 @@ export const FIRST_ACT_SUBMIT_SAFETY_MS = 20_000;
 
 /** The submit run's own identity — an ending armed for an older press never releases a newer one. */
 let firstActSubmitSeq = 0;
-let firstActSubmitSafety: ReturnType<typeof setTimeout> | undefined;
+let cancelFirstActSubmitSafety: () => void = () => {};
 
 function clearFirstActSubmitSafety(): void {
-  if (firstActSubmitSafety !== undefined) {
-    clearTimeout(firstActSubmitSafety);
-    firstActSubmitSafety = undefined;
-  }
+  cancelFirstActSubmitSafety();
 }
 
 /**
@@ -301,10 +299,21 @@ export function beginFirstActSubmit(safetyMs: number = FIRST_ACT_SUBMIT_SAFETY_M
   consoleStartState.firstAct.submitting = true;
   const seq = ++firstActSubmitSeq;
   clearFirstActSubmitSafety();
-  firstActSubmitSafety = setTimeout(() => {
-    firstActSubmitSafety = undefined;
+  // PACING, not a guarantee: the safety WARNS when it fires, so it must not come due when the game screen leaves —
+  // there the latch of THIS submit lets go silently (the session's own cleanup).
+  const owner = consoleSessionScope();
+  const cancelTimer = owner.after(safetyMs, 'the first action\'s submit safety (no answer, no refusal)', () => {
     endFirstActSubmit(seq, 'safety');
-  }, safetyMs);
+  });
+  const forgetRelease = owner.defer(() => {
+    if (seq === firstActSubmitSeq) {
+      consoleStartState.firstAct.submitting = false;
+    }
+  });
+  cancelFirstActSubmitSafety = () => {
+    cancelTimer();
+    forgetRelease();
+  };
   return seq;
 }
 

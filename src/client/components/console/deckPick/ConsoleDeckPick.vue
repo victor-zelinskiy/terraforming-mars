@@ -278,6 +278,7 @@ import {
 } from '@/client/console/deckPick/consoleDeckPick';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {span} from '@/client/console/session/sessionWaits';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** Bounded retry while the row has no layout yet (JSDOM / mid-reload). */
 const FIT_RETRIES = 20;
@@ -314,6 +315,11 @@ export default defineComponent({
     embedded: {type: Boolean, default: false},
   },
   emits: ['submit', 'submit-batch', 'defer'],
+  setup() {
+    // `flowScope`, not `flow`: this component's `flow` is the deck pick's module state (`data()`), and a setup binding
+    // of the same name would shadow it.
+    return {flowScope: useFlowScope('deck-pick')};
+  },
   data() {
     return {
       focusIdx: 0,
@@ -1064,7 +1070,7 @@ export default defineComponent({
       if (slotW <= 0 || slotH <= 0) {
         if (this.fitRetries < FIT_RETRIES) {
           this.fitRetries++;
-          requestAnimationFrame(() => this.fitRow());
+          this.flowScope.afterFrame('the row gets its layout', () => this.fitRow());
         }
         return;
       }
@@ -1802,11 +1808,14 @@ export default defineComponent({
       });
       return new Promise<void>((resolve) => {
         let done = false;
+        let cancelGrace: () => void = () => {};
+        let forgetGone: () => void = () => {};
         const finish = () => {
           if (!done) {
             done = true;
             stop();
-            window.clearTimeout(timer);
+            cancelGrace();
+            forgetGone();
             resolve();
           }
         };
@@ -1818,10 +1827,16 @@ export default defineComponent({
               finish();
             }
           });
-        const timer = window.setTimeout(() => {
+        // PACING, not a guarantee: the grace's end is SAID (the ceiling line), so it must not come due when the surface
+        // leaves — there the wait is abandoned silently and whoever awaits it goes on (the scope's own cleanup).
+        cancelGrace = this.flowScope.after(motionMs(REFUSAL_GRACE_MS), 'the server moving off the answered prompt', () => {
           wait.ceiling();
           finish();
-        }, motionMs(REFUSAL_GRACE_MS));
+        });
+        forgetGone = this.flowScope.defer(() => {
+          wait.end();
+          finish();
+        });
       });
     },
     /**

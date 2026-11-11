@@ -1,6 +1,8 @@
 import {reactive} from 'vue';
 import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
 import {reducedMotionActive} from '@/client/utils/reducedMotion';
+import {FlowScope} from '@/client/console/kernel/flowScope';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /**
  * Smooth GLIDE for the Ares scale event markers when their threshold shifts
@@ -24,7 +26,10 @@ const glides: Record<string, Glide> = {};
 // A reactive frame counter bumped each animation frame — the reactive dependency
 // that makes consumer computeds recompute while a glide is in flight.
 const tickState = reactive({frame: 0});
-let rafId = 0;
+// ON THE FLOW KERNEL (architecture v2 — PLAN §10 · C1): the frame loop is an owned loop of the session it was started
+// in (`loopOwner` — `undefined` while no glide is in flight); `forgetSettle` un-registers the owner's cleanup below.
+let loopOwner: FlowScope | undefined;
+let forgetSettle: () => void = () => {};
 
 /** Pure easing (cubic in-out) — exported for tests. */
 export function aresGlideEase(t: number): number {
@@ -43,10 +48,11 @@ export function aresGlideValue(from: number, target: number, start: number, now:
 // WORK is skipped on gated frames while the loop cadence continues.
 const frameGate = createFrameGate();
 
-function loop(now: number): void {
+/** One frame of the glides. Returns whether the loop goes on (the frame loop's own answer: `false` ends it). */
+function loop(): boolean {
+  const now = typeof performance !== 'undefined' ? performance.now() : 0;
   if (!frameGate.shouldRender(now)) {
-    rafId = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(loop) : 0;
-    return;
+    return true;
   }
   let active = false;
   const duration = motionMs(ARES_MARKER_GLIDE_MS);
@@ -61,7 +67,24 @@ function loop(now: number): void {
     }
   }
   tickState.frame++;
-  rafId = active && typeof requestAnimationFrame === 'function' ? requestAnimationFrame(loop) : 0;
+  if (!active) {
+    forgetSettle();
+    loopOwner = undefined;
+  }
+  return active;
+}
+
+/**
+ * What must happen when the loop's owner ends mid-glide (the game screen left): every marker stands on its threshold.
+ * The glide state is module-level and outlives the session — a value left between two thresholds would be read as-is
+ * by the next board.
+ */
+function settleGlides(): void {
+  for (const id of Object.keys(glides)) {
+    glides[id].value = glides[id].target;
+  }
+  loopOwner = undefined;
+  tickState.frame++;
 }
 
 /**
@@ -83,8 +106,10 @@ export function glidedThreshold(id: string, target: number): number {
       g.from = g.value;
       g.target = target;
       g.start = typeof performance !== 'undefined' ? performance.now() : 0;
-      if (rafId === 0) {
-        rafId = requestAnimationFrame(loop);
+      if (loopOwner === undefined || loopOwner.ended !== undefined) {
+        loopOwner = consoleSessionScope();
+        forgetSettle = loopOwner.defer(settleGlides);
+        loopOwner.everyFrame('the Ares markers\' glide', loop);
       }
     }
   }

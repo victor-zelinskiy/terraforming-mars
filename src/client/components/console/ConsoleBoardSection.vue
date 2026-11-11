@@ -89,6 +89,7 @@
  * router owns WHEN, this component owns HOW (it has the DOM).
  */
 import {defineComponent, PropType} from 'vue';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 import ConsoleTeleport from '@/client/components/console/foundation/ConsoleTeleport.vue';
 import GameBoardView from '@/client/components/GameBoardView.vue';
 import ConsoleBoardCursor from '@/client/components/console/ConsoleBoardCursor.vue';
@@ -359,6 +360,9 @@ export default defineComponent({
     /** A move's LIFTED city (its cell) — the origin of the move's on-field marks; undefined when none is lifted. */
     moveFrom: {type: String as PropType<string | undefined>, default: undefined},
   },
+  setup() {
+    return {flow: useFlowScope('board-section')};
+  },
   data() {
     return {
       consoleState,
@@ -381,7 +385,9 @@ export default defineComponent({
       moveAngle: 0,
       tileView: 'show' as TileView,
       stageObserver: undefined as ResizeObserver | undefined,
-      fitRaf: 0,
+      /** The pending fit frame — its cancel (`flow.afterFrame`); `undefined` = none owed (a REACTIVE mark: the framing
+       *  verdicts below read it, as they read `calibrateRaf` and `lateVerifyTimer`). */
+      fitRaf: undefined as (() => void) | undefined,
       /** SCENE TRANSITION: the boot curtain's «board geometry converged»
        *  hold — released at the FIRST settled calibration pass (or when the
        *  stage is hidden behind a start scene), so the board is never
@@ -448,14 +454,14 @@ export default defineComponent({
       /** A board transform is in flight: measurements are meaningless until
        *  it rests (calibration would otherwise chase a moving planet). */
       boardTweening: false,
-      tweenRaf: 0,
+      tweenRaf: undefined as (() => void) | undefined,
       tweenStableFrames: 0,
       /** P29: the self-calibrated natural content box (seeded by constants). */
       naturalW: BOARD_NATURAL_W,
       naturalH: BOARD_NATURAL_H,
       /** The scale the last fit actually applied (measure divides by it). */
       appliedScale: 1,
-      calibrateRaf: 0,
+      calibrateRaf: undefined as (() => void) | undefined,
       calibratePasses: 0,
       /**
        * The frame whose convergence has already had its LATE VERIFICATION.
@@ -470,7 +476,7 @@ export default defineComponent({
        */
       lateVerifyKey: undefined as string | undefined,
       lateVerifyRuns: 0,
-      lateVerifyTimer: 0,
+      lateVerifyTimer: undefined as (() => void) | undefined,
       /** P27b: the vertical-run COLUMN anchor (set on horizontal moves /
        *  landings; keeps an up/down run in ONE visual hex column). */
       colAnchor: undefined as number | undefined,
@@ -487,8 +493,8 @@ export default defineComponent({
      *  not merely a quiet interval between late-verification rungs. */
     framingState(): 'busy' | 'settled' {
       const focusBusy = this.planetFocusState.phase !== 'idle' || this.planetFocusState.arcsReturning;
-      return !this.fitted || this.fitKey === undefined || focusBusy || this.fitRaf !== 0 ||
-        this.boardTweening || this.calibrateRaf !== 0 || this.lateVerifyTimer !== 0 ? 'busy' : 'settled';
+      return !this.fitted || this.fitKey === undefined || focusBusy || this.fitRaf !== undefined ||
+        this.boardTweening || this.calibrateRaf !== undefined || this.lateVerifyTimer !== undefined ? 'busy' : 'settled';
     },
     /**
      * THE COORDINATE SPACE IS CALM — a board-bound flight may measure/launch
@@ -500,7 +506,7 @@ export default defineComponent({
     boardGeometryCalm(): boolean {
       const phase = this.planetFocusState.phase;
       return (phase === 'idle' || phase === 'active') &&
-        !this.boardTweening && this.fitRaf === 0 && this.calibrateRaf === 0;
+        !this.boardTweening && this.fitRaf === undefined && this.calibrateRaf === undefined;
     },
     /**
      * The game the board DISPLAYS. While Planet Focus holds the scene, the
@@ -1104,11 +1110,11 @@ export default defineComponent({
       this.scheduleBoardTweenCheck();
     },
     scheduleBoardTweenCheck(): void {
-      if (this.tweenRaf !== 0) {
+      if (this.tweenRaf !== undefined) {
         return;
       }
-      this.tweenRaf = window.requestAnimationFrame(() => {
-        this.tweenRaf = 0;
+      this.tweenRaf = this.flow.afterFrame('the board transform painted at its target — the next look', () => {
+        this.tweenRaf = undefined;
         if (!this.boardTweening) {
           return;
         }
@@ -1337,11 +1343,11 @@ export default defineComponent({
       return this.stageFrame(r);
     },
     scheduleFit(): void {
-      if (this.fitRaf !== 0) {
+      if (this.fitRaf !== undefined) {
         return;
       }
-      this.fitRaf = window.requestAnimationFrame(() => {
-        this.fitRaf = 0;
+      this.fitRaf = this.flow.afterFrame('the board\'s fit', () => {
+        this.fitRaf = undefined;
         const key = this.stageKey();
         // HIDDEN: a section owns the screen. Keep the framing untouched — and
         // in particular do NOT re-open the calibration budget, or the board's
@@ -1387,22 +1393,22 @@ export default defineComponent({
         return;
       }
       this.lateVerifyRuns++;
-      if (this.lateVerifyTimer !== 0) {
-        window.clearTimeout(this.lateVerifyTimer);
+      if (this.lateVerifyTimer !== undefined) {
+        this.lateVerifyTimer();
       }
       // A WIDENING ladder, because "settled" has no single timestamp: the
       // deal cinematic, the arcs' travel and the start scene's handback all
       // finish at their own pace, and a convergence that ran before them is
       // measuring a board that no longer exists. Each rung starts from a
       // fresh budget; on an already-settled board a rung is one no-op sweep.
-      this.lateVerifyTimer = window.setTimeout(() => {
-        this.lateVerifyTimer = 0;
+      this.lateVerifyTimer = this.flow.after(consoleMotionMs(LATE_VERIFY_MS * this.lateVerifyRuns), 'the board framing\'s late verification', () => {
+        this.lateVerifyTimer = undefined;
         this.calibratePasses = 0;
         this.scheduleCalibrate();
-      }, consoleMotionMs(LATE_VERIFY_MS * this.lateVerifyRuns));
+      });
     },
     scheduleCalibrate(): void {
-      if (this.calibrateRaf !== 0) {
+      if (this.calibrateRaf !== undefined) {
         return;
       }
       if (this.calibratePasses >= CALIBRATE_MAX_PASSES) {
@@ -1414,8 +1420,8 @@ export default defineComponent({
         this.armLateVerify();
         return;
       }
-      this.calibrateRaf = window.requestAnimationFrame(() => {
-        this.calibrateRaf = 0;
+      this.calibrateRaf = this.flow.afterFrame('a calibration pass of the board\'s framing', () => {
+        this.calibrateRaf = undefined;
         this.calibrate();
       });
     },
@@ -2008,19 +2014,8 @@ export default defineComponent({
     this.releaseFitSettleHold(); // never strand the curtain on an unmounting stage
     this.clearRelationMarks();
     this.cellEl(this.moveFrom)?.classList.remove(MOVE_SOURCE_CLASS);
-    if (this.lateVerifyTimer !== 0) {
-      window.clearTimeout(this.lateVerifyTimer);
-    }
+    // (The late verification and the fit / calibration / tween frames are `flow`'s — taken back with it.)
     this.stageObserver?.disconnect();
-    if (this.fitRaf !== 0) {
-      window.cancelAnimationFrame(this.fitRaf);
-    }
-    if (this.calibrateRaf !== 0) {
-      window.cancelAnimationFrame(this.calibrateRaf);
-    }
-    if (this.tweenRaf !== 0) {
-      window.cancelAnimationFrame(this.tweenRaf);
-    }
     document.documentElement.style.removeProperty('--board-scale');
   },
 });

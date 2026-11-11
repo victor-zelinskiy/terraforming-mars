@@ -27,6 +27,7 @@
 import {reactive} from 'vue';
 import {probeTick} from '@/client/console/probeTick';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** The longest a cursor may stay unposed waiting for its surface's ready edge. */
 export const CURSOR_PENDING_MAX_MS = 4000;
@@ -42,7 +43,8 @@ export type CursorArrival = {
   label: string;
 };
 
-type Timers = {backstop?: ReturnType<typeof setTimeout>};
+/** `backstop` — the cancel of the hold's backstop (its timer and its silent release at the session's end). */
+type Timers = {backstop?: () => void};
 const timers = new WeakMap<object, Timers>();
 
 function timersOf(a: CursorArrival): Timers {
@@ -77,17 +79,30 @@ export function holdCursor(a: CursorArrival): void {
   a.pending = true;
   const t = timersOf(a);
   if (t.backstop !== undefined) {
-    clearTimeout(t.backstop);
+    t.backstop();
   }
   const epoch = a.epoch;
-  t.backstop = setTimeout(() => {
+  // The backstop WARNS, so it is a pacing timer (it must not come due — and say «never signalled ready» — because the
+  // session ended); the gate is still let go then, silently: nothing was late.
+  const owner = consoleSessionScope();
+  const forget = owner.defer(() => {
+    if (a.epoch === epoch && a.pending) {
+      releaseCursor(a);
+    }
+  });
+  const cancel = owner.after(CURSOR_PENDING_MAX_MS, 'a cursor\'s ready edge (backstop)', () => {
+    forget();
     if (a.epoch === epoch && a.pending) {
       if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
         console.warn(`[cursor] «${a.label}» never signalled ready in ${CURSOR_PENDING_MAX_MS} ms — the cursor arrives by the backstop`);
       }
       releaseCursor(a);
     }
-  }, CURSOR_PENDING_MAX_MS);
+  });
+  t.backstop = () => {
+    cancel();
+    forget();
+  };
 }
 
 /**
@@ -111,7 +126,7 @@ export function arriveCursor(a: CursorArrival): void {
 export function releaseCursor(a: CursorArrival): void {
   const t = timersOf(a);
   if (t.backstop !== undefined) {
-    clearTimeout(t.backstop);
+    t.backstop();
     t.backstop = undefined;
   }
   a.arriving = false;
@@ -138,13 +153,14 @@ export function gateCursorDuringEntry(el: HTMLElement, done: () => void): () => 
   const release = () => {
     if (!released) {
       released = true;
-      clearTimeout(backstop);
+      disarm();
       if (el.getAttribute('data-cursor-pending') === ENTRY) {
         el.removeAttribute('data-cursor-pending');
       }
     }
   };
-  const backstop = setTimeout(release, CURSOR_PENDING_MAX_MS);
+  // A RELEASE: the gate stands on an element the surface owns — it lets go at the bound or when the session ends.
+  const disarm = consoleSessionScope().guarantee(CURSOR_PENDING_MAX_MS, 'an entrance\'s cursor gate (backstop)', release);
   return () => {
     done();
     probeTick(release);
@@ -172,11 +188,11 @@ export function gateCursorUntilAnimationsEnd(root: HTMLElement): void {
   const release = () => {
     if (!released) {
       released = true;
-      clearTimeout(backstop);
+      disarm();
       releaseEntryCursorGate(root);
     }
   };
-  const backstop = setTimeout(release, CURSOR_PENDING_MAX_MS);
+  const disarm = consoleSessionScope().guarantee(CURSOR_PENDING_MAX_MS, 'a running entrance\'s cursor gate (backstop)', release);
   void Promise.allSettled(running.map((a) => a.finished)).then(() => probeTick(release));
 }
 

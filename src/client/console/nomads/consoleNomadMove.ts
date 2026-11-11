@@ -82,7 +82,7 @@ import {armBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCar
 import {snapPlanetFocusSettled} from '@/client/console/planetFocus';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {span} from '@/client/console/session/sessionWaits';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 
 /** A queued remote hop can wait for a covered board — far past this,
@@ -1023,3 +1023,7 @@ registerAnimationHoldSupplier('nomad-move-remote', isRemoteNomadMoveActive, {
   }),
   expire: () => abortRemoteNomadMoves(),
 });
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('nomad-move', abortNomadMove, 600);

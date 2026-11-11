@@ -26,6 +26,15 @@
  */
 
 import {reactive} from 'vue';
+import {createFlowRun} from '@/client/console/session/flowRun';
+import {sessionState} from '@/client/console/session/consoleSession';
+
+/**
+ * THE SESSION'S RUN: from the first A of the finale to the seat's end of it — `surface:finale-session#n` in the flow tree (architecture v2 — PLAN §10 · C4). The tree names it while it stands, and
+ * when the game screen leaves under it the module is brought to rest through `endFinaleSession` — no row of the shell's
+ * teardown is what keeps it out of the next game.
+ */
+const run = createFlowRun('finale-session', {kind: 'surface', orphaned: () => endFinaleSession()});
 
 export const finaleSessionState = reactive({
   /** The player entered the finale context — from the announce's A to the seat's end of the phase. */
@@ -37,6 +46,7 @@ export const finaleSessionState = reactive({
 /** The player opened the finale (the announce's A / the way back): the context stands. */
 export function enterFinaleSession(): void {
   finaleSessionState.active = true;
+  run.begin();
   finaleSessionState.collapsed = false;
 }
 
@@ -57,6 +67,7 @@ export function restoreFinaleSession(): void {
 /** The seat is done with the finale (the server's fact) or the game ended: the context leaves. */
 export function endFinaleSession(): void {
   finaleSessionState.active = false;
+  run.end();
   finaleSessionState.collapsed = false;
 }
 
@@ -69,3 +80,8 @@ export function resetFinaleSession(): void {
 export function finaleSessionStanding(): boolean {
   return finaleSessionState.active && !finaleSessionState.collapsed;
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The finale's session (PL-303): a dead shell's context must not outlive it.
+sessionState('finale-session', resetFinaleSession, 80);

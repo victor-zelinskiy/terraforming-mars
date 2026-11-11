@@ -224,18 +224,8 @@ import {
 import {readingText} from '@/client/console/readingText';
 import {tenderZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
-import {span} from '@/client/console/session/sessionWaits';
-
-/** Two painted frames (a layout settled before a flight measures it) — none to wait for where nothing paints. */
-function twoFrames(): Promise<void> {
-  return new Promise<void>((r) => {
-    if (typeof requestAnimationFrame !== 'function') {
-      r();
-      return;
-    }
-    requestAnimationFrame(() => requestAnimationFrame(() => r()));
-  });
-}
+import {span, whenPainted} from '@/client/console/session/sessionWaits';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 /** The door's phrase (park / unpark) or an activation on the wire — a press now is absorbed, and SAID so (the ledger). */
 const CARRY_TENDER_ABSORBER = 'carry-tender-door';
@@ -298,6 +288,9 @@ export default defineComponent({
     tenderError: {type: String, default: ''},
   },
   emits: ['toggle', 'togglePrelude', 'confirm', 'back', 'armChange', 'bar', 'executeTender'],
+  setup() {
+    return {flow: useFlowScope('console-carryover-picker')};
+  },
   data() {
     return {
       cursor: 0,
@@ -305,7 +298,7 @@ export default defineComponent({
       armed: false,
       /** A refusal named on the status line («seats are full»), for a beat. */
       notice: '',
-      noticeTimer: undefined as number | undefined,
+      cancelNotice: (() => {}) as () => void,
       position: undefined as CardAlbumPosition | undefined,
       /** Cards whose face waits for its own flight (the entry deal). */
       heldNames: [] as Array<string>,
@@ -326,7 +319,7 @@ export default defineComponent({
       /** The seat an activation just materialized (its one-shot landing) and the miniature that took the stamp. */
       landedSeat: undefined as string | undefined,
       stamped: undefined as string | undefined,
-      landTimer: undefined as number | undefined,
+      cancelLand: (() => {}) as () => void,
       absorbOff: undefined as (() => void) | undefined,
       /** The ACTIVATION SHEET (§20): the tender chosen in the list, as the hero of its own scene. */
       sheet: undefined as {instance: string, id: TenderId, phase: 'entering' | 'open' | 'committing' | 'leaving'} | undefined,
@@ -523,14 +516,11 @@ export default defineComponent({
       }
       this.landedSeat = t.id === 'extendedLegacy' ? 'seat' + this.limit : t.id === 'programExtension' ? 'pseat' + this.preludeLimit : undefined;
       this.stamped = t.instance;
-      if (this.landTimer !== undefined) {
-        window.clearTimeout(this.landTimer);
-      }
-      this.landTimer = window.setTimeout(() => {
-        this.landTimer = undefined;
+      this.cancelLand();
+      this.cancelLand = this.flow.after(motionMs(SEAT_LANDED_MS), 'the materialized seat\'s landing ends', () => {
         this.landedSeat = undefined;
         this.stamped = undefined;
-      }, motionMs(SEAT_LANDED_MS));
+      });
       // «Продление программы»: the band is live now — the cursor goes where the choice is.
       if (t.id === 'programExtension' && this.eligiblePreludes.length > 0) {
         this.zone = 'preludes';
@@ -553,12 +543,6 @@ export default defineComponent({
       f.dispose();
     }
     this.flights = [];
-    if (this.noticeTimer !== undefined) {
-      window.clearTimeout(this.noticeTimer);
-    }
-    if (this.landTimer !== undefined) {
-      window.clearTimeout(this.landTimer);
-    }
     if (this.zoomOpenedHere && consoleCardZoom.card !== undefined) {
       closeConsoleCardZoom();
     }
@@ -688,7 +672,8 @@ export default defineComponent({
       this.sheet = {instance: e.instance, id: e.id, phase: 'entering'};
       await this.$nextTick();
       this.fitSheet();
-      await twoFrames();
+      // Two painted frames (a layout settled before a flight measures it) — bounded where nothing paints.
+      await whenPainted(2, 400, this.flow);
       await flight.flyTo(() => this.sheetHeroEl(), () => {
         this.sheetHeroHeld = false;
       }, {reseat: true});
@@ -711,7 +696,7 @@ export default defineComponent({
       this.sheet = undefined;
       this.tenderFocus = Math.max(0, this.doorEntries.findIndex((d) => d.instance === sheet.instance));
       await this.$nextTick();
-      await twoFrames();
+      await whenPainted(2, 400, this.flow);
       await flight.flyTo(() => this.listSlotEl(sheet.instance), () => {
         this.listHeld = [];
       }, {reseat: true});
@@ -731,9 +716,9 @@ export default defineComponent({
       this.sheet = {...sheet, phase: 'committing'};
       this.sheetCommitted = true;
       this.sheetStamping = true;
-      window.setTimeout(() => {
+      this.flow.after(motionMs(620), 'the sheet\'s stamp beat ends', () => {
         this.sheetStamping = false;
-      }, motionMs(620));
+      });
       await span(motionMs(560));
       const hero = this.sheetHeroEl();
       const flight = captureCards(hero !== null ? [{name: sheet.instance as CardName, el: hero}] : []);
@@ -858,13 +843,10 @@ export default defineComponent({
     },
     say(notice: string): void {
       this.notice = notice;
-      if (this.noticeTimer !== undefined) {
-        window.clearTimeout(this.noticeTimer);
-      }
-      this.noticeTimer = window.setTimeout(() => {
+      this.cancelNotice();
+      this.cancelNotice = this.flow.after(motionMs(NOTICE_MS), 'the picker\'s notice has been read', () => {
         this.notice = '';
-        this.noticeTimer = undefined;
-      }, motionMs(NOTICE_MS));
+      });
     },
     onCardClick(i: number): void {
       if (this.tenderMode !== undefined) {

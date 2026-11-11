@@ -16,8 +16,12 @@ const ROOTS = ['src/client/console', 'src/client/components/console'].map((r) =>
 const PRIMITIVE = path.resolve('src/client/console/waitGraph/ceilingWait.ts');
 /** Waits already on the primitive — a helper that delegates to one of them is covered. */
 const ON_PRIMITIVE = /\b(beginCeilingWait|raceCeiling|untilCeiling|waitConsoleQuiet|waitRewardPayoutQuiet|waitBoardSceneQuiet|waitBoardStoryQuiet|waitScreenHandoff|waitQuiet)\(/;
-/** What makes a body a CEILING: a timer, a bound, a budget, a frame count. */
-const CEILING = /\b(setTimeout|scheduleParliamentBeat|delayedCall|maxMs|budgetMs|maxFrames|cap)\b|[A-Z_]+_MS\b/;
+/**
+ * What makes a body a CEILING: a timer, a bound, a budget, a frame count. A timer is an OWNED one since the coverage
+ * phase of architecture v2 (`scope.after` / `scope.guarantee` / `scope.sleep`, `span`, the motion clock's three) — the
+ * raw `setTimeout` stays in the list so a regression is still read as what it is.
+ */
+const CEILING = /\b(setTimeout|scheduleParliamentBeat|delayedCall|maxMs|budgetMs|maxFrames|cap)\b|\.(?:after|guarantee|sleep)\(|\b(?:span|motionAfter|motionGuarantee|motionSpan)\(|[A-Z_]+_MS\b/;
 
 /** `file::helper` → why it is not on the primitive. */
 const ALLOW: Readonly<Record<string, string>> = {

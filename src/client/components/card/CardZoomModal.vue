@@ -220,6 +220,8 @@ import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackM
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {whenPainted} from '@/client/console/session/sessionWaits';
 import {CardName} from '@/common/cards/CardName';
 import {ZoomCard, isBonusZoom, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, isTenderZoom} from './cardZoomTypes';
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
@@ -399,6 +401,11 @@ export default defineComponent({
     },
   },
   emits: ['close', 'navigate', 'update:index'],
+  setup() {
+    // The viewer's own scope (the game session's while a game screen stands, the lobby's otherwise): its guard, its
+    // settle beat and its fit retries are taken back when it is unmounted.
+    return {flow: useFlowScope('card-zoom-modal')};
+  },
   data() {
     return {
       currentIndex: 0,
@@ -407,7 +414,8 @@ export default defineComponent({
       // transitions never pile up and the index never races. (In consoleMotion
       // mode this no longer BLOCKS — the in-flight slide is cancelled instead.)
       animating: false,
-      animTimer: undefined as number | undefined,
+      // The cancel of the pending guard release (undefined ⇔ none pending).
+      animTimer: undefined as (() => void) | undefined,
       // The in-flight WAAPI slide (consoleMotion: cancelled on interrupt so
       // rapid LB/RB restarts cleanly instead of piling up).
       slideAnim: undefined as Animation | undefined,
@@ -418,14 +426,16 @@ export default defineComponent({
       // The annotation layer's SETTLE signal — bumped (debounced) when the
       // fullscreen card has landed; 0 while closed. See scheduleSettle().
       settleNonce: 0,
-      settleTimer: undefined as number | undefined,
+      // The cancel of the pending settle beat (undefined ⇔ none pending).
+      settleTimer: undefined as (() => void) | undefined,
       // Bounded rAF retry for the fit engine. On the FIRST-EVER fullscreen open
       // the premium face (`premium-card-face`, an async global registered in
       // main.ts to break the type cycle) hasn't resolved yet when show()'s fit
       // runs, so `.pcard` isn't in the DOM and the measure early-returns — the
       // card then stays at its unscaled CSS size (small). We retry across the
       // next frames until the element appears + measures, then apply the fit.
-      fitRetryHandle: 0,
+      // (The cancel of the pending retry frame; undefined ⇔ none pending.)
+      fitRetryHandle: undefined as (() => void) | undefined,
       fitRetries: 0,
       // Bounded retry budget for show() when the dialog ref isn't mounted yet
       // (heavy first-open frame) — see show().
@@ -610,7 +620,7 @@ export default defineComponent({
       if (this.typedRefs.dialog === undefined) {
         if (this.showRetries < 10) {
           this.showRetries++;
-          requestAnimationFrame(() => this.show());
+          this.flow.afterFrame('the viewer\'s dialog mounts', () => this.show());
         }
         return;
       }
@@ -693,7 +703,7 @@ export default defineComponent({
           if (typeof requestAnimationFrame !== 'function') {
             return undefined; // JSDOM — the caller opens vanilla
           }
-          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          await whenPainted(1, 50, this.flow);
           if (this.typedRefs.dialog !== dialog || dialog.open) {
             return undefined; // unmounted / shown by someone else mid-measure
           }
@@ -716,11 +726,11 @@ export default defineComponent({
       if (!this.navEnabled) {
         return;
       }
-      window.setTimeout(() => {
+      this.flow.after(90, 'the viewer warms its neighbours', () => {
         if (this.typedRefs.dialog?.open === true) {
           this.refreshPreload();
         }
-      }, 90);
+      });
     },
     close() {
       // The dialog may already be gone (the viewer unmounted under an async close — the monkey's DUO walk of
@@ -796,14 +806,14 @@ export default defineComponent({
       this.animating = true;
       this.clearAnimTimer();
       const wait = (prefersReducedMotion() ? 0 : ANIM_MS) + 80;
-      this.animTimer = window.setTimeout(() => {
+      this.animTimer = this.flow.after(wait, 'the viewer\'s slide guard lets go', () => {
         this.animating = false;
         this.animTimer = undefined;
-      }, wait);
+      });
     },
     clearAnimTimer() {
       if (this.animTimer !== undefined) {
-        window.clearTimeout(this.animTimer);
+        this.animTimer();
         this.animTimer = undefined;
       }
     },
@@ -819,16 +829,16 @@ export default defineComponent({
      */
     scheduleSettle(delayMs: number) {
       this.cancelSettle();
-      this.settleTimer = window.setTimeout(() => {
+      this.settleTimer = this.flow.after(delayMs, 'the viewer\'s card settles', () => {
         this.settleTimer = undefined;
         if (this.typedRefs.dialog?.open === true) {
           this.settleNonce++;
         }
-      }, delayMs);
+      });
     },
     cancelSettle() {
       if (this.settleTimer !== undefined) {
-        window.clearTimeout(this.settleTimer);
+        this.settleTimer();
         this.settleTimer = undefined;
       }
     },
@@ -1149,11 +1159,11 @@ export default defineComponent({
      * (FIT_MAX_RETRIES), and only re-fires while the dialog is open.
      */
     scheduleFitRetry(): void {
-      if (this.fitRetryHandle !== 0 || this.fitRetries >= FIT_MAX_RETRIES) {
+      if (this.fitRetryHandle !== undefined || this.fitRetries >= FIT_MAX_RETRIES) {
         return;
       }
-      this.fitRetryHandle = window.requestAnimationFrame(() => {
-        this.fitRetryHandle = 0;
+      this.fitRetryHandle = this.flow.afterFrame('the viewer\'s fit retries', () => {
+        this.fitRetryHandle = undefined;
         this.fitRetries++;
         if (this.typedRefs.dialog?.open === true) {
           this.fitCardToViewport();
@@ -1162,9 +1172,9 @@ export default defineComponent({
     },
     clearFitRetry(): void {
       this.fitRetries = 0;
-      if (this.fitRetryHandle !== 0) {
-        window.cancelAnimationFrame(this.fitRetryHandle);
-        this.fitRetryHandle = 0;
+      if (this.fitRetryHandle !== undefined) {
+        this.fitRetryHandle();
+        this.fitRetryHandle = undefined;
       }
     },
   },
@@ -1200,9 +1210,6 @@ export default defineComponent({
   beforeUnmount() {
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('keydown', this.onKeydown);
-    this.clearAnimTimer();
-    this.cancelSettle();
-    this.clearFitRetry();
   },
 });
 </script>

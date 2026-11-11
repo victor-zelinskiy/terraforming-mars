@@ -38,6 +38,7 @@ import {isHostedSpace} from '@/common/boards/hostedSpaces';
 import {TileType, HAZARD_TILES} from '@/common/TileType';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 export type PlacementKind = 'ocean' | 'greenery' | 'city' | 'special' | 'hazard';
 
@@ -159,7 +160,9 @@ const activePlacements = new Map<SpaceId, ActivePlacement>();
  * code mutates the displayed spaces.
  */
 let placementAnimationsArmed = false;
-let placementAnimationsDisarmTimer: number | null = null;
+// ON THE FLOW KERNEL (architecture v2 — PLAN §10 · C1): the auto-disarm is a GUARANTEED release of the session — the
+// gate is module state, so it closes at the window's end OR when the game screen leaves first, never left armed.
+let cancelPlacementAnimationsDisarm: () => void = () => {};
 
 /*
  * Open the placement-animation window. While open, the next
@@ -175,14 +178,11 @@ let placementAnimationsDisarmTimer: number | null = null;
  */
 export function armPlacementAnimations(): void {
   placementAnimationsArmed = true;
-  if (placementAnimationsDisarmTimer !== null) {
-    clearTimeout(placementAnimationsDisarmTimer);
-  }
+  cancelPlacementAnimationsDisarm();
   const disarmAfter = motionMs(prefersReducedMotion() ? PLACEMENT_ANIMATION_REDUCED_MS : PLACEMENT_ANIMATION_MS) + 200;
-  placementAnimationsDisarmTimer = window.setTimeout(() => {
+  cancelPlacementAnimationsDisarm = consoleSessionScope().guarantee(disarmAfter, 'the placement-animation window closes', () => {
     placementAnimationsArmed = false;
-    placementAnimationsDisarmTimer = null;
-  }, disarmAfter);
+  });
 }
 
 /*

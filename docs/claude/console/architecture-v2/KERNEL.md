@@ -35,6 +35,8 @@ The kernel is the bottom layer of the console's architecture v2. It owns two thi
 | `detail` | a free-form fact for the trace and the tree dump (a machine's state is written here by the binding). |
 | `after(ms, what, run)` | an OWNED timer: `run` is called once, in the timer's own task — and never after the scope has ended. A row of the wait table (`family: 'timer'`) while pending. Returns the cancel. What a raw `setTimeout` in a flow becomes. |
 | `afterFrame(what, run, n?)` | the same on the page's frames (what a raw `requestAnimationFrame` becomes). |
+| `every(ms, what, tick)` | a TICK owned by the scope (what a `setInterval` becomes — a sampler, a heartbeat): `tick` every `ms` on the kernel's clock until it returns `false`, its `stop` is called, or the scope ends — one row for its life. Each tick is armed after the previous one returned (a slow tick delays the next, it never stacks); a tick that throws is said and the tick GOES ON. |
+| `note(what, withdraw, boundMs?)` | a row for a wait ANOTHER clock keeps (a GSAP `delayedCall`, a registry's entry): the scope's end calls `withdraw`; the returned function only FORGETS the row (the foreign wait came by itself). How a second clock, or a registry, becomes a view of the table instead of a book of its own. |
 | `everyFrame(what, tick)` | a frame LOOP owned by the scope: `tick` on every frame until it returns `false`, its `stop` is called, or the scope ends — one row for the loop's life. A window that does not paint calls no `tick`: what must happen anyway is a `guarantee` beside it. |
 | `sleep(ms)` | a span: `true` when it passed, `false` AT ONCE when the scope ended first. |
 | `guarantee(ms, what, release)` | a RELEASE that cannot be lost: `release` is called exactly once — at `ms`, OR when the scope ends, whichever comes first — unless the returned `disarm` is called before either. The opposite of `after` (which is taken back): what the safety of a tween's promise becomes. Asked of an ended scope it comes due at once — a microtask later, never inside the `guarantee()` call (the caller's `const disarm = …` is not assigned yet). |
@@ -52,11 +54,35 @@ its owner ends. `probeTick(fn)` (`console/probeTick.ts`) stands on the same pair
 fallback. `untilCeiling(spec, read, owner?, everyMs?)` (`waitGraph/ceilingWait.ts`) is a polled condition against a
 ceiling as ONE call — what a `wait ??= beginCeilingWait(…)` + a poll loop + a deadline becomes.
 
-**Where a scope comes from** (`console/session/`): `consoleSessionScope()` — the game session while a game screen is
-up, the lobby's root otherwise; `useFlowScope(label)` — a component's own, ended on unmount; `createFlowRun(label,
-{orphaned})` — a module flow's run (`begin` / `end` / `after` / `sleep` / `live()`), cancelled with the session and
-then told to bring its module to rest; `beginAnimationHold(…).scope` — a hold's run. PLAN §10 has the recipes and the
-ledger that counts what is still outside.
+**The motion clock, with an owner** (`session/sessionWaits.ts`): `motionAfter(ms, what, run, owner?)` (pacing) ·
+`motionGuarantee(ms, what, release, owner?)` (release) · `motionSpan(ms, owner?)` — a `gsap.delayedCall` whose row
+(`note`) stands in the owner's table and is taken back / released with it. A beat that paces TWEENS keeps GSAP's
+clock (lag smoothing stretches the tween, not a wall-clock timer beside it); what it gains is an owner. The
+Parliament's `scheduleParliamentBeat` is `motionGuarantee` on the session.
+
+**Where a scope comes from** (`console/session/`):
+
+| Owner | Primitive |
+| --- | --- |
+| «a flow opened now, by a MODULE» | `consoleSessionScope()` — the game session while a game screen is up, the page's scope otherwise |
+| what lives as long as the PAGE | `consoleAppScope()` — the lobby's root: the campaign's channel, the realtime service, the loading curtain, the layout profile, the field recorder |
+| a COMPONENT | `useFlowScope(label)` in `setup()` — ended on unmount; parented by WHERE THE COMPONENT STANDS (`componentSessionScope`: the session of the shell it is rendered in — handed down by `provide` — or the page's scope outside any shell), never by «the session that stands» |
+| a module flow with ONE writer | `createFlowRun(label, {orphaned, kind?, owner?})` — `begin` / `end` / `after` / `afterFrame` / `every` / `everyFrame` / `sleep` / `guarantee` / `live()`; cancelled with the session and then told to bring its module to rest |
+| a module flow with MANY writers | `deriveFlowRun(label, () => state.live, {orphaned, detail?})` — the run is DERIVED from the reactive record by a sync watcher that only records, so no writer of the flag can forget it |
+| a hold | `beginAnimationHold(…).scope` |
+| a module's own root | `sessionChild(held, kind, label)` — re-homed when the session changed |
+
+**Module state that is not a flow** declares itself: `sessionState(label, reset, at)` at module scope; the leaving
+shell calls `leaveConsoleSession()` — one ordered pass (`at`, a total order) over every declared reset, each isolated.
+Then the session's scope ends (`unmounted`). The shell's `beforeUnmount` holds no list of modules.
+
+**The registries the nets read are views of the table**: a hold is `scene:hold:<label>`; a ceiling wait
+(`declareWait` — `beginCeilingWait` / `raceCeiling` / `untilCeiling`) is a `note` row of the session bounded by its
+ceiling, withdrawn with it; an owed story of the presentation ledger is `story:owed:<id>` with its release edge as a
+row bounded by `dueMs`, ended at its settle / degrade — or with its session.
+
+PLAN §10 has the recipes and the ledger that counts what is still outside (nothing, but the two declared device
+clocks of the gamepad layer).
 
 ## 3. The wait table is the wait graph
 

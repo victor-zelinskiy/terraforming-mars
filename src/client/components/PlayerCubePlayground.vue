@@ -104,6 +104,7 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 const COLORS: ReadonlyArray<Color> = ['red', 'green', 'yellow', 'blue', 'black', 'purple', 'orange', 'pink', 'bronze'];
 /** The delegate stand: the eight player colours and the neutral delegate's steel. */
@@ -122,6 +123,9 @@ export default defineComponent({
       required: false,
       default: false,
     },
+  },
+  setup() {
+    return {flow: useFlowScope('player-cube-playground')};
   },
   data() {
     return {
@@ -159,9 +163,9 @@ export default defineComponent({
     replay(): void {
       this.animateIn = true;
       this.animKey++;
-      window.setTimeout(() => {
+      this.flow.after(700, 'the replayed placement keyframe ends', () => {
         this.animateIn = false;
-      }, 700);
+      });
     },
   },
 });

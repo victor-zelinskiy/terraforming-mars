@@ -14,6 +14,7 @@
  * leaves the follower on its own clock (the release then runs as the stylesheet wrote it). Read-only toward the DOM: it
  * moves no element, it only re-times two animations the stylesheet created.
  */
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** The slice of a WAAPI `Animation` the clock touches (a fake in the spec). */
 export type ClockAnimation = {
@@ -74,12 +75,13 @@ export function syncReleaseToStepEntry(opts: {
   maxMs: number,
 }): () => void {
   let observer: MutationObserver | undefined;
-  let timer: number | undefined;
+  /** The bound's disarm — a guaranteed release of the session: the observer is always let go. */
+  let timer: (() => void) | undefined = undefined;
   const stop = (): void => {
     observer?.disconnect();
     observer = undefined;
     if (timer !== undefined) {
-      window.clearTimeout(timer);
+      timer();
       timer = undefined;
     }
   };
@@ -103,6 +105,6 @@ export function syncReleaseToStepEntry(opts: {
     }
   });
   opts.zones.forEach((zone) => observer?.observe(zone, {childList: true}));
-  timer = window.setTimeout(stop, opts.maxMs);
+  timer = consoleSessionScope().guarantee(opts.maxMs, 'a step\'s entry found by its followers', stop);
   return stop;
 }

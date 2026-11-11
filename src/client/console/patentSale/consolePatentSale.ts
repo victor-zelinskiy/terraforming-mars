@@ -59,7 +59,7 @@ import {PatentSaleAnswer, answerTransferSpec, patentSaleReceivers} from '@/clien
 import {cardArtUrlAtTier, premiumCardArt} from '@/client/cards/cardArt';
 import {beginCeilingWait, raceCeiling} from '@/client/console/waitGraph/ceilingWait';
 import {frames} from '@/client/console/kernel/flowScope';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 
 export type SaleFlight = {
@@ -699,3 +699,9 @@ async function frame(): Promise<void> {
   // The run's own scope; a poll that outlived its run still yields a real task (never a microtask spin) — the session's.
   await (run.scope ?? consoleSessionScope()).wait(frames(), {bound: {ms: FRAME_POLL_BOUND_MS, quiet: 'a frame that did not paint — the poll looks again'}});
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The rest of the module-scene family. These were reachable only from the transport's REFUSAL path — a game switch
+// with one of them live carried a stale scene (timers, holds, a ceremony timeline) into the next game.
+sessionState('patent-sale', abortPatentSale, 560);

@@ -22,6 +22,7 @@ import {SpaceId} from '@/common/Types';
 import {Color} from '@/common/Color';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {
   arePlacementAnimationsArmed,
   PLACEMENT_ANIMATION_MS,
@@ -51,19 +52,22 @@ const CUBE_MARKER_HOLD_REDUCED_MS = 100;
 
 const phases = reactive<Partial<Record<SpaceId, CubePhase>>>({});
 const colorBaseline = new Map<SpaceId, Color | undefined>();
-const timers = new Map<SpaceId, Array<number>>();
+// ON THE FLOW KERNEL (architecture v2 — PLAN §10 · C1): every beat of the state machine is a GUARANTEED release of
+// the session (a phase is module state that outlives the board — a `hidden` / `dropping` left standing by a timer
+// taken back would keep the next game's cube on that cell invisible). The handles are the disarms.
+const timers = new Map<SpaceId, Array<() => void>>();
 
 function clearTimers(id: SpaceId): void {
   const ts = timers.get(id);
   if (ts !== undefined) {
-    ts.forEach((t) => clearTimeout(t));
+    ts.forEach((disarm) => disarm());
     timers.delete(id);
   }
 }
 
-function addTimer(id: SpaceId, handle: number): void {
+function addTimer(id: SpaceId, disarm: () => void): void {
   const arr = timers.get(id) ?? [];
-  arr.push(handle);
+  arr.push(disarm);
   timers.set(id, arr);
 }
 
@@ -132,7 +136,7 @@ export function observeCube(space: SpaceModel): void {
   }
   const tileMs = reduced ? PLACEMENT_ANIMATION_REDUCED_MS : PLACEMENT_ANIMATION_MS;
   phases[id] = 'hidden';
-  addTimer(id, window.setTimeout(() => startCubeDrop(id, reduced), tileMs));
+  addTimer(id, consoleSessionScope().guarantee(tileMs, 'the cube waits for its tile\'s entrance', () => startCubeDrop(id, reduced)));
 }
 
 /** The drop itself: play `pc-place`, then settle to rest. Reduced motion has
@@ -143,9 +147,9 @@ function startCubeDrop(id: SpaceId, reduced: boolean): void {
     return;
   }
   phases[id] = 'dropping';
-  addTimer(id, window.setTimeout(() => {
+  addTimer(id, consoleSessionScope().guarantee(CUBE_DROP_MS + CUBE_DROP_BUFFER_MS, 'the cube\'s drop settles to rest', () => {
     phases[id] = 'rest';
-  }, CUBE_DROP_MS + CUBE_DROP_BUFFER_MS));
+  }));
 }
 
 /*
@@ -174,11 +178,11 @@ const HERO_CUBE_HOLD_SAFETY_MS = 10000;
 export function holdCubeForHeroPlacement(id: SpaceId): void {
   clearTimers(id);
   phases[id] = 'hidden';
-  addTimer(id, window.setTimeout(() => {
+  addTimer(id, consoleSessionScope().guarantee(HERO_CUBE_HOLD_SAFETY_MS, 'a held cube\'s safety drop', () => {
     if (phases[id] === 'hidden') {
       dropCubeForHeroPlacement(id);
     }
-  }, HERO_CUBE_HOLD_SAFETY_MS));
+  }));
 }
 
 export function dropCubeForHeroPlacement(id: SpaceId): void {

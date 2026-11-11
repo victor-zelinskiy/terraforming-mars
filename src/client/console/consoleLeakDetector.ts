@@ -27,6 +27,7 @@
  */
 
 import {reactive} from 'vue';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ConsoleTask, taskFor, SHELL_NATIVE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
 import {inputTitleText} from '@/client/console/turnIntents';
@@ -846,19 +847,20 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   leakDetectorState.stranded = stranded;
 }
 
-let timer: number | undefined;
+/** The detector's stop — an owned tick of the session. */
+let timer: (() => void) | undefined;
 
 export function startConsoleLeakDetector(getView: () => PlayerViewModel | undefined): void {
   if (timer !== undefined || typeof window === 'undefined') {
     return;
   }
   runLeakDetection(getView());
-  timer = window.setInterval(() => runLeakDetection(getView()), 1000);
+  timer = consoleSessionScope().every(1000, 'the leak detector\'s tick', () => runLeakDetection(getView()));
 }
 
 export function stopConsoleLeakDetector(): void {
   if (timer !== undefined && typeof window !== 'undefined') {
-    window.clearInterval(timer);
+    timer();
     timer = undefined;
   }
   clearStranded();
@@ -872,3 +874,7 @@ export function stopConsoleLeakDetector(): void {
   screenStreak = {signature: '', ticks: 0};
   plannedOnce.clear();
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+sessionState('console-leak-detector', stopConsoleLeakDetector, 450);

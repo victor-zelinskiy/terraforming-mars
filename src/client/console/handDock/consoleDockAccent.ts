@@ -36,6 +36,7 @@
  */
 
 import {reactive} from 'vue';
+import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 
 /**
  * The hard ceiling of ONE lease (ms). Generous enough for the longest real
@@ -44,7 +45,8 @@ import {reactive} from 'vue';
  */
 export const ACCENT_MAX_MS = 6000;
 
-type Lease = {id: number, label: string, timer: number | undefined};
+/** `cancel` takes the lease's ceiling (and its session-end release) back — a no-op where none was armed. */
+type Lease = {id: number, label: string, cancel: () => void};
 
 const state = reactive({
   /** Live lease count — the reactive signal the shell reads. */
@@ -70,9 +72,7 @@ function drop(id: number): void {
     return;
   }
   const [lease] = leases.splice(i, 1);
-  if (lease.timer !== undefined) {
-    window.clearTimeout(lease.timer);
-  }
+  lease.cancel();
   state.active = leases.length;
 }
 
@@ -86,15 +86,23 @@ function drop(id: number): void {
  */
 export function beginDockIntakeAccent(label: string): () => void {
   const id = nextId++;
-  const lease: Lease = {id, label, timer: undefined};
+  const lease: Lease = {id, label, cancel: () => {}};
   if (typeof window !== 'undefined' && typeof window.setTimeout === 'function') {
-    lease.timer = window.setTimeout(() => {
+    // PACING, not a guarantee (PLAN §10 · C1): the ceiling WARNS when it fires, so it must not come due when the game
+    // screen leaves — there the lease is let go silently (the session's own cleanup).
+    const owner = consoleSessionScope();
+    const cancelCeiling = owner.after(ACCENT_MAX_MS, 'the dock accent\'s ceiling', () => {
       if (process.env.NODE_ENV !== 'production' && leases.some((l) => l.id === id)) {
         console.warn(`[dock-accent] «${label}» outlived ${ACCENT_MAX_MS}ms and was released — ` +
           'the compact pose must never be disabled by a leaked presentation.');
       }
       drop(id);
-    }, ACCENT_MAX_MS);
+    });
+    const forgetRelease = owner.defer(() => drop(id));
+    lease.cancel = () => {
+      cancelCeiling();
+      forgetRelease();
+    };
   }
   leases.push(lease);
   state.active = leases.length;
@@ -118,10 +126,13 @@ export async function holdDockIntakeAccent<T>(label: string, run: Promise<T>): P
 /** A new game / epoch — nothing may survive it. */
 export function resetDockIntakeAccent(): void {
   for (const lease of leases) {
-    if (lease.timer !== undefined) {
-      window.clearTimeout(lease.timer);
-    }
+    lease.cancel();
   }
   leases = [];
   state.active = 0;
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// A leaked lease would disable the compact pose
+sessionState('dock-intake-accent', resetDockIntakeAccent, 140);

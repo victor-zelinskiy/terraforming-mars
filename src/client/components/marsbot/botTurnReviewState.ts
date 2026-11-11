@@ -19,6 +19,7 @@ import {startBoardHighlightPulse, stopBoardHighlightPulse} from '@/client/compon
 import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {BotTurnReview, BotTurnReviewSource, buildBotTurnReview} from './botTurnReviewModel';
 import {turnDedupeKey} from './marsBotTurnView';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** Which boundary a turn-nav step hit (no earlier / no later turn), or none. */
 export type BotReviewEdge = '' | 'no-prev' | 'no-next';
@@ -72,12 +73,13 @@ export function isBotTurnReviewOpen(): boolean {
   return botTurnReviewState.open;
 }
 
-let edgeTimer = 0;
+/** The standing edge notice's disarm — a guaranteed RELEASE of the session: the notice always comes down. */
+let disarmEdge: (() => void) | undefined;
 
 function stopEdgeTimer(): void {
-  if (edgeTimer !== 0) {
-    clearTimeout(edgeTimer);
-    edgeTimer = 0;
+  if (disarmEdge !== undefined) {
+    disarmEdge();
+    disarmEdge = undefined;
   }
 }
 
@@ -106,12 +108,10 @@ export function flashBotReviewEdge(edge: Exclude<BotReviewEdge, ''>): void {
   stopEdgeTimer();
   botTurnReviewState.edge = edge;
   botTurnReviewState.edgeNonce++;
-  // Bare setTimeout (not window.*) so it resolves under both the browser and
-  // the Node test runner.
-  edgeTimer = setTimeout(() => {
+  disarmEdge = consoleSessionScope().guarantee(2400, 'the bot review\'s edge notice', () => {
     botTurnReviewState.edge = '';
-    edgeTimer = 0;
-  }, 2400) as unknown as number;
+    disarmEdge = undefined;
+  });
 }
 
 /**

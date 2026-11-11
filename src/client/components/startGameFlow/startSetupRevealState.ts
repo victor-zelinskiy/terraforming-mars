@@ -19,6 +19,7 @@
  */
 
 import {reactive} from 'vue';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 import {Color} from '@/common/Color';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {changeFeedbackManager} from '@/client/components/feedback/changeFeedbackManager';
@@ -232,6 +233,10 @@ export function endStartSetupReveal(): void {
   startSetupRevealState.suspended = false;
   currentEvent = undefined;
 }
+
+/** THE REVEAL IS A RUN of the session (architecture v2 — PLAN §10 · C4), derived from its flag: a reveal whose game
+ *  screen left releases the panel override (`endStartSetupReveal` — the dedup stays: the same setup is not replayed). */
+deriveFlowRun('start-setup-reveal', () => startSetupRevealState.active, {orphaned: () => endStartSetupReveal()});
 
 /** Test-only full reset (state + dedup). */
 export function resetStartSetupReveal(): void {

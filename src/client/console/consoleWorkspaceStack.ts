@@ -85,7 +85,7 @@ import {
 import type {TaskKind} from '@/client/console/consoleTaskRouter';
 import type {ConsoleSection, ConsoleSheetId} from '@/client/console/consoleRouter';
 import {FlowScope} from '@/client/console/kernel/flowScope';
-import {sessionChild} from '@/client/console/session/consoleSession';
+import {sessionChild, sessionState} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
 import {frameMachine, isBeatPhase} from '@/client/console/consoleWorkspaceFrame';
 import {onSubmitTicket, submitDidNotLand, SubmitTicket} from '@/client/console/transport/submitTicket';
@@ -2347,3 +2347,9 @@ export function hydrateWorkspaceStack(
   }
   return depth;
 }
+
+// THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
+// (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
+// The stack can never outlive the shell: an orphaned frame suppresses the standalone band, so the next prompt would
+// be presented NOWHERE.
+sessionState('workspace-stack', resetWorkspaceStack, 190);

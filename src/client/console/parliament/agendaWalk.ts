@@ -36,6 +36,7 @@
  * Pure + a reactive record: no DOM, no i18n, no timers.
  */
 import {reactive} from 'vue';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -130,6 +131,16 @@ function freshFlow() {
  * never by a predicate a cache holds.
  */
 let queuedWalkSeeds: Array<() => void> = [];
+
+/**
+ * THE WALK'S RUN (architecture v2 — PLAN §10 · C4): `scene:agenda-walk#n` in the flow tree, DERIVED from the record —
+ * it stands while a walk is promised, owed or playing, whoever wrote that (the press, the seed, the section), and when
+ * the game screen leaves under it the record is reset (`orphaned`).
+ */
+deriveFlowRun('agenda-walk', () => agendaWalkFlow.promised !== undefined || agendaWalkFlow.owed !== undefined || agendaWalkFlow.live, {
+  orphaned: () => resetAgendaWalkFlow(),
+  detail: () => agendaWalkFlow.owed?.host ?? agendaWalkFlow.promised?.host ?? '',
+});
 
 export function resetAgendaWalkFlow(): void {
   Object.assign(agendaWalkFlow, freshFlow());
