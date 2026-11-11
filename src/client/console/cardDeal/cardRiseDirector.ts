@@ -36,6 +36,7 @@
 import {gsap} from 'gsap';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {
   CARD_NATURAL_W, DECK_SCALE, RiseTimings, riseTotalMs,
 } from '@/client/console/cardDeal/cardDealModel';
@@ -100,7 +101,7 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
     }
   };
 
-  const safety = setTimeout(() => finish(true), motionMs(riseTotalMs(proxies.length, arrivals.length, timings)) + 1500);
+  const disarmSafety = consoleSessionScope().guarantee(motionMs(riseTotalMs(proxies.length, arrivals.length, timings)) + 1500, 'the rise\'s timeline', () => finish(true));
   const tl = gsap.timeline({paused: true});
 
   const finish = (viaSkip: boolean) => {
@@ -108,7 +109,7 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
       return;
     }
     finished = true;
-    clearTimeout(safety);
+    disarmSafety();
     revealFrameOnce();
     revealAll();
     if (viaSkip) {
@@ -302,7 +303,7 @@ export function runCardRiseTimeline(args: RunRiseArgs): DealHandle {
     kill: () => {
       if (!finished) {
         finished = true;
-        clearTimeout(safety);
+        disarmSafety();
         tl.kill();
       }
     },

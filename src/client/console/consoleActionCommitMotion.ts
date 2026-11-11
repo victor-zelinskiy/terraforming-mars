@@ -36,6 +36,7 @@ import type {ActionCommitKind} from '@/client/console/consoleActionCommit';
 import {armCommitImpulse, landCommitImpulse} from '@/client/console/consoleActionCommit';
 import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {ResourceTransferSpec, TransferEnd, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
 // Tuned for READABILITY over snap (player feedback: the first cut was too
@@ -563,8 +564,8 @@ export function runActionCommitMotion(args: ActionCommitMotionArgs): ActionCommi
       document.body.appendChild(ring);
       gsap.fromTo(ring, {opacity: 0.9}, {opacity: 0, duration: s(220), ease: 'power1.out', onComplete: () => ring.remove()});
     }
-    window.setTimeout(fireHandoff, motionMs(60));
-    window.setTimeout(() => finish(false), motionMs(160));
+    consoleSessionScope().guarantee(motionMs(60), 'consoleActionCommitMotion: a release\'s bound', fireHandoff);
+    consoleSessionScope().guarantee(motionMs(160), 'consoleActionCommitMotion: a release\'s bound', () => finish(false));
     return {kill: () => finish(false)};
   }
 

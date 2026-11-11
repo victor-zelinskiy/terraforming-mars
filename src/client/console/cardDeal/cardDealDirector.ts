@@ -43,6 +43,7 @@
 import {gsap} from 'gsap';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {addCardCarry} from '@/client/console/cardDeal/cardCarry';
 import {
   CARD_NATURAL_W, DECK_SCALE, DealTimings, dealTotalMs, flightPlan, HANDOFF_AT, REVEAL_AT,
@@ -85,10 +86,11 @@ export function runCardDealTimeline(args: RunDealArgs): DealHandle {
   let finished = false;
 
   // Safety: a stalled rAF (hidden tab / driver hiccup) can never strand the
-  // prompt behind held slots — hard-finish shortly after the planned end.
-  // (setTimeout callbacks are never synchronous, so referencing `finish`
-  // from here is safe.)
-  const safety = setTimeout(() => finish(true), motionMs(dealTotalMs(proxies.length, timings)) + 1500);
+  // prompt behind held slots — hard-finish shortly after the planned end. A
+  // GUARANTEED release of the session (the kernel's): it also comes due when the
+  // game screen leaves. (It never fires synchronously on a live session, so
+  // referencing `finish` from here is safe.)
+  const disarmSafety = consoleSessionScope().guarantee(motionMs(dealTotalMs(proxies.length, timings)) + 1500, 'the deal\'s timeline', () => finish(true));
 
   const revealAll = () => {
     for (let i = 0; i < targets.length; i++) {
@@ -106,7 +108,7 @@ export function runCardDealTimeline(args: RunDealArgs): DealHandle {
       return;
     }
     finished = true;
-    clearTimeout(safety);
+    disarmSafety();
     revealAll();
     if (viaSkip) {
       tl.kill();
@@ -239,7 +241,7 @@ export function runCardDealTimeline(args: RunDealArgs): DealHandle {
     kill: () => {
       if (!finished) {
         finished = true;
-        clearTimeout(safety);
+        disarmSafety();
         tl.kill();
       }
     },

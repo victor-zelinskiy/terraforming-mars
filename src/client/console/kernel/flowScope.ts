@@ -85,7 +85,7 @@ export type WaitResult<T> =
   | {status: 'cycle', path: ReadonlyArray<string>};
 
 /** What a row of the wait table waits for — also what the legacy wait graph's adapter maps to its target kinds. */
-export type WaitFamily = 'scope' | 'condition' | 'promise' | 'motion' | 'signal' | 'server' | 'player';
+export type WaitFamily = 'scope' | 'condition' | 'promise' | 'motion' | 'signal' | 'server' | 'player' | 'timer';
 
 /**
  * Something that can be waited for. `K` is a PHANTOM: the kind of the foreign scope whose end is awaited (`never` for
@@ -155,6 +155,36 @@ export interface FlowScope<K extends FlowKind = FlowKind> extends Disposable {
   wait<T>(target: WaitTarget<T, WaitsOn<K>>, options: WaitOptions<T>): Promise<WaitResult<T>>;
   /** Sleep on the kernel's clock; `false` if the scope ended first. */
   sleep(ms: number): Promise<boolean>;
+  /**
+   * A CALLBACK on the kernel's clock, OWNED by this scope: it runs once, `ms` from now, in the timer's own task — and
+   * NEVER after the scope has ended (the end takes it back). A row of the wait table for as long as it is pending, so a
+   * dump names every timer that stands and whose it is. Returns the cancel (idempotent). What a raw `setTimeout` in a
+   * flow becomes: a timer nobody owns fires into whatever stands there by then — the next game, a surface that left.
+   */
+  after(ms: number, what: string, run: () => void): () => void;
+  /**
+   * The same, on the page's FRAMES: `run` is called `count` animation frames from now (default the next one) — and
+   * never after the scope has ended. What a raw `requestAnimationFrame` in a flow becomes («measure after the patch
+   * has painted», «two frames for the fit to land»).
+   */
+  afterFrame(what: string, run: () => void, count?: number): () => void;
+  /**
+   * A frame LOOP owned by the scope: `tick` is called on every animation frame until it returns `false`, the returned
+   * `stop` is called, or the scope ends — ONE row of the wait table for the loop's whole life. What a self-re-arming
+   * `requestAnimationFrame` loop becomes (a counter's interpolation, a driver): it cannot go on painting a flow that
+   * is gone. A window that does not paint calls no `tick` — what must happen anyway is a `guarantee` beside it.
+   */
+  everyFrame(what: string, tick: () => boolean | void): () => void;
+  /**
+   * A RELEASE that is GUARANTEED: `release` is called exactly once — when `ms` have passed, OR when the scope ends,
+   * whichever comes first — unless the returned `disarm` is called before either (the thing it backs came by itself).
+   * The opposite of `after`, and the two must not be confused: `after` is for what must NOT happen once the owner is
+   * gone (the next step, an abort); `guarantee` is for what MUST happen even then (a promise somebody awaits, a gate, a
+   * mark taken down). What the safety of a tween's promise becomes — `const safety = setTimeout(finish, budget)` …
+   * `clearTimeout(safety)` is `const disarm = scope.guarantee(budget, what, finish)` … `disarm()`. `release` is never
+   * called inside the `guarantee()` call itself (an owner already gone releases a microtask later).
+   */
+  guarantee(ms: number, what: string, release: () => void): () => void;
 }
 
 type WaitRow = {
@@ -168,6 +198,12 @@ type WaitRow = {
 };
 
 const table = new Map<number, WaitRow>();
+/**
+ * The rows that are EDGES — a wait for another scope's end. The cycle walk reads only these: timers, frames, conditions
+ * and guaranteed releases (the bulk of the table once every hold and every director's safety stands in it) are not
+ * edges, and a walk must not pay for them.
+ */
+const edges = new Set<WaitRow>();
 const roots = new Set<ScopeImpl>();
 const sequences = new Map<string, number>();
 let nextWaitId = 1;
@@ -203,7 +239,7 @@ function waitCyclePath(owner: ScopeImpl, target: ScopeImpl): ReadonlyArray<strin
       return [];
     }
     seen.add(node);
-    for (const row of table.values()) {
+    for (const row of edges) {
       if (row.on !== undefined && isWithin(row.owner, node)) {
         const found = walk(row.on, [...path, node.id]);
         if (found.length > 0) {
@@ -423,6 +459,9 @@ class ScopeImpl implements FlowScope {
     const boundMs = options.bound === 'player' ? undefined : options.bound.ms;
     const row: WaitRow = {id: nextWaitId++, owner: this, family: target.family, what: target.what, on, since, boundMs};
     table.set(row.id, row);
+    if (on !== undefined) {
+      edges.add(row);
+    }
     traceFlow(since, 'wait', this.id, `${target.family} «${target.what}»${boundMs === undefined ? '' : ` ≤${boundMs}ms`}`);
     return new Promise<WaitResult<T>>((resolve) => {
       let settled = false;
@@ -435,6 +474,7 @@ class ScopeImpl implements FlowScope {
         }
         settled = true;
         table.delete(row.id);
+        edges.delete(row);
         this.cancels.delete(cancel);
         clock.clearTimeout(timer);
         offAccepts?.();
@@ -480,6 +520,124 @@ class ScopeImpl implements FlowScope {
   sleep(ms: number): Promise<boolean> {
     return this.wait(delay(ms), {bound: {ms: ms + 60_000, quiet: 'a sleep ends on its own timer'}})
       .then((result) => result.status === 'met');
+  }
+
+  after(ms: number, what: string, run: () => void): () => void {
+    if (this.result !== undefined) {
+      return () => {};
+    }
+    const clock = flowClock();
+    const row: WaitRow = {id: nextWaitId++, owner: this, family: 'timer', what, on: undefined, since: clock.now(), boundMs: ms};
+    table.set(row.id, row);
+    let timer: unknown = undefined;
+    const take = (): void => {
+      table.delete(row.id);
+      this.cancels.delete(take);
+      clock.clearTimeout(timer);
+    };
+    this.cancels.add(take);
+    timer = clock.setTimeout(() => {
+      take();
+      this.runGuarded(run, `the timer «${what}» threw`);
+    }, ms);
+    return take;
+  }
+
+  guarantee(ms: number, what: string, release: () => void): () => void {
+    let owed = true;
+    let cancelTimer: () => void = () => {};
+    let offEnd: () => void = () => {};
+    const fire = (): void => {
+      if (!owed) {
+        return;
+      }
+      owed = false;
+      cancelTimer();
+      offEnd();
+      this.runGuarded(release, `the guaranteed release «${what}» threw`);
+    };
+    if (this.result !== undefined) {
+      // Asked of an owner that is gone: the release is not parked, it happens — in a task of its own, never inside this
+      // call (the caller's `const disarm = scope.guarantee(…)` is not assigned yet, and its release may use it).
+      void Promise.resolve().then(fire);
+      return () => {
+        owed = false;
+      };
+    }
+    cancelTimer = this.after(ms, what, fire);
+    // …and the owner ending first is the other way it comes due (told after the timer has been taken back).
+    offEnd = this.onEnd(fire);
+    return () => {
+      owed = false;
+      cancelTimer();
+      offEnd();
+    };
+  }
+
+  afterFrame(what: string, run: () => void, count = 1): () => void {
+    if (this.result !== undefined) {
+      return () => {};
+    }
+    const clock = flowClock();
+    const row: WaitRow = {id: nextWaitId++, owner: this, family: 'timer', what, on: undefined, since: clock.now(), boundMs: undefined};
+    table.set(row.id, row);
+    let left = Math.max(1, count);
+    let cancelFrame: () => void = () => {};
+    const take = (): void => {
+      table.delete(row.id);
+      this.cancels.delete(take);
+      cancelFrame();
+    };
+    const step = (): void => {
+      if (--left > 0) {
+        cancelFrame = clock.nextFrame(step);
+        return;
+      }
+      take();
+      this.runGuarded(run, `the frame callback «${what}» threw`);
+    };
+    this.cancels.add(take);
+    cancelFrame = clock.nextFrame(step);
+    return take;
+  }
+
+  everyFrame(what: string, tick: () => boolean | void): () => void {
+    if (this.result !== undefined) {
+      return () => {};
+    }
+    const clock = flowClock();
+    const row: WaitRow = {id: nextWaitId++, owner: this, family: 'timer', what, on: undefined, since: clock.now(), boundMs: undefined};
+    table.set(row.id, row);
+    let stopped = false;
+    let cancelFrame: () => void = () => {};
+    const stop = (): void => {
+      if (stopped) {
+        return;
+      }
+      stopped = true;
+      table.delete(row.id);
+      this.cancels.delete(stop);
+      cancelFrame();
+    };
+    const step = (): void => {
+      if (stopped) {
+        return;
+      }
+      let more: boolean | void = false;
+      try {
+        more = tick();
+      } catch (error) {
+        flowAnomaly(clock.now(), this.id, `the frame loop «${what}» threw — stopped`, error);
+      }
+      if (more === false || stopped) {
+        stop();
+        return;
+      }
+      cancelFrame = clock.nextFrame(step);
+    };
+    this.cancels.add(stop);
+    cancelFrame = clock.nextFrame(step);
+    return stop;
   }
 
   /** The two laws of a wait for another flow's end — the kind table, then the wait table. */
@@ -605,6 +763,51 @@ export function until<T>(what: string, read: () => T | undefined | null | false 
   };
 }
 
+/**
+ * A condition RE-READ ON THE CLOCK, every `everyMs` — and only there (true now resolves now). Two cases call for it
+ * rather than `until`: a source that is not reactive at all (layout, a foreign module's plain state), and a condition
+ * whose CONSEQUENCE must run in a task of its own — `until` wakes inside the very stretch that made the condition true,
+ * before that stretch has finished saying what else changed («a decision that ACTS has a place in the tick»).
+ */
+export function polled<T>(what: string, read: () => T | undefined | null | false | 0 | '', everyMs: number): WaitTarget<T> {
+  return {
+    family: 'condition',
+    what,
+    arm: (met) => {
+      let stopped = false;
+      let timer: unknown;
+      const check = (): boolean => {
+        let value: T | undefined | null | false | 0 | '';
+        try {
+          value = read();
+        } catch (error) {
+          flowAnomaly(flowClock().now(), 'wait', `the condition «${what}» threw — read as not yet`, error);
+          value = undefined;
+        }
+        if (value === undefined || value === null || value === false || value === 0 || value === '') {
+          return false;
+        }
+        met(value as T);
+        return true;
+      };
+      const rearm = (): void => {
+        timer = flowClock().setTimeout(() => {
+          if (!stopped && !check()) {
+            rearm();
+          }
+        }, Math.max(1, everyMs));
+      };
+      if (!check()) {
+        rearm();
+      }
+      return () => {
+        stopped = true;
+        flowClock().clearTimeout(timer);
+      };
+    },
+  };
+}
+
 /** Any promise. A rejection is a value here (`ok: false`) — a wait never throws. */
 export function settled<T>(what: string, promise: PromiseLike<T>, family: WaitFamily = 'promise'): WaitTarget<{ok: true, value: T} | {ok: false, error: unknown}> {
   return {
@@ -685,6 +888,37 @@ export function delay(ms: number): WaitTarget<true> {
   };
 }
 
+/**
+ * `count` animation FRAMES from now (the page has painted that many times). BOUND IT with a real span: a hidden tab
+ * paints nothing, and a wait for a frame that never comes is the await the bound exists for.
+ */
+export function frames(count = 1): WaitTarget<true> {
+  return {
+    family: 'motion',
+    what: count === 1 ? 'the next frame' : `${count} frames`,
+    arm: (met) => {
+      let left = Math.max(1, count);
+      let stopped = false;
+      let cancelFrame: () => void = () => {};
+      const step = (): void => {
+        if (stopped) {
+          return;
+        }
+        if (--left > 0) {
+          cancelFrame = flowClock().nextFrame(step);
+        } else {
+          met(true);
+        }
+      };
+      cancelFrame = flowClock().nextFrame(step);
+      return () => {
+        stopped = true;
+        cancelFrame();
+      };
+    },
+  };
+}
+
 /** A one-shot event source: `emit` wakes everybody waiting on it NOW; a later waiter waits for the next emit. */
 export type FlowSignal<T> = {
   emit(value: T): void,
@@ -758,6 +992,27 @@ export function dumpFlowTree(now: number = flowClock().now()): Array<string> {
   return lines;
 }
 
+/**
+ * The live tree as ONE line for a field heartbeat — every scope below the roots, oldest first, bounded:
+ * `frame:hand#3 committed⟵submit#31 ends | scene:played-hero#12`. Built only when asked (a standing second, a stall).
+ */
+export function flowTreeDigest(limit = 14): string {
+  const parts: Array<string> = [];
+  const visit = (scope: ScopeImpl, depth: number): void => {
+    if (depth > 0) {
+      const waits = [...table.values()].filter((row) => row.owner === scope && row.family !== 'timer').map((row) => row.what);
+      parts.push(`${scope.id}${scope.detail === '' ? '' : ' ' + scope.detail}${waits.length === 0 ? '' : '⟵' + waits.join('+')}`);
+    }
+    for (const child of scope.children as ReadonlyArray<ScopeImpl>) {
+      visit(child, depth + 1);
+    }
+  };
+  for (const root of roots) {
+    visit(root, 0);
+  }
+  return parts.length <= limit ? parts.join(' | ') : `${parts.slice(0, limit).join(' | ')} | +${parts.length - limit}`;
+}
+
 /** How many scopes live (a leak check for specs; the supervisor's sanity read). */
 export function liveScopeCount(): number {
   let n = 0;
@@ -779,6 +1034,7 @@ export function resetFlowKernel(): void {
     root.end({how: 'cancelled', reason: 'kernel reset'});
   }
   table.clear();
+  edges.clear();
   sequences.clear();
   nextWaitId = 1;
 }

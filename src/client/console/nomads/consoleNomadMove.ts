@@ -81,6 +81,9 @@ import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferM
 import {armBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {snapPlanetFocusSettled} from '@/client/console/planetFocus';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {span} from '@/client/console/session/sessionWaits';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {createFlowRun} from '@/client/console/session/flowRun';
 
 /** A queued remote hop can wait for a covered board — far past this,
  *  something stalled and the committed truth must show. */
@@ -136,10 +139,25 @@ export function nomadGhostAt(id: SpaceId): boolean {
 
 /** One-shot claim per response (mirrors the sibling transactions). */
 let claimed = false;
-let armSafety: number | undefined;
-let sceneSafety: number | undefined;
-let preLiftTimer: number | undefined;
-let restoreTimer: number | undefined;
+/**
+ * THE OWN MOVE'S RUN (architecture v2 — PLAN §10 · C4): `scene:nomad-move#n` in the session, from the arm (before the
+ * POST) to the move's end — landed and paid out, refused, aborted. It OWNS the arm's safety, the bonus displacement's
+ * beat and the still beats of the hop; the scene's safety opens the transport's GATE, so it is a guaranteed release
+ * of the run; and when the game screen leaves under it the move is aborted (`orphaned`). The HOLD stays derived.
+ */
+const nomadRun = createFlowRun('nomad-move', {orphaned: () => abortNomadMove()});
+/**
+ * THE REMOTE LEG'S RUN: `scene:nomad-move-remote#n`, from the first staged hop to the queue's end. It owns the leg's
+ * safety (re-armed while a hop waits for a board the player can see); when the game screen leaves under it the leg is
+ * aborted — every held token visible, every ghost dropped — instead of a hidden camp standing into the next game.
+ */
+const remoteRun = createFlowRun('nomad-move-remote', {orphaned: () => abortRemoteNomadMoves()});
+const NO_TIMER = (): void => {};
+let cancelArmSafety: () => void = NO_TIMER;
+let cancelSceneSafety: () => void = NO_TIMER;
+let cancelPreLift: () => void = NO_TIMER;
+/** The restore beat's one-shot class outlives the move by design — its strip is a guaranteed release of the session. */
+let disarmRestore: () => void = NO_TIMER;
 /** Resolves the transport commit gate (abort must always free it). */
 let runResolve: (() => void) | undefined;
 /** The printed bonuses the reward beat carries (captured at detect). */
@@ -222,7 +240,7 @@ export function armNomadMove(opts: {toSpaceId: string}): void {
   // A confirm mid-Planet-Focus-growth settles the board FIRST — the detect
   // measures both hexes right after the response (same rule as the tile arm).
   snapPlanetFocusSettled();
-  clearTimers();
+  nomadRun.begin(opts.toSpaceId); // a run still standing ends here — its timers with it
   clearRestoreTimer();
   stripRestoreClass(); // a previous move's one-shot class must not survive
   claimed = false;
@@ -242,7 +260,7 @@ export function armNomadMove(opts: {toSpaceId: string}): void {
   nomadMoveState.toId = opts.toSpaceId;
   nomadMoveState.bonusProxies = [];
   nomadMoveState.reducedMotion = consoleReducedMotionActive();
-  armSafety = window.setTimeout(() => abortNomadMove(), NOMAD_ARM_SAFETY_MS);
+  cancelArmSafety = nomadRun.after(NOMAD_ARM_SAFETY_MS, 'the arm\'s safety (no answer claimed it)', () => abortNomadMove());
 }
 
 /**
@@ -266,10 +284,7 @@ export function detectNomadMove(
     return undefined;
   }
   claimed = true;
-  if (armSafety !== undefined) {
-    window.clearTimeout(armSafety);
-    armSafety = undefined;
-  }
+  cancelArmSafety();
   const diff = prevSpaces !== undefined && newSpaces !== undefined ?
     verifyNomadMove(prevSpaces, newSpaces, nomadMoveState.toId) : undefined;
   if (diff === undefined) {
@@ -309,9 +324,9 @@ export function runNomadMove(
 ): Promise<void> {
   return new Promise<void>((resolve) => {
     runResolve = resolve;
-    sceneSafety = window.setTimeout(() => {
-      freeRunGate(); // rAF stall — force the gate open, degrade gracefully
-    }, motionMs(NOMAD_LIFT_MS + NOMAD_FLIGHT_MS + NOMAD_SETTLE_MS) + 3000);
+    // rAF stall — force the gate open, degrade gracefully. A RELEASE: it also comes due when the run ends.
+    cancelSceneSafety = nomadRun.guarantee(motionMs(NOMAD_LIFT_MS + NOMAD_FLIGHT_MS + NOMAD_SETTLE_MS) + 3000,
+      'the scene\'s safety (the commit gate)', () => freeRunGate());
     void executeHop(prevSpaces, newSpaces).finally(() => freeRunGate());
   });
 }
@@ -378,8 +393,7 @@ async function executeHop(
   // bonuses rise off the surface (the tile hero's shared physical rule) and
   // the card bonus' cover separates on the same beat.
   const preLiftAt = Math.round(liftMs + flightMs * NOMAD_PRELIFT_START_T);
-  preLiftTimer = window.setTimeout(() => {
-    preLiftTimer = undefined;
+  cancelPreLift = nomadRun.after(preLiftAt, 'the bonus displacement on approach', () => {
     if (!nomadMoveState.active) {
       return;
     }
@@ -398,7 +412,7 @@ async function executeHop(
         hoverPx: Math.round(NOMAD_BONUS_HOVER_PX * ui),
       });
     }
-  }, preLiftAt);
+  });
   await playNomadFlight(els, {
     from, to, sizePx, uiScale: ui,
     liftMs,
@@ -596,6 +610,7 @@ export function abortNomadMove(): void {
   nomadMoveState.phase = 'failed';
   nomadMoveState.bonusProxies = [];
   freeRunGate();
+  nomadRun.end({how: 'cancelled', reason: 'the move was aborted'});
   void nextTick(() => {
     if (nomadMoveState.phase === 'failed') {
       nomadMoveState.phase = 'idle';
@@ -620,6 +635,7 @@ function finish(): void {
   nomadMoveState.active = false;
   nomadMoveState.phase = 'done';
   nomadMoveState.bonusProxies = [];
+  nomadRun.end();
   void nextTick(() => {
     if (nomadMoveState.phase === 'done') {
       nomadMoveState.phase = 'idle';
@@ -637,7 +653,7 @@ const remoteQueue: Array<RemoteNomadEvent> = [];
 let remoteDraining = false;
 /** Bumped by abort — a drain loop mid-await sees the change and exits. */
 let remoteEpoch = 0;
-let remoteSafety: number | undefined;
+let cancelRemoteSafety: () => void = NO_TIMER;
 
 export type RemoteNomadStageOpts = {
   gamePhase?: string,
@@ -813,28 +829,29 @@ function awaitWatchableBoard(myEpoch: number): Promise<void> {
         } else {
           wait.ceiling();
         }
-        window.setTimeout(done, remoteEpoch === myEpoch ? motionMs(NOMAD_BOARD_SETTLE_MS) : 0);
+        // The hop awaits this — a RELEASE: it answers when the settle has passed, or when the leg is over.
+        (remoteRun.scope ?? consoleSessionScope()).guarantee(remoteEpoch === myEpoch ? motionMs(NOMAD_BOARD_SETTLE_MS) : 0,
+          'the board\'s settle before the hop', done);
         return;
       }
       armRemoteSafety();
-      window.setTimeout(poll, 140);
+      // …and so is the next look: a link of the same await (the look after the leg's end reads the epoch and lets go).
+      (remoteRun.scope ?? consoleSessionScope()).guarantee(140, 'the next look at a covered board', poll);
     };
     poll();
   });
 }
 
 function armRemoteSafety(): void {
-  if (remoteSafety !== undefined) {
-    window.clearTimeout(remoteSafety);
-  }
-  remoteSafety = window.setTimeout(() => abortRemoteNomadMoves(), NOMAD_REMOTE_SAFETY_MS);
+  cancelRemoteSafety();
+  cancelRemoteSafety = (remoteRun.scope ?? remoteRun.begin()).after(NOMAD_REMOTE_SAFETY_MS, 'the remote leg\'s safety', () => abortRemoteNomadMoves());
 }
 
+/** The leg is over (the queue drained, or it was aborted): its safety goes, and so does its run. */
 function clearRemoteSafety(): void {
-  if (remoteSafety !== undefined) {
-    window.clearTimeout(remoteSafety);
-    remoteSafety = undefined;
-  }
+  cancelRemoteSafety();
+  cancelRemoteSafety = NO_TIMER;
+  remoteRun.end();
 }
 
 // ── internals ───────────────────────────────────────────────────────────────
@@ -899,10 +916,7 @@ function playBonusRestore(): number {
     return 0;
   }
   el.classList.add('board-space-bonuses--nomad-restore');
-  restoreTimer = window.setTimeout(() => {
-    restoreTimer = undefined;
-    stripRestoreClass();
-  }, total + 60);
+  disarmRestore = consoleSessionScope().guarantee(total + 60, 'the restore beat\'s one-shot class', () => stripRestoreClass());
   return total;
 }
 
@@ -948,10 +962,7 @@ function cardIconLive(spaceId: string): boolean {
 }
 
 function freeRunGate(): void {
-  if (sceneSafety !== undefined) {
-    window.clearTimeout(sceneSafety);
-    sceneSafety = undefined;
-  }
+  cancelSceneSafety();
   const r = runResolve;
   runResolve = undefined;
   r?.();
@@ -962,29 +973,18 @@ function freeRunGate(): void {
  *  own (+60 ms) timer — a lingering animation class replays on any display
  *  flip of the board (the project lesson). Abort/arm clear it explicitly. */
 function clearTimers(): void {
-  if (armSafety !== undefined) {
-    window.clearTimeout(armSafety);
-    armSafety = undefined;
-  }
-  if (sceneSafety !== undefined) {
-    window.clearTimeout(sceneSafety);
-    sceneSafety = undefined;
-  }
-  if (preLiftTimer !== undefined) {
-    window.clearTimeout(preLiftTimer);
-    preLiftTimer = undefined;
-  }
+  cancelArmSafety();
+  cancelSceneSafety();
+  cancelPreLift();
 }
 
 function clearRestoreTimer(): void {
-  if (restoreTimer !== undefined) {
-    window.clearTimeout(restoreTimer);
-    restoreTimer = undefined;
-  }
+  disarmRestore();
+  disarmRestore = NO_TIMER;
 }
 
 function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return span(ms);
 }
 
 // ── the animation-hold suppliers ────────────────────────────────────────────

@@ -1006,6 +1006,7 @@ import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIco
 import {NextStepRow, noteRow, placementRow, searchRows} from '@/client/console/consolePlacementNextStep';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
+import {probeTick} from '@/client/console/probeTick';
 
 /**
  * The NAVIGABLE pre-select rows — variants + collectable step picks ONLY. Payment
@@ -3101,7 +3102,7 @@ export default defineComponent({
         const transform = getComputedStyle(slot).transform;
         if (transform !== '' && transform !== 'none') {
           if (retries++ < 90 && typeof requestAnimationFrame === 'function') {
-            requestAnimationFrame(measure);
+            probeTick(measure);
           }
           return;
         }

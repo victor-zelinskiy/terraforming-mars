@@ -70,6 +70,7 @@ import {enterWorkspace, workspaceFrameKnown} from '@/client/console/consoleWorks
 import {betweenGenResearchLive, draftMandatoryFlowBeat} from '@/client/console/draft/consoleDraftFlow';
 import {parliamentSittingFlowBeat, presentedGeneration} from '@/client/console/parliament/consoleSittingFlow';
 import {noteDeferredGenerationFlipEnd, oweDeferredGenerationFlip, resetDeferredGenerationFlip} from '@/client/console/generationScene/deferredGenerationFlip';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** The rail-reward key of the income wave (one scene at a time). */
 export const GENERATION_INCOME_KEY = 'generation-income';
@@ -107,7 +108,9 @@ const seen = new Set<string>();
 
 let armed: GenerationSceneEvent | undefined;
 let flipResolve: (() => void) | undefined;
-let flipNet: ReturnType<typeof setTimeout> | undefined;
+/** The flip's net — a guaranteed release of the session (the scene's await is let go at the net, or when the game
+ *  screen leaves); called to disarm it. */
+let flipNet: (() => void) | undefined;
 
 // The scene owns the foreground from its first beat to its conclusion — the next prompt, the feed and the bot's
 // story wait. Bounded by the registry's ceiling; its `expire` ends the WEDGE, not just the hold.
@@ -238,14 +241,14 @@ export function runGenerationFlip(event: GenerationSceneEvent, displayed: Player
   return new Promise<void>((resolve) => {
     const settle = () => {
       if (flipNet !== undefined) {
-        clearTimeout(flipNet);
+        flipNet();
         flipNet = undefined;
       }
       flipResolve = undefined;
       resolve();
     };
     flipResolve = settle;
-    flipNet = setTimeout(settle, motionMs(FLIP_NET_MS));
+    flipNet = consoleSessionScope().guarantee(motionMs(FLIP_NET_MS), 'the generation readout\'s flip', settle);
   });
 }
 
@@ -389,7 +392,7 @@ function chargeHookMarks(cards: ReadonlyArray<CardName>): Promise<void> {
       }
       settled = true;
       mark.removeEventListener('animationend', onEnd);
-      clearTimeout(net);
+      net();
       mark.removeAttribute('data-income-charging');
       resolve();
     };
@@ -400,7 +403,7 @@ function chargeHookMarks(cards: ReadonlyArray<CardName>): Promise<void> {
     };
     mark.addEventListener('animationend', onEnd);
     mark.setAttribute('data-income-charging', '');
-    const net = setTimeout(done, motionMs(CHARGE_NET_MS));
+    const net = consoleSessionScope().guarantee(motionMs(CHARGE_NET_MS), 'generationScene: a beat\'s safety', done);
   }))).then(() => undefined);
 }
 

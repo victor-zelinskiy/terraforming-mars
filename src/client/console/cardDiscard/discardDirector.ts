@@ -30,6 +30,7 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {discardPileStackEl, landOnDiscardPile, releaseDiscardPile, settleDiscardPile} from '@/client/console/discardPile/discardPile';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {
   HAND_DISCARD_PILE_LEASE,
   cardDiscardState,
@@ -159,9 +160,9 @@ function guarded(run: (done: () => void) => void, budgetMs: number): Promise<voi
         resolve();
       }
     };
-    const safety = setTimeout(done, budgetMs + 1200); // rAF-stall net
+    const safety = consoleSessionScope().guarantee(budgetMs + 1200, 'discardDirector: a beat\'s safety', done); // rAF-stall net
     run(() => {
-      clearTimeout(safety);
+      safety();
       done();
     });
   });

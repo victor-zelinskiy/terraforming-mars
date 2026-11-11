@@ -20,6 +20,7 @@ import {
   hydroMarkerState, registerHydroMarkerHandle, setHydroMarkerPhase,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
 import {runHydroMarkerGlide, MarkerPhaseName} from '@/client/console/hydroMarker/hydroMarkerDirector';
+import {probeTick} from '@/client/console/probeTick';
 
 /** Read a fresh, stable rect for a stop marker-slot (bounded rAF probe). */
 function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefined> {
@@ -38,12 +39,12 @@ function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefi
       }
       last = sig;
       if (tries < 40) {
-        requestAnimationFrame(poll);
+        probeTick(poll);
       } else {
         done(ok ? r : undefined);
       }
     };
-    requestAnimationFrame(poll);
+    probeTick(poll);
   });
 }
 

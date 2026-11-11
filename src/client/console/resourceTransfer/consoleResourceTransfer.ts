@@ -34,6 +34,7 @@
  */
 
 import {reactive, nextTick} from 'vue';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -193,7 +194,9 @@ export function surfaceClear(surface: Element | null | undefined): Promise<void>
   trail(undefined, 'surface:wait', {surface: describeEl(surface as Element), ends: liveEndsOn(surface as Element)});
   return new Promise<void>((resolve) => {
     let done = false;
-    const ceiling = setTimeout(() => {
+    // A GUARANTEED release (the kernel's — whoever folds the surface awaits this): at the ceiling, or when the game screen
+    // leaves, whichever comes first.
+    const disarmCeiling = consoleSessionScope().guarantee(SURFACE_CLEAR_CEILING_MS, 'the tokens on a folding surface landed', () => {
       if (!done) {
         trail(undefined, 'surface:ceiling', {surface: describeEl(surface as Element), ends: liveEndsOn(surface as Element)});
         // …and on the wait graph's worklist: a surface still carrying a token past every honest flight is a lost end.
@@ -201,13 +204,13 @@ export function surfaceClear(surface: Element | null | undefined): Promise<void>
           maxMs: SURFACE_CLEAR_CEILING_MS, detail: describeEl(surface as Element)}).ceiling();
         settle();
       }
-    }, SURFACE_CLEAR_CEILING_MS);
+    });
     const settle = () => {
       if (done) {
         return;
       }
       done = true;
-      clearTimeout(ceiling);
+      disarmCeiling();
       const at = clearWaiters.findIndex((w) => w.settle === settle);
       if (at >= 0) {
         clearWaiters.splice(at, 1);
@@ -960,7 +963,9 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       // A chained wave (`TransferWaveGate`) may stand each birth a frame or two later on a starved renderer.
       entries.length * 400;
     let safetyFired = false;
-    const safety = window.setTimeout(() => {
+    // A GUARANTEED release (the kernel's): at the wave's budget, or when the game screen leaves — the caller's await and
+    // every hold of the wave are let go either way.
+    const disarmSafety = consoleSessionScope().guarantee(waveBudget, 'a wave of resource transfers', () => {
       // rAF stall / lost stage — release everything, never wedge the caller.
       safetyFired = true;
       trail(runId, 'run:safety', {arrival: run.arrival, ids: entries.map((e) => e.id)});
@@ -971,7 +976,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         // A stalled wave holds no surface: its tokens are declared gone (the fold may not wait on a clock that stopped).
         dropTransferEnds(e.id);
       });
-    }, waveBudget);
+    });
 
     // The caller resolves at the TOUCHDOWNS (never held on the absorb tail);
     // the finish chain removes each piece when its decoration fully ends.
@@ -1073,7 +1078,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     }
     await Promise.all(touchdowns);
     void Promise.all(absorbs).then(absorbedOnce);
-    window.clearTimeout(safety);
+    disarmSafety();
     markRun(false);
     trail(runId, 'run:end', {arrival: run.arrival});
   } catch (e) {

@@ -30,7 +30,8 @@ import {
   colonyTrackWaveState, holdColonyTracks, registerColonyInputLock, releaseColonyTrack, requestColonyTrackWave,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
-import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {untilCeiling} from '@/client/console/waitGraph/ceilingWait';
+import {createFlowRun} from '@/client/console/session/flowRun';
 
 /** The raise a colony prompt carries, with the prompt it rides — `undefined` when the prompt carries none. */
 export type ColonyTrackRaise = {key: string, moves: ReadonlyArray<ColonyTrackMove>};
@@ -108,30 +109,21 @@ export function seedColonyTrackRaise(raise: ColonyTrackRaise | undefined): boole
   return true;
 }
 
-/** Resolve once no other wave stands on stage (or the bound passes). */
-function waitWaveIdle(): Promise<void> {
-  if (!colonyTrackWaveState.active) {
-    return Promise.resolve();
-  }
-  const started = Date.now();
-  // The wait has to wait: a node of the wait graph, its ceiling ending it said (`ceilingWait.ts`).
-  const wait = beginCeilingWait({id: 'colony-track:wave-idle', owner: 'colonyTrackRaise', what: 'the end of the standing colony track wave', maxMs: IDLE_WAIT_MAX_MS});
-  return new Promise((done) => {
-    const poll = () => {
-      if (!colonyTrackWaveState.active) {
-        wait.met();
-        done();
-        return;
-      }
-      if (Date.now() - started > IDLE_WAIT_MAX_MS) {
-        wait.ceiling();
-        done();
-        return;
-      }
-      setTimeout(poll, 100);
-    };
-    poll();
-  });
+/**
+ * THE RAISE'S RUN (architecture v2 — PLAN §10 · C4): `scene:colony-track-raise#n`, from the moment the owed raise is
+ * taken to play until its wave has been told. Its wait for a free stage is the run's; when the game screen leaves under
+ * it the wait is over and the raise unwinds through its own `finally` (every hold released).
+ */
+const raiseRun = createFlowRun('colony-track-raise');
+
+/**
+ * Resolve once no other wave stands on stage (or the bound passes, or the run is over). The wait has to wait: a row of
+ * the kernel's wait table and a node of the wait graph, its ceiling ending it said (`ceilingWait.ts`). Re-read on the
+ * clock — the raise then plays in a task of its own, never inside the stretch that ended the other wave.
+ */
+async function waitWaveIdle(): Promise<void> {
+  await untilCeiling({id: 'colony-track:wave-idle', owner: 'colonyTrackRaise', what: 'the end of the standing colony track wave', maxMs: IDLE_WAIT_MAX_MS},
+    () => !colonyTrackWaveState.active, raiseRun.scope, 100);
 }
 
 /**
@@ -144,10 +136,11 @@ export async function playOwedColonyTrackRaise(): Promise<boolean> {
     return false;
   }
   colonyTrackRaiseFlow.live = true;
+  raiseRun.begin(raise.key);
   try {
     await waitWaveIdle();
-    if (colonyTrackRaiseFlow.owed !== raise) {
-      // Cleared while waiting (the prompt went away): nothing to tell.
+    if (colonyTrackRaiseFlow.owed !== raise || !raiseRun.live()) {
+      // Cleared while waiting (the prompt went away), or the game screen left: nothing to tell.
       return false;
     }
     // Another wave may have released every hold at its end — the raise re-holds its own before it plays.
@@ -163,6 +156,7 @@ export async function playOwedColonyTrackRaise(): Promise<boolean> {
       colonyTrackRaiseFlow.owed = undefined;
     }
     colonyTrackRaiseFlow.live = false;
+    raiseRun.end();
   }
   return true;
 }

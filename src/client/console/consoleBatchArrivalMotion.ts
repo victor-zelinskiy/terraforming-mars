@@ -47,6 +47,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {restingRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 import {deckPeelDy} from '@/client/console/deckDraw/deckPeel';
 import {probeTick} from '@/client/console/probeTick';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {
   CardArrivalMode, CardArrivalPlan, CardArrivalTimings, arrivalSourceFan,
   cardArrivalTimings, planCardArrival, reducedCardArrivalTimings,
@@ -144,7 +145,7 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
   let settled = false;
   let landedAll = false;
   let payloadReady = args.mode === 'in-flight-reveal';
-  let safety = 0;
+  let safety: (() => void) | undefined;
   /** Cards that still owe an opening (only ever non-empty off the normal mode). */
   const pendingOpen = new Set<number>();
   const timelines: Array<gsap.core.Timeline> = [];
@@ -162,7 +163,7 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
   const fireSettled = () => {
     if (!dead && !settled) {
       settled = true;
-      window.clearTimeout(safety);
+      safety?.();
       onSettled();
     }
   };
@@ -197,13 +198,13 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
     // guessed landing is exactly the visible teleport this system exists to
     // remove. Hand over immediately instead of faking a flight.
     cards.slice(0, n).forEach(({proxy}) => gsap.set(proxy, {autoAlpha: 0}));
-    safety = window.setTimeout(fireSettled, SAFETY_MS);
+    safety = consoleSessionScope().guarantee(SAFETY_MS, 'consoleBatchArrivalMotion: a beat\'s safety', fireSettled);
     return {
       notifyPayload: () => fireSettled(),
       plan,
       kill: () => {
         dead = true;
-        window.clearTimeout(safety);
+        safety?.();
       },
     };
   }
@@ -430,7 +431,7 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
 
   // In the normal mode nothing owes an opening — the turns already ride the
   // flight timelines, so `landedAll` alone will settle the scene.
-  safety = window.setTimeout(fireSettled, SAFETY_MS);
+  safety = consoleSessionScope().guarantee(SAFETY_MS, 'consoleBatchArrivalMotion: a beat\'s safety', fireSettled);
 
   return {
     plan,
@@ -443,7 +444,7 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
     },
     kill: () => {
       dead = true;
-      window.clearTimeout(safety);
+      safety?.();
       timelines.forEach((tl) => tl.kill());
       cards.forEach(({proxy}) => proxy.classList.remove(DEAL_TURN_GLINT));
     },
@@ -471,7 +472,7 @@ export function settleBatchProxiesOnto(args: {
 }): void {
   const {pairs, onDone} = args;
   let done = false;
-  let aimSafety: number | undefined;
+  let aimSafety: (() => void) | undefined;
   const held: Array<HTMLElement> = [];
   const finish = () => {
     if (done) {
@@ -479,7 +480,7 @@ export function settleBatchProxiesOnto(args: {
     }
     done = true;
     if (aimSafety !== undefined) {
-      window.clearTimeout(aimSafety);
+      aimSafety?.();
       aimSafety = undefined;
     }
     if (held.length === 0 || typeof window === 'undefined') {
@@ -537,7 +538,7 @@ export function settleBatchProxiesOnto(args: {
   // starts, and `con-deal-hold` strands the real cards invisible. The wall
   // clock covers the whole poll budget + the travel leg; `finish` is
   // idempotent, so a normal completion makes this a no-op.
-  aimSafety = window.setTimeout(finish, motionMs(190) + 1800);
+  aimSafety = consoleSessionScope().guarantee(motionMs(190) + 1800, 'consoleBatchArrivalMotion: a beat\'s safety', finish);
   const aim = (): void => {
     if (done) {
       return;
@@ -564,7 +565,7 @@ export function settleBatchProxiesOnto(args: {
           duration: s(190), ease: 'power3.inOut', onComplete: one,
         });
       });
-      window.setTimeout(finish, motionMs(190) + 400);
+      consoleSessionScope().guarantee(motionMs(190) + 400, 'consoleBatchArrivalMotion: a release\'s bound', finish);
       return;
     }
     prev = sig;

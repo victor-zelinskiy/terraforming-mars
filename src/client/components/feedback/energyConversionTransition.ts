@@ -27,6 +27,7 @@ import {ViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {changeFeedbackManager, prefersReducedMotion} from './changeFeedbackManager';
 import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {
   EnergyConversionEvent,
   conversionDurationMs,
@@ -87,8 +88,22 @@ export const energyConversionState = reactive<EnergyConversionState>({
 // must not re-animate. Claimed exactly once in `detectEnergyConversion`.
 const seen = new Set<string>();
 
-let rafId = 0;
-let safetyTimerId = 0;
+/**
+ * THE CONVERSION'S RUN (architecture v2 — PLAN §10 · C4): `scene:energy-conversion#n` in the session, from the run's
+ * start to `endEnergyConversion`. It owns the lead-in, the counters' frame loop and the safety — the safety RESOLVES
+ * THE GATE, so it is a guaranteed release (it also comes due when the run ends) — and when the game screen leaves
+ * under it the run takes its own honest ending (`orphaned`: the counters snap, the gate resolves, the override drops).
+ */
+const run = createFlowRun('energy-conversion', {
+  orphaned: () => {
+    finishActive?.();
+    endEnergyConversion();
+  },
+});
+const NO_TIMER = (): void => {};
+let stopTick: () => void = NO_TIMER;
+let disarmSafety: () => void = NO_TIMER;
+let cancelLeadIn: () => void = NO_TIMER;
 let resolveActive: (() => void) | undefined;
 /** The live run's own `finish` (snap the counters to the result, resolve the gate) — the ceiling's recovery. */
 let finishActive: (() => void) | undefined;
@@ -101,16 +116,12 @@ function now(): number {
 }
 
 function cancelTimers(): void {
-  if (rafId !== 0) {
-    if (typeof cancelAnimationFrame === 'function') {
-      cancelAnimationFrame(rafId);
-    }
-    rafId = 0;
-  }
-  if (safetyTimerId !== 0) {
-    clearTimeout(safetyTimerId);
-    safetyTimerId = 0;
-  }
+  stopTick();
+  stopTick = NO_TIMER;
+  disarmSafety();
+  disarmSafety = NO_TIMER;
+  cancelLeadIn();
+  cancelLeadIn = NO_TIMER;
 }
 
 export function isEnergyConversionActive(): boolean {
@@ -178,6 +189,7 @@ export function detectEnergyConversion(
  */
 export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadInMs?: number}): Promise<void> {
   cancelTimers();
+  run.begin(`${event.amount}`); // a run still standing ends here — its timers with it
   const reduced = prefersReducedMotion();
   const leadInMs = Math.max(0, opts?.leadInMs ?? 0);
 
@@ -231,9 +243,9 @@ export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadIn
       // hold for a brief readable highlight, then resolve.
       energyConversionState.displayEnergy = event.source.after;
       energyConversionState.displayHeat = event.target.after;
-      safetyTimerId = window.setTimeout(finish, duration) as unknown as number;
+      disarmSafety = run.guarantee(duration, 'the conversion\'s readable beat', finish);
     } else {
-      const tick = () => {
+      stopTick = run.everyFrame('the paired counters', () => {
         const nowTs = now();
         const t = Math.min(1, (nowTs - startedAt) / duration);
         // Honour the configured FPS cap for JS-driven interpolation: skip the
@@ -245,13 +257,12 @@ export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadIn
         }
         if (t >= 1) {
           finish();
-          return;
+          return false;
         }
-        rafId = requestAnimationFrame(tick);
-      };
-      rafId = requestAnimationFrame(tick);
+        return true;
+      });
       // rAF is paused in background tabs; this guarantees resolution + commit.
-      safetyTimerId = window.setTimeout(finish, duration + 400) as unknown as number;
+      disarmSafety = run.guarantee(duration + 400, 'the conversion\'s safety (no frames came)', finish);
     }
   };
 
@@ -259,7 +270,7 @@ export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadIn
     // The lead-in rides the same safety slot as the run itself (cancelTimers
     // clears it), and start() re-arms the real safety — the gate can never
     // hang on a lost timer.
-    safetyTimerId = window.setTimeout(start, leadInMs) as unknown as number;
+    cancelLeadIn = run.after(leadInMs, 'the lead-in over a standing surface', start);
   } else {
     start();
   }
@@ -280,11 +291,13 @@ export function endEnergyConversion(): void {
   energyConversionState.showChips = false;
   energyConversionState.leadIn = false;
   energyConversionState.color = '';
+  run.end();
 }
 
 /** Test-only full reset (state + dedup + timers). */
 export function resetEnergyConversion(): void {
   cancelTimers();
+  run.end({how: 'cancelled', reason: 'reset'});
   resolveActive = undefined;
   finishActive = undefined;
   seen.clear();

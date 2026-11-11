@@ -66,6 +66,8 @@ import {
   trackAdvancePlan, trackGlidePlan, TrackGlidePlan, TRACK_SETTLE_MS, trackWavePlan, TrackWavePlan, TrackMoveRhythm,
 } from '@/client/console/colonyTrade/colonyTradeModel';
 import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {createFlowRun} from '@/client/console/session/flowRun';
 
 /**
  * The ADVANCE leg's own net: whatever happens to the track's measurability,
@@ -257,12 +259,24 @@ export function colonyTradeReceiptBase(colony: string): TradeReceiptBase | undef
   return receiptBase?.colony === colony ? receiptBase.base : undefined;
 }
 
-let armSafetyId = 0;
-let ceilingId = 0;
-let settleTimerId = 0;
-let revealWaitId = 0;
-let parkedNetId = 0;
-let advanceSafetyId = 0;
+/**
+ * THE TRANSACTION'S RUN IN THE FLOW TREE (architecture v2 — PLAN §10 · C4): `scene:colony-trade#n` in the session, from
+ * the arm to the transaction's end (finished, concluded, aborted). It OWNS every timer of the transaction — the arm's
+ * safety, the reveal wait, the ceiling, the parked net, the advance net, the settle — so each is taken back when the
+ * run ends and when a NEW trade arms (R6 by construction: a timer of the trade that is over cannot fire at all, rather
+ * than firing and asking `isLiveRun`); the reward run's pauses are spans of it; and when the game screen leaves under
+ * it the transaction is aborted (`orphaned`).
+ */
+const tradeFlow = createFlowRun('colony-trade', {orphaned: () => abortColonyTrade()});
+const NO_TIMER = (): void => {};
+let cancelArmSafety: () => void = NO_TIMER;
+let cancelCeiling: () => void = NO_TIMER;
+let cancelSettle: () => void = NO_TIMER;
+let cancelRevealWait: () => void = NO_TIMER;
+let cancelParkedNet: () => void = NO_TIMER;
+/** The parked net is armed (its evidence stands) — `syncParkedEvidence` arms it once and disarms it when the proof goes. */
+let parkedNetArmed = false;
+let cancelAdvanceSafety: () => void = NO_TIMER;
 let glideResolver: (() => void) | undefined;
 
 /**
@@ -645,38 +659,28 @@ watch(
 // ── lifecycle ───────────────────────────────────────────────────────────────
 
 function clearArmSafety(): void {
-  if (armSafetyId !== 0) {
-    clearTimeout(armSafetyId);
-    armSafetyId = 0;
-  }
+  cancelArmSafety();
+  cancelArmSafety = NO_TIMER;
 }
 
 function clearCeiling(): void {
-  if (ceilingId !== 0) {
-    clearTimeout(ceilingId);
-    ceilingId = 0;
-  }
+  cancelCeiling();
+  cancelCeiling = NO_TIMER;
 }
 
 function clearRevealWait(): void {
-  if (revealWaitId !== 0) {
-    clearTimeout(revealWaitId);
-    revealWaitId = 0;
-  }
+  cancelRevealWait();
+  cancelRevealWait = NO_TIMER;
 }
 
 function clearSettleTimer(): void {
-  if (settleTimerId !== 0) {
-    clearTimeout(settleTimerId);
-    settleTimerId = 0;
-  }
+  cancelSettle();
+  cancelSettle = NO_TIMER;
 }
 
 function clearAdvanceSafety(): void {
-  if (advanceSafetyId !== 0) {
-    clearTimeout(advanceSafetyId);
-    advanceSafetyId = 0;
-  }
+  cancelAdvanceSafety();
+  cancelAdvanceSafety = NO_TIMER;
 }
 
 /**
@@ -717,6 +721,7 @@ export function armColonyTrade(
 ): void {
   releasePreviousRun();
   const run = ++tradeRun;
+  tradeFlow.begin(colonyName); // the previous run's scope ends here — whatever it still had armed goes with it
   ctx.manifest = undefined;
   ctx.targets = targets;
   ctx.claimed = false;
@@ -747,13 +752,12 @@ export function armColonyTrade(
   tradeLog('armed', colonyName);
   // The fleet's own 12 s abort net recalls the flight on a dropped submit;
   // this net just clears the never-claimed transaction shell after it.
-  armSafetyId = setTimeout(() => {
-    armSafetyId = 0;
+  cancelArmSafety = tradeFlow.after(15_000, 'the arm\'s safety (no manifest claimed it)', () => {
     if (isLiveRun(run) && !ctx.claimed) {
       tradeLog('arm safety — never claimed, resetting');
       abortColonyTrade();
     }
-  }, 15_000) as unknown as number;
+  });
 }
 
 /**
@@ -813,25 +817,23 @@ function claimManifest(manifest: ColonyTradeManifestModel): void {
   // marker on the track: the wait for it is bounded and names itself.
   clearRevealWait();
   if (plannedViewerCards() > 0) {
-    revealWaitId = setTimeout(() => {
-      revealWaitId = 0;
+    cancelRevealWait = tradeFlow.after(REVEAL_WAIT_MS, 'the promised cards\' reveal', () => {
       if (isLiveRun(run) && !ctx.revealSeen) {
         tradeLog('promised cards never arrived — concluding without them');
         ctx.revealSeen = true;
         maybeAdvance();
       }
-    }, REVEAL_WAIT_MS) as unknown as number;
+    });
   }
   // The whole transaction is bounded: whatever stalls (a lost reveal, a
   // never-arriving reset), the ceiling concludes honestly to committed truth.
   clearCeiling();
-  ceilingId = setTimeout(() => {
-    ceilingId = 0;
+  cancelCeiling = tradeFlow.after(60_000, 'the transaction\'s ceiling', () => {
     if (isLiveRun(run)) {
       tradeLog('transaction ceiling — concluding to committed state');
       concludeToCommitted();
     }
-  }, 60_000) as unknown as number;
+  });
 }
 
 /**
@@ -961,9 +963,9 @@ export async function runColonyTradeRewards(): Promise<void> {
       // and the bonus's first token is born only once that hand-over has played (the receiving scene's own pose
       // transition), so the next wave is seen going somewhere new, never landing on a card still in the shade.
       colonyTradeState.beat = 'bonus';
-      await pause(motionMs(RECEIVING_HANDOVER_MS));
+      await tradeFlow.sleep(motionMs(RECEIVING_HANDOVER_MS));
     } else if (income.length > 0) {
-      await pause(motionMs(TRANSFER_RESIDUAL_PAUSE_MS));
+      await tradeFlow.sleep(motionMs(TRANSFER_RESIDUAL_PAUSE_MS));
     }
     if (!isLiveRun(run)) {
       releaseUnflownHolds(run, seeded, bonus);
@@ -1107,11 +1109,12 @@ function syncParkedEvidence(view: PlayerViewModel): void {
   const viewerColor = view.thisPlayer?.color;
   const parked = viewerColor !== undefined && view.waitingFor === undefined &&
     (view.players ?? []).some((p) => p.color !== viewerColor && p.isWaitingForInput);
-  if (parked && resetStillOwed() && parkedNetId === 0) {
+  if (parked && resetStillOwed() && !parkedNetArmed) {
     tradeLog('view proves the queue is parked on another player — arming the bounded conclusion net');
     const run = tradeRun;
-    parkedNetId = setTimeout(() => {
-      parkedNetId = 0;
+    parkedNetArmed = true;
+    cancelParkedNet = tradeFlow.after(TRADE_PARKED_NET_MS, 'the queue parked on another player', () => {
+      parkedNetArmed = false;
       if (!isLiveRun(run) || ctx.glideStarted || !resetStillOwed()) {
         return;
       }
@@ -1121,8 +1124,8 @@ function syncParkedEvidence(view: PlayerViewModel): void {
       }
       tradeLog('queue parked on another player — concluding to committed truth');
       concludeToCommitted();
-    }, TRADE_PARKED_NET_MS) as unknown as number;
-  } else if (!parked && parkedNetId !== 0) {
+    });
+  } else if (!parked && parkedNetArmed) {
     clearParkedNet();
   }
 }
@@ -1134,10 +1137,9 @@ function resetStillOwed(): boolean {
 }
 
 function clearParkedNet(): void {
-  if (parkedNetId !== 0) {
-    clearTimeout(parkedNetId);
-    parkedNetId = 0;
-  }
+  cancelParkedNet();
+  cancelParkedNet = NO_TIMER;
+  parkedNetArmed = false;
 }
 
 /**
@@ -1229,12 +1231,11 @@ function runTrackAdvance(): Promise<void> {
     // The net is THIS run's (R6): kept by id, cleared by the landing and by the next arm, and it re-asks the run —
     // an old trade's net must never settle a NEW trade's advance leg.
     clearAdvanceSafety();
-    advanceSafetyId = setTimeout(() => {
-      advanceSafetyId = 0;
+    cancelAdvanceSafety = tradeFlow.after(motionMs(TRACK_ADVANCE_SAFETY_MS), 'the advance leg\'s landing', () => {
       if (isLiveRun(run)) {
         finishColonyTrackAdvance();
       }
-    }, motionMs(TRACK_ADVANCE_SAFETY_MS)) as unknown as number;
+    });
   });
 }
 
@@ -1281,14 +1282,13 @@ export function finishColonyTrackReset(): void {
   clearSettleTimer();
   // The settle ends THIS run only (R6) — the next trade armed inside the settle window owns `active` now.
   const run = tradeRun;
-  settleTimerId = setTimeout(() => {
-    settleTimerId = 0;
+  cancelSettle = tradeFlow.after(motionMs(colonyTradeState.reducedMotion ? 120 : TRACK_SETTLE_MS + 640), 'the settle\'s glow', () => {
     if (!isLiveRun(run)) {
       return;
     }
     colonyTradeState.settledCell = -1;
     finishTrade();
-  }, motionMs(colonyTradeState.reducedMotion ? 120 : TRACK_SETTLE_MS + 640)) as unknown as number;
+  });
 }
 
 /** Close the transaction (staged ids + seen tradeIds are kept — memory). */
@@ -1314,6 +1314,7 @@ function finishTrade(): void {
   ctx.targets = undefined;
   receiptBase = undefined;
   tradeLog('transaction finished');
+  tradeFlow.end();
 }
 
 // THE LIVENESS ARBITER'S RUNG (rank 20): a transaction standing while the player cannot act (a cover scene whose
@@ -1422,6 +1423,7 @@ export function abortColonyTrade(): void {
   ctx.revealSeen = false;
   ctx.stageYielded = false;
   ctx.answerBlock = 0;
+  tradeFlow.end({how: 'cancelled', reason: 'the trade was aborted'});
 }
 
 /** Test-only full reset (including the session memories). */
@@ -1432,10 +1434,6 @@ export function resetColonyTrade(): void {
   colonyTradeState.zoomEntryReady = false;
   colonyTradeState.glideNonce = 0;
   registerColonyTradeZoomOrigin(undefined);
-}
-
-function pause(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ── THE WAVE: every colony track at once (Turmoil Redux — Unity Budget, RX29) ─
@@ -1535,8 +1533,14 @@ export function colonyTrackWaveDiag(): {active: boolean, tiles: number, lastFini
 }
 
 let waveResolver: (() => void) | undefined;
-let waveNetId = 0;
-let waveGlowId = 0;
+/**
+ * THE WAVE'S RUN (the same law): `scene:colony-track-wave#n`, from the request to the wave's end. It owns the wave's
+ * net; when the game screen leaves under it the wave is finished (`orphaned` — every hold released, the request
+ * resolved).
+ */
+const waveFlow = createFlowRun('colony-track-wave', {orphaned: () => finishColonyTrackWave('session')});
+/** The landed cells' one-shot glow outlives the wave by design: which wave's glow stands (a newer wave supersedes it). */
+let waveGlowSeq = 0;
 
 /**
  * The wave's own net, PAST the plan's whole length AND past the layer's own
@@ -1591,7 +1595,8 @@ export function requestColonyTrackWave(
   tradeLog('track wave', moves.length, 'tiles', reduced ? '(short form)' : '');
   return new Promise<void>((resolve) => {
     waveResolver = resolve;
-    waveNetId = setTimeout(() => finishColonyTrackWave('net'), motionMs(plan.totalMs + TRACK_WAVE_NET_MS)) as unknown as number;
+    waveFlow.begin(`${moves.length} tile(s)`);
+    waveFlow.after(motionMs(plan.totalMs + TRACK_WAVE_NET_MS), 'the wave\'s net', () => finishColonyTrackWave('net'));
   });
 }
 
@@ -1634,10 +1639,7 @@ export function noteColonyTrackWaveLanded(colony: ColonyName, cell: number, move
  * clears, the request resolves. Idempotent.
  */
 export function finishColonyTrackWave(why = 'landed'): void {
-  if (waveNetId !== 0) {
-    clearTimeout(waveNetId);
-    waveNetId = 0;
-  }
+  waveFlow.end(); // its net goes with it
   if (!colonyTrackWaveState.active) {
     // No wave on stage: the holds are somebody else's (the beat's, placed BEFORE its request) — never released here.
     return;
@@ -1649,13 +1651,14 @@ export function finishColonyTrackWave(why = 'landed'): void {
   colonyTrackWaveState.gliding = {};
   colonyTrackWaveState.moves = [];
   // The last landing's glow finishes on its own; the one-shots are cleared after it (cosmetic, never a gate).
-  if (waveGlowId !== 0) {
-    clearTimeout(waveGlowId);
-  }
-  waveGlowId = setTimeout(() => {
-    waveGlowId = 0;
-    colonyTrackWaveState.settled = {};
-  }, motionMs(TRACK_WAVE_GLOW_MS)) as unknown as number;
+  // The marks outlive the wave, so their span is the SESSION's — and taking them down is a release: it happens when
+  // the span has passed or the game screen has left, whichever comes first.
+  const glow = ++waveGlowSeq;
+  void consoleSessionScope().sleep(motionMs(TRACK_WAVE_GLOW_MS)).then(() => {
+    if (glow === waveGlowSeq) {
+      colonyTrackWaveState.settled = {};
+    }
+  });
   // The touched cells are the LIVE marker's business — once every hold is released the model's own
   // position draws them (`passed` below the marker), so the trail ends with the wave.
   colonyTrackWaveState.touched = {};

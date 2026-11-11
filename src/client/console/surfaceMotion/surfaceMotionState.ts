@@ -26,6 +26,7 @@
  */
 
 import {reactive} from 'vue';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {
   AwaitingHandoff,
   CapturedRect,
@@ -157,7 +158,8 @@ export function captureSurfaceDeparture(from: SurfaceMotionId, root: Element | n
  * `departure !== undefined`: the capture is CONSUMED at the start of the
  * travel, while the pose has to hold until the travel ends.
  */
-let carryTimer = 0;
+/** The carry's bound — a GUARANTEED release of the session (the pose is dropped at the bound, or when the game screen leaves). */
+let disarmCarry: () => void = () => {};
 
 /** The carry may never outlive this — a capture nobody consumed, an unmount
  *  mid-travel, a killed tween: the pose must not stick. */
@@ -165,18 +167,14 @@ const CARRY_MAX_MS = 2500;
 
 function armAnchorCarry(): void {
   surfaceMotionState.carrying = true;
-  if (carryTimer !== 0) {
-    window.clearTimeout(carryTimer);
-  }
-  carryTimer = window.setTimeout(endAnchorCarry, CARRY_MAX_MS);
+  disarmCarry();
+  disarmCarry = consoleSessionScope().guarantee(CARRY_MAX_MS, 'the anchor carry', endAnchorCarry);
 }
 
 /** The carried objects are home (or the carry died) — drop the pose. */
 export function endAnchorCarry(): void {
-  if (carryTimer !== 0) {
-    window.clearTimeout(carryTimer);
-    carryTimer = 0;
-  }
+  disarmCarry();
+  disarmCarry = () => {};
   surfaceMotionState.carrying = false;
 }
 
@@ -270,7 +268,7 @@ export function holdCarriedAnchors(root: Element | null | undefined): void {
     node.style.opacity = '0';
     node.style.visibility = 'hidden';
   }
-  window.setTimeout(() => {
+  consoleSessionScope().guarantee(CARRY_HOLD_MAX_MS, 'the carried anchors\' hold', () => {
     for (const node of anchors) {
       // Only OUR hold is released — a FLIP that ran has already replaced both.
       if (node.style.opacity === '0' && node.style.visibility === 'hidden') {
@@ -278,7 +276,7 @@ export function holdCarriedAnchors(root: Element | null | undefined): void {
         node.style.removeProperty('visibility');
       }
     }
-  }, CARRY_HOLD_MAX_MS);
+  });
 }
 
 // ── the awaiting handoff ────────────────────────────────────────────────────

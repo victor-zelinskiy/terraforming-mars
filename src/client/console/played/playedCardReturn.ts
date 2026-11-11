@@ -51,6 +51,8 @@ import {
   detectReturnedToHand, returnPoseSlots, returnPoseRect, ReturnedCard, ReturnDiffView,
   RETURN_READ_MS, RETURN_SAFETY_MS,
 } from '@/client/console/played/playedReturnModel';
+import {span} from '@/client/console/session/sessionWaits';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** The premium face's natural box (320×460) — the flight scale reference. */
 const CARD_NATURAL_H = 460;
@@ -357,7 +359,7 @@ function rectOf(el: HTMLElement | null | undefined): RectLike | undefined {
 }
 
 function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return span(ms);
 }
 
 /** The beat can never wedge the hero transaction (which holds the whole
@@ -368,15 +370,17 @@ function withSafety(work: Promise<void>): Promise<void> {
     const settle = () => {
       if (!done) {
         done = true;
-        window.clearTimeout(timer);
+        disarm();
         resolve();
       }
     };
-    const timer = window.setTimeout(() => {
+    // A GUARANTEED release (the kernel's): the hero's transaction awaits this beat — it is let go at the safety, or when
+    // the game screen leaves.
+    const disarm = consoleSessionScope().guarantee(RETURN_SAFETY_MS, 'the returned card\'s beat', () => {
       aborted = true;
       scene?.kill();
       settle();
-    }, RETURN_SAFETY_MS);
+    });
     void work.then(settle, settle);
   });
 }

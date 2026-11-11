@@ -125,6 +125,7 @@ import {
 } from '@/client/components/board/cubeDropState';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 import {TilePlacementRecordModel} from '@/common/models/TilePlacementRecordModel';
@@ -286,8 +287,17 @@ export const tilePlacementState = reactive({
 
 /** One-shot claim per response (mirrors the sibling transactions). */
 let claimed = false;
-let armSafety: number | undefined;
-let sceneSafety: number | undefined;
+/**
+ * THE PLACEMENT'S RUN (architecture v2 — PLAN §10 · C4): `scene:tile-placement#n` in the session, from the arm (the
+ * confirm, before the POST) to the placement's end — landed and paid out, refused, aborted. It OWNS the arm's safety,
+ * the scene's safety and every still beat of the landing and of its reward waves (`placementRun.after` / `.sleep`):
+ * they are taken back when the placement ends, on every path; a newer arm ends the older run first — a safety of the
+ * placement that is over can never abort the next one; and when the game screen leaves under it the placement is
+ * aborted (`orphaned`). The HOLD stays derived from the transaction's state.
+ */
+const placementRun = createFlowRun('tile-placement', {orphaned: () => abortTilePlacement()});
+let cancelArmSafety: () => void = () => {};
+let cancelSceneSafety: () => void = () => {};
 /** Resolves the WaitingFor commit gate (abort must always free it). */
 let runResolve: (() => void) | undefined;
 /** The printed bonuses the reward beat carries (captured at detect). */
@@ -516,7 +526,7 @@ export function armTilePlacement(opts: {
   // target hex right after the response, and the flight must never aim at
   // a board that is still moving. No-op outside the enter transition.
   snapPlanetFocusSettled();
-  clearTimers();
+  placementRun.begin(opts.spaceId); // a run still standing ends here — its timers with it
   claimed = false;
   pendingBonuses = [];
   pendingBonusRepeats = 1;
@@ -560,7 +570,7 @@ export function armTilePlacement(opts: {
   // THE SCORE CELL (TR55): the board's share of this landing's score change is the tile's to show.
   releaseVpShares(TILE_VP_OWNER, {why: 're-armed'});
   claimVpShares(TILE_VP_OWNER, isBoardVpShare, TILE_VP_RANK);
-  armSafety = window.setTimeout(() => abortTilePlacement(), TILE_ARM_SAFETY_MS);
+  cancelArmSafety = placementRun.after(TILE_ARM_SAFETY_MS, 'the arm\'s safety (no answer claimed it)', () => abortTilePlacement());
 }
 
 /**
@@ -612,10 +622,7 @@ export function detectTilePlacement(
     return undefined;
   }
   claimed = true;
-  if (armSafety !== undefined) {
-    window.clearTimeout(armSafety);
-    armSafety = undefined;
-  }
+  cancelArmSafety();
   const spaceId = tilePlacementState.spaceId;
   const landed = prevSpaces !== undefined && newSpaces !== undefined ?
     verifyPlacement(prevSpaces, newSpaces, spaceId, {replacing: armedReplacing, stacking: armedStacking, movedFrom: armedMovedFrom}) : undefined;
@@ -798,9 +805,8 @@ export function runTilePlacement(
       TILE_FLIGHT_MS + TILE_SETTLE_MS,
       TIER_APPROACH_MS + TIER_HOVER_MS + TIER_DESCENT_MS + TIER_CONTACT_MS + TIER_SETTLE_MS,
       moveSceneMs());
-    sceneSafety = window.setTimeout(() => {
-      freeRunGate(); // rAF stall — force the gate open, degrade gracefully
-    }, motionMs(longest) + 3000);
+    // rAF stall — force the gate open, degrade gracefully.
+    cancelSceneSafety = placementRun.guarantee(motionMs(longest) + 3000, 'the scene\'s safety (the commit gate)', () => freeRunGate());
     void executeApproach(prevSpaces, newSpaces).finally(() => freeRunGate());
   });
 }
@@ -863,7 +869,7 @@ async function executeApproach(
     vacateSource();
     paintRealTile();
     tilePlacementState.phase = 'landed';
-    await wait(tilePlacementState.reducedMotion ? TILE_REDUCED_MS : 60);
+    await placementRun.sleep(tilePlacementState.reducedMotion ? TILE_REDUCED_MS : 60);
     return;
   }
   await nextTick(); // the layer mounts the proxy
@@ -938,7 +944,7 @@ async function executeApproach(
     }
     paintRealTile();
     tilePlacementState.phase = 'landed';
-    await wait(60);
+    await placementRun.sleep(60);
     return;
   }
   const flightMs = motionMs(sprout ? TILE_SPROUT_MS : TILE_FLIGHT_MS);
@@ -1104,7 +1110,7 @@ async function runTierDescent(hex: TileRect, tiers: number, paintRealTile: () =>
     stackContact(spaceId);
     paintRealTile();
     tilePlacementState.phase = 'landed';
-    await wait(60);
+    await placementRun.sleep(60);
     return;
   }
   // 1. The swing — over the site, speed dying out.
@@ -1118,7 +1124,7 @@ async function runTierDescent(hex: TileRect, tiers: number, paintRealTile: () =>
     holdCubeForHeroPlacement(spaceId);
     cubeHeld = true;
   }
-  await wait(motionMs(TIER_HOVER_MS));
+  await placementRun.sleep(motionMs(TIER_HOVER_MS));
   if (!tilePlacementState.active) {
     return;
   }
@@ -1143,7 +1149,7 @@ async function runTierDescent(hex: TileRect, tiers: number, paintRealTile: () =>
     cubeHeld = false;
     dropCubeForHeroPlacement(spaceId);
   }
-  await wait(motionMs(TIER_SETTLE_MS));
+  await placementRun.sleep(motionMs(TIER_SETTLE_MS));
 }
 
 /**
@@ -1188,7 +1194,7 @@ async function runMove(
     vacateSource();
     paintRealTile();
     tilePlacementState.phase = 'landed';
-    await wait(60);
+    await placementRun.sleep(60);
     return;
   }
   // THE COVER of the piece that stays (the water out from under a city): posed over the water's proxy in this same
@@ -1301,7 +1307,7 @@ async function runDeparture(hex: TileRect): Promise<void> {
   if (!tilePlacementState.active) {
     return;
   }
-  await wait(motionMs(TILE_DEPART_BREATH_MS));
+  await placementRun.sleep(motionMs(TILE_DEPART_BREATH_MS));
 }
 
 /**
@@ -1505,7 +1511,7 @@ export async function endTilePlacement(): Promise<void> {
 async function runRewardWave(members: ReadonlyArray<() => Promise<void>>): Promise<void> {
   await Promise.all(members.map(async (run, i) => {
     if (i > 0) {
-      await wait(motionMs(REWARD_WAVE_STAGGER_MS * i));
+      await placementRun.sleep(motionMs(REWARD_WAVE_STAGGER_MS * i));
       if (!tilePlacementState.active) {
         return;
       }
@@ -1535,7 +1541,7 @@ async function runLawWave(wave: PlacementLawWave): Promise<void> {
   const flight = cardReactionAnswerFlight({rows: [...new Set(lawWaveSpecsOf(wave).map((spec) => railRowKey(spec)))]});
   const originOf: ReactorOrigin | undefined = flight === undefined ? undefined : (spec) => flight.originOf(spec);
   try {
-    await wait(motionMs(LAW_WAVE_BREATH_MS));
+    await placementRun.sleep(motionMs(LAW_WAVE_BREATH_MS));
     if (!tilePlacementState.active) {
       return;
     }
@@ -1622,7 +1628,7 @@ async function runMoveRewardBeat(reward: PendingMoveReward): Promise<void> {
         releaseReactions();
         return;
       }
-      await wait(motionMs(TOUCHDOWN_TICK_GAP_MS));
+      await placementRun.sleep(motionMs(TOUCHDOWN_TICK_GAP_MS));
     }
   }
   releaseReactions();
@@ -1726,7 +1732,7 @@ async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>, origi
   });
   // One calm breath: the player reads the bonuses hovering over the placed
   // tile (the commit just ticked the non-held metrics), then the wave goes.
-  await wait(motionMs(BONUS_HANDOFF_BREATH_MS));
+  await placementRun.sleep(motionMs(BONUS_HANDOFF_BREATH_MS));
   if (!tilePlacementState.active) {
     return;
   }
@@ -1829,7 +1835,7 @@ async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>,
   });
 
   // One calm breath after the previous beat, then the neighbourhood answers (a member of the ONE wave: its stagger).
-  await wait(motionMs(breathMs ?? OCEAN_BEAT_BREATH_MS));
+  await placementRun.sleep(motionMs(breathMs ?? OCEAN_BEAT_BREATH_MS));
   if (!tilePlacementState.active) {
     releaseAll();
     return;
@@ -1844,7 +1850,7 @@ async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>,
       drifts: wakes.map((w) => w.drift),
       pulseMs: motionMs(OCEAN_PULSE_MS),
     });
-    await wait(Math.round(motionMs(ARES_WAVE_LEAD_MS) * pace));
+    await placementRun.sleep(Math.round(motionMs(ARES_WAVE_LEAD_MS) * pace));
     if (!tilePlacementState.active) {
       tilePlacementState.aresSources = [];
       releaseAll();
@@ -1923,6 +1929,7 @@ export function abortTilePlacement(): void {
   tilePlacementState.bonusProxies = [];
   tilePlacementState.aresSources = [];
   freeRunGate();
+  placementRun.end({how: 'cancelled', reason: 'the placement was aborted'});
   void nextTick(() => {
     if (tilePlacementState.phase === 'failed') {
       tilePlacementState.phase = 'idle';
@@ -1975,6 +1982,7 @@ function finish(): void {
   tilePlacementState.phase = 'done';
   tilePlacementState.bonusProxies = [];
   tilePlacementState.aresSources = [];
+  placementRun.end();
   void nextTick(() => {
     if (tilePlacementState.phase === 'done') {
       tilePlacementState.phase = 'idle';
@@ -2182,26 +2190,13 @@ function captureBonusIcons(spaceId: string, bonuses: ReadonlyArray<PlacementBonu
 }
 
 function freeRunGate(): void {
-  if (sceneSafety !== undefined) {
-    window.clearTimeout(sceneSafety);
-    sceneSafety = undefined;
-  }
+  cancelSceneSafety();
   const r = runResolve;
   runResolve = undefined;
   r?.();
 }
 
 function clearTimers(): void {
-  if (armSafety !== undefined) {
-    window.clearTimeout(armSafety);
-    armSafety = undefined;
-  }
-  if (sceneSafety !== undefined) {
-    window.clearTimeout(sceneSafety);
-    sceneSafety = undefined;
-  }
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  cancelArmSafety();
+  cancelSceneSafety();
 }

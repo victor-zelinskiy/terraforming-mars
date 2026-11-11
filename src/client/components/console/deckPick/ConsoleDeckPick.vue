@@ -277,6 +277,7 @@ import {
   shouldDealBatch, takeDeckPickDraft,
 } from '@/client/console/deckPick/consoleDeckPick';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {span} from '@/client/console/session/sessionWaits';
 
 /** Bounded retry while the row has no layout yet (JSDOM / mid-reload). */
 const FIT_RETRIES = 20;
@@ -1748,7 +1749,7 @@ export default defineComponent({
         return;
       }
       if (delayMs > 0) {
-        await new Promise<void>((resolve) => window.setTimeout(resolve, motionMs(delayMs)));
+        await span(motionMs(delayMs));
       }
       await runCardTransfer({
         name,

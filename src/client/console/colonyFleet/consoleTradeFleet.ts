@@ -34,6 +34,9 @@ import {ColonyName} from '@/common/colonies/ColonyName';
 import {CardName} from '@/common/cards/CardName';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import type {FlowScope} from '@/client/console/kernel/flowScope';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import type {TradeFleetDirectorHandle} from '@/client/console/colonyFleet/tradeFleetDirector';
 
 export type FleetPhase = 'idle' | 'launch' | 'transit' | 'approach' | 'dock' | 'ack';
@@ -95,6 +98,18 @@ function normalizeTarget(target: TradeFleetTarget | ColonyName): TradeFleetTarge
 }
 
 let handle: TradeFleetDirectorHandle | undefined;
+/**
+ * THE FLIGHT'S RUN (architecture v2 — PLAN §10 · C4): from the arm (the composer's confirm) to the flight's end —
+ * docked and released, or recalled. `scene:trade-fleet#n` in the session. The run OWNS the arm's safety and the parked
+ * gate's window: they are taken back when it ends, on every path; a newer arm ends the older run first; and when the
+ * game screen leaves under it the fleet is recalled (`orphaned`). The HOLD stays derived from `active`.
+ */
+const run = createFlowRun('trade-fleet', {orphaned: () => abortTradeFleet()});
+
+/** The scope the flight's director waits in: the flight's run (the session's when no flight stands — a degenerate call). */
+export function tradeFleetOwner(): FlowScope {
+  return run.scope ?? consoleSessionScope();
+}
 /** Resolves when the DOCK snap completes (the WaitingFor gate awaits this). */
 let dockResolve: (() => void) | undefined;
 /**
@@ -109,15 +124,13 @@ let dockResolve: (() => void) | undefined;
 let launchPending = false;
 /** The gate's resolver parked while the launch is still measuring. */
 let parkedDock: (() => void) | undefined;
-let parkedDockSafety = 0;
+let cancelParkedDockSafety: () => void = () => {};
 /** The longest a gate waits for a pending launch to produce its director. */
 const LAUNCH_WAIT_MS = 1500;
 
 function clearParkedDock(): void {
-  if (parkedDockSafety !== 0) {
-    clearTimeout(parkedDockSafety);
-    parkedDockSafety = 0;
-  }
+  cancelParkedDockSafety();
+  cancelParkedDockSafety = () => {};
 }
 
 /** Hand a parked gate to whoever can resolve it now: the director's dock, or nothing (resolve). */
@@ -147,8 +160,9 @@ export function setTradeFleetLaunchPending(pending: boolean): void {
   }
 }
 let claimed = false; // detectTradeFleet consumes the arm exactly once
-let armSafetyId = 0;
-let settleTimerId = 0;
+let cancelArmSafety: () => void = () => {};
+/** The docked ship's one-shot glow: which landing's glow stands (a newer landing, or a reset, supersedes it). */
+let settleSeq = 0;
 
 export function isTradeFleetActive(): boolean {
   return tradeFleetState.active;
@@ -182,10 +196,8 @@ export function setTradeFleetPhase(phase: FleetPhase): void {
 }
 
 function clearArmSafety(): void {
-  if (armSafetyId !== 0) {
-    clearTimeout(armSafetyId);
-    armSafetyId = 0;
-  }
+  cancelArmSafety();
+  cancelArmSafety = () => {};
 }
 
 /**
@@ -198,7 +210,7 @@ function clearArmSafety(): void {
  */
 export function armTradeFleet(destination: TradeFleetTarget | ColonyName, color: Color): void {
   const target = normalizeTarget(destination);
-  clearArmSafety();
+  run.begin(); // a flight still standing ends here — its timers with it
   claimed = false;
   tradeFleetState.active = true;
   tradeFleetState.phase = 'launch';
@@ -211,7 +223,7 @@ export function armTradeFleet(destination: TradeFleetTarget | ColonyName, color:
   // If no server response confirms the trade within a generous window (a
   // dropped/errored submit that never reached the WaitingFor detect), recall
   // the fleet gracefully so the UI can't strand in "in transit forever".
-  armSafetyId = setTimeout(() => abortTradeFleet(), 12000) as unknown as number;
+  cancelArmSafety = run.after(12000, 'the arm\'s safety (no answer confirmed the trade)', () => abortTradeFleet());
 }
 
 /**
@@ -252,16 +264,16 @@ export function runTradeFleet(): Promise<void> {
     // gate waits for it, never commits the view under a ship still on its pad.
     parkedDock = done;
     clearParkedDock();
-    parkedDockSafety = setTimeout(() => {
-      parkedDockSafety = 0;
+    cancelParkedDockSafety = run.after(LAUNCH_WAIT_MS, 'the launch still measuring its anchors', () => {
       const parked = parkedDock;
       parkedDock = undefined;
       parked?.();
-    }, LAUNCH_WAIT_MS) as unknown as number;
+    });
   } else {
     // No live director (degenerate / reduced-motion snap already finished):
-    // resolve on the next tick so the commit still sequences cleanly.
-    setTimeout(done, tradeFleetState.reducedMotion ? 0 : 120);
+    // resolve on the next tick so the commit still sequences cleanly. The gate's RELEASE never rides a timer that can be
+    // taken back: it opens when the span has passed OR the run has ended first (`sleep` answers either way).
+    void run.sleep(tradeFleetState.reducedMotion ? 0 : 120).then(done);
   }
   return promise;
 }
@@ -287,19 +299,21 @@ export function endTradeFleet(): void {
     tradeFleetState.card = '';
     handle = undefined;
     claimed = false;
+    run.end();
     // The real docked ship is in place — give it a one-shot settle glow now
     // the proxy has fully faded (never a double image during the crossfade).
     if (colony !== '' || card !== '') {
       tradeFleetState.dockedColonyName = colony;
       tradeFleetState.dockedCard = card;
-      if (settleTimerId !== 0) {
-        clearTimeout(settleTimerId);
-      }
-      settleTimerId = setTimeout(() => {
-        tradeFleetState.dockedColonyName = '';
-        tradeFleetState.dockedCard = '';
-        settleTimerId = 0;
-      }, 900) as unknown as number;
+      // The glow outlives the flight by design, so it is the SESSION's span — and its end is a release: the mark is
+      // taken down when the span has passed or the game screen has left, whichever comes first (never left standing).
+      const seq = ++settleSeq;
+      void consoleSessionScope().sleep(900).then(() => {
+        if (seq === settleSeq) {
+          tradeFleetState.dockedColonyName = '';
+          tradeFleetState.dockedCard = '';
+        }
+      });
     }
   };
   if (handle !== undefined) {
@@ -334,15 +348,14 @@ export function abortTradeFleet(): void {
   const r = dockResolve;
   dockResolve = undefined;
   r?.(); // never leave the WaitingFor gate awaiting
+  run.end({how: 'cancelled', reason: 'the fleet was recalled'});
 }
 
 /** Test-only full reset. */
 export function resetTradeFleet(): void {
   clearArmSafety();
-  if (settleTimerId !== 0) {
-    clearTimeout(settleTimerId);
-    settleTimerId = 0;
-  }
+  settleSeq++; // a glow still owed is not this game's any more
+  run.end({how: 'cancelled', reason: 'reset'});
   handle = undefined;
   dockResolve = undefined;
   claimed = false;

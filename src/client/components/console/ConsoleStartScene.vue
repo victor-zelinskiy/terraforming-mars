@@ -1565,6 +1565,9 @@ import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCar
 import {availabilityContextFor, CardAvailabilityView} from '@/client/console/cardAvailability';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {span} from '@/client/console/session/sessionWaits';
+import {whenPainted} from '@/client/console/session/sessionWaits';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 
 function textOf(v: string | Message | undefined): string {
@@ -6465,9 +6468,7 @@ export default defineComponent({
      * so a single one measures a layout the compositor has not shown yet.
      */
     settledFrame(): Promise<void> {
-      return new Promise<void>((resolve) => (typeof requestAnimationFrame === 'function' ?
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())) :
-        window.setTimeout(resolve, 32)));
+      return whenPainted();
     },
     /**
      * A deliberate CHOREOGRAPHIC offset between two beats of this scene's own
@@ -6476,7 +6477,7 @@ export default defineComponent({
      * speed preset keeps the whole phrase in proportion.
      */
     beat(ms: number): Promise<void> {
-      return new Promise<void>((resolve) => window.setTimeout(resolve, motionMs(ms)));
+      return span(motionMs(ms));
     },
     /**
      * THE JOURNEY RAIL'S DIRECTIONAL PULSE. The rail must NOT move its
@@ -7353,7 +7354,7 @@ export default defineComponent({
       this.fitLegacyView();
       await this.$nextTick();
       // One settled frame: the zoom var must be applied before measuring.
-      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      await whenPainted();
       if (this.legacyView.phase !== 'entering') {
         return; // torn down mid-beat (mode flip / unmount)
       }
@@ -7539,7 +7540,7 @@ export default defineComponent({
       this.tenderView.phase = 'entering';
       await this.$nextTick();
       this.fitTenderList();
-      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      await whenPainted();
       if (this.tenderView.phase !== 'entering') {
         return; // torn down mid-beat
       }
@@ -7798,7 +7799,7 @@ export default defineComponent({
       // The row's size and the deck's place are measured on the layer as it stands NOW (the page may have parked late).
       this.fitRestructureRow();
       this.placeTenderDeck();
-      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      await whenPainted();
       const deck = (this.$refs.tenderDeck ?? undefined) as HTMLElement | undefined;
       const deckRect = deck?.getBoundingClientRect();
       const root = this.sceneRoot();
@@ -8015,7 +8016,7 @@ export default defineComponent({
       this.tenderSheet = {instance: entry.instance, id: entry.id, phase: 'entering'};
       await this.$nextTick();
       this.fitTenderSheet();
-      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      await whenPainted();
       const hero = this.sheetHeroEl();
       await flight.flyTo((n) => (n === entry.instance ? hero : miniOf(n)),
         (n) => {
@@ -8057,7 +8058,7 @@ export default defineComponent({
       this.tenderView.phase = 'entering';
       await this.$nextTick();
       this.fitTenderList();
-      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      await whenPainted();
       const root = this.sceneRoot();
       const slotOf = (n: string) => root?.querySelector<HTMLElement>(`[data-tport-slot="${n}"]`) ?? null;
       const pairs = this.doorEntries
@@ -8208,7 +8209,7 @@ export default defineComponent({
       if (!gamble) {
         this.submitTender(response);
       }
-      await new Promise<void>((r) => window.setTimeout(r, motionMs(560)));
+      await span(motionMs(560));
       await this.handOffSheet(false);
       if (gamble && page !== undefined) {
         // The page is back: every card of it goes back into the tender deck, THEN the new deal is asked for.
@@ -8363,7 +8364,7 @@ export default defineComponent({
         await this.whenPageUncovered();
         await this.$nextTick();
         this.fitCardStrip();
-        await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+        await whenPainted();
         const pairs: Array<GlidePair> = [];
         for (const k of keys) {
           const name = k.slice(step.length + 1) as CardName;
@@ -8793,9 +8794,9 @@ export default defineComponent({
           document.body.classList.remove('con-start-barshold');
           return;
         }
-        requestAnimationFrame(step);
+        probeTick(step);
       };
-      requestAnimationFrame(step);
+      probeTick(step);
     },
     /** The «КУПЛЕНО» chrome enters only once the LAST bought project stands
      *  in the row — the box materializes around cards, never around a
@@ -8909,7 +8910,7 @@ export default defineComponent({
         return Promise.resolve();
       }
       return new Promise<void>((resolve) => {
-        const safety = window.setTimeout(resolve, motionMs(680) + 600);
+        const safety = consoleSessionScope().guarantee(motionMs(680) + 600, 'ConsoleStartScene: a beat\'s safety', resolve);
         gsap.to(host, {
           autoAlpha: 0,
           scale: 0.995,
@@ -8917,7 +8918,7 @@ export default defineComponent({
           duration: motionMs(640) / 1000,
           ease: 'power2.inOut',
           onComplete: () => {
-            window.clearTimeout(safety);
+            safety();
             resolve();
           },
         });
@@ -9019,7 +9020,7 @@ export default defineComponent({
       this.ceremonyRevealed = true;
       this.syncCeremonyLayout();
       await this.$nextTick();
-      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      await whenPainted();
       await this.awaitQueueStability();
 
       // THE RISE — the cards come toward the viewer over the frozen summary.
@@ -9029,7 +9030,7 @@ export default defineComponent({
       // the airborne cards; the convoy leaves a beat into the dissolve and
       // lands on geometry that no longer changes.
       const fade = this.dissolveFreeze();
-      await new Promise<void>((r) => window.setTimeout(r, motionMs(150)));
+      await span(motionMs(150));
       // THE BARS ENTER AS THE CONVOY ARRIVES — never at take-off: the watcher
       // releases them the first frame the cards are deep in their carry AND
       // no card overlaps a bar's zone (see releaseBarsWithConvoy).

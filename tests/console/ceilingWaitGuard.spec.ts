@@ -15,7 +15,7 @@ import * as path from 'path';
 const ROOTS = ['src/client/console', 'src/client/components/console'].map((r) => path.resolve(r));
 const PRIMITIVE = path.resolve('src/client/console/waitGraph/ceilingWait.ts');
 /** Waits already on the primitive — a helper that delegates to one of them is covered. */
-const ON_PRIMITIVE = /\b(beginCeilingWait|raceCeiling|waitConsoleQuiet|waitRewardPayoutQuiet|waitBoardSceneQuiet|waitBoardStoryQuiet|waitScreenHandoff|waitQuiet)\(/;
+const ON_PRIMITIVE = /\b(beginCeilingWait|raceCeiling|untilCeiling|waitConsoleQuiet|waitRewardPayoutQuiet|waitBoardSceneQuiet|waitBoardStoryQuiet|waitScreenHandoff|waitQuiet)\(/;
 /** What makes a body a CEILING: a timer, a bound, a budget, a frame count. */
 const CEILING = /\b(setTimeout|scheduleParliamentBeat|delayedCall|maxMs|budgetMs|maxFrames|cap)\b|[A-Z_]+_MS\b/;
 

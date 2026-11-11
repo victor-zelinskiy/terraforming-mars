@@ -16,6 +16,7 @@
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {descendCascadeComposited, descendFlipComposited, descendFlipFrom, descendRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 type Rect = {left: number, top: number, width: number, height: number};
 
@@ -136,16 +137,18 @@ function runEpisode(root: Element, totalMs: number, anims: ReadonlyArray<Animati
       return;
     }
     ended = true;
-    window.clearTimeout(backstop);
+    disarmBackstop();
     if (episodes.get(root) === anims) {
       episodes.delete(root);
     }
     done();
   };
-  const backstop = window.setTimeout(() => anims.forEach((a) => {
+  // A GUARANTEED release (the kernel's): the carry's animations are finished at the backstop, or when the game screen
+  // leaves — `done` is never left owed.
+  const disarmBackstop = consoleSessionScope().guarantee(motionMs(totalMs) + 900, 'the payload carry\'s animations', () => anims.forEach((a) => {
     if (a.playState !== 'finished' && a.playState !== 'idle') {
       a.finish();
     }
-  }), motionMs(totalMs) + 900);
+  }));
   void Promise.allSettled(anims.map((a) => a.finished)).then(end);
 }

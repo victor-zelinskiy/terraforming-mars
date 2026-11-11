@@ -61,9 +61,24 @@
  * occupancy flags, so the existing blocked/freed broadcast (which drains the
  * notification queue and re-mounts held surfaces) fires the instant the last
  * hold releases — the UI continues immediately, never a fixed delay.
+ *
+ * EVERY HOLD IS A RUN OF THE FLOW TREE (architecture v2 — docs/claude/console/architecture-v2/PLAN.md §10 · C2). A
+ * hold that stands is a `scene` scope of the flow kernel, opened in the session that stands when it rises
+ * (`scene:hold:<label>#n` under `session:game#n`; under the lobby when no game screen is up): the tree names every scene
+ * that owns the foreground and since when, the ceiling is a timer OWNED by that scope (the kernel's clock — one
+ * clock, a manual one in a spec), and the run ends exactly once — `done` when its flow lets go, `expired` at the
+ * ceiling (or when a net ends it), `cancelled` when ITS SESSION ENDS UNDER IT. That last end is the one the registry
+ * did not have: a hold raised in a game that is gone used to stand into the next one for the rest of its 35 s (a
+ * supplier whose module nobody reset — for ever, masked only by the ceiling). Now the session's end is the ceiling:
+ * the hold is taken down through its owner's recovery, the same door the ceiling uses, at the moment the game screen
+ * leaves. A manual hold's handle carries its scope (`hold.scope`) — a beat's own timers and waits belong IN it
+ * (`hold.scope.after(…)`), and end with it.
  */
 import {computed, reactive, watch} from 'vue';
 import {ReactivePredicate, reactivePredicate} from '@/client/components/presentation/reactivityWitness';
+import {FlowScope, ScopeEnd} from '@/client/console/kernel/flowScope';
+import {traceFlow} from '@/client/console/kernel/flowTrace';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 export type AnimationHoldScope = 'blocking' | 'notification-only';
 
@@ -102,8 +117,12 @@ export type AnimationHoldOptions = {
   waitsFor?: 'player' | 'server',
 };
 
-/** Idempotent release token — safe to call from every exit path, twice over. */
-export type AnimationHold = {release: () => void};
+/**
+ * Idempotent release token — safe to call from every exit path, twice over. `scope` is the hold's run in the flow
+ * tree: it lives exactly as long as the hold stands (released, expired, or its session gone), so a timer or a wait
+ * opened in it can never outlive the beat it serves.
+ */
+export type AnimationHold = {release: () => void, readonly scope: FlowScope<'scene'>};
 
 /** Above every per-flow safety timer (largest today: the deck-draw 30 s). */
 export const DEFAULT_MAX_HOLD_MS = 35_000;
@@ -117,10 +136,20 @@ type SupplierEntry = {
   diagnose: (() => unknown) | undefined,
   expire: (() => void) | undefined,
   stop: () => void,
-  ceilingTimer: ReturnType<typeof setTimeout> | undefined,
+  /** The hold's run while it stands and is bounded (the ceiling is a timer owned by it). `undefined` = not holding,
+   *  or past its ceiling (masked until an honest false). */
+  run: FlowScope<'scene'> | undefined,
   /** Epoch ms of the current rising edge (undefined = not holding). */
   heldSince: number | undefined,
 };
+
+/** A hold's run: a `scene` scope in the session that stands NOW (the game's; the lobby's when no game screen is up). */
+function openHoldRun(label: string): FlowScope<'scene'> {
+  return consoleSessionScope().open('scene', `hold:${label}`);
+}
+
+/** The ceiling's name in the wait table (`⟵ waits «the hold's ceiling» 1.2s/35s`). */
+const CEILING = 'the hold\'s ceiling';
 
 /** Run a hold's owner recovery safely — its failure is warned, never thrown
  *  into the ceiling timer / the watchdog. */
@@ -157,6 +186,8 @@ const suppliers = new Map<string, SupplierEntry>();
  * 2026-10-26 (the director's run kept waiting on a beat nobody would finish; only an unmount ended it).
  */
 const manualRecovery = new Map<number, {diagnose: (() => unknown) | undefined, expire: (() => void) | undefined}>();
+/** A manual hold's run in the flow tree (kept off the reactive store — a scope, not state). */
+const manualRuns = new Map<number, FlowScope<'scene'>>();
 
 const store = reactive({
   /** Bumped on (un)register so the counts computed re-scans the Map. */
@@ -250,7 +281,7 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
     diagnose: options?.diagnose,
     expire: options?.expire,
     stop: () => {},
-    ceilingTimer: undefined,
+    run: undefined,
     heldSince: undefined,
   };
   // The ceiling: a supplier stuck true past maxHoldMs is EXPIRED (excluded
@@ -269,26 +300,51 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
   store.version++;
 }
 
-/** Arm the ceiling for a supplier's rising edge (idempotent). */
+/** Take a supplier's run off the entry and end it (idempotent) — the registry's own endings all go through here, so
+ *  the run's end listener can tell them from the one ending it does not make: its session going. */
+function endSupplierRun(entry: SupplierEntry, end: ScopeEnd): void {
+  const run = entry.run;
+  entry.run = undefined;
+  run?.end(end);
+}
+
+/** Arm the ceiling for a supplier's rising edge (idempotent): the hold's run opens, bounded. */
 function armCeiling(label: string, entry: SupplierEntry): void {
-  if (entry.ceilingTimer !== undefined || store.expired.has(label) || store.quarantined.has(label)) {
+  if (entry.run !== undefined || store.expired.has(label) || store.quarantined.has(label)) {
     return;
   }
   entry.heldSince = entry.heldSince ?? Date.now();
-  entry.ceilingTimer = setTimeout(() => {
-    entry.ceilingTimer = undefined;
+  const run = openHoldRun(label);
+  entry.run = run;
+  run.after(entry.maxHoldMs, CEILING, () => {
+    if (entry.run !== run) {
+      return;
+    }
+    entry.run = undefined;
     store.expired.add(label);
     console.warn(`[animation-hold] "${label}" held for over ${entry.maxHoldMs}ms — force-released by the safety ceiling (leaked hold?)${safeDiagnose(entry.diagnose)}`);
     safeExpireRecovery(label, entry.expire);
-  }, entry.maxHoldMs);
+    run.end({how: 'expired', bound: `the ${entry.maxHoldMs} ms ceiling`});
+  });
+  run.onEnd(() => {
+    if (entry.run !== run) {
+      return; // ended by the registry — the falling edge, the ceiling, a net, an unregister
+    }
+    // ITS SESSION ENDED UNDER IT. The flow still says it owns the foreground of a game screen that is gone: that is the
+    // ceiling's case, met NOW instead of 35 s into the next game — masked until an honest false, and the owner's
+    // recovery ends the wedge behind it.
+    entry.run = undefined;
+    if (suppliers.get(label) === entry && !store.expired.has(label) && !store.quarantined.has(label) && safeRead(label, entry.supplier)) {
+      store.expired.add(label);
+      traceFlow(Date.now(), 'cancel', run.id, 'still held when its session ended — ended through its owner\'s recovery');
+      safeExpireRecovery(label, entry.expire);
+    }
+  });
 }
 
-/** Disarm the ceiling on a supplier's falling edge (idempotent). */
+/** Disarm the ceiling on a supplier's falling edge (idempotent): the hold's run is done. */
 function disarmCeiling(label: string, entry: SupplierEntry): void {
-  if (entry.ceilingTimer !== undefined) {
-    clearTimeout(entry.ceilingTimer);
-    entry.ceilingTimer = undefined;
-  }
+  endSupplierRun(entry, {how: 'done'});
   entry.heldSince = undefined;
   store.expired.delete(label);
 }
@@ -301,12 +357,29 @@ export function unregisterAnimationHoldSupplier(label: string): void {
   }
   entry.stop();
   entry.supplier.dispose();
-  if (entry.ceilingTimer !== undefined) {
-    clearTimeout(entry.ceilingTimer);
-  }
+  endSupplierRun(entry, {how: 'cancelled', reason: 'its supplier was unregistered'});
   suppliers.delete(label);
   store.expired.delete(label);
   store.version++;
+}
+
+/**
+ * Take a manual hold out of the registry and end its run (idempotent — `undefined` when it is already gone). Every
+ * ending of a manual hold goes through here: the registry forgets it FIRST, so the run's own end listener — which
+ * exists for the one ending the registry does not make, its session going — finds nothing left to do.
+ */
+function dropManualHold(id: number, end: ScopeEnd): {label: string, diagnose: (() => unknown) | undefined, expire: (() => void) | undefined} | undefined {
+  const hold = store.manual.get(id);
+  if (hold === undefined) {
+    return undefined;
+  }
+  store.manual.delete(id);
+  const recovery = manualRecovery.get(id);
+  manualRecovery.delete(id);
+  const run = manualRuns.get(id);
+  manualRuns.delete(id);
+  run?.end(end);
+  return {label: hold.label, diagnose: recovery?.diagnose, expire: recovery?.expire};
 }
 
 /**
@@ -320,25 +393,30 @@ export function beginAnimationHold(label: string, options?: AnimationHoldOptions
   if (options?.diagnose !== undefined || options?.expire !== undefined) {
     manualRecovery.set(id, {diagnose: options.diagnose, expire: options.expire});
   }
-  const ceiling = setTimeout(() => {
-    const recovery = manualRecovery.get(id);
-    manualRecovery.delete(id);
-    if (store.manual.delete(id)) {
-      console.warn(`[animation-hold] "${label}" held for over ${maxHoldMs}ms — force-released by the safety ceiling (leaked hold?)${safeDiagnose(recovery?.diagnose)}`);
+  const run = openHoldRun(label);
+  manualRuns.set(id, run);
+  run.after(maxHoldMs, CEILING, () => {
+    const dropped = dropManualHold(id, {how: 'expired', bound: `the ${maxHoldMs} ms ceiling`});
+    if (dropped !== undefined) {
+      console.warn(`[animation-hold] "${label}" held for over ${maxHoldMs}ms — force-released by the safety ceiling (leaked hold?)${safeDiagnose(dropped.diagnose)}`);
       // The ceiling ends the WEDGE, not just the count: the owner's recovery runs (the supplier's contract).
-      safeExpireRecovery(label, recovery?.expire);
+      safeExpireRecovery(label, dropped.expire);
     }
-  }, maxHoldMs);
-  let released = false;
+  });
+  run.onEnd((end) => {
+    // Still in the registry = nobody released it and no net ended it: ITS SESSION ENDED UNDER IT. A handle cannot stand
+    // into the next game — it goes with the game screen that raised it, through its owner's recovery (the wedge behind
+    // it — a director's run awaiting a beat nobody will finish — ends too).
+    const dropped = dropManualHold(id, end);
+    if (dropped !== undefined) {
+      traceFlow(Date.now(), 'cancel', run.id, 'still held when its session ended — released with it');
+      safeExpireRecovery(label, dropped.expire);
+    }
+  });
   return {
+    scope: run,
     release: () => {
-      if (released) {
-        return;
-      }
-      released = true;
-      clearTimeout(ceiling);
-      manualRecovery.delete(id);
-      store.manual.delete(id);
+      dropManualHold(id, {how: 'done'});
     },
   };
 }
@@ -466,15 +544,15 @@ export function expireActiveAnimationHolds(permanent = false): ReadonlyArray<str
       if (permanent) {
         store.quarantined.add(label);
       }
+      // Its run ends HERE: the ceiling's timer goes with it, so the owner's recovery runs once — not again at 35 s.
+      endSupplierRun(entry, {how: 'expired', bound: 'the foreground watchdog'});
       safeExpireRecovery(label, entry.expire);
       expired.push(`animation:${label}${permanent ? ' (quarantined)' : ''}`);
     }
   }
   for (const [id, hold] of [...store.manual]) {
-    store.manual.delete(id);
-    const recovery = manualRecovery.get(id);
-    manualRecovery.delete(id);
-    safeExpireRecovery(hold.label, recovery?.expire);
+    const dropped = dropManualHold(id, {how: 'expired', bound: 'the foreground watchdog'});
+    safeExpireRecovery(hold.label, dropped?.expire);
     if (permanent) {
       store.quarantined.add(hold.label);
     }
@@ -561,15 +639,14 @@ export function expireAnimationHoldNow(label: string): boolean {
   if (entry !== undefined && entry.heldSince !== undefined && !store.expired.has(label)) {
     store.expired.add(label);
     store.version++;
+    endSupplierRun(entry, {how: 'expired', bound: 'the wait graph'});
     safeExpireRecovery(label, entry.expire);
     did = true;
   }
   for (const [id, hold] of [...store.manual.entries()]) {
     if (hold.label === label) {
-      const recovery = manualRecovery.get(id);
-      manualRecovery.delete(id);
-      store.manual.delete(id);
-      safeExpireRecovery(label, recovery?.expire);
+      const dropped = dropManualHold(id, {how: 'expired', bound: 'the wait graph'});
+      safeExpireRecovery(label, dropped?.expire);
       did = true;
     }
   }
@@ -603,8 +680,11 @@ export function whenAnimationsSettled(): Promise<void> {
 /** Test-only: drop every manual hold + expiry (suppliers mirror flow state,
  *  which the specs reset themselves; unregister per-spec labels explicitly). */
 export function resetAnimationHoldsForTest(): void {
-  store.manual.clear();
+  for (const id of [...store.manual.keys()]) {
+    dropManualHold(id, {how: 'cancelled', reason: 'test reset'});
+  }
   manualRecovery.clear();
+  manualRuns.clear();
   store.expired.clear();
   store.quarantined.clear();
 }

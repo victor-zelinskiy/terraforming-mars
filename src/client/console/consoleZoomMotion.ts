@@ -56,6 +56,8 @@ import {ZoomOrigin} from '@/client/console/consoleCardZoom';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {probeTick} from '@/client/console/probeTick';
 
 const HOLD_CLASS = 'con-zoom-hold';
 
@@ -316,9 +318,9 @@ export function playZoomClose(dialog: HTMLElement | undefined, index: number): P
       resolve();
     };
     // Safety: never strand the dialog behind a stalled rAF.
-    const safety = window.setTimeout(finish, motionMs(420) + 400);
+    const safety = consoleSessionScope().guarantee(motionMs(420) + 400, 'consoleZoomMotion: a beat\'s safety', finish);
     const done = () => {
-      window.clearTimeout(safety);
+      safety();
       finish();
     };
     if (reduced) {
@@ -405,9 +407,9 @@ export function playZoomHandoff(dialog: HTMLElement | undefined, resolveTarget: 
         resolve();
       }
     };
-    const safety = window.setTimeout(finish, motionMs(340) + 1500);
+    const safety = consoleSessionScope().guarantee(motionMs(340) + 1500, 'consoleZoomMotion: a beat\'s safety', finish);
     const done = () => {
-      window.clearTimeout(safety);
+      safety();
       finish();
     };
     const dive = () => {
@@ -432,7 +434,7 @@ export function playZoomHandoff(dialog: HTMLElement | undefined, resolveTarget: 
       if (rect === undefined || sig !== lastSig) {
         lastSig = sig;
         if (tries < 45) {
-          requestAnimationFrame(poll);
+          probeTick(poll);
         } else {
           dive(); // the surface never produced a stable slot — honest exit
         }
@@ -463,7 +465,7 @@ export function playZoomHandoff(dialog: HTMLElement | undefined, resolveTarget: 
       tl.to(stage, {autoAlpha: 0, duration: motionMs(130) / 1000, ease: 'power1.out'});
       ctx.tween = tl;
     };
-    requestAnimationFrame(poll);
+    probeTick(poll);
   });
 }
 
@@ -533,9 +535,9 @@ export function playZoomSwap(dialog: HTMLElement | undefined, swapState: () => v
       }
     };
     // Safety: a stalled rAF can never leave the swap guard stuck.
-    const safety = window.setTimeout(done, motionMs(320) + 500);
+    const safety = consoleSessionScope().guarantee(motionMs(320) + 500, 'consoleZoomMotion: a beat\'s safety', done);
     const finish = () => {
-      window.clearTimeout(safety);
+      safety();
       done();
     };
     if (consoleReducedMotionActive()) {

@@ -1894,6 +1894,7 @@ import {createWorkspaceController, WorkspacePort} from '@/client/console/shell/w
 import {createCommandBarController, CommandBarPort} from '@/client/console/shell/commandBarController';
 import {createPadRouterController, PadRouterPort} from '@/client/console/shell/padRouterController';
 import {createViewApplyController, ViewApplyPort} from '@/client/console/shell/viewApplyController';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 
 /* (The terminal std-project beat's length is the PHRASE's own now — press,
@@ -3169,7 +3170,7 @@ export default defineComponent({
           const owned: {hold?: AnimationHold} = {};
           const release = () => owned.hold?.release();
           owned.hold = beginAnimationHold('screen-control-owed', {scope: 'notification-only', expire: release});
-          window.setTimeout(release, ms);
+          consoleSessionScope().guarantee(ms, 'ConsoleShell: a release\'s bound', release);
         },
         // A DEFECT PUT IN ON PURPOSE is declared to the liveness arbiter: the screen shadow's live control hides a
         // question's surface for a few seconds to prove the shadow names it, and the arbiter (a stranded question is

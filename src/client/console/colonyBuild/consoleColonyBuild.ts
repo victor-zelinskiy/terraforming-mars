@@ -62,6 +62,7 @@ import {
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {armBoardCardBonus, abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {createFlowRun} from '@/client/console/session/flowRun';
 
 export const colonyBuildState = reactive({
   /** TRUE from arm until finish/abort — the transaction lock. */
@@ -116,8 +117,16 @@ export type ColonyBuildReceipt = {colony: string, slot: number};
 
 /** One-shot claim per response (mirrors the sibling transactions). */
 let claimed = false;
-let armSafety: number | undefined;
-let sceneSafety: number | undefined;
+/**
+ * THE BUILD'S RUN (architecture v2 — PLAN §10 · C4): from the arm (A, before the POST) to the build's end — landed,
+ * refused, aborted, reset. `scene:colony-build#n` in the session. The run OWNS the arm's safety, the scene's safety and
+ * the scene's still beats: they are taken back when it ends, on every path, and a newer arm ends the older run first —
+ * a safety of a build that is over can never abort the next one. When the game screen leaves under it the run is
+ * cancelled and the build is aborted (`orphaned`) — no `reset…()` row is what keeps it out of the next game.
+ */
+const run = createFlowRun('colony-build', {orphaned: () => abortColonyBuild()});
+let cancelArmSafety: () => void = () => {};
+let cancelSceneSafety: () => void = () => {};
 /** Resolves the WaitingFor commit gate (abort must always free it). */
 let runResolve: (() => void) | undefined;
 /** The resource specs the leaving bonus carries (captured at detect). */
@@ -185,7 +194,7 @@ function expireColonyBuild(): void {
  *  (Titan's floaters) — the chip then flies onto that exact card instead of
  *  the bonus arriving as a detached prompt after the cube. */
 export function armColonyBuild(colonyName: string, slotIndex: number, color: Color, targetCard?: CardName, door: ColonyBuildDoor = 'live'): void {
-  clearTimers();
+  run.begin(); // a run still standing ends here — its timers with it
   claimed = false;
   colonyBuildState.degraded = false;
   colonyBuildState.door = door;
@@ -206,7 +215,7 @@ export function armColonyBuild(colonyName: string, slotIndex: number, color: Col
   colonyBuildState.slotRect = undefined;
   colonyBuildState.cubeFactor = CUBE_SLOT_F;
   colonyBuildState.reducedMotion = consoleReducedMotionActive();
-  armSafety = window.setTimeout(() => abortColonyBuild(), ARM_SAFETY_MS);
+  cancelArmSafety = run.after(ARM_SAFETY_MS, 'the arm\'s safety (no answer claimed it)', () => abortColonyBuild());
 }
 
 /**
@@ -219,10 +228,7 @@ export function detectColonyBuild(prevView: ViewModel, newView: ViewModel): {col
     return undefined;
   }
   claimed = true;
-  if (armSafety !== undefined) {
-    window.clearTimeout(armSafety);
-    armSafety = undefined;
-  }
+  cancelArmSafety();
   const color = newView.thisPlayer?.color;
   const proof = color === undefined ? undefined : verifyColonyBuild(
     prevView.game?.colonies ?? [], newView.game?.colonies ?? [], colonyBuildState.colonyName, color);
@@ -251,9 +257,9 @@ export function detectColonyBuild(prevView: ViewModel, newView: ViewModel): {col
 export function runColonyBuild(): Promise<void> {
   return new Promise<void>((resolve) => {
     runResolve = resolve;
-    sceneSafety = window.setTimeout(() => {
-      freeRunGate(); // rAF stall — force the gate open, degrade gracefully
-    }, motionMs(CUBE_APPROACH_MS + BONUS_CLEAR_MS + CUBE_DESCENT_MS + CUBE_SETTLE_MS) + 4000);
+    // rAF stall — force the gate open, degrade gracefully.
+    cancelSceneSafety = run.guarantee(motionMs(CUBE_APPROACH_MS + BONUS_CLEAR_MS + CUBE_DESCENT_MS + CUBE_SETTLE_MS) + 4000,
+      'the scene\'s safety (the commit gate)', () => freeRunGate());
     void executeBuild().finally(() => freeRunGate());
   });
 }
@@ -272,7 +278,7 @@ async function executeBuild(): Promise<void> {
     }
     startBonusExit();
     colonyBuildState.phase = 'landed';
-    await wait(colonyBuildState.reducedMotion ? REDUCED_MS : 60);
+    await run.sleep(colonyBuildState.reducedMotion ? REDUCED_MS : 60);
     await settleBonusFlight();
     return;
   }
@@ -285,7 +291,7 @@ async function executeBuild(): Promise<void> {
     confessDegrade('no stage for the cube');
     startBonusExit();
     colonyBuildState.phase = 'landed';
-    await wait(60);
+    await run.sleep(60);
     await settleBonusFlight();
     return;
   }
@@ -299,7 +305,7 @@ async function executeBuild(): Promise<void> {
   startBonusExit();
   // 3) Wait for the bonus to CLEAR the slot bounds before the cube may descend
   //    (their flights may overlap, but never in the same area).
-  await wait(motionMs(BONUS_CLEAR_MS));
+  await run.sleep(motionMs(BONUS_CLEAR_MS));
   if (!colonyBuildState.active) {
     return;
   }
@@ -416,6 +422,7 @@ export function abortColonyBuild(): void {
   colonyBuildState.active = false;
   colonyBuildState.phase = 'failed';
   freeRunGate();
+  run.end({how: 'cancelled', reason: 'the build was aborted'});
   void nextTick(() => {
     if (colonyBuildState.phase === 'failed') {
       resetTransient();
@@ -436,6 +443,7 @@ function finish(): void {
   }
   colonyBuildState.active = false;
   colonyBuildState.phase = 'done';
+  run.end();
   void nextTick(() => {
     if (colonyBuildState.phase === 'done') {
       resetTransient();
@@ -485,6 +493,7 @@ export function resetColonyBuild(): void {
   claimed = false;
   runResolve = undefined;
   colonyBuildState.active = false;
+  run.end({how: 'cancelled', reason: 'reset'});
   resetTransient();
 }
 
@@ -605,26 +614,13 @@ function restoreHeldGlyph(): void {
 }
 
 function freeRunGate(): void {
-  if (sceneSafety !== undefined) {
-    window.clearTimeout(sceneSafety);
-    sceneSafety = undefined;
-  }
+  cancelSceneSafety();
   const r = runResolve;
   runResolve = undefined;
   r?.();
 }
 
 function clearTimers(): void {
-  if (armSafety !== undefined) {
-    window.clearTimeout(armSafety);
-    armSafety = undefined;
-  }
-  if (sceneSafety !== undefined) {
-    window.clearTimeout(sceneSafety);
-    sceneSafety = undefined;
-  }
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  cancelArmSafety();
+  cancelSceneSafety();
 }

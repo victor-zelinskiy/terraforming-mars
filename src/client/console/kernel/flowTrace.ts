@@ -31,7 +31,7 @@ export type FlowTraceRecord = {
   detail: string,
 };
 
-const RING = 400;
+const RING = 800;
 const ring: Array<FlowTraceRecord> = [];
 const listeners = new Set<(record: FlowTraceRecord) => void>();
 

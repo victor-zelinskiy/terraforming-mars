@@ -24,6 +24,7 @@
 
 import {gsap} from 'gsap';
 import {BuildRect, CUBE_WAIT_LIFT_FACTOR, CUBE_APPROACH_EXTRA_FACTOR} from '@/client/console/colonyBuild/colonyBuildModel';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 export type ColonyBuildStageEls = {
   /** The positioned wrapper at the slot rect (the dispose target). */
@@ -44,11 +45,11 @@ function guarded(run: (done: () => void) => void, budgetMs: number): Promise<voi
     const done = () => {
       if (!settled) {
         settled = true;
-        window.clearTimeout(safety);
+        safety();
         resolve();
       }
     };
-    const safety = window.setTimeout(done, budgetMs + 1200);
+    const safety = consoleSessionScope().guarantee(budgetMs + 1200, 'colonyBuildDirector: a beat\'s safety', done);
     run(done);
   });
 }

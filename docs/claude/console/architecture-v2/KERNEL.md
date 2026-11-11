@@ -33,10 +33,30 @@ The kernel is the bottom layer of the console's architecture v2. It owns two thi
 | `signal` | an `AbortSignal` aborted with the scope — hand it to `fetch` / listeners. |
 | `isLive()` | reactive (a computed or a template may read it); `ended` is the plain read. |
 | `detail` | a free-form fact for the trace and the tree dump (a machine's state is written here by the binding). |
+| `after(ms, what, run)` | an OWNED timer: `run` is called once, in the timer's own task — and never after the scope has ended. A row of the wait table (`family: 'timer'`) while pending. Returns the cancel. What a raw `setTimeout` in a flow becomes. |
+| `afterFrame(what, run, n?)` | the same on the page's frames (what a raw `requestAnimationFrame` becomes). |
+| `everyFrame(what, tick)` | a frame LOOP owned by the scope: `tick` on every frame until it returns `false`, its `stop` is called, or the scope ends — one row for the loop's life. A window that does not paint calls no `tick`: what must happen anyway is a `guarantee` beside it. |
+| `sleep(ms)` | a span: `true` when it passed, `false` AT ONCE when the scope ended first. |
+| `guarantee(ms, what, release)` | a RELEASE that cannot be lost: `release` is called exactly once — at `ms`, OR when the scope ends, whichever comes first — unless the returned `disarm` is called before either. The opposite of `after` (which is taken back): what the safety of a tween's promise becomes. Asked of an ended scope it comes due at once — a microtask later, never inside the `guarantee()` call (the caller's `const disarm = …` is not assigned yet). |
 
 Targets: `ended(otherFlow)` · `joined(ownDescendant)` · `until(what, reactiveRead, {polledMs?})` (LEVEL-triggered —
 true now resolves now) · `motion(what, gsapOrWaapi)` (settles on completion AND on interrupt / cancel — `completed`
-says which) · `settled(what, promise)` (a rejection is a value) · `signalled(what, flowSignal, family?)` · `delay(ms)`.
+says which) · `settled(what, promise)` (a rejection is a value) · `signalled(what, flowSignal, family?)` · `delay(ms)` ·
+`frames(n)` (the page painted `n` times — always under a real bound: a window that does not paint has no frames) ·
+`polled(what, read, everyMs)` (a condition re-read on the CLOCK only — for a source that is not reactive, and for a
+condition whose consequence must run in a task of its own rather than inside the stretch that made it true).
+
+**The two waits every motion module wrote by hand** (`session/sessionWaits.ts`): `whenPainted(n = 2, boundMs = 400,
+owner?)` — «the pose has reached the screen», bounded; `span(ms, owner?)` — a beat of stillness, over at once when
+its owner ends. `probeTick(fn)` (`console/probeTick.ts`) stands on the same pair: an owned frame + a guaranteed
+fallback. `untilCeiling(spec, read, owner?, everyMs?)` (`waitGraph/ceilingWait.ts`) is a polled condition against a
+ceiling as ONE call — what a `wait ??= beginCeilingWait(…)` + a poll loop + a deadline becomes.
+
+**Where a scope comes from** (`console/session/`): `consoleSessionScope()` — the game session while a game screen is
+up, the lobby's root otherwise; `useFlowScope(label)` — a component's own, ended on unmount; `createFlowRun(label,
+{orphaned})` — a module flow's run (`begin` / `end` / `after` / `sleep` / `live()`), cancelled with the session and
+then told to bring its module to rest; `beginAnimationHold(…).scope` — a hold's run. PLAN §10 has the recipes and the
+ledger that counts what is still outside.
 
 ## 3. The wait table is the wait graph
 
@@ -76,5 +96,7 @@ when you add a primitive, add its operation to that model.
 
 `flowTrace()` / `flowTraceLines()` — the ring of opens, ends (with reasons), waits and machine transitions;
 `flowTraceStats` — counts; `[flow] …` console lines for anomalies (a task that threw, a cleanup that threw, a law
-violation at run time, a refused cycle, a bound that ended a wait). The field recorder's heartbeat and the console
-export read the tree and the ring (wired in the supervisor slice — see the plan).
+violation at run time, a refused cycle, a bound that ended a wait). `window.__conFlow()` returns the tree
+(`dumpFlowTree()`), the wait table, the ring's tail and the counters; the field recorder's heartbeat carries
+`flowTreeDigest()` in every second that stood still (`quietS ≥ 2`), and the console export and the main process's hang
+line print it («flows: …»).

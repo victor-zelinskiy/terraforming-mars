@@ -952,6 +952,7 @@ import {
 } from '@/client/console/venusBonus/venusBonusInner';
 import {armVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCellBeat';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** What the stage asks of its target step's host (`ConsoleTradeTargetStep`). */
 type TradeTargetStepHandle = {nav: (dir: NavDirection) => void, cycleOwner: (delta: number) => void, confirm: () => void, inspect: () => void};
@@ -2525,7 +2526,7 @@ export default defineComponent({
         }
       };
       root?.addEventListener('transitionend', onEnd);
-      window.setTimeout(done, motionMs(700));
+      consoleSessionScope().guarantee(motionMs(700), 'ConsoleColonyFocusStage: a release\'s bound', done);
     },
     /** The «Эффекты» layer lives ONLY on the setup level — a sub-step, the commit boundary and the resolution fold it instantly. */
     forecastCanOpen(can: boolean): void {

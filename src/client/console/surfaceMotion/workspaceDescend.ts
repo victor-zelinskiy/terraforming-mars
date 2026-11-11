@@ -39,6 +39,7 @@ import {gsap} from 'gsap';
 import {MOTION_EASE, motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {restingRectOf as sharedRestingRectOf} from '@/client/console/cardFlight/landingRect';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 // ── The one-shot registries (armed at the press, consumed by the hooks) ─────
 //
@@ -129,13 +130,13 @@ export function guardedDescend(
 ): void {
   killDescendEpisode(el);
   let finished = false;
-  let safety = 0;
+  let safety: () => void = () => {};
   const finish = () => {
     if (finished) {
       return;
     }
     finished = true;
-    window.clearTimeout(safety);
+    safety();
     liveTweens.delete(el);
     done();
   };
@@ -145,7 +146,7 @@ export function guardedDescend(
     return;
   }
   liveTweens.set(el, tween);
-  safety = window.setTimeout(finish, motionMs(totalMs) + 450);
+  safety = consoleSessionScope().guarantee(motionMs(totalMs) + 450, 'workspaceDescend: a beat\'s safety', finish);
 }
 
 // ── The FLIP math (zoom-compensated) ────────────────────────────────────────

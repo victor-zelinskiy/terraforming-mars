@@ -75,6 +75,9 @@ import type {StdProjectsController} from '@/client/console/shell/stdProjectsCont
 import type {StagedController} from '@/client/console/shell/stagedController';
 import type {JournalController} from '@/client/console/shell/journalController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
+import {span} from '@/client/console/session/sessionWaits';
+import {whenPainted} from '@/client/console/session/sessionWaits';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** The roster's LANDING: the stage's fold home into the slot (the focus motion's own fold + the grid breathing back), base ms. */
 const COLONY_ROSTER_LANDING_MS = 420;
@@ -1034,7 +1037,7 @@ export function createColonyController(shell: ColonyPort) {
     const alive = () => workspaceFrameAnchor('colonies')?.type === 'prompt' && !colonyFollowUpLive.value;
     const outcome = await waitScreenHandoff('colony-step-return', {only: ['transfer'], alive, maxMs: COLONY_STEP_HANDOFF_MAX_MS});
     if (outcome !== 'dead') {
-      await new Promise<void>((done) => window.setTimeout(done, motionMs(COLONY_STEP_SETTLE_MS)));
+      await span(motionMs(COLONY_STEP_SETTLE_MS));
     }
     if (!alive()) {
       colonySettleDwell = 'idle';
@@ -2165,11 +2168,9 @@ export function createColonyController(shell: ColonyPort) {
         }
       });
     });
-    const frames = () => new Promise<void>((resolve) => {
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
-    });
+    const frames = () => whenPainted();
     const dwell = (ms: number) => new Promise<void>((resolve) => {
-      window.setTimeout(resolve, motionMs(ms));
+      consoleSessionScope().guarantee(motionMs(ms), 'colonyController: a release\'s bound', resolve);
     });
     // The ceremony and the build's own scene first (a staged door's version move can arrive a tick before the
     // cube's handoff ends).
@@ -2214,11 +2215,9 @@ export function createColonyController(shell: ColonyPort) {
       return;
     }
     setColonyCityHoming(true);
-    const frames = () => new Promise<void>((resolve) => {
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
-    });
+    const frames = () => whenPainted();
     const dwell = (ms: number) => new Promise<void>((resolve) => {
-      window.setTimeout(resolve, motionMs(ms));
+      consoleSessionScope().guarantee(motionMs(ms), 'colonyController: a release\'s bound', resolve);
     });
     // The scene first — through its read (resolved at once when none is playing; it never rejects).
     await colonyCitySceneDone();
@@ -2269,11 +2268,9 @@ export function createColonyController(shell: ColonyPort) {
         }
       });
     });
-    const frames = () => new Promise<void>((resolve) => {
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
-    });
+    const frames = () => whenPainted();
     const dwell = (ms: number) => new Promise<void>((resolve) => {
-      window.setTimeout(resolve, motionMs(ms));
+      consoleSessionScope().guarantee(motionMs(ms), 'colonyController: a release\'s bound', resolve);
     });
     // The cube's own scene first (a version move can arrive a tick before its handoff ends)…
     await settle(() => isColonyBuildActive());

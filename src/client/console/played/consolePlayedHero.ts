@@ -84,6 +84,9 @@ import {Tag} from '@/common/cards/Tag';
 import {VpShare} from '@/common/game/vpAttribution';
 import {claimVpShares, dropVpClaim, flyVpShares, holdsVpShares, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
 import {beginCeilingWait, raceCeiling} from '@/client/console/waitGraph/ceilingWait';
+import {span, whenPainted} from '@/client/console/session/sessionWaits';
+import {createFlowRun} from '@/client/console/session/flowRun';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /**
  * The score cell's ledger owner of this scene (TR55 — docs/claude/console/score-cell.md): the played card's own
@@ -255,8 +258,16 @@ export function shipPlayDiscard(departed: Promise<void>): void {
 
 /** One-shot claim per response (mirrors tradeFleet's `claimed`). */
 let claimed = false;
-let armSafety: number | undefined;
-let sceneSafety: number | undefined;
+/**
+ * THE HERO'S RUN (architecture v2 — PLAN §10 · C4): `scene:played-hero#n` in the session, from the arm (the confirm,
+ * before the POST) to the play's end — landed and paid out, refused, aborted. It OWNS the arm's safety and the scene's
+ * safety — the gated scene's safety opens the transport's GATE, so it is a guaranteed release of the run; the staged
+ * ceremony's aborts, so it is a pacing timer — and when the game screen leaves under it the play is aborted
+ * (`orphaned`). The HOLD stays derived from the transaction's state.
+ */
+const heroRun = createFlowRun('played-hero', {orphaned: () => abortPlayedHero()});
+let cancelArmSafety: () => void = () => {};
+let cancelSceneSafety: () => void = () => {};
 /** Resolves the WaitingFor commit gate (abort must always free it). */
 let runResolve: (() => void) | undefined;
 /** Resolves the skippable result beat. */
@@ -869,7 +880,7 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
    *  face — `thumb` tier over the committed tableau model). */
   landingFace?: HeroLandingFaceSpec,
 }): void {
-  clearTimers();
+  heroRun.begin(card); // a run still standing ends here — its timers with it
   claimed = false;
   followUpPending = false;
   pendingRewards = opts.rewards ?? [];
@@ -933,7 +944,7 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   playedHeroState.proxy = undefined;
   // A response that never detects (error path missed, network limbo) can
   // never wedge the game — the arm self-aborts.
-  armSafety = window.setTimeout(() => abortPlayedHero(), HERO_SAFETY_TIMEOUT_MS);
+  cancelArmSafety = heroRun.after(HERO_SAFETY_TIMEOUT_MS, 'the arm\'s safety (no answer detected the play)', () => abortPlayedHero());
   // THE AIM IS TAKEN DURING THE ROUND TRIP. The workspace landing places are
   // mounted (hidden) at the arm — the receiving stage's front anchor, the
   // start dock's prepared top slot, the effect-source seat — so their REST
@@ -998,10 +1009,7 @@ export function detectPlayedHero(view: PlayerViewModel): {card: CardName} | unde
     return undefined;
   }
   claimed = true;
-  if (armSafety !== undefined) {
-    window.clearTimeout(armSafety);
-    armSafety = undefined;
-  }
+  cancelArmSafety();
   const card = playedHeroState.card;
   const landed = view.thisPlayer?.tableau?.some((c) => c.name === card) === true;
   if (!landed) {
@@ -1030,15 +1038,15 @@ export function runPlayedHero(view: PlayerViewModel, before?: PlayerViewModel): 
   beforeView = before;
   return new Promise<void>((resolve) => {
     runResolve = resolve;
-    sceneSafety = window.setTimeout(() => {
-      // rAF stall / lost element — force the gate open, degrade gracefully.
-      freeRunGate();
-    }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000 +
+    // rAF stall / lost element — force the gate open, degrade gracefully. A RELEASE (the transport's gate hangs on it):
+    // at the budget, or when the run ends.
+    cancelSceneSafety = heroRun.guarantee(motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000 +
       (pendingSpends !== undefined ? shipmentBudgetMs() + 1000 : 0) +
       (pendingBill !== undefined ? shipmentBudgetMs() + 1000 : 0) +
       (pendingDiscardDeparture !== undefined ? DISCARD_DEPARTURE_MAX_MS : 0) +
       // The one-play class (TR49): a spend wave, then an arm wave.
-      (armedEffectsChange(before, view) ? 2 * shipmentBudgetMs() + 1000 : 0));
+      (armedEffectsChange(before, view) ? 2 * shipmentBudgetMs() + 1000 : 0),
+    'the scene\'s safety (the commit gate)', () => freeRunGate());
     void executeFlight().finally(() => {
       // PRE-COMMIT, table on screen: measure where the cards this play sends
       // back to hand are lying. The commit removes them from the tableau one
@@ -1126,10 +1134,7 @@ export function seedPlayedHeroRewardHold(before?: PlayerViewModel, after?: Playe
 }
 
 function freeRunGate(): void {
-  if (sceneSafety !== undefined) {
-    window.clearTimeout(sceneSafety);
-    sceneSafety = undefined;
-  }
+  cancelSceneSafety();
   const r = runResolve;
   runResolve = undefined;
   r?.();
@@ -1402,13 +1407,14 @@ function shipDiscardPrice(mine: () => boolean): Promise<void> | undefined {
         return;
       }
       done = true;
-      window.clearTimeout(bound);
+      disarmBound();
       if (mine()) {
         playedHeroState.discard = how;
       }
       resolve();
     };
-    const bound = window.setTimeout(() => finish('late'), motionMs(DISCARD_DEPARTURE_MAX_MS));
+    // A GUARANTEED release of the run: the lift is let go at the bound, or when the play ends — never left waiting.
+    const disarmBound = heroRun.guarantee(motionMs(DISCARD_DEPARTURE_MAX_MS), 'the discard\'s departure (the price leaves first)', () => finish('late'));
     void departed.then(() => finish('left'), () => finish('late'));
   });
 }
@@ -2191,26 +2197,19 @@ export async function runStagedPlayedLanding(): Promise<boolean> {
   // No response will ever detect this transaction — consume the arm ourselves
   // and drop the arm safety (the scene safety below is the ceremony's bound).
   claimed = true;
-  if (armSafety !== undefined) {
-    window.clearTimeout(armSafety);
-    armSafety = undefined;
-  }
+  cancelArmSafety();
   const episode = playedHeroState.nonce;
-  sceneSafety = window.setTimeout(() => {
-    // A stalled ceremony must not wedge the play — degrade to the abort,
-    // which restores the composer for an honest retry.
-    abortPlayedHero();
-  }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000);
+  // A stalled ceremony must not wedge the play — degrade to the abort, which restores the composer for an honest
+  // retry. PACING: it must not run once the play is over.
+  cancelSceneSafety = heroRun.after(motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000,
+    'the staged ceremony\'s safety', () => abortPlayedHero());
   stagedCeremony = true;
   try {
     await executeFlight();
   } finally {
     stagedCeremony = false;
   }
-  if (sceneSafety !== undefined) {
-    window.clearTimeout(sceneSafety);
-    sceneSafety = undefined;
-  }
+  cancelSceneSafety();
   return playedHeroState.active && playedHeroState.nonce === episode;
 }
 
@@ -2295,6 +2294,7 @@ export function abortPlayedHero(): void {
   playedHeroState.phase = 'failed';
   pauseResolve?.();
   freeRunGate();
+  heroRun.end({how: 'cancelled', reason: 'the play was aborted'});
   // One flush later the transaction is fully idle (watchers saw 'failed').
   void nextTick(() => {
     if (playedHeroState.phase === 'failed') {
@@ -2333,6 +2333,7 @@ function finish(): void {
   landingView = undefined;
   playedHeroState.active = false;
   playedHeroState.phase = 'idle';
+  heroRun.end();
   playedHeroState.card = undefined;
   playedHeroState.isEvent = false;
   playedHeroState.host = 'overlay';
@@ -2939,18 +2940,14 @@ async function measureTargetRect(budgetMs: number): Promise<HeroRect | undefined
   }
 }
 
+/** One painted frame — or 50 ms when nothing paints: the polls that ride it re-read their own conditions either way
+ *  (an `await` of a bare animation frame stood for ever in a window that does not paint). */
 function frame(): Promise<void> {
-  return new Promise((resolve) => {
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => resolve());
-    } else {
-      setTimeout(resolve, 16);
-    }
-  });
+  return whenPainted(1, 50);
 }
 
 function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return span(ms);
 }
 
 /** Resolves once the landed card's reward place is PAINTED (`heroRewardPlace`), or at the bound; never rejects. */
@@ -2975,24 +2972,18 @@ function heroPlacePainted(card: string): Promise<void> {
 function skippablePause(ms: number): Promise<void> {
   return new Promise((resolve) => {
     const done = () => {
-      window.clearTimeout(timer);
+      timer();
       if (pauseResolve === done) {
         pauseResolve = undefined;
       }
       resolve();
     };
-    const timer = window.setTimeout(done, ms);
+    const timer = consoleSessionScope().guarantee(ms, 'consolePlayedHero: a beat\'s safety', done);
     pauseResolve = done;
   });
 }
 
 function clearTimers(): void {
-  if (armSafety !== undefined) {
-    window.clearTimeout(armSafety);
-    armSafety = undefined;
-  }
-  if (sceneSafety !== undefined) {
-    window.clearTimeout(sceneSafety);
-    sceneSafety = undefined;
-  }
+  cancelArmSafety();
+  cancelSceneSafety();
 }

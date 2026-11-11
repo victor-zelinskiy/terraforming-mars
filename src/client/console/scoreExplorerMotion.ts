@@ -30,6 +30,7 @@ import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {descendCascade, descendUnfold} from '@/client/console/surfaceMotion/workspaceDescend';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 const FRESH_MS = 900;
 
@@ -146,13 +147,13 @@ export function playScoreHandoff(
   armed = undefined;
 
   let finished = false;
-  let safety = 0;
+  let safety: () => void = () => {};
   const finish = () => {
     if (finished) {
       return;
     }
     finished = true;
-    window.clearTimeout(safety);
+    safety();
     // LAND: reveal the destination originals, drop the proxies NEXT frame —
     // the copies are identical, so one frame of overlap is invisible and a
     // blank frame is impossible.
@@ -218,7 +219,7 @@ export function playScoreHandoff(
     finish();
     return true;
   }
-  safety = window.setTimeout(finish, motionMs(700) + 450);
+  safety = consoleSessionScope().guarantee(motionMs(700) + 450, 'scoreExplorerMotion: a beat\'s safety', finish);
   return true;
 }
 

@@ -58,6 +58,9 @@ import {reactivePredicate} from '@/client/components/presentation/reactivityWitn
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {addCardCarry} from '@/client/console/cardDeal/cardCarry';
 import {cardExitState, flightEl, nextFlightId, removeFlights} from '@/client/console/cardDeal/cardExitState';
+import {span} from '@/client/console/session/sessionWaits';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {probeTick} from '@/client/console/probeTick';
 
 export type ExitSource = {
   name: CardName,
@@ -150,18 +153,20 @@ function gatherPoint(): {x: number, y: number} {
 function guarded(run: (done: () => void) => void, budgetMs: number): Promise<void> {
   return new Promise<void>((resolve) => {
     let settled = false;
-    let safety: ReturnType<typeof setTimeout> | undefined;
+    let safety: (() => void) | undefined;
     const done = () => {
       if (!settled) {
         settled = true;
         if (safety !== undefined) {
-          clearTimeout(safety); // a completed beat leaves no live timer behind
+          safety(); // a completed beat leaves no live timer behind
           safety = undefined;
         }
         resolve();
       }
     };
-    safety = setTimeout(done, budgetMs + 1200); // rAF-stall safety
+    // rAF-stall safety — a GUARANTEED release of the session (the kernel's): the beat's promise is resolved at its
+    // budget, or when the game screen leaves.
+    safety = consoleSessionScope().guarantee(budgetMs + 1200, 'a beat of the cards\' exit', done);
     run(done);
   });
 }
@@ -379,12 +384,12 @@ function stableSlotRect(resolve: () => HTMLElement | null): Promise<DOMRect | un
       }
       lastSig = sig;
       if (tries < 45) {
-        requestAnimationFrame(poll);
+        probeTick(poll);
       } else {
         done(undefined);
       }
     };
-    requestAnimationFrame(poll);
+    probeTick(poll);
   });
 }
 
@@ -440,7 +445,7 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
   }
 
   const totalBudget = motionMs(150 + 110 + 440 + 160) + 900 + motionMs(90) * args.picks.length + 1200;
-  const safety = setTimeout(finish, totalBudget);
+  const safety = consoleSessionScope().guarantee(totalBudget, 'the cards\' exit to the tray', finish);
 
   const run = async () => {
     // holdSource: the strip slot empties the FRAME its proxy stands over it
@@ -451,7 +456,7 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
     spawnedAll = await spawnProxies(args.picks, true, true);
     args.onLift();
     if (spawnedAll.length === 0 || skipped) {
-      clearTimeout(safety);
+      safety();
       finish();
       return;
     }
@@ -462,7 +467,7 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
         return;
       }
       if (i > 0) {
-        await new Promise((r) => setTimeout(r, motionMs(90) * i));
+        await span(motionMs(90) * i);
       }
       if (skipped) {
         return;
@@ -522,7 +527,7 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
       land(name);
       await tween(s.el, {autoAlpha: 0, duration: motionMs(120) / 1000, ease: 'power1.out'});
     }));
-    clearTimeout(safety);
+    safety();
     finish();
   };
   void run();
@@ -530,7 +535,7 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
   return {
     skip: () => {
       skipped = true;
-      clearTimeout(safety);
+      safety();
       spawnedAll.forEach((s) => gsap.killTweensOf(s.el));
       finish();
     },
@@ -580,7 +585,7 @@ export function applyDiscardExit(els: ReadonlyArray<HTMLElement>, opts?: {stepMs
       if (!settled) {
         settled = true;
         el.removeEventListener('animationend', onEnd);
-        clearTimeout(net);
+        net();
         resolve();
       }
     };
@@ -591,7 +596,7 @@ export function applyDiscardExit(els: ReadonlyArray<HTMLElement>, opts?: {stepMs
     };
     el.addEventListener('animationend', onEnd);
     // The bounded net: a hidden/unmounted element fires no animationend.
-    const net = setTimeout(finish, motionMs(base + i * step + 300) + 1200);
+    const net = consoleSessionScope().guarantee(motionMs(base + i * step + 300) + 1200, 'cardExitDirector: a beat\'s safety', finish);
     el.style.animationDelay = `${motionMs(base + i * step)}ms`;
     el.classList.add('con-exit-reject');
   }));
@@ -700,7 +705,7 @@ export async function runCardTransfer(args: TransferArgs): Promise<void> {
       if (!ok || sig !== lastSig) {
         lastSig = sig;
         if (tries < 45) {
-          requestAnimationFrame(poll);
+          probeTick(poll);
         } else {
           dive();
         }
@@ -724,7 +729,7 @@ export async function runCardTransfer(args: TransferArgs): Promise<void> {
       });
       tl.to(s.el, {autoAlpha: 0, duration: motionMs(130) / 1000, ease: 'power1.out'});
     };
-    requestAnimationFrame(poll);
+    probeTick(poll);
   }, motionMs(340) + 900);
   if (held !== null) {
     (held as HTMLElement).classList.remove(HOLD_CLASS); // safety-path release

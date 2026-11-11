@@ -279,7 +279,7 @@ export type SittingDirectorContext = {
 type StageRun = {
   stage: SittingStage;
   master: gsap.core.Timeline;
-  hold: AnimationHold;
+  hold: Pick<AnimationHold, 'release'>;
   /** Flights launched by this run (their ids) — «дожать» drives them to rest. */
   flights: Set<string>;
   /** Waves / glides in the air the run launched — the run rests once they have touched down. */

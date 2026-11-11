@@ -27,6 +27,7 @@
  */
 
 import {gsap} from 'gsap';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -79,7 +80,8 @@ export const CATEGORY_FRAME_MS = FRAME_MS;
 type Episode = {
   tl: gsap.core.Timeline,
   dir: 'open' | 'close',
-  safety: number | undefined,
+  /** The episode's safety — a guaranteed release of the session; called to disarm it. */
+  safety: (() => void) | undefined,
   onSettled: (settledAs: 'open' | 'closed') => void,
   /** TRUE once a finalize ran (idempotence guard). */
   done: boolean,
@@ -139,9 +141,7 @@ function clipInset(clip: {top: number, bottom: number} | undefined, slotW: numbe
 
 function killEpisode(): void {
   if (episode !== undefined) {
-    if (episode.safety !== undefined) {
-      window.clearTimeout(episode.safety);
-    }
+    episode.safety?.();
     episode.tl.kill();
     episode.done = true;
     episode = undefined;
@@ -253,7 +253,8 @@ function runEpisode(
 
 function playEpisode(ep: Episode): void {
   ep.held = false;
-  ep.safety = window.setTimeout(() => finishCategoryInstant(), motionMs(LIFT_MS + FLY_MS + STAGGER_TOTAL_CAP_MS) + SAFETY_SLACK_MS);
+  ep.safety = consoleSessionScope().guarantee(motionMs(LIFT_MS + FLY_MS + STAGGER_TOTAL_CAP_MS) + SAFETY_SLACK_MS,
+    'the category episode\'s safety', () => finishCategoryInstant());
   ep.tl.play(0);
 }
 
@@ -262,10 +263,8 @@ function finalize(ep: Episode, settledAs: 'open' | 'closed'): void {
     return;
   }
   ep.done = true;
-  if (ep.safety !== undefined) {
-    window.clearTimeout(ep.safety);
-    ep.safety = undefined;
-  }
+  ep.safety?.();
+  ep.safety = undefined;
   if (episode === ep) {
     episode = undefined;
   }

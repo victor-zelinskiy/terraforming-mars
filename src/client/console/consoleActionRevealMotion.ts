@@ -45,6 +45,8 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {restingRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 import {DECK_CHECK_PEEL_DY} from '@/client/console/deckDraw/deckPeel';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {probeTick} from '@/client/console/probeTick';
 
 /** The HUD project-deck pile — the physical source of every deck flight. */
 const DECK_SEL = '.con-deckstack__pile';
@@ -98,7 +100,7 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
   let flipStarted = false;
   let faceShown = false;
   let settled = false;
-  let safety = 0;
+  let safety: (() => void) | undefined;
 
   const fireFace = () => {
     if (!dead && !faceShown) {
@@ -109,7 +111,7 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
   const fireSettled = () => {
     if (!dead && !settled) {
       settled = true;
-      window.clearTimeout(safety);
+      safety?.();
       fireFace(); // never settle without the status having swapped
       onSettled();
     }
@@ -128,12 +130,12 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
   // card fades in via the composer's own transition once the payload lands.
   if (reduced || !usable) {
     gsap.set(proxy, {autoAlpha: 0});
-    safety = window.setTimeout(fireSettled, SAFETY_MS);
+    safety = consoleSessionScope().guarantee(SAFETY_MS, 'consoleActionRevealMotion: a beat\'s safety', fireSettled);
     return {
       notifyPayload: () => fireSettled(),
       kill: () => {
         dead = true;
-        window.clearTimeout(safety);
+        safety?.();
       },
     };
   }
@@ -260,7 +262,7 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
 
   let liveFlip: gsap.core.Timeline | undefined;
   let liveReclaim: gsap.core.Tween | undefined;
-  safety = window.setTimeout(fireSettled, SAFETY_MS);
+  safety = consoleSessionScope().guarantee(SAFETY_MS, 'consoleActionRevealMotion: a beat\'s safety', fireSettled);
 
   return {
     notifyPayload: () => {
@@ -269,7 +271,7 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
     },
     kill: () => {
       dead = true;
-      window.clearTimeout(safety);
+      safety?.();
       tl.kill();
       liveFlip?.kill();
       liveReclaim?.kill();
@@ -341,7 +343,7 @@ export function settleRevealProxyOnto(args: {
         x: r.left, y: r.top, scale: scaleTo,
         duration: s(260), ease: 'power3.inOut', onComplete: finish,
       });
-      window.setTimeout(finish, motionMs(260) + 400);
+      consoleSessionScope().guarantee(motionMs(260) + 400, 'consoleActionRevealMotion: a release\'s bound', finish);
       return;
     }
     prev = sig;
@@ -352,9 +354,9 @@ export function settleRevealProxyOnto(args: {
       finish();
       return;
     }
-    requestAnimationFrame(aim);
+    probeTick(aim);
   };
-  requestAnimationFrame(aim);
+  probeTick(aim);
 }
 
 // ── The GAIN beat (condition met) ───────────────────────────────────────────
@@ -395,10 +397,10 @@ export function runRevealGainFlight(args: {
   const to = toEl.getBoundingClientRect();
   const usable = from.width >= 10 && to.width >= 2;
   if (consoleReducedMotionActive() || !usable) {
-    const timer = window.setTimeout(arrive, 160);
+    const timer = consoleSessionScope().guarantee(160, 'consoleActionRevealMotion: a beat\'s safety', arrive);
     return {kill: () => {
       dead = true;
-      window.clearTimeout(timer);
+      timer();
     }};
   }
   const size = el.getBoundingClientRect().width || 34;

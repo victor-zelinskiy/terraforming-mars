@@ -16,6 +16,8 @@
  */
 
 import {gsap} from 'gsap';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {whenPainted} from '@/client/console/session/sessionWaits';
 import {
   HeroRect, HeroPathPlan, heroPoint, heroProgressAt, heroScaleAt, heroTiltAt, heroFlipAt,
   HERO_LIFT_SCALE, HERO_RETARGET_AT, HERO_SHADE_OUT_FROM, heroRetargetWeight,
@@ -100,16 +102,17 @@ function guarded(run: (done: () => void) => gsap.core.Animation | void, budgetMs
     const done = () => {
       if (!settled) {
         settled = true;
-        window.clearTimeout(safety);
+        disarm();
         resolve();
       }
     };
-    const safety = window.setTimeout(() => {
+    // A GUARANTEED release (the kernel's): at the budget, or when the game screen leaves — never a promise left pending.
+    const disarm = consoleSessionScope().guarantee(budgetMs + 1200, 'a beat of the played hero', () => {
       if (anim !== undefined && !settled) {
         anim.progress(1);
       }
       done();
-    }, budgetMs + 1200);
+    });
     anim = run(done);
   });
 }
@@ -340,17 +343,9 @@ export function hideHeroProxyNextFrame(els: HeroStageEls): Promise<void> {
       gsap.set(els.proxy, {autoAlpha: 0});
       resolve();
     };
-    if (typeof requestAnimationFrame !== 'function') {
-      hide();
-      return;
-    }
     // Bounded: a starved compositor (a 4K capture, a suspended TV) must not
     // hold the transaction — the hide then lands with the next real frame.
-    const safety = window.setTimeout(hide, 120);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      window.clearTimeout(safety);
-      hide();
-    }));
+    void whenPainted(2, 120).then(hide);
   });
 }
 
@@ -360,17 +355,7 @@ export function hideHeroProxyNextFrame(els: HeroStageEls): Promise<void> {
  * bound only lets the flow go on, it never moves the proxy.
  */
 export function heroPoseNextFrame(): Promise<void> {
-  return new Promise<void>((resolve) => {
-    if (typeof requestAnimationFrame !== 'function') {
-      resolve();
-      return;
-    }
-    const safety = window.setTimeout(resolve, 400);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      window.clearTimeout(safety);
-      resolve();
-    }));
-  });
+  return whenPainted(2, 400);
 }
 
 /** The proxy dissolves in place (the no-target fallback / the staged

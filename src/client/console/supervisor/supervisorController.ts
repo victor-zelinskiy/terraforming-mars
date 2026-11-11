@@ -18,6 +18,7 @@ import {presentationLedgerSnapshot} from '@/client/console/presentationLedger';
 import {activeAnimationHoldLabels, AnimationHold, beginAnimationHold, blockingAnimationHoldCount, oldestAnimationHoldAgeMs} from '@/client/components/presentation/animationHold';
 import {isTransientBeat, resetBeatStall, transientSurfaceBeats, WORKSPACE_BEAT_STALL_MS} from '@/client/console/workspaceBeatStall';
 import {registerWaitRecovery, registerWaitSource, tickWaitGraph, waitGraphDigest, WaitNodeInput} from '@/client/console/waitGraph/waitGraph';
+import {flowTreeDigest} from '@/client/console/kernel/flowScope';
 import {WaitTarget} from '@/client/console/waitGraph/waitGraphModel';
 import {CONCLUSION_HOLD_EDGE, WAIT_ADMISSION_BOUND_MS} from '@/client/console/waitGraph/waitGraphShellBounds';
 import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGraphSources';
@@ -400,17 +401,20 @@ export function createSupervisorController(shell: SupervisorPort) {
     const accepting = beat === undefined && leakDetectorState.stranded === undefined && !isSurfaceAwaitingHandoff() &&
       !standsOnDeadFrame;
     // THE FIELD FLIGHT RECORDER's heartbeat (phase 2): what the arbiter sees, once a second, kept across a reload.
+    const quietS = Math.round((Date.now() - livenessStateSnapshot().progressAt) / 1000);
     recordFieldHeartbeat({
       prompt: wf === undefined ? '' : `${promptIdentityKey(wf)}#${wf.promptId ?? ''}`,
       accepting, inFlight,
       frames: workspaceStackState.frames.map((f) => `${f.kind}:${f.phase}`),
       section: `${consoleState.section}/${consoleState.sheet ?? ''}`,
-      quietS: Math.round((Date.now() - livenessStateSnapshot().progressAt) / 1000),
+      quietS,
       presses: livenessStateSnapshot().pressesSinceProgress,
       // What a wait waits FOR, and what the opening says it serves — the two facts the 2026-11-01 13:50 freeze lacked.
       block: wf === undefined ? '' : promptAdmissionBlock(wf.type === 'space' ? 'placement' : 'host', shell.admissionSignals) ?? '',
       start: shell.startSceneMounted ? consoleStartState.serves ?? '' : '',
       graph: waitGraphDigest(8),
+      // …and the kernel's own tree, once the picture has stood for two seconds: what stands, in what, waiting for what.
+      ...(quietS >= 2 ? {flow: flowTreeDigest(14).slice(0, 900)} : {}),
     });
     // THE WAIT GRAPH (Э2 — a shadow): the same second's waits, judged structurally — a cycle, a dangling wait, a dead
     // end, an overdue one — logged `[wait-graph] …` once per confirmed finding; nothing is acted on yet.

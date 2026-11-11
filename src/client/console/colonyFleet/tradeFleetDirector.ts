@@ -40,6 +40,7 @@
 
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import type {FlowScope} from '@/client/console/kernel/flowScope';
 import {
   approachReadyMs, arcHeadingDeg, FleetTimings, fleetTimings, launchArcControl, Point, reducedFleetTimings,
 } from '@/client/console/colonyFleet/tradeFleetModel';
@@ -71,6 +72,12 @@ export type RunFleetArgs = {
   reduced: boolean,
   /** Phase → controller (injected to keep the graph acyclic). */
   onPhase: (phase: FleetPhaseName) => void,
+  /**
+   * THE FLIGHT'S OWNER (the controller's run — `tradeFleetOwner()`): the director's two guarantees («the dock callback
+   * fires», «the proxy is gone») are RELEASES — spans of this scope that answer when the span has passed OR the owner
+   * has ended, never timers that could be taken back with the release still owed.
+   */
+  owner: FlowScope,
 };
 
 function centre(r: DOMRect): Point {
@@ -251,26 +258,27 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
   }
 
   // Safety: if rAF stalls (hidden tab), guarantee the dock callback fires so
-  // the WaitingFor gate can never hang.
-  let safetyId = 0;
+  // the WaitingFor gate can never hang. Which request's guarantee stands (a release / a skip withdraws it).
+  let safetySeq = 0;
 
   function clearSafety(): void {
-    if (safetyId !== 0) {
-      clearTimeout(safetyId);
-      safetyId = 0;
-    }
+    safetySeq++;
   }
 
   return {
     dock: (onLand: () => void) => {
       dockCb = onLand;
       dockRequested = true;
-      // Guarantee resolution even if the timeline is frozen.
-      safetyId = window.setTimeout(() => {
+      // Guarantee resolution even if the timeline is frozen — or the flight's owner is gone.
+      const seq = ++safetySeq;
+      void args.owner.sleep(motionMs(approachReadyMs(t) + t.dockMs) + 1200).then(() => {
+        if (seq !== safetySeq) {
+          return;
+        }
         const cb = dockCb;
         dockCb = undefined;
         cb?.();
-      }, motionMs(approachReadyMs(t) + t.dockMs) + 1200) as unknown as number;
+      });
       tryDock();
     },
     release: (onGone: () => void) => {
@@ -288,7 +296,7 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
           onGone();
         }
       };
-      window.setTimeout(finish, motionMs(t.ackMs) + 600);
+      void args.owner.sleep(motionMs(t.ackMs) + 600).then(finish);
       gsap.to(ship, {autoAlpha: 0, duration: s(t.ackMs), ease: 'power1.out', onComplete: finish});
     },
     skip: () => {

@@ -41,6 +41,7 @@
 import {reactive} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 export type StdProjectCommitPhase = 'idle' | 'press' | 'committing' | 'committed';
 
@@ -80,8 +81,8 @@ export const stdProjectCommitState = reactive({
   abortNonce: 0,
 });
 
-let holdTimer: ReturnType<typeof setTimeout> | undefined;
-let holdSafetyTimer: ReturnType<typeof setTimeout> | undefined;
+let holdTimer: (() => void) | undefined;
+let holdSafetyTimer: (() => void) | undefined;
 /** The CURRENT beat's un-resolved `runStdProjectCommit` promise. Exactly one
  *  may be pending; every exit path (peak, safety, release, abort, a NEXT beat
  *  arming) funnels through `resolvePending`, so an awaiter — the transport's
@@ -100,11 +101,11 @@ function resolvePending(): void {
 
 function clearHoldTimer(): void {
   if (holdTimer !== undefined) {
-    clearTimeout(holdTimer);
+    holdTimer?.();
     holdTimer = undefined;
   }
   if (holdSafetyTimer !== undefined) {
-    clearTimeout(holdSafetyTimer);
+    holdSafetyTimer?.();
     holdSafetyTimer = undefined;
   }
 }
@@ -165,11 +166,11 @@ export function runStdProjectCommit(): Promise<void> {
       }
       resolvePending();
     };
-    holdTimer = setTimeout(settle, motionMs(STDP_SWEEP_PEAK_MS));
+    holdTimer = consoleSessionScope().guarantee(motionMs(STDP_SWEEP_PEAK_MS), 'consoleStdProjectCommit: a beat\'s safety', settle);
     // The safety: whichever fires first wins, and the gate can never outlive
     // the beat it protects. Both handles are STORED and die together in
     // `clearHoldTimer`, so a stale closure can never fire into a later beat.
-    holdSafetyTimer = setTimeout(settle, HOLD_SAFETY_MS);
+    holdSafetyTimer = consoleSessionScope().guarantee(HOLD_SAFETY_MS, 'consoleStdProjectCommit: a beat\'s safety', settle);
   });
 }
 

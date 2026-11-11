@@ -232,7 +232,7 @@ import {startSceneHeld} from '@/client/console/consoleStartState';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 import {FlowScope} from '@/client/console/kernel/flowScope';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {sessionChild} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
 import {submitMachine, SubmitStatus} from '@/client/console/transport/submitMachine';
 import {announceSubmitTicket, SubmitSettle, SubmitTicket} from '@/client/console/transport/submitTicket';
@@ -242,6 +242,7 @@ import {
   endHazardCleanup,
   runHazardCleanup,
 } from '@/client/components/feedback/hazardCleanupTransition';
+import {span} from '@/client/console/session/sessionWaits';
 
 /*
  * After a World Government Terraforming choice that bumps a global
@@ -466,9 +467,7 @@ const liveSubmit = shallowRef<LiveSubmit | undefined>(undefined);
 const settleListeners = new Set<(settle: SubmitSettle) => void>();
 
 function transportScope(): FlowScope<'transport'> {
-  if (transportFlow === undefined || transportFlow.ended !== undefined) {
-    transportFlow = consoleSessionScope().open('transport');
-  }
+  transportFlow = sessionChild(transportFlow, 'transport');
   return transportFlow;
 }
 
@@ -1436,7 +1435,7 @@ async function presentAnswer(submit: LiveSubmit, newView: PlayerViewModel, wgtSu
     const ringLanded = await gate(submit, 'tilePlacement', () =>
       holdAnimationWhile('owner-cube-ring', landOwnerCubesInTurn(currentView().game.spaces, newView.game.spaces, {
         order: (ids) => clockwiseFromTop(ids, centreOf, pivotRect === undefined ? undefined : {x: pivotRect.x + pivotRect.w / 2, y: pivotRect.y + pivotRect.h / 2}),
-        wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+        wait: (ms) => span(ms),
         scale: motionMs,
       })));
     if (!ringLanded) {

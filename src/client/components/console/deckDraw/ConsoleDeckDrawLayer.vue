@@ -69,6 +69,8 @@
  * skipped and the stock modal shows immediately (never a stranded reveal).
  */
 import {defineComponent, PropType} from 'vue';
+import {FlowScope} from '@/client/console/kernel/flowScope';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -197,13 +199,26 @@ type SceneCtx = {
   stream?: {lease: string, allPeeled: () => void},
   /** The assembly scene's director handle («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» — `cardIntake/intakeAssemblyDirector.ts`). */
   assemblyHandle?: IntakeAssemblyHandle,
-  timers: Array<ReturnType<typeof setTimeout>>,
 };
-const ctx: SceneCtx = {beatHandles: [], timers: []};
+const ctx: SceneCtx = {beatHandles: []};
+
+/**
+ * THE SCENE'S SCOPE (architecture v2 — PLAN §10 · C1): every timer of the scene on stage — a beat's start, the frame's
+ * entrance, a poll's next look, a net — is armed in ONE scope of the flow kernel and taken back together when the scene
+ * is torn down (`clearTimers`), and when the game screen leaves. What the `timers` array kept by hand.
+ */
+let sceneTimers: FlowScope | undefined;
+
+function sceneScope(): FlowScope {
+  if (sceneTimers === undefined || sceneTimers.ended !== undefined) {
+    sceneTimers = consoleSessionScope().open('scene', 'deck-draw-layer');
+  }
+  return sceneTimers;
+}
 
 function clearTimers(): void {
-  ctx.timers.forEach((t) => clearTimeout(t));
-  ctx.timers = [];
+  sceneTimers?.end({how: 'cancelled', reason: 'the scene was torn down'});
+  sceneTimers = undefined;
 }
 
 function killAll(): void {
@@ -548,7 +563,7 @@ export default defineComponent({
             done();
             return;
           }
-          ctx.timers.push(setTimeout(poll, 120));
+          sceneScope().after(120, 'a beat of the deck draw', poll);
         };
         poll();
       });
@@ -670,7 +685,7 @@ export default defineComponent({
           landed++;
           return;
         }
-        const timer = setTimeout(() => {
+        sceneScope().after(motionMs(beat.atMs), 'a beat of the search leaves the deck', () => {
           if (!deckDrawState.active) {
             return;
           }
@@ -701,8 +716,7 @@ export default defineComponent({
             },
           });
           ctx.beatHandles.push(handle);
-        }, motionMs(beat.atMs));
-        ctx.timers.push(timer);
+        });
       });
 
       if (total === 0) {
@@ -784,9 +798,7 @@ export default defineComponent({
       // The frame enters while the first card is on final approach — the row
       // lands into a materializing stage (the rise director's grammar).
       const firstLand = handle.plan.beats[0]?.landAtMs ?? 0;
-      ctx.timers.push(setTimeout(
-        () => setDeckDrawPhase('frame'),
-        Math.max(0, motionMs(firstLand) - motionMs(70))));
+      sceneScope().after(Math.max(0, motionMs(firstLand) - motionMs(70)), 'a beat of the deck draw', () => setDeckDrawPhase('frame'));
     },
 
     /**
@@ -861,7 +873,7 @@ export default defineComponent({
             return;
           }
           released = true;
-          clearTimeout(safety);
+          disarmSafety();
           if (!this.guestRun) {
             return;
           }
@@ -871,10 +883,10 @@ export default defineComponent({
             onDone: () => this.endGuestRun(),
           });
         };
-        const safety = setTimeout(() => {
+        const disarmSafety = consoleSessionScope().guarantee(GUEST_HOVER_MAX_MS, 'the guest batch hovering for its host', () => {
           holdIntakeGuest(undefined);
           release();
-        }, GUEST_HOVER_MAX_MS);
+        });
         holdIntakeGuest(release);
         onDone();
       };
@@ -1075,10 +1087,10 @@ export default defineComponent({
         markDeckDrawZoomReady();
         // End once the viewer has taken over: the input gate must not stay
         // closed through the take (that would swallow the «A Взять» press).
-        ctx.timers.push(setTimeout(() => {
+        sceneScope().after(motionMs(deckDrawState.reducedMotion ? 120 : 320), 'a beat of the deck draw', () => {
           this.teardown();
           endDeckDraw();
-        }, motionMs(deckDrawState.reducedMotion ? 120 : 320)));
+        });
         return;
       }
       const keys = e.cards.map((c, i) => `${c.name}#${i}`);
@@ -1289,12 +1301,12 @@ export default defineComponent({
         }
         const now = performance.now();
         if (peeled < beats.length && now - lastProgress < stallMs && now - streamStart < capMs) {
-          ctx.timers.push(setTimeout(net, motionMs(150)));
+          sceneScope().after(motionMs(150), 'a beat of the deck draw', net);
           return;
         }
         allPeeled();
       };
-      ctx.timers.push(setTimeout(net, motionMs(lastPeelMs) + motionMs(400)));
+      sceneScope().after(motionMs(lastPeelMs) + motionMs(400), 'a beat of the deck draw', net);
       void this.$nextTick(() => {
         const slot = discardPileSlotEl();
         const trayRect = slot !== undefined ? restingRectOf(slot) : undefined;
@@ -1316,7 +1328,7 @@ export default defineComponent({
             done();
             return;
           }
-          ctx.timers.push(setTimeout(() => {
+          sceneScope().after(motionMs(beat.atMs), 'a beat of the deck draw', () => {
             lastProgress = performance.now();
             const handle = runDeckDrawBeat({
               beat,
@@ -1340,7 +1352,7 @@ export default defineComponent({
               },
             });
             ctx.beatHandles.push(handle);
-          }, motionMs(beat.atMs)));
+          });
         });
       });
       return true;
@@ -1367,7 +1379,7 @@ export default defineComponent({
           }
           return;
         }
-        ctx.timers.push(setTimeout(handOver, 100));
+        sceneScope().after(100, 'a beat of the deck draw', handOver);
       };
       handOver();
     },

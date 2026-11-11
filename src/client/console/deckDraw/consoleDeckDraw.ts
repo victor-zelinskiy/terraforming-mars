@@ -34,6 +34,8 @@ import {CardName} from '@/common/cards/CardName';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {holdDeckDisplay, releaseDeckDisplay, releaseDeckSeed, seedDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import type {PlayerViewModel} from '@/common/models/PlayerModel';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {createFlowRun} from '@/client/console/session/flowRun';
 
 export type DeckDrawPhase =
   | 'idle'
@@ -141,7 +143,13 @@ const FOREIGN_MEMORY = 8;
 
 let handle: DeckDrawHandle | undefined;
 let zoomOriginResolver: (() => HTMLElement | null) | undefined;
-let safetyTimer: ReturnType<typeof setTimeout> | undefined;
+/**
+ * THE SCENE'S RUN (architecture v2 — PLAN §10 · C4): `scene:deck-draw#n` in the session, from the arm to the scene's
+ * end (clean, aborted, reset). It owns the scene's two safeties — the whole scene's, and the tighter one on the deal's
+ * start — taken back when the scene ends, on every path; when the game screen leaves under it the scene is aborted
+ * (`orphaned`). The HOLD stays derived from `active`.
+ */
+const run = createFlowRun('deck-draw', {orphaned: () => abortDeckDraw()});
 
 /**
  * The whole-scene safety backstop. A stall (lost element, stuck timeline,
@@ -171,7 +179,9 @@ const DEAL_START_SAFETY_MS = 6_000;
  * server's number — the pre-seed behaviour, honest and never stuck.
  */
 const SEED_SAFETY_MS = 15_000;
-let seedTimer: ReturnType<typeof setTimeout> | undefined;
+/** Which seed's net stands (a newer seed, or a reset, supersedes it). The seed precedes every scene, so its span is the
+ *  SESSION's — and letting the counter fall is a RELEASE: it happens when the span has passed or the game screen has left. */
+let seedSeq = 0;
 
 /**
  * SEED the deck counter in the SAME SYNCHRONOUS BLOCK as the commit (the
@@ -197,13 +207,12 @@ export function seedDeckDrawHold(before: PlayerViewModel | undefined, after: Pla
   if (owed === 0 || !seedDeckDisplay(after.game.deckSize + owed)) {
     return;
   }
-  if (seedTimer !== undefined) {
-    clearTimeout(seedTimer);
-  }
-  seedTimer = setTimeout(() => {
-    seedTimer = undefined;
-    releaseDeckSeed();
-  }, SEED_SAFETY_MS);
+  const seq = ++seedSeq;
+  void consoleSessionScope().sleep(SEED_SAFETY_MS).then(() => {
+    if (seq === seedSeq) {
+      releaseDeckSeed();
+    }
+  });
 }
 
 /** A foreign owner flies this batch: its cards leave the counter now (the seed only — never a flight's hold). */
@@ -211,20 +220,11 @@ export function releaseDeckDrawSeed(): void {
   releaseDeckSeed();
 }
 
-function clearSafety(): void {
-  if (safetyTimer !== undefined) {
-    clearTimeout(safetyTimer);
-    safetyTimer = undefined;
-  }
-}
-
-let dealStartTimer: ReturnType<typeof setTimeout> | undefined;
+let cancelDealStartSafety: () => void = () => {};
 
 function clearDealStartSafety(): void {
-  if (dealStartTimer !== undefined) {
-    clearTimeout(dealStartTimer);
-    dealStartTimer = undefined;
-  }
+  cancelDealStartSafety();
+  cancelDealStartSafety = () => {};
 }
 
 /** The input gate — the shell blocks pad input + commands while true. */
@@ -315,17 +315,13 @@ export function armDeckDraw(eventId: number, opts: {hasDiscards: boolean, preDra
   // answered). Hold the pre-draw number so the counter ticks down with the
   // cards physically leaving, then release to the server's truth at the end.
   holdDeckDisplay(opts.preDrawSize);
-  clearSafety();
-  // Bare setTimeout (NOT window.setTimeout): `window` isn't reliably the
-  // global inside the mochapack test bundle (same as the draft tray).
-  safetyTimer = setTimeout(() => abortDeckDraw(), SCENE_SAFETY_MS);
-  clearDealStartSafety();
-  dealStartTimer = setTimeout(() => {
-    dealStartTimer = undefined;
+  run.begin(`batch ${eventId}`);
+  run.after(SCENE_SAFETY_MS, 'the scene\'s safety', () => abortDeckDraw());
+  cancelDealStartSafety = run.after(DEAL_START_SAFETY_MS, 'the deal\'s start (the reveal is withheld until then)', () => {
     if (deckDrawState.active && !deckDrawState.dealing) {
       abortDeckDraw();
     }
-  }, DEAL_START_SAFETY_MS);
+  });
   return true;
 }
 
@@ -450,8 +446,7 @@ export function endDeckDraw(): void {
   if (!deckDrawState.active) {
     return;
   }
-  clearSafety();
-  clearDealStartSafety();
+  run.end();
   releaseDeckDisplay();
   deckDrawState.active = false;
   deckDrawState.dealing = false;
@@ -469,8 +464,7 @@ export function abortDeckDraw(): void {
   if (!deckDrawState.active) {
     return;
   }
-  clearSafety();
-  clearDealStartSafety();
+  run.end();
   releaseDeckDisplay();
   const h = handle;
   handle = undefined;
@@ -528,12 +522,8 @@ export function requestDiscardStream(req: DiscardStreamRequest): boolean {
 
 /** Full reset (tests / game-switch boundary). */
 export function resetDeckDraw(): void {
-  clearSafety();
-  clearDealStartSafety();
-  if (seedTimer !== undefined) {
-    clearTimeout(seedTimer);
-    seedTimer = undefined;
-  }
+  run.end();
+  seedSeq++; // a seed's net still standing is not this game's any more
   releaseDeckDisplay();
   handle = undefined;
   zoomOriginResolver = undefined;

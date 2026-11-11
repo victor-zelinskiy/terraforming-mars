@@ -66,6 +66,8 @@ import {
   addCard3DTurn, buildCard3DInner, Card3DInner, CARD3D_SHADOW, FACE_UP_DEG,
   readCard3DInner, setCard3DFace,
 } from '@/client/console/cardFlight/card3dInner';
+import {span} from '@/client/console/session/sessionWaits';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 export type DockFlightSource = {name: CardName, el: HTMLElement};
 
@@ -249,11 +251,11 @@ function guarded(run: (done: () => void) => void, budgetMs: number): Promise<voi
     const done = () => {
       if (!settled) {
         settled = true;
-        window.clearTimeout(safety);
+        safety();
         resolve();
       }
     };
-    const safety = window.setTimeout(done, budgetMs + 1400);
+    const safety = consoleSessionScope().guarantee(budgetMs + 1400, 'startDockMotion: a beat\'s safety', done);
     run(done);
   });
 }
@@ -1141,14 +1143,14 @@ export function captureCards(sources: ReadonlyArray<DockFlightSource>): Captured
       // coming up while it prepares the destination. A flight started later
       // simply takes the rise over (`overwrite: 'auto'` on its take).
       rise(accent, press);
-      return new Promise<void>((resolve) => window.setTimeout(resolve, motionMs(IMPULSE_MS)));
+      return span(motionMs(IMPULSE_MS));
     },
     lift(accent?: CardName): Promise<void> {
       if (disposed || proxies.size === 0) {
         return Promise.resolve();
       }
       rise(accent, 0);
-      return new Promise<void>((resolve) => window.setTimeout(resolve, flightMs(180)));
+      return span(flightMs(180));
     },
     async flyTo(
       targetFor: (name: CardName) => HTMLElement | null,

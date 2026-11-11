@@ -277,7 +277,7 @@ export function buildStallDigest(entries: ConsoleEntry[], limit: number = DIGEST
  */
 export function buildScreenDigest(recordJson: string, now: Date): string {
   type Beat = {at: number, prompt?: string, accepting?: boolean, inFlight?: Array<string>, frames?: Array<string>,
-    section?: string, quietS?: number, presses?: number, block?: string, start?: string, graph?: string};
+    section?: string, quietS?: number, presses?: number, block?: string, start?: string, graph?: string, flow?: string};
   let beats: Array<Beat> = [];
   try {
     const record = JSON.parse(recordJson) as {heartbeats?: Array<Beat>};
@@ -289,7 +289,9 @@ export function buildScreenDigest(recordJson: string, now: Date): string {
     return 'SCREEN: no heartbeats recorded\n';
   }
   const key = (b: Beat) => [b.prompt ?? '', b.accepting === true ? 'accepting' : 'NOT accepting', (b.inFlight ?? []).join(',') || '-',
-    (b.frames ?? []).join(';') || '-', b.section ?? '', b.block ?? '', b.start ?? '', b.graph ?? ''].join(' | ');
+    (b.frames ?? []).join(';') || '-', b.section ?? '', b.block ?? '', b.start ?? '', b.graph ?? ''].join(' | ') +
+    // The kernel's flow tree rides only the seconds that stood still — a trailing column when it is there.
+    (b.flow !== undefined && b.flow !== '' ? ` | flows: ${b.flow}` : '');
   const rows: Array<string> = [];
   let runStart = 0;
   for (let i = 1; i <= beats.length; i++) {

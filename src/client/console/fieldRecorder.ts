@@ -47,6 +47,12 @@ export type FieldHeartbeat = {
    * its graph, never only with its symptom.
    */
   graph?: string;
+  /**
+   * THE FLOW TREE (the kernel's — `flowTreeDigest`): every scope that stands below the session and what it waits for.
+   * Carried only by a second in which nothing moved (`quietS ≥ 2`) — a freeze arrives with what stood, a healthy second
+   * costs nothing.
+   */
+  flow?: string;
   at: number;
 };
 

@@ -25,7 +25,10 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {registerLivenessRelease} from '@/client/console/consoleLiveness';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {untilCeiling} from '@/client/console/waitGraph/ceilingWait';
+import {frames as paintedFrames} from '@/client/console/kernel/flowScope';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {
   DiscardPhase,
   DISCARD_SAFETY_MS,
@@ -79,7 +82,14 @@ export const cardDiscardTransaction = reactive({
 });
 
 let armed: CardDiscardArm | undefined;
-let armTimer: ReturnType<typeof setTimeout> | undefined;
+/**
+ * THE DISPOSAL'S RUN (architecture v2 — PLAN §10 · C4): `scene:card-discard#n` in the session, from the arm to the
+ * disposal's end (read, aborted, reset). It owns the arm's safety and the wait for the pile — taken back when the
+ * disposal ends, on every path — and when the game screen leaves under it the disposal is aborted (`orphaned`). The
+ * HOLD stays derived from the transaction's state.
+ */
+const run = createFlowRun('card-discard', {orphaned: () => abortCardDiscard()});
+let cancelArmTimer: () => void = () => {};
 let spawned: ReadonlyArray<SpawnedDiscard> = [];
 
 /** The scene owns the foreground while anything of it is on screen. */
@@ -132,10 +142,8 @@ export function cardDiscardDeparted(): Promise<void> {
 }
 
 function clearArmTimer(): void {
-  if (armTimer !== undefined) {
-    clearTimeout(armTimer);
-    armTimer = undefined;
-  }
+  cancelArmTimer();
+  cancelArmTimer = () => {};
 }
 
 export function isCardDiscardArmed(): boolean {
@@ -200,12 +208,12 @@ export function armCardDiscard(arm: CardDiscardArm): void {
   // The answer may never come back (a dropped response, an error path that
   // does not reach abort). The ceiling is BELOW the animation-hold registry's
   // net, so this flow always cleans up its own visuals first.
-  clearArmTimer();
-  armTimer = setTimeout(() => {
+  run.begin(`${arm.names.length} card(s)`);
+  cancelArmTimer = run.after(DISCARD_SAFETY_MS, 'the arm\'s safety (no answer carried the disposal)', () => {
     if (cardDiscardTransaction.phase === 'armed') {
       abortCardDiscard();
     }
-  }, DISCARD_SAFETY_MS);
+  });
 }
 
 /**
@@ -428,6 +436,7 @@ function finishCardDiscard(): void {
   cardDiscardTransaction.names = [];
   setPhase('idle');
   resetCardDiscardStage();
+  run.end();
 }
 
 /** Hard reset (shell unmount / game switch). */
@@ -436,34 +445,19 @@ export function resetCardDiscard(): void {
 }
 
 /**
- * Wait for the pile to be measurable (the layer registers its slot on mount).
- * Frame-bounded, never a fixed delay: it resolves the instant the element is
- * there, and gives up after `maxFrames` so a degenerate layout cannot wedge.
+ * Wait for the pile to be measurable (the layer registers its slot on mount). Bounded on the CLOCK, never a fixed
+ * delay: it resolves the instant the element is there (or the disposal is over), and gives up after `maxFrames` frames'
+ * worth of time so a degenerate layout cannot wedge — a wait counted in painted frames stood for ever in a window that
+ * does not paint. A wait that has to wait is a row of the kernel's wait table and a node of the wait graph; its ceiling
+ * ending it is said (`ceilingWait.ts`).
  */
-function waitForTray(maxFrames: number): Promise<void> {
-  return new Promise((resolve) => {
-    let left = Math.max(1, maxFrames);
-    let wait: CeilingWait | undefined;
-    const step = () => {
-      if (discardTrayEl() !== undefined || left <= 0 || !cardDiscardTransaction.active) {
-        if (discardTrayEl() !== undefined) {
-          wait?.met();
-        } else if (!cardDiscardTransaction.active) {
-          wait?.end();
-        } else {
-          wait?.ceiling();
-        }
-        resolve();
-        return;
-      }
-      // A wait that has to wait is a node of the wait graph; its frame ceiling ending it is said (`ceilingWait.ts`).
-      wait ??= beginCeilingWait({
-        id: 'card-discard:tray', owner: 'consoleCardDiscard', what: 'the discard tray mounted', maxMs: Math.max(1, maxFrames) * 16,
-        detail: `${Math.max(1, maxFrames)} frames, estimated at 16 ms each`,
-      });
-      left--;
-      requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  });
+async function waitForTray(maxFrames: number): Promise<void> {
+  const frames = Math.max(1, maxFrames);
+  // The first look is one PAINTED frame from now (the tray was told to stand in this very stretch) — or 50 ms, when
+  // nothing paints.
+  await (run.scope ?? consoleSessionScope()).wait(paintedFrames(), {bound: {ms: 50, quiet: 'a frame that did not paint — the look goes on'}});
+  await untilCeiling({
+    id: 'card-discard:tray', owner: 'consoleCardDiscard', what: 'the discard tray mounted', maxMs: frames * 16,
+    detail: `${frames} frames, estimated at 16 ms each`,
+  }, () => discardTrayEl() !== undefined || !cardDiscardTransaction.active, run.scope, 16);
 }

@@ -46,6 +46,7 @@ import {Color} from '@/common/Color';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {probeTick} from '@/client/console/probeTick';
 import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingWait';
@@ -141,7 +142,13 @@ let gateResolve: (() => void) | undefined;
 /** The whole scene (through the read) — what the shell's HOMING beat awaits. */
 let sceneResolve: (() => void) | undefined;
 let scenePromise: Promise<void> | undefined;
-let safety: number | undefined;
+/**
+ * THE SCENE'S RUN (architecture v2 — PLAN §10 · C4): `scene:colony-city#n` in the session, opened by `begin` and ended
+ * by `end`. It owns the scene's safety and its still beats (`run.after` / `run.sleep`): they are taken back when the
+ * scene ends, on every path, and when the game screen leaves under it the scene is aborted (`orphaned`). The HOLD
+ * stays derived from `live` by the registry.
+ */
+const run = createFlowRun('colony-city', {orphaned: () => abortColonyCity()});
 /** The landing the player's OWN gate just played — the apply block that follows it must not seed it again. */
 let ownPlayed: string | undefined;
 /** «Дожать» was pressed: every remaining beat of this scene ends at once. */
@@ -280,10 +287,9 @@ export function colonyCitySeatStands(colony: string): boolean {
   return seatEl(colony, false) !== null;
 }
 
-function wait(ms: number): Promise<void> {
-  return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
+/** A still beat of the scene: a span of its run — over at once when the scene ends first. */
+async function still(ms: number): Promise<void> {
+  await run.sleep(ms);
 }
 
 /** One measurement tick: the next painted frame, or the fallback — never rAF alone (a quiet screen has no frames). */
@@ -306,7 +312,7 @@ function beat(play: (done: () => void) => CityMotionHandle): Promise<void> {
 
 // ── the scene ───────────────────────────────────────────────────────────────
 
-function begin(landing: ColonyCityLanding, scale: 'stage' | 'tile'): void {
+function begin(landing: ColonyCityLanding, scale: 'stage' | 'tile', profile: ColonyCityProfile): void {
   // The landed tile is WITHHELD on its seat from the first frame — the player's own commit arrives mid-scene (at the
   // contact) and a watcher's has already arrived: either way the real tile is not painted before the piece is at rest.
   colonyCityState.holds[landing.colony] = 'tile';
@@ -321,6 +327,9 @@ function begin(landing: ColonyCityLanding, scale: 'stage' | 'tile'): void {
   scenePromise = new Promise<void>((resolve) => {
     sceneResolve = resolve;
   });
+  // THE RUN OPENS — and its SAFETY is the run's own timer: a scene that ended took it back, nothing to clear.
+  run.begin(`${landing.colony} on the ${scale}`);
+  run.after(motionMs(colonyCityTimeline(profile).totalMs) + 4000, 'the scene\'s safety', () => abortColonyCity('safety'));
 }
 
 function freeGate(): void {
@@ -340,10 +349,7 @@ function end(): void {
   colonyCityState.seatRect = undefined;
   colonyCityState.cubeRect = undefined;
   colonyCityState.cubeOn = false;
-  if (safety !== undefined) {
-    window.clearTimeout(safety);
-    safety = undefined;
-  }
+  run.end();
   freeGate();
   const resolve = sceneResolve;
   sceneResolve = undefined;
@@ -403,7 +409,7 @@ async function awaitSeatPainted(colony: string): Promise<boolean> {
 async function landWithoutFlight(landing: ColonyCityLanding): Promise<void> {
   contact(landing);
   seatTile(landing);
-  await wait(motionMs(CITY_REDUCED_MS));
+  await still(motionMs(CITY_REDUCED_MS));
   delete colonyCityState.holds[landing.colony];
   colonyCityState.counted = true;
 }
@@ -445,7 +451,7 @@ async function play(landing: ColonyCityLanding, profile: ColonyCityProfile, stag
   // WEIGHT — full stillness: the piece in the hand, over the table.
   if (profile.weightMs > 0 && !hurried) {
     colonyCityState.beat = 'weight';
-    await wait(motionMs(profile.weightMs));
+    await still(motionMs(profile.weightMs));
     if (!colonyCityState.live) {
       return;
     }
@@ -492,7 +498,7 @@ async function play(landing: ColonyCityLanding, profile: ColonyCityProfile, stag
   // READ — the seated city is read before the stage folds home.
   if (profile.readMs > 0 && !hurried) {
     colonyCityState.beat = 'read';
-    await wait(motionMs(profile.readMs));
+    await still(motionMs(profile.readMs));
   }
 }
 
@@ -566,9 +572,8 @@ export function runColonyCity(landing: ColonyCityLanding): Promise<void> {
   return new Promise<void>((resolve) => {
     gateResolve = resolve;
     ownPlayed = landingSignature(landing);
-    begin(landing, 'stage');
+    begin(landing, 'stage', OWN_CITY_PROFILE);
     colonyCityState.receipt = landing.tile.card === undefined ? {colony: landing.colony} : {colony: landing.colony, card: landing.tile.card};
-    safety = window.setTimeout(() => abortColonyCity('safety'), motionMs(colonyCityTimeline(OWN_CITY_PROFILE).totalMs) + 4000);
     void play(landing, OWN_CITY_PROFILE, true).finally(() => end());
   });
 }
@@ -604,8 +609,7 @@ export function seedColonyCityHolds(before: PlayerViewModel | ViewModel | undefi
       colonyCityState.armed = undefined;
     }
     colonyCityState.holds[landing.colony] = 'tile';
-    begin(landing, 'tile');
-    safety = window.setTimeout(() => abortColonyCity('safety'), motionMs(colonyCityTimeline(WATCHER_CITY_PROFILE).totalMs) + 4000);
+    begin(landing, 'tile', WATCHER_CITY_PROFILE);
     void play(landing, WATCHER_CITY_PROFILE, false).finally(() => end());
   }
 }

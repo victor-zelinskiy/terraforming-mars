@@ -103,7 +103,10 @@ describe('a resource chip is born at its source — the flight starts on the ani
     // reached (CI 2026-11-04: `console-utopia-invest` C, `console-rail-landing`).
     const guard = raw.slice(raw.indexOf('function guarded('), raw.indexOf('function topRailBottom('));
     expect(guard, 'the safety asks the beat to catch up before it resolves').to.include('if (catchUp?.() === true) {');
-    expect(guard, 'a caught-up beat gets its own touchdown\'s grace, then resolves anyway — never a hang').to.include('window.setTimeout(finish, CATCH_UP_TOUCHDOWN_GRACE_MS);');
+    // (A GUARANTEED release of the flow kernel: at the grace, or when the game screen leaves — the promise is never left pending.)
+    expect(guard, 'a caught-up beat gets its own touchdown\'s grace, then resolves anyway — never a hang')
+      .to.match(/disarmGrace = consoleSessionScope\(\)\.guarantee\(CATCH_UP_TOUCHDOWN_GRACE_MS, '[^\n]*', finish\);/);
+    expect(guard, 'the safety itself is a guaranteed release at the beat\'s budget').to.include('consoleSessionScope().guarantee(budgetMs + 1200,');
     for (const name of ['runTransferFlight', 'runDetachedTransferFlight']) {
       const flight = body(name);
       expect(flight, `${name}: the timeline is kept for the safety`).to.match(/flight = (tl|arc);/);

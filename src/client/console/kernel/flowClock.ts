@@ -13,7 +13,12 @@ export type FlowClock = {
   now(): number,
   setTimeout(fn: () => void, ms: number): unknown,
   clearTimeout(handle: unknown): void,
+  /** Call `fn` at the next animation frame (the page is about to paint). Returns the cancel. */
+  nextFrame(fn: () => void): () => void,
 };
+
+/** One frame, where there is no `requestAnimationFrame` (Node — a spec on the real clock). */
+const FRAME_MS = 16;
 
 const REAL_CLOCK: FlowClock = {
   now: () => Date.now(),
@@ -25,6 +30,15 @@ const REAL_CLOCK: FlowClock = {
     return handle;
   },
   clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  nextFrame: (fn) => {
+    if (typeof requestAnimationFrame === 'function') {
+      const handle = requestAnimationFrame(() => fn());
+      return () => cancelAnimationFrame(handle);
+    }
+    const timer = setTimeout(fn, FRAME_MS);
+    (timer as unknown as {unref?: () => void}).unref?.();
+    return () => clearTimeout(timer);
+  },
 };
 
 let current: FlowClock = REAL_CLOCK;
@@ -64,6 +78,14 @@ export function createManualClock(start = 0): ManualFlowClock {
     },
     clearTimeout: (handle) => {
       timers.delete(handle as number);
+    },
+    // A frame of the manual clock is 16 ms of it: `advance(16)` paints once.
+    nextFrame: (fn) => {
+      const id = nextId++;
+      timers.set(id, {at: now + FRAME_MS, fn, order: id});
+      return () => {
+        timers.delete(id);
+      };
     },
     advance: (ms) => {
       const until = now + Math.max(0, ms);

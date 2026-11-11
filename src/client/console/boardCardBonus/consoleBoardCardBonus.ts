@@ -27,6 +27,7 @@
 import {reactive} from 'vue';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {createFlowRun} from '@/client/console/session/flowRun';
 
 /**
  * WHERE the lifting cover comes from. `board-cell` carries the placed
@@ -181,7 +182,12 @@ export const boardCardBonusState = reactive({
 
 let handle: BoardCardBonusHandle | undefined;
 let zoomOriginResolver: (() => HTMLElement | null) | undefined;
-let safetyTimer: ReturnType<typeof setTimeout> | undefined;
+/**
+ * THE SCENE'S RUN (architecture v2 — PLAN §10 · C4): `scene:board-card-bonus#n` in the session, from the arm to the
+ * scene's end (clean, aborted, reset). It owns the arm's safety — taken back when the scene ends, on every path — and
+ * when the game screen leaves under it the scene is aborted (`orphaned`). The HOLD stays derived from `active`.
+ */
+const run = createFlowRun('board-card-bonus', {orphaned: () => abortBoardCardBonus('instant', 'the game screen left')});
 
 /**
  * The whole-scene safety backstop: arm → the server must stage a reveal
@@ -189,13 +195,6 @@ let safetyTimer: ReturnType<typeof setTimeout> | undefined;
  * response, stuck timeline) can never gate input forever.
  */
 const ARM_SAFETY_MS = 15_000;
-
-function clearSafety(): void {
-  if (safetyTimer !== undefined) {
-    clearTimeout(safetyTimer);
-    safetyTimer = undefined;
-  }
-}
 
 /** The input gate — the shell blocks pad input + commands while true. */
 /**
@@ -271,10 +270,8 @@ export function armBoardCardBonus(source: BonusCoverSource): void {
   boardCardBonusState.phase = 'lift';
   boardCardBonusState.active = true;
   boardCardBonusState.nonce++;
-  clearSafety();
-  // Bare setTimeout (NOT window.setTimeout): `window` isn't reliably the
-  // global inside the mochapack test bundle (same as the draft tray).
-  safetyTimer = setTimeout(() => abortBoardCardBonus('instant'), ARM_SAFETY_MS);
+  run.begin(source.kind);
+  run.after(ARM_SAFETY_MS, 'the arm\'s safety (no reveal was staged, or the scene never finished)', () => abortBoardCardBonus('instant'));
 }
 
 /** Phase transitions only apply to a LIVE scene (zombie-safe). */
@@ -332,7 +329,7 @@ export function endBoardCardBonus(): void {
   if (!boardCardBonusState.active) {
     return;
   }
-  clearSafety();
+  run.end();
   boardCardBonusState.active = false;
   boardCardBonusState.phase = 'done';
   handle = undefined;
@@ -364,7 +361,7 @@ export function abortBoardCardBonus(mode: BoardCardBonusAbortMode = 'instant', w
     return;
   }
   lastAbort = {source: boardCardBonusState.source, mode, why, at: Date.now()};
-  clearSafety();
+  run.end({how: 'cancelled', reason: `aborted (${why})`});
   const h = handle;
   handle = undefined;
   zoomOriginResolver = undefined;
@@ -378,7 +375,7 @@ export function abortBoardCardBonus(mode: BoardCardBonusAbortMode = 'instant', w
 
 /** Full reset (tests / game-switch boundary). */
 export function resetBoardCardBonus(): void {
-  clearSafety();
+  run.end({how: 'cancelled', reason: 'reset'});
   handle = undefined;
   zoomOriginResolver = undefined;
   boardCardBonusState.active = false;

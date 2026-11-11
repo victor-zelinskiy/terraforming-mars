@@ -27,6 +27,7 @@ import {
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 export type TileStageEls = {
   /** The flying tile proxy (hex art + thickness edge + touch overlay). */
@@ -75,11 +76,11 @@ function guarded(run: (done: () => void) => void, budgetMs: number): Promise<voi
     const done = () => {
       if (!settled) {
         settled = true;
-        window.clearTimeout(safety);
+        safety();
         resolve();
       }
     };
-    const safety = window.setTimeout(done, budgetMs + 1200);
+    const safety = consoleSessionScope().guarantee(budgetMs + 1200, 'tilePlacementDirector: a beat\'s safety', done);
     run(done);
   });
 }

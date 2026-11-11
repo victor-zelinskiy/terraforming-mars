@@ -68,6 +68,8 @@ import {
   deliveryEl, handDeliveryState, nextDeliveryId, clearDeliveryFlights,
   releaseInFlight, removeDeliveryFlights,
 } from '@/client/console/handDock/handDeliveryState';
+import {span} from '@/client/console/session/sessionWaits';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 export type HandIntakeRect = {left: number, top: number, width: number, height: number};
 
@@ -345,7 +347,7 @@ function s(ms: number): number {
 }
 
 function delay(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+  return span(ms);
 }
 
 /*
@@ -688,13 +690,14 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
     }),
   ];
   const myIds = [...flightIds.values()];
-  let safety: ReturnType<typeof setTimeout> | undefined;
+  /** The run's net — a GUARANTEED release of the session (the kernel's); called to disarm it. */
+  let safety: (() => void) | undefined;
   let aborted = false;
   const isAborted = () => aborted || gen !== ctx.myGen;
   const finish = () => {
     aborted = true;
     if (safety !== undefined) {
-      clearTimeout(safety);
+      safety();
       safety = undefined;
     }
     ctx.releaseRemaining();
@@ -836,7 +839,7 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   // await that never settles, nothing animating — ends exactly as before.
   let extensions = 0;
   const armSafety = (ms: number): void => {
-    safety = setTimeout(() => {
+    safety = consoleSessionScope().guarantee(ms, 'a delivery run into the hand', () => {
       const moving = myIds.some((id) => {
         const el = deliveryEl(id);
         return el !== undefined && gsap.isTweening(el);
@@ -847,7 +850,7 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
         return;
       }
       finish();
-    }, ms);
+    });
   };
   armSafety(budget);
 

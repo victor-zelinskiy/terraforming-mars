@@ -47,6 +47,9 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gateCursorDuringEntry} from '@/client/console/cursorArrival';
+import {span} from '@/client/console/session/sessionWaits';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {probeTick} from '@/client/console/probeTick';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ───────────────
 
@@ -223,7 +226,7 @@ export function handStageEnterHook(el: Element, done: () => void): void {
       return;
     }
     finished = true;
-    window.clearTimeout(safety);
+    safety();
     liveTimelines.delete(el);
     cleanup();
     release();
@@ -232,7 +235,7 @@ export function handStageEnterHook(el: Element, done: () => void): void {
   // The safety is a FAILURE path: it must be past every healthy schedule
   // (isolation + a full items poll + the cascade), and short enough that a
   // broken frame reads as abrupt rather than hung.
-  const safety = window.setTimeout(finish, motionMs(ISOLATE_MS + CASCADE_MS) + 1400);
+  const safety = consoleSessionScope().guarantee(motionMs(ISOLATE_MS + CASCADE_MS) + 1400, 'consoleHandStageMotion: a beat\'s safety', finish);
 
   const tl = gsap.timeline();
   liveTimelines.set(el, tl);
@@ -261,7 +264,7 @@ export function handStageEnterHook(el: Element, done: () => void): void {
     }
     const items = cascadeItemsOf(el);
     if (items.length === 0 && frames++ < ITEMS_POLL_FRAMES) {
-      requestAnimationFrame(poll);
+      probeTick(poll);
       return;
     }
     if (items.length === 0) {
@@ -279,7 +282,7 @@ export function handStageEnterHook(el: Element, done: () => void): void {
     el.classList.remove(ARMING_CLASS);
     liveTimelines.set(el, reveal);
   };
-  requestAnimationFrame(poll);
+  probeTick(poll);
 }
 
 // ── RETURN (play level → browse; the CANCEL path) ───────────────────────────
@@ -324,13 +327,13 @@ export function handStageLeaveHook(el: Element, done: () => void): void {
       return;
     }
     finished = true;
-    window.clearTimeout(safety);
+    safety();
     liveTimelines.delete(el);
     cleanup();
     release();
     done();
   };
-  const safety = window.setTimeout(finish, motionMs(GROUPS_OUT_MS + SIBLINGS_IN_MS) + 1200);
+  const safety = consoleSessionScope().guarantee(motionMs(GROUPS_OUT_MS + SIBLINGS_IN_MS) + 1200, 'consoleHandStageMotion: a beat\'s safety', finish);
 
   if (consoleReducedMotionActive()) {
     cleanup();
@@ -439,7 +442,7 @@ function pickPhrase(root: HTMLElement, layers: {browse: HTMLElement, stage: HTML
       return;
     }
     finished = true;
-    window.clearTimeout(safety);
+    safety();
     if (livePickPhrases.get(root) === finish) {
       livePickPhrases.delete(root);
     }
@@ -448,7 +451,7 @@ function pickPhrase(root: HTMLElement, layers: {browse: HTMLElement, stage: HTML
     release();
     onDone?.();
   };
-  const safety = window.setTimeout(finish, motionMs(budgetMs) + 1200);
+  const safety = consoleSessionScope().guarantee(motionMs(budgetMs) + 1200, 'consoleHandStageMotion: a beat\'s safety', finish);
   livePickPhrases.set(root, finish);
   run(finish, () => !finished);
 }
@@ -477,7 +480,7 @@ export function handStagePickPause(root: HTMLElement): void {
     gsap.to([stage, ...outcome], {autoAlpha: 0, duration: s(100), delay: s(30), ease: 'power1.in'});
     // 2 · BLOOM — the hand comes back in around the card flying home, once its art is there to be seen and once the
     //     composer has LET GO of the place (released, never cross-faded: two surfaces in one place read as neither).
-    const lead = new Promise<void>((resolve) => window.setTimeout(resolve, motionMs(130)));
+    const lead = span(motionMs(130));
     void Promise.all([artSettled(browse), lead]).then(() => {
       if (!alive()) {
         return;

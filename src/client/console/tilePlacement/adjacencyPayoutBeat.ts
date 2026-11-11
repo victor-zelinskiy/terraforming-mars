@@ -59,6 +59,7 @@ import {
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TransferEndLike, TransferPoint, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {span} from '@/client/console/session/sessionWaits';
 
 /**
  * THE REACTOR AS THE BIRTH PLACE («СРАБАТЫВАНИЕ КАРТЫ», iteration 4): a payout an ENACTED LAW makes (Forestry
@@ -313,7 +314,7 @@ function measureHex(spaceId: string): TileRect | undefined {
 }
 
 function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return span(ms);
 }
 
 // ───────────────────────── THE GROVE HALF ──────────────────────────────────

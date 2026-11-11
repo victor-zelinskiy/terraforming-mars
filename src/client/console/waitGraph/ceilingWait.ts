@@ -9,6 +9,8 @@
  * line is a hidden mutual wait or a lost signal upstream — harvested per e2e test and per monkey walk as the worklist
  * (docs/claude/console/wait-graph.md § CEILINGS; `ceilingWaitGuard.spec` keeps new ceilings on this primitive).
  */
+import {FlowScope, polled, settled} from '@/client/console/kernel/flowScope';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {declareWait} from '@/client/console/waitGraph/waitGraph';
 import {WaitNode} from '@/client/console/waitGraph/waitGraphModel';
 
@@ -95,24 +97,58 @@ export function beginCeilingWait(spec: CeilingWaitSpec, now: number = Date.now()
 
 /**
  * Race `until` against the ceiling: resolves `true` when the awaited thing came first, `false` when the ceiling ended the
- * wait (said once). The ceiling's timer is cleared either way.
+ * wait (said once).
+ *
+ * The race is a WAIT OF THE FLOW KERNEL (architecture v2 — PLAN §10 · C3): bounded by the ceiling on the kernel's clock,
+ * a row of the wait table while it stands, and OWNED — by `owner` when the caller has a run of its own (a scene's scope,
+ * a hold's), by the session otherwise. When the owner ends first the wait is over (`false`: nothing is coming for a
+ * flow that is gone) — the race used to keep its timer and its continuation alive into the next game.
  */
-export function raceCeiling(spec: CeilingWaitSpec, until: Promise<unknown>): Promise<boolean> {
+export function raceCeiling(spec: CeilingWaitSpec, until: Promise<unknown>, owner: FlowScope = consoleSessionScope()): Promise<boolean> {
   const w = beginCeilingWait(spec);
-  return new Promise<boolean>((resolve) => {
-    const timer = setTimeout(() => {
+  // Quiet: the ceiling's own line (`[wait-graph] ceiling …`) is the one the harvests read.
+  return owner.wait(settled(spec.what, until), {bound: {ms: spec.maxMs, quiet: 'said by the ceiling line'}}).then((result) => {
+    switch (result.status) {
+    case 'met':
+      if (result.value.ok) {
+        w.met();
+      } else {
+        w.end();
+      }
+      return true;
+    case 'bound':
       w.ceiling();
-      resolve(false);
-    }, spec.maxMs);
-    until.then(() => {
-      clearTimeout(timer);
-      w.met();
-      resolve(true);
-    }, () => {
-      clearTimeout(timer);
+      return false;
+    default:
       w.end();
-      resolve(true);
-    });
+      return false;
+    }
+  });
+}
+
+/**
+ * A CONDITION against the ceiling: resolves `true` when `read` came true (it is re-read every `everyMs` on the kernel's
+ * clock — true now resolves now), `false` when the ceiling ended the wait (said once) or its owner ended first.
+ *
+ * What a hand-written poll becomes — `wait ??= beginCeilingWait(…)`, a `setTimeout(poll, …)` / a frame loop, a deadline
+ * compared by hand: one bounded, owned row of the wait table, still a node of the legacy graph with its ceiling line.
+ */
+export function untilCeiling(spec: CeilingWaitSpec, read: () => boolean, owner: FlowScope = consoleSessionScope(), everyMs = 100): Promise<boolean> {
+  if (read()) {
+    return Promise.resolve(true);
+  }
+  const w = beginCeilingWait(spec);
+  return owner.wait(polled(spec.what, read, everyMs), {bound: {ms: spec.maxMs, quiet: 'said by the ceiling line'}}).then((result) => {
+    if (result.status === 'met') {
+      w.met();
+      return true;
+    }
+    if (result.status === 'bound') {
+      w.ceiling();
+    } else {
+      w.end();
+    }
+    return false;
   });
 }
 

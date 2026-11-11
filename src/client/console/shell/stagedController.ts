@@ -37,6 +37,7 @@ import {colonyRosterDraft} from '@/client/console/colonyRoster/consoleColonyRost
 import {PendingPlayCard} from '@/client/console/shell/shellShared';
 import type {PlayedController} from '@/client/console/shell/playedController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
+import {span} from '@/client/console/session/sessionWaits';
 
 /** The bound of an owed staged B (T15 · CD) — the hand-off's holds are bounded themselves; this only names a stall. */
 const STAGED_BACK_OWED_MAX_MS = 6000;
@@ -174,7 +175,7 @@ export function createStagedController(shell: StagedPort) {
       return;
     }
     // The read beat: the card rests on the stack before the board takes over.
-    await new Promise((resolve) => setTimeout(resolve, motionMs(320)));
+    await span(motionMs(320));
     stagedLandingInFlight.value = false;
     if (!isPlayedHeroActive() || shell.pendingPlayCard?.cardName !== pending.cardName) {
       stagedBackOwed.value = false;
@@ -309,7 +310,7 @@ export function createStagedController(shell: StagedPort) {
       return;
     }
     // The read beat: the card rests on its pile before the door takes over.
-    await new Promise((resolve) => setTimeout(resolve, motionMs(320)));
+    await span(motionMs(320));
     if (!isPlayedHeroActive() || lawPlayLandingOf(law) === undefined) {
       void finishStagedPlayedLanding();
       setWorkspaceFramePhase('card-actions', 'configure');

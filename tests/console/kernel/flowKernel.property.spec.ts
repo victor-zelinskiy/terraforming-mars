@@ -13,6 +13,12 @@ type Op =
   | {op: 'waitEnd', owner: number, target: number, ms: number}
   | {op: 'waitSignal', owner: number, signal: number, ms: number}
   | {op: 'emit', signal: number}
+  | {op: 'after', owner: number, ms: number}
+  | {op: 'afterFrame', owner: number, frames: number}
+  | {op: 'cancelTimer', timer: number}
+  | {op: 'everyFrame', owner: number, frames: number}
+  | {op: 'guarantee', owner: number, ms: number}
+  | {op: 'disarm', guarantee: number}
   | {op: 'advance', ms: number};
 
 const opArb: fc.Arbitrary<Op> = fc.oneof(
@@ -22,6 +28,12 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
   {weight: 8, arbitrary: fc.tuple(fc.nat(40), fc.nat(40), fc.integer({min: 1, max: 5000})).map<Op>(([owner, target, ms]) => ({op: 'waitEnd', owner, target, ms}))},
   {weight: 3, arbitrary: fc.tuple(fc.nat(40), fc.nat(3), fc.integer({min: 1, max: 5000})).map<Op>(([owner, signal, ms]) => ({op: 'waitSignal', owner, signal, ms}))},
   {weight: 2, arbitrary: fc.nat(3).map<Op>((signal) => ({op: 'emit', signal}))},
+  {weight: 4, arbitrary: fc.tuple(fc.nat(40), fc.integer({min: 0, max: 5000})).map<Op>(([owner, ms]) => ({op: 'after', owner, ms}))},
+  {weight: 2, arbitrary: fc.tuple(fc.nat(40), fc.integer({min: 1, max: 4})).map<Op>(([owner, frames]) => ({op: 'afterFrame', owner, frames}))},
+  {weight: 1, arbitrary: fc.nat(40).map<Op>((timer) => ({op: 'cancelTimer', timer}))},
+  {weight: 2, arbitrary: fc.tuple(fc.nat(40), fc.integer({min: 1, max: 6})).map<Op>(([owner, frames]) => ({op: 'everyFrame', owner, frames}))},
+  {weight: 3, arbitrary: fc.tuple(fc.nat(40), fc.integer({min: 0, max: 5000})).map<Op>(([owner, ms]) => ({op: 'guarantee', owner, ms}))},
+  {weight: 1, arbitrary: fc.nat(40).map<Op>((guarantee) => ({op: 'disarm', guarantee}))},
   {weight: 3, arbitrary: fc.integer({min: 0, max: 3000}).map<Op>((ms) => ({op: 'advance', ms}))},
 );
 
@@ -38,7 +50,12 @@ async function flush(): Promise<void> {
  *   2. no wait stands whose owner has ended;
  *   3. the wait table is ACYCLIC at every step (judged by an independent walk, not the kernel's own check);
  *   4. every wait settles exactly once, and a wait past its bound has settled;
- *   5. when everything is ended nothing is left: no scope, no row, no timer.
+ *   5. when everything is ended nothing is left: no scope, no row, no timer;
+ *   6. an OWNED TIMER (`after` / `afterFrame`) fires at most once, only while its owner lives and it was not cancelled —
+ *      and a timer past its time whose owner lived all along HAS fired. It never fires into an owner that is gone;
+ *   7. a frame LOOP (`everyFrame`) never ticks into an owner that is gone and never past its own «stop»;
+ *   8. a GUARANTEED release happens exactly once unless disarmed first — at its time, or when its owner ends (and a
+ *      release asked of an owner already gone still happens); a disarmed one never does.
  */
 describe('flow kernel · properties', () => {
   let warn: typeof console.warn;
@@ -63,6 +80,11 @@ describe('flow kernel · properties', () => {
       const signals: Array<FlowSignal<void>> = [createFlowSignal(), createFlowSignal(), createFlowSignal(), createFlowSignal()];
       const waits: Array<{owner: FlowScope, armedAt: number, ms: number, settles: number, result?: WaitResult<unknown>}> = [];
       const pick = (i: number): FlowScope<'test'> | undefined => (scopes.length === 0 ? undefined : scopes[i % scopes.length]);
+      const timers: Array<{owner: FlowScope, dueAt: number, armedAtAdvance: number, fired: number, firedIntoEnded: boolean, cancelled: boolean, ownerEndedAt?: number, cancel: () => void}> = [];
+      const loops: Array<{owner: FlowScope, limit: number, ticks: number, tickedIntoEnded: boolean}> = [];
+      const guarantees: Array<{owner: FlowScope, dueAt: number, armedAtAdvance: number, released: number, disarmed: boolean, disarm: () => void}> = [];
+      /** How many times the clock has been advanced — a manual clock fires nothing between two advances, a 0 ms timer included. */
+      let advances = 0;
 
       const subtreeHas = (root: FlowScope, scope: FlowScope | undefined): boolean => {
         for (let s = scope; s !== undefined; s = parentOf.get(s)) {
@@ -144,8 +166,67 @@ describe('flow kernel · properties', () => {
         case 'emit':
           signals[step.signal].emit();
           break;
+        case 'after':
+        case 'afterFrame': {
+          const owner = pick(step.owner);
+          if (owner !== undefined && owner.ended === undefined) {
+            const ms = step.op === 'after' ? step.ms : step.frames * 16;
+            const record: typeof timers[number] = {owner, dueAt: clock.now() + ms, armedAtAdvance: advances, fired: 0, firedIntoEnded: false, cancelled: false, cancel: () => {}};
+            const fire = (): void => {
+              record.fired++;
+              record.firedIntoEnded = record.firedIntoEnded || owner.ended !== undefined;
+            };
+            record.cancel = step.op === 'after' ? owner.after(step.ms, 'a step', fire) : owner.afterFrame('a frame', fire, step.frames);
+            owner.onEnd(() => {
+              record.ownerEndedAt = record.ownerEndedAt ?? clock.now();
+            });
+            timers.push(record);
+          }
+          break;
+        }
+        case 'everyFrame': {
+          const owner = pick(step.owner);
+          if (owner !== undefined && owner.ended === undefined) {
+            const record: typeof loops[number] = {owner, limit: step.frames, ticks: 0, tickedIntoEnded: false};
+            owner.everyFrame('a loop', () => {
+              record.ticks++;
+              record.tickedIntoEnded = record.tickedIntoEnded || owner.ended !== undefined;
+              return record.ticks < record.limit;
+            });
+            loops.push(record);
+          }
+          break;
+        }
+        case 'guarantee': {
+          const owner = pick(step.owner);
+          if (owner !== undefined) {
+            const record: typeof guarantees[number] = {owner, dueAt: clock.now() + step.ms, armedAtAdvance: advances, released: 0, disarmed: false, disarm: () => {}};
+            record.disarm = owner.guarantee(step.ms, 'a release', () => {
+              record.released++;
+            });
+            guarantees.push(record);
+          }
+          break;
+        }
+        case 'disarm': {
+          const g = guarantees.length === 0 ? undefined : guarantees[step.guarantee % guarantees.length];
+          if (g !== undefined && g.released === 0) {
+            g.disarmed = true;
+            g.disarm();
+          }
+          break;
+        }
+        case 'cancelTimer': {
+          const timer = timers.length === 0 ? undefined : timers[step.timer % timers.length];
+          if (timer !== undefined && timer.fired === 0) {
+            timer.cancelled = true;
+            timer.cancel();
+          }
+          break;
+        }
         case 'advance':
           clock.advance(step.ms);
+          advances++;
           break;
         }
         await flush();
@@ -172,6 +253,32 @@ describe('flow kernel · properties', () => {
             expect(wait.settles, 'a wait past its bound / its owner has settled').to.eq(1);
           }
         }
+        // 6. An owned timer: at most once, never cancelled-and-fired, never into an owner that is gone — and on time.
+        for (const timer of timers) {
+          expect(timer.fired).to.be.at.most(1);
+          expect(timer.firedIntoEnded, 'a timer fired into an ended owner').to.eq(false);
+          if (timer.cancelled) {
+            expect(timer.fired, 'a cancelled timer fired').to.eq(0);
+          } else if (timer.ownerEndedAt !== undefined && timer.ownerEndedAt < timer.dueAt) {
+            expect(timer.fired, 'a timer fired after its owner ended').to.eq(0);
+          } else if (advances > timer.armedAtAdvance && clock.now() >= timer.dueAt && timer.ownerEndedAt === undefined) {
+            expect(timer.fired, 'a timer past its time, its owner alive, has fired').to.eq(1);
+          }
+        }
+        // 7. A frame loop: never into an ended owner, never past its own stop.
+        for (const loop of loops) {
+          expect(loop.tickedIntoEnded, 'a loop ticked into an ended owner').to.eq(false);
+          expect(loop.ticks, 'a loop ticked past its own stop').to.be.at.most(loop.limit);
+        }
+        // 8. A guaranteed release: at most once; never when disarmed; due = happened (its time, or its owner's end).
+        for (const g of guarantees) {
+          expect(g.released).to.be.at.most(1);
+          if (g.disarmed) {
+            expect(g.released, 'a disarmed release happened').to.eq(0);
+          } else if (g.owner.ended !== undefined || (advances > g.armedAtAdvance && clock.now() >= g.dueAt)) {
+            expect(g.released, 'a release that is due has happened').to.eq(1);
+          }
+        }
       }
 
       // 5. Everything ended — nothing is left.
@@ -184,6 +291,9 @@ describe('flow kernel · properties', () => {
       expect(clock.pending()).to.eq(0);
       for (const wait of waits) {
         expect(wait.settles).to.eq(1);
+      }
+      for (const g of guarantees) {
+        expect(g.released, 'every release not disarmed has happened by the end').to.eq(g.disarmed ? 0 : 1);
       }
     }), {numRuns: 300});
   });

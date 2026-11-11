@@ -517,7 +517,7 @@ export default defineComponent({
             detail: '61 frames, estimated at 16 ms each',
           });
           tries++;
-          requestAnimationFrame(poll);
+          probeTick(poll);
         };
         poll();
       });

@@ -19,6 +19,11 @@
 | S6 · mechanical | the shell: EVERY domain is a controller | **done** — 34 controllers (table in §5 · S6); `ConsoleShell.vue` is 3.8k lines (was 27.8k): the template (1.6k), the composition root, the module-state mirrors, the ordered `watch` table and the two hooks. What is left in it is NOT domain code, and it ONLY SHRINKS (`shellControllers.spec.ts` — a ratchet on its data / computed / methods / watch rows / lines) |
 | S5 · the owed conclusion | an ending that was refused is a RUN in its frame's scope | **done** — `console/workspaceConclusionOwe.ts`; the mailbox (`owedConclusion` + `…Since` + `…GhostSince`), the hand-written `owedConclusionSignal` (25 terms), `retryOwedConclusion` and the truth witness `workspace-conclusion-owed` are deleted; the wake is one row of the watch table over the key of the decision's OWN facts. *Open in S5:* owed STEPS as children of the frame's scope; the stale free-turn reaper |
 | S3 · S4 | the shell: surface registry (pad / bar / context — one table); the prompt router and «set aside» | **S3, first step: done** — the pad router says when a surface it routed a press to is not mounted (`handedTo`: dropped, named). The rest is open — each the redesign of named controllers: `padRouter` + `commandBar`; `router` + `mandatory` |
+| C0 | COVERAGE: the ledger, the session's generations, owned timers / frames, the tree in the field record | **done** — §10. `tests/console/kernelCoverage.spec.ts` + `kernelCoverageBaseline.json` count what still waits outside the kernel (raw timers · raw frames · `delayedCall`s · flow-state modules whose run is not a scope · the shell's teardown rows) and only let it shrink — a NEW console file starts at zero; `scope.after` / `scope.afterFrame` / `frames()`; `useFlowScope` (a component's own scope); `createFlowRun` (a module flow's run); a session has an identity (`session:game#n`) beside the lobby's root; `window.__conFlow()` and the heartbeat's `flow` digest |
+| C2 | COVERAGE: every animation hold is a run of the tree | **done** — a hold that stands is `scene:hold:<label>#n` in the session; its ceiling is a timer that scope owns; it ends `done` / `expired` / **with its session** (the hold is then taken down through its owner's `expire` — the session-leak class closed for all 61 suppliers and 18 handles at once); a handle carries its scope (`hold.scope`) |
+| C4 | COVERAGE: module flows' runs as scopes | **17 of 35** — colonies (roster · city · build · trade + the track wave · track raise · the trade fleet and its director), the patent sale, the hydro marker (one advance or a whole traversal, its stops included), the board (the tile placement · the REMOTE placement stage · the nomad move, own and remote legs · the board card bonus), cards (the deck draw · the card discard · the played hero), the energy conversion and the hazard cleanup: their timers are the run's, their run ends with the session (`orphaned` = the module's abort). The other 18 are the baseline's `flows` list — the worklist |
+| C1 | COVERAGE: timers and frames outside the flows | **first sweep** — the idioms have names and are bounded and owned: «two painted frames» → `whenPainted()` (16 sites — eight of them were unbounded awaits in the start scene), «a beat of stillness» → `span()` (22), the director's safety pair and every other bare release → `guarantee()` (75: the deal / rise / exit / discard / build / nomad / sale / tile / hero / category / return directors, the resource transfers, the hand delivery, the zoom, hand-stage, batch-arrival, action-reveal and surface motions), a measure poll on a bare frame → `probeTick()` (16 more; 106 callers stand on an owned frame + a guaranteed fallback), a frame loop → `everyFrame()` (the two counters). The ledger's line: **373 → 222 raw timers, 137 → 82 raw frames, 35 → 18 flows** |
+| C3 | COVERAGE: the registries as views | **started** — `raceCeiling` is a kernel wait; `untilCeiling` (a polled condition against its ceiling as one bounded, owned row) replaces the hand-written poll in the card discard and the track raise. 53 `beginCeilingWait` poll loops and the ledger's stories are open |
 | N1 | native stalls: LoAF in the field log, a trace on `unresponsive` | **done (diagnosis)** — `longFrameWatch.ts` (`[long-frame]` lines with the frame's split), `electron/hangTrace.ts` (a Chromium trace of every stop, named in the hang line); reducing what the first traces name is open |
 
 **Branch / tree.** The work is done in the worktree `C:\Projects\Mods\tm-arch` (branch `arch-v2`, rebased on
@@ -26,6 +31,10 @@
 (`git fetch` → HEAD = `origin/main`, own paths checked out) — the owner looks at the main clone.
 
 **Specs whose hooks or timing a slice touched** (the CI run at the end is the verdict — look here first): see §9.
+
+**The owner's direction (2026-11-11, after the green CI run): «100 % of the console UI on the framework».** That is a
+number now — §10 defines it (the coverage ledger) and orders the route; the list below is the same work seen from the
+shell's side. Take the next item from §10's order; the ledger says when it is done.
 
 **What is open, in the order to take it** (each is a redesign of named controllers now, not an excavation):
 
@@ -48,8 +57,9 @@
    the excursion is the fix or a change (repeat pick, the delta reward / espionage picks, the card's hydro entry).
 5. **L1, the rest** — ticket-first arming (`openSubmit()` returns the ticket, scenes are armed ON it) at each
    `arm…()` site, domain by domain; then the ticket-less `submitInput(out)` form goes.
-6. **Phase 3** — holds as scoped runs, the board stories and the directors' runs on the wait table; then the
-   wait-graph observer reads the kernel's table through one adapter and its hand-fed sources (`shellWaitNodes`) go.
+6. **Phase 3** — ~~holds as scoped runs~~ (done — C2); the board stories and the directors' runs on the wait table
+   (C3 / C4 of §10); then the wait-graph observer reads the kernel's table through one adapter and its hand-fed sources
+   (`shellWaitNodes`) go.
 7. **S-last** — the session wires the controllers' ports directly (no instance in between), the 120-row `reset…()`
    list in `beforeUnmount` becomes `onConsoleSessionEnd` registrations, and the session OWNS THE TICK: one ordered
    pass of decisions per flush, after the reactions that complete the facts and before the render — the primitive
@@ -575,6 +585,8 @@ kernel, a net that still covers legacy code stays, and the table says what it st
 
 | Slice | What moved | Specs |
 | --- | --- | --- |
+| (baseline, not a slice) | `console-colony-pluto-embed` :329 is RED ON `origin/main` at 2ae0fde320 on the box — 5 of 10 repeats, «[workspace-stale] concluded «colonies» — it stood committed over the free turn 9s … its flow did not end itself» (the stale free-turn reaper concluding the colonies under the trade's closing beat — the open item of CI run 42998242617). With the coverage commit on top: 1 of 4. Read a red there as the reaper's race, not as the trade's run | `console-colony-pluto-embed` |
+| C0 · C2 · C4 (seventeen flows) · C1 (first sweep) | every animation hold opens a kernel scope at its rising edge and its 35 s ceiling is a kernel timer (same span, same warn, same recovery); a hold a NET ends no longer runs its recovery a second time at 35 s; **when the shell is unmounted every hold still standing is ended through its `expire`** (was: left to its ceiling); the shell opens a session OF ITS OWN in `setup()` and ends that one (was: «the current one»); `raceCeiling` is a kernel wait (owner-bound: over when its owner ends); the colony roster / city / build / trade / track wave / track raise, the trade fleet, the patent sale, the hydro marker, the tile placement, the remote placement stage, the nomad move (both legs), the board card bonus, the deck draw, the card discard, the played hero, the energy conversion and the hazard cleanup keep their timers in the run's scope — same spans, but a beat's sleep is over AT ONCE when the run is aborted (was: resolved later, into a run that had ended), a frame poll is bounded on the clock (the patent sale: 50 ms per frame; the discard's wait for its pile: frames' worth of time — was a count of painted frames), and a mark that outlives its flow (the docked glow, the settled stop, the wave's landed cells) is cleared at the session's end too; **every `await` of two bare animation frames is `whenPainted()` — it resolves after 400 ms when nothing paints (was: never)**; a director's safety is a guaranteed release (same budget; it also comes due when the game screen leaves); `probeTick` is an owned frame + a guaranteed 50 ms fallback, and sixteen measure polls that rode a bare frame ride it now (a poll counted in frames is bounded on the clock) | `console-nomads-*` / `zz-nomads-visual`, the specs with a second seat or the bot (`console-bot-*`, `console-colony-remote-bonus`, `console-reveal-remote-bonus-collision` — the remote stage), `console-played-*`, `console-hydro-*`, `console-delta-surge`, `console-placement-*`, `console-final-greenery*`, `console-tile-*`, `console-deck-draw`, `console-card-discard`, `console-start-*` / `start-*` (the start scene's eight frame waits), `console-played-*`, `console-colony-build*`, `console-colony-roster*`, `console-colony-city*` / `console-nova-city*`, `console-colony-trade*`, `console-colony-pluto-embed`, `console-patent-sale*`, `console-standard-projects*`; anything that leaves the game and re-enters (`console-rematch*`, `console-finale*`, `console-campaign*`); the mechanism specs (`console-multi-effect-sequence`, `console-play-scale-conclusion`, `console-wait-graph-*`) |
 | S6 · tidy | the view-apply reaction is a controller (`viewApplyController.ts` — the body of the `playerView` watch row, verbatim); `game` moved from the milestones / awards controller to the seat's (it had landed there by affinity); the shell's size is a ratchet | none expected — the same code, one call deeper |
 | S3 · first step | a press the router hands to a surface whose ref is not mounted is counted `verbDropped` (was: taken) and warns `[pad] … is not mounted` once — harvested by the harness, never red by itself; the liveness arbiter may now judge such a screen at once | a spec that presses A / B INTO a surface before it has mounted (it was a silently lost press before; now the echo says so): look for a new `[pad]` line in the stall harvest and a `[liveness] stall (presses-dropped…)` that was not there |
 | S5 · owed conclusion | a refused ending is re-asked when the decision's FACTS move (was: when a hand-listed signal moved) — by a row of the watch table in the place the signal's row stood (the same moment of the tick); where only the claim's reconcile could unlock it, on the facts it reads or on the 500 ms cadence after a 2.5 s grace (was: on every ingredient edge); the `[presentation-ledger] witness «workspace-conclusion-owed» healing` line is gone, `[workspace-conclusion] … on the re-ask cadence` says a cadence-made ending | every flow that ends through `concludeWorkspaceFlowOrOwe` while something still holds: `console-play-scale-conclusion`, `console-hi-tech-lab`, `console-viron-repeat-draw`, `console-deck-pick-collapse`, `console-blue-action-purchase` / `-receive`, `console-parliament-chairman-quest`, `console-parliament-actions`, `console-reds-campaign`, `console-colony-pluto-embed`, `console-pluto-bonus-discard`, `console-hydro-copied-tile`, `console-delta-surge`, `console-wg-play-from-hand`, `console-start-sponsor`, `console-one-framework-draw`, `console-multi-effect-sequence` |
@@ -587,3 +599,141 @@ kernel, a net that still covers legacy code stays, and the table says what it st
 | L3 | the claim's timers are machine states (same numbers); an orphaned claim is released exactly 1.5 s after its host's last frame ended (was 1.5–2.5 s, sampled); the arrival gate of a claim that never got an answer opens at 20 s | `console-hi-tech-lab`, `console-wait-graph-dead-end` § orphaned claim, `console-hydro-copied-tile`, every embedded draw / pick / verdict (`console-viron-repeat-draw`, `console-deck-pick-collapse`, `console-start-sponsor`, card-actions specs) |
 | L2 | every frame verb now also opens / ends scopes; the phase is written through a machine (same value, same call); a frame whose press did not land goes back by the lease (after the surface's own rollback); a beat standing 180 s on stage is ended | anything with park / restore / yield for the board (`console-hydro-copied-tile`, `console-hi-tech-lab`, `console-workspace-stack*`, `console-start-sponsor`, `console-mu-colony-question`), a refused submit inside a workspace (`console-resource-distribute`), reload restore (`console-draft-workspace`) |
 | L1 | the funnel: every gate now runs as a child scope (a few microtasks later than a bare `await`); a gate that throws no longer aborts the whole answer; the supervisor's release ends the gate instead of lowering the flag | any spec that plays a card / trades / advances the hydro marker / converts / places a tile — pointwise check on the box: `smoke`, `console-workspace-band`, `console-stdp-workspace`, `console-colony-venus-trade`, `console-hydro-terminal-field`, `console-generation-scene`, `console-hand-play-return`, `console-hazard-placement` |
+
+---
+
+## 10. Coverage — «the whole console on the framework» as a number
+
+*The owner, 2026-11-11, after the green CI run of the shell's decomposition: «идти дальше по плану и делать 100 %
+покрытие всего консольного UI новым фреймворком».*
+
+### 10.1 What «covered» means
+
+A piece of the console is on the framework when **nothing in it has a lifetime the kernel does not own, and nothing in
+it waits outside the wait table**. Five things in the source are not that, and each can be counted:
+
+| | Outside the kernel | On the kernel | Count at the start (2026-11-11) |
+| --- | --- | --- | --- |
+| ① | a raw `setTimeout` / `setInterval` — a callback nobody owns: it fires into whatever stands there by then, and a release that rides it does not happen when it is cleared | `scope.after(ms, what, run)` · `scope.sleep(ms)` — taken back when the owner ends, a row of the wait table until then, on the kernel's clock | **373** in 163 files |
+| ② | a raw `requestAnimationFrame` — the same on frames; an `await` of one never resolves in a window that does not paint | `scope.afterFrame(what, run, n)` · `scope.wait(frames(n), {bound})` | **137** in 63 files |
+| ③ | a GSAP `delayedCall` used as a timer | `scope.after` | **36** in 23 files |
+| ④ | a FLOW-STATE MODULE (reactive state with a `live` / `active` flag — the wait-graph law's definition) whose run is a flag every exit path lowers by hand, with its own timer ids | its run is a scope: `createFlowRun(label, {orphaned})` (`scene:<label>#n`) — or the hold it stands under when the two are one life (`beginAnimationHold(…).scope`) | **35** modules |
+| ⑤ | a row of the shell's `beforeUnmount` that takes module state down by hand (`resetX()` / `abortX()` / …) | nothing: a flow opened in the session ends with it (`orphaned` is its abort) | **66** rows |
+
+Plus the two registries the nets read, which are covered when they are VIEWS of the tree rather than second books:
+
+| | | |
+| --- | --- | --- |
+| ⑥ | the hold registry (61 suppliers, 18 handles) | **done (C2)** — every hold is a `scene:hold:<label>` scope; the registry's store is its reactive mirror |
+| ⑦ | the legacy wait graph's hand-fed sources (`registerWaitSource` ×10, `declareWait`, `beginCeilingWait` ×55, `owePresentation` ×8) | open (C3) — each becomes a kernel wait / scope; the observer then reads `waitTable()` through one adapter |
+
+**The ledger** is `tests/console/kernelCoverage.spec.ts` over `tests/console/kernelCoverageBaseline.json`: per file,
+what still stands outside; a file may not grow and **a new file starts at zero** — new console code is on the kernel by
+construction, without anybody reviewing for it. `npm run coverage:kernel` rewrites the baseline DOWNWARDS (it never
+raises a row) and prints the totals. **100 % = the baseline is empty.** Quote its line in every slice's report.
+
+### 10.2 The primitives (what C0 added to the kernel and beside it)
+
+| Need | Primitive | Where |
+| --- | --- | --- |
+| a callback later, owned | `scope.after(ms, what, run)` → cancel | `kernel/flowScope.ts` |
+| a callback on a frame, owned | `scope.afterFrame(what, run, count?)` → cancel | same |
+| a frame LOOP, owned | `scope.everyFrame(what, tick)` → stop (`tick` returns `false` to end; one row for the loop's life) | same |
+| a release that cannot be lost | `scope.guarantee(ms, what, release)` → disarm (called at `ms` OR at the scope's end) | same |
+| a condition re-read on the clock | `polled(what, read, everyMs)` (a target) · `untilCeiling(spec, read, owner?, everyMs?)` (with its ceiling line) | same · `waitGraph/ceilingWait.ts` |
+| «two painted frames» · «a beat» | `whenPainted(n, boundMs, owner?)` · `span(ms, owner?)` | `session/sessionWaits.ts` |
+| a measure loop's tick | `probeTick(fn)` — an owned frame + a guaranteed fallback | `console/probeTick.ts` |
+| await a span / frames | `scope.sleep(ms)` · `scope.wait(frames(n), {bound})` | same |
+| a component's own scope | `useFlowScope(label)` in `setup()` — ends on unmount | `session/useFlowScope.ts` |
+| a module flow's run | `createFlowRun(label, {orphaned})` — `begin` / `end` / `after` / `afterFrame` / `sleep` / `live()` | `session/flowRun.ts` |
+| «whose is a flow opened now» | `consoleSessionScope()` — the game session, else the lobby | `session/consoleSession.ts` |
+| a module's own root | `sessionChild(held, kind, label)` — re-homed when the session changed | same |
+| a beat under a hold | `hold.scope` (`beginAnimationHold` returns it) | `presentation/animationHold.ts` |
+| a race against a ceiling | `raceCeiling(spec, promise, owner?)` — a kernel wait | `waitGraph/ceilingWait.ts` |
+| the tree, from the page | `window.__conFlow()`; the heartbeat's `flow` (only in a second that stood still) | `session/consoleSession.ts`, the supervisor |
+
+**The session has an identity.** `beginConsoleSession()` (the shell's `setup()`) opens `session:game#n`; the shell
+ends THAT one on `unmounted` — a new shell's `setup()` runs before the old shell's `unmounted`, and the old one used
+to end the root the new shell had just started to use. Beside it stands the LOBBY's root (`session:lobby#n`): what is
+opened while no game screen is up (the menus, the campaign, a spec) belongs to it and is not ended by a game that
+comes and goes.
+
+### 10.3 The recipes
+
+**A TIMER IS ONE OF TWO THINGS — decide which before converting it.**
+
+- **PACING** — «do the next thing later» (a beat's step, a safety that aborts, a poll): `owner.after(ms, what, run)`.
+  When the owner ends first the callback must NOT run — that is the point.
+- **RELEASE** — «let something go later» (a promise somebody awaits, a gate's resolver, a flag of a mark that outlives
+  its flow, a hold): it must happen even when the owner ends first, so it never rides a timer that can be taken back.
+  `const disarm = owner.guarantee(ms, what, release)` — called once, at `ms` or at the owner's end; `disarm()` when
+  the thing came by itself (the `setTimeout(finish, budget)` … `clearTimeout(safety)` pair of every director) — or a
+  span that answers either way (`await owner.sleep(ms)`), or a cleanup of the owner (`owner.defer(release)`).
+
+A conversion that turns a release into a pacing timer creates the wedge the framework exists to remove; one that
+turns a pacing timer into a span lets a dead flow act. (`consoleTradeFleet.ts` has one of each and one of the third
+kind: a mark that outlives its flow by design — the docked glow — is the SESSION's span, guarded by a sequence number.)
+
+**A module flow (④)** — `createFlowRun`:
+1. `const run = createFlowRun('<label>', {orphaned: () => abortX()})` at module scope;
+2. `run.begin()` where the flow starts (the arm, the seed) — a run still standing ends first, its timers with it;
+3. every timer id + `clearTimeout` pair → `const cancel = run.after(…)` (or no handle at all when only the run's end
+   takes it back); every `await wait(ms)` → `await run.sleep(ms)` (it is over AT ONCE when the run is aborted — check
+   the flag after it, as the code already does); an `await` of a raw frame → `run.scope.wait(frames(), {bound})`;
+4. `run.end()` on EVERY exit path — beside the line that lowers the flag (it is idempotent);
+5. the HOLD STAYS DERIVED (`registerAnimationHoldSupplier(label, predicate)`): a hold computed from state cannot
+   diverge from it, whoever writes the state — do not turn a supplier into a handle (a spec that pokes `state.live`
+   and expects the hold is right; `colonyCity.spec.ts` caught exactly that);
+6. its row in the shell's teardown goes when `orphaned` covers what the row did (state that is NOT the run — an arm
+   waiting for its answer, a receipt — still needs its reset until that state is a scope of its own).
+
+**A component (① ② in a `.vue`)** — `setup() { return {flow: useFlowScope('<label>')}; }`, then `this.flow.after(…)`.
+The `beforeUnmount` list of `clearTimeout`s goes. A release the component owes (a hold, a module flag) is
+`this.flow.defer(() => …)`.
+
+**A polling wait with a ceiling** (`beginCeilingWait` + a frame loop + a deadline) —
+`scope.wait(until(what, read, {polledMs: 16}), {bound: {ms}})`: the condition, the poll and the bound are one row.
+
+### 10.4 The order
+
+| Step | What | State |
+| --- | --- | --- |
+| **C0** | the ledger; the session's generations; `after` / `afterFrame` / `frames`; `useFlowScope`; `createFlowRun`; the tree in the field record | **done** |
+| **C2** | every hold is a run of the tree; it ends with its session | **done** |
+| **C4** | module flows, family by family (each with its unit specs and its pointwise e2e): **colonies** (roster ✓ · city ✓ · build ✓ · fleet ✓ · trade ✓ · track wave ✓ · track raise ✓ · track move · bonus payout · resolution) → **the sale** ✓ → **hydro** (marker ✓ · flow · entries) → **the board** (tile placement ✓ · board-card bonus ✓ · remote placement ✓ · nomads ✓ · cell resource) → **cards** (deck draw ✓ · discard ✓ · played hero ✓ · deck pick · external draw · hand delivery / reveal · card return · reaction · receive) → **resources** (transfer · rail reward · commit rail) → **feedback** (energy conversion ✓ · hazard cleanup ✓) → **scales** (step reward / rating, swing, gov focus, planet focus) → **the Parliament** (sitting director, the beats, the walk, the rally, the quest, rival votes, draws — its beats ride GSAP's clock on purpose: give `scheduleParliamentBeat` an OWNER, do not move it to the wall clock) → **scenes** (generation, terraformed, endgame, MA ceremony, final greenery) → **picks** (hand / play / repeat pick, the delta entries, the prelude chain) → the loading screen | 17 / 35 |
+| **C1** | timers and frames outside the flows: ① the idioms by codemod (`whenPainted` · `span` · `guarantee` · `probeTick` — done where the shape is provable; `tm-arch-tools/c1_*.py` are the codemods, re-runnable); ② what is left is per-site — a handle re-armed in several places with different callbacks, a poll that also re-arms a safety, a safety that WARNS when it fires (it must not fire at the session's end), a scene whose `clearTimers()` is what stops its sequence (`terraformedScene`); ③ components (`.vue`) with `useFlowScope`, after the module behind each surface is on a run | first sweep done |
+| **C3** | the registries as views: ceiling waits → kernel waits (per flow, with C4); ledger stories → `story` scopes; the wait-graph observer reads `waitTable()` + the tree through one adapter; its hand-fed sources go | open |
+| **C5** | the shell's teardown: each row goes with its flow's `orphaned`; what is left registers on the session; then S-last (the session owns the tick) | open |
+| **C6** | the shell's own open items — §0's list 1 – 5 (owed steps, the prompt router, the surface registry, the lifecycle half, ticket-first arming) | open |
+
+Every step ends with: vue-tsc + plain tsc + eslint, `tests/console/**`, `build:test`, the unit suites, `npm run build`,
+the pointwise box e2e of the family plus the mechanism specs, `npm run coverage:kernel`, the ledger's line in the
+report, §0 / §9 here updated.
+
+### 10.5 What the first round taught
+
+- **A hold derived from state is the stronger form — keep it.** The first cut made the roster's and the city's hold a
+  handle opened in `begin()` and released in `end()` («the hold IS the run»). `colonyCity.spec.ts` sets `state.live`
+  and expects the hold: with a handle, state and hold are two things that can diverge; with a supplier they cannot.
+  The run is for what state cannot express — who owns the timers, and what ends when the session does.
+- **A session end is a ceiling.** A supplier still true when the game screen leaves is masked and its `expire` runs,
+  exactly as at 35 s — but now, not half a minute into the next game. A handle still held is dropped the same way.
+  Neither is a warn: leaving a game mid-scene is not a leak (the trace says `cancel … still held when its session
+  ended`).
+- **`await` of a raw frame is a hang in a window that does not paint.** The patent sale's two polls re-read their
+  deadline only after a frame; the kernel's `frames()` under a 50 ms bound re-reads it either way.
+- **A release needs its own primitive.** The first conversions wrote releases as `void owner.sleep(ms).then(release)`
+  guarded by a sequence number. `scope.guarantee(ms, what, release)` says it in one call (at `ms` OR at the owner's
+  end, once; `disarm()` when the thing came by itself) — and that made the director's safety pair, the commonest raw
+  timer in the client, a provable codemod: the callback is a bare `finish` / `done` / `resolve`, the handle is only
+  ever cleared.
+- **A scene safety whose callback opens the transport's GATE is a release, not a pacing timer** (`freeRunGate`): it is
+  `run.guarantee`, so a run ended by a NEW arm opens the older gate instead of leaving it to the gate's own maximum.
+- **`until` wakes inside the stretch that made its condition true.** The track raise waits for the standing wave to
+  end and then plays its own: on `until` it would start in the very microtask train of the wave's `finish`, before
+  that stretch had said what else changed. `polled` (the clock only) keeps the raise in a task of its own — the same
+  lesson as «a decision that ACTS has a place in the tick», at the scale of one module.
+- **The laptop is a valid pointwise runner when the box is off** (the owner's task-level permission): one spec per
+  invocation, one worker, from the mirror's build — `tm-arch-tools/laptop-e2e.sh`. Functional specs only; a timing
+  taken there is a verdict about the laptop.
+

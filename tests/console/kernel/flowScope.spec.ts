@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {ref} from 'vue';
 import {createManualClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {
-  createFlowSignal, delay, dumpFlowTree, ended, FlowScope, joined, liveScopeCount, motion, openFlowRoot, resetFlowKernel,
+  createFlowSignal, delay, dumpFlowTree, ended, FlowScope, flowTreeDigest, frames, joined, liveScopeCount, motion, openFlowRoot, resetFlowKernel,
   ScopeEnd, settled, signalled, until, waitTable, WaitTarget,
 } from '@/client/console/kernel/flowScope';
 import {flowTrace, flowTraceStats, resetFlowTrace} from '@/client/console/kernel/flowTrace';
@@ -484,6 +484,184 @@ describe('flow kernel · scope', () => {
         seen = end;
       });
       expect(seen).to.deep.eq({how: 'expired', bound: '5s'});
+    });
+  });
+
+  describe('an owned timer (`after`) — a callback that cannot fire into a flow that is gone', () => {
+    it('runs once, at its time, in the timer\'s own task — and is a row of the wait table until then', () => {
+      const scope = openFlowRoot('test', 'owner');
+      const ran: Array<number> = [];
+      scope.after(300, 'the next step', () => ran.push(clock.now()));
+
+      expect(waitTable().map((row) => `${row.owner} ${row.family} «${row.what}» ${row.boundMs}`)).to.deep.eq(['test:owner#1 timer «the next step» 300']);
+      clock.advance(299);
+      expect(ran).to.deep.eq([]);
+      clock.advance(1);
+      expect(ran).to.deep.eq([1300]);
+      expect(waitTable()).to.deep.eq([]);
+      clock.advance(10_000);
+      expect(ran, 'once').to.deep.eq([1300]);
+    });
+
+    it('THE SCOPE ENDED FIRST: the timer is taken back — nothing fires, nothing stands armed', () => {
+      const root = openFlowRoot('test', 'root');
+      const scene = root.open('test', 'scene');
+      let fired = 0;
+      scene.after(300, 'a release nobody should depend on', () => fired++);
+      expect(clock.pending()).to.equal(1);
+
+      root.end(); // the PARENT ends: the child's timer goes with the child
+      expect(clock.pending()).to.equal(0);
+      expect(waitTable()).to.deep.eq([]);
+      clock.advance(1_000);
+      expect(fired).to.equal(0);
+    });
+
+    it('the returned cancel takes it back (idempotent); a timer asked of an ended scope is never armed', () => {
+      const scope = openFlowRoot('test');
+      let fired = 0;
+      const cancel = scope.after(100, 'x', () => fired++);
+      cancel();
+      cancel();
+      expect(clock.pending()).to.equal(0);
+      expect(waitTable()).to.deep.eq([]);
+
+      scope.end();
+      scope.after(100, 'late', () => fired++);
+      expect(clock.pending()).to.equal(0);
+      clock.advance(1_000);
+      expect(fired).to.equal(0);
+    });
+
+    it('a callback that throws is said once (`[flow] …`) and does not break the clock\'s other timers', () => {
+      const scope = openFlowRoot('test', 'owner');
+      const ran: Array<string> = [];
+      scope.after(100, 'boom', () => {
+        throw new Error('boom');
+      });
+      scope.after(100, 'fine', () => ran.push('fine'));
+      clock.advance(100);
+      expect(ran).to.deep.eq(['fine']);
+      expect(warned.filter((line) => line.includes('the timer «boom» threw'))).to.have.length(1);
+    });
+
+    it('`afterFrame` — the same on the page\'s frames: called after that many frames, never after the scope ended', () => {
+      const scope = openFlowRoot('test', 'owner');
+      const ran: Array<string> = [];
+      scope.afterFrame('measure after the patch painted', () => ran.push('one'));
+      scope.afterFrame('the fit has landed', () => ran.push('two'), 2);
+      clock.advance(16);
+      expect(ran).to.deep.eq(['one']);
+      clock.advance(16);
+      expect(ran).to.deep.eq(['one', 'two']);
+
+      scope.afterFrame('late', () => ran.push('late'), 3);
+      clock.advance(16);
+      scope.end();
+      expect(clock.pending()).to.equal(0);
+      clock.advance(1_000);
+      expect(ran, 'a frame callback of a scope that ended is taken back').to.deep.eq(['one', 'two']);
+    });
+
+    it('`frames(n)` under a bound — met when the page painted, BOUND when it does not paint (a hidden window)', async () => {
+      const scope = openFlowRoot('test', 'owner');
+      const painted = scope.wait(frames(2), {bound: {ms: 500, quiet: 'a poll'}});
+      clock.advance(32);
+      expect((await painted).status).to.equal('met');
+
+      // A window that does not paint: the clock's frames never come — the wait ends on its bound, the poll goes on.
+      const real = clock.nextFrame;
+      clock.nextFrame = () => () => {};
+      try {
+        const hidden = scope.wait(frames(), {bound: {ms: 50, quiet: 'a poll'}});
+        clock.advance(50);
+        expect((await hidden).status).to.equal('bound');
+      } finally {
+        clock.nextFrame = real;
+      }
+      expect(waitTable()).to.deep.eq([]);
+    });
+
+    it('`guarantee` — a RELEASE: it happens at its time, or when the scope ends first, exactly once; `disarm` withdraws it', async () => {
+      const root = openFlowRoot('test', 'root');
+      const released: Array<string> = [];
+
+      // …at its time.
+      root.guarantee(300, 'the tween\'s promise', () => released.push('on time'));
+      clock.advance(300);
+      expect(released).to.deep.eq(['on time']);
+
+      // …when the owner ends first — the opposite of `after`, which would have taken it back.
+      const scene = root.open('test', 'scene');
+      scene.guarantee(5_000, 'the gate somebody awaits', () => released.push('at the end'));
+      scene.after(5_000, 'the next step', () => released.push('NEVER'));
+      scene.end();
+      expect(released).to.deep.eq(['on time', 'at the end']);
+      expect(clock.pending(), 'its timer went with it').to.equal(0);
+      clock.advance(10_000);
+      expect(released, 'once').to.deep.eq(['on time', 'at the end']);
+
+      // …and not at all when what it backs came by itself.
+      const disarm = root.guarantee(300, 'x', () => released.push('disarmed'));
+      disarm();
+      disarm();
+      clock.advance(1_000);
+      root.end();
+      expect(released).to.deep.eq(['on time', 'at the end']);
+
+      // Asked of an owner that is gone, it is not parked: it happens — a microtask later, never inside the call (the
+      // caller's `const disarm = …` is not assigned yet).
+      root.guarantee(300, 'late', () => released.push('late'));
+      const withdrawn = root.guarantee(300, 'late and disarmed', () => released.push('NEVER'));
+      withdrawn();
+      expect(released, 'not inside the call').to.deep.eq(['on time', 'at the end']);
+      await flush();
+      expect(released).to.deep.eq(['on time', 'at the end', 'late']);
+      expect(waitTable()).to.deep.eq([]);
+    });
+
+    it('`everyFrame` — an owned LOOP: one row for its life; it stops when its tick says so, when stopped, when the scope ends', () => {
+      const root = openFlowRoot('test', 'root');
+      const scene = root.open('test', 'scene');
+      let frames = 0;
+      scene.everyFrame('the counters', () => {
+        frames++;
+        return frames < 3; // the third frame is the last
+      });
+      expect(waitTable().map((row) => row.what)).to.deep.eq(['the counters']);
+      clock.advance(16 * 10);
+      expect(frames, 'it stopped itself').to.equal(3);
+      expect(waitTable()).to.deep.eq([]);
+      expect(clock.pending()).to.equal(0);
+
+      let ticks = 0;
+      const stop = scene.everyFrame('a driver', () => {
+        ticks++;
+      });
+      clock.advance(32);
+      expect(ticks).to.equal(2);
+      stop();
+      clock.advance(160);
+      expect(ticks, 'stopped by its handle').to.equal(2);
+
+      scene.everyFrame('a driver', () => {
+        ticks++;
+      });
+      clock.advance(16);
+      root.end(); // the PARENT ends: the loop cannot go on painting a flow that is gone
+      clock.advance(160);
+      expect(ticks).to.equal(3);
+      expect(clock.pending()).to.equal(0);
+      expect(waitTable()).to.deep.eq([]);
+    });
+
+    it('a timer does not show in the one-line digest (it is not what a flow WAITS for), and the dump names it', () => {
+      const root = openFlowRoot('session', 'g');
+      const scene = root.open('scene', 'hero');
+      scene.after(35_000, 'the ceiling', () => {});
+      clock.advance(1_000);
+      expect(flowTreeDigest()).to.equal('scene:hero#1');
+      expect(dumpFlowTree()).to.deep.eq(['session:g#1 1.0s', '  scene:hero#1 1.0s  ⟵ waits «the ceiling» 1.0s/35s']);
     });
   });
 });

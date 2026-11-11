@@ -21,7 +21,7 @@
 import {defineComponent} from 'vue';
 import ColonyFleetIcon, {FleetShipState} from '@/client/components/colonies/ColonyFleetIcon.vue';
 import {
-  registerTradeFleetHandle, setTradeFleetLaunchPending, setTradeFleetPhase, tradeFleetState,
+  registerTradeFleetHandle, setTradeFleetLaunchPending, setTradeFleetPhase, tradeFleetOwner, tradeFleetState,
 } from '@/client/console/colonyFleet/consoleTradeFleet';
 import {runTradeFleetFlight, FleetPhaseName} from '@/client/console/colonyFleet/tradeFleetDirector';
 import {probeTick} from '@/client/console/probeTick';
@@ -140,6 +140,8 @@ export default defineComponent({
         resolveTo: () => berth()?.getBoundingClientRect(),
         reduced: tradeFleetState.reducedMotion,
         onPhase: (phase: FleetPhaseName) => setTradeFleetPhase(phase),
+        // The flight's run: the director's guarantees are spans of it (they answer when it ends, too).
+        owner: tradeFleetOwner(),
       });
       registerTradeFleetHandle(handle);
       setTradeFleetLaunchPending(false);

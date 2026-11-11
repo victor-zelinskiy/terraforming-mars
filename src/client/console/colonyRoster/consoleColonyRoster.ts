@@ -33,6 +33,12 @@
  * the release. Input during the ceremony is `none`; A «presses it through»
  * (`hurryColonyRoster` — final poses at once, never a skipped beat's state
  * and never a second submit).
+ *
+ * THE CEREMONY IS A RUN OF THE FLOW TREE (architecture v2 — PLAN §10 · C4): `begin` opens it (`scene:colony-roster#n`
+ * in the session), `end` ends it. The run owns its safety and its reduced-motion beat (`run.after` / `run.sleep`):
+ * they are taken back when it ends, on every path — there is no timer id to clear — and when the game screen leaves
+ * under it the ceremony is aborted (`orphaned`), so no `reset…()` row is what keeps it out of the next game. The HOLD
+ * stays what it was: derived from `live` by the registry, on every path.
  */
 import {nextTick, reactive} from 'vue';
 import {ColonyName} from '@/common/colonies/ColonyName';
@@ -42,7 +48,9 @@ import {ColonyRosterChange} from '@/common/colonies/ColonyRoster';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {ROSTER_REDUCED_MS, rosterBeats, rosterCeremonyMs, rosterDiff} from '@/client/console/colonyRoster/colonyRosterModel';
+import {whenPainted} from '@/client/console/session/sessionWaits';
 import {
   RosterMotionHandle, holdTileForArrival, playHeroDepart, playReseatIn, playReseatOut, playStageArrive, playStageDepart,
   playTileArrive, playTileDepart,
@@ -94,7 +102,8 @@ export const colonyRosterDraft = reactive({
 
 let handle: RosterMotionHandle | undefined;
 let runResolve: (() => void) | undefined;
-let safety: number | undefined;
+/** THE CEREMONY'S RUN — it owns the ceremony's timers and ends with it (or with the game screen: the abort). */
+const run = createFlowRun('colony-roster', {orphaned: () => abortColonyRoster()});
 /** The change the player's OWN gate just played — the apply block that follows it must not seed it again for the grid. */
 let ownPlayed: string | undefined;
 
@@ -183,10 +192,9 @@ function beat(play: (done: () => void) => RosterMotionHandle | undefined): Promi
   });
 }
 
-function reducedBeat(): Promise<void> {
-  return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, motionMs(ROSTER_REDUCED_MS));
-  });
+/** The reduced-motion beat: a span of the run — over at once when the run ends first. */
+async function reducedBeat(): Promise<void> {
+  await run.sleep(motionMs(ROSTER_REDUCED_MS));
 }
 
 function begin(change: ColonyRosterChange, scale: 'stage' | 'tile'): void {
@@ -195,6 +203,9 @@ function begin(change: ColonyRosterChange, scale: 'stage' | 'tile'): void {
   colonyRosterState.live = true;
   colonyRosterState.beat = '';
   colonyRosterState.degraded = '';
+  // THE RUN OPENS — and its SAFETY is the run's own timer: a ceremony that ended took it back, nothing to clear.
+  run.begin(`${change.kind} on the ${scale}`);
+  run.after(motionMs(rosterCeremonyMs(change)) + 4000, 'the ceremony\'s safety', () => abortColonyRoster('safety'));
 }
 
 function end(): void {
@@ -202,10 +213,7 @@ function end(): void {
   colonyRosterState.beat = '';
   colonyRosterState.change = undefined;
   colonyRosterState.orbit = '';
-  if (safety !== undefined) {
-    window.clearTimeout(safety);
-    safety = undefined;
-  }
+  run.end();
   const resolve = runResolve;
   runResolve = undefined;
   resolve?.();
@@ -257,7 +265,6 @@ export function runColonyRosterCeremony(change: ColonyRosterChange, builds: bool
     ownPlayed = signature(change);
     begin(change, 'stage');
     colonyRosterState.receipt = {removed: change.removed, added: change.added, built: builds};
-    safety = window.setTimeout(() => abortColonyRoster('safety'), motionMs(rosterCeremonyMs(change)) + 4000);
     void playOnStage(change).finally(() => end());
   });
 }
@@ -327,7 +334,6 @@ export function seedColonyRosterHolds(before: PlayerViewModel | ViewModel | unde
   }
   colonyRosterState.held = was;
   begin(change, 'tile');
-  safety = window.setTimeout(() => abortColonyRoster('safety'), motionMs(rosterCeremonyMs(change)) + 4000);
   // After the view applied and the DOM patched: the grid still shows the held table.
   void nextTick(() => {
     void playOnGrid(change).finally(() => {
@@ -339,13 +345,7 @@ export function seedColonyRosterHolds(before: PlayerViewModel | ViewModel | unde
 
 /** Two frames: the released table has rendered and the section's one fit has landed. */
 function settled(): Promise<void> {
-  return new Promise<void>((resolve) => {
-    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
-      resolve();
-      return;
-    }
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
-  });
+  return whenPainted();
 }
 
 async function playOnGrid(change: ColonyRosterChange): Promise<void> {

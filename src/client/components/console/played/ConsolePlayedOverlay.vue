@@ -181,6 +181,7 @@ import ConsolePlayedEventsPile from '@/client/components/console/played/ConsoleP
 import ConsolePlayedCategoryView from '@/client/components/console/played/ConsolePlayedCategoryView.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** The table's focusable keys: the card categories + the bot's corporation slot. */
 type TableFocusKey = PlayedCategoryKey | 'botcorp' | '';
@@ -909,7 +910,7 @@ export default defineComponent({
         if (typeof requestAnimationFrame === 'function') {
           requestAnimationFrame(() => resolve());
         } else {
-          setTimeout(resolve, 16);
+          consoleSessionScope().guarantee(16, 'ConsolePlayedOverlay: a release\'s bound', resolve);
         }
       });
     },

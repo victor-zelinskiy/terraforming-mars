@@ -58,6 +58,9 @@ import {ResourceTransferSpec, TransferPoint, transferFlightBudgetMs} from '@/cli
 import {PatentSaleAnswer, answerTransferSpec, patentSaleReceivers} from '@/client/console/patentSale/patentSaleAnswers';
 import {cardArtUrlAtTier, premiumCardArt} from '@/client/cards/cardArt';
 import {beginCeilingWait, raceCeiling} from '@/client/console/waitGraph/ceilingWait';
+import {frames} from '@/client/console/kernel/flowScope';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {createFlowRun} from '@/client/console/session/flowRun';
 
 export type SaleFlight = {
   id: number,
@@ -135,8 +138,15 @@ export function seedPatentSaleRewardHold(): void {
 
 /** One-shot claim per response (mirrors tradeFleet's `claimed`). */
 let claimed = false;
-let armSafety: number | undefined;
-let sceneSafety: number | undefined;
+/**
+ * THE SALE'S RUN (architecture v2 — PLAN §10 · C4): from the arm (the confirm, before the submit) to the sale's end —
+ * paid and settled, refused, aborted. `scene:patent-sale#n` in the session. The run OWNS the arm's safety, the scene's
+ * safety, the working beats and the frame polls: they are taken back when it ends, on every path; a newer arm ends the
+ * older run first; and when the game screen leaves under it the sale is aborted (`orphaned`).
+ */
+const run = createFlowRun('patent-sale', {orphaned: () => abortPatentSale()});
+let cancelArmSafety: () => void = () => {};
+let cancelSceneSafety: () => void = () => {};
 /** Resolves the WaitingFor commit gate (abort must always free it). */
 let runResolve: (() => void) | undefined;
 /** When the terminal reached `processing` (the min working beat anchors here). */
@@ -226,7 +236,7 @@ export function armPatentSale(opts: {
   /** A receiver card's capsule at arm (its stored resources on the viewer's table). */
   capsuleOf?: (card: CardName) => number,
 }): void {
-  clearTimers();
+  run.begin(); // a run still standing ends here — its timers with it
   claimed = false;
   capturedSources = captureSources(opts.cards);
   patentSaleState.active = true;
@@ -248,7 +258,7 @@ export function armPatentSale(opts: {
   // A submit the server never answers (dropped / errored before the
   // WaitingFor detect) can never strand the terminal mid-work — the arm
   // self-aborts and the UI unwinds with zero trace.
-  armSafety = window.setTimeout(() => abortPatentSale(), SALE_ARM_SAFETY_MS);
+  cancelArmSafety = run.after(SALE_ARM_SAFETY_MS, 'the arm\'s safety (no answer claimed it)', () => abortPatentSale());
   void executeClientLeg();
 }
 
@@ -263,10 +273,7 @@ export function detectPatentSale(view: PlayerViewModel): {payout: number} | unde
     return undefined;
   }
   claimed = true;
-  if (armSafety !== undefined) {
-    window.clearTimeout(armSafety);
-    armSafety = undefined;
-  }
+  cancelArmSafety();
   const inHand = new Set((view.cardsInHand ?? []).map((c) => c.name));
   const sold = patentSaleState.cards.every((name) => !inHand.has(name));
   if (!sold) {
@@ -288,10 +295,9 @@ export function detectPatentSale(view: PlayerViewModel): {payout: number} | unde
 export function runPatentSale(): Promise<void> {
   return new Promise<void>((resolve) => {
     runResolve = resolve;
-    sceneSafety = window.setTimeout(() => {
-      // rAF stall / lost element — force the gate open, degrade gracefully.
-      freeRunGate();
-    }, motionMs(SALE_LIFT_MS + SALE_GATHER_MS + SALE_INSERT_MS + SALE_PROCESS_MIN_MS + transferFlightBudgetMs()) + 3000);
+    // rAF stall / lost element — force the gate open, degrade gracefully.
+    cancelSceneSafety = run.guarantee(motionMs(SALE_LIFT_MS + SALE_GATHER_MS + SALE_INSERT_MS + SALE_PROCESS_MIN_MS + transferFlightBudgetMs()) + 3000,
+      'the scene\'s safety (the commit gate)', () => freeRunGate());
     void executePayout().finally(() => freeRunGate());
   });
 }
@@ -376,6 +382,7 @@ export function abortPatentSale(): void {
   patentSaleState.phase = 'failed';
   patentSaleState.flights = [];
   freeRunGate();
+  run.end({how: 'cancelled', reason: 'the sale was aborted'});
   // One flush later the transaction is fully idle (watchers saw 'failed').
   void nextTick(() => {
     if (patentSaleState.phase === 'failed') {
@@ -411,7 +418,7 @@ async function executeClientLeg(): Promise<void> {
     // No flights: the phase ladder still runs so the sale UI closes and the
     // payout leg finds `processing` — one short controlled beat, no proxies.
     patentSaleState.phase = 'inserting';
-    await wait(patentSaleState.reducedMotion ? SALE_REDUCED_MS : 0);
+    await run.sleep(patentSaleState.reducedMotion ? SALE_REDUCED_MS : 0);
     enterProcessing();
     return;
   }
@@ -481,13 +488,13 @@ async function executePayout(): Promise<void> {
   if (patentSaleState.reducedMotion || els === undefined || slit === undefined || capturedSources.length === 0) {
     // Degraded: no scene to pace — a minimal controlled beat, then commit (every answer with it: nothing held).
     patentSaleState.phase = 'paying';
-    await wait(patentSaleState.reducedMotion ? 0 : 60);
+    await run.sleep(patentSaleState.reducedMotion ? 0 : 60);
     return;
   }
   // The mechanism is SEEN working even when the server answers instantly.
   const minBeat = motionMs(SALE_PROCESS_MIN_MS) - (Date.now() - processingStartedAt);
   if (minBeat > 0) {
-    await wait(minBeat);
+    await run.sleep(minBeat);
   }
   if (!patentSaleState.active) {
     return;
@@ -574,7 +581,7 @@ function raiseReceivers(): void {
   // The race is a node of the wait graph; its ceiling winning is said (`ceilingWait.ts`).
   void raceCeiling({
     id: 'patent-sale:receivers-art', owner: 'consolePatentSale', what: 'the decoded art of the receivers', maxMs: motionMs(SALE_INSERT_MS),
-  }, receiversArt).then(raise);
+  }, receiversArt, run.scope).then(raise);
 }
 
 /** The receivers' rise has landed: every receiver card painted at full opacity (bounded — a lost frame never wedges the payout). */
@@ -665,39 +672,30 @@ function finish(): void {
   patentSaleState.answers = [];
   patentSaleState.receivers = [];
   patentSaleState.receiversUp = false;
+  run.end();
 }
 
 function freeRunGate(): void {
-  if (sceneSafety !== undefined) {
-    window.clearTimeout(sceneSafety);
-    sceneSafety = undefined;
-  }
+  cancelSceneSafety();
   const r = runResolve;
   runResolve = undefined;
   r?.();
 }
 
 function clearTimers(): void {
-  if (armSafety !== undefined) {
-    window.clearTimeout(armSafety);
-    armSafety = undefined;
-  }
-  if (sceneSafety !== undefined) {
-    window.clearTimeout(sceneSafety);
-    sceneSafety = undefined;
-  }
+  cancelArmSafety();
+  cancelSceneSafety();
 }
 
-function frame(): Promise<void> {
-  return new Promise((resolve) => {
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => resolve());
-    } else {
-      setTimeout(resolve, 16);
-    }
-  });
-}
+/** A frame that never paints (a hidden window) does not hold a poll: past this the poll looks again. */
+const FRAME_POLL_BOUND_MS = 50;
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * ONE PAINTED FRAME of the run — for the polls above, each bounded by its own deadline. A wait of the kernel: over at
+ * the frame, or after `FRAME_POLL_BOUND_MS` when nothing paints, or at once when its owner ends. (A raw
+ * `requestAnimationFrame` here was an await that a hidden window never resolved — the deadline was never re-read.)
+ */
+async function frame(): Promise<void> {
+  // The run's own scope; a poll that outlived its run still yields a real task (never a microtask spin) — the session's.
+  await (run.scope ?? consoleSessionScope()).wait(frames(), {bound: {ms: FRAME_POLL_BOUND_MS, quiet: 'a frame that did not paint — the poll looks again'}});
 }

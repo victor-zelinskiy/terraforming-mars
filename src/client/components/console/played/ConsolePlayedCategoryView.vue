@@ -229,6 +229,7 @@ import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePla
 import {publicFaceModel} from '@/client/components/premiumCard/premiumFleetDock';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** Rows kept mounted above/below the viewport (hand-section discipline). */
 const OVERSCAN = 2;
@@ -964,7 +965,7 @@ export default defineComponent({
         if (typeof requestAnimationFrame === 'function') {
           requestAnimationFrame(() => resolve());
         } else {
-          setTimeout(resolve, 16);
+          consoleSessionScope().guarantee(16, 'ConsolePlayedCategoryView: a release\'s bound', resolve);
         }
       });
     },

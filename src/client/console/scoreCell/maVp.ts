@@ -12,6 +12,7 @@ import {MaKind} from '@/client/components/ma/maArt';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {TRANSFER_POP_MS, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {claimVpShares, dropVpClaim, flyVpShares, holdsVpShares, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
+import {span} from '@/client/console/session/sessionWaits';
 
 export const MA_VP_OWNER = 'ma-ceremony';
 const MA_VP_RANK = 5;
@@ -60,5 +61,5 @@ export function flyMaVp(kind: MaKind): Promise<void> {
   }
   const origin = originOf(kind);
   void flyVpShares(MA_VP_OWNER, () => origin).then(() => dropMaVp('the ceremony\'s token ended'));
-  return new Promise((resolve) => window.setTimeout(resolve, motionMs(TRANSFER_POP_MS)));
+  return span(motionMs(TRANSFER_POP_MS));
 }

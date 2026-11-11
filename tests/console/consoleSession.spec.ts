@@ -2,7 +2,8 @@ import {expect} from 'chai';
 import {createManualClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {dumpFlowTree, resetFlowKernel} from '@/client/console/kernel/flowScope';
 import {
-  beginConsoleSession, consoleSessionLive, consoleSessionScope, endConsoleSession, onConsoleSessionEnd,
+  beginConsoleSession, consoleSessionLive, consoleSessionScope, endConsoleSession, onConsoleSessionEnd, resetConsoleSession,
+  sessionChild,
 } from '@/client/console/session/consoleSession';
 import {
   enterWorkspace, resetWorkspaceStack, workspaceFrameScope,
@@ -19,24 +20,36 @@ describe('console session · one root for every flow', () => {
     resetFlowKernel();
     resetWorkspaceStack();
     resetMandatoryGate();
-    endConsoleSession('spec begins');
+    resetConsoleSession();
+    resetFlowKernel();
     setFlowClock(createManualClock(0));
   });
   afterEach(() => {
     resetWorkspaceStack();
     resetMandatoryGate();
-    endConsoleSession('spec over');
+    resetConsoleSession();
     setFlowClock(undefined);
   });
 
   const roots = () => dumpFlowTree().filter((line) => !line.startsWith(' '));
 
-  it('opens lazily, and is the same scope until it ends', () => {
+  it('answers the LOBBY while no game screen is up, the GAME session while one stands — and the lobby outlives the game', () => {
     expect(consoleSessionLive()).to.equal(false);
-    const a = consoleSessionScope();
+    const lobby = consoleSessionScope();
+    expect(lobby.kind).to.equal('session');
+    expect(lobby.label).to.equal('lobby');
+    expect(consoleSessionScope(), 'the same scope until it ends').to.equal(lobby);
+    expect(consoleSessionLive(), 'the lobby is not a game session').to.equal(false);
+
+    const game = beginConsoleSession();
+    expect(game.label).to.equal('game');
     expect(consoleSessionLive()).to.equal(true);
-    expect(consoleSessionScope()).to.equal(a);
-    expect(a.kind).to.equal('session');
+    expect(consoleSessionScope()).to.equal(game);
+
+    endConsoleSession();
+    expect(game.ended?.how).to.equal('cancelled');
+    expect(lobby.ended, 'a game that comes and goes does not end the lobby').to.equal(undefined);
+    expect(consoleSessionScope()).to.equal(lobby);
   });
 
   it('the workspace frames and the announce plate stand INSIDE it — one tree, one root', () => {
@@ -45,7 +58,7 @@ describe('console session · one root for every flow', () => {
     noteMandatoryBeatIdentity('task:x#1');
     const tree = dumpFlowTree();
     expect(roots(), tree.join('\n')).to.have.length(1);
-    expect(roots()[0]).to.match(/^session#/);
+    expect(roots()[0]).to.match(/^session:game#/);
     expect(tree.some((line) => line.startsWith('  chain:workspace#')), tree.join('\n')).to.equal(true);
     expect(tree.some((line) => line.startsWith('  chain:announce#')), tree.join('\n')).to.equal(true);
     expect(tree.some((line) => line.includes('frame') && line.includes('hand')), tree.join('\n')).to.equal(true);
@@ -77,16 +90,51 @@ describe('console session · one root for every flow', () => {
     expect(roots()).to.have.length(1);
   });
 
-  it('after a session ended the next flow opens a new one — a module never holds a dead root', () => {
+  it('A SESSION HAS AN IDENTITY: the shell that leaves ends the session IT opened — never the one a new shell already stands on', () => {
+    // A new shell's `setup()` runs before the old shell's `unmounted`: the old one used to end «the current session»,
+    // which by then was the new shell's.
+    const old = beginConsoleSession();
+    const fresh = beginConsoleSession();
+    enterWorkspace('hand');
+    const frame = workspaceFrameScope('hand');
+
+    endConsoleSession('the game screen left', old); // the old shell's unmount, late
+
+    expect(fresh.ended, 'the new session stands').to.equal(undefined);
+    expect(frame?.ended, 'and so does what the new shell opened in it').to.equal(undefined);
+    expect(consoleSessionScope()).to.equal(fresh);
+    expect(consoleSessionLive()).to.equal(true);
+  });
+
+  it('after a session ended a module\'s flow opens where flows belong now — a module never holds a dead root', () => {
     beginConsoleSession();
     enterWorkspace('hand');
     endConsoleSession();
     resetWorkspaceStack();
 
     enterWorkspace('colonies');
-    expect(consoleSessionLive()).to.equal(true);
+    expect(consoleSessionLive(), 'no game screen is up').to.equal(false);
     expect(workspaceFrameScope('colonies')?.ended).to.equal(undefined);
     expect(roots()).to.have.length(1);
+    expect(roots()[0]).to.match(/^session:lobby#/);
+  });
+
+  it('`sessionChild` — a module\'s own root is RE-HOMED when the session that stands is not the one it was opened in', () => {
+    const inLobby = sessionChild(undefined, 'chain', 'spec');
+    expect(inLobby.parent).to.equal(consoleSessionScope());
+    expect(sessionChild(inLobby, 'chain', 'spec'), 'the same root while its session stands').to.equal(inLobby);
+
+    const game = beginConsoleSession();
+    const inGame = sessionChild(inLobby, 'chain', 'spec');
+    expect(inGame).to.not.equal(inLobby);
+    expect(inGame.parent).to.equal(game);
+    expect(inLobby.ended?.how, 'the root left behind is ended by name — nothing keeps opening flows in it').to.equal('cancelled');
+
+    endConsoleSession();
+    expect(inGame.ended?.how).to.equal('cancelled');
+    const after = sessionChild(inGame, 'chain', 'spec');
+    expect(after.ended).to.equal(undefined);
+    expect(after.parent?.label).to.equal('lobby');
   });
 
   it('`onConsoleSessionEnd` — module state that is not a flow yet hangs its reset on the session: run once, at its end', () => {

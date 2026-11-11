@@ -124,6 +124,9 @@ import {playedHeroHolding} from '@/client/console/played/consolePlayedHero';
 import {isDeckDrawActive} from '@/client/console/deckDraw/consoleDeckDraw';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
+import {span} from '@/client/console/session/sessionWaits';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {createFlowRun} from '@/client/console/session/flowRun';
 
 /** A whole queue can legitimately take several seconds (N sequential
  *  flights) — far past that, something stalled and every held tile must
@@ -349,13 +352,13 @@ const REMOTE_TILE_VP_RANK = 1;
 const REMOTE_VP_GRACE_MS = 8000;
 /** The cells this story landed (or lifted), in order — the shares' possible sources. */
 let remoteVpCells: Array<string> = [];
-let remoteVpDropTimer: number | undefined;
+/** The grace after the story: its end RELEASES the shares — a guaranteed release of the session (at the grace, or when
+ *  the game screen leaves: the viewer's shares are never left held). */
+let disarmRemoteVpDrop: () => void = () => {};
 
 function claimRemoteVp(): void {
-  if (remoteVpDropTimer !== undefined) {
-    window.clearTimeout(remoteVpDropTimer);
-    remoteVpDropTimer = undefined;
-  }
+  disarmRemoteVpDrop();
+  disarmRemoteVpDrop = () => {};
   claimVpShares(REMOTE_TILE_VP_OWNER, isBoardVpShare, REMOTE_TILE_VP_RANK, {
     // Seeded after the story's tiles already landed (the bot's last turn): fly now, from the cells they landed on.
     onSeeded: () => {
@@ -367,15 +370,13 @@ function claimRemoteVp(): void {
 }
 
 function scheduleRemoteVpDrop(): void {
-  if (remoteVpDropTimer !== undefined) {
-    window.clearTimeout(remoteVpDropTimer);
-  }
-  remoteVpDropTimer = window.setTimeout(() => {
-    remoteVpDropTimer = undefined;
+  disarmRemoteVpDrop();
+  disarmRemoteVpDrop = consoleSessionScope().guarantee(REMOTE_VP_GRACE_MS, 'the grace after the foreign tiles\' story', () => {
+    disarmRemoteVpDrop = () => {};
     releaseVpShares(REMOTE_TILE_VP_OWNER, {why: 'the story of the foreign tiles is over'});
     dropVpClaim(REMOTE_TILE_VP_OWNER);
     remoteVpCells = [];
-  }, REMOTE_VP_GRACE_MS);
+  });
 }
 
 /** The viewer's shares of this story, each from the cell that caused it (a city's — the nearest landed cell). */
@@ -409,7 +410,15 @@ function remoteVpOrigin(share: VpShare, cells: ReadonlyArray<string>): TransferP
 /** Bumped by abort — a drain loop mid-await sees the change and exits
  *  without touching the (already cleaned) state. */
 let epoch = 0;
-let stageSafety: number | undefined;
+/**
+ * THE REMOTE STAGE'S RUN (architecture v2 — PLAN §10 · C4): `scene:tile-placement-remote#n` in the session, from the
+ * first staged event to the queue's end. It owns the stage's safety (re-armed while an event waits for a board the
+ * player can see); when the game screen leaves under it the stage is aborted (`orphaned` → `abortRemotePlacements`:
+ * every held reveal let go, the queue emptied) instead of a hidden tile standing into the next game. The HOLD stays
+ * derived from the stage's state.
+ */
+const remoteRun = createFlowRun('tile-placement-remote', {orphaned: () => abortRemotePlacements()});
+let cancelStageSafety: () => void = () => {};
 
 /**
  * THE HOLD IS FOR THE SCENE, NEVER FOR THE WAIT: a proxy on stage or a queued landing holds — except while the queue
@@ -1582,7 +1591,7 @@ function releaseIncomeHolds(ev: RemoteEvent): void {
 }
 
 function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return span(ms);
 }
 
 /**
@@ -1693,11 +1702,14 @@ function watchableBoardAfterTick(myEpoch: number): Promise<void> {
         // before it (measured on Water Export's observer: 0/9 read a beat
         // before the ocean lifted).
         remotePlacementState.waitingForBoard = false;
-        window.setTimeout(done, epoch === myEpoch ? motionMs(BOARD_SETTLE_MS) : 0);
+        // The event awaits this — a RELEASE: it answers when the settle has passed, or when the stage is over.
+        (remoteRun.scope ?? consoleSessionScope()).guarantee(epoch === myEpoch ? motionMs(BOARD_SETTLE_MS) : 0,
+          'the board\'s settle before the landing', done);
         return;
       }
       armStageSafety();
-      window.setTimeout(poll, 140);
+      // …and so is the next look: a link of the same await (the look after the stage's end reads the epoch and lets go).
+      (remoteRun.scope ?? consoleSessionScope()).guarantee(140, 'the next look at a busy board', poll);
     };
     poll();
   });
@@ -1727,15 +1739,13 @@ export function remoteOriginPoint(color: Color | undefined, ui: number): Transfe
 }
 
 function armStageSafety(): void {
-  if (stageSafety !== undefined) {
-    window.clearTimeout(stageSafety);
-  }
-  stageSafety = window.setTimeout(() => abortRemotePlacements(), REMOTE_STAGE_SAFETY_MS);
+  cancelStageSafety();
+  cancelStageSafety = (remoteRun.scope ?? remoteRun.begin()).after(REMOTE_STAGE_SAFETY_MS, 'the remote stage\'s safety', () => abortRemotePlacements());
 }
 
+/** The stage is over (the queue drained, or it was aborted): its safety goes, and so does its run. */
 function clearStageSafety(): void {
-  if (stageSafety !== undefined) {
-    window.clearTimeout(stageSafety);
-    stageSafety = undefined;
-  }
+  cancelStageSafety();
+  cancelStageSafety = () => {};
+  remoteRun.end();
 }

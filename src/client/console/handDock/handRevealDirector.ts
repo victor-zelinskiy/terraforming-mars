@@ -48,6 +48,7 @@
 
 import {nextTick, shallowRef} from 'vue';
 import {gsap} from 'gsap';
+import {whenPainted} from '@/client/console/session/sessionWaits';
 import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -199,18 +200,9 @@ const IGNITION_MAX_WAIT_MS = 240;
  *  rAF): a fully idle headless/background compositor withholds frames, and
  *  a hung measure leaves `phase: 'opening'` + holdSlots latched forever. */
 export function settledPaint(): Promise<void> {
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = () => {
-      if (!done) {
-        done = true;
-        clearTimeout(backstop);
-        resolve();
-      }
-    };
-    const backstop = window.setTimeout(finish, IGNITION_MAX_WAIT_MS);
-    requestAnimationFrame(() => requestAnimationFrame(finish));
-  });
+  // The kernel's bounded paint (`session/sessionWaits.ts`): the same two frames, the same wall backstop — one row of
+  // the wait table, over at once when the game screen leaves.
+  return whenPainted(2, IGNITION_MAX_WAIT_MS);
 }
 
 const DRIVER_INTERVAL_MS = 40;

@@ -27,6 +27,7 @@ import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {arriveReadyMs, markerTimings, MarkerTimings, reducedMarkerTimings} from '@/client/console/hydroMarker/hydroMarkerModel';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /**
  * THE LIFT OFF THE RAIL, in LOGICAL px (the 1080-logical layout every console
@@ -209,7 +210,7 @@ export function runHydroMarkerGlide(args: RunMarkerArgs): HydroMarkerDirectorHan
           onGone();
         }
       };
-      setTimeout(finish, motionMs(t.pulseMs) + 500);
+      consoleSessionScope().guarantee(motionMs(t.pulseMs) + 500, 'hydroMarkerDirector: a release\'s bound', finish);
       gsap.to(marker, {autoAlpha: 0, duration: s(t.pulseMs), ease: 'power1.out', onComplete: finish});
     },
     skip: () => {

@@ -27,7 +27,7 @@
 /** The page facts the probe returns (`PROBE_SCRIPT`) — the field recorder's identity + its last heartbeat. */
 export type HangProbe = {
   session?: string, game?: string, player?: string, profile?: string, build?: string, ua?: string,
-  beat?: {prompt?: string, accepting?: boolean, frames?: ReadonlyArray<string>, section?: string, quietS?: number, graph?: string, at?: number} | null,
+  beat?: {prompt?: string, accepting?: boolean, frames?: ReadonlyArray<string>, section?: string, quietS?: number, graph?: string, flow?: string, at?: number} | null,
 };
 
 /** Read in the page: a compact JSON of the recorder's identity and its LAST heartbeat ('' when there is no recorder). */
@@ -84,7 +84,8 @@ export function describeLastScreen(last: HangProbe | undefined, readAt: number, 
   return `read ${age}s before: prompt ${beat.prompt === undefined || beat.prompt === '' ? 'none' : beat.prompt}` +
     `, ${beat.accepting === true ? 'accepting' : 'NOT accepting'}, frames ${(beat.frames ?? []).join(';') || '-'}` +
     `, section ${beat.section ?? '-'}, quiet ${beat.quietS ?? 0}s` +
-    (beat.graph !== undefined && beat.graph !== '' ? `, waits ${beat.graph}` : '');
+    (beat.graph !== undefined && beat.graph !== '' ? `, waits ${beat.graph}` : '') +
+    (beat.flow !== undefined && beat.flow !== '' ? `, flows ${beat.flow}` : '');
 }
 
 export function createRendererHangWatch(deps: HangWatchDeps, options: HangWatchOptions = HANG_WATCH_DEFAULTS) {

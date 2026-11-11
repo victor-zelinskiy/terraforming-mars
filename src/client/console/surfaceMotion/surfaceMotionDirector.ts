@@ -58,6 +58,7 @@ import {
   isPromptSurface, notePromptRelease, promptArrivalSpanMs, promptHandoffDelayNow,
 } from '@/client/console/surfaceMotion/promptHandoffModel';
 import {playPromptArrive, playPromptRelease, promptComposeItems} from '@/client/console/surfaceMotion/promptHandoffMotion';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
 
@@ -236,7 +237,7 @@ function sectionLeaveEpisode(panels: ReadonlyArray<HTMLElement>, finish: () => v
   const end = beginSectionLeave();
   // Bounded like every hold: a leave whose animations never report (the
   // element detached mid-flight) must not leave the board rising forever.
-  window.setTimeout(end, motionMs(SECTION_OUT_MS) + SAFETY_SLACK_MS);
+  consoleSessionScope().guarantee(motionMs(SECTION_OUT_MS) + SAFETY_SLACK_MS, 'the section leave\'s bound', end);
   const u = conUiScale();
   const animations = panels.map((p) => {
     p.style.transformOrigin = '50% 60%';
@@ -278,13 +279,13 @@ function guarded(
 ): void {
   killLive(el);
   let finished = false;
-  let safety = 0;
+  let safety: () => void = () => {};
   const finish = () => {
     if (finished) {
       return;
     }
     finished = true;
-    window.clearTimeout(safety);
+    safety();
     liveTweens.delete(el);
     done();
   };
@@ -294,7 +295,7 @@ function guarded(
     return;
   }
   liveTweens.set(el, tween);
-  safety = window.setTimeout(finish, motionMs(totalMs) + SAFETY_SLACK_MS);
+  safety = consoleSessionScope().guarantee(motionMs(totalMs) + SAFETY_SLACK_MS, 'surfaceMotionDirector: a beat\'s safety', finish);
 }
 
 // ── the enter hook ──────────────────────────────────────────────────────────

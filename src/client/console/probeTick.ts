@@ -27,6 +27,8 @@
  * measurement taken mid-flush reads a box the browser has not laid out yet.
  */
 
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+
 /**
  * How long a probe waits for a frame that may never come. One tick of a slow
  * display plus slack — long enough that the rAF path wins on any running
@@ -42,18 +44,30 @@ export const PROBE_TICK_FALLBACK_MS = 50;
  */
 export type ProbeTickVia = 'frame' | 'timer';
 
-/** Schedule `fn` for the next painted frame, or `PROBE_TICK_FALLBACK_MS`. */
+/**
+ * Schedule `fn` for the next painted frame, or `PROBE_TICK_FALLBACK_MS`.
+ *
+ * ON THE FLOW KERNEL (architecture v2 — PLAN §10 · C1): the frame is an owned frame callback and the fallback a
+ * GUARANTEED release of the session — a probe is a link of somebody's `await`, so the tick is never dropped: when the
+ * game screen leaves between two ticks the tick comes due at once (as a `timer` tick) and the loop that asked for it
+ * runs out on its own terms instead of standing for ever. Both halves are rows of the wait table while they stand.
+ */
 export function probeTick(fn: (via: ProbeTickVia) => void): void {
+  const owner = consoleSessionScope();
   let fired = false;
+  let cancelFrame: () => void = () => {};
+  let disarm: () => void = () => {};
   const run = (via: ProbeTickVia) => {
     if (fired) {
       return;
     }
     fired = true;
+    cancelFrame();
+    disarm();
     fn(via);
   };
   if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => run('frame'));
+    cancelFrame = owner.afterFrame('a probe tick', () => run('frame'));
   }
-  setTimeout(() => run('timer'), PROBE_TICK_FALLBACK_MS);
+  disarm = owner.guarantee(PROBE_TICK_FALLBACK_MS, 'a probe tick (no frame came)', () => run('timer'));
 }

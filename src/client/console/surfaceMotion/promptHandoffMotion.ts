@@ -16,6 +16,7 @@ import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {
   PROMPT_ARRIVE_MS, PROMPT_ARRIVE_SCALE, PROMPT_COMPOSE_MAX, PROMPT_COMPOSE_MS, PROMPT_COMPOSE_STEP_MS, PROMPT_COMPOSE_AT_MS,
   PROMPT_RELEASE_MS, PROMPT_RELEASE_SCALE, notePromptRelease, promptArrivalSpanMs,
@@ -94,17 +95,17 @@ const live = new WeakMap<Element, {kill: () => unknown}>();
 function guardedSwap(el: Element, totalMs: number, done: () => void, body: (finish: () => void) => {kill: () => unknown}): void {
   live.get(el)?.kill();
   let finished = false;
-  let safety = 0;
+  let safety: () => void = () => {};
   const finish = () => {
     if (finished) {
       return;
     }
     finished = true;
-    window.clearTimeout(safety);
+    safety();
     live.delete(el);
     done();
   };
-  safety = window.setTimeout(finish, motionMs(totalMs) + SAFETY_SLACK_MS);
+  safety = consoleSessionScope().guarantee(motionMs(totalMs) + SAFETY_SLACK_MS, 'promptHandoffMotion: a beat\'s safety', finish);
   const episode = body(finish);
   if (!finished) {
     live.set(el, episode);

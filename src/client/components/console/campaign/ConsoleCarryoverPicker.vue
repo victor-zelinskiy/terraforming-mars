@@ -224,6 +224,7 @@ import {
 import {readingText} from '@/client/console/readingText';
 import {tenderZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
+import {span} from '@/client/console/session/sessionWaits';
 
 /** Two painted frames (a layout settled before a flight measures it) — none to wait for where nothing paints. */
 function twoFrames(): Promise<void> {
@@ -733,7 +734,7 @@ export default defineComponent({
       window.setTimeout(() => {
         this.sheetStamping = false;
       }, motionMs(620));
-      await new Promise<void>((r) => window.setTimeout(r, motionMs(560)));
+      await span(motionMs(560));
       const hero = this.sheetHeroEl();
       const flight = captureCards(hero !== null ? [{name: sheet.instance as CardName, el: hero}] : []);
       this.sheetFlight = flight;

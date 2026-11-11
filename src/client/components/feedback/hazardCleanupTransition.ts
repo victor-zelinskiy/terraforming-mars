@@ -25,6 +25,7 @@ import {SpaceModel} from '@/common/models/SpaceModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {prefersReducedMotion} from './changeFeedbackManager';
 import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {
   HazardCleanupEvent,
   HazardCleanupPhase,
@@ -64,8 +65,21 @@ export const hazardCleanupState = reactive<HazardCleanupTransitionState>({
 // not re-animate. Claimed exactly once in `detectHazardCleanup`.
 const seen = new Set<string>();
 
-let rafId = 0;
-let safetyTimerId = 0;
+/**
+ * THE CLEANUP'S RUN (architecture v2 — PLAN §10 · C4): `scene:hazard-cleanup#n` in the session, from the run's start
+ * to `endHazardCleanup`. It owns the progress' frame loop and the safety — the safety RESOLVES THE GATE (and
+ * guarantees the tile swap), so it is a guaranteed release — and when the game screen leaves under it the run takes
+ * its own honest ending (`orphaned`: the swap, the gate, the overlay cleared).
+ */
+const run = createFlowRun('hazard-cleanup', {
+  orphaned: () => {
+    finishActive?.();
+    endHazardCleanup();
+  },
+});
+const NO_TIMER = (): void => {};
+let stopTick: () => void = NO_TIMER;
+let disarmSafety: () => void = NO_TIMER;
 let resolveActive: (() => void) | undefined;
 /** The live run's own `finish` (swap the tile in, resolve the gate) — the ceiling's recovery. */
 let finishActive: (() => void) | undefined;
@@ -75,16 +89,10 @@ function now(): number {
 }
 
 function cancelTimers(): void {
-  if (rafId !== 0) {
-    if (typeof cancelAnimationFrame === 'function') {
-      cancelAnimationFrame(rafId);
-    }
-    rafId = 0;
-  }
-  if (safetyTimerId !== 0) {
-    clearTimeout(safetyTimerId);
-    safetyTimerId = 0;
-  }
+  stopTick();
+  stopTick = NO_TIMER;
+  disarmSafety();
+  disarmSafety = NO_TIMER;
 }
 
 export function isHazardCleanupActive(): boolean {
@@ -141,6 +149,7 @@ export function runHazardCleanup(
   events: ReadonlyArray<HazardCleanupEvent>,
   applyTileSwap: () => void): Promise<void> {
   cancelTimers();
+  run.begin(`${events.length} cell(s)`); // a run still standing ends here — its timers with it
   const reduced = prefersReducedMotion();
 
   hazardCleanupState.active = true;
@@ -189,9 +198,9 @@ export function runHazardCleanup(
     doSwap();
     hazardCleanupState.phase = 'tile-materialize';
     hazardCleanupState.progress = 0.95;
-    safetyTimerId = window.setTimeout(finish, duration) as unknown as number;
+    disarmSafety = run.guarantee(duration, 'the cleanup\'s readable beat', finish);
   } else {
-    const tick = () => {
+    stopTick = run.everyFrame('the cleanup\'s progress', () => {
       const nowTs = now();
       const t = Math.min(1, (nowTs - startedAt) / duration);
       // Honour the configured FPS cap for the JS-driven progress: gate the
@@ -205,13 +214,12 @@ export function runHazardCleanup(
       }
       if (t >= 1) {
         finish();
-        return;
+        return false;
       }
-      rafId = requestAnimationFrame(tick);
-    };
-    rafId = requestAnimationFrame(tick);
+      return true;
+    });
     // rAF is paused in background tabs; this guarantees resolution + commit.
-    safetyTimerId = window.setTimeout(finish, duration + 400) as unknown as number;
+    disarmSafety = run.guarantee(duration + 400, 'the cleanup\'s safety (no frames came)', finish);
   }
 
   return promise;
@@ -226,6 +234,7 @@ export function endHazardCleanup(): void {
   hazardCleanupState.phase = 'focus';
   hazardCleanupState.progress = 0;
   hazardCleanupState.swapped = false;
+  run.end();
 }
 
 /** Test-only full reset (state + dedup + timers). */

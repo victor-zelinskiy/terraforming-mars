@@ -183,6 +183,8 @@ import {cardResourceLanded} from '@/client/console/resourceTransfer/consoleResou
 import {playLandingShowing} from '@/client/console/played/consolePlayOutcomeClaim';
 import {HeroRect} from '@/client/console/played/playedHeroModel';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
+import {span} from '@/client/console/session/sessionWaits';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 /** Emergence flight (ms @ motion scale 1) — strip → forward presentation. */
 const EMERGE_MS = 260;
@@ -565,7 +567,7 @@ export default defineComponent({
         if (typeof requestAnimationFrame === 'function') {
           requestAnimationFrame(() => resolve());
         } else {
-          setTimeout(resolve, 16);
+          consoleSessionScope().guarantee(16, 'ConsolePlayedReceivingStage: a release\'s bound', resolve);
         }
       });
     },
@@ -828,7 +830,7 @@ export default defineComponent({
       this.emerged = this.emerged.filter((e) => !cards.includes(e.name));
     },
     wait(ms: number): Promise<void> {
-      return new Promise((resolve) => setTimeout(resolve, ms));
+      return span(ms);
     },
   },
 });

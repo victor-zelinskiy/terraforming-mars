@@ -40,6 +40,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {playCeremonyBurst, CeremonyBurstHandle} from '@/client/console/ceremony/ceremonyFx';
 import {MaKind} from '@/client/components/ma/maArt';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {
   armDescendRect,
   armDescendOrigin,
@@ -551,7 +552,7 @@ export function runMaCeremonyStage(
   if (typeof window === 'undefined' || hero === null || seat === null) {
     // No stage to play on (teardown race) — the completion still fires so the
     // flow can never hang on a missing DOM node.
-    window.setTimeout(finish, motionMs(reduced ? 200 : 800));
+    consoleSessionScope().guarantee(motionMs(reduced ? 200 : 800), 'consoleMaFocusMotion: a release\'s bound', finish);
     return;
   }
 

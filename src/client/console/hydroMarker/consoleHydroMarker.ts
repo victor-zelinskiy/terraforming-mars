@@ -41,6 +41,9 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import type {HydroMarkerDirectorHandle} from '@/client/console/hydroMarker/hydroMarkerDirector';
 import {arriveReadyMs, markerTimings, reducedMarkerTimings} from '@/client/console/hydroMarker/hydroMarkerModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {FlowScope} from '@/client/console/kernel/flowScope';
+import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {createFlowRun} from '@/client/console/session/flowRun';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold,
@@ -194,10 +197,29 @@ let lockResolve: (() => void) | undefined;
  * full and the gate opens on its real landing.
  */
 let pendingLock: (() => void) | undefined;
-let pendingLockSafetyId = 0;
+/** Which parked lock's guarantee stands (served, cleared or aborted — the guarantee is withdrawn). */
+let pendingLockSeq = 0;
 let claimed = false; // detectHydroMarker consumes the arm exactly once
-let armSafetyId = 0;
-let settleTimerId = 0;
+const NO_TIMER = (): void => {};
+let cancelArmSafety: () => void = NO_TIMER;
+/** The settled stop's one-shot glow outlives the glide by design: which landing's glow stands. */
+let settleSeq = 0;
+
+/**
+ * THE TRANSACTION'S RUN IN THE FLOW TREE (architecture v2 — PLAN §10 · C4): `scene:hydro-marker#n` in the session —
+ * one advance from its arm to its handoff, or a whole TRAVERSAL from its arm to its last leg, the stops it parks at
+ * included (the plan stands through them, so does its run). It OWNS the module's nets — the arm's safety, the claim
+ * net, the plan's progress net — and the sequence's pacing beats: each is taken back when the run ends, on every path,
+ * and when the game screen leaves under it the marker is recalled (`orphaned` → `abortHydroMarker`). The guarantees
+ * that must answer even then (a parked lock, the settled glow) are RELEASES — spans, never timers that can be taken
+ * back with the release still owed.
+ */
+const markerFlow = createFlowRun('hydro-marker', {orphaned: () => abortHydroMarker()});
+
+/** The run that stands — opened when nothing stands yet (a net is never armed into nothing). */
+function markerRun(): FlowScope<'scene'> {
+  return markerFlow.scope ?? markerFlow.begin();
+}
 /** The reward the advance grants — flown to the panel when the marker locks
  *  (the resource-transfer reward beat). Empty for a tag / VP / flow reward. */
 let pendingRewards: ReadonlyArray<ResourceTransferSpec> = [];
@@ -277,22 +299,23 @@ let trace: Array<string> = [];
  * slow machine, only by a dead sequence.
  */
 const PLAN_PROGRESS_MAX_MS = 30_000;
-let planProgressId = 0;
+let cancelPlanProgress: () => void = NO_TIMER;
+let planNetArmed = false;
 
 function armPlanProgressNet(): void {
   clearPlanProgressNet();
-  planProgressId = setTimeout(() => {
-    planProgressId = 0;
+  planNetArmed = true;
+  cancelPlanProgress = markerRun().after(PLAN_PROGRESS_MAX_MS, 'the plan\'s progress (a walk that stopped advancing)', () => {
+    planNetArmed = false;
     recordHydroStepEvent('traversal:stalled');
     abortHydroMarker();
-  }, PLAN_PROGRESS_MAX_MS) as unknown as number;
+  });
 }
 
 function clearPlanProgressNet(): void {
-  if (planProgressId !== 0) {
-    clearTimeout(planProgressId);
-    planProgressId = 0;
-  }
+  cancelPlanProgress();
+  cancelPlanProgress = NO_TIMER;
+  planNetArmed = false;
 }
 
 /**
@@ -311,28 +334,29 @@ function clearPlanProgressNet(): void {
  * recall. Generous — it must only ever catch a dead transaction.
  */
 const CLAIM_PROGRESS_MAX_MS = 15_000;
-let claimNetId = 0;
+let cancelClaimNet: () => void = NO_TIMER;
+let claimNetArmed = false;
 
 function armClaimNet(): void {
   clearClaimNet();
-  claimNetId = setTimeout(() => {
-    claimNetId = 0;
+  claimNetArmed = true;
+  cancelClaimNet = markerRun().after(CLAIM_PROGRESS_MAX_MS, 'the claimed advance reaching its handoff', () => {
+    claimNetArmed = false;
     recordHydroStepEvent('claim:stalled');
     console.warn('[hydro-marker] the claimed advance never reached its handoff — recalling the glide (claim net)');
     abortHydroMarker();
-  }, CLAIM_PROGRESS_MAX_MS) as unknown as number;
+  });
 }
 
 function clearClaimNet(): void {
-  if (claimNetId !== 0) {
-    clearTimeout(claimNetId);
-    claimNetId = 0;
-  }
+  cancelClaimNet();
+  cancelClaimNet = NO_TIMER;
+  claimNetArmed = false;
 }
 
 /** Diagnostics/spec probe: which of the module's liveness nets stand armed. */
 export function hydroMarkerNetsArmed(): {claim: boolean, plan: boolean} {
-  return {claim: claimNetId !== 0, plan: planProgressId !== 0};
+  return {claim: claimNetArmed, plan: planNetArmed};
 }
 
 export function enableHydroStepTrace(on: boolean): void {
@@ -447,10 +471,7 @@ export function registerHydroMarkerHandle(h: HydroMarkerDirectorHandle | undefin
 }
 
 function clearPendingLockSafety(): void {
-  if (pendingLockSafetyId !== 0) {
-    clearTimeout(pendingLockSafetyId);
-    pendingLockSafetyId = 0;
-  }
+  pendingLockSeq++; // the parked lock's guarantee is withdrawn (it was served, or the transaction is over)
 }
 
 /** The director reports phase transitions (charge → glide → arrive). */
@@ -461,10 +482,8 @@ export function setHydroMarkerPhase(phase: MarkerPhase): void {
 }
 
 function clearArmSafety(): void {
-  if (armSafetyId !== 0) {
-    clearTimeout(armSafetyId);
-    armSafetyId = 0;
-  }
+  cancelArmSafety();
+  cancelArmSafety = NO_TIMER;
 }
 
 /**
@@ -490,7 +509,7 @@ export function armHydroMarker(
   hydroMarkerState.color = color;
   hydroMarkerState.reducedMotion = consoleReducedMotionActive();
   hydroMarkerState.nonce++;
-  armSafetyId = setTimeout(() => abortHydroMarker(), 10000) as unknown as number;
+  cancelArmSafety = markerRun().after(10000, 'the arm\'s safety (no answer confirmed the advance)', () => abortHydroMarker());
 }
 
 /**
@@ -541,7 +560,7 @@ export function armHydroMarkerTraversal(
   hydroMarkerState.color = legs[0].color ?? color;
   hydroMarkerState.reducedMotion = consoleReducedMotionActive();
   hydroMarkerState.nonce++;
-  armSafetyId = setTimeout(() => abortHydroMarker(), 10000) as unknown as number;
+  cancelArmSafety = markerRun().after(10000, 'the arm\'s safety (no answer confirmed the advance)', () => abortHydroMarker());
   armPlanProgressNet();
 }
 
@@ -659,12 +678,17 @@ export function runHydroMarker(): Promise<void> {
     pendingLock = done;
     clearPendingLockSafety();
     const t = hydroMarkerState.reducedMotion ? reducedMarkerTimings() : markerTimings();
-    pendingLockSafetyId = setTimeout(() => {
-      pendingLockSafetyId = 0;
+    // A RELEASE (the transport's gate hangs on it): it answers when the span has passed OR the run has ended —
+    // never a timer that could be taken back with the lock still owed.
+    const seq = pendingLockSeq;
+    void markerRun().sleep(motionMs(arriveReadyMs(t) + t.lockMs) + 600).then(() => {
+      if (seq !== pendingLockSeq) {
+        return;
+      }
       const cb = pendingLock;
       pendingLock = undefined;
       cb?.();
-    }, motionMs(arriveReadyMs(t) + t.lockMs) + 600) as unknown as number;
+    });
   }
   return promise;
 }
@@ -697,14 +721,8 @@ export function endHydroMarker(): void {
     hydroMarkerState.color = '';
     handle = undefined;
     claimed = false;
-    hydroMarkerState.settledPosition = settled;
-    if (settleTimerId !== 0) {
-      clearTimeout(settleTimerId);
-    }
-    settleTimerId = setTimeout(() => {
-      hydroMarkerState.settledPosition = -1;
-      settleTimerId = 0;
-    }, 800) as unknown as number;
+    markerFlow.end(); // the single glide's transaction is over — its nets go with it
+    markSettledGlow(settled);
     // The marker has locked in — pay the reward out of the settled stop
     // (the panel showed committed − held since the commit; each touchdown
     // releases its metric so the delta chip fires at the exact contact).
@@ -758,7 +776,7 @@ async function runTraversalLockedLeg(): Promise<void> {
   // The READABLE HANDOFF between two actors' moves — a short beat, pacing
   // only, after the leg has fully settled.
   if (leg.beatMs !== undefined && leg.beatMs > 0) {
-    await delay(motionMs(leg.beatMs));
+    await markerFlow.sleep(motionMs(leg.beatMs));
     if (planEpoch !== epoch) {
       return;
     }
@@ -766,7 +784,7 @@ async function runTraversalLockedLeg(): Promise<void> {
   if (leg.excluded === true) {
     // The marker physically crossed the cell; nothing flies, the workspace
     // names the exclusion. A short readable beat, pacing only.
-    await delay(motionMs(EXCLUDED_DWELL_MS));
+    await markerFlow.sleep(motionMs(EXCLUDED_DWELL_MS));
     if (planEpoch !== epoch) {
       return;
     }
@@ -923,17 +941,26 @@ function finalizeTraversal(): void {
   // Belt-and-braces: any hold a degraded leg left snaps to truth now.
   clearPanelRewardHold();
   planBaseColor = '';
+  markerFlow.end(); // the traversal's run is over
 }
 
 function markLegSettled(position: number): void {
+  markSettledGlow(position);
+}
+
+/**
+ * The settled stop's one-shot glow. It outlives the glide (and a single advance's whole run) by design, so its span is
+ * the SESSION's — and taking the mark down is a release: when the span has passed or the game screen has left,
+ * whichever comes first. A newer landing supersedes it.
+ */
+function markSettledGlow(position: number): void {
   hydroMarkerState.settledPosition = position;
-  if (settleTimerId !== 0) {
-    clearTimeout(settleTimerId);
-  }
-  settleTimerId = setTimeout(() => {
-    hydroMarkerState.settledPosition = -1;
-    settleTimerId = 0;
-  }, 800) as unknown as number;
+  const seq = ++settleSeq;
+  void consoleSessionScope().sleep(800).then(() => {
+    if (seq === settleSeq) {
+      hydroMarkerState.settledPosition = -1;
+    }
+  });
 }
 
 function releaseProxy(): Promise<void> {
@@ -961,10 +988,6 @@ function runLegRewardWave(stopPosition: number, rewards: ReadonlyArray<ResourceT
   }).then(() => undefined).finally(() => {
     hydroMarkerState.wavesActive = Math.max(0, hydroMarkerState.wavesActive - 1);
   });
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** A traversal plan stands (legs left, pauses included) — a term of the
@@ -1123,6 +1146,7 @@ export function abortHydroMarker(): void {
   const r = lockResolve;
   lockResolve = undefined;
   r?.();
+  markerFlow.end({how: 'cancelled', reason: 'the marker was recalled'});
 }
 
 /** Test-only full reset. */
@@ -1133,10 +1157,8 @@ export function resetHydroMarker(): void {
   clearPlanProgressNet();
   pendingLock = undefined;
   resolveLandExitWaiter();
-  if (settleTimerId !== 0) {
-    clearTimeout(settleTimerId);
-    settleTimerId = 0;
-  }
+  settleSeq++; // a glow still owed is not this game's any more
+  markerFlow.end({how: 'cancelled', reason: 'reset'});
   handle = undefined;
   lockResolve = undefined;
   claimed = false;

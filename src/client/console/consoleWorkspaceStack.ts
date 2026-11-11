@@ -85,7 +85,7 @@ import {
 import type {TaskKind} from '@/client/console/consoleTaskRouter';
 import type {ConsoleSection, ConsoleSheetId} from '@/client/console/consoleRouter';
 import {FlowScope} from '@/client/console/kernel/flowScope';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {sessionChild} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
 import {frameMachine, isBeatPhase} from '@/client/console/consoleWorkspaceFrame';
 import {onSubmitTicket, submitDidNotLand, SubmitTicket} from '@/client/console/transport/submitTicket';
@@ -2002,9 +2002,7 @@ const lifetimesEpoch = shallowRef(0);
 let stackScope: FlowScope<'chain'> | undefined;
 
 function stackRootScope(): FlowScope<'chain'> {
-  if (stackScope === undefined || stackScope.ended !== undefined) {
-    stackScope = consoleSessionScope().open('chain', 'workspace');
-  }
+  stackScope = sessionChild(stackScope, 'chain', 'workspace');
   return stackScope;
 }
 

@@ -59,6 +59,7 @@ import {
   Rect, SELF_TOKEN_REACH, SELF_WAKE_REACH, cityPayoutPlate, cityPayoutTickAt, cityTokenPlan, directionToward, pointToward,
   sentByTheTile, tokenSpread,
 } from '@/client/console/tilePlacement/cityDataPayoutModel';
+import {span} from '@/client/console/session/sessionWaits';
 
 export type CityPayoutPhase = 'idle' | 'waiting' | 'rising' | 'paying' | 'reading' | 'returning' | 'answering';
 
@@ -296,7 +297,7 @@ function tokenGeometry(payout: CardAdjacencyPayoutModel, senders: ReadonlyArray<
 }
 
 function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return span(ms);
 }
 
 /** A wait on the GSAP clock (the clock every proxy of the scene animates on). */

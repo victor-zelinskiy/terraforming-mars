@@ -80,7 +80,7 @@
  */
 import {reactive} from 'vue';
 import {FlowScope} from '@/client/console/kernel/flowScope';
-import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {sessionChild} from '@/client/console/session/consoleSession';
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
 import {announceMachine} from '@/client/console/consoleMandatoryAnnounce';
 import {ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
@@ -376,9 +376,7 @@ function endAnnounceRun(reason: string): void {
 }
 
 function startAnnounceRun(key: string): void {
-  if (announceRoot === undefined || announceRoot.ended !== undefined) {
-    announceRoot = consoleSessionScope().open('chain', 'announce');
-  }
+  announceRoot = sessionChild(announceRoot, 'chain', 'announce');
   const scope = announceRoot.open('announce', key);
   const flow = startFlowActor(scope, announceMachine, {
     input: {key, acknowledged: mandatoryGateState.acknowledgedKey === key}, endScopeOnDone: false,
