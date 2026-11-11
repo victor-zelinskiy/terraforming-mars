@@ -34,6 +34,7 @@ import {
   divertedStep, pickedCardOf, railRewardSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {RailAnswerCause, RailReward} from '@/client/console/resourceTransfer/railReward';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /**
  * The RESULT CATEGORY the commit hands off to. One systemic commit language;
@@ -1302,3 +1303,9 @@ export function commitRewardSpecs(
 // THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
 // (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
 sessionState('console-action-commit', abortConsoleActionCommit, 630);
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The blue-action COMMIT: the activation was rejected — the beat tears down, the composer's CTA unlocks (abortNonce),
+// the captures stay.
+onPressUnlanded('console-action-commit', abortConsoleActionCommit, 210);

@@ -64,6 +64,7 @@ import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {beginPanelRewardHold, releasePanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {cardResourceKey, mergeTransferSpecs, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /** The flow's stage past the press — the crumb's tail and the command bar's context, ONE key for both («БОНУСЫ КОЛОНИЙ»). */
 export const COLONY_LEDGER_STAGE = 'Colony bonuses';
@@ -411,3 +412,8 @@ registerAnimationHoldSupplier('colony-bonus-payout', () => colonyBonusPayout.fly
   }),
   expire: () => finishColonyBonusPayout(true),
 });
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The ledger payout that press armed (TR23): the activation never happened — nothing is owed, nothing is held.
+onPressUnlanded('colony-bonus-payout', resetColonyBonusPayout, 220);

@@ -64,6 +64,7 @@ import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTran
 import {armBoardCardBonus, abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {createFlowRun} from '@/client/console/session/flowRun';
 import {sessionState} from '@/client/console/session/consoleSession';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 export const colonyBuildState = reactive({
   /** TRUE from arm until finish/abort — the transaction lock. */
@@ -629,3 +630,8 @@ function clearTimers(): void {
 // THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
 // (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
 sessionState('colony-build', abortColonyBuild, 620);
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The colony-build hero: no cube drops, no bonus is collected.
+onPressUnlanded('colony-build', abortColonyBuild, 200);

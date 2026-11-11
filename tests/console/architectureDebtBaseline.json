@@ -93,5 +93,5 @@
       "src/client/console/supervisor/supervisorController.ts": 1
     }
   },
-  "supervisorPort": 32
+  "supervisorPort": 29
 }

@@ -36,6 +36,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {
   ColonyTrackWaveMove, colonyTrackWaveState, finishColonyTrackWave, holdColonyTracks, releaseColonyTrack, requestColonyTrackWave,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /** The confirmed pick: the tile, the card whose effect it is (absent on a live pick with no named giver), the projection. */
 export type ColonyTrackMovePromise = {colony: ColonyName, card?: CardName, before: number, after: number};
@@ -152,3 +153,8 @@ export function clearColonyTrackMove(): void {
   colonyTrackMoveFlow.promised = undefined;
   colonyTrackMoveFlow.owed = undefined;
 }
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// A chosen colony track's move (TR07): the answer was refused, nothing moved — no promise, no hold.
+onPressUnlanded('colony-track-move', clearColonyTrackMove, 160);

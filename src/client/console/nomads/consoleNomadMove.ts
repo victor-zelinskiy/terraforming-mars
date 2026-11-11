@@ -84,6 +84,7 @@ import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {span} from '@/client/console/session/sessionWaits';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /** A queued remote hop can wait for a covered board — far past this,
  *  something stalled and the committed truth must show. */
@@ -1027,3 +1028,8 @@ registerAnimationHoldSupplier('nomad-move-remote', isRemoteNomadMoveActive, {
 // THE GAME SCREEN LEAVES: this state goes with it — declared here, taken down by the session's ordered pass
 // (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
 sessionState('nomad-move', abortNomadMove, 600);
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The nomad move: the camp never lifts off, nothing is collected.
+onPressUnlanded('nomad-move', abortNomadMove, 190);

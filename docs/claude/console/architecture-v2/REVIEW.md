@@ -44,6 +44,8 @@ The whole architecture in six sentences:
 | keep module state of the running game | declare it beside its reset: `sessionState('<label>', resetX, <at>)` | a row in the shell's `beforeUnmount`; state nobody resets |
 | own something for the life of the PAGE (a channel, a poller, a menu) | `consoleAppScope()` | `consoleSessionScope()` (it ends with the game) |
 | a lifecycle with states and timeouts | a machine: `startFlowActor(scope, logic)`, registered in `kernel/flowMachines.ts`; every state `rest` · `player` · `beat` (+ `after`) | a set of flags + watchers |
+| ARM something for a press before its answer exists (a scene, a commit beat, a seal) | arm it, and declare its unwind ONCE at module scope: `onPressUnlanded('<label>', abortX, <at>)` (`transport/pressUnwind.ts`) — the transport's one pass runs it on a refusal / a lost answer. The unwind is idempotent and a no-op when nothing is armed | a call added to the transport; an arm that only its private safety ends |
+| hold a finished workspace open for something that is not a frame, a claim or a prompt it serves | ONE row of `FRAME_HOLDS` (`shell/outcomeController.ts`) — it says which fact of the conclusion it is AND whether a phantom can hide behind it (`ghost`) | a term added to the conclusion and (not) to the ghost test |
 | submit the player's answer | `const ticket = submitInput(out)` / `submitBatch(…)` (`transport/gameTransport.ts`) — check `ticket.accepted`, read `ticket.settled` | a fetch of your own; a submit around the funnel |
 
 Which owner — in this order: the RUN the wait serves → the frame's scope (`workspaceFrameScope(kind)`) → the submit's /
@@ -52,7 +54,7 @@ what is the page's.
 
 ---
 
-## 2. The laws a review checks (each has cost a field freeze or a CI round)
+## 2. The sixteen laws a review checks (each has cost a field freeze or a CI round)
 
 **L1 · PACING or RELEASE is decided per callback.** Ask: *does anything OUTSIDE the owner depend on this callback
 running?* Yes → `guarantee`. No → `after`. A release on `after` is a wedge (the gate never opens when the owner ends
@@ -101,7 +103,12 @@ waits that only record. (`workspaceConclusionOwe.ts` is the model; PLAN §5 · S
 comment in `kernel/flowKinds.ts`: a decision never waits on a story; nothing waits for the plate; everybody may wait
 for the submit and it waits for nobody.
 
-**L15 · The product invariants of `CLAUDE.md` outrank everything here** — never detect a prompt by its title
+**L15 · A list that lives in SOMEBODY ELSE'S file is a module that will be forgotten.** The shell's teardown rows, the
+transport's refusal battery, the ghost test's copy of the conclusion's holds — each was a hand-kept list of other
+modules, and each lost a row in the field. The form is always the same: the module DECLARES (`sessionState`,
+`onPressUnlanded`, a row of `FRAME_HOLDS`), the owner of the moment runs ONE ordered pass / reads ONE table.
+
+**L16 · The product invariants of `CLAUDE.md` outrank everything here** — never detect a prompt by its title
 (`promptIdentityKey`), availability is the server's, no auto-select, truth before story, one motion system
 (`motionMs()` for every duration handed to the kernel too).
 

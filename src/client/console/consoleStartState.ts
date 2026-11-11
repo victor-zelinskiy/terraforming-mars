@@ -42,6 +42,7 @@ import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overv
 import {presentPlayerStatus, StatusPresentation} from '@/client/components/overview/playerStatusPresenter';
 import {inputLocked, resetStartTransition, startTransitionActive, StartTransitionPhase} from '@/client/console/startStageDirector';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /**
  * The wizard's steps — the server's own options, in its order. (The campaign «Тендеры» finale once prepended a
@@ -1382,3 +1383,9 @@ export function startParticipants(
   out.sort((a, b) => Number(b.self) - Number(a.self));
   return out;
 }
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// A campaign tender answered from the start's «НАСЛЕДИЕ» stage: the busy instance, the opening restructuring and the
+// armed pick restore let go
+onPressUnlanded('start-tender', abortStartTender, 240);

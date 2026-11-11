@@ -16,6 +16,7 @@
  * Module-level so it survives the App-level `playerkey` reset epoch.
  */
 import {reactive} from 'vue';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 export const botAttackState = reactive({
   /**
@@ -36,3 +37,8 @@ export function abortBotAttackCommit(): void {
 export function resetBotAttackStateForTest(): void {
   botAttackState.abortNonce = 0;
 }
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The MarsBot attack — the commit row re-opens
+onPressUnlanded('bot-attack-commit', abortBotAttackCommit, 230);

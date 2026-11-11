@@ -102,7 +102,12 @@ describe('a city on a colony tile — the wiring', () => {
     });
 
     it('a refused answer drops the hold and the arm (the abort battery)', () => {
-      expect(transport).to.match(/transportHolds\.colonyCity = false;\s*disarmColonyCity\(\);/);
+      // The transport lowers its own hold and runs ONE pass over the unwinds the modules declare (architecture v2 —
+      // `transport/pressUnwind.ts`); the city declares its own, beside its arm.
+      const battery = transport.slice(transport.indexOf('function abortAllConsoleTransactions(): void {'));
+      expect(battery.slice(0, battery.indexOf('\n}\n'))).to.match(/transportHolds\.colonyCity = false;[\s\S]*unwindUnlandedPress\(\);/);
+      const director = read('src', 'client', 'console', 'colonyCity', 'consoleColonyCity.ts');
+      expect(director).to.match(/^onPressUnlanded\('colony-city', disarmColonyCity, \d+\);$/m);
     });
 
     it('a watcher\'s landing is seeded in BOTH apply blocks — the transport\'s and the poll / WS frame\'s', () => {

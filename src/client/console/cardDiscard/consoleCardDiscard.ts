@@ -57,6 +57,7 @@ import {
   runDiscardTrayWithdraw,
   spawnDiscardProxies,
 } from '@/client/console/cardDiscard/discardDirector';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 export type CardDiscardArm = {
   /** The cards the player answered with. */
@@ -466,3 +467,8 @@ async function waitForTray(maxFrames: number): Promise<void> {
 // (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
 // The discard cinematic is module state too — never carry a live scene (or its animation hold) across a game switch.
 sessionState('card-discard', resetCardDiscard, 320);
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The card discard: the server kept the cards — nothing is seized.
+onPressUnlanded('card-discard', abortCardDiscard, 120);

@@ -42,6 +42,7 @@ import {reactive} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 export type StdProjectCommitPhase = 'idle' | 'press' | 'committing' | 'committed';
 
@@ -214,3 +215,8 @@ export function stdProjectCommitBeatMs(): number {
 // (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
 // Drops the hold gate + both its timers
 sessionState('std-project-commit', resetStdProjectCommit, 660);
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The terminal standard project: the press pose unwinds, the gold NEVER plays and nothing is credited.
+onPressUnlanded('std-project-commit', abortStdProjectCommit, 110);

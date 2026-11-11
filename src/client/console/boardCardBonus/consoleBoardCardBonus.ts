@@ -29,6 +29,7 @@ import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {createFlowRun} from '@/client/console/session/flowRun';
 import {sessionState} from '@/client/console/session/consoleSession';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /**
  * WHERE the lifting cover comes from. `board-cell` carries the placed
@@ -391,3 +392,7 @@ export function resetBoardCardBonus(): void {
 // (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
 // Recall any in-flight bonus cover (zombie-safe)
 sessionState('board-card-bonus', () => abortBoardCardBonus('instant'), 530);
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+onPressUnlanded('board-card-bonus', () => abortBoardCardBonus('return'), 50);

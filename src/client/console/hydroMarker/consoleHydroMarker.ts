@@ -49,6 +49,7 @@ import {
   runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold,
   clearPanelRewardHold, abortResourceTransfers, declareHeldAnswers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 export type MarkerPhase = 'idle' | 'charge' | 'glide' | 'arrive' | 'lock' | 'pulse';
 
@@ -1194,3 +1195,7 @@ export function resetHydroMarker(): void {
 // (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
 // Recall any in-flight marker glide (zombie-safe)
 sessionState('hydro-marker', abortHydroMarker, 500);
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+onPressUnlanded('hydro-marker', abortHydroMarker, 30);

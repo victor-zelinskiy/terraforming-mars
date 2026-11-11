@@ -55,6 +55,7 @@ import {
   RosterMotionHandle, holdTileForArrival, playHeroDepart, playReseatIn, playReseatOut, playStageArrive, playStageDepart,
   playTileArrive, playTileDepart,
 } from '@/client/console/colonyRoster/colonyRosterDirector';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /** What the player confirmed at A — the change the answer must carry. */
 export type ColonyRosterArm = {
@@ -462,3 +463,9 @@ export function resetColonyRoster(): void {
   colonyRosterState.degraded = '';
   gridProbe = () => false;
 }
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// A colony ROSTER change (TR10, Aridor, the solo trim): the answer was refused — no arm, no ceremony; the draft of
+// the leaving tile stays (the player is still choosing).
+onPressUnlanded('colony-roster', disarmColonyRoster, 170);

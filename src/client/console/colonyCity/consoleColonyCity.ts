@@ -61,6 +61,7 @@ import {
 import {
   ColonyBuildStageEls, disposeCubeProxy, killColonyBuildTweens, placeCubeProxy, playCubeApproach, playCubeDescent,
 } from '@/client/console/colonyBuild/colonyBuildDirector';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /** What the seat of ONE colony tile shows. */
 export type ColonyCitySeatPose = 'empty' | 'projected' | 'waiting' | 'seated';
@@ -698,3 +699,8 @@ export function resetColonyCity(): void {
   colonyCityState.degraded = '';
   stage = undefined;
 }
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// A city on a colony tile (TR22): the answer was refused — no arm, no landing, the door stands as it was.
+onPressUnlanded('colony-city', disarmColonyCity, 180);

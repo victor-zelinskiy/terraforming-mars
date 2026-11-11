@@ -68,6 +68,7 @@ import {
 import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /**
  * The ADVANCE leg's own net: whatever happens to the track's measurability,
@@ -1691,3 +1692,8 @@ registerWaitSource('flow:colony-trade', () => (colonyTradeState.active ? [{
 // (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
 // Unwind any trade-reward transaction (zombie-safe)
 sessionState('colony-trade', abortColonyTrade, 490);
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The whole trade-reward transaction with it
+onPressUnlanded('colony-trade', abortColonyTrade, 20);

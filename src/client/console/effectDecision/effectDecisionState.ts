@@ -16,6 +16,7 @@
 import {reactive} from 'vue';
 import type {PlayerViewModel} from '@/common/models/PlayerModel';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 export const effectDecisionState = reactive({
   /** Index INTO the view model's `actions` the player last focused. */
@@ -56,3 +57,8 @@ export function rememberDecisionFocus(index: number): void {
 export function resetDecisionFocus(): void {
   effectDecisionState.focusIdx = 0;
 }
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// An album that IS a decision: the answer was refused, the album re-opens
+onPressUnlanded('decision-pick-answered', clearDecisionPickAnswered, 250);

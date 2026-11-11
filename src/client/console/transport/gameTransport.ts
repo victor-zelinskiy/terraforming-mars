@@ -90,32 +90,14 @@ import {
   endEnergyConversion,
   runEnergyConversion,
 } from '@/client/components/feedback/energyConversionTransition';
-import {
-  abortTradeFleet,
-  detectTradeFleet,
-  endTradeFleet,
-  runTradeFleet,
-  tradeFleetState,
-} from '@/client/console/colonyFleet/consoleTradeFleet';
+import {detectTradeFleet, endTradeFleet, runTradeFleet, tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {fleetDockOwedCard, seedFleetDockHold} from '@/client/console/colonyTrade/fleetDockScene';
 import {seedActionCommitRail} from '@/client/console/consoleActionCommitRail';
 import {seedMaPriceRail} from '@/client/console/maPriceRail';
 import {seedFirstActionRail} from '@/client/console/startFirstActionRail';
 import {seedVpShares} from '@/client/console/scoreCell/vpShareLedger';
-import {
-  abortColonyTrade,
-  detectColonyTrade,
-  runColonyTradeRewards,
-  seedColonyTradeRewardHold,
-} from '@/client/console/colonyTrade/consoleColonyTrade';
-import {
-  abortPlayedHero,
-  detectPlayedHero,
-  endPlayedHero,
-  runPlayedHero,
-  shipPlayDiscard,
-  seedPlayedHeroRewardHold,
-} from '@/client/console/played/consolePlayedHero';
+import {detectColonyTrade, runColonyTradeRewards, seedColonyTradeRewardHold} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {detectPlayedHero, endPlayedHero, runPlayedHero, shipPlayDiscard, seedPlayedHeroRewardHold} from '@/client/console/played/consolePlayedHero';
 import {stagePlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {seedBonusGainRewardHold} from '@/client/console/startBonusGain';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
@@ -138,28 +120,13 @@ import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {seedNeutralRallyHolds} from '@/client/console/parliament/neutralRally';
 import {seedSupportDiscardHolds} from '@/client/console/parliament/supportDiscard';
 import {seedDelegateRemovalHolds} from '@/client/console/parliament/delegateRemoval';
-import {clearColonyTrackMove, seedColonyTrackMoveHolds} from '@/client/console/colonyTrade/colonyTrackMove';
-import {
-  colonyRosterState, detectColonyRosterChange, disarmColonyRoster, runColonyRosterCeremony, seedColonyRosterHolds,
-} from '@/client/console/colonyRoster/consoleColonyRoster';
-import {detectColonyCity, disarmColonyCity, runColonyCity, seedColonyCityHolds} from '@/client/console/colonyCity/consoleColonyCity';
+import {seedColonyTrackMoveHolds} from '@/client/console/colonyTrade/colonyTrackMove';
+import {colonyRosterState, detectColonyRosterChange, runColonyRosterCeremony, seedColonyRosterHolds} from '@/client/console/colonyRoster/consoleColonyRoster';
+import {detectColonyCity, runColonyCity, seedColonyCityHolds} from '@/client/console/colonyCity/consoleColonyCity';
 import {seedRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {consoleModeState} from '@/client/console/consoleModeState';
-import {rollbackHydroCommit} from '@/client/console/hydroFlow/consoleHydroFlow';
-import {
-  abortHydroMarker,
-  detectHydroMarker,
-  endHydroMarker,
-  runHydroMarker,
-  seedHydroMarkerRewardHold,
-} from '@/client/console/hydroMarker/consoleHydroMarker';
-import {
-  abortPatentSale,
-  detectPatentSale,
-  endPatentSale,
-  runPatentSale,
-  seedPatentSaleRewardHold,
-} from '@/client/console/patentSale/consolePatentSale';
+import {detectHydroMarker, endHydroMarker, runHydroMarker, seedHydroMarkerRewardHold} from '@/client/console/hydroMarker/consoleHydroMarker';
+import {detectPatentSale, endPatentSale, runPatentSale, seedPatentSaleRewardHold} from '@/client/console/patentSale/consolePatentSale';
 import {seedPoliticalDiscardExchange} from '@/client/console/cardDiscard/discardExchangeBeat';
 import {seedPreludeBurnRewardHold} from '@/client/console/deckPick/preludeBurnReward';
 import {notePreludeChainView} from '@/client/console/deckPick/preludePlayChain';
@@ -171,55 +138,14 @@ import {
 import {
   detectPromptReceive, disarmPromptReceive, endPromptReceive, runPromptReceive,
 } from '@/client/console/cardReceive/promptReceive';
-import {
-  abortStdProjectCommit,
-  detectStdProjectCommit,
-  runStdProjectCommit,
-} from '@/client/console/consoleStdProjectCommit';
-import {
-  abortCardDiscard,
-  detectCardDiscard,
-  endCardDiscard,
-  cardDiscardDeparted,
-  runCardDiscard,
-} from '@/client/console/cardDiscard/consoleCardDiscard';
-import {
-  abortTilePlacement,
-  detectTilePlacement,
-  endTilePlacement,
-  measureBoardHexRect,
-  runTilePlacement,
-  seedTilePlacementRewardHold,
-} from '@/client/console/tilePlacement/consoleTilePlacement';
-import {rollbackPlacementCommit} from '@/client/console/tilePlacement/placementFlow';
-import {
-  abortStagedPlayCommit,
-  seedStagedPlayRewardHold,
-  runStagedSealWave,
-  stagedSealPending,
-} from '@/client/console/stagedPlay';
-import {
-  abortNomadMove,
-  detectNomadMove,
-  endNomadMove,
-  runNomadMove,
-  seedNomadMoveRewardHold,
-  stageRemoteNomadMove,
-} from '@/client/console/nomads/consoleNomadMove';
-import {
-  abortColonyBuild,
-  detectColonyBuild,
-  endColonyBuild,
-  runColonyBuild,
-  seedColonyBuildRewardHold,
-} from '@/client/console/colonyBuild/consoleColonyBuild';
+import {detectStdProjectCommit, runStdProjectCommit} from '@/client/console/consoleStdProjectCommit';
+import {detectCardDiscard, endCardDiscard, cardDiscardDeparted, runCardDiscard} from '@/client/console/cardDiscard/consoleCardDiscard';
+import {detectTilePlacement, endTilePlacement, measureBoardHexRect, runTilePlacement, seedTilePlacementRewardHold} from '@/client/console/tilePlacement/consoleTilePlacement';
+import {seedStagedPlayRewardHold, runStagedSealWave, stagedSealPending} from '@/client/console/stagedPlay';
+import {detectNomadMove, endNomadMove, runNomadMove, seedNomadMoveRewardHold, stageRemoteNomadMove} from '@/client/console/nomads/consoleNomadMove';
+import {detectColonyBuild, endColonyBuild, runColonyBuild, seedColonyBuildRewardHold} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
-import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
-import {abortConsoleActionCommit} from '@/client/console/consoleActionCommit';
-import {resetColonyBonusPayout, seedColonyBonusPayoutHolds} from '@/client/console/colonyLedger/colonyBonusPayout';
-import {abortBotAttackCommit} from '@/client/console/botAttack/botAttackState';
-import {abortStartTender} from '@/client/console/consoleStartState';
-import {clearDecisionPickAnswered} from '@/client/console/effectDecision/effectDecisionState';
+import {seedColonyBonusPayoutHolds} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {registerBotTurnApplied} from '@/client/components/marsbot/marsBotStagedCommits';
 // The GAME START WORKSPACE holds the deployment across prompt gaps. While it
@@ -236,6 +162,7 @@ import {consoleAppScope, sessionChild} from '@/client/console/session/consoleSes
 import {FlowActor, startFlowActor} from '@/client/console/kernel/flowMachine';
 import {submitMachine, SubmitStatus} from '@/client/console/transport/submitMachine';
 import {announceSubmitTicket, SubmitSettle, SubmitTicket} from '@/client/console/transport/submitTicket';
+import {unwindUnlandedPress} from '@/client/console/transport/pressUnwind';
 import {
   applyHazardTileSwap,
   detectHazardCleanup,
@@ -1839,74 +1766,29 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
   return ticket;
 }
 
-/** The full refusal/network unwind battery — every armed console
- *  transaction recalls cleanly, in the documented order. */
+/**
+ * THE PRESS DID NOT LAND — a refusal, a lost answer. Everything that was armed for it unwinds, in the documented
+ * order: each module DECLARES its unwind beside its own arm (`onPressUnlanded(label, unwind, at)` —
+ * `transport/pressUnwind.ts`) and this is the one pass over them. It used to be a battery of twenty-five calls
+ * here; a scene module that was not on the list kept its arm after a refusal (architecture v2 — PLAN §5 · L1).
+ * The transport's own holds fall first: an unwind never runs under a gate the funnel still holds.
+ */
 function abortAllConsoleTransactions(): void {
   transportHolds.tradeFleet = false;
-  abortTradeFleet();
-  abortColonyTrade(); // …and the whole trade-reward transaction with it
   transportHolds.hydroMarker = false;
-  abortHydroMarker();
-  rollbackHydroCommit(); // the refused advance did not happen — the draft returns
-  abortBoardCardBonus('return');
-  // …and the played-card hero: the play did NOT happen — the armed
-  // transaction unwinds with zero visual trace (the composer stays open,
-  // its CTA re-arms via the shell's 'failed' watcher).
   transportHolds.playedHero = false;
-  abortPlayedHero();
-  // …and the resolution payout: nothing was recorded, nothing flies.
   transportHolds.resolutionPayout = false;
-  endResolutionPayout();
-  // …and a walk's layout answered on the answer stage (TR78): the same.
   transportHolds.tableAnswer = false;
-  endTableAnswerPayout();
-  // …and a live pick's answer: the server refused it — the candidates stand as they were (no seal, no recede).
   transportHolds.promptReceive = false;
-  disarmPromptReceive();
-  // …and the patent sale: the terminal swallows nothing — the cards return
-  // to the hand (un-blanked) and no chip is ever dispensed.
   transportHolds.patentSale = false;
-  abortPatentSale();
-  // …and the terminal standard project: the press pose unwinds, the gold
-  // NEVER plays and nothing is credited.
   transportHolds.stdProject = false;
-  abortStdProjectCommit();
-  // …and the card discard: the server kept the cards — nothing is seized.
   transportHolds.cardDiscard = false;
-  abortCardDiscard();
-  // …and the tile-placement hero: no tile flies, no bonus is collected.
   transportHolds.tilePlacementHero = false;
-  abortTilePlacement();
-  // …and the two-phase placement flow: the refused commit returns the player
-  // to their LOCKED cell (context intact) and re-arms the board wiring the
-  // submit funnel tore down. No-op unless a placement commit was in flight.
-  rollbackPlacementCommit();
-  // …and a STAGED play's commit: the batch never landed, so the staged play
-  // is simply «not yet sent» again — still cancellable, still retryable.
-  abortStagedPlayCommit();
-  // …and a chosen colony track's move (TR07): the answer was refused, nothing moved — no promise, no hold.
-  clearColonyTrackMove();
-  // …and a colony ROSTER change (TR10, Aridor, the solo trim): the answer was refused — no arm, no ceremony; the
-  // draft of the leaving tile stays (the player is still choosing).
   transportHolds.colonyRoster = false;
-  disarmColonyRoster();
-  // …and a city on a colony tile (TR22): the answer was refused — no arm, no landing, the door stands as it was.
   transportHolds.colonyCity = false;
-  disarmColonyCity();
-  // …and the nomad move: the camp never lifts off, nothing is collected.
   transportHolds.nomadMove = false;
-  abortNomadMove();
-  // …and the colony-build hero: no cube drops, no bonus is collected.
   transportHolds.colonyBuild = false;
-  abortColonyBuild();
-  // …and the blue-action COMMIT: the activation was rejected — the beat
-  // tears down, the composer's CTA unlocks (abortNonce), the captures stay.
-  abortConsoleActionCommit();
-  // …and the ledger payout that press armed (TR23): the activation never happened — nothing is owed, nothing is held.
-  resetColonyBonusPayout();
-  abortBotAttackCommit(); // …and the MarsBot attack — the commit row re-opens
-  abortStartTender(); // …and a campaign tender answered from the start's «НАСЛЕДИЕ» stage: the busy instance, the opening restructuring and the armed pick restore let go
-  clearDecisionPickAnswered(); // …and an album that IS a decision: the answer was refused, the album re-opens
+  unwindUnlandedPress();
 }
 
 /** Apply a fresh view: structural sharing + the transient-UI reset epoch. */

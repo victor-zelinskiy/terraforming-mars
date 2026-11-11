@@ -38,6 +38,7 @@ import type {FlowScope} from '@/client/console/kernel/flowScope';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 import type {TradeFleetDirectorHandle} from '@/client/console/colonyFleet/tradeFleetDirector';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 export type FleetPhase = 'idle' | 'launch' | 'transit' | 'approach' | 'dock' | 'ack';
 
@@ -378,3 +379,7 @@ export function resetTradeFleet(): void {
 // (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
 // Recall any in-flight fleet (zombie-safe on teardown)
 sessionState('trade-fleet', abortTradeFleet, 480);
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+onPressUnlanded('trade-fleet', abortTradeFleet, 10);

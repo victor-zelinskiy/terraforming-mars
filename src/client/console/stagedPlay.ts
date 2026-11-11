@@ -57,6 +57,7 @@ import {measureBoardHexRect} from '@/client/console/tilePlacement/consoleTilePla
 import {ArmedPlayEffectModel} from '@/common/models/ArmedPlayEffectModel';
 import {releaseStagedArmedSpends} from '@/client/console/armedEffectFlight';
 import {claimVpShares, dropVpClaim, flyVpShares, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /**
  * The score cell's ledger owner of the card-seal wave (TR55): a staged play's card is no longer on screen when its
@@ -409,3 +410,9 @@ export function runStagedSealWave(): Promise<void> {
 export function stagedSealPending(): boolean {
   return pendingSeal !== undefined;
 }
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// A STAGED play's commit: the batch never landed, so the staged play is simply «not yet sent» again — still
+// cancellable, still retryable.
+onPressUnlanded('staged-play-commit', abortStagedPlayCommit, 150);

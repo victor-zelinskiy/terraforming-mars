@@ -61,6 +61,7 @@ import {beginCeilingWait, raceCeiling} from '@/client/console/waitGraph/ceilingW
 import {frames} from '@/client/console/kernel/flowScope';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 export type SaleFlight = {
   id: number,
@@ -705,3 +706,9 @@ async function frame(): Promise<void> {
 // The rest of the module-scene family. These were reachable only from the transport's REFUSAL path — a game switch
 // with one of them live carried a stale scene (timers, holds, a ceremony timeline) into the next game.
 sessionState('patent-sale', abortPatentSale, 560);
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The patent sale: the terminal swallows nothing — the cards return to the hand (un-blanked) and no chip is ever
+// dispensed.
+onPressUnlanded('patent-sale', abortPatentSale, 100);

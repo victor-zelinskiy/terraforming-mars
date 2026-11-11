@@ -43,6 +43,7 @@ import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPrevi
 import type {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {sessionState} from '@/client/console/session/consoleSession';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /** An embedded pre-select step standing INSIDE the workspace scene.
  *  `payment` is the Delta Works COMPOSITION step — entered from the plan's
@@ -790,3 +791,8 @@ export function installHydroFlowWitnesses(): () => void {
 // (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
 // Drop any in-flight hydro commit presentation (zombie-safe)
 sessionState('hydro-flow', resetHydroFlow, 510);
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The refused advance did not happen — the draft returns
+onPressUnlanded('hydro-commit', rollbackHydroCommit, 40);

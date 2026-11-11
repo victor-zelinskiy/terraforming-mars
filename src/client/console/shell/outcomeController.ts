@@ -426,6 +426,7 @@ export function createOutcomeController(shell: OutcomePort) {
     // says nothing about whether THIS flow is finished.
     const mine = workspaceOutcomeState.host === kind && workspaceOutcomeClaimed();
     const task = taskFor(shell.playerView);
+    const held = (as: FrameHold['as']): boolean => FRAME_HOLDS.some((hold) => hold.as === as && hold.holds(kind));
     return {
       nested: workspaceFrameHasNested(kind),
       // …and a step this flow OWES but has not been handed yet: the door is
@@ -437,9 +438,9 @@ export function createOutcomeController(shell: OutcomePort) {
       // …and a WALK this hand owes (TR04): promised by the play's preview and
       // not yet played — the record on its way, or the landing ritual still
       // telling its story before the Parliament takes the zone.
-      owedStep: (followUpStepOwed.value && workspaceHostForStep() === kind) || (kind === 'hand' && hostedStepOwedTo('hand')) ||
-        // …and the discard a party's action owes to the card composer that committed it (the one-framework door).
-        (kind === 'card-actions' && shell.politicalDiscardOwed),
+      // …and the discard a party's action owes to the card composer that committed it (the one-framework door).
+      // (Each is a row of `FRAME_HOLDS` — the one table the ghost test reads too.)
+      owedStep: held('owedStep'),
       // …and a walk PLAYING inside it: the marker moving, a chip in the air, the read.
       // …and a LEDGER still paying inside it (TR23 — «all your colony bonuses»):
       // the rows in turn, a take, a discard, the read — the flow's own body.
@@ -448,8 +449,7 @@ export function createOutcomeController(shell: OutcomePort) {
       // `closeWorkspaceRoot:card-actions` before the answer) or held on the rail until its wave has flown.
       // …and «ПРЕДСЕДАТЕЛЬСТВО» playing in the Parliament (the office and the step play AFTER the gate's answer — the
       // vote that closed the quest went on into it in place, ledger HC: its earlier ending must not take the beats down).
-      outcomeLive: mine || (kind === 'hand' && hostedStepLiveIn('hand')) || (kind === 'parliament' && chairmanQuestFlow.live) ||
-        (kind === 'card-actions' && (colonyBonusPayoutLive() || shell.politicalPayoutOwed)),
+      outcomeLive: mine || held('outcomeLive'),
       // The second half of a pick-then-pay and a DRAW & SELECT still standing
       // in our zone are both this activation, still being answered — and so
       // is any prompt this FRAME earned the right to serve.
@@ -464,12 +464,59 @@ export function createOutcomeController(shell: OutcomePort) {
         (servedPromptHolds && task !== undefined && frameServing(task.kind)?.kind === kind) ||
         // THE ENACTED LAW'S ACTION still owes a step (Turmoil Redux, RX36): its card landing in the stage, or the live
         // play pick a bill with a payment of its own raised after it — neither a prompt this frame «serves» by registry.
-        (kind === 'card-actions' && shell.lawStepOwed),
+        held('ownsPrompt'),
       parked: workspaceFrameParked(kind),
       // …and a frame off the live stack in any other way (aside for the board): a flow never finishes where nobody
       // sees it — owed, re-asked on the frame's return (the owed run wakes on this very object — `conclusionFactsKey`).
       offStage: workspaceFrameOffStage(kind),
     };
+  }
+
+  /**
+   * THE NAMED HOLDS OF A WORKSPACE'S ENDING — ONE TABLE (architecture v2 — PLAN §5 · S5). What keeps a finished flow's
+   * workspace standing, besides a nested frame, its own claim and a prompt it serves: a step it OWES, an outcome still
+   * PLAYING inside it, a step of its own that is not a registry prompt. The guarded conclusion reads the table
+   * (`conclusionFacts`) — and so does the forced teardown's GHOST TEST (`workspaceHeldForThePlayer`, the supervisor's
+   * `stuckWorkspaceIsGhost`), which used to keep its own copy of the same terms and called a working flow a phantom
+   * every time the copy missed one (the Reds' payout, field 2026-10-24 / 25).
+   *
+   * A NEW HOLD IS ONE ROW, and the row must say whether a phantom can hide behind it (`ghost`): `'never'` — while it
+   * stands the player has something genuine in this workspace, the forced teardown is refused; `'may'` — the hold's
+   * own run can wedge, so it does not vouch for the workspace (it has its own bound: the chairmanship's hold expires).
+   */
+  type FrameHold = {
+    name: string,
+    as: 'owedStep' | 'outcomeLive' | 'ownsPrompt',
+    holds: (kind: WorkspaceFrameKind) => boolean,
+    ghost: 'never' | 'may',
+    /** What the GHOST TEST asks instead of `holds`, where it is deliberately wider (default: `holds`). */
+    vouches?: (kind: WorkspaceFrameKind) => boolean,
+  };
+  const FRAME_HOLDS: ReadonlyArray<FrameHold> = [
+    // A step this flow OWES but has not been handed yet (`followUpStepOwed`): the workspace it will teleport into
+    // holds for it. The ghost test asks it of ANY workspace — a second effect still owed a door is the player's next
+    // thing, wherever it lands.
+    {name: 'a follow-up step is owed', as: 'owedStep', ghost: 'never',
+      holds: (kind) => followUpStepOwed.value && workspaceHostForStep() === kind, vouches: () => followUpStepOwed.value},
+    // A WALK / a RALLY this hand owes (TR04 / TR31): promised by the play's preview and not yet played.
+    {name: 'a hosted Parliament step is owed', as: 'owedStep', ghost: 'never', holds: (kind) => kind === 'hand' && hostedStepOwedTo('hand')},
+    // The discard a party's action owes to the card composer that committed it (the one-framework door).
+    {name: 'a party discard is owed', as: 'owedStep', ghost: 'never', holds: (kind) => kind === 'card-actions' && shell.politicalDiscardOwed},
+    // …a walk PLAYING inside the hand: the marker moving, a chip in the air, the read.
+    {name: 'a hosted Parliament step is playing', as: 'outcomeLive', ghost: 'never', holds: (kind) => kind === 'hand' && hostedStepLiveIn('hand')},
+    // «ПРЕДСЕДАТЕЛЬСТВО» playing in the Parliament (the office and the step play AFTER the gate's answer).
+    {name: 'the chairmanship is playing', as: 'outcomeLive', ghost: 'may', holds: (kind) => kind === 'parliament' && chairmanQuestFlow.live},
+    // A LEDGER still paying inside the composer (TR23 — «all your colony bonuses»).
+    {name: 'a colony ledger is paying', as: 'outcomeLive', ghost: 'never', holds: (kind) => kind === 'card-actions' && colonyBonusPayoutLive()},
+    // A PARTY DISCARD'S PAYOUT (the Reds): awaited from the submit or held on the rail until its wave has flown.
+    {name: 'a party payout is owed', as: 'outcomeLive', ghost: 'never', holds: (kind) => kind === 'card-actions' && shell.politicalPayoutOwed},
+    // THE ENACTED LAW'S ACTION still owes a step (RX36): its card landing in the stage, or its live play pick.
+    {name: 'the law\'s step is owed', as: 'ownsPrompt', ghost: 'never', holds: (kind) => kind === 'card-actions' && shell.lawStepOwed},
+  ];
+
+  /** The ghost test's read of the table: a hold that VOUCHES for the workspace stands — it is no phantom. */
+  function workspaceHeldForThePlayer(kind: WorkspaceFrameKind): boolean {
+    return FRAME_HOLDS.some((hold) => hold.ghost === 'never' && (hold.vouches ?? hold.holds)(kind));
   }
 
   /**
@@ -1463,6 +1510,7 @@ export function createOutcomeController(shell: OutcomePort) {
     outcomeAdoptionDecision,
     outcomeAdoptionPending,
     followUpStepOwed,
+    workspaceHeldForThePlayer,
     followUpStepStageKey,
     foldWorkspaceAfterResult,
     concludeWorkspaceFlow,

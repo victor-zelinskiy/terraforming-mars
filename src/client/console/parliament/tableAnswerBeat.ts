@@ -82,6 +82,7 @@ import {resolveActionCommitAnchors, resolveGainIconOrigins} from '@/client/conso
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /** WHO plays the answer: the chairman quest's flow, the sitting's walk, or a card's walk (the hand / the start / a Parliament of its own). */
 export type TableAnswerHost = 'quest' | 'sitting' | 'walk';
@@ -620,3 +621,8 @@ registerAnimationHoldSupplier('parliament-table-answer', claimsForeground, {
   }),
   expire: () => releaseTableAnswers(),
 });
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// A walk's layout answered on the answer stage (TR78): the same.
+onPressUnlanded('table-answer-payout', endTableAnswerPayout, 80);

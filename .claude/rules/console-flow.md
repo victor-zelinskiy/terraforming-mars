@@ -31,7 +31,7 @@ Plan and hand-over state: `docs/claude/console/architecture-v2/PLAN.md` (§0 say
 a new safety timer, or a new watcher mailbox.**
 
 **Before writing or reviewing console lifecycle code read `docs/claude/console/architecture-v2/REVIEW.md`** — the
-«I need to … → primitive» table, the fifteen laws a review checks, how to test a flow, and what is frozen.
+«I need to … → primitive» table, the sixteen laws a review checks, how to test a flow, and what is frozen.
 
 ## Two ledgers — both must stay green
 - **`tests/console/kernelCoverage.spec.ts`** — nothing in `src/client` WAITS outside a scope. Its baseline is empty.
@@ -41,6 +41,12 @@ a new safety timer, or a new watcher mailbox.**
   a use, a new file starts at zero, each row prints the kernel form to write instead. **A fix inside a frozen
   mechanism moves the piece it touches onto the kernel** — never one more rung / witness / door / flag / watch row.
   When a count drops: `npm run debt:architecture`. PLAN §11 is the table and the order of the redesign.
+- **What a module ARMS for a press declares its unwind** — `onPressUnlanded('<label>', abortX, <at>)` at module
+  scope (`console/transport/pressUnwind.ts`); the transport's refusal / lost-answer path runs ONE ordered pass
+  (`unwindUnlandedPress()`) and holds no list of modules (`pressUnwind.spec`). **What holds a finished workspace open**
+  (beyond a nested frame, its claim, a prompt it serves) is ONE row of `FRAME_HOLDS` (`shell/outcomeController.ts`)
+  — read by the conclusion AND by the ghost test; the row says whether a phantom can hide behind it
+  (`workspaceHolds.spec`). Never a list of other modules kept in somebody else's file.
 - **A latch is `scopedState(label, rest, owner?)`** (`console/session/scopedState.ts`) — the same `Ref`, but every
   raised span is a `step` scope: it falls back to rest when its owner ends and the tree names it with its age. Name
   the narrowest true owner (`() => workspaceFrameScope(kind)`, `() => run.scope`); the session is the default.

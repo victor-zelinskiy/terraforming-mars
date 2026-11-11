@@ -86,6 +86,7 @@ import {beginCeilingWait, raceCeiling} from '@/client/console/waitGraph/ceilingW
 import {motionGuarantee, motionSpan, span, whenPainted} from '@/client/console/session/sessionWaits';
 import {createFlowRun} from '@/client/console/session/flowRun';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /**
  * The score cell's ledger owner of this scene (TR55 — docs/claude/console/score-cell.md): the played card's own
@@ -2992,3 +2993,9 @@ function clearTimers(): void {
 // (architecture v2 — PLAN §10 · C5; the number is its place in that pass — `leaveConsoleSession`).
 // Unwind any in-flight played-card hero scene (zombie-safe)
 sessionState('played-hero', abortPlayedHero, 550);
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The played-card hero: the play did NOT happen — the armed transaction unwinds with zero visual trace (the composer
+// stays open, its CTA re-arms via the shell's 'failed' watcher).
+onPressUnlanded('played-hero', abortPlayedHero, 60);

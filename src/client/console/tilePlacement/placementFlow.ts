@@ -42,6 +42,7 @@ import {reactive} from 'vue';
 import {SpaceId} from '@/common/Types';
 import {observeConsoleIntents} from '@/client/console/consoleRouter';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 export type PlacementFlowPhase = 'navigate' | 'locked' | 'committing';
 
@@ -284,3 +285,9 @@ export function __resetPlacementFlowForTest(): void {
   placementFlowState.confirmDown = false;
   placementFlowState.twoStep = true;
 }
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The two-phase placement flow: the refused commit returns the player to their LOCKED cell (context intact) and
+// re-arms the board wiring the submit funnel tore down. No-op unless a placement commit was in flight.
+onPressUnlanded('placement-commit', rollbackPlacementCommit, 140);

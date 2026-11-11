@@ -39,6 +39,7 @@ import {
   resetCardResourceLandings, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {resolveActionCommitAnchors, resolveGainIconOrigins} from '@/client/console/consoleActionCommitMotion';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /** The ONE enacted-card instance on screen (the stage's hero while carried, the government otherwise). */
 export function enactedCardEl(): HTMLElement | undefined {
@@ -234,3 +235,8 @@ export async function runResolutionPayout(event: ResolutionPayoutEvent): Promise
 export function endResolutionPayout(): void {
   pickPayoutLanding.landed = {};
 }
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// The resolution payout: nothing was recorded, nothing flies.
+onPressUnlanded('resolution-payout', endResolutionPayout, 70);

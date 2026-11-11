@@ -29,7 +29,6 @@ import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
 import {observeStaleFreeTurn, StaleFreeTurnClock, staleFreeTurnClockInit, staleFreeTurnHeld} from '@/client/console/supervisor/staleFreeTurnClock';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
 import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
-import {hostedStepLiveIn, hostedStepOwedTo} from '@/client/console/parliament/hostedParliamentStep';
 import {ConsoleRevealMode} from '@/client/components/console/consoleRevealOverlayTypes';
 import {closePhaseRoot, closeWorkspaceRoot, deadLiveFrames, pruneOffStageDeadFrames, collapseWorkspaceStack, stackYieldedToBoard, frameServing, goBoardHome, popWorkspaceFrame, workspaceFrameHasNested, workspaceStackTop, workspaceFrameAnchor, workspaceFrameKnown, workspaceFrameAnywhere, workspaceFrameParked, workspaceStackCollapsed, workspaceStackState, workspaceFrameOffStage, WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {openFrameQuestionDoor} from '@/client/console/frameQuestionDoor';
@@ -43,7 +42,6 @@ import {ConsoleTask, taskFor} from '@/client/console/consoleTaskRouter';
 import {leakDetectorState, runScreenCure} from '@/client/console/consoleLeakDetector';
 import {ScreenCurePlan} from '@/client/console/screenDirector';
 import {workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, releaseWorkspaceOutcome, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
-import {colonyBonusPayoutLive} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {releaseDiscardExchange} from '@/client/console/cardDiscard/discardExchangeBeat';
 import {consoleState, closeConsoleLayers} from '@/client/console/consoleRouter';
 import {isSurfaceAwaitingHandoff, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
@@ -87,6 +85,7 @@ const STALE_FREE_TURN_MS = 8_000;
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
 export type SupervisorPort = {
+  workspaceHeldForThePlayer(kind: WorkspaceFrameKind): boolean,
   $nextTick(fn?: () => void): Promise<void>,
   $refs: Record<string, unknown>,
   readonly admissionSignals: AdmissionSignals,
@@ -95,10 +94,8 @@ export type SupervisorPort = {
   readonly consoleRevealMode: ConsoleRevealMode | undefined,
   readonly deckPickActive: boolean,
   drainBoardBeats(): void,
-  readonly followUpStepOwed: boolean,
   frameServesLiveQuestion(kind: WorkspaceFrameKind): boolean,
   readonly hostTask: ConsoleTask | undefined,
-  readonly lawStepOwed: boolean,
   readonly mandatoryAnnounceVisible: boolean,
   readonly mandatoryBeat: MandatoryBeat | undefined,
   readonly mandatoryChipAttention: boolean,
@@ -109,8 +106,6 @@ export type SupervisorPort = {
   parliamentLeaving: boolean,
   readonly placementActive: boolean,
   readonly playerView: PlayerViewModel,
-  readonly politicalDiscardOwed: boolean,
-  readonly politicalPayoutOwed: boolean,
   reconcileWorkspaceOutcome(): void,
   restoreDeferredTask(): void,
   readonly startSceneMounted: boolean,
@@ -156,13 +151,13 @@ export function createSupervisorController(shell: SupervisorPort) {
       // A frame AWAY for the board is waiting for the board, not a phantom — its return re-asks the conclusion.
       !workspaceFrameOffStage(kind) &&
       !shell.workspaceOutcomeServingNow && // no live prompt/batch it serves
-      !shell.followUpStepOwed && // no second effect still owed a door
-      !(kind === 'hand' && (hostedStepOwedTo('hand') || hostedStepLiveIn('hand'))) && // no walk / rally owed or playing (TR04 / TR31)
-      // …and none of the card composer's OWN holds of the guarded conclusion: a party's discard still owed, its payout
-      // awaited or held on the rail (its one flyer is this workspace — tearing it down stranded the wave), a colony
-      // ledger still paying (TR23), the enacted law's step (RX36). The conclusion holds on each of them by name; a
-      // ghost check that forgot one called a working flow a phantom (the Reds' payout, field 2026-10-24 / 25).
-      !(kind === 'card-actions' && (shell.politicalDiscardOwed || shell.politicalPayoutOwed || colonyBonusPayoutLive() || shell.lawStepOwed)) &&
+      // …and none of the conclusion's NAMED HOLDS that vouch for the workspace — a second effect still owed a door, a
+      // walk / rally owed or playing in the hand (TR04 / TR31), the card composer's own: a party's discard still owed,
+      // its payout awaited or held on the rail, a colony ledger still paying (TR23), the enacted law's step (RX36). ONE
+      // table (`FRAME_HOLDS`, the outcome controller): the conclusion holds on each of them by name, and a ghost test
+      // that kept its own copy called a working flow a phantom whenever the copy missed one (the Reds' payout, field
+      // 2026-10-24 / 25).
+      !shell.workspaceHeldForThePlayer(kind) &&
       !shell.placementActive &&
       shell.consoleRevealMode === undefined &&
       !currentRevealEvent() &&

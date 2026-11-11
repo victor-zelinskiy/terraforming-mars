@@ -54,6 +54,7 @@ import {auxCellRect, runCityPayoutBeat} from '@/client/console/tilePlacement/cit
 import {claimCityPayout} from '@/client/console/tilePlacement/cityDataPayoutModel';
 import {CardReceiveOutcome, runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 import {noteTableAnswerTold} from '@/client/console/parliament/tableAnswerBeat';
+import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 
 /** Where the units of a live pick come from — the scene's family. */
 export type PromptReceiveFamily = 'field' | 'colony' | 'plate';
@@ -474,3 +475,8 @@ type PromptReceiveOutcomeLike = CardReceiveOutcome | 'unverified';
 export function promptReceiveArmed(): boolean {
   return armed !== undefined;
 }
+
+// A PRESS THAT DID NOT LAND (refused, lost): what this module armed for it unwinds — declared here, run by the
+// transport's ordered pass (architecture v2 — PLAN §5 · L1; the number is its place — `unwindUnlandedPress`).
+// A live pick's answer: the server refused it — the candidates stand as they were (no seal, no recede).
+onPressUnlanded('prompt-receive', disarmPromptReceive, 90);
