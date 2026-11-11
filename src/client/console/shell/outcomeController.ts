@@ -5,6 +5,7 @@
  */
 import type {UnwrapRef} from 'vue';
 import {computed, ref, onBeforeUnmount, onMounted} from 'vue';
+import {scopedState} from '@/client/console/session/scopedState';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {intakeBatchSources} from '@/common/models/CardDrawRevealModel';
@@ -153,14 +154,14 @@ export function createOutcomeController(shell: OutcomePort) {
    * by the `commitHolding` falling-edge watcher — the motion's own
    * settle releases it, never a timer.
    */
-  const pendingCommitDismiss = ref(undefined as (() => void) | undefined);
+  const pendingCommitDismiss = scopedState('pending-commit-dismiss', undefined as (() => void) | undefined);
   /**
    * The ACTION COMMIT has been resolved and its workspace's fold is OWED to
    * the phrase in the air (a capsule timeline — `consoleActionCommitRail`):
    * the awaiting handoff stays up meanwhile, and this keeps a later view from
    * resolving it a second time. Cleared by the fold itself.
    */
-  const commitFoldOwed = ref(false);
+  const commitFoldOwed = scopedState('commit-fold-owed', false);
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   /** The composer's declaration (PL-127): the card in the composer whose play will host a Parliament step. */

@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.2744",
+  "version": "1.2.2745",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": ">=24.20.0 <25"
@@ -132,6 +132,7 @@
     "e2e:remote": "node scripts/e2e-remote.mjs",
     "e2e:affected": "tsx tests/console/e2eAffected.ts",
     "coverage:kernel": "cross-env TM_KERNEL_COVERAGE=lower node ./node_modules/mocha/bin/mocha.js --import=tsx --require tests/testing/setup.ts tests/console/kernelCoverage.spec.ts",
+    "debt:architecture": "cross-env TM_ARCHITECTURE_DEBT=lower node ./node_modules/mocha/bin/mocha.js --import=tsx --require tests/testing/setup.ts tests/console/architectureDebt.spec.ts",
     "e2e:fixtures": "tsx tests/e2e/fixtures/generate.ts"
   },
   "repository": {

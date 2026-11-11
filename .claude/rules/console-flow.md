@@ -30,6 +30,21 @@ Plan and hand-over state: `docs/claude/console/architecture-v2/PLAN.md` (§0 say
 `docs/claude/console/architecture-v2/KERNEL.md`. **New lifecycle code is written on the kernel — never a new flag pair,
 a new safety timer, or a new watcher mailbox.**
 
+**Before writing or reviewing console lifecycle code read `docs/claude/console/architecture-v2/REVIEW.md`** — the
+«I need to … → primitive» table, the fifteen laws a review checks, how to test a flow, and what is frozen.
+
+## Two ledgers — both must stay green
+- **`tests/console/kernelCoverage.spec.ts`** — nothing in `src/client` WAITS outside a scope. Its baseline is empty.
+- **`tests/console/architectureDebt.spec.ts`** — what still runs on a mechanism the kernel REPLACES (a wait-graph
+  source or door, a liveness rung, a truth witness, a write of «set aside», a `$refs` read in a controller, a latch
+  reset by the view-apply reaction, a resolver mailbox, a bare latch `ref`) is counted and FROZEN: a file may not gain
+  a use, a new file starts at zero, each row prints the kernel form to write instead. **A fix inside a frozen
+  mechanism moves the piece it touches onto the kernel** — never one more rung / witness / door / flag / watch row.
+  When a count drops: `npm run debt:architecture`. PLAN §11 is the table and the order of the redesign.
+- **A latch is `scopedState(label, rest, owner?)`** (`console/session/scopedState.ts`) — the same `Ref`, but every
+  raised span is a `step` scope: it falls back to rest when its owner ends and the tree names it with its age. Name
+  the narrowest true owner (`() => workspaceFrameScope(kind)`, `() => run.scope`); the session is the default.
+
 ## The five rules
 1. **A run of anything with a lifetime is a `FlowScope`**, opened in the scope of what it must not outlive; what it
    acquires is `scope.defer(...)`-ed; it ends once. No `begin…` / `release…` pair joined by a callback.

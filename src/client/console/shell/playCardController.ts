@@ -6,6 +6,7 @@
 import type {UnwrapRef} from 'vue';
 import type {PreselectAddress} from '@/common/inputs/preselectAddress';
 import {computed, ref} from 'vue';
+import {scopedState} from '@/client/console/session/scopedState';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
@@ -108,16 +109,16 @@ export type PlayCardPort = {
 
 export function createPlayCardController(shell: PlayCardPort) {
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
-  const pendingPlayCard = ref(undefined as PendingPlayCard | undefined);
+  const pendingPlayCard = scopedState('pending-play-card', undefined as PendingPlayCard | undefined);
   /** The card mid-RETURN from a cancelled play composer (its hand slot
    *  stays held until the transfer proxy touches down). */
   const returningPlayCard = ref(undefined as CardName | undefined);
   /** The card just PLAYED (success) — its hand slot stays held until the
    *  server response removes it from the hand (never a fake return). */
   const departingPlayCard = ref(undefined as CardName | undefined);
-  const pendingClientPayment = ref(undefined as PendingClientPayment | undefined);
+  const pendingClientPayment = scopedState('pending-client-payment', undefined as PendingClientPayment | undefined);
   /** A client-hosted PICK (RX35's «where» on a one-press door) — see `PendingClientPick`. */
-  const pendingClientPick = ref(undefined as PendingClientPick | undefined);
+  const pendingClientPick = scopedState('pending-client-pick', undefined as PendingClientPick | undefined);
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   const playAction = computed(() => {

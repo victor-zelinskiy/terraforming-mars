@@ -25,6 +25,8 @@
 | C1 | COVERAGE: timers and frames outside the flows | **done — the whole client** (`src/client/**`, the shared layer under the console included: the board, the journal, the endgame, the realtime channel, the lobby, the boot). Every `setTimeout` / `setInterval` / `requestAnimationFrame` / `delayedCall` is an owned wait: a component's (`useFlowScope` — 83 components, lazy, parented by where the component stands), a shell controller's (`useFlowScope` in the controller factory), a run's, the session's, or the page's (`consoleAppScope()`); a `delayedCall` keeps GSAP's clock and gains an owner (`motionAfter` / `motionGuarantee` / `motionSpan`); a tick is `scope.every`; the transport's poll is a guaranteed release of the transport's own scope. What stands outside is DECLARED: the gamepad's sampling loop and its one coalesced frame (`DEVICE_CLOCKS` — a device driver below the console, exact counts pinned). The ledger's line: **373 → 0 raw timers, 137 → 0 raw frames, 36 → 0 `delayedCall`s** (+ 1 timer / 3 frames declared as device clocks) |
 | C3 | COVERAGE: the registries as views | **the three registries are views of the tree**: holds (C2); every CEILING WAIT (`declareWait` — `beginCeilingWait` / `raceCeiling` / `untilCeiling`) is a row of the session's wait table bounded by its ceiling and withdrawn with it; every OWED STORY of the presentation ledger is `story:owed:<id>` (its release edge a row bounded by `dueMs`), ended at its settle / degrade or with its session. *Open:* the wait graph's ten `registerWaitSource` adapters are derived readers of the shell's state (no book of their own) — they go when the observer reads `waitTable()` directly, which needs the shell's remaining lifecycles as scopes (§0 list 1 – 5); the hand-written poll bodies that do more than read a condition keep their shape on owned timers |
 | C5 | COVERAGE: the shell's teardown | **done** — the 66 `reset…()` / `abort…()` rows of the shell's `beforeUnmount` are gone: each module DECLARES its state beside its own reset (`sessionState(label, reset, at)` — 66 declarations in 63 modules) and the leaving shell says one thing, `leaveConsoleSession()` (one ordered pass, each reset isolated; the order is the list's own, as a total order the ledger guards). The session's scope still ends on `unmounted`. Seven timer refs the shell only kept to clear them are deleted |
+| S6 · latches | the shell's latches are scopes | **done** — `scopedState(label, rest, owner?)` (`console/session/scopedState.ts`): the twenty-six «pending / owed / armed / leaving / in flight» refs of the controllers (`commitFoldOwed`, `pendingPlayCard`, `taskSpacePending`, `parliamentLeaving`, …) and «set aside» itself (`consoleState.task.deferred`) are `Ref`s whose every raised span is a `step` scope of the tree — named with its age in every dump, lowered by itself when its owner ends. Their owner is the session until each one's flow is a scope (then: its frame / its run) |
+| D | THE DEBT LEDGER — what still runs on a mechanism the kernel replaces is counted and FROZEN | **done** — §11. `tests/console/architectureDebt.spec.ts` over `architectureDebtBaseline.json`: nine mechanisms of the shell's decision logic (wait-graph sources and doors, liveness rungs, truth witnesses, set-aside writers, surfaces reached by `$refs`, latches reset by the view-apply reaction, resolver mailboxes, bare latches) + the supervisor's port — a file may not gain a use, **a new file starts at zero**, each row names its kernel form. The reviewer's checklist is `REVIEW.md` |
 | N1 | native stalls: LoAF in the field log, a trace on `unresponsive` | **done (diagnosis)** — `longFrameWatch.ts` (`[long-frame]` lines with the frame's split), `electron/hangTrace.ts` (a Chromium trace of every stop, named in the hang line); reducing what the first traces name is open |
 
 **Branch / tree.** The work is done in the worktree `C:\Projects\Mods\tm-arch` (branch `arch-v2`, rebased on
@@ -39,6 +41,13 @@ nothing in `src/client` waits outside a scope, no flow-state module runs outside
 module** — and it can only stay so (a new file starts at zero; the baseline has no row to grow into). What is left is
 NOT coverage: it is the shell's own redesign, listed below — each a rewrite of named controllers ON the framework
 that now holds everything under them.
+
+**Where that leaves the work (2026-11-11, third round).** Two statements are true and guarded: ① *nothing in the
+client waits outside a scope* (the coverage ledger — empty); ② *nothing NEW can be written on a mechanism the kernel
+replaces* (the debt ledger — frozen, a new file starts at zero; `REVIEW.md` is the procedure for whoever writes or
+audits). What is left is the shell's own decision logic — the list below; it is a REDESIGN of behaviour-bearing
+controllers (the router, the pad ladder, the reactions), so it is taken slice by slice with the full e2e run between
+slices, and its size is the debt baseline's numbers (§11), not an impression.
 
 **What is open, in the order to take it** (each is a redesign of named controllers now, not an excavation):
 
@@ -778,3 +787,37 @@ report, §0 / §9 here updated.
 - **The box of numbers** — the ledger's line after the round: **0 raw timers, 0 raw frames, 0 `delayedCall`s outside
   the kernel in `src/client` (1 + 3 declared as the gamepad's device clocks); 0 flow-state modules whose run is not a
   scope (5 declared non-flows); 0 reset rows in the shell's teardown (66 session states declared by their modules).**
+
+---
+
+## 11. The debt ledger — what still runs on a mechanism the kernel replaces
+
+§10 counts what WAITS outside a scope; it is zero. This section counts what is still DECIDED the old way — and
+freezes it. `tests/console/architectureDebt.spec.ts` over `tests/console/architectureDebtBaseline.json`: per mechanism
+and per file, the uses that stand; a file may not gain one; **a new file starts at zero**; `npm run debt:architecture`
+lowers the baseline (never raises it) and prints the line. Each row of the spec's `FROZEN` table carries `what` it
+is, the kernel form to write `instead`, and the `plan` item it retires with — a failing run prints all three.
+
+| Row | 2026-11-11 | The kernel form | Retires with |
+| --- | --- | --- | --- |
+| `surface-by-ref` — a surface reached through `shell.$refs` in a controller | 117 in 16 files (`padRouter` 47 · `colony` 20 · `viewer` 11) | the surface registers what it offers while mounted; presence is the registration | **S3** |
+| `set-aside-writer` — a write of the one «set aside» boolean | 30 in 13 files (5 set it, 25 clear it) | a record owned by what was set aside | **S4** |
+| `resolver-mailbox` — a promise whose resolver is a module variable | 29 in 26 files | a run's end · `createFlowSignal` awaited under a bound | **S6**, per module |
+| `view-apply-write` — another domain's latch reset by the view-apply reaction | 19 | the latch ends with its submit / its prompt / its run | **S4 · S6** |
+| `liveness-rung` | 11 in 7 files | an owner with a bound | §6 — field evidence |
+| `wait-source` · `wait-recovery` | 9 · 9 | kernel waits; a bounded wait needs no door | **C3** — after S4 – S6 |
+| `truth-witness` | 3 | a `story` scope / a hold; a level instead of a watched edge | **S6** |
+| `controller-latch` — a bare latch `ref` in a controller | 1 (a clock of the supervisor's net) | `scopedState` | done |
+| `supervisor-port` — a fact a net samples in the shell | 32 rows | a bound on its owner | §6 |
+| (guarded elsewhere) the shell's `watch` table · its size | `shellControllers.spec.ts` | a machine's state / a scoped run per reaction; the session owns the tick | **S6 · S-last** |
+
+**The regime until the redesign is done — «touch it → move it».** A fix inside a frozen mechanism moves the piece it
+touches onto the kernel (a latch gets its true owner, a missed edge becomes a level, a sampled fact a bound of its
+owner); it never adds a rung, a witness, a door, a flag or a watch row. `REVIEW.md` §5 says it for the reviewer.
+
+**The order of the redesign** is §0's list; each slice lowers named rows here and ends with the full e2e run:
+S5-rest (owed steps as `step` children of the frame — then the ghost test and the stale free-turn reaper read
+structure) → S4 (the prompt router: admission and «set aside» as a record; the view-apply's writes go with it) → S3
+(the surface registry: `$refs` out of the pad path, the two ladders one table) → L1-rest (ticket-first arming) →
+S6 (per domain: reactions and resolvers become machine states / runs — colonies and hydro first) → C3-rest (the
+observer on `waitTable()`; sources and doors go) → S-last (the session owns the tick; the shell is layout).

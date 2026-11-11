@@ -25,6 +25,7 @@ import {
   registerWorkspaceTaskSetAside,
   closeWorkspaceSheet, workspaceStackSection, workspaceStackSheet,
 } from '@/client/console/consoleWorkspaceStack';
+import {scopedState} from '@/client/console/session/scopedState';
 
 export type ConsoleSection = 'board' | 'hand' | 'colonies' | 'hydro' | 'parliament';
 export type ConsoleSheetId = 'milestones' | 'awards' | 'cardActions' | 'standardProjects';
@@ -33,6 +34,8 @@ export type ConsoleConfirmKind = 'pass' | 'convertHeat' | 'convertPlants';
 export type ConsoleQuickId = 'actions' | 'basics';
 
 export const CONSOLE_SECTIONS: ReadonlyArray<ConsoleSection> = ['board', 'hand'];
+
+const setAside = scopedState('set-aside', false);
 
 export const consoleState = reactive({
   /**
@@ -109,7 +112,17 @@ export const consoleState = reactive({
   /** ConsoleShell presence (the layer shows the generic hint bar elsewhere). */
   shellMounted: false,
   /** CTS task-host UI state: B defers the task to inspect the board. */
-  task: {deferred: false},
+  task: {
+    // «SET ASIDE» IS A SCOPE (architecture v2 — PLAN §11): the flag every surface's `v-if` reads is a latch of the
+    // flow tree (`step:set-aside#n`, with its age in every dump) that falls with its session. Its 30 writers still
+    // write it as a boolean — its identity (WHICH question was set aside) is S4's.
+    get deferred(): boolean {
+      return setAside.value;
+    },
+    set deferred(value: boolean) {
+      setAside.value = value;
+    },
+  },
   /**
    * DEFER-DURABLE card-browser picks (buy / draft / target). The task-host
    * component is UNMOUNTED while the task is deferred (B = «Свернуть»), which

@@ -5,6 +5,7 @@
  */
 import type {UnwrapRef} from 'vue';
 import {computed, nextTick as vueNextTick, ref, watch as vueWatch} from 'vue';
+import {scopedState} from '@/client/console/session/scopedState';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import {Color} from '@/common/Color';
@@ -150,9 +151,9 @@ export function createColonyController(shell: ColonyPort) {
    * section cannot play a leave of its own) and is released by the hand's dissolve. The zone and the pick it
    * stood on are LATCHED for that leave — a leaving step re-read as a live screen re-words itself mid-fade.
    */
-  const coloniesLeaving = ref(false);
-  const colonyEmbedLatch = ref('');
-  const colonyPickLatch = ref(undefined as ConsoleColonyPick | undefined);
+  const coloniesLeaving = scopedState('colonies-leaving', false);
+  const colonyEmbedLatch = scopedState('colony-embed-latch', '');
+  const colonyPickLatch = scopedState('colony-pick-latch', undefined as ConsoleColonyPick | undefined);
   /** The ride's net — the DISARM of a guaranteed release (armed by the outcome controller on its own scope). */
   const coloniesLeaveNet = ref(undefined as (() => void) | undefined);
   /**
@@ -163,7 +164,7 @@ export function createColonyController(shell: ColonyPort) {
    * the big track of the colony's own focus, never over the hand and
    * never on the overview grid.
    */
-  const colonyFocusRestorePending = ref(false);
+  const colonyFocusRestorePending = scopedState('colony-focus-restore-pending', false);
   /** The colony-bonus cube this workspace already answered by itself (the
    *  auto-collect's one-shot dedupe — see `colonyBonusAutoCollect`). */
   const colonyBonusCollected = ref('');
@@ -177,7 +178,7 @@ export function createColonyController(shell: ColonyPort) {
    * claim safety met a fresh view — a browse grid yielded EMPTY and a
    * workspace that never concluded, for the length of a poll cycle.
    */
-  const colonyResolutionReleaseOwed = ref(false);
+  const colonyResolutionReleaseOwed = scopedState('colony-resolution-release-owed', false);
   /** The armed entry's BOUNDED WAIT (COLONY_BONUS_ENTRY_WAIT_MS) — the net
    *  under «entered, and nothing ever arrived»: a guaranteed release of `flow` (it comes at its time, or with the shell). */
   let disarmColonyEntryWait: () => void = () => {};

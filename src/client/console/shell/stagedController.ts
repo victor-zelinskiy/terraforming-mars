@@ -4,7 +4,8 @@
  * THE STAGED CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
-import {computed, ref} from 'vue';
+import {computed} from 'vue';
+import {scopedState} from '@/client/console/session/scopedState';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
 import {PlacementEffect, SelectSpaceModel} from '@/common/models/PlayerInputModel';
@@ -68,10 +69,10 @@ export function createStagedController(shell: StagedPort) {
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** A B pressed in the STAGED landing's tail (the board already holds the staged placement while the landed
    *  card's proxy dissolves) — OWED, not swallowed: it cancels the staged play the moment the scene is idle (PL-581). */
-  const stagedBackOwed = ref(false);
+  const stagedBackOwed = scopedState('staged-back-owed', false);
   /** THE STAGED LANDING RITUAL is playing (the card lifting onto its stack BEFORE the board — nothing sent): a B
    *  pressed in it is OWED to the ritual's own end (T15 · CD), never swallowed by the scene's absorb. */
-  const stagedLandingInFlight = ref(false);
+  const stagedLandingInFlight = scopedState('staged-landing-in-flight', false);
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   const stagedPlayPrompt = computed((): SelectSpaceModel | undefined => {

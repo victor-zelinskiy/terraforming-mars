@@ -1,0 +1,97 @@
+{
+  "uses": {
+    "wait-source": {
+      "src/client/console/colonyTrade/consoleColonyTrade.ts": 1,
+      "src/client/console/parliament/agendaWalk.ts": 1,
+      "src/client/console/parliament/consoleChairmanQuest.ts": 1,
+      "src/client/console/parliament/neutralRally.ts": 1,
+      "src/client/console/supervisor/supervisorController.ts": 2,
+      "src/client/console/waitGraph/waitGraphSources.ts": 3
+    },
+    "wait-recovery": {
+      "src/client/console/supervisor/supervisorController.ts": 6,
+      "src/client/console/waitGraph/waitGraphSources.ts": 3
+    },
+    "liveness-rung": {
+      "src/client/console/cardDiscard/consoleCardDiscard.ts": 1,
+      "src/client/console/colonyTrade/consoleColonyTrade.ts": 1,
+      "src/client/console/consoleForegroundWatchdog.ts": 1,
+      "src/client/console/consoleWorkspaceOutcome.ts": 1,
+      "src/client/console/presentationLedger.ts": 1,
+      "src/client/console/supervisor/supervisorController.ts": 5,
+      "src/client/console/transport/gameTransport.ts": 1
+    },
+    "truth-witness": {
+      "src/client/console/hydroFlow/consoleHydroFlow.ts": 2,
+      "src/client/console/transport/gameTransport.ts": 1
+    },
+    "set-aside-writer": {
+      "src/client/console/endgame/consoleEndgameSeal.ts": 1,
+      "src/client/console/shell/colonyController.ts": 6,
+      "src/client/console/shell/draftController.ts": 1,
+      "src/client/console/shell/mandatoryController.ts": 4,
+      "src/client/console/shell/outcomeController.ts": 1,
+      "src/client/console/shell/parliamentController.ts": 3,
+      "src/client/console/shell/placementController.ts": 2,
+      "src/client/console/shell/playedController.ts": 1,
+      "src/client/console/shell/routerController.ts": 5,
+      "src/client/console/shell/startController.ts": 1,
+      "src/client/console/shell/viewApplyController.ts": 2,
+      "src/client/console/shell/workspaceController.ts": 2,
+      "src/client/console/supervisor/supervisorController.ts": 1
+    },
+    "surface-by-ref": {
+      "src/client/console/shell/colonyController.ts": 20,
+      "src/client/console/shell/handController.ts": 3,
+      "src/client/console/shell/handSelectController.ts": 5,
+      "src/client/console/shell/hydroController.ts": 2,
+      "src/client/console/shell/maController.ts": 2,
+      "src/client/console/shell/outcomeController.ts": 4,
+      "src/client/console/shell/padRouterController.ts": 47,
+      "src/client/console/shell/parliamentController.ts": 3,
+      "src/client/console/shell/placementController.ts": 2,
+      "src/client/console/shell/playCardController.ts": 4,
+      "src/client/console/shell/playedController.ts": 2,
+      "src/client/console/shell/revealController.ts": 4,
+      "src/client/console/shell/startController.ts": 3,
+      "src/client/console/shell/stdProjectsController.ts": 2,
+      "src/client/console/shell/viewerController.ts": 11,
+      "src/client/console/supervisor/supervisorController.ts": 3
+    },
+    "view-apply-write": {
+      "src/client/console/shell/viewApplyController.ts": 19
+    },
+    "resolver-mailbox": {
+      "src/client/components/actions/actionsPickState.ts": 1,
+      "src/client/components/feedback/energyConversionTransition.ts": 1,
+      "src/client/components/feedback/hazardCleanupTransition.ts": 1,
+      "src/client/components/handCards/handSelectState.ts": 1,
+      "src/client/components/playedCards/playedCardsPickState.ts": 1,
+      "src/client/console/colonyBuild/consoleColonyBuild.ts": 1,
+      "src/client/console/colonyCity/consoleColonyCity.ts": 2,
+      "src/client/console/colonyFleet/consoleTradeFleet.ts": 1,
+      "src/client/console/colonyRoster/consoleColonyRoster.ts": 1,
+      "src/client/console/colonyTrade/consoleColonyTrade.ts": 2,
+      "src/client/console/consoleHandPick.ts": 1,
+      "src/client/console/consolePlayPick.ts": 1,
+      "src/client/console/consoleRepeatPick.ts": 1,
+      "src/client/console/consoleStdProjectCommit.ts": 1,
+      "src/client/console/generationScene/generationScene.ts": 1,
+      "src/client/console/hydroFlow/deltaBlockadeEntry.ts": 1,
+      "src/client/console/hydroFlow/deltaEspionageEntry.ts": 1,
+      "src/client/console/hydroFlow/deltaRewardEntry.ts": 1,
+      "src/client/console/hydroMarker/consoleHydroMarker.ts": 1,
+      "src/client/console/nomads/consoleNomadMove.ts": 1,
+      "src/client/console/patentSale/consolePatentSale.ts": 1,
+      "src/client/console/played/consolePlayedHero.ts": 2,
+      "src/client/console/scaleStepReward/scaleStepRatingBeat.ts": 1,
+      "src/client/console/scaleStepReward/venusBonusCellBeat.ts": 1,
+      "src/client/console/scaleSwing/scaleSwingDirector.ts": 1,
+      "src/client/console/tilePlacement/consoleTilePlacement.ts": 1
+    },
+    "controller-latch": {
+      "src/client/console/supervisor/supervisorController.ts": 1
+    }
+  },
+  "supervisorPort": 32
+}

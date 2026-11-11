@@ -4,7 +4,8 @@
  * THE CARDACTIONS CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
-import {computed, ref} from 'vue';
+import {computed} from 'vue';
+import {scopedState} from '@/client/console/session/scopedState';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
 import {SubmitTicket} from '@/client/console/transport/gameTransport';
@@ -38,7 +39,7 @@ export function createCardActionsController(shell: CardActionsPort) {
   const flow = useFlowScope('card-actions-controller');
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** …and «Действия карт» is ending WITH its hosted Parliament step (TR15): the step rides `cardActionsLeaveHook`. */
-  const cardActionsDissolveArmed = ref(false);
+  const cardActionsDissolveArmed = scopedState('card-actions-dissolve-armed', false);
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   const actionsAvailableCount = computed((): number => {

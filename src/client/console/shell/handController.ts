@@ -5,6 +5,7 @@
  */
 import type {UnwrapRef} from 'vue';
 import {computed, ref} from 'vue';
+import {scopedState} from '@/client/console/session/scopedState';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
@@ -142,7 +143,7 @@ export type HandPort = {
 export function createHandController(shell: HandPort) {
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /** The hand is ending WITH a hosted step that was its whole screen — its one leave is a dissolve (`handLeaveHook`). */
-  const handDissolveArmed = ref(false);
+  const handDissolveArmed = scopedState('hand-dissolve-armed', false);
   /** A close/collapse gather is in its one-tick MEASURE window (accent
    *  armed, pose settling) — a second B may not race a second gather. */
   const handClosePreparing = ref(false);

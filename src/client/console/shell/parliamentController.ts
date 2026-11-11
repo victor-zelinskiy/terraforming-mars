@@ -5,6 +5,7 @@
  */
 import type {UnwrapRef} from 'vue';
 import {computed, ref} from 'vue';
+import {scopedState} from '@/client/console/session/scopedState';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
@@ -124,25 +125,25 @@ export function createParliamentController(shell: ParliamentPort) {
    * batch leaves the queue before the take's staged seam fires), so its two completion seams know the batch was
    * nobody's workspace outcome and fold nothing (the Parliament's own flow goes on from the take).
    */
-  const revealParliamentLatch = ref(false);
+  const revealParliamentLatch = scopedState('reveal-parliament-latch', false);
   /** The Parliament section's leave is in flight: the frame is out of the stack, the section still mounted (v3 В1). */
-  const parliamentLeaving = ref(false);
+  const parliamentLeaving = scopedState('parliament-leaving', false);
   /**
    * THE WARM MOUNT IS ARMED FROM THE COMPOSER'S READING PAUSE (PL-127): the composer declared a hosted step and
    * its own unfold has settled — the Parliament's surface is mounted invisible NOW, while nothing moves, not in
    * the frame of the press (measured at 4K: the mount cost the press frame 320–410 ms of forced style and
    * layout — a sticky A). Cleared with the declaration (the composer closed, another card).
    */
-  const parliamentWarmArmed = ref(false);
+  const parliamentWarmArmed = scopedState('parliament-warm-armed', false);
   const parliamentWarmTimer = ref(undefined as (() => void) | undefined);
   /** The zone the Parliament was hosted in, LATCHED for its leave: the frame pops first, and a leaving step
    *  re-rendered as a standalone band (`con-ws`, its own head) is the flash the embed contract forbids. */
-  const parliamentEmbedLatch = ref('');
+  const parliamentEmbedLatch = scopedState('parliament-embed-latch', '');
   /** The staged door the section last served, LATCHED for its leave: the arm is cleared in the very write
    *  that ends the step, and a leaving mode re-read as the viewer's own lobby vote re-words itself mid-fade. */
-  const stagedVoteLatch = ref(undefined as {vote: StagedVoteModel, receipt: StagedReceipt | undefined, flow: 'play' | 'action'} | undefined);
+  const stagedVoteLatch = scopedState('staged-vote-latch', undefined as {vote: StagedVoteModel, receipt: StagedReceipt | undefined, flow: 'play' | 'action'} | undefined);
   /** …and the hosted Parliament's release rides that dissolve instead of fading on its own under it. */
-  const parliamentLeaveRelease = ref(undefined as (() => void) | undefined);
+  const parliamentLeaveRelease = scopedState('parliament-leave-release', undefined as (() => void) | undefined);
   /** …and its bounded net: a leave that never reports back may not latch the surface for the session — the DISARM
    *  of a guaranteed release of `flow` (it comes at its time, or with the shell). */
   const parliamentLeaveNet = ref(undefined as (() => void) | undefined);
@@ -153,7 +154,7 @@ export function createParliamentController(shell: ParliamentPort) {
    * awaiting handoff resolved while the card was still landing; the scene's own `closing` runs this (the workspace
    * dissolves with the landed tableau inside it). Cleared by whoever runs it, or by a refusal.
    */
-  const lawPlayFold = ref(undefined as (() => void) | undefined);
+  const lawPlayFold = scopedState('law-play-fold', undefined as (() => void) | undefined);
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   /**

@@ -5,6 +5,7 @@
  */
 import type {UnwrapRef} from 'vue';
 import {computed, ref} from 'vue';
+import {scopedState} from '@/client/console/session/scopedState';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
 import {PlacementEffect, SelectSpaceModel} from '@/common/models/PlayerInputModel';
@@ -136,21 +137,21 @@ export function createPlacementController(shell: PlacementPort) {
    * read it without a cycle through `placementHeld`): the `remote-landing` block holds a placement that is NOT yet
    * live for a foreign tile owed to the board, and never tears a live aim down for one (the tile lands beside it).
    */
-  const placementLiveLatch = ref(false);
+  const placementLiveLatch = scopedState('placement-live-latch', false);
   /**
    * PL-1840 — the prompt (`promptPresenceIdentity`) whose placement waits for a scale story under a cover: latched by
    * `boardStoryCoverCandidate`'s rising edge, let go once the park owes nothing or the server asks something else.
    */
   const boardStoryCoverFor = ref('');
   /** A task's nested space-type option being picked on the board. */
-  const taskSpacePending = ref(undefined as {index: number, spacePrompt: PlayerInputModel} | undefined);
+  const taskSpacePending = scopedState('task-space-pending', undefined as {index: number, spacePrompt: PlayerInputModel} | undefined);
   /** The board pick out right now came from the FINALE's placement branch. */
-  const finalGreeneryPickPending = ref(false);
+  const finalGreeneryPickPending = scopedState('final-greenery-pick-pending', false);
   /** …and the board COMMITTED it. `waitingFor` still holds the finale
    *  prompt for the whole round-trip (the server has not answered yet), so
    *  without this the screen re-mounts the instant the pick is released and
    *  BLINKS over the greenery's landing animation. */
-  const finalGreeneryCommitting = ref(false);
+  const finalGreeneryCommitting = scopedState('final-greenery-committing', false);
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   /** The tile-placement hero owns the foreground (reactive twin of

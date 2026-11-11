@@ -190,7 +190,7 @@ Pluggable backends in `src/server/database/` (SQLite / PostgreSQL / LocalFilesys
 | Rule | Applies to |
 | --- | --- |
 | `console-ui.md` | `src/client/console/**`, `src/client/components/console/**`, `src/styles/console*.less`, console + e2e tests |
-| `console-flow.md` | architecture v2: `src/client/console/kernel/**`, `src/client/console/transport/**` — scopes, bounded waits, machines, the lifecycles on them (plan + hand-over: `docs/claude/console/architecture-v2/PLAN.md`) |
+| `console-flow.md` | architecture v2: `src/client/console/kernel/**`, `src/client/console/transport/**` — scopes, bounded waits, machines, the lifecycles on them (plan + hand-over: `docs/claude/console/architecture-v2/PLAN.md`; **the checklist for writing AND reviewing console code: `docs/claude/console/architecture-v2/REVIEW.md`** — read it before any console lifecycle work or audit) |
 | `client-ui.md` | `src/client/**`, `src/styles/**` |
 | `premium-card.md` | premium/legacy card face, card styles |
 | `animations.md` | motion, presentation, feedback, surface-motion, ceremony, marsbot |

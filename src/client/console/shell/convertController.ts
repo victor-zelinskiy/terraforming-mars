@@ -8,7 +8,8 @@
  * PLAN.md §5 · S2): the members are verbatim, every `this.` rewritten — own members are locals, the rest of the shell
  * is the PORT below. The template still lives in the shell and reads these members by name.
  */
-import {computed, ref} from 'vue';
+import {computed} from 'vue';
+import {scopedState} from '@/client/console/session/scopedState';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {RatingRefusalSource, ratingRefusalOfEffects} from '@/client/console/ratingRefusal';
 import {ConvertPlantsMatch, findConvertHeatOption, findConvertPlantsOption} from '@/client/console/turnIntents';
@@ -24,7 +25,7 @@ export type ConvertPort = {
 
 export function createConvertController(shell: ConvertPort) {
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
-  const convertPlantsPending = ref(undefined as ConvertPlantsMatch | undefined);
+  const convertPlantsPending = scopedState('convert-plants-pending', undefined as ConvertPlantsMatch | undefined);
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   /** The server offers convert-plants RIGHT NOW — drives BOTH the resource-
