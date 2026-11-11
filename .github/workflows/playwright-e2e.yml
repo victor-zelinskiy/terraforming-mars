@@ -86,8 +86,19 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
+      # The OS packages come from the runner's Ubuntu mirror, which goes dark now and then
+      # (run of 2026-11-11: «Temporary failure resolving 'azure.archive.ubuntu.com'», every shard
+      # red before a single test). Three attempts, a fresh index and a minute apart — a mirror
+      # outage costs minutes, not the whole run.
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: |
+          for attempt in 1 2 3; do
+            npx playwright install --with-deps chromium && exit 0
+            echo "::warning::playwright install failed (attempt $attempt) — retrying in 60 s"
+            sleep 60
+            sudo apt-get update || true
+          done
+          exit 1
 
       - name: Compile the test tree
         run: npm run build:test
@@ -301,7 +312,14 @@ jobs:
 
       - name: Install Chromium
         if: ${{ steps.changed.outputs.specs != '' }}
-        run: npx playwright install --with-deps chromium
+        run: |
+          for attempt in 1 2 3; do
+            npx playwright install --with-deps chromium && exit 0
+            echo "::warning::playwright install failed (attempt $attempt) — retrying in 60 s"
+            sleep 60
+            sudo apt-get update || true
+          done
+          exit 1
 
       - name: Compile the test tree
         if: ${{ steps.changed.outputs.specs != '' }}
