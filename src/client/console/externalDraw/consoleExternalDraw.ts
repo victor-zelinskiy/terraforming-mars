@@ -23,6 +23,7 @@ import {CardName} from '@/common/cards/CardName';
 import {ExternalDrawTakeMeta} from '@/common/models/ExternalDrawPromptModel';
 import {SelectCardModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /**
  * `idle`    — no intake on screen;
@@ -50,6 +51,13 @@ export const externalDrawState = reactive({
    */
   taken: [] as Array<CardName>,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('external-draw', () => externalDrawState.phase !== 'idle', {kind: 'surface'});
 
 /** The marker off the live prompt — the flow's single structural source. */
 export function externalDrawTakeOf(wf: PlayerInputModel | undefined): ExternalDrawTakeMeta | undefined {

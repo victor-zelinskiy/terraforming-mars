@@ -29,6 +29,7 @@ import {CardName} from '@/common/cards/CardName';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /**
  * `idle`     — nothing running (the surface is not up, or it is waiting for a
@@ -67,6 +68,13 @@ export const deckPickState = reactive({
    */
   dealtKey: '',
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('deck-pick', () => deckPickState.phase !== 'idle', {kind: 'surface'});
 
 /**
  * The player's UNSUBMITTED table state, surviving a park (collapse → board →

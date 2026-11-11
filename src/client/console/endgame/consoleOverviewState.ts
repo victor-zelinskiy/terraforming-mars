@@ -23,6 +23,7 @@ import {reactive} from 'vue';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {OVERVIEW_TAB_ORDER, OverviewTabKey} from '@/client/console/endgame/consoleOverviewModel';
 import {motionGuarantee} from '@/client/console/session/sessionWaits';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 export type OverviewScenePhase = 'closed' | 'entering' | 'open' | 'leaving';
 
@@ -81,6 +82,13 @@ export const consoleOverviewUi = reactive({
    *  every later visit lands settled («не переигрывай при каждом возврате»). */
   revealed: {} as Record<string, boolean>,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session.
+ */
+deriveFlowRun('endgame-overview', () => consoleOverviewUi.phase !== 'closed');
 
 /** The standing phase beat's disarm — a RELEASE on the motion clock: a phase never stays `entering` / `leaving`. */
 let disarmPhaseCall: (() => void) | undefined;

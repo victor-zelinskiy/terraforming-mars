@@ -41,6 +41,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionSpan} from '@/client/console/session/sessionWaits';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /** WHERE the scene plays — the four hosts, the prompt split by its source (the colony stage is a prompt's host too). */
 export type CardReceiveHost = 'played' | 'composer' | 'prompt' | 'colony' | 'board' | 'resolution';
@@ -78,6 +79,13 @@ export const cardReceiveState = reactive({
   /** The phases the last scene walked, in order (a probe reads the grammar, not a guess). */
   walked: [] as Array<CardReceivePhase>,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('card-receive', () => cardReceiveState.phase !== 'idle');
 
 /** A scene is on stage (the notification-only hold). */
 export function cardReceiveActive(): boolean {

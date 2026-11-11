@@ -79,6 +79,7 @@ import {SCALE_STEP_RATING_UNIT, claimTeller} from '@/client/console/resourceTran
 import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {sessionState} from '@/client/console/session/consoleSession';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const SCALE_STEP_RATING_KEY = 'scale-step-rating';
@@ -282,6 +283,13 @@ export const scaleStepRatingState = reactive({
   /** Bumped by a redrive (the stage watcher re-asks). */
   nudge: 0,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('scale-step-rating', () => scaleStepRatingState.phase !== 'idle', {kind: 'story'});
 
 type Entry = {
   plan: ScaleStepRatingPlan;

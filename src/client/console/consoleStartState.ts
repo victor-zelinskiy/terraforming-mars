@@ -43,6 +43,7 @@ import {presentPlayerStatus, StatusPresentation} from '@/client/components/overv
 import {inputLocked, resetStartTransition, startTransitionActive, StartTransitionPhase} from '@/client/console/startStageDirector';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /**
  * The wizard's steps — the server's own options, in its order. (The campaign «Тендеры» finale once prepended a
@@ -233,6 +234,14 @@ export const consoleStartState = reactive({
   /** A tender's mode standing on a deal step (§16.3) — `undefined` = the ordinary selection. */
   tenderMode: undefined as StartTenderMode | undefined,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('start-first-act', () => consoleStartState.firstAct.stage !== 'idle');
+deriveFlowRun('start-bonus-act', () => consoleStartState.bonusAct.stage !== 'idle');
 
 /**
  * CAMPAIGN «ТЕНДЕРЫ»: a tender executed from the «НАСЛЕДИЕ» stage changes the DEAL — the server serves the same

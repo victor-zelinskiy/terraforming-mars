@@ -27,6 +27,7 @@ import {reactive} from 'vue';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import type {ConsoleEndgameVm} from '@/client/console/endgame/consoleEndgameModel';
 import {resetConsoleOverview} from '@/client/console/endgame/consoleOverviewState';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /**
  * The ceremony state machine. `executing`-style transient beats are timeline
@@ -138,6 +139,13 @@ export const consoleEndgameUi = reactive({
   /** The ceremony ran once this page load. */
   ceremonyPlayed: false,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('endgame-ceremony', () => consoleEndgameUi.phase !== 'idle');
 
 /** The shell's phase watcher feeds this on every non-END phase. */
 export function noteConsoleEndgameLivePhase(): void {

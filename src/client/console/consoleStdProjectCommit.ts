@@ -43,6 +43,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 export type StdProjectCommitPhase = 'idle' | 'press' | 'committing' | 'committed';
 
@@ -81,6 +82,13 @@ export const stdProjectCommitState = reactive({
    */
   abortNonce: 0,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('std-project-commit', () => stdProjectCommitState.phase !== 'idle');
 
 let holdTimer: (() => void) | undefined;
 let holdSafetyTimer: (() => void) | undefined;

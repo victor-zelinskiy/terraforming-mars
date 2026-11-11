@@ -28,6 +28,7 @@ import {createCursorArrival, trackCursorArrival} from '@/client/console/cursorAr
 // A cycle by design (the director writes this state): only the hold's RECOVERY reads it, at call time — never at
 // module evaluation — so either module may load first.
 import {finishInstant, isHandRevealEpisodeRunning, resetHandReveal} from '@/client/console/handDock/handRevealDirector';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /**
  * THE ALBUM'S CURSOR ARRIVAL (TR58). The album mounts with its focused card already logically cursored, but the POSE
@@ -114,6 +115,13 @@ export const handRevealState = reactive({
    */
   stageClip: undefined as {left: number, right: number} | undefined,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session.
+ */
+deriveFlowRun('hand-reveal', () => handRevealState.phase !== 'docked', {kind: 'surface'});
 
 /** The album/episode is mid-flight — hosts gate confirm-inputs on this. */
 export function handRevealBusy(): boolean {

@@ -34,6 +34,7 @@ import {beginPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {acceptSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/statusIntake';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /** The beat's own name — its notification-only hold, its ledger story. */
 export const CELL_RESOURCE_KEY = 'cell-resource';
@@ -49,6 +50,13 @@ export const cellResourceState = reactive({
   /** The last beat degraded (no cell on screen / a promise the views did not keep / past due). */
   degraded: false,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('cell-resource-beat', () => cellResourceState.phase !== 'idle', {kind: 'story'});
 
 let queue: Array<Entry> = [];
 let consumedSeq: number | undefined;

@@ -43,6 +43,7 @@ import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTr
 import {REACTOR_NATURAL_H, ReactionTempo} from '@/client/console/cardReaction/cardReactionModel';
 import {effectRowFor} from '@/client/console/cardReaction/effectIconEnds';
 import {ReactionCausePlate} from '@/client/console/cardReaction/reactionCausePlate';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 export {REACTOR_NATURAL_H};
 
@@ -89,6 +90,13 @@ export const cardReactionState = reactive({
   /** How many scenes played since load (a probe's liveness witness). */
   runs: 0,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('card-reaction', () => cardReactionState.phase !== 'idle');
 
 type StageHandle = {
   /** The face element painted for `key` — `null` while it is not in the DOM. */

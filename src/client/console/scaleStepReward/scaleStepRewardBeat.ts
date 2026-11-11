@@ -63,6 +63,7 @@ import {
 } from '@/client/console/scaleStepReward/scaleStepRewardModel';
 import {scaleStepRatingBusy} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 export type ScaleStepPhase = 'idle' | 'waiting' | 'paying';
 
@@ -94,6 +95,13 @@ export const scaleStepRewardState = reactive({
   /** The head record waited past its due (the player never came back to the board). */
   due: false,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('scale-step-reward', () => scaleStepRewardState.phase !== 'idle', {kind: 'story'});
 
 /** The scene is ON STAGE (tokens in the air). */
 export function scaleStepRewardPaying(): boolean {

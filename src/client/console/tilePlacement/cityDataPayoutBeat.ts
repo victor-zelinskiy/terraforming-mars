@@ -60,6 +60,7 @@ import {
   sentByTheTile, tokenSpread,
 } from '@/client/console/tilePlacement/cityDataPayoutModel';
 import {motionSpan, span} from '@/client/console/session/sessionWaits';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 export type CityPayoutPhase = 'idle' | 'waiting' | 'rising' | 'paying' | 'reading' | 'returning' | 'answering';
 
@@ -92,6 +93,13 @@ export const cityPayoutState = reactive({
    */
   inPrompt: false,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('city-data-payout', () => cityPayoutState.phase !== 'idle', {kind: 'story'});
 
 /** The scene is ON STAGE (a blocking presentation — prompts and surfaces wait for it). */
 export function cityPayoutActive(): boolean {

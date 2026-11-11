@@ -35,6 +35,7 @@ import {RATING_RAIL_KEY, ResourceTransferSpec, TransferEndLike, mergeTransferSpe
 import {RailAnswerFlight, RailReward, flyRailReward, railRewardOwed, railRewardPending, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /** One armed half: the corporation whose first action pays it, the rail reward, its key. */
 export type FirstActionRail = {key: string, corp: CardName, reward: RailReward};
@@ -50,6 +51,13 @@ export const firstActionRailState = reactive({
   /** Halves flown since load — the probe's liveness witness. */
   flown: 0,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('first-action-rail', () => firstActionRailState.phase !== 'idle');
 
 let armed: FirstActionRail | undefined;
 let seeded: FirstActionRail | undefined;

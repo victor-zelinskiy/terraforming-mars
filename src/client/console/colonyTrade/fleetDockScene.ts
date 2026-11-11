@@ -67,6 +67,7 @@ import {FleetDockScenePlan} from '@/client/console/colonyTrade/fleetDockModel';
 import {RailAnswerFlight, RailReward, railRewardHoldsAnswer, railRewardOwed, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 import {cardReactionAnswerFlight, reactionDeclarationBlock} from '@/client/console/cardReaction/cardReactionDirector';
 import {resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 export type FleetDockScenePhase = 'idle' | 'owed' | 'seeded' | 'answer' | 'reward' | 'read' | 'leave' | 'conclude';
 
@@ -99,6 +100,13 @@ export const fleetDockSceneState = reactive({
   /** The dock whose reward the landing response did not pay yet (asked live / parked) — '' when none is owed. */
   owedCard: '' as CardName | '',
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('fleet-dock-scene', () => fleetDockSceneState.phase !== 'idle');
 
 let armed: ArmedFleetDockScene | undefined;
 let detachObserver: MutationObserver | undefined;

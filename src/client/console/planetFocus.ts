@@ -50,6 +50,7 @@ import {SpaceType} from '@/common/boards/SpaceType';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /** The board-growth transition (the planet expands / returns). The landing
  *  is deliberately the LONGER of the two — the opening was asked for, the
@@ -114,6 +115,13 @@ export const planetFocusState = reactive({
   /** Bumped per enter — lets the board section restart per-engagement work. */
   nonce: 0,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('planet-focus', () => planetFocusState.phase !== 'idle');
 
 // The exit transition owns the foreground: follow-up prompts (via the
 // presentation fold), announcements and notifications wait until the

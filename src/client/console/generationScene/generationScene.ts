@@ -71,6 +71,7 @@ import {betweenGenResearchLive, draftMandatoryFlowBeat} from '@/client/console/d
 import {parliamentSittingFlowBeat, presentedGeneration} from '@/client/console/parliament/consoleSittingFlow';
 import {noteDeferredGenerationFlipEnd, oweDeferredGenerationFlip, resetDeferredGenerationFlip} from '@/client/console/generationScene/deferredGenerationFlip';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /** The rail-reward key of the income wave (one scene at a time). */
 export const GENERATION_INCOME_KEY = 'generation-income';
@@ -102,6 +103,13 @@ export const generationSceneState = reactive({
   /** The flow the scene stood up at its conclusion (the e2e witness), '' when none. */
   rose: '' as '' | 'draft' | 'parliament',
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('generation-scene', () => generationSceneState.phase !== 'idle');
 
 /** Replays of one record (the same view re-fetched) never re-animate. */
 const seen = new Set<string>();

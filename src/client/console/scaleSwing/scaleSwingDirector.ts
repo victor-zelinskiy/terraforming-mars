@@ -68,6 +68,7 @@ import {
   SwingLeg, SwingPlan, SwingTagKind, freshParameterSwings, swingPlanOf, swingPlanPlays, swingTagOf,
 } from '@/client/console/scaleSwing/scaleSwingModel';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /** The scene's own name — its holds, its ledger story. */
 export const SCALE_SWING_KEY = 'scale-swing';
@@ -106,6 +107,13 @@ export const scaleSwingState = reactive({
   /** Bumped by a redrive (the stage watcher re-asks). */
   nudge: 0,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('scale-swing', () => scaleSwingState.phase !== 'idle', {kind: 'story'});
 
 type Entry = {
   plan: SwingPlan;

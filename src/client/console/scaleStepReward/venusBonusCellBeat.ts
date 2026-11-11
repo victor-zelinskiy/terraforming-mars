@@ -43,6 +43,7 @@ import {SCALE_STEP_BREATH_MS, SCALE_STEP_STAGE_DUE_MS} from '@/client/console/sc
 import {scaleStepRatingBusy, scaleStepRatingQuiet} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {sessionState} from '@/client/console/session/consoleSession';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const VENUS_BONUS_CELL_KEY = 'venus-bonus-cell';
@@ -110,6 +111,13 @@ export const venusBonusCellState = reactive({
   degraded: false,
   nudge: 0,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('venus-bonus-cell', () => venusBonusCellState.phase !== 'idle', {kind: 'story'});
 
 type Entry = {plan: Array<{spec: ResourceTransferSpec, cell: string | undefined}>, held: Array<ResourceTransferSpec>, to: number};
 

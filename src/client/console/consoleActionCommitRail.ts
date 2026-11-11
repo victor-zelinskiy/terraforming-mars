@@ -76,6 +76,7 @@ import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisi
 import {railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {RECEIVE_READ_MS, runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 import {claimVpShares, dropVpClaim, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 /** The score cell's ledger owner of an action's chain (TR55): the cards its links feed score on their touchdowns. */
 export const ACTION_COMMIT_VP_OWNER = 'action-commit';
@@ -100,6 +101,13 @@ export const actionCommitRailState = reactive({
   /** Halves ended since load — EVERY way out (a full flight, «not flown», superseded): what a stage waiting on the half watches. */
   ended: 0,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session; the module's own reset (its session state) brings it to rest.
+ */
+deriveFlowRun('action-commit-rail', () => actionCommitRailState.phase !== 'idle');
 
 /**
  * THE ARMED PLAN'S LAST LINK LANDS ON A COMPOSER ROW's card (TR53 iteration — a unit onto the card the player CHOSE in

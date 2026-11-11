@@ -19,7 +19,8 @@ import * as path from 'path';
  *
  * …and one that is a module rather than a call:
  *
- *  ④ a FLOW-STATE MODULE (reactive state with a `live` / `active` flag — the wait-graph law's own definition) whose
+ *  ④ a FLOW-STATE MODULE (reactive state with a `live` / `active` flag — the wait-graph law's own definition — or a
+ *     `phase` / `stage` resting at `'idle'`) whose
  *     RUN is not a scope: its «I am playing» is a flag every exit path must remember to lower, its timers are its own.
  *     On the kernel its run is a `scene` scope (the hold it holds the foreground with — `beginAnimationHold(…).scope`)
  *     that ends exactly once and takes its timers and waits with it.
@@ -100,9 +101,10 @@ function code(text: string): string {
 const TIMER = /\b(?:window\.)?set(?:Timeout|Interval)\(|\buse(?:IntervalFn|TimeoutFn|DebounceFn|ThrottleFn|RafFn)\(/g;
 const FRAME = /\b(?:window\.)?requestAnimationFrame\(/g;
 const DELAYED = /\bdelayedCall\(/g;
-/** A flow-state module (the wait-graph law's definition): exported reactive state carrying a `live` / `active` flag. */
+/** A flow-state module: exported reactive state carrying a `live` / `active` flag (the wait-graph law's definition) —
+ *  or a `phase` / `stage` that rests at `'idle'` (a flow keyed by its phase: «I am playing» is «not idle»). */
 const FLOW_STATE = /export const \w+ = reactive/;
-const FLOW_FLAG = /^\s+(?:live|active):\s*(?:false|true)/m;
+const FLOW_FLAG = /^\s+(?:live|active):\s*(?:false|true)|^\s+(?:phase|stage):\s*'(?:idle|closed|docked)'/m;
 /** …whose run is a scope: it opens one, binds a machine, or holds the foreground with a handle (whose scope is the run). */
 const ON_KERNEL = /\.open\('|\bcreateFlowRun\(|\bderiveFlowRun\(|\bsessionChild\(|\bstartFlowActor\(|\bbeginAnimationHold\(|\buseFlowScope\(/;
 

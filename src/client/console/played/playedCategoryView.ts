@@ -29,6 +29,7 @@ import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {PlayedCategoryKey} from '@/client/components/console/consolePlayedCategoryModel';
 import {sessionState} from '@/client/console/session/consoleSession';
+import {deriveFlowRun} from '@/client/console/session/flowRun';
 
 export type PlayedCategoryPhase = 'closed' | 'opening' | 'open' | 'closing';
 
@@ -66,6 +67,13 @@ export const playedCategoryState = reactive({
   /** The modal frame is assembled (backdrop + panel chrome visible). */
   frameOn: false,
 });
+
+/*
+ * THE FLOW IS A RUN OF THE TREE (architecture v2 — PLAN §10 · C4, the phase-keyed flows): DERIVED from its own phase,
+ * so every writer of the phase moves the run by construction. It stands in the flow tree with its age while the
+ * flow plays and ends with its session.
+ */
+deriveFlowRun('played-category', () => playedCategoryState.phase !== 'closed', {kind: 'surface'});
 
 /** The names whose table slots render HELD GEOMETRY (invisible, layout
  *  kept) — a card never exists in two places at once. NOT keyed on the bare
