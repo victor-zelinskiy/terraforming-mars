@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, focusCard, openActionFocus, openCardActions, press, settle, walkFocusUntil} from './consoleStart';
 import {storyboard} from './consoleEndgameHarness';
-import {armBeatWitness, BeatReport, beatSummary, beatTrailAround, beatWitness} from './beatWitness';
+import {armBeatWitness, awaitBeatsSettled, BeatReport, beatSummary, beatTrailAround, beatWitness, heldIntervals} from './beatWitness';
 import {armFocusWitness, focusWitness, focusWitnessSummary, FocusWitnessReport} from './focusWitness';
 import {focusParliamentZone, openParliament} from './parliamentDrive';
 
@@ -54,17 +54,34 @@ function emptyGlassMs(r: BeatReport, gone: string, coming: string): {ms: number,
 }
 
 /**
- * The empty-glass window NET of the long tasks inside it: a task that holds the main thread holds the frames too, so
- * on a starved renderer (CI's SwiftShader at 4K: 96 + 255 ms tasks inside a 196 ms window) the step cannot be painted
- * in that time whatever the product does — the frames' time, never the product's (the finale's FLIP accounting).
+ * The empty-glass window NET of the frames that did not exist inside it: a task that holds the main thread holds the
+ * frames too, so on a starved renderer (CI's SwiftShader at 4K: 96 + 255 ms tasks inside a 196 ms window) the step
+ * cannot be painted in that time whatever the product does — the frames' time, never the product's (the finale's FLIP
+ * accounting). And so is the time the step's entry stood HELD on the compositor (`heldIntervals` — the Web Animation
+ * created, its start not yet resolved because the 4K software raster of the freshly mounted step had not produced a
+ * frame): the screen still shows the last presented frame, the main thread reads the start keyframe (CI 2026-11-11 —
+ * run 42998242617: «cards –→–», the entry held at 0 through the whole window). The intervals are UNIONED, never summed
+ * twice where a long task and a held entry overlap.
  */
-function glassNet(glass: {ms: number, at: number}, long: Array<[number, number]>): {ms: number, starved: number} {
+function glassNet(glass: {ms: number, at: number}, long: Array<[number, number]>, held: Array<[number, number]> = []): {ms: number, starved: number} {
   if (!Number.isFinite(glass.ms) || glass.at < 0) {
     return {ms: glass.ms, starved: 0};
   }
   const from = glass.at;
   const to = glass.at + glass.ms;
-  const starved = long.reduce((sum, [start, dur]) => sum + Math.max(0, Math.min(to, start + dur) - Math.max(from, start)), 0);
+  const spans = [...long, ...held]
+    .map(([start, dur]) => [Math.max(from, start), Math.min(to, start + dur)] as [number, number])
+    .filter(([a, b]) => b > a)
+    .sort((x, y) => x[0] - y[0]);
+  let starved = 0;
+  let edge = from;
+  for (const [a, b] of spans) {
+    const lo = Math.max(a, edge);
+    if (b > lo) {
+      starved += b - lo;
+      edge = b;
+    }
+  }
   return {ms: glass.ms - starved, starved};
 }
 
@@ -149,7 +166,7 @@ async function focusTargetRow(page: Page, root: string): Promise<void> {
 }
 
 /** Arm, press A on the target row ONCE, wait for the step and read the entry. */
-async function enterTargetStep(page: Page, root: string, review: string, where: string, story: string): Promise<{glass: {ms: number, at: number}, beats: BeatReport, long: Array<[number, number]>}> {
+async function enterTargetStep(page: Page, root: string, review: string, where: string, story: string): Promise<{glass: {ms: number, at: number}, beats: BeatReport, long: Array<[number, number]>, held: Array<[number, number]>}> {
   await armLongTasks(page);
   await armBeatWitness(page, {
     review,
@@ -161,15 +178,21 @@ async function enterTargetStep(page: Page, root: string, review: string, where: 
   await page.keyboard.press('Enter');
   await expect(page.locator(`${root} .con-ptsel__slot`).first(), 'the step opened').toBeVisible({timeout: 10_000});
   await settle(page);
+  // The window closes only once the cards' entry is OVER from the witness's view (whole, or no motion left on them) —
+  // `toBeVisible` ignores opacity and `settle` knows no pending Web Animation, so both return while the entry is still
+  // held on the compositor; a window shut there reports «never half there» about an entry that had not started.
+  const over = await awaitBeatsSettled(page, ['cards'], 10_000);
   await stop();
   const beats = await beatWitness(page);
+  expect(over.settled, `the step's cards finished their entry — never left held / moving for 10 s (${where}: ${JSON.stringify(over.last)} · ${beatSummary(beats)})`).toBe(true);
   const long = await longTasks(page);
+  const held = heldIntervals(beats, 'cards');
   const glass = emptyGlassMs(beats, 'review', 'cards');
-  record(`${where}: empty glass ${glass.ms} ms @${glass.at} · ${beatSummary(beats)} · long ${JSON.stringify(long.slice(0, 6))}`);
+  record(`${where}: empty glass ${glass.ms} ms @${glass.at} · ${beatSummary(beats)} · long ${JSON.stringify(long.slice(0, 6))} · held ${JSON.stringify(held.slice(0, 6))}`);
   if (process.env.SMOOTH_TRAIL === '1') {
     record(beats.trail.map((x) => `  ${x.t} ${JSON.stringify(x.vis)} ${JSON.stringify(x.anim)}`).join(String.fromCharCode(10)));
   }
-  return {glass, beats, long};
+  return {glass, beats, long, held};
 }
 
 for (const profile of PROFILES) {
@@ -184,8 +207,8 @@ for (const profile of PROFILES) {
       await settle(page);
       await sealTile(page, PLAY, 2);
       await focusTargetRow(page, PLAY);
-      const {glass, beats, long} = await enterTargetStep(page, PLAY, `${PLAY} .con-composer__resulthero`, `${profile.tag} play step`, `${profile.tag}-play-step`);
-      const net = glassNet(glass, long);
+      const {glass, beats, long, held} = await enterTargetStep(page, PLAY, `${PLAY} .con-composer__resulthero`, `${profile.tag} play step`, `${profile.tag}-play-step`);
+      const net = glassNet(glass, long, held);
       expect(net.ms, `the step's cards are half there within 160 ms of the review letting go (${glass.ms} ms − ${net.starved} ms of long tasks) — ${beatSummary(beats)}\n${beatTrailAround(beats, glass.at, 260)}`).toBeLessThanOrEqual(160);
       expect(snapUnstarved(beats.marks.cards.snapped, long), `the step's cards come in, never in one frame — ${beatSummary(beats)} · long ${JSON.stringify(long.slice(0, 6))}`).toBeUndefined();
     });
@@ -201,8 +224,8 @@ for (const profile of PROFILES) {
       await settle(page);
       await sealTile(page, ACTION, 0);
       await focusTargetRow(page, ACTION);
-      const {glass, beats, long} = await enterTargetStep(page, ACTION, `${ACTION} [data-composer-target-row]`, `${profile.tag} action step`, `${profile.tag}-action-step`);
-      const net = glassNet(glass, long);
+      const {glass, beats, long, held} = await enterTargetStep(page, ACTION, `${ACTION} [data-composer-target-row]`, `${profile.tag} action step`, `${profile.tag}-action-step`);
+      const net = glassNet(glass, long, held);
       expect(net.ms, `the step's cards are half there within 160 ms of the row letting go (${glass.ms} ms − ${net.starved} ms of long tasks) — ${beatSummary(beats)}\n${beatTrailAround(beats, glass.at, 260)}`).toBeLessThanOrEqual(160);
       expect(snapUnstarved(beats.marks.cards.snapped, long), `the step's cards come in, never in one frame — ${beatSummary(beats)} · long ${JSON.stringify(long.slice(0, 6))}`).toBeUndefined();
     });

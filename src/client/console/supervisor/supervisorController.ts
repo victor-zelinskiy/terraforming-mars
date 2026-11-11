@@ -24,6 +24,7 @@ import {registerConstructionWaitSources} from '@/client/console/waitGraph/waitGr
 import {observeStillHold, pageMoves, StillHoldState} from '@/client/console/waitGraph/motionWitness';
 import {advanceLivenessRung, LIVENESS_STORY_GRACE_MS, LIVENESS_TRANSPORT_GRACE_MS, livenessStateSnapshot, registerLivenessRelease, resetLiveness, runLivenessRung, tickLiveness} from '@/client/console/consoleLiveness';
 import {recordFieldHeartbeat} from '@/client/console/fieldRecorder';
+import {observeStaleFreeTurn, StaleFreeTurnClock, staleFreeTurnClockInit, staleFreeTurnHeld} from '@/client/console/supervisor/staleFreeTurnClock';
 import {inputEchoSnapshot} from '@/client/console/inputEcho';
 import {ANIMATION_STALL_GRACE_MS} from '@/client/console/consoleForegroundWatchdog';
 import {hostedStepLiveIn, hostedStepOwedTo} from '@/client/console/parliament/hostedParliamentStep';
@@ -126,8 +127,10 @@ export function createSupervisorController(shell: SupervisorPort) {
   const beatStallTimer = ref(undefined as number | undefined);
   /** The shell's own rungs of the liveness ladder — unregistered with the shell. */
   const livenessRungStops = ref([] as Array<() => void>);
-  /** The stale frame over the free turn already judged (`<kind>|<promptId>`) — one conclusion attempt per standing. */
+  /** The stale frame over the free turn whose HOLD was already named (`<kind>|<promptId>`) — one line per standing. */
   const staleFreeTurnKey = ref('');
+  /** The reaper's own quiet clock (`staleFreeTurnClock.ts`) — never the arbiter's one-tick-old progress stamp alone. */
+  let staleFreeTurnClock: StaleFreeTurnClock = staleFreeTurnClockInit(Date.now());
   /** The liveness arbiter's last `accepting` (a surface takes input for the live question) — read by the ghost gate. */
   const lastLivenessAccepting = ref(true);
   /** Consecutive 1 Hz passes a LIVE frame of a phase that is over has stood with no leave pending (`reapDeadPhaseFrames`). */
@@ -216,26 +219,35 @@ export function createSupervisorController(shell: SupervisorPort) {
    * which still HOLDS for every named reason (a nested step, a step owed, a live outcome of its own: cards to take, a
    * verdict to read; a prompt it owns; a park; off stage), so a frame that is genuinely waiting for the player stays.
    * Never a frame of a phase (their life is the anchor rule's), never a question other than the free turn (the screen
-   * director judges those), once per frame and prompt. A conclusion here means a flow did not end itself — named
+   * director judges those); the quiet is the reaper's OWN clock (`staleFreeTurnClock.ts` — a new prompt restarts it in the
+   * same tick, a hold waits a whole span again). A conclusion here means a flow did not end itself — named
    * (`[workspace-stale] concluded`, red in every e2e spec); a hold is named once too, as evidence.
    */
   function reapStaleFreeTurnFrame(inFlight: ReadonlyArray<string>): void {
     const wf = shell.playerView.waitingFor;
     const top = workspaceStackTop();
-    const stale = wf !== undefined && top !== undefined && taskFor(shell.playerView)?.kind === 'actionMenu' &&
+    const candidate = wf !== undefined && top !== undefined && taskFor(shell.playerView)?.kind === 'actionMenu' &&
       top.phase === 'committed' && top.anchor.type !== 'phase' && !top.serves.includes('actionMenu') &&
-      !workspaceStackCollapsed() && !stackYieldedToBoard() && !shell.placementActive && inFlight.length === 0 &&
-      Date.now() - livenessStateSnapshot().progressAt >= STALE_FREE_TURN_MS;
-    if (!stale) {
-      staleFreeTurnKey.value = '';
+      !workspaceStackCollapsed() && !stackYieldedToBoard() && !shell.placementActive;
+    // THE QUIET IS THE REAPER'S OWN CLOCK (`staleFreeTurnClock.ts`): a new question restarts it in this very tick (the
+    // arbiter's progress stamp is one tick old here), anything in flight restarts it, and a HELD conclusion waits a
+    // whole quiet span again — never «9 s quiet» on the tick the player's take asked the next prompt.
+    const now = Date.now();
+    const observed = observeStaleFreeTurn(staleFreeTurnClock, {
+      now,
+      key: candidate && top !== undefined && wf !== undefined ? `${top.kind}|${wf.promptId ?? ''}` : undefined,
+      inFlight: inFlight.length > 0,
+      progressAt: livenessStateSnapshot().progressAt,
+    }, STALE_FREE_TURN_MS);
+    staleFreeTurnClock = observed.clock;
+    if (!candidate || !observed.due || top === undefined) {
+      if (!candidate) {
+        staleFreeTurnKey.value = '';
+      }
       return;
     }
-    const key = `${top.kind}|${wf.promptId ?? ''}`;
-    if (staleFreeTurnKey.value === key) {
-      return;
-    }
-    staleFreeTurnKey.value = key;
-    const quiet = Math.round((Date.now() - livenessStateSnapshot().progressAt) / 1000);
+    const key = observed.clock.key;
+    const quiet = Math.round(observed.quietMs / 1000);
     // A CLAIM WITH NOTHING TO PRESENT holds no conclusion (the field export of 2026-11-09: «hand» stood committed over the
     // free turn, held by `live-outcome`): the server asks the action menu, no drawn batch waits, nothing moves — the claim
     // answers for nothing on this screen. It is let go (forced — the funnel would call a claim on its own host serving),
@@ -251,8 +263,14 @@ export function createSupervisorController(shell: SupervisorPort) {
         `nothing in flight (frames: ${workspaceStackState.frames.map((f) => f.kind + ':' + f.phase).join(';') || 'none'}); ` +
         'its flow did not end itself');
     } else {
-      console.warn(`[workspace-stale] «${top.kind}» stands committed over the free turn ${quiet}s with nothing in flight — ` +
-        `held: ${conclusionRefusal.last?.kind === top.kind ? conclusionRefusal.last.reason : 'unknown'}`);
+      // HELD by the frame's own reason: the holder ends with its own edge — the next ask is a whole quiet span later
+      // (law 3), and the hold is named ONCE per standing (`staleFreeTurnKey`), as evidence.
+      staleFreeTurnClock = staleFreeTurnHeld(staleFreeTurnClock, now);
+      if (staleFreeTurnKey.value !== key) {
+        staleFreeTurnKey.value = key;
+        console.warn(`[workspace-stale] «${top.kind}» stands committed over the free turn ${quiet}s with nothing in flight — ` +
+          `held: ${conclusionRefusal.last?.kind === top.kind ? conclusionRefusal.last.reason : 'unknown'}`);
+      }
     }
   }
 

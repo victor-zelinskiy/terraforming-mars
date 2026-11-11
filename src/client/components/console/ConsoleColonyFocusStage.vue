@@ -881,6 +881,7 @@ import {
   colonyTradeReceiptBase, noteColonyTradeReceiptBase,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {TradeReceiptBase, tradeReceiptBaseOf} from '@/client/console/colonyTrade/colonyTradeReceipt';
+import {workingAreaSettled} from '@/client/console/colonyTrade/workingAreaBack';
 import {
   ColonyTradePresentedTarget, buildColonyTradeTargetModel, colonyTradeCardDestinations, openTradeTargetFocus,
 } from '@/client/console/colonyTrade/colonyTradeTargetStep';
@@ -982,6 +983,8 @@ type StepRow = {
  * the marker never launches into a fading track.
  */
 const WORKING_AREA_BACK_MS = 340;
+/** The bound on waiting for the working area's own return transitions past that dwell (`workingAreaSettled`). */
+const WORKING_AREA_BACK_CEILING_MS = 1200;
 /** The landed reading's calm beat: the counter just ticked, the player sees
  *  the new number, THEN the presented scene gives the working area back. */
 const CARDLAND_READ_MS = 680;
@@ -1207,6 +1210,8 @@ export default defineComponent({
       unreceding: false,
       /** The «working area is back» dwell (see the `workingAreaYielded` watcher). */
       stageBackTimer: undefined as number | undefined,
+      /** Each rise / fall of `stageBusy` — a release waiting on the working area's transitions is THIS fall's only. */
+      stageBackToken: 0,
       /**
        * THIS STAGE SESSION HAS CROSSED THE COMMIT. Latched on `pastCommit`'s
        * rising edge and never dropped (a new colony / a fresh mount resets):
@@ -2711,8 +2716,10 @@ export default defineComponent({
      * its own transition, and a marker launched into that fade is the same
      * «белая точка по пустому интерфейсу», just shorter. The RISE is published
      * at once (nothing may slip in behind it); the FALL is published after the
-     * pose has settled — a dwell, not a gate (the section's own
-     * COMPLETION_SETTLE precedent), scaled by the speed preset.
+     * pose has settled — the dwell is the FLOOR, and past it the working
+     * area's OWN return transitions must have run out (`workingAreaSettled`,
+     * bounded): on a starved frame a composited fade is still pending when a
+     * wall-clock dwell ends (CI 2026-11-11, `glideOverBlankStage`).
      */
     stageBusy: {
       immediate: true,
@@ -2721,13 +2728,19 @@ export default defineComponent({
           window.clearTimeout(this.stageBackTimer);
           this.stageBackTimer = undefined;
         }
+        const back = ++this.stageBackToken;
         if (busy) {
           setColonyStageYielded(true);
           return;
         }
         this.stageBackTimer = window.setTimeout(() => {
           this.stageBackTimer = undefined;
-          setColonyStageYielded(false);
+          void workingAreaSettled(this.$refs.mainEl as Element | undefined, motionMs(WORKING_AREA_BACK_CEILING_MS)).then(() => {
+            // Only THIS fall may release — a pose re-raised meanwhile (a second colony's payout) owns the stage again.
+            if (back === this.stageBackToken && !this.stageBusy) {
+              setColonyStageYielded(false);
+            }
+          });
         }, motionMs(WORKING_AREA_BACK_MS));
       },
     },
@@ -3773,6 +3786,7 @@ export default defineComponent({
       window.clearTimeout(this.stageBackTimer);
       this.stageBackTimer = undefined;
     }
+    this.stageBackToken++;
     this.clearCardlandDwell();
     this.clearCardlandLeave();
     colonyResolutionUi.cardSceneLive = false;
