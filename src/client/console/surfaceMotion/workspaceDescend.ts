@@ -36,7 +36,7 @@
  */
 
 import {gsap} from 'gsap';
-import {motionMs} from '@/client/components/motion/motionTokens';
+import {MOTION_EASE, motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {restingRectOf as sharedRestingRectOf} from '@/client/console/cardFlight/landingRect';
 
@@ -390,6 +390,51 @@ export function descendCascade(
       clearProps: 'transform,opacity,visibility', overwrite: 'auto',
     },
     at);
+}
+
+/**
+ * THE SAME REVEAL ON THE COMPOSITOR'S CLOCK — for a cascade that runs in the frames of a MOUNT (a step that has just
+ * been inserted, its cards' art decoding, its first layout at 4K). A main-thread timeline created in that flush takes
+ * GSAP's clock from the LAST tick, before the mount's long task; the first frame the player sees is then the tween well
+ * past its start — on the front-loaded `expo.out` a group stood at 0 in one sample and whole 18 ms later (CI
+ * 2026-11-11, `console-smoothness` (A), the action composer's target step: «cards 260→260 ms SNAPPED»). A Web Animation
+ * resolves its start at the compositor's FIRST frame after it is created and keeps the display's cadence while the main
+ * thread is busy; `fill: backwards` paints that first frame at the from-state (the PL-510 precedent,
+ * `ConsolePlayCardConfirm.arriveLateContent`). Same figure as `descendCascade` — each group to its OWN resting
+ * opacity, a small rise, the stagger — and nothing inline is left behind at the end (no `fill: forwards`).
+ */
+export function descendCascadeComposited(
+  els: ReadonlyArray<HTMLElement>,
+  durationMs: number,
+  atMs = 0,
+  staggerMs = 35,
+): Array<Animation> {
+  const live = els.filter((el) => el !== null && el !== undefined && typeof el.animate === 'function');
+  return live.map((el, i) => {
+    el.style.removeProperty('opacity');
+    el.style.removeProperty('visibility');
+    const value = parseFloat(getComputedStyle(el).opacity);
+    const resting = isFinite(value) ? value : 1;
+    return el.animate(
+      [{opacity: 0, transform: `translateY(${descendPx(9)}px)`}, {opacity: resting, transform: 'none'}],
+      {duration: durationMs, delay: atMs + i * staggerMs, easing: MOTION_EASE.enter, fill: 'backwards'});
+  });
+}
+
+/**
+ * A FLIP on the compositor's clock (the carried object of a descend — the payload's print): from the old rect's
+ * transform into the element's own box, `transformOrigin` 0 0, nothing inline left at the end. Undefined — no motion.
+ */
+export function descendFlipComposited(el: HTMLElement, flip: {x: number, y: number, scale: number}, durationMs: number): Animation | undefined {
+  if (typeof el.animate !== 'function') {
+    return undefined;
+  }
+  return el.animate(
+    [
+      {transform: `translate(${flip.x}px, ${flip.y}px) scale(${flip.scale})`, transformOrigin: '0 0'},
+      {transform: 'none', transformOrigin: '0 0'},
+    ],
+    {duration: durationMs, easing: MOTION_EASE.enter, fill: 'backwards'});
 }
 
 /** The reverse of the cascade: the controls let go together, in place. */

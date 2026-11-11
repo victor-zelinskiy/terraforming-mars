@@ -20,7 +20,8 @@ import {cubicBezierFromCss} from '../../src/client/components/motion/cubicBezier
  *  · `snaps`      — a visible ring went from ≤ 20 % to ≥ 80 % of its full strength between two consecutive samples
  *                   FASTER than the cursor's own curve can carry it in that gap (`ringCurveGain` — an opacity
  *                   transition runs on the compositor, so a main thread starved for 96 ms sees 0.13 → 0.93 of a
- *                   perfectly smooth 180 ms arrival; the bound is the curve, never «two samples»);
+ *                   perfectly smooth 180 ms arrival; the bound is the curve, never «two samples»); a pair whose
+ *                   EARLIER sample read the ring's own transition still PENDING is no evidence (`held` — see below);
  *  · `bornHidden` — the element became visible ALREADY carrying ≥ 80 % of its ring (the pose was born under a copy
  *                   or a fade and revealed with it — the hand's open);
  *  · `jumps`      — a visible face moved > 1.5 px between two samples with no animation running on it or an ancestor;
@@ -55,6 +56,15 @@ export type FocusSample = {
   z: number;
   box: [number, number, number, number];
   animating: boolean;
+  /**
+   * The ring's own opacity transition was still PENDING when the sample was read — started, its start time not yet
+   * resolved by the compositor that runs it. Until then the main thread holds it at its START value while the screen
+   * already plays it; the start time arrives late when the main thread is busy, and the next read jumps by that whole
+   * latency (CI 2026-11-11, `console-cursor` stdp step: «0.91 → 0.01 in 48 ms» — the same run's arrival on row 2 read
+   * ≥ 80 % 26 ms after its first trace, which no 180 ms transition reaches on the sampler's clock either). A pair whose
+   * earlier sample was held says nothing about what the player saw. Absent on old saved trails = not held.
+   */
+  held?: boolean;
   proxy?: {box: [number, number, number, number], vis: number};
 };
 
@@ -158,6 +168,11 @@ export async function armFocusWitness(page: Page, opts: FocusWitnessOptions): Pr
       }
       return false;
     };
+    /** The ring layer's own opacity transition is pending (its start time not yet resolved) — see `FocusSample.held`. */
+    const ringHeldOf = (el: Element): boolean => el.getAnimations({subtree: true}).some((a) => {
+      const pseudo = (a.effect as KeyframeEffect | null)?.pseudoElement;
+      return a.pending && pseudo !== null && pseudo !== undefined && (a as CSSTransition).transitionProperty === 'opacity';
+    });
     let last = '';
     const sample = () => {
       const t = Math.round(performance.now() - t0);
@@ -185,10 +200,11 @@ export async function armFocusWitness(page: Page, opts: FocusWitnessOptions): Pr
             z: Number.parseInt(getComputedStyle(el).zIndex, 10) || 0,
             box: boxOf(face),
             animating: animatingOf(face),
+            held: ringHeldOf(el),
           });
         }
       });
-      const sig = JSON.stringify(rows.map((r) => [r.key, r.ring, r.vis, r.scale, r.z, r.box, r.proxy]));
+      const sig = JSON.stringify(rows.map((r) => [r.key, r.ring, r.vis, r.scale, r.z, r.box, r.held, r.proxy]));
       if (sig !== last) {
         last = sig;
         samples.push(...rows.length > 0 ? rows : [{t, key: '', ring: 0, vis: 0, scale: 1, z: 0, box: [0, 0, 0, 0] as [number, number, number, number], animating: false}]);
@@ -318,7 +334,10 @@ export function analyseFocusTrail(samples: ReadonlyArray<FocusSample>, scroll: R
         continue;
       }
       const prev = rows[i - 1];
-      if (f > 0 && cur.vis >= 0.5 && prev.vis >= 0.5) {
+      // A ring read while its transition was still PENDING is the main thread's held start value, not the painted one:
+      // the next read jumps by the compositor's latency, and a pair starting there proves nothing (`FocusSample.held`).
+      // A real snap — the transition gone, a zero duration, a node re-created — has no pending transition and is judged.
+      if (f > 0 && cur.vis >= 0.5 && prev.vis >= 0.5 && prev.held !== true) {
         const a = prev.ring / f;
         const b = cur.ring / f;
         const crossed = (a <= 0.2 && b >= 0.8) || (a >= 0.8 && b <= 0.2);
