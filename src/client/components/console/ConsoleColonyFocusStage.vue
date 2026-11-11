@@ -2735,7 +2735,7 @@ export default defineComponent({
         }
         this.stageBackTimer = window.setTimeout(() => {
           this.stageBackTimer = undefined;
-          void workingAreaSettled(this.$refs.mainEl as Element | undefined, motionMs(WORKING_AREA_BACK_CEILING_MS)).then(() => {
+          void workingAreaSettled((this.$refs.mainEl ?? undefined) as Element | undefined, motionMs(WORKING_AREA_BACK_CEILING_MS)).then(() => {
             // Only THIS fall may release — a pose re-raised meanwhile (a second colony's payout) owns the stage again.
             if (back === this.stageBackToken && !this.stageBusy) {
               setColonyStageYielded(false);
