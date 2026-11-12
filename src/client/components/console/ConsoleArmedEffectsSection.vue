@@ -1,11 +1,4 @@
 <template>
-  <!-- «ВЗВЕДЕНО НА СЛЕДУЮЩУЮ КАРТУ» in the Information mode's «ЭФФЕКТЫ»
-       (TR49 class) — the armed one-play effects of the INSPECTED seat (the
-       public model: a rival's are as visible as the viewer's own, the arming
-       card lies face-up on their table). It stands above the effects
-       explorer, the party strip's precedent: one tile per effect — the
-       SOURCE card's own face, what it does to the next card, and when it
-       ends. Absent when nothing is armed. -->
   <section v-if="effects.length > 0" class="con-armsec" :aria-label="$t('Armed for your next card')" data-armed-section>
     <header class="con-armsec__head">
       <span class="con-armsec__spark" aria-hidden="true">⚡</span>
@@ -35,32 +28,39 @@
   </section>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * «ВЗВЕДЕНО НА СЛЕДУЮЩУЮ КАРТУ» in the Information mode's «ЭФФЕКТЫ»
+ * (TR49 class) — the armed one-play effects of the INSPECTED seat (the
+ * public model: a rival's are as visible as the viewer's own, the arming
+ * card lies face-up on their table). It stands above the effects
+ * explorer, the party strip's precedent: one tile per effect — the
+ * SOURCE card's own face, what it does to the next card, and when it
+ * ends. Absent when nothing is armed.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ArmedEffectView, armedEffectsOf} from '@/client/console/armedEffects';
 import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {PremiumCardFace} from '@/client/components/asyncComponents';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
-export default defineComponent({
-  name: 'ConsoleArmedEffectsSection',
-  components: {ConsoleCardFaceLite, PremiumPartyRequirementGlyph},
-  props: {
-    /** The INSPECTED seat (its public model). */
-    player: {type: Object as PropType<Pick<PublicPlayerModel, 'armedPlayEffects'>>, required: true},
-  },
-  computed: {
-    effects(): ReadonlyArray<ArmedEffectView> {
-      return armedEffectsOf(this.player);
-    },
-  },
-  methods: {
-    lawVm(id: ResolutionId): PremiumCardVM | undefined {
-      return resolutionPremiumVmById(id);
-    },
-  },
+defineOptions({name: 'ConsoleArmedEffectsSection'});
+const props = defineProps({
+  /** The INSPECTED seat (its public model). */
+  player: {type: Object as PropType<Pick<PublicPlayerModel, 'armedPlayEffects'>>, required: true},
 });
+
+const effects = computed((): ReadonlyArray<ArmedEffectView> => {
+  return armedEffectsOf(props.player);
+});
+function lawVm(id: ResolutionId): PremiumCardVM | undefined {
+  return resolutionPremiumVmById(id);
+}
 </script>
