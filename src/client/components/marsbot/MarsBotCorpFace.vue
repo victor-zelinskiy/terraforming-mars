@@ -1,8 +1,4 @@
 <template>
-  <!-- `premium-card-face` is registered GLOBALLY in main.ts — a static
-       PremiumCard.vue import here would close the type cycle
-       PremiumCard → CardZoomModal → CardZoomCard → MarsBotCorpFace and
-       collapse vue-tsc inference to `{}` (see premium-card.md § Routing). -->
   <premium-card-face :vmOverride="vm"
                      :card="model"
                      :inert="true"
@@ -10,7 +6,16 @@
                      :artTier="large ? 'full' : 'thumb'" />
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * `<premium-card-face>` is the LAZY binding `PremiumCardFace` this script
+ * imports from `components/asyncComponents.ts` (typed as a plain `Component`)
+ * — a static PremiumCard.vue import here would close the type cycle
+ * PremiumCard → CardZoomModal → CardZoomCard → MarsBotCorpFace and
+ * collapse vue-tsc inference to `{}` (see premium-card.md § Routing).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * The MarsBot CORPORATION card — rendered ONE-TO-ONE through the ordinary
  * premium `.pcard` corporation template (title plate, tag rail, art or the
@@ -23,37 +28,35 @@
  * rule text lives in the fullscreen viewer's right «§ ПРАВИЛА» panel
  * (`marsBotCorpRules.ts`), like every card's structured rules.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {MarsBotCorpResource} from '@/common/automa/MarsBotCorpData';
 import {CardModel} from '@/common/models/CardModel';
+import {PremiumCardFace} from '@/client/components/asyncComponents';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {buildMarsBotCorpPremiumVm, marsBotCorpCardModel} from './marsBotCorpPremiumVm';
 
-export default defineComponent({
-  name: 'MarsBotCorpFace',
-  props: {
-    id: {type: String as PropType<MarsBotCorpId>, required: true},
-    /** Live resources ON the corporation card (Ecoline plant / Spire science). */
-    resources: {type: Number, default: 0},
-    /**
-     * The KIND of that pile, when the card's slot takes more than one (C43
-     * holds white OR black cubes). Absent ⇒ the card's own declared resource,
-     * which is every other corporation.
-     */
-    resource: {type: String as PropType<MarsBotCorpResource>, default: undefined},
-    /** Fullscreen tier (full-resolution art). */
-    large: {type: Boolean, default: false},
-    /** Dense hosts (tableau slot / dashboard) — the thumb quality tier. */
-    compact: {type: Boolean, default: false},
-  },
-  computed: {
-    vm(): PremiumCardVM {
-      return buildMarsBotCorpPremiumVm(this.id, this.resources ?? 0, this.resource);
-    },
-    model(): CardModel {
-      return marsBotCorpCardModel(this.id, this.resources ?? 0);
-    },
-  },
+defineOptions({name: 'MarsBotCorpFace'});
+const props = defineProps({
+  id: {type: String as PropType<MarsBotCorpId>, required: true},
+  /** Live resources ON the corporation card (Ecoline plant / Spire science). */
+  resources: {type: Number, default: 0},
+  /**
+   * The KIND of that pile, when the card's slot takes more than one (C43
+   * holds white OR black cubes). Absent ⇒ the card's own declared resource,
+   * which is every other corporation.
+   */
+  resource: {type: String as PropType<MarsBotCorpResource>, default: undefined},
+  /** Fullscreen tier (full-resolution art). */
+  large: {type: Boolean, default: false},
+  /** Dense hosts (tableau slot / dashboard) — the thumb quality tier. */
+  compact: {type: Boolean, default: false},
+});
+
+const vm = computed((): PremiumCardVM => {
+  return buildMarsBotCorpPremiumVm(props.id, props.resources ?? 0, props.resource);
+});
+const model = computed((): CardModel => {
+  return marsBotCorpCardModel(props.id, props.resources ?? 0);
 });
 </script>

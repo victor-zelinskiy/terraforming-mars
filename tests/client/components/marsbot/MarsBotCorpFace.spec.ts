@@ -1,8 +1,7 @@
-import {mount} from '@vue/test-utils';
+import {flushPromises, mount} from '@vue/test-utils';
 import {expect} from 'chai';
 import {MARS_BOT_CORP_IDS, MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
-import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {buildMarsBotCorpPremiumVm} from '@/client/components/marsbot/marsBotCorpPremiumVm';
 import {marsBotCorpAnnotations} from '@/client/components/marsbot/marsBotCorpRules';
 import {marsBotCorpInfo, MarsBotCorpResource} from '@/common/automa/MarsBotCorpData';
@@ -12,12 +11,26 @@ function mountFace(id: MarsBotCorpId, resources = 0, large = false, resource?: M
     props: {id, resources, large, resource},
     global: {
       mocks: {$t: (s: string) => s},
-      // In the app `premium-card-face` is registered globally (main.ts);
-      // register it here the same way (a static import in the COMPONENT
-      // would close the PremiumCard → CardZoomModal → CardZoomCard cycle).
-      components: {'premium-card-face': PremiumCard},
     },
   });
+}
+
+/**
+ * The component renders the LAZY face it imports (`PremiumCardFace` of
+ * `components/asyncComponents.ts` — a static import in the COMPONENT would
+ * close the PremiumCard → CardZoomModal → CardZoomCard cycle): the first
+ * mount of a run paints nothing until that import resolves, every later one
+ * paints the face synchronously. A suite that mounts the face resolves it
+ * once, before its first test. (A `<script setup>` component reads no global
+ * registration, so the real `PremiumCard` can no longer be handed in under
+ * the tag's name; and a stub keyed by the binding's name does not match an
+ * import that comes from a `.ts` module.)
+ */
+async function resolveLazyFace(): Promise<void> {
+  const first = mountFace(MarsBotCorpId.C45_SPIRE);
+  await flushPromises();
+  expect(first.find('.pcard').exists(), 'the lazy premium face resolved').is.true;
+  first.unmount();
 }
 
 /**
@@ -28,6 +41,8 @@ function mountFace(id: MarsBotCorpId, resources = 0, large = false, resource?: M
  * 'automa' stamp), which is what these specs pin.
  */
 describe('MarsBotCorpFace (.pcard template)', () => {
+  before(resolveLazyFace);
+
   it('renders the real premium corporation face', () => {
     const wrapper = mountFace(MarsBotCorpId.C45_SPIRE);
     expect(wrapper.find('.pcard').exists()).is.true;
@@ -217,6 +232,9 @@ describe('marsBotCorpPremiumVm (pure)', () => {
 });
 
 describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
+  // Several rows below also read the rendered face beside its rules.
+  before(resolveLazyFace);
+
   it('shapes the printed boxes into annotation groups with their own kickers', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C45_SPIRE);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation effect', 'Before action phase']);
