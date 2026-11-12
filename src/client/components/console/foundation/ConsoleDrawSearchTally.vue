@@ -1,7 +1,4 @@
 <template>
-  <!-- THE SEARCH'S OUTCOME in one line — «ВСКРЫТО 6 · ПОЛУЧЕНО 3 · СБРОШЕНО 3 —
-       без меток [P̸][M̸][A̸]» (+ «колода вскрыта до конца» when it ran out).
-       Numbers off the server's own lists, the rule off its own descriptor. -->
   <span v-if="tally !== undefined" class="con-dsearch-tally" data-reveal-search
         :data-search-revealed="tally.revealed" :data-search-taken="tally.taken"
         :data-search-discarded="tally.discarded" :data-search-exhausted="tally.exhausted ? 'yes' : 'no'">
@@ -26,8 +23,14 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE SEARCH'S OUTCOME in one line — «ВСКРЫТО 6 · ПОЛУЧЕНО 3 · СБРОШЕНО 3 —
+ * без меток [P̸][M̸][A̸]» (+ «колода вскрыта до конца» when it ran out).
+ * Numbers off the server's own lists, the rule off its own descriptor.
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {CardDrawRevealModel, DrawSearchModel} from '@/common/models/CardDrawRevealModel';
 import {DrawSearchTally, drawSearchRules, drawSearchTally} from '@/client/console/deckDraw/drawSearchReading';
 import ConsoleDrawSearchRule from './ConsoleDrawSearchRule.vue';
@@ -42,19 +45,15 @@ import ConsoleDrawSearchRule from './ConsoleDrawSearchRule.vue';
  * are the batch's; the RULES are every segment's, in order (P56: two named
  * searches of one play — «— с меткой [J] · [V]»), never the first one alone.
  */
-export default defineComponent({
-  name: 'ConsoleDrawSearchTally',
-  components: {ConsoleDrawSearchRule},
-  props: {
-    reveal: {type: Object as PropType<CardDrawRevealModel>, required: true},
-  },
-  computed: {
-    tally(): DrawSearchTally | undefined {
-      return drawSearchTally(this.reveal);
-    },
-    rules(): Array<DrawSearchModel> {
-      return drawSearchRules(this.reveal);
-    },
-  },
+defineOptions({name: 'ConsoleDrawSearchTally'});
+const props = defineProps({
+  reveal: {type: Object as PropType<CardDrawRevealModel>, required: true},
+});
+
+const tally = computed((): DrawSearchTally | undefined => {
+  return drawSearchTally(props.reveal);
+});
+const rules = computed((): Array<DrawSearchModel> => {
+  return drawSearchRules(props.reveal);
 });
 </script>
