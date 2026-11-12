@@ -1,14 +1,4 @@
 <template>
-  <!--
-    Trade-fleet LAUNCH PAD — the berth a fleet sits on in the console
-    colonies header. The minimalist pass: a low dark plate with ONE
-    luminous deck line (lit in the owner hue while a fleet berths on it)
-    and two quiet edge ticks — a modern landing marker, not an illustrated
-    platform. An EMPTY pad (its fleet is out trading / spent) keeps the
-    plate + a dim deck line, and its slot never collapses — a launched
-    fleet leaves a clean vacant berth with no reflow. Colour rides the
-    `fleet-hue--<color>` custom props like the ship.
-  -->
   <svg class="colony-fleet-pad"
        :class="['fleet-hue--' + color, {'colony-fleet-pad--occupied': occupied}]"
        viewBox="0 0 34 16" aria-hidden="true" focusable="false">
@@ -21,19 +11,29 @@
   </svg>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
-import {Color} from '@/common/Color';
-
+<script setup lang="ts">
+/*
+ * Trade-fleet LAUNCH PAD — the berth a fleet sits on in the console
+ * colonies header. The minimalist pass: a low dark plate with ONE
+ * luminous deck line (lit in the owner hue while a fleet berths on it)
+ * and two quiet edge ticks — a modern landing marker, not an illustrated
+ * platform. An EMPTY pad (its fleet is out trading / spent) keeps the
+ * plate + a dim deck line, and its slot never collapses — a launched
+ * fleet leaves a clean vacant berth with no reflow. Colour rides the
+ * `fleet-hue--<color>` custom props like the ship.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * Stateless per-fleet launch pad. `color` = the owning player's colour (the
  * occupied deck-line hue), `occupied` = a fleet currently berths here.
  */
-export default defineComponent({
-  name: 'ColonyFleetPad',
-  props: {
-    color: {type: String as PropType<Color>, required: true},
-    occupied: {type: Boolean, default: false},
-  },
+import {PropType} from 'vue';
+import {Color} from '@/common/Color';
+
+defineOptions({name: 'ColonyFleetPad'});
+defineProps({
+  color: {type: String as PropType<Color>, required: true},
+  occupied: {type: Boolean, default: false},
 });
 </script>
