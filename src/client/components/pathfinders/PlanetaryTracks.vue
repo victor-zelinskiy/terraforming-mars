@@ -43,44 +43,22 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
 import {GameOptionsModel} from '@/common/models/GameOptionsModel';
 import {PathfindersModel} from '@/common/models/PathfindersModel';
-import {Tag} from '@/common/cards/Tag';
-import {range} from '@/common/utils/utils';
 import PlanetaryTrack from '@/client/components/pathfinders/PlanetaryTrack.vue';
+// The template reads the tracks' table straight off this import, by its own name.
 import {PLANETARY_TRACKS} from '@/common/pathfinders/PlanetaryTracks';
 
-export default defineComponent({
-  name: 'PlanetaryTracks',
-  props: {
-    tracks: {
-      type: Object as () => PathfindersModel,
-    },
-    gameOptions: {
-      type: Object as () => GameOptionsModel,
-      required: true,
-    },
+defineOptions({name: 'PlanetaryTracks'});
+defineProps({
+  tracks: {
+    type: Object as () => PathfindersModel,
   },
-  components: {
-    PlanetaryTrack,
-  },
-  data() {
-    return {
-      venus: Tag.VENUS,
-      earth: Tag.EARTH,
-      mars: Tag.MARS,
-      jovian: Tag.JOVIAN,
-      moon: Tag.MOON,
-      range: range(23),
-    };
-  },
-  computed: {
-    PLANETARY_TRACKS(): typeof PLANETARY_TRACKS {
-      return PLANETARY_TRACKS;
-    },
+  gameOptions: {
+    type: Object as () => GameOptionsModel,
+    required: true,
   },
 });
 
