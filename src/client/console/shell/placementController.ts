@@ -4,7 +4,7 @@
  * THE PLACEMENT CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
-import {computed, ref} from 'vue';
+import {computed, nextTick, ref} from 'vue';
 import {scopedState} from '@/client/console/session/scopedState';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
@@ -73,6 +73,9 @@ import type {ColonyController} from '@/client/console/shell/colonyController';
 import type {CellController} from '@/client/console/shell/cellController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
 import type {SeatController} from '@/client/console/shell/seatController';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
+import {questionScope} from '@/client/console/session/questionScope';
+import {setQuestionAside, takeUpQuestion} from '@/client/console/setAside';
 
 /** The shared hold-to-confirm key of the finale's irreversible stop (PL-296). */
 const FINALE_FINISH_HOLD = 'final-greenery-finish';
@@ -98,7 +101,7 @@ const STACK_RETURN_MAX_MS = 45_000;
  */
 export type PlacementPort = {
   $nextTick(fn?: () => void): Promise<void>,
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   readonly admissionSignals: AdmissionSignals,
   readonly admissionSignalsBeforeStory: AdmissionSignals,
   admits(surface: PromptSurface): boolean,
@@ -144,9 +147,10 @@ export function createPlacementController(shell: PlacementPort) {
    */
   const boardStoryCoverFor = ref('');
   /** A task's nested space-type option being picked on the board. */
-  const taskSpacePending = scopedState('task-space-pending', undefined as {index: number, spacePrompt: PlayerInputModel} | undefined);
+  // A latch of the QUESTION (session/questionScope.ts): the branch belongs to the prompt it was sent for and ends with it.
+  const taskSpacePending = scopedState('task-space-pending', undefined as {index: number, spacePrompt: PlayerInputModel} | undefined, questionScope);
   /** The board pick out right now came from the FINALE's placement branch. */
-  const finalGreeneryPickPending = scopedState('final-greenery-pick-pending', false);
+  const finalGreeneryPickPending = scopedState('final-greenery-pick-pending', false, questionScope);
   /** …and the board COMMITTED it. `waitingFor` still holds the finale
    *  prompt for the whole round-trip (the server has not answered yet), so
    *  without this the screen re-mounts the instant the pick is released and
@@ -989,7 +993,7 @@ export function createPlacementController(shell: PlacementPort) {
     cancelHoldConfirm(FINALE_FINISH_HOLD);
     taskSpacePending.value = undefined;
     finalGreeneryPickPending.value = false;
-    consoleState.task.deferred = true;
+    setQuestionAside('finale');
     // …and the SESSION folds with it (PL-303): the context hides, the camera lets go, the plate offers the way back.
     collapseFinaleSession();
   }
@@ -1025,7 +1029,7 @@ export function createPlacementController(shell: PlacementPort) {
     // placement hero has taken the foreground).
     finalGreeneryCommitting.value = finalGreeneryPickPending.value;
     finalGreeneryPickPending.value = false;
-    consoleState.task.deferred = false;
+    takeUpQuestion('answered');
     armBoardBonusIfCardCell(spaceResponse.spaceId,
       pending.spacePrompt.type === 'space' ? pending.spacePrompt.placementEffect : undefined);
     shell.submit(orWrappedResponse(pending.index, spaceResponse));
@@ -1269,7 +1273,7 @@ export function createPlacementController(shell: PlacementPort) {
     if (target === undefined || !placementActive.value) {
       return;
     }
-    const board = (shell.$refs.boardSection ?? undefined) as InstanceType<typeof ConsoleBoardSection> | undefined;
+    const board = shell.surfaces.at<InstanceType<typeof ConsoleBoardSection>>('boardSection');
     if (board?.focusSpace(target) !== true) {
       consoleState.boardSpaceId = target;
     }
@@ -1440,7 +1444,21 @@ export function createPlacementController(shell: PlacementPort) {
     }
   }
 
+  /**
+   * The finale's placement round-trip is over — the view-apply reaction says so on every applied view. Released a
+   * TICK late on purpose: the placement hero is armed by this very response, and the one frame between «the answer
+   * landed» and «the hero holds the foreground» is exactly the frame the screen used to blink in.
+   */
+  function releaseFinaleCommitAfterAnswer(): void {
+    if (finalGreeneryCommitting.value) {
+      void nextTick(() => {
+        finalGreeneryCommitting.value = false;
+      });
+    }
+  }
+
   return {
+    releaseFinaleCommitAfterAnswer,
     placementLiveLatch,
     boardStoryCoverFor,
     taskSpacePending,

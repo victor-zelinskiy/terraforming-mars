@@ -20,6 +20,7 @@ import {NotificationModel} from '@/client/components/notifications/notificationT
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
+import {setQuestionAside, takeUpQuestion} from '@/client/console/setAside';
 
 const zoomCard = (name: CardName): CardModel => ({name} as CardModel);
 const toast = (id: string, kind: 'normal' | 'negative'): NotificationModel => ({
@@ -60,7 +61,7 @@ describe('consoleEndgameSeal', () => {
     consoleState.scaleInspecting = false;
     consoleState.trackMarker = undefined;
     consoleState.freeRoam = false;
-    consoleState.task.deferred = false;
+    takeUpQuestion('restored');
     consoleState.sale.active = false;
     consoleState.sale.selected = [];
     consoleState.select.selected = [];
@@ -177,7 +178,7 @@ describe('consoleEndgameSeal', () => {
   it('drops the prompt-scoped picks and the deferred-task flag', () => {
     consoleState.select.selected = [CardName.ANTS];
     consoleState.select.suitableOnly = false;
-    consoleState.task.deferred = true;
+    setQuestionAside('question');
     rememberCardBrowserPicks('k', [CardName.ANTS]);
     sealLiveGameSurfaces();
     expect(consoleState.select.selected, 'hand select').to.deep.eq([]);

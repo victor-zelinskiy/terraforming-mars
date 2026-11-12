@@ -32,13 +32,16 @@ import {PendingClientPayment, PendingClientPick} from '@/client/console/shell/sh
 import type {SeatController} from '@/client/console/shell/seatController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
+import {questionScope} from '@/client/console/session/questionScope';
+import {scopedState} from '@/client/console/session/scopedState';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
 export type StdProjectsPort = {
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   actionBlockedReason: UnwrapRef<SeatController['actionBlockedReason']>,
   awaitingInput: UnwrapRef<SeatController['awaitingInput']>,
   readonly cardsTotalCount: number,
@@ -67,7 +70,8 @@ export function createStdProjectsController(shell: StdProjectsPort) {
   /** The standard projects' terminal commit is HOSTING the Venus bonus its step earned (P89 · EE). */
   const stdpVenusStep = ref(false);
   /** The standard project's captured «where» answer, waiting for the project's own submit. */
-  const stdProjectPickResponse = ref(undefined as InputResponse | undefined);
+  // A latch of the QUESTION (session/questionScope.ts): the pick's response answers the prompt it was built for.
+  const stdProjectPickResponse = scopedState('std-project-pick-response', undefined as InputResponse | undefined, questionScope);
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   /**
@@ -367,7 +371,7 @@ export function createStdProjectsController(shell: StdProjectsPort) {
   /** Arm the std-projects DESCEND phrase from the focused row (the screen
    *  owns the rect; a stale/missing arm degrades to a plain surface). */
   function armStdpStepOrigin(): void {
-    ((shell.$refs.stdpScreen ?? undefined) as InstanceType<typeof ConsoleStdProjectsScreen> | undefined)?.armStepOrigin();
+    (shell.surfaces.at<InstanceType<typeof ConsoleStdProjectsScreen>>('stdpScreen'))?.armStepOrigin();
   }
 
   /** A refused/lost submit — the flow returns to its reversible browse layer. */

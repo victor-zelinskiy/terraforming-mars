@@ -2878,7 +2878,7 @@ export default defineComponent({
       }
     },
     playedTargetStepOpen(now: boolean, was: boolean) {
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
+      const root = this.composerRootEl();
       if (root === undefined || now === was) {
         return;
       }
@@ -2894,7 +2894,7 @@ export default defineComponent({
       // The review RETURNS: the cursor the answer landed (the next question, or the commit — T14 · CC) ARRIVES once it
       // stands — its pose is gated on the root for the phrase (`gateCursorDuringEntry`; a press releases it at once).
       const arrived = gateCursorDuringEntry(root, () => undefined);
-      void this.$nextTick(() => playPayloadReturn((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, from, arrived));
+      void this.$nextTick(() => playPayloadReturn(this.composerRootEl(), from, arrived));
     },
     /** PL-127: the hosted-step declaration, handed to the shell as it changes (cleared with the composer by `resetConsolePlayCardUi`). */
     hostedStepDeclared: {
@@ -3065,7 +3065,7 @@ export default defineComponent({
       // its groups re-materialize — the player retries or cancels from the
       // exact configuration they submitted.
       gsap.set(layers, {clearProps: 'opacity,visibility'});
-      handStageReveal((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
+      handStageReveal(this.composerRootEl());
     },
   },
   created() {
@@ -3136,7 +3136,7 @@ export default defineComponent({
     // nothing to cascade. Without this the controls would simply appear inside
     // an already-open box — the same blink the descent exists to remove.
     if (this.embedded) {
-      void this.$nextTick(() => handStageReveal((this.$refs.rootEl ?? undefined) as HTMLElement | undefined));
+      void this.$nextTick(() => handStageReveal(this.composerRootEl()));
     }
   },
   beforeUnmount() {
@@ -3154,6 +3154,15 @@ export default defineComponent({
     this.stopVariantObs = undefined;
   },
   methods: {
+    /**
+     * The composer's root element — what the shell's controllers fade when a staged play lets the composer go
+     * (`outcomeController` · `playCardController`). A METHOD, not a reach into this component's own refs from outside:
+     * it is what the composer exposes once it is `<script setup>` (a parent's ref of such a component carries only
+     * what the component exposes — `docs/claude/vapor/ROADMAP.md` §1.1).
+     */
+    composerRootEl(): HTMLElement | undefined {
+      return (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
+    },
     /** The chip whose basis the «ПОЧЕМУ» strip reads (TR45): the same pool — the strip, not the chip, says why. */
     basisReadByStrip(eff: ActionEffect): boolean {
       const chip = this.countWhy?.chip;
@@ -3218,7 +3227,7 @@ export default defineComponent({
       if (!this.forecastCanOpen || this.fxOpen) {
         return;
       }
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
+      const root = this.composerRootEl();
       armForecastRow(descendRectOf(root?.querySelector<HTMLElement>('[data-forecast-row]')));
       this.forecastPulse = true;
       this.flow.after(320, 'the forecast row\'s commit pulse ends', () => {
@@ -3403,7 +3412,7 @@ export default defineComponent({
      * cascade takes the groups and its entry gate holds the cursor) — the hold is simply handed back.
      */
     arriveLateContent(): void {
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
+      const root = this.composerRootEl();
       if (root === undefined || consoleReducedMotionActive() || root.closest('.con-hand__stage--arming') !== null ||
           typeof root.animate !== 'function') {
         arriveCursor(this.lateCursor);
@@ -3562,7 +3571,7 @@ export default defineComponent({
     },
     /** The commit row's arrival, measured against the root the gate may stand on once it has rendered. */
     arriveAtCommitRow(opening: boolean): void {
-      arriveAtCommit(this.commitArrival, () => (this.$refs.rootEl ?? undefined) as HTMLElement | undefined, {opening});
+      arriveAtCommit(this.commitArrival, () => this.composerRootEl(), {opening});
     },
     /** The commit row's one breath ended (its layer's `animationend` — never a child's animation bubbling up). */
     onCommitBreathEnd(e: AnimationEvent): void {
@@ -4561,7 +4570,7 @@ export default defineComponent({
           openConsoleCardZoom([this.heroCard], 0, undefined, undefined, {
             origin: {
               kind: 'physical',
-              resolve: () => ((this.$refs.rootEl ?? undefined) as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-composer__playcard') ?? null,
+              resolve: () => (this.composerRootEl())?.querySelector<HTMLElement>('.con-composer__playcard') ?? null,
             },
           });
         }
@@ -4998,7 +5007,7 @@ export default defineComponent({
      * above it, which is the only box here whose size the cards cannot move.
      */
     measurePlayedTargetBand(): void {
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
+      const root = this.composerRootEl();
       const zone = root?.querySelector<HTMLElement>('.con-composer__playright');
       if (zone !== null && zone !== undefined) {
         this.playedTargetWidth = zone.clientWidth;
@@ -5986,7 +5995,7 @@ export default defineComponent({
       }
       // THE ONE DOOR — with the TARGET DOSSIER. The REF, never `$el` — see the note on the root element.
       if (this.playedTargetModel !== undefined) {
-        openPlayedTargetZoom({model: this.playedTargetModel, cardName: candidate.cardName, getRoot: () => (this.$refs.rootEl ?? undefined) as HTMLElement | undefined});
+        openPlayedTargetZoom({model: this.playedTargetModel, cardName: candidate.cardName, getRoot: () => this.composerRootEl()});
       }
     },
     inspectListItem(index: number): void {
@@ -6290,7 +6299,7 @@ export default defineComponent({
         const scroll = (this.$refs.scroll ?? undefined) as {$el?: unknown, ensureVisible?: (el: Element | null | undefined) => void} | undefined;
         const inScroll = (el: Element | null | undefined): boolean => el !== null && el !== undefined && (scroll?.$el as HTMLElement | undefined)?.contains(el) === true;
         if (this.payExpanded) {
-          const row = ((this.$refs.rootEl ?? undefined) as HTMLElement | undefined)?.querySelector('.con-payrow--focused');
+          const row = (this.composerRootEl())?.querySelector('.con-payrow--focused');
           if (inScroll(row)) {
             scroll?.ensureVisible?.(row);
           }
@@ -6299,7 +6308,7 @@ export default defineComponent({
         const el = (this.$refs.focusedEl ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
         // The variant grammar's focused option has no template ref here (it is the component's own DOM).
         const node = (Array.isArray(el) ? el[0] : el) ??
-          ((this.$refs.rootEl ?? undefined) as HTMLElement | undefined)?.querySelector('.con-vchoice__opt--focused') ?? undefined;
+          (this.composerRootEl())?.querySelector('.con-vchoice__opt--focused') ?? undefined;
         // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
         if (inScroll(node)) {
           scroll?.ensureVisible?.(node);

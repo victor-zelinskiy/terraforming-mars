@@ -42,6 +42,7 @@ import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import type {SeatController} from '@/client/console/shell/seatController';
 import type {UnwrapRef} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 
 /**
  * Identity-stable MA HUD zones (perf iteration 3). `buildMaHudZone` returns a
@@ -66,7 +67,7 @@ const MA_COMMIT_SAFETY_MS = 15_000;
  */
 export type MaPort = {
   game: UnwrapRef<SeatController['game']>,
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   readonly actionBlockedReason: string,
   readonly awaitingInput: boolean,
   concludeWorkspaceFlowOrOwe(kind: WorkspaceFrameKind, servedPromptHolds?: boolean): boolean,
@@ -401,7 +402,7 @@ export function createMaController(shell: MaPort) {
    *  detail stage. The SCREEN arms the descend origins (the pressed card's
    *  and its emblem pedestal's rects) synchronously at the press. */
   function enterMaFocus(): void {
-    ((shell.$refs.maScreen ?? undefined) as InstanceType<typeof ConsoleMaScreen> | undefined)?.enterFocus();
+    (shell.surfaces.at<InstanceType<typeof ConsoleMaScreen>>('maScreen'))?.enterFocus();
   }
 
   /** Mouse/touch on an overview tile: focus it; a second click on the

@@ -1,6 +1,5 @@
 import {expect} from 'chai';
 import {computed} from 'vue';
-import {consoleState} from '@/client/console/consoleRouter';
 import {
   closePhaseRoot,
   deadLiveFrames,
@@ -75,6 +74,7 @@ import {
 } from '@/client/console/consoleWorkspaceStack';
 import {buildWorkspaceHeader} from '@/client/console/consoleWorkspaceHeader';
 import {workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
+import {setQuestionAside, takeUpQuestion} from '@/client/console/setAside';
 
 const ALWAYS: FrameAnchor = {type: 'always'};
 
@@ -1150,11 +1150,11 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
 describe('a frame off stage — one answer, writes that land, one return edge', () => {
   beforeEach(() => {
     resetWorkspaceStack();
-    consoleState.task.deferred = false;
+    takeUpQuestion('restored');
   });
   afterEach(() => {
     resetWorkspaceStack();
-    consoleState.task.deferred = false;
+    takeUpQuestion('restored');
   });
 
   it('a phase / stage / subject written while the frame stands ASIDE for the board lands on it and comes back with it', () => {
@@ -1225,7 +1225,7 @@ describe('a frame off stage — one answer, writes that land, one return edge', 
     expect(workspaceFrameOffStage('hydro'), 'a fresh live instance beside the park is on stage').eq(false);
     goBoardHome();
     restoreWorkspaceStack();
-    consoleState.task.deferred = true;
+    setQuestionAside('question');
     expect(workspaceFrameOffStage('hydro'), 'the frame itself stands').eq(false);
     expect(workspaceSceneHidden('hydro'), 'but the player set the task aside').eq(true);
     expect(workspaceSceneOnStage('hydro')).eq(false);
@@ -1245,9 +1245,9 @@ describe('a frame off stage — one answer, writes that land, one return edge', 
     read();
     restoreWorkspaceStack();
     read();
-    consoleState.task.deferred = true;
+    setQuestionAside('question');
     read();
-    consoleState.task.deferred = false;
+    takeUpQuestion('restored');
     read();
     expect(seen).deep.eq([true, false, true, false, true, false, true]);
   });

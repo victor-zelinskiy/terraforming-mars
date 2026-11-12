@@ -49,6 +49,7 @@ import type {PlacementController} from '@/client/console/shell/placementControll
 import type {PlayedController} from '@/client/console/shell/playedController';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {whenPainted} from '@/client/console/session/sessionWaits';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 
 /**
  * THE SCENE-EXIT BARRIER'S NAMED NET (see `revealHeldForWorkspace`). Long
@@ -64,7 +65,7 @@ const REVEAL_EXIT_BARRIER_NET_MS = 4000;
  */
 export type RevealPort = {
   $nextTick(fn?: () => void): Promise<void>,
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   armPartyDiscardStep: UnwrapRef<ParliamentController['armPartyDiscardStep']>,
   readonly cardStageExitBusy: boolean,
   colonyResolutionLive: UnwrapRef<ColonyController['colonyResolutionLive']>,
@@ -608,7 +609,7 @@ export function createRevealController(shell: RevealPort) {
       // the scroll — the targets below are the settled layout. Bounded: an
       // idle compositor withholding rAF must not latch `opening` forever.
       await settledPaint();
-      const section = (shell.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
+      const section = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
       const t: HandTransitionTargets = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
       const pairs: Array<RevealPair> = t.pairs.map((p) => ({
         name: p.name, target: p.rect, visible: p.visible, clip: p.clip, visual: revealVisualFor(p.name),
@@ -651,7 +652,7 @@ export function createRevealController(shell: RevealPort) {
       if (isHandRevealEpisodeRunning() || consoleState.section !== 'hand') {
         return;
       }
-      const section = (shell.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
+      const section = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
       const t: HandTransitionTargets = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
       // The landing targets are ANALYTIC (the bodies layer's pose oracle):
       // no dock measure, no provisional berths, no retarget races.
@@ -831,7 +832,7 @@ export function createRevealController(shell: RevealPort) {
       let t: HandTransitionTargets = {pairs: [], scrollTop: 0};
       for (let i = 0; i < 10 && t.pairs.length === 0; i++) {
         await whenPainted(1, 50, flow);
-        const section = (shell.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
+        const section = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
         if (section !== undefined) {
           t = section.transitionTargets();
         }
@@ -1019,7 +1020,15 @@ export function createRevealController(shell: RevealPort) {
     }
   }
 
+  /** T6: the server cleared the reveal result → the ack marker is stale. Asked by the view-apply reaction. */
+  function reconcileRevealAck(view: PlayerViewModel): void {
+    if (view.lastReveal === undefined && dismissedRevealKey.value !== '') {
+      dismissedRevealKey.value = '';
+    }
+  }
+
   return {
+    reconcileRevealAck,
     releaseRevealQueuePark,
     revealExitBarrierPassed,
     dismissedRevealKey,

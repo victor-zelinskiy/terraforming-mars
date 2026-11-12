@@ -62,7 +62,15 @@ export function createConvertController(shell: ConvertPort) {
     return p !== undefined && p.type === 'space' ? p : undefined;
   });
 
+  /** A resolved convert-plants prompt (the server moved on) drops the local picker — asked by the view-apply reaction. */
+  function reconcileConvertPlants(view: PlayerViewModel, canConvert: boolean): void {
+    if (convertPlantsPending.value !== undefined && findConvertPlantsOption(view.waitingFor, canConvert) === undefined) {
+      convertPlantsPending.value = undefined;
+    }
+  }
+
   return {
+    reconcileConvertPlants,
     convertPlantsPending,
     convertPlantsReady,
     convertHeatReady,

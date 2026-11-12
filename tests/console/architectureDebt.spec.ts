@@ -72,33 +72,6 @@ export const FROZEN: Readonly<Record<string, Mechanism>> = {
       'its owner\'s end. A release edge that can be missed is replaced by a level (`until` / `polled`), not watched by a witness',
     plan: '§6 · retires with the edge-watchers of S6',
   },
-  'set-aside-writer': {
-    pattern: /\btask\.deferred = /g,
-    what: 'a write of «SET ASIDE» — one boolean for the whole console, with no identity: nothing says WHICH question was set aside',
-    instead: '«set aside» is a record owned by what was set aside (the question\'s scope, the parked chain, the finale\'s run) — it ends ' +
-      'with it and needs no clear site; the restore card is shown for the record itself. Do not add a writer: route through the ' +
-      'existing verbs (`deferShellTask` · `parkWorkspaceStack` · `restoreDeferredTask`)',
-    plan: 'S4 · the prompt router (`routerController` + `mandatoryController`)',
-  },
-  'surface-by-ref': {
-    pattern: /\$refs\b/g,
-    within: /^src\/client\/console\/(?:shell|supervisor)\//,
-    what: 'a surface reached through `shell.$refs` — «the state says it owns the pad» and «it is mounted to receive it» are two facts ' +
-      'that can disagree (the deaf screen; `handedTo` only names it)',
-    instead: 'a surface REGISTERS what it offers while it is mounted (its pad handler, its measure, its transition targets) and the ' +
-      'controller asks the registry; presence is the registration. No new `$refs` read in a controller',
-    plan: 'S3 · the surface registry (`padRouterController` + `commandBarController`)',
-  },
-  'view-apply-write': {
-    pattern: /\bshell\.\w+ = /g,
-    within: /^src\/client\/console\/shell\/viewApplyController\.ts$/,
-    what: 'a latch of ANOTHER domain reset by the view-apply reaction — «pending» state that ends because a 450-line reaction ' +
-      'remembers to end it',
-    instead: 'state that belongs to a press ends with that press\'s SUBMIT (`ticket.settled`, the submit\'s scope); state that belongs to a ' +
-      'prompt ends with the prompt (its identity changes); state of a flow ends with the flow\'s run (`orphaned`, `defer`). ' +
-      'A new «pending» flag is never reset from here',
-    plan: 'S4 · S6 — each latch moves to its own flow; the reaction shrinks by rows',
-  },
   'resolver-mailbox': {
     pattern: /^(?:let| {2}let| {2}private) \w*(?:[Rr]esolve(?:Cb|Active)?|Resolver)\s*:\s*\(\((?:[^()]|\([^()]*\))*\) => void\) \| undefined/gm,
     what: 'a PROMISE WHOSE RESOLVER IS A MODULE VARIABLE — every exit path of the module must remember to call it, or whoever awaits ' +
@@ -116,6 +89,34 @@ export const FROZEN: Readonly<Record<string, Mechanism>> = {
       'scope: it falls back to rest when its owner ends, and the tree names it with its age. Name the narrowest true owner ' +
       '(`() => workspaceFrameScope(kind)`, `() => run.scope`)',
     plan: 'S6 · done for the shell\'s twenty-six named latches and «set aside» itself; the one row left is a clock of the supervisor\'s net',
+  },
+};
+
+/**
+ * RETIRED — mechanisms whose last use is gone. Their rows left `FROZEN` (a ratchet with nothing in it guards nothing);
+ * what stands here is the other half of «the debt only shrinks»: it does not come BACK. Zero uses, for good.
+ */
+export const RETIRED: Readonly<Record<string, {pattern: RegExp, within?: RegExp, retired: string, instead: string}>> = {
+  'surface-by-ref': {
+    pattern: /\$refs\b/g,
+    within: /^src\/client\/console\/(?:shell|supervisor)\//,
+    retired: 'S3, 2026-11-12 — 117 reads in 16 controllers',
+    instead: 'a controller reaches a surface by NAME through the registry — `shell.surfaces.at<T>(\'<name>\')` ' +
+      '(`console/shell/surfaceRegistry.ts`); a new surface is a name in `SURFACE_NAMES` and `:ref="surfaces.bind.<name>"` in the template',
+  },
+  'set-aside-writer': {
+    pattern: /\btask\.deferred = /g,
+    retired: 'S4, 2026-11-12 — 30 writes in 13 files',
+    instead: '«set aside» is a RECORD of the question (`console/setAside.ts`), owned by the question\'s scope: ' +
+      '`setQuestionAside(what)` · `takeUpQuestion(why)`. `consoleState.task.deferred` is its read-only projection',
+  },
+  'view-apply-write': {
+    pattern: /\bshell\.\w+ = /g,
+    within: /^src\/client\/console\/shell\/viewApplyController\.ts$/,
+    retired: 'S4, 2026-11-12 — 19 writes',
+    instead: 'the view-apply reaction is the ordered list of who is ASKED to reconcile on an applied view — each domain lowers ' +
+      'its own latches in its own controller; what belongs to the question is declared with `questionScope` as its owner and ' +
+      'ends at `advanceQuestion` (`session/questionScope.ts`)',
   },
 };
 
@@ -217,6 +218,23 @@ describe('architecture debt — what still runs on a mechanism the kernel replac
         }
       }
       expect(grown, `${mechanism.what}.\n      INSTEAD: ${mechanism.instead}.\n      (It retires with: ${mechanism.plan}.)`).to.deep.equal([]);
+    });
+  }
+
+  for (const [name, mechanism] of Object.entries(RETIRED)) {
+    it(`«${name}» is RETIRED — it does not come back (${mechanism.retired})`, () => {
+      const back: Array<string> = [];
+      for (const file of sources(path.join(ROOT, 'src', 'client'))) {
+        const rel = path.relative(ROOT, file).split(path.sep).join('/');
+        if (mechanism.within !== undefined && !mechanism.within.test(rel)) {
+          continue;
+        }
+        const n = (code(fs.readFileSync(file, 'utf8')).match(mechanism.pattern) ?? []).length;
+        if (n > 0) {
+          back.push(`${rel}: ${n}`);
+        }
+      }
+      expect(back, `INSTEAD: ${mechanism.instead}.`).to.deep.equal([]);
     });
   }
 

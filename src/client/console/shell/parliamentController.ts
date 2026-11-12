@@ -75,6 +75,8 @@ import type {StartController} from '@/client/console/shell/startController';
 import type {PlayedController} from '@/client/console/shell/playedController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
 import type {SeatController} from '@/client/console/shell/seatController';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
+import {takeUpQuestion} from '@/client/console/setAside';
 
 /** The hosted step's own leave fade — named, so a re-show finds and cancels it (`parliamentShown`). */
 const PARLIAMENT_STEP_LEAVE_ID = 'parliament-step-leave';
@@ -84,7 +86,7 @@ const PARLIAMENT_STEP_LEAVE_ID = 'parliament-step-leave';
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
 export type ParliamentPort = {
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   admits(surface: PromptSurface): boolean,
   beginStagedLawLanding: UnwrapRef<StagedController['beginStagedLawLanding']>,
   cancelStagedPlay: UnwrapRef<StagedController['cancelStagedPlay']>,
@@ -877,7 +879,7 @@ export function createParliamentController(shell: ParliamentPort) {
   function onGovSupportLeafConfirm(payload: {response: unknown, param: string}): void {
     goBoardHome();
     closeConsoleLayers();
-    consoleState.task.deferred = false;
+    takeUpQuestion('answered');
     beginGovScaleClose(payload.param, () => shell.submit(payload.response));
   }
 
@@ -904,7 +906,7 @@ export function createParliamentController(shell: ParliamentPort) {
     if (beat !== undefined && beat.taskKind === 'handSelect') {
       acknowledgeMandatoryBeat(beat.key);
     }
-    consoleState.task.deferred = false;
+    takeUpQuestion('step-opened');
     if (!consoleForegroundBusy.value) {
       openPartyDiscardStep();
     }
@@ -915,7 +917,7 @@ export function createParliamentController(shell: ParliamentPort) {
       !e.dismissed && e.cards.length - e.takenIndices.size > 0 && workspaceClaimsColonyRevealBatch(e));
     retainWorkspaceOutcomeForNextBatch(next?.cards.length ?? 0);
     if (ledgerDiscardStepOwed.value) {
-      consoleState.task.deferred = false;
+      takeUpQuestion('step-opened');
       if (!consoleForegroundBusy.value) {
         openLedgerDiscardStep();
       }
@@ -1311,7 +1313,7 @@ export function createParliamentController(shell: ParliamentPort) {
     // Every edge retires the leave before it: a release still owed by an older leave answers for a section that is
     // no longer leaving.
     const token = ++parliamentLeaveToken.value;
-    const el = ((shell.$refs.parliamentSection ?? undefined) as {$el?: unknown} | undefined)?.$el;
+    const el = (shell.surfaces.at<{$el?: unknown}>('parliamentSection'))?.$el;
     if (shown) {
       // RE-SHOWN MID-LEAVE (B, then A again inside the step's dissolve — the same instance is still mounted, the
       // `v-if` never fell): the leave's WAAPI fade keeps its `fill: 'forwards'` and would finish the re-entered step
@@ -1375,7 +1377,7 @@ export function createParliamentController(shell: ParliamentPort) {
     if (now || !was || stagedVoteModel.value === undefined) {
       return;
     }
-    const section = (shell.$refs.parliamentSection ?? undefined) as InstanceType<typeof ConsoleParliamentSection> | undefined;
+    const section = shell.surfaces.at<InstanceType<typeof ConsoleParliamentSection>>('parliamentSection');
     section?.resetSubmitting();
     // A refused support-area pick (TR12) promised nothing that happened.
     clearSupportDiscard();

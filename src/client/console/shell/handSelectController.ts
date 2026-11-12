@@ -48,6 +48,7 @@ import type {ParliamentController} from '@/client/console/shell/parliamentContro
 import type {NoticeController} from '@/client/console/shell/noticeController';
 import type {StagedController} from '@/client/console/shell/stagedController';
 import type {SeatController} from '@/client/console/shell/seatController';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 
 /**
  * THE FRESH-CARD FOCUS of the open hand pick has been given (2026-10-15): a question left for after a draw opens on the
@@ -62,7 +63,7 @@ let freshPickFocusGiven = false;
  */
 export type HandSelectPort = {
   $nextTick(fn?: () => void): Promise<void>,
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   readonly activeTaskSummary: ConsoleTaskSummary | undefined,
   closeHandWithReveal: UnwrapRef<RevealController['closeHandWithReveal']>,
   colonyEmbedSourceCard: UnwrapRef<ColonyController['colonyEmbedSourceCard']>,
@@ -705,7 +706,7 @@ export function createHandSelectController(shell: HandSelectPort) {
       // end state, then answer the new input from settled geometry.
       finishInstant();
     }
-    const section = (shell.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
+    const section = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
     // During a CLIENT hand pick the staged (being-played) card is EXCLUDED
     // from the entries, so the episode is safe to run under it — that's how
     // the pick's «suitable only» toggle gets the same physical transition
@@ -763,7 +764,7 @@ export function createHandSelectController(shell: HandSelectPort) {
     // never a reset to the first page (the player keeps their place).
     consoleState.handIndex = at >= 0 ? at :
       Math.min(Math.max(0, consoleState.handIndex), Math.max(0, list.length - 1));
-    const hand = (shell.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
+    const hand = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
     void shell.$nextTick(() => hand?.ensureSelectedVisible());
   }
 
@@ -1145,7 +1146,7 @@ export function createHandSelectController(shell: HandSelectPort) {
     seat();
     void shell.$nextTick(() => {
       seat();
-      void shell.$nextTick(() => ((shell.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined)?.ensureSelectedVisible());
+      void shell.$nextTick(() => (shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection'))?.ensureSelectedVisible());
     });
   }
 
@@ -1189,7 +1190,7 @@ export function createHandSelectController(shell: HandSelectPort) {
         }
       } else {
         void shell.$nextTick(() => {
-          ((shell.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined)?.ensureSelectedVisible();
+          (shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection'))?.ensureSelectedVisible();
         });
       }
       return;

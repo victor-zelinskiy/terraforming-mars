@@ -74,6 +74,7 @@ import type {PlacementController} from '@/client/console/shell/placementControll
 import type {StartController} from '@/client/console/shell/startController';
 import type {StdProjectsController} from '@/client/console/shell/stdProjectsController';
 import type {WheelController} from '@/client/console/shell/wheelController';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -81,7 +82,7 @@ import type {WheelController} from '@/client/console/shell/wheelController';
  */
 export type HandPort = {
   $nextTick(fn?: () => void): Promise<void>,
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   actionBlockedReason: UnwrapRef<SeatController['actionBlockedReason']>,
   awaitingInput: UnwrapRef<SeatController['awaitingInput']>,
   colonyFocusOpen: UnwrapRef<ColonyController['colonyFocusOpen']>,
@@ -960,7 +961,7 @@ export function createHandController(shell: HandPort) {
     const releaseAccent = beginDockIntakeAccent('hand-close');
     try {
       await shell.$nextTick();
-      const section = (shell.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
+      const section = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
       const t: HandTransitionTargets = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
       // Landing targets are analytic (the bodies layer's pose oracle).
       const pairs: Array<RevealPair> = t.pairs.map((p) => ({
@@ -1295,7 +1296,7 @@ export function createHandController(shell: HandPort) {
    * survive by construction. The first/last page swallows the press.
    */
   function turnHandPage(dir: 1 | -1): void {
-    const hand = (shell.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined;
+    const hand = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
     hand?.turnPage(dir);
   }
 

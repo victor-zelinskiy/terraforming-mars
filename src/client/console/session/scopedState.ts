@@ -37,7 +37,17 @@ import {consoleSessionScope} from '@/client/console/session/consoleSession';
 
 const isObject = (value: unknown): value is object => value !== null && typeof value === 'object';
 
-export function scopedState<T>(label: string, rest: T, owner: () => FlowScope | undefined = () => undefined): Ref<T> {
+export type ScopedStateOptions = {
+  /**
+   * Asked when the OWNER ends under a raised latch: may it stand on? `true` re-homes it under whatever `owner()`
+   * answers NOW — the owner's successor — where it is asked again when that one ends. For a latch of the QUESTION that
+   * the question's own answer still needs after the server has moved on (a pick whose receive scene plays that answer,
+   * a composer under its landing scene). Never asked when the session itself is ending: nothing outlives that.
+   */
+  outlives?: () => boolean,
+};
+
+export function scopedState<T>(label: string, rest: T, owner: () => FlowScope | undefined = () => undefined, options: ScopedStateOptions = {}): Ref<T> {
   /** The raw value (what `ref` compares by) and what a reader gets (an object is reactive, as under `ref`). */
   let raw: T = toRaw(rest);
   let shown: T = rest;
@@ -46,18 +56,28 @@ export function scopedState<T>(label: string, rest: T, owner: () => FlowScope | 
   const raised = (value: T): boolean => !Object.is(value, toRaw(rest));
 
   const open = (): void => {
+    const session = consoleSessionScope();
     const named = owner();
-    const home = named !== undefined && named.ended === undefined ? named : consoleSessionScope();
+    const home = named !== undefined && named.ended === undefined ? named : session;
     const scope = home.open('step', label);
     standing = scope;
     // THE OWNER ENDED UNDER A RAISED LATCH: it falls back to rest — nobody had to remember.
     scope.defer(() => {
-      if (standing === scope) {
-        standing = undefined;
-        raw = toRaw(rest);
-        shown = rest;
-        notify();
+      if (standing !== scope) {
+        return;
       }
+      standing = undefined;
+      // …unless it says it outlives that owner, and there is a successor to stand under (never past its session).
+      if (session.ended === undefined && options.outlives?.() === true) {
+        const next = owner();
+        if (next !== undefined && next.ended === undefined && next !== home) {
+          open();
+          return;
+        }
+      }
+      raw = toRaw(rest);
+      shown = rest;
+      notify();
     });
   };
 

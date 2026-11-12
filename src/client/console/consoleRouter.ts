@@ -25,7 +25,7 @@ import {
   registerWorkspaceTaskSetAside,
   closeWorkspaceSheet, workspaceStackSection, workspaceStackSheet,
 } from '@/client/console/consoleWorkspaceStack';
-import {scopedState} from '@/client/console/session/scopedState';
+import {questionSetAside} from '@/client/console/setAside';
 
 export type ConsoleSection = 'board' | 'hand' | 'colonies' | 'hydro' | 'parliament';
 export type ConsoleSheetId = 'milestones' | 'awards' | 'cardActions' | 'standardProjects';
@@ -35,7 +35,6 @@ export type ConsoleQuickId = 'actions' | 'basics';
 
 export const CONSOLE_SECTIONS: ReadonlyArray<ConsoleSection> = ['board', 'hand'];
 
-const setAside = scopedState('set-aside', false);
 
 export const consoleState = reactive({
   /**
@@ -113,14 +112,11 @@ export const consoleState = reactive({
   shellMounted: false,
   /** CTS task-host UI state: B defers the task to inspect the board. */
   task: {
-    // «SET ASIDE» IS A SCOPE (architecture v2 — PLAN §11): the flag every surface's `v-if` reads is a latch of the
-    // flow tree (`step:set-aside#n`, with its age in every dump) that falls with its session. Its 30 writers still
-    // write it as a boolean — its identity (WHICH question was set aside) is S4's.
+    // «SET ASIDE» IS A RECORD OF THE QUESTION (`console/setAside.ts`): what was set aside, since when, owned by the
+    // question's scope. This is its read-only projection for every `v-if` — it is raised and lowered through the
+    // record's two verbs (`setQuestionAside` · `takeUpQuestion`), never assigned.
     get deferred(): boolean {
-      return setAside.value;
-    },
-    set deferred(value: boolean) {
-      setAside.value = value;
+      return questionSetAside();
     },
   },
   /**

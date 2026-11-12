@@ -46,6 +46,7 @@ import {releaseBoardBeatPark} from '@/client/console/boardBeatPark';
 import {resetSurfaceMotion} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {resetExternalDraw} from '@/client/console/externalDraw/consoleExternalDraw';
 import {clearTransient, setTurn} from '@/client/components/notifications/notificationState';
+import {takeUpQuestion} from '@/client/console/setAside';
 
 /**
  * Dismiss every live-game instrument that survives a phase change on its own.
@@ -68,7 +69,7 @@ export function sealLiveGameSurfaces(): void {
   consoleState.select.selected = [];
   consoleState.select.suitableOnly = true;
   clearCardBrowserPicks();
-  consoleState.task.deferred = false;
+  takeUpQuestion('recovered');
   // Information Mode is a live-game instrument twice over: it stands at
   // 11560, and during the count an Info peek would pre-reveal the very
   // totals the ceremony is about to narrate.

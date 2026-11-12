@@ -44,6 +44,8 @@ import {whenPainted} from '@/client/console/session/sessionWaits';
 import type {ConvertController} from '@/client/console/shell/convertController';
 import type {SupervisorController} from '@/client/console/supervisor/supervisorController';
 import type {SeatController} from '@/client/console/shell/seatController';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
+import {takeUpQuestion} from '@/client/console/setAside';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -51,7 +53,7 @@ import type {SeatController} from '@/client/console/shell/seatController';
  */
 export type StartPort = {
   $nextTick(fn?: () => void): Promise<void>,
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   readonly activeTaskSummary: ConsoleTaskSummary | undefined,
   readonly admissionSignals: AdmissionSignals,
   admits(surface: PromptSurface): boolean,
@@ -692,7 +694,7 @@ export function createStartController(shell: StartPort) {
     if (owed === undefined || owed.host !== 'start' || flow.live || workspaceFrameKnown('parliament')) {
       return;
     }
-    consoleState.task.deferred = false;
+    takeUpQuestion('step-opened');
     pushWorkspaceFrame({
       kind: 'parliament',
       subject: '',
@@ -717,7 +719,7 @@ export function createStartController(shell: StartPort) {
     }
     setWorkspaceFrameStage('parliament', AGENDA_WALK_STEP_STAGE);
     setWorkspaceFramePhase('parliament', 'executing');
-    const section = (shell.$refs.parliamentSection ?? undefined) as InstanceType<typeof ConsoleParliamentSection> | undefined;
+    const section = shell.surfaces.at<InstanceType<typeof ConsoleParliamentSection>>('parliamentSection');
     void shell.$nextTick(() => {
       if (agendaWalkFlow.owed?.host === 'start' && !agendaWalkFlow.live) {
         section?.openWalkFlow();
@@ -761,7 +763,7 @@ export function createStartController(shell: StartPort) {
       if (!startStrandedNow.value) {
         return;
       }
-      const scene = (shell.$refs.startScene ?? undefined) as {healStrand?: () => string} | undefined;
+      const scene = shell.surfaces.at<{healStrand?: () => string}>('startScene');
       const sceneHeal = scene?.healStrand?.() ?? 'no-scene';
       // …and a step of the start that nothing hosts any more is re-opened through the router's own door (R15).
       const healed = sceneHeal === 'nothing-to-heal' || sceneHeal === 'no-scene' ? shell.reopenStartStep() || sceneHeal : sceneHeal;

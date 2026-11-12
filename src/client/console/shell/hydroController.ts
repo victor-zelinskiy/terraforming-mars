@@ -60,6 +60,7 @@ import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {PendingPlayCard} from '@/client/console/shell/shellShared';
 import type {SeatController} from '@/client/console/shell/seatController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 
 /** The hydro RESULT stage's read hold — long enough for the route + reward
  *  lines, skippable by A/B (both land in `finishHydroFlow`). */
@@ -78,7 +79,7 @@ const HYDRO_RESULT_ARMED = -1;
  */
 export type HydroPort = {
   $nextTick(fn?: () => void): Promise<void>,
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   admits(surface: PromptSurface): boolean,
   awaitingInput: UnwrapRef<SeatController['awaitingInput']>,
   readonly cardArrivalBusy: boolean,
@@ -1661,7 +1662,7 @@ export function createHydroController(shell: HydroPort) {
     if (isCommitted(workspaceFramePhase('hand') ?? 'browse')) {
       setWorkspaceFramePhase('hand', 'configure');
     }
-    ((shell.$refs.playConfirm ?? undefined) as InstanceType<typeof ConsolePlayCardConfirm> | undefined)?.resetSubmitting?.();
+    (shell.surfaces.at<InstanceType<typeof ConsolePlayCardConfirm>>('playConfirm'))?.resetSubmitting?.();
   }
 
   // THE RECOVERY NET: the SERVER phase drives the flow when the glide

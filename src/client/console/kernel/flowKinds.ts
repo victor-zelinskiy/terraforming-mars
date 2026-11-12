@@ -26,6 +26,11 @@
 export type FlowKind =
   /** The game screen's root — lives from the session's start to its end. */
   | 'session'
+  /**
+   * ONE question of the server — from the view that first carries its identity to the view that carries another
+   * (`session/questionScope.ts`). What exists only for that question is opened in it.
+   */
+  | 'question'
   /** The submit funnel's own lifetime (one per session). */
   | 'transport'
   /** ONE submit: from the press's ticket to its settle. */
@@ -55,6 +60,9 @@ export type FlowKind =
 
 export const WAITS_ON = {
   session: [],
+  // A question waits for nobody — it is what everybody else is there to answer. And nothing waits for ITS end: it
+  // ends when the server asks something else, which no flow of the client may be parked on.
+  question: [],
   transport: [],
   // A submit waits for the server and for its own gates (children) — never for another flow: everything else waits
   // for IT, so an edge out of here would be one hop from a cycle with every flow in the client.

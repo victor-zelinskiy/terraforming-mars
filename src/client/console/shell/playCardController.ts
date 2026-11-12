@@ -3,7 +3,7 @@
  *
  * THE PLAYCARD CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
-import type {UnwrapRef} from 'vue';
+import type {Ref, UnwrapRef} from 'vue';
 import type {PreselectAddress} from '@/common/inputs/preselectAddress';
 import {computed, ref} from 'vue';
 import {scopedState} from '@/client/console/session/scopedState';
@@ -26,7 +26,7 @@ import {armHandPlayPrewarm, cancelHandPlayPrewarm} from '@/client/console/consol
 import {armPreselectedDiscard} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {PreselectedDiscard} from '@/client/console/cardDiscard/preselectedDiscards';
 import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
-import {armPlayedHero, isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
+import {armPlayedHero, isPlayedHeroActive, playedHeroState} from '@/client/console/played/consolePlayedHero';
 import {CardType} from '@/common/cards/CardType';
 import {releaseConsolePlayCardCommands} from '@/client/console/consolePlayCardUi';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
@@ -66,6 +66,10 @@ import type {NoticeController} from '@/client/console/shell/noticeController';
 import type {SeatController} from '@/client/console/shell/seatController';
 import type {ColonyController} from '@/client/console/shell/colonyController';
 import type {WheelController} from '@/client/console/shell/wheelController';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
+import {playComposerOutlived} from '@/client/console/played/playComposerLifetime';
+import {questionScope} from '@/client/console/session/questionScope';
+import {promptReceiveState} from '@/client/console/cardReceive/promptReceive';
 
 /** A staged PLAY's locked receipt — the card's price in M€ as the composer settled it (TR03 / TR07). */
 function playReceiptOf(pending: PendingPlayCard): StagedReceipt | undefined {
@@ -78,7 +82,7 @@ function playReceiptOf(pending: PendingPlayCard): StagedReceipt | undefined {
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
 export type PlayCardPort = {
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   actionsAvailableCount: UnwrapRef<CardActionsController['actionsAvailableCount']>,
   adoptPlayEffectDecision: UnwrapRef<RouterController['adoptPlayEffectDecision']>,
   beginEspionageExecution: UnwrapRef<HydroController['beginEspionageExecution']>,
@@ -109,16 +113,26 @@ export type PlayCardPort = {
 
 export function createPlayCardController(shell: PlayCardPort) {
   // ── state ────────────────────────────────────────────────────────────────────────────────────────────────────────
-  const pendingPlayCard = scopedState('pending-play-card', undefined as PendingPlayCard | undefined);
+  // A latch of the QUESTION (session/questionScope.ts) — the native play composer answers the prompt it was opened
+  // for. It OUTLIVES that prompt mid workspace landing scene: the prompt change IS the commit of the very play this
+  // composer hosts, and its embedded tableau must live until the fold (the scene's `closing` teardown owns the
+  // clear there). An abandoned composer with no armed transaction ends with its question.
+  const pendingPlayCard = scopedState('pending-play-card', undefined as PendingPlayCard | undefined, questionScope,
+    {outlives: () => isPlayedHeroActive() && playedHeroState.host === 'workspace'});
   /** The card mid-RETURN from a cancelled play composer (its hand slot
    *  stays held until the transfer proxy touches down). */
   const returningPlayCard = ref(undefined as CardName | undefined);
   /** The card just PLAYED (success) — its hand slot stays held until the
    *  server response removes it from the hand (never a fake return). */
   const departingPlayCard = ref(undefined as CardName | undefined);
-  const pendingClientPayment = scopedState('pending-client-payment', undefined as PendingClientPayment | undefined);
+  // A client payment built for a prompt that moved on is stale — a latch of the QUESTION.
+  const pendingClientPayment = scopedState('pending-client-payment', undefined as PendingClientPayment | undefined, questionScope);
   /** A client-hosted PICK (RX35's «where» on a one-press door) — see `PendingClientPick`. */
-  const pendingClientPick = scopedState('pending-client-pick', undefined as PendingClientPick | undefined);
+  // …and so is a client-hosted pick — unless it was ANSWERED and its receive scene is still owed (RX35): the commit
+  // that moved the prompt on IS the answer the scene plays, and the scene's end — a tick after that commit — is what
+  // lets it leave.
+  const pendingClientPick: Ref<PendingClientPick | undefined> = scopedState('pending-client-pick', undefined as PendingClientPick | undefined, questionScope,
+    {outlives: (): boolean => pendingClientPick.value?.answered === true && promptReceiveState.card !== undefined});
 
   // ── derived ──────────────────────────────────────────────────────────────────────────────────────────────────────
   const playAction = computed(() => {
@@ -814,7 +828,7 @@ export function createPlayCardController(shell: PlayCardPort) {
     if (pendingPlayCard.value !== undefined) {
       releaseConsolePlayCardCommands();
     }
-    const composer = ((shell.$refs.playConfirm ?? undefined) as {$refs?: {rootEl?: unknown}} | undefined)?.$refs?.rootEl;
+    const composer = shell.surfaces.at<{composerRootEl?: () => HTMLElement | undefined}>('playConfirm')?.composerRootEl?.();
     const proxy = typeof document === 'undefined' ? null : document.querySelector('.con-played-hero__proxy');
     const fades = [composer, proxy].flatMap((el) =>
       el instanceof HTMLElement && !consoleReducedMotionActive() && typeof el.animate === 'function' ?
@@ -892,7 +906,27 @@ export function createPlayCardController(shell: PlayCardPort) {
     }
   }
 
+  /**
+   * THE PLAY COMPOSER ANSWERS ONE PROMPT, named by its SERIAL. The question's key is «type | title», and once every
+   * other seat has passed (or in any solo game) every action menu reads «Take your next action»: an ACCEPTED play left
+   * its composer standing on the same key, and the espionage — the one play no landing scene owns — posted itself a
+   * second time from under the Hydronetwork («Unknown card name Corporate Espionage», 2026-10-23); with the flow over,
+   * `goBoardHome` stood the same composer up again as a band. A moved serial is the server's own word; a landing scene
+   * or the play's outcome still owning the composer keeps it. Asked by the view-apply reaction on every applied view.
+   */
+  function reconcileComposerSerial(newView: PlayerViewModel): void {
+    if (playComposerOutlived({
+      composedFor: pendingPlayCard.value?.promptId,
+      live: newView.waitingFor?.promptId,
+      heroOwns: isPlayedHeroActive(),
+      outcomeOwns: isPlayOutcomeHost(workspaceOutcomeState.host) && workspaceOutcomeClaimed(),
+    })) {
+      pendingPlayCard.value = undefined;
+    }
+  }
+
   return {
+    reconcileComposerSerial,
     pendingPlayCard,
     returningPlayCard,
     departingPlayCard,

@@ -69,6 +69,7 @@ import type {StdProjectsController} from '@/client/console/shell/stdProjectsCont
 import type {StartController} from '@/client/console/shell/startController';
 import type {MandatoryController} from '@/client/console/shell/mandatoryController';
 import type {SeatController} from '@/client/console/shell/seatController';
+import {setQuestionAside, takeUpQuestion} from '@/client/console/setAside';
 
 /** The standard projects' step zone — the hosted payment / pick / Venus bonus re-home there (one literal). */
 const STDP_STEP_ZONE = '.con-stdp [data-embed-slot="stdp-step"]';
@@ -1022,7 +1023,7 @@ export function createRouterController(shell: RouterPort) {
       closeConsoleLayers();
     }
     noteSeriesAnswer();
-    consoleState.task.deferred = false;
+    takeUpQuestion('answered');
     shell.submit(response);
   }
 
@@ -1058,7 +1059,7 @@ export function createRouterController(shell: RouterPort) {
     if (!taskBelongsToWorkspace.value && effectDecisionEmbedTarget.value === undefined && venusBonusEmbedTarget.value === undefined) {
       closeConsoleLayers();
     }
-    consoleState.task.deferred = false;
+    takeUpQuestion('answered');
     shell.submitBatch(responses);
   }
 
@@ -1111,7 +1112,7 @@ export function createRouterController(shell: RouterPort) {
       }
       return;
     }
-    consoleState.task.deferred = true;
+    setQuestionAside('question');
   }
 
   function openShellTaskSurface(task: ConsoleTask): void {
@@ -1164,7 +1165,7 @@ export function createRouterController(shell: RouterPort) {
       // ПАРТИИ». The lateral `openSheet` below stays the mid-game door
       // (a merger-acquired Vitor over the board).
       if (workspaceHostForStep() === 'start' && !workspaceFrameKnown('awards')) {
-        consoleState.task.deferred = false;
+        takeUpQuestion('step-opened');
         pushWorkspaceFrame({
           kind: 'awards',
           // The crumb's stable middle + the step's `L3 Источник` card: the
@@ -1231,7 +1232,7 @@ export function createRouterController(shell: RouterPort) {
       // ЗНАМЯ», «… › THE DEIMOS GROUP › ГОЛОСОВАНИЕ»), past the commit (B = «Свернуть»). The section arms its own mode
       // before the first render (`bridge.bannerPick` / `bridge.grant`).
       if (firstActionPartyStep(shell.playerView.waitingFor) && workspaceHostForStep() === 'start' && !workspaceFrameKnown('parliament')) {
-        consoleState.task.deferred = false;
+        takeUpQuestion('step-opened');
         // P60 · FW — a PRELUDE's grant names its prelude (`startPreludeGrantOf`): after a reload no start state does.
         const giver = startPreludeGrantOf(shell.playerView) ?? consoleStartState.firstAct.corp ?? '';
         pushWorkspaceFrame({
@@ -1655,7 +1656,21 @@ export function createRouterController(shell: RouterPort) {
     openEffectDecisionPick(action);
   }
 
+  /**
+   * The server's question as the shell last saw it: has its identity moved? (`promptIdentityKey` — never a title.)
+   * The view-apply reaction asks once per applied view; a `true` is the edge every «belongs to the question» state
+   * ends on.
+   */
+  function questionChanged(key: string): boolean {
+    if (key === lastTaskKey.value) {
+      return false;
+    }
+    lastTaskKey.value = key;
+    return true;
+  }
+
   return {
+    questionChanged,
     seriesVisit,
     lastTaskKey,
     presentationHeld,

@@ -78,7 +78,8 @@ export function inMonolithDialect(controller: string, mirrors: ReadonlyArray<{na
   }
   for (const {name, local} of members) {
     const id = escape(local);
-    if (new RegExp(`\\n {2}const ${id} = (?:ref|computed)\\(`).test(body)) {
+    // (`scopedState` is a `Ref` too — a latch of the shell; a self-referential one carries its type annotation.)
+    if (new RegExp(`\\n {2}const ${id}(?:: [^=\\n]+)? = (?:ref|shallowRef|computed|scopedState)\\(`).test(body)) {
       body = body.replace(new RegExp(`(?<![\\w$.])${id}\\.value\\b`, 'g'), `this.${name}`);
     } else if (new RegExp(`\\n {2}(?:async )?function ${id}\\b`).test(body)) {
       // every use but the declaration itself (`function x(` keeps its name — `shellMember` finds it by it)

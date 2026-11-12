@@ -12,9 +12,9 @@ import {
   setHydroRepeatBridge,
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {hydroMarkerState, resetHydroMarker} from '@/client/console/hydroMarker/consoleHydroMarker';
-import {consoleState} from '@/client/console/consoleRouter';
 import {enterWorkspace, resetWorkspaceStack, resumeStackFromBoard, yieldStackForStagedPlay} from '@/client/console/consoleWorkspaceStack';
 import {presentationLedgerSnapshot} from '@/client/console/presentationLedger';
+import {setQuestionAside, takeUpQuestion} from '@/client/console/setAside';
 
 function commitRec(over: Partial<Omit<HydroCommitRecord, 'phase'>> = {}): Omit<HydroCommitRecord, 'phase'> {
   return {
@@ -323,7 +323,7 @@ describe('the hydro flow-close witnesses', () => {
   beforeEach(() => {
     resetHydroFlow();
     resetHydroMarker();
-    consoleState.task.deferred = false;
+    takeUpQuestion('restored');
   });
   after(() => {
     resetHydroFlow();
@@ -331,7 +331,7 @@ describe('the hydro flow-close witnesses', () => {
     resetWorkspaceStack();
     registerHydroFlowProbe(undefined);
     registerHydroCeremonyStarter(undefined);
-    consoleState.task.deferred = false;
+    takeUpQuestion('restored');
   });
 
   function probe(over: Partial<HydroFlowProbe> = {}): HydroFlowProbe {
@@ -357,10 +357,10 @@ describe('the hydro flow-close witnesses', () => {
     hydroMarkerState.planCursor = 1;
     expect(hydroCeremonyWitnessLying(), 'a standing plan holds it — pauses included').eq(false);
     hydroMarkerState.planCursor = -1;
-    consoleState.task.deferred = true;
+    setQuestionAside('question');
     expect(hydroFlowSetAside()).eq(true);
     expect(hydroCeremonyWitnessLying(), 'a park is not a wedge').eq(false);
-    consoleState.task.deferred = false;
+    takeUpQuestion('restored');
     // A RUNNING choreography is healthy — until it outlives any possible run.
     setHydroCeremonyActive(true);
     expect(hydroCeremonyWitnessLying(), 'running fresh').eq(false);
@@ -422,9 +422,9 @@ describe('the hydro flow-close witnesses', () => {
     expect(hydroFlowStuckLying(), 'a busy resolution is healthy').eq(false);
     registerHydroFlowProbe(probe({busy: () => false}));
     expect(hydroFlowStuckLying(), 'quiet resolving = the falling edge was missed').eq(true);
-    consoleState.task.deferred = true;
+    setQuestionAside('question');
     expect(hydroFlowStuckLying(), 'a park is not a wedge').eq(false);
-    consoleState.task.deferred = false;
+    takeUpQuestion('restored');
     advanceHydroCommitPhase('result');
     expect(hydroFlowStuckLying(), 'the read hold is armed — healthy').eq(false);
     registerHydroFlowProbe(probe({resultHoldArmed: () => false}));

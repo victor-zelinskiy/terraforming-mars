@@ -63,6 +63,7 @@ import type {StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {EffectForecast} from '@/common/models/EffectForecastModel';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {probeTick} from '@/client/console/probeTick';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 
 /** The fullscreen viewer's OPEN / CLOSE flight swallows the pad on purpose (the card is mid-air) — said on the ledger. */
 const ZOOM_FLIGHT_ABSORBER = 'zoom-flight';
@@ -76,7 +77,7 @@ const ZOOM_SIDE_NAV_STEP_PX = 90;
  */
 export type ViewerPort = {
   $nextTick(fn?: () => void): Promise<void>,
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   readonly awaitingInput: boolean,
   readonly game: GameModel,
   readonly handEntries: ReadonlyArray<ConsoleHandEntry>,
@@ -623,7 +624,7 @@ export function createViewerController(shell: ViewerPort) {
     if (token !== zoomOpenToken.value) {
       return;
     }
-    const proxyEl = (shell.$refs.zoomFlightProxy ?? undefined) as HTMLElement | undefined;
+    const proxyEl = shell.surfaces.at<HTMLElement>('zoomFlightProxy');
     playZoomOpenFlight(proxyEl, index, source, landing.rect, {
       onShow: () => {
         if (token === zoomOpenToken.value && consoleCardZoom.card !== undefined) {
@@ -675,13 +676,13 @@ export function createViewerController(shell: ViewerPort) {
    * input when the rules have nothing to scroll).
    */
   function scrollZoomSide(delta: number): void {
-    const inspect = (shell.$refs.zoomInspectSide ?? undefined) as {scrollBody?: (dy: number) => boolean} | undefined;
+    const inspect = shell.surfaces.at<{scrollBody?: (dy: number) => boolean}>('zoomInspectSide');
     if (inspect?.scrollBody?.(delta) === true) {
       return;
     }
-    const rules = (shell.$refs.zoomRulesPanel ?? undefined) as {scrollBody?: (dy: number) => boolean} | undefined;
+    const rules = shell.surfaces.at<{scrollBody?: (dy: number) => boolean}>('zoomRulesPanel');
     if (rules?.scrollBody?.(delta) !== true) {
-      const aside = (shell.$refs.zoomAsidePanel ?? undefined) as {scrollBody?: (dy: number) => boolean} | undefined;
+      const aside = shell.surfaces.at<{scrollBody?: (dy: number) => boolean}>('zoomAsidePanel');
       aside?.scrollBody?.(delta);
     }
   }
@@ -708,7 +709,7 @@ export function createViewerController(shell: ViewerPort) {
       noteInputAbsorbed(ZOOM_FLIGHT_ABSORBER);
       return true;
     }
-    const zoom = (shell.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
+    const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
     // INSPECT DOSSIER: LB/RB switch the ПРАВИЛА/СТАТИСТИКА tab (never browse —
     // the inspect list is always ONE card, so prev/next are free here). A
     // repeated press just re-sets the same tab (idempotent, no overlap).
@@ -836,7 +837,7 @@ export function createViewerController(shell: ViewerPort) {
     if (swap === undefined || zoomClosing.value || zoomSwapping.value) {
       return;
     }
-    const zoom = (shell.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
+    const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
     zoomSwapping.value = true;
     void playZoomSwap(zoom?.$el as HTMLElement | undefined, () => swap.swap(), () => zoom?.fitCardToViewport())
       .then(() => {
@@ -866,7 +867,7 @@ export function createViewerController(shell: ViewerPort) {
       return;
     }
     const idx = consoleCardZoom.index;
-    const zoom = (shell.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
+    const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
     if (r.departFromFullscreen === true) {
       // SINGLE-CARD reveal: the card departs from fullscreen INTO THE HAND
       // — playZoomDepart hands the flight to the hand-intake director (the
@@ -907,7 +908,7 @@ export function createViewerController(shell: ViewerPort) {
       return;
     }
     const handoffSel = action.handoffTarget?.(card.name as CardName);
-    const zoom = (shell.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
+    const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
     if (handoffSel !== undefined && zoom !== undefined) {
       action.execute(card.name as CardName);
       zoomFlight.value = true;
@@ -952,7 +953,7 @@ export function createViewerController(shell: ViewerPort) {
    * self-guards on `open`).
    */
   async function closeZoomViewer(): Promise<void> {
-    const zoom = (shell.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
+    const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
     if (zoom === undefined) {
       return;
     }
@@ -1018,7 +1019,7 @@ export function createViewerController(shell: ViewerPort) {
         if (consoleCardZoom.card === undefined) {
           return; // closed before it ever opened
         }
-        const zoom = (shell.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
+        const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
         const el = zoom?.$el as HTMLElement | undefined;
         if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
           if (attempt < 10) {

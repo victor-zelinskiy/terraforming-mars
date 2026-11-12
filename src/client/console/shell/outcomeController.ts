@@ -32,16 +32,16 @@ import {endPreludePlayChain, preludeChainHoldsClaim, preludePlayChainState} from
 import {workspaceClaimsColonyRevealBatch, workspaceClaimsDrawRevealBatch, workspaceClaimsRevealBatch, workspaceClaimsDeckCheck, workspaceClaimsPick, workspaceOutcomeClaimed, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending} from '@/client/console/boardBeatPark';
 import {PARLIAMENT_DRAW_ZONE} from '@/client/console/parliament/parliamentDraw';
-import {colonyBonusPayoutLive} from '@/client/console/colonyLedger/colonyBonusPayout';
+import {colonyBonusPayoutLive, colonyBonusPayoutArmed} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {isPlayOutcomeHost, playOwesTargetPick} from '@/client/console/played/consolePlayOutcomeClaim';
 import {boardCardBonusClaimsReveal} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {applyOutcomeAdoption, outcomeAdoptionHost, resolveOutcomeAdoption, sameAdoptionDecision, OutcomeAdoptionDecision} from '@/client/console/consoleOutcomeAdoption';
 import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import {ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, touchdownTickAt} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {runResourceTransfers, releasePanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {ActionCommitPlan, actionCommitHolding, releaseActionCommit} from '@/client/console/consoleActionCommit';
+import {runResourceTransfers, releasePanelRewardHold, surfaceClear, surfaceHoldsTokens, beginPanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {ActionCommitPlan, actionCommitHolding, releaseActionCommit, consumeActionCommitPlan} from '@/client/console/consoleActionCommit';
 import {consoleState, closeConsoleLayers} from '@/client/console/consoleRouter';
-import {clearLawPlayDraft, endLawPlayLanding} from '@/client/console/consolePlayPick';
+import {clearLawPlayDraft, endLawPlayLanding, lawPlayLandingOf} from '@/client/console/consolePlayPick';
 import {conclusionRefusal} from '@/client/console/shell/shellFlowState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {PromptSurface} from '@/client/console/consolePromptAdmission';
@@ -56,6 +56,12 @@ import type {SupervisorController} from '@/client/console/supervisor/supervisorC
 import type {PlacementController} from '@/client/console/shell/placementController';
 import type {StdProjectsController} from '@/client/console/shell/stdProjectsController';
 import {ConclusionReask, oweConclusion, registerConclusionOwePort, withdrawConclusionOwe, owedConclusionFactsKey, reaskMovedConclusions} from '@/client/console/workspaceConclusionOwe';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
+import {actionCommitRailState, flyActionCommitRail} from '@/client/console/consoleActionCommitRail';
+import {clearAwaitingHandoff, captureSurfaceDeparture, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {resolveAwaiting} from '@/client/console/surfaceMotion/surfaceMotionModel';
+import {beginBlockadeExecution, consumeBlockadeExecution} from '@/client/console/hydroFlow/deltaBlockadeEntry';
+import {takeUpQuestion} from '@/client/console/setAside';
 
 /** PL-127: the composer's unfold is over by then — the warm mount of a declared hosted step lands in the reading pause. */
 const PARLIAMENT_WARM_SETTLE_MS = 450;
@@ -85,7 +91,7 @@ const PLAY_CLAIMED_TASK_KINDS: ReadonlySet<TaskKind> =
  */
 export type OutcomePort = {
   $nextTick(fn?: () => void): Promise<void>,
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   admits(surface: PromptSurface): boolean,
   armPartyDiscardStep: UnwrapRef<ParliamentController['armPartyDiscardStep']>,
   /** WRITTEN here. */ cardActionsDissolveArmed: UnwrapRef<CardActionsController['cardActionsDissolveArmed']>,
@@ -113,6 +119,7 @@ export type OutcomePort = {
   readonly hostServesPrompt: boolean,
   readonly hostTask: ConsoleTask | undefined,
   lastLivenessAccepting: UnwrapRef<SupervisorController['lastLivenessAccepting']>,
+  /** WRITTEN here. */ lawPlayFold: UnwrapRef<ParliamentController['lawPlayFold']>,
   lawStepOwed: UnwrapRef<ParliamentController['lawStepOwed']>,
   ledgerPayoutClaimed: UnwrapRef<ParliamentController['ledgerPayoutClaimed']>,
   parliamentLeaveRelease: UnwrapRef<ParliamentController['parliamentLeaveRelease']>,
@@ -1089,7 +1096,7 @@ export function createOutcomeController(shell: OutcomePort) {
     if (shell.pendingPlayCard !== undefined) {
       releaseConsolePlayCardCommands();
     }
-    const composer = ((shell.$refs.playConfirm ?? undefined) as {$refs?: {rootEl?: unknown}} | undefined)?.$refs?.rootEl;
+    const composer = shell.surfaces.at<{composerRootEl?: () => HTMLElement | undefined}>('playConfirm')?.composerRootEl?.();
     const proxy = typeof document === 'undefined' ? null : document.querySelector('.con-played-hero__proxy');
     const fades = [composer, proxy].flatMap((el) =>
       el instanceof HTMLElement && !consoleReducedMotionActive() && typeof el.animate === 'function' ?
@@ -1162,7 +1169,7 @@ export function createOutcomeController(shell: OutcomePort) {
       return;
     }
     const wf = shell.playerView.waitingFor;
-    consoleState.task.deferred = false;
+    takeUpQuestion('step-opened');
     setWorkspaceFramePhase('hand', 'committed');
     pushWorkspaceFrame({
       kind: 'parliament', subject: '', stage: followUpStepStage('party', wf) ?? DELEGATE_GRANT_STEP_STAGE, phase: 'committed',
@@ -1492,7 +1499,221 @@ export function createOutcomeController(shell: OutcomePort) {
   });
   onBeforeUnmount(() => registerConclusionOwePort(undefined));
 
+  /**
+   * THE SERVER ANSWERED A COMMIT — the awaiting hand-off's resolve, the action commit's dismissal and its fold. The
+   * view-apply reaction calls it on every applied view, in the place this body stood (pre-flush, before the patch).
+   * It lives HERE because every latch it raises and lowers is this domain's own (`commitFoldOwed`,
+   * `pendingCommitDismiss`): a latch written by the reaction of another file was «pending» state that ended because a
+   * 450-line function remembered to end it (architecture v2 — PLAN §11 · `view-apply-write`).
+   */
+  function resolveAnsweredCommit(newView: PlayerViewModel): void {
+    // SURFACE MOTION — resolve the awaiting handoff (the composer held
+    // the stage through the submit round-trip). PRE-FLUSH on purpose:
+    // the DOM is still the OLD tree, so the departing composer can be
+    // measured HERE for the incoming reveal's anchored FLIP; the close +
+    // the reveal's mount then land in the SAME patch — no blank frame.
+    // THE SERVER ANSWERED. This is the one place that is true BY
+    // DEFINITION on a fresh response, so the execution beat's flip is
+    // released from here rather than from a computed chain
+    // (`hostTask` → `taskBelongsToWorkspace`), which depends on the
+    // admission gate and can settle a tick or more later — long enough for
+    // the beat to sit face-down waiting on a flag that had no reason to
+    // arrive, and to time out on its backstop instead of flipping.
+    if (workspaceOutcomeClaimed()) {
+      markWorkspaceOutcomeAnswerIn();
+      // …AND SETTLE AN OPTIMISTIC CLAIM AGAINST WHAT ACTUALLY CAME BACK. A
+      // card PLAY claims before knowing what it produces, deliberately —
+      // a triggered effect (Point Luna's Earth tag) draws cards no preview
+      // can advertise, so «claim and release if unused» is the only way to
+      // catch them. This is the other half of that bargain: a tick later
+      // the artifact is readable, and a claim that hosts nothing is dropped
+      // instead of expiring on its 20 s backstop — twenty seconds in which
+      // its workspace cannot conclude and the player stands in a stage with
+      // nothing in it. It releases only on POSITIVE evidence that the
+      // outcome went elsewhere, so a real one is never touched. The other
+      // hosts claim structurally and settle through their own paths (the
+      // action's awaiting handoff, the colony's own call above).
+      if (isPlayOutcomeHost(workspaceOutcomeState.host)) {
+        reconcileWorkspaceOutcome();
+      }
+    }
+    const awaiting = surfaceMotionState.awaiting;
+    // A commit whose phrase still owes its fold (a capsule timeline in the
+    // air) has ALREADY been resolved — a later view must not resolve it again.
+    if (awaiting !== undefined && !commitFoldOwed.value) {
+      const lr = newView.lastReveal;
+      const resolution = resolveAwaiting(awaiting, {
+        gameAge: newView.game.gameAge,
+        undoCount: newView.game.undoCount,
+        revealArrived: lr !== undefined && `${lr.action}|${lr.revealed.name}` !== shell.dismissedRevealKey,
+      }, typeof performance !== 'undefined' ? performance.now() : Date.now());
+      if (resolution.kind !== 'hold') {
+        // An outcome CLAIMED by an open workspace stays IN-FRAME: the
+        // workspace keeps the scene and presents it as its own next phase,
+        // so neither the close nor the standalone-overlay phase swap runs.
+        //  · deck-check — «Действия карт › Результат вскрытия»;
+        //  · draw       — «Действия карт › Добор карт», the embedded reveal.
+        // The DRAW arm is deliberately NOT gated on `resolution.kind`: a
+        // plain draw resolves as an ordinary dismiss (there is no reveal
+        // marker to make it a phase), and that dismiss is exactly what used
+        // to blank the workspace and hand the batch to the full-bleed band.
+        // A LIVE claim also holds the surface. At this pre-flush moment the
+        // artifact may not be readable yet (`drawnCardsState` reconciles on
+        // the new view, and a follow-up prompt only routes after the patch),
+        // so the claim itself is the verdict and `reconcileWorkspaceOutcome`
+        // settles it a tick later — closing here on a guess is what handed
+        // the batch to the full-bleed band in the first place.
+        const claimedInFrame = resolution.kind === 'step' ||
+          (resolution.kind === 'phase' &&
+          consoleActionComposerUi.revealClaim !== '' &&
+          lr !== undefined && lr.action === consoleActionComposerUi.revealClaim) ||
+          workspaceClaimsDrawRevealBatch(currentRevealEvent()) ||
+          workspaceOutcomeState.sourceCard !== '' ||
+          // A SelectColony follow-up standing INSIDE the action workspace:
+          // the composer stays and hosts the colonies step — dismissing it
+          // here would tear down the very frame the step lands in.
+          workspaceFrameHasNested('card-actions') ||
+          // «THE LEDGER PAYS» (TR23): the action's whole result is its ledger
+          // paying row by row IN the composer — a payout of plain gains
+          // raises no claim at all, so the armed payout is the verdict.
+          colonyBonusPayoutArmed();
+        if (claimedInFrame) {
+          clearAwaitingHandoff();
+          // A SPEND off the card before a hosted result (PL-201 — TR46's
+          // «all the data → the deck», TR02's 3 data): its token leaves the
+          // capsule on its own beat (the half was seeded against the views in
+          // the apply block; nothing seeded → nothing flies). The release
+          // below leaves a half in the air flying — its chain releases it.
+          const claimedSurface = document.querySelector(`[data-motion-surface="${awaiting.from}"]`) ?? document.querySelector('.con-cardactions');
+          const claimedRail = flyActionCommitRail(consumeActionCommitPlan(), claimedSurface);
+          // The workspace's own stages carry the outcome from here — the
+          // commit beat's job is done, its plan unused (a draw's reward
+          // is the cards themselves).
+          releaseActionCommit();
+          // …and the claim's SETTLE waits for the rail half's tokens to
+          // leave the surface (T09 / BY — H3): a claim nothing turned out
+          // to host is released there and the workspace concludes — a
+          // conclusion in this flush folded it under the spend still
+          // flying off its capsule. Nothing on the surface → at once, as
+          // before.
+          if (claimedRail.holdsSurface || surfaceHoldsTokens(claimedSurface)) {
+            void claimedRail.foldable.then(() => surfaceClear(claimedSurface)).then(() => reconcileWorkspaceOutcome());
+          } else {
+            reconcileWorkspaceOutcome();
+          }
+        } else {
+          // ── ACTION COMMIT resolution (non-embedded results). The rail
+          //    freezes NOW — pre-flush, before this view commits — so a
+          //    counter can never tick ahead of the chips about to fly
+          //    out of the action graphic (the reward wave's contract).
+          const commitPlan = consumeActionCommitPlan();
+          if (commitPlan !== undefined && commitPlan.specs.length > 0) {
+            beginPanelRewardHold(commitPlan.specs);
+          }
+          const finishDismiss = () => {
+            // The wave FIRST (chips are born over the still-standing
+            // icons), then the workspace folds UNDER them — the result
+            // outlives the surface that produced it.
+            const waveLeft = commitPlan !== undefined ? runCommitRewardWave(commitPlan) : Promise.resolve();
+            // A committed DEPLOY (Modular Floodgates variant B) does not
+            // dismiss to the board: the Hydronetwork opens as the
+            // execution surface OVER the committed stage (the fresh gate
+            // assembles in front of the target's marker), and «Готово»
+            // resumes the ordinary conclusion. One-shot, armed at the
+            // submit — every other commit takes the ordinary dismissal.
+            const deploy = consumeBlockadeExecution();
+            if (deploy !== undefined) {
+              // The commit is handed to the execution surface — its fold is no longer owed (what `fold()` says
+              // for every other ending). Left raised, every LATER commit of the session skipped its resolution
+              // above: the rail half stood seeded until its 6 s ceiling, «Выполняется…» with it (the field log
+              // of 2026-10-28 — Atmo Collectors / Jupiter Floating Station after a blockade).
+              commitFoldOwed.value = false;
+              clearAwaitingHandoff();
+              releaseActionCommit();
+              beginBlockadeExecution(deploy.target, deploy.source);
+              return;
+            }
+            // THE RAIL HALF (PL-001 for actions): a direct TR's token is
+            // born on its printed icon and the workspace folds under it; a
+            // capsule TIMELINE (TR28) keeps the workspace while the card is
+            // still a target or a source of a token, and folds under the
+            // last one; a TABLE'S ANSWER flying from the composer's
+            // «Сработает» chip keeps it until the token has left the chip
+            // (PL-220) — the flight says which (`consoleActionCommitRail.ts`).
+            // THE SURFACE the commit's tokens are born on and land on — the
+            // one the fold takes away (its motion surface; the action band).
+            const surfaceEl = document.querySelector(`[data-motion-surface="${awaiting.from}"]`) ?? document.querySelector('.con-cardactions');
+            const rail = flyActionCommitRail(commitPlan, surfaceEl);
+            const fold = () => {
+              commitFoldOwed.value = false;
+              // Capture the departing composer UNCONDITIONALLY — the incoming
+              // surface consumes it only when the pair is phase-linked
+              // (departureUsable), so a reveal FLIPs the source card while a
+              // follow-up task host (a Helion payment, an OrOptions branch)
+              // enters as the continuation of the same activation.
+              captureSurfaceDeparture(awaiting.from,
+                document.querySelector(`[data-motion-surface="${awaiting.from}"]`));
+              clearAwaitingHandoff();
+              closeConsoleLayers();
+              releaseActionCommit();
+            };
+            // THE LAW OF THE FOLD (T06 → T09 / BY): the surface folds when
+            // it is neither the SOURCE nor the DESTINATION of a token in the
+            // air — the wave's tokens born on its printed icons, the rail
+            // half's price drawn INTO its printed cost icon, a result landing
+            // on its capsule. The wave and the chain say when their tokens
+            // have STARTED (`waveLeft` · `rail.foldable`); the engine,
+            // which knows both ends of each as objects, says when the
+            // surface is clear of them (`surfaceClear`). Never a clock,
+            // never a departure alone — a price LEAVES the rail and is still
+            // flying into this surface.
+            const tokensAway = (): Promise<void> => Promise.all([rail.foldable, waveLeft]).then(() => surfaceClear(surfaceEl));
+            if (rail.holdsSurface && actionCommitRailState.phase === 'flying') {
+              // The awaiting handoff stays up (the pad stays inert — the
+              // phrase cannot be cut by a press) and a view arriving
+              // mid-phrase must not resolve it a second time.
+              commitFoldOwed.value = true;
+              void tokensAway().then(fold);
+            } else if (lawPlayLandingOf() !== undefined && isPlayedHeroActive()) {
+              // THE LAW'S CARD IS LANDING IN THIS STAGE (PL-726): the fold waits for the scene to tell its story —
+              // the scene's own `closing` runs it (`playedHeroState.phase` watcher), the workspace dissolving with
+              // the landed tableau inside it. The pad stays inert meanwhile, as for any owed fold.
+              commitFoldOwed.value = true;
+              shell.lawPlayFold = fold;
+            } else if ((commitPlan !== undefined && commitPlan.specs.length > 0 && !consoleReducedMotionActive()) || surfaceHoldsTokens(surfaceEl)) {
+              // The wave, or a single link of the rail (a plain TR born on
+              // its printed icon): the surface stands until the tokens have
+              // left it — one pop, told by the tokens.
+              commitFoldOwed.value = true;
+              void tokensAway().then(fold);
+            } else {
+              fold();
+            }
+          };
+          // A fast server must not cut the minimum readable commit: the
+          // dismiss waits for the beat's settle (never a timer — the
+          // motion's own completion releases it; a dead stage releases
+          // through the beat's short backstop).
+          if (actionCommitHolding()) {
+            // THE COMMIT IS RESOLVED ONCE (T09 / BY — H5b): the fold is owed
+            // from THIS moment, not from the beat's settle. Left open, a
+            // second view in the beat (the bot's «active» broadcast, a poll
+            // behind the answer, the bot's own turn) resolved the handoff
+            // again, found the plan already consumed and OVERWROTE this
+            // dismissal with one that carried no plan: the workspace folded
+            // at the beat's end and the seeded rail half was never flown.
+            commitFoldOwed.value = true;
+            pendingCommitDismiss.value = finishDismiss;
+          } else {
+            finishDismiss();
+          }
+        }
+      }
+    }
+  }
+
   return {
+    resolveAnsweredCommit,
     owedConclusionFacts,
     whenOwedConclusionFactsChanges,
     questionDoorLogged,

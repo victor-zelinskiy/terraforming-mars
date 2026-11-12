@@ -25,42 +25,6 @@
       "src/client/console/hydroFlow/consoleHydroFlow.ts": 2,
       "src/client/console/transport/gameTransport.ts": 1
     },
-    "set-aside-writer": {
-      "src/client/console/endgame/consoleEndgameSeal.ts": 1,
-      "src/client/console/shell/colonyController.ts": 6,
-      "src/client/console/shell/draftController.ts": 1,
-      "src/client/console/shell/mandatoryController.ts": 4,
-      "src/client/console/shell/outcomeController.ts": 1,
-      "src/client/console/shell/parliamentController.ts": 3,
-      "src/client/console/shell/placementController.ts": 2,
-      "src/client/console/shell/playedController.ts": 1,
-      "src/client/console/shell/routerController.ts": 5,
-      "src/client/console/shell/startController.ts": 1,
-      "src/client/console/shell/viewApplyController.ts": 2,
-      "src/client/console/shell/workspaceController.ts": 2,
-      "src/client/console/supervisor/supervisorController.ts": 1
-    },
-    "surface-by-ref": {
-      "src/client/console/shell/colonyController.ts": 20,
-      "src/client/console/shell/handController.ts": 3,
-      "src/client/console/shell/handSelectController.ts": 5,
-      "src/client/console/shell/hydroController.ts": 2,
-      "src/client/console/shell/maController.ts": 2,
-      "src/client/console/shell/outcomeController.ts": 4,
-      "src/client/console/shell/padRouterController.ts": 47,
-      "src/client/console/shell/parliamentController.ts": 3,
-      "src/client/console/shell/placementController.ts": 2,
-      "src/client/console/shell/playCardController.ts": 4,
-      "src/client/console/shell/playedController.ts": 2,
-      "src/client/console/shell/revealController.ts": 4,
-      "src/client/console/shell/startController.ts": 3,
-      "src/client/console/shell/stdProjectsController.ts": 2,
-      "src/client/console/shell/viewerController.ts": 11,
-      "src/client/console/supervisor/supervisorController.ts": 3
-    },
-    "view-apply-write": {
-      "src/client/console/shell/viewApplyController.ts": 19
-    },
     "resolver-mailbox": {
       "src/client/components/actions/actionsPickState.ts": 1,
       "src/client/components/feedback/energyConversionTransition.ts": 1,

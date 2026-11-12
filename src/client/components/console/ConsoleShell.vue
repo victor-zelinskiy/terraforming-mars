@@ -129,7 +129,7 @@
       <!-- …and UNDER a standing workspace while its board PEEK is open (TR45 — L3 «Показать на поле» in the play
            composer): the workspace recedes by opacity over it, keeping its state (`boardPeek.ts`). -->
       <ConsoleBoardSection v-show="consoleState.section === 'board' || boardPeekUi.peek !== undefined"
-                           ref="boardSection"
+                           :ref="surfaces.bind.boardSection"
                            :playerView="playerView"
                            :placementActive="placementActive"
                            :placementShape="placementShape"
@@ -195,7 +195,7 @@
            flex flow underneath). Board home only; owns the pad while open. -->
       <transition name="con-journal">
         <ConsoleJournalPanel v-if="journalPanelVisible"
-                             ref="journalPanel"
+                             :ref="surfaces.bind.journalPanel"
                              :playerView="playerView"
                              @close="closeJournal"
                              @notice="showNotice($event)"
@@ -222,7 +222,7 @@
       <transition :css="false" @leave="handLeaveHook">
       <ConsoleHandSection v-if="workspaceFrameRenders('hand')"
                           v-show="!handCoveredByHydro"
-                          ref="handSection"
+                          :ref="surfaces.bind.handSection"
                           :embedded="handEmbedTarget !== undefined"
                           :entries="handEntries"
                           :index="consoleState.handIndex"
@@ -278,7 +278,7 @@
              colonies inside it as ONE surface, so the section reads the latch of the zone and the pick it stood in
              until the hand's own leave releases it — `coloniesLeaving`.) -->
         <ConsoleColoniesSection v-if="workspaceFrameRenders('colonies') || coloniesLeaving"
-                                ref="coloniesSection"
+                                :ref="surfaces.bind.coloniesSection"
                                 :data-motion-surface="colonySectionTarget !== undefined ? undefined : 'section'"
                                 :embedded="colonySectionTarget !== undefined"
                                 :colonies="coloniesForRail"
@@ -327,7 +327,7 @@
                              v-show="!pickBridgeActive || hydroInstrumentOut || repeatPickHandoff"
                              :class="{'con-bridgefade': repeatPickHandoff && !hydroInstrumentOut}"
                              data-motion-surface="section"
-                             ref="hydroSection"
+                             :ref="surfaces.bind.hydroSection"
                              :playerView="playerView"
                              :actionAvailable="hydroActionAvailable"
                              :cacheKey="hydroCacheKey"
@@ -378,7 +378,7 @@
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="onParliamentLeaveCancelled">
         <ConsoleParliamentSection v-if="parliamentMounted"
                                   :data-motion-surface="parliamentEmbedActive ? undefined : 'section'"
-                                  ref="parliamentSection"
+                                  :ref="surfaces.bind.parliamentSection"
                                   :playerView="playerView"
                                   :leaving="parliamentLeaving"
                                   :warm="parliamentWarm"
@@ -445,7 +445,7 @@
         <ConsoleCardActions v-if="workspaceFrameRenders('card-actions')"
                             v-show="!pickBridgeActive || repeatPickHandoff"
                             :class="{'con-bridgefade': repeatPickHandoff}"
-                            ref="cardActions"
+                            :ref="surfaces.bind.cardActions"
                             :playerView="playerView"
                             :collapsed="workspaceCollapsed"
                             :blockedReason="actionBlockedReason"
@@ -493,7 +493,7 @@
         <ConsoleCardActions v-if="workspaceFrameRenders('repeat-pick')"
                             v-show="!repeatPickSceneOut"
                             repeat
-                            ref="repeatPick"
+                            :ref="surfaces.bind.repeatPick"
                             :playerView="playerView"
                             @close="onRepeatPickClose" />
       </transition>
@@ -509,7 +509,7 @@
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @after-leave="onInfoModeLeaveSettled"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleInfoMode v-if="infoModeState.open" ref="infoMode" :playerView="playerView" :myTurn="myTurn" />
+        <ConsoleInfoMode v-if="infoModeState.open" :ref="surfaces.bind.infoMode" :playerView="playerView" :myTurn="myTurn" />
       </transition>
     </div>
 
@@ -525,7 +525,7 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleColonyInspect v-if="colonyInspectModel !== undefined"
-                            ref="journalInspect"
+                            :ref="surfaces.bind.journalInspect"
                             :colony="colonyInspectModel"
                             :players="playerView.players"
                             :viewerColor="thisPlayer.color"
@@ -547,7 +547,7 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsolePlayedOverlay v-if="playedTableVisible"
-                            ref="playedOverlay"
+                            :ref="surfaces.bind.playedOverlay"
                             :players="playerView.players"
                             :thisPlayerColor="thisPlayer.color"
                             :automa="playerView.game.automa"
@@ -614,7 +614,7 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleStdProjectsScreen v-if="workspaceFrameRenders('standard-projects')"
-                                ref="stdpScreen"
+                                :ref="surfaces.bind.stdpScreen"
                                 :items="stdProjectItems"
                                 :index="consoleState.sheetIndex"
                                 :myMegacredits="thisPlayer.megacredits"
@@ -624,7 +624,7 @@
                                 :players="playerView.players"
                                 :statsView="playerView" />
       <ConsoleMaScreen v-else-if="maScreenKind !== undefined"
-                       ref="maScreen"
+                       :ref="surfaces.bind.maScreen"
                        :kind="maScreenKind"
                        :items="maScreenItems"
                        :index="consoleState.sheetIndex"
@@ -655,7 +655,7 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleActionConfirm v-if="consoleState.confirm !== undefined"
-                            ref="actionConfirm"
+                            :ref="surfaces.bind.actionConfirm"
                             :kind="consoleState.confirm"
                             :stepUp="pendingClientPick?.host === 'confirm'"
                             :effects="confirmEffects"
@@ -688,7 +688,7 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleDraftWorkspace v-if="draftWorkspaceMounted"
-                             ref="draftWs"
+                             :ref="surfaces.bind.draftWs"
                              :playerView="playerView"
                              @submit="onDraftSubmit"
                              @defer="onDraftDefer" />
@@ -706,7 +706,7 @@
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
         <ConsoleExternalDrawWorkspace v-if="externalDrawWorkspaceMounted"
-                                      ref="extDrawWs"
+                                      :ref="surfaces.bind.extDrawWs"
                                       :playerView="playerView"
                                       :embedded="externalDrawEmbedTarget !== undefined"
                                       @submit="onExternalDrawSubmit" />
@@ -735,7 +735,7 @@
         <!-- A SERIES IS ONE VISIT (PC04 · GS): between answer k and question k + 1 of the same series the host STANDS on
              the answered question (`seriesHeldVisit` — inert, the pad absorbed), and the next one arrives in place. -->
         <ConsoleTaskHost v-if="(hostTask !== undefined && taskHostRendered) || seriesHeldVisit !== undefined"
-                         ref="taskHost"
+                         :ref="surfaces.bind.taskHost"
                          :playerView="playerView"
                          :task="(hostTask ?? seriesHeldVisit?.task)!"
                          :embedded="taskEmbedTarget !== undefined"
@@ -768,7 +768,7 @@
         <!-- …and a series is ONE visit here too (PC04 · GS): between two questions of one series the decision stands on
              the answered one (`seriesHeldDecision`), inert, until the next arrives in place. -->
         <ConsoleEffectDecision v-if="(effectDecisionVm !== undefined && effectDecisionRendered) || seriesHeldDecision !== undefined"
-                               ref="effectDecision"
+                               :ref="surfaces.bind.effectDecision"
                                :playerView="playerView"
                                :prompt-override="effectDecisionRendered ? undefined : seriesHeldDecision?.input"
                                :vm="(effectDecisionRendered ? effectDecisionVm : seriesHeldDecision?.vm)!"
@@ -789,7 +789,7 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleGovernmentSupport v-if="govSupportActive && !govScaleFocusState.closing && !consoleState.task.deferred && taskSpacePending === undefined"
-                                ref="govSupport"
+                                :ref="surfaces.bind.govSupport"
                                 :playerView="playerView"
                                 @submit="onTaskSubmit"
                                 @defer="onTaskDefer"
@@ -810,7 +810,7 @@
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
         <ConsoleDeckPick v-if="deckPickActive && !deckPickHeldForWorkspace"
-                         ref="deckPick"
+                         :ref="surfaces.bind.deckPick"
                          :playerView="playerView"
                          :embedded="deckPickEmbedTarget !== undefined"
                          @submit="onTaskSubmit"
@@ -826,7 +826,7 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleProductionLoss v-if="productionLossActive && !consoleState.task.deferred && taskSpacePending === undefined"
-                             ref="prodLoss"
+                             :ref="surfaces.bind.prodLoss"
                              :playerView="playerView"
                              @submit="onTaskSubmit"
                              @defer="onTaskDefer" />
@@ -839,7 +839,7 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleSpendHeat v-if="spendHeatActive"
-                        ref="spendHeat"
+                        :ref="surfaces.bind.spendHeat"
                         :playerView="playerView"
                         @submit="onTaskSubmit"
                         @defer="onTaskDefer" />
@@ -853,7 +853,7 @@
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
         <ConsoleVenusBonus v-if="venusBonusActive"
-                           ref="venusBonus"
+                           :ref="surfaces.bind.venusBonus"
                            :playerView="playerView"
                            :embedded="venusBonusEmbedTarget !== undefined"
                            @submit="onTaskSubmit"
@@ -864,7 +864,7 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleAresGlobals v-if="aresGlobalsActive"
-                          ref="aresGlobals"
+                          :ref="surfaces.bind.aresGlobals"
                           :playerView="playerView"
                           @submit="onTaskSubmit"
                           @defer="onTaskDefer" />
@@ -881,7 +881,7 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleBotAttack v-if="botAttackActive && botAttackVm !== undefined"
-                        ref="botAttack"
+                        :ref="surfaces.bind.botAttack"
                         :playerView="playerView"
                         :vm="botAttackVm"
                         @submit="onTaskSubmit"
@@ -894,7 +894,7 @@
     <transition name="con-layer">
       <ConsoleStartScene v-if="startSceneMounted"
                          :yielded="!startSceneVisible"
-                         ref="startScene"
+                         :ref="surfaces.bind.startScene"
                          :playerView="playerView"
                          :waitingOnPlayers="waitingOnPlayers"
                          :task="startTask"
@@ -915,7 +915,7 @@
     <transition name="con-layer">
       <ConsoleEndgameWorkspace v-if="endgameWorkspaceMounted"
                                v-show="!endgameCollapsed"
-                               ref="endgameWs"
+                               :ref="surfaces.bind.endgameWs"
                                :playerView="playerView" />
     </transition>
 
@@ -941,7 +941,7 @@
              multi-settlement payout — PARKED (no batch, no input, no commands) in the receded stage's zone while
              the hand owns the room — so the place that held the sealed card is the element that turns over. -->
         <ConsoleRevealOverlay v-if="revealOverlayMode !== undefined || settlementTableParked"
-                              ref="revealOverlay"
+                              :ref="surfaces.bind.revealOverlay"
                               :playerView="playerView"
                               :mode="revealOverlayMode ?? 'drawn'"
                               :parked="revealOverlayMode === undefined"
@@ -993,7 +993,7 @@
       <!-- The GSAP-transformed element stays zoom-FREE (CSS zoom on the same
            element would rescale the translate coordinates); the landing zoom
            lives on the inner wrapper, whose zoomed layout box sizes the proxy. -->
-      <div ref="zoomFlightProxy" class="con-zoom-flight-proxy">
+      <div :ref="surfaces.bind.zoomFlightProxy" class="con-zoom-flight-proxy">
         <div class="con-zoom-flight-proxy__zoom" :style="{zoom: String(zoomOpenProxy.zoom)}">
           <CardZoomCard :card="zoomOpenProxy.card" :selected="zoomSelected" />
         </div>
@@ -1008,7 +1008,7 @@
          are replaced by the console command bar in the #actions slot, and
          the `con-zoom` class scopes that restyle to THIS instance only. -->
     <CardZoomModal v-if="consoleCardZoom.card !== undefined"
-                   ref="cardZoom"
+                   :ref="surfaces.bind.cardZoom"
                    class="con-zoom"
                    :class="[{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing, 'con-zoom--parliament': zoomResolutionId !== undefined, 'con-zoom--party': zoomPartyOpen}, zoomRejectedTagClasses]"
                    :card="consoleCardZoom.card"
@@ -1033,7 +1033,7 @@
            card beside the previous party. -->
       <template v-if="zoomResolutionParty !== undefined" #aside="aside">
         <div class="con-zoom-asidecol">
-          <ConsoleResolutionAside ref="zoomAsidePanel"
+          <ConsoleResolutionAside :ref="surfaces.bind.zoomAsidePanel"
                                   :party="zoomResolutionParty"
                                   :parliament="game.parliament"
                                   :viewer="thisPlayer.color"
@@ -1084,7 +1084,7 @@
                                    :viewer="thisPlayer.color"
                                    :closing="side.closing" />
           <ConsoleInspectSide v-if="consoleCardZoom.inspect !== undefined && zoomRulesCardName !== undefined"
-                              ref="zoomInspectSide"
+                              :ref="surfaces.bind.zoomInspectSide"
                               :cardName="zoomRulesCardName"
                               :history="consoleCardZoom.inspect.history"
                               :tab="consoleCardZoom.inspectTab"
@@ -1096,13 +1096,13 @@
           <!-- A campaign TENDER (the Committee's contract): its rule, its window and its buyout — the face prints no
                prose since its third pass, the column reads it like a project card's rules. -->
           <ConsoleCardRulesPanel v-else-if="zoomTenderAnnotations !== undefined"
-                                 ref="zoomRulesPanel"
+                                 :ref="surfaces.bind.zoomRulesPanel"
                                  keepOrder
                                  :annotationsOverride="zoomTenderAnnotations"
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
           <ConsoleCardRulesPanel v-else-if="zoomBotCorpAnnotations !== undefined"
-                                 ref="zoomRulesPanel"
+                                 :ref="surfaces.bind.zoomRulesPanel"
                                  :annotationsOverride="zoomBotCorpAnnotations"
                                  :keepOrder="zoomBotCorpHolding"
                                  :nonce="side.nonce"
@@ -1120,14 +1120,14 @@
                party's reading — in the order they are given, which is the
                order the face prints them. The graphic stays on the card. -->
           <ConsoleCardRulesPanel v-else-if="zoomParliamentAnnotations !== undefined"
-                                 ref="zoomRulesPanel"
+                                 :ref="surfaces.bind.zoomRulesPanel"
                                  keepOrder
                                  :tier="zoomResolutionTier"
                                  :annotationsOverride="zoomParliamentAnnotations"
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
           <ConsoleCardRulesPanel v-else-if="zoomRulesCardName !== undefined && zoomHasRules"
-                                 ref="zoomRulesPanel"
+                                 :ref="surfaces.bind.zoomRulesPanel"
                                  :cardName="zoomRulesCardName"
                                  :annotationsOverride="zoomCardForYouAnnotations"
                                  :suppressIds="zoomCoveredRequirements"
@@ -1575,7 +1575,7 @@
         <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined && !playHeldForWorkspace"
                                 v-show="!pickBridgeActive || repeatPickHandoff || handPickPhrased"
                                 :class="{'con-bridgefade': repeatPickHandoff}"
-                                ref="playConfirm"
+                                :ref="surfaces.bind.playConfirm"
                                 :playerView="playedHeroComposerView() ?? playerView"
                                 :cardName="pendingPlayCard.cardName"
                                 :input="pendingPlayCard.input"
@@ -1597,7 +1597,7 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleCorpFirstActionConfirm v-if="corpFirstActionOpen"
-                                     ref="corpFirstConfirm"
+                                     :ref="surfaces.bind.corpFirstConfirm"
                                      :playerView="playerView"
                                      :corpNames="corpFirstActionNames"
                                      @confirm="onCorpFirstActionConfirm"
@@ -1832,6 +1832,7 @@ import {RosterLevel} from '@/client/console/colonyRoster/colonyRosterModel';
 import {PendingPlayCard} from '@/client/console/shell/shellShared';
 import {createViewerController, ViewerPort} from '@/client/console/shell/viewerController';
 import {shellPort} from '@/client/console/shell/shellPort';
+import {createSurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 import {createMaController, MaPort} from '@/client/console/shell/maController';
 import {createInfoController, InfoPort} from '@/client/console/shell/infoController';
 import {createNoticeController} from '@/client/console/shell/noticeController';
@@ -1995,6 +1996,9 @@ export default defineComponent({
     useWorkspaceBandGeometry(
       {main: conMainEl, left: conRailEl, right: conStratEl},
       () => `${consoleState.section}|${consoleState.sheet ?? ''}`);
+    // THE SURFACE REGISTRY (console/shell/surfaceRegistry.ts): the template stands each surface under its name
+    // (`:ref="surfaces.bind.<name>"`), the controllers ask for it through their port — never `$refs`.
+    const surfaces = createSurfaceRegistry();
     const viewer = createViewerController(shellPort<ViewerPort>());
     const ma = createMaController(shellPort<MaPort>());
     const info = createInfoController(shellPort<InfoPort>());
@@ -2029,7 +2033,7 @@ export default defineComponent({
     const commandBar = createCommandBarController(shellPort<CommandBarPort>());
     const padRouter = createPadRouterController(shellPort<PadRouterPort>());
     const viewApply = createViewApplyController(shellPort<ViewApplyPort>());
-    return {conMainEl, conRailEl, conStratEl, ...viewer, ...ma, ...info, ...notice, ...wheel, ...cell, ...convert, ...rail, ...journal, ...surface, ...supervisor, ...seat, ...draft, ...finale, ...played, ...staged, ...cardActions, ...stdProjects, ...start, ...hydro, ...parliament, ...colony, ...placement, ...mandatory, ...reveal, ...outcome, ...router, ...playCard, ...handSelect, ...hand, ...workspace, ...commandBar, ...padRouter, ...viewApply};
+    return {conMainEl, conRailEl, conStratEl, surfaces, ...viewer, ...ma, ...info, ...notice, ...wheel, ...cell, ...convert, ...rail, ...journal, ...surface, ...supervisor, ...seat, ...draft, ...finale, ...played, ...staged, ...cardActions, ...stdProjects, ...start, ...hydro, ...parliament, ...colony, ...placement, ...mandatory, ...reveal, ...outcome, ...router, ...playCard, ...handSelect, ...hand, ...workspace, ...commandBar, ...padRouter, ...viewApply};
   },
   data() {
     return {
@@ -2715,7 +2719,7 @@ export default defineComponent({
       // Land on a predictable cell (the last inspected one, else re-seed).
       void this.$nextTick(() => {
         if (this.consoleState.boardSpaceId === undefined) {
-          const board = (this.$refs.boardSection ?? undefined) as InstanceType<typeof ConsoleBoardSection> | undefined;
+          const board = this.surfaces.at<InstanceType<typeof ConsoleBoardSection>>('boardSection');
           board?.seed(false);
         }
       });
@@ -2731,7 +2735,7 @@ export default defineComponent({
         return;
       }
       this.exitInspection();
-      const board = (this.$refs.boardSection ?? undefined) as InstanceType<typeof ConsoleBoardSection> | undefined;
+      const board = this.surfaces.at<InstanceType<typeof ConsoleBoardSection>>('boardSection');
       if (board?.enterTrackInspect() === true) {
         this.consoleState.scaleInspecting = true;
       } else {
@@ -3488,7 +3492,7 @@ export default defineComponent({
         }
       },
       restoreScroll: (px) => {
-        ((this.$refs.handSection ?? undefined) as InstanceType<typeof ConsoleHandSection> | undefined)?.restoreScroll(px);
+        (this.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection'))?.restoreScroll(px);
       },
     });
     // Clear any scale-overview tooltip a stray real-mouse hover left showing

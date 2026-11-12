@@ -53,6 +53,8 @@ import {ActualStartOwner, StartOwner, StartShadowFinding, startDirectorCure, sta
 import {AdmissionSignals, PromptSurface, promptAdmissionBlock} from '@/client/console/consolePromptAdmission';
 import {stagedPlayState} from '@/client/console/stagedPlay';
 import {owedConclusions, reaskOwedConclusion, withdrawConclusionOwe} from '@/client/console/workspaceConclusionOwe';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
+import {takeUpQuestion} from '@/client/console/setAside';
 
 /** How long an owed commit fold counts as «in flight» for the liveness arbiter (its tokens' 9 s fold ceiling + a beat). */
 const COMMIT_FOLD_OWED_GRACE_MS = 12_000;
@@ -87,7 +89,7 @@ const STALE_FREE_TURN_MS = 8_000;
 export type SupervisorPort = {
   workspaceHeldForThePlayer(kind: WorkspaceFrameKind): boolean,
   $nextTick(fn?: () => void): Promise<void>,
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   readonly admissionSignals: AdmissionSignals,
   commitFoldOwed: boolean,
   concludeWorkspaceFlow(kind: WorkspaceFrameKind, servedPromptHolds?: boolean): boolean,
@@ -583,7 +585,7 @@ export function createSupervisorController(shell: SupervisorPort) {
     };
     let did = '';
     if (cure === 'release') {
-      const scene = (shell.$refs.startScene ?? undefined) as {releaseByDirector?: () => string} | undefined;
+      const scene = shell.surfaces.at<{releaseByDirector?: () => string}>('startScene');
       did = scene?.releaseByDirector?.() ?? '';
       if (did === '') {
         // No scene instance to ask (unmounted under a park) — the lifetime hold itself lets go.
@@ -594,7 +596,7 @@ export function createSupervisorController(shell: SupervisorPort) {
       shell.startStrandYield = false;
       shell.startStrandPrompt = undefined;
     } else if (cure === 'heal') {
-      const scene = (shell.$refs.startScene ?? undefined) as {healStrand?: () => string} | undefined;
+      const scene = shell.surfaces.at<{healStrand?: () => string}>('startScene');
       const healed = scene?.healStrand?.() ?? 'no-scene';
       did = healed === 'nothing-to-heal' || healed === 'no-scene' ? [healed, yieldNow()].filter((x) => x !== '').join(' → ') : healed;
     } else if (finding.expected === 'step' && finding.actual === 'none') {
@@ -837,7 +839,7 @@ export function createSupervisorController(shell: SupervisorPort) {
         if (!consoleState.task.deferred || shell.mandatoryDeferredActive) {
           return '';
         }
-        consoleState.task.deferred = false;
+        takeUpQuestion('recovered');
         const did = reopenOrphanQuestion();
         return did !== '' ? `un-set-aside — ${did}` : 'un-set-aside (the question stands for its plate)';
       }),

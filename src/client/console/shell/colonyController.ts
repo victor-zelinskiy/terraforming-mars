@@ -80,6 +80,8 @@ import {span} from '@/client/console/session/sessionWaits';
 import {whenPainted} from '@/client/console/session/sessionWaits';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
+import {takeUpQuestion} from '@/client/console/setAside';
 
 /** The roster's LANDING: the stage's fold home into the slot (the focus motion's own fold + the grid breathing back), base ms. */
 const COLONY_ROSTER_LANDING_MS = 420;
@@ -104,7 +106,7 @@ const COLONY_STEP_HANDOFF_MAX_MS = 4_000;
  */
 export type ColonyPort = {
   $nextTick(fn?: () => void): Promise<void>,
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   actionBlockedReason: UnwrapRef<SeatController['actionBlockedReason']>,
   admits(surface: PromptSurface): boolean,
   armStdpStepOrigin: UnwrapRef<StdProjectsController['armStdpStepOrigin']>,
@@ -980,7 +982,7 @@ export function createColonyController(shell: ColonyPort) {
     // last physical change lands means the player never sees what it was: the
     // cube had only just seated. The section owns the dwell, then hands the
     // screen forward through `flow-complete`.
-    const section = (shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
+    const section = shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection');
     if (host === undefined && colonyFocusState.open && section !== undefined) {
       section.completeFlow();
       return;
@@ -1444,7 +1446,7 @@ export function createColonyController(shell: ColonyPort) {
     if (isTradeFleetActive() || colonyTradeState.active || isColonyBuildActive()) {
       return;
     }
-    const section = (shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
+    const section = shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection');
     section?.enterFocusFromInspect(act.intent);
   }
 
@@ -1457,7 +1459,7 @@ export function createColonyController(shell: ColonyPort) {
     if (isTradeFleetActive() || colonyTradeState.active) {
       return;
     }
-    const section = (shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
+    const section = shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection');
     section?.enterFocus(intent);
   }
 
@@ -1480,7 +1482,7 @@ export function createColonyController(shell: ColonyPort) {
         shell.showNotice(shell.actionBlockedReason);
         return;
       }
-      ((shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.enterDockFocus();
+      (shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection'))?.enterDockFocus();
       return;
     }
     // THE OVERVIEW SELECTS; THE FOCUS STAGE RESOLVES (iteration 2). A on
@@ -1587,7 +1589,7 @@ export function createColonyController(shell: ColonyPort) {
     } else {
       closeConsoleLayers();
     }
-    consoleState.task.deferred = false;
+    takeUpQuestion('answered');
     const build = armColonyBuildCommit(selected, pick, payload, 'live');
     // EMBEDDED OUTCOME — the same two lines the trade paths already have.
     // WITHOUT them a build whose placement bonus DRAWS (Pluto: «возьмите 2
@@ -1615,7 +1617,7 @@ export function createColonyController(shell: ColonyPort) {
   function armColonyBuildCommit(selected: ColonyModel, pick: ConsoleColonyPick, payload: {steps: ReadonlyArray<TradeStep>, captures: Readonly<Record<number, unknown>>, targets?: ColonyTradeTargets} | undefined, door: 'live' | 'staged'): {slot: number, tail: Array<InputResponse>} {
     // The guards accepted: freeze the stage's presentation for the whole
     // resolution (the answer flips its props under the flying cube).
-    ((shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+    (shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection'))?.holdFocusStage();
     // The berth the cube takes — the hero, the outcome claim and the server all speak of the same one.
     const slot = nextBuildSlot(selected, buildSiteOf(pick.buildSites, selected.name));
     // THE PLACEMENT BONUS'S HOST CARD, chosen on the stage before the cube
@@ -1673,11 +1675,11 @@ export function createColonyController(shell: ColonyPort) {
     // hand): the stage stays, pinned; the landing is ARMED for the transport's gate and plays on this stage with
     // the commit held to the contact. The same scene as the staged door — only A's verb and B differ.
     if (pick.tileSite !== undefined) {
-      ((shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+      (shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection'))?.holdFocusStage();
       markColonyFocusCommitting();
       setWorkspaceFramePhase('colonies', 'committed');
       armColonyCity({colony: selected.name as ColonyName, space: pick.tileSite.space, color: pick.tileSite.color, card: pick.tileSite.card});
-      consoleState.task.deferred = false;
+      takeUpQuestion('answered');
       shell.submit(colonyResponse(selected.name));
       return;
     }
@@ -1686,25 +1688,25 @@ export function createColonyController(shell: ColonyPort) {
     if (pick.trackMoves !== undefined) {
       const move = trackMoveOf(pick.trackMoves, selected.name);
       if (move !== undefined) {
-        ((shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+        (shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection'))?.holdFocusStage();
         markColonyFocusCommitting();
         setWorkspaceFramePhase('colonies', 'committed');
         promiseColonyTrackMove({
           colony: selected.name as ColonyName, card: colonyModel.value?.choiceContext?.source.card,
           before: move.before, after: move.after,
         });
-        consoleState.task.deferred = false;
+        takeUpQuestion('answered');
         shell.submit(colonyResponse(selected.name));
         return;
       }
     }
     closeConsoleLayers();
-    consoleState.task.deferred = false;
+    takeUpQuestion('answered');
     if (pick.buttonLabel === 'trade') {
       if (isTradeFleetActive() || colonyTradeState.active) {
         return;
       }
-      ((shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+      (shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection'))?.holdFocusStage();
       // The PRESSED cell — the origin of the pre-trade advance leg (a
       // trade-offset card moves the track forward before the reward is
       // read). Server truth as of the press; the manifest names where it
@@ -1827,7 +1829,7 @@ export function createColonyController(shell: ColonyPort) {
       closeColonyInspect();
       return;
     }
-    const dossier = (shell.$refs.journalInspect ?? undefined) as InstanceType<typeof ConsoleColonyInspect> | undefined;
+    const dossier = shell.surfaces.at<InstanceType<typeof ConsoleColonyInspect>>('journalInspect');
     dossier?.handleIntent(intent);
   }
 
@@ -1890,7 +1892,7 @@ export function createColonyController(shell: ColonyPort) {
     // the view commit until the ship docks; the section auto-folds back to
     // the overview only when the WHOLE transaction has settled (its
     // `colonyTradeState.active` falling edge). Desktop is unaffected.
-    ((shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+    (shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection'))?.holdFocusStage();
     // …and the pressed cell, so a trade-offset card's forward step is a
     // MOVE the player watches instead of a number that changed (see the
     // overview path above).
@@ -1948,10 +1950,10 @@ export function createColonyController(shell: ColonyPort) {
     if (offer === undefined || !offer.available) {
       return;
     }
-    const section = (shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
+    const section = shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection');
     if (ctx === undefined && pick?.buttonLabel === 'trade') {
       closeConsoleLayers();
-      consoleState.task.deferred = false;
+      takeUpQuestion('answered');
       section?.holdDockStage();
       armTradeFleet({kind: 'card', card}, shell.thisPlayer.color);
       // The reward's target, chosen on the stage, rides the same submit (its fee was the card's, its question is not).
@@ -2061,7 +2063,7 @@ export function createColonyController(shell: ColonyPort) {
 
   /** A roster pick's level change is the section's RESEAT (content lets go → the rail changes → content surfaces); no section — at once. */
   function reseatColonyRosterLevel(apply: () => void): Promise<void> {
-    const section = (shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
+    const section = shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection');
     if (section === undefined) {
       apply();
       return Promise.resolve();
@@ -2097,10 +2099,10 @@ export function createColonyController(shell: ColonyPort) {
     }
     const build = kind === 'replace' ? rosterIncomingOf(roster.prompt, name)?.build : undefined;
     const builds = rosterBuildLands(build);
-    ((shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+    (shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection'))?.holdFocusStage();
     markColonyFocusCommitting();
     setWorkspaceFramePhase('colonies', 'committed');
-    consoleState.task.deferred = false;
+    takeUpQuestion('answered');
     armColonyRosterChange({
       kind,
       ...(kind === 'remove' ? {removed: name} : {added: name}),
@@ -2182,7 +2184,7 @@ export function createColonyController(shell: ColonyPort) {
     // cube's handoff ends).
     await settle(() => colonyRosterState.live || isColonyBuildActive());
     const receipt = colonyRosterState.receipt;
-    const section = (shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
+    const section = shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection');
     await vueNextTick();
     await frames();
     if (receipt !== undefined && colonyFocusState.open && section !== undefined) {
@@ -2228,7 +2230,7 @@ export function createColonyController(shell: ColonyPort) {
     // The scene first — through its read (resolved at once when none is playing; it never rejects).
     await colonyCitySceneDone();
     const receipt = colonyCityState.receipt;
-    const section = (shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
+    const section = shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection');
     await vueNextTick();
     await frames();
     if (receipt !== undefined && colonyFocusState.open && section !== undefined) {
@@ -2284,7 +2286,7 @@ export function createColonyController(shell: ColonyPort) {
     await vueNextTick();
     await settle(() => colonyBuildContinuationOwed.value);
     const receipt = colonyBuildState.receipt;
-    const section = (shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined;
+    const section = shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection');
     await vueNextTick();
     await frames();
     if (receipt !== undefined && colonyFocusState.open && section !== undefined) {
@@ -2341,7 +2343,7 @@ export function createColonyController(shell: ColonyPort) {
     if (arm === undefined || staged === undefined || stagedPlayState.committing) {
       return;
     }
-    ((shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+    (shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection'))?.holdFocusStage();
     markColonyFocusCommitting();
     setWorkspaceFramePhase('colonies', 'committed');
     const move = trackMoveOf(staged.prompt.trackMoves, colony);
@@ -2404,7 +2406,7 @@ export function createColonyController(shell: ColonyPort) {
       // a receipt, and the live door's own A arms it again.)
       clearColonyBuildReceipt();
       colonyFocusState.committing = false;
-      ((shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
+      (shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection'))?.releaseFocusStage();
       setWorkspaceFrameServes('colonies', ['colony']);
       setWorkspaceFramePhase('colonies', 'committed');
       setWorkspaceFramePhase(stagedStepHost(arm) ?? 'hand', 'committed');
@@ -2838,7 +2840,7 @@ export function createColonyController(shell: ColonyPort) {
     if (now || !was || stagedColonyModel.value === undefined) {
       return;
     }
-    ((shell.$refs.coloniesSection ?? undefined) as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
+    (shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection'))?.releaseFocusStage();
     colonyFocusState.committing = false;
     // The step's HOST takes its decision back — the hand's play, the law's stage (RX36).
     setWorkspaceFramePhase(stagedStepHost() ?? 'hand', 'configure');

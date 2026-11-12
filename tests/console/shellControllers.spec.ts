@@ -121,8 +121,12 @@ describe('the shell is a composition root — its controllers', () => {
 
   it('③ no template ref shares its name with a returned member (Vue would write the element into it)', () => {
     const template = shell.slice(0, shell.indexOf('<script lang="ts">'));
-    const refs = new Set([...template.matchAll(/\bref="([\w$]+)"/g)].map((m) => m[1]));
-    expect(refs.size, 'the template\'s refs are read').to.be.greaterThan(10);
+    const refs = new Set([...template.matchAll(/(?<![:\w])ref="([\w$]+)"/g)].map((m) => m[1]));
+    // The surfaces a controller reaches stand in the REGISTRY (`:ref="surfaces.bind.<name>"` — S3); a string ref is
+    // what is left for a setup ref of the shell's own (the three hull members the band geometry measures, the dock).
+    const bound = new Set([...template.matchAll(/:ref="surfaces\.bind\.([\w$]+)"/g)].map((m) => m[1]));
+    expect(bound.size, 'the surfaces bound through the registry are read').to.be.greaterThan(30);
+    expect(refs.size, 'the template\'s string refs are read').to.be.greaterThan(0);
     const hit = all.flatMap((c) => c.members.filter((member) => refs.has(member)).map((member) => `${member} (${c.file})`));
     expect(hit, 'rename the ref or the member').to.deep.equal([]);
   });

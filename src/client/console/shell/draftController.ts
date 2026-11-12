@@ -13,6 +13,7 @@ import {Phase} from '@/common/Phase';
 import {ConsoleTask, taskFor} from '@/client/console/consoleTaskRouter';
 import {consoleState} from '@/client/console/consoleRouter';
 import {handoffPendingEntries} from '@/client/console/shell/shellFlowState';
+import {takeUpQuestion} from '@/client/console/setAside';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -108,7 +109,7 @@ export function createDraftController(shell: DraftPort) {
    *  the workspace IS the layer and deliberately outlives its own prompt
    *  (the pick beat / purchase flights play past the answer). */
   function onDraftSubmit(response: unknown): void {
-    consoleState.task.deferred = false;
+    takeUpQuestion('answered');
     shell.submit(response);
   }
 

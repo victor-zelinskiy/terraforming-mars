@@ -25,13 +25,15 @@ import {journalState} from '@/client/components/journal/journalState';
 import {PendingPlayCard} from '@/client/console/shell/shellShared';
 import type {JournalController} from '@/client/console/shell/journalController';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
+import {takeUpQuestion} from '@/client/console/setAside';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
  * hid behind `this`; a row marked WRITTEN is state this domain changes but does not own (the next thing to untangle).
  */
 export type PlayedPort = {
-  $refs: Record<string, unknown>,
+  surfaces: SurfaceRegistry,
   clearDepartingPlayCard(): void,
   closeJournal: UnwrapRef<JournalController['closeJournal']>,
   /** WRITTEN here. */ commitFoldOwed: boolean,
@@ -155,7 +157,7 @@ export function createPlayedController(shell: PlayedPort) {
     if (prompt === undefined || index === -1) {
       return;
     }
-    consoleState.task.deferred = false;
+    takeUpQuestion('answered');
     shell.submit({type: 'or', index, response: {type: 'option'}});
   }
 
@@ -285,7 +287,7 @@ export function createPlayedController(shell: PlayedPort) {
     if (phase === 'failed') {
       // A refused play walks nothing and rallies nobody: the promises are dropped with the move.
       dropHostedStepPromises();
-      const composer = (shell.$refs.playConfirm ?? undefined) as InstanceType<typeof ConsolePlayCardConfirm> | undefined;
+      const composer = shell.surfaces.at<InstanceType<typeof ConsolePlayCardConfirm>>('playConfirm');
       composer?.resetSubmitting?.();
       // A refused move never happened: the descent goes back to configurable,
       // or B would stay dead and the crumb would keep claiming a commit.

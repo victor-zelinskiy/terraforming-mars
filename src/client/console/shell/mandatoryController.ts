@@ -58,6 +58,7 @@ import type {PlayedController} from '@/client/console/shell/playedController';
 import type {HydroController} from '@/client/console/shell/hydroController';
 import type {StartController} from '@/client/console/shell/startController';
 import type {SeatController} from '@/client/console/shell/seatController';
+import {setQuestionAside, takeUpQuestion} from '@/client/console/setAside';
 
 /**
  * WHAT THIS CONTROLLER READS OF THE REST OF THE SHELL — its port. Every member here is a dependency the monolith
@@ -624,7 +625,7 @@ export function createMandatoryController(shell: MandatoryPort) {
     // minimize's defer flag lets go and the context returns; the session's own watcher then hands the pick to the
     // board (nothing else opens here — the finale has no surface of its own).
     if (shell.playerView.waitingFor?.finalGreeneryPrompt !== undefined && shell.finaleCollapsed) {
-      consoleState.task.deferred = false;
+      takeUpQuestion('restored');
       restoreFinaleSession();
       return;
     }
@@ -717,7 +718,7 @@ export function createMandatoryController(shell: MandatoryPort) {
   function deferShellTask(destination: ShellTaskDestination): void {
     if (shell.shellTask !== undefined && !consoleState.task.deferred &&
       navigationDefersShellTask(shell.shellTask, destination)) {
-      consoleState.task.deferred = true;
+      setQuestionAside('navigation');
     }
   }
 
@@ -725,7 +726,7 @@ export function createMandatoryController(shell: MandatoryPort) {
    *  shell-section task; host / start scenes re-render via their own v-if).
    *  Shared by the prompt card's A and the global B-back. */
   function restoreDeferredTask(): void {
-    consoleState.task.deferred = false;
+    takeUpQuestion('restored');
     // THE MINIMIZED FINALE comes back as it stood (the context, the camera); a standing prompt's pick follows
     // through the session's own watcher.
     if (shell.finaleCollapsed) {
@@ -849,7 +850,7 @@ export function createMandatoryController(shell: MandatoryPort) {
   function whenDeferredWhileOnOwnSurfaceChanges(on: boolean): void {
     if (on && consoleState.task.deferred) {
       console.info(`[task-deferred] standing on the answer of «${shell.shellTask?.kind ?? ''}» — no longer set aside`);
-      consoleState.task.deferred = false;
+      takeUpQuestion('on-its-surface');
     }
   }
 

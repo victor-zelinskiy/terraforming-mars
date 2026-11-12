@@ -43,6 +43,7 @@ import type {RouterController} from '@/client/console/shell/routerController';
 import type {NoticeController} from '@/client/console/shell/noticeController';
 import type {StartController} from '@/client/console/shell/startController';
 import type {StdProjectsController} from '@/client/console/shell/stdProjectsController';
+import {setQuestionAside, takeUpQuestion} from '@/client/console/setAside';
 
 /** A collapse owed until the band surfaces' tokens have landed (a plain flag — read only by the collapse itself). */
 let collapseOwedOnTokens = false;
@@ -287,7 +288,7 @@ export function createWorkspaceController(shell: WorkspacePort) {
   /** The bare park — the collapse's state half, shared by both paths. */
   function parkWorkspaceStack(): void {
     collapseWorkspaceStack();
-    consoleState.task.deferred = true;
+    setQuestionAside('chain');
     // The composer's command contract is published to a SHARED store and
     // released in its own `beforeUnmount` — one flush too late, so the bar
     // would advertise a stage that no longer serves for a frame. Clearing it
@@ -372,7 +373,7 @@ export function createWorkspaceController(shell: WorkspacePort) {
     if (!isTaskSurface) {
       shell.deferShellTask(sheet);
     } else {
-      consoleState.task.deferred = false;
+      takeUpQuestion('on-its-surface');
     }
     consoleState.quick = undefined;
     enterWorkspace(sheet);
