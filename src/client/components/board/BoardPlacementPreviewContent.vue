@@ -45,58 +45,51 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
-import {BoardFact, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
-import {Color} from '@/common/Color';
-import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import BoardFactRow from '@/client/components/board/BoardFactRow.vue';
-import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
-
+<script setup lang="ts">
 /**
  * Compact render of a {@link BoardPlacementPreview} — the SAME facts the player
  * saw on hover, grouped by intent: Cost / You receive / Other players receive /
  * At game end / Risk / Field rules. Reused by the active-placement hover popover
  * AND the confirm modal so the two never diverge.
  */
-export default defineComponent({
-  name: 'BoardPlacementPreviewContent',
-  components: {BoardFactRow, BoardFactGroups},
-  props: {
-    preview: {
-      type: Object as PropType<BoardPlacementPreview>,
-      required: true,
-    },
-    viewerColor: {
-      type: String as PropType<Color | undefined>,
-      default: undefined,
-    },
-    players: {
-      type: Array as PropType<ReadonlyArray<PublicPlayerModel>>,
-      default: () => [],
-    },
+import {computed, PropType} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
+import {BoardFact, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
+import {Color} from '@/common/Color';
+import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import BoardFactRow from '@/client/components/board/BoardFactRow.vue';
+import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
+
+defineOptions({name: 'BoardPlacementPreviewContent'});
+const props = defineProps({
+  preview: {
+    type: Object as PropType<BoardPlacementPreview>,
+    required: true,
   },
-  computed: {
-    /** Absent on a payload from an older server build — treat as empty. */
-    progressFacts(): ReadonlyArray<BoardFact> {
-      return this.preview.progressFacts ?? [];
-    },
-    isEmpty(): boolean {
-      const p = this.preview;
-      return p.costFacts.length === 0 && p.immediateFacts.length === 0 &&
-        p.recipientFacts.length === 0 && p.futureScoringFacts.length === 0 &&
-        p.warningFacts.length === 0 && p.ruleFacts.length === 0 &&
-        this.progressFacts.length === 0;
-    },
-    /** `placesTile` is absent on a payload from an older server build — the
-     *  overwhelming majority IS a tile, so undefined reads as the tile line. */
-    emptyLine(): string {
-      return this.preview.placesTile === false ?
-        'Nothing happens beyond placing the marker.' :
-        'Nothing happens beyond placing the tile.';
-    },
+  viewerColor: {
+    type: String as PropType<Color | undefined>,
+    default: undefined,
+  },
+  players: {
+    type: Array as PropType<ReadonlyArray<PublicPlayerModel>>,
+    default: () => [],
   },
 });
+
+/** Absent on a payload from an older server build — treat as empty. */
+const progressFacts = computed((): ReadonlyArray<BoardFact> => props.preview.progressFacts ?? []);
+const isEmpty = computed((): boolean => {
+  const p = props.preview;
+  return p.costFacts.length === 0 && p.immediateFacts.length === 0 &&
+    p.recipientFacts.length === 0 && p.futureScoringFacts.length === 0 &&
+    p.warningFacts.length === 0 && p.ruleFacts.length === 0 &&
+    progressFacts.value.length === 0;
+});
+/** `placesTile` is absent on a payload from an older server build — the
+ *  overwhelming majority IS a tile, so undefined reads as the tile line. */
+const emptyLine = computed((): string => props.preview.placesTile === false ?
+  'Nothing happens beyond placing the marker.' :
+  'Nothing happens beyond placing the tile.');
 </script>
 
 <style scoped lang="less">
