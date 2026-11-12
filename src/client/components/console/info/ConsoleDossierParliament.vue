@@ -1,14 +1,4 @@
 <template>
-  <!--
-    THE DOSSIER'S PARLIAMENT PLATE (TR60): the seat's standing as OBJECTS in the Parliament's own vocabulary
-    (`docs/claude/parliament-glossary.md`): the INFLUENCE badge with the number the seat votes with, the CAREER as a
-    ladder of twelve steps (passed · the marker's own · the next, wearing what it pays — the track's printed symbols),
-    and the DELEGATES as tokens — the lobby's socket (the free delegate is there or not), the reserve as one cube
-    ×N, and every resolution the seat's cubes stand on as its party's emblem with the cubes on it (✓ when the seat
-    leads it). The chairman wears the chair. One line built from objects — it cannot wrap a word into the next row
-    (the old «● · Резерв 6 · На / резолюциях 0»). Read-only; the zone's detail is one A away. MarsBot's fill is its
-    one honest line.
-  -->
   <div class="con-dparl" data-dossier-parliament>
     <span v-if="!reading.participates" class="con-dparl__absent" data-parl-zone-absent>{{ $t(botNote) }}</span>
     <template v-else>
@@ -57,8 +47,21 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE DOSSIER'S PARLIAMENT PLATE (TR60): the seat's standing as OBJECTS in the Parliament's own vocabulary
+ * (`docs/claude/parliament-glossary.md`): the INFLUENCE badge with the number the seat votes with, the CAREER as a
+ * ladder of twelve steps (passed · the marker's own · the next, wearing what it pays — the track's printed symbols),
+ * and the DELEGATES as tokens — the lobby's socket (the free delegate is there or not), the reserve as one cube
+ * ×N, and every resolution the seat's cubes stand on as its party's emblem with the cubes on it (✓ when the seat
+ * leads it). The chairman wears the chair. One line built from objects — it cannot wrap a word into the next row
+ * (the old «● · Резерв 6 · На / резолюциях 0»). Read-only; the zone's detail is one A away. MarsBot's fill is its
+ * one honest line.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import {PARLIAMENT_AGENDA_STEPS, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {SeatParliamentReadingVm, BOT_PARLIAMENT_NOTE} from '@/client/console/parliament/seatParliamentReading';
@@ -70,41 +73,28 @@ import ConsoleInfluenceMod from '@/client/components/console/parliament/ConsoleI
 import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
 
 
-export default defineComponent({
-  name: 'ConsoleDossierParliament',
-  components: {PlayerDelegate, PremiumChairGlyph, ConsoleInfluenceMod},
-  props: {
-    reading: {type: Object as PropType<SeatParliamentReadingVm>, required: true},
-    color: {type: String as PropType<Color>, required: true},
-  },
-  computed: {
-    botNote(): string {
-      return BOT_PARLIAMENT_NOTE;
-    },
-    steps(): number {
-      return PARLIAMENT_AGENDA_STEPS;
-    },
-    ladder(): ReadonlyArray<DossierLadderPip> {
-      return dossierLadder(this.reading.agenda.position, PARLIAMENT_AGENDA_STEPS);
-    },
-    /** What the NEXT step pays, as the track's printed symbol (never a bare numeral — that reads as an ordinal). */
-    nextIcon(): string {
-      const next = this.reading.agenda.next;
-      if (next === undefined) {
-        return '';
-      }
-      return next.kind === 'tr' ? 'resource_icon resource_icon--rating' :
-        next.kind === 'card' ? 'resource_icon resource_icon--cards' : 'con-dparl__nexticon--influence';
-    },
-    /** The figure's height at the scene's scale — the Information's size (28 logical). */
-    figurePx(): number {
-      return delegateFigurePx(28);
-    },
-  },
-  methods: {
-    emblemUrl(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-  },
+defineOptions({name: 'ConsoleDossierParliament'});
+const props = defineProps({
+  reading: {type: Object as PropType<SeatParliamentReadingVm>, required: true},
+  color: {type: String as PropType<Color>, required: true},
 });
+
+const botNote = computed((): string => BOT_PARLIAMENT_NOTE);
+const steps = computed((): number => PARLIAMENT_AGENDA_STEPS);
+const ladder = computed((): ReadonlyArray<DossierLadderPip> => dossierLadder(props.reading.agenda.position, PARLIAMENT_AGENDA_STEPS));
+/** What the NEXT step pays, as the track's printed symbol (never a bare numeral — that reads as an ordinal). */
+const nextIcon = computed((): string => {
+  const next = props.reading.agenda.next;
+  if (next === undefined) {
+    return '';
+  }
+  return next.kind === 'tr' ? 'resource_icon resource_icon--rating' :
+    next.kind === 'card' ? 'resource_icon resource_icon--cards' : 'con-dparl__nexticon--influence';
+});
+/** The figure's height at the scene's scale — the Information's size (28 logical). */
+const figurePx = computed((): number => delegateFigurePx(28));
+
+function emblemUrl(party: ReduxParty): string {
+  return partyEmblemUrl(party);
+}
 </script>
