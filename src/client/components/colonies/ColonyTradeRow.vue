@@ -70,31 +70,17 @@
     </template>
   </div>
 </template>
-<script lang="ts">
-
-import {defineComponent} from 'vue';
+<script setup lang="ts">
 
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {range} from '@/common/utils/utils';
 
-export default defineComponent({
-  name: 'ColonyTradeRow',
-  props: {
-    metadata: {
-      type: Object as () => ColonyMetadata,
-      required: true,
-    },
-  },
-  computed: {
-    ColonyName(): typeof ColonyName {
-      return ColonyName;
-    },
-  },
-  methods: {
-    range(n: number) {
-      return range(n);
-    },
+defineOptions({name: 'ColonyTradeRow'});
+defineProps({
+  metadata: {
+    type: Object as () => ColonyMetadata,
+    required: true,
   },
 });
 </script>
