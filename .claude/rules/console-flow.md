@@ -102,8 +102,9 @@ never `this`; it reaches a surface through a registration, never a `$ref`; it ad
   a bare `gsap.delayedCall` has no owner; a wall-clock timer beside a tween fires early on a starved frame (GSAP's lag
   smoothing stretches the tween, not the timer). Never move a `delayedCall` onto `after` / `guarantee` — keep its
   clock, give it an owner.
-- **In a COMPONENT** the owner is the component: `setup() { return {flow: useFlowScope('<kebab-name>')}; }`, then
-  `this.flow.after(…)` / `this.flow.afterFrame(…)` / `this.flow.guarantee(…)`; the `beforeUnmount` list of
+- **In a COMPONENT** the owner is the component: `const flow = useFlowScope('<kebab-name>')` in `<script setup>` (the
+  form of every new component), or `setup() { return {flow: useFlowScope('<kebab-name>')}; }` in an Options-API one, then
+  `flow.after(…)` / `this.flow.after(…)` / `.afterFrame(…)` / `.guarantee(…)`; the `beforeUnmount` list of
   `clearTimeout`s goes with it. **The scope is parented by WHERE THE COMPONENT STANDS** (`componentSessionScope`):
   inside a console shell — that shell's session; outside any shell (a menu, an app-level layer beside the shell, a
   bare mount in a spec) — the page's scope. Never «the session that stands»: an app-level layer set up while a game is
@@ -112,7 +113,11 @@ never `this`; it reaches a surface through a registration, never a `$ref`; it ad
   component that already has a `flow` (its module's flow state — the Parliament section, the deck pick, the hydro
   section) names the key `flowScope`; the ledger fails on a collision. **The scope is LAZY** — opened by the first
   thing asked of it — so a leaf component with hundreds of instances (a board cell, a card's art, a journal chip)
-  costs nothing and writes nothing to the flow trace until one of them actually waits. The test for each callback:
+  costs nothing and writes nothing to the flow trace until one of them actually waits. **It is bound to the caller's
+  EFFECT SCOPE and the injection context — never to a component instance** (Vue 3.6: `getCurrentInstance()` is `null`
+  inside a Vapor component), so the same call serves a virtual-DOM component, a Vapor one and a composable run in a bare
+  `effectScope()` (a controller under a spec, no mount): it ends on the component's `unmounted` edge, with the scope's
+  disposal as the net under the hook, and at once when a bare scope stops. The test for each callback:
   **does anything OUTSIDE the component depend on it running** — a promise's `resolve`, a module function, a hold's release, a class on `document.body`, an `$emit` a
   parent waits for? Then it is a RELEASE (`this.flow.guarantee` — it also comes due at unmount). If it only touches
   the component's own state or refs it is PACING (`this.flow.after` — taken back at unmount).
@@ -154,6 +159,14 @@ never `this`; it reaches a surface through a registration, never a `$ref`; it ad
   a Map that the session cannot end.
 
 ## A decision that ACTS has a place in the tick
+- **What the tick IS, is written down and pinned** (the Vue 3.6 pilot — `docs/claude/vapor/ROADMAP.md` §3.5;
+  `tests/console/vueReactivityContract.spec.ts`, `tests/client/console/vueTickOrder.spec.ts`): a watcher of no
+  component runs before every component's; the watchers of ONE component run in the order their sources were
+  TRIGGERED (the `watch` block's order decides only between watchers of the SAME source); a reaction woken by a
+  reaction runs after the waiting ones and before the render; sync watchers of one source run in creation order.
+  All of that is identical on 3.5 and 3.6. **What is NOT a contract: which of several reactions ONE mutation of a
+  collection wakes first** (its `length` reader, its iterator, a key reader) — it flipped between the two versions.
+  A flow whose correctness needs that order is ONE reaction with the order in its body — never two watchers.
 - A reaction taken off the `watch` table loses its ROW — and the row was its place in the tick. The facts of one
   decision routinely move in two steps inside one tick (a door falls, a reaction of the shell then stands the step
   up); read between the two, the decision is wrong. Both free forms were tried on the box and both failed e2e: a

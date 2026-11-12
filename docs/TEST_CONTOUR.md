@@ -1,5 +1,11 @@
 # THE TEST CONTOUR — what «green» is allowed to mean
 
+> **2026-11-12 — the client unit runner is no longer `mochapack`.** It is `scripts/client-tests.mjs` (webpack → one
+> file → mocha, against the two tools' public APIs; `npm run test:client`, one spec:
+> `npm run test:client:one -- <spec>`). The mechanism described below is why the test build must be ONE chunk — still
+> true, and the runner now refuses a build that is not, by name. Where this record says «mochapack», read «the
+> client test bundle».
+
 2026-08-14. A health pass over the whole test contour. The premise it fixes: a
 run has to be able to tell the next agent whether THEIR change broke something.
 Before this, it could not — the client unit suite had been reporting success

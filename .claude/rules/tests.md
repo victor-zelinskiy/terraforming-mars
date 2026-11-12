@@ -1,5 +1,5 @@
 ---
-description: Test helpers, runners and the runner-specific traps (build:test, mochapack config, bundle-shared module state).
+description: Test helpers, runners and the runner-specific traps (build:test, the client bundle runner, bundle-shared module state).
 paths:
   - "tests/**"
 ---
@@ -12,25 +12,38 @@ paths:
 - **`tests/TestingUtils.ts`**: `runAllActions(game)` (drain the deferred queue — call it after anything that defers), `cast(value, Class)`, `setOxygenLevel()`, `setTemperature()`, `addOcean()`, `addGreenery()`, `addCity()`, `fakeCard()`.
 - Server card specs: instantiate the card → `canPlay()` / `play()` / `action()` → assert state.
 - Client specs: `@vue/test-utils` with `tests/client/components/setup.ts`.
-- Framework: Mocha + Chai (`expect` style); client via mochapack.
+- Framework: Mocha + Chai (`expect` style); the client suite is ONE webpack bundle run under mocha in jsdom (`scripts/client-tests.mjs` — it replaced `mochapack` on 2026-11-12; «mochapack» in an older comment means that bundle).
 
 ## Runners
 ```bash
-npm run test:server          # mocha, ~8740 specs, ~50s
-npm run test:client          # mochapack, ~4140 specs, ~85s
-npm run build:test           # tsc --build tests/tsconfig.json
+npm run test:server          # mocha, ~22 800 specs, ~4 min
+npm run test:client          # scripts/client-tests.mjs, ~8 400 specs, ~3 min
+npm run build:test           # tsc -p tests/tsconfig.json --noEmit  +  the e2e tree
 
 # one server spec
 npx mocha --import=tsx --require tests/testing/setup.ts "tests/cards/base/Algae.spec.ts"
 
-# one client spec — BOTH flags are required when invoking mochapack directly:
-#   --webpack-config webpack.test.config.js   (single-chunk build; see below)
-#   --include ./tests/client/components/bundleSetup.ts   (auto-unmount)
-cross-env NODE_ENV=development npx mochapack \
-  --webpack-config webpack.test.config.js \
-  --require tests/client/components/setup.ts \
-  --include ./tests/client/components/bundleSetup.ts "<spec>"
+# one client spec (or a glob) — no flags: the runner always builds with webpack.test.config.js (ONE chunk)
+# and always puts tests/client/components/bundleSetup.ts first in the bundle
+npm run test:client:one -- "<spec>"
 ```
+
+**The client runner is `scripts/client-tests.mjs`** (2026-11-12): webpack builds the specs into one file with
+`webpack.test.config.js`, mocha runs that file in this process inside the jsdom of `tests/client/components/setup.ts`.
+Forty lines against the two tools' PUBLIC APIs — `mochapack` (unmaintained since 2021, deep-requiring the internals
+of both webpack and mocha) was the one package holding the bundler and the test framework a version behind. The specs
+run in ONE fixed order (by path, `localeCompare`); a spec that passes only in the suite is a LEAK in an earlier spec —
+run it alone to tell.
+
+**A VAPOR component in a unit spec** (`<script setup vapor>` — the road to `createVaporApp`, `docs/claude/vapor/ROADMAP.md`
+§3.6): `mount(<the component>)` as the ROOT throws (test-utils reads the root's virtual-DOM instance) — stand it under a
+virtual-DOM host with an ELEMENT root (`defineComponent({render: () => h('div', [h(TheComponent, props)])})`; the
+suite's `mountVapor`, `card/CardDescription.spec.ts`). The interop plugin is installed for every mount by
+`bundleSetup.ts`, so a spec of a PARENT never has to know which descendants were converted. DOM finders work;
+`findComponent` into a Vapor child does not; **`stubs` do not reach the children of a Vapor component** (they are
+created by the Vapor parent, not resolved by the virtual-DOM renderer — assert on their real output); a Vapor
+`<Transition>` is the REAL one in a spec (the default `transition` stub is virtual-DOM only) and needs a frame
+source — `tests/client/vapor/lendFrames.ts`. What Vapor takes at all is `tests/client/vapor/vaporCapability.spec.ts`.
 
 **Both `npm run test:*` scripts go through `scripts/run-tests.mjs`**, which fails the run when fewer tests are COLLECTED than the declared floor (`--min`). Raise a floor when a batch of specs lands; never lower one to make a run pass.
 
@@ -82,7 +95,7 @@ cross-env NODE_ENV=development npx mochapack \
 - ⚠️ **A 4K TIMING / STORYBOARD CLAIM IS TAKEN ON THE GPU — `TM_E2E_GPU=1`** (PL-211, the owner's decision 2026-10-12; on the Steam Machine the wrapper sets it, with the Linux flag set `playwright.config.ts` § `GPU_ARGS` measured not to crash headless). The default headless shell renders with SwiftShader: every 4K commit waits on a CPU compositor (150–380 ms — PL-149 was this, not the product), and under two workers holds hit their 8 s ceilings. `TM_E2E_GPU=1` runs the new headless (`channel: 'chromium'`) through ANGLE/D3D11 with GPU raster — the road the TV build takes. Opt-in and local only (CI's Linux runners have no GPU; the flag is ignored there): a red tv4k run on SwiftShader under load is re-run on the GPU before it is called the product's. ⚠ **And on the GPU the FIRST draw of new content in a run compiles shaders** (every launch is a fresh profile, so the shader caches start empty): one raster flush on `CrGpuMain` holds the frames for 60–120 ms (ANGLE worker tasks plus `GrShaderCache::store` in a trace) while the main thread is free. rAF stops, a `setInterval` sampler keeps sampling, and a still object reads as the PRODUCT waiting. A probe that measures a wait must read the product's own wait off the DOM (`data-hero-wait="target"` — `console-play-landing-geometry` reports `stall=` apart from `hover=`, PL-625). Never read `document.timeline.currentTime` for this: it advances in vsync steps on an idle page with no frame produced.
 - **PROVE A FLAKE FIX BY RATE, never by one green run.** `npx playwright test <spec> --workers=1 --retries=0 --repeat-each=8` turns «flaky» into a number: the Miranda owner-bonus probe measured 1/8 locally, which is what made it debuggable at all — a single pass says nothing about a 12 % failure. Measure before and after, and keep the failure DIAGNOSTIC enough that the next occurrence names the bug rather than the symptom (that probe now prints the SERVER's own queued reveal batches, so «the client never presented it» and «the trade never committed» stop looking identical).
 - ⚠️ **A DRIVER THAT ANSWERS A SURFACE MUST FIRST LET IT RESOLVE ITSELF.** `waitForBoardHome` gained a branch for the generic task host, and the eager version — press A/RT the moment one is seen — answered prompts the shell was already driving. Wait the first rounds out (the old no-op behaviour), then self-heal; the product's own stalled-foreground watchdog uses the same three-pass shape for the same reason.
-- **Module state is BUNDLE-SHARED in mochapack.** A spec that overrides an injected supplier or leaves module reactive state set (an open flow, a live animation hold, a foreground lease) corrupts every later spec — restore it in `after()`.
+- **Module state is BUNDLE-SHARED in the client suite.** A spec that overrides an injected supplier or leaves module reactive state set (an open flow, a live animation hold, a foreground lease) corrupts every later spec — restore it in `after()`.
 - A PURE helper spec with no Vue dependency also runs under the faster server runner.
 - `eqeqeq` has no null exception here — `== null` fails lint.
 

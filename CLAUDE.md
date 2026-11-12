@@ -10,13 +10,15 @@ Guidance for Claude Code working in this repository — the `vize1215` private f
 
 **The destination of the client is ONE Vapor application — `createVaporApp(App).mount('#app')` on Vue 3.6: no virtual-DOM runtime, every component a Vapor component** (the owner / the architect, 2026-11-12). **Rewriting the EXISTING components is in scope; the Options API is being left behind.** The road is staged, and a stage does not start before the one before it is green on the full CI e2e — the program, the counted inventory and the protocols are `docs/claude/vapor/ROADMAP.md`:
 
-- **V0** the docs (done) → **V1** the PILOT: `vue@3.6.0-rc.15`, pinned exactly, becomes the project's version → **V2** architecture v2 to the end: 100 % of the console UI on the flow kernel, the debt ledger at zero (`docs/claude/console/architecture-v2/PLAN.md` §11) → **V3** the rework of ALL components to `<script setup>` / Vapor, wave by wave, every case proven by e2e on CI → **V4** the switch to `createVaporApp(App)`.
+- **V0** the docs (done) → **V1** the PILOT (**done 2026-11-12**): `vue@3.6.0-rc.15`, pinned exactly, IS the project's version; the build compiles Vapor, the unit runner mounts it, three leaves ship as `<script setup vapor>` through `vaporInteropPlugin`; what the new core changed and what Vapor takes is written in ROADMAP §3 and pinned by specs → **V2** (**next**) architecture v2 to the end: 100 % of the console UI on the flow kernel, the debt ledger at zero (`docs/claude/console/architecture-v2/PLAN.md` §11) → **V3** the rework of ALL components to `<script setup>` / Vapor, wave by wave, every case proven by e2e on CI → **V4** the switch to `createVaporApp(App)`.
 
 What it means for EVERY client change, from now on:
 
-- **A NEW component is `<script setup lang="ts">`** (Composition API) — never a new `defineComponent({data, computed, methods, watch})`. The one exception to «follow the style of the file around you».
+- **A NEW component is `<script setup lang="ts">`** (Composition API) — never a new `defineComponent({data, computed, methods, watch})`. The one exception to «follow the style of the file around you». A leaf may be `<script setup vapor lang="ts">` when everything it uses is a green row of `tests/client/vapor/vaporCapability.spec.ts`.
+- **It IMPORTS what the Options API got from the app** — `$t` (`@/client/directives/i18n`), `vI18n` / `vTrimWhitespace` (`@/client/directives/vDirectives`: one binding per directive, good in both runtimes), every component it renders. Templates do not change.
+- **ONE MUTATION — ONE REACTION.** Two reactions that read ONE collection and whose order matters are ONE `watch` with the order written in its body: which of them a single mutation wakes first is NOT a contract of Vue's reactivity (it flipped between 3.5 and 3.6 — ROADMAP §3.5; guard `tests/console/vueReactivityContract.spec.ts`).
 - **An EXISTING component is converted in its V3 wave, as a commit of its own** — never in passing inside an unrelated change (a conversion nobody can attribute is a regression nobody can find).
-- **Do not add what the target has no place for**: a mixin, `$parent` / `$root`, a new `globalProperties` member, a new global `app.component` / `app.directive`, a render function where a template will do, a new `$refs` reach from one surface into another, a new `getCurrentInstance()`.
+- **Do not add what the target has no place for**: a mixin, `$parent` / `$root`, a new `globalProperties` member, a new global `app.component` / `app.directive`, a render function where a template will do, a new `$refs` reach from one surface into another, a new `getCurrentInstance()` (it is `null` in a Vapor component — a lifetime binds to the effect scope, a context comes down by `inject`). Each is a row of the READINESS LEDGER (`tests/console/vaporReadiness.spec.ts`, `npm run ready:vapor`): a file may not gain one, a new file starts at zero.
 - **Logic lives OUTSIDE the component** — in modules, controllers and composables on the flow kernel (architecture v2). A component is a template and its wiring; every method moved out today is a line nobody converts tomorrow.
 - **The e2e hooks are the conversion's contract** (invariant 14) — they survive a conversion unchanged, or the spec moves in the same diff.
 
@@ -121,17 +123,14 @@ npm run lint:fix             # ESLint autofix
 ```bash
 npm run test                 # All tests (server + client)
 npm run test:server          # Mocha server tests
-npm run test:client          # Mochapack client component tests
+npm run test:client          # Client component tests (scripts/client-tests.mjs: webpack bundle -> mocha, in jsdom)
 
 # Single server test file
 npx mocha --import=tsx --require tests/testing/setup.ts "tests/cards/base/Algae.spec.ts"
 
-# Single client test file. BOTH extra flags are required when invoking mochapack
-# directly: webpack.test.config.js builds ONE chunk (webpack.config.js's fixed-name
-# `vendors` split silently makes the runner collect ZERO tests and exit 0), and
-# bundleSetup.ts auto-unmounts wrappers so specs stay order-independent.
-npx mochapack --webpack-config webpack.test.config.js --require tests/client/components/setup.ts \
-  --include ./tests/client/components/bundleSetup.ts "tests/client/components/Board.spec.ts"
+# Single client test file (or a glob). The runner bakes in what used to be flags: the ONE-chunk
+# webpack.test.config.js and the in-bundle setup (auto-unmount, the Vapor interop plugin).
+npm run test:client:one -- "tests/client/components/Board.spec.ts"
 ```
 
 Both `npm run test:server` and `npm run test:client` run through `scripts/run-tests.mjs`, which **fails the run when fewer tests were collected than the declared floor** — a suite that quietly stops collecting can no longer report success.
@@ -156,7 +155,7 @@ npm run watch:less           # CSS rebuild on change
 
 ### Three layers
 - **`src/server/`** — game engine, card logic, routes, database (Node.js).
-- **`src/client/`** — Vue 3 frontend, bundled with Webpack; Less styles in `src/styles/`. **Today** 471 of its 472 components are Options API (`defineComponent`); **the destination** is `<script setup>` + Vapor (§ North star) — a new component is written in the destination's form.
+- **`src/client/`** — Vue 3 frontend, bundled with Webpack; Less styles in `src/styles/`. On **Vue 3.6.0-rc.15** (exact pin + `overrides` — never a caret while it is an RC). **Today** 468 of its 472 components are Options API (`defineComponent`), 3 are Vapor; **the destination** is `<script setup>` + Vapor (§ North star) — a new component is written in the destination's form.
 - **`src/common/`** — types, enums and models shared by both. No runtime logic bound to either side.
 
 `@/` maps to `./src/` (tsconfig paths + webpack).

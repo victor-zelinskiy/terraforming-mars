@@ -5,9 +5,9 @@
 the EXISTING components is in scope; the Options API is being left behind.**
 
 This file is the program: the stages and what «done» means for each, what the codebase looks like against the target
-today (counted), the rules that are in force NOW, and how the pilot and the component rework are run. It is updated by
-every stage. `CLAUDE.md` § North star is the short form; `.claude/rules/client-ui.md` § NORTH STAR is what loads when
-you touch client code.
+today (counted), the rules that are in force NOW, what the pilot found, and how the component rework is run. It is
+updated by every stage. `CLAUDE.md` § North star is the short form; `.claude/rules/client-ui.md` § NORTH STAR is what
+loads when you touch client code.
 
 ---
 
@@ -15,132 +15,260 @@ you touch client code.
 
 | Stage | What | «Done» means | State |
 | --- | --- | --- | --- |
-| **V0** | the docs: the north star in `CLAUDE.md`, this program, the rules, the architecture plan pointing at it | a new session reads the destination and the rules of the road before it writes a line | **done 2026-11-12** |
-| **V1** | THE PILOT — `vue@3.6.0-rc.15` becomes the project's version (still a `createApp` app, still the virtual DOM) | §3: every check green on the pinned version, the differences found are written here, the bump is ONE commit; then 2 – 3 leaf components run as Vapor inside the vdom app and what Vapor cannot do for us yet is LISTED (§3.3) | next |
-| **V2** | architecture v2 to the end — 100 % of the console UI on the flow kernel | `docs/claude/console/architecture-v2/PLAN.md` §11: the debt ledger is EMPTY (the surface registry, the prompt router, the domains' reactions as machines / runs, the session owning the tick — S-last: «the shell is layout») | after V1 |
+| **V0** | the docs: the north star in `CLAUDE.md`, this program, the rules, the architecture plan pointing at it | a new session reads the destination and the rules of the road before it writes a line | **done 2026-11-12** (`da57cf6027`) |
+| **V1** | THE PILOT — `vue@3.6.0-rc.15` is the project's version (still a `createApp` app); the toolchain compiles and tests Vapor; three leaves run as Vapor in the product | §3: every check green on the pinned version, the differences found are written here; the capability table of §3.6 is an executable suite | **done 2026-11-12** — §3 is the record |
+| **V2** | architecture v2 to the end — 100 % of the console UI on the flow kernel | `docs/claude/console/architecture-v2/PLAN.md` §11: the debt ledger is EMPTY (the surface registry, the prompt router, the domains' reactions as machines / runs, the session owning the tick — S-last: «the shell is layout») | **next** |
 | **V3** | THE REWORK — every component is `<script setup>` and compiles as Vapor, wave by wave | §4: the readiness ledger (§5) is at zero Options-API components; every wave passed the full e2e on CI before the next began | after V2 |
-| **V4** | THE SWITCH — `createVaporApp(App).mount('#app')` | `main.ts` creates a Vapor app; the vdom runtime is not in the bundle; the full e2e and the timing class are green; the field build ships | after V3 |
+| **V4** | THE SWITCH — `createVaporApp(App).mount('#app')` | `main.ts` creates a Vapor app; the vdom runtime and the interop plugin are not in the bundle; the full e2e and the timing class are green; the field build ships | after V3 |
 
 **Why this order.** V1 first because everything after it should be written and measured on the runtime we are going
 to: the reactivity core is new in 3.6 (alien-signals), and the architecture's sharpest edges are reactive ones (the
 order of the shell's reactions in a tick, the sync watchers, `scopedState`'s `customRef`). V2 before V3 because the
 architecture work REMOVES from the components exactly what makes them expensive to convert — logic in `methods`,
 lifetimes in hooks, `this.$refs` between surfaces, the shell's `watch` table: after V2 a component is a template and
-its wiring, and its conversion is mechanical. Converting 471 components first and re-architecting them after would be
+its wiring, and its conversion is mechanical. Converting 468 components first and re-architecting them after would be
 doing the dangerous half twice.
 
 ---
 
-## 1. Where the code stands against the target (counted 2026-11-12, `src/client`)
+## 1. Where the code stands against the target (`src/client`; the live numbers are the ledger's — §5)
 
-| | Count | What it becomes |
+| | Count (2026-11-12, after V1) | What it becomes |
 | --- | --- | --- |
 | `.vue` components | **472** (271 under `components/console/`) | — |
-| …written with the Options API (`defineComponent({…})`) | **471** | `<script setup lang="ts">` |
-| …written with `<script setup>` | **1** | (the form of every new component) |
+| …that are VAPOR (`<script setup vapor>`) | **3** — the pilot's leaves (§3.6) | all of them |
+| …written with `<script setup>` (virtual DOM) | **1** | gain `vapor` in their wave |
+| …written with the Options API (`defineComponent({…})`) | **468** | `<script setup lang="ts">`, then `vapor` |
 | …that already have a `setup()` beside their options | 94 | their `setup()` body is the seed of the script-setup block |
-| `data()` blocks · `computed:` blocks · `watch:` blocks | 223 · 388 · 122 | `ref` / `reactive` · `computed()` · `watch()` — **in the same order** (creation order of watchers is load-bearing in the shell) |
+| `data()` blocks · `computed:` blocks · `watch:` blocks | 223 · 388 · 122 | `ref` / `reactive` · `computed()` · `watch()` — **in the same order** (see §3.5: order between watchers of DIFFERENT sources was never creation order) |
 | `this.$emit(` | 377 in 97 files | `defineEmits` |
 | `this.$nextTick(` | 342 | `nextTick()` (or a kernel wait where it is used AS a wait) |
-| `$refs` | 775 | a template ref (`useTemplateRef`) inside a component; **between** surfaces — the surface registry (architecture S3; 117 of them are in the shell's controllers and are already frozen by the debt ledger) |
+| `$refs` | 785 | a template ref (`useTemplateRef`) inside a component; **between** surfaces — the surface registry (architecture S3; 117 of them are in the shell's controllers and are already frozen by the debt ledger) |
 | `this.$el` | 176 | a template ref on the root |
-| `this.$watch(` | 7 | `watch()` |
-| `<Transition>` / `<TransitionGroup>` | 187 | to verify in the pilot |
-| `<Teleport>` | 34 | to verify in the pilot (the embedded-step architecture stands on it) |
-| `defineAsyncComponent` | 32 | to verify in the pilot |
-| `<component :is>` · `v-html` | 4 · 9 | to verify in the pilot |
-| the `v-i18n` directive (a GLOBAL custom directive from `plugins/i18n.plugin.ts`) | **902** sites | **the largest single item** — Vapor's custom directives have a different interface (§1.1): port the directive once; the pilot says whether the 902 call sites stay as they are |
-| `app.config.globalProperties.$t` | the i18n plugin | an import (`$t` from `directives/i18n`) |
-| global registrations in `main.ts` | 3 components (`action-target-card`, `premium-card-face`, `console-source-dock`) · 1 directive (`trim-whitespace`) | explicit imports |
-| `mixins:` · `$parent` / `$root` · render `h(` · `getCurrentInstance` | 1 · 2 · 4 · 3 call sites | composables / props / templates; `getCurrentInstance` — `null` in Vapor (§1.1): `provide` / `inject` and explicit ports |
-| sync watchers (`flush: 'sync'`) · `customRef` · `effectScope` | 11 · 2 · 4 | unchanged API — their BEHAVIOUR on the new reactivity core is the pilot's first check |
-| unit specs that mount components (`@vue/test-utils`) | 208 files | the test utils' support for Vapor components: to verify in the pilot |
+| `<Transition>` / `<TransitionGroup>` | 187 | works as it is (§3.6) |
+| `<Teleport>` | 34 | works as it is (§3.6) |
+| `defineAsyncComponent` | 32 | works as it is — a vdom async wrapper loads a Vapor component (§3.6) |
+| `<component :is>` · `v-html` | 4 · 9 | work as they are (§3.6) |
+| the `v-i18n` directive | **913** sites in 120 files (285 with dynamic content inside, 6 with params) | **ONE import line per component** — `import {vI18n} from '@/client/directives/vDirectives'`; the 913 call sites keep their syntax (§3.6) |
+| `$t(` in templates (`app.config.globalProperties.$t`) | 2206 | **ONE import line per component** — `import {$t} from '@/client/directives/i18n'`; the call sites keep their syntax |
+| global registrations | 6: `main.ts` 3 components (`action-target-card`, `premium-card-face`, `console-source-dock`) + `trim-whitespace`; the i18n plugin's `$t` + `i18n` | explicit imports; the registrations leave with the last Options-API component |
+| `mixins:` · `$parent` / `$root` · render `h(` · `getCurrentInstance` | 1 · 1 · 4 · **1** | composables / props / templates; the one `getCurrentInstance` left is `shell/shellPort.ts` — the bridge to the Options-API shell, gone with architecture S-last |
+| `v-memo` | 11 | dropped at conversion (the Vapor compiler ignores it, with a warning) |
+| sync watchers (`flush: 'sync'`) · `customRef` · `effectScope` | 11 · 2 · 4 | unchanged API **and unchanged behaviour** — pinned by `vueReactivityContract.spec` (§3.5) |
+| unit specs that mount components (`@vue/test-utils`) | 208 files | a Vapor component is mounted under a virtual-DOM host (§3.6 · test-utils) |
 | `ConsoleShell.vue` | 3.6k lines + 34 controllers built in its `setup()` | converted LAST (V3's final wave) — after V2 it is layout |
 | components marked `@deprecated Desktop-only` | 5 | DELETED by the desktop deletion waves, never converted (`docs/DESKTOP_DEPRECATION_AUDIT.md`) |
 
-### 1.1 What Vapor does NOT take — the upstream list, counted against our code
-
-From the 3.6.0-rc.1 release notes, as cited in this repo's own research
-(`docs/research/research_notes/Аудит современного стека Electron 45/libraries_visual_integration.md` §4, 2026-10-22 —
-that report's verdict «Vapor: skip» is SUPERSEDED by the north star; its facts stand until the pilot re-reads them on
-rc.15). Vapor takes template-only SFCs and `<script setup>`; a `createApp` application mixes Vapor and vdom components
-through `vaporInteropPlugin`; a pure Vapor application is `createVaporApp()`.
+### 1.1 What Vapor does NOT take — the upstream list, read against rc.15 by the pilot
 
 | Not supported in a Vapor component | In our client | The way out |
 | --- | --- | --- |
-| the Options API | 471 components | `<script setup>` — V3 |
-| `app.config.globalProperties` | `$t` (the i18n plugin) | import `$t` |
-| `getCurrentInstance()` — returns `null` | 3 call sites: `session/consoleSession.ts` ×2 (`useConsoleSession` · `componentSessionScope`) and `shell/shellPort.ts` — **how every controller reaches the shell instance** | `provide` / `inject` only for the session; the port becomes explicit wiring (architecture S-last: «the session wires the controllers' ports directly, no instance in between») |
-| template refs that expose `$el` / `$props` / `$attrs` / `$slots` / `$refs` of a child | 21 reads of a child's `$el` / `$props` through a ref (+ 176 `this.$el` of one's own root) | the child exposes what is needed (`defineExpose`) / registers it (the surface registry); one's own root is a template ref |
-| `v-memo` | 12 | drop it (Vapor updates are already fine-grained) — verify there is no visible cost while still on vdom |
+| the Options API | 468 components | `<script setup>` — V3 |
+| `app.config.globalProperties` | `$t` (the i18n plugin) | `import {$t} from '@/client/directives/i18n'` — verified (§3.6) |
+| `getCurrentInstance()` — returns `null` (verified) | was 3 call sites; **the flow kernel's two are gone** (`useConsoleSession` · `componentSessionScope` bind to the effect scope and `inject` — §3.4); left: `shell/shellPort.ts` | the port becomes explicit wiring (architecture S-last: «the session wires the controllers' ports directly, no instance in between») |
+| template refs that expose `$el` / `$props` / `$attrs` / `$slots` / `$refs` of a child | 21 reads of a child's `$el` / `$props` through a ref (+ 176 `this.$el` of one's own root) | the child exposes what is needed (`defineExpose` — verified: a parent's ref of a Vapor child IS its exposed object) / registers it (the surface registry); one's own root is `useTemplateRef` (verified) |
+| `v-memo` | 11 | drop it — the Vapor compiler ignores it and says so |
 | `@vue:xxx` per-element lifecycle events | 0 | — |
 | render functions / JSX (they stay vdom) | 4 `h(` · no JSX | templates |
-| **custom directives — a different interface** | 16 definitions; **`v-i18n` at 902 sites**, `trim-whitespace` | port the two global directives to the Vapor directive interface ONCE (the call sites keep their syntax if the pilot confirms it) — else a composable / compile-time form |
-| **event delegation at the document level — `stopPropagation()` blocks delegated handlers** | 92 `stopPropagation` / `.stop` (36 template modifiers) — and the console's own key / pad routing listens at the window (`consoleKeyBridge`, the input-absorb ledger) | audit each in its wave: a `.stop` that used to shield a parent's handler now also shields every delegated one above it. The pilot's Vapor probe must include a component with a `.stop` under the pad router |
+| **custom directives — a different interface** (one function, called once, `value` a getter, no `updated`) | 16 definitions; **`v-i18n` at 913 sites**, `trim-whitespace` | DONE for the two global ones: `directives/vDirectives.ts` exports ONE binding per directive that both runtimes call (§3.6). A global directive resolved by NAME inside a Vapor component is the vdom object — not callable: a `<script setup>` component imports |
+| ~~event delegation at the document level~~ | — | **NOT the case on rc.15**: delegation became OPT-IN in rc.2 (`@click.delegate`). A plain `@click` in a Vapor component is a listener on the element; `.stop` shields exactly what it did; the console's window-level key bridge is not bypassed (verified — §3.6). Nothing to audit |
 
-The toolchain today: `vue` ^3.5 (3.5.42 installed) · `vue-loader` ^17 · `@vue/test-utils` ^2.4 · `vue-tsc` ^3.3 ·
-`webpack` 5 · `typescript` 6 · `@vueuse/core` 14.
+The toolchain after V1: `vue` **3.6.0-rc.15** (exact, with `overrides` — §3.7) · `vue-loader` 17.4.2 + `scripts/vapor/sfcTemplateCompiler.cjs` ·
+`@vue/test-utils` 2.5.1 · `vue-tsc` 3.3.14 · `webpack` **5.112.2** · `mocha` **12** · `typescript` 6 · `@vueuse/core` **15** · `electron` **45.3.1**.
 
 ---
 
 ## 2. The rules in force NOW (every stage inherits them)
 
 1. **A NEW component is `<script setup lang="ts">`** (Composition API). Never a new `defineComponent({data, computed,
-   methods, watch})`. This is the one exception to «follow the style of the file around you».
-2. **An EXISTING component is converted in its V3 wave, as a commit of its own** — never in passing inside an
+   methods, watch})`. This is the one exception to «follow the style of the file around you». It may be
+   `<script setup vapor lang="ts">` when everything it uses is a green row of the capability suite (§3.6) — a leaf with
+   props, events, slots, a `<Transition>` / `<Teleport>`, `v-i18n` qualifies.
+2. **It IMPORTS what the Options API got from the app**: `$t` (`@/client/directives/i18n`), `vI18n` / `vTrimWhitespace`
+   (`@/client/directives/vDirectives` — one binding per directive, good in both runtimes, so the line does not change
+   when the component gains `vapor`), every component it renders. The readiness ledger's `global-in-setup` row fails a
+   `<script setup>` component that leans on a global.
+3. **An EXISTING component is converted in its V3 wave, as a commit of its own** — never in passing inside an
    unrelated change. A conversion is verified by the e2e specs of its surface; a conversion hidden in a feature diff
-   is a regression nobody can attribute. (Exception: V1's 2 – 3 pilot leaves.)
-3. **Do not add what the target has no place for**: a mixin, `$parent` / `$root`, a new `app.config.globalProperties`
+   is a regression nobody can attribute.
+4. **Do not add what the target has no place for**: a mixin, `$parent` / `$root`, a new `app.config.globalProperties`
    member, a new global `app.component` / `app.directive` registration, a render function (`h(…)`) where a template
    will do, a new `this.$refs` reach from one surface into another (the debt ledger already fails on it in the
-   controllers), a new `getCurrentInstance()`.
-4. **Logic lives OUTSIDE the component** — state and flows in modules, controllers and composables on the flow kernel
+   controllers), a new `getCurrentInstance()`. Each of these is a row of the readiness ledger (§5): a file may not
+   gain one, a new file starts at zero.
+5. **Logic lives OUTSIDE the component** — state and flows in modules, controllers and composables on the flow kernel
    (architecture v2: `createFlowRun` / `deriveFlowRun`, `scopedState`, `sessionState`, `useFlowScope`). A component is
    a template and its wiring. Every method moved out today is a line that does not have to be converted tomorrow.
-5. **The e2e hooks are the conversion's contract** (`CLAUDE.md` invariant 14): a `data-*` attribute, a class or a line
+6. **ONE MUTATION — ONE REACTION** (§3.5). Two reactions that read ONE collection and whose order matters are ONE
+   `watch` with the order written in its body — which of them a single mutation wakes first is not a contract of the
+   reactivity core (it flipped between 3.5 and 3.6). Guard: `tests/console/vueReactivityContract.spec.ts`.
+7. **The e2e hooks are the conversion's contract** (`CLAUDE.md` invariant 14): a `data-*` attribute, a class or a line
    of RU copy a spec waits for survives a conversion unchanged — or the spec moves in the same diff.
-6. **The version is pinned EXACTLY** while it is a release candidate (`"vue": "3.6.0-rc.15"`, no caret): a new RC is
-   a decision with its own run of §3, never an install-time surprise.
-7. **Nothing here outranks the product** — console native is still what ships (`CLAUDE.md` § The product), the
+8. **The version is pinned EXACTLY** while it is a release candidate (`"vue": "3.6.0-rc.15"`, no caret, and the same
+   version in every row of `overrides`): a new RC is a decision with its own run of §3.8, never an install-time
+   surprise.
+9. **Nothing here outranks the product** — console native is still what ships (`CLAUDE.md` § The product), the
    invariants still hold, and a stage that cannot be made green waits; it is not forced.
 
 ---
 
-## 3. V1 — the pilot (the protocol)
-
-Done in a worktree of its own; nothing is pushed until §3.2 is green.
+## 3. V1 — the pilot: what was done and what it found (2026-11-12)
 
 ### 3.1 The bump
-`vue` → `3.6.0-rc.15` (exact), and whatever of the toolchain must move with it (`vue-loader`, `@vue/compiler-sfc` if
-it is pinned apart, `@vue/test-utils`, `vue-tsc`) — each change written down here with the reason. The app is still
-`createApp(App)`; no component changes in this step.
+`vue` `^3.5.40` → **`3.6.0-rc.15`** (exact). With it: `vue-tsc` 3.3.14, `@vue/test-utils` 2.5.1, and an `overrides`
+block (§3.7). The app is still `createApp(App)`. Two source changes were needed for green:
 
-### 3.2 The checks — all of them, before/after where it is a number
-- `npm run lint` (eslint · i18n audit · **vue-tsc**) and plain `tsc`; `npm run build:test`;
-- `npm run test:client` and `npm run test:server` at their floors — every red read as «the new reactivity core or
-  the spec?», and written down;
-- the two ledgers and the kernel's law (`kernelCoverage` · `architectureDebt` · `tests/console/kernel/**`) — the
-  flow kernel rides Vue's reactivity (`isLive()`, `until`, `deriveFlowRun`'s sync watcher, `scopedState`);
-- `npm run build` — the client bundle's size before / after;
-- **the full e2e on CI** and the timing class on the Steam Machine — the verdict;
-- the perf probes before / after on the box (`console-longgame-perf-probe`, `console-played-perf-probe`,
-  `console-recv-perf-probe`) and the long-frame split from a field session (`[long-frame]` — script vs
-  style / layout / paint): what the new core actually buys on a 4K frame is a NUMBER in this file, not a hope.
+| File | Why |
+| --- | --- |
+| `console/vueErrorReport.ts` | TYPES: an instance's `parent` is a `GenericComponentInstance` in 3.6 (a vdom or a Vapor one) — the component chain is read through the two fields both kinds share |
+| `components/marsbot/marsBotPresentation.ts` | BEHAVIOUR: the one flow that depended on which watcher a single `push` wakes first (§3.5) — two watchers became one reaction |
 
-What to look at first, because it is where a new reactivity core can change behaviour without changing an API:
-the ORDER of the shell's 145 reactions inside a tick (the watch table — PLAN §5 · S5's lesson), the 11 sync
-watchers, `scopedState` (`customRef` + `reactive`), the reactivity witness (`presentation/reactivityWitness.ts`),
-`proxyRefs` over the controllers' refs, the lazy scope `Proxy` of `useFlowScope` under `markRaw`.
+### 3.2 The checks
 
-### 3.3 The Vapor probe (inside the vdom app, through the interop)
-Two or three LEAF components — chosen to cover one each of: a `<Transition>`, the `v-i18n` directive, a `<Teleport>`
-or a slot, an `$emit` a parent listens to, a unit spec that mounts it — are rewritten as `<script setup vapor>` and
-run in the ordinary app. The output of the probe is a TABLE in this file: for every row of §1 marked «to verify» —
-works · works with a change (which) · not yet (the fallback, and whether it blocks V3 or only V4).
+| Check | Before (3.5.42) | After (3.6.0-rc.15) |
+| --- | --- | --- |
+| `vue-tsc` · plain `tsc` · `build:test` · eslint | green | green (one type fix, above) |
+| client unit suite | 8400 passing | 8399 passing + **1 red** → fixed (§3.5); now **8425** with the suites this stage added |
+| server unit suite (incl. the kernel's law, both ledgers) | 22741 passing | 22741 passing (with the specs this stage added: **22771**) |
+| client bundle — the bump alone | `vendors.js` 425.0 KB · gz 147.9 · br 130.2 | 455.8 KB · gz 159.7 · br 140.2 (**+11.8 KB gz**: the 3.6 core; `runtime-vapor` is tree-shaken out while no component is Vapor) |
+| client bundle — the final state (the interop plugin + three Vapor leaves + the updated dependencies) | — | `vendors.js` 554.6 KB · gz 194.3 · br 169.2 (**+34.6 KB gz** over the bump alone — BOTH runtimes are in the bundle until V4 takes the virtual-DOM one out; `main.js` and the console chunk moved by < 0.2 %) |
+| box e2e, the pointwise list (301 functional + 104 timing) | 301 / 301 · 104 / 104 | **301 / 301 · 104 / 104** (the whole final stack: Vue 3.6, the Vapor leaves, webpack 5.112, Playwright 1.65) |
+| the same list on the box — the sum of the 405 tests' own times (`scripts/e2e-timings-diff.mjs`) | 7077 s (42.2 min functional wall, 2 workers) | 7207 s (43.5 min) — **+2 %, inside the run-to-run noise**; the e2e browser also moved to Chromium 158 in the same step. At this granularity the new core neither speeds the product's flows up nor slows them down — they are paced by motion, not by reactivity |
 
-### 3.4 «Done»
-Everything in §3.2 green; §3.3's table written; the bump lands as ONE commit; this file's §0 says «V1 — done» with
-the commit. Rollback is reverting that commit.
+**What the new core itself buys** — `node --expose-gc scripts/vapor/reactivity-bench.cjs <node_modules>` (no DOM, no
+components; the shapes the console leans on; median of five, two rounds each, the laptop):
+
+| Shape | 3.5.42 | 3.6.0-rc.15 | |
+| --- | --- | --- | --- |
+| memory: 100 000 refs + 100 000 computeds over them | 56.1 MB | 37.8 MB | **−33 %** |
+| fan-out: one ref → 2000 watched computeds, 100 writes | 113 – 121 ms | 42 – 44 ms | **2.7× faster** |
+| view-apply: a game view rewritten field by field under 100 derivations, 60 turns | 80 – 83 ms | 62 – 73 ms | −10 … −26 % |
+| chain: a computed chain 1000 deep, 300 invalidations | 14.5 ms | 11.2 – 12.2 ms | −20 % |
+| sync edges: 200 sync watchers over one array, 2000 pushes | 90 ms | 77 – 82 ms | −10 … −14 % |
+
+The three hand-run perf probes (`console-longgame-perf-probe`, `-played-`, `-recv-`) need a seeded server started by
+hand and were NOT run in this stage; what was measured on the product is the box list above. A 4K frame-split from a
+field session on the new core is still owed — it is a row of V2's first slice, not a claim made here.
+
+### 3.3 What is NEW in 3.6 that the architecture can use — and what is not there
+`node scripts/vapor/reactivity-facts.cjs <node_modules>` and a diff of the packages' exports, 3.5.42 against rc.15:
+
+- **The public reactivity API did not change.** alien-signals is an internal replacement of the core. The new runtime
+  exports of `@vue/reactivity` (`startBatch` / `endBatch`, `setActiveSub`, `setCurrentScope`, `trackDep` / `triggerDep`,
+  `Dep`, `WatcherEffect`) are present but mostly UNTYPED — internals of the runtime packages, not something to build
+  on. What the kernel uses (`watch` incl. `flush: 'sync'`, `computed`, `customRef`, `shallowRef`, `effectScope`,
+  `getCurrentScope`, `onScopeDispose`, `markRaw`) is the stable surface, and its behaviour is now PINNED (§3.5).
+- **Vapor is the new public surface**: `createVaporApp`, `vaporInteropPlugin`, `defineVaporComponent`,
+  `defineVaporAsyncComponent`, `VaporDirective`, `VaporTransition` / `VaporTeleport` / `VaporKeepAlive`. A component
+  has NO instance for user code there — `getCurrentInstance()` is `null` — while `provide` / `inject`,
+  `hasInjectionContext()`, `getCurrentScope()` / `onScopeDispose` and every lifecycle hook work the same in both
+  runtimes. **That is the surface the flow kernel's component binding stands on now** (§3.4).
+
+### 3.4 The architecture, adapted (what changed in the framework)
+- **`useFlowScope` / `useConsoleSession` / `componentSessionScope` bind to the EFFECT SCOPE and the injection context —
+  never to a component instance.** The shell's session is keyed by its setup's effect scope; a component finds it by
+  `inject`. One call serves a virtual-DOM component, a Vapor component and a composable run in a bare `effectScope()`
+  (a controller under a spec with no mount). A component's flow scope still ends on its `unmounted` edge (after its
+  children, after the patch — the edge every release was written against); its effect scope's disposal is the NET
+  under the hook (a Vapor component removed before its mount gets `scope.stop()` and no hook) and the ending itself
+  in a bare scope. Specs: `tests/client/console/useFlowScope.spec.ts`, `vaporCapability.spec` § the flow kernel.
+- **The reactivity the kernel rides is a written contract** — `tests/console/vueReactivityContract.spec.ts` (module
+  half) + `tests/client/console/vueTickOrder.spec.ts` (component half): a Vue bump that moves a fact fails there, by
+  name, before any e2e.
+- **The project's directives exist as imports good in both runtimes** (`directives/vDirectives.ts`), so a converted
+  component's import lines are written once.
+- **The build compiles Vapor**, the unit runner mounts it, the readiness ledger counts the road (§3.6 · §3.7 · §5).
+
+### 3.5 What the new reactivity core changed — ONE thing
+Compared fact by fact (the script above; both installs side by side):
+
+| Fact | 3.5.42 | 3.6.0-rc.15 |
+| --- | --- | --- |
+| pre-flush watchers of no component run in the order they were TRIGGERED (not created) | ✔ | ✔ same |
+| a watcher of no component runs BEFORE every component's watchers; the component's own run in TRIGGER order; a reaction woken by a reaction runs after the waiting ones and before the render; the render once; the child after | ✔ | ✔ same |
+| sync watchers of ONE source run in creation order, inside the write | ✔ | ✔ same |
+| a sync watcher sees one array mutation as ONE edge; two plain writes as two | ✔ | ✔ same |
+| sync → pre → post → `nextTick` | ✔ | ✔ same |
+| a self-triggering watcher re-runs in the same flush; write-and-restore inside a tick is no edge | ✔ | ✔ same |
+| `customRef`, `shallowRef` / `triggerRef`, a detached `effectScope`, `markRaw` under `reactive` | ✔ | ✔ same |
+| **ONE mutation of a collection wakes several reactions through DIFFERENT facets (an array's `length` · its iteration · one index; a Map's `size` · its values · one key): which is woken FIRST** | `length` readers, then iterators, then the key | **the key, then iterators, then `length` readers** — pre-flush AND sync |
+| the order of `onScopeDispose` callbacks between a scope and its child scopes | the scope's own first | the children's first |
+
+The first group is what the architecture relies on — it is pinned by the two contract specs. The last two rows are
+NOT contracts and nothing may rely on them. One product flow did: the bot's staged timeline kept its strict FIFO only
+because the liveness walk (a watcher of `transient.length + queue.length`) ran BEFORE the delivery (a watcher of
+`transient.find(…)`) when one `push` woke both; on 3.6 the tail committed under the card still on screen
+(`marsBotStagedCommits.spec` — the pilot's one red). Now it is ONE watcher with the order in its body, and the law is
+rule 6 of §2 with a guard that fails on two `watch` sources in one file reading different facets of one collection.
+
+⚠ The guard sees `watch(` sources. A pair of an Options-API component's `watch:` rows over two COMPUTEDS of one
+collection is the same class and is not seen statically — it is what the full e2e is for, and what goes away as V2
+takes the reactions out of the watch table.
+
+### 3.6 The Vapor probe — the capability table (an executable suite)
+`tests/client/vapor/vaporCapability.spec.ts`: Vapor single-file components compiled by the product's own toolchain,
+mounted inside a virtual-DOM app through `vaporInteropPlugin` — how every wave of V3 will run. Every row is a test; a
+new RC re-reads the table by running it.
+
+| What | On rc.15 | Notes |
+| --- | --- | --- |
+| props from a vdom parent (reactive), text / class / attribute bindings, `v-for` keyed, `v-if` / `v-else`, `v-show`, `v-html`, `v-model`, `<component :is>` | ✔ works | |
+| `emit` → a vdom parent's listener | ✔ works | |
+| attributes / a class from the vdom parent falling through onto the root — a `v-if` root too, also one ABSENT at the mount | ✔ works **with a rule** | **the template must START with its root.** A development build keeps template comments; a comment before the root makes the root a FRAGMENT for Vapor and the attributes are dropped with a warning — in development and in unit specs ONLY (production strips the comment and inherits). Found on `ConsoleForecastDoor` (`data-unfold-late`). The comment goes into the script block; guard: `vaporReadiness.spec` § a Vapor template starts with its root |
+| a parent's `ref` on a Vapor child | ✔ works | it IS the child's `defineExpose` object — nothing else (no `$el`, no `$props`) |
+| events | ✔ works | NOT delegated (opt-in since rc.2): a listener above the component hears a plain click; `.stop` shields exactly what it did |
+| `<Transition>` over a keyed `v-if` · `<TransitionGroup>` | ✔ works | the vdom names compile to the Vapor components; hooks and classes as before |
+| `<Teleport :to :disabled>` — the SAME node moves, both ways | ✔ works | the embedded-step chain's mechanism |
+| slots: a default and a scoped slot from a vdom parent INTO Vapor; a scoped slot from Vapor DOWN into a vdom child | ✔ works | |
+| a Vapor PARENT hosting an Options-API CHILD (its props, its `$emit`, its global `v-i18n` / `$t`) | ✔ works | every wave has this shape at its edge |
+| a vdom `defineAsyncComponent` loading a Vapor component | ✔ works | the lazy chunks |
+| `v-i18n` / `v-trim-whitespace` as imports — static text, an interpolation, params, a late `v-if` branch; translated at the first frame and after every change | ✔ works | `directives/vDirectives.ts`: in Vapor the directive follows the text it owns through ONE shared `MutationObserver` (there is no `updated`); in a vdom `<script setup>` the same binding is called on `mounted` / `updated` |
+| `$t(…)` in a template | ✔ works **with a change** | it is the imported binding — a Vapor component has no global properties |
+| `useFlowScope` (the kernel) · lifecycle hooks · `useTemplateRef` | ✔ works | bound without an instance (§3.4) |
+| `getCurrentInstance()` | ✘ `null` | by design — nothing of ours needs it but the shell port |
+| `v-memo` | ignored (compiler warning) | drop at conversion |
+| `@vue/test-utils`: `mount(<a Vapor component>)` as the ROOT | ✘ throws | test-utils reads the root's vdom instance. A spec stands the component under a vdom host with an ELEMENT root (`mountVapor` in the suite; `card/CardDescription.spec.ts`). DOM finders work; `findComponent` INTO a Vapor child does not. The interop plugin is installed for every mount by `tests/client/components/bundleSetup.ts` |
+| test-utils' default `transition` stub | does not apply | a Vapor `<Transition>` is the real one in a spec and needs a frame source there — `tests/client/vapor/lendFrames.ts` |
+| test-utils' `stubs` for the CHILDREN of a Vapor component | do not apply | stubs reach components the virtual-DOM renderer resolves; a child created by a Vapor parent is the real one. A spec of a Vapor component asserts on its children's real output (`ConsoleForecastDoor.spec.ts`) |
+
+**The three leaves that ship as Vapor** (each a different row of the table, each with live e2e over it):
+`marsbot/BotReviewEdgeNotice.vue` (a `<Transition>` over a keyed `v-if` on module state · `$t`) ·
+`console/ConsoleForecastDoor.vue` (an `emit` four vdom hosts listen to · attribute fallthrough · two vdom children
+inside) · `card/CardDescription.vue` (`v-i18n` over an interpolation, many instances per screen, a unit spec).
+`main.ts` installs `vaporInteropPlugin`.
+
+### 3.7 The toolchain — what it took, and the decision it leaves
+- **`vue-loader` does not know Vapor** (17.4.2 is its latest; the last commit is from January 2024). A production
+  build compiled a Vapor SFC correctly anyway (the template is compiled inline by `compileScript`, which reads the
+  `vapor` flag off the descriptor); the unit-test bundle and `dev:client` did NOT (the loader's own template loader
+  calls `compileTemplate` without the flag — a vdom render function attached to a `defineVaporComponent`).
+  **Fix: `scripts/vapor/sfcTemplateCompiler.cjs`**, handed to the loader as its `compiler` option — the DOM compiler
+  for every component, `@vue/compiler-vapor` for one whose `<script>` / `<template>` carries `vapor`. No patched
+  dependency; one extra template parse per component per build.
+- **A prerelease does not satisfy a peer range** (`3.6.0-rc.15` is not in `^3.5.0` or `3.x`): without help npm keeps a
+  SECOND, 3.5 copy of the compiler for `@vue/test-utils` and `vue-tsc` and leaves `@vue/server-renderer` unresolvable.
+  **Fix: `overrides`** — `vue` and all eleven `@vue/*` core packages pinned to the same exact version (explicit
+  strings; `$vue` references failed to resolve on a fresh lock). One flat tree.
+- **`mochapack` is gone.** It was the client unit runner, unmaintained since 2021, and it deep-required the internals
+  of both tools it glued (`webpack/lib/Watching`, moved in webpack 5.112; `mocha/lib/cli/run-helpers`, gone in
+  mocha 12) — the one package holding the bundler and the test framework a version behind. `scripts/client-tests.mjs`
+  does what it did for a run against the two tools' PUBLIC APIs (webpack → one file → mocha), collects the same
+  suite (8 425 tests), and needs no flags (`npm run test:client:one -- <spec>`).
+- **THE DECISION LEFT OPEN — the bundler's Vue plugin.** Everything above makes webpack + `vue-loader` sufficient for
+  V2 and for V3's waves, and nothing here blocks them. But the loader is unmaintained and the official toolchain for
+  Vapor is Vite's `@vitejs/plugin-vue`. Recommendation: stay on webpack through V2 (no reason to move a build under a
+  redesign), and decide at the ENTRY of V3 — with one fact in hand that this pilot could not produce: a production
+  build of a Vapor-heavy bundle, measured. If the wrapper compiler ever needs a second special case, that is the
+  signal to move rather than patch.
+
+### 3.8 The protocol of the NEXT bump (a new RC · 3.6 final)
+1. `node scripts/vapor/reactivity-facts.cjs <old node_modules>` and `<new>` → diff. What it prints differently is
+   what the suites are about to tell you the slow way.
+2. Change the version in `dependencies.vue` AND every row of `overrides`; `npm install`.
+3. `npm run lint`, `npm run build:test`, `npm run test:server`, `npm run test:client` — the two contract specs and the
+   capability suite first: a red there is the bump's finding, by name.
+4. `npm run build` — the bundle against the numbers of §3.2.
+5. The box list, then the full CI. Write what moved into §3.5 / §3.6. The bump is one commit.
 
 ---
 
@@ -151,24 +279,42 @@ the commit. Rollback is reverting that commit.
   parts) → ② the foundation components (`components/console/foundation/**`) → ③ the domain surfaces, domain by domain
   (each with its controller already holding its logic) → ④ the hosts and the workspaces → ⑤ `ConsoleShell.vue` and
   `App.vue`, last.
-- **One recipe per construct** (the table of §1), applied the same way everywhere; a watcher keeps its place among
-  its siblings; a component's public surface (props, emits, what it exposes, its e2e hooks) does not change in a
-  conversion.
+- **One recipe per construct** (the table of §1), applied the same way everywhere. A component's public surface
+  (props, emits, what it exposes, its e2e hooks) does not change in a conversion. The pilot's three leaves are the
+  worked examples:
+  - `defineOptions({name})` keeps the component's name (the error report's chain, devtools);
+  - props → `withDefaults(defineProps<…>(), …)`; `emits` → `defineEmits<…>()`; a module's reactive state is imported
+    and read in the template as it is;
+  - `$t` and the directives → the two import lines of §2 rule 2;
+  - **the template starts with its root** — a comment that used to open the template moves into the script block
+    (§3.6: in a development build it would cost the component its fallthrough attributes);
+  - its unit spec mounts it under a host (§3.6 · test-utils) in the SAME commit — and a leaf that had none gets one
+    (`BotReviewEdgeNotice.spec.ts`, `ConsoleForecastDoor.spec.ts`);
+  - `npm run ready:vapor` in the same commit — the ledger records the conversion and lowers the rows it cleared.
+- **Two watchers of one collection are merged BEFORE their component is converted** (§2 rule 6) — a conversion does
+  not get to discover an order dependency.
 - **Every wave is its own series of commits and its own full e2e run on CI** — «все кейсы тестируем через e2e на CI»;
-  the next wave does not start on a red one. Unit specs of a converted component move in the same commit.
-- **The count is a ledger** (§5), so «how far» is a number and a converted component cannot drift back.
+  the next wave does not start on a red one.
 
-## 5. The readiness ledger (added with V1)
+## 5. The readiness ledger
 
-`tests/console/vaporReadiness.spec.ts` over a baseline, in the form of the two architecture ledgers: per file, the
-Options-API component itself and the constructs of §1 with no place in the target; a file may not grow, **a new
-`.vue` starts at zero** (so rule 1 of §2 is a failing test, not a convention), `npm run ready:vapor` lowers the
-baseline and prints the line. V3 is done when it is empty; V4 is one line in `main.ts` after that.
+`tests/console/vaporReadiness.spec.ts` over `vaporReadinessBaseline.json`, in the form of the two architecture
+ledgers. Per file it counts what the target has no place for — `options-api` (the component itself) ·
+`instance-access` (`getCurrentInstance`) · `parent-root` · `mixin` · `global-registration` · `render-function` ·
+`v-memo` · `refs` · `global-in-setup` (a `<script setup>` component leaning on `$t` / a global directive / a globally
+registered component). A file may not grow, **a new file starts at zero** (so rules 1, 2 and 4 of §2 are failing
+tests, not conventions), a component that is Vapor stays Vapor, and a Vapor component holds nothing of the list.
+`npm run ready:vapor` lowers the baseline and prints the line:
+
+`Vapor components: 3 / 472 · options-api: 468 · instance-access: 1 · parent-root: 1 · mixin: 1 · global-registration: 6 · render-function: 4 · v-memo: 11 · refs: 785 · global-in-setup: 2` (2026-11-12).
+
+V3 is done when `options-api` is zero and every component is Vapor; V4 is one line in `main.ts` after that.
 
 ## 6. How it meets architecture v2
 
 The two programs are one road. Architecture v2 (PLAN §11) retires `surface-by-ref` (S3 — the surface registry: no
 `$refs` between surfaces), the view-apply's writes and the set-aside flag (S4), the domains' reactions and resolver
 mailboxes (S6) and finally the shell's own `watch` table and hooks (S-last: «the shell is layout»). Each of those is
-also a row of §1 above. So V2 is not a detour before the rework — it is the half of the rework that changes
-behaviour, done under the guards built for it; V3 is the half that only changes form.
+also a row of §1 above — and the watch table is exactly where §3.5's unguarded half lives. So V2 is not a detour
+before the rework — it is the half of the rework that changes behaviour, done under the guards built for it; V3 is
+the half that only changes form.

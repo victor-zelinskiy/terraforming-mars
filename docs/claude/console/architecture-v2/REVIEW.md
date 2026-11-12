@@ -236,3 +236,16 @@ reaches a component, a review holds a diff to five things:
 
 A controller or a module passes this section when the component above it could become `<script setup>` without
 touching it: it takes refs and functions, not `this`.
+
+### 7.1 After the pilot (V1, 2026-11-12) — what a review checks in addition
+- **A lifetime binds to the effect scope; a context comes down by `inject`.** `getCurrentInstance()` is `null` in a
+  Vapor component: `useFlowScope` / `useConsoleSession` / `componentSessionScope` no longer use it, and nothing new
+  may (the readiness ledger's `instance-access` row — the one site left is `shell/shellPort.ts`, S-last's).
+- **ONE MUTATION — ONE REACTION.** Two reactions over one collection whose order matters → reject; ask for one
+  `watch` with the order in its body (`.claude/rules/console-flow.md` § A decision that ACTS). The reactivity the
+  kernel relies on is the list in `tests/console/vueReactivityContract.spec.ts` — a reaction that needs MORE than
+  that list promises is built on an accident of the core.
+- **A new `.vue`**: `<script setup lang="ts">` (or `vapor` for a leaf the capability suite covers), importing `$t` and
+  the directives; `npm run ready:vapor` when it is Vapor. Its unit spec mounts a Vapor component under a host.
+- **A composable is testable without a mount** — run it in `effectScope().run(…)`; its flow scope ends when that scope
+  stops (`tests/client/console/useFlowScope.spec.ts`). Prefer that to mounting a component to test a controller.
