@@ -29,8 +29,9 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {PropType} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {unplayableReasonText, unplayableReasonNow} from '@/client/components/handCards/unplayableReasonFormat';
 
@@ -47,26 +48,23 @@ import {unplayableReasonText, unplayableReasonNow} from '@/client/components/han
  * renderer — the hand overlay and the board tile placement both use it so
  * the two read as one "why unavailable" system.
  */
-export default defineComponent({
-  name: 'HandCardReasonPopover',
-  props: {
-    reasons: {
-      type: Array as PropType<ReadonlyArray<UnplayableReason>>,
-      required: true,
-    },
-    // Header label. Cards use the default; tile placement passes its own.
-    heading: {
-      type: String,
-      default: 'Unavailable',
-    },
+defineOptions({name: 'HandCardReasonPopover'});
+defineProps({
+  reasons: {
+    type: Array as PropType<ReadonlyArray<UnplayableReason>>,
+    required: true,
   },
-  methods: {
-    text(r: UnplayableReason): string {
-      return unplayableReasonText(r);
-    },
-    now(r: UnplayableReason): string {
-      return unplayableReasonNow(r);
-    },
+  // Header label. Cards use the default; tile placement passes its own.
+  heading: {
+    type: String,
+    default: 'Unavailable',
   },
 });
+
+function text(r: UnplayableReason): string {
+  return unplayableReasonText(r);
+}
+function now(r: UnplayableReason): string {
+  return unplayableReasonNow(r);
+}
 </script>
