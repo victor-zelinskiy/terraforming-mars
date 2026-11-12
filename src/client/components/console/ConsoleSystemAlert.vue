@@ -17,7 +17,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * Console-native SYSTEM ALERT panel — the pad-navigable replacement for the
  * desktop native <dialog> alert (whose OK button the controller cannot
@@ -30,23 +30,14 @@
  * SAME English keys `App.showAlert()` passes, translated here (the Russian
  * values already live in ru/ui.json).
  */
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {consoleSystemAlertState} from '@/client/console/consoleSystemAlertState';
 
-export default defineComponent({
-  name: 'ConsoleSystemAlert',
-  components: {GamepadGlyph},
-  computed: {
-    titleText(): string {
-      return consoleSystemAlertState.current?.title ?? '';
-    },
-    messageText(): string {
-      return consoleSystemAlertState.current?.message ?? '';
-    },
-    queued(): number {
-      return consoleSystemAlertState.queue.length;
-    },
-  },
-});
+defineOptions({name: 'ConsoleSystemAlert'});
+
+const titleText = computed((): string => consoleSystemAlertState.current?.title ?? '');
+const messageText = computed((): string => consoleSystemAlertState.current?.message ?? '');
+const queued = computed((): number => consoleSystemAlertState.queue.length);
 </script>
