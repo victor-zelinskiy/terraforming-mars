@@ -5,8 +5,8 @@
   </header>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed, useSlots} from 'vue';
 
 /**
  * @console-shared LIVE — console native stands on this file.
@@ -35,16 +35,14 @@ import {defineComponent} from 'vue';
  * Height is reserved, not content-driven: a batch that goes from one card to
  * several must not move the row underneath it.
  */
-export default defineComponent({
-  name: 'ConsoleWsStageHead',
-  props: {
-    /** The stage's own sentence — ALREADY translated by the host. */
-    title: {type: String, required: true},
-  },
-  computed: {
-    hasBadges(): boolean {
-      return this.$slots.badges !== undefined;
-    },
-  },
+defineOptions({name: 'ConsoleWsStageHead'});
+defineProps({
+  /** The stage's own sentence — ALREADY translated by the host. */
+  title: {type: String, required: true},
+});
+
+const slots = useSlots();
+const hasBadges = computed((): boolean => {
+  return slots.badges !== undefined;
 });
 </script>
