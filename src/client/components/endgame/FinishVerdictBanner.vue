@@ -1,9 +1,4 @@
 <template>
-  <!--
-    Iteration 17 §3 — the finish VERDICT as a visual tier banner (glyph + strong title +
-    a short rich-text line), replacing the flat hero thesis string. The accent/glyph come
-    from the verdict TYPE; the line uses the shared rich-text layer (hoverable terms).
-  -->
   <div v-if="verdict !== undefined" class="eg-fv"
        :class="['eg-fv--p-' + verdict.pattern, 'eg-fv--s-' + verdict.scale, 'eg-fv--r-' + verdict.rarity]">
     <span class="eg-fv__motif" aria-hidden="true"></span>
@@ -23,35 +18,35 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * THE TEMPLATE (the comment that opened it — it starts with its root now):
+ *
+ * Iteration 17 §3 — the finish VERDICT as a visual tier banner (glyph + strong title +
+ * a short rich-text line), replacing the flat hero thesis string. The accent/glyph come
+ * from the verdict TYPE; the line uses the shared rich-text layer (hoverable terms).
+ */
+import {computed} from 'vue';
 import type {FinishVerdict} from '@/client/components/endgame/finishVerdict';
 import type {RichParam} from '@/client/components/endgame/endgameRichText';
 import EndgameRichText from '@/client/components/endgame/EndgameRichText.vue';
 import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
-export default defineComponent({
-  name: 'FinishVerdictBanner',
-  components: {EndgameRichText},
-  props: {
-    verdict: {type: Object as () => FinishVerdict | undefined, required: false, default: undefined},
-  },
-  computed: {
-    isRare(): boolean {
-      return this.verdict?.rarity === 'rare' || this.verdict?.rarity === 'legendary';
-    },
-    lineTemplate(): string {
-      return this.verdict !== undefined ? $t(this.verdict.line.key) : '';
-    },
-    lineParams(): Array<RichParam> {
-      return (this.verdict?.line.params ?? []).map((p) => ({
-        text: p.t === 'raw' ? p.v : $t(p.v),
-        kind: p.term?.kind,
-        color: p.term?.color,
-        detail: p.term?.detail,
-        accent: p.term?.accent,
-      }));
-    },
-  },
+defineOptions({name: 'FinishVerdictBanner'});
+const props = defineProps({
+  verdict: {type: Object as () => FinishVerdict | undefined, required: false, default: undefined},
+});
+
+const isRare = computed((): boolean => props.verdict?.rarity === 'rare' || props.verdict?.rarity === 'legendary');
+const lineTemplate = computed((): string => props.verdict !== undefined ? $t(props.verdict.line.key) : '');
+const lineParams = computed((): Array<RichParam> => {
+  return (props.verdict?.line.params ?? []).map((p) => ({
+    text: p.t === 'raw' ? p.v : $t(p.v),
+    kind: p.term?.kind,
+    color: p.term?.color,
+    detail: p.term?.detail,
+    accent: p.term?.accent,
+  }));
 });
 </script>
