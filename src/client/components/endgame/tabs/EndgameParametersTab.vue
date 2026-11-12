@@ -39,46 +39,39 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed} from 'vue';
 import {Color} from '@/common/Color';
 import {EndgameModel, EndgameParameter, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
+import {vI18n} from '@/client/directives/vDirectives';
 
-export default defineComponent({
-  name: 'EndgameParametersTab',
-  props: {
-    model: {type: Object as () => EndgameModel, required: true},
-    // Declared so the shell's shared props don't fall through (unused here).
-    view: {type: Object, required: false, default: undefined},
-    viewerColor: {type: String, required: false, default: undefined},
-  },
-  computed: {
-    rankedByPush(): Array<EndgamePlayerScore> {
-      return [...this.model.players].sort((a, b) => b.parametersTotal - a.parametersTotal);
-    },
-    maxPush(): number {
-      return this.rankedByPush.reduce((m, p) => Math.max(m, p.parametersTotal), 1);
-    },
-  },
-  methods: {
-    hex(color: Color): string {
-      return endgamePlayerHex(color);
-    },
-    pushWidth(v: number): string {
-      return `${(v / this.maxPush) * 100}%`;
-    },
-    playersFor(param: EndgameParameter): Array<EndgamePlayerScore> {
-      // Sort players by their contribution to this parameter, desc.
-      return [...this.model.players].sort((a, b) => (param.values[b.color] ?? 0) - (param.values[a.color] ?? 0));
-    },
-    paramWidth(param: EndgameParameter, color: Color): string {
-      const v = param.values[color] ?? 0;
-      return param.max > 0 ? `${(v / param.max) * 100}%` : '0%';
-    },
-    isLeader(param: EndgameParameter, color: Color): boolean {
-      return param.leaders.includes(color);
-    },
-  },
+defineOptions({name: 'EndgameParametersTab'});
+const props = defineProps({
+  model: {type: Object as () => EndgameModel, required: true},
+  // Declared so the shell's shared props don't fall through (unused here).
+  view: {type: Object, required: false, default: undefined},
+  viewerColor: {type: String, required: false, default: undefined},
 });
+
+const rankedByPush = computed((): Array<EndgamePlayerScore> => [...props.model.players].sort((a, b) => b.parametersTotal - a.parametersTotal));
+const maxPush = computed((): number => rankedByPush.value.reduce((m, p) => Math.max(m, p.parametersTotal), 1));
+
+function hex(color: Color): string {
+  return endgamePlayerHex(color);
+}
+function pushWidth(v: number): string {
+  return `${(v / maxPush.value) * 100}%`;
+}
+function playersFor(param: EndgameParameter): Array<EndgamePlayerScore> {
+  // Sort players by their contribution to this parameter, desc.
+  return [...props.model.players].sort((a, b) => (param.values[b.color] ?? 0) - (param.values[a.color] ?? 0));
+}
+function paramWidth(param: EndgameParameter, color: Color): string {
+  const v = param.values[color] ?? 0;
+  return param.max > 0 ? `${(v / param.max) * 100}%` : '0%';
+}
+function isLeader(param: EndgameParameter, color: Color): boolean {
+  return param.leaders.includes(color);
+}
 </script>
