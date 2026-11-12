@@ -9,8 +9,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed, onBeforeUnmount, onMounted, watch} from 'vue';
 import {realtimeService, realtimeState} from './realtimeService';
 import {isRealtimeDebug, realtimeClientEnabled} from './realtimeConfig';
 
@@ -22,37 +22,33 @@ import {isRealtimeDebug, realtimeClientEnabled} from './realtimeConfig';
  * It intentionally causes NO gameplay behaviour. When the realtime flag is off
  * the service no-ops and nothing renders.
  */
-export default defineComponent({
-  name: 'RealtimeLayer',
-  props: {
-    participantId: {
-      type: String,
-      required: true,
-    },
+defineOptions({name: 'RealtimeLayer'});
+const props = defineProps({
+  participantId: {
+    type: String,
+    required: true,
   },
-  computed: {
-    rt() {
-      return realtimeState;
-    },
-    showIndicator(): boolean {
-      return isRealtimeDebug() && realtimeState.status !== 'disabled';
-    },
-  },
-  watch: {
-    participantId(id: string) {
-      if (realtimeClientEnabled() && id !== '') {
-        realtimeService.start({participantId: id});
-      }
-    },
-  },
-  mounted() {
-    if (realtimeClientEnabled() && this.participantId !== '') {
-      realtimeService.start({participantId: this.participantId});
-    }
-  },
-  beforeUnmount() {
-    realtimeService.stop();
-  },
+});
+
+const rt = computed(() => {
+  return realtimeState;
+});
+const showIndicator = computed((): boolean => {
+  return isRealtimeDebug() && realtimeState.status !== 'disabled';
+});
+
+watch(() => props.participantId, (id: string) => {
+  if (realtimeClientEnabled() && id !== '') {
+    realtimeService.start({participantId: id});
+  }
+});
+onMounted(() => {
+  if (realtimeClientEnabled() && props.participantId !== '') {
+    realtimeService.start({participantId: props.participantId});
+  }
+});
+onBeforeUnmount(() => {
+  realtimeService.stop();
 });
 </script>
 
