@@ -1,23 +1,4 @@
 <template>
-  <!--
-    THE AMOUNT OPERATION PREVIEW — one composition for every operation-shaped
-    SelectAmount (docs/claude/energy-heat-conversion.md § console conversion
-    prompt): the two sides of the operation as `current → after` rows with
-    signed delta chips, linked by the directional rail. Value 0 keeps it
-    deliberately CALM — no deltas, no gain accent, an honest «Без изменений».
-
-    Rendered by the STANDALONE task host (inside its .con-convert layout) and
-    by BOTH composers' amount rows (`compact` — the row is part of a larger
-    configuration list, so the reserved note line is dropped and paddings
-    tighten). One component, one derivation (conversionPromptModel), so the
-    three surfaces can never disagree about the numbers again — the two
-    composer copies had already diverged once.
-
-    Styles: the `.con-convert__preview` family in console.less (flat BEM — no
-    `.con-convert` ancestor required). Layout-shift discipline: the delta slot
-    is ALWAYS in layout (opacity at neutral), the note line is reserved unless
-    `compact`.
-  -->
   <div class="con-convert__preview"
        :class="{'con-convert__preview--neutral': vm.neutral, 'con-convert__preview--inrow': compact}">
     <span class="con-convert__link" aria-hidden="true"></span>
@@ -51,16 +32,34 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE AMOUNT OPERATION PREVIEW — one composition for every operation-shaped
+ * SelectAmount (docs/claude/energy-heat-conversion.md § console conversion
+ * prompt): the two sides of the operation as `current → after` rows with
+ * signed delta chips, linked by the directional rail. Value 0 keeps it
+ * deliberately CALM — no deltas, no gain accent, an honest «Без изменений».
+ *
+ * Rendered by the STANDALONE task host (inside its .con-convert layout) and
+ * by BOTH composers' amount rows (`compact` — the row is part of a larger
+ * configuration list, so the reserved note line is dropped and paddings
+ * tighten). One component, one derivation (conversionPromptModel), so the
+ * three surfaces can never disagree about the numbers again — the two
+ * composer copies had already diverged once.
+ *
+ * Styles: the `.con-convert__preview` family in console.less (flat BEM — no
+ * `.con-convert` ancestor required). Layout-shift discipline: the delta slot
+ * is ALWAYS in layout (opacity at neutral), the note line is reserved unless
+ * `compact`.
+ */
+import {PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {ConversionPromptVm} from '@/client/console/conversionPromptModel';
 
-export default defineComponent({
-  name: 'ConsoleAmountOperation',
-  props: {
-    vm: {type: Object as PropType<ConversionPromptVm>, required: true},
-    /** Composer-row density: no reserved note line, tighter paddings. */
-    compact: {type: Boolean, default: false},
-  },
+defineOptions({name: 'ConsoleAmountOperation'});
+defineProps({
+  vm: {type: Object as PropType<ConversionPromptVm>, required: true},
+  /** Composer-row density: no reserved note line, tighter paddings. */
+  compact: {type: Boolean, default: false},
 });
 </script>
