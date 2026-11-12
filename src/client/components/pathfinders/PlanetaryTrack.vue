@@ -7,54 +7,43 @@
     </tr>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
-import {range} from '@/common/utils/utils';
+<script setup lang="ts">
+import {computed, ref} from 'vue';
+// The template's `range` is the ref below — the helper comes in under a name of its own.
+import {range as rangeOf} from '@/common/utils/utils';
 import {PlanetaryTrack as Track} from '@/common/pathfinders/PlanetaryTrack';
 import {GameOptionsModel} from '@/common/models/GameOptionsModel';
 import PlanetaryTrackRewards from './PlanetaryTrackRewards.vue';
 
-export default defineComponent({
-  name: 'PlanetaryTrack',
-  props: {
-    val: {
-      type: Number,
-      required: true,
-    },
-    type: {
-      type: String as () => 'risingPlayer' | 'everyone' | 'mostTags',
-      required: true,
-    },
-    rewards: {
-      type: Object as () => Track,
-      required: true,
-    },
-    gameOptions: {
-      type: Object as () => GameOptionsModel,
-      required: true,
-    },
+defineOptions({name: 'PlanetaryTrack'});
+const props = defineProps({
+  val: {
+    type: Number,
+    required: true,
   },
-  data() {
-    return {
-      range: range(23),
-    };
+  type: {
+    type: String as () => 'risingPlayer' | 'everyone' | 'mostTags',
+    required: true,
   },
-  components: {
-    PlanetaryTrackRewards,
+  rewards: {
+    type: Object as () => Track,
+    required: true,
   },
-  methods: {
-    getClass(idx: number): String {
-      return (idx === this.val) ? 'highlight' : '';
-    },
-  },
-  computed: {
-    iconClass(): string {
-      switch (this.type) {
-      case 'risingPlayer': return 'track-icon track-icon--rising-player';
-      case 'everyone': return 'track-icon track-icon--everyone';
-      default: return '';
-      }
-    },
+  gameOptions: {
+    type: Object as () => GameOptionsModel,
+    required: true,
   },
 });
+
+const range = ref(rangeOf(23));
+const iconClass = computed((): string => {
+  switch (props.type) {
+  case 'risingPlayer': return 'track-icon track-icon--rising-player';
+  case 'everyone': return 'track-icon track-icon--everyone';
+  default: return '';
+  }
+});
+function getClass(idx: number): String {
+  return (idx === props.val) ? 'highlight' : '';
+}
 </script>
