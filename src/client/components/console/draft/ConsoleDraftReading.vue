@@ -1,16 +1,4 @@
 <template>
-  <!--
-    THE PACKET SHOWCASE'S READING ROW (T10 · CE) — ONE quiet line under the
-    packet: the card under the cursor's NAME and, only when there is
-    something to say, the requirement's verdict in the hand's own language.
-    On the purchase the WALLET closes the row: «ПОКУПКА N × 3 = −M · У ВАС
-    A → B», each number flipping on change.
-
-    The row never repeats the face: cost (already discounted), tags, VP and
-    its condition are printed on the card right above it, large. The first
-    cut listed them all here and read as overload (the owner, 2026-10-23).
-    Nothing here is a control.
-  -->
   <div class="con-dread" data-draft-reading :data-draft-reading-card="reading?.name">
     <template v-if="reading !== undefined">
       <span class="con-dread__name" :key="reading.name">{{ $t(reading.name) }}</span>
@@ -36,20 +24,30 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE PACKET SHOWCASE'S READING ROW (T10 · CE) — ONE quiet line under the
+ * packet: the card under the cursor's NAME and, only when there is
+ * something to say, the requirement's verdict in the hand's own language.
+ * On the purchase the WALLET closes the row: «ПОКУПКА N × 3 = −M · У ВАС
+ * A → B», each number flipping on change.
+ *
+ * The row never repeats the face: cost (already discounted), tags, VP and
+ * its condition are printed on the card right above it, large. The first
+ * cut listed them all here and read as overload (the owner, 2026-10-23).
+ * Nothing here is a control.
+ */
+import {PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {DraftReading, DraftWallet} from '@/client/console/draft/draftReadingModel';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 
-export default defineComponent({
-  name: 'ConsoleDraftReading',
-  components: {ConsoleCardAvailabilityPanel, ConsoleFlipValue},
-  props: {
-    reading: {type: Object as PropType<DraftReading | undefined>, default: undefined},
-    wallet: {type: Object as PropType<DraftWallet | undefined>, default: undefined},
-    /** The row's line when no card is under the cursor (the wait) — an i18n key, '' for none. */
-    idle: {type: String, default: ''},
-  },
+defineOptions({name: 'ConsoleDraftReading'});
+defineProps({
+  reading: {type: Object as PropType<DraftReading | undefined>, default: undefined},
+  wallet: {type: Object as PropType<DraftWallet | undefined>, default: undefined},
+  /** The row's line when no card is under the cursor (the wait) — an i18n key, '' for none. */
+  idle: {type: String, default: ''},
 });
 </script>
