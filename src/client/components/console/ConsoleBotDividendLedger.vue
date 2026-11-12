@@ -80,55 +80,49 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {BotDividendReading, BotDividendRuleLine} from '@/client/components/marsbot/botDividendReading';
 import {RulesLengthTier} from '@/client/components/console/consoleCardRules';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 
-export default defineComponent({
-  name: 'ConsoleBotDividendLedger',
-  components: {ConsoleVpBadge},
-  props: {
-    reading: {type: Object as PropType<BotDividendReading>, required: true},
-    /** The rules panel's reading tier — the ledger tightens with it. */
-    tier: {type: String as PropType<RulesLengthTier>, default: 'regular'},
-    /** The game is over — the total is the final one, not «now». */
-    final: {type: Boolean, default: false},
-    /**
-     * The CONCISE reading (the game overview's context column, the owner 2026-10-30: «лаконично и премиально, не
-     * перегружено»): the printed rule's prose, «pays at the end» and the goal's «still needed» line stay with the
-     * inspection; the live terms, the goal's scale and the total — formula + goals — stand.
-     */
-    concise: {type: Boolean, default: false},
-  },
-  computed: {
-    /** The goal's own name — «Цель «Титановые рудники»». */
-    goalName(): string {
-      return translateTextWithParams('Dividend goal «${0}»', [translateText(this.reading.goal.name)]);
-    },
-    /** How many of the three tiers are paid. */
-    reachedTiers(): number {
-      return this.reading.goal.tiers.filter((tier) => tier.reached).length;
-    },
-    /** ONE line for the whole goal: what the next tier still needs and what it adds — or that all three are paid. */
-    stateText(): string {
-      const next = this.reading.goal.next;
-      return next === undefined ?
-        translateText('Dividend goals: all reached') :
-        translateTextWithParams('Dividend goal: ${0} to go for +${1} VP', [String(next.remaining), String(next.vp)]);
-    },
-  },
-  methods: {
-    /** A parameterised key read with its numbers. */
-    say(key: string, ...params: ReadonlyArray<number>): string {
-      return translateTextWithParams(key, params.map(String));
-    },
-    /** A printed rule line — its template with the box's own printed numbers. */
-    ruleText(line: BotDividendRuleLine): string {
-      return line.params.length > 0 ? translateTextWithParams(line.text, [...line.params]) : translateText(line.text);
-    },
-  },
+defineOptions({name: 'ConsoleBotDividendLedger'});
+const props = defineProps({
+  reading: {type: Object as PropType<BotDividendReading>, required: true},
+  /** The rules panel's reading tier — the ledger tightens with it. */
+  tier: {type: String as PropType<RulesLengthTier>, default: 'regular'},
+  /** The game is over — the total is the final one, not «now». */
+  final: {type: Boolean, default: false},
+  /**
+   * The CONCISE reading (the game overview's context column, the owner 2026-10-30: «лаконично и премиально, не
+   * перегружено»): the printed rule's prose, «pays at the end» and the goal's «still needed» line stay with the
+   * inspection; the live terms, the goal's scale and the total — formula + goals — stand.
+   */
+  concise: {type: Boolean, default: false},
 });
+
+/** The goal's own name — «Цель «Титановые рудники»». */
+const goalName = computed((): string => {
+  return translateTextWithParams('Dividend goal «${0}»', [translateText(props.reading.goal.name)]);
+});
+/** How many of the three tiers are paid. */
+const reachedTiers = computed((): number => {
+  return props.reading.goal.tiers.filter((tier) => tier.reached).length;
+});
+/** ONE line for the whole goal: what the next tier still needs and what it adds — or that all three are paid. */
+const stateText = computed((): string => {
+  const next = props.reading.goal.next;
+  return next === undefined ?
+    translateText('Dividend goals: all reached') :
+    translateTextWithParams('Dividend goal: ${0} to go for +${1} VP', [String(next.remaining), String(next.vp)]);
+});
+/** A parameterised key read with its numbers. */
+function say(key: string, ...params: ReadonlyArray<number>): string {
+  return translateTextWithParams(key, params.map(String));
+}
+/** A printed rule line — its template with the box's own printed numbers. */
+function ruleText(line: BotDividendRuleLine): string {
+  return line.params.length > 0 ? translateTextWithParams(line.text, [...line.params]) : translateText(line.text);
+}
 </script>
