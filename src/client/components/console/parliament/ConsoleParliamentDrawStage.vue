@@ -1,16 +1,4 @@
 <template>
-  <!-- ══ «ПРИЁМКА» (the owner, 2026-11-02): a card drawn in the Parliament is RECEIVED in the Parliament — the ONE
-       reveal instance is teleported into this stage's zone (`[data-embed-slot="parliament-draw"]`, the shell's
-       `revealEmbedTarget`), the card flies into its slot from its real source (the Career's step / the deck pile), the
-       player takes it, and the flow that drew it waits for that take (`parliamentDraw.ts`). Two hosts, one chassis —
-       the «ОТВЕТ СТОЛА» family's: the section's own stage kind (the quest, a card's walk — unfolded over the TABLE by the
-       body swap) and a LAYER of the sitting's reward chassis (the enactment's tail, the Career's walks).
-       The HERO is the card that drew, when a card did (TR62 Tharsis Alliance answering the change of power) — the WHY on
-       stage, beside its result; a Career step needs none (its cover rises off the step itself, in plain view below), so
-       the zone takes the stage. HOST-AGNOSTIC: it titles nothing — the reveal's own head names the cause («Карьера»,
-       or the card on the hero), and the crumb keeps the FLOW's stage (a card step is a beat of the walk, and a crumb
-       that read «ДОБОР КАРТ» and then «КАРЬЕРА» again would walk backwards); it owns no input (the reveal does) and
-       scrolls nothing. Invariant 15: no halo. ══ -->
   <div class="con-pdraw" :class="{'con-pdraw--solo': heroCard === undefined}"
        :data-pdraw-source="sourceKind"
        :data-pdraw-card="heroCard"
@@ -31,54 +19,59 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ══ «ПРИЁМКА» (the owner, 2026-11-02): a card drawn in the Parliament is RECEIVED in the Parliament — the ONE
+ * reveal instance is teleported into this stage's zone (`[data-embed-slot="parliament-draw"]`, the shell's
+ * `revealEmbedTarget`), the card flies into its slot from its real source (the Career's step / the deck pile), the
+ * player takes it, and the flow that drew it waits for that take (`parliamentDraw.ts`). Two hosts, one chassis —
+ * the «ОТВЕТ СТОЛА» family's: the section's own stage kind (the quest, a card's walk — unfolded over the TABLE by the
+ * body swap) and a LAYER of the sitting's reward chassis (the enactment's tail, the Career's walks).
+ * The HERO is the card that drew, when a card did (TR62 Tharsis Alliance answering the change of power) — the WHY on
+ * stage, beside its result; a Career step needs none (its cover rises off the step itself, in plain view below), so
+ * the zone takes the stage. HOST-AGNOSTIC: it titles nothing — the reveal's own head names the cause («Карьера»,
+ * or the card on the hero), and the crumb keeps the FLOW's stage (a card step is a beat of the walk, and a crumb
+ * that read «ДОБОР КАРТ» and then «КАРЬЕРА» again would walk backwards); it owns no input (the reveal does) and
+ * scrolls nothing. Invariant 15: no halo. ══
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, onBeforeUnmount, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
+import {vEmbedZone} from '@/client/directives/vDirectives';
+import Card from '@/client/components/card/CardFace.vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {isReduxParty, ReduxParty} from '@/common/parliament/ParliamentTypes';
-import Card from '@/client/components/card/CardFace.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
-import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 import {noteParliamentDrawPaneOut} from '@/client/console/parliament/parliamentDraw';
 
-export default defineComponent({
-  name: 'ConsoleParliamentDrawStage',
-  components: {Card},
-  directives: {embedZone: vEmbedZone},
-  props: {
-    /** The ROOT source of the batch the stage hosts (`agenda` · `ruling-change`). */
-    source: {type: Object as PropType<CardDrawRevealSource | undefined>, default: undefined},
-    /** The hero card's LIVE model — the viewer's own tableau entry (its face as the player holds it). */
-    heroLive: {type: Object as PropType<CardModel | undefined>, default: undefined},
-  },
-  computed: {
-    sourceKind(): string {
-      return this.source?.type ?? '';
-    },
-    /** The card that drew — a card's answer to a change of power names it; a Career step has none. */
-    heroCard(): CardName | undefined {
-      return this.source?.type === 'ruling-change' ? this.source.cardName : undefined;
-    },
-    heroModel(): CardModel {
-      return this.heroLive ?? ({name: this.heroCard} as CardModel);
-    },
-    /** The party that came to power — the change the card answered. */
-    party(): ReduxParty | undefined {
-      const source = this.source;
-      return source?.type === 'ruling-change' && isReduxParty(source.party) ? source.party : undefined;
-    },
-    partyKey(): string {
-      return this.party === undefined ? '' : partyNameKey(this.party);
-    },
-    emblemUrl(): string {
-      return this.party === undefined ? '' : partyEmblemUrl(this.party);
-    },
-  },
-  beforeUnmount() {
-    // The zone leaves with the stage: the reveal may no longer be teleported here.
-    noteParliamentDrawPaneOut();
-  },
+defineOptions({name: 'ConsoleParliamentDrawStage'});
+const props = defineProps({
+  /** The ROOT source of the batch the stage hosts (`agenda` · `ruling-change`). */
+  source: {type: Object as PropType<CardDrawRevealSource | undefined>, default: undefined},
+  /** The hero card's LIVE model — the viewer's own tableau entry (its face as the player holds it). */
+  heroLive: {type: Object as PropType<CardModel | undefined>, default: undefined},
+});
+
+const sourceKind = computed((): string => props.source?.type ?? '');
+/** The card that drew — a card's answer to a change of power names it; a Career step has none. */
+const heroCard = computed((): CardName | undefined => {
+  return props.source?.type === 'ruling-change' ? props.source.cardName : undefined;
+});
+const heroModel = computed((): CardModel => props.heroLive ?? ({name: heroCard.value} as CardModel));
+/** The party that came to power — the change the card answered. */
+const party = computed((): ReduxParty | undefined => {
+  const source = props.source;
+  return source?.type === 'ruling-change' && isReduxParty(source.party) ? source.party : undefined;
+});
+const partyKey = computed((): string => party.value === undefined ? '' : partyNameKey(party.value));
+const emblemUrl = computed((): string => party.value === undefined ? '' : partyEmblemUrl(party.value));
+
+onBeforeUnmount(() => {
+  // The zone leaves with the stage: the reveal may no longer be teleported here.
+  noteParliamentDrawPaneOut();
 });
 </script>
