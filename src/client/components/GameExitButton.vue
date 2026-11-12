@@ -1,13 +1,4 @@
 <template>
-  <!--
-    Persistent "exit to main menu" affordance. Mounted at App level (a sibling
-    of <player-home> / the initial-draft overlay) so it is available in EVERY
-    in-game state — including the initial draft, where the right sidebar is
-    covered / not yet present. It floats in the bottom-right corner OVER the
-    right bar (never wider than it) and sits above the draft overlay's z-index,
-    so it is always reachable. Hidden once the game is over (the endgame screen
-    owns the exit then).
-  -->
   <button
     type="button"
     class="game-exit-btn"
@@ -20,22 +11,31 @@
   </button>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * THE TEMPLATE (the comment that opened it — it starts with its root now):
+ *
+ * Persistent "exit to main menu" affordance. Mounted at App level (a sibling
+ * of <player-home> / the initial-draft overlay) so it is available in EVERY
+ * in-game state — including the initial draft, where the right sidebar is
+ * covered / not yet present. It floats in the bottom-right corner OVER the
+ * right bar (never wider than it) and sits above the draft overlay's z-index,
+ * so it is always reachable. Hidden once the game is over (the endgame screen
+ * owns the exit then).
+ */
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {exitGameToMenu} from '@/client/console/loadingScreenState';
 
-export default defineComponent({
-  name: 'GameExitButton',
-  methods: {
-    goHome(): void {
-      // Leave the game through the ONE exit funnel: the game is saved
-      // server-side and re-enterable, the shell registered the honest
-      // destination (campaign mission → its campaign map, ordinary game →
-      // main menu), and the transition curtain covers the deliberate reload
-      // — a raw location.assign here used to be the one door that flashed
-      // the teardown.
-      exitGameToMenu();
-    },
-  },
-});
+defineOptions({name: 'GameExitButton'});
+
+function goHome(): void {
+  // Leave the game through the ONE exit funnel: the game is saved
+  // server-side and re-enterable, the shell registered the honest
+  // destination (campaign mission → its campaign map, ordinary game →
+  // main menu), and the transition curtain covers the deliberate reload
+  // — a raw location.assign here used to be the one door that flashed
+  // the teardown.
+  exitGameToMenu();
+}
 </script>
