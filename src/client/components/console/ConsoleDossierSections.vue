@@ -1,13 +1,4 @@
 <template>
-  <!--
-    THE DOSSIER'S SECTIONS — ONE markup for every reading of the board column
-    (TR67 «КЛЕТКА — ОДНО ДОСЬЕ»): the placement's sections (`placementDossier`)
-    and the inspection's (`cellDossier`) are the same `DossierSection` shapes,
-    so they render through the same heads, the same groups and the same rows —
-    one rhythm, one chip, one type system in all four modes.
-    A fragment: the host's `.con-context__body` / foot is the container.
-    ⚠️ NO transition of any kind (the dossier law): only VALUES flick.
-  -->
   <section v-for="section in sections" :key="section.key"
            class="con-context__sec" :class="'con-context__sec--' + section.key" :data-dossier-section="section.key">
     <h3 class="con-context__sec-head">
@@ -35,53 +26,57 @@
   </section>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE DOSSIER'S SECTIONS — ONE markup for every reading of the board column
+ * (TR67 «КЛЕТКА — ОДНО ДОСЬЕ»): the placement's sections (`placementDossier`)
+ * and the inspection's (`cellDossier`) are the same `DossierSection` shapes,
+ * so they render through the same heads, the same groups and the same rows —
+ * one rhythm, one chip, one type system in all four modes.
+ * A fragment: the host's `.con-context__body` / foot is the container.
+ * ⚠️ NO transition of any kind (the dossier law): only VALUES flick.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import ConsolePlacementFactRow from '@/client/components/console/ConsolePlacementFactRow.vue';
 import {DossierRecipientGroup, DossierSection} from '@/client/console/placementDossier';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 
-export default defineComponent({
-  name: 'ConsoleDossierSections',
-  components: {ConsolePlacementFactRow},
-  props: {
-    sections: {type: Array as PropType<ReadonlyArray<DossierSection>>, required: true},
-    viewerColor: {type: String as PropType<Color>, required: true},
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
-  },
-  computed: {
-    Math(): Math {
-      return Math;
-    },
-  },
-  methods: {
-    groupDot(group: DossierRecipientGroup): Color | undefined {
-      const r = group.recipient;
-      if (r.kind === 'current-player') {
-        return this.viewerColor;
-      }
-      if (r.kind === 'player' || r.kind === 'tile-owner') {
-        return r.color;
-      }
-      return undefined;
-    },
-    groupLabel(group: DossierRecipientGroup): string {
-      const r = group.recipient;
-      switch (r.kind) {
-      case 'current-player': return 'You';
-      case 'player':
-      case 'tile-owner': {
-        // A colour with no seat behind it must never leak raw («NEUTRAL» over
-        // a solo game's setup city) — name it through the i18n key.
-        const name = displayNameForColor(this.players, r.color);
-        return name === 'neutral' ? 'Neutral' : name;
-      }
-      case 'neutral': return 'Field rule';
-      case 'nobody': return 'Reserved';
-      }
-    },
-  },
+defineOptions({name: 'ConsoleDossierSections'});
+const props = defineProps({
+  sections: {type: Array as PropType<ReadonlyArray<DossierSection>>, required: true},
+  viewerColor: {type: String as PropType<Color>, required: true},
+  players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
 });
+
+function groupDot(group: DossierRecipientGroup): Color | undefined {
+  const r = group.recipient;
+  if (r.kind === 'current-player') {
+    return props.viewerColor;
+  }
+  if (r.kind === 'player' || r.kind === 'tile-owner') {
+    return r.color;
+  }
+  return undefined;
+}
+function groupLabel(group: DossierRecipientGroup): string {
+  const r = group.recipient;
+  switch (r.kind) {
+  case 'current-player': return 'You';
+  case 'player':
+  case 'tile-owner': {
+    // A colour with no seat behind it must never leak raw («NEUTRAL» over
+    // a solo game's setup city) — name it through the i18n key.
+    const name = displayNameForColor(props.players, r.color);
+    return name === 'neutral' ? 'Neutral' : name;
+  }
+  case 'neutral': return 'Field rule';
+  case 'nobody': return 'Reserved';
+  }
+}
 </script>
