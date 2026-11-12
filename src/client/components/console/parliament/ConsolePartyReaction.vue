@@ -1,21 +1,4 @@
 <template>
-  <!--
-    THE RULING PARTY'S ANSWER (Turmoil Redux) — one graphic row for what the
-    resolution's own party pays ON TOP of the resolution's effect, wherever a
-    surface states the effect: the vote surface's own-effect block, the
-    enactment stage, the fullscreen inspector's footer, the playground.
-
-    It stands APART from the influence readings, and it says WHOSE rule it is
-    (the party's emblem + name), because the two are different laws: the
-    numbers above are the card's, this one belongs to the government the card
-    brings to power. Enacting the card IS what puts that party in power, so
-    the answer counts even while another party rules right now — the caption
-    is what states which moment the number belongs to.
-
-    Nothing here computes: the reading arrives from `partyReactionModel.ts`,
-    built from the party's DECLARED reactions — the same rule the live hook
-    pays by.
-  -->
   <div class="con-preact"
        :class="['con-preact--' + size, 'con-preact--' + reading.moment]"
        data-party-reaction
@@ -44,44 +27,52 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE RULING PARTY'S ANSWER (Turmoil Redux) — one graphic row for what the
+ * resolution's own party pays ON TOP of the resolution's effect, wherever a
+ * surface states the effect: the vote surface's own-effect block, the
+ * enactment stage, the fullscreen inspector's footer, the playground.
+ *
+ * It stands APART from the influence readings, and it says WHOSE rule it is
+ * (the party's emblem + name), because the two are different laws: the
+ * numbers above are the card's, this one belongs to the government the card
+ * brings to power. Enacting the card IS what puts that party in power, so
+ * the answer counts even while another party rules right now — the caption
+ * is what states which moment the number belongs to.
+ *
+ * Nothing here computes: the reading arrives from `partyReactionModel.ts`,
+ * built from the party's DECLARED reactions — the same rule the live hook
+ * pays by.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+// The template calls `partyNameKey` — this import itself (one scope: the method that only passed it through is gone).
 import {partyNameKey} from '@/client/console/parliament/partyNames';
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import {PartyReactionReading, reactionCaptionOf, reactionGainIcon, reactionTriggerIcon} from '@/client/console/parliament/partyReactionModel';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsolePartyReaction',
-  props: {
-    reading: {type: Object as PropType<PartyReactionReading>, required: true},
-    /** `compact` under a dock / in a block, `normal` on a stage. */
-    size: {type: String as PropType<'compact' | 'normal'>, default: 'compact'},
-    /** Print the moment's caption (off inside a block whose own kicker states the moment). */
-    withCaption: {type: Boolean, default: true},
-  },
-  methods: {
-    partyNameKey(party: string): string {
-      return partyNameKey(party);
-    },
-  },
-  computed: {
-    emblemUrl(): string {
-      return partyEmblemUrl(this.reading.party);
-    },
-    gainClass(): string {
-      const icon = reactionGainIcon(this.reading.reaction);
-      return iconClassFor(icon.resource) + (icon.production ? ' con-preact__unit--prod' : '');
-    },
-    /** What it ANSWERED («per heat production step») — the reading's own trigger, never the first of a list. */
-    triggerClass(): string {
-      const icon = reactionTriggerIcon(this.reading);
-      return iconClassFor(icon.resource) + (icon.production ? ' con-preact__unit--prod' : '');
-    },
-    caption(): string {
-      return translateText(reactionCaptionOf(this.reading));
-    },
-  },
+defineOptions({name: 'ConsolePartyReaction'});
+const props = defineProps({
+  reading: {type: Object as PropType<PartyReactionReading>, required: true},
+  /** `compact` under a dock / in a block, `normal` on a stage. */
+  size: {type: String as PropType<'compact' | 'normal'>, default: 'compact'},
+  /** Print the moment's caption (off inside a block whose own kicker states the moment). */
+  withCaption: {type: Boolean, default: true},
 });
+
+const emblemUrl = computed((): string => partyEmblemUrl(props.reading.party));
+const gainClass = computed((): string => {
+  const icon = reactionGainIcon(props.reading.reaction);
+  return iconClassFor(icon.resource) + (icon.production ? ' con-preact__unit--prod' : '');
+});
+/** What it ANSWERED («per heat production step») — the reading's own trigger, never the first of a list. */
+const triggerClass = computed((): string => {
+  const icon = reactionTriggerIcon(props.reading);
+  return iconClassFor(icon.resource) + (icon.production ? ' con-preact__unit--prod' : '');
+});
+const caption = computed((): string => translateText(reactionCaptionOf(props.reading)));
 </script>
