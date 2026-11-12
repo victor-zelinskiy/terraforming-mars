@@ -1,11 +1,4 @@
 <template>
-  <!--
-    THE DOSSIER'S EFFECTS PLATE (TR60): the seat's passive effects counted PER EFFECT in the explorer's four families
-    (and what is armed for the next card, TR49) — each family a medallion in the explorer's own rail colour with a
-    symbol that reads without colour, the count its badge — and the cards that carry them as a row of art coins (the
-    objects the families are made of). The seat's quiet whole-game line stays under them. Read-only; the zone is the
-    ring's stop. Empty: the silhouettes of the family discs and one line.
-  -->
   <div class="con-deffs" :class="{'con-deffs--empty': families.length === 0}" data-dossier-effects>
     <div v-if="families.length > 0" class="con-deffs__families">
       <div v-for="f in families" :key="f.family" class="con-deff" :class="'con-deff--' + f.family" :data-dossier-effect="f.family">
@@ -27,8 +20,18 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE DOSSIER'S EFFECTS PLATE (TR60): the seat's passive effects counted PER EFFECT in the explorer's four families
+ * (and what is armed for the next card, TR49) — each family a medallion in the explorer's own rail colour with a
+ * symbol that reads without colour, the count its badge — and the cards that carry them as a row of art coins (the
+ * objects the families are made of). The seat's quiet whole-game line stays under them. Read-only; the zone is the
+ * ring's stop. Empty: the silhouettes of the family discs and one line.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {CardName} from '@/common/cards/CardName';
 import {DossierEffectFamily} from '@/client/console/infoDossierModel';
 import {cardArtUrl, cardArtUrlAtTier, CARD_ART_FALLBACK_URL} from '@/client/cards/cardArt';
@@ -42,28 +45,20 @@ const GLYPH: Readonly<Record<DossierEffectFamily['family'], string>> = {
   rules: '≡',
 };
 
-export default defineComponent({
-  name: 'ConsoleDossierEffects',
-  props: {
-    families: {type: Array as PropType<ReadonlyArray<DossierEffectFamily>>, required: true},
-    /** The cards that carry the effects, in tableau order. */
-    cards: {type: Array as PropType<ReadonlyArray<CardName>>, default: () => []},
-    note: {type: String, default: ''},
-    maxCards: {type: Number, default: 6},
-  },
-  data() {
-    return {GLYPH};
-  },
-  computed: {
-    shownCards(): ReadonlyArray<CardName> {
-      return this.cards.slice(0, this.maxCards);
-    },
-  },
-  methods: {
-    artStyle(name: CardName): Record<string, string> {
-      const url = cardArtUrl(name);
-      return {backgroundImage: `url(${url === undefined ? CARD_ART_FALLBACK_URL : cardArtUrlAtTier(url, 'thumb')})`};
-    },
-  },
+defineOptions({name: 'ConsoleDossierEffects'});
+const props = defineProps({
+  families: {type: Array as PropType<ReadonlyArray<DossierEffectFamily>>, required: true},
+  /** The cards that carry the effects, in tableau order. */
+  cards: {type: Array as PropType<ReadonlyArray<CardName>>, default: () => []},
+  note: {type: String, default: ''},
+  maxCards: {type: Number, default: 6},
 });
+
+const shownCards = computed((): ReadonlyArray<CardName> => {
+  return props.cards.slice(0, props.maxCards);
+});
+function artStyle(name: CardName): Record<string, string> {
+  const url = cardArtUrl(name);
+  return {backgroundImage: `url(${url === undefined ? CARD_ART_FALLBACK_URL : cardArtUrlAtTier(url, 'thumb')})`};
+}
 </script>
