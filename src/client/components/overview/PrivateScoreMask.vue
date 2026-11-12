@@ -1,12 +1,4 @@
 <template>
-  <!--
-    Premium masked stand-in for the viewer's own VP on a passive surface when
-    "Private score" is on. Reads as intentional (a slashed eye + soft privacy
-    glow), never as a bug. Just the eye-off glyph — no "•••" dots, which widened
-    the cell and pushed the turn-order (#N) badge out of line between players.
-    Carries NO number anywhere (text / title / aria) so the value can't leak;
-    the player opens the VP overlay to see it.
-  -->
   <span class="vp-private" :class="{'vp-private--compact': compact}" role="img" :aria-label="$t('Victory points are hidden on screen. Open the overlay to view them.')">
     <svg class="vp-private__eye" viewBox="0 0 24 16" aria-hidden="true" focusable="false">
       <path class="vp-private__eye-shape" d="M1 8s4-6 11-6 11 6 11 6-4 6-11 6S1 8 1 8z" fill="none" />
@@ -16,14 +8,22 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * Premium masked stand-in for the viewer's own VP on a passive surface when
+ * "Private score" is on. Reads as intentional (a slashed eye + soft privacy
+ * glow), never as a bug. Just the eye-off glyph — no "•••" dots, which widened
+ * the cell and pushed the turn-order (#N) badge out of line between players.
+ * Carries NO number anywhere (text / title / aria) so the value can't leak;
+ * the player opens the VP overlay to see it.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {$t} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'PrivateScoreMask',
-  props: {
-    // Slightly smaller variant for tight compact indicators.
-    compact: {type: Boolean, default: false},
-  },
+defineOptions({name: 'PrivateScoreMask'});
+defineProps({
+  // Slightly smaller variant for tight compact indicators.
+  compact: {type: Boolean, default: false},
 });
 </script>
