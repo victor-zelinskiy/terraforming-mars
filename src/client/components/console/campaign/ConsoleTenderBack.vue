@@ -27,10 +27,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {$t} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleTenderBack',
-});
+defineOptions({name: 'ConsoleTenderBack'});
 </script>
