@@ -1,9 +1,4 @@
 <template>
-  <!-- THE CONSEQUENCE FOOTER — what confirming does to the player, in the decision's own tone, at the plate's foot
-       (beside where every verb lives: the command bar under it). ONE line with a reserved height: choosing re-flows
-       nothing above it.
-         [emblem] ВЫ ПОТЕРЯЕТЕ   [prod M€] −1  +3 → +2                    1 / 2
-       Nothing chosen yet → the footer says what is still owed, never a blank. -->
   <div class="con-prompt-outcome" :class="'con-prompt-outcome--' + tone" data-prompt-outcome :data-prompt-outcome-tone="tone"
        role="status">
     <span class="con-prompt-outcome__label">
@@ -31,8 +26,16 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE CONSEQUENCE FOOTER — what confirming does to the player, in the decision's own tone, at the plate's foot
+ * (beside where every verb lives: the command bar under it). ONE line with a reserved height: choosing re-flows
+ * nothing above it.
+ *   [emblem] ВЫ ПОТЕРЯЕТЕ   [prod M€] −1  +3 → +2                    1 / 2
+ * Nothing chosen yet → the footer says what is still owed, never a blank.
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import ConsolePromptEmblem from '@/client/components/console/foundation/ConsolePromptEmblem.vue';
 import {PromptTone, promptOutcomeLabelKey} from '@/client/console/promptTone';
 
@@ -53,28 +56,22 @@ export type PromptOutcomeItem = {
  * (`console_prompt.less`). Presentation only: the host computes the items from
  * the SAME numbers its rows show, so the footer can never disagree with them.
  */
-export default defineComponent({
-  name: 'ConsolePromptOutcome',
-  components: {ConsolePromptEmblem},
-  props: {
-    tone: {type: String as PropType<PromptTone>, required: true},
-    items: {type: Array as PropType<ReadonlyArray<PromptOutcomeItem>>, default: () => []},
-    /** What is still owed when nothing is chosen yet (already translated). */
-    pending: {type: String, default: ''},
-    /** The budget readout («1 / 2»), when the decision has one. */
-    meter: {type: Object as PropType<{done: number, of: number} | undefined>, default: undefined},
-    /** Overrides the tone's label key (English i18n key). */
-    labelKey: {type: String, default: ''},
-  },
-  computed: {
-    labelKeyOrDefault(): string {
-      return this.labelKey !== '' ? this.labelKey : promptOutcomeLabelKey(this.tone);
-    },
-  },
-  methods: {
-    signed(n: number): string {
-      return n < 0 ? `−${Math.abs(n)}` : `+${n}`;
-    },
-  },
+defineOptions({name: 'ConsolePromptOutcome'});
+const props = defineProps({
+  tone: {type: String as PropType<PromptTone>, required: true},
+  items: {type: Array as PropType<ReadonlyArray<PromptOutcomeItem>>, default: () => []},
+  /** What is still owed when nothing is chosen yet (already translated). */
+  pending: {type: String, default: ''},
+  /** The budget readout («1 / 2»), when the decision has one. */
+  meter: {type: Object as PropType<{done: number, of: number} | undefined>, default: undefined},
+  /** Overrides the tone's label key (English i18n key). */
+  labelKey: {type: String, default: ''},
 });
+
+const labelKeyOrDefault = computed((): string => {
+  return props.labelKey !== '' ? props.labelKey : promptOutcomeLabelKey(props.tone);
+});
+function signed(n: number): string {
+  return n < 0 ? `−${Math.abs(n)}` : `+${n}`;
+}
 </script>
