@@ -1,12 +1,4 @@
 <template>
-  <!--
-    THE SEALED SCORE (TR60, decision 7a): another seat's score that the game's options keep hidden is a SEALED CELL at
-    the scene's scale — the award shield under its seal, the one sentence of what is sealed and WHY (the game's
-    settings, never a bare «hidden») — and, beside it, what that seat has already put ON THE TABLE for everybody: its
-    rating (the rail prints it), the milestones it claimed and the awards it funded (the strategy rail shows them), as
-    objects. Not one VP number, no total, no share: `vpVisible` is the only gate and it said no; the facts here are
-    `dossierSealedFacts`, which reads no score at all.
-  -->
   <div class="con-dsealed" data-dossier-sealed>
     <div class="con-dsealed__cell">
       <span class="con-dsealed__seal" aria-hidden="true">
@@ -48,35 +40,40 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE SEALED SCORE (TR60, decision 7a): another seat's score that the game's options keep hidden is a SEALED CELL at
+ * the scene's scale — the award shield under its seal, the one sentence of what is sealed and WHY (the game's
+ * settings, never a bare «hidden») — and, beside it, what that seat has already put ON THE TABLE for everybody: its
+ * rating (the rail prints it), the milestones it claimed and the awards it funded (the strategy rail shows them), as
+ * objects. Not one VP number, no total, no share: `vpVisible` is the only gate and it said no; the facts here are
+ * `dossierSealedFacts`, which reads no score at all.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {DossierSealedFacts} from '@/client/console/infoDossierModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
 import {maArtPath} from '@/client/console/maArt';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 
-export default defineComponent({
-  name: 'ConsoleDossierSealed',
-  components: {ConsoleVpBadge, PrivateScoreMask},
-  props: {
-    facts: {type: Object as PropType<DossierSealedFacts>, required: true},
-  },
-  computed: {
-    vetoText(): string {
-      const veto = this.facts.veto;
-      return veto === undefined ? '' : translateTextWithParams('under the veto of ${0}', [translateTextWithParams(veto.law, [])]);
-    },
-  },
-  methods: {
-    iconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-    maArt(slug: string): string {
-      return maArtPath(slug, getPreferences().lang);
-    },
-  },
+defineOptions({name: 'ConsoleDossierSealed'});
+const props = defineProps({
+  facts: {type: Object as PropType<DossierSealedFacts>, required: true},
 });
+
+const vetoText = computed((): string => {
+  const veto = props.facts.veto;
+  return veto === undefined ? '' : translateTextWithParams('under the veto of ${0}', [translateTextWithParams(veto.law, [])]);
+});
+
+function iconClass(icon: string): string {
+  return iconClassFor(icon);
+}
+function maArt(slug: string): string {
+  return maArtPath(slug, getPreferences().lang);
+}
 </script>
