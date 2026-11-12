@@ -1,9 +1,4 @@
 <template>
-  <!-- THE payment verdict — ONE element, ONE geometry, both densities.
-       It is ALWAYS rendered and always occupies the SAME reserved height:
-       exact / overpay / shortfall / free / auto differ only in colour and
-       wording, never in size. That reservation is what keeps the «Разыграть»
-       CTA from sliding up and down as the player dials LB/RB. -->
   <div class="con-paystatus" :class="['con-paystatus--' + status.kind, 'con-paystatus--' + mode]" role="status" :aria-label="ariaLabel">
     <span class="con-paystatus__glyph" aria-hidden="true">{{ glyph }}</span>
 
@@ -27,7 +22,16 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE TEMPLATE (the comment that opened it — it starts with its root now):
+ *
+ * THE payment verdict — ONE element, ONE geometry, both densities.
+ * It is ALWAYS rendered and always occupies the SAME reserved height:
+ * exact / overpay / shortfall / free / auto differ only in colour and
+ * wording, never in size. That reservation is what keeps the «Разыграть»
+ * CTA from sliding up and down as the player dials LB/RB.
+ */
 /**
  * ConsolePaymentStatus — the shared «сколько уплачено / хватает ли» verdict of
  * the console-native payment panel. Purely presentational over the pure
@@ -39,45 +43,42 @@
  * (or a vanishing shortfall) cannot resize the payment block — the exact bug
  * this component was introduced to kill.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import {PaymentStatus, paymentUnitLabel} from '@/client/console/paymentPlan';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsolePaymentStatus',
-  props: {
-    status: {type: Object as PropType<PaymentStatus>, required: true},
-    /** Density — expanded reads a notch larger; the reserved height is shared. */
-    mode: {type: String as PropType<'compact' | 'expanded'>, default: 'compact'},
-  },
-  computed: {
-    /** ✓ covered · ⚠ covered but wasteful · ✕ cannot be confirmed. */
-    glyph(): string {
-      switch (this.status.kind) {
-      case 'overpay': return '⚠';
-      case 'short':
-      case 'impossible': return '✕';
-      default: return '✓';
-      }
-    },
-    deltaSign(): string {
-      return this.status.kind === 'overpay' ? '+' : '';
-    },
-    /** The price's denomination — the ledger's icon/aria unit. */
-    costUnit(): string {
-      return this.status.costUnit ?? 'megacredits';
-    },
-    unitName(): string {
-      return this.status.costUnit === undefined ? 'M€' : translateText(paymentUnitLabel(this.status.costUnit));
-    },
-    ariaLabel(): string {
-      const s = this.status;
-      const head = `${translateText('Paid')}: ${s.paid} ${translateText('of')} ${s.cost} ${this.unitName}`;
-      const verdict = s.delta > 0 ?
-        `${translateText(s.labelKey)} ${this.deltaSign}${s.delta} ${this.unitName}` :
-        translateText(s.labelKey);
-      return `${head}. ${verdict}`;
-    },
-  },
+defineOptions({name: 'ConsolePaymentStatus'});
+const props = defineProps({
+  status: {type: Object as PropType<PaymentStatus>, required: true},
+  /** Density — expanded reads a notch larger; the reserved height is shared. */
+  mode: {type: String as PropType<'compact' | 'expanded'>, default: 'compact'},
+});
+
+/** ✓ covered · ⚠ covered but wasteful · ✕ cannot be confirmed. */
+const glyph = computed((): string => {
+  switch (props.status.kind) {
+  case 'overpay': return '⚠';
+  case 'short':
+  case 'impossible': return '✕';
+  default: return '✓';
+  }
+});
+const deltaSign = computed((): string => {
+  return props.status.kind === 'overpay' ? '+' : '';
+});
+/** The price's denomination — the ledger's icon/aria unit. */
+const costUnit = computed((): string => {
+  return props.status.costUnit ?? 'megacredits';
+});
+const unitName = computed((): string => {
+  return props.status.costUnit === undefined ? 'M€' : translateText(paymentUnitLabel(props.status.costUnit));
+});
+const ariaLabel = computed((): string => {
+  const s = props.status;
+  const head = `${translateText('Paid')}: ${s.paid} ${translateText('of')} ${s.cost} ${unitName.value}`;
+  const verdict = s.delta > 0 ?
+    `${translateText(s.labelKey)} ${deltaSign.value}${s.delta} ${unitName.value}` :
+    translateText(s.labelKey);
+  return `${head}. ${verdict}`;
 });
 </script>
