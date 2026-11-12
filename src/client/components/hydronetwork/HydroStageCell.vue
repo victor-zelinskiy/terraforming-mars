@@ -58,20 +58,17 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {vI18n} from '@/client/directives/vDirectives';
 import {HydroStageVM} from './hydroNetworkModel';
 import HydroReward from './HydroReward.vue';
 
-export default defineComponent({
-  name: 'HydroStageCell',
-  components: {HydroReward},
-  props: {
-    vm: {
-      type: Object as () => HydroStageVM,
-      required: true,
-    },
+defineOptions({name: 'HydroStageCell'});
+defineProps({
+  vm: {
+    type: Object as () => HydroStageVM,
+    required: true,
   },
-  emits: ['select'],
 });
+defineEmits(['select']);
 </script>
