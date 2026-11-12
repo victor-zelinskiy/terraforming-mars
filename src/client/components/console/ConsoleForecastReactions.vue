@@ -1,14 +1,4 @@
 <template>
-  <!--
-    THE «⚡ сработает» GROUP inside an «ИЛИ» option card — what the TABLE adds
-    if THIS branch is chosen (the forecast's `byBranch[pos]`), drawn on the
-    SAME line as the option's own chips, past a thin vertical seam, with the
-    zone's own caption in miniature: the effects bolt + the word «сработает».
-    The same language as the «Сработает» row (one legend, learnt by adjacency),
-    scaled to a note. Bare deltas only; at most two chips + «+N»; the group is
-    ONE flex item, so when the line runs out it wraps WHOLE — the caption never
-    parts from its chips. The row below never repeats these chips.
-  -->
   <span v-if="reaction.chips.length > 0 || reaction.more > 0"
         class="con-forecast__vfx"
         role="note"
@@ -33,38 +23,44 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE TEMPLATE (the comment that opened it — it starts with its root now):
+ *
+ * THE «⚡ сработает» GROUP inside an «ИЛИ» option card — what the TABLE adds
+ * if THIS branch is chosen (the forecast's `byBranch[pos]`), drawn on the
+ * SAME line as the option's own chips, past a thin vertical seam, with the
+ * zone's own caption in miniature: the effects bolt + the word «сработает».
+ * The same language as the «Сработает» row (one legend, learnt by adjacency),
+ * scaled to a note. Bare deltas only; at most two chips + «+N»; the group is
+ * ONE flex item, so when the line runs out it wraps WHOLE — the caption never
+ * parts from its chips. The row below never repeats these chips.
+ */
+import {computed, PropType} from 'vue';
 import {VariantReaction, VariantReactionChip, forecastChipRailRow} from '@/client/console/effectForecastModel';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 
-export default defineComponent({
-  name: 'ConsoleForecastReactions',
-  components: {ActionEffectChip},
-  props: {
-    /** The branch's reactions (the pure model's `variantReactionChips`). */
-    reaction: {type: Object as PropType<VariantReaction>, required: true},
-  },
-  computed: {
-    ariaLabel(): string {
-      return `${translateText('Will trigger')}: ${this.reaction.total}`;
-    },
-  },
-  methods: {
-    forecastChipRailRow,
-    /** The row's chip vocabulary: whose (own / other seat), the degree («?»),
-     *  the pool (production plate), the tone (a loss wears the spend tone). */
-    chipClasses(rc: VariantReactionChip): Record<string, boolean> {
-      return {
-        'con-forecast__chip--own': rc.color === undefined && !rc.asks,
-        'con-forecast__chip--asks': rc.asks,
-        'con-forecast__chip--other': rc.color !== undefined,
-        'con-forecast__chip--bot': rc.bot === true,
-        'con-forecast__chip--loss': rc.effect.direction === 'cost',
-        'con-forecast__chip--production': rc.production,
-      };
-    },
-  },
+defineOptions({name: 'ConsoleForecastReactions'});
+const props = defineProps({
+  /** The branch's reactions (the pure model's `variantReactionChips`). */
+  reaction: {type: Object as PropType<VariantReaction>, required: true},
 });
+
+const ariaLabel = computed((): string => {
+  return `${translateText('Will trigger')}: ${props.reaction.total}`;
+});
+
+/** The row's chip vocabulary: whose (own / other seat), the degree («?»),
+ *  the pool (production plate), the tone (a loss wears the spend tone). */
+function chipClasses(rc: VariantReactionChip): Record<string, boolean> {
+  return {
+    'con-forecast__chip--own': rc.color === undefined && !rc.asks,
+    'con-forecast__chip--asks': rc.asks,
+    'con-forecast__chip--other': rc.color !== undefined,
+    'con-forecast__chip--bot': rc.bot === true,
+    'con-forecast__chip--loss': rc.effect.direction === 'cost',
+    'con-forecast__chip--production': rc.production,
+  };
+}
 </script>
