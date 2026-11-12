@@ -7,7 +7,7 @@
   </span>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * THE SELF-TARGET PROXY'S RESOURCE READING.
  *
@@ -31,23 +31,20 @@
  * It knows no card and no resource: the icon key and the count arrive from the
  * caller, which already holds the server's `{type, count}`.
  */
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 
-export default defineComponent({
-  name: 'ConsoleCardResourceChip',
-  props: {
-    /** Resource key (`CardResource` value or an `optionIcons` key). */
-    icon: {type: String, required: true},
-    count: {type: Number, required: true},
-    /** Today only `proxy` — see the header on why nothing rides a card. */
-    variant: {type: String, default: 'proxy'},
-  },
-  computed: {
-    iconClass(): string {
-      // The same normalisation every console surface uses for a resource key.
-      return iconClassFor(this.icon.toLowerCase().replace(/\s+/g, '-'));
-    },
-  },
+defineOptions({name: 'ConsoleCardResourceChip'});
+const props = defineProps({
+  /** Resource key (`CardResource` value or an `optionIcons` key). */
+  icon: {type: String, required: true},
+  count: {type: Number, required: true},
+  /** Today only `proxy` — see the header on why nothing rides a card. */
+  variant: {type: String, default: 'proxy'},
+});
+
+const iconClass = computed((): string => {
+  // The same normalisation every console surface uses for a resource key.
+  return iconClassFor(props.icon.toLowerCase().replace(/\s+/g, '-'));
 });
 </script>
