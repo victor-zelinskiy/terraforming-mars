@@ -654,53 +654,68 @@ export function stepBotTurnReview(dir: -1 | 1): 'ok' | 'no-prev' | 'no-next' {
   return 'ok';
 }
 
-// The DELIVERY hook — the heart of the staged visual timeline. The moment a
-// bot-turn card becomes VISIBLE (every gate/queue already let it through):
-//  1. the presented view advances to THAT turn (its tiles / parameters /
-//     resource deltas apply; the LAST pending turn performs the full
-//     authoritative commit instead) — consequences appear exactly with their
-//     explanation, never before;
-//  2. in the 'theater' presentation mode the card then auto-expands into the
-//     full turn theater instead of showing the compact card.
-// The watch is pre-flush: the mutation lands in the same tick as the card's
-// render, before paint.
+// THE CARD SET'S ONE REACTION — the liveness backstop, then the delivery hook, in ONE watcher.
+//
+// They used to be two watchers over two readings of the same array (`transient.length + queue.length` and
+// `transient.find(…)`). One `push` wakes both, and the staged timeline's strict FIFO depended on WHICH FIRST: the walk
+// has to look at the timeline BEFORE the card that just became visible is delivered (it then sees that card's turn at
+// the head, still pending, and stops there — the filtered tail behind it waits for the card to leave), and it must
+// not be asked again by the delivery itself. That order was never a contract of the reactivity core: Vue 3.5 woke the
+// readers of an array's `length` before its iterators, Vue 3.6 wakes them the other way round — the tail committed
+// under the card still on screen (`marsBotStagedCommits.spec` § a partial batch keeps strict FIFO: the one red of the
+// 3.6 pilot, `docs/claude/vapor/ROADMAP.md` §3.5). One mutation, ONE reaction, the order written in code: there is
+// nothing left for a core to reorder.
+//
+// 1. THE LIVENESS BACKSTOP (on a change of the COUNT) — the robust guarantee against a stranded staging window.
+//    `ensureBotPresentationLiveness()` used to run ONLY from `NotificationLayer.update()`, which fires on a
+//    `playerView` CHANGE — but a staging window SUPPRESSES that change (the authoritative view is buffered, the
+//    presented view is frozen), so the self-heal never ran while staging was active. That is exactly the deadlock:
+//    RB/LB-navigating past the notification feed dismisses the queued bot-turn cards WITHOUT delivering the last turn,
+//    so nothing commits the buffer and the between-generation draft never arrives. Reading the notification card SET
+//    re-checks liveness the instant the last staged card leaves the presentation by ANY path — delivered,
+//    review-navigated, TTL-expired, evicted, or drained to the journal — and commits the buffered authoritative view.
+//    It never fires prematurely: the reaction is pre-flush, so `beginBotStaging` + every `pushTransient` of the batch
+//    have already run when it evaluates, and `ensureBotPresentationLiveness` only commits when NO pending card remains
+//    known. No-op without a window.
+//
+// 2. THE DELIVERY (on a change of WHICH bot card stands) — the heart of the staged visual timeline. The moment a
+//    bot-turn card becomes VISIBLE (every gate/queue already let it through):
+//     · the presented view advances to THAT turn (its tiles / parameters / resource deltas apply; the LAST pending turn
+//       performs the full authoritative commit instead) — consequences appear exactly with their explanation, never
+//       before;
+//     · in the 'theater' presentation mode the card then auto-expands into the full turn theater instead of showing
+//       the compact card.
+//    Pre-flush: the mutation lands in the same tick as the card's render, before paint.
+type BotCardSet = {card: NotificationModel | undefined, count: number};
 watch(
-  () => notificationState.transient.find((n) => n.botTurnKey !== undefined),
-  (card, prevCard) => {
-    // The PREVIOUS holder let go — from here nothing of that turn holds a
-    // prompt surface, which is the diagnostic's terminal stage.
-    if (prevCard?.botTurnKey !== undefined && prevCard.botTurnKey !== card?.botTurnKey) {
-      noteBotTurnStage(prevCard.botTurnKey, 'released');
+  (): BotCardSet => ({
+    card: notificationState.transient.find((n) => n.botTurnKey !== undefined),
+    count: notificationState.transient.length + notificationState.queue.length,
+  }),
+  (now, before) => {
+    if (now.count !== before?.count) {
+      ensureBotPresentationLiveness();
     }
-    if (card?.botTurnKey === undefined) {
-      return;
-    }
-    noteBotTurnStage(card.botTurnKey, 'visible');
-    if (deliverBotTurnVisual(card.botTurnKey) === 'committed') {
-      noteBotTurnStage(card.botTurnKey, 'commit', 'on delivery');
-    }
-    if (card.autoExpand === true) {
-      openBotTurnReviewByKey(card.botTurnKey);
+    if (now.card !== before?.card) {
+      botCardShown(now.card, before?.card);
     }
   },
 );
 
-// The LIVENESS backstop — the robust guarantee against a stranded staging
-// window. `ensureBotPresentationLiveness()` used to run ONLY from
-// `NotificationLayer.update()`, which fires on a `playerView` CHANGE — but a
-// staging window SUPPRESSES that change (the authoritative view is buffered,
-// the presented view is frozen), so the self-heal never ran while staging was
-// active. That is exactly the deadlock: RB/LB-navigating past the notification
-// feed dismisses the queued bot-turn cards WITHOUT delivering the last turn, so
-// nothing commits the buffer and the between-generation draft never arrives.
-// Watching the notification card SET (reactive) re-checks liveness the instant
-// the last staged card leaves the presentation by ANY path — delivered,
-// review-navigated, TTL-expired, evicted, or drained to the journal — and
-// commits the buffered authoritative view. It never fires prematurely: Vue
-// watchers are post-flush, so `beginBotStaging` + every `pushTransient` of the
-// batch have already run when it evaluates, and `ensureBotPresentationLiveness`
-// only commits when NO pending card remains known. No-op without a window.
-watch(
-  () => notificationState.transient.length + notificationState.queue.length,
-  () => ensureBotPresentationLiveness(),
-);
+function botCardShown(card: NotificationModel | undefined, prevCard: NotificationModel | undefined): void {
+  // The PREVIOUS holder let go — from here nothing of that turn holds a
+  // prompt surface, which is the diagnostic's terminal stage.
+  if (prevCard?.botTurnKey !== undefined && prevCard.botTurnKey !== card?.botTurnKey) {
+    noteBotTurnStage(prevCard.botTurnKey, 'released');
+  }
+  if (card?.botTurnKey === undefined) {
+    return;
+  }
+  noteBotTurnStage(card.botTurnKey, 'visible');
+  if (deliverBotTurnVisual(card.botTurnKey) === 'committed') {
+    noteBotTurnStage(card.botTurnKey, 'commit', 'on delivery');
+  }
+  if (card.autoExpand === true) {
+    openBotTurnReviewByKey(card.botTurnKey);
+  }
+}

@@ -1,4 +1,4 @@
-import type {App, ComponentInternalInstance, ComponentPublicInstance} from 'vue';
+import type {App, ComponentPublicInstance} from 'vue';
 
 /**
  * A VUE ERROR NAMES ITS COMPONENT — and it is a diagnostic line, not noise.
@@ -21,7 +21,13 @@ export const VUE_ERROR_TAG = '[vue-error]';
 /** How many ancestors the line names after the component itself. */
 const CHAIN_DEPTH = 4;
 
-function nameOf(instance: ComponentInternalInstance): string {
+/**
+ * What the chain reads of an instance — the part a virtual-DOM instance and a Vapor one share (Vue 3.6: a component's
+ * `parent` is a `GenericComponentInstance`, of either kind).
+ */
+type ChainLink = {type: unknown, parent: ChainLink | null};
+
+function nameOf(instance: ChainLink): string {
   const type = instance.type as {name?: string, __name?: string};
   return type.name ?? type.__name ?? 'Anonymous';
 }
@@ -32,7 +38,7 @@ export function componentChainOf(instance: ComponentPublicInstance | null): stri
     return 'app';
   }
   const names: Array<string> = [];
-  let at: ComponentInternalInstance | null = instance.$;
+  let at: ChainLink | null = instance.$;
   while (at !== null && names.length <= CHAIN_DEPTH) {
     names.push(nameOf(at));
     at = at.parent;
