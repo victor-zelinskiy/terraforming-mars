@@ -62,7 +62,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * EXPANSIONS deck renderer (console create) — the in-scope modules as a 2-column grid of
  * big toggle plates (icon / name / ON-OFF state chip), under the DECK METER (T04): the
@@ -73,7 +73,7 @@
  * presentation; the 2D cursor math lives in the model (`deckNavStep` — the meter is not a
  * cursor target).
  */
-import {defineComponent, PropType} from 'vue';
+import {PropType} from 'vue';
 import {ExpansionRequirement, ExpansionRow} from '@/client/console/menu/consoleCreateModel';
 import {automaBlockerText} from '@/client/components/create/premium/createGameState';
 import {expansionIcon} from '@/client/components/create/premium/createGameMeta';
@@ -81,33 +81,29 @@ import {Expansion} from '@/common/cards/GameModule';
 import ConsoleDeckMeter from '@/client/components/console/menu/ConsoleDeckMeter.vue';
 import {deckCompositionState} from '@/client/console/menu/deckCompositionState';
 import {ContributionChip, contributionChips} from '@/client/console/menu/deckCompositionModel';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleExpansionsDeck',
-  components: {ConsoleDeckMeter},
-  props: {
-    rows: {type: Array as PropType<ReadonlyArray<ExpansionRow>>, required: true},
-    cursor: {type: Number, required: true},
-    shakeRow: {type: Number, default: -1},
-  },
-  emits: ['activate', 'hover'],
-  methods: {
-    icon(id: Expansion): string {
-      return expansionIcon(id);
-    },
-    blockerText(key: string): string {
-      return automaBlockerText(key);
-    },
-    chipsOf(row: ExpansionRow): ReadonlyArray<ContributionChip> {
-      return contributionChips(deckCompositionState.composition, row.meta.id);
-    },
-    readChip(chip: ContributionChip): string {
-      return translateTextWithParams(chip.key, [String(chip.amount)]);
-    },
-    readNeed(need: ExpansionRequirement): string {
-      return translateTextWithParams('Requires ${0}', [translateText(need.labelKey)]);
-    },
-  },
+defineOptions({name: 'ConsoleExpansionsDeck'});
+defineProps({
+  rows: {type: Array as PropType<ReadonlyArray<ExpansionRow>>, required: true},
+  cursor: {type: Number, required: true},
+  shakeRow: {type: Number, default: -1},
 });
+defineEmits(['activate', 'hover']);
+
+function icon(id: Expansion): string {
+  return expansionIcon(id);
+}
+function blockerText(key: string): string {
+  return automaBlockerText(key);
+}
+function chipsOf(row: ExpansionRow): ReadonlyArray<ContributionChip> {
+  return contributionChips(deckCompositionState.composition, row.meta.id);
+}
+function readChip(chip: ContributionChip): string {
+  return translateTextWithParams(chip.key, [String(chip.amount)]);
+}
+function readNeed(need: ExpansionRequirement): string {
+  return translateTextWithParams('Requires ${0}', [translateText(need.labelKey)]);
+}
 </script>
