@@ -31,47 +31,36 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import {FundedAwardModel, AwardScore} from '@/common/models/FundedAwardModel';
 import {getAward} from '@/client/MilestoneAwardManifest';
 import {playerSymbol} from '@/client/utils/playerSymbol';
-import {Color} from '@/common/Color';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 
-export default defineComponent({
-  name: 'Award',
-  components: {
-    'player-cube': PlayerCube,
+defineOptions({name: 'Award'});
+const props = defineProps({
+  award: {
+    type: Object as () => FundedAwardModel,
+    required: true,
   },
-  props: {
-    award: {
-      type: Object as () => FundedAwardModel,
-      required: true,
-    },
-    showScores: {
-      type: Boolean,
-      default: true,
-    },
-    showDescription: {
-      type: Boolean,
-    },
+  showScores: {
+    type: Boolean,
+    default: true,
   },
-  methods: {
-    playerSymbol(color: Color) {
-      return playerSymbol(color);
-    },
+  showDescription: {
+    type: Boolean,
   },
-  computed: {
-    nameCss(): string {
-      return 'ma-name--' + this.award.name.replaceAll(' ', '-').replaceAll('.', '').toLowerCase();
-    },
-    sortedScores(): Array<AwardScore> {
-      return [...this.award.scores].sort((s1, s2) => s2.score - s1.score);
-    },
-    description(): string {
-      return getAward(this.award.name).description;
-    },
-  },
+});
+
+const nameCss = computed((): string => {
+  return 'ma-name--' + props.award.name.replaceAll(' ', '-').replaceAll('.', '').toLowerCase();
+});
+const sortedScores = computed((): Array<AwardScore> => {
+  return [...props.award.scores].sort((s1, s2) => s2.score - s1.score);
+});
+const description = computed((): string => {
+  return getAward(props.award.name).description;
 });
 </script>
