@@ -20,8 +20,8 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed} from 'vue';
 
 /*
  * PREMIUM REQUIREMENT OPERATOR — the ≥ / ≤ threshold glyph, rendered as a
@@ -47,24 +47,21 @@ const GLYPH: Readonly<Record<'min' | 'max', {chevron: string, bar: string}>> = {
   max: {chevron: 'M19 4 L5 13.5 L19 23', bar: 'M4.5 26.6 L19 26.6'},
 };
 
-export default defineComponent({
-  name: 'PremiumRequirementOperator',
-  props: {
-    comparator: {
-      type: String as () => 'min' | 'max',
-      required: true,
-    },
+defineOptions({name: 'PremiumRequirementOperator'});
+const props = defineProps({
+  comparator: {
+    type: String as () => 'min' | 'max',
+    required: true,
   },
-  computed: {
-    viewBox(): string {
-      return VIEW_BOX;
-    },
-    chevron(): string {
-      return GLYPH[this.comparator].chevron;
-    },
-    bar(): string {
-      return GLYPH[this.comparator].bar;
-    },
-  },
+});
+
+const viewBox = computed((): string => {
+  return VIEW_BOX;
+});
+const chevron = computed((): string => {
+  return GLYPH[props.comparator].chevron;
+});
+const bar = computed((): string => {
+  return GLYPH[props.comparator].bar;
 });
 </script>
