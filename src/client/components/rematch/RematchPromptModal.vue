@@ -1,10 +1,4 @@
 <template>
-  <!--
-    The "you have been offered a rematch" prompt. Shown to every player who has
-    not yet voted on a live offer (the offerer never sees it — their vote is
-    pre-accepted). Centered modal over a dimmed backdrop; can be minimized to a
-    pill (handled by RematchLayer) so the player can still inspect the results.
-  -->
   <teleport to="body">
     <div class="rematch-modal" role="dialog" :aria-label="$t('Rematch offered')">
       <div class="rematch-modal__backdrop" aria-hidden="true"></div>
@@ -45,35 +39,38 @@
   </teleport>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * The "you have been offered a rematch" prompt. Shown to every player who has
+ * not yet voted on a live offer (the offerer never sees it — their vote is
+ * pre-accepted). Centered modal over a dimmed backdrop; can be minimized to a
+ * pill (handled by RematchLayer) so the player can still inspect the results.
+ */
+import {computed} from 'vue';
 import {RematchModel, RematchVoteStatus} from '@/common/models/RematchModel';
 import {Color} from '@/common/Color';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
-export default defineComponent({
-  name: 'RematchPromptModal',
-  props: {
-    model: {type: Object as () => RematchModel, required: true},
-    submitting: {type: Boolean, default: false},
-  },
-  emits: ['accept', 'decline', 'minimize'],
-  computed: {
-    offererColor(): Color {
-      return this.model.offeredBy ?? 'neutral';
-    },
-    offererName(): string {
-      const vote = this.model.votes.find((v) => v.color === this.model.offeredBy);
-      return vote?.name ?? '';
-    },
-  },
-  methods: {
-    voteGlyph(status: RematchVoteStatus): string {
-      switch (status) {
-      case 'accepted': return '✓';
-      case 'declined': return '✕';
-      default: return '⋯';
-      }
-    },
-  },
+defineOptions({name: 'RematchPromptModal'});
+const props = defineProps({
+  model: {type: Object as () => RematchModel, required: true},
+  submitting: {type: Boolean, default: false},
 });
+defineEmits(['accept', 'decline', 'minimize']);
+
+const offererColor = computed((): Color => {
+  return props.model.offeredBy ?? 'neutral';
+});
+const offererName = computed((): string => {
+  const vote = props.model.votes.find((v) => v.color === props.model.offeredBy);
+  return vote?.name ?? '';
+});
+function voteGlyph(status: RematchVoteStatus): string {
+  switch (status) {
+  case 'accepted': return '✓';
+  case 'declined': return '✕';
+  default: return '⋯';
+  }
+}
 </script>
