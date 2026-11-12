@@ -30,8 +30,8 @@
  * its own under it (the transport, the frame chain) goes through `sessionChild`, which re-homes a root whose session
  * is no longer the one that stands.
  */
-import {getCurrentInstance, inject, onUnmounted, provide} from 'vue';
-import type {InjectionKey} from 'vue';
+import {getCurrentScope, hasInjectionContext, inject, onUnmounted, provide} from 'vue';
+import type {EffectScope, InjectionKey} from 'vue';
 import {FlowKind} from '@/client/console/kernel/flowKinds';
 import {dumpFlowTree, FlowScope, liveScopeCount, openFlowRoot, waitTable} from '@/client/console/kernel/flowScope';
 import {flowAnomaly, flowTraceLines, flowTraceStats} from '@/client/console/kernel/flowTrace';
@@ -180,21 +180,27 @@ export function useConsoleSession(): FlowScope<'session'> {
   // THE SESSION IS HANDED DOWN THE COMPONENT TREE: whatever is rendered INSIDE this shell belongs to this session —
   // `componentSessionScope()` reads it — and whatever is rendered outside any shell does not.
   provide(SESSION_OF_THE_SHELL, scope);
-  const instance = getCurrentInstance();
-  if (instance !== null) {
-    shellSessions.set(instance, scope);
+  const setup = getCurrentScope();
+  if (setup !== undefined) {
+    shellSessions.set(setup, scope);
   }
   onUnmounted(() => endConsoleSession('the game screen left', scope));
   return scope;
 }
 
 const SESSION_OF_THE_SHELL: InjectionKey<FlowScope<'session'>> = Symbol('the console session of the shell above');
-/** The shell's own instance → its session (`inject` does not see what the same component provided). */
-const shellSessions = new WeakMap<object, FlowScope<'session'>>();
+/**
+ * The shell's own SETUP SCOPE → its session (`inject` does not see what the same component provided).
+ *
+ * Keyed by the component's effect scope, never by its instance: `getCurrentInstance()` answers `null` inside a Vapor
+ * component (Vue 3.6), while `getCurrentScope()` / `provide` / `inject` are the same in both runtimes — so this module
+ * does not care which kind of component the shell (or anything under it) is. `docs/claude/vapor/ROADMAP.md` §3.
+ */
+const shellSessions = new WeakMap<EffectScope, FlowScope<'session'>>();
 
 /**
- * WHOSE IS A COMPONENT SET UP RIGHT NOW (called in `setup()` — `useFlowScope` is its one caller)? Decided by WHERE THE
- * COMPONENT STANDS IN THE TREE, never by «which session happens to stand»:
+ * WHOSE IS A COMPONENT SET UP RIGHT NOW (called in `setup()` / `<script setup>` — `useFlowScope` is its one caller)?
+ * Decided by WHERE THE COMPONENT STANDS IN THE TREE, never by «which session happens to stand»:
  *  · inside a console shell (or the shell's own `setup()` — its controllers) → THAT shell's session: the component
  *    dies with that shell, and so does its scope;
  *  · outside any shell — a menu, an app-level layer beside the shell (a zoom host, the curtain, a rematch layer), a
@@ -204,9 +210,11 @@ const shellSessions = new WeakMap<object, FlowScope<'session'>>();
  * layer itself lives on; and a component set up in the patch that swaps two shells would get the dying one's.
  */
 export function componentSessionScope(): FlowScope<'session'> {
-  const instance = getCurrentInstance();
-  const own = instance === null ? undefined : shellSessions.get(instance);
-  const scope = own ?? (instance === null ? undefined : inject(SESSION_OF_THE_SHELL, undefined));
+  const setup = getCurrentScope();
+  const own = setup === undefined ? undefined : shellSessions.get(setup);
+  // `hasInjectionContext()`: a component's `setup()` of either runtime (or `app.runWithContext`) — the only places
+  // `inject` may be asked; anywhere else (a bare effect scope, a module) the answer is the page's scope.
+  const scope = own ?? (hasInjectionContext() ? inject(SESSION_OF_THE_SHELL, undefined) : undefined);
   return scope !== undefined && scope.ended === undefined ? scope : consoleAppScope();
 }
 

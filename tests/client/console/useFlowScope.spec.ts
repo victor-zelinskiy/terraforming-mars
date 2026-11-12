@@ -9,11 +9,14 @@
  *  1. inside a console shell → THAT shell's session (it dies with that shell, and so does its scope);
  *  2. the shell's own `setup()` (its controllers) → the same session;
  *  3. outside any shell → the PAGE's scope, even while a game session stands;
- *  4. the scope ends with its component, and what it armed is taken back.
+ *  4. the scope ends with its component, and what it armed is taken back;
+ *  5. the binding is the EFFECT SCOPE and the injection context (never a component instance — Vapor has none to
+ *     ask): a bare `effectScope()` is an owner too, and a scope stopped with no `unmounted` still ends.
  */
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
-import {defineComponent, h} from 'vue';
+import {defineComponent, effectScope, h, nextTick} from 'vue';
+import type {EffectScope} from 'vue';
 import {FlowScope} from '@/client/console/kernel/flowScope';
 import {consoleAppScope, consoleSessionScope, endConsoleSession, useConsoleSession} from '@/client/console/session/consoleSession';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
@@ -67,5 +70,34 @@ describe('useFlowScope — a component\'s scope is parented by where the compone
     layer.unmount();
     expect(seen.layer.ended, 'a scope ends with its component').to.not.equal(undefined);
     expect(fired, 'what it armed was taken back with it').to.equal(0);
+  });
+
+  // Vue 3.6 / the road to Vapor (docs/claude/vapor/ROADMAP.md §3): the binding is the caller's EFFECT SCOPE and the
+  // injection context — never a component instance, which a Vapor component does not have for `getCurrentInstance()`.
+  it('a composable in a BARE effect scope (a controller under a spec, no mount): the page\'s scope, ended when that scope stops — at once', () => {
+    const es = effectScope();
+    const flow = es.run(() => useFlowScope('a-bare-composable'))!;
+    let fired = 0;
+    flow.after(60_000, 'a beat of the composable', () => fired++);
+    expect(flow.parent, 'nothing above it provides a session').to.equal(consoleAppScope());
+    expect(flow.ended).to.equal(undefined);
+
+    es.stop();
+    expect(flow.ended, 'no tick to wait for: the scope\'s stop IS the ending').to.not.equal(undefined);
+    expect(fired).to.equal(0);
+  });
+
+  it('the effect scope is the NET under the hook: a component whose scope stops with no `unmounted` is ended a tick later', async () => {
+    // What a Vapor component removed before its mount looks like to this module: its setup ran (hooks registered), its
+    // effect scope is stopped, `unmounted` never comes. Reproduced on the runtime we have: the instance's scope is
+    // stopped by hand while the component still stands.
+    const wrapper = mount(Leaf, {props: {name: 'never-unmounted'}});
+    void seen['never-unmounted'].kind; // the scope is lazy — open it
+    expect(seen['never-unmounted'].ended).to.equal(undefined);
+    (wrapper.vm.$ as unknown as {scope: EffectScope}).scope.stop();
+    await nextTick();
+    await nextTick();
+    expect(seen['never-unmounted'].ended, 'ended by its effect scope\'s disposal').to.not.equal(undefined);
+    wrapper.unmount(); // the late hook ends nothing twice
   });
 });
