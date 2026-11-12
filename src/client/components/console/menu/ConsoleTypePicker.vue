@@ -32,7 +32,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * ADD PARTICIPANT type picker (console create) — two big plates: PLAYER
  * (live player; invite flow is honestly labelled as a future feature with
@@ -40,17 +40,15 @@
  * when already seated, amber-warned when seating it will shrink the roster
  * under the current one-on-one server limit). Pure presentation.
  */
-import {defineComponent, PropType} from 'vue';
+import {PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {ParticipantTypeOption} from '@/client/console/menu/consoleCreateModel';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
-export default defineComponent({
-  name: 'ConsoleTypePicker',
-  components: {GamepadGlyph},
-  props: {
-    options: {type: Array as PropType<ReadonlyArray<ParticipantTypeOption>>, required: true},
-    cursor: {type: Number, required: true},
-  },
-  emits: ['pick', 'cursor'],
+defineOptions({name: 'ConsoleTypePicker'});
+defineProps({
+  options: {type: Array as PropType<ReadonlyArray<ParticipantTypeOption>>, required: true},
+  cursor: {type: Number, required: true},
 });
+defineEmits(['pick', 'cursor']);
 </script>
