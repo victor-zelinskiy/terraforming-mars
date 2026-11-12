@@ -17,7 +17,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * The honest STRANDED-PROMPT guard panel — CTS T0 (§CTS-7.3). Shown when
  * the leak detector finds a server prompt with NO serving surface in
@@ -27,21 +27,18 @@
  * prompt — the desktop shell this hint once pointed to is deleted), instead
  * of staring at a dead notification.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {StrandedPrompt} from '@/client/console/consoleLeakDetector';
 import {gamepadDebug} from '@/client/gamepad/gamepadSettings';
+import {$t} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleStrandedPrompt',
-  components: {GamepadGlyph},
-  props: {
-    stranded: {type: Object as PropType<StrandedPrompt>, required: true},
-  },
-  computed: {
-    debug(): boolean {
-      return gamepadDebug();
-    },
-  },
+defineOptions({name: 'ConsoleStrandedPrompt'});
+defineProps({
+  stranded: {type: Object as PropType<StrandedPrompt>, required: true},
+});
+
+const debug = computed((): boolean => {
+  return gamepadDebug();
 });
 </script>
