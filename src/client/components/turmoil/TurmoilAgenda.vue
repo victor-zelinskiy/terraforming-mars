@@ -182,18 +182,15 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
 import {BonusId, PolicyId} from '@/common/turmoil/Types';
-import {defineComponent} from 'vue';
 
-export default defineComponent({
-  name: 'TurmoilAgenda',
-  props: {
-    id: {
-      type: String as () => BonusId | PolicyId | undefined,
-      required: true,
-    },
+defineOptions({name: 'TurmoilAgenda'});
+defineProps({
+  id: {
+    type: String as () => BonusId | PolicyId | undefined,
+    required: true,
   },
 });
 
