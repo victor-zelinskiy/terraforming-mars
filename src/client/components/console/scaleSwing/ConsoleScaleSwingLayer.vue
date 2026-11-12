@@ -1,21 +1,4 @@
 <template>
-  <!--
-    «ОБРАТНЫЙ ХОД» — the shell-level stage of a PARAMETER SWING (TR47
-    Ecological Experiment; the director: scaleSwing/scaleSwingDirector.ts).
-    Mounted beside the other flight layers and never inside a teleported
-    surface, so a fixed tag resolves against the viewport.
-
-    It draws only the TAGS — the fall's «−1 · РТ остаётся» beside the marker
-    that just stepped down (or under the status strip's readout of a scale with
-    no marker on the board — the ocean count), a limit's «МАКС.» where the
-    parameter stands. The markers glide and the HUD flips by themselves (the
-    board and the strip read the swing's presented values); the rating tokens
-    ride the shared Resource Transfer Framework. Its root carries the scene's
-    state for the probes (`data-scale-swing*`).
-
-    `con-flight-to-board`: the tags belong to the board; a workspace over the
-    board covers them (the scene plays only over a board the player can see).
-  -->
   <div v-if="scaleSwingState.phase !== 'idle'"
        class="con-scaleswing con-flight-to-board" data-flight-lands="board" aria-hidden="true"
        :data-scale-swing="scaleSwingState.phase"
@@ -41,18 +24,34 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * «ОБРАТНЫЙ ХОД» — the shell-level stage of a PARAMETER SWING (TR47
+ * Ecological Experiment; the director: scaleSwing/scaleSwingDirector.ts).
+ * Mounted beside the other flight layers and never inside a teleported
+ * surface, so a fixed tag resolves against the viewport.
+ *
+ * It draws only the TAGS — the fall's «−1 · РТ остаётся» beside the marker
+ * that just stepped down (or under the status strip's readout of a scale with
+ * no marker on the board — the ocean count), a limit's «МАКС.» where the
+ * parameter stands. The markers glide and the HUD flips by themselves (the
+ * board and the strip read the swing's presented values); the rating tokens
+ * ride the shared Resource Transfer Framework. Its root carries the scene's
+ * state for the probes (`data-scale-swing*`).
+ *
+ * `con-flight-to-board`: the tags belong to the board; a workspace over the
+ * board covers them (the scene plays only over a board the player can see).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {onBeforeUnmount} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {resetScaleSwing, scaleSwingState} from '@/client/console/scaleSwing/scaleSwingDirector';
 
-export default defineComponent({
-  name: 'ConsoleScaleSwingLayer',
-  data() {
-    return {scaleSwingState};
-  },
-  beforeUnmount() {
-    // Shell teardown / game switch mid-scene: the display lets go and every held rating is paid at once.
-    resetScaleSwing();
-  },
+defineOptions({name: 'ConsoleScaleSwingLayer'});
+
+onBeforeUnmount(() => {
+  // Shell teardown / game switch mid-scene: the display lets go and every held rating is paid at once.
+  resetScaleSwing();
 });
 </script>
