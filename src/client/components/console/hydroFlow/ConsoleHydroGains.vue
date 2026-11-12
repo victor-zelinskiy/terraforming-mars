@@ -1,19 +1,4 @@
 <template>
-  <!--
-    «ВЫ ПОЛУЧИТЕ» — the ONE outcome block of the Hydronetwork, whatever door
-    the move came through. The player's own preview and a card's offer render
-    THIS, so typography, icon scale, the «сейчас → станет» reading, the «или»
-    separator and the zero-delta honesty can never fork between flows again.
-
-    Three honest shapes, decided by the DATA:
-      - an UNRESOLVED choice (options given, nothing chosen): both
-        alternatives as the track prints them — never a concrete delta for a
-        decision the player has not made;
-      - resolved/fixed lines: per-pool before → after, a +N chip for a real
-        gain, and the quiet «Без изменений» word for an honest zero (a bare
-        «502 → 502» read as a concrete result of nothing);
-      - abstract chips / VP where no concrete line exists.
-  -->
   <div class="con-hydro__gains">
     <span class="con-hydro__section-label">{{ $t(label) }}</span>
     <template v-if="unresolved">
@@ -66,8 +51,25 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * «ВЫ ПОЛУЧИТЕ» — the ONE outcome block of the Hydronetwork, whatever door
+ * the move came through. The player's own preview and a card's offer render
+ * THIS, so typography, icon scale, the «сейчас → станет» reading, the «или»
+ * separator and the zero-delta honesty can never fork between flows again.
+ *
+ * Three honest shapes, decided by the DATA:
+ *   - an UNRESOLVED choice (options given, nothing chosen): both
+ *     alternatives as the track prints them — never a concrete delta for a
+ *     decision the player has not made;
+ *   - resolved/fixed lines: per-pool before → after, a +N chip for a real
+ *     gain, and the quiet «Без изменений» word for an honest zero (a bare
+ *     «502 → 502» read as a concrete result of nothing);
+ *   - abstract chips / VP where no concrete line exists.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
 import {$t} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -75,39 +77,31 @@ import {HydroDeltaLine, HydroRewardView} from '@/client/components/hydronetwork/
 import {HydroStage} from '@/client/components/hydronetwork/hydroStages';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 
-export default defineComponent({
-  name: 'ConsoleHydroGains',
-  components: {HydroReward},
-  props: {
-    view: {type: Object as PropType<HydroRewardView>, required: true},
-    /** The stage's alternatives — given while the choice is UNRESOLVED. */
-    options: {type: Array as PropType<HydroStage['rewardOptions']>, default: undefined},
-    label: {type: String, default: 'You will gain'},
-    /**
-     * SERVER-AUTHORED passive movement bonuses of the move being read (Social
-     * Heating's heat). Empty for every move that owes none, which is every
-     * historical one — the block then renders exactly as before.
-     */
-    extras: {type: Array as PropType<ReadonlyArray<DeltaMovementBonusProjection>>, default: () => []},
-    compact: {type: Boolean, default: false},
-  },
-  computed: {
-    unresolved(): boolean {
-      return this.options !== undefined && this.options.length > 1;
-    },
-  },
-  methods: {
-    $t,
-    iconClassFor,
-    iconClass(l: HydroDeltaLine): string {
-      if (l.special === 'jovian-tag') {
-        return 'resource-tag tag-jovian';
-      }
-      if (l.special === 'animals') {
-        return 'card-resource card-resource-animal';
-      }
-      return l.resource !== undefined ? iconClassFor(l.resource) : '';
-    },
-  },
+defineOptions({name: 'ConsoleHydroGains'});
+const props = defineProps({
+  view: {type: Object as PropType<HydroRewardView>, required: true},
+  /** The stage's alternatives — given while the choice is UNRESOLVED. */
+  options: {type: Array as PropType<HydroStage['rewardOptions']>, default: undefined},
+  label: {type: String, default: 'You will gain'},
+  /**
+   * SERVER-AUTHORED passive movement bonuses of the move being read (Social
+   * Heating's heat). Empty for every move that owes none, which is every
+   * historical one — the block then renders exactly as before.
+   */
+  extras: {type: Array as PropType<ReadonlyArray<DeltaMovementBonusProjection>>, default: () => []},
+  compact: {type: Boolean, default: false},
 });
+
+const unresolved = computed((): boolean => {
+  return props.options !== undefined && props.options.length > 1;
+});
+function iconClass(l: HydroDeltaLine): string {
+  if (l.special === 'jovian-tag') {
+    return 'resource-tag tag-jovian';
+  }
+  if (l.special === 'animals') {
+    return 'card-resource card-resource-animal';
+  }
+  return l.resource !== undefined ? iconClassFor(l.resource) : '';
+}
 </script>
