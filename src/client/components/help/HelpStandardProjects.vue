@@ -18,45 +18,45 @@
 
     </div>
 </template>
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import Card from '@/client/components/card/CardFace.vue';
 import {CardName} from '@/common/cards/CardName';
 
-export default defineComponent({
-  name: 'HelpStandardProjects',
-  components: {
-    Card,
-  },
-  methods: {
-    getBasicStandardProjects: () => [
-      CardName.SELL_PATENTS_STANDARD_PROJECT,
-      CardName.POWER_PLANT_STANDARD_PROJECT,
-      CardName.ASTEROID_STANDARD_PROJECT,
-      CardName.AQUIFER_STANDARD_PROJECT,
-      CardName.GREENERY_STANDARD_PROJECT,
-      CardName.CITY_STANDARD_PROJECT,
-    ],
-    getExpansionStandardProjects: () => [
-      CardName.AIR_SCRAPPING_STANDARD_PROJECT,
-      CardName.BUILD_COLONY_STANDARD_PROJECT,
-      CardName.BUFFER_GAS_STANDARD_PROJECT,
-    ],
-    getFanMadeStandardProjects: () => [
-      CardName.AIR_SCRAPPING_STANDARD_PROJECT_VARIANT,
-      CardName.MOON_HABITAT_STANDARD_PROJECT,
-      CardName.MOON_MINE_STANDARD_PROJECT,
-      CardName.MOON_ROAD_STANDARD_PROJECT,
-      CardName.MOON_HABITAT_STANDARD_PROJECT_VARIANT_1,
-      CardName.MOON_MINE_STANDARD_PROJECT_VARIANT_1,
-      CardName.MOON_ROAD_STANDARD_PROJECT_VARIANT_1,
-      CardName.MOON_HABITAT_STANDARD_PROJECT_VARIANT_2,
-      CardName.MOON_MINE_STANDARD_PROJECT_VARIANT_2,
-      CardName.MOON_ROAD_STANDARD_PROJECT_VARIANT_2,
-      CardName.EXCAVATE_STANDARD_PROJECT,
-      CardName.COLLUSION_STANDARD_PROJECT,
-    ],
-  },
-});
+defineOptions({name: 'HelpStandardProjects'});
+
+function getBasicStandardProjects() {
+  return [
+    CardName.SELL_PATENTS_STANDARD_PROJECT,
+    CardName.POWER_PLANT_STANDARD_PROJECT,
+    CardName.ASTEROID_STANDARD_PROJECT,
+    CardName.AQUIFER_STANDARD_PROJECT,
+    CardName.GREENERY_STANDARD_PROJECT,
+    CardName.CITY_STANDARD_PROJECT,
+  ];
+}
+function getExpansionStandardProjects() {
+  return [
+    CardName.AIR_SCRAPPING_STANDARD_PROJECT,
+    CardName.BUILD_COLONY_STANDARD_PROJECT,
+    CardName.BUFFER_GAS_STANDARD_PROJECT,
+  ];
+}
+function getFanMadeStandardProjects() {
+  return [
+    CardName.AIR_SCRAPPING_STANDARD_PROJECT_VARIANT,
+    CardName.MOON_HABITAT_STANDARD_PROJECT,
+    CardName.MOON_MINE_STANDARD_PROJECT,
+    CardName.MOON_ROAD_STANDARD_PROJECT,
+    CardName.MOON_HABITAT_STANDARD_PROJECT_VARIANT_1,
+    CardName.MOON_MINE_STANDARD_PROJECT_VARIANT_1,
+    CardName.MOON_ROAD_STANDARD_PROJECT_VARIANT_1,
+    CardName.MOON_HABITAT_STANDARD_PROJECT_VARIANT_2,
+    CardName.MOON_MINE_STANDARD_PROJECT_VARIANT_2,
+    CardName.MOON_ROAD_STANDARD_PROJECT_VARIANT_2,
+    CardName.EXCAVATE_STANDARD_PROJECT,
+    CardName.COLLUSION_STANDARD_PROJECT,
+  ];
+}
 </script>
