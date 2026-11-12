@@ -1,11 +1,4 @@
 <template>
-  <!--
-    Unified minimalist line-icon set for the top/bottom HUD bar buttons.
-    One shared <svg> wrapper (24×24, currentColor stroke) so every icon
-    inherits the button's text colour + idle/hover/active state for free,
-    and a single visual language (1.6px round-joined strokes). Inner paths
-    switch on `name`; <template v-if> keeps the wrapper attributes DRY.
-  -->
   <svg class="bar-btn-icon" :class="'bar-btn-icon--' + name"
        viewBox="0 0 24 24" fill="none" stroke="currentColor"
        stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
@@ -96,21 +89,27 @@
   </svg>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * Unified minimalist line-icon set for the top/bottom HUD bar buttons.
+ * One shared <svg> wrapper (24×24, currentColor stroke) so every icon
+ * inherits the button's text colour + idle/hover/active state for free,
+ * and a single visual language (1.6px round-joined strokes). Inner paths
+ * switch on `name`; <template v-if> keeps the wrapper attributes DRY.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 
 /**
  * Stateless icon component for the HUD bar buttons. Pass `name` (one of the
  * nine button identities). Renders an inline SVG using `currentColor`, so
  * the host button's colour transitions drive the icon with no extra wiring.
  */
-export default defineComponent({
-  name: 'BarButtonIcon',
-  props: {
-    name: {
-      type: String,
-      required: true,
-    },
+defineOptions({name: 'BarButtonIcon'});
+defineProps({
+  name: {
+    type: String,
+    required: true,
   },
 });
 </script>
