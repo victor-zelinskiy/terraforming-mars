@@ -49,6 +49,7 @@ import type {StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/c
 import type {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import type {PlayComposerDraft} from '@/client/console/stagedPlay';
 import {sessionState} from '@/client/console/session/consoleSession';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 export type ConsolePlayPickRequest = {
   /** The PROMISED pick (the law's `ResolutionPlayModel.input`): every hand card, the law's candidates enabled. */
@@ -164,7 +165,7 @@ export const consolePlayPickState = reactive({
   draft: undefined as ConsoleLawPlayDraft | undefined,
 });
 
-let resolveCb: ((result: ConsolePlayPickResult) => void) | undefined;
+const resolveCb = owedAnswer<[result: ConsolePlayPickResult]>('play-pick');
 let cancelCb: (() => void) | undefined;
 
 export function isConsolePlayPickActive(): boolean {
@@ -188,7 +189,7 @@ export function enterConsolePlayPick(
   onCancel?: () => void,
 ): void {
   consolePlayPickState.request = request;
-  resolveCb = onResolve;
+  resolveCb.arm(onResolve);
   cancelCb = onCancel;
   consolePlayPickState.active = true;
   run.begin();
@@ -199,7 +200,7 @@ export function resolveConsolePlayPick(result: ConsolePlayPickResult): void {
   if (!consolePlayPickState.active) {
     return;
   }
-  const cb = resolveCb;
+  const cb = resolveCb.take();
   resetConsolePlayPick();
   cb?.(result);
 }
@@ -219,7 +220,7 @@ export function resetConsolePlayPick(): void {
   consolePlayPickState.active = false;
   run.end();
   consolePlayPickState.request = undefined;
-  resolveCb = undefined;
+  resolveCb.drop();
   cancelCb = undefined;
 }
 

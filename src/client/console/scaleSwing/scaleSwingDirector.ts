@@ -69,6 +69,7 @@ import {
 } from '@/client/console/scaleSwing/scaleSwingModel';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {deriveFlowRun} from '@/client/console/session/flowRun';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /** The scene's own name — its holds, its ledger story. */
 export const SCALE_SWING_KEY = 'scale-swing';
@@ -134,7 +135,7 @@ let tagSeq = 0;
 /** The rating tokens in flight right now (spliced off their entry, released on touchdown) — the ceiling releases them. */
 let flyingOwed: Set<ResourceTransferSpec> | undefined;
 let debt: OwedStoryHandle | undefined;
-let quietResolve: (() => void) | undefined;
+const quietResolve = owedAnswer('scale-swing:quiet', {orphaned: () => []});
 let quietPromise: Promise<void> = Promise.resolve();
 
 function publishDisplay(): void {
@@ -142,16 +143,15 @@ function publishDisplay(): void {
 }
 
 function openQuiet(): void {
-  if (quietResolve === undefined) {
+  if (!quietResolve.armed) {
     quietPromise = new Promise<void>((resolve) => {
-      quietResolve = resolve;
+      quietResolve.arm(resolve);
     });
   }
 }
 
 function resolveQuiet(): void {
-  const r = quietResolve;
-  quietResolve = undefined;
+  const r = quietResolve.take();
   r?.();
 }
 

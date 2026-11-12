@@ -25,6 +25,7 @@ import i18nPlugin from '@/client/plugins/i18n.plugin';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
 import {createManualClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {FlowScope} from '@/client/console/kernel/flowScope';
+import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 import {consoleAppScope, endConsoleSession, useConsoleSession} from '@/client/console/session/consoleSession';
 import VaporBasics from './fixtures/VaporBasics.vue';
 import VaporTransitionProbe from './fixtures/VaporTransitionProbe.vue';
@@ -34,6 +35,7 @@ import VaporTeleportProbe from './fixtures/VaporTeleportProbe.vue';
 import VaporHostsVdom from './fixtures/VaporHostsVdom.vue';
 import VaporFlowProbe from './fixtures/VaporFlowProbe.vue';
 import VaporIfRoot from './fixtures/VaporIfRoot.vue';
+import VaporShellProbe from './fixtures/VaporShellProbe.vue';
 import {lendFrames} from './lendFrames';
 
 type Slots = Record<string, (props: Record<string, unknown>) => unknown>;
@@ -345,5 +347,43 @@ describe('Vapor in the virtual-DOM app — what it takes (vue 3.6.0-rc.15, throu
       mountVapor(VaporFlowProbe, {seen});
       expect(seen.flow!.parent).to.equal(consoleAppScope());
     });
+  });
+
+  /*
+   * THE SHELL'S COMPOSITION (architecture v2 — S-last). `ConsoleShell.vue` is a template over `useConsoleShell(props)`:
+   * controllers behind a late-bound port, surfaces in a registry, an ordered reactions table, two wiring hooks. None of
+   * it asks for a component instance — this row is the proof that the SHAPE runs inside a Vapor component, so the
+   * shell's own conversion is a change of form (how the template names the members), never of mechanism.
+   */
+  it('the shell\'s composition runs in a Vapor component: a port with no instance, a surface in the registry, the reactions table, the wiring hooks', async () => {
+    const seen: {log: Array<string>, instance?: unknown, surfaces?: SurfaceRegistry, reset?: () => void} = {log: []};
+    const {wrapper, props, q} = mountVapor(VaporShellProbe, {playerView: {gameAge: 1}, seen});
+    const shell = q('.vp-shell')!;
+
+    expect(seen.instance, 'no instance behind the composition').to.equal(null);
+    expect([shell.dataset.count, shell.dataset.doubled, shell.dataset.age], 'the template reads the members; one controller reads the other through the port; a prop comes through it')
+      .to.deep.equal(['1', '2', '1']);
+    expect(seen.log, 'the wiring hook ran after the surface stood in the registry (a function ref is called during the patch)')
+      .to.deep.equal(['mounted · surface B']);
+    expect(seen.surfaces!.standing()).to.deep.equal(['handSection']);
+
+    shell.click();
+    await nextTick();
+    expect([shell.dataset.count, shell.dataset.doubled]).to.deep.equal(['2', '4']);
+    expect(seen.log.at(-1), 'a row of the reactions table delegated to its controller').to.equal('doubled 4 (read through the port: 4)');
+
+    props.playerView = {gameAge: 7};
+    await nextTick();
+    expect(shell.dataset.age).to.equal('7');
+    expect(seen.log.at(-1), 'a row over a PROP read through the port').to.equal('age 7');
+
+    seen.reset!();
+    await nextTick();
+    expect(shell.dataset.count, 'a WRITTEN row of a port writes the other controller\'s ref').to.equal('0');
+
+    wrapper.unmount();
+    await nextTick();
+    expect(seen.log, 'the leaving hook ran').to.include('leaving');
+    expect(seen.surfaces!.standing(), 'the surface left the registry with its element').to.deep.equal([]);
   });
 });

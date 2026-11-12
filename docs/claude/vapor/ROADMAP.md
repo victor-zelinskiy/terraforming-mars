@@ -17,7 +17,7 @@ loads when you touch client code.
 | --- | --- | --- | --- |
 | **V0** | the docs: the north star in `CLAUDE.md`, this program, the rules, the architecture plan pointing at it | a new session reads the destination and the rules of the road before it writes a line | **done 2026-11-12** (`da57cf6027`) |
 | **V1** | THE PILOT — `vue@3.6.0-rc.15` is the project's version (still a `createApp` app); the toolchain compiles and tests Vapor; three leaves run as Vapor in the product | §3: every check green on the pinned version, the differences found are written here; the capability table of §3.6 is an executable suite | **done 2026-11-12** — §3 is the record |
-| **V2** | architecture v2 to the end — 100 % of the console UI on the flow kernel | `docs/claude/console/architecture-v2/PLAN.md` §11: the debt ledger is EMPTY (the surface registry, the prompt router, the domains' reactions as machines / runs, the session owning the tick — S-last: «the shell is layout») | **next** |
+| **V2** | architecture v2 to the end — 100 % of the console UI on the flow kernel | `docs/claude/console/architecture-v2/PLAN.md` §11: the debt ledger's DECISION rows are at ZERO and guarded there (2026-11-12 — the surface registry, the question's scope and «set aside» as its record, the owned answers, the last latch), and **S-last is done: the shell is layout** — `ConsoleShell.vue` has no `data` / `computed` / `methods` / `watch` / hooks, its port is no component instance. What the ledger still freezes is the supervisory layer (the nets), which retires on field evidence and blocks nothing of V3 | **the base for V3 stands (2026-11-12)**; open in V2: the two one-table redesigns, the domains' reactions as machines (PLAN §0) |
 | **V3** | THE REWORK — every component is `<script setup>` and compiles as Vapor, wave by wave | §4: the readiness ledger (§5) is at zero Options-API components; every wave passed the full e2e on CI before the next began | after V2 |
 | **V4** | THE SWITCH — `createVaporApp(App).mount('#app')` | `main.ts` creates a Vapor app; the vdom runtime and the interop plugin are not in the bundle; the full e2e and the timing class are green; the field build ships | after V3 |
 
@@ -43,7 +43,7 @@ doing the dangerous half twice.
 | `data()` blocks · `computed:` blocks · `watch:` blocks | 223 · 388 · 122 | `ref` / `reactive` · `computed()` · `watch()` — **in the same order** (see §3.5: order between watchers of DIFFERENT sources was never creation order) |
 | `this.$emit(` | 377 in 97 files | `defineEmits` |
 | `this.$nextTick(` | 342 | `nextTick()` (or a kernel wait where it is used AS a wait) |
-| `$refs` | 785 | a template ref (`useTemplateRef`) inside a component; **between** surfaces — the surface registry (architecture S3; 117 of them are in the shell's controllers and are already frozen by the debt ledger) |
+| `$refs` | 785 | a template ref (`useTemplateRef`) inside a component; **between** surfaces — the surface registry (architecture S3 — **done 2026-11-12**: the shell's controllers hold none, guarded at zero; the template stands a surface with a FUNCTION ref, `:ref="surfaces.bind.<name>"`, which Vue 3.6 calls during the patch) |
 | `this.$el` | 176 | a template ref on the root |
 | `<Transition>` / `<TransitionGroup>` | 187 | works as it is (§3.6) |
 | `<Teleport>` | 34 | works as it is (§3.6) |
@@ -52,7 +52,7 @@ doing the dangerous half twice.
 | the `v-i18n` directive | **913** sites in 120 files (285 with dynamic content inside, 6 with params) | **ONE import line per component** — `import {vI18n} from '@/client/directives/vDirectives'`; the 913 call sites keep their syntax (§3.6) |
 | `$t(` in templates (`app.config.globalProperties.$t`) | 2206 | **ONE import line per component** — `import {$t} from '@/client/directives/i18n'`; the call sites keep their syntax |
 | global registrations | 6: `main.ts` 3 components (`action-target-card`, `premium-card-face`, `console-source-dock`) + `trim-whitespace`; the i18n plugin's `$t` + `i18n` | explicit imports; the registrations leave with the last Options-API component |
-| `mixins:` · `$parent` / `$root` · render `h(` · `getCurrentInstance` | 1 · 1 · 4 · **1** | composables / props / templates; the one `getCurrentInstance` left is `shell/shellPort.ts` — the bridge to the Options-API shell, gone with architecture S-last |
+| `mixins:` · `$parent` / `$root` · render `h(` · `getCurrentInstance` | 1 · 1 · 4 · **0** | composables / props / templates; `getCurrentInstance` is GONE from the client (architecture S-last, 2026-11-12 — the shell's port is a late-bound object, `shell/shellPort.ts`) |
 | `v-memo` | 11 | dropped at conversion (the Vapor compiler ignores it, with a warning) |
 | sync watchers (`flush: 'sync'`) · `customRef` · `effectScope` | 11 · 2 · 4 | unchanged API **and unchanged behaviour** — pinned by `vueReactivityContract.spec` (§3.5) |
 | unit specs that mount components (`@vue/test-utils`) | 208 files | a Vapor component is mounted under a virtual-DOM host (§3.6 · test-utils) |
@@ -65,7 +65,7 @@ doing the dangerous half twice.
 | --- | --- | --- |
 | the Options API | 468 components | `<script setup>` — V3 |
 | `app.config.globalProperties` | `$t` (the i18n plugin) | `import {$t} from '@/client/directives/i18n'` — verified (§3.6) |
-| `getCurrentInstance()` — returns `null` (verified) | was 3 call sites; **the flow kernel's two are gone** (`useConsoleSession` · `componentSessionScope` bind to the effect scope and `inject` — §3.4); left: `shell/shellPort.ts` | the port becomes explicit wiring (architecture S-last: «the session wires the controllers' ports directly, no instance in between») |
+| `getCurrentInstance()` — returns `null` (verified) | was 3 call sites; **the flow kernel's two are gone** (`useConsoleSession` · `componentSessionScope` bind to the effect scope and `inject` — §3.4); the last one, `shell/shellPort.ts`, **went with S-last (2026-11-12)** | — (nothing in `src/client` asks for a component instance; the readiness ledger's `instance-access` row is empty and a new file starts at zero) |
 | template refs that expose `$el` / `$props` / `$attrs` / `$slots` / `$refs` of a child | 21 reads of a child's `$el` / `$props` through a ref (+ 176 `this.$el` of one's own root) | the child exposes what is needed (`defineExpose` — verified: a parent's ref of a Vapor child IS its exposed object) / registers it (the surface registry); one's own root is `useTemplateRef` (verified) |
 | `v-memo` | 11 | drop it — the Vapor compiler ignores it and says so |
 | `@vue:xxx` per-element lifecycle events | 0 | — |
@@ -225,7 +225,8 @@ new RC re-reads the table by running it.
 | `v-i18n` / `v-trim-whitespace` as imports — static text, an interpolation, params, a late `v-if` branch; translated at the first frame and after every change | ✔ works | `directives/vDirectives.ts`: in Vapor the directive follows the text it owns through ONE shared `MutationObserver` (there is no `updated`); in a vdom `<script setup>` the same binding is called on `mounted` / `updated` |
 | `$t(…)` in a template | ✔ works **with a change** | it is the imported binding — a Vapor component has no global properties |
 | `useFlowScope` (the kernel) · lifecycle hooks · `useTemplateRef` | ✔ works | bound without an instance (§3.4) |
-| `getCurrentInstance()` | ✘ `null` | by design — nothing of ours needs it but the shell port |
+| `getCurrentInstance()` | ✘ `null` | by design — nothing of ours needs it (the shell's port stopped being the instance with architecture S-last) |
+| THE SHELL'S COMPOSITION — controllers behind a late-bound port (`shell/shellPort.ts`), a surface standing in the registry through a function ref (`:ref="surfaces.bind.<name>"`), a reactions table of `watch()` rows over port members and a prop, a WRITTEN port row, `onMounted` / `onBeforeUnmount` | ✔ (fixture `VaporShellProbe.vue`, 2026-11-12) | `ConsoleShell.vue` is this shape (`useConsoleShell`): its conversion changes how the template names the members, not the mechanism |
 | `v-memo` | ignored (compiler warning) | drop at conversion |
 | `@vue/test-utils`: `mount(<a Vapor component>)` as the ROOT | ✘ throws | test-utils reads the root's vdom instance. A spec stands the component under a vdom host with an ELEMENT root (`mountVapor` in the suite; `card/CardDescription.spec.ts`). DOM finders work; `findComponent` INTO a Vapor child does not. The interop plugin is installed for every mount by `tests/client/components/bundleSetup.ts` |
 | test-utils' default `transition` stub | does not apply | a Vapor `<Transition>` is the real one in a spec and needs a frame source there — `tests/client/vapor/lendFrames.ts` |
@@ -306,7 +307,7 @@ registered component). A file may not grow, **a new file starts at zero** (so ru
 tests, not conventions), a component that is Vapor stays Vapor, and a Vapor component holds nothing of the list.
 `npm run ready:vapor` lowers the baseline and prints the line:
 
-`Vapor components: 3 / 472 · options-api: 468 · instance-access: 1 · parent-root: 1 · mixin: 1 · global-registration: 6 · render-function: 4 · v-memo: 11 · refs: 785 · global-in-setup: 2` (2026-11-12).
+`Vapor components: 3 / 472 · options-api: 468 · instance-access: 0 · parent-root: 1 · mixin: 1 · global-registration: 6 · render-function: 4 · v-memo: 11 · refs: 654 · global-in-setup: 2` (2026-11-12, after V2's S3 · S4 · S6 · S-last; `refs` was 785 and `instance-access` 1 at the pilot).
 
 V3 is done when `options-api` is zero and every component is Vapor; V4 is one line in `main.ts` after that.
 
@@ -318,3 +319,15 @@ mailboxes (S6) and finally the shell's own `watch` table and hooks (S-last: «th
 also a row of §1 above — and the watch table is exactly where §3.5's unguarded half lives. So V2 is not a detour
 before the rework — it is the half of the rework that changes behaviour, done under the guards built for it; V3 is
 the half that only changes form.
+
+**Where that stands (2026-11-12).** All four are taken: the registry (S3), the question's scope and the set-aside
+record (S4), the owned answers — `owedAnswer`, 29 resolver mailboxes of 26 modules (S6) — and the shell itself
+(S-last). **`ConsoleShell.vue` — the largest component of the client, 27.8k lines when this started — is a template,
+its `components`, its `props` and `setup(props) { return useConsoleShell(props); }`.** It is still counted as
+`options-api` (it is a `defineComponent`), but nothing in it is Options-shaped any more: its conversion in V3 is ONE
+decision — how the template names the members a `<script setup>` must bind at top level (a generated destructure of
+the composition's return, or the region components each taking their slice; PLAN §5 · S-last) — and no rewrite of
+logic. The composition asks Vue for nothing a Vapor component lacks: no instance, no `$refs`, no `$el`, no
+`$watch`; its watchers are `watch()` calls in `setup`, its hooks `onMounted` / `onBeforeUnmount`, its template refs
+refs and function refs. The recipe that took it apart (PLAN §5 · S-last, five steps, mechanical) is the recipe for
+every other Options monolith of V3.

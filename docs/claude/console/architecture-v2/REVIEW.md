@@ -37,6 +37,11 @@ The whole architecture in six sentences:
 | wait until a condition holds | `scope.wait(until(what, read), {bound})` (reactive, level-triggered) · `polled(what, read, everyMs)` when the consequence must run in a task of its own · `untilCeiling(spec, read, owner?)` with its ceiling line | a hand-written poll loop with a deadline |
 | wait for ANOTHER flow to end | `scope.wait(ended(other), {bound})` — typed by `WAITS_ON`, refused if it would close a cycle | a flag of the other module sampled in a loop |
 | signal «it happened» once to whoever waits | `createFlowSignal()` + `scope.wait(signalled(what, signal), {bound})` | a module-level `let resolveX` (a resolver mailbox) |
+| keep the `resolve` of a promise somebody awaits (a transport gate, a scene's end) or a caller's callback (a pick) | `const gate = owedAnswer(label, {owner, orphaned})` (`session/owedAnswer.ts`) — `gate.arm(resolve)` · `gate.settle(…)` · `gate.drop()` · `gate.take()`; closed when its owner ends | `let runResolve: (() => void) \| undefined` — every exit path must remember it (RETIRED: the ledger fails on the first one) |
+| reach a surface (a section, an overlay) from a controller | `shell.surfaces.at<T>('<name>')` (`shell/surfaceRegistry.ts`; the template: `:ref="surfaces.bind.<name>"`) | `shell.$refs.x` (RETIRED) |
+| keep state that exists only for the server's current QUESTION | `scopedState(label, rest, questionScope)` (+ `{outlives}` when the answer still needs it) — it falls at `advanceQuestion` | a flag the view-apply reaction lowers (RETIRED) |
+| set the question aside / take it up | `setQuestionAside(what)` · `takeUpQuestion(why)` (`console/setAside.ts`) | `consoleState.task.deferred = …` (a compile error) |
+| add behaviour to the game screen | a member of its domain's controller (`console/shell/*Controller.ts`), reached through a port row | a member of `ConsoleShell.vue` — it has no `data` / `computed` / `methods` / `watch` / hooks (guarded) |
 | own a COMPONENT's timers | `setup() { return {flow: useFlowScope('<kebab-name>')}; }` → `this.flow.after(…)` (lazy; parented by where the component stands) | a `beforeUnmount` list of `clearTimeout`s |
 | own a module FLOW's timers and its end | ONE writer of the flag: `createFlowRun(label, {orphaned})` + `run.begin()` / `run.end()` beside the flag. MANY writers, or a flow keyed by its PHASE: `deriveFlowRun(label, () => state.live, {orphaned})` / `deriveFlowRun(label, () => state.phase !== 'idle')` | timer ids in module variables |
 | hold the foreground for a scene | a SUPPLIER derived from state: `registerAnimationHoldSupplier(label, predicate, {expire})`; a handle (`beginAnimationHold`) only for a beat with no state of its own — its timers go in `hold.scope` | a boolean in the shell; a local `setTimeout` gate |
@@ -92,7 +97,7 @@ the pass (`at` — a total order; a scene's abort recalls what it staged, the st
 `scopedState`. State that is the page's says so in a comment where it is declared.
 
 **L12 · A decision that ACTS has a place in the tick.** A reaction that closes a workspace or opens a door is asked
-from a row of the shell's watch table (after the reactions the same write woke, before the render) — never from a
+from a row of the shell's reactions table (`shell/shellReactions.ts` — after the reactions the same write woke, before the render) — never from a
 free pre-flush watcher (it runs BEFORE every component's) nor post-flush (a patch late). The kernel's `until` is for
 waits that only record. (`workspaceConclusionOwe.ts` is the model; PLAN §5 · S5 has the two reds that taught it.)
 
@@ -141,7 +146,8 @@ Then read the diff for what no ledger can see:
 | `await something.finished`, `await new Promise(…)` with no bound in a flow | a wait outside the table | §1 |
 | `run.begin()` without a `run.end()` on EVERY path that lowers the flag (early `return`s, `catch`) | a run that outlives its flow until the session ends | L6 |
 | `watch(…, {flush: 'sync'})` / a kernel `until` that ACTS (closes, opens, submits) | wrong place in the tick | L12 |
-| a new `registerWaitSource` / `registerLivenessRelease` / `registerTruthWitness` / `$refs` in a controller / `task.deferred =` | a frozen mechanism (the debt ledger fails) | §5 |
+| a new `registerWaitSource` / `registerLivenessRelease` / `registerTruthWitness` / `$refs` in a controller / `task.deferred =` / a bare latch `ref` / a `let xResolve` | a frozen or RETIRED mechanism (the debt ledger fails) | §5 |
+| a new `data` / `computed` / `methods` / `watch` / hook in `ConsoleShell.vue`, a `this` in it, a body in a row of `shellReactions.ts` | the shell is layout; a reaction's body lives in its controller | `.claude/rules/console-flow.md` § THE SHELL IS LAYOUT |
 | a unit spec stubbing `window.setTimeout` / `requestAnimationFrame` to drive a client timer | it sees nothing: drive the kernel's clock | §4 |
 | a guard spec that greps the source for `setTimeout(` / `delayedCall(` | blind since the coverage phase: it must read `.after(` / `.guarantee(` / `motionAfter(` | — |
 | a removed / renamed `data-*`, class or RU string an e2e spec waits for | `e2eLiveness.spec` fails — fix the spec in the same diff | CLAUDE inv. 14 |
@@ -177,31 +183,33 @@ transport's gate then waits out its own maximum»). A finding with no concrete p
 
 ## 5. What is FROZEN — the debt ledger (`tests/console/architectureDebt.spec.ts`)
 
-The coverage ledger is empty: nothing waits outside a scope. What is NOT yet on the framework is the shell's own
-decision logic — and every mechanism of it is counted, frozen, and has its kernel form in its row (`FROZEN[name].
-instead`). **A file may not gain a use; a new file starts at zero.** When you touch a site and the conversion is
-local, convert it and run `npm run debt:architecture`.
+The coverage ledger is empty: nothing waits outside a scope. **Since 2026-11-12 every DECISION mechanism of the
+shell is on the framework too**: the five rows below marked RETIRED are at zero and guarded there — the first use in
+any file fails the ledger with the kernel form to write instead. What is still FROZEN is the supervisory layer (the
+nets): **a file may not gain a use; a new file starts at zero.** When you touch a site and the conversion is local,
+convert it and run `npm run debt:architecture`.
 
-| Row | What it is | The kernel form | Retires with |
+| Row | What it is | The kernel form | State |
 | --- | --- | --- | --- |
-| `wait-source` | a hand-written source of the legacy wait graph | the flow's waits are kernel waits — the table is the graph | C3 · the observer on `waitTable()` |
-| `wait-recovery` | a door a sampled finding calls | the wait is bounded where it is declared; the owner's end is the recovery | the net that calls it (§6 of PLAN) |
-| `liveness-rung` | a rung of the arbiter's release ladder | the thing has an owner with a bound | field evidence that the rung is idle |
-| `truth-witness` | a polled «is the player being lied to?» | the lie is a `story` scope / a hold; a level (`until`), not a watched edge | S6 |
-| `set-aside-writer` | a write of the one «set aside» boolean | a record owned by what was set aside (it is already a scope of the tree: `step:set-aside`) | S4 |
-| `surface-by-ref` | a surface reached through `shell.$refs` | the surface registers what it offers while mounted | S3 |
-| `view-apply-write` | another domain's latch reset by the view-apply reaction | the latch ends with its submit / its prompt / its run | S4 · S6 |
-| `resolver-mailbox` | a promise whose resolver is a module variable | a run's end; `createFlowSignal` + `signalled` under a bound | S6, per module |
-| `controller-latch` | a bare latch `ref` in a controller | `scopedState` | done — one clock left |
-| `supervisor-port` | a fact a net samples in the shell | a bound on its owner | the nets (§6 of PLAN) |
+| `surface-by-ref` | a surface reached through `shell.$refs` | `shell.surfaces.at<T>(name)` — the surface registry | **RETIRED** (S3) |
+| `set-aside-writer` | a write of the one «set aside» boolean | `setQuestionAside` · `takeUpQuestion` — a record of the question | **RETIRED** (S4) |
+| `view-apply-write` | another domain's latch reset by the view-apply reaction | the latch is owned by `questionScope`; each domain reconciles itself | **RETIRED** (S4) |
+| `resolver-mailbox` | a promise whose resolver is a module variable | `owedAnswer(label, {owner, orphaned})` | **RETIRED** (S6) |
+| `controller-latch` | a bare latch `ref` in a controller | `scopedState` | **RETIRED** (S6) |
+| `wait-source` | a hand-written source of the legacy wait graph | the flow's waits are kernel waits — the table is the graph | frozen — C3 · the observer on `waitTable()` |
+| `wait-recovery` | a door a sampled finding calls | the wait is bounded where it is declared; the owner's end is the recovery | frozen — the net that calls it (§6 of PLAN) |
+| `liveness-rung` | a rung of the arbiter's release ladder | the thing has an owner with a bound | frozen — field evidence that the rung is idle |
+| `truth-witness` | a polled «is the player being lied to?» | the lie is a `story` scope / a hold; a level (`until`), not a watched edge | frozen — S6, with the hydro flow |
+| `supervisor-port` | a fact a net samples in the shell | a bound on its owner | frozen — the nets (§6 of PLAN) |
 
-Also frozen by their own guards: the shell's size and its `watch` table (`shellControllers.spec.ts` — the shell only
-shrinks; every row only delegates), the machines (`flowMachineRegister.spec.ts`), the Parliament's timers
-(`parliamentNoTimers.spec.ts` — none), ceilings (`ceilingWaitGuard.spec.ts`).
+Also frozen by their own guards: the shell's shape (`shellControllers.spec.ts` — the SFC has no option block but
+`name` / `components` / `props` / `setup`; the mirrors and the reactions table only shrink; every row only
+delegates; the composition asks for no instance), the machines (`flowMachineRegister.spec.ts`), the Parliament's
+timers (`parliamentNoTimers.spec.ts` — none), ceilings (`ceilingWaitGuard.spec.ts`).
 
 **What «frozen» means for a fix.** A bug that sits in a frozen mechanism is fixed by moving the piece it touches onto
 the kernel — a latch becomes a `scopedState` with its true owner, a missed edge a level, a sampled fact a bound of
-its owner — never by one more rung, witness, door, flag or watch row. If the fix cannot be made that way in the
+its owner — never by one more rung, witness, door, flag or reaction row. If the fix cannot be made that way in the
 slice, say so in the PLAN's §0 list instead of growing a baseline.
 
 ---
@@ -240,7 +248,8 @@ touching it: it takes refs and functions, not `this`.
 ### 7.1 After the pilot (V1, 2026-11-12) — what a review checks in addition
 - **A lifetime binds to the effect scope; a context comes down by `inject`.** `getCurrentInstance()` is `null` in a
   Vapor component: `useFlowScope` / `useConsoleSession` / `componentSessionScope` no longer use it, and nothing new
-  may (the readiness ledger's `instance-access` row — the one site left is `shell/shellPort.ts`, S-last's).
+  may (the readiness ledger's `instance-access` row is ZERO since S-last: the shell's port is a late-bound object over
+  the composed members — `shell/shellPort.ts` — never the instance's proxy).
 - **ONE MUTATION — ONE REACTION.** Two reactions over one collection whose order matters → reject; ask for one
   `watch` with the order in its body (`.claude/rules/console-flow.md` § A decision that ACTS). The reactivity the
   kernel relies on is the list in `tests/console/vueReactivityContract.spec.ts` — a reaction that needs MORE than

@@ -72,6 +72,7 @@ import {parliamentSittingFlowBeat, presentedGeneration} from '@/client/console/p
 import {noteDeferredGenerationFlipEnd, oweDeferredGenerationFlip, resetDeferredGenerationFlip} from '@/client/console/generationScene/deferredGenerationFlip';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {deriveFlowRun} from '@/client/console/session/flowRun';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /** The rail-reward key of the income wave (one scene at a time). */
 export const GENERATION_INCOME_KEY = 'generation-income';
@@ -115,7 +116,7 @@ deriveFlowRun('generation-scene', () => generationSceneState.phase !== 'idle');
 const seen = new Set<string>();
 
 let armed: GenerationSceneEvent | undefined;
-let flipResolve: (() => void) | undefined;
+const flipResolve = owedAnswer('generation-scene:flip', {orphaned: () => []});
 /** The flip's net — a guaranteed release of the session (the scene's await is let go at the net, or when the game
  *  screen leaves); called to disarm it. */
 let flipNet: (() => void) | undefined;
@@ -252,10 +253,10 @@ export function runGenerationFlip(event: GenerationSceneEvent, displayed: Player
         flipNet();
         flipNet = undefined;
       }
-      flipResolve = undefined;
+      flipResolve.drop();
       resolve();
     };
-    flipResolve = settle;
+    flipResolve.arm(settle);
     flipNet = consoleSessionScope().guarantee(motionMs(FLIP_NET_MS), 'the generation readout\'s flip', settle);
   });
 }
@@ -263,8 +264,8 @@ export function runGenerationFlip(event: GenerationSceneEvent, displayed: Player
 /** The strip's completion signal (ConsoleFlipValue → ConsoleStatusStrip): the generation readout finished its flip. */
 export function noteGenerationFlipEnd(generation: number): void {
   noteDeferredGenerationFlipEnd(generation);
-  if (flipResolve !== undefined && generationSceneState.phase === 'flip' && generation >= generationSceneState.generation) {
-    flipResolve();
+  if (flipResolve.armed && generationSceneState.phase === 'flip' && generation >= generationSceneState.generation) {
+    flipResolve.settle();
   }
 }
 
@@ -500,8 +501,8 @@ async function concludeGenerationScene(viewOf: () => PlayerViewModel | undefined
 
 /** END on an interrupt / the ceiling: every held row ticks now, the hold falls, nothing stands up. Idempotent. */
 export function endGenerationScene(reason: string): void {
-  if (flipResolve !== undefined) {
-    flipResolve();
+  if (flipResolve.armed) {
+    flipResolve.settle();
   }
   releaseRailReward(GENERATION_INCOME_KEY, reason);
   if (armed !== undefined || generationSceneState.phase !== 'idle') {

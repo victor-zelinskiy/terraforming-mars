@@ -51,7 +51,7 @@ const ROOTS = ['src/client'];
  *  `delayedCall` does. */
 const FRAMEWORK = /^src\/client\/console\/(?:kernel|session)\//;
 const BASELINE = path.resolve(__dirname, 'kernelCoverageBaseline.json');
-const SHELL = 'src/client/components/console/ConsoleShell.vue';
+const SHELL_WIRING = 'src/client/console/shell/wiringController.ts';
 
 type Counts = [timer: number, frame: number, delayed: number];
 
@@ -184,8 +184,10 @@ function scan(): {
       }
     }
   }
-  const shell = fs.readFileSync(path.join(ROOT, SHELL), 'utf8');
-  const teardown = shell.slice(shell.indexOf('\n  beforeUnmount() {\n'));
+  // (S-last: the shell's `beforeUnmount` is ONE call of the wiring controller's `shellLeaving` — the pass is read there.)
+  const wiring = fs.readFileSync(path.join(ROOT, SHELL_WIRING), 'utf8').replace(/\r\n/g, '\n');
+  const leaving = wiring.indexOf('\n  function shellLeaving(): void {\n');
+  const teardown = leaving === -1 ? '' : wiring.slice(leaving, wiring.indexOf('\n  }\n', leaving));
   // A row that takes MODULE state down by hand: `resetX()` / `abortX()` / `clearX()` / `releaseX()` / `endX()` / `stopX()`.
   const shellResets = (teardown.match(/^\s+(?:reset|abort|clear|release|end|stop)[A-Z]\w*\(/gm) ?? []).length;
   return {files, primitives, devices, flows: flows.sort(), declared: declared.sort(), shellResets, states, shellLeaves: /^\s+leaveConsoleSession\(\);$/m.test(teardown), shadowed};
@@ -274,7 +276,7 @@ describe('kernel coverage — what still waits outside the flow kernel only shri
   });
 
   it('⑤ the leaving shell says ONE thing, and the pass it runs is a TOTAL ORDER — no two session states share a label or a place', () => {
-    expect(now.shellLeaves, 'the shell\'s `beforeUnmount` calls `leaveConsoleSession()`').to.equal(true);
+    expect(now.shellLeaves, 'the leaving shell (`shellLeaving` — its one `beforeUnmount`) calls `leaveConsoleSession()`').to.equal(true);
     expect(now.states.length, 'the modules declare their session state (anti-vacuous)').to.be.greaterThan(50);
     const seen = new Map<string, string>();
     const clashes: Array<string> = [];

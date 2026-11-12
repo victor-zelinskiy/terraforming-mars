@@ -56,6 +56,7 @@ import {
   playTileArrive, playTileDepart,
 } from '@/client/console/colonyRoster/colonyRosterDirector';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /** What the player confirmed at A — the change the answer must carry. */
 export type ColonyRosterArm = {
@@ -102,7 +103,7 @@ export const colonyRosterDraft = reactive({
 });
 
 let handle: RosterMotionHandle | undefined;
-let runResolve: (() => void) | undefined;
+const runResolve = owedAnswer('colony-roster:gate', {orphaned: () => []});
 /** THE CEREMONY'S RUN — it owns the ceremony's timers and ends with it (or with the game screen: the abort). */
 const run = createFlowRun('colony-roster', {orphaned: () => abortColonyRoster()});
 /** The change the player's OWN gate just played — the apply block that follows it must not seed it again for the grid. */
@@ -215,8 +216,7 @@ function end(): void {
   colonyRosterState.change = undefined;
   colonyRosterState.orbit = '';
   run.end();
-  const resolve = runResolve;
-  runResolve = undefined;
+  const resolve = runResolve.take();
   resolve?.();
 }
 
@@ -262,7 +262,7 @@ export function detectColonyRosterChange(prevView: ViewModel | undefined, newVie
  */
 export function runColonyRosterCeremony(change: ColonyRosterChange, builds: boolean): Promise<void> {
   return new Promise<void>((resolve) => {
-    runResolve = resolve;
+    runResolve.arm(resolve);
     ownPlayed = signature(change);
     begin(change, 'stage');
     colonyRosterState.receipt = {removed: change.removed, added: change.added, built: builds};
@@ -427,7 +427,7 @@ export function abortColonyRoster(why: string = 'abort'): void {
   colonyRosterState.held = undefined;
   colonyRosterState.seatGone = true;
   colonyRosterState.docked = true;
-  if (colonyRosterState.live || runResolve !== undefined) {
+  if (colonyRosterState.live || runResolve.armed) {
     end();
   }
 }

@@ -2,6 +2,7 @@ import {reactive} from 'vue';
 import {deriveFlowRun} from '@/client/console/session/flowRun';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /**
  * PICK MODE state for the РАЗЫГРАНО (played-cards) overlay — the dedicated
@@ -64,7 +65,7 @@ export function setPlayedPickAvailability(value: PlayedPickAvailability): void {
 // The resolve callback is held OUTSIDE the reactive object (a function isn't
 // reactive data). Set by `enterPlayedCardsPick`, fired by `resolvePlayedCardsPick`,
 // cleared on exit.
-let resolveCb: ((card: CardName) => void) | undefined;
+const resolveCb = owedAnswer<[card: CardName]>('played-cards-pick');
 
 export function enterPlayedCardsPick(opts: {
   title: string | Message,
@@ -80,12 +81,12 @@ export function enterPlayedCardsPick(opts: {
   playedCardsPickState.availability = 'available';
   playedCardsPickState.reasonMode = opts.reasonMode ?? 'resource';
   playedCardsPickState.alreadyPicked = [...(opts.alreadyPicked ?? [])];
-  resolveCb = opts.onResolve;
+  resolveCb.arm(opts.onResolve);
 }
 
 /** A candidate card was clicked — deliver it to the initiating modal + exit. */
 export function resolvePlayedCardsPick(card: CardName): void {
-  const cb = resolveCb;
+  const cb = resolveCb.take();
   exitPlayedCardsPick();
   cb?.(card);
 }
@@ -103,7 +104,7 @@ export function exitPlayedCardsPick(): void {
   playedCardsPickState.availability = 'available';
   playedCardsPickState.reasonMode = 'resource';
   playedCardsPickState.alreadyPicked = [];
-  resolveCb = undefined;
+  resolveCb.drop();
 }
 
 /** THE PICK IS A RUN of the session (architecture v2 — PLAN §10 · C4), derived from its flag — a run that stands for the

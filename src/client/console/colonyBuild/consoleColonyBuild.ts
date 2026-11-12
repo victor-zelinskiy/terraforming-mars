@@ -65,6 +65,7 @@ import {armBoardCardBonus, abortBoardCardBonus} from '@/client/console/boardCard
 import {createFlowRun} from '@/client/console/session/flowRun';
 import {sessionState} from '@/client/console/session/consoleSession';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 export const colonyBuildState = reactive({
   /** TRUE from arm until finish/abort — the transaction lock. */
@@ -130,7 +131,7 @@ const run = createFlowRun('colony-build', {orphaned: () => abortColonyBuild()});
 let cancelArmSafety: () => void = () => {};
 let cancelSceneSafety: () => void = () => {};
 /** Resolves the WaitingFor commit gate (abort must always free it). */
-let runResolve: (() => void) | undefined;
+const runResolve = owedAnswer('colony-build:gate', {orphaned: () => []});
 /** The resource specs the leaving bonus carries (captured at detect). */
 let pendingSpecs: ReadonlyArray<ResourceTransferSpec> = [];
 /** The pre-collected host card of a CARD-resource placement bonus. */
@@ -182,7 +183,7 @@ function expireColonyBuild(): void {
     return;
   }
   console.warn(`[colony-build] scene (${colonyBuildState.phase}, ${colonyBuildState.colonyName}#${colonyBuildState.slotIndex}): outlived its ceiling — ended`);
-  if (colonyBuildState.phase === 'landed' && runResolve === undefined) {
+  if (colonyBuildState.phase === 'landed' && !runResolve.armed) {
     void endColonyBuild();
   } else {
     abortColonyBuild();
@@ -258,7 +259,7 @@ export function detectColonyBuild(prevView: ViewModel, newView: ViewModel): {col
  */
 export function runColonyBuild(): Promise<void> {
   return new Promise<void>((resolve) => {
-    runResolve = resolve;
+    runResolve.arm(resolve);
     // rAF stall — force the gate open, degrade gracefully.
     cancelSceneSafety = run.guarantee(motionMs(CUBE_APPROACH_MS + BONUS_CLEAR_MS + CUBE_DESCENT_MS + CUBE_SETTLE_MS) + 4000,
       'the scene\'s safety (the commit gate)', () => freeRunGate());
@@ -404,7 +405,7 @@ export async function endColonyBuild(): Promise<void> {
 
 /** ABORT — refused build, network failure, safety timer, unmount. */
 export function abortColonyBuild(): void {
-  if (!colonyBuildState.active && runResolve === undefined) {
+  if (!colonyBuildState.active && !runResolve.armed) {
     return;
   }
   clearTimers();
@@ -493,7 +494,7 @@ export function resetColonyBuild(): void {
   pendingSpecs = [];
   bonusFlight = undefined;
   claimed = false;
-  runResolve = undefined;
+  runResolve.drop();
   colonyBuildState.active = false;
   run.end({how: 'cancelled', reason: 'reset'});
   resetTransient();
@@ -617,8 +618,7 @@ function restoreHeldGlyph(): void {
 
 function freeRunGate(): void {
   cancelSceneSafety();
-  const r = runResolve;
-  runResolve = undefined;
+  const r = runResolve.take();
   r?.();
 }
 

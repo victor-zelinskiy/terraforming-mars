@@ -85,6 +85,7 @@ import {span} from '@/client/console/session/sessionWaits';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /** A queued remote hop can wait for a covered board — far past this,
  *  something stalled and the committed truth must show. */
@@ -160,7 +161,7 @@ let cancelPreLift: () => void = NO_TIMER;
 /** The restore beat's one-shot class outlives the move by design — its strip is a guaranteed release of the session. */
 let disarmRestore: () => void = NO_TIMER;
 /** Resolves the transport commit gate (abort must always free it). */
-let runResolve: (() => void) | undefined;
+const runResolve = owedAnswer('nomad-move:gate', {orphaned: () => []});
 /** The printed bonuses the reward beat carries (captured at detect). */
 let pendingBonuses: ReadonlyArray<PlacementBonus> = [];
 /**
@@ -324,7 +325,7 @@ export function runNomadMove(
   newSpaces: ReadonlyArray<SpaceModel>,
 ): Promise<void> {
   return new Promise<void>((resolve) => {
-    runResolve = resolve;
+    runResolve.arm(resolve);
     // rAF stall — force the gate open, degrade gracefully. A RELEASE: it also comes due when the run ends.
     cancelSceneSafety = nomadRun.guarantee(motionMs(NOMAD_LIFT_MS + NOMAD_FLIGHT_MS + NOMAD_SETTLE_MS) + 3000,
       'the scene\'s safety (the commit gate)', () => freeRunGate());
@@ -585,7 +586,7 @@ async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel): Promise<void>
  * never touched before server proof, so there is nothing to restore.
  */
 export function abortNomadMove(): void {
-  if (!nomadMoveState.active && runResolve === undefined) {
+  if (!nomadMoveState.active && !runResolve.armed) {
     return;
   }
   clearTimers();
@@ -964,8 +965,7 @@ function cardIconLive(spaceId: string): boolean {
 
 function freeRunGate(): void {
   cancelSceneSafety();
-  const r = runResolve;
-  runResolve = undefined;
+  const r = runResolve.take();
   r?.();
 }
 

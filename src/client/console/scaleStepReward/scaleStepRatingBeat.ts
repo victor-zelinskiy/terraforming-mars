@@ -80,6 +80,7 @@ import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndV
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {sessionState} from '@/client/console/session/consoleSession';
 import {deriveFlowRun} from '@/client/console/session/flowRun';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const SCALE_STEP_RATING_KEY = 'scale-step-rating';
@@ -308,20 +309,19 @@ let runOwner = 0;
 /** The entry whose tokens are in flight (already taken off `entry`; its unflown tokens still held). */
 let paying: Entry | undefined;
 let debt: OwedStoryHandle | undefined;
-let quietResolve: (() => void) | undefined;
+const quietResolve = owedAnswer('scale-step-rating:quiet', {orphaned: () => []});
 let quietPromise: Promise<void> = Promise.resolve();
 
 function openQuiet(): void {
-  if (quietResolve === undefined) {
+  if (!quietResolve.armed) {
     quietPromise = new Promise<void>((resolve) => {
-      quietResolve = resolve;
+      quietResolve.arm(resolve);
     });
   }
 }
 
 function resolveQuiet(): void {
-  const r = quietResolve;
-  quietResolve = undefined;
+  const r = quietResolve.take();
   r?.();
 }
 

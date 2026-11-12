@@ -69,6 +69,7 @@ import {registerWaitSource} from '@/client/console/waitGraph/waitGraph';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /**
  * The ADVANCE leg's own net: whatever happens to the track's measurability,
@@ -278,7 +279,7 @@ let cancelParkedNet: () => void = NO_TIMER;
 /** The parked net is armed (its evidence stands) — `syncParkedEvidence` arms it once and disarms it when the proof goes. */
 let parkedNetArmed = false;
 let cancelAdvanceSafety: () => void = NO_TIMER;
-let glideResolver: (() => void) | undefined;
+const glideResolver = owedAnswer('colony-trade:glide', {orphaned: () => []});
 
 /**
  * THE RUN'S OWN IDENTITY (wait graph R6). Bumped by every arm; every ENDING of a transaction — a timer (settle, the
@@ -696,8 +697,7 @@ function releasePreviousRun(): void {
   clearParkedNet();
   clearSettleTimer();
   clearAdvanceSafety();
-  const g = glideResolver;
-  glideResolver = undefined;
+  const g = glideResolver.take();
   g?.();
   const a = ctx.advanceResolve;
   ctx.advanceResolve = undefined;
@@ -1277,8 +1277,7 @@ export function finishColonyTrackReset(): void {
   colonyTradeState.settledCell = colonyTradeState.postTrackPosition;
   colonyTradeState.phase = 'settle';
   tradeLog('track settled at', colonyTradeState.postTrackPosition);
-  const r = glideResolver;
-  glideResolver = undefined;
+  const r = glideResolver.take();
   r?.();
   clearSettleTimer();
   // The settle ends THIS run only (R6) — the next trade armed inside the settle window owns `active` now.
@@ -1392,8 +1391,7 @@ export function abortColonyTrade(): void {
     }
     heldReleasedRun = tradeRun;
   }
-  const r = glideResolver;
-  glideResolver = undefined;
+  const r = glideResolver.take();
   r?.();
   // …and the ADVANCE leg's own gate: an abort mid-advance must free the
   // payout's await, or `runColonyTradeRewards` would sit on a promise whose
@@ -1533,7 +1531,7 @@ export function colonyTrackWaveDiag(): {active: boolean, tiles: number, lastFini
   return {active: colonyTrackWaveState.active, tiles: colonyTrackWaveState.moves.length, lastFinish: colonyTrackWaveState.lastFinish};
 }
 
-let waveResolver: (() => void) | undefined;
+const waveResolver = owedAnswer('colony-trade:wave', {orphaned: () => []});
 /**
  * THE WAVE'S RUN (the same law): `scene:colony-track-wave#n`, from the request to the wave's end. It owns the wave's
  * net; when the game screen leaves under it the wave is finished (`orphaned` — every hold released, the request
@@ -1595,7 +1593,7 @@ export function requestColonyTrackWave(
   colonyTrackWaveState.nonce++;
   tradeLog('track wave', moves.length, 'tiles', reduced ? '(short form)' : '');
   return new Promise<void>((resolve) => {
-    waveResolver = resolve;
+    waveResolver.arm(resolve);
     waveFlow.begin(`${moves.length} tile(s)`);
     waveFlow.after(motionMs(plan.totalMs + TRACK_WAVE_NET_MS), 'the wave\'s net', () => finishColonyTrackWave('net'));
   });
@@ -1663,8 +1661,7 @@ export function finishColonyTrackWave(why = 'landed'): void {
   // The touched cells are the LIVE marker's business — once every hold is released the model's own
   // position draws them (`passed` below the marker), so the trail ends with the wave.
   colonyTrackWaveState.touched = {};
-  const resolve = waveResolver;
-  waveResolver = undefined;
+  const resolve = waveResolver.take();
   resolve?.();
 }
 

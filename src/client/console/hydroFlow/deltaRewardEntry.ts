@@ -41,6 +41,7 @@ import {consoleHydroUi} from '@/client/console/consoleHydroState';
 import {popWorkspaceFrame, pushWorkspaceFrame, workspaceFrameKnown, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
 import {suspendHydroInstance} from '@/client/console/hydroFlow/hydroInstanceSuspension';
 import {sessionState} from '@/client/console/session/consoleSession';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /** The composed claim of ONE stage — everything the pick surface collected. */
 export type DeltaRewardDraft = {
@@ -83,7 +84,7 @@ export const deltaRewardPickState = reactive({
   request: undefined as DeltaRewardPickRequest | undefined,
 });
 
-let resolveCb: ((draft: DeltaRewardDraft) => void) | undefined;
+const resolveCb = owedAnswer<[draft: DeltaRewardDraft]>('delta-reward-entry');
 let cancelCb: (() => void) | undefined;
 /** The outer hydro role's suspended module state, when this pick NESTED over
  *  a standing hydro frame — restored by the reset funnel (every exit). */
@@ -117,7 +118,7 @@ export function enterDeltaRewardPick(
   consoleHydroUi.repeatResult = undefined;
   resetHydroFlow();
   deltaRewardPickState.request = request;
-  resolveCb = onResolve;
+  resolveCb.arm(onResolve);
   cancelCb = onCancel;
   deltaRewardPickState.active = true;
   run.begin();
@@ -148,7 +149,7 @@ export function resolveDeltaRewardPick(draft: DeltaRewardDraft): void {
   if (!deltaRewardPickState.active) {
     return;
   }
-  const cb = resolveCb;
+  const cb = resolveCb.take();
   resetDeltaRewardPick();
   cb?.(draft);
 }
@@ -174,7 +175,7 @@ export function resetDeltaRewardPick(): void {
   deltaRewardPickState.active = false;
   run.end();
   deltaRewardPickState.request = undefined;
-  resolveCb = undefined;
+  resolveCb.drop();
   cancelCb = undefined;
   // …and the outer role's suspended state comes back — AFTER the frame pop,
   // so the by-kind readers already point at the outer frame when it lands.

@@ -17,6 +17,12 @@ import * as path from 'path';
  */
 const ROOT = path.resolve(__dirname, '..', '..');
 const SHELL_SFC = path.join(ROOT, 'src', 'client', 'components', 'console', 'ConsoleShell.vue');
+/** The composition root (S-last): the mirrors of module state and the controllers' construction live here, not in the SFC. */
+export const SHELL_MEMBERS = path.join(ROOT, 'src', 'client', 'console', 'shell', 'shellMembers.ts');
+/** The ordered reactions table (S-last) — what the SFC's `watch` block was. */
+export const SHELL_REACTIONS = path.join(ROOT, 'src', 'client', 'console', 'shell', 'shellReactions.ts');
+/** The shell's wiring (S-last) — the bodies of what were its `mounted` / `beforeUnmount` hooks. */
+export const SHELL_WIRING = path.join(ROOT, 'src', 'client', 'console', 'shell', 'wiringController.ts');
 const CONTROLLER_DIRS = [
   path.join(ROOT, 'src', 'client', 'console', 'shell'),
   path.join(ROOT, 'src', 'client', 'console', 'supervisor'),
@@ -30,20 +36,21 @@ export function codeOnly(raw: string): string {
 const escape = (text: string) => text.replace(/[$]/g, '\\$');
 
 /**
- * The SFC's MIRRORS — data fields that ARE an imported module state (`consoleState`, `hydroFlow: hydroFlowState`): the
- * monolith read them as `this.<field>`, a controller reads the import itself.
+ * The shell's MIRRORS — members that ARE an imported module state (`consoleState`, `hydroFlow: hydroFlowState`),
+ * declared in `shellMembers.ts` § `shellMirrors()`: the monolith read them as `this.<field>`, a controller reads the
+ * import itself.
  */
-export function shellMirrors(sfc: string): ReadonlyArray<{name: string, imported: string}> {
-  const text = sfc.replace(/\r\n/g, '\n');
-  const data = text.indexOf('\n  data() {\n');
+export function shellMirrors(membersModule: string): ReadonlyArray<{name: string, imported: string}> {
+  const text = membersModule.replace(/\r\n/g, '\n');
+  const data = text.indexOf('\nfunction shellMirrors() {\n');
   if (data === -1) {
     return [];
   }
-  const block = text.slice(data, text.indexOf('\n  },\n', data));
-  const imports = text.slice(text.indexOf('<script'), data).split('\n').filter((line) => line.startsWith('import ')).join('\n');
+  const block = text.slice(data, text.indexOf('\n  };\n', data));
+  const imports = text.slice(0, data).split('\n').filter((line) => line.startsWith('import ')).join('\n');
   const out: Array<{name: string, imported: string}> = [];
   for (const line of block.split('\n')) {
-    const row = /^ {6}(\w+)(?:: (\w+))?,$/.exec(line);
+    const row = /^ {4}(\w+)(?:: (\w+))?,$/.exec(line);
     if (row === null) {
       continue;
     }
@@ -60,7 +67,9 @@ export function inMonolithDialect(controller: string, mirrors: ReadonlyArray<{na
   const text = controller.replace(/\r\n/g, '\n');
   const open = text.lastIndexOf('\n  return {\n');
   if (open === -1 || !/\nexport function create\w+Controller\(/.test(text)) {
-    return text; // not a controller (a shared-state module)
+    // Not a controller: a shared-state module — or the composition (the reactions table, the members), which reaches
+    // the shell through the same port and reads `this.` in the monolith's dialect.
+    return text.replace(/\bshell\./g, 'this.');
   }
   const close = text.indexOf('\n  };', open);
   const members: Array<{name: string, local: string}> = [];
@@ -135,7 +144,7 @@ export function shellCode(options: {comments?: boolean} = {}): string {
   const comments = options.comments === true;
   let text = corpus.get(comments);
   if (text === undefined) {
-    const mirrors = shellMirrors(fs.readFileSync(SHELL_SFC, 'utf8'));
+    const mirrors = shellMirrors(fs.readFileSync(SHELL_MEMBERS, 'utf8'));
     text = shellFiles().map((file) => {
       const raw = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
       const translated = file === SHELL_SFC ? raw : inMonolithDialect(raw, mirrors);

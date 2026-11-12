@@ -11,6 +11,7 @@
  * The nets shrink by rows of this port; nothing may be added to it.
  */
 import {ref} from 'vue';
+import {scopedState} from '@/client/console/session/scopedState';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
@@ -135,8 +136,9 @@ export function createSupervisorController(shell: SupervisorPort) {
   const lastLivenessAccepting = ref(true);
   /** Consecutive 1 Hz passes a LIVE frame of a phase that is over has stood with no leave pending (`reapDeadPhaseFrames`). */
   const deadLiveFramePasses = ref(0);
-  /** When the owed fold was first seen by the liveness tick (0 = none) — its in-flight credit is bounded. */
-  const commitFoldOwedSince = ref(0);
+  /** When the owed fold was first seen by the liveness tick (0 = none) — its in-flight credit is bounded. A span of the
+   *  flow tree while it runs (`step:commit-fold-owed-since`), back at rest with the session. */
+  const commitFoldOwedSince = scopedState('commit-fold-owed-since', 0);
 
   // ── verbs ────────────────────────────────────────────────────────────────────────────────────────────────────────
   /**

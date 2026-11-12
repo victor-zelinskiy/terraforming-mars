@@ -35,6 +35,7 @@ import {consoleHydroUi} from '@/client/console/consoleHydroState';
 import {popWorkspaceFrame, pushWorkspaceFrame, workspaceFrameKnown, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
 import {suspendHydroInstance} from '@/client/console/hydroFlow/hydroInstanceSuspension';
 import {sessionState} from '@/client/console/session/consoleSession';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /** The pick's one result: WHO to block (a legal candidate's color). Unlike
  *  the espionage draft it is never empty — the deploy variant does not exist
@@ -72,7 +73,7 @@ export const deltaBlockadePickState = reactive({
   request: undefined as DeltaBlockadePickRequest | undefined,
 });
 
-let resolveCb: ((draft: DeltaBlockadeDraft) => void) | undefined;
+const resolveCb = owedAnswer<[draft: DeltaBlockadeDraft]>('delta-blockade-entry');
 let cancelCb: (() => void) | undefined;
 /** The outer hydro role's suspended module state, when this pick NESTED over
  *  a standing hydro frame — restored by the reset funnel (every exit). */
@@ -102,7 +103,7 @@ export function enterDeltaBlockadePick(
   consoleHydroUi.repeatResult = undefined;
   resetHydroFlow();
   deltaBlockadePickState.request = request;
-  resolveCb = onResolve;
+  resolveCb.arm(onResolve);
   cancelCb = onCancel;
   deltaBlockadePickState.active = true;
   deltaBlockadePickRun.begin();
@@ -132,7 +133,7 @@ export function resolveDeltaBlockadePick(draft: DeltaBlockadeDraft): void {
   if (!deltaBlockadePickState.active) {
     return;
   }
-  const cb = resolveCb;
+  const cb = resolveCb.take();
   resetDeltaBlockadePick();
   cb?.(draft);
 }
@@ -157,7 +158,7 @@ export function resetDeltaBlockadePick(): void {
   deltaBlockadePickState.active = false;
   deltaBlockadePickRun.end();
   deltaBlockadePickState.request = undefined;
-  resolveCb = undefined;
+  resolveCb.drop();
   cancelCb = undefined;
   // The outer role's suspended state comes back AFTER the frame pop.
   const restore = restoreOuter;

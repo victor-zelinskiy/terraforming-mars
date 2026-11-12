@@ -470,9 +470,7 @@
    "src/client/components/turmoil/TurmoilAgenda.vue": 1,
    "src/client/components/underworld/UndergroundToken.vue": 1
   },
-  "instance-access": {
-   "src/client/console/shell/shellPort.ts": 1
-  },
+  "instance-access": {},
   "parent-root": {
    "src/client/components/vueRoot.ts": 1
   },

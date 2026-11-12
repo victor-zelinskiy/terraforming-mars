@@ -28,6 +28,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {changeFeedbackManager, prefersReducedMotion} from './changeFeedbackManager';
 import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
 import {createFlowRun} from '@/client/console/session/flowRun';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 import {
   EnergyConversionEvent,
   conversionDurationMs,
@@ -104,7 +105,7 @@ const NO_TIMER = (): void => {};
 let stopTick: () => void = NO_TIMER;
 let disarmSafety: () => void = NO_TIMER;
 let cancelLeadIn: () => void = NO_TIMER;
-let resolveActive: (() => void) | undefined;
+const resolveActive = owedAnswer('energy-conversion', {orphaned: () => []});
 /** The live run's own `finish` (snap the counters to the result, resolve the gate) — the ceiling's recovery. */
 let finishActive: (() => void) | undefined;
 
@@ -136,7 +137,7 @@ export function isEnergyConversionActive(): boolean {
 // the applied view.
 registerAnimationHoldSupplier('energy-conversion', isEnergyConversionActive, {
   diagnose: () => ({color: energyConversionState.color, amount: energyConversionState.amount,
-    leadIn: energyConversionState.leadIn, gatePending: resolveActive !== undefined}),
+    leadIn: energyConversionState.leadIn, gatePending: resolveActive.armed}),
   expire: () => {
     if (!energyConversionState.active) {
       return;
@@ -211,7 +212,7 @@ export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadIn
   const frameGate = createFrameGate();
 
   const promise = new Promise<void>((resolve) => {
-    resolveActive = resolve;
+    resolveActive.arm(resolve);
   });
 
   const finish = () => {
@@ -227,8 +228,7 @@ export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadIn
     changeFeedbackManager.setBaseline(scope, 'energy.stock', event.source.after);
     changeFeedbackManager.setBaseline(scope, 'heat.stock', event.target.after);
     cancelTimers();
-    const r = resolveActive;
-    resolveActive = undefined;
+    const r = resolveActive.take();
     r?.();
   };
 
@@ -298,7 +298,7 @@ export function endEnergyConversion(): void {
 export function resetEnergyConversion(): void {
   cancelTimers();
   run.end({how: 'cancelled', reason: 'reset'});
-  resolveActive = undefined;
+  resolveActive.drop();
   finishActive = undefined;
   seen.clear();
   energyConversionState.active = false;

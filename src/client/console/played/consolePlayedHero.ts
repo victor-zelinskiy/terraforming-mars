@@ -87,6 +87,7 @@ import {motionGuarantee, motionSpan, span, whenPainted} from '@/client/console/s
 import {createFlowRun} from '@/client/console/session/flowRun';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /**
  * The score cell's ledger owner of this scene (TR55 — docs/claude/console/score-cell.md): the played card's own
@@ -269,9 +270,9 @@ const heroRun = createFlowRun('played-hero', {orphaned: () => abortPlayedHero()}
 let cancelArmSafety: () => void = () => {};
 let cancelSceneSafety: () => void = () => {};
 /** Resolves the WaitingFor commit gate (abort must always free it). */
-let runResolve: (() => void) | undefined;
+const runResolve = owedAnswer('played-hero:gate', {orphaned: () => []});
 /** Resolves the skippable result beat. */
-let pauseResolve: (() => void) | undefined;
+const pauseResolve = owedAnswer('played-hero:pause', {orphaned: () => []});
 /** The server queued a follow-up decision → the result beat shortens. */
 let followUpPending = false;
 /** The composer card we visually blanked under the proxy (restored on abort). */
@@ -834,7 +835,7 @@ export function playedHeroIncomingCard(): {name: CardName} | undefined {
 // let go, the commit gate free.
 registerAnimationHoldSupplier('played-hero', playedHeroHolding, {
   diagnose: () => ({phase: playedHeroState.phase, card: playedHeroState.card, host: playedHeroState.host,
-    revealed: playedHeroState.revealed, awaitingTarget: playedHeroState.awaitingTarget, gatePending: runResolve !== undefined}),
+    revealed: playedHeroState.revealed, awaitingTarget: playedHeroState.awaitingTarget, gatePending: runResolve.armed}),
   expire: () => {
     if (!playedHeroHolding()) {
       return;
@@ -1037,7 +1038,7 @@ export function runPlayedHero(view: PlayerViewModel, before?: PlayerViewModel): 
   // …and the view it REPLACES: the shipment beat's promise is checked against the diff of the two.
   beforeView = before;
   return new Promise<void>((resolve) => {
-    runResolve = resolve;
+    runResolve.arm(resolve);
     // rAF stall / lost element — force the gate open, degrade gracefully. A RELEASE (the transport's gate hangs on it):
     // at the budget, or when the run ends.
     cancelSceneSafety = heroRun.guarantee(motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000 +
@@ -1053,7 +1054,7 @@ export function runPlayedHero(view: PlayerViewModel, before?: PlayerViewModel): 
       // frame later — a player whose last events these were loses the pile
       // element entirely, and with it any chance of an honest departure.
       // (An event that paid before its lift was committed already — measured there.)
-      if (runResolve !== undefined) {
+      if (runResolve.armed) {
         capturePlayedCardReturnSource();
       }
       freeRunGate();
@@ -1135,8 +1136,7 @@ export function seedPlayedHeroRewardHold(before?: PlayerViewModel, after?: Playe
 
 function freeRunGate(): void {
   cancelSceneSafety();
-  const r = runResolve;
-  runResolve = undefined;
+  const r = runResolve.take();
   r?.();
 }
 
@@ -2168,7 +2168,7 @@ async function payBackFromStandingCard(mine: () => boolean): Promise<void> {
 
 /** A / B during the result beat: accelerate the close — never a cancel. */
 export function skipPlayedHeroResult(): void {
-  pauseResolve?.();
+  pauseResolve.settle();
 }
 
 // ── STAGED PLAY (docs/TILE_PLAY_STAGED_COMMIT.md §8-bis) ────────────────────
@@ -2240,7 +2240,7 @@ export async function finishStagedPlayedLanding(): Promise<void> {
  * flags `failed` for one flush (the shell re-arms the composer CTA on it).
  */
 export function abortPlayedHero(): void {
-  if (!playedHeroState.active && runResolve === undefined) {
+  if (!playedHeroState.active && !runResolve.armed) {
     return;
   }
   clearTimers();
@@ -2292,7 +2292,7 @@ export function abortPlayedHero(): void {
   playedHeroState.tableOpen = false;
   playedHeroState.active = false;
   playedHeroState.phase = 'failed';
-  pauseResolve?.();
+  pauseResolve.settle();
   freeRunGate();
   heroRun.end({how: 'cancelled', reason: 'the play was aborted'});
   // One flush later the transaction is fully idle (watchers saw 'failed').
@@ -2974,13 +2974,13 @@ function skippablePause(ms: number): Promise<void> {
   return new Promise((resolve) => {
     const done = () => {
       timer();
-      if (pauseResolve === done) {
-        pauseResolve = undefined;
+      if (pauseResolve.owes(done)) {
+        pauseResolve.drop();
       }
       resolve();
     };
     const timer = consoleSessionScope().guarantee(ms, 'consolePlayedHero: a beat\'s safety', done);
-    pauseResolve = done;
+    pauseResolve.arm(done);
   });
 }
 

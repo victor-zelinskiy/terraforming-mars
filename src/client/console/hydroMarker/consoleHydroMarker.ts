@@ -50,6 +50,7 @@ import {
   clearPanelRewardHold, abortResourceTransfers, declareHeldAnswers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 export type MarkerPhase = 'idle' | 'charge' | 'glide' | 'arrive' | 'lock' | 'pulse';
 
@@ -178,7 +179,7 @@ export type HydroMarkerLegPlan = {
 };
 
 let handle: HydroMarkerDirectorHandle | undefined;
-let lockResolve: (() => void) | undefined;
+const lockResolve = owedAnswer('hydro-marker:lock', {orphaned: () => []});
 /**
  * A LOCK REQUESTED BEFORE THE DIRECTOR EXISTED.
  *
@@ -662,11 +663,10 @@ export function detectHydroMarker(): {toPosition: number} | undefined {
  */
 export function runHydroMarker(): Promise<void> {
   const promise = new Promise<void>((resolve) => {
-    lockResolve = resolve;
+    lockResolve.arm(resolve);
   });
   const done = () => {
-    const r = lockResolve;
-    lockResolve = undefined;
+    const r = lockResolve.take();
     r?.();
   };
   if (handle !== undefined) {
@@ -1103,7 +1103,7 @@ export function abortHydroMarker(): void {
   clearArmSafety();
   clearClaimNet();
   clearPendingLockSafety();
-  if (!hydroMarkerState.active && lockResolve === undefined && pendingLock === undefined &&
+  if (!hydroMarkerState.active && !lockResolve.armed && pendingLock === undefined &&
       hydroMarkerState.planCursor < 0) {
     return;
   }
@@ -1144,8 +1144,7 @@ export function abortHydroMarker(): void {
   resolveLandExitWaiter();
   abortResourceTransfers();
   clearPanelRewardHold();
-  const r = lockResolve;
-  lockResolve = undefined;
+  const r = lockResolve.take();
   r?.();
   markerFlow.end({how: 'cancelled', reason: 'the marker was recalled'});
 }
@@ -1161,7 +1160,7 @@ export function resetHydroMarker(): void {
   settleSeq++; // a glow still owed is not this game's any more
   markerFlow.end({how: 'cancelled', reason: 'reset'});
   handle = undefined;
-  lockResolve = undefined;
+  lockResolve.drop();
   claimed = false;
   pendingRewards = [];
   pendingAnswers = [];

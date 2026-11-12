@@ -26,6 +26,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {prefersReducedMotion} from './changeFeedbackManager';
 import {createFrameGate, motionMs} from '@/client/components/motion/motionTokens';
 import {createFlowRun} from '@/client/console/session/flowRun';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 import {
   HazardCleanupEvent,
   HazardCleanupPhase,
@@ -80,7 +81,7 @@ const run = createFlowRun('hazard-cleanup', {
 const NO_TIMER = (): void => {};
 let stopTick: () => void = NO_TIMER;
 let disarmSafety: () => void = NO_TIMER;
-let resolveActive: (() => void) | undefined;
+const resolveActive = owedAnswer('hazard-cleanup', {orphaned: () => []});
 /** The live run's own `finish` (swap the tile in, resolve the gate) — the ceiling's recovery. */
 let finishActive: (() => void) | undefined;
 
@@ -106,7 +107,7 @@ export function isHazardCleanupActive(): boolean {
 // guaranteed, the gate resolves, the overlay clears.
 registerAnimationHoldSupplier('hazard-cleanup', isHazardCleanupActive, {
   diagnose: () => ({phase: hazardCleanupState.phase, swapped: hazardCleanupState.swapped,
-    events: hazardCleanupState.events.length, gatePending: resolveActive !== undefined}),
+    events: hazardCleanupState.events.length, gatePending: resolveActive.armed}),
   expire: () => {
     if (!hazardCleanupState.active) {
       return;
@@ -168,7 +169,7 @@ export function runHazardCleanup(
   const frameGate = createFrameGate();
 
   const promise = new Promise<void>((resolve) => {
-    resolveActive = resolve;
+    resolveActive.arm(resolve);
   });
 
   const doSwap = () => {
@@ -185,8 +186,7 @@ export function runHazardCleanup(
     hazardCleanupState.progress = 1;
     hazardCleanupState.phase = 'done';
     cancelTimers();
-    const r = resolveActive;
-    resolveActive = undefined;
+    const r = resolveActive.take();
     r?.();
   };
 
@@ -240,7 +240,7 @@ export function endHazardCleanup(): void {
 /** Test-only full reset (state + dedup + timers). */
 export function resetHazardCleanup(): void {
   cancelTimers();
-  resolveActive = undefined;
+  resolveActive.drop();
   seen.clear();
   endHazardCleanup();
   hazardCleanupState.reducedMotion = false;

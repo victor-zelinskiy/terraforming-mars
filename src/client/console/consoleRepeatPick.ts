@@ -35,6 +35,7 @@ import {resetConsoleRepeatPickFilter} from '@/client/console/consoleRepeatPickUi
 // the same way, and only the erased type edges keep that cycle harmless.
 import type {DeltaRewardDraft} from '@/client/console/hydroFlow/deltaRewardEntry';
 import {sessionState} from '@/client/console/session/consoleSession';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 export type ConsoleRepeatPickRequest = {
   /** The server prompt title (i18n key / Message) — names the ask. */
@@ -93,7 +94,7 @@ export const consoleRepeatPickState = reactive({
   request: undefined as ConsoleRepeatPickRequest | undefined,
 });
 
-let resolveCb: ((result: ConsoleRepeatPickResult) => void) | undefined;
+const resolveCb = owedAnswer<[result: ConsoleRepeatPickResult]>('repeat-pick');
 let cancelCb: (() => void) | undefined;
 
 export function isConsoleRepeatPickActive(): boolean {
@@ -115,7 +116,7 @@ export function enterConsoleRepeatPick(
     resetConsoleRepeatPickFilter();
   }
   consoleRepeatPickState.request = request;
-  resolveCb = onResolve;
+  resolveCb.arm(onResolve);
   cancelCb = onCancel;
   consoleRepeatPickState.active = true;
   run.begin();
@@ -157,7 +158,7 @@ export function resolveConsoleRepeatPick(result: ConsoleRepeatPickResult): void 
   if (!consoleRepeatPickState.active) {
     return;
   }
-  const cb = resolveCb;
+  const cb = resolveCb.take();
   resetConsoleRepeatPick();
   cb?.(result);
 }
@@ -178,7 +179,7 @@ export function resetConsoleRepeatPick(): void {
   consoleRepeatPickState.active = false;
   run.end();
   consoleRepeatPickState.request = undefined;
-  resolveCb = undefined;
+  resolveCb.drop();
   cancelCb = undefined;
 }
 

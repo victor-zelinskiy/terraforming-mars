@@ -39,6 +39,7 @@ import {consoleSessionScope, sessionState} from '@/client/console/session/consol
 import {createFlowRun} from '@/client/console/session/flowRun';
 import type {TradeFleetDirectorHandle} from '@/client/console/colonyFleet/tradeFleetDirector';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 export type FleetPhase = 'idle' | 'launch' | 'transit' | 'approach' | 'dock' | 'ack';
 
@@ -112,7 +113,7 @@ export function tradeFleetOwner(): FlowScope {
   return run.scope ?? consoleSessionScope();
 }
 /** Resolves when the DOCK snap completes (the WaitingFor gate awaits this). */
-let dockResolve: (() => void) | undefined;
+const dockResolve = owedAnswer('trade-fleet:dock', {orphaned: () => []});
 /**
  * THE LAYER IS STILL MEASURING ITS ANCHORS (the launch pad and the berth) — a
  * director is ABOUT to exist. A fast server can answer inside that window
@@ -251,11 +252,10 @@ export function detectTradeFleet(): {colonyName: ColonyName | '', card: CardName
  */
 export function runTradeFleet(): Promise<void> {
   const promise = new Promise<void>((resolve) => {
-    dockResolve = resolve;
+    dockResolve.arm(resolve);
   });
   const done = () => {
-    const r = dockResolve;
-    dockResolve = undefined;
+    const r = dockResolve.take();
     r?.();
   };
   if (handle !== undefined) {
@@ -331,7 +331,7 @@ export function endTradeFleet(): void {
  */
 export function abortTradeFleet(): void {
   clearArmSafety();
-  if (!tradeFleetState.active && dockResolve === undefined) {
+  if (!tradeFleetState.active && !dockResolve.armed) {
     return;
   }
   handle?.skip();
@@ -346,8 +346,7 @@ export function abortTradeFleet(): void {
   tradeFleetState.target = undefined;
   tradeFleetState.colonyName = '';
   tradeFleetState.card = '';
-  const r = dockResolve;
-  dockResolve = undefined;
+  const r = dockResolve.take();
   r?.(); // never leave the WaitingFor gate awaiting
   run.end({how: 'cancelled', reason: 'the fleet was recalled'});
 }
@@ -358,7 +357,7 @@ export function resetTradeFleet(): void {
   settleSeq++; // a glow still owed is not this game's any more
   run.end({how: 'cancelled', reason: 'reset'});
   handle = undefined;
-  dockResolve = undefined;
+  dockResolve.drop();
   claimed = false;
   launchPending = false;
   parkedDock = undefined;

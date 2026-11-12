@@ -43,12 +43,32 @@ never `this`; it reaches a surface through a registration, never a `$ref`; it ad
 
 ## Two ledgers — both must stay green
 - **`tests/console/kernelCoverage.spec.ts`** — nothing in `src/client` WAITS outside a scope. Its baseline is empty.
-- **`tests/console/architectureDebt.spec.ts`** — what still runs on a mechanism the kernel REPLACES (a wait-graph
-  source or door, a liveness rung, a truth witness, a write of «set aside», a `$refs` read in a controller, a latch
-  reset by the view-apply reaction, a resolver mailbox, a bare latch `ref`) is counted and FROZEN: a file may not gain
-  a use, a new file starts at zero, each row prints the kernel form to write instead. **A fix inside a frozen
-  mechanism moves the piece it touches onto the kernel** — never one more rung / witness / door / flag / watch row.
-  When a count drops: `npm run debt:architecture`. PLAN §11 is the table and the order of the redesign.
+- **`tests/console/architectureDebt.spec.ts`** — what still runs on a mechanism the kernel REPLACES is counted and
+  FROZEN: a file may not gain a use, a new file starts at zero, each row prints the kernel form to write instead.
+  Since 2026-11-12 the DECISION rows are all **RETIRED — guarded at zero, they do not come back**: a `$refs` read in a
+  controller (→ the surface registry), a write of «set aside» (→ the two verbs), a latch reset by the view-apply
+  reaction (→ the question's scope), a resolver mailbox (→ `owedAnswer`), a bare latch `ref` (→ `scopedState`). What
+  is still FROZEN is the supervisory layer — the NETS (a wait-graph source or door, a liveness rung, a truth witness,
+  the supervisor's port): each retires on field evidence (PLAN §6), none is added. **A fix inside a frozen mechanism
+  moves the piece it touches onto the kernel** — never one more rung / witness / door / flag / reaction row.
+  When a count drops: `npm run debt:architecture`. PLAN §11 is the table.
+- **An answer somebody waits for is `owedAnswer(label, {owner, orphaned})`** (`console/session/owedAnswer.ts`) —
+  never `let xResolve: (() => void) | undefined`. `arm(resolve)` · `armed` · `settle(…)` · `drop()` · `take()`
+  (hand it over for after your own cleanup) · `owes(fn)`: a step of the flow tree while owed, given once, and CLOSED
+  when its owner ends — released with `orphaned()` (`() => []` for a promise somebody awaits: a gate, a scene's end)
+  or dropped (a pick whose caller left with the screen). Name the narrowest true owner (`() => run.scope`): the
+  waiting side is then released by EVERY ending of that run and no exit path has to remember it.
+- **A controller reaches a surface by NAME** — `shell.surfaces.at<T>('handSection')` (`shell/surfaceRegistry.ts`;
+  the template stands it with `:ref="surfaces.bind.<name>"`), never `$refs`. A new surface is a name in
+  `SURFACE_NAMES`.
+- **The server's question is a scope** — `questionScope()` (`session/questionScope.ts`; `advanceQuestion(key)` in the
+  view-apply reaction opens the next one FIRST, then ends the one that stood). What exists only for the question (a
+  branch sent to place, a client-built payment, the composer, a pick) is `scopedState(label, rest, questionScope)` and
+  falls by itself — with `{outlives}` when the question's own ANSWER still needs it after the server moved on. The
+  view-apply reaction lowers NOTHING by hand: each domain reconciles itself in its own controller.
+- **«Set aside» is a record with two verbs** — `setQuestionAside(what)` · `takeUpQuestion(why)`
+  (`console/setAside.ts`); `consoleState.task.deferred` is its read-only projection (an assignment is a compile
+  error). Parked ⇒ set aside is the record's own rule.
 - **What a module ARMS for a press declares its unwind** — `onPressUnlanded('<label>', abortX, <at>)` at module
   scope (`console/transport/pressUnwind.ts`); the transport's refusal / lost-answer path runs ONE ordered pass
   (`unwindUnlandedPress()`) and holds no list of modules (`pressUnwind.spec`). **What holds a finished workspace open**
@@ -167,16 +187,18 @@ never `this`; it reaches a surface through a registration, never a `$ref`; it ad
   All of that is identical on 3.5 and 3.6. **What is NOT a contract: which of several reactions ONE mutation of a
   collection wakes first** (its `length` reader, its iterator, a key reader) — it flipped between the two versions.
   A flow whose correctness needs that order is ONE reaction with the order in its body — never two watchers.
-- A reaction taken off the `watch` table loses its ROW — and the row was its place in the tick. The facts of one
+- A reaction taken off the reactions table (`shell/shellReactions.ts`) loses its ROW — and the row was its place in the tick. The facts of one
   decision routinely move in two steps inside one tick (a door falls, a reaction of the shell then stands the step
   up); read between the two, the decision is wrong. Both free forms were tried on the box and both failed e2e: a
   watcher of no component, pre-flush, runs BEFORE every component's watchers (Vue 3.5) — the owed conclusion closed
   the hand under its own colony step (`console-multi-effect-sequence`); post-flush runs after the RENDER — a second
   DOM patch in the tick split the Pluto trade's closing beat (`console-colony-pluto-embed`).
-- **So: a decision that ACTS (closes a workspace, opens a door) is asked from a row of the shell's watch table** —
-  a watcher of the shell, among its own, before the render. The kernel's `until` (sync) is for a wait that only
-  RECORDS. A primitive for «the end of the shell's pre-flush» is S-last's (the session owning the tick), not
-  something to improvise per reaction.
+- **So: a decision that ACTS (closes a workspace, opens a door) is asked from a row of the shell's REACTIONS TABLE**
+  (`console/shell/shellReactions.ts` — what the `watch` block was) — a watcher of the game screen, among its own,
+  before the render. The kernel's `until` (sync) is for a wait that only RECORDS. The table IS «the session's place
+  in the tick» (S-last): it is installed by the shell's composition after every controller's own watchers, in ONE
+  order, and its rows are watchers of the component that stands — virtual-DOM today, Vapor tomorrow (a `watch` in
+  `setup` is the same call in both). Never improvise a second place per reaction.
 - **«A decision owed» is a run, not a mailbox** (`console/workspaceConclusionOwe.ts` is the model): opened in the
   scope of what owes it; re-asked on the key of the SAME facts object the decision is made from (never a second,
   hand-written list of its ingredients — the row watches that key); bounded by its re-ask cadence; gone with its
@@ -217,36 +239,51 @@ never `this`; it reaches a surface through a registration, never a `$ref`; it ad
   own bound, past it the plate's door runs. The three keys of `mandatoryGateState` keep their writers — each tells the
   machine in the same call. Spec: `tests/console/mandatoryAnnounceRun.spec.ts`.
 
-## The shell is being taken apart — `console/shell/*Controller.ts`
-- **New shell behaviour is NOT a new member of `ConsoleShell.vue`.** A domain's state, derivations and verbs live in
-  `create<Domain>Controller(shell: <Domain>Port)` (Composition API — `ref` / `computed` / functions, no `this`); the
-  shell's `setup()` constructs it and spreads it, so the template, the watchers and the remaining options read its
-  members under the same names.
+## THE SHELL IS LAYOUT — `console/shell/` (S-last, 2026-11-12)
+- **`ConsoleShell.vue` is its template, the components it renders, its props and ONE line of `setup`** —
+  `return useConsoleShell(props)`. It has NO `data`, `computed`, `methods`, `watch` or hooks, and nothing in it says
+  `this` (guarded — `shellControllers.spec.ts`). The composition is three modules: `shellMembers.ts`
+  (`composeShellMembers` — the mirrors of module state, the shell's own template refs, the surface registry and every
+  controller, constructed in ONE order and spread into the object the template reads), `shellReactions.ts` (the
+  ordered reactions table), `useConsoleShell.ts` (session → members → port bound → reactions → the two wiring hooks,
+  registered LAST). It asks for no component instance: the same composition runs under a virtual-DOM component, a
+  `<script setup>` / Vapor one, or a bare `effectScope()`.
+- **New shell behaviour is a CONTROLLER member** — a domain's state, derivations and verbs live in
+  `create<Domain>Controller(shell: <Domain>Port)` (Composition API — `ref` / `computed` / functions, no `this`),
+  constructed in `composeShellMembers` (a new controller goes at the END — construction order is the order of its
+  watchers and hooks) and spread into its return. What the game screen registers with other modules while it stands
+  (probes, suppliers, leases) is the `wiring` controller's `shellMounted` / `shellLeaving`.
 - **The PORT is the controller's whole dependency on the rest of the shell** — typed, explicit, `readonly` unless the
-  row says WRITTEN. `shell.x` for anything not in the port is a compile error; `shellPortsConform()` in the shell is
-  the proof the shell still provides every port (vue-tsc). Narrow a port when you touch a controller; never widen one
-  to reach «just one more» member without asking whether the member belongs to this domain.
-- **A controller is built in `setup()`, before the options exist**: never read `shell.…` at construction — only inside
-  a `computed`, a function or a hook. Its own lifecycle (a registration, a listener) is `onMounted` /
-  `onBeforeUnmount` inside the controller, not a row of the shell's hooks.
-- **Moving members out is mechanical**: `node scripts/shell-extract.mjs report|apply <sfc> <spec.json>` (the header of
-  the script is its manual; PLAN §5 · S2 the procedure). It refuses what cannot be moved verbatim (a bare `this`, an
-  eager data read, a local shadowing the port) and aliases a member whose name also occurs free (`ownX`).
-- **Every domain of the shell is out** — 33 controllers; PLAN §5 · S6 has the table of their ports (the big ones are
-  the knots: `padRouter`, `commandBar`, `router`, `outcome`, `mandatory`). They are ordinary source: edit them by
-  hand. `scripts/shell-extract/` keeps the inputs of that one-time extraction (its README says the one case for
-  re-running it). What is left in `ConsoleShell.vue` is the template, the composition root, the mirrors of module
-  state, the `watch` table and the hooks — nothing new goes there.
-- **The composition is guarded** (`tests/console/shellControllers.spec.ts`): one member, one owner (two controllers
-  returning a name, or a name both returned and still declared in the shell, is a silent shadow); no template
-  `ref="x"` named like a member (Vue would write the element into it); every controller constructed once and spread;
-  every port has its conformance row; no named import from a `.vue`.
-- **The `watch` block is a TABLE, in its order.** Every watcher is `key(v) { this.when<Key>Changes(v); }`; the
-  reaction's body is the method (it moves with its domain). Never reorder the rows, never put a body back in one —
-  creation order is load-bearing; a new reaction is a level-triggered decision in its controller, not a new row.
+  row says WRITTEN. It is served by ONE late-bound object (`shellPort.ts` — `port.as<XPort>()`): the members every
+  controller returned (a `Ref` read and written through), the props, `$nextTick` — **not the component instance**.
+  `shell.x` for anything not in the port is a compile error; `shellPortsConform(shell)` in `shellMembers.ts` is the
+  proof (plain tsc and vue-tsc) that the composed shell provides every port. Narrow a port when you touch a
+  controller; never widen one to reach «just one more» member without asking whether the member belongs to this domain.
+- **A controller is built before the shell exists**: reading `shell.…` AT CONSTRUCTION throws, by name — only inside
+  a `computed`, a function or a hook. A WRITTEN row names a ref (a write to a function, a mirror or a prop is
+  refused). Its own lifecycle (a registration, a listener) is `onMounted` / `onBeforeUnmount` inside the controller.
+- **Taking an Options component apart is mechanical** (the next monolith's V3 wave): `node scripts/shell-extract.mjs
+  report|apply <sfc> <spec.json>` (the header of the script is its manual; PLAN §5 · S2 the procedure; S-last the
+  recipe for the last step — hooks become methods, `$el` a template ref, `$watch` a `watch`, then the `watch` block
+  becomes an ordered table of `watch()` rows). It refuses what cannot be moved verbatim (a bare `this`, an eager data
+  read, a local shadowing the port) and aliases a member whose name also occurs free (`ownX`).
+- **Every domain of the shell is out** — 34 controllers (the last one `wiring`); PLAN §5 · S6 has the table of their
+  ports (the big ones are the knots: `padRouter`, `commandBar`, `router`, `outcome`, `mandatory`). They are ordinary
+  source: edit them by hand. `scripts/shell-extract/` keeps the inputs of that one-time extraction (the tool reads an
+  Options component — it has nothing left to read in the shell).
+- **The composition is guarded** (`tests/console/shellControllers.spec.ts`): the SFC's options are exactly `name` ·
+  `components` · `props` · `setup`; the composition keeps its order and asks for no instance; one member, one owner
+  (two controllers returning a name, or a name both returned and declared by the shell itself — a prop, a mirror, a
+  ref of its own — is a silent shadow); no template `ref="x"` named like a member (Vue would write the element into
+  it); every controller constructed once and spread; every port has its conformance row; no named import from a
+  `.vue`; the mirrors and the reactions only shrink.
+- **The reactions are a TABLE, in its order** (`shellReactions.ts`). Every row is
+  `watch(() => shell.<member>, (v) => shell.when<Key>Changes(v)[, {options}])`; the reaction's body is the function
+  in its domain's controller. Never reorder the rows, never put a body in one — creation order is load-bearing; a
+  new reaction is a level-triggered decision in its controller, not a new row.
 - **A `.ts` module cannot import a named export of a `.vue` file** (plain tsc — the production build's checker —
   sees `*.vue` through the shim; `vue-tsc` does not catch it): a type an SFC shares with a controller lives in a
-  sibling `<component>Types.ts` (the SFC imports and re-exports it), and what a controller reads off a `$refs`
+  sibling `<component>Types.ts` (the SFC imports and re-exports it), and what a controller reads off a surface's
   instance is typed BY NAME there (the instance itself is `any` to plain tsc). After a shell slice run BOTH
   `npm run lint:client` and plain tsc over `src/**/*.ts` (or `npm run build`).
 - **Source guards read the shell's code through `tests/console/shellSource.ts`** (`shellCode()` — the SFC and every

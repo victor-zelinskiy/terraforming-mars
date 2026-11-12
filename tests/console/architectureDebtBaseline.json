@@ -24,37 +24,6 @@
     "truth-witness": {
       "src/client/console/hydroFlow/consoleHydroFlow.ts": 2,
       "src/client/console/transport/gameTransport.ts": 1
-    },
-    "resolver-mailbox": {
-      "src/client/components/actions/actionsPickState.ts": 1,
-      "src/client/components/feedback/energyConversionTransition.ts": 1,
-      "src/client/components/feedback/hazardCleanupTransition.ts": 1,
-      "src/client/components/handCards/handSelectState.ts": 1,
-      "src/client/components/playedCards/playedCardsPickState.ts": 1,
-      "src/client/console/colonyBuild/consoleColonyBuild.ts": 1,
-      "src/client/console/colonyCity/consoleColonyCity.ts": 2,
-      "src/client/console/colonyFleet/consoleTradeFleet.ts": 1,
-      "src/client/console/colonyRoster/consoleColonyRoster.ts": 1,
-      "src/client/console/colonyTrade/consoleColonyTrade.ts": 2,
-      "src/client/console/consoleHandPick.ts": 1,
-      "src/client/console/consolePlayPick.ts": 1,
-      "src/client/console/consoleRepeatPick.ts": 1,
-      "src/client/console/consoleStdProjectCommit.ts": 1,
-      "src/client/console/generationScene/generationScene.ts": 1,
-      "src/client/console/hydroFlow/deltaBlockadeEntry.ts": 1,
-      "src/client/console/hydroFlow/deltaEspionageEntry.ts": 1,
-      "src/client/console/hydroFlow/deltaRewardEntry.ts": 1,
-      "src/client/console/hydroMarker/consoleHydroMarker.ts": 1,
-      "src/client/console/nomads/consoleNomadMove.ts": 1,
-      "src/client/console/patentSale/consolePatentSale.ts": 1,
-      "src/client/console/played/consolePlayedHero.ts": 2,
-      "src/client/console/scaleStepReward/scaleStepRatingBeat.ts": 1,
-      "src/client/console/scaleStepReward/venusBonusCellBeat.ts": 1,
-      "src/client/console/scaleSwing/scaleSwingDirector.ts": 1,
-      "src/client/console/tilePlacement/consoleTilePlacement.ts": 1
-    },
-    "controller-latch": {
-      "src/client/console/supervisor/supervisorController.ts": 1
     }
   },
   "supervisorPort": 29

@@ -44,6 +44,7 @@ import {scaleStepRatingBusy, scaleStepRatingQuiet} from '@/client/console/scaleS
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {sessionState} from '@/client/console/session/consoleSession';
 import {deriveFlowRun} from '@/client/console/session/flowRun';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const VENUS_BONUS_CELL_KEY = 'venus-bonus-cell';
@@ -131,7 +132,7 @@ let runOwner = 0;
 /** The entry whose tokens are in flight (taken off `entry`; its unflown tokens still held). */
 let paying: Entry | undefined;
 let debt: OwedStoryHandle | undefined;
-let quietResolve: (() => void) | undefined;
+const quietResolve = owedAnswer('venus-bonus-cell:quiet', {orphaned: () => []});
 let quietPromise: Promise<void> = Promise.resolve();
 
 /** ARM — the bonus surface, at the answer it sends (never on the server's clock). */
@@ -201,8 +202,7 @@ function endVenusBonusCellBeat(): void {
   venusBonusCellState.phase = 'idle';
   venusBonusCellState.due = false;
   venusBonusCellState.degraded = true;
-  const r = quietResolve;
-  quietResolve = undefined;
+  const r = quietResolve.take();
   r?.();
 }
 
@@ -240,9 +240,9 @@ export function seedVenusBonusCellHold(before: PlayerViewModel | undefined, afte
   entry = {plan: plan.filter((p) => held.includes(p.spec)), held: [...held], to: arm.step?.to ?? MAX_VENUS_SCALE};
   venusBonusCellState.due = false;
   venusBonusCellState.degraded = false;
-  if (quietResolve === undefined) {
+  if (!quietResolve.armed) {
     quietPromise = new Promise<void>((resolve) => {
-      quietResolve = resolve;
+      quietResolve.arm(resolve);
     });
   }
   venusBonusCellState.phase = 'waiting';
@@ -401,8 +401,7 @@ async function run(): Promise<void> {
     }
     if (epoch === myEpoch) {
       venusBonusCellState.phase = 'idle';
-      const r = quietResolve;
-      quietResolve = undefined;
+      const r = quietResolve.take();
       r?.();
     }
   }
@@ -421,8 +420,7 @@ export function resetVenusBonusCell(): void {
   debt = undefined;
   venusBonusCellState.phase = 'idle';
   venusBonusCellState.due = false;
-  const r = quietResolve;
-  quietResolve = undefined;
+  const r = quietResolve.take();
   r?.();
 }
 

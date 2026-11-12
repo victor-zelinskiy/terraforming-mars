@@ -5,6 +5,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {handFilterState} from '@/client/components/handCards/handFilterState';
 import {AvailabilityFilter} from '@/client/components/handCards/handCardModel';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /**
  * Module-level reactive state for the MANDATORY "select cards from your hand"
@@ -77,7 +78,7 @@ export const handSelectState: HandSelectState = reactive({
 // The resolve callback for a CLIENT-driven pick (stored OUTSIDE the reactive
 // state — a function isn't reactive data). Set by `enterClientHandSelect`, fired
 // by `resolveClientHandSelect`, cleared on exit.
-let clientResolveCb: ((cards: ReadonlyArray<CardName>) => void) | undefined;
+const clientResolveCb = owedAnswer<[cards: ReadonlyArray<CardName>]>('hand-select:client-pick');
 let clientCancelCb: (() => void) | undefined;
 
 // The player's OWN availability filter, captured when a SELECT/PICK mode first
@@ -168,7 +169,7 @@ export function exitHandSelect(): void {
   handSelectState.signature = '';
   handSelectState.clientPick = false;
   handSelectState.reasons = {};
-  clientResolveCb = undefined;
+  clientResolveCb.drop();
   clientCancelCb = undefined;
   restoreUserAvailability();
 }
@@ -193,7 +194,7 @@ export function enterClientHandSelect(opts: {
   onResolve: (cards: ReadonlyArray<CardName>) => void,
   onCancel?: () => void,
 }): void {
-  clientResolveCb = opts.onResolve;
+  clientResolveCb.arm(opts.onResolve);
   clientCancelCb = opts.onCancel;
   handSelectState.active = true;
   handSelectState.minimized = false;
@@ -212,7 +213,7 @@ export function enterClientHandSelect(opts: {
 
 /** Commit the current client pick — fires `onResolve` with the picked names. */
 export function resolveClientHandSelect(): void {
-  const cb = clientResolveCb;
+  const cb = clientResolveCb.take();
   const picked = [...handSelectState.selected];
   exitHandSelect();
   cb?.(picked);

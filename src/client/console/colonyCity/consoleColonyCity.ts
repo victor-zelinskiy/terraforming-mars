@@ -62,6 +62,7 @@ import {
   ColonyBuildStageEls, disposeCubeProxy, killColonyBuildTweens, placeCubeProxy, playCubeApproach, playCubeDescent,
 } from '@/client/console/colonyBuild/colonyBuildDirector';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /** What the seat of ONE colony tile shows. */
 export type ColonyCitySeatPose = 'empty' | 'projected' | 'waiting' | 'seated';
@@ -139,9 +140,9 @@ export function registerColonyCityStage(handle: ColonyCityStageHandle | undefine
 
 let handle: CityMotionHandle | undefined;
 /** The transport's commit gate (resolved at the frame of contact; an abort must always free it). */
-let gateResolve: (() => void) | undefined;
+const gateResolve = owedAnswer('colony-city:gate', {orphaned: () => []});
 /** The whole scene (through the read) — what the shell's HOMING beat awaits. */
-let sceneResolve: (() => void) | undefined;
+const sceneResolve = owedAnswer('colony-city:scene', {orphaned: () => []});
 let scenePromise: Promise<void> | undefined;
 /**
  * THE SCENE'S RUN (architecture v2 — PLAN §10 · C4): `scene:colony-city#n` in the session, opened by `begin` and ended
@@ -326,7 +327,7 @@ function begin(landing: ColonyCityLanding, scale: 'stage' | 'tile', profile: Col
   colonyCityState.cubeOn = false;
   hurried = false;
   scenePromise = new Promise<void>((resolve) => {
-    sceneResolve = resolve;
+    sceneResolve.arm(resolve);
   });
   // THE RUN OPENS — and its SAFETY is the run's own timer: a scene that ended took it back, nothing to clear.
   run.begin(`${landing.colony} on the ${scale}`);
@@ -334,8 +335,7 @@ function begin(landing: ColonyCityLanding, scale: 'stage' | 'tile', profile: Col
 }
 
 function freeGate(): void {
-  const resolve = gateResolve;
-  gateResolve = undefined;
+  const resolve = gateResolve.take();
   resolve?.();
 }
 
@@ -352,8 +352,7 @@ function end(): void {
   colonyCityState.cubeOn = false;
   run.end();
   freeGate();
-  const resolve = sceneResolve;
-  sceneResolve = undefined;
+  const resolve = sceneResolve.take();
   scenePromise = undefined;
   resolve?.();
 }
@@ -571,7 +570,7 @@ export function detectColonyCity(prevView: ViewModel | undefined, newView: ViewM
  */
 export function runColonyCity(landing: ColonyCityLanding): Promise<void> {
   return new Promise<void>((resolve) => {
-    gateResolve = resolve;
+    gateResolve.arm(resolve);
     ownPlayed = landingSignature(landing);
     begin(landing, 'stage', OWN_CITY_PROFILE);
     colonyCityState.receipt = landing.tile.card === undefined ? {colony: landing.colony} : {colony: landing.colony, card: landing.tile.card};
@@ -657,7 +656,7 @@ export function abortColonyCity(why: string = 'abort'): void {
   for (const key of Object.keys(colonyCityState.holds)) {
     delete colonyCityState.holds[key];
   }
-  if (colonyCityState.live || gateResolve !== undefined || sceneResolve !== undefined) {
+  if (colonyCityState.live || gateResolve.armed || sceneResolve.armed) {
     end();
   }
 }

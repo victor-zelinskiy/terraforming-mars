@@ -2,6 +2,7 @@ import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {AvailabilityFilter, ActivationFilter} from '@/client/components/actions/actionModel';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /**
  * PICK MODE state for the ДЕЙСТВИЯ (Actions) overlay — the dedicated surface for
@@ -44,7 +45,7 @@ export const actionsPickState = reactive<ActionsPickState>({
 // The resolve callback is held OUTSIDE the reactive object (a function isn't
 // reactive data). Set by `enterActionsPick`, fired by `resolveActionsPick`,
 // cleared on exit.
-let resolveCb: ((card: CardName, nodeIndex: number) => void) | undefined;
+const resolveCb = owedAnswer<[card: CardName, nodeIndex: number]>('actions-pick');
 
 export function enterActionsPick(opts: {
   title: string | Message,
@@ -58,7 +59,7 @@ export function enterActionsPick(opts: {
   // Reset to the pick defaults for every fresh pick (Activated + All).
   actionsPickState.availability = 'all';
   actionsPickState.activation = 'activated';
-  resolveCb = opts.onResolve;
+  resolveCb.arm(opts.onResolve);
 }
 
 /** A candidate action ROW was clicked — deliver the card + chosen branch node to
@@ -67,7 +68,7 @@ export function resolveActionsPick(card: CardName, nodeIndex = 0): void {
   if (!actionsPickState.selectable.includes(card)) {
     return;
   }
-  const cb = resolveCb;
+  const cb = resolveCb.take();
   exitActionsPick();
   cb?.(card, nodeIndex);
 }
@@ -82,7 +83,7 @@ export function exitActionsPick(): void {
   actionsPickState.selectable = [];
   actionsPickState.title = '';
   actionsPickState.signature = '';
-  resolveCb = undefined;
+  resolveCb.drop();
 }
 
 export function isActionsPickCandidate(name: CardName): boolean {

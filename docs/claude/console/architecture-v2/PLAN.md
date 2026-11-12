@@ -18,7 +18,7 @@
 | S2 | the shell: the extraction tool + the first islands | **done** — `scripts/shell-extract.mjs`; ten controllers under `console/shell/` (viewer · milestones/awards · wheel · cell · info · convert · rail · journal · surface · notice), each with its typed PORT; **every watcher is a one-line delegate** — the `watch` block is the ordered table of the shell's 145 reactions and their bodies are methods (`when<Key>Changes`) that move with their domains; the types the shell shares with its SFC children live in `.ts` modules. The shell is 25.2k lines (was 27.8k). The region components (template) ride S3 / S6 |
 | S6 · mechanical | the shell: EVERY domain is a controller | **done** — 34 controllers (table in §5 · S6); `ConsoleShell.vue` is 3.8k lines (was 27.8k): the template (1.6k), the composition root, the module-state mirrors, the ordered `watch` table and the two hooks. What is left in it is NOT domain code, and it ONLY SHRINKS (`shellControllers.spec.ts` — a ratchet on its data / computed / methods / watch rows / lines) |
 | S5 · the owed conclusion | an ending that was refused is a RUN in its frame's scope | **done** — `console/workspaceConclusionOwe.ts`; the mailbox (`owedConclusion` + `…Since` + `…GhostSince`), the hand-written `owedConclusionSignal` (25 terms), `retryOwedConclusion` and the truth witness `workspace-conclusion-owed` are deleted; the wake is one row of the watch table over the key of the decision's OWN facts. *Open in S5:* owed STEPS as children of the frame's scope; the stale free-turn reaper |
-| S3 · S4 | the shell: surface registry (pad / bar / context — one table); the prompt router and «set aside» | **S3, first step: done** — the pad router says when a surface it routed a press to is not mounted (`handedTo`: dropped, named). The rest is open — each the redesign of named controllers: `padRouter` + `commandBar`; `router` + `mandatory` |
+| S3 · S4 | the shell: surface registry; the question as a scope and «set aside» as its record | **done (2026-11-12)** — S3: a controller reaches a surface by NAME (`shell.surfaces.at<T>('handSection')` — `console/shell/surfaceRegistry.ts`; the template stands each one with `:ref="surfaces.bind.<name>"`), never through `$refs` (117 reads in 16 controllers → 0). S4: the server's question is `question:<identity>` in the flow tree (`session/questionScope.ts`); what exists only for it is `scopedState(…, questionScope)` and ends at `advanceQuestion` (with `outlives` where the question's own answer still needs it), so the view-apply reaction lowers nothing by hand (19 writes → 0, 561 → 302 lines — each domain reconciles itself); «set aside» is a record with two verbs (`console/setAside.ts` — `setQuestionAside(what)` · `takeUpQuestion(why)`), `consoleState.task.deferred` its read-only projection (30 writers → a compile error). *Still open in S3 / S4 (a redesign, not debt of the ledger):* the pad ladder and the command bar as ONE table of surface entries; admission and the ownership trios as one table |
 | C0 | COVERAGE: the ledger, the session's generations, owned timers / frames, the tree in the field record | **done** — §10. `tests/console/kernelCoverage.spec.ts` + `kernelCoverageBaseline.json` count what still waits outside the kernel (raw timers · raw frames · `delayedCall`s · flow-state modules whose run is not a scope · the shell's teardown rows) and only let it shrink — a NEW console file starts at zero; `scope.after` / `scope.afterFrame` / `frames()`; `useFlowScope` (a component's own scope); `createFlowRun` (a module flow's run); a session has an identity (`session:game#n`) beside the lobby's root; `window.__conFlow()` and the heartbeat's `flow` digest |
 | C2 | COVERAGE: every animation hold is a run of the tree | **done** — a hold that stands is `scene:hold:<label>#n` in the session; its ceiling is a timer that scope owns; it ends `done` / `expired` / **with its session** (the hold is then taken down through its owner's `expire` — the session-leak class closed for all 61 suppliers and 18 handles at once); a handle carries its scope (`hold.scope`) |
 | C4 | COVERAGE: module flows' runs as scopes | **done — every flow-state module of the client** (the ledger's ④ is 0). The first round's seventeen (colonies, the sale, the hydro marker, the board, the cards, the two feedback scenes) + the second round's: the picks (hand / play / repeat, the three delta entries and the blockade's execution, the prelude chain, the played-cards pick), the Parliament (the agenda walk, the neutral rally, the chairman's quest — DERIVED runs: `deriveFlowRun`, the flag has many writers), the action commit, the resource-transfer wave, the played card's return, the colony track move, the finale's session, the board's story (the beat park's drain + the scale story), the terraformed scene, the loading curtain (the page's), the boot warm-up (the page's), the start-setup reveal. Five modules carry the flag and are NOT flows — declared with their reason (`NOT_A_FLOW`). **And the PHASE-KEYED flows** (third round): the ledger's definition of a flow-state module was the wait graph's (`live` / `active`); a flow whose «I am playing» is `phase !== 'idle'` slipped under it. It is widened (`phase` / `stage` resting at `'idle'` / `'closed'` / `'docked'`), and the twenty-two such flows are derived runs — the action commit's rail, the start's first act and bonus act, the standard project's commit, the planet focus, the first-action rail, the card reaction, the card receive, the cell resource beat, the fleet dock scene, the deck pick, the endgame ceremony, the external draw, the generation scene, the scale step's reward and rating, the Venus bonus cell, the scale swing, the city data payout, the endgame overview, the hand reveal, the played category view |
@@ -28,7 +28,9 @@
 | S6 · latches | the shell's latches are scopes | **done** — `scopedState(label, rest, owner?)` (`console/session/scopedState.ts`): the twenty-six «pending / owed / armed / leaving / in flight» refs of the controllers (`commitFoldOwed`, `pendingPlayCard`, `taskSpacePending`, `parliamentLeaving`, …) and «set aside» itself (`consoleState.task.deferred`) are `Ref`s whose every raised span is a `step` scope of the tree — named with its age in every dump, lowered by itself when its owner ends. Their owner is the session until each one's flow is a scope (then: its frame / its run) |
 | S5 · the holds table | the conclusion and the ghost test read ONE table | **done** — `FRAME_HOLDS` (`outcomeController.ts`): every named hold of a workspace's ending (a step owed, an outcome still playing inside it, a step of its own) is ONE row that says which fact of the conclusion it is AND whether a phantom can hide behind it (`ghost: 'never' \| 'may'`); `conclusionFacts` and the forced teardown's ghost test (`workspaceHeldForThePlayer` — the supervisor's `stuckWorkspaceIsGhost`) both read it. The ghost test's private copy of the list — the one that called a working flow a phantom whenever it missed a term — is gone; the supervisor's port lost three rows (32 → 29). Guard: `tests/console/workspaceHolds.spec.ts`. *Open in S5:* the holds as `step` CHILDREN of the frame's scope (the conclusion as a join) |
 | L1 · the unwind | a press that did not land unwinds what was armed for it — declared by the module that arms | **done** — `console/transport/pressUnwind.ts`: `onPressUnlanded(label, unwind, at)` beside each arm (25 declarations in 25 modules) and ONE ordered pass, `unwindUnlandedPress()`, on a refusal / a lost answer. The transport's battery of twenty-five `abort…()` calls (`abortAllConsoleTransactions`) is gone — it lowers its own holds and runs the pass; a scene module can no longer be «not on the transport's list». Guard: `tests/console/pressUnwind.spec.ts` (no module call in the transport's refusal path; the pass is a total order). *Open in L1:* the arm ORDER (arm, then submit) — an arm made ON the ticket would also fall on a BUSY refusal, which only frames do today (the beat's lease) |
-| D | THE DEBT LEDGER — what still runs on a mechanism the kernel replaces is counted and FROZEN | **done** — §11. `tests/console/architectureDebt.spec.ts` over `architectureDebtBaseline.json`: nine mechanisms of the shell's decision logic (wait-graph sources and doors, liveness rungs, truth witnesses, set-aside writers, surfaces reached by `$refs`, latches reset by the view-apply reaction, resolver mailboxes, bare latches) + the supervisor's port — a file may not gain a use, **a new file starts at zero**, each row names its kernel form. The reviewer's checklist is `REVIEW.md` |
+| D | THE DEBT LEDGER — what still runs on a mechanism the kernel replaces is counted and FROZEN | **done; the DECISION rows are at zero (2026-11-12)** — §11. `tests/console/architectureDebt.spec.ts` over `architectureDebtBaseline.json`. Five rows are RETIRED and guarded at zero (they do not come back): `surface-by-ref`, `set-aside-writer`, `view-apply-write`, `resolver-mailbox`, `controller-latch`. What is still frozen is the supervisory layer — the nets (wait-graph sources and doors, liveness rungs, truth witnesses, the supervisor's port): §6 says when each retires. The reviewer's checklist is `REVIEW.md` |
+| S6 · the resolvers | an answer somebody waits for has an owner | **done (2026-11-12)** — `owedAnswer(label, {owner, orphaned})` (`console/session/owedAnswer.ts`): the 29 module-level `let xResolve: (() => void) \| undefined` of 26 modules (every scene's transport gate, the picks' callbacks, the quiet / dock / glide / flip resolvers) are debts with an owner — a `step:owed:<label>` of the flow tree while owed, given once (`settle`), closed when the owner ends (released with `orphaned` — the form of every promise somebody awaits — or dropped: a pick whose caller left). The verbs are the mailbox's own idioms (`arm` · `armed` · `settle` · `drop` · `take` · `owes`), so the conversion changed no order of effects. The owner is the session until a module names its run (`() => run.scope` — then every ending of the run releases the waiting side). The last bare latch (`commitFoldOwedSince`, a clock of the supervisor's net) is a `scopedState`. Guard: `tests/console/owedAnswer.spec.ts` |
+| S-last | THE SHELL IS LAYOUT — no instance between the controllers | **done (2026-11-12)** — `ConsoleShell.vue` is its template (1.6k lines), `components`, `props` and `setup(props) { return useConsoleShell(props); }`: no `data`, `computed`, `methods`, `watch`, hooks, no `this` (3.6k → 1.85k lines; 27.8k at the start). The composition is `console/shell/`: `shellMembers.ts` (the mirrors, the shell's own refs, the registry, the 34 controllers in ONE order — the last one `wiringController.ts`: what the screen registers with other modules while it stands, `shellMounted` / `shellLeaving`, and the residual reactions), `shellReactions.ts` (the 145-row ordered table — `watch(() => shell.x, (v) => shell.whenXChanges(v))`, installed after every controller's own watchers: the place in the tick the Options `watch` block had), `useConsoleShell.ts` (session → members → port bound → reactions → the two wiring hooks LAST). **The port is not the component instance** (`shellPort.ts` — one late-bound object over the returned members, the props and `$nextTick`; a read at construction throws by name; a WRITTEN row writes a ref): `getCurrentInstance()` is gone from the shell (readiness ledger `instance-access` 1 → 0), `shellPortsConform(shell)` is checked by plain tsc too. The same composition runs under a `<script setup>` / Vapor component. Guards: `shellControllers.spec.ts` (rewritten), `tests/console/shellPort.spec.ts` |
 | N1 | native stalls: LoAF in the field log, a trace on `unresponsive` | **done (diagnosis)** — `longFrameWatch.ts` (`[long-frame]` lines with the frame's split), `electron/hangTrace.ts` (a Chromium trace of every stop, named in the hang line); reducing what the first traces name is open |
 
 **Branch / tree.** The work is done in the worktree `C:\Projects\Mods\tm-arch` (branch `arch-v2`, rebased on
@@ -71,14 +73,12 @@ slices, and its size is the debt baseline's numbers (§11), not an impression.
    `politicalDiscardOwed`, `lawStepOwed` are computeds over module state; declared at the press that owes them they
    make `conclusionFacts.owedStep` a structural fact). Then the ghost test, the forced teardown and
    `reapStaleFreeTurnFrame` (the supervisor) can go: «nothing the player could act on» stops being sampled.
-2. **S4** — the prompt router (`routerController` 68 rows + `mandatoryController` 46): admission and the ownership
-   trios as one table; «set aside» as a record owned by its question (§5 · S4 has the analysis); the view-apply
-   reaction's twelve written rows (`viewApplyController`) become ends of their own flows. Retires the screen / start
-   director shadows, the leak detector's stranded check, the `deferred-restore` door.
-3. **S3, the rest** — the surface registry: `padRouterController` (150 rows) and `commandBarController` (108) ask
-   the same ~100 facts in two orders; one ordered table of surface entries, a surface registering its handler while
-   mounted (the pad path stops using `$refs` — `handedTo` is the bridge until then), then the region components (the
-   template block of a surface moves with its entry).
+2. **S4, the rest** — ~~«set aside» as a record owned by its question; the view-apply reaction's written rows~~ (done 2026-11-12). Open: the prompt router's admission and the ownership trios as ONE table (`routerController` + `mandatoryController`) — retires the screen / start director shadows, the leak detector's stranded check, the
+   `deferred-restore` door.
+3. **S3, the rest** — ~~the controllers off `$refs`~~ (done 2026-11-12 — the registry). Open: `padRouterController` and
+   `commandBarController` ask the same ~100 facts in two orders; one ordered table of surface entries, a surface
+   registering its HANDLER while mounted, then the region components (the template block of a surface moves with its
+   entry — which is also the natural cut for the shell's V3 conversion).
 4. **S6, the lifecycle half** — per domain, its reactions (`when…Changes` in its controller) and latches become
    machine states / scoped runs: colonies and hydro first. A reaction of the shape «my frame is gone → reset my
    flag» is NOT simply `workspaceFrameScope(kind).defer(…)`: those watchers key on `workspaceFrameKnown` (live or
@@ -89,11 +89,10 @@ slices, and its size is the debt baseline's numbers (§11), not an impression.
 6. **Phase 3** — ~~holds as scoped runs~~ (C2) · ~~the board stories and the directors' runs on the wait table~~
    (C3 / C4 — done); the wait-graph observer reads the kernel's table through one adapter and its ten derived sources
    (`shellWaitNodes`) go — after items 1 – 4 made the shell's lifecycles scopes.
-7. **S-last** — the session wires the controllers' ports directly (no instance in between), ~~the `reset…()` list in
-   `beforeUnmount` becomes registrations~~ (C5 — done: `sessionState` + `leaveConsoleSession`), and the session OWNS
-   THE TICK: one ordered
-   pass of decisions per flush, after the reactions that complete the facts and before the render — the primitive
-   the watch table's rows need before they can leave it (§5 · S5 — the lesson of the owed conclusion).
+7. ~~**S-last**~~ — **done 2026-11-12**: no instance between the controllers (`shellPort.ts`), the shell is layout
+   (`useConsoleShell`), the reactions are ONE ordered table installed by the composition (`shellReactions.ts`) — the
+   session's place in the tick. What the table's rows still need before they can LEAVE it is item 4 (a reaction as a
+   machine state / a scoped run), not a new primitive.
 8. **N1** — read the first field traces (`hang-*.json` beside the logs, `[long-frame]` lines) and reduce what they name.
 
 ---
@@ -541,7 +540,31 @@ forwards to the new owner, it never keeps a second copy of the state.
 - **S6… — the domains, the LIFECYCLE half.** Per domain: its watchers and latches become machine states / scoped
   runs in the frame's scope. Order by freeze history: colonies and hydro first (most mailbox fields), then the hand,
   then the phase scenes.
-- **S-last.** `ConsoleShell.vue` is layout: the regions, the session's provide, no `watch`, no lifecycle logic.
+- **S-last — DONE (2026-11-12).** `ConsoleShell.vue` is layout: the template, `components`, `props`, and
+  `setup(props) { return useConsoleShell(props); }` — no `data`, no `computed`, no `methods`, no `watch`, no hooks.
+  **How it was taken (the recipe for the next Options monolith):**
+  1. *What binds to the instance becomes ordinary state* — `this.$el` → a template ref of the root (`conRootEl`), a
+     stash on `this` (`__notifOff`) → a field, `this.$watch` → `watch`, and the two hook bodies become METHODS
+     (`shellMounted` / `shellLeaving`) the hooks call. Now nothing in the options says a bare `this`.
+  2. *The rest of the options moves out with the tool* — the three computeds, the remaining methods (the residual
+     reactions among them), the two hook bodies and the five non-mirror data fields → `wiringController.ts`
+     (`scripts/shell-extract.mjs apply`; its port is 103 rows, typed off the sibling controllers).
+  3. *The `watch` block becomes a module* — `shellReactions.ts`: 145 rows, generated in the block's order, each
+     `watch(() => shell.<key>, (…) => shell.when<Key>Changes(…)[, options])`. A path key (`'hydroFlow.commit.phase'`)
+     is the same path read off the port, with `?.` where the Options path getter tolerated a hole. Created at the END
+     of the composition: after every controller's own watchers (as `applyOptions` created the block after `setup()`),
+     before the wiring hooks. They are watchers of the component that stands, so the tick's contract is unchanged
+     (`vueTickOrder.spec`): the scheduler sorts by the component's id, runs a component's watchers in the order their
+     sources were triggered, and rows of one source in creation order.
+  4. *`data()`'s mirrors are returned from the composition* — every one is a `reactive` module state, so the template
+     reads the very same proxy it read through `data()`.
+  5. *The port stops being the instance* — `shellPort.ts`: a Proxy over the returned members (a `Ref` read and written
+     through — what `proxyRefs` did for setup state), the props, `$nextTick`; built before the first controller, bound
+     after the last. A read at construction THROWS by name (on the instance it answered `undefined`, silently).
+     `shellPortsConform` moved to `shellMembers.ts` and is typed against the composed object — checked by plain tsc.
+  What this leaves for the shell's V3 conversion is ONE decision: how the template names the members (`<script setup>`
+  needs top-level bindings — a destructure of `useConsoleShell(props)` generated from its return type, or the region
+  components of S3-rest each taking their own slice). Nothing else in the shell is Options-shaped.
 
 ### Phase 3 — stories and directors
 
@@ -816,18 +839,24 @@ and per file, the uses that stand; a file may not gain one; **a new file starts 
 lowers the baseline (never raises it) and prints the line. Each row of the spec's `FROZEN` table carries `what` it
 is, the kernel form to write `instead`, and the `plan` item it retires with — a failing run prints all three.
 
-| Row | 2026-11-11 | The kernel form | Retires with |
-| --- | --- | --- | --- |
-| `surface-by-ref` — a surface reached through `shell.$refs` in a controller | 117 in 16 files (`padRouter` 47 · `colony` 20 · `viewer` 11) | the surface registers what it offers while mounted; presence is the registration | **S3** |
-| `set-aside-writer` — a write of the one «set aside» boolean | 30 in 13 files (5 set it, 25 clear it) | a record owned by what was set aside | **S4** |
-| `resolver-mailbox` — a promise whose resolver is a module variable | 29 in 26 files | a run's end · `createFlowSignal` awaited under a bound | **S6**, per module |
-| `view-apply-write` — another domain's latch reset by the view-apply reaction | 19 | the latch ends with its submit / its prompt / its run | **S4 · S6** |
-| `liveness-rung` | 11 in 7 files | an owner with a bound | §6 — field evidence |
-| `wait-source` · `wait-recovery` | 9 · 9 | kernel waits; a bounded wait needs no door | **C3** — after S4 – S6 |
-| `truth-witness` | 3 | a `story` scope / a hold; a level instead of a watched edge | **S6** |
-| `controller-latch` — a bare latch `ref` in a controller | 1 (a clock of the supervisor's net) | `scopedState` | done |
-| `supervisor-port` — a fact a net samples in the shell | 29 rows (32 before the holds table) | a bound on its owner | §6 |
-| (guarded elsewhere) the shell's `watch` table · its size | `shellControllers.spec.ts` | a machine's state / a scoped run per reaction; the session owns the tick | **S6 · S-last** |
+| Row | 2026-11-11 | 2026-11-12 | The kernel form | Retires with |
+| --- | --- | --- | --- | --- |
+| `surface-by-ref` — a surface reached through `shell.$refs` in a controller | 117 in 16 files | **0 — RETIRED** | `shell.surfaces.at<T>(name)` — the surface registry | S3 — done |
+| `set-aside-writer` — a write of the one «set aside» boolean | 30 in 13 files | **0 — RETIRED** | `setQuestionAside(what)` · `takeUpQuestion(why)` — a record of the question | S4 — done |
+| `view-apply-write` — another domain's latch reset by the view-apply reaction | 19 | **0 — RETIRED** | the latch is owned by `questionScope`; each domain reconciles itself | S4 — done |
+| `resolver-mailbox` — a promise whose resolver is a module variable | 29 in 26 files | **0 — RETIRED** | `owedAnswer(label, {owner, orphaned})` | S6 — done |
+| `controller-latch` — a bare latch `ref` in a controller | 1 | **0 — RETIRED** | `scopedState` | S6 — done |
+| `liveness-rung` | 11 in 7 files | 11 | an owner with a bound | §6 — field evidence |
+| `wait-source` · `wait-recovery` | 9 · 9 | 9 · 9 | kernel waits; a bounded wait needs no door | **C3** — the observer on `waitTable()` |
+| `truth-witness` | 3 | 3 (hydro × 2, the transport's view freshness) | a `story` scope / a hold; a level instead of a watched edge | **S6**, with the hydro flow's machine |
+| `supervisor-port` — a fact a net samples in the shell | 29 rows | 29 | a bound on its owner | §6 |
+| (guarded elsewhere) the shell's reactions table · its size | 145 rows of an Options `watch` block | 145 rows of `shellReactions.ts` | a machine's state / a scoped run per reaction | **S6**, per domain |
+
+**What the ledger says now.** Every DECISION mechanism the kernel replaces is at zero and cannot come back (a `RETIRED`
+row fails on the first use, in any file). What is left frozen is the SUPERVISORY LAYER — the nets: they do not decide
+anything of the product, they catch what no owner ended. §6 says which of them stay for good (the liveness arbiter,
+the field recorder) and which retire on evidence; none may be added, and a fix inside one moves the piece it touches
+onto the kernel.
 
 **The regime until the redesign is done — «touch it → move it».** A fix inside a frozen mechanism moves the piece it
 touches onto the kernel (a latch gets its true owner, a missed edge becomes a level, a sampled fact a bound of its
@@ -840,3 +869,7 @@ and the ghost test reads structure) → S4 (the prompt router: admission and «s
 what is left is arming ON the ticket, so that a busy refusal unwinds too) →
 S6 (per domain: reactions and resolvers become machine states / runs — colonies and hydro first) → C3-rest (the
 observer on `waitTable()`; sources and doors go) → S-last (the session owns the tick; the shell is layout).
+**Taken 2026-11-12:** S4 (the question, «set aside», the view-apply writes) · S3 (the registry) · S6 (the resolvers, the
+last latch) · S-last. **Open:** S5-rest (owed steps as children of the frame) · the two one-table redesigns (S3 pad / bar,
+S4 admission) · L1-rest (arming on the ticket) · S6 per domain (reactions as machine states — colonies and hydro
+first, the hydro truth witnesses with them) · C3-rest (the wait-graph observer on `waitTable()`).

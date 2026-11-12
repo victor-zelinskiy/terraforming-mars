@@ -204,6 +204,7 @@ import {isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoa
 import {snapPlanetFocusSettled} from '@/client/console/planetFocus';
 import {sessionState} from '@/client/console/session/consoleSession';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 export type BonusProxy = {
   id: number,
@@ -301,7 +302,7 @@ const placementRun = createFlowRun('tile-placement', {orphaned: () => abortTileP
 let cancelArmSafety: () => void = () => {};
 let cancelSceneSafety: () => void = () => {};
 /** Resolves the WaitingFor commit gate (abort must always free it). */
-let runResolve: (() => void) | undefined;
+const runResolve = owedAnswer('tile-placement:gate', {orphaned: () => []});
 /** The printed bonuses the reward beat carries (captured at detect). */
 let pendingBonuses: ReadonlyArray<PlacementBonus> = [];
 /** How many times the cell's printed icons paid (`printedBonusRepeats` — TR79's doubled first city); 1 otherwise. */
@@ -458,7 +459,7 @@ export function tilePlacementHolding(): boolean {
 // the applied view, the hidden cell and cube restored, the commit gate free.
 registerAnimationHoldSupplier('tile-placement', tilePlacementHolding, {
   diagnose: () => ({phase: tilePlacementState.phase, space: tilePlacementState.spaceId,
-    tile: tilePlacementState.tileType, gatePending: runResolve !== undefined}),
+    tile: tilePlacementState.tileType, gatePending: runResolve.armed}),
   expire: () => {
     if (!tilePlacementHolding()) {
       return;
@@ -800,7 +801,7 @@ export function runTilePlacement(
   newSpaces: ReadonlyArray<SpaceModel>,
 ): Promise<void> {
   return new Promise<void>((resolve) => {
-    runResolve = resolve;
+    runResolve.arm(resolve);
     // The budget covers the LONGEST landing this transaction may play: the ordinary flight, or a city
     // tier's swing + hang + lowering + contact + settle (the crane is slower than the arc by design).
     const longest = Math.max(
@@ -1878,7 +1879,7 @@ async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>,
  * before server proof, so there is nothing to restore.
  */
 export function abortTilePlacement(): void {
-  if (!tilePlacementState.active && runResolve === undefined) {
+  if (!tilePlacementState.active && !runResolve.armed) {
     return;
   }
   clearTimers();
@@ -2193,8 +2194,7 @@ function captureBonusIcons(spaceId: string, bonuses: ReadonlyArray<PlacementBonu
 
 function freeRunGate(): void {
   cancelSceneSafety();
-  const r = runResolve;
-  runResolve = undefined;
+  const r = runResolve.take();
   r?.();
 }
 

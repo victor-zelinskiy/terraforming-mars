@@ -62,6 +62,7 @@ import {frames} from '@/client/console/kernel/flowScope';
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {createFlowRun} from '@/client/console/session/flowRun';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 export type SaleFlight = {
   id: number,
@@ -149,7 +150,7 @@ const run = createFlowRun('patent-sale', {orphaned: () => abortPatentSale()});
 let cancelArmSafety: () => void = () => {};
 let cancelSceneSafety: () => void = () => {};
 /** Resolves the WaitingFor commit gate (abort must always free it). */
-let runResolve: (() => void) | undefined;
+const runResolve = owedAnswer('patent-sale:gate', {orphaned: () => []});
 /** When the terminal reached `processing` (the min working beat anchors here). */
 let processingStartedAt = 0;
 /** The hand-slot cards we visually blanked under the proxies (abort restores). */
@@ -204,7 +205,7 @@ function expirePatentSale(): void {
     return;
   }
   console.warn(`[patent-sale] terminal (${patentSaleState.phase}, ${patentSaleState.cards.length} card(s)): outlived its ceiling — ended`);
-  if (claimed && runResolve === undefined) {
+  if (claimed && !runResolve.armed) {
     const els = stage?.els();
     if (els !== undefined) {
       killSaleTweens(els);
@@ -295,7 +296,7 @@ export function detectPatentSale(view: PlayerViewModel): {payout: number} | unde
  */
 export function runPatentSale(): Promise<void> {
   return new Promise<void>((resolve) => {
-    runResolve = resolve;
+    runResolve.arm(resolve);
     // rAF stall / lost element — force the gate open, degrade gracefully.
     cancelSceneSafety = run.guarantee(motionMs(SALE_LIFT_MS + SALE_GATHER_MS + SALE_INSERT_MS + SALE_PROCESS_MIN_MS + transferFlightBudgetMs()) + 3000,
       'the scene\'s safety (the commit gate)', () => freeRunGate());
@@ -368,7 +369,7 @@ export async function endPatentSale(): Promise<void> {
  * the stack entered the terminal), the player's picks are intact.
  */
 export function abortPatentSale(): void {
-  if (!patentSaleState.active && runResolve === undefined) {
+  if (!patentSaleState.active && !runResolve.armed) {
     return;
   }
   clearTimers();
@@ -678,8 +679,7 @@ function finish(): void {
 
 function freeRunGate(): void {
   cancelSceneSafety();
-  const r = runResolve;
-  runResolve = undefined;
+  const r = runResolve.take();
   r?.();
 }
 

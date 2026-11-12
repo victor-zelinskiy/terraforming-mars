@@ -30,6 +30,7 @@ import {isHandPick} from '@/client/console/handPickRouting';
 import type {DeclineModel} from '@/client/console/optionalChoice';
 import type {DeferPlateModel} from '@/client/console/tableQuestionRow';
 import {sessionState} from '@/client/console/session/consoleSession';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 export type ConsoleHandPickRequest = {
   /** The server prompt title (i18n key / Message) — names the ask. */
@@ -123,7 +124,7 @@ export const consoleHandPickState = reactive({
   suitableOnly: true,
 });
 
-let resolveCb: ((cards: ReadonlyArray<CardName>) => void) | undefined;
+const resolveCb = owedAnswer<[cards: ReadonlyArray<CardName>]>('hand-pick');
 let cancelCb: (() => void) | undefined;
 let declineCb: (() => void) | undefined;
 let deferCb: (() => void) | undefined;
@@ -162,7 +163,7 @@ export function enterConsoleHandPick(
   // A stale pre-selection (a card that left the candidate set) is dropped.
   consoleHandPickState.selected = request.selected.filter((n) => selectableSet.has(n));
   consoleHandPickState.suitableOnly = true;
-  resolveCb = onResolve;
+  resolveCb.arm(onResolve);
   cancelCb = onCancel;
   declineCb = request.decline !== undefined ? onDecline : undefined;
   deferCb = request.defer !== undefined ? onDefer : undefined;
@@ -196,7 +197,7 @@ export function resolveConsoleHandPick(cards: ReadonlyArray<CardName>): void {
   if (!consoleHandPickState.active) {
     return;
   }
-  const cb = resolveCb;
+  const cb = resolveCb.take();
   resetConsoleHandPick();
   cb?.(cards);
 }
@@ -218,7 +219,7 @@ export function resetConsoleHandPick(): void {
   consoleHandPickState.request = undefined;
   consoleHandPickState.selected = [];
   consoleHandPickState.suitableOnly = true;
-  resolveCb = undefined;
+  resolveCb.drop();
   cancelCb = undefined;
   declineCb = undefined;
   deferCb = undefined;

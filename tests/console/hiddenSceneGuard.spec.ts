@@ -21,7 +21,7 @@ const STACK = path.join(CLIENT, 'console', 'consoleWorkspaceStack.ts');
 
 /** `<file relative to src/client>:<line text fragment>` → the reason the combination is not a scene-visibility question. */
 const ALLOWED_COMBINATIONS: Record<string, string> = {
-  'components/console/ConsoleShell.vue|this.consoleState.task.deferred || workspaceStackCollapsed()':
+  'console/shell/wiringController.ts|consoleState.task.deferred || workspaceStackCollapsed()':
     'onNotificationGoToAction: «is there anything set aside to RESTORE» — the restore door\'s own question about the whole park, not a flow asking whether its scene is visible',
 };
 

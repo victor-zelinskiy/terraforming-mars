@@ -44,6 +44,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {consoleSessionScope, sessionState} from '@/client/console/session/consoleSession';
 import {onPressUnlanded} from '@/client/console/transport/pressUnwind';
 import {deriveFlowRun} from '@/client/console/session/flowRun';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 export type StdProjectCommitPhase = 'idle' | 'press' | 'committing' | 'committed';
 
@@ -100,11 +101,10 @@ let holdSafetyTimer: (() => void) | undefined;
  *  second commit armed inside its 1600 ms window had its own peak timer killed
  *  by the previous beat's stale safety, and its promise then never resolved,
  *  pinning the HUD hold for the session.) */
-let pendingResolve: (() => void) | undefined;
+const pendingResolve = owedAnswer('std-project-commit', {orphaned: () => []});
 
 function resolvePending(): void {
-  const r = pendingResolve;
-  pendingResolve = undefined;
+  const r = pendingResolve.take();
   r?.();
 }
 
@@ -166,7 +166,7 @@ export function runStdProjectCommit(): Promise<void> {
   return new Promise<void>((resolve) => {
     clearHoldTimer();
     resolvePending(); // a previous beat's awaiter never outlives its beat
-    pendingResolve = resolve;
+    pendingResolve.arm(resolve);
     const settle = () => {
       clearHoldTimer();
       // The peak: the row is now COMMITTED, and the world may show it.

@@ -36,6 +36,7 @@ import {consoleHydroUi} from '@/client/console/consoleHydroState';
 import {popWorkspaceFrame, pushWorkspaceFrame, workspaceFrameKnown, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
 import {suspendHydroInstance} from '@/client/console/hydroFlow/hydroInstanceSuspension';
 import {sessionState} from '@/client/console/session/consoleSession';
+import {owedAnswer} from '@/client/console/session/owedAnswer';
 
 /** The pick's one result: WHO to push back (a legal candidate's color), or
  *  undefined when the projection offers no legal target (the system outcome —
@@ -73,7 +74,7 @@ export const deltaEspionagePickState = reactive({
   request: undefined as DeltaEspionagePickRequest | undefined,
 });
 
-let resolveCb: ((draft: DeltaEspionageDraft) => void) | undefined;
+const resolveCb = owedAnswer<[draft: DeltaEspionageDraft]>('delta-espionage-entry');
 let cancelCb: (() => void) | undefined;
 /** The outer hydro role's suspended module state, when this pick NESTED over
  *  a standing hydro frame — restored by the reset funnel (every exit). */
@@ -101,7 +102,7 @@ export function enterDeltaEspionagePick(
   consoleHydroUi.repeatResult = undefined;
   resetHydroFlow();
   deltaEspionagePickState.request = request;
-  resolveCb = onResolve;
+  resolveCb.arm(onResolve);
   cancelCb = onCancel;
   deltaEspionagePickState.active = true;
   run.begin();
@@ -131,7 +132,7 @@ export function resolveDeltaEspionagePick(draft: DeltaEspionageDraft): void {
   if (!deltaEspionagePickState.active) {
     return;
   }
-  const cb = resolveCb;
+  const cb = resolveCb.take();
   resetDeltaEspionagePick();
   cb?.(draft);
 }
@@ -156,7 +157,7 @@ export function resetDeltaEspionagePick(): void {
   deltaEspionagePickState.active = false;
   run.end();
   deltaEspionagePickState.request = undefined;
-  resolveCb = undefined;
+  resolveCb.drop();
   cancelCb = undefined;
   // The outer role's suspended state comes back AFTER the frame pop.
   const restore = restoreOuter;
