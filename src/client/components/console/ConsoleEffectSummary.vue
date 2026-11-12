@@ -1,13 +1,4 @@
 <template>
-  <!--
-    «За партию» — the console rendering of ONE effect's whole-game summary
-    (EffectSummaryViewModel — the shared pure model the frozen desktop
-    EffectDetailsPanel renders too; an embedded stage may never say LESS than
-    the surface it replaces, so the blocks mirror it 1:1: scope caption →
-    headline + confidence → trigger count → impact lines → current value →
-    breakdown → note → last trigger). Loading shows a quiet skeleton — a
-    summary that has not arrived must never read as «ничего не сработало».
-  -->
   <div class="con-efx__sum">
     <span class="con-efx__rule-label" v-i18n>This game</span>
 
@@ -60,32 +51,38 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * «За партию» — the console rendering of ONE effect's whole-game summary
+ * (EffectSummaryViewModel — the shared pure model the frozen desktop
+ * EffectDetailsPanel renders too; an embedded stage may never say LESS than
+ * the surface it replaces, so the blocks mirror it 1:1: scope caption →
+ * headline + confidence → trigger count → impact lines → current value →
+ * breakdown → note → last trigger). Loading shows a quiet skeleton — a
+ * summary that has not arrived must never read as «ничего не сработало».
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import {EffectSummaryViewModel} from '@/client/components/effects/effectSummary';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 
-export default defineComponent({
-  name: 'ConsoleEffectSummary',
-  props: {
-    /** undefined = the stats have not arrived — the skeleton renders. */
-    summary: {
-      type: Object as PropType<EffectSummaryViewModel>,
-      default: undefined,
-    },
+defineOptions({name: 'ConsoleEffectSummary'});
+const props = defineProps({
+  /** undefined = the stats have not arrived — the skeleton renders. */
+  summary: {
+    type: Object as PropType<EffectSummaryViewModel>,
+    default: undefined,
   },
-  methods: {
-    iconClassFor,
-  },
-  computed: {
-    confidenceLabel(): string {
-      switch (this.summary?.confidence) {
-      case 'exact': return 'Exact';
-      case 'partial': return 'Partial';
-      case 'ruleOnly': return 'Rule effect';
-      default: return '';
-      }
-    },
-  },
+});
+
+const confidenceLabel = computed((): string => {
+  switch (props.summary?.confidence) {
+  case 'exact': return 'Exact';
+  case 'partial': return 'Partial';
+  case 'ruleOnly': return 'Rule effect';
+  default: return '';
+  }
 });
 </script>
