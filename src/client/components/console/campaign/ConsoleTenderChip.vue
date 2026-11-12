@@ -12,27 +12,19 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {TenderId, TenderStatus, tenderDef, tenderNameKey} from '@/common/campaign/tenders';
 import {tenderStatusKey} from '@/client/console/campaign/tenderHoldings';
 
-export default defineComponent({
-  name: 'ConsoleTenderChip',
-  props: {
-    id: {type: String as PropType<TenderId>, required: true},
-    status: {type: String as PropType<TenderStatus>, default: 'held'},
-  },
-  computed: {
-    nameKey(): string {
-      return tenderNameKey(this.id);
-    },
-    statusKey(): string {
-      return tenderStatusKey(this.status);
-    },
-    tier(): string {
-      return tenderDef(this.id).tier;
-    },
-  },
+defineOptions({name: 'ConsoleTenderChip'});
+const props = defineProps({
+  id: {type: String as PropType<TenderId>, required: true},
+  status: {type: String as PropType<TenderStatus>, default: 'held'},
 });
+
+const nameKey = computed((): string => tenderNameKey(props.id));
+const statusKey = computed((): string => tenderStatusKey(props.status));
+const tier = computed((): string => tenderDef(props.id).tier);
 </script>
