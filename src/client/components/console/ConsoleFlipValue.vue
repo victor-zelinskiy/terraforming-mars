@@ -14,7 +14,7 @@
   </span>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * ConsoleFlipValue — the premium value SWAP for the console top HUD
  * (ConsoleStatusStrip). A calm mechanical flip-counter beat: the old value
@@ -50,7 +50,7 @@
  *    persistent colour of the readout stays the host's own (e.g. the gold
  *    `con-status__gen--final`), which the cards inherit.
  */
-import {defineComponent, PropType} from 'vue';
+import {PropType, ref, watch} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 
@@ -60,86 +60,77 @@ export type FlipAccent = 'cyan' | 'mint' | 'gold';
 /** Full swap choreography length (out-fold + delayed in-unroll + flash). */
 const FLIP_TOTAL_MS = 940;
 
-export default defineComponent({
-  name: 'ConsoleFlipValue',
-  props: {
-    /** The numeric truth — drives increase / decrease detection. */
-    value: {type: Number, required: true},
-    /** The formatted readout; defaults to the bare number. */
-    text: {type: String, default: undefined},
-    accent: {type: String as PropType<FlipAccent>, default: 'cyan'},
-    /** Opt-in: play the flip on a DECREASE too (deck-style readouts where
-     *  shrinking is the ordinary announced event, not a rollback). */
-    flipOnDecrease: {type: Boolean, default: false},
-  },
-  /** `flip-end` (the value shown): the one-shot swap finished — a scene that waits for the flip waits for THIS,
-   *  never for a timer of its own (the generation scene, TR61). A snap (a decrease, a silent mount) emits nothing. */
-  emits: ['flip-end'],
-  setup() {
-    return {flow: useFlowScope('flip-value')};
-  },
-  data() {
-    return {
-      shown: this.value,
-      shownText: this.display(this.value, this.text),
-      prevText: this.display(this.value, this.text),
-      flipping: false,
-      /** The running flip is a DECREASE (rolls the other way). */
-      falling: false,
-      flipNonce: 0,
-      /**
-       * The running flip's end — the DISARM of a guaranteed release: `flip-end` is what a scene waits for, so it is
-       * said at the flip's length OR when this readout leaves first (never dropped with the instance); a snap disarms it.
-       */
-      clearTimer: undefined as (() => void) | undefined,
-    };
-  },
-  watch: {
-    // The formatted text can change WITHOUT the value (a re-render / a
-    // locale swap) — keep the face in sync without ever flipping for it.
-    text(): void {
-      if (!this.flipping) {
-        this.shownText = this.display(this.shown, this.text);
-      }
-    },
-    value(next: number): void {
-      if (next === this.shown) {
-        return;
-      }
-      const nextText = this.display(next, this.text);
-      if (next < this.shown && !this.flipOnDecrease) {
-        this.stopFlip();
-        this.shown = next;
-        this.shownText = nextText;
-        return;
-      }
-      this.falling = next < this.shown;
-      this.prevText = this.shownText;
-      this.shown = next;
-      this.shownText = nextText;
-      this.flipNonce++; // re-keys the cards so a rapid re-flip restarts cleanly
-      this.flipping = true;
-      if (this.clearTimer !== undefined) {
-        this.clearTimer();
-      }
-      this.clearTimer = this.flow.guarantee(motionMs(FLIP_TOTAL_MS), 'the readout\'s flip ends', () => {
-        this.flipping = false;
-        this.clearTimer = undefined;
-        this.$emit('flip-end', this.shown);
-      });
-    },
-  },
-  methods: {
-    display(value: number, text: string | undefined): string {
-      return text ?? String(value);
-    },
-    stopFlip(): void {
-      if (this.clearTimer !== undefined) {
-        this.clearTimer();
-        this.clearTimer = undefined;
-      }
-      this.flipping = false;
-    },
-  },
+defineOptions({name: 'ConsoleFlipValue'});
+const props = defineProps({
+  /** The numeric truth — drives increase / decrease detection. */
+  value: {type: Number, required: true},
+  /** The formatted readout; defaults to the bare number. */
+  text: {type: String, default: undefined},
+  accent: {type: String as PropType<FlipAccent>, default: 'cyan'},
+  /** Opt-in: play the flip on a DECREASE too (deck-style readouts where
+   *  shrinking is the ordinary announced event, not a rollback). */
+  flipOnDecrease: {type: Boolean, default: false},
+});
+/** `flip-end` (the value shown): the one-shot swap finished — a scene that waits for the flip waits for THIS,
+ *  never for a timer of its own (the generation scene, TR61). A snap (a decrease, a silent mount) emits nothing. */
+const emit = defineEmits(['flip-end']);
+
+const flow = useFlowScope('flip-value');
+const shown = ref(props.value);
+const shownText = ref(display(props.value, props.text));
+const prevText = ref(display(props.value, props.text));
+const flipping = ref(false);
+/** The running flip is a DECREASE (rolls the other way). */
+const falling = ref(false);
+const flipNonce = ref(0);
+/**
+ * The running flip's end — the DISARM of a guaranteed release: `flip-end` is what a scene waits for, so it is
+ * said at the flip's length OR when this readout leaves first (never dropped with the instance); a snap disarms it.
+ */
+let clearTimer: (() => void) | undefined;
+
+function display(value: number, text: string | undefined): string {
+  return text ?? String(value);
+}
+function stopFlip(): void {
+  if (clearTimer !== undefined) {
+    clearTimer();
+    clearTimer = undefined;
+  }
+  flipping.value = false;
+}
+
+// The formatted text can change WITHOUT the value (a re-render / a
+// locale swap) — keep the face in sync without ever flipping for it.
+watch(() => props.text, (): void => {
+  if (!flipping.value) {
+    shownText.value = display(shown.value, props.text);
+  }
+});
+watch(() => props.value, (next: number): void => {
+  if (next === shown.value) {
+    return;
+  }
+  const nextText = display(next, props.text);
+  if (next < shown.value && !props.flipOnDecrease) {
+    stopFlip();
+    shown.value = next;
+    shownText.value = nextText;
+    return;
+  }
+  falling.value = next < shown.value;
+  prevText.value = shownText.value;
+  shown.value = next;
+  shownText.value = nextText;
+  flipNonce.value++; // re-keys the cards so a rapid re-flip restarts cleanly
+  flipping.value = true;
+  if (clearTimer !== undefined) {
+    clearTimer();
+  }
+  clearTimer = flow.guarantee(motionMs(FLIP_TOTAL_MS), 'the readout\'s flip ends', () => {
+    flipping.value = false;
+    clearTimer = undefined;
+    emit('flip-end', shown.value);
+  });
 });
 </script>
