@@ -17,18 +17,15 @@
   </Teleport>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * The CONSENTED console-mode entry prompt (docs/CONSOLE_MODE_CONCEPT.md §13):
  * shown once per session on the first gamepad input while in desktop mode.
  * A full layout swap must never be silent. Input is handled by
  * GamepadLayer (A = switch, B = stay) — this component is presentation.
  */
-import {defineComponent} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
-export default defineComponent({
-  name: 'ConsoleEntryPrompt',
-  components: {GamepadGlyph},
-});
+defineOptions({name: 'ConsoleEntryPrompt'});
 </script>
