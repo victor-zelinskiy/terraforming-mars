@@ -65,7 +65,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * CONSOLE fullscreen-card HISTORY PANEL — the СТАТИСТИКА tab of the inspect
  * dossier (the console Action Browser's X-inspect). Read-only presentation of
@@ -87,30 +87,25 @@
  * shows a calm empty state instead of dead zeros. Icons resolve through the
  * same `iconClassFor` the rest of the console uses.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {ActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 
-export default defineComponent({
-  name: 'ConsoleCardHistoryPanel',
-  components: {ConsoleScrollArea},
-  props: {
-    history: {type: Object as PropType<ActionInspectHistory>, required: true},
-  },
-  computed: {
-    /** The card holds a resource / metadata but its action never fired — the
-     *  card block shows a note instead of a bare "0 activations". */
-    cardOnlyStored(): boolean {
-      return this.history.card.stored !== undefined && this.history.card.activations === 0;
-    },
-  },
-  methods: {
-    /** Normalize a raw icon key (Resource / CardResource / 'tr' / 'cards' /
-     *  global parameter) to its sprite class — mirrors the Action Browser. */
-    resIconClass(icon: string): string {
-      return iconClassFor(icon.toLowerCase().replace(/\s+/g, '-'));
-    },
-  },
+defineOptions({name: 'ConsoleCardHistoryPanel'});
+const props = defineProps({
+  history: {type: Object as PropType<ActionInspectHistory>, required: true},
 });
+
+/** The card holds a resource / metadata but its action never fired — the
+ *  card block shows a note instead of a bare "0 activations". */
+const cardOnlyStored = computed((): boolean => {
+  return props.history.card.stored !== undefined && props.history.card.activations === 0;
+});
+/** Normalize a raw icon key (Resource / CardResource / 'tr' / 'cards' /
+ *  global parameter) to its sprite class — mirrors the Action Browser. */
+function resIconClass(icon: string): string {
+  return iconClassFor(icon.toLowerCase().replace(/\s+/g, '-'));
+}
 </script>
