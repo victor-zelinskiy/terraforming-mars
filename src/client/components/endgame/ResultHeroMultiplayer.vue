@@ -1,9 +1,4 @@
 <template>
-  <!--
-    Rework §2.2 — the 3+ player result block. Winner large; a compact top-3 leaderboard;
-    the margin to second place; a short thesis (the Story DNA headline). No duel composition
-    (it doesn't scale), no category bars (§1).
-  -->
   <section class="eg-rhmulti" :class="'eg-theme--' + theme.motif" :style="{'--eg-theme': theme.accent}">
     <span class="eg-rhmulti__motif eg-motif" aria-hidden="true"></span>
     <div class="eg-rhmulti__head">
@@ -40,50 +35,47 @@
   </section>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * THE TEMPLATE (the comment that opened it — it starts with its root now):
+ *
+ * Rework §2.2 — the 3+ player result block. Winner large; a compact top-3 leaderboard;
+ * the margin to second place; a short thesis (the Story DNA headline). No duel composition
+ * (it doesn't scale), no category bars (§1).
+ */
+import {computed} from 'vue';
 import {Color} from '@/common/Color';
 import {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {themeForArchetype, StrategyVisualTheme} from '@/client/components/endgame/strategyVisualThemes';
 import {strategyLabel} from '@/client/components/endgame/strategyArchetypes';
 import FinishVerdictBanner from '@/client/components/endgame/FinishVerdictBanner.vue';
+import {vI18n} from '@/client/directives/vDirectives';
 
 type BoardRow = EndgamePlayerScore & {style?: string};
 
-export default defineComponent({
-  name: 'ResultHeroMultiplayer',
-  components: {FinishVerdictBanner},
-  props: {
-    model: {type: Object as () => EndgameModel, required: true},
-    viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
-  },
-  computed: {
-    winner(): EndgamePlayerScore | undefined {
-      return this.model.winner;
-    },
-    top3(): Array<BoardRow> {
-      return this.model.players.slice(0, 3).map((p) => ({...p, style: this.styleOf(p)}));
-    },
-    theme(): StrategyVisualTheme {
-      return themeForArchetype(this.model.winner?.strategyProfile?.primary?.archetype);
-    },
-  },
-  methods: {
-    hex(color: Color): string {
-      return endgamePlayerHex(color);
-    },
-    isViewer(color: Color): boolean {
-      return this.viewerColor === color;
-    },
-    corp(p: EndgamePlayerScore): string {
-      // The MarsBot seat keeps `corporations` empty — its corp rides `botCorporation`.
-      return p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? '');
-    },
-    styleOf(p: EndgamePlayerScore): string | undefined {
-      const prim = p.strategyProfile?.primary;
-      return prim !== undefined ? strategyLabel(prim.archetype) : undefined;
-    },
-  },
+defineOptions({name: 'ResultHeroMultiplayer'});
+const props = defineProps({
+  model: {type: Object as () => EndgameModel, required: true},
+  viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
 });
+
+const winner = computed((): EndgamePlayerScore | undefined => props.model.winner);
+const top3 = computed((): Array<BoardRow> => props.model.players.slice(0, 3).map((p) => ({...p, style: styleOf(p)})));
+const theme = computed((): StrategyVisualTheme => themeForArchetype(props.model.winner?.strategyProfile?.primary?.archetype));
+
+function hex(color: Color): string {
+  return endgamePlayerHex(color);
+}
+function isViewer(color: Color): boolean {
+  return props.viewerColor === color;
+}
+function corp(p: EndgamePlayerScore): string {
+  // The MarsBot seat keeps `corporations` empty — its corp rides `botCorporation`.
+  return p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? '');
+}
+function styleOf(p: EndgamePlayerScore): string | undefined {
+  const prim = p.strategyProfile?.primary;
+  return prim !== undefined ? strategyLabel(prim.archetype) : undefined;
+}
 </script>
