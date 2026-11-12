@@ -1,13 +1,4 @@
 <template>
-  <!--
-    THE DOSSIER'S ACTIONS PLATE (TR60): the seat's action cards as TILES — the card's own art, its name, and its STATE
-    as a SHAPE, never a colour alone: ▶ on a mint disc = the viewer can take it now (the server's offer); ✕ on an
-    amber disc under a dark scrim = the viewer's own card refused (the server's reason is the zone's, one A away);
-    ✓ on a steel disc over a sunk art = used this generation (public); ○ hollow = another seat's card not yet used
-    (its availability is that seat's verdict — invariant 2, never derived here). The legend under the tiles says the
-    same counts in the same shapes. Read-only: the zone is the ring stop, a tile is not.
-    Empty: the silhouette of a tile and one line — no action cards on this table.
-  -->
   <div class="con-dacts" :data-dossier-actions="tiles.length">
     <div v-if="tiles.length > 0" class="con-dacts__grid" :style="{'--dact-cols': columns}">
       <div v-for="t in shown" :key="t.name" class="con-dact" :class="'con-dact--' + t.state"
@@ -37,8 +28,20 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE DOSSIER'S ACTIONS PLATE (TR60): the seat's action cards as TILES — the card's own art, its name, and its STATE
+ * as a SHAPE, never a colour alone: ▶ on a mint disc = the viewer can take it now (the server's offer); ✕ on an
+ * amber disc under a dark scrim = the viewer's own card refused (the server's reason is the zone's, one A away);
+ * ✓ on a steel disc over a sunk art = used this generation (public); ○ hollow = another seat's card not yet used
+ * (its availability is that seat's verdict — invariant 2, never derived here). The legend under the tiles says the
+ * same counts in the same shapes. Read-only: the zone is the ring stop, a tile is not.
+ * Empty: the silhouette of a tile and one line — no action cards on this table.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {CardName} from '@/common/cards/CardName';
 import {DossierActionState, DossierActionTile, dossierActionCounts, dossierPlateTiles} from '@/client/console/infoDossierModel';
 import {cardArtUrl, cardArtUrlAtTier, CARD_ART_FALLBACK_URL} from '@/client/cards/cardArt';
@@ -55,39 +58,31 @@ const LABEL: Readonly<Record<DossierActionState, string>> = {
   idle: 'Not used yet',
 };
 
-export default defineComponent({
-  name: 'ConsoleDossierActions',
-  props: {
-    tiles: {type: Array as PropType<ReadonlyArray<DossierActionTile>>, required: true},
-    /** At most this many tiles stand on the plate; the rest are counted («+K») — the zone shows them all. */
-    max: {type: Number, default: 8},
-    columns: {type: Number, default: 4},
-  },
-  data() {
-    return {MARK, LABEL};
-  },
-  computed: {
-    shown(): ReadonlyArray<DossierActionTile> {
-      return dossierPlateTiles(this.tiles, this.max);
-    },
-    hidden(): number {
-      return this.tiles.length - this.shown.length;
-    },
-    counts(): ReadonlyArray<{state: DossierActionState, count: number}> {
-      return dossierActionCounts(this.tiles);
-    },
-  },
-  methods: {
-    emblemOf(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-    accentOf(party: ReduxParty): string {
-      return partyAccent(party);
-    },
-    artStyle(name: string): Record<string, string> {
-      const url = cardArtUrl(name as CardName);
-      return {backgroundImage: `url(${url === undefined ? CARD_ART_FALLBACK_URL : cardArtUrlAtTier(url, 'thumb')})`};
-    },
-  },
+defineOptions({name: 'ConsoleDossierActions'});
+const props = defineProps({
+  tiles: {type: Array as PropType<ReadonlyArray<DossierActionTile>>, required: true},
+  /** At most this many tiles stand on the plate; the rest are counted («+K») — the zone shows them all. */
+  max: {type: Number, default: 8},
+  columns: {type: Number, default: 4},
 });
+
+const shown = computed((): ReadonlyArray<DossierActionTile> => {
+  return dossierPlateTiles(props.tiles, props.max);
+});
+const hidden = computed((): number => {
+  return props.tiles.length - shown.value.length;
+});
+const counts = computed((): ReadonlyArray<{state: DossierActionState, count: number}> => {
+  return dossierActionCounts(props.tiles);
+});
+function emblemOf(party: ReduxParty): string {
+  return partyEmblemUrl(party);
+}
+function accentOf(party: ReduxParty): string {
+  return partyAccent(party);
+}
+function artStyle(name: string): Record<string, string> {
+  const url = cardArtUrl(name as CardName);
+  return {backgroundImage: `url(${url === undefined ? CARD_ART_FALLBACK_URL : cardArtUrlAtTier(url, 'thumb')})`};
+}
 </script>
