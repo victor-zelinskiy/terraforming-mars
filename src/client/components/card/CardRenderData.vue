@@ -4,22 +4,16 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import CardRowData from '@/client/components/card/CardRowData.vue';
 
-export default defineComponent({
-  name: 'CardRenderData',
-  props: {
-    renderData: {
-      type: Object as () => ICardRenderRoot,
-      required: true,
-    },
-  },
-  components: {
-    CardRowData,
+defineOptions({name: 'CardRenderData'});
+defineProps({
+  renderData: {
+    type: Object as () => ICardRenderRoot,
+    required: true,
   },
 });
 
