@@ -4,30 +4,27 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 
-export default defineComponent({
-  name: 'CardParty',
-  props: {
-    party: {
-      required: true,
-      type: String,
-    },
-    size: {
-      required: false,
-      default: 'card',
-      type: String as () => 'card' | 'req',
-    },
+defineOptions({name: 'CardParty'});
+const props = defineProps({
+  party: {
+    required: true,
+    type: String,
   },
-  computed: {
-    classes(): string {
-      const p = this.party.toLowerCase().replace(' ', '-');
-      const suffix = this.size === 'req' ? '-req' : '';
-      return `card-party--${p}${suffix}`;
-    },
+  size: {
+    required: false,
+    default: 'card',
+    type: String as () => 'card' | 'req',
   },
+});
+
+const classes = computed((): string => {
+  const p = props.party.toLowerCase().replace(' ', '-');
+  const suffix = props.size === 'req' ? '-req' : '';
+  return `card-party--${p}${suffix}`;
 });
 
 </script>
