@@ -1,5 +1,5 @@
 /**
- * IN-BUNDLE test setup — loaded through mochapack's `--include`, so it runs
+ * IN-BUNDLE test setup — the FIRST module of the client test bundle (`scripts/client-tests.mjs`), so it runs
  * INSIDE the webpack bundle (unlike `setup.ts`, which node loads before mocha's
  * globals even exist) and therefore shares ONE `@vue/test-utils` instance with
  * every spec.
@@ -7,7 +7,7 @@
  * ── WHY: A MOUNT THAT IS NEVER UNMOUNTED IS A LIVE SUBSCRIBER ──────────────
  *
  * `mount()` leaves the component mounted until somebody unmounts it, and most
- * specs never do. Under mochapack the whole suite is ONE bundle in ONE process,
+ * specs never do. The whole client suite is ONE bundle in ONE process,
  * so those wrappers accumulate: by the end of a full run several thousand live
  * components are still subscribed to the module-level reactive state this fork
  * is built on (`consoleState`, `journalState`, `notificationState`,
@@ -28,7 +28,8 @@
  * ⚠️ CONSEQUENCE FOR SPEC AUTHORS: a wrapper does NOT survive into the next
  * `it()`. Mount in `beforeEach`, never in `before`.
  */
-import {disableAutoUnmount, enableAutoUnmount} from '@vue/test-utils';
+import {config, disableAutoUnmount, enableAutoUnmount} from '@vue/test-utils';
+import {vaporInteropPlugin} from 'vue';
 import {auditReactivity} from '@/client/components/presentation/reactivityWitness';
 
 /**
@@ -53,6 +54,21 @@ import {auditReactivity} from '@/client/components/presentation/reactivityWitnes
  * the source. This net stays because the next one is a matter of time.
  */
 const teardownFailures: Array<string> = [];
+
+/*
+ * ── EVERY MOUNT CAN HOST A VAPOR COMPONENT ──────────────────────────────────
+ *
+ * The product is a virtual-DOM app in which Vapor components (`<script setup vapor>`) are being introduced wave by
+ * wave (docs/claude/vapor/ROADMAP.md); `main.ts` installs `vaporInteropPlugin` for it. A spec mounts its component
+ * in an app of its own — and a component whose tree reaches a converted leaf mounts NOTHING there without the plugin
+ * (the Vapor child is an unknown kind of component to a plain virtual-DOM renderer). Installed here, once, for every
+ * `mount()` of the bundle: a spec never has to know which of its component's descendants were converted.
+ *
+ * What a spec still has to know: `mount(<a Vapor component>)` itself is not possible (test-utils reads the ROOT's
+ * virtual-DOM instance) — stand it under a virtual-DOM host with an element root
+ * (`tests/client/vapor/vaporCapability.spec.ts` § `mountVapor`, `card/CardDescription.spec.ts`).
+ */
+config.global.plugins = [...(config.global.plugins ?? []), vaporInteropPlugin];
 
 /**
  * ⚠️ AND A THROWER MUST NOT BE RETRIED. `@vue/test-utils` clears its tracked list

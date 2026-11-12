@@ -102,6 +102,12 @@ module.exports = {
       {
         test: /\.vue$/,
         loader: 'vue-loader',
+        options: {
+          // vue-loader 17 does not know Vapor: this compiler picks `@vue/compiler-vapor` for a component whose
+          // `<script>` / `<template>` carries the `vapor` attribute, the DOM compiler for every other one — in the
+          // production build and in the unit-test bundle alike (the header of that file; ROADMAP §3.6).
+          compiler: path.resolve(__dirname, 'scripts/vapor/sfcTemplateCompiler.cjs'),
+        },
       },
       {
         test: /\.tsx?$/,

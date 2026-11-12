@@ -1,4 +1,4 @@
-import {createApp, defineAsyncComponent} from 'vue';
+import {createApp, defineAsyncComponent, vaporInteropPlugin} from 'vue';
 
 import {trimEmptyTextNodes} from '@/client/directives/TrimWhitespace';
 import App from '@/client/components/App.vue';
@@ -93,6 +93,10 @@ async function bootstrap() {
 
   const app = createApp(App);
   installVueErrorReport(app);
+  // THE ROAD TO `createVaporApp(App)` (docs/claude/vapor/ROADMAP.md): until the last component is converted the app is
+  // a virtual-DOM one in which Vapor components (`<script setup vapor>`) and virtual-DOM components host each other —
+  // this plugin is what lets them. It goes with the switch of V4 (a Vapor app needs no interop).
+  app.use(vaporInteropPlugin);
 
   app.use(i18nPlugin);
 
