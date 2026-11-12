@@ -1,11 +1,4 @@
 <template>
-  <!--
-    THE DOSSIER'S CAMPAIGN ZONE (the Information polish of 2026-10-19): the campaign as OBJECTS, never «label — number»
-    rows — the mission's own BOARD in miniature (the campaign map's fingerprint, the same drawing as its mission card),
-    the ROUTE of the campaign as nodes (the missions done, the one being played, the ones ahead), the seat's TITLES as
-    their emblems beside the title points (a gold token, the scoring semantics AT the value), and the composition count
-    in the ledger's quiet type. Read-only: the zone is the ring's stop, A opens the campaign overview.
-  -->
   <div class="con-dcmp" data-dossier-campaign>
     <div v-if="board !== undefined" class="con-dcmp__board" aria-hidden="true">
       <PremiumMapFingerprint :map-id="board" variant="thumb" />
@@ -46,43 +39,44 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE DOSSIER'S CAMPAIGN ZONE (the Information polish of 2026-10-19): the campaign as OBJECTS, never «label — number»
+ * rows — the mission's own BOARD in miniature (the campaign map's fingerprint, the same drawing as its mission card),
+ * the ROUTE of the campaign as nodes (the missions done, the one being played, the ones ahead), the seat's TITLES as
+ * their emblems beside the title points (a gold token, the scoring semantics AT the value), and the composition count
+ * in the ledger's quiet type. Read-only: the zone is the ring's stop, A opens the campaign overview.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {BoardName} from '@/common/boards/BoardName';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import ConsoleTenderCard from '@/client/components/console/campaign/ConsoleTenderCard.vue';
 import {tenderCardStateOf} from '@/client/console/campaign/tenderPortfolio';
 import {tenderHoldingName, TenderHoldingView} from '@/client/console/campaign/tenderHoldings';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleDossierCampaign',
-  components: {PremiumMapFingerprint, ConsoleTenderCard},
-  props: {
-    /** The mission being played, 0-based. */
-    missionSlot: {type: Number, required: true},
-    missionCount: {type: Number, required: true},
-    /** The mission's board — its miniature (absent while the campaign model loads). */
-    board: {type: String as PropType<BoardName | undefined>, default: undefined},
-    /** «2 из 4 · Элизий» — the frame line, already translated. */
-    missionText: {type: String, required: true},
-    titles: {type: Array as PropType<ReadonlyArray<{art: string, label: string}>>, default: () => []},
-    tpText: {type: String, required: true},
-    /** The title points' scoring semantics (an i18n key). */
-    tpNote: {type: String, required: true},
-    corpCount: {type: String, required: true},
-    /** The «Тендеры» mode: the viewed seat's holdings — present (even empty) only on a tenders campaign. */
-    tenders: {type: Array as PropType<ReadonlyArray<TenderHoldingView> | undefined>, default: undefined},
-  },
-  computed: {
-    /** The ledger's count of the holdings («3 тендера») — the TP's register in the tenders mode. */
-    tenderTally(): string {
-      return translateTextWithParams('${0} tender(s)', [String(this.tenders?.length ?? 0)]);
-    },
-  },
-  methods: {
-    tenderHoldingName,
-    tenderCardStateOf,
-  },
+defineOptions({name: 'ConsoleDossierCampaign'});
+const props = defineProps({
+  /** The mission being played, 0-based. */
+  missionSlot: {type: Number, required: true},
+  missionCount: {type: Number, required: true},
+  /** The mission's board — its miniature (absent while the campaign model loads). */
+  board: {type: String as PropType<BoardName | undefined>, default: undefined},
+  /** «2 из 4 · Элизий» — the frame line, already translated. */
+  missionText: {type: String, required: true},
+  titles: {type: Array as PropType<ReadonlyArray<{art: string, label: string}>>, default: () => []},
+  tpText: {type: String, required: true},
+  /** The title points' scoring semantics (an i18n key). */
+  tpNote: {type: String, required: true},
+  corpCount: {type: String, required: true},
+  /** The «Тендеры» mode: the viewed seat's holdings — present (even empty) only on a tenders campaign. */
+  tenders: {type: Array as PropType<ReadonlyArray<TenderHoldingView> | undefined>, default: undefined},
+});
+
+/** The ledger's count of the holdings («3 тендера») — the TP's register in the tenders mode. */
+const tenderTally = computed((): string => {
+  return translateTextWithParams('${0} tender(s)', [String(props.tenders?.length ?? 0)]);
 });
 </script>
