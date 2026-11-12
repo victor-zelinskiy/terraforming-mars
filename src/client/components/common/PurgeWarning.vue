@@ -8,28 +8,23 @@
     </div>
   </span>
 </template>
-<script lang="ts">
+<script setup lang="ts">
 import {translateTextWithParams} from '@/client/directives/i18n';
-import {defineComponent} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
+import {computed} from 'vue';
 
-export default defineComponent({
-  name: 'PurgeWarning',
-  props: {
-    expectedPurgeTimeMs: {
-      type: Number,
-      required: true,
-    },
+defineOptions({name: 'PurgeWarning'});
+const props = defineProps({
+  expectedPurgeTimeMs: {
+    type: Number,
+    required: true,
   },
-  computed: {
-    hoursLeft(): number {
-      const nowMs = Date.now();
-      const diffMs = this.expectedPurgeTimeMs - nowMs;
-      const diffh = diffMs / 3_600_000;
-      return diffh;
-    },
-    translateTextWithParams(): typeof translateTextWithParams {
-      return translateTextWithParams;
-    },
-  },
+});
+
+const hoursLeft = computed((): number => {
+  const nowMs = Date.now();
+  const diffMs = props.expectedPurgeTimeMs - nowMs;
+  const diffh = diffMs / 3_600_000;
+  return diffh;
 });
 </script>
