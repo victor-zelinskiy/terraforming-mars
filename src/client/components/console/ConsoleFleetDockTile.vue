@@ -1,32 +1,4 @@
 <template>
-  <!--
-    A FLEET DOCK — ONE MORE TRADE DESTINATION, drawn as a CELL of the colony
-    grid in the colony tile's own language (Turmoil Redux TR06 Water Hauling and
-    its sisters — a card that is a destination of its owner's trade action).
-    The owner's 2026-10-25 brief («ещё одно направление торговли», never a
-    foreign mechanism) and ledger EZ (2026-11-03: «причал должен быть в том же
-    размере, что плитка колонии, и говорить на том же языке»): the SAME chassis
-    (`.con-coltile` — plate, size, zoom, cursor), the SAME rows, row by row:
-
-      1 · HEAD — the card's name on ONE line (an ellipsis in its own box), the
-          «ПРИЧАЛ» mark where a colony has none, and a ROUND medallion of the
-          card's art in the planet's own diameter and dress — the card itself
-          lives in the stage and in the X viewer (`data-zoom-slot` lifts it out
-          of this medallion; `data-fleet-dock-face` is the descend's FLIP twin).
-          The fleet that stands on the card berths at the medallion's corner,
-          exactly where a colony's visitor berths (`data-fleet-berth="card:…"`
-          — the overview's landing anchor of the trade flight);
-      2 · BAND — where a colony shows its berths and its track, the dock has
-          neither: its STATUS strip stands there, a WORD on a kant («Причал
-          свободен» · «Флот у причала» · the server's reason — through the SAME
-          ladder as a colony tile, `fleetDockTileStatus`);
-      3 · CELLS — «ТОРГОВАТЬ» in the colony's own cell and width, printing WHAT
-          THE TRADE GIVES in the card's own print (the ocean, the rating, the
-          floaters — read off the printed effect row, never a client guess);
-          the «БОНУС» cell has no counterpart and stays an empty dim «—», so
-          the rows of the grid align;
-      4 · FOOT — the colony tile's status line, idle: the band said it.
-  -->
   <div class="con-coltile con-coltile--dock con-fleetdock-tile"
        :class="{
          'con-coltile--focused': focused,
@@ -91,8 +63,38 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE TEMPLATE (the comment that opened it — it starts with its root now):
+ *
+ * A FLEET DOCK — ONE MORE TRADE DESTINATION, drawn as a CELL of the colony
+ * grid in the colony tile's own language (Turmoil Redux TR06 Water Hauling and
+ * its sisters — a card that is a destination of its owner's trade action).
+ * The owner's 2026-10-25 brief («ещё одно направление торговли», never a
+ * foreign mechanism) and ledger EZ (2026-11-03: «причал должен быть в том же
+ * размере, что плитка колонии, и говорить на том же языке»): the SAME chassis
+ * (`.con-coltile` — plate, size, zoom, cursor), the SAME rows, row by row:
+ *
+ *   1 · HEAD — the card's name on ONE line (an ellipsis in its own box), the
+ *       «ПРИЧАЛ» mark where a colony has none, and a ROUND medallion of the
+ *       card's art in the planet's own diameter and dress — the card itself
+ *       lives in the stage and in the X viewer (`data-zoom-slot` lifts it out
+ *       of this medallion; `data-fleet-dock-face` is the descend's FLIP twin).
+ *       The fleet that stands on the card berths at the medallion's corner,
+ *       exactly where a colony's visitor berths (`data-fleet-berth="card:…"`
+ *       — the overview's landing anchor of the trade flight);
+ *   2 · BAND — where a colony shows its berths and its track, the dock has
+ *       neither: its STATUS strip stands there, a WORD on a kant («Причал
+ *       свободен» · «Флот у причала» · the server's reason — through the SAME
+ *       ladder as a colony tile, `fleetDockTileStatus`);
+ *   3 · CELLS — «ТОРГОВАТЬ» in the colony's own cell and width, printing WHAT
+ *       THE TRADE GIVES in the card's own print (the ocean, the rating, the
+ *       floaters — read off the printed effect row, never a client guess);
+ *       the «БОНУС» cell has no counterpart and stays an empty dim «—», so
+ *       the rows of the grid align;
+ *   4 · FOOT — the colony tile's status line, idle: the band said it.
+ */
+import {computed, PropType} from 'vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -100,31 +102,28 @@ import {cardArtUrlAtTier, premiumCardArt} from '@/client/cards/cardArt';
 import {ItemType} from '@/common/cards/render/Types';
 import {FleetDockTileStatus, FleetDockView, fleetDockPrintedReward, fleetDockTileLabel} from '@/client/console/colonyTrade/fleetDockModel';
 import {fleetDockBerthKey} from '@/client/components/premiumCard/premiumFleetDock';
+import {$t} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleFleetDockTile',
-  components: {ColonyFleetIcon, PremiumMechNode},
-  props: {
-    dock: {type: Object as PropType<FleetDockView>, required: true},
-    status: {type: Object as PropType<FleetDockTileStatus>, required: true},
-    focused: {type: Boolean, default: false},
-  },
-  computed: {
-    label(): string {
-      return fleetDockTileLabel(this.status);
-    },
-    /** The medallion's picture — the card's own art, the THUMB build (a 3rem disc never needs the full file). */
-    artBackground(): string {
-      return `url("${cardArtUrlAtTier(premiumCardArt(this.dock.card).url, 'thumb')}")`;
-    },
-    /** The fleet's landing anchor on the overview — the same key the card face's ▲ carries on the stage. */
-    berthKey(): string {
-      return fleetDockBerthKey(this.dock.card);
-    },
-    /** The RESULT half of the card's printed «▲* : [reward]» — the face's own nodes (never a restatement). */
-    rewardPrint(): ReadonlyArray<ItemType> {
-      return fleetDockPrintedReward(getCard(this.dock.card)?.metadata.renderData);
-    },
-  },
+defineOptions({name: 'ConsoleFleetDockTile'});
+const props = defineProps({
+  dock: {type: Object as PropType<FleetDockView>, required: true},
+  status: {type: Object as PropType<FleetDockTileStatus>, required: true},
+  focused: {type: Boolean, default: false},
+});
+
+const label = computed((): string => {
+  return fleetDockTileLabel(props.status);
+});
+/** The medallion's picture — the card's own art, the THUMB build (a 3rem disc never needs the full file). */
+const artBackground = computed((): string => {
+  return `url("${cardArtUrlAtTier(premiumCardArt(props.dock.card).url, 'thumb')}")`;
+});
+/** The fleet's landing anchor on the overview — the same key the card face's ▲ carries on the stage. */
+const berthKey = computed((): string => {
+  return fleetDockBerthKey(props.dock.card);
+});
+/** The RESULT half of the card's printed «▲* : [reward]» — the face's own nodes (never a restatement). */
+const rewardPrint = computed((): ReadonlyArray<ItemType> => {
+  return fleetDockPrintedReward(getCard(props.dock.card)?.metadata.renderData);
 });
 </script>
