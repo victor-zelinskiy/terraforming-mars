@@ -21,8 +21,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {vI18n} from '@/client/directives/vDirectives';
 import {RULEBOOK_URLS} from '@/client/utils/WikiLinks';
 
 interface RulebookEntry {
@@ -53,13 +53,5 @@ const fanExpansions: ReadonlyArray<RulebookEntry> = [
   {module: 'deltaProject', name: 'Delta Project', iconClass: 'deltaProject', url: RULEBOOK_URLS.deltaProject},
 ];
 
-export default defineComponent({
-  name: 'HelpRulebooks',
-  data() {
-    return {
-      officialExpansions,
-      fanExpansions,
-    };
-  },
-});
+defineOptions({name: 'HelpRulebooks'});
 </script>
