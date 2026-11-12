@@ -31,8 +31,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed} from 'vue';
 import {ItemType} from '@/common/cards/render/Types';
 import {nodeGraphicToken} from '@/common/cards/render/cardGraphicIds';
 import {MechanicsVM} from './mechanicsModel';
@@ -44,32 +44,27 @@ import PremiumMechNode from './PremiumMechNode.vue';
  * Alternative groups (`orJoin`) are joined by the premium «ИЛИ» divider
  * instead of the plain hairline, so a choice can never read as "do both".
  */
-export default defineComponent({
-  name: 'PremiumMechanicsPanel',
-  components: {PremiumMechNode},
-  props: {
-    mechanics: {
-      type: Object as () => MechanicsVM,
-      required: true,
-    },
-  },
-  computed: {
-    orLabel(): string {
-      return translateText('OR');
-    },
-    /** First group of the play zone; groups.length = no zone → no rail.
-     *  A LAYOUT-POLICY fact computed by `buildMechanics` (canonical faces
-     *  derive it from the trailing plain run; a printedLayout/CEO face has
-     *  no on-play zone by rule) — never re-derived at the render site. */
-    playStart(): number {
-      return this.mechanics.playStart;
-    },
-  },
-  methods: {
-    /** The node's exact-anchor address (shared derivation — see cardGraphicIds). */
-    nodeToken(node: ItemType): string | undefined {
-      return nodeGraphicToken(node);
-    },
+defineOptions({name: 'PremiumMechanicsPanel'});
+const props = defineProps({
+  mechanics: {
+    type: Object as () => MechanicsVM,
+    required: true,
   },
 });
+
+const orLabel = computed((): string => {
+  return translateText('OR');
+});
+/** First group of the play zone; groups.length = no zone → no rail.
+ *  A LAYOUT-POLICY fact computed by `buildMechanics` (canonical faces
+ *  derive it from the trailing plain run; a printedLayout/CEO face has
+ *  no on-play zone by rule) — never re-derived at the render site. */
+const playStart = computed((): number => {
+  return props.mechanics.playStart;
+});
+
+/** The node's exact-anchor address (shared derivation — see cardGraphicIds). */
+function nodeToken(node: ItemType): string | undefined {
+  return nodeGraphicToken(node);
+}
 </script>
