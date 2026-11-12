@@ -2,7 +2,7 @@
 /*
  * TEST RUNNER WRAPPER — «зелёный» must mean «tests ran».
  *
- * WHY THIS EXISTS. A mocha/mochapack run that collects ZERO tests exits 0 and
+ * WHY THIS EXISTS. A mocha run (the server suite, the client bundle) that collects ZERO tests exits 0 and
  * prints «0 passing», which every CI in the world reads as success. This fork
  * shipped exactly that: a fixed-name `vendors` split chunk turned the whole
  * `npm run test:client` suite into a silent no-op (see webpack.test.config.js),

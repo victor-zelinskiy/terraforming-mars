@@ -5,7 +5,8 @@ import ConsoleOptionsPanel from '@/client/components/console/menu/ConsoleOptions
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {privateScoreState, setPrivateScore} from '@/client/components/overview/privateScoreState';
 import {buttonLayoutState, setButtonLayout} from '@/client/gamepad/buttonLayout';
-import {currentProfileOverride, setConsoleProfileOverride} from '@/client/console/consoleLayoutProfile';
+import {currentProfileOverride} from '@/client/console/consoleLayoutProfile';
+import {restLayoutProfile} from './layoutAtRest';
 import {notificationFeedModeState, setNotificationFeedMode} from '@/client/components/notifications/notificationFeedMode';
 import {notificationContentModeState, setNotificationContentMode} from '@/client/components/notifications/notificationContentMode';
 
@@ -64,11 +65,12 @@ describe('ConsoleOptionsPanel (the settings console)', () => {
     }
   });
 
-  // Module state is bundle-shared across specs — restore the defaults.
+  // Module state is bundle-shared across specs — restore the defaults. The layout profile goes back to its REST
+  // state, never to «auto» (`layoutAtRest.ts` says why: «auto» in jsdom is `handheld`, for every spec after this one).
   afterEach(() => {
     setPrivateScore(false);
     setButtonLayout('standard');
-    setConsoleProfileOverride('auto');
+    restLayoutProfile();
     setNotificationFeedMode('all');
     setNotificationContentMode('brief');
   });

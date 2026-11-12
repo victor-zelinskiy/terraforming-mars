@@ -3,6 +3,7 @@ import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
 import {tableTargetStandKey} from '@/client/console/played/tableTargetZone';
+import {restLayoutProfile} from './layoutAtRest';
 
 /*
  * «ЦЕЛЬ НА СТОЛЕ — ОДНА ЗОНА» (the owner, 2026-10-28). «Хищники» with MarsBot at the table: the server's removal
@@ -70,6 +71,10 @@ function factory(withCards = true) {
 }
 
 describe('ConsoleActionComposer — the table\'s targets are ONE zone', () => {
+  // The zone's layout is the profile's (a handheld shows ONE owner group at a time, behind tabs): the spec states the
+  // environment it counts groups in, instead of inheriting whatever an earlier spec of the bundle left.
+  beforeEach(restLayoutProfile);
+
   it('A on the row opens the zone directly: the players\' group AND the bot\'s, no list, no door', async () => {
     const w = factory();
     await w.vm.$nextTick();

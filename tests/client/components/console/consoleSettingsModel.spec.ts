@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {buildConsoleSettings} from '@/client/console/settings/consoleSettingsModel';
-import {PROFILE_CHOICES, currentProfileOverride, setConsoleProfileOverride} from '@/client/console/consoleLayoutProfile';
+import {PROFILE_CHOICES, currentProfileOverride} from '@/client/console/consoleLayoutProfile';
+import {restLayoutProfile} from './layoutAtRest';
 import {buttonLayoutState, setButtonLayout} from '@/client/gamepad/buttonLayout';
 import {privateScoreState, setPrivateScore} from '@/client/components/overview/privateScoreState';
 import {readingScaleState, setConsoleReadingScale} from '@/client/console/consoleReadingScale';
@@ -21,7 +22,7 @@ describe('consoleSettingsModel', () => {
   afterEach(() => {
     setButtonLayout('standard');
     setPrivateScore(false);
-    setConsoleProfileOverride('auto');
+    restLayoutProfile(); // never a bare «auto» — in jsdom that is `handheld` for every spec after this one
     setConsoleReadingScale(100);
     setCardNumberDisplay(false);
     setCardReactionScope('mine');

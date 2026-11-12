@@ -2,7 +2,7 @@
 
 **Status:** Phase 0 — feasibility audit + implementation-grade plan (analysis only; no Electron runtime added yet).
 **Target runtime:** Electron **43.0.0** · **Windows-first** · macOS signing/notarization deferred to a separate future initiative.
-> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**45.2.3** as of 2026-11-08 — Chromium 156, Node 24.22.2, V8 15.6). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
+> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**45.3.1** as of 2026-11-12 — Chromium 156, Node 24.22.2, V8 15.6). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
 **Baseline:** builds on the completed WebSocket realtime layer — see `WEBSOCKET_MIGRATION_PLAN.md` (§L mutation matrix + flag ladder). This document is its desktop-shell companion.
 
 This plan is grounded in a read-only audit of the actual codebase (branch `main`, Node v22.22.3 / npm 10.9.8). Every load-bearing claim cites `file:line`. It is a plan, not an implementation — the first code lands only when Phase 1 is explicitly requested.
@@ -946,6 +946,7 @@ crash rather than a build error); 7 CI `node-version` pins and the `Dockerfile` 
 
 | Date | Pin | Chromium | Node | V8 | Notes |
 | --- | --- | --- | --- | --- | --- |
+| 2026-11-12 | **45.3.1** | 156.0.8078.96 | 24.22.2 | 15.6.75.50 | Rolls up 45.3.0 + 45.3.1 — one additive feature, fixes and security backports; see the upgrade notes below |
 | 2026-11-08 | **45.2.3** | 156.0.8078.80 | 24.22.2 | 15.6.75.27 | Rolls up 45.2.2 + 45.2.3 — fixes + security backports only; see the upgrade notes below |
 | 2026-11-01 | **45.2.1** | 156.0.8078.75 | 24.22.1 | 15.6.75.25 | Rolls up 45.1.0 + 45.2.0 + 45.2.1 — no breaking changes; see the upgrade notes below |
 | 2026-10-21 | **45.0.0** | 156.0.8078.48 | 24.22.0 | 15.6.75.19 | Major — breaking-change audit below. Skips 44.4.0…44.9.3 (dependabot proposed 44.4.5) |
@@ -953,6 +954,23 @@ crash rather than a build error); 7 CI `node-version` pins and the `Dockerfile` 
 | 2026-08-31 | **44.1.0** | 152.0.7977.65 | 24.19.0 | 15.2.124.18 | Patch release - no breaking changes; see below |
 | 2026-08-25 | **44.0.0** | 152.0.7977.54 | 24.18.1 | 15.2.124.13 | See audit below |
 | (prior) | 43.4.0 | 150.0.7871.224 | 24.18.1 | 15.0.245.28 | |
+
+### 45.2.3 → 45.3.1 — upgrade notes
+
+A minor (45.3.0) and a patch (45.3.1) — no breaking change. Node stays 24.22.2, so no pin of the repo moves
+(`engines`, `@types/node`, `.nvmrc`, CI, `Dockerfile`). What they change *for this codebase*:
+
+| Upstream change | Impact here |
+| --- | --- |
+| **`chrome.storage.managed` for extensions** (45.3.0, [#55526](https://github.com/electron/electron/pull/55526)) — the one feature | No impact — the shell loads no extension. |
+| **Incorrect display of hidden windows on Windows** (45.3.0, [#55630](https://github.com/electron/electron/pull/55630)) | The one fix that touches a path we take: the main window is created `show: false` and shown on ready (`electron/main.ts`). Nothing to change in code. NOT yet looked at on a packaged build — the first desktop run on this pin should watch the boot curtain's first frame. |
+| Crash when a permission handler answers after its `<webview>` is gone · renderer crash on unbounded `webRequest` redirect loops · `net.fetch` hang on an upload stream error · `setIgnoreMouseEvents(…, {forward})` on reparented windows (45.3.0) | No impact — `setPermissionRequestHandler`, `webRequest`, `net.fetch` and `setIgnoreMouseEvents` are unused in `electron/`. |
+| macOS: a hang on quit with `systemPreferences.subscribe*Notification`, shadow / focusable in app shims, a notification-observer leak (45.3.0, 45.3.1) | No impact — macOS is not a shipped lane and none of the APIs is used. |
+| **Chromium 156.0.8078.80 → .96, V8 15.6.75.27 → .50, backports from Chromium / Dawn / V8; certificates of `eMudhra`'s revoked RSA intermediates no longer trusted** (45.3.0 [#55703](https://github.com/electron/electron/pull/55703), [#55708](https://github.com/electron/electron/pull/55708); 45.3.1 [#55742](https://github.com/electron/electron/pull/55742)) | Security and stability only. The renderer talks to the embedded server over loopback and to the project's own host — neither chain uses that CA. |
+
+Checked with the bump (2026-11-12, together with webpack 5.111.1 → 5.112.2): `npm run build:embedded` (the
+codegen guard) + a live boot of `build/electron/embedded-server.js` under the new runtime's Node
+(`ELECTRON_RUN_AS_NODE=1` … → `/api/desktop/version` 200).
 
 ### 45.2.1 → 45.2.3 — upgrade notes
 

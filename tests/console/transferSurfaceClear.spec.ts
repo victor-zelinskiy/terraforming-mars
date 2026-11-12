@@ -51,7 +51,11 @@ describe('the law of the fold — source guard', () => {
     expect(read('tests/e2e/consoleTest.ts'), 'the harness turns it red on every spec').to.include('[transfer] surface folded under its token');
   });
 
-  it('no host folds on a departure alone: every client file that hears `onLeft` asks `surfaceClear` too', () => {
+  it('no host folds on a departure alone: every client file that hears `onLeft` asks `surfaceClear` too', function() {
+    // A walk of the whole client tree: its budget is the walk's, never mocha's 2 s for logic (tests.md § flake class ⑤ —
+    // red on a laptop running both unit suites at once, 2026-11-12, with nothing wrong in the tree).
+    // eslint-disable-next-line no-invalid-this
+    this.timeout(20_000);
     const framework = new Set([
       ENGINE,
       'src/client/console/resourceTransfer/railReward.ts',
