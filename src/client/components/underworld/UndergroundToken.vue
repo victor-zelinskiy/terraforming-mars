@@ -6,39 +6,36 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 import {ClaimedToken} from '@/common/underworld/UnderworldPlayerData';
 
-export default defineComponent({
-  name: 'UndergroundToken',
-  props: {
-    token: {
-      type: Object as () => ClaimedToken,
-      required: true,
-    },
-    location: {
-      type: String as () => 'board' | 'player-home' | 'tag-count',
-      required: true,
-    },
+defineOptions({name: 'UndergroundToken'});
+const props = defineProps({
+  token: {
+    type: Object as () => ClaimedToken,
+    required: true,
   },
-  computed: {
-    wrapper(): string {
-      return 'underground-token-wrapper--' + this.location;
-    },
-    border(): string {
-      return this.token.active ? 'underground-token-border' : '';
-    },
-    style(): string {
-      return 'underground-token-style--' + this.location;
-    },
-    tokenClass(): string {
-      return 'underground-token--' + this.token.token;
-    },
-    shelter(): string {
-      return this.token.shelter ? 'underground-token-shelter' : '';
-    },
+  location: {
+    type: String as () => 'board' | 'player-home' | 'tag-count',
+    required: true,
   },
+});
+
+const wrapper = computed((): string => {
+  return 'underground-token-wrapper--' + props.location;
+});
+const border = computed((): string => {
+  return props.token.active ? 'underground-token-border' : '';
+});
+const style = computed((): string => {
+  return 'underground-token-style--' + props.location;
+});
+const tokenClass = computed((): string => {
+  return 'underground-token--' + props.token.token;
+});
+const shelter = computed((): string => {
+  return props.token.shelter ? 'underground-token-shelter' : '';
 });
 </script>
