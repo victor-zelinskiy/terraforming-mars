@@ -1,11 +1,4 @@
 <template>
-  <!-- The workspace's PERSISTENT chrome. It is never rebuilt between stages:
-       the identity line stays in the DOM and GROWS a tail, and everything that
-       differs between browse and flow lives as two layers of ONE fixed-height
-       zone that crossfade in place. Nothing is `v-if`'d out of the FLOW, so the
-       header can neither blink nor change height under an entering animation —
-       the stage below always assembles in the geometry the browse layer was
-       measured in. -->
   <header class="con-wshead" :class="{'con-wshead--deep': deep, 'con-wshead--flow': $slots.flow !== undefined}">
     <div class="con-wshead__ident">
       <span v-if="emblem !== undefined" class="con-wshead__emblem"
@@ -102,11 +95,22 @@
   </header>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE TEMPLATE (the comment that opened it — it starts with its root now):
+ *
+ * The workspace's PERSISTENT chrome. It is never rebuilt between stages:
+ * the identity line stays in the DOM and GROWS a tail, and everything that
+ * differs between browse and flow lives as two layers of ONE fixed-height
+ * zone that crossfade in place. Nothing is `v-if`'d out of the FLOW, so the
+ * header can neither blink nor change height under an entering animation —
+ * the stage below always assembles in the geometry the browse layer was
+ * measured in.
+ */
+import {computed, PropType} from 'vue';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {buildWorkspaceHeader, WorkspaceHeaderModel} from '@/client/console/consoleWorkspaceHeader';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 
 /**
  * @console-shared LIVE — console native stands on this file.
@@ -140,74 +144,70 @@ import {translateText} from '@/client/directives/i18n';
  * is an absolute overlay, so a card name of any length costs zero layout and
  * the stage below always assembles in the geometry it was measured in.
  */
-export default defineComponent({
-  name: 'ConsoleWsHead',
-  components: {BarButtonIcon},
-  props: {
-    /** The workspace's own name (i18n key) — the crumb's ROOT, never changes. */
-    root: {type: String, required: true},
-    /** The identity symbol: a `BarButtonIcon` name (the same glyph the action
-     *  wheel's tile carries). Part of the PARENT anchor — constant box, size,
-     *  position and gap through every stage, never re-animated by a stage
-     *  change. */
-    emblem: {type: String as PropType<string | undefined>, default: undefined},
-    /** `data-wheel-anchor` id, when this emblem is a wheel flight's landing
-     *  anchor. Omitted → the emblem is decorative and the wheel handoff (which
-     *  may target something else entirely, e.g. the hand dock) is untouched. */
-    wheelAnchor: {type: String as PropType<string | undefined>, default: undefined},
-    /** A text glyph instead of an emblem (the repeat-mode ⟳). */
-    mark: {type: String, default: ''},
-    /** A FIXED extra root segment (a repeat's source card) — never animated. */
-    context: {type: String, default: ''},
-    /** The object under work (a card name — an i18n key unless `subjectRaw`). */
-    subject: {type: String, default: ''},
-    /** `subject` is a proper noun already in the player's language. */
-    subjectRaw: {type: Boolean, default: false},
-    /** The current step (i18n key unless `stageRaw`) — the ONLY animating segment. */
-    stage: {type: String, default: ''},
-    /** `stage` is already in the player's language. The one case is a HOSTED
-     *  step whose tail is composed of two translated parts («ГАНИМЕД ·
-     *  ТОРГОВЛЯ») — a phrase, not a key, and looking it up would only ever
-     *  miss. Mirrors `subjectRaw`. */
-    stageRaw: {type: Boolean, default: false},
-    /** Past the commit boundary: the stage marker goes amber (a committed
-     *  stage is a statement, not an invitation). */
-    committed: {type: Boolean, default: false},
-  },
-  computed: {
-    /** The pure model — the single grammar both workspaces are built on. */
-    model(): WorkspaceHeaderModel {
-      return buildWorkspaceHeader({
-        root: this.root,
-        subject: this.subject === '' ? undefined : {text: this.subject, translate: !this.subjectRaw},
-        stage: this.stage === '' ? undefined : this.stage,
-        committed: this.committed,
-      });
-    },
-    /** The crumb has a tail: the workspace has been DESCENDED into — onto a
-     *  carried object, or into a LEVEL that names itself with no object (a
-     *  stage published at the browse layer, PL-066). Before, a stage with no
-     *  subject was silently DROPPED: the standard projects' «ЭФФЕКТЫ» layer
-     *  opened and the crumb kept reading the bare root. */
-    deep(): boolean {
-      return this.subject !== '' || this.stage !== '';
-    },
-    subjectText(): string {
-      return this.model.segments.find((s) => s.role === 'subject')?.text ?? '';
-    },
-    subjectLabel(): string {
-      const seg = this.model.segments.find((s) => s.role === 'subject');
-      if (seg === undefined) {
-        return '';
-      }
-      return seg.translate ? translateText(seg.text) : seg.text;
-    },
-    stageText(): string {
-      return this.model.stageKey;
-    },
-    stageLabel(): string {
-      return this.stageRaw ? this.stageText : translateText(this.stageText);
-    },
-  },
+defineOptions({name: 'ConsoleWsHead'});
+const props = defineProps({
+  /** The workspace's own name (i18n key) — the crumb's ROOT, never changes. */
+  root: {type: String, required: true},
+  /** The identity symbol: a `BarButtonIcon` name (the same glyph the action
+   *  wheel's tile carries). Part of the PARENT anchor — constant box, size,
+   *  position and gap through every stage, never re-animated by a stage
+   *  change. */
+  emblem: {type: String as PropType<string | undefined>, default: undefined},
+  /** `data-wheel-anchor` id, when this emblem is a wheel flight's landing
+   *  anchor. Omitted → the emblem is decorative and the wheel handoff (which
+   *  may target something else entirely, e.g. the hand dock) is untouched. */
+  wheelAnchor: {type: String as PropType<string | undefined>, default: undefined},
+  /** A text glyph instead of an emblem (the repeat-mode ⟳). */
+  mark: {type: String, default: ''},
+  /** A FIXED extra root segment (a repeat's source card) — never animated. */
+  context: {type: String, default: ''},
+  /** The object under work (a card name — an i18n key unless `subjectRaw`). */
+  subject: {type: String, default: ''},
+  /** `subject` is a proper noun already in the player's language. */
+  subjectRaw: {type: Boolean, default: false},
+  /** The current step (i18n key unless `stageRaw`) — the ONLY animating segment. */
+  stage: {type: String, default: ''},
+  /** `stage` is already in the player's language. The one case is a HOSTED
+   *  step whose tail is composed of two translated parts («ГАНИМЕД ·
+   *  ТОРГОВЛЯ») — a phrase, not a key, and looking it up would only ever
+   *  miss. Mirrors `subjectRaw`. */
+  stageRaw: {type: Boolean, default: false},
+  /** Past the commit boundary: the stage marker goes amber (a committed
+   *  stage is a statement, not an invitation). */
+  committed: {type: Boolean, default: false},
+});
+
+/** The pure model — the single grammar both workspaces are built on. */
+const model = computed((): WorkspaceHeaderModel => {
+  return buildWorkspaceHeader({
+    root: props.root,
+    subject: props.subject === '' ? undefined : {text: props.subject, translate: !props.subjectRaw},
+    stage: props.stage === '' ? undefined : props.stage,
+    committed: props.committed,
+  });
+});
+/** The crumb has a tail: the workspace has been DESCENDED into — onto a
+ *  carried object, or into a LEVEL that names itself with no object (a
+ *  stage published at the browse layer, PL-066). Before, a stage with no
+ *  subject was silently DROPPED: the standard projects' «ЭФФЕКТЫ» layer
+ *  opened and the crumb kept reading the bare root. */
+const deep = computed((): boolean => {
+  return props.subject !== '' || props.stage !== '';
+});
+const subjectText = computed((): string => {
+  return model.value.segments.find((s) => s.role === 'subject')?.text ?? '';
+});
+const subjectLabel = computed((): string => {
+  const seg = model.value.segments.find((s) => s.role === 'subject');
+  if (seg === undefined) {
+    return '';
+  }
+  return seg.translate ? translateText(seg.text) : seg.text;
+});
+const stageText = computed((): string => {
+  return model.value.stageKey;
+});
+const stageLabel = computed((): string => {
+  return props.stageRaw ? stageText.value : translateText(stageText.value);
 });
 </script>
