@@ -30,7 +30,7 @@
   </span>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * ConsoleProjectDeck — the top-HUD project draw pile (ConsoleStatusStrip,
  * between the global parameters and the generation block).
@@ -43,40 +43,36 @@
  * draw animation can keep the pre-draw number on screen until the flight
  * lands; today it is the identity.
  */
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 import {deckStackTier, DeckStackTier, DECK_TIER_LAYERS, DECK_LOW_THRESHOLD, displayedDeckSize} from '@/client/console/consoleDeckDisplay';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 
-export default defineComponent({
-  name: 'ConsoleProjectDeck',
-  components: {AnimatedMetricValue, ConsoleFlipValue},
-  props: {
-    /** GameModel.deckSize — the authoritative draw-pile size. */
-    deckSize: {type: Number, required: true},
-    /** playerView.runId — drives the delta-chip feedback ('' disables). */
-    epoch: {type: String, default: ''},
-  },
-  computed: {
-    shownSize(): number {
-      return displayedDeckSize(this.deckSize);
-    },
-    tier(): DeckStackTier {
-      return deckStackTier(this.shownSize);
-    },
-    layers(): number {
-      return DECK_TIER_LAYERS[this.tier];
-    },
-    low(): boolean {
-      return this.shownSize > 0 && this.shownSize <= DECK_LOW_THRESHOLD;
-    },
-    empty(): boolean {
-      return this.shownSize <= 0;
-    },
-    ariaLabel(): string {
-      return `${translateText('Project deck')}: ${this.shownSize}`;
-    },
-  },
+defineOptions({name: 'ConsoleProjectDeck'});
+const props = defineProps({
+  /** GameModel.deckSize — the authoritative draw-pile size. */
+  deckSize: {type: Number, required: true},
+  /** playerView.runId — drives the delta-chip feedback ('' disables). */
+  epoch: {type: String, default: ''},
+});
+
+const shownSize = computed((): number => {
+  return displayedDeckSize(props.deckSize);
+});
+const tier = computed((): DeckStackTier => {
+  return deckStackTier(shownSize.value);
+});
+const layers = computed((): number => {
+  return DECK_TIER_LAYERS[tier.value];
+});
+const low = computed((): boolean => {
+  return shownSize.value > 0 && shownSize.value <= DECK_LOW_THRESHOLD;
+});
+const empty = computed((): boolean => {
+  return shownSize.value <= 0;
+});
+const ariaLabel = computed((): string => {
+  return `${translateText('Project deck')}: ${shownSize.value}`;
 });
 </script>
