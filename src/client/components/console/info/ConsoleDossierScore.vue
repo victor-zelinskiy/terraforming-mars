@@ -1,16 +1,4 @@
 <template>
-  <!--
-    THE DOSSIER'S SCORE (TR60 · the Information polish of 2026-10-19 — «сдержанно и дорого»): ONE hero, then a quiet
-    ledger. The TOTAL is the zone's protagonist — the award shield and the number at the scene's largest size, nothing
-    else at its weight; under it the ONE composition bar (a thin instrument: one hue per category, widths on the
-    positive total — the ceremony's `.con-eg-cat--*`), then the categories as a LEDGER in two columns read top-down: the
-    category's own symbol in a small disc ringed in its hue (the colour key the bar uses), the name, a hairline leader,
-    the value in tabular numerals. A zero stays a quiet row (an LB/RB switch morphs ink, never the layout); the hero
-    yields size to a long ledger, never the frame (`--dscore-rows`), so nothing ever stands outside the plate.
-    The `data-vpx-*` anchors are the score explorer's SHARED ELEMENTS (`scoreExplorerMotion`): the total and the bar
-    fly between the zones on A / B, and the explorer's grid unfolds out of the ledger — so `[data-vpx-total]` keeps the
-    explorer's own structure (number + unit) and the shield stands BESIDE it, never inside.
-  -->
   <div class="con-dscore" data-dossier-score :style="{'--dscore-rows': rows}" :data-dscore-rows="rows">
     <div class="con-dscore__head">
       <ConsoleVpBadge class="con-dscore__shield" :label="$t('VP')" />
@@ -38,32 +26,40 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE DOSSIER'S SCORE (TR60 · the Information polish of 2026-10-19 — «сдержанно и дорого»): ONE hero, then a quiet
+ * ledger. The TOTAL is the zone's protagonist — the award shield and the number at the scene's largest size, nothing
+ * else at its weight; under it the ONE composition bar (a thin instrument: one hue per category, widths on the
+ * positive total — the ceremony's `.con-eg-cat--*`), then the categories as a LEDGER in two columns read top-down: the
+ * category's own symbol in a small disc ringed in its hue (the colour key the bar uses), the name, a hairline leader,
+ * the value in tabular numerals. A zero stays a quiet row (an LB/RB switch morphs ink, never the layout); the hero
+ * yields size to a long ledger, never the frame (`--dscore-rows`), so nothing ever stands outside the plate.
+ * The `data-vpx-*` anchors are the score explorer's SHARED ELEMENTS (`scoreExplorerMotion`): the total and the bar
+ * fly between the zones on A / B, and the explorer's grid unfolds out of the ledger — so `[data-vpx-total]` keeps the
+ * explorer's own structure (number + unit) and the shield stands BESIDE it, never inside.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {LiveScoreModel} from '@/client/console/liveScoreModel';
 import {DossierMedallion} from '@/client/console/infoDossierModel';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import ConsoleScoreDisc from '@/client/components/console/info/ConsoleScoreDisc.vue';
 
-export default defineComponent({
-  name: 'ConsoleDossierScore',
-  components: {ConsoleVpBadge, ConsoleScoreDisc},
-  props: {
-    liveScore: {type: Object as PropType<LiveScoreModel>, required: true},
-    medallions: {type: Array as PropType<ReadonlyArray<DossierMedallion>>, required: true},
-    segments: {type: Array as PropType<ReadonlyArray<{key: string, accent: string, widthPct: number}>>, required: true},
-  },
-  computed: {
-    /** The ledger reads in TWO columns, top-down: its rows are half the categories (a lone category keeps one row). */
-    rows(): number {
-      return Math.max(1, Math.ceil(this.medallions.length / 2));
-    },
-  },
-  methods: {
-    /** A penalty reads with a true minus (U+2212), never a hyphen. */
-    signed(value: number): string {
-      return value < 0 ? `−${Math.abs(value)}` : String(value);
-    },
-  },
+defineOptions({name: 'ConsoleDossierScore'});
+const props = defineProps({
+  liveScore: {type: Object as PropType<LiveScoreModel>, required: true},
+  medallions: {type: Array as PropType<ReadonlyArray<DossierMedallion>>, required: true},
+  segments: {type: Array as PropType<ReadonlyArray<{key: string, accent: string, widthPct: number}>>, required: true},
 });
+
+/** The ledger reads in TWO columns, top-down: its rows are half the categories (a lone category keeps one row). */
+const rows = computed((): number => Math.max(1, Math.ceil(props.medallions.length / 2)));
+
+/** A penalty reads with a true minus (U+2212), never a hyphen. */
+function signed(value: number): string {
+  return value < 0 ? `−${Math.abs(value)}` : String(value);
+}
 </script>
