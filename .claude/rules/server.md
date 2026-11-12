@@ -11,7 +11,7 @@ paths:
 # Server rules
 
 ## Layering
-`src/server/` (engine, cards, routes, DB) · `src/client/` (Vue 3 Options API) · `src/common/` (shared types/models — no runtime logic bound to either side). `@/` maps to `./src/`.
+`src/server/` (engine, cards, routes, DB) · `src/client/` (Vue 3 — Options API today, going to `<script setup>` / a global Vapor app: `docs/claude/vapor/ROADMAP.md`) · `src/common/` (shared types/models — no runtime logic bound to either side). `@/` maps to `./src/`.
 
 ## Effects, choices, sequencing
 - `Behavior` (`src/server/behavior/Behavior.ts`) is the declarative effect DSL, interpreted by `Executor`.

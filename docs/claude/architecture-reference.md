@@ -6,7 +6,7 @@
 ### Three-Layer Structure
 
 - **`src/server/`** - Game engine, card logic, routes, database. Runs on Node.js.
-- **`src/client/`** - Vue 3 frontend (Options API, `defineComponent`). Bundled with Webpack.
+- **`src/client/`** - Vue 3 frontend. Bundled with Webpack. Options API (`defineComponent`) TODAY; the project's north star is a global `createVaporApp(App)` on Vue 3.6 — a new component is `<script setup lang="ts">`, the existing ones are rewritten in waves (`docs/claude/vapor/ROADMAP.md`).
 - **`src/common/`** - Shared types, enums, and models used by both client and server. No runtime logic that depends on either side.
 
 The `@/` import alias maps to `./src/` (configured in tsconfig paths and webpack).
@@ -43,7 +43,7 @@ Each expansion has its own directory under `src/server/cards/` and a manifest. S
 
 ### Client Components
 
-Vue 3 with Options API. Components are in `src/client/components/`. The root `App.ts` routes between screens. `PlayerHome.vue` is the main game view. Card rendering components are in `src/client/components/card/`. Styles use Less (`src/styles/`).
+Vue 3 — Options API today, moving to `<script setup>` / Vapor (`docs/claude/vapor/ROADMAP.md`). Components are in `src/client/components/`. The root `App.ts` routes between screens. `PlayerHome.vue` is the main game view. Card rendering components are in `src/client/components/card/`. Styles use Less (`src/styles/`).
 
 ### Database
 

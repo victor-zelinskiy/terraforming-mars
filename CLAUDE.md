@@ -6,7 +6,23 @@ Guidance for Claude Code working in this repository — the `vize1215` private f
 
 ---
 
-## ⭐ North star — console native IS the product
+## ⭐ North star — global `createVaporApp(App)`
+
+**The destination of the client is ONE Vapor application — `createVaporApp(App).mount('#app')` on Vue 3.6: no virtual-DOM runtime, every component a Vapor component** (the owner / the architect, 2026-11-12). **Rewriting the EXISTING components is in scope; the Options API is being left behind.** The road is staged, and a stage does not start before the one before it is green on the full CI e2e — the program, the counted inventory and the protocols are `docs/claude/vapor/ROADMAP.md`:
+
+- **V0** the docs (done) → **V1** the PILOT: `vue@3.6.0-rc.15`, pinned exactly, becomes the project's version → **V2** architecture v2 to the end: 100 % of the console UI on the flow kernel, the debt ledger at zero (`docs/claude/console/architecture-v2/PLAN.md` §11) → **V3** the rework of ALL components to `<script setup>` / Vapor, wave by wave, every case proven by e2e on CI → **V4** the switch to `createVaporApp(App)`.
+
+What it means for EVERY client change, from now on:
+
+- **A NEW component is `<script setup lang="ts">`** (Composition API) — never a new `defineComponent({data, computed, methods, watch})`. The one exception to «follow the style of the file around you».
+- **An EXISTING component is converted in its V3 wave, as a commit of its own** — never in passing inside an unrelated change (a conversion nobody can attribute is a regression nobody can find).
+- **Do not add what the target has no place for**: a mixin, `$parent` / `$root`, a new `globalProperties` member, a new global `app.component` / `app.directive`, a render function where a template will do, a new `$refs` reach from one surface into another, a new `getCurrentInstance()`.
+- **Logic lives OUTSIDE the component** — in modules, controllers and composables on the flow kernel (architecture v2). A component is a template and its wiring; every method moved out today is a line nobody converts tomorrow.
+- **The e2e hooks are the conversion's contract** (invariant 14) — they survive a conversion unchanged, or the spec moves in the same diff.
+
+Console native is still what SHIPS — the north star is where the code under it is going:
+
+## ⭐ The product — console native IS the product
 
 The console-native shell (`?console=1` → `ConsoleShell.vue`) is **THE product of this fork and the DEFAULT experience** (couch + gamepad on a 4K TV). All new UI work ships there. **A feature is "done" when it works in console native — a desktop counterpart is NEVER required and must not block "done".**
 
@@ -140,7 +156,7 @@ npm run watch:less           # CSS rebuild on change
 
 ### Three layers
 - **`src/server/`** — game engine, card logic, routes, database (Node.js).
-- **`src/client/`** — Vue 3 frontend (Options API, `defineComponent`), bundled with Webpack; Less styles in `src/styles/`.
+- **`src/client/`** — Vue 3 frontend, bundled with Webpack; Less styles in `src/styles/`. **Today** 471 of its 472 components are Options API (`defineComponent`); **the destination** is `<script setup>` + Vapor (§ North star) — a new component is written in the destination's form.
 - **`src/common/`** — types, enums and models shared by both. No runtime logic bound to either side.
 
 `@/` maps to `./src/` (tsconfig paths + webpack).
@@ -178,7 +194,7 @@ Pluggable backends in `src/server/database/` (SQLite / PostgreSQL / LocalFilesys
 
 ## Style guide
 
-- Follow the style of the code around the file; for a new file, the style of its directory.
+- Follow the style of the code around the file; for a new file, the style of its directory. **Exception: a new `.vue` component is `<script setup lang="ts">`** (§ North star), whatever its neighbours look like.
 - ESLint uses flat config (`eslint.config.mjs`); `npm run lint:fix` autofixes. `eqeqeq` has **no** null exception here — `== null` fails lint.
 
 ---
@@ -201,6 +217,6 @@ Pluggable backends in `src/server/database/` (SQLite / PostgreSQL / LocalFilesys
 | `localization.md` | `src/locales/**` |
 | `tests.md` | `tests/**` |
 
-**`docs/claude/`** — full reference, never auto-loaded. Start at `docs/claude/README.md` for the index (expansion checklist, architecture reference, board information, journal, notifications, presentation flow, the desktop overlays, the card subsystems, the console contracts). Long-standing sibling docs stay where they are: `docs/CONSOLE_MODE_CONCEPT.md`, `docs/CONSOLE_FOUNDATION.md`, `docs/CONSOLE_SURFACE_MOTION.md`, `docs/DESKTOP_UI_PHILOSOPHY.md`, `docs/MODAL_INPUTS.md`, `docs/EVENT_STAT_FOUNDATION.md`, `docs/ENDGAME_STORYTELLING.md`, plus the audit files (`DELAYED_TARGET_AUDIT`, `CHOICE_CONTEXT_AUDIT`, `PROMPT_PREMIUM_AUDIT`, `PENDING_ACTION_CANCEL_AUDIT`, `SPECIAL_TILE_AUDIT`, `DESKTOP_DEPRECATION_AUDIT`).
+**`docs/claude/`** — full reference, never auto-loaded. **The program of the north star is `docs/claude/vapor/ROADMAP.md`** (the stages, what is counted against the target, the pilot's protocol, how the rework is run). Start at `docs/claude/README.md` for the index (expansion checklist, architecture reference, board information, journal, notifications, presentation flow, the desktop overlays, the card subsystems, the console contracts). Long-standing sibling docs stay where they are: `docs/CONSOLE_MODE_CONCEPT.md`, `docs/CONSOLE_FOUNDATION.md`, `docs/CONSOLE_SURFACE_MOTION.md`, `docs/DESKTOP_UI_PHILOSOPHY.md`, `docs/MODAL_INPUTS.md`, `docs/EVENT_STAT_FOUNDATION.md`, `docs/ENDGAME_STORYTELLING.md`, plus the audit files (`DELAYED_TARGET_AUDIT`, `CHOICE_CONTEXT_AUDIT`, `PROMPT_PREMIUM_AUDIT`, `PENDING_ACTION_CANCEL_AUDIT`, `SPECIAL_TILE_AUDIT`, `DESKTOP_DEPRECATION_AUDIT`).
 
 **Keep this file small.** New status notes, per-feature write-ups and completed-work history belong in `docs/claude/` (or `docs/claude/archive/`), not here.

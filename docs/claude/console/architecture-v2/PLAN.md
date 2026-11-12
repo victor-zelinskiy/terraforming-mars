@@ -44,6 +44,17 @@ module** — and it can only stay so (a new file starts at zero; the baseline ha
 NOT coverage: it is the shell's own redesign, listed below — each a rewrite of named controllers ON the framework
 that now holds everything under them.
 
+**THE PROGRAM THIS PLAN IS A STAGE OF (the owner / the architect, 2026-11-12).** The project's north star is a
+global `createVaporApp(App)` on Vue 3.6 — every component rewritten out of the Options API
+(`docs/claude/vapor/ROADMAP.md`). Its stages: V1 the Vue 3.6 pilot (`3.6.0-rc.15` becomes the project's version) →
+**V2 — THIS PLAN, to the end: the debt ledger of §11 at zero** → V3 the rework of all components → V4 the switch.
+So the order of work from here is: the pilot FIRST (every remaining slice of this plan is then written and measured
+on the runtime we are going to — its reactivity core is new, and this plan's sharpest edges are reactive: the order
+of the shell's reactions in a tick, the sync watchers, `scopedState`); then the list below, slice by slice with the
+full e2e between slices. And each slice carries one more constraint: what it leaves in a component must be
+convertible to `<script setup>` mechanically (S3's surface registry and S-last's «the shell is layout» are rows of
+the roadmap's own inventory).
+
 **Where that leaves the work (2026-11-11, third round).** Two statements are true and guarded: ① *nothing in the
 client waits outside a scope* (the coverage ledger — empty); ② *nothing NEW can be written on a mechanism the kernel
 replaces* (the debt ledger — frozen, a new file starts at zero; `REVIEW.md` is the procedure for whoever writes or

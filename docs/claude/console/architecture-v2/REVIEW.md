@@ -217,3 +217,22 @@ slice, say so in the PLAN's §0 list instead of growing a baseline.
   ended a wait): each names the scope and its ancestry.
 - Then, as before: the wait graph's `[wait-graph] …` lines and the arbiter's `[liveness] …` — the nets the
   architecture is retiring; a line from them is a place where an owner should have ended something and did not.
+
+---
+
+## 7. The destination — a global `createVaporApp(App)` (what a review checks for it)
+
+The project's north star (`CLAUDE.md`; the program is `docs/claude/vapor/ROADMAP.md`): one Vapor application on
+Vue 3.6, every component rewritten out of the Options API. Architecture v2 is its stage V2. Until the rework (V3)
+reaches a component, a review holds a diff to five things:
+
+| Look for | Why it is a finding |
+| --- | --- |
+| a NEW `.vue` written as `defineComponent({data, computed, methods, …})` | a new component is `<script setup lang="ts">` — one more Options-API file is one more to convert |
+| an existing Options-API component CONVERTED inside a feature / fix diff | a conversion is a commit of its own in its wave, verified by its surface's e2e — hidden in another change it cannot be attributed |
+| logic ADDED to a component (a new method that decides, a new watcher that acts, a new lifetime in a hook) | it belongs in a module / controller / composable on the kernel (§1); the component keeps its template and its wiring |
+| a mixin · `$parent` / `$root` · a new `globalProperties` member · a new global `app.component` / `app.directive` · a render function where a template will do · a new `getCurrentInstance()` · a `$refs` reach between surfaces | constructs the target has no place for — each one added now is removed by hand later |
+| a `vapor` attribute, or `vue` moved off its exact pin, outside the pilot / a wave | the runtime moves by a decision with its own full run (ROADMAP §3), never in passing |
+
+A controller or a module passes this section when the component above it could become `<script setup>` without
+touching it: it takes refs and functions, not `this`.

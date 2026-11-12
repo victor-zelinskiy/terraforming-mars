@@ -128,6 +128,12 @@ All engines are healthy (Pixi 8.22, three r186, TresJS 5.9, Babylon 9.31), but *
 
 ## 4. Vue ecosystem: Vue 3.6 Vapor + alien-signals, Pinia, VueUse, vue-router
 
+> **⚠ The inferences of this section are SUPERSEDED (2026-11-12).** The project's north star is a global
+> `createVaporApp(App)` on Vue 3.6 with every existing component rewritten out of the Options API (`CLAUDE.md`
+> § North star; `docs/claude/vapor/ROADMAP.md`). The cited FINDINGS below stay the reference for what Vapor does not
+> support (counted against our code in ROADMAP §1.1); «adopt 3.6 when stable» and «Vapor: skip» no longer apply — the
+> pilot runs on `3.6.0-rc.15`.
+
 ### Takeaway
 **Vue 3.6 is still RC** (latest `3.6.0-rc.12`, 2026-10-16; stable = 3.5.44). Its alien-signals reactivity rewrite benefits every component including Options API, but **Vapor mode explicitly does not support the Options API** (our whole client, incl. a >20k-line ConsoleShell.vue), so Vapor is out of reach without rewrites. Adopt 3.6 when stable for the reactivity gains; skip Vapor, Pinia (4.x, ESM-only) and vue-router; upgrade VueUse 14 → 15 deliberately (breaking changes).
 

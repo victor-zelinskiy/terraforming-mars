@@ -33,6 +33,14 @@ a new safety timer, or a new watcher mailbox.**
 **Before writing or reviewing console lifecycle code read `docs/claude/console/architecture-v2/REVIEW.md`** — the
 «I need to … → primitive» table, the sixteen laws a review checks, how to test a flow, and what is frozen.
 
+**Where this work sits in the project's road** (`CLAUDE.md` § North star; `docs/claude/vapor/ROADMAP.md`): architecture
+v2 is stage **V2** of the road to a global `createVaporApp(App)` — after the Vue 3.6 pilot (V1), before the rework of
+every component (V3). It is the half of that rework that changes BEHAVIOUR: what it takes out of the components (logic
+in `methods`, lifetimes in hooks, `$refs` between surfaces, the shell's `watch` table) is exactly what would make them
+expensive to convert. So a slice here is also judged by what it leaves in the component: **a controller / a module is
+written so that the component above it could be `<script setup>` tomorrow** — it takes refs and plain functions,
+never `this`; it reaches a surface through a registration, never a `$ref`; it adds no `getCurrentInstance()`.
+
 ## Two ledgers — both must stay green
 - **`tests/console/kernelCoverage.spec.ts`** — nothing in `src/client` WAITS outside a scope. Its baseline is empty.
 - **`tests/console/architectureDebt.spec.ts`** — what still runs on a mechanism the kernel REPLACES (a wait-graph
