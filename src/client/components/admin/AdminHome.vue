@@ -8,29 +8,21 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
-import {paths} from '@/common/app/paths';
+<script setup lang="ts">
+import {computed, ref} from 'vue';
+// The import yields its name to the `paths` field the template reads (`<script setup>` has one scope).
+import {paths as appPaths} from '@/common/app/paths';
 
-export default defineComponent({
-  name: 'admin-home',
-  data() {
-    return {
-      paths: [
-        paths.API_STATS,
-        paths.GAMES_OVERVIEW,
-        paths.API_GAMES,
-        paths.API_METRICS,
-        paths.LOAD,
-        paths.API_IPS,
-        paths.API_HEAP_SNAPSHOT,
-      ],
-    };
-  },
-  computed: {
-    serverId(): string {
-      return new URLSearchParams(window.location.search).get('serverId') || '';
-    },
-  },
-});
+defineOptions({name: 'admin-home'});
+
+const paths = ref([
+  appPaths.API_STATS,
+  appPaths.GAMES_OVERVIEW,
+  appPaths.API_GAMES,
+  appPaths.API_METRICS,
+  appPaths.LOAD,
+  appPaths.API_IPS,
+  appPaths.API_HEAP_SNAPSHOT,
+]);
+const serverId = computed((): string => new URLSearchParams(window.location.search).get('serverId') || '');
 </script>
