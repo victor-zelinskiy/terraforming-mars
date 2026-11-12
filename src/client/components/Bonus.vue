@@ -4,9 +4,8 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 
 const css: Record<SpaceBonus, string> = {
@@ -32,31 +31,28 @@ const css: Record<SpaceBonus, string> = {
   [SpaceBonus.STANDARD_RESOURCE]: 'standard-resource',
 };
 
-export default defineComponent({
-  name: 'bonus',
-  props: {
-    bonus: {
-      type: Array as () => Array<SpaceBonus>,
-      required: true,
-    },
-  },
-  methods: {
-    getClass(idx: number, bonus: SpaceBonus): string {
-      const doubleWideBonuses = [
-        SpaceBonus.OCEAN,
-        SpaceBonus.TEMPERATURE_4MC,
-        SpaceBonus.COLONY,
-      ];
-      // If only one bonus is present, center it.
-      // Except: some bonuses occupy 2 spaces.
-      let position: string | number = idx;
-      if (this.bonus.length === 1 && !doubleWideBonuses.includes(bonus)) {
-        position = 'only';
-      }
-      return `board-space-bonus board-space-bonus--${css[bonus]} board-space-bonus-pos--${position}`;
-    },
+defineOptions({name: 'bonus'});
+const props = defineProps({
+  bonus: {
+    type: Array as () => Array<SpaceBonus>,
+    required: true,
   },
 });
+
+function getClass(idx: number, bonus: SpaceBonus): string {
+  const doubleWideBonuses = [
+    SpaceBonus.OCEAN,
+    SpaceBonus.TEMPERATURE_4MC,
+    SpaceBonus.COLONY,
+  ];
+  // If only one bonus is present, center it.
+  // Except: some bonuses occupy 2 spaces.
+  let position: string | number = idx;
+  if (props.bonus.length === 1 && !doubleWideBonuses.includes(bonus)) {
+    position = 'only';
+  }
+  return `board-space-bonus board-space-bonus--${css[bonus]} board-space-bonus-pos--${position}`;
+}
 
 </script>
 
