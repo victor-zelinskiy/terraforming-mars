@@ -8,7 +8,7 @@
   </template>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /*
  * ONE UNIT ICON of a yield — or ONE unit of SEVERAL KINDS (Medical Database's
  * «data or microbe»): the icons joined by the word «or», drawn as one unit in
@@ -19,16 +19,14 @@
  * The template carries no comment on purpose: a root-level comment would make
  * the one-kind render a fragment instead of the bare `<i>`.
  */
-import {defineComponent, PropType} from 'vue';
+import {PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleYieldUnit',
-  inheritAttrs: false,
-  props: {
-    /** The resolved icon classes — one per kind of the unit (one for every ordinary unit). */
-    classes: {type: Array as PropType<ReadonlyArray<string>>, required: true},
-    /** A host's extra class on every icon (the suffix's, a term's). */
-    extra: {type: String, default: ''},
-  },
+defineOptions({name: 'ConsoleYieldUnit', inheritAttrs: false});
+defineProps({
+  /** The resolved icon classes — one per kind of the unit (one for every ordinary unit). */
+  classes: {type: Array as PropType<ReadonlyArray<string>>, required: true},
+  /** A host's extra class on every icon (the suffix's, a term's). */
+  extra: {type: String, default: ''},
 });
 </script>
