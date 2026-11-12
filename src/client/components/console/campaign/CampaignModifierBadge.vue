@@ -17,8 +17,9 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {MissionModifierMeta} from '@/client/console/campaign/missionModifierMeta';
 
 /**
@@ -28,17 +29,14 @@ import {MissionModifierMeta} from '@/client/console/campaign/missionModifierMeta
  * plays the ONE-SHOT seal at the route's reveal (the modifier is an event of
  * the generation the player must not miss — then it simply stands).
  */
-export default defineComponent({
-  name: 'CampaignModifierBadge',
-  props: {
-    meta: {type: Object as PropType<MissionModifierMeta>, required: true},
-    stamp: {type: Boolean, default: false},
-    stampDelayMs: {type: Number, default: 0},
-  },
-  computed: {
-    stampStyle(): Record<string, string> | undefined {
-      return this.stamp ? {'--cmod-delay': `${this.stampDelayMs}`} : undefined;
-    },
-  },
+defineOptions({name: 'CampaignModifierBadge'});
+const props = defineProps({
+  meta: {type: Object as PropType<MissionModifierMeta>, required: true},
+  stamp: {type: Boolean, default: false},
+  stampDelayMs: {type: Number, default: 0},
+});
+
+const stampStyle = computed((): Record<string, string> | undefined => {
+  return props.stamp ? {'--cmod-delay': `${props.stampDelayMs}`} : undefined;
 });
 </script>
