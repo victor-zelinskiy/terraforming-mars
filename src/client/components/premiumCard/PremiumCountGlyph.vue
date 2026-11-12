@@ -1,58 +1,4 @@
 <template>
-  <!--
-    THE COUNTED OBJECT of a resolution's counted term (Turmoil Redux), in ONE
-    box. Which drawing appears follows what the rule COUNTS, because the
-    rules are different:
-
-      · `vp-card` — «for every Building CARD with a VP icon» (Architecture
-        Award): the card silhouette with its tag bubble and VP plate;
-      · `tag`     — «for each Power TAG you have» (Central Power Grid): the
-        printed tag medallion alone. A card here would read as «per card»,
-        and the energy RESOURCE cube as a third rule again;
-      · `tags`    — «per Venus AND Jovian tag» (Cloud Development): the
-        medallions of every listed tag, joined by the face's own «+» — one
-        term, several tags, each worth one. A single medallion would hide a
-        tag the rule counts; a card would state a fourth rule;
-      · `tile`    — «per SPACE CITY you have» (Colonization Funding): the city
-        pictogram with the face's own footnote spark (`.pcard-sym--asterix`,
-        the physical card's «*» — a city on a reserved area OFF Mars). The
-        same asset the mechanics print for `b.city()` and the same spark, so
-        the reading cannot draw a different city than the card; a bare city
-        would read «every city you have», a card a fifth rule. And «per CITY
-        ON MARS» (Migration Funding, Skyscrapers' destinations) IS the bare
-        city — the spark there would read as the space city's rule
-        (`countedTileSpark` decides, per tile);
-      · `metric`  — «per complete SET of 5 TR over 15» (Generous Funding): the
-        rating badge the mechanics print for `b.tr()`, alone. The threshold
-        and the step are not drawn here (the face prints «5» inside the badge
-        and «over 15» under it; a reading prints the breakdown in words) — a
-        card would state a sixth rule, a number inside the badge would collide
-        with the value standing next to the glyph;
-      · `production` — «per STEP of steel, titanium and energy PRODUCTION»
-        (Industrialist Budget): the resources' own icons joined by «+» inside
-        the brown production frame the mechanics print for `b.production(…)`.
-        Bare cubes would read as the SUPPLY (which does not count); a card as
-        a seventh rule;
-      · `colony`  — «per COLONY you have» (Jovian Tax Rights): the colony tile
-        the mechanics print for `b.colonies()`, alone — a CUBE is what is
-        counted and the tile is its only drawing. A card would state an
-        eighth rule; a bare cube would read as a resource;
-      · `resource-card` — «each of your cards that already HAS A RESOURCE»
-        (Sponsored Projects): the white card with its three cubes the face
-        prints for `b.resourceCard()` — the very holder glyph of TR53. The
-        card is counted by what it HOLDS, never by a tag or a type; and with
-        `wild` the same holder carrying ONE printed «?» (Tax Breaks): the
-        different KINDS held are counted — three cubes and one «?» are two rules;
-      · `type-card` — «per BLUE PROJECT CARD you have in play» (Vertical
-        Integration): the card cover wearing its TYPE's header band, the very
-        item the mechanics print for `b.cards(n, {secondaryTag: BLUE})` and
-        the physical game's own «blue card». The `vp-card` above would demand
-        a tag and a VP plate this rule never asks for; a tag medallion would
-        state a rule about tags; a bare cover would read «per card you have».
-
-    All sit in the SAME square per medallion (`--pvpcard-size`), so a formula
-    row, a reading and the Polygon keep one rhythm whichever object they count.
-  -->
   <PremiumVpCardGlyph v-if="glyph.kind === 'vp-card'" :tag="glyph.tag" />
   <span v-else-if="glyph.kind === 'resource-card'" class="pcglyph pcglyph--resource-card" data-count-resource-card :data-count-resource-kinds="glyph.wild ? 'true' : undefined" aria-hidden="true">
     <PremiumResourceCardGlyph class="pcglyph__holder" :wild="glyph.wild === true" />
@@ -89,8 +35,64 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE COUNTED OBJECT of a resolution's counted term (Turmoil Redux), in ONE
+ * box. Which drawing appears follows what the rule COUNTS, because the
+ * rules are different:
+ *
+ *   · `vp-card` — «for every Building CARD with a VP icon» (Architecture
+ *     Award): the card silhouette with its tag bubble and VP plate;
+ *   · `tag`     — «for each Power TAG you have» (Central Power Grid): the
+ *     printed tag medallion alone. A card here would read as «per card»,
+ *     and the energy RESOURCE cube as a third rule again;
+ *   · `tags`    — «per Venus AND Jovian tag» (Cloud Development): the
+ *     medallions of every listed tag, joined by the face's own «+» — one
+ *     term, several tags, each worth one. A single medallion would hide a
+ *     tag the rule counts; a card would state a fourth rule;
+ *   · `tile`    — «per SPACE CITY you have» (Colonization Funding): the city
+ *     pictogram with the face's own footnote spark (`.pcard-sym--asterix`,
+ *     the physical card's «*» — a city on a reserved area OFF Mars). The
+ *     same asset the mechanics print for `b.city()` and the same spark, so
+ *     the reading cannot draw a different city than the card; a bare city
+ *     would read «every city you have», a card a fifth rule. And «per CITY
+ *     ON MARS» (Migration Funding, Skyscrapers' destinations) IS the bare
+ *     city — the spark there would read as the space city's rule
+ *     (`countedTileSpark` decides, per tile);
+ *   · `metric`  — «per complete SET of 5 TR over 15» (Generous Funding): the
+ *     rating badge the mechanics print for `b.tr()`, alone. The threshold
+ *     and the step are not drawn here (the face prints «5» inside the badge
+ *     and «over 15» under it; a reading prints the breakdown in words) — a
+ *     card would state a sixth rule, a number inside the badge would collide
+ *     with the value standing next to the glyph;
+ *   · `production` — «per STEP of steel, titanium and energy PRODUCTION»
+ *     (Industrialist Budget): the resources' own icons joined by «+» inside
+ *     the brown production frame the mechanics print for `b.production(…)`.
+ *     Bare cubes would read as the SUPPLY (which does not count); a card as
+ *     a seventh rule;
+ *   · `colony`  — «per COLONY you have» (Jovian Tax Rights): the colony tile
+ *     the mechanics print for `b.colonies()`, alone — a CUBE is what is
+ *     counted and the tile is its only drawing. A card would state an
+ *     eighth rule; a bare cube would read as a resource;
+ *   · `resource-card` — «each of your cards that already HAS A RESOURCE»
+ *     (Sponsored Projects): the white card with its three cubes the face
+ *     prints for `b.resourceCard()` — the very holder glyph of TR53. The
+ *     card is counted by what it HOLDS, never by a tag or a type; and with
+ *     `wild` the same holder carrying ONE printed «?» (Tax Breaks): the
+ *     different KINDS held are counted — three cubes and one «?» are two rules;
+ *   · `type-card` — «per BLUE PROJECT CARD you have in play» (Vertical
+ *     Integration): the card cover wearing its TYPE's header band, the very
+ *     item the mechanics print for `b.cards(n, {secondaryTag: BLUE})` and
+ *     the physical game's own «blue card». The `vp-card` above would demand
+ *     a tag and a VP plate this rule never asks for; a tag medallion would
+ *     state a rule about tags; a bare cover would read «per card you have».
+ *
+ * All sit in the SAME square per medallion (`--pvpcard-size`), so a formula
+ * row, a reading and the Polygon keep one rhythm whichever object they count.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {Tag} from '@/common/cards/Tag';
 import {Resource} from '@/common/Resource';
 import {CardType} from '@/common/cards/CardType';
@@ -102,43 +104,38 @@ import {
   standardResourceIconUrl, tagIconStyle,
 } from './premiumCardIcons';
 
-export default defineComponent({
-  name: 'PremiumCountGlyph',
-  components: {PremiumVpCardGlyph, PremiumResourceCardGlyph},
-  props: {
-    glyph: {type: Object as PropType<CountedObjectGlyph>, required: true},
-  },
-  computed: {
-    /** The SAME colony tile the face prints for `b.colonies()` — the reading and the card draw one colony. */
-    colonyUrl(): string {
-      return countedColonyIconUrl();
-    },
-    /** The SAME cover the face prints for `b.cards(…)` — the reading and the card draw one card. */
-    cardCoverUrl(): string {
-      return countedCardCoverUrl();
-    },
-  },
-  methods: {
-    tagStyleOf(tag: Tag): Record<string, string> {
-      return tagIconStyle(tag);
-    },
-    tileUrlOf(tile: BoardCountedTile): string {
-      return countedTileIconUrl(tile);
-    },
-    sparkOf(tile: BoardCountedTile): boolean {
-      return countedTileSpark(tile);
-    },
-    metricUrlOf(metric: ResolutionCountMetric): string {
-      return countedMetricIconUrl(metric);
-    },
-    /** The SAME band modifier the face's own card glyph wears — never a second palette. */
-    bandOf(cardType: CardType.ACTIVE | CardType.AUTOMATED): string {
-      return cardTypeBandMod(cardType);
-    },
-    /** The SAME sprite the face prints inside its production box — the reading and the card draw one resource. */
-    resourceUrlOf(resource: Resource): string {
-      return standardResourceIconUrl(resource);
-    },
-  },
+defineOptions({name: 'PremiumCountGlyph'});
+defineProps({
+  glyph: {type: Object as PropType<CountedObjectGlyph>, required: true},
 });
+
+/** The SAME colony tile the face prints for `b.colonies()` — the reading and the card draw one colony. */
+const colonyUrl = computed((): string => {
+  return countedColonyIconUrl();
+});
+/** The SAME cover the face prints for `b.cards(…)` — the reading and the card draw one card. */
+const cardCoverUrl = computed((): string => {
+  return countedCardCoverUrl();
+});
+
+function tagStyleOf(tag: Tag): Record<string, string> {
+  return tagIconStyle(tag);
+}
+function tileUrlOf(tile: BoardCountedTile): string {
+  return countedTileIconUrl(tile);
+}
+function sparkOf(tile: BoardCountedTile): boolean {
+  return countedTileSpark(tile);
+}
+function metricUrlOf(metric: ResolutionCountMetric): string {
+  return countedMetricIconUrl(metric);
+}
+/** The SAME band modifier the face's own card glyph wears — never a second palette. */
+function bandOf(cardType: CardType.ACTIVE | CardType.AUTOMATED): string {
+  return cardTypeBandMod(cardType);
+}
+/** The SAME sprite the face prints inside its production box — the reading and the card draw one resource. */
+function resourceUrlOf(resource: Resource): string {
+  return standardResourceIconUrl(resource);
+}
 </script>
