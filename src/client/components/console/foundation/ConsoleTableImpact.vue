@@ -1,9 +1,4 @@
 <template>
-  <!-- «WHOM THE PLAY HITS» (P59 Recession) — a play that hits every opponent WITHOUT a choice shows them BEFORE the
-       press (invariant 3): one quiet line per seat — the seat's dot and name, the server's `current → resulting` rows
-       through the ONE row renderer, and a part the seat is spared NAMED in the near-miss grammar («✕ …», struck chip
-       + its reason). Read-only: no cursor, no focus stop, no verb — the command bar is untouched. State by material
-       (a dot, a hairline, a struck chip), never by light. -->
   <div class="con-tblimpact" :class="{'con-tblimpact--line': layout === 'line'}" data-table-impact role="list"
        :aria-label="$t(view.title)">
     <span class="con-tblimpact__head">{{ $t(view.title) }}</span>
@@ -21,26 +16,32 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * «WHOM THE PLAY HITS» (P59 Recession) — a play that hits every opponent WITHOUT a choice shows them BEFORE the
+ * press (invariant 3): one quiet line per seat — the seat's dot and name, the server's `current → resulting` rows
+ * through the ONE row renderer, and a part the seat is spared NAMED in the near-miss grammar («✕ …», struck chip
+ * + its reason). Read-only: no cursor, no focus stop, no verb — the command bar is untouched. State by material
+ * (a dot, a hairline, a struck chip), never by light.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import ConsoleTargetImpactRows from './ConsoleTargetImpactRows.vue';
 import {TableImpactRowView, TableImpactView} from '@/client/console/tableImpact/tableImpactModel';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 
-export default defineComponent({
-  name: 'ConsoleTableImpact',
-  components: {ConsoleTargetImpactRows, ActionEffectChip},
-  props: {
-    view: {type: Object as PropType<TableImpactView>, required: true},
-    /** `rows` — a seat per line (a composer's block); `line` — every seat on ONE line (a status rail). */
-    layout: {type: String as PropType<'rows' | 'line'>, default: 'rows'},
-  },
-  methods: {
-    /** The spared part as the ONE struck-chip grammar (the skipped warning's own chip — never a second drawing). */
-    sparedChip(spared: NonNullable<TableImpactRowView['spared']>): ActionEffect {
-      return {direction: 'cost', icon: spared.icon, amount: spared.amount, note: spared.scope === 'production' ? 'production' : undefined};
-    },
-  },
+defineOptions({name: 'ConsoleTableImpact'});
+defineProps({
+  view: {type: Object as PropType<TableImpactView>, required: true},
+  /** `rows` — a seat per line (a composer's block); `line` — every seat on ONE line (a status rail). */
+  layout: {type: String as PropType<'rows' | 'line'>, default: 'rows'},
 });
+
+/** The spared part as the ONE struck-chip grammar (the skipped warning's own chip — never a second drawing). */
+function sparedChip(spared: NonNullable<TableImpactRowView['spared']>): ActionEffect {
+  return {direction: 'cost', icon: spared.icon, amount: spared.amount, note: spared.scope === 'production' ? 'production' : undefined};
+}
 </script>
