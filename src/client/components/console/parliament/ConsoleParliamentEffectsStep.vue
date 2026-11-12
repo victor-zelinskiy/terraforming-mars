@@ -27,8 +27,9 @@
     </section>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {PropType, useTemplateRef} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {CardModel} from '@/common/models/CardModel';
 import {ConsoleActionGroup} from '@/client/console/consoleCardActions';
 import {PoliticalEffectEntry} from '@/client/components/effects/effectExtraction';
@@ -37,29 +38,32 @@ import {EffectsHostZone} from '@/client/console/parliament/parliamentEffectsHost
 import ConsoleActionGroupView from '@/client/components/console/ConsoleActionGroupView.vue';
 import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
 
-const NO_CARDS: ReadonlyArray<CardModel> = [];
-
-export default defineComponent({
-  name: 'ConsoleParliamentEffectsStep',
-  components: {ConsoleActionGroupView, ConsoleEffectsExplorer},
-  props: {
-    /** The seat's Parliament actions as «Действия карт» groups (`parliamentActionSources` → `buildConsoleActionsModel`). */
-    groups: {type: Array as PropType<ReadonlyArray<ConsoleActionGroup>>, required: true},
-    /** The seat's standing political effects — the explorer's entries (`politicalEffectEntries`). */
-    entries: {type: Array as PropType<ReadonlyArray<PoliticalEffectEntry>>, required: true},
-    color: {type: String, required: true},
-    zone: {type: String as PropType<EffectsHostZone>, required: true},
-    actionCursor: {type: Number, required: true},
-    explorerUi: {type: Object as PropType<EffectsExplorerUi>, required: true},
-  },
-  data() {
-    return {noCards: NO_CARDS};
-  },
-  methods: {
-    /** The hosted explorer — the section forwards the effects zone's intents to it. */
-    explorer(): InstanceType<typeof ConsoleEffectsExplorer> | undefined {
-      return (this.$refs.explorer ?? undefined) as InstanceType<typeof ConsoleEffectsExplorer> | undefined;
-    },
-  },
+defineOptions({name: 'ConsoleParliamentEffectsStep'});
+defineProps({
+  /** The seat's Parliament actions as «Действия карт» groups (`parliamentActionSources` → `buildConsoleActionsModel`). */
+  groups: {type: Array as PropType<ReadonlyArray<ConsoleActionGroup>>, required: true},
+  /** The seat's standing political effects — the explorer's entries (`politicalEffectEntries`). */
+  entries: {type: Array as PropType<ReadonlyArray<PoliticalEffectEntry>>, required: true},
+  color: {type: String, required: true},
+  zone: {type: String as PropType<EffectsHostZone>, required: true},
+  actionCursor: {type: Number, required: true},
+  explorerUi: {type: Object as PropType<EffectsExplorerUi>, required: true},
 });
+
+/** The explorer's `cards` — it reads none here (a constant handed to the template: no ref — RECIPES § R4). */
+const noCards: ReadonlyArray<CardModel> = [];
+// The template's `ref="explorer"` (R11). The Options component had a METHOD of the same name beside it — two
+// namespaces there (`this.$refs.explorer` · `this.explorer()`), one here: the template ref keeps the key's name, the
+// method stands under a name of its own and is EXPOSED under the public one. (A function binding named like a string
+// template ref makes the runtime warn «Template ref "explorer" used on a non-ref value» on every mount of a dev build.)
+const explorer = useTemplateRef<InstanceType<typeof ConsoleEffectsExplorer>>('explorer');
+
+/** The hosted explorer — the section forwards the effects zone's intents to it. */
+function hostedExplorer(): InstanceType<typeof ConsoleEffectsExplorer> | undefined {
+  return explorer.value ?? undefined;
+}
+
+// What `ConsoleParliamentSection` reaches through its `ref="effectsStep"`: `explorer()` — and nothing else. The
+// `handleIntent` / `consumeEffectsBack` it then calls are members of the explorer this returns, not of this component.
+defineExpose({explorer: hostedExplorer});
 </script>
