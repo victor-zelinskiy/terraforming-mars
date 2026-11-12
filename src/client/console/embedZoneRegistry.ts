@@ -52,17 +52,27 @@ export function embedZoneMounted(selector: string): boolean {
   return false;
 }
 
+/** A zone element stands (the directive's `mounted`, in either runtime). */
+export function registerEmbedZone(el: HTMLElement): void {
+  zones.add(el);
+  registry.epoch++;
+}
+
+/** A zone element left (the directive's `unmounted`, in either runtime). */
+export function unregisterEmbedZone(el: HTMLElement): void {
+  zones.delete(el);
+  registry.epoch++;
+}
+
 /** The directive a zone element wears. No argument: the element is matched
- *  against whatever selector a publisher names. */
+ *  against whatever selector a publisher names.
+ *
+ *  THIS IS THE OPTIONS-API FORM — an object of hooks, registered by name (`directives: {embedZone: vEmbedZone}`).
+ *  A `<script setup>` component imports the binding of the same name from `@/client/directives/vDirectives`
+ *  instead: one function both runtimes call (a Vapor component refuses an object directive). */
 export const vEmbedZone: ObjectDirective<HTMLElement> = {
-  mounted(el: HTMLElement): void {
-    zones.add(el);
-    registry.epoch++;
-  },
-  unmounted(el: HTMLElement): void {
-    zones.delete(el);
-    registry.epoch++;
-  },
+  mounted: registerEmbedZone,
+  unmounted: unregisterEmbedZone,
 };
 
 /** Spec seam: forget every registered zone. */

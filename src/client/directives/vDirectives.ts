@@ -26,15 +26,17 @@
  * is the virtual-DOM OBJECT — it is not callable there.
  */
 import {watch} from 'vue';
-import type {DirectiveBinding, FunctionDirective, VaporDirective} from 'vue';
+import type {DirectiveBinding} from 'vue';
 import {translateTextNode} from '@/client/directives/i18n';
 import {trimEmptyTextNodes} from '@/client/directives/TrimWhitespace';
+import {dualDirective, isVdomBinding} from '@/client/directives/dualDirective';
+import type {DualDirective} from '@/client/directives/dualDirective';
+import {registerEmbedZone, unregisterEmbedZone} from '@/client/console/embedZoneRegistry';
+import {stripActionPrefixIn} from '@/client/directives/stripActionPrefix';
+import {stripEffectPrefixIn} from '@/client/directives/stripEffectPrefix';
 
 /** The params of `v-i18n="…"` — one value or a list (`${0}`, `${1}`… of the English key). */
 type I18nParams = string | number | ReadonlyArray<string | number> | undefined;
-
-/** One binding, both runtimes. */
-type DualDirective<E extends Element, V> = VaporDirective<E, V> & FunctionDirective<E, V>;
 
 /** The live params getter of every Vapor `v-i18n` element (weak: gone with the element). */
 const paramsOf = new WeakMap<Element, (() => I18nParams) | undefined>();
@@ -83,7 +85,7 @@ function observed(): MutationObserver {
  */
 export const vI18n = ((el: HTMLElement, second?: (() => I18nParams) | DirectiveBinding<I18nParams>) => {
   el.setAttribute('tm-has-i18n', 'true');
-  if (second !== undefined && typeof second !== 'function') {
+  if (isVdomBinding(second)) {
     // The virtual DOM's call — `mounted` and every `updated` — with a binding object: the old directive, verbatim.
     translateTextNode(el, second);
     return;
@@ -106,3 +108,35 @@ export const vI18n = ((el: HTMLElement, second?: (() => I18nParams) | DirectiveB
 export const vTrimWhitespace = ((el: Element) => {
   trimEmptyTextNodes(el);
 }) as DualDirective<Element, unknown>;
+
+/**
+ * `v-embed-zone` — «this element is a zone another surface may teleport into» (`console/embedZoneRegistry.ts`): the
+ * registry learns of it when it stands and when it leaves. A directive WITH A LIFETIME — `dualDirective` gives it the
+ * `unmounted` both runtimes honour.
+ */
+export const vEmbedZone = dualDirective<HTMLElement>({mounted: registerEmbedZone, unmounted: unregisterEmbedZone});
+
+/**
+ * A directive that REWRITES THE TEXT under its element (listed after `v-i18n`, so the text is already translated).
+ * The virtual DOM calls it on `mounted` and on every `updated` — the object form's exact behaviour. A Vapor component
+ * never re-renders: its text bindings (and `v-i18n`'s own observer) write the text nodes directly, whenever their
+ * source moves — so there the directive FOLLOWS the text it owns, and lets go with its block. `rewrite` is idempotent
+ * (it writes a node only when it changes it), so its own writes end the exchange at once.
+ */
+function textRewriter(rewrite: (el: HTMLElement) => void): DualDirective<HTMLElement, unknown> {
+  return ((el: HTMLElement, second?: (() => unknown) | DirectiveBinding<unknown>) => {
+    rewrite(el);
+    if (isVdomBinding(second)) {
+      return undefined;
+    }
+    const follower = new MutationObserver(() => rewrite(el));
+    follower.observe(el, {characterData: true, childList: true, subtree: true});
+    return (): void => follower.disconnect();
+  }) as DualDirective<HTMLElement, unknown>;
+}
+
+/** `v-strip-action-prefix` — drops a leading «Action: » / «Действие: » where the surface itself says «actions». */
+export const vStripActionPrefix = textRewriter(stripActionPrefixIn);
+
+/** `v-strip-effect-prefix` — drops a leading «Effect: » / «Эффект: » where the surface itself says «effects». */
+export const vStripEffectPrefix = textRewriter(stripEffectPrefixIn);

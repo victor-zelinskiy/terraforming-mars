@@ -37,8 +37,8 @@ doing the dangerous half twice.
 | --- | --- | --- |
 | `.vue` components | **472** (271 under `components/console/`) | — |
 | …that are VAPOR (`<script setup vapor>`) | **3** — the pilot's leaves (§3.6) | all of them |
-| …written with `<script setup>` (virtual DOM) | **1** | gain `vapor` in their wave |
-| …written with the Options API (`defineComponent({…})`) | **468** | `<script setup lang="ts">`, then `vapor` |
+| …written with `<script setup>` (virtual DOM) | **7** — one older component and the SIX worked examples of step A (§4; each converted by a fresh agent from `RECIPES.md` alone) | gain `vapor` in their wave |
+| …written with the Options API (`defineComponent({…})`) | **462** | `<script setup lang="ts">`, then `vapor` — by the book (`RECIPES.md`), from each component's sheet (`scripts/vapor/inventory.mjs --component`) |
 | …that already have a `setup()` beside their options | 94 | their `setup()` body is the seed of the script-setup block |
 | `data()` blocks · `computed:` blocks · `watch:` blocks | 223 · 388 · 122 | `ref` / `reactive` · `computed()` · `watch()` — **in the same order** (see §3.5: order between watchers of DIFFERENT sources was never creation order) |
 | `this.$emit(` | 377 in 97 files | `defineEmits` |
@@ -70,7 +70,7 @@ doing the dangerous half twice.
 | `v-memo` | 11 | drop it — the Vapor compiler ignores it and says so |
 | `@vue:xxx` per-element lifecycle events | 0 | — |
 | render functions / JSX (they stay vdom) | 4 `h(` · no JSX | templates |
-| **custom directives — a different interface** (one function, called once, `value` a getter, no `updated`) | 16 definitions; **`v-i18n` at 913 sites**, `trim-whitespace` | DONE for the two global ones: `directives/vDirectives.ts` exports ONE binding per directive that both runtimes call (§3.6). A global directive resolved by NAME inside a Vapor component is the vdom object — not callable: a `<script setup>` component imports |
+| **custom directives — a different interface** (one function, called once, `value` a getter, no `updated`; an OBJECT of hooks is refused with a warning) | five directives: **`v-i18n` at 907 sites**, `trim-whitespace`, and three local ones — `embed-zone` (8 components), `strip-action-prefix`, `strip-effect-prefix` | **DONE for all five (2026-11-12)**: `directives/vDirectives.ts` exports ONE binding per directive that both runtimes call (§3.6); a directive WITH A LIFETIME (`embed-zone` must unregister) is written with `dualDirective({mounted, updated?, unmounted?})` (`directives/dualDirective.ts`) — the form of every future directive. A global directive resolved by NAME inside a Vapor component is the vdom object — not callable: a `<script setup>` component imports |
 | ~~event delegation at the document level~~ | — | **NOT the case on rc.15**: delegation became OPT-IN in rc.2 (`@click.delegate`). A plain `@click` in a Vapor component is a listener on the element; `.stop` shields exactly what it did; the console's window-level key bridge is not bypassed (verified — §3.6). Nothing to audit |
 
 The toolchain after V1: `vue` **3.6.0-rc.15** (exact, with `overrides` — §3.7) · `vue-loader` 17.4.2 + `scripts/vapor/sfcTemplateCompiler.cjs` ·
@@ -226,6 +226,10 @@ new RC re-reads the table by running it.
 | `$t(…)` in a template | ✔ works **with a change** | it is the imported binding — a Vapor component has no global properties |
 | `useFlowScope` (the kernel) · lifecycle hooks · `useTemplateRef` | ✔ works | bound without an instance (§3.4) |
 | `getCurrentInstance()` | ✘ `null` | by design — nothing of ours needs it (the shell's port stopped being the instance with architecture S-last) |
+| TEMPLATE REFS: `useTemplateRef` on the root (what `this.$el` was) · a ref inside `v-for` (an ARRAY, in order, following the list) · a function ref (called with the element, and with `null` when it leaves) · a ref of a virtual-DOM child (its public instance — methods callable) · a ref of a Vapor child (its `defineExpose`d object) | ✔ (`VaporRefsProbe.vue`, 2026-11-12) | RECIPES § R11 · R12 |
+| CONTEXT: `inject` of what a vdom ancestor provided · `provide` to an Options child · `defineOptions({inheritAttrs: false})` + `useAttrs()` · `$slots` / `$emit` / `$attrs` / `$props` in the TEMPLATE (the compiler binds them from the setup context) | ✔ (`VaporContextProbe.vue`, `VaporRefsProbe.vue`) | RECIPES § R3 · R13 · R16 — a template keeps `$emit(…)` and `$slots.x` as they are |
+| HOOKS: `onBeforeUpdate` / `onUpdated` (fire when the component's own bindings re-ran) · a `flush: 'post'` watcher reads the DOM the same change wrote · `onErrorCaptured` catches a vdom child's error across the interop boundary | ✔ (`VaporContextProbe.vue`) | RECIPES § R6 · R9 |
+| THE LOCAL DIRECTIVES, imported: two that rewrite the text `v-i18n` translated (they follow the text through an observer — Vapor has no `updated`), one with a LIFETIME (`v-embed-zone` registers AND unregisters) | ✔ in a Vapor component (`VaporDirectivesProbe.vue`) and — the same import lines — in a `<script setup>` one on the virtual DOM (`SetupDirectivesProbe.vue`, which also pins what `dualDirective` leans on: a function directive's `unmounted`) | RECIPES § R17 |
 | THE SHELL'S COMPOSITION — controllers behind a late-bound port (`shell/shellPort.ts`), a surface standing in the registry through a function ref (`:ref="surfaces.bind.<name>"`), a reactions table of `watch()` rows over port members and a prop, a WRITTEN port row, `onMounted` / `onBeforeUnmount` | ✔ (fixture `VaporShellProbe.vue`, 2026-11-12) | `ConsoleShell.vue` is this shape (`useConsoleShell`): its conversion changes how the template names the members, not the mechanism |
 | `v-memo` | ignored (compiler warning) | drop at conversion |
 | `@vue/test-utils`: `mount(<a Vapor component>)` as the ROOT | ✘ throws | test-utils reads the root's vdom instance. A spec stands the component under a vdom host with an ELEMENT root (`mountVapor` in the suite; `card/CardDescription.spec.ts`). DOM finders work; `findComponent` INTO a Vapor child does not. The interop plugin is installed for every mount by `tests/client/components/bundleSetup.ts` |
@@ -280,18 +284,24 @@ inside) · `card/CardDescription.vue` (`v-i18n` over an interpolation, many inst
   parts) → ② the foundation components (`components/console/foundation/**`) → ③ the domain surfaces, domain by domain
   (each with its controller already holding its logic) → ④ the hosts and the workspaces → ⑤ `ConsoleShell.vue` and
   `App.vue`, last.
-- **One recipe per construct** (the table of §1), applied the same way everywhere. A component's public surface
-  (props, emits, what it exposes, its e2e hooks) does not change in a conversion. The pilot's three leaves are the
-  worked examples:
-  - `defineOptions({name})` keeps the component's name (the error report's chain, devtools);
-  - props → `withDefaults(defineProps<…>(), …)`; `emits` → `defineEmits<…>()`; a module's reactive state is imported
-    and read in the template as it is;
-  - `$t` and the directives → the two import lines of §2 rule 2;
-  - **the template starts with its root** — a comment that used to open the template moves into the script block
-    (§3.6: in a development build it would cost the component its fallthrough attributes);
-  - its unit spec mounts it under a host (§3.6 · test-utils) in the SAME commit — and a leaf that had none gets one
-    (`BotReviewEdgeNotice.spec.ts`, `ConsoleForecastDoor.spec.ts`);
-  - `npm run ready:vapor` in the same commit — the ledger records the conversion and lowers the rows it cleared.
+- **THE RECIPE BOOK IS `docs/claude/vapor/RECIPES.md`** — one recipe per construct, complete BY CHECK: `node scripts/vapor/inventory.mjs` reads every component with a real parser and fails on a construct with no row (`tests/console/vaporRecipes.spec.ts`); `--component <path>` prints a component's conversion SHEET (its constructs, what it MUST EXPOSE to the parents that reach it through a ref, who mounts it), `--wave` the worklist. A conversion is done by analogy from the sheet — nothing is discovered in the middle of a wave.
+- **One recipe per construct, applied the same way everywhere** — the book's 26 rows (R0 – R25): the option blocks, the
+  instance members, the watchers, the template's own constructs, the script's module level. A component's public
+  surface (props, emits, what it exposes, its e2e hooks) does not change in a conversion.
+- **THE FOUNDATION WAS TESTED BY USING IT (2026-11-12).** Six real components of six different kinds were each handed
+  to a FRESH agent with nothing but the book and the component's sheet: the workspace header
+  (`foundation/ConsoleWsHead`), a stateful leaf with timers and two prop watchers (`ConsoleFlipValue`), a stage with a
+  directive that has a lifetime (`parliament/ConsoleParliamentDrawStage`), a component its parent reaches through a
+  ref (`parliament/ConsoleParliamentEffectsStep`), an injection of a provided computed (`premiumCard/
+  PremiumFleetMark`), a layer with function refs in `v-for` that three parents read (`cardDeal/ConsoleCardDealLayer`).
+  All six converted to `<script setup>` (step A), their specs green, vue-tsc clean — and each agent reported every
+  place it had to guess. Those reports became rows: R25 (the module level — in `<script setup>` it is PER INSTANCE,
+  so module state moves out), the `inject` unwrap trap, a ref key that is also a member's name, what a parent's ref
+  of a `<script setup>` child holds, `:key` re-mounts, the stub and expose rules of a spec, a `MUST EXPOSE` list
+  that names only real members, a `STEP B` verdict on every sheet. **That loop — convert by the book, report the
+  guesses, fix the book — is the protocol of every wave's first batch.**
+- **The worked examples** are the table of `RECIPES.md` § 5: three at step B (the pilot's leaves) and those six at
+  step A.
 - **Two watchers of one collection are merged BEFORE their component is converted** (§2 rule 6) — a conversion does
   not get to discover an order dependency.
 - **Every wave is its own series of commits and its own full e2e run on CI** — «все кейсы тестируем через e2e на CI»;
@@ -303,11 +313,12 @@ inside) · `card/CardDescription.vue` (`v-i18n` over an interpolation, many inst
 ledgers. Per file it counts what the target has no place for — `options-api` (the component itself) ·
 `instance-access` (`getCurrentInstance`) · `parent-root` · `mixin` · `global-registration` · `render-function` ·
 `v-memo` · `refs` · `global-in-setup` (a `<script setup>` component leaning on `$t` / a global directive / a globally
-registered component). A file may not grow, **a new file starts at zero** (so rules 1, 2 and 4 of §2 are failing
+registered component) · `instance-internals` (`this.$.…`, `$options`, `$forceUpdate`, `$data` — one left: the render
+function of `ConsoleTeleport`, a rewrite of its wave). A file may not grow, **a new file starts at zero** (so rules 1, 2 and 4 of §2 are failing
 tests, not conventions), a component that is Vapor stays Vapor, and a Vapor component holds nothing of the list.
 `npm run ready:vapor` lowers the baseline and prints the line:
 
-`Vapor components: 3 / 472 · options-api: 468 · instance-access: 0 · parent-root: 1 · mixin: 1 · global-registration: 6 · render-function: 4 · v-memo: 11 · refs: 654 · global-in-setup: 2` (2026-11-12, after V2's S3 · S4 · S6 · S-last; `refs` was 785 and `instance-access` 1 at the pilot).
+`Vapor components: 3 / 472 · options-api: 462 · instance-access: 0 · instance-internals: 1 · parent-root: 1 · mixin: 1 · global-registration: 6 · render-function: 4 · v-memo: 11 · refs: 652 · global-in-setup: 2` (2026-11-12, after V2's S3 · S4 · S6 · S-last and the six worked examples; at the pilot: `options-api` 468, `refs` 785, `instance-access` 1).
 
 V3 is done when `options-api` is zero and every component is Vapor; V4 is one line in `main.ts` after that.
 

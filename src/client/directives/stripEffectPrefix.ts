@@ -40,7 +40,8 @@ function stripPrefix(data: string): string {
   return data;
 }
 
-function stripNode(node: Node): void {
+/** Strip the label from every text node under `node` (idempotent) — the directive's whole work, in either runtime. */
+export function stripEffectPrefixIn(node: Node): void {
   for (const child of Array.from(node.childNodes)) {
     if (child.nodeType === Node.TEXT_NODE) {
       const text = child as Text;
@@ -49,12 +50,12 @@ function stripNode(node: Node): void {
         text.data = stripped;
       }
     } else {
-      stripNode(child);
+      stripEffectPrefixIn(child);
     }
   }
 }
 
 export const stripEffectPrefix: ObjectDirective<HTMLElement> = {
-  mounted: stripNode,
-  updated: stripNode,
+  mounted: stripEffectPrefixIn,
+  updated: stripEffectPrefixIn,
 };

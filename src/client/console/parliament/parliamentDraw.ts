@@ -83,7 +83,15 @@ export function parliamentDrawZone(): string {
   return parliamentDrawState.paneIn && embedZoneMounted(PARLIAMENT_DRAW_ZONE) ? PARLIAMENT_DRAW_ZONE : '';
 }
 
-/** A section says whether it may host a draw now (its own instance id — the answer of one never erases another's). */
+let drawHostIds = 0;
+
+/** A section's id as a draw host — taken once, in its `setup` (a counter of this module: never the component
+ *  instance's `uid`, which a `<script setup>` / Vapor component has no way to read). */
+export function newParliamentDrawHostId(): number {
+  return ++drawHostIds;
+}
+
+/** A section says whether it may host a draw now (its own host id — the answer of one never erases another's). */
 export function setParliamentDrawHost(instance: number, on: boolean): void {
   const at = parliamentDrawState.hosts.indexOf(instance);
   if (on && at < 0) {

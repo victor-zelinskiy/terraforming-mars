@@ -55,8 +55,18 @@ export const CONSTRUCTS: Readonly<Record<string, Construct>> = {
     count: (code) => uses(/\bgetCurrentInstance\(/g, code),
     what: '`getCurrentInstance()` — it answers `null` inside a Vapor component',
     instead: '`provide` / `inject` for what comes down the tree, `getCurrentScope()` / `onScopeDispose` for a lifetime ' +
-      '(`session/consoleSession.ts`, `session/useFlowScope.ts` are the model); a port is explicit wiring. ' +
-      'The one row left is the shell port — it leaves with architecture S-last',
+      '(`session/consoleSession.ts`, `session/useFlowScope.ts` are the model); a port is explicit wiring ' +
+      '(`shell/shellPort.ts` — the shell\'s port is a late-bound object, never the instance). ZERO since architecture S-last',
+  },
+  'instance-internals': {
+    where: 'any',
+    count: (code) => uses(/\bthis\.\$\.|\.\$(?:options|forceUpdate|data)\b/g, code),
+    what: 'the component instance\'s INTERNALS or its Options-only members — `this.$.uid` / `.isUnmounted` / `.subTree`, `$options`, ' +
+      '`$forceUpdate`, `$data`: a `<script setup>` component has no `this`, a Vapor one no such instance',
+    instead: 'the component\'s own fact, kept by its own code: an id from a module counter taken in `setup`, «am I gone» from its own ' +
+      '`onUnmounted`, a watcher\'s body as a NAMED function its other callers call (never `$options.watch[name].handler`). ' +
+      'The one row left is `foundation/ConsoleTeleport.vue` — a render function over its own `subTree`, rewritten (not converted) in ' +
+      'its wave (docs/claude/vapor/RECIPES.md § R18)',
   },
   'parent-root': {
     where: 'any',

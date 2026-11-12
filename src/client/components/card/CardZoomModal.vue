@@ -214,7 +214,7 @@
 </template>
 
 <script lang="ts">
-import {defineComponent} from 'vue';
+import {defineComponent, onUnmounted} from 'vue';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -404,7 +404,13 @@ export default defineComponent({
   setup() {
     // The viewer's own scope (the game session's while a game screen stands, the lobby's otherwise): its guard, its
     // settle beat and its fit retries are taken back when it is unmounted.
-    return {flow: useFlowScope('card-zoom-modal')};
+    // «Is this viewer gone?» — asked by a QUEUED dialog event that can arrive after the unmount. The component's own
+    // fact, set by its own hook: never the instance's internals (`this.$.isUnmounted`).
+    let gone = false;
+    onUnmounted(() => {
+      gone = true;
+    });
+    return {flow: useFlowScope('card-zoom-modal'), viewerGone: (): boolean => gone};
   },
   data() {
     return {
@@ -1185,7 +1191,7 @@ export default defineComponent({
     this.typedRefs.dialog.addEventListener('close', () => {
       // The event is a QUEUED task: a host that unwound at `close()` itself (the console shell) has unmounted this
       // instance by now — a late 'close' from a gone viewer must not close the NEXT one.
-      if (this.$.isUnmounted) {
+      if (this.viewerGone()) {
         return;
       }
       // Rule overlay off: nonce 0 clears the blocks + the target marks so a

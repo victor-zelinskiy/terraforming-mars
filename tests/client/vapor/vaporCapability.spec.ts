@@ -19,7 +19,7 @@
  */
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
-import {defineAsyncComponent, defineComponent, h, nextTick, reactive, ref} from 'vue';
+import {defineAsyncComponent, defineComponent, h, nextTick, provide, reactive, ref} from 'vue';
 import type {Component} from 'vue';
 import i18nPlugin from '@/client/plugins/i18n.plugin';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
@@ -36,6 +36,13 @@ import VaporHostsVdom from './fixtures/VaporHostsVdom.vue';
 import VaporFlowProbe from './fixtures/VaporFlowProbe.vue';
 import VaporIfRoot from './fixtures/VaporIfRoot.vue';
 import VaporShellProbe from './fixtures/VaporShellProbe.vue';
+import VaporDirectivesProbe from './fixtures/VaporDirectivesProbe.vue';
+import SetupDirectivesProbe from './fixtures/SetupDirectivesProbe.vue';
+import VaporRefsProbe from './fixtures/VaporRefsProbe.vue';
+import VaporContextProbe from './fixtures/VaporContextProbe.vue';
+import VaporKeyProbe from './fixtures/VaporKeyProbe.vue';
+import VaporTeleportLate from './fixtures/VaporTeleportLate.vue';
+import {embedZoneMounted, resetEmbedZones} from '@/client/console/embedZoneRegistry';
 import {lendFrames} from './lendFrames';
 
 type Slots = Record<string, (props: Record<string, unknown>) => unknown>;
@@ -64,6 +71,8 @@ const RU: Record<string, string> = {
   'Action phase': 'Фаза действий',
   'Production phase': 'Фаза производства',
   'Draw ${0} cards': 'Возьмите карт: ${0}',
+  'Action: Research phase': 'Действие: Фаза исследований',
+  'Action: Production phase': 'Действие: Фаза производства',
 };
 
 describe('Vapor in the virtual-DOM app — what it takes (vue 3.6.0-rc.15, through vaporInteropPlugin)', () => {
@@ -252,6 +261,47 @@ describe('Vapor in the virtual-DOM app — what it takes (vue 3.6.0-rc.15, throu
       expect(q('.st-i18n__params').textContent).to.equal('Возьмите карт: 5');
     });
 
+    /*
+     * THE LOCAL DIRECTIVES (RECIPES.md § R17). `v-strip-action-prefix` / `v-strip-effect-prefix` rewrite the text
+     * `v-i18n` translated; `v-embed-zone` has a LIFETIME — the registry must learn that its element LEFT. One imported
+     * binding each (`dualDirective`), the same line in a `<script setup>` component before and after it gains `vapor`.
+     * The virtual-DOM half pins what `dualDirective` leans on: a function directive's `unmounted`, set on `binding.dir`.
+     */
+    for (const [form, component] of [['a Vapor component', VaporDirectivesProbe], ['a `<script setup>` component on the virtual DOM', SetupDirectivesProbe]] as const) {
+      it(`the local directives in ${form}: the text is rewritten after the translation and follows a change; the zone registers AND unregisters`, async () => {
+        resetEmbedZones();
+        const props = reactive({action: 'Action: Research phase', effect: 'Effect: gain a plant', zone: true});
+        const Host = defineComponent({setup: () => () => h('div', [h(component as never, {...props})])});
+        const wrapper = mount(Host, {attachTo: document.body});
+        const q = (selector: string) => (wrapper.element as Element).querySelector<HTMLElement>(selector)!;
+        const settled = async (): Promise<void> => {
+          await nextTick(); // the patch / the text effects
+          await Promise.resolve(); // the observers' records (a Vapor element follows its text through one)
+          await nextTick();
+        };
+        await settled();
+        expect(q('.dd__action').textContent, 'translated, THEN stripped').to.equal('Фаза исследований');
+        expect(q('.dd__effect').textContent).to.equal('Gain a plant');
+        expect(embedZoneMounted('[data-embed-slot="probe"]'), 'the zone stands in the registry').to.equal(true);
+
+        props.action = 'Action: Production phase';
+        props.effect = 'Effect: lose a plant';
+        await settled();
+        expect(q('.dd__action').textContent, 'a new string is translated and stripped again').to.equal('Фаза производства');
+        expect(q('.dd__effect').textContent).to.equal('Lose a plant');
+
+        props.zone = false;
+        await settled();
+        expect(embedZoneMounted('[data-embed-slot="probe"]'), 'the element left — the directive\'s `unmounted` ran').to.equal(false);
+        props.zone = true;
+        await settled();
+        expect(embedZoneMounted('[data-embed-slot="probe"]')).to.equal(true);
+        wrapper.unmount();
+        await settled();
+        expect(embedZoneMounted('[data-embed-slot="probe"]'), '…and with its component').to.equal(false);
+      });
+    }
+
     it('`v-trim-whitespace` (in a Vapor component) leaves no whitespace-only text node in the row', () => {
       const {q} = mountVapor(VaporI18nProbe, {text: 'Research phase', amount: 1, extra: false});
       const blanks = [...q('.vp-i18n')!.childNodes].filter((node) => node.nodeType === Node.TEXT_NODE && (node as Text).data.trim() === '');
@@ -347,6 +397,183 @@ describe('Vapor in the virtual-DOM app — what it takes (vue 3.6.0-rc.15, throu
       mountVapor(VaporFlowProbe, {seen});
       expect(seen.flow!.parent).to.equal(consoleAppScope());
     });
+  });
+
+  /*
+   * TEMPLATE REFS (RECIPES.md § R11 · R12 · R16). What `this.$refs` / `this.$el` become, and what each kind of ref holds.
+   */
+  it('template refs in a Vapor component: its root, an ARRAY for a ref inside `v-for`, a function ref, a vdom child\'s public instance, a Vapor child\'s exposed object; `provide` reaches a vdom child', async () => {
+    type Seen = {rootTag?: string, rows?: () => Array<string>, fn?: Array<string>, pressVdom?: () => number, vaporKeys?: Array<string>, bumpVapor?: () => void};
+    const seen: Seen = {};
+    const {props, q, wrapper} = mountVapor(VaporRefsProbe, {count: 2, seen});
+    expect(seen.rootTag, '`useTemplateRef` on the root — what `this.$el` was').to.equal('DIV');
+    expect(seen.rows!(), 'a ref inside `v-for` is an array, in order').to.deep.equal(['1', '2']);
+    expect(seen.fn, 'a function ref is called with the element').to.deep.equal(['B']);
+    expect(q('.opt-ctx')!.getAttribute('data-theme'), 'a Vapor `provide` reaches an Options child\'s `inject`').to.equal('from-vapor');
+    expect(seen.pressVdom!(), 'a ref of a virtual-DOM child is its public instance — its methods are callable').to.equal(1);
+    await nextTick();
+    expect(q('.opt-ctx')!.textContent).to.equal('1');
+    expect(seen.vaporKeys, 'a ref of a Vapor child is what it `defineExpose`d — nothing else').to.deep.equal(['bump', 'count']);
+    seen.bumpVapor!();
+    await nextTick();
+    expect(q('.vp-basics__label')!.textContent).to.equal('inner: 1');
+
+    props.count = 3;
+    await nextTick();
+    expect(seen.rows!(), 'the array follows the list').to.deep.equal(['1', '2', '3']);
+    wrapper.unmount();
+    await nextTick();
+    expect(seen.fn, '…and with `null` when the element leaves').to.deep.equal(['B', 'null']);
+  });
+
+  /*
+   * CONTEXT AND HOOKS (RECIPES.md § R9 · R13 · R16).
+   */
+  it('context in a Vapor component: `inject` from a vdom ancestor, `inheritAttrs: false` + `useAttrs`, `$slots` and `$emit` in the template, a `post` watcher over the written DOM, `onErrorCaptured`', async () => {
+    const seen: {hooks: Array<string>, post?: string, captured?: string} = {hooks: []};
+    const picked: Array<string> = [];
+    const {props, q} = mountVapor(VaporContextProbe, {'n': 1, 'armed': false, seen, 'data-probe': 'fell-through'}, {
+      slots: {extra: () => h('b', {class: 'vp-ctx__extra'}, 'extra')},
+      listeners: {onPicked: ((theme: string) => picked.push(theme)) as never},
+      setup: () => provide('probe-theme', 'from-vdom'),
+    });
+    expect(q('.vp-ctx')!.getAttribute('data-theme'), '`inject` of what the virtual-DOM host provided').to.equal('from-vdom');
+    expect(q('.vp-ctx')!.getAttribute('data-probe'), '`inheritAttrs: false` — nothing falls on the root').to.equal(null);
+    expect(q('.vp-ctx__inner')!.getAttribute('data-probe'), '…`v-bind="attrs"` puts it where the component says').to.equal('fell-through');
+    expect(q('.vp-ctx__has'), '`$slots.extra` in the template').to.not.equal(null);
+    expect(q('.vp-ctx__extra')!.textContent).to.equal('extra');
+    q('.vp-ctx__inner')!.click();
+    expect(picked, '`$emit` in the template reaches the vdom parent').to.deep.equal(['from-vdom']);
+
+    props.n = 2;
+    await nextTick();
+    expect(q('.vp-ctx__updates')!.textContent, 'a watcher of a prop ran').to.equal('2');
+    expect(seen.post, 'a `flush: \'post\'` watcher reads the DOM the same change wrote').to.equal('2');
+    expect(seen.hooks, '`onBeforeUpdate` / `onUpdated` fire when the component\'s own bindings re-ran').to.deep.equal(['beforeUpdate', 'updated']);
+
+    props.armed = true;
+    await nextTick();
+    await nextTick();
+    expect(seen.captured, '`onErrorCaptured` over a virtual-DOM child — the error stops here (it returned false)').to.equal('the child threw');
+    await nextTick();
+    expect(q('.vp-ctx__caught')!.textContent, '…and what the handler wrote is on screen').to.equal('the child threw');
+  });
+
+  /*
+   * WHAT A CONVERSION MEETS THAT IS NOT AN OPTION BLOCK (RECIPES.md § R0 · R6 · R16).
+   */
+  it('`:key` re-mounts a plain element and swaps a `<Transition>`\'s child; an injected REF arrives as the ref and is followed; two prop watchers run in their SOURCES\' trigger order', async () => {
+    const giveBack = lendFrames();
+    try {
+      const live = ref('one');
+      const {props, q, wrapper} = mountVapor(VaporKeyProbe, {nonce: 1, text: 'alpha', a: 1, b: 1, cards: ['x', 'y', 'z']}, {setup: () => provide('probe-live', live)});
+      const cards = (): Array<string> => [...wrapper.element.querySelectorAll('.vp-key__card')].map((el) => el.textContent ?? '');
+      expect(cards()).to.deep.equal(['x', 'y', 'z']);
+      const first = q('.vp-key__node')!;
+      expect(q('.vp-key')!.getAttribute('data-live'), 'the template unwraps the injected ref').to.equal('one');
+      live.value = 'two';
+      await nextTick();
+      expect(q('.vp-key')!.getAttribute('data-live'), '…and follows it').to.equal('two');
+
+      props.nonce = 2;
+      await nextTick();
+      const second = q('.vp-key__node')!;
+      expect(second, 'a new key is a NEW node — the forced re-mount a flip restarts on').to.not.equal(first);
+      expect(second.textContent).to.equal('2');
+      expect(wrapper.element.querySelectorAll('.vp-key__node').length).to.equal(1);
+
+      const before = q('.vp-key__swap')!;
+      props.text = 'beta';
+      await nextTick();
+      const swaps = [...wrapper.element.querySelectorAll('.vp-key__swap')];
+      expect(swaps.some((el) => el !== before && el.textContent === 'beta'), 'the keyed child of a `<Transition>` (no `v-if`): the new node entered').to.equal(true);
+      await nextTick();
+      await nextTick();
+
+      props.cards = ['p', 'q', 'r'];
+      await nextTick();
+      expect(cards(), 'every key of a `v-for` changed at once').to.deep.equal(['p', 'q', 'r']);
+      expect(q('.vp-key')!.getAttribute('data-seated'), 'the function refs seated the NEW nodes, index-aligned (the `null` of a leaving node did not land on its successor)').to.equal('p,q,r');
+
+      // Two props, one parent update, two watchers declared b-then-a: they run in the order their SOURCES were written.
+      props.a = 2;
+      props.b = 2;
+      await nextTick();
+      expect(q('.vp-key')!.getAttribute('data-order'), 'TRIGGER order (a was written first), not declaration order — the contract of the tick, as on the virtual DOM (`vueTickOrder.spec`). A pair whose order matters is ONE watch (RECIPES § R6)').to.equal('a>b');
+    } finally {
+      await giveBack();
+    }
+  });
+
+  /*
+   * A TELEPORT WHOSE TARGET IS NOT THERE YET (RECIPES.md § R18). The virtual-DOM teleport mounted nothing into an absent
+   * target and THREW on the next patch — the reason `foundation/ConsoleTeleport.vue` is a render function over its own
+   * `subTree`. The Vapor one does not throw; it also never looks for its target again. So the rewrite is a TEMPLATE:
+   * the same «wait for the target» loop, and a `v-if` + `:key` that stands the teleport once the target exists.
+   */
+  it('a Vapor `<Teleport>` and an absent target: nothing is mounted, a patch does NOT throw, the target is never re-resolved — a re-mount (or `disabled`) is what places the content', async () => {
+    const facts: Array<string> = [];
+    const where = (root: Element): string => {
+      const el = document.querySelector('.vp-late__content');
+      return el === null ? 'nowhere' : root.contains(el) ? 'in place' : (el.parentElement?.id ?? 'elsewhere');
+    };
+    const errors: Array<string> = [];
+    const onError = (event: ErrorEvent): void => {
+      errors.push(event.message);
+    };
+    window.addEventListener('error', onError);
+    const warn = console.warn;
+    const warned: Array<string> = [];
+    console.warn = (...args: Array<unknown>): void => {
+      warned.push(String(args[0]).slice(0, 90));
+    };
+    try {
+      const {props, wrapper} = mountVapor(VaporTeleportLate, {to: '#vp-late-zone', disabled: false, n: 1, armed: true});
+      const root = wrapper.element as Element;
+      facts.push(`mounted, target absent: ${where(root)}`);
+      try {
+        props.n = 2;
+        await nextTick();
+        facts.push(`patched, target absent: ${where(root)} text=${document.querySelector('.vp-late__content')?.textContent ?? '-'}`);
+      } catch (error) {
+        facts.push(`patch THREW: ${(error as Error).message.slice(0, 60)}`);
+      }
+      const zone = document.createElement('div');
+      zone.id = 'vp-late-zone';
+      document.body.appendChild(zone);
+      props.n = 3;
+      await nextTick();
+      facts.push(`target arrived + patch: ${where(root)} text=${document.querySelector('.vp-late__content')?.textContent ?? '-'}`);
+      props.armed = false;
+      await nextTick();
+      props.armed = true;
+      await nextTick();
+      facts.push(`re-mounted with the target present: ${where(root)}`);
+      props.disabled = true;
+      await nextTick();
+      facts.push(`disabled: ${where(root)}`);
+      props.disabled = false;
+      await nextTick();
+      facts.push(`enabled again: ${where(root)}`);
+      wrapper.unmount();
+      await nextTick();
+      facts.push(`unmounted: ${where(root)}`);
+      zone.remove();
+    } finally {
+      console.warn = warn;
+      window.removeEventListener('error', onError);
+    }
+    expect(facts).to.deep.equal([
+      'mounted, target absent: nowhere',
+      'patched, target absent: nowhere text=-',
+      'target arrived + patch: nowhere text=-',
+      're-mounted with the target present: vp-late-zone',
+      'disabled: in place',
+      'enabled again: vp-late-zone',
+      'unmounted: nowhere',
+    ]);
+    expect(errors, 'no patch of a teleport with an absent target throws').to.deep.equal([]);
+    expect(warned.some((line) => line.includes('Failed to locate Teleport target')), 'the runtime SAYS the target is missing (a development build)').to.equal(true);
   });
 
   /*

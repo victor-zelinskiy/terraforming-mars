@@ -471,6 +471,9 @@
    "src/client/components/underworld/UndergroundToken.vue": 1
   },
   "instance-access": {},
+  "instance-internals": {
+   "src/client/components/console/foundation/ConsoleTeleport.vue": 1
+  },
   "parent-root": {
    "src/client/components/vueRoot.ts": 1
   },

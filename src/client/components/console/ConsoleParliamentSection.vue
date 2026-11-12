@@ -313,7 +313,7 @@ import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {
   noteParliamentDrawPaneIn, noteParliamentDrawPaneOut, PARLIAMENT_DRAW_READY_NET_MS, parliamentDrawsSettled,
-  parliamentDrawStanding, parliamentDrawZone, parliamentOwnsRevealBatch, refuseParliamentDraw, setParliamentDrawHost,
+  newParliamentDrawHostId, parliamentDrawStanding, parliamentDrawZone, parliamentOwnsRevealBatch, refuseParliamentDraw, setParliamentDrawHost,
 } from '@/client/console/parliament/parliamentDraw';
 import {sittingSeededLive} from '@/client/console/parliament/parliamentSittingSeed';
 import {
@@ -457,7 +457,8 @@ export default defineComponent({
   emits: ['close', 'submit', 'notice', 'inspect', 'inspect-source', 'open-action', 'open-resolution-action', 'flow-complete', 'collapse', 'staged-back', 'to-board'],
   setup() {
     // The section's own scope (architecture v2 — PLAN §10 · C1): its two nets are timers of it, taken back with it.
-    return {flowScope: useFlowScope('console-parliament-section')};
+    // …and its id as a draw host (`parliamentDraw.ts` — the answer of one section never erases another's).
+    return {flowScope: useFlowScope('console-parliament-section'), drawHostId: newParliamentDrawHostId()};
   },
   data() {
     return {
@@ -1546,7 +1547,7 @@ export default defineComponent({
     'drawHostable': {
       immediate: true,
       handler(on: boolean): void {
-        setParliamentDrawHost(this.$.uid, on);
+        setParliamentDrawHost(this.drawHostId, on);
       },
     },
     /**
@@ -1929,12 +1930,7 @@ export default defineComponent({
     'questGate': {
       immediate: true,
       handler(gate: {generation: number} | undefined): void {
-        // The gate opens its flow only in a Parliament the PLAYER walked into by the plate's A: a section pushed
-        // INTO another workspace as a step («КАРЬЕРА» — a card's walk hosted by the hand, TR04) is not that door.
-        // The plate keeps announcing the gate; it is answered after the walk, in the Parliament the player opens.
-        if (gate !== undefined && parliamentFlow.stage === 'browse' && !chairmanQuestFlow.live && !this.embedded && agendaWalkFlow.owed === undefined) {
-          this.openQuestFlow();
-        }
+        this.whenQuestGateChanges(gate);
       },
     },
     /**
@@ -2030,13 +2026,7 @@ export default defineComponent({
     'bridge.seat': {
       immediate: true,
       handler(seat: PlayerInputModel | undefined): void {
-        if (seat !== undefined && parliamentFlow.stage === 'browse') {
-          const parties = (seat as {parties: Array<PartyName>}).parties;
-          const idx = this.view.slots.findIndex((slot) => parties.includes(slot.party));
-          parliamentFlow.slotIndex = idx >= 0 ? idx : 0;
-          parliamentFlow.zone = 'voting';
-          this.openStage('seat');
-        }
+        this.whenBridgeSeatChanges(seat);
       },
     },
     /**
@@ -2058,11 +2048,7 @@ export default defineComponent({
     'bridge.grant': {
       immediate: true,
       handler(grant: ParliamentPromptBridge['grant']): void {
-        // A WARMING mount (PL-127 — the play's live grant, P72 · CZ) is inert: it opens the vote on its UNVEIL (`warm`).
-        if (grant === undefined || parliamentFlow.stage !== 'browse' || this.warm) {
-          return;
-        }
-        this.openGrant(grant, false);
+        this.whenBridgeGrantChanges(grant);
       },
     },
     /**
@@ -2085,16 +2071,7 @@ export default defineComponent({
     'bridge.supportPick': {
       immediate: true,
       handler(pick: ParliamentPromptBridge['supportPick']): void {
-        if (pick === undefined || parliamentFlow.stage !== 'browse') {
-          return;
-        }
-        const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
-        const order = supportCursorOrder(this.view.parties.map((p) => p.party), ruler);
-        const start = supportStartParty(pick.meta, order);
-        const index = start === undefined ? 0 : this.view.parties.findIndex((p) => p.party === start);
-        armSupportPickFlow({zone: start !== undefined && start === ruler ? 'ruler' : 'parties', partyIndex: Math.max(0, index)},
-          supportStepStageOf(pick.meta), pick.staged !== true, pick.meta);
-        setWorkspaceFramePhase('parliament', pick.staged === true ? 'configure' : 'committed');
+        this.whenBridgeSupportPickChanges(pick);
       },
     },
     /**
@@ -2105,16 +2082,7 @@ export default defineComponent({
     'bridge.bannerPick': {
       immediate: true,
       handler(pick: ParliamentPromptBridge['bannerPick']): void {
-        if (pick === undefined || parliamentFlow.stage !== 'browse') {
-          return;
-        }
-        const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
-        const order = supportCursorOrder(this.view.parties.map((p) => p.party), ruler);
-        const start = bannerStartParty(pick.meta, order);
-        const index = start === undefined ? 0 : this.view.parties.findIndex((p) => p.party === start);
-        armBannerPickFlow({zone: start !== undefined && start === ruler ? 'ruler' : 'parties', partyIndex: Math.max(0, index)},
-          bannerStepStageOf(pick.meta), pick.meta);
-        setWorkspaceFramePhase('parliament', 'committed');
+        this.whenBridgeBannerPickChanges(pick);
       },
     },
     /**
@@ -2125,16 +2093,7 @@ export default defineComponent({
     'bridge.delegatePick': {
       immediate: true,
       handler(pick: ParliamentPromptBridge['delegatePick']): void {
-        if (pick === undefined || parliamentFlow.stage !== 'browse') {
-          return;
-        }
-        const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
-        const ring = delegateRing(pick.meta, {
-          slots: this.view.slots.map((slot) => ({party: slot.party, votes: slot.votes})),
-          areaOrder: supportCursorOrder(this.view.parties.map((p) => p.party), ruler),
-        });
-        armDelegatePickFlow(Math.max(0, delegateStartIndex(ring)), delegateStepStageOf(pick.meta), pick.staged !== true, pick.meta);
-        setWorkspaceFramePhase('parliament', pick.staged === true ? 'configure' : 'committed');
+        this.whenBridgeDelegatePickChanges(pick);
       },
     },
     /**
@@ -2259,7 +2218,7 @@ export default defineComponent({
     consoleParliamentUi.fieldStanding = false;
     consoleParliamentUi.answerZone = false;
     // «ПРИЁМКА»: no stage stands any more — a batch still owed takes the ordinary reveal (the ownership falls with it).
-    setParliamentDrawHost(this.$.uid, false);
+    setParliamentDrawHost(this.drawHostId, false);
     noteParliamentDrawPaneOut();
     // «ОТВЕТ СТОЛА» (TR78): a receipt no stage will play ticks now, honestly late; a question's stage is gone with the section.
     releaseTableAnswers();
@@ -2471,6 +2430,72 @@ export default defineComponent({
         resetChairmanQuestFlow();
       }
     },
+    /** WATCH `questGate` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
+    whenQuestGateChanges(gate: {generation: number} | undefined): void {
+      // The gate opens its flow only in a Parliament the PLAYER walked into by the plate's A: a section pushed
+      // INTO another workspace as a step («КАРЬЕРА» — a card's walk hosted by the hand, TR04) is not that door.
+      // The plate keeps announcing the gate; it is answered after the walk, in the Parliament the player opens.
+      if (gate !== undefined && parliamentFlow.stage === 'browse' && !chairmanQuestFlow.live && !this.embedded && agendaWalkFlow.owed === undefined) {
+        this.openQuestFlow();
+      }
+    },
+    /** WATCH `bridge.seat` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
+    whenBridgeSeatChanges(seat: PlayerInputModel | undefined): void {
+      if (seat !== undefined && parliamentFlow.stage === 'browse') {
+        const parties = (seat as {parties: Array<PartyName>}).parties;
+        const idx = this.view.slots.findIndex((slot) => parties.includes(slot.party));
+        parliamentFlow.slotIndex = idx >= 0 ? idx : 0;
+        parliamentFlow.zone = 'voting';
+        this.openStage('seat');
+      }
+    },
+    /** WATCH `bridge.grant` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
+    whenBridgeGrantChanges(grant: ParliamentPromptBridge['grant']): void {
+      // A WARMING mount (PL-127 — the play's live grant, P72 · CZ) is inert: it opens the vote on its UNVEIL (`warm`).
+      if (grant === undefined || parliamentFlow.stage !== 'browse' || this.warm) {
+        return;
+      }
+      this.openGrant(grant, false);
+    },
+    /** WATCH `bridge.supportPick` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
+    whenBridgeSupportPickChanges(pick: ParliamentPromptBridge['supportPick']): void {
+      if (pick === undefined || parliamentFlow.stage !== 'browse') {
+        return;
+      }
+      const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
+      const order = supportCursorOrder(this.view.parties.map((p) => p.party), ruler);
+      const start = supportStartParty(pick.meta, order);
+      const index = start === undefined ? 0 : this.view.parties.findIndex((p) => p.party === start);
+      armSupportPickFlow({zone: start !== undefined && start === ruler ? 'ruler' : 'parties', partyIndex: Math.max(0, index)},
+        supportStepStageOf(pick.meta), pick.staged !== true, pick.meta);
+      setWorkspaceFramePhase('parliament', pick.staged === true ? 'configure' : 'committed');
+    },
+    /** WATCH `bridge.bannerPick` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
+    whenBridgeBannerPickChanges(pick: ParliamentPromptBridge['bannerPick']): void {
+      if (pick === undefined || parliamentFlow.stage !== 'browse') {
+        return;
+      }
+      const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
+      const order = supportCursorOrder(this.view.parties.map((p) => p.party), ruler);
+      const start = bannerStartParty(pick.meta, order);
+      const index = start === undefined ? 0 : this.view.parties.findIndex((p) => p.party === start);
+      armBannerPickFlow({zone: start !== undefined && start === ruler ? 'ruler' : 'parties', partyIndex: Math.max(0, index)},
+        bannerStepStageOf(pick.meta), pick.meta);
+      setWorkspaceFramePhase('parliament', 'committed');
+    },
+    /** WATCH `bridge.delegatePick` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
+    whenBridgeDelegatePickChanges(pick: ParliamentPromptBridge['delegatePick']): void {
+      if (pick === undefined || parliamentFlow.stage !== 'browse') {
+        return;
+      }
+      const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
+      const ring = delegateRing(pick.meta, {
+        slots: this.view.slots.map((slot) => ({party: slot.party, votes: slot.votes})),
+        areaOrder: supportCursorOrder(this.view.parties.map((p) => p.party), ruler),
+      });
+      armDelegatePickFlow(Math.max(0, delegateStartIndex(ring)), delegateStepStageOf(pick.meta), pick.staged !== true, pick.meta);
+      setWorkspaceFramePhase('parliament', pick.staged === true ? 'configure' : 'committed');
+    },
     /**
      * THE OVERVIEW IS BACK — does a MANDATORY prompt stand that nothing opened? Each door opens its stage from browse,
      * on its own watcher; a prompt that arrived while another stage stood (the gate riding the vote's answer, a grant
@@ -2483,18 +2508,18 @@ export default defineComponent({
         return;
       }
       this.reconciledKey = this.answerKey;
-      const watch = this.$options.watch as unknown as Record<string, {handler: (this: unknown, value: unknown) => void}>;
-      const ask = (name: string, value: unknown): void => {
+      // Each door's own reaction, asked once more — in the watchers' order, and only while the overview still stands.
+      const ask = <T>(value: T | undefined, door: (value: T) => void): void => {
         if (parliamentFlow.stage === 'browse' && value !== undefined) {
-          watch[name].handler.call(this, value);
+          door(value);
         }
       };
-      ask('questGate', this.questGate);
-      ask('bridge.seat', this.bridge.seat);
-      ask('bridge.grant', this.bridge.grant?.staged === true ? undefined : this.bridge.grant);
-      ask('bridge.supportPick', this.bridge.supportPick?.staged === true ? undefined : this.bridge.supportPick);
-      ask('bridge.bannerPick', this.bridge.bannerPick);
-      ask('bridge.delegatePick', this.bridge.delegatePick?.staged === true ? undefined : this.bridge.delegatePick);
+      ask(this.questGate, (gate) => this.whenQuestGateChanges(gate));
+      ask(this.bridge.seat, (seat) => this.whenBridgeSeatChanges(seat));
+      ask(this.bridge.grant?.staged === true ? undefined : this.bridge.grant, (grant) => this.whenBridgeGrantChanges(grant));
+      ask(this.bridge.supportPick?.staged === true ? undefined : this.bridge.supportPick, (pick) => this.whenBridgeSupportPickChanges(pick));
+      ask(this.bridge.bannerPick, (pick) => this.whenBridgeBannerPickChanges(pick));
+      ask(this.bridge.delegatePick?.staged === true ? undefined : this.bridge.delegatePick, (pick) => this.whenBridgeDelegatePickChanges(pick));
     },
     /**
      * OPEN THE GRANT'S VOTE on the card the viewer's own delegates already stand on (the likeliest address), else the
