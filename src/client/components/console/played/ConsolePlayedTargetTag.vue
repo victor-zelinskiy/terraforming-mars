@@ -39,24 +39,21 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import TagGlyph from '@/client/components/Tag.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {PlayedTargetTag} from '@/client/console/played/consolePlayedTargetModel';
 
-export default defineComponent({
-  name: 'ConsolePlayedTargetTag',
-  components: {TagGlyph},
-  props: {
-    tag: {type: Object as PropType<PlayedTargetTag>, required: true},
-    /** The count on its own line, the consequence under it (`playedTargetTagStacked`, the host's reserved two lines). */
-    stacked: {type: Boolean, default: false},
-  },
-  methods: {
-    iconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-  },
+defineOptions({name: 'ConsolePlayedTargetTag'});
+defineProps({
+  tag: {type: Object as PropType<PlayedTargetTag>, required: true},
+  /** The count on its own line, the consequence under it (`playedTargetTagStacked`, the host's reserved two lines). */
+  stacked: {type: Boolean, default: false},
 });
+
+function iconClass(icon: string): string {
+  return iconClassFor(icon);
+}
 </script>
