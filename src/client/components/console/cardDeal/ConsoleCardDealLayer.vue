@@ -1,15 +1,4 @@
 <template>
-  <!--
-    CARD DEAL LAYER — the fixed full-viewport stage the deal cinematic
-    plays on: the dealer's deck stack (card backs, bottom-centre) + one
-    lite proxy flyer per card. Pointer-inert, clipped (overflow: clip), and
-    alive ONLY while a deal runs (v-if in the host) — will-change on the
-    flyers is scoped to the animation's lifetime by construction.
-
-    All positioning/motion is owned by cardDealDirector (GSAP, transform +
-    opacity only). This component just provides the DOM and exposes the
-    element handles the director animates.
-  -->
   <div class="con-deal-layer" ref="layer" aria-hidden="true">
     <div class="con-deal-deck" ref="deck">
       <div class="con-card-back con-deal-deck__c con-deal-deck__c--3"></div>
@@ -35,56 +24,62 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * CARD DEAL LAYER — the fixed full-viewport stage the deal cinematic
+ * plays on: the dealer's deck stack (card backs, bottom-centre) + one
+ * lite proxy flyer per card. Pointer-inert, clipped (overflow: clip), and
+ * alive ONLY while a deal runs (v-if in the host) — will-change on the
+ * flyers is scoped to the animation's lifetime by construction.
+ *
+ * All positioning/motion is owned by cardDealDirector (GSAP, transform +
+ * opacity only). This component just provides the DOM and exposes the
+ * element handles the director animates.
+ */
+import {ref, useTemplateRef, watch} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 
-export default defineComponent({
-  name: 'ConsoleCardDealLayer',
-  components: {ConsoleCardFaceLite},
-  props: {
-    cards: {
-      type: Array as () => Array<CardName>,
-      required: true,
-    },
-    /** Live models aligned with `cards` (undefined entries fall back to the
-     *  name-only face) — the flying copy must match the landed copy. */
-    models: {
-      type: Array as () => Array<CardModel | undefined>,
-      required: false,
-      default: undefined,
-    },
-    /** Keys the proxy set per prepared deal (sequence.state.nonce). */
-    nonce: {
-      type: Number,
-      required: true,
-    },
+defineOptions({name: 'ConsoleCardDealLayer'});
+const props = defineProps({
+  cards: {
+    type: Array as () => Array<CardName>,
+    required: true,
   },
-  data() {
-    return {
-      proxyRefs: [] as Array<HTMLElement | null>,
-    };
+  /** Live models aligned with `cards` (undefined entries fall back to the
+   *  name-only face) — the flying copy must match the landed copy. */
+  models: {
+    type: Array as () => Array<CardModel | undefined>,
+    required: false,
+    default: undefined,
   },
-  watch: {
-    nonce() {
-      this.proxyRefs = [];
-    },
-  },
-  methods: {
-    // v-for string refs don't guarantee order — function refs keep the
-    // proxy index aligned with the card index (the director relies on it).
-    setProxyRef(el: unknown, i: number): void {
-      this.proxyRefs[i] = (el as HTMLElement | null);
-    },
-    /** The director's element handles (host passes them to launch()). */
-    proxyEls(): Array<HTMLElement> {
-      return this.cards.map((_, i) => this.proxyRefs[i]).filter((el): el is HTMLElement => el !== null && el !== undefined);
-    },
-    deckEl(): HTMLElement | null {
-      return (this.$refs.deck as HTMLElement | undefined) ?? null;
-    },
+  /** Keys the proxy set per prepared deal (sequence.state.nonce). */
+  nonce: {
+    type: Number,
+    required: true,
   },
 });
+
+const deck = useTemplateRef<HTMLElement>('deck');
+const proxyRefs = ref<Array<HTMLElement | null>>([]);
+
+// v-for string refs don't guarantee order — function refs keep the
+// proxy index aligned with the card index (the director relies on it).
+function setProxyRef(el: unknown, i: number): void {
+  proxyRefs.value[i] = (el as HTMLElement | null);
+}
+/** The director's element handles (host passes them to launch()). */
+function proxyEls(): Array<HTMLElement> {
+  return props.cards.map((_, i) => proxyRefs.value[i]).filter((el): el is HTMLElement => el !== null && el !== undefined);
+}
+function deckEl(): HTMLElement | null {
+  return deck.value ?? null;
+}
+
+watch(() => props.nonce, () => {
+  proxyRefs.value = [];
+});
+
+defineExpose({proxyEls, deckEl});
 </script>
