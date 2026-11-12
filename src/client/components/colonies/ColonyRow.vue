@@ -9,28 +9,21 @@
     </colony-space>
   </div>
 </template>
-<script lang="ts">
-
-import {defineComponent} from 'vue';
+<script setup lang="ts">
 
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import ColonySpace from './ColonySpace.vue';
 
-export default defineComponent({
-  name: 'ColonyRow',
-  components: {
-    ColonySpace,
+defineOptions({name: 'ColonyRow'});
+defineProps({
+  metadata: {
+    type: Object as () => ColonyMetadata,
+    required: true,
   },
-  props: {
-    metadata: {
-      type: Object as () => ColonyMetadata,
-      required: true,
-    },
-    colony: {
-      type: Object as () => ColonyModel,
-      required: true,
-    },
+  colony: {
+    type: Object as () => ColonyModel,
+    required: true,
   },
 });
 </script>
