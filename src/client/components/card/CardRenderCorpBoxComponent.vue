@@ -9,41 +9,29 @@
       </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
 import CardRenderItemComponent from '@/client/components/card/CardRenderItemComponent.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderSymbolComponent from '@/client/components/card/CardRenderSymbolComponent.vue';
 import {isICardRenderEffect, isICardRenderItem, isICardRenderSymbol, ItemType} from '@/common/cards/render/Types';
 
-export default defineComponent({
-  name: 'CardRenderCorpBoxComponent',
-  props: {
-    rows: {
-      type: Array as () => Array<Array<ItemType>>,
-      required: true,
-    },
-    label: {
-      type: String,
-      required: true,
-    },
+defineOptions({name: 'CardRenderCorpBoxComponent'});
+defineProps({
+  rows: {
+    type: Array as () => Array<Array<ItemType>>,
+    required: true,
   },
-  components: {
-    CardRenderSymbolComponent,
-    CardRenderItemComponent,
-    CardRenderEffectBoxComponent,
-  },
-  methods: {
-    isICardRenderEffect: isICardRenderEffect,
-    isICardRenderItem: isICardRenderItem,
-    isICardRenderSymbol: isICardRenderSymbol,
-    getClasses(): string {
-      const classes: Array<string> = ['card-corporation-box'];
-      return classes.join(' ');
-    },
+  label: {
+    type: String,
+    required: true,
   },
 });
+
+function getClasses(): string {
+  const classes: Array<string> = ['card-corporation-box'];
+  return classes.join(' ');
+}
 
 </script>
 
