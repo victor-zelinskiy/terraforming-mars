@@ -48,8 +48,8 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {vI18n} from '@/client/directives/vDirectives';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {HydroRewardChip, HydroSpecialReward} from './hydroStages';
 
@@ -62,23 +62,15 @@ const SPECIAL_LABEL: Record<HydroSpecialReward, string> = {
   'add-2-animals': 'Add 2 animals to a card',
 };
 
-export default defineComponent({
-  name: 'HydroReward',
-  props: {
-    chips: {
-      type: Array as () => ReadonlyArray<HydroRewardChip>,
-      required: true,
-    },
-    compact: {
-      type: Boolean,
-      default: false,
-    },
+defineOptions({name: 'HydroReward'});
+defineProps({
+  chips: {
+    type: Array as () => ReadonlyArray<HydroRewardChip>,
+    required: true,
   },
-  data() {
-    return {SPECIAL_LABEL};
-  },
-  methods: {
-    iconClassFor,
+  compact: {
+    type: Boolean,
+    default: false,
   },
 });
 </script>
