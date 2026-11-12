@@ -1,6 +1,11 @@
 import {expect} from 'chai';
-import {buildMaRail, maRailChipKey, MaRailInput} from '@/client/components/console/consoleMaRail';
+import {mount} from '@vue/test-utils';
+import {defineComponent, h} from 'vue';
+import {globalConfig} from '../getLocalVue';
+import ConsoleMaRail from '@/client/components/console/ConsoleMaRail.vue';
+import {buildMaRail, maRailChipKey, MaRailInput, MaRailView} from '@/client/components/console/consoleMaRail';
 import {ConsoleMaItem} from '@/client/components/console/consoleMaModel';
+import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import type {Color} from '@/common/Color';
 
 /**
@@ -145,5 +150,55 @@ describe('consoleMaRail', () => {
     const a = buildMaRail(input());
     const b = buildMaRail(input({myMegacredits: 200, takenCount: 1}));
     expect(a.chips.map(maRailChipKey)).to.deep.eq(b.chips.map(maRailChipKey));
+  });
+});
+
+/**
+ * THE RAIL'S RENDERER (`ConsoleMaRail.vue`) — it derives nothing: the tone is a class, the chips go to the SHARED
+ * `ActionEffectChip` (stubbed here — it has its own specs), the one sentence is translated with its params.
+ */
+describe('ConsoleMaRail (the component)', () => {
+  const ChipStub = defineComponent({
+    name: 'ActionEffectChip',
+    props: {effect: {type: Object, required: true}},
+    render: () => h('i', {class: 'chip-stub'}),
+  });
+  const MONEY: ActionEffect = {direction: 'cost', icon: 'megacredits', amount: 8, current: 462, resulting: 454};
+  const SLOT: ActionEffect = {direction: 'gain', icon: 'award', amount: 1, current: 0, resulting: 1, note: 'Funded'};
+
+  function mountRail(props: {view: MaRailView, name?: string}) {
+    return mount(ConsoleMaRail, {
+      global: {...globalConfig.global, stubs: {ActionEffectChip: ChipStub}},
+      props,
+    });
+  }
+
+  it('a projected transaction: the tone on the root, the anchored name, every chip handed to the shared chip in order', () => {
+    const rail = mountRail({view: {tone: 'projected', chips: [MONEY, SLOT], message: ''}, name: 'Banker'});
+    expect(rail.classes()).to.include.members(['con-marail', 'con-marail--projected']);
+    expect(rail.attributes('aria-live')).to.eq('polite');
+    expect(rail.find('.con-marail__name').text()).to.eq('Banker');
+    expect(rail.find('.con-marail__divider').exists()).to.eq(true);
+    expect(rail.find('.con-marail__chips').exists()).to.eq(true);
+    expect(rail.findAllComponents(ChipStub).map((chip) => chip.props('effect'))).to.deep.eq([MONEY, SLOT]);
+    expect(rail.find('.con-marail__state').exists(), 'no sentence beside a projection').to.eq(false);
+  });
+
+  it('a blocked item with no name: no anchor, no chips — the one sentence with its params filled in', () => {
+    const rail = mountRail({view: {tone: 'blocked', chips: [], message: 'To the threshold: ${0}', messageParams: ['5']}});
+    expect(rail.classes()).to.include('con-marail--blocked');
+    expect(rail.find('.con-marail__name').exists()).to.eq(false);
+    expect(rail.find('.con-marail__divider').exists()).to.eq(false);
+    expect(rail.find('.con-marail__chips').exists()).to.eq(false);
+    expect(rail.find('.con-marail__state').text()).to.eq('To the threshold: 5');
+  });
+
+  it('a plain sentence is translated as it is; an empty view keeps the line and says nothing', async () => {
+    const rail = mountRail({view: {tone: 'blocked', chips: [], message: 'All slots are taken'}});
+    expect(rail.find('.con-marail__state').text()).to.eq('All slots are taken');
+    await rail.setProps({view: {tone: 'none', chips: [], message: ''}});
+    expect(rail.classes()).to.include.members(['con-marail', 'con-marail--none']);
+    expect(rail.find('.con-marail__state').exists()).to.eq(false);
+    expect(rail.findAllComponents(ChipStub).length).to.eq(0);
   });
 });
