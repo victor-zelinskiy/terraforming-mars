@@ -1,9 +1,4 @@
 <template>
-  <!-- THE TONE EMBLEM — the decision's character as a SHAPE, so it never rests on colour alone:
-         gain    — a circle with a plus;
-         loss    — a warning triangle with a minus;
-         neutral — the console's own ◈ diamond.
-       Drawn in `currentColor`; the host's tone class colours it. Decorative (the tag beside it carries the word). -->
   <svg class="con-prompt-emblem" :class="'con-prompt-emblem--' + tone" viewBox="0 0 20 20" aria-hidden="true"
        :data-prompt-emblem="tone">
     <template v-if="tone === 'gain'">
@@ -22,8 +17,15 @@
   </svg>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE TONE EMBLEM — the decision's character as a SHAPE, so it never rests on colour alone:
+ *   gain    — a circle with a plus;
+ *   loss    — a warning triangle with a minus;
+ *   neutral — the console's own ◈ diamond.
+ * Drawn in `currentColor`; the host's tone class colours it. Decorative (the tag beside it carries the word).
+ */
+import {PropType} from 'vue';
 import {PromptTone} from '@/client/console/promptTone';
 
 /**
@@ -31,10 +33,8 @@ import {PromptTone} from '@/client/console/promptTone';
  * One component for the head, the consequence footer and the mandatory
  * announcement, so a tone has ONE silhouette everywhere it is named.
  */
-export default defineComponent({
-  name: 'ConsolePromptEmblem',
-  props: {
-    tone: {type: String as PropType<PromptTone>, required: true},
-  },
+defineOptions({name: 'ConsolePromptEmblem'});
+defineProps({
+  tone: {type: String as PropType<PromptTone>, required: true},
 });
 </script>
