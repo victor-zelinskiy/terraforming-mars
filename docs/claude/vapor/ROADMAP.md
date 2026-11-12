@@ -37,8 +37,8 @@ doing the dangerous half twice.
 | --- | --- | --- |
 | `.vue` components | **472** (271 under `components/console/`) | — |
 | …that are VAPOR (`<script setup vapor>`) | **3** — the pilot's leaves (§3.6) | all of them |
-| …written with `<script setup>` (virtual DOM) | **7** — one older component and the SIX worked examples of step A (§4; each converted by a fresh agent from `RECIPES.md` alone) | gain `vapor` in their wave |
-| …written with the Options API (`defineComponent({…})`) | **462** | `<script setup lang="ts">`, then `vapor` — by the book (`RECIPES.md`), from each component's sheet (`scripts/vapor/inventory.mjs --component`) |
+| …written with `<script setup>` (virtual DOM) | **125** — one older component, the six worked examples of step A, and **WAVE 1: the 118 lightest leaves** (2026-11-13 — §4) | gain `vapor` in their wave (step B) |
+| …written with the Options API (`defineComponent({…})`) | **344** (462 before wave 1; 17 of them are reachable from no entry — dead code that is deleted, not converted) | `<script setup lang="ts">`, then `vapor` — by the book (`RECIPES.md`), from each component's sheet (`scripts/vapor/inventory.mjs --component`) |
 | …that already have a `setup()` beside their options | 94 | their `setup()` body is the seed of the script-setup block |
 | `data()` blocks · `computed:` blocks · `watch:` blocks | 223 · 388 · 122 | `ref` / `reactive` · `computed()` · `watch()` — **in the same order** (see §3.5: order between watchers of DIFFERENT sources was never creation order) |
 | `this.$emit(` | 377 in 97 files | `defineEmits` |
@@ -302,6 +302,26 @@ inside) · `card/CardDescription.vue` (`v-i18n` over an interpolation, many inst
   guesses, fix the book — is the protocol of every wave's first batch.**
 - **The worked examples** are the table of `RECIPES.md` § 5: three at step B (the pilot's leaves) and those six at
   step A.
+- **WAVE 1 — DONE AT STEP A (2026-11-13): the 118 lightest leaves, a quarter of the client.** How a wave is run,
+  as it was:
+  1. *Pick* — `inventory.mjs --wave`, lightest first; out go the components reachable from no entry (an import-graph
+     walk from `main.ts` found 17 — dead code is deleted, not converted), the `@deprecated Desktop-only` ones, and
+     those whose sheet carries a row that needs a neighbour to change (module state, a value export, `provide` /
+     `inject`, a render function, the instance's internals) — those go in the wave whose first step moves that
+     neighbour.
+  2. *Convert* — fifteen agents, eight components each, in ONE tree on disjoint files; the brief is the book and the
+     sheet, with one hard rule: **what the book does not say is a SKIP with its reason, never an improvisation.**
+     Agents run their own specs and eslint; nobody runs vue-tsc, the suites or `ready:vapor` while others edit.
+  3. *Read the gaps* — 112 converted (zero vue-tsc errors over the whole batch), 6 skipped. Every skip and every
+     guess was a missing sentence: a member that only hands an import to the template, a member named like a global
+     the template compiler allows, the three async-on-purpose global components (`components/asyncComponents.ts`), a
+     spec that replaced a method through `wrapper.vm`. They became § 1's house rules and § 3's spec rules, and the
+     six were converted by the updated book.
+  4. *Verify once, centrally* — vue-tsc, plain tsc, `build:test`, eslint, both unit suites, the ledgers
+     (`ready:vapor` run once), the functional e2e on the Steam Machine; then ONE COMMIT PER COMPONENT (the component
+     and the spec that came with it — `git log --grep "V3 wave 1"`).
+  What wave 2 takes: the next 100–120 by weight (stateful leaves and small surfaces), opening with the neighbours
+  wave 1 left for it — module state out to sibling modules, the `inject` pair of the premium face.
 - **Two watchers of one collection are merged BEFORE their component is converted** (§2 rule 6) — a conversion does
   not get to discover an order dependency.
 - **Every wave is its own series of commits and its own full e2e run on CI** — «все кейсы тестируем через e2e на CI»;
@@ -318,7 +338,7 @@ function of `ConsoleTeleport`, a rewrite of its wave). A file may not grow, **a 
 tests, not conventions), a component that is Vapor stays Vapor, and a Vapor component holds nothing of the list.
 `npm run ready:vapor` lowers the baseline and prints the line:
 
-`Vapor components: 3 / 472 · options-api: 462 · instance-access: 0 · instance-internals: 1 · parent-root: 1 · mixin: 1 · global-registration: 6 · render-function: 4 · v-memo: 11 · refs: 652 · global-in-setup: 2` (2026-11-12, after V2's S3 · S4 · S6 · S-last and the six worked examples; at the pilot: `options-api` 468, `refs` 785, `instance-access` 1).
+`Vapor components: 3 / 472 · options-api: 344 · instance-access: 0 · instance-internals: 1 · parent-root: 1 · mixin: 1 · global-registration: 6 · render-function: 4 · v-memo: 11 · refs: 652 · global-in-setup: 2` (2026-11-13, after V3 wave 1; at the pilot: `options-api` 468, `refs` 785, `instance-access` 1).
 
 V3 is done when `options-api` is zero and every component is Vapor; V4 is one line in `main.ts` after that.
 

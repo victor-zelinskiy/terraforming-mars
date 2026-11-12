@@ -1,4 +1,4 @@
-import {createApp, defineAsyncComponent, vaporInteropPlugin} from 'vue';
+import {createApp, vaporInteropPlugin} from 'vue';
 
 import {trimEmptyTextNodes} from '@/client/directives/TrimWhitespace';
 import App from '@/client/components/App.vue';
@@ -15,22 +15,10 @@ import {applyConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {installConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
 import {warmDisplayFonts} from '@/client/utils/fontWarmup';
 import {installVueErrorReport} from '@/client/console/vueErrorReport';
-// Registered globally so ColonyTradePaymentModal can host the card-target
-// picker WITHOUT a static import — Card.vue's import chain breaks the
-// mochapack client-test bundle (the known baseline class), and the picker
-// only renders when a trade actually has card-target steps.
-const ActionTargetCard = defineAsyncComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/actions/ActionTargetCard.vue'));
-// Registered globally so CardZoomCard can render the premium face WITHOUT a
-// static import — breaks the PremiumCard -> CardZoomModal -> CardZoomCard ->
-// PremiumCard type cycle (same trick as `modal-input-host` above; a cycle
-// collapses vue-tsc inference to `{}`).
-const PremiumCardFace = defineAsyncComponent(() => import('@/client/components/premiumCard/PremiumCard.vue'));
-// The console's SOURCE DOCK ("who asked for this decision?") — registered
-// globally for the SAME reason as `action-target-card` above: it renders the
-// real card face, and a static import of that chain zeroes the mochapack spec
-// of any surface that adopts it. Every console decision surface can now show a
-// source without trading away its component guard.
-const ConsoleSourceDock = defineAsyncComponent(() => import(/* webpackChunkName: "console-shell" */ '@/client/components/console/ConsoleSourceDock.vue'));
+// The three components that are ASYNC ON PURPOSE (`components/asyncComponents.ts` says why each is): registered by
+// name below for the Options-API components that still reach them that way; a `<script setup>` component imports the
+// same binding instead.
+import {ActionTargetCard, ConsoleSourceDock, PremiumCardFace} from '@/client/components/asyncComponents';
 
 declare global {
   interface Window {

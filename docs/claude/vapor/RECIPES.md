@@ -86,6 +86,18 @@ Inside the script: a data field / computed is `x.value`, a prop is `props.x`, a 
 reached by name.
 
 House rules of a conversion (so two people — or a person and a codemod — produce the same file):
+- **A MEMBER THAT ONLY HANDS AN IMPORT TO THE TEMPLATE IS DELETED — the import is the template's binding.** The
+  Options API needed a member for everything a template names; `<script setup>` does not. Under the import's OWN name
+  — a method `playerSymbol(c) { return playerSymbol(c); }`, the shorthand `methods: {$t, iconClassFor}`, a computed
+  `LANGUAGES() { return LANGUAGES; }`, a data field `data() { return {PATH}; }` — the member goes and nothing replaces
+  it (applied literally, R5 / R7 would redeclare the import). Under ANOTHER name (`isItem: isICardRenderItem`,
+  `noCards: NO_CARDS`) it is a plain alias at the member's place: `const isItem = isICardRenderItem;` (a type predicate
+  keeps narrowing in the template). A computed that returns module STATE under another name (`rt() { return realtimeState; }`)
+  is the same alias (`const rt = realtimeState;`) — the object is reactive by itself.
+- **A member named like a GLOBAL the template compiler allows** (`Math(): Math { return Math; }`, `Number`, `Date`,
+  `JSON`, `Object`, `parseInt` …) was never read — the compiler does not prefix those names: delete it.
+- **A member NOTHING reads** (a data field no template, script or spec names; a method no template, parent or spec
+  calls) is dropped — as a local it would be an unused one — and NAMED in the commit message.
 - **The `vue` import**: `defineComponent` goes; `PropType` and the other type imports stay as the file had them (a plain
   named import — `import type` is not required); add what the script now calls. **Import ORDER is free** — keep the
   file's; only the order of DECLARATIONS above is part of the recipe.
@@ -103,6 +115,12 @@ House rules of a conversion (so two people — or a person and a codemod — pro
   · A new local that would shadow a prop or an import (a root ref beside a prop `root`): the LOCAL is renamed
     (`rootEl` — `useTemplateRef('root')` takes the attribute's string, the const may be named freely as long as no
     OTHER binding carries the key's name) — never the prop, the emit, the exposed name or the template.
+  · A data field the TEMPLATE reads that is built from an import of the same name (`range: range(23)`,
+    `paths` from `paths`): the IMPORT is aliased (`import {range as rangeOf}`), the field keeps the name the template
+    uses (`const range = ref(rangeOf(23))`).
+- **Where things go that § 1's skeleton does not show**: `const slots = useSlots()` / `useAttrs()` right after the
+  macros; the component's HEADER comment stays where it stood (above the imports, or above the macros where it stood
+  above `export default`) — only the R24 block is placed FIRST.
 
 ## 2. The recipes
 
@@ -123,9 +141,15 @@ re-mount that stopped happening — assert node identity once.
 - `components: {A, B}` → nothing: an imported component is usable by its import name. A registration under a string
   (`'console-board-input': ConsoleBoardInput`) needs nothing either — `<console-board-input>` resolves to the import
   `ConsoleBoardInput`. A registration under a DIFFERENT name (`{Card: CardFace}`) → import it under that name.
-- A component the template uses WITHOUT an import is a GLOBAL registration (`action-target-card`,
-  `premium-card-face`, `console-source-dock` — `main.ts`): import it. The readiness ledger's `global-in-setup` row
-  fails a `<script setup>` component that leans on a global. ✔ Vapor (a Vapor parent renders vdom children and the
+- A component the template uses WITHOUT an import is a GLOBAL registration — exactly three, all ASYNC ON PURPOSE
+  (`action-target-card`, `premium-card-face`, `console-source-dock`): import the SAME lazy binding from
+  `@/client/components/asyncComponents` (`import {PremiumCardFace} from …` — the tag `<premium-card-face>` resolves to
+  it). **Never a static import of the `.vue`**: for the premium face that closes the type cycle PremiumCard →
+  CardZoomModal → CardZoomCard → PremiumCard and collapses vue-tsc; the module says why each of the three is lazy. The
+  readiness ledger's `global-in-setup` row fails a `<script setup>` component that uses one of the tags without the
+  import.
+- A wrong `name` (a copy-paste — `ColonySpace.vue` carries `name: 'ColonyRow'`) is kept verbatim: fixing it is a
+  change of its own (devtools, the error report's chain and name-keyed stubs read it). ✔ Vapor (a Vapor parent renders vdom children and the
   reverse — `VaporHostsVdom.vue`, every leaf of the pilot).
 
 ### R2 — props (`this.x`, `this.$props`)
@@ -140,7 +164,8 @@ validator inside it may name an import or a LITERAL module const, never a non-li
 that one moves into a sibling `.ts` (R25).
 
 ### R3 — emits (`this.$emit`, `$emit` in the template)
-`emits: [...]` / `emits: {…}` → `const emit = defineEmits([...])` (the same value). `this.$emit('x', a)` → `emit('x', a)`.
+`emits: [...]` / `emits: {…}` → `const emit = defineEmits([...])` (the same value) — bound to `const emit` only when
+the SCRIPT calls it; a component that emits only through the template's `$emit` writes a bare `defineEmits([...])`. `this.$emit('x', a)` → `emit('x', a)`.
 `$emit(…)` in the TEMPLATE stays as it is — ✔ in both runtimes (`VaporContextProbe.vue`). A component with
 `this.$emit` and no `emits` option declares the list now (read the call sites). ✔ Vapor — `defineEmits` / `emit()`
 reach a virtual-DOM parent's listener (`VaporBasics.vue`, `ConsoleForecastDoor.vue`). An emit a parent hears during
@@ -168,7 +193,9 @@ the template and the script read.
 ✔ Vapor. *Trap:* `ref` is deep, as `data` was — keep it; `shallowRef` is a behaviour change, not a conversion.
 
 ### R5 — `computed`
-`x(): T { return …; }` → `const x = computed((): T => …)`; a `{get, set}` pair → `computed({get: …, set: …})`.
+`x(): T { return …; }` → `const x = computed((): T => { return …; })` — the body keeps its SHAPE (a block stays a
+block, with its comments; do not collapse it to an expression: two converters must produce the same file); a
+`{get, set}` pair → `computed({get: …, set: …})`.
 `this.other` inside → `other.value`. ✔ Vapor.
 
 ### R6 — `watch`, `this.$watch`
@@ -352,9 +379,11 @@ Step A: keep it. Step B: delete it (the Vapor compiler ignores it with a warning
 
 ### R24 — the root, and the comment before it
 - **The template STARTS WITH ITS ROOT.** A `<!-- … -->` that opens the template (270 components have one) moves into
-  the script block — at step A already: a `/* … */` block, FIRST in the script, its text verbatim (it describes the
-  template; the component's own header comment follows it). Comments INSIDE the root stay where they are. ✔ Vapor
-  once moved. In a Vapor component a development build keeps the
+  the script block — at step A already: a `/* … */` block, FIRST in the script, its text verbatim, closed by the one
+  line `(This comment opened the template; the template starts with its root now.)`. Several comments before the root
+  become one block, a paragraph each. **A comment AFTER the root is the same defect** (`tpl:trailing-comment` on the
+  sheet — a second top-level node) and moves the same way. Comments INSIDE the root stay where they are. ✔ Vapor once
+  moved. (The first conversions marked the moved block three different ways; that is cosmetic and stays.) In a Vapor component a development build keeps the
   comment, the root becomes a fragment, and the attributes a parent lets fall through are dropped (dev and unit specs
   only — production strips comments); guarded by `tests/console/vaporReadiness.spec.ts`.
 - **Several roots** (14 components): attributes do not fall through to a multi-root component in either runtime —
@@ -366,8 +395,9 @@ An Options script's statements outside `export default` are on the sheet as `scr
 `script:module-state` / `script:type-export` / `script:value-export`; what each becomes:
 - **A type / an interface** (exported or not) stays in place — `export type` is allowed in `<script setup>`.
 - **A constant and a pure helper** (`const FLIP_MS = 940`, a frozen table, a regex, a function that reads only its
-  arguments) may stay: it is re-created per instance, which changes nothing but allocation — a LARGE table moves to a
-  sibling `.ts`. It is now a setup binding the template can name (and `wrapper.vm` sees): rename it if it collides
+  arguments) may stay: it is re-created per instance, which changes nothing but allocation — a table moves to a
+  sibling `.ts` when the component is mounted MANY times per screen (a board cell, a card's part, a chip) and the
+  table is more than a handful of entries, or when it is big by itself (≳ 30 lines). It is now a setup binding the template can name (and `wrapper.vm` sees): rename it if it collides
   with a prop or a field.
 - **MODULE STATE must move out** (`script:module-state` — the sheet prints «MODULE STATE»: a `let`, a counter, a
   cache, a `Map` / `Set` / array that is written to, a `reactive` shared by every instance — 34 statements in 25
@@ -392,7 +422,27 @@ An Options script's statements outside `export default` are on the sheet as `scr
   `Object.keys(host.$refs.child)` equals the sheet's `MUST EXPOSE` list, then call each member.
 - **A component fed by an injection** is mounted with the provider's real shape (R16).
 - *Trap:* `wrapper.findComponent(Stub as any)` resolves to the DOM overload and fails `build:test` on `.props()` —
-  pass the stub component uncast (declare it with `defineComponent`).
+  pass the stub component uncast (declare it with `defineComponent`). `findAllComponents(Stub)` called on a DOM
+  wrapper (the result of `w.find(…)`) types its items as `any` — call it on the component's own wrapper.
+- **`global: {mocks: {$t}}` no longer reaches a converted component** — it imports the real `$t`. A spec stays green
+  where the real `$t` returns the key (English is the key); a spec that asserted a MOCKED translation sets the
+  translations instead (`window._translations` + `PreferencesManager` — `vaporCapability.spec.ts` shows the form).
+- **A spec that REPLACED a method through `wrapper.vm` to intercept an internal call** (`wrapper.vm.reloadWindow = stub`)
+  no longer intercepts it: inside `<script setup>` the caller reaches the hoisted function directly. The seam becomes
+  explicit — the side effect is a function of a MODULE the component imports and the spec stubs there (or the spec
+  asserts the effect itself). Say which in the commit.
+- **The new spec's path**: `tests/client/components/<the component's path>/<camelCaseName>.spec.ts`; when that name is
+  already the spec of a model module (`hydroReward.ts` ↔ `HydroReward.vue` — one file on a case-insensitive disk),
+  the component's spec is `<camelCaseName>Component.spec.ts`. The sheet's «unit specs that import it» lists every
+  spec that MOUNTS it somewhere — re-run them all; one that never asserts on the component is not its spec, and the
+  component still gets its own.
+- **The three `asyncComponents` bindings in a spec** (R1): a `stubs` entry keyed by the import's name
+  (`PremiumCardFace`) does NOT match — the binding answers to the name `AsyncComponentWrapper`, which is the stub's
+  key; a spec that used to feed the tag through `global.components` (the real `PremiumCard` as `premium-card-face`) is
+  ignored by a converted component, which renders the lazy binding — resolve it once per suite (`before`: mount →
+  `await flushPromises()` → unmount) and the mounts after it render the face at once.
+- A comment in an existing spec that describes the pre-conversion template («the template opens with a comment node…»)
+  is corrected in the same commit.
 - **Step B (Vapor):** `mount(<the component>)` as the ROOT throws — stand it under a virtual-DOM host with an ELEMENT
   root (`mountVapor` in `vaporCapability.spec.ts`; `card/CardDescription.spec.ts` is the shipped model). DOM finders
   work; `findComponent` into a Vapor child does not; **`stubs` do not reach the children of a Vapor component** —
@@ -420,6 +470,7 @@ paragraphs above that name them.
 
 | Component | Step | The rows it shows |
 | --- | --- | --- |
+| **WAVE 1 — 118 leaves** (2026-11-13; `git log --grep "V3 wave 1"`) | A | fifteen agents, eight components each, the book and the sheet only: 112 converted with ZERO vue-tsc errors, 6 skipped by rule («do not improvise») and converted after their gaps became the paragraphs of § 1 that name them |
 | `console/foundation/ConsoleWsHead.vue` | A | R1 R2 R5 R13 R19 R21 R24 — the workspace header: six computeds, `$slots` in the template, a keyed `<transition>` child, the header comments |
 | `console/ConsoleFlipValue.vue` | A | R2 R3 R4 R6 R7 R8 R25 — data from a method, a stored handle as `let`, `useFlowScope`, two prop watchers, a module-level `export type` |
 | `console/parliament/ConsoleParliamentDrawStage.vue` | A | R1 R5 R9 R17 R19 R24 — `v-embed-zone` re-pointed to the dual binding, `onBeforeUnmount`, a vdom child |

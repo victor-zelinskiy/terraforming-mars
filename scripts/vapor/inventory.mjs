@@ -57,7 +57,7 @@ export const RECIPES = {
   'tpl:v-model-component': 'R20', 'tpl:v-model-native': 'R0', 'tpl:transition': 'R21', 'tpl:transition-group': 'R21',
   'tpl:teleport': 'R21', 'tpl:keep-alive': 'R22', 'tpl:component-is': 'R21', 'tpl:slot': 'R13', 'tpl:v-html': 'R0',
   'tpl:v-memo': 'R23', 'tpl:global-component': 'R1', 'tpl:leading-comment': 'R24', 'tpl:multi-root': 'R24',
-  'tpl:v-once': 'R0', 'tpl:suspense': 'R22', 'tpl:key-remount': 'R0',
+  'tpl:v-once': 'R0', 'tpl:suspense': 'R22', 'tpl:key-remount': 'R0', 'tpl:trailing-comment': 'R24',
   // the script's MODULE level (outside the component)
   'script:module-code': 'R25', 'script:module-state': 'R25', 'script:type-export': 'R25', 'script:value-export': 'R25',
   // an already converted script (`<script setup>`): the same rows, read off the Composition API
@@ -283,6 +283,11 @@ function readTemplate(template, uses, detail) {
   if (first !== undefined && first.type === NodeTypes.COMMENT) {
     bump(uses, 'tpl:leading-comment');
   }
+  // …and a comment AFTER the root is a second top-level node just the same (a fragment in a development build).
+  const lastRoot = ast.children.findLastIndex((n) => n.type === NodeTypes.ELEMENT);
+  if (lastRoot !== -1 && ast.children.slice(lastRoot + 1).some((n) => n.type === NodeTypes.COMMENT)) {
+    bump(uses, 'tpl:trailing-comment');
+  }
   if (roots.length > 1 && !roots.slice(1).every((n) => n.props.some((p) => p.type === NodeTypes.DIRECTIVE && (p.name === 'else' || p.name === 'else-if')))) {
     bump(uses, 'tpl:multi-root');
   }
@@ -432,8 +437,8 @@ function readComponent(file) {
   }
   readTemplate(template, uses, detail);
   // What stands between this component and step B (`vapor`) — every construct has a ✔ row; these are the «at B» notes.
-  if (uses['tpl:leading-comment'] !== undefined) {
-    detail.stepB.push('a comment before the root — move it into the script (R24)');
+  if (uses['tpl:leading-comment'] !== undefined || uses['tpl:trailing-comment'] !== undefined) {
+    detail.stepB.push('a comment outside the root (before or after it) — move it into the script (R24)');
   }
   if (uses['tpl:v-memo'] !== undefined) {
     detail.stepB.push('`v-memo` — delete it at B (R23)');

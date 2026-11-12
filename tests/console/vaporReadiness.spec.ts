@@ -39,8 +39,8 @@ type Construct = {
 
 const uses = (pattern: RegExp, text: string): number => (text.match(pattern) ?? []).length;
 
-/** The components `main.ts` registers globally (a `<script setup>` component imports what it renders). */
-const GLOBAL_COMPONENTS = /<(?:action-target-card|premium-card-face|console-source-dock)\b/g;
+// (The components `main.ts` registers globally — `action-target-card`, `premium-card-face`, `console-source-dock` — are
+// counted by the `global-in-setup` row below, each unless the script imports its binding from `asyncComponents.ts`.)
 
 export const CONSTRUCTS: Readonly<Record<string, Construct>> = {
   'options-api': {
@@ -120,11 +120,15 @@ export const CONSTRUCTS: Readonly<Record<string, Construct>> = {
       return (imported('$t') ? 0 : uses(/\$t\(/g, sfc.template)) +
         (imported('vI18n') ? 0 : uses(/\sv-i18n\b/g, sfc.template)) +
         (imported('vTrimWhitespace') ? 0 : uses(/\sv-trim-whitespace\b/g, sfc.template)) +
-        uses(GLOBAL_COMPONENTS, sfc.template);
+        // The three async-on-purpose components: imported from `components/asyncComponents.ts`, the tag is the binding.
+        (imported('ActionTargetCard') ? 0 : uses(/<action-target-card\b/g, sfc.template)) +
+        (imported('PremiumCardFace') ? 0 : uses(/<premium-card-face\b/g, sfc.template)) +
+        (imported('ConsoleSourceDock') ? 0 : uses(/<console-source-dock\b/g, sfc.template));
     },
     what: 'a `<script setup>` component that leans on a GLOBAL — `$t` from `globalProperties`, a globally registered directive or component',
     instead: 'import it: `import {$t} from \'@/client/directives/i18n\'` · `import {vI18n} from \'@/client/directives/vDirectives\'` (one binding for ' +
-      'both runtimes — the line does not change when the component gains `vapor`) · the component itself. The template does not change',
+      'both runtimes — the line does not change when the component gains `vapor`) · the component itself (`action-target-card` / ' +
+      '`premium-card-face` / `console-source-dock` from `@/client/components/asyncComponents` — async on purpose). The template does not change',
   },
 };
 
