@@ -1,10 +1,4 @@
 <template>
-  <!-- THE PRELUDE DECK — an OBJECT inside the mid-game prelude pick (P91 WG Project), never a HUD stack: the prelude
-       deck has no place on the table outside this decision, so the decision stands it up where the player looks.
-       Three stations, each a real flight end: the PILE the three cards are dealt off, the DISCARD the two the player
-       did not play land on, and the «РАЗЫГРАНО» seat the played prelude lands on (it pays from there). Every count is
-       the server's (`GameModel.preludeDeckSize` / `preludeDiscardSize`) as PRESENTED — the surface holds the numbers
-       until the bodies have moved. A standing object: no glow, no loop (invariant 15). -->
   <div class="con-predeck" data-prelude-deck>
     <div class="con-predeck__station">
         <div class="con-predeck__pile" data-prelude-pile>
@@ -31,30 +25,35 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE PRELUDE DECK — an OBJECT inside the mid-game prelude pick (P91 WG Project), never a HUD stack: the prelude
+ * deck has no place on the table outside this decision, so the decision stands it up where the player looks.
+ * Three stations, each a real flight end: the PILE the three cards are dealt off, the DISCARD the two the player
+ * did not play land on, and the «РАЗЫГРАНО» seat the played prelude lands on (it pays from there). Every count is
+ * the server's (`GameModel.preludeDeckSize` / `preludeDiscardSize`) as PRESENTED — the surface holds the numbers
+ * until the bodies have moved. A standing object: no glow, no loop (invariant 15).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /*
  * @console-shared LIVE — console native stands on this file.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {CardName} from '@/common/cards/CardName';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 
-export default defineComponent({
-  name: 'ConsolePreludeDeck',
-  components: {ConsolePlayedCardLite},
-  props: {
-    /** The pile as PRESENTED (the deal ticks it card by card). */
-    deckCount: {type: Number, required: true},
-    /** The discard pile as PRESENTED (ticks on each touchdown). */
-    discardCount: {type: Number, required: true},
-    /** The prelude standing on the «РАЗЫГРАНО» seat (its face shows once the hero hands it over). */
-    played: {type: String as PropType<CardName | undefined>, default: undefined},
-  },
-  computed: {
-    /** A few backs for a pile that still has cards — a stack reads as a stack; an empty pile is a socket. */
-    pileLayers(): number {
-      return Math.min(3, Math.max(0, this.deckCount));
-    },
-  },
+defineOptions({name: 'ConsolePreludeDeck'});
+const props = defineProps({
+  /** The pile as PRESENTED (the deal ticks it card by card). */
+  deckCount: {type: Number, required: true},
+  /** The discard pile as PRESENTED (ticks on each touchdown). */
+  discardCount: {type: Number, required: true},
+  /** The prelude standing on the «РАЗЫГРАНО» seat (its face shows once the hero hands it over). */
+  played: {type: String as PropType<CardName | undefined>, default: undefined},
 });
+
+/** A few backs for a pile that still has cards — a stack reads as a stack; an empty pile is a socket. */
+const pileLayers = computed((): number => Math.min(3, Math.max(0, props.deckCount)));
 </script>
