@@ -35,8 +35,9 @@
         <HelpHotkeys v-if="isOpen('hotkeys')"></HelpHotkeys>
     </div>
 </template>
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {onMounted, ref, watch} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import HelpIconology from '@/client/components/help/HelpIconology.vue';
 import HelpPhases from '@/client/components/help/HelpPhases.vue';
 import HelpHotkeys from '@/client/components/help/HelpHotkeys.vue';
@@ -50,39 +51,22 @@ export interface HelpPageModel {
     currentPage: Tab;
 }
 
-export default defineComponent({
-  name: 'Help',
-  data(): HelpPageModel {
-    return {
-      currentPage: 'iconology',
-    };
-  },
-  components: {
-    HelpIconology,
-    HelpPhases,
-    HelpRulebooks,
-    HelpStandardProjects,
-    HelpHotkeys,
-  },
-  mounted() {
-    const hash = window.location.hash.replace('#', '') as Tab;
+defineOptions({name: 'Help'});
 
-    if (TABS.includes(hash)) {
-      this.currentPage = hash;
-    }
-  },
-  watch: {
-    currentPage(newTab: Tab) {
-      window.location.hash = newTab;
-    },
-  },
-  methods: {
-    setTab(tab: Tab): void {
-      this.currentPage = tab;
-    },
-    isOpen(tab: Tab): boolean {
-      return tab === this.currentPage;
-    },
-  },
+const currentPage = ref<Tab>('iconology');
+
+function isOpen(tab: Tab): boolean {
+  return tab === currentPage.value;
+}
+
+watch(() => currentPage.value, (newTab: Tab) => {
+  window.location.hash = newTab;
+});
+onMounted(() => {
+  const hash = window.location.hash.replace('#', '') as Tab;
+
+  if (TABS.includes(hash)) {
+    currentPage.value = hash;
+  }
 });
 </script>
