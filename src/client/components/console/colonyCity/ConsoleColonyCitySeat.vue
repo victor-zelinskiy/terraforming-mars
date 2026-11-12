@@ -1,30 +1,4 @@
 <template>
-  <!--
-    THE CITY'S SEAT on a colony tile (Turmoil Redux TR22 Nova City — «place a
-    city ON A COLONY TILE»). ONE component, three hosts: the grid tile's head,
-    the focus stage's hero, the dossier's planet zone.
-
-    The colony tile is a PLACE, the planet an OBJECT, the city a SECOND OBJECT
-    of the tile — and its seat exists BEFORE the object: this root is ALWAYS
-    rendered (`data-colony-city-seat`), an empty seat being an invisible
-    measurement slot exactly like the fleet's berth. So neither a projection
-    nor a landed city can move anything around it.
-
-    POSES (the controller's ONE reading — `colonyCitySeatView`):
-      · empty     — nothing painted;
-      · projected — a «city» door stands: the dashed hex contour, the art as a
-                    ghost, a translucent cube in the viewer's colour;
-      · waiting   — the door is answered, the piece is on its way: the contour
-                    alone («the place waits»);
-      · seated    — the board's own city art and the board's own owner cube on
-                    a static contact shadow: the piece LIES on the tile.
-    `--landed` / `--press` are one-shots (the contact's answer, the cube's
-    press), each cleared by its own `animationend`.
-
-    It is NOT a control: no pointer events, no cursor stop, no text, no pulse.
-    The owner is named by the CUBE (a ring on the planet is the fleet's
-    language). Console-safe materials only — transform / opacity / gradients.
-  -->
   <span class="con-colcity"
         :class="[
           'con-colcity--' + size,
@@ -67,45 +41,64 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE CITY'S SEAT on a colony tile (Turmoil Redux TR22 Nova City — «place a
+ * city ON A COLONY TILE»). ONE component, three hosts: the grid tile's head,
+ * the focus stage's hero, the dossier's planet zone.
+ *
+ * The colony tile is a PLACE, the planet an OBJECT, the city a SECOND OBJECT
+ * of the tile — and its seat exists BEFORE the object: this root is ALWAYS
+ * rendered (`data-colony-city-seat`), an empty seat being an invisible
+ * measurement slot exactly like the fleet's berth. So neither a projection
+ * nor a landed city can move anything around it.
+ *
+ * POSES (the controller's ONE reading — `colonyCitySeatView`):
+ *   · empty     — nothing painted;
+ *   · projected — a «city» door stands: the dashed hex contour, the art as a
+ *                 ghost, a translucent cube in the viewer's colour;
+ *   · waiting   — the door is answered, the piece is on its way: the contour
+ *                 alone («the place waits»);
+ *   · seated    — the board's own city art and the board's own owner cube on
+ *                 a static contact shadow: the piece LIES on the tile.
+ * `--landed` / `--press` are one-shots (the contact's answer, the cube's
+ * press), each cleared by its own `animationend`.
+ *
+ * It is NOT a control: no pointer events, no cursor stop, no text, no pulse.
+ * The owner is named by the CUBE (a ring on the planet is the fleet's
+ * language). Console-safe materials only — transform / opacity / gradients.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {Color} from '@/common/Color';
 import {ColonyCitySeatView, ackColonyCitySeat, colonyCitySeatView, colonyCityState} from '@/client/console/colonyCity/consoleColonyCity';
 import {COLONY_CITY_CUBE_PX, ColonyCitySeatSize} from '@/client/console/colonyCity/colonyCityModel';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 
-export default defineComponent({
-  name: 'ConsoleColonyCitySeat',
-  components: {PlayerCube},
-  props: {
-    /** The colony tile whose seat this is (its `tiles` say what lies on it). */
-    colony: {type: Object as PropType<Pick<ColonyModel, 'name' | 'tiles'>>, required: true},
-    /** The colour of the city a standing «city» door would place here ('' = no door, or not a candidate). */
-    projection: {type: String as PropType<Color | ''>, default: ''},
-    size: {type: String as PropType<ColonyCitySeatSize>, default: 'tile'},
-  },
-  computed: {
-    view(): ColonyCitySeatView {
-      return colonyCitySeatView(this.colony, this.projection === '' ? undefined : this.projection);
-    },
-    cubeSize(): number {
-      return COLONY_CITY_CUBE_PX[this.size];
-    },
-    landed(): boolean {
-      return colonyCityState.landed === this.colony.name;
-    },
-    pressed(): boolean {
-      return colonyCityState.pressed === this.colony.name && this.view.pose === 'seated';
-    },
-  },
-  methods: {
-    onLandedEnd(): void {
-      ackColonyCitySeat(this.colony.name, 'landed');
-    },
-    onPressEnd(): void {
-      ackColonyCitySeat(this.colony.name, 'pressed');
-    },
-  },
+defineOptions({name: 'ConsoleColonyCitySeat'});
+const props = defineProps({
+  /** The colony tile whose seat this is (its `tiles` say what lies on it). */
+  colony: {type: Object as PropType<Pick<ColonyModel, 'name' | 'tiles'>>, required: true},
+  /** The colour of the city a standing «city» door would place here ('' = no door, or not a candidate). */
+  projection: {type: String as PropType<Color | ''>, default: ''},
+  size: {type: String as PropType<ColonyCitySeatSize>, default: 'tile'},
 });
+
+const view = computed((): ColonyCitySeatView => {
+  return colonyCitySeatView(props.colony, props.projection === '' ? undefined : props.projection);
+});
+const cubeSize = computed((): number => COLONY_CITY_CUBE_PX[props.size]);
+const landed = computed((): boolean => colonyCityState.landed === props.colony.name);
+const pressed = computed((): boolean => {
+  return colonyCityState.pressed === props.colony.name && view.value.pose === 'seated';
+});
+
+function onLandedEnd(): void {
+  ackColonyCitySeat(props.colony.name, 'landed');
+}
+function onPressEnd(): void {
+  ackColonyCitySeat(props.colony.name, 'pressed');
+}
 </script>
