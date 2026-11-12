@@ -5,27 +5,16 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {computed, ref} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
 import PreferencesDialog from '@/client/components/PreferencesDialog.vue';
 
-export default defineComponent({
-  name: 'PreferencesIcon',
-  components: {
-    'preferences-dialog': PreferencesDialog,
-  },
-  data() {
-    return {
-      preferencesPanelOpen: false,
-    };
-  },
-  computed: {
-    preferencesManager(): PreferencesManager {
-      return PreferencesManager.INSTANCE;
-    },
-  },
-});
+defineOptions({name: 'PreferencesIcon'});
+
+const preferencesPanelOpen = ref(false);
+const preferencesManager = computed((): PreferencesManager => PreferencesManager.INSTANCE);
 
 </script>
