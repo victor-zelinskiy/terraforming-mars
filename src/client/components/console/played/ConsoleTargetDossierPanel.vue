@@ -1,8 +1,4 @@
 <template>
-  <!-- THE TARGET DOSSIER (the owner, 2026-11-02 — X on a target reads the card AS A TARGET, «с контекстом именно по
-       ресурсам на ней»). The viewer's side column leads with it, before the card's rules: whose card, what lies on it
-       NOW, what lands, what THIS move does to it (the step's own preview — the words the rail reads under the cursor),
-       a near miss's reason. Read-only; every state is a kant, a fill or a word (invariant 15). -->
   <section class="con-tdossier" :class="{'con-tdossier--closing': closing, 'con-tdossier--blocked': dossier.blocked !== undefined}"
            data-target-dossier :data-target-dossier-card="dossier.cardName">
     <header class="con-tdossier__head">
@@ -64,38 +60,42 @@
   </section>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE TARGET DOSSIER (the owner, 2026-11-02 — X on a target reads the card AS A TARGET, «с контекстом именно по
+ * ресурсам на ней»). The viewer's side column leads with it, before the card's rules: whose card, what lies on it
+ * NOW, what lands, what THIS move does to it (the step's own preview — the words the rail reads under the cursor),
+ * a near miss's reason. Read-only; every state is a kant, a fill or a word (invariant 15).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {readingLineText} from '@/client/console/readingText';
 import {PlayedTargetImpact} from '@/client/console/played/consolePlayedTargetModel';
 import {PlayedTargetDossier} from '@/client/console/played/playedTargetDossier';
 
-export default defineComponent({
-  name: 'ConsoleTargetDossierPanel',
-  props: {
-    dossier: {type: Object as PropType<PlayedTargetDossier>, required: true},
-    /** The zoom close flight began — hide instantly (never lag the card). */
-    closing: {type: Boolean, default: false},
-  },
-  computed: {
-    /** The unit that lands: the step's own kind, or — a pick of any kind (P43) — the kind THIS card keeps. */
-    payloadIcon(): string {
-      const p = this.dossier.payload;
-      if (p === undefined) {
-        return '';
-      }
-      return p.icon !== '' ? p.icon : this.dossier.holding?.icon ?? '';
-    },
-  },
-  methods: {
-    iconClass(key: string): string {
-      return iconClassFor(key);
-    },
-    /** ONE renderer for a reading with params (PL-160). */
-    line(imp: PlayedTargetImpact): string {
-      return readingLineText(imp);
-    },
-  },
+defineOptions({name: 'ConsoleTargetDossierPanel'});
+const props = defineProps({
+  dossier: {type: Object as PropType<PlayedTargetDossier>, required: true},
+  /** The zoom close flight began — hide instantly (never lag the card). */
+  closing: {type: Boolean, default: false},
 });
+
+/** The unit that lands: the step's own kind, or — a pick of any kind (P43) — the kind THIS card keeps. */
+const payloadIcon = computed((): string => {
+  const p = props.dossier.payload;
+  if (p === undefined) {
+    return '';
+  }
+  return p.icon !== '' ? p.icon : props.dossier.holding?.icon ?? '';
+});
+function iconClass(key: string): string {
+  return iconClassFor(key);
+}
+/** ONE renderer for a reading with params (PL-160). */
+function line(imp: PlayedTargetImpact): string {
+  return readingLineText(imp);
+}
 </script>
