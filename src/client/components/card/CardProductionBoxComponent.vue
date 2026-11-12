@@ -10,28 +10,17 @@
         </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
 import CardRenderItemComponent from '@/client/components/card/CardRenderItemComponent.vue';
 import CardRenderSymbolComponent from '@/client/components/card/CardRenderSymbolComponent.vue';
 import {isICardRenderItem, isICardRenderSymbol, ItemType} from '@/common/cards/render/Types';
 
-export default defineComponent({
-  name: 'CardProductionBoxComponent',
-  props: {
-    rows: {
-      type: Array as () => Array<Array<ItemType>>,
-      required: true,
-    },
-  },
-  components: {
-    CardRenderItemComponent,
-    CardRenderSymbolComponent,
-  },
-  methods: {
-    isICardRenderItem: isICardRenderItem,
-    isICardRenderSymbol: isICardRenderSymbol,
+defineOptions({name: 'CardProductionBoxComponent'});
+defineProps({
+  rows: {
+    type: Array as () => Array<Array<ItemType>>,
+    required: true,
   },
 });
 
