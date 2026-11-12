@@ -3,7 +3,7 @@ import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, bootFixtureSeats, pressUntil, settle} from './consoleStart';
 import {
-  answerAsksAs, closeSitting, closeSittingAs, enterSittingByPass, expectRailHonest, openParliament, PARLIAMENT_PRESETS, parliamentWire, sittingStage,
+  answerAsksAs, closeSitting, closeSittingAs, enterSittingByPass, expectRailHonest, openParliament, openParliamentAfterSitting, PARLIAMENT_PRESETS, parliamentWire, sittingStage,
   waitSittingAtRest,
 } from './parliamentDrive';
 
@@ -217,7 +217,7 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     await closeSittingAs(request, seats[1]);
     await closeSitting(page, request, playerId);
     await settle(page, {timeoutMs: 30_000});
-    await openParliament(page);
+    await openParliamentAfterSitting(page);
     const overview = await page.evaluate(() => {
       const b = document.querySelector('.con-band');
       const r = b?.getBoundingClientRect();

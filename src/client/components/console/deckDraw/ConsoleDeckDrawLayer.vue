@@ -86,6 +86,7 @@ import {
   markDiscardStreaming, registerDiscardStreamPlayer, setDeckDrawPhase,
 } from '@/client/console/deckDraw/consoleDeckDraw';
 import {tickDeckDisplay} from '@/client/console/consoleDeckDisplay';
+import {createDeckTickPacer} from '@/client/console/deckDraw/deckTickPacer';
 import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
 import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
@@ -1284,12 +1285,36 @@ export default defineComponent({
         }
       };
       ctx.stream = {lease, allPeeled};
+      // ONE CARD, ONE TICK, ITS OWN FRAME (`deckTickPacer.ts` — CI 43066263512: 283 → 280 in one step, and 283 → 281
+      // on the green retry). A card that leaves the deck OWES a tick; the pacer writes the first at once and every
+      // further one a frame later, and the owner hears «all peeled» (its flight then releases the hold to the server's
+      // number) only a frame after the last tick was written — the beats starting on one starved GSAP tick can no
+      // longer merge their ticks, nor the owner's release swallow the last one.
+      const counted = new Set<number>();
+      const pacer = createDeckTickPacer({
+        tick: () => {
+          tickDeckDisplay();
+          this.tickDeck();
+        },
+        nextFrame: (fn) => {
+          sceneScope().afterFrame('a tick of the discard stream', fn);
+        },
+      });
+      const owe = (index: number) => {
+        if (!counted.has(index)) {
+          counted.add(index);
+          pacer.owe();
+        }
+      };
+      const peelsDone = () => pacer.whenDrained(allPeeled);
       // THE NET CATCHES A STALL, never a SLOW stream. The peels run on GSAP's frames, which lag-smooth on a starved
       // renderer (a software-rastered 4K: a frame over 500 ms advances the timeline 33 ms), while a plain net at the
       // plan's length runs on the wall clock — it fired before the peels, the owner's flight released the deck's
       // hold, and the counter jumped 283 → 280 in one step (CI, the box without a GPU). So the net re-arms while the
       // stream is still making progress (a beat starting, a card leaving the deck), and a hard cap keeps «the owner's
-      // flight never waits on a stream that stalled» bounded.
+      // flight never waits on a stream that stalled» bounded. And a net that fires CATCHES THE STREAM UP card by card
+      // (animations.md law 1): every card it has not ticked yet is owed through the pacer, the owner hears «all
+      // peeled» only after the last of them — never a release that resolves the whole count in one jump.
       const lastPeelMs = beats.length > 0 ? beats[beats.length - 1].atMs + t.peelMs : 0;
       const streamStart = performance.now();
       let lastProgress = streamStart;
@@ -1304,7 +1329,8 @@ export default defineComponent({
           sceneScope().after(motionMs(150), 'a beat of the deck draw', net);
           return;
         }
-        allPeeled();
+        beats.forEach((beat) => owe(beat.index));
+        peelsDone();
       };
       sceneScope().after(motionMs(lastPeelMs) + motionMs(400), 'a beat of the deck draw', net);
       void this.$nextTick(() => {
@@ -1321,9 +1347,10 @@ export default defineComponent({
           const proxy = this.proxyRefs[beat.index];
           const flip = this.flipRefs[beat.index];
           if (proxy === null || proxy === undefined || flip === null || flip === undefined) {
+            owe(beat.index);
             peeled++;
             if (peeled >= beats.length) {
-              allPeeled();
+              peelsDone();
             }
             done();
             return;
@@ -1339,11 +1366,10 @@ export default defineComponent({
               reduced,
               onDrawn: () => {
                 lastProgress = performance.now();
-                tickDeckDisplay();
-                this.tickDeck();
+                owe(beat.index);
                 peeled++;
                 if (peeled >= beats.length) {
-                  allPeeled();
+                  peelsDone();
                 }
               },
               onLanded: () => {

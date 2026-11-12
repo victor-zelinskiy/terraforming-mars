@@ -560,6 +560,23 @@ export async function openParliament(page: Page): Promise<void> {
   await settle(page, {timeoutMs: 15_000});
 }
 
+/**
+ * Open the Parliament's OVERVIEW right after the viewer closed a sitting. The closed sitting is still the `.con-parl`
+ * on screen for a while — its results page stands until the phase's own leave takes it down — so `openParliament`
+ * counted THAT surface, opened nothing, and the caller read the government of a sitting whose body is not the parties
+ * (the ruler slot empty) and then watched the section leave (CI 2026-11-11, `console-parliament-gallery` «Unity in
+ * power»: «[data-parl-ruler-slot] .con-parl__party» not found). The wait is for the state the next read needs: no
+ * sitting up and none leaving, then the open, then the overview's ruler standing in its slot (tests.md ④).
+ */
+export async function openParliamentAfterSitting(page: Page, timeout = 45_000): Promise<void> {
+  await expect(page.locator('.con-parl[data-sitting-stage], .con-parl[data-parl-leaving]'),
+    'the closed sitting leaves the screen before the overview is opened').toHaveCount(0, {timeout});
+  await openParliament(page);
+  await expect(page.locator('.con-parl[data-sitting-stage]'), 'the surface opened is the overview, never a sitting').toHaveCount(0);
+  await expect(page.locator('[data-parl-ruler-slot] .con-parl__party[data-party]'), 'the overview\'s ruler stands in its slot')
+    .toHaveCount(1, {timeout: 15_000});
+}
+
 /** The browse layer's focus ZONE (`data-zone` on the root) — Парламент v8: parties · ruler · effects · voting · engine · agenda. */
 export async function parliamentZone(page: Page): Promise<string> {
   return (await parliament(page).getAttribute('data-zone')) ?? '';

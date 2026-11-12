@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import {bootFixture, bootFixtureSeats, closeZoomViewer, openCardActions, openMandatoryAnnounce, openZoomViewer, placeTile, press, pressUntil, settle, focusInfoZone} from './consoleStart';
 import {
   answerAsksAs, closeSitting, closeSittingAs, enterSittingByPass, expectInspectorFooterWhole, expectParliamentFits, expectRailHonest,
-  focusParliamentZone, mandatoryPlate, openParliament, parliament, PARLIAMENT_PRESETS, ParliamentPreset, parliamentWire, sittingStage, sittingStep,
+  focusParliamentZone, mandatoryPlate, openParliament, openParliamentAfterSitting, parliament, PARLIAMENT_PRESETS, ParliamentPreset, parliamentWire, sittingStage, sittingStep,
   waitSittingAtRest,
 } from './parliamentDrive';
 
@@ -360,7 +360,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         await closeSittingAs(request, red);
         await closeSitting(page, request, playerId);
         await settle(page, {timeoutMs: 30_000});
-        await openParliament(page);
+        await openParliamentAfterSitting(page);
         const ruler = page.locator('[data-parl-ruler-slot] .con-parl__party[data-party]');
         await expect(ruler).toHaveAttribute('data-party', 'Unity');
         await expect(ruler.locator('[data-support-void]'), 'a ruler by an enacted card shows no sockets').toHaveCount(1);

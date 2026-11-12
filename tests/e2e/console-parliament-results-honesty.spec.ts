@@ -3,7 +3,7 @@ import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixture, bootFixtureSeats, settle} from './consoleStart';
 import {
-  closeSitting, closeSittingAs, enterSittingByPass, expectParliamentFits, expectRailHonest, openParliament, PARLIAMENT_PRESETS, parliamentWire,
+  closeSitting, closeSittingAs, enterSittingByPass, expectParliamentFits, expectRailHonest, openParliament, openParliamentAfterSitting, PARLIAMENT_PRESETS, parliamentWire,
   sittingStage, waitSittingAtRest,
 } from './parliamentDrive';
 
@@ -319,7 +319,7 @@ test.describe('«Итоги: честность» — панель, поддер
     await closeSittingAs(request, seats[1]);
     await closeSitting(page, request, playerId);
     await settle(page, {timeoutMs: 30_000});
-    await openParliament(page);
+    await openParliamentAfterSitting(page);
     await settle(page, {timeoutMs: 20_000});
     await shoot(page, 'honesty-first-generation');
 
