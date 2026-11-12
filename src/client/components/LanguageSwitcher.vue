@@ -11,33 +11,23 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
 import {ALL_LANGUAGES, LANGUAGES} from '@/common/constants';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
+import {languageSwitcherReload} from '@/client/components/languageSwitcherReload';
 
-export default defineComponent({
-  name: 'language-switcher',
-  methods: {
-    reloadWindow() {
-      window.location.reload();
-    },
-    switchLanguageTo(langId: string) {
-      PreferencesManager.INSTANCE.set('lang', langId);
-      this.reloadWindow();
-    },
-    title(key: keyof typeof LANGUAGES) {
-      const lang = LANGUAGES[key];
-      return `${lang[0]} (${lang[1]})`;
-    },
-  },
-  computed: {
-    ALL_LANGUAGES(): typeof ALL_LANGUAGES {
-      return ALL_LANGUAGES;
-    },
-    LANGUAGES(): typeof LANGUAGES {
-      return LANGUAGES;
-    },
-  },
-});
+defineOptions({name: 'language-switcher'});
+
+function reloadWindow() {
+  // The reload is a member of a module, not of this component: a unit spec replaces it there.
+  languageSwitcherReload.reload();
+}
+function switchLanguageTo(langId: string) {
+  PreferencesManager.INSTANCE.set('lang', langId);
+  reloadWindow();
+}
+function title(key: keyof typeof LANGUAGES) {
+  const lang = LANGUAGES[key];
+  return `${lang[0]} (${lang[1]})`;
+}
 </script>

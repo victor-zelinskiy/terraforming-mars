@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {shallowMount} from '@vue/test-utils';
 import {ALL_LANGUAGES, LANGUAGES} from '@/common/constants';
 import LanguageSwitcher from '@/client/components/LanguageSwitcher.vue';
+import {languageSwitcherReload} from '@/client/components/languageSwitcherReload';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
 
 describe('LanguageSwitcher', () => {
@@ -22,25 +23,33 @@ describe('LanguageSwitcher', () => {
 
   it('saves language preference', async () => {
     const originalSetPreferences = PreferencesManager.INSTANCE.set;
+    // The page reload is the component's one side effect and lives in a module of its own
+    // (`languageSwitcherReload.ts`): a `<script setup>` component calls its own functions directly, so the spec
+    // replaces the module's member — replacing `wrapper.vm.reloadWindow` would intercept nothing.
+    const originalReload = languageSwitcherReload.reload;
     let calledKey = '';
     let calledValue = '';
     PreferencesManager.INSTANCE.set = function(key, value: string) {
       calledKey = key;
       calledValue = value;
     };
-    const wrapper = shallowMount(LanguageSwitcher, {
-      data() {
-        return {PreferencesManager};
-      },
-    });
     let called = false;
-    (wrapper.vm as any).reloadWindow = () => {
+    languageSwitcherReload.reload = () => {
       called = true;
     };
-    await wrapper.find('.language-icon--en').trigger('click');
-    expect(calledKey).to.be.eq('lang');
-    expect(calledValue).to.be.eq('en');
-    expect(called).to.be.true;
-    PreferencesManager.INSTANCE.set = originalSetPreferences;
+    try {
+      const wrapper = shallowMount(LanguageSwitcher, {
+        data() {
+          return {PreferencesManager};
+        },
+      });
+      await wrapper.find('.language-icon--en').trigger('click');
+      expect(calledKey).to.be.eq('lang');
+      expect(calledValue).to.be.eq('en');
+      expect(called).to.be.true;
+    } finally {
+      PreferencesManager.INSTANCE.set = originalSetPreferences;
+      languageSwitcherReload.reload = originalReload;
+    }
   });
 });
