@@ -4,22 +4,16 @@
         </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
 import CardRowComponent from '@/client/components/card/CardRowComponent.vue';
 import {ItemType} from '@/common/cards/render/Types';
 
-export default defineComponent({
-  name: 'CardRowData',
-  props: {
-    rowData: {
-      type: Array as () => Array<ItemType>,
-      required: true,
-    },
-  },
-  components: {
-    CardRowComponent,
+defineOptions({name: 'CardRowData'});
+defineProps({
+  rowData: {
+    type: Array as () => Array<ItemType>,
+    required: true,
   },
 });
 
