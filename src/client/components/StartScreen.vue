@@ -33,29 +33,17 @@
 </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import LanguageSwitcher from '@/client/components/LanguageSwitcher.vue';
 import PreferencesIcon from '@/client/components/PreferencesIcon.vue';
 
 import raw_settings from '@/genfiles/settings.json';
 import * as constants from '@/common/constants';
 
-export default defineComponent({
-  name: 'start-screen',
-  components: {
-    LanguageSwitcher,
-    PreferencesIcon,
-  },
-  computed: {
-    raw_settings(): typeof raw_settings {
-      return raw_settings;
-    },
-    DISCORD_INVITE(): string {
-      return constants.DISCORD_INVITE;
-    },
-  },
-});
+defineOptions({name: 'start-screen'});
+
+const DISCORD_INVITE = constants.DISCORD_INVITE;
 
 </script>
