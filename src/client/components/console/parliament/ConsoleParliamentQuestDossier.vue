@@ -66,8 +66,8 @@
     </section>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
@@ -77,51 +77,44 @@ import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mecha
 import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {ParliamentQuestVm, ParliamentViewVm, parliamentPlayerName, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleParliamentQuestDossier',
-  components: {PlayerDelegate, PremiumChairGlyph, PremiumMechanicsPanel},
-  props: {
-    view: {type: Object as PropType<ParliamentViewVm>, required: true},
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-  },
-  computed: {
-    quest(): ParliamentQuestVm | undefined {
-      return this.view.quest;
-    },
-    chairman(): Color | undefined {
-      return this.view.chairman;
-    },
-    count(): number {
-      return this.quest?.definition.count ?? 1;
-    },
-    mechanics(): MechanicsVM | undefined {
-      const root = this.quest?.renderData;
-      return root === undefined ? undefined : buildMechanics(root, PARLIAMENT_GRAPHIC);
-    },
-    rows(): ReadonlyArray<{color: Color, value: number, bot: boolean}> {
-      return (this.quest?.progress ?? []).filter((row) => row.participates);
-    },
-    /** WHERE the quest comes from — the enacted law it is printed on, or the starting rule (generation 1). */
-    sourceText(): string {
-      const quest = this.quest;
-      if (quest === undefined) {
-        return '';
-      }
-      return quest.source === 'starter' ?
-        translateText('Starting rule') :
-        translateTextWithParams('from the enacted resolution «${0}»', [translateText(resolutionTitleOf(this.view, quest.source))]);
-    },
-  },
-  methods: {
-    nameOf(color: Color): string {
-      return parliamentPlayerName(this.players, color);
-    },
-    figurePx(logical: number): number {
-      return delegateFigurePx(logical);
-    },
-  },
+defineOptions({name: 'ConsoleParliamentQuestDossier'});
+const props = defineProps({
+  view: {type: Object as PropType<ParliamentViewVm>, required: true},
+  players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
 });
+
+const quest = computed((): ParliamentQuestVm | undefined => {
+  return props.view.quest;
+});
+const chairman = computed((): Color | undefined => {
+  return props.view.chairman;
+});
+const count = computed((): number => {
+  return quest.value?.definition.count ?? 1;
+});
+const mechanics = computed((): MechanicsVM | undefined => {
+  const root = quest.value?.renderData;
+  return root === undefined ? undefined : buildMechanics(root, PARLIAMENT_GRAPHIC);
+});
+const rows = computed((): ReadonlyArray<{color: Color, value: number, bot: boolean}> => {
+  return (quest.value?.progress ?? []).filter((row) => row.participates);
+});
+/** WHERE the quest comes from — the enacted law it is printed on, or the starting rule (generation 1). */
+const sourceText = computed((): string => {
+  const liveQuest = quest.value;
+  if (liveQuest === undefined) {
+    return '';
+  }
+  return liveQuest.source === 'starter' ?
+    translateText('Starting rule') :
+    translateTextWithParams('from the enacted resolution «${0}»', [translateText(resolutionTitleOf(props.view, liveQuest.source))]);
+});
+
+function nameOf(color: Color): string {
+  return parliamentPlayerName(props.players, color);
+}
+const figurePx = delegateFigurePx;
 </script>
