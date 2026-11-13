@@ -89,11 +89,11 @@
     </div>
 </template>
 
-<script lang="ts">
-
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed, ref, watch} from 'vue';
 import Bonus from '@/client/components/Bonus.vue';
-import BoardSpaceTile, {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
+import BoardSpaceTile from '@/client/components/board/BoardSpaceTile.vue';
+import {tileCssClassOf} from '@/client/components/board/boardSpaceTileModel';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import NomadToken from '@/client/components/NomadToken.vue';
 import UndergroundToken from '@/client/components/underworld/UndergroundToken.vue';
@@ -113,373 +113,329 @@ import {buriedTileOf} from '@/common/boards/cellPieces';
 import {TileType} from '@/common/TileType';
 import {clearActiveMarker, observeMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {vI18n} from '@/client/directives/vDirectives';
 
-type Data = {
-  cathedralPlacing: boolean;
-  markerDurationMs: number;
-  markerDelayMs: number;
-  cancelMarker: () => void;
-  nomadPlacing: boolean;
-  nomadDurationMs: number;
-  nomadDelayMs: number;
-  cancelNomad: () => void;
-};
-
-export default defineComponent({
-  name: 'board-space',
-  props: {
-    space: {
-      type: Object as () => SpaceModel,
-      required: true,
-    },
-    text: {
-      type: String,
-      default: '',
-    },
-    aresExtension: {
-      type: Boolean,
-    },
-    tileView: {
-      type: String as () => TileView,
-      required: true,
-    },
+defineOptions({name: 'board-space'});
+const props = defineProps({
+  space: {
+    type: Object as () => SpaceModel,
+    required: true,
   },
-  setup() {
-    return {flow: useFlowScope('board-space')};
+  text: {
+    type: String,
+    default: '',
   },
-  data(): Data {
-    return {
-      cathedralPlacing: false,
-      markerDurationMs: 0,
-      markerDelayMs: 0,
-      cancelMarker: () => {},
-      nomadPlacing: false,
-      nomadDurationMs: 0,
-      nomadDelayMs: 0,
-      cancelNomad: () => {},
-    };
+  aresExtension: {
+    type: Boolean,
   },
-  components: {
-    'bonus': Bonus,
-    'board-space-tile': BoardSpaceTile,
-    'player-cube': PlayerCube,
-    'nomad-token': NomadToken,
-    'underground-token': UndergroundToken,
-  },
-  watch: {
-    // Drive the cube-drop state machine: on mount (immediate) and whenever this
-    // space gains/loses an owner. The cube is held hidden during the tile
-    // placement animation and dropped in only after it finishes.
-    'space.color': {
-      immediate: true,
-      handler(): void {
-        observeCube(this.space);
-      },
-    },
-    // The overlay-marker landing (mirrors BoardSpaceTile's placement watcher:
-    // immediate, module-tracked, so a mid-beat remount RESUMES the keyframe).
-    'space.cathedral': {
-      immediate: true,
-      handler(): void {
-        this.refreshMarkerPlacement();
-      },
-    },
-    // The Mars Nomads FIRST LANDING (Flow A) — the same framework, its own
-    // richer descent. A MOVE never reaches this beat: the move scene
-    // pre-adopts both cells in the marker baseline before flipping flags.
-    'space.nomads': {
-      immediate: true,
-      handler(): void {
-        this.refreshNomadPlacement();
-      },
-    },
-  },
-  methods: {
-    artClassOf(tileType: TileType): string {
-      const suffix = tileCssClassOf(tileType, this.aresExtension);
-      return suffix === '' ? '' : 'board-space-tile--' + suffix;
-    },
-    /**
-     * A lower tier's art, by where the piece LIES (`pile`, bottom-up): `--stack-k` 1 is the piece right under the
-     * top, 2 the one under that. The lowest piece of a cell is its OWN tile — or, on a TR44 cell, the plain OCEAN the
-     * city stands on; every tier between the base and the top is a plain city (a stack is built by putting plain
-     * city tiles on top).
-     */
-    tierArtClassOf(k: number): string {
-      const piece = this.pile[this.pile.length - 1 - k];
-      return piece === undefined ? '' : this.artClassOf(piece);
-    },
-    refreshMarkerPlacement(): void {
-      this.cancelMarker();
-      const result = observeMarkerPlacement(this.space);
-      if (result === null) {
-        this.cathedralPlacing = false;
-        return;
-      }
-      this.cathedralPlacing = true;
-      this.markerDurationMs = result.durationMs;
-      this.markerDelayMs = result.delayMs;
-      const spaceId = this.space.id;
-      const remaining = Math.max(0, result.durationMs + result.delayMs) + 40;
-      // PACING, owned by this cell (flow kernel — PLAN §10 · C1): taken back at unmount ON PURPOSE, as the cleared
-      // timer was — a landing in flight stays in the module's ledger so a mid-beat remount resumes the keyframe.
-      this.cancelMarker = this.flow.after(remaining, 'the overlay marker\'s landing ends', () => {
-        this.cathedralPlacing = false;
-        clearActiveMarker(spaceId);
-      });
-    },
-    refreshNomadPlacement(): void {
-      this.cancelNomad();
-      const result = observeMarkerPlacement(this.space, 'nomads');
-      if (result === null) {
-        this.nomadPlacing = false;
-        return;
-      }
-      this.nomadPlacing = true;
-      this.nomadDurationMs = result.durationMs;
-      this.nomadDelayMs = result.delayMs;
-      const spaceId = this.space.id;
-      const remaining = Math.max(0, result.durationMs + result.delayMs) + 40;
-      this.cancelNomad = this.flow.after(remaining, 'the nomads\' first landing ends', () => {
-        this.nomadPlacing = false;
-        clearActiveMarker(spaceId, 'nomads');
-      });
-    },
-  },
-  computed: {
-    mainClass(): string {
-      let css = 'board-space board-space-' + this.space?.id.toString();
-      css += ' board-space-selectable';
-      if (this.pile.length > 1 && this.pileDrawn) {
-        css += ' board-space--stack';
-      }
-      // A RESTRICTED cell (Amazonis's centre) never takes a tile: it is drawn by FORM — a hatch and a dashed contour —
-      // so it reads as closed at couch distance, before any hover or placement asks it. A fixed fact of the cell.
-      if (this.space.spaceType === SpaceType.RESTRICTED) {
-        css += ' board-space--restricted';
-      }
-      // A SPECIAL city's cell (the tile a tier would bury): its counter stands clear of the buried tile's mark. A fact
-      // of the cell's own tile, never of the height — so the counter does not move when the mark appears or goes.
-      // A city OVER AN OCEAN (TR44) is such a cell too: the water is the piece its mark names.
-      if (stackBuriedTile(this.space.tileType, 2) !== undefined || this.pieceUnder !== undefined) {
-        css += ' board-space--stack-special';
-      }
-      // TWO TILES ON ONE CELL (TR44): the pile's base is WATER — the seam under the city is a shoreline, not a token's edge.
-      if (this.pieceUnder === TileType.OCEAN && this.pileDrawn) {
-        css += ' board-space--afloat';
-      }
-      // …and the water LEFT from under the city (a move, a removal): the city settles onto the ground, once.
-      if (stackDriedAt(this.space.id)) {
-        css += ' board-space--dried';
-      }
-      // THE SEE-THROUGH («ПРОСВЕТ», TR47) is NOT a class here — it is the root's `data-peek` ATTRIBUTE. The focus
-      // ring (`con-cell-sel`), the availability classes and the move's source mark are written IMPERATIVELY on this
-      // element by the board section, and Vue rewrites `className` wholesale whenever this binding changes: a class
-      // that toggles exactly while the cursor stands on the cell wiped the focus it was standing with (measured on
-      // TR39's source level — `focusedSpaceId` read «» with the reticle plainly on 33). A separate attribute is patched
-      // on its own and leaves `className` alone.
-      // THE LANDING SCENE's two states of this cell (cityStackScene): a tier hangs over it — the base
-      // takes the load; a tier just touched down — the counter ticks and the cell jolts once.
-      if (this.stackLoading) {
-        css += ' board-space--stack-loading';
-      }
-      if (stackContactAt(this.space.id)) {
-        css += ' board-space--stack-contact';
-      }
-      // …and their mirrors — a MOVE took the top tier off this cell: the counter ticks down, the base returns to the full hex.
-      if (this.stackReleased) {
-        css += ' board-space--stack-release';
-      }
-      if (stackUnloadingAt(this.space.id)) {
-        css += ' board-space--stack-unloading';
-      }
-      return css;
-    },
-    /** A move just lifted the top tier off THIS cell (the scene's `released`). */
-    stackReleased(): boolean {
-      return stackReleasedAt(this.space.id);
-    },
-    /** A city tier is descending onto THIS cell (the landing scene's `loading`). */
-    stackLoading(): boolean {
-      return stackLoadingAt(this.space.id);
-    },
-    /** The city STACK's height (Skyscrapers) — 1 for any ordinary cell. A MOVE somebody else made off this
-     *  stack keeps the height it HAD until the scene's proxy takes the top tier over (`heldStackHeightOf`). */
-    stackHeight(): number {
-      return heldStackHeightOf(this.space.id) ?? this.space.stackHeight ?? 1;
-    },
-    /** The owner marker: the model's — or, on a cell still painting a city that has LEFT it (a remote move's
-     *  held source), that city's own. */
-    cubeColor(): Color | undefined {
-      return this.space.color ?? heldPrevColorOf(this.space.id);
-    },
-    /**
-     * THE PILE, bottom-up — every physical piece on the cell (`common/boards/cellPieces.ts`): the plain OCEAN a TR44
-     * city stands on (if any), the cell's own tile (the base of a city stack), then a plain city per further tier.
-     * Empty for an empty cell. The picture is drawn from this list and nothing else: the top is its last piece, the
-     * lower tiers the pieces under it.
-     */
-    pile(): ReadonlyArray<TileType> {
-      const tileType = this.pieceTop;
-      if (tileType === undefined) {
-        return [];
-      }
-      const pieces: Array<TileType> = this.pieceUnder !== undefined ? [this.pieceUnder] : [];
-      pieces.push(tileType);
-      for (let tier = 1; tier < this.stackHeight; tier++) {
-        pieces.push(stackTopTile(tileType, this.stackHeight));
-      }
-      return pieces;
-    },
-    /**
-     * THE PIECES AS PAINTED: the model's — or, while a remote scene HOLDS this cell at what stood here before the
-     * commit (a move or a removal out from under a city, a city leaving its water), the held pieces: the cell keeps
-     * painting its whole pile until the proxy takes one piece over 1:1.
-     */
-    pieceTop(): TileType | undefined {
-      const held = this.placementCleared ? heldPrevTileOf(this.space.id) : undefined;
-      return held ?? this.space.tileType;
-    },
-    pieceUnder(): TileType | undefined {
-      if (this.placementCleared) {
-        return heldPrevTileOf(this.space.id) !== undefined ? heldPrevUnderOf(this.space.id) : undefined;
-      }
-      return this.space.under;
-    },
-    /** The pile is DRAWN: an ordinary cell, or a held cell still painting the pieces that stood on it. */
-    pileDrawn(): boolean {
-      return !this.placementCleared || heldPrevTileOf(this.space.id) !== undefined;
-    },
-    /** The lower tiers drawn under the top tile, nearest first (`--stack-k` 1 = right under it); at most two. */
-    tierLayers(): ReadonlyArray<number> {
-      if (this.pile.length <= 1 || !this.pileDrawn || this.tileView !== 'show') {
-        return [];
-      }
-      const drawn = Math.min(2, this.pile.length - 1);
-      return Array.from({length: drawn}, (_, i) => i + 1);
-    },
-    /**
-     * The art the TOP of this cell wears when it is NOT the cell's own tile: a plain city, once a tier stands on a
-     * special city (the Capital is underneath then). Undefined for every single tile and for a pile of plain cities.
-     */
-    topArt(): TileType | undefined {
-      const tileType = this.pieceTop;
-      if (tileType === undefined) {
-        return undefined;
-      }
-      const top = stackTopTile(tileType, this.stackHeight);
-      return top === tileType ? undefined : top;
-    },
-    /**
-     * The piece lying UNDER the top that the top no longer shows — its miniature marks the pile ('' = nothing buried,
-     * or nothing drawn): the plain OCEAN under a TR44 city, else a special city under a tier (`buriedTileOf`).
-     */
-    buriedArtClass(): string {
-      if (!this.pileDrawn || this.tileView !== 'show') {
-        return '';
-      }
-      const buried = buriedTileOf({tileType: this.pieceTop, under: this.pieceUnder, stackHeight: this.stackHeight});
-      return buried === undefined ? '' : this.artClassOf(buried);
-    },
-    /** `--stack-n` drives the lift of the top tile and the step of every tier (board px, under the board's zoom). */
-    stackStyle(): Record<string, string> {
-      return this.pile.length > 1 ? {'--stack-n': String(Math.min(3, this.pile.length))} : {};
-    },
-    // True while this occupied cell is a remove-and-replace placement target
-    // OR a console remote-placement reveal hold (the committed tile is hidden
-    // until its flight's touchdown): its tile graphic is suppressed and its
-    // placement bonus is shown instead — the cell keeps reading as untouched.
-    placementCleared(): boolean {
-      return placementRenderState.hiddenTiles.has(this.space.id) || isRemoteRevealHeld(this.space.id);
-    },
-    showBonus(): boolean {
-      // A held OCEAN COVER keeps painting the covered water (never the bare
-      // hex), so the printed bonuses stay hidden exactly as they were under
-      // the real ocean — and so does a REMOVAL in flight (an EMPTY committed
-      // cell still painting the tile that is about to lift): the bonuses
-      // surface only once the tile has gone.
-      if (this.placementCleared && heldPrevTileOf(this.space.id) !== undefined) {
-        return false;
-      }
-      if (this.space.tileType === undefined || this.tileView === 'hide' || this.placementCleared) {
-        return true;
-      }
-      // THE SEE-THROUGH of a lone piece (TR47): the bonus the cell will pay again is painted under the translucent
-      // tile. A piece that leaves a pile (the water under a city, a stack's tier) uncovers nothing — no icons.
-      return this.peekPiece === 'top' && this.pile.length === 1;
-    },
-    /** Which piece of this cell a lifting pick sees through right now (undefined = none — `placementPeek.ts`). */
-    /** The «×N» of a multiplied placement on this candidate (`placementRenderState.bonusTimes`) — undefined = none. */
-    bonusTimes(): number | undefined {
-      if (this.tileView !== 'show') {
-        return undefined;
-      }
-      return bonusTimesAt(this.space.id);
-    },
-    peekPiece(): PlacementPeekPiece | undefined {
-      if (this.tileView !== 'show' || this.placementCleared) {
-        return undefined;
-      }
-      return peekPieceAt(this.space.id);
-    },
-    // Cube reveal phase for this space (`hidden` during the tile placement
-    // animation, `dropping` while the cube lands, `rest` otherwise). PlayerCube
-    // reads the `symbol_overlay` preference itself for the colour-blind glyph.
-    cubePhase(): CubePhase {
-      return cubePhaseForSpace(this.space.id);
-    },
-    // Inline duration/delay for the marker keyframe (negative delay resumes a
-    // beat interrupted by a remount) — same contract as `--placement-duration`.
-    markerPlacementStyle(): Record<string, string> {
-      if (!this.cathedralPlacing) {
-        return {};
-      }
-      return {
-        '--marker-placement-duration': `${this.markerDurationMs}ms`,
-        '--marker-placement-delay': `${this.markerDelayMs}ms`,
-      };
-    },
-    /**
-     * The camp renders while the flag stands AND the cell is not reveal-held
-     * (a move commits the destination hidden until its proxy's touchdown) —
-     * OR while the cell carries the move scene's source GHOST (the flag is
-     * already gone, but the hop hasn't physically lifted off yet).
-     */
-    showNomadToken(): boolean {
-      if (this.tileView !== 'show') {
-        return false;
-      }
-      if (nomadGhostAt(this.space.id)) {
-        return true;
-      }
-      return this.space.nomads === true && !nomadCellHidden(this.space.id);
-    },
-    // The landing keyframe's duration/delay (same resume contract as the
-    // cathedral marker above).
-    nomadLandingStyle(): Record<string, string> {
-      if (!this.nomadPlacing) {
-        return {};
-      }
-      return {
-        '--nomad-landing-duration': `${this.nomadDurationMs}ms`,
-        '--nomad-landing-delay': `${this.nomadDelayMs}ms`,
-      };
-    },
-    claimedToken(): ClaimedToken | undefined {
-      if (this.space.undergroundResource === undefined) {
-        return undefined;
-      }
-      return {token: this.space.undergroundResource, shelter: false, active: false};
-    },
-
-    getSpaceName(): typeof getSpaceName {
-      return getSpaceName;
-    },
-    SpaceType(): typeof SpaceType {
-      return SpaceType;
-    },
+  tileView: {
+    type: String as () => TileView,
+    required: true,
   },
 });
 
+const flow = useFlowScope('board-space');
+const cathedralPlacing = ref(false);
+const markerDurationMs = ref(0);
+const markerDelayMs = ref(0);
+let cancelMarker: () => void = () => {};
+const nomadPlacing = ref(false);
+const nomadDurationMs = ref(0);
+const nomadDelayMs = ref(0);
+let cancelNomad: () => void = () => {};
+
+const mainClass = computed((): string => {
+  let css = 'board-space board-space-' + props.space?.id.toString();
+  css += ' board-space-selectable';
+  if (pile.value.length > 1 && pileDrawn.value) {
+    css += ' board-space--stack';
+  }
+  // A RESTRICTED cell (Amazonis's centre) never takes a tile: it is drawn by FORM — a hatch and a dashed contour —
+  // so it reads as closed at couch distance, before any hover or placement asks it. A fixed fact of the cell.
+  if (props.space.spaceType === SpaceType.RESTRICTED) {
+    css += ' board-space--restricted';
+  }
+  // A SPECIAL city's cell (the tile a tier would bury): its counter stands clear of the buried tile's mark. A fact
+  // of the cell's own tile, never of the height — so the counter does not move when the mark appears or goes.
+  // A city OVER AN OCEAN (TR44) is such a cell too: the water is the piece its mark names.
+  if (stackBuriedTile(props.space.tileType, 2) !== undefined || pieceUnder.value !== undefined) {
+    css += ' board-space--stack-special';
+  }
+  // TWO TILES ON ONE CELL (TR44): the pile's base is WATER — the seam under the city is a shoreline, not a token's edge.
+  if (pieceUnder.value === TileType.OCEAN && pileDrawn.value) {
+    css += ' board-space--afloat';
+  }
+  // …and the water LEFT from under the city (a move, a removal): the city settles onto the ground, once.
+  if (stackDriedAt(props.space.id)) {
+    css += ' board-space--dried';
+  }
+  // THE SEE-THROUGH («ПРОСВЕТ», TR47) is NOT a class here — it is the root's `data-peek` ATTRIBUTE. The focus
+  // ring (`con-cell-sel`), the availability classes and the move's source mark are written IMPERATIVELY on this
+  // element by the board section, and Vue rewrites `className` wholesale whenever this binding changes: a class
+  // that toggles exactly while the cursor stands on the cell wiped the focus it was standing with (measured on
+  // TR39's source level — `focusedSpaceId` read «» with the reticle plainly on 33). A separate attribute is patched
+  // on its own and leaves `className` alone.
+  // THE LANDING SCENE's two states of this cell (cityStackScene): a tier hangs over it — the base
+  // takes the load; a tier just touched down — the counter ticks and the cell jolts once.
+  if (stackLoading.value) {
+    css += ' board-space--stack-loading';
+  }
+  if (stackContactAt(props.space.id)) {
+    css += ' board-space--stack-contact';
+  }
+  // …and their mirrors — a MOVE took the top tier off this cell: the counter ticks down, the base returns to the full hex.
+  if (stackReleased.value) {
+    css += ' board-space--stack-release';
+  }
+  if (stackUnloadingAt(props.space.id)) {
+    css += ' board-space--stack-unloading';
+  }
+  return css;
+});
+/** A move just lifted the top tier off THIS cell (the scene's `released`). */
+const stackReleased = computed((): boolean => {
+  return stackReleasedAt(props.space.id);
+});
+/** A city tier is descending onto THIS cell (the landing scene's `loading`). */
+const stackLoading = computed((): boolean => {
+  return stackLoadingAt(props.space.id);
+});
+/** The city STACK's height (Skyscrapers) — 1 for any ordinary cell. A MOVE somebody else made off this
+ *  stack keeps the height it HAD until the scene's proxy takes the top tier over (`heldStackHeightOf`). */
+const stackHeight = computed((): number => {
+  return heldStackHeightOf(props.space.id) ?? props.space.stackHeight ?? 1;
+});
+/** The owner marker: the model's — or, on a cell still painting a city that has LEFT it (a remote move's
+ *  held source), that city's own. */
+const cubeColor = computed((): Color | undefined => {
+  return props.space.color ?? heldPrevColorOf(props.space.id);
+});
+/**
+ * THE PILE, bottom-up — every physical piece on the cell (`common/boards/cellPieces.ts`): the plain OCEAN a TR44
+ * city stands on (if any), the cell's own tile (the base of a city stack), then a plain city per further tier.
+ * Empty for an empty cell. The picture is drawn from this list and nothing else: the top is its last piece, the
+ * lower tiers the pieces under it.
+ */
+const pile = computed((): ReadonlyArray<TileType> => {
+  const tileType = pieceTop.value;
+  if (tileType === undefined) {
+    return [];
+  }
+  const pieces: Array<TileType> = pieceUnder.value !== undefined ? [pieceUnder.value] : [];
+  pieces.push(tileType);
+  for (let tier = 1; tier < stackHeight.value; tier++) {
+    pieces.push(stackTopTile(tileType, stackHeight.value));
+  }
+  return pieces;
+});
+/**
+ * THE PIECES AS PAINTED: the model's — or, while a remote scene HOLDS this cell at what stood here before the
+ * commit (a move or a removal out from under a city, a city leaving its water), the held pieces: the cell keeps
+ * painting its whole pile until the proxy takes one piece over 1:1.
+ */
+const pieceTop = computed((): TileType | undefined => {
+  const held = placementCleared.value ? heldPrevTileOf(props.space.id) : undefined;
+  return held ?? props.space.tileType;
+});
+const pieceUnder = computed((): TileType | undefined => {
+  if (placementCleared.value) {
+    return heldPrevTileOf(props.space.id) !== undefined ? heldPrevUnderOf(props.space.id) : undefined;
+  }
+  return props.space.under;
+});
+/** The pile is DRAWN: an ordinary cell, or a held cell still painting the pieces that stood on it. */
+const pileDrawn = computed((): boolean => {
+  return !placementCleared.value || heldPrevTileOf(props.space.id) !== undefined;
+});
+/** The lower tiers drawn under the top tile, nearest first (`--stack-k` 1 = right under it); at most two. */
+const tierLayers = computed((): ReadonlyArray<number> => {
+  if (pile.value.length <= 1 || !pileDrawn.value || props.tileView !== 'show') {
+    return [];
+  }
+  const drawn = Math.min(2, pile.value.length - 1);
+  return Array.from({length: drawn}, (_, i) => i + 1);
+});
+/**
+ * The art the TOP of this cell wears when it is NOT the cell's own tile: a plain city, once a tier stands on a
+ * special city (the Capital is underneath then). Undefined for every single tile and for a pile of plain cities.
+ */
+const topArt = computed((): TileType | undefined => {
+  const tileType = pieceTop.value;
+  if (tileType === undefined) {
+    return undefined;
+  }
+  const top = stackTopTile(tileType, stackHeight.value);
+  return top === tileType ? undefined : top;
+});
+/**
+ * The piece lying UNDER the top that the top no longer shows — its miniature marks the pile ('' = nothing buried,
+ * or nothing drawn): the plain OCEAN under a TR44 city, else a special city under a tier (`buriedTileOf`).
+ */
+const buriedArtClass = computed((): string => {
+  if (!pileDrawn.value || props.tileView !== 'show') {
+    return '';
+  }
+  const buried = buriedTileOf({tileType: pieceTop.value, under: pieceUnder.value, stackHeight: stackHeight.value});
+  return buried === undefined ? '' : artClassOf(buried);
+});
+/** `--stack-n` drives the lift of the top tile and the step of every tier (board px, under the board's zoom). */
+const stackStyle = computed((): Record<string, string> => {
+  return pile.value.length > 1 ? {'--stack-n': String(Math.min(3, pile.value.length))} : {};
+});
+// True while this occupied cell is a remove-and-replace placement target
+// OR a console remote-placement reveal hold (the committed tile is hidden
+// until its flight's touchdown): its tile graphic is suppressed and its
+// placement bonus is shown instead — the cell keeps reading as untouched.
+const placementCleared = computed((): boolean => {
+  return placementRenderState.hiddenTiles.has(props.space.id) || isRemoteRevealHeld(props.space.id);
+});
+const showBonus = computed((): boolean => {
+  // A held OCEAN COVER keeps painting the covered water (never the bare
+  // hex), so the printed bonuses stay hidden exactly as they were under
+  // the real ocean — and so does a REMOVAL in flight (an EMPTY committed
+  // cell still painting the tile that is about to lift): the bonuses
+  // surface only once the tile has gone.
+  if (placementCleared.value && heldPrevTileOf(props.space.id) !== undefined) {
+    return false;
+  }
+  if (props.space.tileType === undefined || props.tileView === 'hide' || placementCleared.value) {
+    return true;
+  }
+  // THE SEE-THROUGH of a lone piece (TR47): the bonus the cell will pay again is painted under the translucent
+  // tile. A piece that leaves a pile (the water under a city, a stack's tier) uncovers nothing — no icons.
+  return peekPiece.value === 'top' && pile.value.length === 1;
+});
+/** Which piece of this cell a lifting pick sees through right now (undefined = none — `placementPeek.ts`). */
+/** The «×N» of a multiplied placement on this candidate (`placementRenderState.bonusTimes`) — undefined = none. */
+const bonusTimes = computed((): number | undefined => {
+  if (props.tileView !== 'show') {
+    return undefined;
+  }
+  return bonusTimesAt(props.space.id);
+});
+const peekPiece = computed((): PlacementPeekPiece | undefined => {
+  if (props.tileView !== 'show' || placementCleared.value) {
+    return undefined;
+  }
+  return peekPieceAt(props.space.id);
+});
+// Cube reveal phase for this space (`hidden` during the tile placement
+// animation, `dropping` while the cube lands, `rest` otherwise). PlayerCube
+// reads the `symbol_overlay` preference itself for the colour-blind glyph.
+const cubePhase = computed((): CubePhase => {
+  return cubePhaseForSpace(props.space.id);
+});
+// Inline duration/delay for the marker keyframe (negative delay resumes a
+// beat interrupted by a remount) — same contract as `--placement-duration`.
+const markerPlacementStyle = computed((): Record<string, string> => {
+  if (!cathedralPlacing.value) {
+    return {};
+  }
+  return {
+    '--marker-placement-duration': `${markerDurationMs.value}ms`,
+    '--marker-placement-delay': `${markerDelayMs.value}ms`,
+  };
+});
+/**
+ * The camp renders while the flag stands AND the cell is not reveal-held
+ * (a move commits the destination hidden until its proxy's touchdown) —
+ * OR while the cell carries the move scene's source GHOST (the flag is
+ * already gone, but the hop hasn't physically lifted off yet).
+ */
+const showNomadToken = computed((): boolean => {
+  if (props.tileView !== 'show') {
+    return false;
+  }
+  if (nomadGhostAt(props.space.id)) {
+    return true;
+  }
+  return props.space.nomads === true && !nomadCellHidden(props.space.id);
+});
+// The landing keyframe's duration/delay (same resume contract as the
+// cathedral marker above).
+const nomadLandingStyle = computed((): Record<string, string> => {
+  if (!nomadPlacing.value) {
+    return {};
+  }
+  return {
+    '--nomad-landing-duration': `${nomadDurationMs.value}ms`,
+    '--nomad-landing-delay': `${nomadDelayMs.value}ms`,
+  };
+});
+const claimedToken = computed((): ClaimedToken | undefined => {
+  if (props.space.undergroundResource === undefined) {
+    return undefined;
+  }
+  return {token: props.space.undergroundResource, shelter: false, active: false};
+});
+
+function artClassOf(tileType: TileType): string {
+  const suffix = tileCssClassOf(tileType, props.aresExtension);
+  return suffix === '' ? '' : 'board-space-tile--' + suffix;
+}
+/**
+ * A lower tier's art, by where the piece LIES (`pile`, bottom-up): `--stack-k` 1 is the piece right under the
+ * top, 2 the one under that. The lowest piece of a cell is its OWN tile — or, on a TR44 cell, the plain OCEAN the
+ * city stands on; every tier between the base and the top is a plain city (a stack is built by putting plain
+ * city tiles on top).
+ */
+function tierArtClassOf(k: number): string {
+  const piece = pile.value[pile.value.length - 1 - k];
+  return piece === undefined ? '' : artClassOf(piece);
+}
+function refreshMarkerPlacement(): void {
+  cancelMarker();
+  const result = observeMarkerPlacement(props.space);
+  if (result === null) {
+    cathedralPlacing.value = false;
+    return;
+  }
+  cathedralPlacing.value = true;
+  markerDurationMs.value = result.durationMs;
+  markerDelayMs.value = result.delayMs;
+  const spaceId = props.space.id;
+  const remaining = Math.max(0, result.durationMs + result.delayMs) + 40;
+  // PACING, owned by this cell (flow kernel — PLAN §10 · C1): taken back at unmount ON PURPOSE, as the cleared
+  // timer was — a landing in flight stays in the module's ledger so a mid-beat remount resumes the keyframe.
+  cancelMarker = flow.after(remaining, 'the overlay marker\'s landing ends', () => {
+    cathedralPlacing.value = false;
+    clearActiveMarker(spaceId);
+  });
+}
+function refreshNomadPlacement(): void {
+  cancelNomad();
+  const result = observeMarkerPlacement(props.space, 'nomads');
+  if (result === null) {
+    nomadPlacing.value = false;
+    return;
+  }
+  nomadPlacing.value = true;
+  nomadDurationMs.value = result.durationMs;
+  nomadDelayMs.value = result.delayMs;
+  const spaceId = props.space.id;
+  const remaining = Math.max(0, result.durationMs + result.delayMs) + 40;
+  cancelNomad = flow.after(remaining, 'the nomads\' first landing ends', () => {
+    nomadPlacing.value = false;
+    clearActiveMarker(spaceId, 'nomads');
+  });
+}
+
+// Drive the cube-drop state machine: on mount (immediate) and whenever this
+// space gains/loses an owner. The cube is held hidden during the tile
+// placement animation and dropped in only after it finishes.
+watch(() => props.space.color, (): void => {
+  observeCube(props.space);
+}, {immediate: true});
+// The overlay-marker landing (mirrors BoardSpaceTile's placement watcher:
+// immediate, module-tracked, so a mid-beat remount RESUMES the keyframe).
+watch(() => props.space.cathedral, (): void => {
+  refreshMarkerPlacement();
+}, {immediate: true});
+// The Mars Nomads FIRST LANDING (Flow A) — the same framework, its own
+// richer descent. A MOVE never reaches this beat: the move scene
+// pre-adopts both cells in the marker baseline before flipping flags.
+watch(() => props.space.nomads, (): void => {
+  refreshNomadPlacement();
+}, {immediate: true});
 </script>
 

@@ -1,4 +1,5 @@
 import {mount} from '@vue/test-utils';
+import {defineComponent, h, nextTick} from 'vue';
 import {globalConfig} from './getLocalVue';
 import {expect} from 'chai';
 import BoardSpace from '@/client/components/BoardSpace.vue';
@@ -6,6 +7,9 @@ import {SpaceType} from '@/common/boards/SpaceType';
 import {TileType} from '@/common/TileType';
 import {clearRemoteRevealHolds, holdRemoteReveal, releaseRemoteReveal} from '@/client/console/tilePlacement/remoteRevealHold';
 import {setPlacementPeek} from '@/client/components/board/placementRenderState';
+import {forgetMarkerSilently} from '@/client/components/board/markerPlacementAnimation';
+import {armPlacementAnimations} from '@/client/components/board/tilePlacementAnimation';
+import {createManualClock, ManualFlowClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {SpaceId} from '@/common/Types';
@@ -360,6 +364,113 @@ describe('BoardSpace', () => {
       } finally {
         clearRemoteRevealHolds();
       }
+    });
+  });
+
+  /*
+   * The cell is a `<script setup>` component (step A of docs/claude/vapor/RECIPES.md). Its surface is its props and
+   * its DOM — it emits nothing and exposes nothing — and these pin what the conversion moved inside it: the two
+   * members that only handed an import to the template are gone (the import is the template's binding), the three
+   * `immediate` watchers run at the end of its setup, and the two landing timers are plain handles of the cell's own
+   * flow scope.
+   */
+  describe('the cell as a `<script setup>` component', () => {
+    let clock: ManualFlowClock;
+
+    function cellOf(space: Partial<SpaceModel> & Pick<SpaceModel, 'id'>, tileView: 'show' | 'hide' | 'coords' = 'show') {
+      return mount(BoardSpace, {
+        ...globalConfig,
+        props: {space: {bonus: [], x: 1, y: 1, spaceType: SpaceType.LAND, ...space} as SpaceModel, tileView},
+      });
+    }
+
+    beforeEach(() => {
+      clock = createManualClock(0);
+      setFlowClock(clock);
+    });
+    // Module state is BUNDLE-SHARED: the placement-animation window closes on the kernel's clock (so it is run out
+    // before the real clock comes back), and the marker ledger forgets the cells of this block.
+    afterEach(() => {
+      clock.advance(10_000);
+      setFlowClock(undefined);
+      forgetMarkerSilently('m22', 'cathedral');
+      forgetMarkerSilently('m23', 'nomads');
+    });
+
+    it('the coordinates view prints the cell\'s name — its a9 where the board gave it one', () => {
+      expect(cellOf({id: 'm35'}, 'coords').find('.board-space-coords').text()).to.eq('Z3');
+      expect(cellOf({id: 'm35', a9: 'K9'}, 'coords').find('.board-space-coords').text()).to.eq('K9');
+      expect(cellOf({id: 'm35'}).find('.board-space-coords').exists(), 'the ordinary view prints no coordinates').to.be.false;
+    });
+
+    it('a cell of the deflection zone wears the zone\'s ground — only its kant once a tile covers it', () => {
+      const bare = cellOf({id: 'm41', spaceType: SpaceType.DEFLECTION_ZONE}).find('[data-deflection-zone]');
+      expect(bare.classes()).to.deep.eq(['board-space-type-deflection-zone']);
+      const covered = cellOf({id: 'm41', spaceType: SpaceType.DEFLECTION_ZONE, tileType: TileType.GREENERY, color: 'red'}).find('[data-deflection-zone]');
+      expect(covered.classes()).to.include('board-space-type-deflection-zone--covered');
+      expect(cellOf({id: 'm41'}).find('[data-deflection-zone]').exists(), 'an ordinary cell has no zone').to.be.false;
+    });
+
+    it('an owner seen while a placement is in play: the cube is held behind its tile\'s entrance, then lands — the cell asked the cube\'s state as it was set up', async () => {
+      const resting = cellOf({id: 'm20', tileType: TileType.GREENERY, color: 'red'});
+      expect(resting.find('.board-owner-cube').exists(), 'no placement in play — the cube simply stands').to.be.true;
+
+      armPlacementAnimations();
+      const landing = cellOf({id: 'm21', tileType: TileType.GREENERY, color: 'red'});
+      expect(landing.find('.board-owner-cube').exists(), 'hidden while the tile lands').to.be.false;
+      clock.advance(5_000);
+      await nextTick();
+      expect(landing.find('.board-owner-cube').exists(), 'dropped onto its tile, then at rest').to.be.true;
+    });
+
+    it('an overlay marker that LANDS wears the landing for exactly its beat — the cell\'s own timer ends it', async () => {
+      const city = {id: 'm22', tileType: TileType.CITY, color: 'blue'} as const;
+      const wrapper = cellOf(city);
+      expect(wrapper.find('.board-cube--cathedral').exists()).to.be.false;
+
+      // A marker that was simply there when the cell was first seen never lands; one that appears in play does.
+      armPlacementAnimations();
+      await wrapper.setProps({space: {bonus: [], x: 1, y: 1, spaceType: SpaceType.LAND, ...city, cathedral: true} as SpaceModel});
+      const marker = () => wrapper.find('.board-cube--cathedral');
+      expect(marker().classes()).to.contain('board-cube--placing');
+      const style = marker().attributes('style') ?? '';
+      const beat = Number((/--marker-placement-duration:\s*([\d.]+)ms/.exec(style) ?? [])[1]);
+      expect(beat, 'the keyframe is handed its duration').to.be.greaterThan(0);
+      expect(style).to.match(/--marker-placement-delay:\s*0ms/);
+
+      // The landing stands to the last millisecond of its beat (+ the 40 ms buffer), and leaves with it.
+      clock.advance(beat + 39);
+      await nextTick();
+      expect(marker().classes()).to.contain('board-cube--placing');
+      clock.advance(1);
+      await nextTick();
+      expect(marker().classes()).to.not.contain('board-cube--placing');
+      expect(marker().attributes('style') ?? '').to.not.contain('--marker-placement-duration');
+    });
+
+    it('the nomads\' first landing is the same beat on its own handle — and a cell that leaves mid-beat takes its timer with it', async () => {
+      const wrapper = cellOf({id: 'm23'});
+      expect(wrapper.find('.board-nomad').exists()).to.be.false;
+      const standing = clock.pending();
+
+      armPlacementAnimations();
+      const armed = clock.pending() - standing;
+      await wrapper.setProps({space: {id: 'm23', bonus: [], x: 1, y: 1, spaceType: SpaceType.LAND, nomads: true} as SpaceModel});
+      expect(wrapper.find('.board-nomad').attributes('style') ?? '').to.match(/--nomad-landing-duration:\s*[\d.]+ms/);
+      expect(clock.pending() - standing, 'one timer of the cell beside the window\'s own').to.eq(armed + 1);
+
+      // PACING, not a release: the timer only lowers the cell's own state, so it goes with the cell.
+      wrapper.unmount();
+      expect(clock.pending() - standing).to.eq(armed);
+    });
+
+    it('a parent\'s ref reaches nothing — the board drives a cell by its props alone', () => {
+      const Host = defineComponent({
+        render: () => h('div', [h(BoardSpace, {ref: 'cell', space: {id: 'm24', bonus: [], x: 1, y: 1, spaceType: SpaceType.LAND}, tileView: 'show'})]),
+      });
+      const host = mount(Host, {...globalConfig});
+      expect(host.find('.board-space-m24').exists()).to.be.true;
+      expect(Object.keys((host.vm.$refs.cell ?? {}) as object), 'no `defineExpose`: Board stands no ref on its cells').to.deep.eq([]);
     });
   });
 });
