@@ -1,10 +1,4 @@
 <template>
-  <!-- «ВЗВЕДЕНО НА СЛЕДУЮЩУЮ КАРТУ» (TR49 class) — what the NEXT card this
-       player plays will spend, standing where that card is CHOSEN (the hand
-       album's head; the dock carries the compact twin). Renders NOTHING when
-       nothing is armed — and reserves nothing: its host's row keeps its own
-       height either way. Not a focus stop: it states a fact the composer of
-       the next card names again, and «ЭФФЕКТЫ» lets the player inspect it. -->
   <div v-if="effects.length > 0"
        class="con-armed"
        :class="['con-armed--' + variant, {'con-armed--arriving': allHeld}]"
@@ -41,9 +35,19 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
-import {translateText} from '@/client/directives/i18n';
+<script setup lang="ts">
+/*
+ * «ВЗВЕДЕНО НА СЛЕДУЮЩУЮ КАРТУ» (TR49 class) — what the NEXT card this
+ * player plays will spend, standing where that card is CHOSEN (the hand
+ * album's head; the dock carries the compact twin). Renders NOTHING when
+ * nothing is armed — and reserves nothing: its host's row keeps its own
+ * height either way. Not a focus stop: it states a fact the composer of
+ * the next card names again, and «ЭФФЕКТЫ» lets the player inspect it.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t, translateText} from '@/client/directives/i18n';
 import {cardArtUrlAtTier, premiumCardArt, premiumCardArtForKey} from '@/client/cards/cardArt';
 import {ArmedEffectView, armedSourceOf} from '@/client/console/armedEffects';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
@@ -58,41 +62,37 @@ import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/Premiu
  * Host-agnostic: the hosted album (a prelude's «play a card») carries the same
  * instance by the same prop. Every word comes from `requirementEasingText`.
  */
-export default defineComponent({
-  name: 'ConsoleArmedEffectsStrip',
-  components: {PremiumPartyRequirementGlyph},
-  props: {
-    effects: {type: Array as PropType<ReadonlyArray<PresentedArmedEffect>>, required: true},
-    variant: {type: String as PropType<'strip' | 'chip'>, default: 'strip'},
-  },
-  computed: {
-    /** Every effect drawn is still in the air (TR49 flight): the strip stands invisible — its box is the landing. */
-    allHeld(): boolean {
-      return this.effects.length > 0 && this.effects.every((e) => e.held === true);
-    },
-    source(): ArmedEffectView | undefined {
-      return armedSourceOf(this.effects);
-    },
-    sourceName(): string {
-      return this.source?.sourceName ?? '';
-    },
-    expiry(): string {
-      return this.effects[0]?.expiry ?? '';
-    },
-    artStyle(): Record<string, string> {
-      const source = this.source;
-      if (source === undefined) {
-        return {};
-      }
-      // The THUMB tier: the strip paints the art at ~2 rem. A LAW (RX36) wears its own art, keyed by its printed code.
-      const law = source.law === undefined ? undefined : getResolution(source.law);
-      const url = law !== undefined ? premiumCardArtForKey(law.code)?.url : source.source !== undefined ? premiumCardArt(source.source).url : undefined;
-      return url === undefined ? {} : {backgroundImage: `url(${cardArtUrlAtTier(url, 'thumb')})`};
-    },
-    ariaLabel(): string {
-      const parts = [translateText('Armed for your next card'), this.sourceName, ...this.effects.map((e) => e.formula), this.expiry];
-      return parts.filter((p) => p !== '').join(' · ');
-    },
-  },
+defineOptions({name: 'ConsoleArmedEffectsStrip'});
+const props = defineProps({
+  effects: {type: Array as PropType<ReadonlyArray<PresentedArmedEffect>>, required: true},
+  variant: {type: String as PropType<'strip' | 'chip'>, default: 'strip'},
+});
+
+/** Every effect drawn is still in the air (TR49 flight): the strip stands invisible — its box is the landing. */
+const allHeld = computed((): boolean => {
+  return props.effects.length > 0 && props.effects.every((e) => e.held === true);
+});
+const source = computed((): ArmedEffectView | undefined => {
+  return armedSourceOf(props.effects);
+});
+const sourceName = computed((): string => {
+  return source.value?.sourceName ?? '';
+});
+const expiry = computed((): string => {
+  return props.effects[0]?.expiry ?? '';
+});
+const artStyle = computed((): Record<string, string> => {
+  const armedSource = source.value;
+  if (armedSource === undefined) {
+    return {};
+  }
+  // The THUMB tier: the strip paints the art at ~2 rem. A LAW (RX36) wears its own art, keyed by its printed code.
+  const law = armedSource.law === undefined ? undefined : getResolution(armedSource.law);
+  const url = law !== undefined ? premiumCardArtForKey(law.code)?.url : armedSource.source !== undefined ? premiumCardArt(armedSource.source).url : undefined;
+  return url === undefined ? {} : {backgroundImage: `url(${cardArtUrlAtTier(url, 'thumb')})`};
+});
+const ariaLabel = computed((): string => {
+  const parts = [translateText('Armed for your next card'), sourceName.value, ...props.effects.map((e) => e.formula), expiry.value];
+  return parts.filter((p) => p !== '').join(' · ');
 });
 </script>
