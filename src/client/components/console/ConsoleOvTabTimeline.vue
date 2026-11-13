@@ -1,11 +1,4 @@
 <template>
-  <!--
-    ХРОНОЛОГИЯ — generations are the axis. One big VP chart (all players,
-    one shared scale), an episode strip pinned to generations, and a fixed
-    READOUT zone that names exact values at the d-pad cursor — no hover
-    anywhere. ←/→ walks generations, ↑/↓ jumps between pinned episodes,
-    A opens the generation dossier.
-  -->
   <div class="con-ovt">
     <template v-if="drawable">
       <!-- Match-shape chips: the timeline stats worth one line each. -->
@@ -121,8 +114,18 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ХРОНОЛОГИЯ — generations are the axis. One big VP chart (all players,
+ * one shared scale), an episode strip pinned to generations, and a fixed
+ * READOUT zone that names exact values at the d-pad cursor — no hover
+ * anywhere. ←/→ walks generations, ↑/↓ jumps between pinned episodes,
+ * A opens the generation dossier.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
@@ -133,112 +136,108 @@ import ConsoleOvRich from '@/client/components/console/ConsoleOvRich.vue';
 
 type ReadoutRow = {color: Color; name: string; value: number; delta: number};
 
-export default defineComponent({
-  name: 'ConsoleOvTabTimeline',
-  components: {ConsoleOvChart, ConsoleOvRich},
-  props: {
-    vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
-    reveal: {type: Boolean, default: false},
-  },
-  computed: {
-    ui() {
-      return consoleOverviewUi;
-    },
-    drawable(): boolean {
-      return this.vm.timeline.gens >= 2 && this.vm.timeline.series.length > 0;
-    },
-    cursor(): number {
-      const last = Math.max(0, this.vm.timeline.gens - 1);
-      const g = this.ui.timelineGen;
-      return g >= 0 && g <= last ? g : last;
-    },
-    chartSeries(): Array<OvChartSeries> {
-      return this.vm.timeline.series.map((s) => ({
-        key: s.color,
-        hex: endgamePlayerHex(s.color),
-        data: s.data,
-      }));
-    },
-    pinnedEpisodes(): Array<OvEpisode> {
-      return this.vm.timeline.episodes.filter((ep) =>
-        ep.generation !== undefined && ep.generation >= 1 && ep.generation <= this.vm.timeline.gens);
-    },
-    cursorEpisodes(): Array<OvEpisode> {
-      return this.pinnedEpisodes.filter((ep) => ep.generation === this.cursor + 1).slice(0, 2);
-    },
-    readoutRows(): Array<ReadoutRow> {
-      return this.rowsAt(this.cursor);
-    },
-    detailGen(): number | undefined {
-      const d = this.ui.detail;
-      return d !== undefined && d.kind === 'generation' ? d.gen : undefined;
-    },
-    detailRows(): Array<ReadoutRow> {
-      return this.detailGen !== undefined ? this.rowsAt(this.detailGen - 1) : [];
-    },
-    detailEpisodes(): Array<OvEpisode> {
-      return this.pinnedEpisodes.filter((ep) => ep.generation === this.detailGen);
-    },
-    detailParams(): Array<{key: string; label: string; accent: string; value: number; unit: string}> {
-      const gen = this.detailGen;
-      if (gen === undefined) {
-        return [];
-      }
-      return this.vm.parameters.parameters
-        .filter((p) => gen - 1 < p.series.length)
-        .map((p) => ({key: p.key, label: p.label, accent: p.accent, value: p.series[gen - 1], unit: p.unit}));
-    },
-  },
-  methods: {
-    hex(color: Color): string {
-      return endgamePlayerHex(color);
-    },
-    rowsAt(gen: number): Array<ReadoutRow> {
-      const rows = this.vm.timeline.series.map((s) => {
-        const value = gen < s.data.length ? s.data[gen] : (s.data.length > 0 ? s.data[s.data.length - 1] : 0);
-        const prev = gen > 0 && gen - 1 < s.data.length ? s.data[gen - 1] : 0;
-        return {color: s.color, name: s.name, value, delta: gen > 0 ? Math.max(0, value - prev) : 0};
-      });
-      rows.sort((a, b) => b.value - a.value);
-      return rows;
-    },
-    markStyle(ep: OvEpisode): Record<string, string> {
-      const n = this.vm.timeline.gens;
-      const gen = (ep.generation ?? 1) - 1;
-      const pct = n <= 1 ? 50 : (gen / (n - 1)) * 100;
-      const style: Record<string, string> = {left: pct + '%'};
-      if (ep.color !== undefined) {
-        style['--ov-pc'] = endgamePlayerHex(ep.color);
-      }
-      return style;
-    },
-    // ── pane API ──────────────────────────────────────────────────────────
-    nav(dir: NavDirection): void {
-      if (this.ui.detail !== undefined || !this.drawable) {
-        return;
-      }
-      const last = this.vm.timeline.gens - 1;
-      if (dir === 'left' || dir === 'right') {
-        const delta = dir === 'right' ? 1 : -1;
-        this.ui.timelineGen = Math.min(Math.max(this.cursor + delta, 0), last);
-        return;
-      }
-      // ↑/↓ — jump to the previous/next PINNED episode's generation.
-      const gens = [...new Set(this.pinnedEpisodes.map((ep) => (ep.generation ?? 1) - 1))].sort((a, b) => a - b);
-      if (gens.length === 0) {
-        return;
-      }
-      if (dir === 'down') {
-        this.ui.timelineGen = gens.find((g) => g > this.cursor) ?? gens[0];
-      } else {
-        this.ui.timelineGen = [...gens].reverse().find((g) => g < this.cursor) ?? gens[gens.length - 1];
-      }
-    },
-    primary(): void {
-      if (this.drawable && this.ui.detail === undefined) {
-        this.ui.detail = {kind: 'generation', gen: this.cursor + 1};
-      }
-    },
-  },
+defineOptions({name: 'ConsoleOvTabTimeline'});
+const props = defineProps({
+  vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
+  reveal: {type: Boolean, default: false},
 });
+
+const ui = consoleOverviewUi;
+const drawable = computed((): boolean => {
+  return props.vm.timeline.gens >= 2 && props.vm.timeline.series.length > 0;
+});
+const cursor = computed((): number => {
+  const last = Math.max(0, props.vm.timeline.gens - 1);
+  const g = ui.timelineGen;
+  return g >= 0 && g <= last ? g : last;
+});
+const chartSeries = computed((): Array<OvChartSeries> => {
+  return props.vm.timeline.series.map((s) => ({
+    key: s.color,
+    hex: endgamePlayerHex(s.color),
+    data: s.data,
+  }));
+});
+const pinnedEpisodes = computed((): Array<OvEpisode> => {
+  return props.vm.timeline.episodes.filter((ep) =>
+    ep.generation !== undefined && ep.generation >= 1 && ep.generation <= props.vm.timeline.gens);
+});
+const cursorEpisodes = computed((): Array<OvEpisode> => {
+  return pinnedEpisodes.value.filter((ep) => ep.generation === cursor.value + 1).slice(0, 2);
+});
+const readoutRows = computed((): Array<ReadoutRow> => {
+  return rowsAt(cursor.value);
+});
+const detailGen = computed((): number | undefined => {
+  const d = ui.detail;
+  return d !== undefined && d.kind === 'generation' ? d.gen : undefined;
+});
+const detailRows = computed((): Array<ReadoutRow> => {
+  return detailGen.value !== undefined ? rowsAt(detailGen.value - 1) : [];
+});
+const detailEpisodes = computed((): Array<OvEpisode> => {
+  return pinnedEpisodes.value.filter((ep) => ep.generation === detailGen.value);
+});
+const detailParams = computed((): Array<{key: string; label: string; accent: string; value: number; unit: string}> => {
+  const gen = detailGen.value;
+  if (gen === undefined) {
+    return [];
+  }
+  return props.vm.parameters.parameters
+    .filter((p) => gen - 1 < p.series.length)
+    .map((p) => ({key: p.key, label: p.label, accent: p.accent, value: p.series[gen - 1], unit: p.unit}));
+});
+function hex(color: Color): string {
+  return endgamePlayerHex(color);
+}
+function rowsAt(gen: number): Array<ReadoutRow> {
+  const rows = props.vm.timeline.series.map((s) => {
+    const value = gen < s.data.length ? s.data[gen] : (s.data.length > 0 ? s.data[s.data.length - 1] : 0);
+    const prev = gen > 0 && gen - 1 < s.data.length ? s.data[gen - 1] : 0;
+    return {color: s.color, name: s.name, value, delta: gen > 0 ? Math.max(0, value - prev) : 0};
+  });
+  rows.sort((a, b) => b.value - a.value);
+  return rows;
+}
+function markStyle(ep: OvEpisode): Record<string, string> {
+  const n = props.vm.timeline.gens;
+  const gen = (ep.generation ?? 1) - 1;
+  const pct = n <= 1 ? 50 : (gen / (n - 1)) * 100;
+  const style: Record<string, string> = {left: pct + '%'};
+  if (ep.color !== undefined) {
+    style['--ov-pc'] = endgamePlayerHex(ep.color);
+  }
+  return style;
+}
+// ── pane API ──────────────────────────────────────────────────────────
+function nav(dir: NavDirection): void {
+  if (ui.detail !== undefined || !drawable.value) {
+    return;
+  }
+  const last = props.vm.timeline.gens - 1;
+  if (dir === 'left' || dir === 'right') {
+    const delta = dir === 'right' ? 1 : -1;
+    ui.timelineGen = Math.min(Math.max(cursor.value + delta, 0), last);
+    return;
+  }
+  // ↑/↓ — jump to the previous/next PINNED episode's generation.
+  const gens = [...new Set(pinnedEpisodes.value.map((ep) => (ep.generation ?? 1) - 1))].sort((a, b) => a - b);
+  if (gens.length === 0) {
+    return;
+  }
+  if (dir === 'down') {
+    ui.timelineGen = gens.find((g) => g > cursor.value) ?? gens[0];
+  } else {
+    ui.timelineGen = [...gens].reverse().find((g) => g < cursor.value) ?? gens[gens.length - 1];
+  }
+}
+function primary(): void {
+  if (drawable.value && ui.detail === undefined) {
+    ui.detail = {kind: 'generation', gen: cursor.value + 1};
+  }
+}
+
+// The pane API — what `ConsoleEndgameOverview` reaches through its `ref="pane"` (`nav` on a d-pad step, `primary`
+// on A), and nothing else.
+defineExpose({nav, primary});
 </script>
