@@ -108,80 +108,73 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsolePlayedTargetTag from '@/client/components/console/played/ConsolePlayedTargetTag.vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {readingTailText, readingText} from '@/client/console/readingText';
 import {
   PlayedTargetPayload, PlayedTargetQuickImpact, PlayedTargetResult, PlayedTargetTag,
 } from '@/client/console/played/consolePlayedTargetModel';
+import {TARGET_ROW_STRIP_FACES} from '@/client/components/console/played/consoleComposerTargetRowModel';
 
-/** How many candidate faces the unanswered strip shows before «ещё N». */
-export const TARGET_ROW_STRIP_FACES = 5;
-
-export default defineComponent({
-  name: 'ConsoleComposerTargetRow',
-  components: {ConsoleCardFaceLite, ConsolePlayedTargetTag, PremiumMechNode, GamepadGlyph},
-  props: {
-    /** The row's role word (already translated) — the label when the pick carries no payload. */
-    label: {type: String, default: ''},
-    /** Who asks, when it is not the composer's card (already translated — «Колония · Титан»); leads the label. */
-    asker: {type: String, default: ''},
-    /** WHAT lands (`playedTargetPayloadOf`) — the label becomes «КУДА: [печать]». */
-    payload: {type: Object as PropType<PlayedTargetPayload | undefined>, default: undefined},
-    /** The SERVER's candidates of the pick, in its order — the unanswered strip. */
-    candidates: {type: Array as PropType<ReadonlyArray<CardModel>>, default: () => []},
-    /** The card the composer stands on (its own candidate is a handle in the strip). */
-    sourceCard: {type: String, default: ''},
-    /** The answered target (undefined = unanswered, or an answer gone stale). */
-    result: {type: Object as PropType<PlayedTargetResult | undefined>, default: undefined},
-    /** The chosen card's live model — its capsule states the count the token lands on. */
-    resultModel: {type: Object as PropType<CardModel | undefined>, default: undefined},
-    /** The chosen candidate's outcome tag — the step's own line under that card. */
-    tag: {type: Object as PropType<PlayedTargetTag | undefined>, default: undefined},
-    /** The readings only words can say (the tag already prints the digits). */
-    impacts: {type: Array as PropType<ReadonlyArray<PlayedTargetQuickImpact>>, default: () => []},
-    /** The row holds the cursor — the change affordance shows. */
-    focused: {type: Boolean, default: false},
-    /** The composer SEEDED this answer — the server offered one candidate (T14 · CC): the mark's i18n keys. */
-    sole: {type: Object as PropType<{mark: string, hint: string} | undefined>, default: undefined},
-  },
-  computed: {
-    shown(): ReadonlyArray<CardModel> {
-      return this.candidates.slice(0, TARGET_ROW_STRIP_FACES);
-    },
-    more(): number {
-      return Math.max(0, this.candidates.length - TARGET_ROW_STRIP_FACES);
-    },
-    /**
-     * What the row reads beside the miniature: the TAG — the step's own line under that card — and only the words it
-     * cannot print: a threshold's sentence («Хватит на делегата: 3 / 3» beside «[делегат] ✓»), a role's value line. A
-     * reading whose numbers the tag prints whole (a tender's «+18», a look, «+1 card» — `tagSays`) would be the same
-     * number a second time; a pick with no tag (a loss — the source of a spend) keeps every reading.
-     */
-    readings(): ReadonlyArray<PlayedTargetQuickImpact> {
-      return this.tag !== undefined ? this.impacts.filter((imp) => imp.tagSays !== true) : this.impacts;
-    },
-    moreText(): string {
-      return translateTextWithParams('+${0} more', [String(this.more)]);
-    },
-  },
-  methods: {
-    iconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-    impactText(imp: PlayedTargetQuickImpact): string {
-      return readingText(imp);
-    },
-    impactTail(imp: PlayedTargetQuickImpact): string {
-      return readingTailText(imp) ?? '';
-    },
-  },
+defineOptions({name: 'ConsoleComposerTargetRow'});
+const props = defineProps({
+  /** The row's role word (already translated) — the label when the pick carries no payload. */
+  label: {type: String, default: ''},
+  /** Who asks, when it is not the composer's card (already translated — «Колония · Титан»); leads the label. */
+  asker: {type: String, default: ''},
+  /** WHAT lands (`playedTargetPayloadOf`) — the label becomes «КУДА: [печать]». */
+  payload: {type: Object as PropType<PlayedTargetPayload | undefined>, default: undefined},
+  /** The SERVER's candidates of the pick, in its order — the unanswered strip. */
+  candidates: {type: Array as PropType<ReadonlyArray<CardModel>>, default: () => []},
+  /** The card the composer stands on (its own candidate is a handle in the strip). */
+  sourceCard: {type: String, default: ''},
+  /** The answered target (undefined = unanswered, or an answer gone stale). */
+  result: {type: Object as PropType<PlayedTargetResult | undefined>, default: undefined},
+  /** The chosen card's live model — its capsule states the count the token lands on. */
+  resultModel: {type: Object as PropType<CardModel | undefined>, default: undefined},
+  /** The chosen candidate's outcome tag — the step's own line under that card. */
+  tag: {type: Object as PropType<PlayedTargetTag | undefined>, default: undefined},
+  /** The readings only words can say (the tag already prints the digits). */
+  impacts: {type: Array as PropType<ReadonlyArray<PlayedTargetQuickImpact>>, default: () => []},
+  /** The row holds the cursor — the change affordance shows. */
+  focused: {type: Boolean, default: false},
+  /** The composer SEEDED this answer — the server offered one candidate (T14 · CC): the mark's i18n keys. */
+  sole: {type: Object as PropType<{mark: string, hint: string} | undefined>, default: undefined},
 });
+
+const shown = computed((): ReadonlyArray<CardModel> => {
+  return props.candidates.slice(0, TARGET_ROW_STRIP_FACES);
+});
+const more = computed((): number => {
+  return Math.max(0, props.candidates.length - TARGET_ROW_STRIP_FACES);
+});
+/**
+ * What the row reads beside the miniature: the TAG — the step's own line under that card — and only the words it
+ * cannot print: a threshold's sentence («Хватит на делегата: 3 / 3» beside «[делегат] ✓»), a role's value line. A
+ * reading whose numbers the tag prints whole (a tender's «+18», a look, «+1 card» — `tagSays`) would be the same
+ * number a second time; a pick with no tag (a loss — the source of a spend) keeps every reading.
+ */
+const readings = computed((): ReadonlyArray<PlayedTargetQuickImpact> => {
+  return props.tag !== undefined ? props.impacts.filter((imp) => imp.tagSays !== true) : props.impacts;
+});
+const moreText = computed((): string => {
+  return translateTextWithParams('+${0} more', [String(more.value)]);
+});
+
+function iconClass(icon: string): string {
+  return iconClassFor(icon);
+}
+function impactText(imp: PlayedTargetQuickImpact): string {
+  return readingText(imp);
+}
+function impactTail(imp: PlayedTargetQuickImpact): string {
+  return readingTailText(imp) ?? '';
+}
 </script>
