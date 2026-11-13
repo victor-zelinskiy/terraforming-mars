@@ -111,13 +111,17 @@ function readScript(script, uses, detail) {
   let options;
   for (const st of sf.statements) {
     if (!ts.isImportDeclaration(st) && !ts.isExportAssignment(st)) {
-      const exported = ts.canHaveModifiers(st) && (ts.getModifiers(st) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
-      const isType = ts.isTypeAliasDeclaration(st) || ts.isInterfaceDeclaration(st);
+      const exported = (ts.canHaveModifiers(st) && (ts.getModifiers(st) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) || ts.isExportDeclaration(st);
+      const isType = ts.isTypeAliasDeclaration(st) || ts.isInterfaceDeclaration(st) ||
+        (ts.isExportDeclaration(st) && (st.isTypeOnly || (st.exportClause !== undefined && ts.isNamedExports(st.exportClause) && st.exportClause.elements.every((el) => el.isTypeOnly))));
       // STATE at module level — a `let`, or a `const` holding a container that is written to — would become
       // PER-INSTANCE inside `<script setup>` (every top-level statement there is setup code).
+      const mutatedIn = (name) => new RegExp(`\\b${name}\\b(?:\\.[\\w$]+|\\[[^\\]\\n]*\\])*\\.(?:set|add|delete|clear|push|pop|shift|unshift|splice|sort|reverse|fill)\\(|\\b${name}\\b(?:\\.[\\w$]+|\\[[^\\]\\n]*\\])+\\s*(?:=(?!=)|\\+\\+|--|[-+*/]=)`).test(script);
       const stateful = ts.isVariableStatement(st) && ((st.declarationList.flags & ts.NodeFlags.Const) === 0 ||
         st.declarationList.declarations.some((d) => d.initializer !== undefined &&
-          /^(?:new (?:Map|Set|WeakMap|WeakSet)\b|reactive\(|ref\(|shallowRef\(|\[\]|\{\})/.test(d.initializer.getText(sf))));
+          (/^(?:reactive\(|ref\(|shallowRef\(|defineAsyncComponent\()/.test(d.initializer.getText(sf)) ||
+            (/^(?:new (?:Map|Set|WeakMap|WeakSet)\b|\[\]|\{\})/.test(d.initializer.getText(sf)) &&
+              !/^Readonly/.test(d.type?.getText(sf) ?? '') && (!ts.isIdentifier(d.name) || mutatedIn(d.name.text) || /^(?:\[\]|\{\}|new (?:Map|Set|WeakMap|WeakSet)(?:<[^()]*>)?\(\))$/.test(d.initializer.getText(sf)))))));
       bump(uses, exported ? (isType ? 'script:type-export' : 'script:value-export') : stateful ? 'script:module-state' : 'script:module-code');
       if (exported && !isType) {
         detail.valueExports.push(st.getText(sf).split('\n')[0].slice(0, 80));
@@ -461,6 +465,16 @@ function matchingClose(text, open) {
   return -1;
 }
 
+/**
+ * A parent's read of a member its child does NOT expose and never did (the child's own `expose()` list is the
+ * contract; the read has always been `undefined`). A conversion keeps that: waking the read is a fix of the PARENT.
+ */
+const UNEXPOSED_READS = {
+  ConsoleScrollArea: {
+    overflowing: 'ConsoleCardRulesPanel reads `overflowing` through the ref; the scroll area exposes five functions and not this ref, so the read is `undefined` and that panel\'s re-fit on a re-ask never runs',
+  },
+};
+
 /** A `<script setup>` script: the constructs of the SAME recipes, read off the Composition API it calls. */
 function readSetupScript(script, uses, detail) {
   const code = script.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -706,7 +720,9 @@ function exposeLists(components) {
       const reads = [];
       if (ref.startsWith('@surface:')) {
         // the shell's surface registry: read by NAME from the controllers — `surfaces.at<T>('<name>')`
-        const at = new RegExp(`\\.at(?:<[^(\\n]*>)?\\(\\s*'${ref.slice(9)}'\\s*\\)`, 'g');
+        // (the WHOLE expression, from the registry's own name on — `const panel = shell.surfaces.at<…>('x');` is then
+        // seen as a local that holds the surface, and its member reads are followed)
+        const at = new RegExp(`[\\w$]+(?:\\.[\\w$]+)*\\.at(?:<[^\\n]*?>)?\\(\\s*'${ref.slice(9)}'\\s*\\)`, 'g');
         for (const where of [...modules, {file: source.file, text: source.text, offset: source.component?.scriptLine}]) {
           for (const m of where.text.matchAll(at)) {
             reads.push({file: where.file, text: where.text, start: m.index, end: m.index + m[0].length, offset: where.offset ?? 0});
@@ -723,6 +739,9 @@ function exposeLists(components) {
         if (new RegExp(`^(?:const|let)\\s+${id}\\s*=\\s*(?:shallowRef|ref)\\b`, 'm').test(source.text)) {
           forms.push(`(?<![\\w.$])${id}\\.value\\b`);
         }
+        // a COMPUTED key (`this.$refs[name]`, `this.$refs[ref as 'a' | 'b']`) may mean any ref of this parent: the
+        // read is followed for every child it stands a ref on (a name that is no member of a child is dropped below)
+        forms.push('\\$refs\\[[^\\]\\n]+\\]');
         const pattern = new RegExp(forms.join('|'), 'g');
         for (const m of source.text.matchAll(pattern)) {
           reads.push({file: source.file, text: source.text, start: m.index, end: m.index + m[0].length, offset: source.component?.scriptLine ?? 0});
@@ -754,6 +773,16 @@ function exposeLists(components) {
       for (const use of source.text.matchAll(direct)) {
         note(child, use[1], source.file);
       }
+    }
+  }
+  // A member a parent reads and the child has NEVER exposed: the read is `undefined` today, and exposing it in a
+  // conversion would change the parent's behaviour. Declared here, with the reason; the sheet says it.
+  for (const [child, names] of Object.entries(UNEXPOSED_READS)) {
+    for (const name of Object.keys(names)) {
+      reached.get(child)?.delete(name);
+    }
+    if (reached.get(child)?.size === 0) {
+      reached.delete(child);
     }
   }
   // A name that is not a member of the child was read off something ELSE (a value an exposed function returned).
@@ -843,6 +872,13 @@ if (one !== undefined) {
   if (target.form !== 'options' && target.exposes !== undefined) {
     console.log(`  exposes today: ${target.exposes.join(', ')}`);
   }
+  const ownExpose = target.form === 'options' ? /\bexpose\(\s*\{([^}]*)\}/.exec(target.script) : null;
+  if (ownExpose !== null) {
+    console.log(`  ITS OWN \`expose({…})\` IS THE CONTRACT (R11): ${ownExpose[1].split(',').map((part) => part.split(':')[0].trim()).filter(Boolean).join(', ')} — \`defineExpose\` holds exactly these`);
+  }
+  for (const [name, why] of Object.entries(UNEXPOSED_READS[target.name] ?? {})) {
+    console.log(`  NOT exposed, though a parent reads it: ${name} — ${why}`);
+  }
   console.log(`  mounted by: ${(mountedBy.get(target.name) ?? ['(nobody by tag — a lazy / dynamic mount)']).join(', ')}`);
   const specTexts = tsFiles(path.join(ROOT, 'tests', 'client')).filter((file) => file.endsWith('.spec.ts')).map((file) => ({file: rel(file), text: fs.readFileSync(file, 'utf8')}));
   const specs = specTexts.filter(({text}) => new RegExp(`/${target.name}\\.vue'`).test(text)).map(({file}) => file);
@@ -868,7 +904,15 @@ if (one !== undefined) {
   }
   // (an Options component only: in a converted one the const of that name IS the template ref)
   const clash = target.templateRefs.filter((name) => target.form === 'options' && target.names !== undefined &&
-    [...target.names.props, ...target.names.data, ...target.names.computed, ...target.names.methods, ...target.names.setup].includes(name));
+    [...target.names.data, ...target.names.computed, ...target.names.methods].includes(name));
+  const propKeys = target.templateRefs.filter((name) => target.form === 'options' && target.names !== undefined && target.names.props.includes(name));
+  if (propKeys.length > 0) {
+    console.log(`  REF KEY = A PROP'S NAME (R11): ${propKeys.join(', ')} — the prop keeps its name, the ref's const takes another (\`${propKeys[0]}El\`)`);
+  }
+  const setupKeys = target.templateRefs.filter((name) => target.form === 'options' && target.names !== undefined && target.names.setup.includes(name));
+  if (setupKeys.length > 0) {
+    console.log(`  a setup() ref BINDS the template ref of its name (R8 — it stays a \`ref()\`, already the script-setup form): ${setupKeys.join(', ')}`);
+  }
   if (clash.length > 0) {
     console.log(`  REF KEY = MEMBER NAME (R11 — one scope in <script setup>): ${clash.join(', ')} — the template ref keeps the name, the member takes another`);
   }

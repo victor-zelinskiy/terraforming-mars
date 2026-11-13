@@ -45,7 +45,8 @@ function bare(text) {
   if (open === -1 || close === -1) {
     return [];
   }
-  return source.slice(source.indexOf('>', open) + 1, close).replace(/<!--[\s\S]*?-->/g, '').split('\n')
+  // …and the ref R12 stands on the root where the script read `this.$el` (`ref="root"` / `ref="rootEl"`) aside
+  return source.slice(source.indexOf('>', open) + 1, close).replace(/<!--[\s\S]*?-->/g, '').replace(/\sref="root(?:El)?"/g, '').split('\n')
     .map((line) => line.trimEnd()).filter((line) => line.trim() !== '');
 }
 

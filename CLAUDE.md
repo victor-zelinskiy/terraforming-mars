@@ -155,7 +155,7 @@ npm run watch:less           # CSS rebuild on change
 
 ### Three layers
 - **`src/server/`** — game engine, card logic, routes, database (Node.js).
-- **`src/client/`** — Vue 3 frontend, bundled with Webpack; Less styles in `src/styles/`. On **Vue 3.6.0-rc.15** (exact pin + `overrides` — never a caret while it is an RC). **Today** 226 of its 472 components are Options API (`defineComponent`), 243 are `<script setup>` (V3 waves 1–2 — the 236 lightest leaves and small surfaces, 2026-11-13), 3 are Vapor; **the destination** is `<script setup>` + Vapor (§ North star) — a new component is written in the destination's form.
+- **`src/client/`** — Vue 3 frontend, bundled with Webpack; Less styles in `src/styles/`. On **Vue 3.6.0-rc.15** (exact pin + `overrides` — never a caret while it is an RC). **Today** 108 of its 472 components are Options API (`defineComponent`), 361 are `<script setup>` (V3 waves 1–3, 2026-11-13 — the rest is wave 4's tail, started by the codemod `scripts/vapor/convert.mjs`), 3 are Vapor; **the destination** is `<script setup>` + Vapor (§ North star) — a new component is written in the destination's form.
 - **`src/common/`** — types, enums and models shared by both. No runtime logic bound to either side.
 
 `@/` maps to `./src/` (tsconfig paths + webpack).

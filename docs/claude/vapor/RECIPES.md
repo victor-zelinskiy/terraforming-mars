@@ -41,6 +41,16 @@ way on every run: a CONVERTED component that does not expose a member a parent r
    row that fell without being recorded fails nothing in between).
 6. **A commit of its own**, named after the component. A wave is a series of such commits and one full CI e2e run.
 
+**THE BOOK, APPLIED MECHANICALLY — `node scripts/vapor/convert.mjs <component.vue> [--write]`.** The codemod reads
+the script through TypeScript's AST and the template through the compiler and writes what § 1 and the rows below
+describe; it REFUSES what has no mechanical form (module state, a value export, a bare `this`, `$refs` as a whole, a
+ref key named like a member — each is one pre-edit of the Options form, by its row, after which it converts) and
+prints one REVIEW line per place a person must look at (an injected ref, a path watcher, a handle, a member it
+dropped, an import it aliased). Its corpus is the waves: run over the Options form of every component waves 1–2
+converted by hand it writes the same script for four in five and differs on the rest only where two readings of a
+rule shipped (`tm-arch-tools/cm_corpus.py`). From wave 3's tail on, a conversion STARTS from its output: the codemod
+converts, `eslint --fix` re-indents, the converter reviews the REVIEW lines against the original and writes the spec.
+
 **Two steps, never one.** Step A: Options → `<script setup lang="ts">` (still virtual DOM — every recipe below).
 Step B: `<script setup vapor lang="ts">` — one word. EVERY recipe below is ✔ Vapor unless its row says otherwise, so
 what decides step B is the sheet's own `STEP B` line (it reads a converted script too, off the Composition API it
@@ -75,8 +85,8 @@ const label = computed(() => …);                                   // R5 — t
 function toggle(): void { … }                                      // R7 — the methods, as hoisted functions
 provide(DOCK_KEY, label);                                          // R16 — after the declarations it hands down
 
-// (created / beforeCreate bodies — R9 — here: after everything they read)
 watch(() => props.value, (now, was) => { … }, {immediate: true});  // R6 — LAST among the declarations, in the block's order
+// (the `created` body — R9 — here: AFTER the watchers, as the Options API ran it)
 onMounted(() => { … });                                            // R9 — hooks after the watchers
 onBeforeUnmount(() => { … });
 defineExpose({toggle});                                            // R11 — exactly the sheet's MUST EXPOSE list
@@ -85,7 +95,10 @@ defineExpose({toggle});                                            // R11 — ex
 
 Why the order: an Options component created its watchers AFTER `data`, `computed` and `methods` existed; an
 `immediate` watcher written above a `const` it reads would hit it before its declaration. Declarations first, watchers
-after them in the `watch` block's own order, hooks last — the same creation order the component had.
+after them in the `watch` block's own order, then the `created` body, hooks last — the same creation order the
+component had: **the Options API created the watchers — and FIRED the `immediate` ones — BEFORE it called `created()`**
+(a `created` body written above them would let an immediate watcher see the state `created` set, where it used to
+see the initial one and then the change).
 
 Inside the script: a data field / computed is `x.value`, a prop is `props.x`, a method is `x(…)`, **an injected ref is
 `x.value`** (R16), `this` does not exist. In the template nothing changes — refs are unwrapped, props and functions are
@@ -93,7 +106,12 @@ reached by name.
 
 House rules of a conversion (so two people — or a person and a codemod — produce the same file):
 - **A MEMBER THAT ONLY HANDS AN IMPORT TO THE TEMPLATE IS DELETED — the import is the template's binding.** The
-  Options API needed a member for everything a template names; `<script setup>` does not. Under the import's OWN name
+  Options API needed a member for everything a template names; `<script setup>` does not. («Import» here is any
+  MODULE-LEVEL name: an import, a constant or a function of the same script — `logos() { return logos; }`,
+  `data() { return {SVG_W}; }`, `methods: {textOf}` over a module function — and what `setup()` returned under its
+  own name, `return {promptSequenceState}`.) The deleted member's comment goes with it when it described the
+  hand-over («exposed to the template…»); a comment about the VALUE moves onto the import / the declaration. An
+  import that only the deleted member used goes too. Under the import's OWN name
   — a method `playerSymbol(c) { return playerSymbol(c); }`, the shorthand `methods: {$t, iconClassFor}`, a computed
   `LANGUAGES() { return LANGUAGES; }`, a data field `data() { return {PATH}; }` — the member goes and nothing replaces
   it (applied literally, R5 / R7 would redeclare the import). **Under ANOTHER name the test is SYNTACTIC, by the
@@ -117,7 +135,9 @@ House rules of a conversion (so two people — or a person and a codemod — pro
   data field no template, script or spec names; a method no template, parent or spec calls; a computed only a
   commented-out line names; a field that is WRITTEN and never read (`shown = true` — it goes with its writes); and a
   TYPE nothing names any more (the `type Data` that only annotated `data(): Data`, the `Refs` of a `typedRefs` idiom —
-  R4, R11) with the imports only it used. An EXPORTED type stays (R25: somebody imports it).
+  R4, R11) with the imports only it used. An EXPORTED type stays (R25: somebody imports it). **A drop CASCADES**:
+  what only the dropped member read goes with it — a `setup()` key, a module constant, an import (each would be an
+  unused local) — and is named beside it.
 - **The `vue` import**: `defineComponent` goes; `PropType` and the other type imports stay as the file had them (a plain
   named import — `import type` is not required); add what the script now calls. **Import ORDER is free** — keep the
   file's; only the order of DECLARATIONS above is part of the recipe.
@@ -137,13 +157,17 @@ House rules of a conversion (so two people — or a person and a codemod — pro
     OTHER binding carries the key's name) — never the prop, the emit, the exposed name or the template.
   · A data field or a computed built from an import of the same name (`range: range(23)`, `paths` from `paths`,
     `deckLine() { return deckLine(this.deck); }`): the IMPORT is aliased (`import {range as rangeOf}`), the member keeps
-    the name the template uses (`const range = ref(rangeOf(23))`).
+    the name the template uses (`const range = ref(rangeOf(23))`). The same for a METHOD with its own signature
+    over an import of its name (`seatSourceOf(seat)` over `seatSourceOf(color, viewer, …)` — verbatim it would
+    recurse); a name that already ends in `Of` takes `Fn` (`seatSourceOfFn`).
   · **A body's own local named like the member it reads** (`const range = this.range;` inside a computed — 119 such
     lines in the client): written literally it is `const range = range.value;`, which reads itself before its
     declaration. The LOCAL takes the suffix `Now` (`const rangeNow = range.value;` — «the value at this moment»), and a
     shorthand property that used it is spelled out (`{gameId: gameIdNow}`); the member keeps its name. A body's local
     that merely SHADOWS a member without reading it (`const caption = captionOf(…)` inside the computed `caption`) is
-    legal and stays verbatim. (Wave 2 named some of these locals by meaning — `armedSource`, `liveQuest`; they stay.)
+    legal and stays verbatim. The same suffix for a local named like the TEMPLATE REF it reads
+    (`const root = this.$refs.root` → `const rootNow = root.value`) and for a local built FROM the member
+    (`const players = this.players.map(…)` → `playersNow`): one rule, whatever the local holds. (Wave 2 named some of these locals by meaning — `armedSource`, `liveQuest`; they stay.)
   · A module-level constant named like a member (a table `boardColorClass` beside the computed `boardColorClass`): the
     CONSTANT is renamed in upper snake case (`BOARD_COLOR_CLASS`); the member keeps the name the template uses.
 - **Where things go that § 1's skeleton does not show**: `const slots = useSlots()` / `useAttrs()` right after the
@@ -176,6 +200,8 @@ re-mount that stopped happening — assert node identity once.
   CardZoomModal → CardZoomCard → PremiumCard and collapses vue-tsc; the module says why each of the three is lazy. The
   readiness ledger's `global-in-setup` row fails a `<script setup>` component that uses one of the tags without the
   import.
+- A component that renders ITSELF (`premiumCard/PremiumMechNode.vue`) imports nothing: its own tag resolves through
+  its file name / `defineOptions({name})`.
 - A wrong `name` (a copy-paste — `ColonySpace.vue` carries `name: 'ColonyRow'`) is kept verbatim: fixing it is a
   change of its own (devtools, the error report's chain and name-keyed stubs read it). ✔ Vapor (a Vapor parent renders vdom children and the
   reverse — `VaporHostsVdom.vue`, every leaf of the pilot).
@@ -199,7 +225,14 @@ commit (`console/ConsoleCardAvailabilityPanel.vue`).
 ### R3 — emits (`this.$emit`, `$emit` in the template)
 `emits: [...]` / `emits: {…}` → `const emit = defineEmits([...])` (the same value) — bound to `const emit` only when
 the SCRIPT calls it; a component that emits only through the template's `$emit` writes a bare `defineEmits([...])`. `this.$emit('x', a)` → `emit('x', a)`.
-`$emit(…)` in the TEMPLATE stays as it is — ✔ in both runtimes (`VaporContextProbe.vue`). A component with
+`$emit(…)` in the TEMPLATE stays as it is — ✔ in both runtimes (`VaporContextProbe.vue`). **A component with NO
+`emits` option that emits only through the template's `$emit`** gets no `defineEmits` at all — its surface is unchanged.
+**An UNDECLARED event named like a native DOM event** (`click`, `input`, `focus`, `close` …) is the one place where
+declaring changes behaviour: undeclared, the parent's `@click` ALSO falls through onto the root as a native listener
+(and runs twice when the component emits `click` too); declared, only the emit reaches it. Where the script itself
+calls `this.$emit('click')` the declaration is unavoidable (there is no `emit` without the macro): read the parents
+first, and say what changes in the commit. (`tm-arch-tools/emits_audit.py` found none in waves 1–2; wave 3 kept
+`logpanel/LogMessageComponent.vue` undeclared for exactly this.) A component with
 `this.$emit` and no `emits` option declares the list now (read the call sites). ✔ Vapor — `defineEmits` / `emit()`
 reach a virtual-DOM parent's listener (`VaporBasics.vue`, `ConsoleForecastDoor.vue`). An emit a parent hears during
 the child's unmount is still heard.
@@ -216,7 +249,11 @@ ref; nothing ever writes it.
 template, not a computed, not a watcher's source, not a spec through `wrapper.vm`) and that is only stored — a timer
 id, a cancel / `off()` function, a tween handle — becomes a plain `let`, at the field's place. A registry of ELEMENTS
 (`proxyRefs: [] as Array<HTMLElement | null>` filled by a function ref) stays a `ref` unless nothing reactive reads
-it — same test.
+it — same test. **The rule is for HANDLES** — a function, a timer id, an observer, a tween, an element or a
+registry of them: a VALUE nothing reactive reads today (a boolean latch `submitting`, a string compared in a
+watcher's body) stays a `ref` — it costs nothing and a spec or the next change may read it. A registry held in a `Map`
+/ `Set` that is filled but never replaced is a plain `const`. A `markRaw(…)` round a handle stays verbatim (inert on
+a plain variable; «bodies keep their shape»).
 **A field initialised by calling a METHOD** (`shownText: this.display(this.value)`) → `ref(display(props.value))`: it
 works because methods become hoisted `function`s (R7) — but if that function reads a `const` declared LATER (a ref, a
 computed), declare that one first (the temporal dead zone is real here; the Options instance had none).
@@ -254,7 +291,9 @@ as the third argument. The getter of a key: a data field / computed `() => x.val
 a prop `() => props.x`, a PATH key `'a.b.c'` → `() => a.value.b.c` with `?.` wherever the path could be undefined (the
 Options path getter tolerated a hole; TypeScript now shows where); when the path's HEAD is a data field that mirrored
 module state and was deleted by R4 (`'focusState.ring.deniedEpoch'`), the getter reads the import
-(`() => focusState.ring.deniedEpoch`). A string handler (`handler: 'reload'`) → the
+(`() => focusState.ring.deniedEpoch`); when the head became a plain ALIAS the template still reads
+(`state() { return hazardCleanupState; }` → `const state = hazardCleanupState;`), the getter reads through the alias
+(`() => state.nonce`) — and an alias ONLY the watcher read is dropped, the getter reading the import. A string handler (`handler: 'reload'`) → the
 function. `this.$watch(getter, cb)` → `const stop = watch(getter, cb)`. An array of handlers → one watch per handler,
 in order.
 - **Keep the block's order, and put the watchers after the declarations** (§ 1).
@@ -279,12 +318,21 @@ function is a function).
 ### R8 — an existing `setup()`
 Its body becomes the top of the script, its returned keys become top-level consts of the same names
 (`return {flow: useFlowScope('x')}` → `const flow = useFlowScope('x');` — `this.flow.after(…)` → `flow.after(…)`).
-A component whose key is `flowScope` (it already had a `flow` of its own) keeps that name. `useFlowScope`,
+A component whose key is `flowScope` (it already had a `flow` of its own) keeps that name. A key returned under
+ANOTHER name (`return {vpWidth: width}`) is renamed where it is taken (`const {width: vpWidth} = useConsoleViewport();`).
+**A setup `ref()` that BINDS a template ref of its own name** (`const viewport = ref<HTMLElement>()` returned beside
+`ref="viewport"`) STAYS exactly that — it is already the script-setup form, its `=== undefined` guards keep their
+meaning; `useTemplateRef` is for a ref the Options code read through `$refs`. **An `expose({…})` call inside `setup()`**
+becomes `defineExpose({…})` with EXACTLY that list: the component's own `expose` is its contract, and it wins over
+the sheet — a parent that reads a member which was never on it has always read `undefined` (the inventory names such
+a read in `UNEXPOSED_READS`, with the reason; waking it is a fix of the parent, not a conversion). `useFlowScope`,
 `useConsoleSession`, `componentSessionScope`, `useConsoleInput`, `useWorkspaceBandGeometry` bind to the effect scope
 and the injection context — none asks for an instance. ✔ Vapor (`VaporFlowProbe.vue`, `VaporShellProbe.vue`).
 
 ### R9 — lifecycle hooks
-`beforeCreate` / `created` → their bodies at the top level, after the declarations they read. `beforeMount` →
+`created` → its body at the top level AFTER the watchers (§ 1 — the Options API ran it there: an `immediate` watcher
+has already fired on the initial state). `beforeCreate` → its body at the very top, before the declarations (it ran
+before `data` existed, so it reads none of them). `beforeMount` →
 `onBeforeMount`, `mounted` → `onMounted`, `beforeUpdate` → `onBeforeUpdate`, `updated` → `onUpdated`,
 `beforeUnmount` → `onBeforeUnmount`, `unmounted` → `onUnmounted`, `errorCaptured` → `onErrorCaptured`.
 ✔ Vapor — all of them (`VaporFlowProbe.vue`, `VaporContextProbe.vue`): `onBeforeUpdate` / `onUpdated` fire when the
@@ -311,6 +359,27 @@ flight», «once the target exists») it is a kernel wait (`flow.afterFrame`, `s
   **A ref the Options code used with NO guard** where the callee needs an element (`showModal(this.$refs.dialog)`):
   `.value` is `T | null`, so the guard the code relied on is written out — `const el = dialog.value; if (el === null) { return; }`
   — never a `!`, never a cast (the ref is `null` exactly when the Options code would have thrown inside the callee).
+  **The ref's `T` is the type the code CAST it to** — a structural cast stays structural
+  (`(this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.()` → `useTemplateRef<{show?: () => void}>('zoomModal')`
+  and `zoomModal.value?.show?.()`; `{$el?: HTMLElement}` for a child read only for its element; the three async
+  bindings, typed plain `Component`, have no `InstanceType`). Never upgrade it to `InstanceType<typeof Child>` in a
+  conversion: the optional call would lose its `?.` and a stub without the member would throw. **A member CALLED on a
+  child's ref with no guard** (`this.typedRefs.bugDialog.show()`) takes `?.` where the call is the whole statement
+  (`bugDialog.value?.show();`), the early-return guard where more follows.
+  **A STRING key bound dynamically inside `v-for`** (`:ref="i === index ? 'selectedRow' : undefined"` — «the row
+  that carries the key»; 25 uses, the sheet prints `tpl:ref-dynamic` + `tpl:ref-in-for` and does not list the key):
+  `useTemplateRef<HTMLElement | Array<HTMLElement>>('selectedRow')` — it receives an ARRAY of the rows that carry the
+  key (one of them), and `[]` when none does; the Options code's cast already took both shapes
+  (`as HTMLElement | Array<HTMLElement> | undefined`), so its reading stays (`selectedRow.value ?? undefined`).
+  **Three more spellings of the same read**: `(this.$refs.x ?? undefined) as T | undefined` followed by an
+  `=== undefined` guard → `x.value ?? undefined`, the guard verbatim; a cast of the WHOLE object
+  (`(this.$refs as {zoomModal?: {show: () => void}}).zoomModal?.show()`) → the keyed form
+  (`useTemplateRef<{show: () => void}>('zoomModal')`); ONE ref cast two ways (each use named the member it needed) →
+  one type holding both (`{a?: …} & {b?: …}`, or the two literals merged). **A COMPUTED key**
+  (`this.$refs[ref]`, `ref` one of several names) is followed by the sheet for every child that parent stands a ref
+  on — the read is on the printed lines of each of them.
+  **A PROP named like a ref key** (`rows` beside `ref="rows"`) is no collision for the template: the prop keeps its
+  name, the ref's const takes another (`const rowsEl = useTemplateRef<…>('rows')`).
   **The `typedRefs` idiom** (`typedRefs(): Refs { return this.$refs as unknown as Refs; }` and `this.typedRefs.dialog`
   — 6 components): each ref it names becomes its own `useTemplateRef<T>('dialog')` with `T` from the `Refs` type's
   member; the computed and the `Refs` type are dropped (§ 1). The sheet reads a ref through the idiom, in the
@@ -337,7 +406,10 @@ flight», «once the target exists») it is a kernel wait (`flow.afterFrame`, `s
   on a converted component whose `defineExpose` lacks a member its parents read — that audit runs over the whole tree
   on every run, so a parent written LATER cannot reach into a converted child silently.
   A surface the shell's controllers reach through the registry is typed by name in its `<component>Types.ts` — that
-  type IS its exposed list. **What the parent gets**: an object whose keys are
+  type IS its exposed list; a controller that types it as `InstanceType<typeof X>` off the component's DEFAULT import
+  needs no such file (vue-tsc's instance type of a `<script setup>` component carries what it exposes). The member is
+  often read a line BELOW the registry line, or inside the helper the surface is handed to (`handedTo(panel, …)` →
+  `surface.handleIntent`): open the controller at the printed line. **What the parent gets**: an object whose keys are
   exactly the exposed names; an exposed FUNCTION is called as before; an exposed REF arrives UNWRAPPED (the parent
   reads `child.root` — the element — with no `.value`); an exposed array of template refs is READONLY in a
   development build (a parent that sorts or splices it copies it first). A `.vue` parent's existing cast
@@ -350,7 +422,13 @@ flight», «once the target exists») it is a kernel wait (`flow.afterFrame`, `s
 instance, a Vapor child's exposed object; `VaporBasics.vue` under a vdom parent).
 
 ### R12 — `this.$el`
-→ a template ref on the root element: `<div ref="root" …>` + `const root = useTemplateRef<HTMLElement>('root')`.
+→ a template ref on the root element: `<div ref="root" …>` (first on the root's opening line — `template-diff`
+sets exactly that attribute aside) + `const root = useTemplateRef<HTMLElement>('root')` (`rootEl` for both the key and
+the const when `root` is taken — by a prop, a member, or the app root's port). **`this.$el` used with no guard**
+(`this.$el.querySelector(…)`, `scroll.ensureVisible(this.$el.querySelector('.x'))`): `this.$el` existed whenever the
+component was mounted, and the ref does too — the mechanical form is the cast, `(root.value as HTMLElement)`, which
+fails exactly where `this.$el` would have (the codemod writes it); a hand conversion may write the early-return guard
+on `const rootNow = root.value;` instead. Both ship; never `!`.
 (The one edit a template may need besides R24.) **A parent that reads a CHILD's `$el` through its ref**
 (`(this.$refs.dock as {$el?: HTMLElement})?.$el` — the sheet prints `$el ← Parent` in MUST EXPOSE): at step A nothing
 changes — the ref of a `<script setup>` child still answers `$el` (`SetupElProbe.vue`); at step B it is `undefined`
@@ -466,7 +544,7 @@ Step A: keep it. Step B: delete it (the Vapor compiler ignores it with a warning
   · a native element or a `<template>` whose content is elements → INTO that root, as its first child, on its own
     line(s) (it stays beside the branch it explains; inside a root a comment is harmless, and inside a `<template>`
     branch it is the same node it already was);
-  · a component, `<component>`, `<slot>`, a root with `v-html` / `v-text`, or an element holding inline TEXT (a first
+  · a component (`<Teleport>` and `<Transition>` among them), `<component>`, `<slot>`, a root with `v-html` / `v-text`, or an element holding inline TEXT (a first
     child on its own line would add whitespace to the text) → the script's block, under a line naming the root
     (``— before the root `<span v-else class="…">`:``), the block closed by `(These comments stood between the
     template's roots; each names the root it stood before.)`.
@@ -495,10 +573,22 @@ An Options script's statements outside `export default` are on the sheet as `scr
 - **MODULE STATE must move out** (`script:module-state` — the sheet prints «MODULE STATE»: a `let`, a counter, a
   cache, a `Map` / `Set` / array that is written to, a `reactive` shared by every instance — 34 statements in 25
   components): left in place it would silently become per-instance. It moves to a sibling `.ts` module
-  (`<component>State.ts` / `<component>Model.ts`) and is imported. (A second plain `<script>` block beside
+  (camelCase, beside the component: `<component>State.ts` for what is WRITTEN, `<component>Model.ts` for a table or a
+  pure helper) and is imported. A COUNTER is taken through an accessor (`let uid = 0; export function newPlayerCubeUid()`
+  — an imported `let` cannot be written; R14's `newParliamentDrawHostId()` is the model); a container (a `Map`, a
+  `reactive`) is exported as itself. A `const` container NOTHING WRITES (`const SIMPLE: ReadonlySet<…> = new Set([…])`)
+  is a table, not state: it stays (the sheet prints MODULE STATE only for what the script mutates). A plain `let`
+  HANDLE a component function reads and writes (an `AbortController`, a cached promise) moves TOGETHER WITH THE CODE
+  THAT OWNS IT, behind one function (`replaceLogRequest()` — `logpanel/logPanelState.ts`; `loadChart()` —
+  `gameend/victoryPointChartState.ts`): the component calls the function and never sees the handle.
+  **A module-level `defineAsyncComponent(…)` is identity-bearing state too** (its resolved-component cache would be
+  per instance — every re-mount would await the loaded chunk again): it moves to a sibling module on the model of
+  `components/asyncComponents.ts`, typed `Component` (`console/menu/consolePlaygroundHubAsync.ts`). (A second plain `<script>` block beside
   `<script setup>` would also keep it per-module — do not use it: one block per component, and the tools read one.)
 - **A VALUE export** (`export const`, `export function`, an enum — 10 in 8 components; «VALUE EXPORTS» on the sheet)
   is not allowed in `<script setup>`: it moves to a sibling `.ts` and its importers are re-pointed in the same commit.
+  A value RE-EXPORT (`export {HYDRO_PICK_COPY};`) is the same construct: when nothing imports it through the `.vue`
+  the line is deleted, otherwise its importers take the value from the module it came from.
   A type a `.ts` module imports from the component lives in that sibling too (plain tsc sees a `.vue` only through
   the shim).
 ✔ Vapor (the compiler treats the module level the same way).
@@ -523,6 +613,11 @@ component has none at all, so the root comes DOWN:
 - **Its spec provides the port's slice** — `global: {provide: {[APP_ROOT as symbol]: {isServerSideRequestInProgress}}}`
   — where it used to feed `$root` through `global.mocks`, `global.mixins` or a `parentComponent`; a reactive fake
   (`reactive({…})`) when the spec asserts the component FOLLOWS the root; and one test with no root at all.
+- **The transport's lifecycle owner takes the root as the TRANSPORT drives it** — `useTransportRoot()`: the same
+  provided object, read through the contract the transport declares for itself (`TransportRoot`). The one cast
+  (`vueRoot(this) as unknown as TransportRoot` — the root satisfies that contract by lifetime, not by type) lives in
+  `appRoot.ts` with its reason, never at a call site. With no root there is no transport to start
+  (`console/ConsoleBoardBinder.vue`).
 - The readiness ledger's `root-through-instance` row counts the `vueRoot(` call sites that are left (frozen per file,
   none may be added); `vueRoot.ts` is deleted with the last one.
 ✔ Vapor (`provide` / `inject` across the interop boundary in both directions — R16's rows). Models:
@@ -541,6 +636,10 @@ component has none at all, so the root comes DOWN:
   before**: test-utils matches a stub by the name the template uses (the import's name — also when the child's own
   `name` differs: `import Card from '…/CardFace.vue'` is stubbed as `Card`) and by the child's own
   `name` — also for a parent's spec that stubs THIS component (`stubs: {ConsoleFlipValue: true}`).
+- **A slot in a spec is a render function** (`slots: {default: () => h('i')}`) — a STRING slot throws in this build
+  («"prefixIdentifiers" option is not supported»). **A stub of an `asyncComponents` binding** is keyed
+  `AsyncComponentWrapper`: neither the import's name nor the kebab tag the Options-era spec used
+  (`'console-source-dock'`) matches.
 - **Three things a new spec trips on**: a state the component sets in `onMounted` reaches the DOM on the NEXT render
   (`await nextTick()` after `mount` before reading it); a value handed over by `setProps` reaches a stubbed child as
   test-utils' reactive VIEW of it (assert `deep.eq`, not identity — a mount-time value is the object itself); and the

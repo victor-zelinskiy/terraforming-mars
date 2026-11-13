@@ -18,6 +18,7 @@
 import {inject, InjectionKey} from 'vue';
 import type {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import type {PlayerViewModel} from '@/common/models/PlayerModel';
+import type {TransportRoot} from '@/client/console/transport/gameTransport';
 
 /** The screens the root switches between (`App.vue` renders one per value). */
 export type AppScreen = 'admin' |
@@ -56,4 +57,18 @@ export const APP_ROOT: InjectionKey<AppRoot> = Symbol('app-root');
 /** The app root's port, or `undefined` when the component stands outside the application. */
 export function useAppRoot(): AppRoot | undefined {
   return inject(APP_ROOT, undefined);
+}
+
+/**
+ * The root AS THE GAME TRANSPORT DRIVES IT — the narrow contract the transport declares for itself (`TransportRoot`:
+ * the applied view, the reset epoch, who the server waits for, the busy mirror, `updatePlayer`, `showAlert`). It is
+ * the same object the port above is, read through the transport's own contract; the one consumer is the transport's
+ * lifecycle owner (`console/ConsoleBoardBinder.vue`), which hands it to `startGameTransport`.
+ *
+ * The cast lives HERE, once, with its reason: the transport's contract names `playerView` as a view that IS there (it
+ * runs only while a game is on screen), the root's own field is optional (no game — no view) — so the root satisfies
+ * the contract by lifetime, not by type. `undefined` outside the application: nothing to drive, no transport to start.
+ */
+export function useTransportRoot(): TransportRoot | undefined {
+  return inject(APP_ROOT, undefined) as unknown as TransportRoot | undefined;
 }

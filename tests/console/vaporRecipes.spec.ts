@@ -32,7 +32,8 @@ describe('the Vapor recipe book — every construct of the client has a recipe',
     }
     const inventory = JSON.parse(fs.readFileSync(json, 'utf8')) as {forms: Record<string, number>, totals: Record<string, number>, components: Array<{file: string}>};
     expect(inventory.components.length, 'the components are read').to.be.greaterThan(400);
-    expect(inventory.totals['opt:props'], 'their option blocks are read').to.be.greaterThan(100);
+    // (the Options blocks and their `<script setup>` successors together: the count must not fall as the waves convert)
+    expect((inventory.totals['opt:props'] ?? 0) + (inventory.totals['setup:defineProps'] ?? 0), 'their props — an option block or a macro — are read').to.be.greaterThan(300);
     expect(inventory.totals['tpl:$t'], 'their templates are read').to.be.greaterThan(1000);
     expect(out).to.match(/^components: \d+ — options \d+ · script-setup \d+ · vapor \d+/);
   });

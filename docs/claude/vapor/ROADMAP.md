@@ -37,8 +37,8 @@ doing the dangerous half twice.
 | --- | --- | --- |
 | `.vue` components | **472** (271 under `components/console/`) | — |
 | …that are VAPOR (`<script setup vapor>`) | **3** — the pilot's leaves (§3.6) | all of them |
-| …written with `<script setup>` (virtual DOM) | **243** — one older component, the six worked examples of step A, **WAVE 1: the 118 lightest leaves** and **WAVE 2: the next 118** (2026-11-13 — §4) | gain `vapor` in their wave (step B) |
-| …written with the Options API (`defineComponent({…})`) | **226** (462 before wave 1, 344 before wave 2; 17 of them are reachable from no entry — dead code that is deleted, not converted) | `<script setup lang="ts">`, then `vapor` — by the book (`RECIPES.md`), from each component's sheet (`scripts/vapor/inventory.mjs --component`) |
+| …written with `<script setup>` (virtual DOM) | **361** — one older component, the six worked examples of step A, and **WAVES 1–3: three times 118** (2026-11-13 — §4) | gain `vapor` in their wave (step B) |
+| …written with the Options API (`defineComponent({…})`) | **108** (462 before wave 1, 344 before wave 2, 226 before wave 3; 17 of them are reachable from no entry — dead code that is deleted, not converted) | `<script setup lang="ts">`, then `vapor` — by the book (`RECIPES.md`), from each component's sheet (`scripts/vapor/inventory.mjs --component`) |
 | …that already have a `setup()` beside their options | 94 | their `setup()` body is the seed of the script-setup block |
 | `data()` blocks · `computed:` blocks · `watch:` blocks | 223 · 388 · 122 | `ref` / `reactive` · `computed()` · `watch()` — **in the same order** (see §3.5: order between watchers of DIFFERENT sources was never creation order) |
 | `this.$emit(` | 377 in 97 files | `defineEmits` |
@@ -341,10 +341,28 @@ inside) · `card/CardDescription.vue` (`v-i18n` over an interpolation, many inst
      one space an agent lost between two attributes of a root, which nothing else would have shown.
   5. *A gap is closed in the SAME wave*: the nine components the agents skipped by rule were converted by the
      extended book before the wave was verified — a skip that waits for the next wave is a recipe nobody tested.
-  What wave 3 takes: the next quarter by weight — the components with a `$refs` / `$el` reach or a few watchers
-  (weight 4–9) — opening with the neighbours two waves left for it: module state out to sibling modules
-  (`script:module-state`, 25 components), value exports, the `provide` / `inject` pair of the premium face, and the
-  six `vueRoot` callers that remain.
+- **WAVE 3 — DONE AT STEP A (2026-11-13): the next 118 — everything up to weight 12** (the components with a `$refs`
+  / `$el` reach, watchers, module state; three quarters of the client are off the Options API). Twenty-five agents;
+  118 converted, vue-tsc green over the whole batch at the first central run. What it added:
+  1. **THE CODEMOD — `scripts/vapor/convert.mjs`: the book applied mechanically.** It reads the script through
+     TypeScript's AST (a language service for renames, one real program for the types of what `setup()` returns) and
+     the template through the compiler, rewrites every `this.x` by what `x` is, applies the house rules, REFUSES what
+     has no mechanical form and prints a REVIEW line per place a person must look at. Its tests are the waves
+     themselves: over the Options form of every component waves 1–2 converted by hand it writes the same script for
+     four in five (`tm-arch-tools/cm_corpus.py`); over ALL 226 remaining components, converted into a copy of the tree
+     and type-checked there (`tm-arch-tools/shadow.sh`), it left three dozen type errors in 177 converted components
+     — each a rule since added to it. It converted the four components this wave's agents had skipped by rule.
+  2. *The sheet's last blind spots* — a surface read through the registry a line below the `at()` call, a computed
+     ref key (`this.$refs[name]`), a component's own `expose({…})` as its contract, a read a parent makes of a member
+     that was never exposed (named, with the reason — waking it is a fix of the parent).
+  3. *The order was wrong in the book*: the Options API fires an `immediate` watcher BEFORE it calls `created()` —
+     the `created` body stands AFTER the watchers. One conversion of the wave had it the other way; corrected.
+  4. *Module state has three forms* (R25): a counter behind an accessor, a handle moved with the code that owns it,
+     a container exported as itself — and a module-level `defineAsyncComponent` is state (its resolved cache).
+  5. *The app root as the transport drives it* (`useTransportRoot()`), and `ConsoleBoardBinder` on it.
+  What wave 4 takes — THE TAIL, all of it: the 91 components that are left and live (the monsters among them —
+  `ConsoleStartScene`, `ConsoleActionComposer`, `ConsolePlayCardConfirm`, `ConsoleHydroSection`, `App`), each STARTED
+  by the codemod and reviewed against its Options form; the 17 reachable from no entry are deleted.
 - **Two watchers of one collection are merged BEFORE their component is converted** (§2 rule 6) — a conversion does
   not get to discover an order dependency.
 - **Every wave is its own series of commits and its own full e2e run on CI** — «все кейсы тестируем через e2e на CI»;
@@ -361,7 +379,7 @@ function of `ConsoleTeleport`, a rewrite of its wave). A file may not grow, **a 
 tests, not conventions), a component that is Vapor stays Vapor, and a Vapor component holds nothing of the list.
 `npm run ready:vapor` lowers the baseline and prints the line:
 
-`Vapor components: 3 / 472 · options-api: 226 · instance-access: 0 · instance-internals: 1 · parent-root: 1 · root-through-instance: 7 · mixin: 1 · global-registration: 6 · render-function: 4 · v-memo: 11 · refs: 650 · global-in-setup: 2` (2026-11-13, after V3 wave 2; after wave 1: `options-api` 344, `refs` 652; at the pilot: `options-api` 468, `refs` 785, `instance-access` 1).
+`Vapor components: 3 / 472 · options-api: 108 · instance-access: 0 · instance-internals: 1 · parent-root: 1 · root-through-instance: 5 · mixin: 1 · global-registration: 6 · render-function: 4 · v-memo: 11 · refs: 571 · global-in-setup: 2` (2026-11-13, after V3 wave 3; after wave 2: `options-api` 226, `refs` 650; after wave 1: 344 / 652; at the pilot: `options-api` 468, `refs` 785, `instance-access` 1).
 
 V3 is done when `options-api` is zero and every component is Vapor; V4 is one line in `main.ts` after that.
 
