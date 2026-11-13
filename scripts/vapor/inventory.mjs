@@ -58,7 +58,7 @@ export const RECIPES = {
   'tpl:teleport': 'R21', 'tpl:keep-alive': 'R22', 'tpl:component-is': 'R21', 'tpl:slot': 'R13', 'tpl:v-html': 'R0',
   'tpl:v-memo': 'R23', 'tpl:global-component': 'R1', 'tpl:leading-comment': 'R24', 'tpl:multi-root': 'R24',
   'tpl:v-once': 'R0', 'tpl:suspense': 'R22', 'tpl:key-remount': 'R0', 'tpl:trailing-comment': 'R24',
-  'tpl:inter-root-comment': 'R24', 'tpl:component-is-string': 'R21',
+  'tpl:inter-root-comment': 'R24', 'tpl:component-is-string': 'R21', 'tpl:row-compare': 'R27',
   // the script's MODULE level (outside the component)
   'script:module-code': 'R25', 'script:module-state': 'R25', 'script:type-export': 'R25', 'script:value-export': 'R25',
   // an already converted script (`<script setup>`): the same rows, read off the Composition API
@@ -386,6 +386,11 @@ function readTemplate(template, uses, detail) {
       }
       if (prop.name === 'bind' && prop.arg?.content === 'key' && !hasFor && node.tag !== 'template') {
         bump(uses, 'tpl:key-remount');
+      }
+      // a row's class compared with something: the shape the Vapor compiler may lift into a synchronous SELECTOR
+      // (R27 — the precise reader is `selector-audit.mjs`, which compiles; this is the sheet's pointer to it)
+      if (prop.name === 'bind' && prop.arg?.content === 'class' && (inFor || hasFor) && /[!=]==/.test(exp)) {
+        bump(uses, 'tpl:row-compare');
       }
       if (prop.name === 'bind' && prop.arg?.content === 'ref') {
         bump(uses, 'tpl:ref-dynamic');
