@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
+import {defineComponent, h} from 'vue';
 import ConsoleStartPlayedDock from '@/client/components/console/ConsoleStartPlayedDock.vue';
 import {armPlayedHero, abortPlayedHero, playedHeroState} from '@/client/console/played/consolePlayedHero';
 import {CardName} from '@/common/cards/CardName';
@@ -235,6 +236,29 @@ describe('ConsoleStartPlayedDock (the compact «РАЗЫГРАНО · owner» de
     // is mounted inside the band, never the band itself.
     const covered = faces.filter((f) => f.props('peek') === true);
     expect(covered.length, 'a covered card is still cropped to its strip').to.be.greaterThan(0);
+    wrapper.unmount();
+  });
+
+  /**
+   * WHAT THE SCENE REACHES THROUGH ITS REF. `ConsoleStartScene.playedDockRoot` reads the shelf's root element off the
+   * dock's ref (`(this.$refs.playedDockEl ?? undefined) as {$el?: HTMLElement}`) — the descent's recede / return
+   * animate that node. The dock is a `<script setup>` component (step A of docs/claude/vapor/RECIPES.md § R12): it
+   * exposes NOTHING of its script, and its ref still answers `$el` — the ONE root the template starts with (a
+   * top-level comment before it would make that a fragment's anchor instead of the shelf).
+   */
+  it('a PARENT\'s ref answers `$el` — the shelf\'s root element — and carries nothing of the script', () => {
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleStartPlayedDock, {ref: 'playedDockEl', playerView: view([CardName.THARSIS_REPUBLIC])})]),
+    });
+    const wrapper = mount(Host, {global: {stubs: {ConsolePlayedCardLite: true}}});
+    const dock = (wrapper.vm.$refs.playedDockEl ?? undefined) as {$el?: HTMLElement} | undefined;
+    expect(dock, 'the host holds a ref to the dock').to.not.be.undefined;
+    expect(Object.keys(dock ?? {}), 'nothing is exposed').to.deep.eq([]);
+    const shelf = wrapper.find('.con-start__played').element;
+    expect(dock?.$el).to.eq(shelf);
+    expect(dock?.$el?.tagName).to.eq('ASIDE');
+    expect((wrapper.element as Element).firstChild, 'the shelf is the dock\'s first and only node').to.eq(shelf);
+    expect((wrapper.element as Element).childNodes).to.have.length(1);
     wrapper.unmount();
   });
 });

@@ -1,5 +1,5 @@
 <template>
-  <aside class="con-start__played con-splayed"
+  <aside ref="root" class="con-start__played con-splayed"
          :class="{'con-splayed--receiving': receivingKey !== undefined}"
          aria-hidden="true">
     <!--
@@ -106,8 +106,9 @@
   </aside>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, nextTick, onBeforeUnmount, onMounted, PropType, useTemplateRef} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -161,235 +162,227 @@ type StartPlayedFamily = {
 const CORE_FAMILIES: ReadonlyArray<PlayedCategoryKey> = ['corporation', 'prelude'];
 const EXTRA_FAMILIES: ReadonlyArray<PlayedCategoryKey> = ['ceo', 'active', 'automated', 'events'];
 
-export default defineComponent({
-  name: 'ConsoleStartPlayedDock',
-  components: {ConsolePlayedCardLite},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    /** A card whose face is AWAY from the shelf (it physically emerged into
-     *  the embed step's source column) — its slot keeps geometry, the face
-     *  hides REACTIVELY (an imperative class would be wiped by any patch). */
-    awayCard: {type: String as PropType<CardName | undefined>, default: undefined},
-  },
-  setup() {
-    // The dock's own scope (architecture v2 — PLAN §10 · C1): what it waits for ends with it.
-    return {flow: useFlowScope('start-played-dock')};
-  },
-  data() {
-    return {
-      heroState: playedHeroState,
-      unregisterTarget: undefined as (() => void) | undefined,
-    };
-  },
-  computed: {
-    viewer(): PublicPlayerModel {
-      return this.playerView.thisPlayer;
-    },
-    ownerName(): string {
-      const me = this.playerView.players.find((p) => p.color === this.playerView.thisPlayer.color);
-      return participantDisplayName({
-        name: me?.name ?? this.viewer.name ?? '',
-        isMarsBot: me?.isMarsBot === true,
-      });
-    },
-    zones(): PlayedZones {
-      return buildPlayedZones(this.viewer.tableau);
-    },
-    /** The card physically travelling to this dock right now (armed → closing:
-     *  the destination prepares AT THE PRESS, so the flight always measures a
-     *  standing front anchor). */
-    incomingName(): CardName | undefined {
-      const hero = this.heroState;
-      if (!hero.active || hero.card === undefined || hero.phase === 'idle' || hero.phase === 'failed') {
-        return undefined;
-      }
-      return hero.card;
-    },
-    revealed(): boolean {
-      return this.incomingName !== undefined && this.heroState.revealed;
-    },
-    /** The RECEIVING family — from the card's manifest TYPE (the card is not
-     *  in the tableau yet at arm; same resolution as the receiving stage). */
-    receivingKey(): PlayedCategoryKey | undefined {
-      const name = this.incomingName;
-      if (name === undefined) {
-        return undefined;
-      }
-      return familyForCardType(getCard(name)?.type);
-    },
-    plan(): {zoom: number, slotW: number, cardH: number, stripH: number} {
-      const zoom = DOCK_ZOOM * conUiScale();
-      return {
-        zoom,
-        slotW: Math.round(PLAYED_CARD_NATURAL_W * zoom),
-        cardH: Math.round(PLAYED_CARD_NATURAL_H * zoom),
-        stripH: Math.round(PLAYED_PEEK_NATURAL * zoom),
-      };
-    },
-    families(): ReadonlyArray<StartPlayedFamily> {
-      const incoming = this.incomingName;
-      const receivingKey = this.receivingKey;
-      const build = (key: PlayedCategoryKey): StartPlayedFamily => {
-        // The incoming card is EXCLUDED from the lying set until its reveal —
-        // the strips and the top never change identity mid-flight, and the
-        // caption count ticks exactly at the dock (one visual owner).
-        const lying = zoneCards(this.zones, key)
-          .map((c) => c.name as CardName)
-          .filter((n) => n !== incoming);
-        const receiving = receivingKey === key;
-        const top = lying.length > 0 ? lying[lying.length - 1] : undefined;
-        let rest = lying.slice(0, Math.max(0, lying.length - 1));
-        /*
-         * THE TOP IS OUT ON LOAN. While an embedded step runs, the card that
-         * opened it physically leaves this shelf for the step's source seat —
-         * and if it happened to be the top of its family, the top slot was
-         * rendered with `con-deal-hold` (opacity 0) and the family showed
-         * nothing but the 31 px depth strip beneath it. That reads, correctly,
-         * as a clipped card: the only thing painted WAS a crop.
-         *
-         * The pile shows what is actually on top of it — the card underneath,
-         * at full size, promoted out of the strips. The away card keeps the
-         * slot's IDENTITY (`topKey`) so its return flight still lands exactly
-         * where it left, and the promoted face gives way to it on touchdown:
-         * the same prev-top handoff the receiving state already performs.
-         */
-        const topAway = top !== undefined && top === this.awayCard && !receiving;
-        const promoted = topAway ?
-          (rest.length > 0 ? rest[rest.length - 1] : undefined) :
-          undefined;
-        if (topAway) {
-          rest = rest.slice(0, Math.max(0, rest.length - 1));
-        }
-        // While receiving, the lying top moves onto its FUTURE strip and the
-        // top slot becomes the front anchor (empty until the reveal fills it).
-        const topFace = receiving ? (this.revealed ? incoming : undefined) :
-          (topAway ? promoted : top);
-        // THE STRIPS ARE SOLVED FOR THE LANDED STATE. While receiving, the previous top is the LAST strip (its future
-        // place) and the older strips fill the cap under it — exactly the set the family shows once the landed card
-        // is its top, so the finish changes a flag, never the stack's height (a third strip used to stand under the
-        // arriving card and vanish in the patch after the proxy was gone — a one-frame jump at the very landing).
-        // …and so are they while THE TOP IS OUT ON LOAN: the promoted card leaves its strip as a SPACER (its own
-        // key, no face) — the stack keeps its height while the card is away and when it comes back (the return
-        // flight lands on a slot that has not moved; the spacer then simply paints the promoted card's crop again).
-        const strips = receiving && top !== undefined ?
-          [...rest.slice(Math.max(0, rest.length - (STRIP_CAP - 1))).map((name) => ({name, prev: false})), {name: top, prev: true}] :
-          topAway && promoted !== undefined ?
-            [...rest.slice(Math.max(0, rest.length - (STRIP_CAP - 1))).map((name) => ({name, prev: false})), {name: promoted, prev: false, spacer: true}] :
-            rest.slice(Math.max(0, rest.length - STRIP_CAP)).map((name) => ({name, prev: false}));
-        return {
-          key,
-          label: PLAYED_CATEGORY_LABEL[key],
-          count: lying.length + (receiving && this.revealed ? 1 : 0),
-          strips,
-          prevTop: top,
-          topFace,
-          // The slot's ANCHOR — the away card, so the flight that brings it
-          // home has a destination even while another face occupies the slot.
-          topKey: receiving ? topFace : (topAway ? top : topFace),
-          receiving,
-        };
-      };
-      const out = CORE_FAMILIES.map(build);
-      for (const key of EXTRA_FAMILIES) {
-        const fam = build(key);
-        if (fam.count > 0 || fam.receiving) {
-          out.push(fam);
-        }
-      }
-      return out;
-    },
-  },
-  mounted() {
-    // The hero's landing target IS this dock's prepared top slot — the looped
-    // aim before the flight, plus the synchronous rest read the flight's final
-    // approach and the pre-reveal control measure take.
-    this.unregisterTarget = providePlayedHeroTarget(() => this.measureFrontAnchor(), () => this.peekFrontAnchor());
-  },
-  beforeUnmount() {
-    this.unregisterTarget?.();
-  },
-  methods: {
-    /**
-     * THE TOP FACE'S LIVE MODEL — only a HOLDER wears it (the seat's `seatCapsuleModel` phrase, TR81): its capsule is
-     * the counter a card reaction's tokens land in (TR82 Proteus answering the second Prelude), the committed count
-     * minus what is still in the air. Every other face keeps the name-only face its flights paint.
+defineOptions({name: 'ConsoleStartPlayedDock'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  /** A card whose face is AWAY from the shelf (it physically emerged into
+   *  the embed step's source column) — its slot keeps geometry, the face
+   *  hides REACTIVELY (an imperative class would be wiped by any patch). */
+  awayCard: {type: String as PropType<CardName | undefined>, default: undefined},
+});
+
+// The dock's own scope (architecture v2 — PLAN §10 · C1): what it waits for ends with it.
+const flow = useFlowScope('start-played-dock');
+// The shelf's root element (the template's `ref="root"`) — the armed front anchor is looked up inside it.
+const root = useTemplateRef<HTMLElement>('root');
+let unregisterTarget: (() => void) | undefined;
+
+const viewer = computed((): PublicPlayerModel => {
+  return props.playerView.thisPlayer;
+});
+const ownerName = computed((): string => {
+  const me = props.playerView.players.find((p) => p.color === props.playerView.thisPlayer.color);
+  return participantDisplayName({
+    name: me?.name ?? viewer.value.name ?? '',
+    isMarsBot: me?.isMarsBot === true,
+  });
+});
+const zones = computed((): PlayedZones => {
+  return buildPlayedZones(viewer.value.tableau);
+});
+/** The card physically travelling to this dock right now (armed → closing:
+ *  the destination prepares AT THE PRESS, so the flight always measures a
+ *  standing front anchor). */
+const incomingName = computed((): CardName | undefined => {
+  const hero = playedHeroState;
+  if (!hero.active || hero.card === undefined || hero.phase === 'idle' || hero.phase === 'failed') {
+    return undefined;
+  }
+  return hero.card;
+});
+const revealed = computed((): boolean => {
+  return incomingName.value !== undefined && playedHeroState.revealed;
+});
+/** The RECEIVING family — from the card's manifest TYPE (the card is not
+ *  in the tableau yet at arm; same resolution as the receiving stage). */
+const receivingKey = computed((): PlayedCategoryKey | undefined => {
+  const name = incomingName.value;
+  if (name === undefined) {
+    return undefined;
+  }
+  return familyForCardType(getCard(name)?.type);
+});
+const plan = computed((): {zoom: number, slotW: number, cardH: number, stripH: number} => {
+  const zoom = DOCK_ZOOM * conUiScale();
+  return {
+    zoom,
+    slotW: Math.round(PLAYED_CARD_NATURAL_W * zoom),
+    cardH: Math.round(PLAYED_CARD_NATURAL_H * zoom),
+    stripH: Math.round(PLAYED_PEEK_NATURAL * zoom),
+  };
+});
+const families = computed((): ReadonlyArray<StartPlayedFamily> => {
+  const incoming = incomingName.value;
+  const receivingKeyNow = receivingKey.value;
+  const build = (key: PlayedCategoryKey): StartPlayedFamily => {
+    // The incoming card is EXCLUDED from the lying set until its reveal —
+    // the strips and the top never change identity mid-flight, and the
+    // caption count ticks exactly at the dock (one visual owner).
+    const lying = zoneCards(zones.value, key)
+      .map((c) => c.name as CardName)
+      .filter((n) => n !== incoming);
+    const receiving = receivingKeyNow === key;
+    const top = lying.length > 0 ? lying[lying.length - 1] : undefined;
+    let rest = lying.slice(0, Math.max(0, lying.length - 1));
+    /*
+     * THE TOP IS OUT ON LOAN. While an embedded step runs, the card that
+     * opened it physically leaves this shelf for the step's source seat —
+     * and if it happened to be the top of its family, the top slot was
+     * rendered with `con-deal-hold` (opacity 0) and the family showed
+     * nothing but the 31 px depth strip beneath it. That reads, correctly,
+     * as a clipped card: the only thing painted WAS a crop.
+     *
+     * The pile shows what is actually on top of it — the card underneath,
+     * at full size, promoted out of the strips. The away card keeps the
+     * slot's IDENTITY (`topKey`) so its return flight still lands exactly
+     * where it left, and the promoted face gives way to it on touchdown:
+     * the same prev-top handoff the receiving state already performs.
      */
-    capsuleModelOf(name: CardName | undefined): CardModel | undefined {
-      if (name === undefined || getCard(name)?.resourceType === undefined) {
-        return undefined;
-      }
-      const model = this.viewer.tableau.find((c) => c.name === name);
-      if (model === undefined) {
-        return undefined;
-      }
-      const held = heldCardCapsule(name);
-      return held === 0 ? model : {...model, resources: Math.max(0, (model.resources ?? 0) - held)};
-    },
-    /** The ARMED top slot's REST rect, synchronously; `undefined` when there is
-     *  no armed slot or the shelf is parked (receded — see the loop below). */
-    peekFrontAnchor(): HeroRect | undefined {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
-        return undefined;
-      }
-      const el = root.querySelector<HTMLElement>('[data-start-front]');
-      if (el === null) {
-        return undefined;
-      }
-      const cs = typeof getComputedStyle === 'function' ? getComputedStyle(el) : undefined;
-      if (cs !== undefined && (cs.visibility === 'hidden' || Number(cs.opacity) < 0.05)) {
-        return undefined;
-      }
-      const r = restingRectOf(el);
-      return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
-    },
-    /** The front anchor's settled rect — stability-looped so the arc lands on
-     *  final geometry only (the expansion has finished shaping the shelf). */
-    async measureFrontAnchor(): Promise<HeroRect | undefined> {
-      await this.$nextTick();
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
-        return undefined;
-      }
-      const el = root.querySelector<HTMLElement>('[data-start-front]');
-      if (el === null) {
-        return undefined;
-      }
-      let last: HeroRect | undefined = undefined;
-      // ⚠️ NEVER SETTLE ON A RECEDED SHELF. While a step stands inside the
-      // workspace this dock is parked (`descendRecede` — `scale(.985)` +
-      // `autoAlpha: 0`), and a hidden element is still LAID OUT: the rect is
-      // real, it is perfectly stable, and it is 1.5 % too small and offset by
-      // the recede's own origin. The stability loop was written to wait out an
-      // EXPANSION; on its own it cannot tell «settled» from «settled in the
-      // parked pose», so it would hand the hero a landing that is not where
-      // the card comes to rest.
-      const parked = (): boolean => {
-        const cs = typeof getComputedStyle === 'function' ? getComputedStyle(el) : undefined;
-        // Deliberately the RECEDE's own end state (`autoAlpha: 0`), not a
-        // generous threshold: the shelf has legitimate dim poses, and refusing
-        // to measure in one of those would leave the hero with no target at
-        // all — a worse failure than a slightly-off one.
-        return cs !== undefined && (cs.visibility === 'hidden' || Number(cs.opacity) < 0.05);
-      };
-      for (let i = 0; i < 30; i++) {
-        // The hero's flight AWAITS this measure: one painted frame — or shortly when none comes, or at once when the
-        // dock is gone (the loop then runs out on its own count).
-        await whenPainted(1, 50, this.flow);
-        const r = el.getBoundingClientRect();
-        if (parked()) {
-          last = undefined; // wait for the un-recede; never latch a parked box
-          continue;
-        }
-        if (r.width > 4 && last !== undefined &&
-            Math.abs(r.left - last.x) < 0.5 && Math.abs(r.top - last.y) < 0.5 &&
-            Math.abs(r.width - last.w) < 0.5 && Math.abs(r.height - last.h) < 0.5) {
-          return last;
-        }
-        last = r.width > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
-      }
+    const topAway = top !== undefined && top === props.awayCard && !receiving;
+    const promoted = topAway ?
+      (rest.length > 0 ? rest[rest.length - 1] : undefined) :
+      undefined;
+    if (topAway) {
+      rest = rest.slice(0, Math.max(0, rest.length - 1));
+    }
+    // While receiving, the lying top moves onto its FUTURE strip and the
+    // top slot becomes the front anchor (empty until the reveal fills it).
+    const topFace = receiving ? (revealed.value ? incoming : undefined) :
+      (topAway ? promoted : top);
+    // THE STRIPS ARE SOLVED FOR THE LANDED STATE. While receiving, the previous top is the LAST strip (its future
+    // place) and the older strips fill the cap under it — exactly the set the family shows once the landed card
+    // is its top, so the finish changes a flag, never the stack's height (a third strip used to stand under the
+    // arriving card and vanish in the patch after the proxy was gone — a one-frame jump at the very landing).
+    // …and so are they while THE TOP IS OUT ON LOAN: the promoted card leaves its strip as a SPACER (its own
+    // key, no face) — the stack keeps its height while the card is away and when it comes back (the return
+    // flight lands on a slot that has not moved; the spacer then simply paints the promoted card's crop again).
+    const strips = receiving && top !== undefined ?
+      [...rest.slice(Math.max(0, rest.length - (STRIP_CAP - 1))).map((name) => ({name, prev: false})), {name: top, prev: true}] :
+      topAway && promoted !== undefined ?
+        [...rest.slice(Math.max(0, rest.length - (STRIP_CAP - 1))).map((name) => ({name, prev: false})), {name: promoted, prev: false, spacer: true}] :
+        rest.slice(Math.max(0, rest.length - STRIP_CAP)).map((name) => ({name, prev: false}));
+    return {
+      key,
+      label: PLAYED_CATEGORY_LABEL[key],
+      count: lying.length + (receiving && revealed.value ? 1 : 0),
+      strips,
+      prevTop: top,
+      topFace,
+      // The slot's ANCHOR — the away card, so the flight that brings it
+      // home has a destination even while another face occupies the slot.
+      topKey: receiving ? topFace : (topAway ? top : topFace),
+      receiving,
+    };
+  };
+  const out = CORE_FAMILIES.map(build);
+  for (const key of EXTRA_FAMILIES) {
+    const fam = build(key);
+    if (fam.count > 0 || fam.receiving) {
+      out.push(fam);
+    }
+  }
+  return out;
+});
+
+/**
+ * THE TOP FACE'S LIVE MODEL — only a HOLDER wears it (the seat's `seatCapsuleModel` phrase, TR81): its capsule is
+ * the counter a card reaction's tokens land in (TR82 Proteus answering the second Prelude), the committed count
+ * minus what is still in the air. Every other face keeps the name-only face its flights paint.
+ */
+function capsuleModelOf(name: CardName | undefined): CardModel | undefined {
+  if (name === undefined || getCard(name)?.resourceType === undefined) {
+    return undefined;
+  }
+  const model = viewer.value.tableau.find((c) => c.name === name);
+  if (model === undefined) {
+    return undefined;
+  }
+  const held = heldCardCapsule(name);
+  return held === 0 ? model : {...model, resources: Math.max(0, (model.resources ?? 0) - held)};
+}
+/** The ARMED top slot's REST rect, synchronously; `undefined` when there is
+ *  no armed slot or the shelf is parked (receded — see the loop below). */
+function peekFrontAnchor(): HeroRect | undefined {
+  const rootNow = root.value;
+  if (rootNow === null || typeof rootNow.querySelector !== 'function') {
+    return undefined;
+  }
+  const el = rootNow.querySelector<HTMLElement>('[data-start-front]');
+  if (el === null) {
+    return undefined;
+  }
+  const cs = typeof getComputedStyle === 'function' ? getComputedStyle(el) : undefined;
+  if (cs !== undefined && (cs.visibility === 'hidden' || Number(cs.opacity) < 0.05)) {
+    return undefined;
+  }
+  const r = restingRectOf(el);
+  return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+}
+/** The front anchor's settled rect — stability-looped so the arc lands on
+ *  final geometry only (the expansion has finished shaping the shelf). */
+async function measureFrontAnchor(): Promise<HeroRect | undefined> {
+  await nextTick();
+  const rootNow = root.value;
+  if (rootNow === null || typeof rootNow.querySelector !== 'function') {
+    return undefined;
+  }
+  const el = rootNow.querySelector<HTMLElement>('[data-start-front]');
+  if (el === null) {
+    return undefined;
+  }
+  let last: HeroRect | undefined = undefined;
+  // ⚠️ NEVER SETTLE ON A RECEDED SHELF. While a step stands inside the
+  // workspace this dock is parked (`descendRecede` — `scale(.985)` +
+  // `autoAlpha: 0`), and a hidden element is still LAID OUT: the rect is
+  // real, it is perfectly stable, and it is 1.5 % too small and offset by
+  // the recede's own origin. The stability loop was written to wait out an
+  // EXPANSION; on its own it cannot tell «settled» from «settled in the
+  // parked pose», so it would hand the hero a landing that is not where
+  // the card comes to rest.
+  const parked = (): boolean => {
+    const cs = typeof getComputedStyle === 'function' ? getComputedStyle(el) : undefined;
+    // Deliberately the RECEDE's own end state (`autoAlpha: 0`), not a
+    // generous threshold: the shelf has legitimate dim poses, and refusing
+    // to measure in one of those would leave the hero with no target at
+    // all — a worse failure than a slightly-off one.
+    return cs !== undefined && (cs.visibility === 'hidden' || Number(cs.opacity) < 0.05);
+  };
+  for (let i = 0; i < 30; i++) {
+    // The hero's flight AWAITS this measure: one painted frame — or shortly when none comes, or at once when the
+    // dock is gone (the loop then runs out on its own count).
+    await whenPainted(1, 50, flow);
+    const r = el.getBoundingClientRect();
+    if (parked()) {
+      last = undefined; // wait for the un-recede; never latch a parked box
+      continue;
+    }
+    if (r.width > 4 && last !== undefined &&
+        Math.abs(r.left - last.x) < 0.5 && Math.abs(r.top - last.y) < 0.5 &&
+        Math.abs(r.width - last.w) < 0.5 && Math.abs(r.height - last.h) < 0.5) {
       return last;
-    },
-  },
+    }
+    last = r.width > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+  }
+  return last;
+}
+
+onMounted(() => {
+  // The hero's landing target IS this dock's prepared top slot — the looped
+  // aim before the flight, plus the synchronous rest read the flight's final
+  // approach and the pre-reveal control measure take.
+  unregisterTarget = providePlayedHeroTarget(() => measureFrontAnchor(), () => peekFrontAnchor());
+});
+onBeforeUnmount(() => {
+  unregisterTarget?.();
 });
 </script>
