@@ -1,11 +1,4 @@
 <template>
-  <!--
-    ONE line of the placement dossier — a STABLE two-column composition: the
-    statement reads left in the reading face, the change reads right in the
-    display face on a fixed-width numeric column, so values never shift
-    horizontally as the cursor walks the board. The row carries no capsule of
-    its own: severity speaks through colour, and the panel is one shell.
-  -->
   <div class="con-dossier-row" :class="['con-dossier-row--' + row.severity, {'con-dossier-row--landing': hasLines}]">
     <div class="con-dossier-row__main">
       <div class="con-dossier-row__title">
@@ -110,85 +103,89 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * ONE line of the placement dossier — a STABLE two-column composition: the
+ * statement reads left in the reading face, the change reads right in the
+ * display face on a fixed-width numeric column, so values never shift
+ * horizontally as the cursor walks the board. The row carries no capsule of
+ * its own: severity speaks through colour, and the panel is one shell.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * Presentation only — WHAT a line says (its compact label, whether several
  * facts aggregate into one change-vector, which breakdown it carries) is
  * decided by the pure `placementDossier` model.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {DossierRow, progressTrack} from '@/client/console/placementDossier';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 
-export default defineComponent({
-  name: 'ConsolePlacementFactRow',
-  components: {ConsoleCardFaceLite},
-  props: {
-    row: {type: Object as PropType<DossierRow>, required: true},
-  },
-  computed: {
-    Math() {
-      return Math;
-    },
-    delta() {
-      return this.row.delta;
-    },
-    targetIconClass(): string {
-      return this.row.target !== undefined ? iconClassFor(this.row.target.icon) : '';
-    },
-    deltaIconClass(): string {
-      return this.delta !== undefined ? iconClassFor(this.delta.icon) : '';
-    },
-    hasRange(): boolean {
-      return this.delta?.current !== undefined && this.delta?.resulting !== undefined;
-    },
-    unit(): string {
-      return this.delta?.unit ?? '';
-    },
-    sign(): string {
-      // A neutral chip states a quantity the cell HOLDS («×2»), not a change of the player's.
-      if (this.row.neutralDelta === true) {
-        return '×';
-      }
-      return this.delta?.direction === 'cost' ? '−' : '+';
-    },
-    /** The rendered value — the update key (see the template note). */
-    deltaText(): string {
-      const d = this.delta;
-      if (d === undefined) {
-        return '';
-      }
-      return this.hasRange ? `${d.current}>${d.resulting}${this.unit}` : `${this.sign}${d.amount}${this.unit}`;
-    },
-    /** The shared icon vocabulary for a reaction's resource (M€ for Martian Fiber). */
-    reactionIconClasses(): Record<string, string> {
-      const out: Record<string, string> = {};
-      for (const r of this.row.reactions ?? []) {
-        out[r.key] = iconClassFor(r.delta.icon);
-      }
-      return out;
-    },
-    /** The row carries a landing's own lines (where the delta lands · what answers it). */
-    hasLines(): boolean {
-      return this.row.target !== undefined || (this.row.reactions ?? []).length > 0;
-    },
-    deltaToneClass(): string {
-      if (this.row.severity === 'danger') {
-        return 'con-dossier-row__delta--danger';
-      }
-      if (this.row.neutralDelta === true) {
-        return 'con-dossier-row__delta--neutral';
-      }
-      return this.delta?.direction === 'cost' ? 'con-dossier-row__delta--cost' : 'con-dossier-row__delta--gain';
-    },
-    progressReached(): boolean {
-      const p = this.row.progress;
-      return p !== undefined && p.target !== undefined && p.to >= p.target;
-    },
-    track() {
-      return progressTrack(this.row.progress);
-    },
-  },
+defineOptions({name: 'ConsolePlacementFactRow'});
+const props = defineProps({
+  row: {type: Object as PropType<DossierRow>, required: true},
+});
+
+const delta = computed(() => {
+  return props.row.delta;
+});
+const targetIconClass = computed((): string => {
+  return props.row.target !== undefined ? iconClassFor(props.row.target.icon) : '';
+});
+const deltaIconClass = computed((): string => {
+  return delta.value !== undefined ? iconClassFor(delta.value.icon) : '';
+});
+const hasRange = computed((): boolean => {
+  return delta.value?.current !== undefined && delta.value?.resulting !== undefined;
+});
+const unit = computed((): string => {
+  return delta.value?.unit ?? '';
+});
+const sign = computed((): string => {
+  // A neutral chip states a quantity the cell HOLDS («×2»), not a change of the player's.
+  if (props.row.neutralDelta === true) {
+    return '×';
+  }
+  return delta.value?.direction === 'cost' ? '−' : '+';
+});
+/** The rendered value — the update key (see the template note). */
+const deltaText = computed((): string => {
+  const d = delta.value;
+  if (d === undefined) {
+    return '';
+  }
+  return hasRange.value ? `${d.current}>${d.resulting}${unit.value}` : `${sign.value}${d.amount}${unit.value}`;
+});
+/** The shared icon vocabulary for a reaction's resource (M€ for Martian Fiber). */
+const reactionIconClasses = computed((): Record<string, string> => {
+  const out: Record<string, string> = {};
+  for (const r of props.row.reactions ?? []) {
+    out[r.key] = iconClassFor(r.delta.icon);
+  }
+  return out;
+});
+/** The row carries a landing's own lines (where the delta lands · what answers it). */
+const hasLines = computed((): boolean => {
+  return props.row.target !== undefined || (props.row.reactions ?? []).length > 0;
+});
+const deltaToneClass = computed((): string => {
+  if (props.row.severity === 'danger') {
+    return 'con-dossier-row__delta--danger';
+  }
+  if (props.row.neutralDelta === true) {
+    return 'con-dossier-row__delta--neutral';
+  }
+  return delta.value?.direction === 'cost' ? 'con-dossier-row__delta--cost' : 'con-dossier-row__delta--gain';
+});
+const progressReached = computed((): boolean => {
+  const p = props.row.progress;
+  return p !== undefined && p.target !== undefined && p.to >= p.target;
+});
+const track = computed(() => {
+  return progressTrack(props.row.progress);
 });
 </script>
