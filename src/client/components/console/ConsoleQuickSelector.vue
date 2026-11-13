@@ -1,7 +1,4 @@
 <template>
-  <!-- data-motion-*: the surface-motion contract (surfaceMotionDirector) —
-       the wheel's dim is the shared `.con-shade`; entry/exit/handoff are
-       GSAP-choreographed on the panel (no own backdrop, no CSS entry). -->
   <div class="con-quick con-ws" role="dialog" :aria-label="$t(title)" data-motion-surface="quick">
     <div class="con-quick__panel" data-motion-panel>
       <!-- THE FOCUS HALO — the wheel's own pocket of depth: a wide radial
@@ -68,7 +65,14 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * data-motion-*: the surface-motion contract (surfaceMotionDirector) —
+ * the wheel's dim is the shared `.con-shade`; entry/exit/handoff are
+ * GSAP-choreographed on the panel (no own backdrop, no CSS entry).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * P27 — the QUICK SELECTOR: the controller-native cross layer behind RT
  * (action categories) and LT (basic actions). NOT a menu the player aims
@@ -86,46 +90,41 @@
  * keyed out-in slide whose direction follows the pulling trigger — LT draws
  * the basics in from the left, RT the categories from the right.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {QuickEntry, QuickSlot, QUICK_SLOT_GLYPH} from '@/client/console/consoleQuickModel';
 import {WheelControlMode} from '@/client/console/quickWheel/wheelControlMode';
 
-export default defineComponent({
-  name: 'ConsoleQuickSelector',
-  components: {BarButtonIcon, GamepadGlyph},
-  props: {
-    entries: {type: Array as PropType<ReadonlyArray<QuickEntry>>, required: true},
-    /** English i18n key of the selector's kicker. */
-    title: {type: String, required: true},
-    /** Which trigger opened it (shown in the kicker). */
-    trigger: {type: String as PropType<GlyphControl>, required: true},
-    /** The active control style (wheelControlMode). */
-    mode: {type: String as PropType<WheelControlMode>, default: 'quick-select'},
-    /** FOCUS & CONFIRM only: the persistent focus cursor. */
-    focusedSlot: {type: String as PropType<QuickSlot>, default: undefined},
-    /** The slot seated / pressed under the player's finger (arm machine). */
-    armedSlot: {type: String as PropType<QuickSlot>, default: undefined},
-    /** The armed slot is unavailable — pressed against its stop. */
-    armedBlocked: {type: Boolean, default: false},
-  },
-  computed: {
-    swapName(): string {
-      return this.trigger === 'triggerL' ? 'con-quick-swapl' : 'con-quick-swapr';
-    },
-  },
-  methods: {
-    /** The key cap a slot wears. QUICK SELECT: its direct activator (the
-     *  spatial d-pad glyph / A on the centre). FOCUS & CONFIRM: directions
-     *  no longer activate, so only the focused tile wears the A confirm. */
-    slotCap(entry: QuickEntry): GlyphControl | undefined {
-      if (this.mode === 'focus-confirm') {
-        return (this.focusedSlot ?? (this.armedSlot ?? undefined)) === entry.slot ? 'confirm' : undefined;
-      }
-      return QUICK_SLOT_GLYPH[entry.slot];
-    },
-  },
+defineOptions({name: 'ConsoleQuickSelector'});
+const props = defineProps({
+  entries: {type: Array as PropType<ReadonlyArray<QuickEntry>>, required: true},
+  /** English i18n key of the selector's kicker. */
+  title: {type: String, required: true},
+  /** Which trigger opened it (shown in the kicker). */
+  trigger: {type: String as PropType<GlyphControl>, required: true},
+  /** The active control style (wheelControlMode). */
+  mode: {type: String as PropType<WheelControlMode>, default: 'quick-select'},
+  /** FOCUS & CONFIRM only: the persistent focus cursor. */
+  focusedSlot: {type: String as PropType<QuickSlot>, default: undefined},
+  /** The slot seated / pressed under the player's finger (arm machine). */
+  armedSlot: {type: String as PropType<QuickSlot>, default: undefined},
+  /** The armed slot is unavailable — pressed against its stop. */
+  armedBlocked: {type: Boolean, default: false},
 });
+
+const swapName = computed((): string => {
+  return props.trigger === 'triggerL' ? 'con-quick-swapl' : 'con-quick-swapr';
+});
+/** The key cap a slot wears. QUICK SELECT: its direct activator (the
+ *  spatial d-pad glyph / A on the centre). FOCUS & CONFIRM: directions
+ *  no longer activate, so only the focused tile wears the A confirm. */
+function slotCap(entry: QuickEntry): GlyphControl | undefined {
+  if (props.mode === 'focus-confirm') {
+    return (props.focusedSlot ?? (props.armedSlot ?? undefined)) === entry.slot ? 'confirm' : undefined;
+  }
+  return QUICK_SLOT_GLYPH[entry.slot];
+}
 </script>
