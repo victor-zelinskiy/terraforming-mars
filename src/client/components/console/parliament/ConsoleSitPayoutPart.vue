@@ -1,7 +1,4 @@
 <template>
-  <!-- ONE PART OF ONE SEAT'S PAYOUT — the ONE renderer of a payout chip (an object and an amount, or a skip with its
-       reason), shared by the results card's «ВЫПЛАТЫ» and the step under it, «ПОДРОБНОСТИ ВЫПЛАТ». Moved out of
-       `ConsoleParliamentSitting` verbatim (2026-10-24), so the two surfaces can never print one record two ways. -->
   <span class="con-sit__part"
         :class="{'con-sit__part--skipped': part.skipped !== undefined, 'con-sit__part--colony': part.colony !== undefined}" :data-sit-part="part.kind"
         :data-sit-part-colony="part.colony">
@@ -89,8 +86,15 @@
     </template>
   </span>
 </template>
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ONE PART OF ONE SEAT'S PAYOUT — the ONE renderer of a payout chip (an object and an amount, or a skip with its
+ * reason), shared by the results card's «ВЫПЛАТЫ» and the step under it, «ПОДРОБНОСТИ ВЫПЛАТ». Moved out of
+ * `ConsoleParliamentSitting` verbatim (2026-10-24), so the two surfaces can never print one record two ways.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {PropType} from 'vue';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
@@ -98,83 +102,79 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
 import {OWN_KIND_UNIT, ResultsPayoutPart} from '@/client/console/parliament/parliamentResultsModel';
 import {worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 
-export default defineComponent({
-  name: 'ConsoleSitPayoutPart',
-  components: {ConsoleYieldUnit},
-  props: {
-    part: {type: Object as PropType<ResultsPayoutPart>, required: true},
-    /** The first part of its colony among the seat's parts — it carries the tile's planet and name (the row groups by tile). */
-    leadsColony: {type: Boolean, default: false},
-  },
-  methods: {
-    emblemUrl(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-    /** The parameter's own icon — the game's vocabulary, the same sprite the status strip prints. */
-    worldUnitClass(parameter: ParameterMoveId): string {
-      switch (parameter) {
-      case 'oxygen': return 'wgt-icon wgt-icon--oxygen';
-      case 'oceans': return 'wgt-icon wgt-icon--ocean';
-      case 'venus': return 'wgt-icon wgt-icon--venus';
-      case 'temperature': return 'wgt-icon wgt-icon--temperature';
-      }
-    },
-    worldSuffix(parameter: ParameterMoveId): string {
-      return worldParameterUnit(parameter);
-    },
-    /** «РТ +N» — the winner's own step's rating, in the one phrase every winner reading prints. */
-    trLabel(tr: number): string {
-      return translateTextWithParams('TR +${0}', [String(tr)]);
-    },
-    /** A tile part's own name (the winner's glyph vocabulary). */
-    tileLabel(tile: NonNullable<ResultsPayoutPart['tile']>): string {
-      switch (tile) {
-      case 'ocean': return 'Ocean';
-      case 'greenery': return 'Greenery';
-      case 'colony': return 'Colony';
-      case 'city': return 'City';
-      }
-    },
-    planetClass(colony: string): string {
-      return colony.replace(' ', '-') + '-background';
-    },
-    signedAmount(amount: number | undefined): string {
-      const n = amount ?? 0;
-      return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
-    },
-    netUnitClass(unit: string): string {
-      return iconClassFor(unit);
-    },
-    /** The icon family of a payout part — the console's own sprites, the production frame where it is production. */
-    partUnitClass(part: ResultsPayoutPart): string {
-      if (part.unit === '') {
-        return '';
-      }
-      if (part.kind === 'cardResource') {
-        // «One of its own kind» (Sponsored Projects onto cards of several kinds): the face's «?» cube.
-        return part.unit === OWN_KIND_UNIT ? iconClassFor('wild') : iconClassFor(cardResourceKey(part.unit));
-      }
-      return iconClassFor(part.unit) + (part.production ? ' con-iyield__unit--prod' : '');
-    },
-    /** The icons of a part of SEVERAL kinds — one per kind, in the declared order. */
-    partUnitClasses(part: ResultsPayoutPart): Array<string> {
-      return (part.units ?? []).map((unit) => iconClassFor(cardResourceKey(unit)));
-    },
-    /** «на 4 карты» — the count of cards a payout that asked nobody landed on. */
-    eachCardText(count: number): string {
-      return translateTextWithParams('on ${0} card(s)', [String(count)]);
-    },
-    /** The kinds a payout that asked nobody paid, each once, in the cards' order. */
-    eachKinds(part: ResultsPayoutPart): Array<string> {
-      return [...new Set((part.cards ?? []).flatMap((entry) => entry.resource === undefined ? [] : [entry.resource]))];
-    },
-    /** One recipient's own kind (a card-resource share). */
-    cardResourceClass(resource: string): string {
-      return iconClassFor(cardResourceKey(resource));
-    },
-  },
+defineOptions({name: 'ConsoleSitPayoutPart'});
+defineProps({
+  part: {type: Object as PropType<ResultsPayoutPart>, required: true},
+  /** The first part of its colony among the seat's parts — it carries the tile's planet and name (the row groups by tile). */
+  leadsColony: {type: Boolean, default: false},
 });
+
+function emblemUrl(party: ReduxParty): string {
+  return partyEmblemUrl(party);
+}
+/** The parameter's own icon — the game's vocabulary, the same sprite the status strip prints. */
+function worldUnitClass(parameter: ParameterMoveId): string {
+  switch (parameter) {
+  case 'oxygen': return 'wgt-icon wgt-icon--oxygen';
+  case 'oceans': return 'wgt-icon wgt-icon--ocean';
+  case 'venus': return 'wgt-icon wgt-icon--venus';
+  case 'temperature': return 'wgt-icon wgt-icon--temperature';
+  }
+}
+function worldSuffix(parameter: ParameterMoveId): string {
+  return worldParameterUnit(parameter);
+}
+/** «РТ +N» — the winner's own step's rating, in the one phrase every winner reading prints. */
+function trLabel(tr: number): string {
+  return translateTextWithParams('TR +${0}', [String(tr)]);
+}
+/** A tile part's own name (the winner's glyph vocabulary). */
+function tileLabel(tile: NonNullable<ResultsPayoutPart['tile']>): string {
+  switch (tile) {
+  case 'ocean': return 'Ocean';
+  case 'greenery': return 'Greenery';
+  case 'colony': return 'Colony';
+  case 'city': return 'City';
+  }
+}
+function planetClass(colony: string): string {
+  return colony.replace(' ', '-') + '-background';
+}
+function signedAmount(amount: number | undefined): string {
+  const n = amount ?? 0;
+  return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
+}
+function netUnitClass(unit: string): string {
+  return iconClassFor(unit);
+}
+/** The icon family of a payout part — the console's own sprites, the production frame where it is production. */
+function partUnitClass(part: ResultsPayoutPart): string {
+  if (part.unit === '') {
+    return '';
+  }
+  if (part.kind === 'cardResource') {
+    // «One of its own kind» (Sponsored Projects onto cards of several kinds): the face's «?» cube.
+    return part.unit === OWN_KIND_UNIT ? iconClassFor('wild') : iconClassFor(cardResourceKey(part.unit));
+  }
+  return iconClassFor(part.unit) + (part.production ? ' con-iyield__unit--prod' : '');
+}
+/** The icons of a part of SEVERAL kinds — one per kind, in the declared order. */
+function partUnitClasses(part: ResultsPayoutPart): Array<string> {
+  return (part.units ?? []).map((unit) => iconClassFor(cardResourceKey(unit)));
+}
+/** «на 4 карты» — the count of cards a payout that asked nobody landed on. */
+function eachCardText(count: number): string {
+  return translateTextWithParams('on ${0} card(s)', [String(count)]);
+}
+/** The kinds a payout that asked nobody paid, each once, in the cards' order. */
+function eachKinds(part: ResultsPayoutPart): Array<string> {
+  return [...new Set((part.cards ?? []).flatMap((entry) => entry.resource === undefined ? [] : [entry.resource]))];
+}
+/** One recipient's own kind (a card-resource share). */
+function cardResourceClass(resource: string): string {
+  return iconClassFor(cardResourceKey(resource));
+}
 </script>
