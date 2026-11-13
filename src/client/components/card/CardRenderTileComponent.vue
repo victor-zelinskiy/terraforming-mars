@@ -2,9 +2,9 @@
   <div :class="tiles"><div v-if="symbols.length > 0" :class="symbols"></div></div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 import {ICardRenderTile} from '@/common/cards/render/Types';
 import {TileType} from '@/common/TileType';
 
@@ -147,39 +147,36 @@ const TILE_CLASSES: Record<TileType, Classes> = {
   },
 };
 
-export default defineComponent({
-  name: 'CardRenderTileComponent',
-  props: {
-    item: {
-      type: Object as () => ICardRenderTile,
-      required: true,
-    },
+defineOptions({name: 'CardRenderTileComponent'});
+const props = defineProps({
+  item: {
+    type: Object as () => ICardRenderTile,
+    required: true,
   },
-  computed: {
-    tiles(): ReadonlyArray<string> {
-      const classes: string[] = ['card-tile'];
-      if (this.item.hasSymbol) {
-        classes.push('card-tile-canvas');
-      }
-      const symbolClass = TILE_CLASSES[this.item.tile];
-      if (this.item.isAres && symbolClass.aresTile !== undefined) {
-        classes.push(symbolClass.aresTile);
-      } else if (symbolClass.tile !== undefined) {
-        classes.push(symbolClass.tile);
-      }
-      return classes;
-    },
-    // Symbols for tiles go on top of the tile canvas
-    symbols(): ReadonlyArray<string> {
-      if (this.item.hasSymbol) {
-        const symbolClass = TILE_CLASSES[this.item.tile];
-        if (symbolClass.symbol !== undefined) {
-          return ['card-tile-symbol', symbolClass.symbol];
-        }
-      }
-      return [];
-    },
-  },
+});
+
+const tiles = computed((): ReadonlyArray<string> => {
+  const classes: string[] = ['card-tile'];
+  if (props.item.hasSymbol) {
+    classes.push('card-tile-canvas');
+  }
+  const symbolClass = TILE_CLASSES[props.item.tile];
+  if (props.item.isAres && symbolClass.aresTile !== undefined) {
+    classes.push(symbolClass.aresTile);
+  } else if (symbolClass.tile !== undefined) {
+    classes.push(symbolClass.tile);
+  }
+  return classes;
+});
+// Symbols for tiles go on top of the tile canvas
+const symbols = computed((): ReadonlyArray<string> => {
+  if (props.item.hasSymbol) {
+    const symbolClass = TILE_CLASSES[props.item.tile];
+    if (symbolClass.symbol !== undefined) {
+      return ['card-tile-symbol', symbolClass.symbol];
+    }
+  }
+  return [];
 });
 
 </script>
