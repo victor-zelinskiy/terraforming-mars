@@ -1,12 +1,4 @@
 <template>
-  <!--
-    ПАРАМЕТРЫ — the planet's own story. A parameter list on ↑/↓ (icon +
-    name + final value, only the tracks this game actually has), ONE chart
-    with the focused parameter in full ink and the rest as quiet same-hue
-    context (indexed to % completion — one honest axis for °C, % and
-    counts), ←/→ walks generations with an exact readout, and the
-    contribution block names who actually pushed the focused track.
-  -->
   <div class="con-ovp">
     <div class="con-ovp__rail">
       <div v-for="(p, i) in vm.parameters.parameters" :key="p.key"
@@ -76,8 +68,19 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ПАРАМЕТРЫ — the planet's own story. A parameter list on ↑/↓ (icon +
+ * name + final value, only the tracks this game actually has), ONE chart
+ * with the focused parameter in full ink and the rest as quiet same-hue
+ * context (indexed to % completion — one honest axis for °C, % and
+ * counts), ←/→ walks generations with an exact readout, and the
+ * contribution block names who actually pushed the focused track.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import type {ConsoleOverviewVm, OvChartSeries, OvParameter} from '@/client/console/endgame/consoleOverviewModel';
@@ -100,94 +103,90 @@ const PARAM_ICON: Partial<Record<GlobalParameter, string>> = {
   [GlobalParameter.VENUS]: 'wgt-icon--venus',
 };
 
-export default defineComponent({
-  name: 'ConsoleOvTabParams',
-  components: {ConsoleOvChart},
-  props: {
-    vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
-    reveal: {type: Boolean, default: false},
-  },
-  computed: {
-    ui() {
-      return consoleOverviewUi;
-    },
-    paramIdx(): number {
-      return Math.min(Math.max(this.ui.paramIdx, 0), Math.max(0, this.vm.parameters.parameters.length - 1));
-    },
-    focusedParam(): OvParameter | undefined {
-      return this.vm.parameters.parameters[this.paramIdx];
-    },
-    focusedHex(): string {
-      return this.focusedParam !== undefined ? this.accentHex(this.focusedParam.accent) : '#8aa4c0';
-    },
-    drawable(): boolean {
-      return this.vm.parameters.gens >= 2 && this.vm.parameters.parameters.length > 0;
-    },
-    cursor(): number {
-      const last = Math.max(0, this.vm.parameters.gens - 1);
-      const g = this.ui.paramGen;
-      return g >= 0 && g <= last ? g : last;
-    },
-    chartSeries(): Array<OvChartSeries> {
-      return this.vm.parameters.parameters.map((p, i) => ({
-        key: p.key,
-        hex: this.accentHex(p.accent),
-        data: p.pct,
-        emphasis: i === this.paramIdx,
-        dim: i !== this.paramIdx,
-      }));
-    },
-    pushRows(): Array<{color: string; name: string; steps: number; pct: number}> {
-      const p = this.focusedParam;
-      if (p === undefined || p.contributions === undefined) {
-        return [];
-      }
-      const c = p.contributions;
-      const names = new Map(this.vm.players.players.map((pl) => [pl.color as string, pl.name]));
-      return Object.entries(c.values)
-        .map(([color, steps]) => ({
-          color,
-          name: names.get(color) ?? color,
-          steps: steps ?? 0,
-          pct: c.max > 0 ? ((steps ?? 0) / c.max) * 100 : 0,
-        }))
-        .filter((r) => r.steps > 0)
-        .sort((a, b) => b.steps - a.steps);
-    },
-  },
-  methods: {
-    accentHex(accent: string): string {
-      return ACCENT_HEX[accent] ?? '#8aa4c0';
-    },
-    paramIcon(key: GlobalParameter): string | undefined {
-      return PARAM_ICON[key];
-    },
-    fmtValue(p: OvParameter, v: number): string {
-      if (p.key === GlobalParameter.OCEANS) {
-        return `${v}/${p.max}`;
-      }
-      return `${v}${p.unit}`;
-    },
-    // ── pane API ──────────────────────────────────────────────────────────
-    nav(dir: NavDirection): void {
-      if (dir === 'up' || dir === 'down') {
-        const n = this.vm.parameters.parameters.length;
-        if (n > 0) {
-          const delta = dir === 'down' ? 1 : -1;
-          this.ui.paramIdx = (this.paramIdx + delta + n) % n;
-        }
-        return;
-      }
-      if (!this.drawable) {
-        return;
-      }
-      const last = this.vm.parameters.gens - 1;
-      const delta = dir === 'right' ? 1 : -1;
-      this.ui.paramGen = Math.min(Math.max(this.cursor + delta, 0), last);
-    },
-    primary(): void {
-      // The readout already states the exact value — no deeper layer here.
-    },
-  },
+defineOptions({name: 'ConsoleOvTabParams'});
+const props = defineProps({
+  vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
+  reveal: {type: Boolean, default: false},
 });
+
+const ui = consoleOverviewUi;
+const paramIdx = computed((): number => {
+  return Math.min(Math.max(ui.paramIdx, 0), Math.max(0, props.vm.parameters.parameters.length - 1));
+});
+const focusedParam = computed((): OvParameter | undefined => {
+  return props.vm.parameters.parameters[paramIdx.value];
+});
+const focusedHex = computed((): string => {
+  return focusedParam.value !== undefined ? accentHex(focusedParam.value.accent) : '#8aa4c0';
+});
+const drawable = computed((): boolean => {
+  return props.vm.parameters.gens >= 2 && props.vm.parameters.parameters.length > 0;
+});
+const cursor = computed((): number => {
+  const last = Math.max(0, props.vm.parameters.gens - 1);
+  const g = ui.paramGen;
+  return g >= 0 && g <= last ? g : last;
+});
+const chartSeries = computed((): Array<OvChartSeries> => {
+  return props.vm.parameters.parameters.map((p, i) => ({
+    key: p.key,
+    hex: accentHex(p.accent),
+    data: p.pct,
+    emphasis: i === paramIdx.value,
+    dim: i !== paramIdx.value,
+  }));
+});
+const pushRows = computed((): Array<{color: string; name: string; steps: number; pct: number}> => {
+  const p = focusedParam.value;
+  if (p === undefined || p.contributions === undefined) {
+    return [];
+  }
+  const c = p.contributions;
+  const names = new Map(props.vm.players.players.map((pl) => [pl.color as string, pl.name]));
+  return Object.entries(c.values)
+    .map(([color, steps]) => ({
+      color,
+      name: names.get(color) ?? color,
+      steps: steps ?? 0,
+      pct: c.max > 0 ? ((steps ?? 0) / c.max) * 100 : 0,
+    }))
+    .filter((r) => r.steps > 0)
+    .sort((a, b) => b.steps - a.steps);
+});
+function accentHex(accent: string): string {
+  return ACCENT_HEX[accent] ?? '#8aa4c0';
+}
+function paramIcon(key: GlobalParameter): string | undefined {
+  return PARAM_ICON[key];
+}
+function fmtValue(p: OvParameter, v: number): string {
+  if (p.key === GlobalParameter.OCEANS) {
+    return `${v}/${p.max}`;
+  }
+  return `${v}${p.unit}`;
+}
+// ── pane API ──────────────────────────────────────────────────────────
+function nav(dir: NavDirection): void {
+  if (dir === 'up' || dir === 'down') {
+    const n = props.vm.parameters.parameters.length;
+    if (n > 0) {
+      const delta = dir === 'down' ? 1 : -1;
+      ui.paramIdx = (paramIdx.value + delta + n) % n;
+    }
+    return;
+  }
+  if (!drawable.value) {
+    return;
+  }
+  const last = props.vm.parameters.gens - 1;
+  const delta = dir === 'right' ? 1 : -1;
+  ui.paramGen = Math.min(Math.max(cursor.value + delta, 0), last);
+}
+function primary(): void {
+  // The readout already states the exact value — no deeper layer here.
+}
+
+// The pane API — what `ConsoleEndgameOverview` reaches through its `ref="pane"` (`nav` on a d-pad step, `primary`
+// on A), and nothing else.
+defineExpose({nav, primary});
 </script>
