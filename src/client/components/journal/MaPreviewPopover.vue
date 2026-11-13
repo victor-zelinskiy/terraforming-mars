@@ -26,13 +26,14 @@
   </Teleport>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {maArtUrl} from '@/client/components/ma/maArt';
+import {vI18n} from '@/client/directives/vDirectives';
 
 /**
  * Hover preview for a MILESTONE / AWARD token (journal feed / notifications) —
@@ -45,64 +46,60 @@ const APPROX_HEIGHT = 132;
 const GAP = 14;
 const VIEWPORT_MARGIN = 8;
 
-export default defineComponent({
-  name: 'MaPreviewPopover',
-  components: {BarButtonIcon},
-  props: {
-    kind: {
-      type: String as () => 'milestone' | 'award',
-      required: true,
-    },
-    name: {
-      type: String as () => MilestoneName | AwardName | '',
-      default: '',
-    },
-    visible: {
-      type: Boolean,
-      default: false,
-    },
-    anchor: {
-      type: Object as PropType<DOMRect | undefined>,
-      default: undefined,
-    },
+defineOptions({name: 'MaPreviewPopover'});
+const props = defineProps({
+  kind: {
+    type: String as () => 'milestone' | 'award',
+    required: true,
   },
-  computed: {
-    description(): string {
-      if (this.name === '') {
-        return '';
-      }
-      try {
-        return this.kind === 'milestone' ?
-          getMilestone(this.name as MilestoneName).description :
-          getAward(this.name as AwardName).description;
-      } catch (e) {
-        return '';
-      }
-    },
-    // The per-ITEM art (assets/ma/<name>.png) — same set + name→file transform
-    // the Milestones / Awards overlays use.
-    art(): string {
-      if (this.name === '') {
-        return '';
-      }
-      return maArtUrl(this.name as string);
-    },
-    positionStyle(): Record<string, string> {
-      const a = this.anchor;
-      if (a === undefined) {
-        return {display: 'none'};
-      }
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      let left = a.left - GAP - PREVIEW_WIDTH;
-      if (left < VIEWPORT_MARGIN) {
-        left = a.right + GAP;
-      }
-      left = Math.max(VIEWPORT_MARGIN, Math.min(left, vw - PREVIEW_WIDTH - VIEWPORT_MARGIN));
-      let top = a.top + a.height / 2 - APPROX_HEIGHT / 2;
-      top = Math.max(VIEWPORT_MARGIN, Math.min(top, vh - APPROX_HEIGHT - VIEWPORT_MARGIN));
-      return {left: `${Math.round(left)}px`, top: `${Math.round(top)}px`, width: `${PREVIEW_WIDTH}px`};
-    },
+  name: {
+    type: String as () => MilestoneName | AwardName | '',
+    default: '',
   },
+  visible: {
+    type: Boolean,
+    default: false,
+  },
+  anchor: {
+    type: Object as PropType<DOMRect | undefined>,
+    default: undefined,
+  },
+});
+
+const description = computed((): string => {
+  if (props.name === '') {
+    return '';
+  }
+  try {
+    return props.kind === 'milestone' ?
+      getMilestone(props.name as MilestoneName).description :
+      getAward(props.name as AwardName).description;
+  } catch (e) {
+    return '';
+  }
+});
+// The per-ITEM art (assets/ma/<name>.png) — same set + name→file transform
+// the Milestones / Awards overlays use.
+const art = computed((): string => {
+  if (props.name === '') {
+    return '';
+  }
+  return maArtUrl(props.name as string);
+});
+const positionStyle = computed((): Record<string, string> => {
+  const a = props.anchor;
+  if (a === undefined) {
+    return {display: 'none'};
+  }
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let left = a.left - GAP - PREVIEW_WIDTH;
+  if (left < VIEWPORT_MARGIN) {
+    left = a.right + GAP;
+  }
+  left = Math.max(VIEWPORT_MARGIN, Math.min(left, vw - PREVIEW_WIDTH - VIEWPORT_MARGIN));
+  let top = a.top + a.height / 2 - APPROX_HEIGHT / 2;
+  top = Math.max(VIEWPORT_MARGIN, Math.min(top, vh - APPROX_HEIGHT - VIEWPORT_MARGIN));
+  return {left: `${Math.round(left)}px`, top: `${Math.round(top)}px`, width: `${PREVIEW_WIDTH}px`};
 });
 </script>
