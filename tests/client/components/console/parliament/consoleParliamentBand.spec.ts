@@ -149,11 +149,11 @@ describe('ConsoleParliamentBand — the reading line: the pure model\'s line, bo
   });
 
   it('THE SITTING is the zone\'s subject while it stands: the verdict reads the phase\'s summary; the law\'s walk names its seat and its phase', async () => {
-    const position: SittingPosition = {generation: 3, final: false, step: 'verdict', pages: ['verdict'], gateStanding: false, rewardStep: 'reading'} as unknown as SittingPosition;
+    const position: SittingPosition = {generation: 3, final: false, step: 'winner', pages: ['verdict'], gateStanding: false, rewardStep: 'reading'};
     const model = {
       players: [{color: BLUE, participates: true}, {color: RED, participates: true}],
       phase: {
-        step: 'verdict', outcomes: [],
+        step: 'winner', outcomes: [],
         summary: {
           generation: 3, final: false, winner: {instance: 'i-2', resolution: 'law-2', party: PartyName.SCIENTISTS, votes: 3, player: RED},
           enacted: {instance: 'i-2', resolutionId: 'law-2', resolution: 'law-2', party: PartyName.SCIENTISTS}, support: [], refreshed: [], lobbyRefilled: [],
