@@ -1,11 +1,4 @@
 <template>
-  <!-- ══ «ВАШИ ЭФФЕКТЫ» (Парламент v8 «Пленарный зал», docs/TURMOIL_REDUX_PARLIAMENT_V8_PLAN.md § 6) — under BOTH the
-       opposition's benches and the government's dais, across the whole chamber: what the parliament gives the viewer
-       for as long as it stands — the ruling party's effect (everyone's), the parties whose effect the viewer holds
-       (by delegates or a card's grant), their actions, and the enacted law's STANDING part (its passive, its action;
-       the enactment's one-time rows are never printed here). One tile per SOURCE; the tiles SCALE with their count
-       (1–2 large · 3 in a row · 4 as 2×2 · 5+ compact 3×2 — `effectsTileSize`). A focus stop of its own: A opens the
-       full list as an inner step (§ 6). A spectator holds nothing and the block is not drawn. ══ -->
   <div v-if="items.length > 0"
        class="con-parl__effects"
        :class="['con-parl__effects--' + size, {'con-parl__effects--focus': focused}]"
@@ -81,8 +74,20 @@
     </div>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ══ «ВАШИ ЭФФЕКТЫ» (Парламент v8 «Пленарный зал», docs/TURMOIL_REDUX_PARLIAMENT_V8_PLAN.md § 6) — under BOTH the
+ * opposition's benches and the government's dais, across the whole chamber: what the parliament gives the viewer
+ * for as long as it stands — the ruling party's effect (everyone's), the parties whose effect the viewer holds
+ * (by delegates or a card's grant), their actions, and the enacted law's STANDING part (its passive, its action;
+ * the enactment's one-time rows are never printed here). One tile per SOURCE; the tiles SCALE with their count
+ * (1–2 large · 3 in a row · 4 as 2×2 · 5+ compact 3×2 — `effectsTileSize`). A focus stop of its own: A opens the
+ * full list as an inner step (§ 6). A spectator holds nothing and the block is not drawn. ══
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
@@ -97,78 +102,63 @@ import {EffectItem, effectsTileSize, EffectsTileSize, EffectWhy, parliamentEffec
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 
-export default defineComponent({
-  name: 'ConsoleParliamentEffects',
-  components: {ConsolePartyFormula, PlayerDelegate, PlayerCube, PremiumMechanicsPanel},
-  props: {
-    view: {type: Object as PropType<ParliamentViewVm>, required: true},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** Index-aligned with `view.parties` (the Section's `partyActionStates`). */
-    partyActionStates: {type: Array as PropType<ReadonlyArray<PartyActionStateVm>>, default: () => []},
-    resolutionActionState: {type: Object as PropType<PartyActionStateVm | undefined>, default: undefined},
-    focused: {type: Boolean, default: false},
-  },
-  computed: {
-    /** THE RULING PARTY AS SHOWN: the previous ruler until the medallions have changed places (the sitting's hold). */
-    rulerShown(): ReduxParty {
-      return parliamentHolds.rulerBefore ?? this.view.rulingParty;
-    },
-    enactedShown(): ParliamentViewVm['enacted'] {
-      const before = parliamentHolds.govBefore;
-      return before !== undefined ? before.enacted : this.view.enacted;
-    },
-    items(): Array<EffectItem> {
-      return parliamentEffectItems({
-        view: this.view, ruler: this.rulerShown, enacted: this.enactedShown,
-        partyActionStates: this.partyActionStates, resolutionActionState: this.resolutionActionState,
-      });
-    },
-    size(): EffectsTileSize {
-      return effectsTileSize(this.items.length);
-    },
-    /** The access scene's seal has landed in this zone (the head says so until the flow leaves). */
-    accessWon(): boolean {
-      return parliamentFlow.accessParty !== undefined && (parliamentFlow.accessBeat === 'landed' || parliamentFlow.accessBeat === 'done');
-    },
-    readyActions(): number {
-      return this.items.filter((i) => i.action === 'ready').length;
-    },
-    standing(): number {
-      return this.items.filter((i) => i.effect).length;
-    },
-  },
-  methods: {
-    /** The tile the access scene is bringing in: its place is RESERVED (an empty socket) until the seal lands in it. */
-    arriving(item: EffectItem): boolean {
-      const f = parliamentFlow;
-      return item.kind === 'party' && f.accessParty === item.party && (f.accessBeat === 'count' || f.accessBeat === 'return' || f.accessBeat === 'flight');
-    },
-    /** …and the tile it brought in: unfolded on the touchdown, its kant marking the gain through the read. */
-    won(item: EffectItem): boolean {
-      return item.kind === 'party' && this.accessWon && parliamentFlow.accessParty === item.party;
-    },
-    figurePx(logical: number): number {
-      return delegateFigurePx(logical);
-    },
-    whyKey(why: EffectWhy): string {
-      switch (why) {
-      case 'ruling': return 'for everyone';
-      case 'delegates': return 'Your effect';
-      case 'granted': return 'Your effect · granted by a card';
-      case 'banner': return 'Your effect · your cube on the banner';
-      case 'alliance': return 'Your effect · by the alliance';
-      default: return 'Resolution effect';
-      }
-    },
-    partyAccent(party: ReduxParty): string {
-      return partyAccent(party);
-    },
-    emblemUrl(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-    partyNameKey(party: ReduxParty): string {
-      return partyNameKey(party);
-    },
-  },
+defineOptions({name: 'ConsoleParliamentEffects'});
+const props = defineProps({
+  view: {type: Object as PropType<ParliamentViewVm>, required: true},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  /** Index-aligned with `view.parties` (the Section's `partyActionStates`). */
+  partyActionStates: {type: Array as PropType<ReadonlyArray<PartyActionStateVm>>, default: () => []},
+  resolutionActionState: {type: Object as PropType<PartyActionStateVm | undefined>, default: undefined},
+  focused: {type: Boolean, default: false},
 });
+
+/** THE RULING PARTY AS SHOWN: the previous ruler until the medallions have changed places (the sitting's hold). */
+const rulerShown = computed((): ReduxParty => {
+  return parliamentHolds.rulerBefore ?? props.view.rulingParty;
+});
+const enactedShown = computed((): ParliamentViewVm['enacted'] => {
+  const before = parliamentHolds.govBefore;
+  return before !== undefined ? before.enacted : props.view.enacted;
+});
+const items = computed((): Array<EffectItem> => {
+  return parliamentEffectItems({
+    view: props.view, ruler: rulerShown.value, enacted: enactedShown.value,
+    partyActionStates: props.partyActionStates, resolutionActionState: props.resolutionActionState,
+  });
+});
+const size = computed((): EffectsTileSize => {
+  return effectsTileSize(items.value.length);
+});
+/** The access scene's seal has landed in this zone (the head says so until the flow leaves). */
+const accessWon = computed((): boolean => {
+  return parliamentFlow.accessParty !== undefined && (parliamentFlow.accessBeat === 'landed' || parliamentFlow.accessBeat === 'done');
+});
+const readyActions = computed((): number => {
+  return items.value.filter((i) => i.action === 'ready').length;
+});
+const standing = computed((): number => {
+  return items.value.filter((i) => i.effect).length;
+});
+
+/** The tile the access scene is bringing in: its place is RESERVED (an empty socket) until the seal lands in it. */
+function arriving(item: EffectItem): boolean {
+  const f = parliamentFlow;
+  return item.kind === 'party' && f.accessParty === item.party && (f.accessBeat === 'count' || f.accessBeat === 'return' || f.accessBeat === 'flight');
+}
+/** …and the tile it brought in: unfolded on the touchdown, its kant marking the gain through the read. */
+function won(item: EffectItem): boolean {
+  return item.kind === 'party' && accessWon.value && parliamentFlow.accessParty === item.party;
+}
+const figurePx = delegateFigurePx;
+function whyKey(why: EffectWhy): string {
+  switch (why) {
+  case 'ruling': return 'for everyone';
+  case 'delegates': return 'Your effect';
+  case 'granted': return 'Your effect · granted by a card';
+  case 'banner': return 'Your effect · your cube on the banner';
+  case 'alliance': return 'Your effect · by the alliance';
+  default: return 'Resolution effect';
+  }
+}
+const emblemUrl = partyEmblemUrl;
 </script>
