@@ -1,11 +1,14 @@
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
+import {defineComponent, h} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {CardType} from '@/common/cards/CardType';
 import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {NavDirection} from '@/client/gamepad/gamepadPollModel';
+import {closeConsoleCardZoom, consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {buildColonyTradeTargetModel, openTradeTargetFocus} from '@/client/console/colonyTrade/colonyTradeTargetStep';
 import ConsoleTradeTargetStep from '@/client/components/console/ConsoleTradeTargetStep.vue';
 import ConsoleTradeTargetValue from '@/client/components/console/ConsoleTradeTargetValue.vue';
@@ -56,6 +59,52 @@ describe('ConsoleTradeTargetStep — the trade\'s target step, one host for both
     expect(wrapper.find('section.con-colfocus__targetstage').exists(), 'the colony stage\'s own room').to.eq(true);
     (wrapper.vm as unknown as {confirm: () => void}).confirm();
     expect(wrapper.emitted('pick')).to.deep.eq([['Floating Habs']]);
+  });
+
+  it('a STAGE\'s ref sees exactly the step\'s grammar — close · nav · cycleOwner · confirm · inspect — and each answers through it', () => {
+    /** What both stages read off `ref="targetStep"` — their own `TradeTargetStepHandle`. */
+    type StepReach = {
+      nav: (dir: NavDirection) => void,
+      cycleOwner: (delta: number) => void,
+      confirm: () => void,
+      inspect: () => void,
+      close: (done: () => void) => void,
+    };
+    const picked: Array<string> = [];
+    const m = model();
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleTradeTargetStep, {
+        ref: 'targetStep', model: m, lockedCard: 'Aurora Station', onPick: (name: string) => picked.push(name),
+      })]),
+    });
+    const host = mount(Host, {global: {...globalConfig.global, stubs: STUBS}});
+    // Exactly the stages' read: `targetStep.value ?? undefined`, then the member.
+    const step = (host.vm.$refs.targetStep ?? undefined) as StepReach | undefined;
+    expect(step, 'the host\'s ref stands').to.not.eq(undefined);
+    expect(Object.keys(step ?? {}).sort(), 'the exposed list is the contract — nothing else of the script')
+      .to.deep.eq(['close', 'confirm', 'cycleOwner', 'inspect', 'nav']);
+    for (const inner of ['measureZone', 'focus', 'layout', 'zoneW']) {
+      expect((step as unknown as Record<string, unknown>)[inner], `«${inner}» stays inside`).to.eq(undefined);
+    }
+
+    step?.confirm();
+    step?.nav('right');
+    step?.confirm();
+    expect(picked, 'A answers the focused candidate; the d-pad moves the focus').to.deep.eq(['Aurora Station', 'Floating Habs']);
+    step?.cycleOwner(1);
+    step?.confirm();
+    expect(picked[2], 'one owner: the bumpers walk nothing').to.eq('Floating Habs');
+
+    let dropped = 0;
+    step?.close(() => dropped++);
+    expect(dropped, 'B: the stage is told once the step has let go').to.eq(1);
+
+    try {
+      step?.inspect();
+      expect(consoleCardZoom.card?.name, 'X: the focused candidate fullscreen').to.eq('Floating Habs');
+    } finally {
+      closeConsoleCardZoom();
+    }
   });
 
   it('the «КУДА» value: the card and its own n → n + k; the placeholder while none is chosen', () => {
