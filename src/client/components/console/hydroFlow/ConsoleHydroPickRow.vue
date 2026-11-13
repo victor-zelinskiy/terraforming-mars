@@ -80,7 +80,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /*
  * THE LANDED STAGE'S PRE-SELECT — ONE row, both roads onto the track.
  *
@@ -100,66 +100,61 @@
  * register and names the verb.
  * · CHOSEN — the branch's own printed graphic + the card's name + a tick.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {ActionGroup} from '@/client/components/actions/actionExtraction';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
-import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {$t} from '@/client/directives/i18n';
 import {HydroStage} from '@/client/components/hydronetwork/hydroStages';
 import {HYDRO_PICK_COPY, HydroPickKind} from '@/client/console/hydroFlow/hydroDecisionRail';
+import {vI18n, vStripActionPrefix} from '@/client/directives/vDirectives';
 
 type GroupNode = ActionGroup['nodes'][number];
 
 // The copy table and the kind union live in the PURE rail model
 // (`hydroDecisionRail.ts`) — one source for the card, the section and the
-// specs. Re-exported so existing importers keep their path.
-export {HYDRO_PICK_COPY};
+// specs. The kind union is re-exported so existing importers keep their path
+// (the copy table is taken from the model itself: a `<script setup>` block
+// exports no value).
 export type {HydroPickKind};
 
-export default defineComponent({
-  name: 'ConsoleHydroPickRow',
-  components: {CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, HydroReward},
-  directives: {stripActionPrefix},
-  props: {
-    kind: {type: String as PropType<HydroPickKind>, required: true},
-    /** The chosen card, or undefined while the question stands. */
-    card: {type: String as PropType<CardName>, default: undefined},
-    /** The chosen action's own branch node (already `stripNodeOr`-ed). */
-    node: {type: Object as PropType<GroupNode>, default: undefined},
-    /** pos 9: the target's live animal count, for the honest «сейчас → станет». */
-    animalCurrent: {type: Number, default: undefined},
-    /** `reward-choice`: the CHOSEN alternative's printed chips (the summary). */
-    chips: {type: Array as PropType<HydroStage['rewardOptions'][number]>, default: undefined},
-    /** A traversal decision names its stage — «Награда этапа · Плотина». */
-    stageLabel: {type: String, default: ''},
-    focused: {type: Boolean, default: false},
-    /** The server offered NO candidate — the reward fizzles and nothing is owed. */
-    fizzled: {type: Boolean, default: false},
-    /** The ordered plan cannot keep this pick (i18n key) — '' = no conflict. */
-    conflictReason: {type: String, default: ''},
-  },
-  emits: ['open'],
-  computed: {
-    copy(): (typeof HYDRO_PICK_COPY)[HydroPickKind] {
-      return HYDRO_PICK_COPY[this.kind];
-    },
-    labelKey(): string {
-      return this.copy.label;
-    },
-    chooseKey(): string {
-      return this.copy.choose;
-    },
-    fizzleKey(): string {
-      return this.copy.fizzle;
-    },
-    missing(): boolean {
-      return !this.fizzled && this.card === undefined;
-    },
-  },
-  methods: {$t},
+defineOptions({name: 'ConsoleHydroPickRow'});
+const props = defineProps({
+  kind: {type: String as PropType<HydroPickKind>, required: true},
+  /** The chosen card, or undefined while the question stands. */
+  card: {type: String as PropType<CardName>, default: undefined},
+  /** The chosen action's own branch node (already `stripNodeOr`-ed). */
+  node: {type: Object as PropType<GroupNode>, default: undefined},
+  /** pos 9: the target's live animal count, for the honest «сейчас → станет». */
+  animalCurrent: {type: Number, default: undefined},
+  /** `reward-choice`: the CHOSEN alternative's printed chips (the summary). */
+  chips: {type: Array as PropType<HydroStage['rewardOptions'][number]>, default: undefined},
+  /** A traversal decision names its stage — «Награда этапа · Плотина». */
+  stageLabel: {type: String, default: ''},
+  focused: {type: Boolean, default: false},
+  /** The server offered NO candidate — the reward fizzles and nothing is owed. */
+  fizzled: {type: Boolean, default: false},
+  /** The ordered plan cannot keep this pick (i18n key) — '' = no conflict. */
+  conflictReason: {type: String, default: ''},
+});
+defineEmits(['open']);
+
+const copy = computed((): (typeof HYDRO_PICK_COPY)[HydroPickKind] => {
+  return HYDRO_PICK_COPY[props.kind];
+});
+const labelKey = computed((): string => {
+  return copy.value.label;
+});
+const chooseKey = computed((): string => {
+  return copy.value.choose;
+});
+const fizzleKey = computed((): string => {
+  return copy.value.fizzle;
+});
+const missing = computed((): boolean => {
+  return !props.fizzled && props.card === undefined;
 });
 </script>
