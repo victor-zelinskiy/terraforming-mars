@@ -1,4 +1,5 @@
 import {mount} from '@vue/test-utils';
+import {defineComponent, h} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
@@ -976,5 +977,54 @@ describe('ConsoleResourcePanel — the rating cell\'s marks', () => {
     const hint = cell.attributes('data-hint') ?? '';
     expect(hint.split(' · ')).to.have.length(2);
     expect(hint.indexOf('UNMI Veto')).to.be.lessThan(hint.indexOf('Pristar'));
+  });
+});
+
+/**
+ * WHAT THE SHELL REACHES (the panel is `<script setup>` — docs/claude/vapor/RECIPES.md R11 · R12 · R3): the shell
+ * stands ONE ref on the rail (`conRailEl`) and reads nothing of the script through it — only the element, for the
+ * central stage's geometry (`useWorkspaceBandGeometry.elementOf`: `host.$el`). So the panel exposes NOTHING, and its
+ * ref still answers `$el` with the rail's host; the one thing it hands UP is the satellite's press.
+ */
+describe('ConsoleResourcePanel — what the shell reaches', () => {
+  afterEach(() => {
+    infoModeState.open = false;
+    infoModeState.closing = false;
+    infoModeState.route = 'summary';
+    infoModeState.summaryFocus = 'vp';
+    resetExtrasExplorer();
+  });
+
+  const holder = (name: CardName, resources: number) => ({name, resources, calculatedCost: 0});
+
+  it('exposes nothing — and the ref the shell holds answers `$el`: the rail\'s host, what the stage geometry measures', () => {
+    const Host = defineComponent({
+      render() {
+        return h('div', [h(ConsoleResourcePanel, {ref: 'conRailEl', player: fakePlayer(), gameTags: BASE_GAME_TAGS as Array<Tag>})]);
+      },
+    });
+    const host = mount(Host, {global: globalConfig.global});
+    const rail = host.vm.$refs.conRailEl as {$el?: unknown};
+    expect(Object.keys(rail), 'no member of the script is the shell\'s to read').to.deep.eq([]);
+    expect(rail.$el, 'the host element itself').to.eq(host.find('.con-res-host').element);
+    expect(rail.$el).to.be.instanceOf(HTMLElement);
+  });
+
+  it('a satellite cell\'s press is handed UP (`aux-press` with the type key and its index) — only while the info workspace is open', async () => {
+    const w = mount(ConsoleResourcePanel, {
+      global: globalConfig.global,
+      props: {
+        player: fakePlayer({}, {tableau: [holder(CardName.BIRDS, 3), holder(CardName.DIRIGIBLES, 2)]}),
+        gameTags: BASE_GAME_TAGS as Array<Tag>,
+        boardVisible: true,
+      },
+    });
+    // On the board the column is a readout: a press routes nowhere.
+    await w.find('[data-exr-type="floater"]').trigger('click');
+    expect(w.emitted('aux-press'), 'the board view hands nothing up').to.eq(undefined);
+
+    infoModeState.open = true;
+    await w.find('[data-exr-type="floater"]').trigger('click');
+    expect(w.emitted('aux-press')).to.deep.eq([[{key: 'floater', index: 1}]]);
   });
 });

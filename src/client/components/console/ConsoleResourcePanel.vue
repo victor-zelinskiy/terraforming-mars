@@ -392,7 +392,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * Console resource + tag panel (feedback iteration: the player's key
  * numbers must NEVER be hidden). Left rail, visible in every section:
@@ -400,7 +400,7 @@
  * and the premium tag cluster (reuses the shared TagCount holders).
  * Read-only; data straight from the PublicPlayerModel.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType, ref, watch} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
@@ -412,13 +412,6 @@ import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ResolutionId} from '@/common/parliament/ParliamentTypes';
-
-/**
- * ONE МЕТКИ cell as the matrix renders it: the count, whether a bot track
- * serves it at all (`na` — a dash, never a lying 0), and the ADDITION a
- * standing law makes to it right now.
- */
-type ConsoleTagMatrixCell = {tag: ConsoleTagCell, count: number, na: boolean, bonus?: ConsoleTagBonus};
 import {marsBotStandardRows, marsBotTagEntries, MarsBotExtrasContext} from '@/client/components/console/marsBotRailModel';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
@@ -444,12 +437,19 @@ import {badgeForUnit, MC_CONTEXT_KEYS, RAIL_CONTEXT_TAG, railMcBadges, tagVpBadg
 import {Tag as TagKind} from '@/common/cards/Tag';
 import {tagLabel} from '@/client/cards/tagLabel';
 import {paymentLaneLabel, paymentUnitLabel} from '@/client/console/paymentPlan';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {vpShareState} from '@/client/console/scoreCell/vpShareLedger';
 import {VpReasonView, vpReasonViews} from '@/client/console/scoreCell/vpReasonText';
 import {PRISTAR_MARK_HINT, PristarMark, RATING_SKIP_MARK_HINT, RatingSkipMark} from '@/client/console/railMarks';
 import {CardName} from '@/common/cards/CardName';
+
+/**
+ * ONE МЕТКИ cell as the matrix renders it: the count, whether a bot track
+ * serves it at all (`na` — a dash, never a lying 0), and the ADDITION a
+ * standing law makes to it right now.
+ */
+type ConsoleTagMatrixCell = {tag: ConsoleTagCell, count: number, na: boolean, bonus?: ConsoleTagBonus};
 
 /** How long the VP cell's named cause stands — one read (a reading time, never motion-scaled). */
 const VP_REASON_READ_MS = 2800;
@@ -512,7 +512,6 @@ type AuxCell = {
   contextTag?: TagKind,
 };
 
-
 /** The role badge a chip wears — none for tender (the coin) and for plain storage. */
 function roleBadgeOf(role: HolderRole): AuxCell['roleBadge'] {
   switch (role.kind) {
@@ -542,707 +541,695 @@ function roleBadgeOf(role: HolderRole): AuxCell['roleBadge'] {
 /** The ONE tag a tender context is named by on the coin — `railValueModel.RAIL_CONTEXT_TAG` (the target step's outcome tag reads it too). */
 const CONTEXT_TAG = RAIL_CONTEXT_TAG;
 
-export default defineComponent({
-  name: 'ConsoleResourcePanel',
-  components: {Tag, AnimatedMetricValue, ConsoleVpBadge, ConsoleValueBadge, ConsoleProtectionMark, PrivateScoreMask},
-  emits: ['aux-press'],
-  props: {
-    player: {type: Object as PropType<PublicPlayerModel>, required: true},
-    /**
-     * `playerView.game.tags` — the server-computed set of tags available in
-     * this game (scanned across every deck at creation). Drives WHICH cells
-     * the МЕТКИ matrix shows; counts never affect membership. An absent /
-     * empty set (a pre-`game.tags` save) falls back to the base-game set.
-     */
-    gameTags: {type: Array as PropType<ReadonlyArray<CardTag>>, default: () => []},
-    /** playerView.runId — the AnimatedMetricValue epoch ('' disables chips). */
-    epoch: {type: String, default: ''},
-    /**
-     * The server offers "convert plants into greenery" RIGHT NOW (same signal
-     * that drives the LT quick menu). Console has no icon-button like the
-     * desktop, so the plants cell only gets a subtle premium highlight so the
-     * player still sees the option is live — the action stays on the quick menu.
-     */
-    convertPlants: {type: Boolean, default: false},
-    /** As above, for "convert heat into temperature". */
-    convertHeat: {type: Boolean, default: false},
-    /**
-     * THE RATING VETO BINDS THIS SEAT (Turmoil Redux RX42 UNMI Veto): the law's printed name (translated) and the
-     * seat's rating now — read by the shell off the server's live leaders (`parliament.enacted.trVeto`), never counted
-     * here. The rating cell wears the stamp and names the law in its hint. Undefined while no veto binds the seat.
-     */
-    trVeto: {type: Object as PropType<{law: string, tr: number} | undefined>, default: undefined},
-    /**
-     * PRISTAR'S STATE ON THIS SEAT (R07 — `railMarks.pristarMarkOf`, read by the shell off the DISPLAYED seat's
-     * public `ratingRaisedThisGeneration`): «waiting» — the production phase will pay; «spent» — a rise this
-     * generation cancelled it. Undefined for a seat without the corporation.
-     */
-    trPristar: {type: String as PropType<PristarMark | undefined>, default: undefined},
-    /**
-     * PRESERVATION PROGRAM'S STATE ON THIS SEAT (P57 — `railMarks.ratingSkipMarkOf`, the server's `ratingSkip` on the
-     * DISPLAYED seat): «armed» — the first TR raise of the action phase will be skipped; «spent» — already eaten this
-     * generation. Undefined for a seat without the card.
-     */
-    trSkip: {type: String as PropType<RatingSkipMark | undefined>, default: undefined},
-    /**
-     * The board section is the active view. The ДОП.РЕСУРСЫ satellite paints
-     * over the board area, so it only renders here — never floating over the
-     * hand / colonies / other section content.
-     */
-    boardVisible: {type: Boolean, default: false},
-    /**
-     * The displayed seat is the VIEWER'S OWN one. False only while the
-     * Information Workspace (Y) inspects an opponent: the rail then shows
-     * the INSPECTED player's data — a read-only context override that never
-     * touches gameplay. Gates the viewer-specific readouts (the own-score
-     * privacy mask, the in-flight resource-transfer holds).
-     */
-    own: {type: Boolean, default: true},
-    /**
-     * The game rule hides this seat's score from the viewer (an opponent
-     * while `showOtherPlayersVP` is off) — the VP cell shows the shared
-     * eye-off mask instead of a number. Only meaningful when `own` is false.
-     */
-    vpHidden: {type: Boolean, default: false},
-    /**
-     * The displayed seat is the MARSBOT and this is its public Automa state
-     * (playerView.game.automa) — the rail swaps to the DEDICATED bot
-     * presentation (marsBotRailModel): real economy rows instead of the six
-     * human resources, the printed TRACKS instead of the tag matrix.
-     * Undefined = human presentation (every non-inspecting frame).
-     */
-    automa: {type: Object as PropType<MarsBotModel>, default: undefined},
-    /**
-     * The GAME-shape context of the bot's extras classification (Venus in
-     * play / colony tiles in play) — which zero-count sources EXIST. Only
-     * read while `automa` is set.
-     */
-    botCtx: {type: Object as PropType<MarsBotExtrasContext>, default: undefined},
-  },
-  setup() {
-    return {flow: useFlowScope('console-resource-panel')};
-  },
-  data() {
+defineOptions({name: 'ConsoleResourcePanel'});
+const props = defineProps({
+  player: {type: Object as PropType<PublicPlayerModel>, required: true},
+  /**
+   * `playerView.game.tags` — the server-computed set of tags available in
+   * this game (scanned across every deck at creation). Drives WHICH cells
+   * the МЕТКИ matrix shows; counts never affect membership. An absent /
+   * empty set (a pre-`game.tags` save) falls back to the base-game set.
+   */
+  gameTags: {type: Array as PropType<ReadonlyArray<CardTag>>, default: () => []},
+  /** playerView.runId — the AnimatedMetricValue epoch ('' disables chips). */
+  epoch: {type: String, default: ''},
+  /**
+   * The server offers "convert plants into greenery" RIGHT NOW (same signal
+   * that drives the LT quick menu). Console has no icon-button like the
+   * desktop, so the plants cell only gets a subtle premium highlight so the
+   * player still sees the option is live — the action stays on the quick menu.
+   */
+  convertPlants: {type: Boolean, default: false},
+  /** As above, for "convert heat into temperature". */
+  convertHeat: {type: Boolean, default: false},
+  /**
+   * THE RATING VETO BINDS THIS SEAT (Turmoil Redux RX42 UNMI Veto): the law's printed name (translated) and the
+   * seat's rating now — read by the shell off the server's live leaders (`parliament.enacted.trVeto`), never counted
+   * here. The rating cell wears the stamp and names the law in its hint. Undefined while no veto binds the seat.
+   */
+  trVeto: {type: Object as PropType<{law: string, tr: number} | undefined>, default: undefined},
+  /**
+   * PRISTAR'S STATE ON THIS SEAT (R07 — `railMarks.pristarMarkOf`, read by the shell off the DISPLAYED seat's
+   * public `ratingRaisedThisGeneration`): «waiting» — the production phase will pay; «spent» — a rise this
+   * generation cancelled it. Undefined for a seat without the corporation.
+   */
+  trPristar: {type: String as PropType<PristarMark | undefined>, default: undefined},
+  /**
+   * PRESERVATION PROGRAM'S STATE ON THIS SEAT (P57 — `railMarks.ratingSkipMarkOf`, the server's `ratingSkip` on the
+   * DISPLAYED seat): «armed» — the first TR raise of the action phase will be skipped; «spent» — already eaten this
+   * generation. Undefined for a seat without the card.
+   */
+  trSkip: {type: String as PropType<RatingSkipMark | undefined>, default: undefined},
+  /**
+   * The board section is the active view. The ДОП.РЕСУРСЫ satellite paints
+   * over the board area, so it only renders here — never floating over the
+   * hand / colonies / other section content.
+   */
+  boardVisible: {type: Boolean, default: false},
+  /**
+   * The displayed seat is the VIEWER'S OWN one. False only while the
+   * Information Workspace (Y) inspects an opponent: the rail then shows
+   * the INSPECTED player's data — a read-only context override that never
+   * touches gameplay. Gates the viewer-specific readouts (the own-score
+   * privacy mask, the in-flight resource-transfer holds).
+   */
+  own: {type: Boolean, default: true},
+  /**
+   * The game rule hides this seat's score from the viewer (an opponent
+   * while `showOtherPlayersVP` is off) — the VP cell shows the shared
+   * eye-off mask instead of a number. Only meaningful when `own` is false.
+   */
+  vpHidden: {type: Boolean, default: false},
+  /**
+   * The displayed seat is the MARSBOT and this is its public Automa state
+   * (playerView.game.automa) — the rail swaps to the DEDICATED bot
+   * presentation (marsBotRailModel): real economy rows instead of the six
+   * human resources, the printed TRACKS instead of the tag matrix.
+   * Undefined = human presentation (every non-inspecting frame).
+   */
+  automa: {type: Object as PropType<MarsBotModel>, default: undefined},
+  /**
+   * The GAME-shape context of the bot's extras classification (Venus in
+   * play / colony tiles in play) — which zero-count sources EXIST. Only
+   * read while `automa` is set.
+   */
+  botCtx: {type: Object as PropType<MarsBotExtrasContext>, default: undefined},
+});
+const emit = defineEmits(['aux-press']);
+
+const flow = useFlowScope('console-resource-panel');
+/** The LB/RB seat switch is in flight — the satellite's transition
+ *  group swaps to the in-place mode (instant leaves, fade enters).
+ *  Armed by the `player.color` watcher (pre-flush — the same patch
+ *  that swaps the cells), released on a short timer; rapid presses
+ *  re-arm it (coalesce). */
+const auxSwapMode = ref(false);
+let cancelAuxSwap = (() => {}) as () => void;
+/** The named cause standing beside the VP cell (its ledger `seq`) — shown for one read, then gone. */
+const vpReasonSeq = ref(0);
+let cancelVpReason = (() => {}) as () => void;
+
+/**
+ * The player numbers the panel displays. During the start-of-game setup
+ * reveal (this player's ceremony) the corp bonus + card payment are shown as
+ * staged values, so the AnimatedMetricValue delta chips fire per explicit
+ * step; the canonical `player` otherwise. Spreading over `player` keeps every
+ * non-numeric field (tags, tableau) intact.
+ */
+const effectivePlayer = computed((): PublicPlayerModel => {
+  const override = startSetupOverrideFor(props.player.color);
+  // The override's `tags` is a partial map (baseline = empty); the readers all
+  // fall back to 0 for a missing tag, so the cast is safe.
+  return override !== undefined ? {...props.player, ...override} as PublicPlayerModel : props.player;
+});
+/**
+ * Terraforming rating for the score header. Rides `effectivePlayer`, so
+ * during the start-of-game setup reveal it shows the STAGED value — the
+ * reveal controller already seeds the `score.tr` baseline (SEED_METRICS)
+ * and stages `terraformRating`, so a corp's starting-TR bonus fires the
+ * premium +N chip here exactly like the resource rows.
+ */
+/** The stamp's hint: the law, the rating, the rule — one sentence (the TV has no hover; the e2e reads it). */
+const trVetoHint = computed((): string => {
+  const veto = props.trVeto;
+  return veto === undefined ? '' :
+    translateTextWithParams('${0}: your terraform rating is the highest (${1}) — rating gains are not counted', [veto.law, String(veto.tr)]);
+});
+/** The card behind the Pristar mark — its name in the hint, its key on the token. */
+const pristarCard = computed((): CardName => {
+  return CardName.PRISTAR;
+});
+/** The rating cell's hint: each standing mark's one sentence, joined by « · » when both stand (the veto first). */
+const trHint = computed((): string => {
+  const lines: Array<string> = [];
+  if (props.trVeto !== undefined) {
+    lines.push(trVetoHint.value);
+  }
+  if (props.trPristar !== undefined) {
+    lines.push(translateTextWithParams(PRISTAR_MARK_HINT[props.trPristar], [translateText(CardName.PRISTAR)]));
+  }
+  if (props.trSkip !== undefined) {
+    lines.push(translateTextWithParams(RATING_SKIP_MARK_HINT[props.trSkip], [translateText(CardName.PRESERVATION_PROGRAM)]));
+  }
+  return lines.join(' · ');
+});
+const tr = computed((): number => {
+  // The rating rides the SAME reward hold as the rows (`rating` on the
+  // stock channel — the Parliament's Agenda bonus flies into this cell):
+  // committed − held until the chip's touchdown, the viewer's own only.
+  const held = props.own && panelRewardHold.active ? heldStock(RATING_RAIL_KEY) : 0;
+  return effectivePlayer.value.terraformRating - held;
+});
+/**
+ * Victory points (incl. TR) — the server recomputes the breakdown per response.
+ *
+ * The total INCLUDES the rating point for point, so it is a DERIVED cell of the one beside it: while a rating
+ * step is still held on its flight (that cell reads «committed − held»), the same step is held here. A derived
+ * cell that announced «+1» a second before the rating's own token landed told the result ahead of its cause, an
+ * inch from the number being withheld. Both tick on the one touchdown.
+ *
+ * …and the points a CARD RESOURCE brings its card (TR27: floaters onto a «1 VP / 2» card) are held the same way:
+ * the score includes them, so it ticks on the touchdown of the token that brings them (`heldVictoryPoints`).
+ */
+const vp = computed((): number => {
+  const held = props.own && panelRewardHold.active ? heldStock(RATING_RAIL_KEY) + heldVictoryPoints() : 0;
+  // THE START REVEAL (К-V6, TR55): the rating cell beside this one shows the STAGED rating while the corporation's
+  // bonus is applied step by step — the score includes the rating point for point, so it is staged with it and
+  // never announces a corp's starting TR before the TR cell's own step does.
+  const staged = effectivePlayer.value.terraformRating - props.player.terraformRating;
+  return props.player.victoryPointsBreakdown.total + staged - held;
+});
+/** The named cause beside the VP cell (the ledger's latest), while it is being read — the own seat only, never masked. */
+const vpReason = computed((): {seq: number, lines: Array<VpReasonView>, more: number} | undefined => {
+  const reason = vpShareState.reason;
+  if (!props.own || vpMasked.value || reason === undefined || reason.seq !== vpReasonSeq.value) {
+    return undefined;
+  }
+  return {seq: reason.seq, ...vpReasonViews(reason.lines)};
+});
+const vpReasonMore = computed((): string => {
+  return translateTextWithParams('and ${0} more', [String(vpReason.value?.more ?? 0)]);
+});
+/**
+ * The VP mask, by seat:
+ *  - the OWN seat masks via the local «Приватный счёт» display pref
+ *    (passive-surface semantics — desktop LeftPlayerCard parity);
+ *  - an INSPECTED opponent (Information Workspace) masks when the game
+ *    rule hides other players' scores (`vpHidden` from the shell).
+ * The footprint never changes — the mask swaps in place of the number.
+ */
+const vpMasked = computed((): boolean => {
+  return props.own ? shouldMaskOwnPassiveVp(true) : props.vpHidden;
+});
+const rows = computed((): Array<ResourceRow> => {
+  // THE MARSBOT SEAT — the SAME six rows, filled from the bot's real
+  // pools by the pure preparation layer (type-classified: colony
+  // storage + corp store land in their resource's row; the M€ supply
+  // keeps its meaning and the separate M€ stores ride the capsule).
+  // No badges/shields/production: those capabilities do not exist for
+  // the Automa, and their absence is paint, never geometry.
+  if (props.automa !== undefined) {
+    return marsBotStandardRows(props.player, props.automa).map((row): ResourceRow => ({
+      key: row.key,
+      value: row.value,
+      metricKey: row.metricKey,
+      store: row.store,
+    }));
+  }
+  const p = effectivePlayer.value;
+  // The RESOURCE-TRANSFER reward hold (consoleResourceTransfer): a metric
+  // whose reward chip is still IN FLIGHT displays committed − pending, so
+  // the commit doesn't fire its delta chip early — the chip's touchdown
+  // releases the hold and the value (+ delta chip) land at the contact.
+  // `panelRewardHold.active` is read so the computed tracks releases.
+  // The holds belong to the VIEWER's incoming chips — an inspected
+  // opponent's numbers must never be reduced by them.
+  const hold = props.own && panelRewardHold.active;
+  const stock = (key: string, v: number) => hold ? Math.max(0, v - heldStock(key)) : v;
+  const prod = (key: string, v: number) => hold ? v - heldProduction(key) : v;
+  // The MC-value badges ride the same computed so a value change (Advanced
+  // Alloys, a player switch) lands in the SAME patch as the numbers —
+  // never a frame with a stale rate. M€ (the unit itself) and energy
+  // never carry one by construction (absent from RailMcStandardKey).
+  const badges = mcBadges.value.standard;
+  // Protection rides the SAME computed as the numbers and the coins, so a
+  // gained shield, a changed rate and a changed stock always land in one
+  // patch — never a frame where the rail contradicts itself.
+  const shields = protections.value;
+  const mark = (key: string): {protection?: RailProtectionMark, productionProtection?: RailProtectionMark} => ({
+    protection: shields.stock[key as keyof typeof shields.stock],
+    productionProtection: shields.production[key as keyof typeof shields.production],
+  });
+  const row = (key: string, value: number, production: number, mcBadge?: RailMcBadge): ResourceRow =>
+    ({key, value: stock(key, value), metricKey: `${key}.stock`, production: prod(key, production), mcBadge, ...mark(key)});
+  return [
+    row('megacredits', p.megacredits, p.megacreditProduction),
+    row('steel', p.steel, p.steelProduction, badges.steel),
+    row('titanium', p.titanium, p.titaniumProduction, badges.titanium),
+    row('plants', p.plants, p.plantProduction, badges.plants),
+    row('energy', p.energy, p.energyProduction),
+    row('heat', p.heat, p.heatProduction, badges.heat),
+  ];
+});
+/** The displayed seat's payment-value badges (pure, memoized by model). */
+const mcBadges = computed((): RailMcBadges => {
+  return railMcBadges(effectivePlayer.value);
+});
+/** The displayed seat's protection marks (pure, memoized by model). */
+const protections = computed((): RailProtections => {
+  return railProtections(effectivePlayer.value);
+});
+/** The displayed seat's per-tag VP coefficients (pure, memoized by tableau). */
+const tagVp = computed((): ReadonlyMap<CardTag, TagVpBadge> => {
+  return tagVpBadges(effectivePlayer.value.tableau);
+});
+const tagEntries = computed((): Array<ConsoleTagEntry> => {
+  // The FULL matrix — every tag available in this game, zeros included
+  // (fixed positions; zero cells render dimmed, never hidden). During the
+  // setup reveal the counts stage with the corp bonus (empty at baseline →
+  // the corporation's tags appear when it's applied), like the resources.
+  // The no-tag cell rides its OWN server field (Tags.numberOfCardsWithNoTags),
+  // which the staged override doesn't carry — a corporation is a card like
+  // any other and lands in it the moment the server counts it.
+  return consoleTagEntries(
+    props.gameTags, effectivePlayer.value.tags, effectivePlayer.value.noTagsCount, effectivePlayer.value.tagBonuses);
+});
+/** The dedicated MarsBot presentation is active (inspecting the bot seat). */
+const botMode = computed((): boolean => {
+  return props.automa !== undefined;
+});
+/**
+ * The МЕТКИ matrix for the DISPLAYED seat — ONE cell set for every
+ * participant (game.tags), so the block reads identically across an
+ * LB/RB switch. A human fills it from `tags.countAllTags`; the bot from
+ * its printed tracks (position = the engine's tag count); `na` marks a
+ * cell no bot track serves (wild / no-tag) — rendered as a dash.
+ */
+const matrixEntries = computed((): Array<ConsoleTagMatrixCell> => {
+  if (props.automa !== undefined) {
+    // MarsBot holds no law (it takes no seat in the parliament), so a bot
+    // cell can never carry an addition.
+    return marsBotTagEntries(props.gameTags, props.automa)
+      .map((e) => ({tag: e.tag, count: e.count ?? 0, na: e.count === undefined}));
+  }
+  return tagEntries.value.map((e) => ({tag: e.tag, count: e.count, na: false, bonus: e.bonus}));
+});
+/**
+ * Card-accumulated resources, in first-appearance order — the SAME
+ * derivation the desktop "ДОП. РЕСУРСЫ" panel uses, so the two surfaces
+ * stay in lockstep. Empty until the player unlocks a card resource.
+ */
+const extraGroups = computed((): ReadonlyArray<AdditionalResourceRoleGroup> => {
+  const groups = additionalResourceRoleGroups(props.player.tableau);
+  // Reward hold (see `rows`): an in-flight card-resource reward is
+  // subtracted until its chip lands on the chosen host / this satellite.
+  if (!props.own || !panelRewardHold.active) {
+    return groups;
+  }
+  return groups.map((g) => {
+    // SIGNED: a spend that leaves a card on its own flight (TR28's two fighters) is held as a negative —
+    // the satellite keeps them until the chip departs.
+    const held = heldCardResource(cardResourceKey(g.resource));
+    return held !== 0 ? {...g, total: Math.max(0, g.total - held)} : g;
+  });
+});
+/** The Information Workspace is up (open or still dismissing) — the
+ *  satellite is that mode's «Доп. ресурсы» zone and must stay standing
+ *  through the whole overlay lifetime (pixel contract). */
+const auxInfoActive = computed((): boolean => {
+  return infoModeState.open || infoModeState.closing;
+});
+/** Mounted only WITH content (board view and the info workspace alike):
+ *  an empty seat renders NO column — no ghost plate, no stray focus
+ *  ring (`infoZoneFocusable` skips the zone via `ctx.extras`). */
+const auxVisible = computed((): boolean => {
+  return auxCells.value.length > 0 && (props.boardVisible || auxInfoActive.value);
+});
+/** ONE cell list for both seats: the human's card-resource groups, the
+ *  bot's real CARD-TYPE pools (floaters + microbes/animals/cards +
+ *  the corp science store — standard-typed storage lives in the main
+ *  rows now) — same geometry, same delta-chip language, one TYPE-KEY
+ *  space so the semantic focus survives a seat switch, stable order. */
+const auxCells = computed((): Array<AuxCell> => {
+  const automa = props.automa;
+  if (automa !== undefined) {
+    return marsBotExtraGroups(automa, props.botCtx).map((g): AuxCell => ({
+      key: g.key,
+      iconClass: g.iconClass,
+      value: g.total,
+      metricKey: g.metricKey,
+    }));
+  }
+  return extraGroups.value.map((g): AuxCell => {
+    const protection = protections.value.cardResources.get(g.resource);
+    // The tender coin belongs to the PAYMENT role's chip alone; every other named role wears its own badge (PL-030).
+    const mcBadge = auxMcBadgeOf(g);
+    // …and a badge exists only where the type is SPLIT — an unsplit chip is the count it always was.
+    const roleBadge = g.split ? roleBadgeOf(g.role) : undefined;
+    // Two tender pools of one resource (PL-136): each coin names the tag it pays for.
+    const contextTag = g.unitSplit && g.role.kind === 'payment' ? CONTEXT_TAG[g.role.context] : undefined;
     return {
-      /** The LB/RB seat switch is in flight — the satellite's transition
-       *  group swaps to the in-place mode (instant leaves, fade enters).
-       *  Armed by the `player.color` watcher (pre-flush — the same patch
-       *  that swaps the cells), released on a short timer; rapid presses
-       *  re-arm it (coalesce). */
-      auxSwapMode: false,
-      cancelAuxSwap: (() => {}) as () => void,
-      /** The named cause standing beside the VP cell (its ledger `seq`) — shown for one read, then gone. */
-      vpReasonSeq: 0,
-      cancelVpReason: (() => {}) as () => void,
-      vpShareState,
+      key: g.key,
+      cards: g.cards.map((c) => c.name),
+      iconClass: `card-resource ${cardResourceCSS[g.resource]}`,
+      value: g.total,
+      metricKey: additionalResourceMetricKey(g.resource),
+      protection,
+      protectionAria: protection !== undefined ? auxProtectionAria(g) : undefined,
+      mcBadge,
+      mcAria: mcBadge !== undefined ? auxMcAria(g) : undefined,
+      roleBadge,
+      roleAria: roleBadge !== undefined ? auxRoleAria(g) : undefined,
+      ...(contextTag === undefined ? {} : {contextTag}),
     };
-  },
-  watch: {
-    /** A new named cause from the ledger: shown for one read (the reading time is not motion — never scaled). */
-    'vpShareState.reason.seq'(seq: number | undefined): void {
-      if (seq === undefined || !this.own) {
-        return;
-      }
-      this.vpReasonSeq = seq;
-      this.cancelVpReason();
-      this.cancelVpReason = this.flow.after(VP_REASON_READ_MS, 'the VP cause has been read', () => {
-        this.vpReasonSeq = 0;
-      });
-    },
-    'player.color'(): void {
-      this.auxSwapMode = true;
-      this.cancelAuxSwap();
-      this.cancelAuxSwap = this.flow.after(320, 'the seat switch\'s in-place swap ends', () => {
-        this.auxSwapMode = false;
-      });
-    },
-  },
-  computed: {
-    /**
-     * The player numbers the panel displays. During the start-of-game setup
-     * reveal (this player's ceremony) the corp bonus + card payment are shown as
-     * staged values, so the AnimatedMetricValue delta chips fire per explicit
-     * step; the canonical `player` otherwise. Spreading over `player` keeps every
-     * non-numeric field (tags, tableau) intact.
-     */
-    effectivePlayer(): PublicPlayerModel {
-      const override = startSetupOverrideFor(this.player.color);
-      // The override's `tags` is a partial map (baseline = empty); the readers all
-      // fall back to 0 for a missing tag, so the cast is safe.
-      return override !== undefined ? {...this.player, ...override} as PublicPlayerModel : this.player;
-    },
-    /**
-     * Terraforming rating for the score header. Rides `effectivePlayer`, so
-     * during the start-of-game setup reveal it shows the STAGED value — the
-     * reveal controller already seeds the `score.tr` baseline (SEED_METRICS)
-     * and stages `terraformRating`, so a corp's starting-TR bonus fires the
-     * premium +N chip here exactly like the resource rows.
-     */
-    /** The stamp's hint: the law, the rating, the rule — one sentence (the TV has no hover; the e2e reads it). */
-    trVetoHint(): string {
-      const veto = this.trVeto;
-      return veto === undefined ? '' :
-        translateTextWithParams('${0}: your terraform rating is the highest (${1}) — rating gains are not counted', [veto.law, String(veto.tr)]);
-    },
-    /** The card behind the Pristar mark — its name in the hint, its key on the token. */
-    pristarCard(): CardName {
-      return CardName.PRISTAR;
-    },
-    /** The rating cell's hint: each standing mark's one sentence, joined by « · » when both stand (the veto first). */
-    trHint(): string {
-      const lines: Array<string> = [];
-      if (this.trVeto !== undefined) {
-        lines.push(this.trVetoHint);
-      }
-      if (this.trPristar !== undefined) {
-        lines.push(translateTextWithParams(PRISTAR_MARK_HINT[this.trPristar], [translateText(CardName.PRISTAR)]));
-      }
-      if (this.trSkip !== undefined) {
-        lines.push(translateTextWithParams(RATING_SKIP_MARK_HINT[this.trSkip], [translateText(CardName.PRESERVATION_PROGRAM)]));
-      }
-      return lines.join(' · ');
-    },
-    tr(): number {
-      // The rating rides the SAME reward hold as the rows (`rating` on the
-      // stock channel — the Parliament's Agenda bonus flies into this cell):
-      // committed − held until the chip's touchdown, the viewer's own only.
-      const held = this.own && panelRewardHold.active ? heldStock(RATING_RAIL_KEY) : 0;
-      return this.effectivePlayer.terraformRating - held;
-    },
-    /**
-     * Victory points (incl. TR) — the server recomputes the breakdown per response.
-     *
-     * The total INCLUDES the rating point for point, so it is a DERIVED cell of the one beside it: while a rating
-     * step is still held on its flight (that cell reads «committed − held»), the same step is held here. A derived
-     * cell that announced «+1» a second before the rating's own token landed told the result ahead of its cause, an
-     * inch from the number being withheld. Both tick on the one touchdown.
-     *
-     * …and the points a CARD RESOURCE brings its card (TR27: floaters onto a «1 VP / 2» card) are held the same way:
-     * the score includes them, so it ticks on the touchdown of the token that brings them (`heldVictoryPoints`).
-     */
-    vp(): number {
-      const held = this.own && panelRewardHold.active ? heldStock(RATING_RAIL_KEY) + heldVictoryPoints() : 0;
-      // THE START REVEAL (К-V6, TR55): the rating cell beside this one shows the STAGED rating while the corporation's
-      // bonus is applied step by step — the score includes the rating point for point, so it is staged with it and
-      // never announces a corp's starting TR before the TR cell's own step does.
-      const staged = this.effectivePlayer.terraformRating - this.player.terraformRating;
-      return this.player.victoryPointsBreakdown.total + staged - held;
-    },
-    /** The named cause beside the VP cell (the ledger's latest), while it is being read — the own seat only, never masked. */
-    vpReason(): {seq: number, lines: Array<VpReasonView>, more: number} | undefined {
-      const reason = this.vpShareState.reason;
-      if (!this.own || this.vpMasked || reason === undefined || reason.seq !== this.vpReasonSeq) {
-        return undefined;
-      }
-      return {seq: reason.seq, ...vpReasonViews(reason.lines)};
-    },
-    vpReasonMore(): string {
-      return translateTextWithParams('and ${0} more', [String(this.vpReason?.more ?? 0)]);
-    },
-    /**
-     * The VP mask, by seat:
-     *  - the OWN seat masks via the local «Приватный счёт» display pref
-     *    (passive-surface semantics — desktop LeftPlayerCard parity);
-     *  - an INSPECTED opponent (Information Workspace) masks when the game
-     *    rule hides other players' scores (`vpHidden` from the shell).
-     * The footprint never changes — the mask swaps in place of the number.
-     */
-    vpMasked(): boolean {
-      return this.own ? shouldMaskOwnPassiveVp(true) : this.vpHidden;
-    },
-    rows(): Array<ResourceRow> {
-      // THE MARSBOT SEAT — the SAME six rows, filled from the bot's real
-      // pools by the pure preparation layer (type-classified: colony
-      // storage + corp store land in their resource's row; the M€ supply
-      // keeps its meaning and the separate M€ stores ride the capsule).
-      // No badges/shields/production: those capabilities do not exist for
-      // the Automa, and their absence is paint, never geometry.
-      if (this.automa !== undefined) {
-        return marsBotStandardRows(this.player, this.automa).map((row): ResourceRow => ({
-          key: row.key,
-          value: row.value,
-          metricKey: row.metricKey,
-          store: row.store,
-        }));
-      }
-      const p = this.effectivePlayer;
-      // The RESOURCE-TRANSFER reward hold (consoleResourceTransfer): a metric
-      // whose reward chip is still IN FLIGHT displays committed − pending, so
-      // the commit doesn't fire its delta chip early — the chip's touchdown
-      // releases the hold and the value (+ delta chip) land at the contact.
-      // `panelRewardHold.active` is read so the computed tracks releases.
-      // The holds belong to the VIEWER's incoming chips — an inspected
-      // opponent's numbers must never be reduced by them.
-      const hold = this.own && panelRewardHold.active;
-      const stock = (key: string, v: number) => hold ? Math.max(0, v - heldStock(key)) : v;
-      const prod = (key: string, v: number) => hold ? v - heldProduction(key) : v;
-      // The MC-value badges ride the same computed so a value change (Advanced
-      // Alloys, a player switch) lands in the SAME patch as the numbers —
-      // never a frame with a stale rate. M€ (the unit itself) and energy
-      // never carry one by construction (absent from RailMcStandardKey).
-      const badges = this.mcBadges.standard;
-      // Protection rides the SAME computed as the numbers and the coins, so a
-      // gained shield, a changed rate and a changed stock always land in one
-      // patch — never a frame where the rail contradicts itself.
-      const shields = this.protections;
-      const mark = (key: string): {protection?: RailProtectionMark, productionProtection?: RailProtectionMark} => ({
-        protection: shields.stock[key as keyof typeof shields.stock],
-        productionProtection: shields.production[key as keyof typeof shields.production],
-      });
-      const row = (key: string, value: number, production: number, mcBadge?: RailMcBadge): ResourceRow =>
-        ({key, value: stock(key, value), metricKey: `${key}.stock`, production: prod(key, production), mcBadge, ...mark(key)});
-      return [
-        row('megacredits', p.megacredits, p.megacreditProduction),
-        row('steel', p.steel, p.steelProduction, badges.steel),
-        row('titanium', p.titanium, p.titaniumProduction, badges.titanium),
-        row('plants', p.plants, p.plantProduction, badges.plants),
-        row('energy', p.energy, p.energyProduction),
-        row('heat', p.heat, p.heatProduction, badges.heat),
-      ];
-    },
-    /** The displayed seat's payment-value badges (pure, memoized by model). */
-    mcBadges(): RailMcBadges {
-      return railMcBadges(this.effectivePlayer);
-    },
-    /** The displayed seat's protection marks (pure, memoized by model). */
-    protections(): RailProtections {
-      return railProtections(this.effectivePlayer);
-    },
-    /** The displayed seat's per-tag VP coefficients (pure, memoized by tableau). */
-    tagVp(): ReadonlyMap<CardTag, TagVpBadge> {
-      return tagVpBadges(this.effectivePlayer.tableau);
-    },
-    tagEntries(): Array<ConsoleTagEntry> {
-      // The FULL matrix — every tag available in this game, zeros included
-      // (fixed positions; zero cells render dimmed, never hidden). During the
-      // setup reveal the counts stage with the corp bonus (empty at baseline →
-      // the corporation's tags appear when it's applied), like the resources.
-      // The no-tag cell rides its OWN server field (Tags.numberOfCardsWithNoTags),
-      // which the staged override doesn't carry — a corporation is a card like
-      // any other and lands in it the moment the server counts it.
-      return consoleTagEntries(
-        this.gameTags, this.effectivePlayer.tags, this.effectivePlayer.noTagsCount, this.effectivePlayer.tagBonuses);
-    },
-    /** The dedicated MarsBot presentation is active (inspecting the bot seat). */
-    botMode(): boolean {
-      return this.automa !== undefined;
-    },
-    /**
-     * The МЕТКИ matrix for the DISPLAYED seat — ONE cell set for every
-     * participant (game.tags), so the block reads identically across an
-     * LB/RB switch. A human fills it from `tags.countAllTags`; the bot from
-     * its printed tracks (position = the engine's tag count); `na` marks a
-     * cell no bot track serves (wild / no-tag) — rendered as a dash.
-     */
-    matrixEntries(): Array<ConsoleTagMatrixCell> {
-      if (this.automa !== undefined) {
-        // MarsBot holds no law (it takes no seat in the parliament), so a bot
-        // cell can never carry an addition.
-        return marsBotTagEntries(this.gameTags, this.automa)
-          .map((e) => ({tag: e.tag, count: e.count ?? 0, na: e.count === undefined}));
-      }
-      return this.tagEntries.map((e) => ({tag: e.tag, count: e.count, na: false, bonus: e.bonus}));
-    },
-    /**
-     * Card-accumulated resources, in first-appearance order — the SAME
-     * derivation the desktop "ДОП. РЕСУРСЫ" panel uses, so the two surfaces
-     * stay in lockstep. Empty until the player unlocks a card resource.
-     */
-    extraGroups(): ReadonlyArray<AdditionalResourceRoleGroup> {
-      const groups = additionalResourceRoleGroups(this.player.tableau);
-      // Reward hold (see `rows`): an in-flight card-resource reward is
-      // subtracted until its chip lands on the chosen host / this satellite.
-      if (!this.own || !panelRewardHold.active) {
-        return groups;
-      }
-      return groups.map((g) => {
-        // SIGNED: a spend that leaves a card on its own flight (TR28's two fighters) is held as a negative —
-        // the satellite keeps them until the chip departs.
-        const held = heldCardResource(cardResourceKey(g.resource));
-        return held !== 0 ? {...g, total: Math.max(0, g.total - held)} : g;
-      });
-    },
-    /** The Information Workspace is up (open or still dismissing) — the
-     *  satellite is that mode's «Доп. ресурсы» zone and must stay standing
-     *  through the whole overlay lifetime (pixel contract). */
-    auxInfoActive(): boolean {
-      return infoModeState.open || infoModeState.closing;
-    },
-    /** Mounted only WITH content (board view and the info workspace alike):
-     *  an empty seat renders NO column — no ghost plate, no stray focus
-     *  ring (`infoZoneFocusable` skips the zone via `ctx.extras`). */
-    auxVisible(): boolean {
-      return this.auxCells.length > 0 && (this.boardVisible || this.auxInfoActive);
-    },
-    /** ONE cell list for both seats: the human's card-resource groups, the
-     *  bot's real CARD-TYPE pools (floaters + microbes/animals/cards +
-     *  the corp science store — standard-typed storage lives in the main
-     *  rows now) — same geometry, same delta-chip language, one TYPE-KEY
-     *  space so the semantic focus survives a seat switch, stable order. */
-    auxCells(): Array<AuxCell> {
-      const automa = this.automa;
-      if (automa !== undefined) {
-        return marsBotExtraGroups(automa, this.botCtx).map((g): AuxCell => ({
-          key: g.key,
-          iconClass: g.iconClass,
-          value: g.total,
-          metricKey: g.metricKey,
-        }));
-      }
-      return this.extraGroups.map((g): AuxCell => {
-        const protection = this.protections.cardResources.get(g.resource);
-        // The tender coin belongs to the PAYMENT role's chip alone; every other named role wears its own badge (PL-030).
-        const mcBadge = this.auxMcBadgeOf(g);
-        // …and a badge exists only where the type is SPLIT — an unsplit chip is the count it always was.
-        const roleBadge = g.split ? roleBadgeOf(g.role) : undefined;
-        // Two tender pools of one resource (PL-136): each coin names the tag it pays for.
-        const contextTag = g.unitSplit && g.role.kind === 'payment' ? CONTEXT_TAG[g.role.context] : undefined;
-        return {
-          key: g.key,
-          cards: g.cards.map((c) => c.name),
-          iconClass: `card-resource ${cardResourceCSS[g.resource]}`,
-          value: g.total,
-          metricKey: additionalResourceMetricKey(g.resource),
-          protection,
-          protectionAria: protection !== undefined ? this.auxProtectionAria(g) : undefined,
-          mcBadge,
-          mcAria: mcBadge !== undefined ? this.auxMcAria(g) : undefined,
-          roleBadge,
-          roleAria: roleBadge !== undefined ? this.auxRoleAria(g) : undefined,
-          ...(contextTag === undefined ? {} : {contextTag}),
-        };
-      });
-    },
-    auxRootClasses(): Record<string, boolean> {
-      const info = this.auxInfoActive;
-      const state = extrasExplorerUi;
-      return {
-        // The workspace context: caption + interactivity + state paint.
-        'con-res-aux--info': info,
-        // The summary ring stands on the group (A opens the extras screen).
-        'con-res-aux--focused': info && infoModeState.open &&
-          infoModeState.route === 'summary' && infoModeState.summaryFocus === 'extras',
-        // The extras screen is live — cells carry the cursor / selection.
-        'con-res-aux--live': info && infoModeState.open && infoModeState.route === 'extras',
-        'con-res-aux--typeszone': info && infoModeState.open &&
-          infoModeState.route === 'extras' && state.zone === 'types',
-      };
-    },
-    /** The end-of-generation energy→heat transition targets THIS player. */
-    conversionActive(): boolean {
-      const s = energyConversionState;
-      return s.active && s.color !== '' && s.color === this.player.color;
-    },
-  },
-  methods: {
-    /**
-     * THE RAIL RECEDES BEHIND A FORMULA (PL-139): while an action composer's stage stands, the rows its formula does
-     * not touch go quiet — the rail is context, the formula is the hero. Published by the composer
-     * (`consoleCardActionsUi.railFocus` — the rows of its cost / gain / forecast chips); `undefined` = every row lit.
-     */
-    railQuiet(key: string): boolean {
-      const focus = consoleCardActionsUi.railFocus;
-      return focus !== undefined && !this.botMode && !focus.includes(key);
-    },
-    /**
-     * A live CONVERSION PROMPT (Supercapacitors' amount) names this stock row
-     * as one of its two sides → the delicate pre-commit focus accent. Own rail
-     * only, and never while the transition itself plays (its own highlight
-     * takes over on the same rows).
-     */
-    convWatch(key: string): boolean {
-      if (!this.own || this.conversionActive) {
-        return false;
-      }
-      return conversionPromptUi.watchFrom === key || conversionPromptUi.watchTo === key;
-    },
-    /**
-     * 3+ characters (≥100, or a negative two-digit) step the score type down
-     * INSIDE its reserved slot — the header's geometry never moves with the
-     * digit count.
-     */
-    roleIconClass(icon: string | undefined): string {
-      return iconClassFor(icon);
-    },
-    wideClass(value: number): string {
-      return String(value).length >= 3 ? 'con-score__value--wide' : '';
-    },
-    /** 'source' (energy) / 'target' (heat) while the transition plays. */
-    conversionRole(key: string): '' | 'source' | 'target' {
-      if (!this.conversionActive) {
-        return '';
-      }
-      return key === 'energy' ? 'source' : key === 'heat' ? 'target' : '';
-    },
-    /** The overlay's anchor value — set ONLY on the live conversion rows. */
-    conversionAnchor(key: string): string | undefined {
-      return this.conversionRole(key) !== '' ? key : undefined;
-    },
-    /**
-     * The interpolated stock during the transition (energy counts DOWN,
-     * heat counts UP in lock-step with the arrow — desktop PlayerResource
-     * parity); the canonical value otherwise.
-     */
-    displayValue(row: ResourceRow): number {
-      const role = this.conversionRole(row.key);
-      if (role === 'source') {
-        return Math.round(energyConversionState.displayEnergy);
-      }
-      if (role === 'target') {
-        return Math.round(energyConversionState.displayHeat);
-      }
-      return row.value;
-    },
-    /**
-     * True when the plants/heat cell should show the convert-ready highlight.
-     * Suppressed while the end-of-generation energy→heat transition plays so
-     * the two glows never compete on the heat cell.
-     */
-    convertReady(key: string): boolean {
-      if (this.conversionActive) {
-        return false;
-      }
-      if (key === 'plants') {
-        return this.convertPlants;
-      }
-      if (key === 'heat') {
-        return this.convertHeat;
-      }
-      return false;
-    },
-    /** The focus/selection paint of one satellite cell. On the SUMMARY the
-     *  chips are individual ring stops (the workspace focus family rides
-     *  the concrete chip, never a group plate); on the extras screen the
-     *  column is the type navigation (cursor + selection). */
-    auxCellClasses(c: AuxCell, index: number): Record<string, boolean> {
-      if (!this.auxInfoActive || !infoModeState.open) {
-        return {};
-      }
-      if (infoModeState.route === 'summary') {
-        const chipCount = this.auxCells.length;
-        const at = Math.min(infoModeState.extrasCursor, Math.max(0, chipCount - 1));
-        return {
-          'con-res-aux__cell--cursor': infoModeState.summaryFocus === 'extras' && index === at,
-        };
-      }
-      if (infoModeState.route !== 'extras') {
-        return {};
-      }
-      return {
-        'con-res-aux__cell--cursor': extrasExplorerUi.zone === 'types' && index === extrasExplorerUi.typeCursor,
-        'con-res-aux__cell--active': c.key === extrasExplorerUi.typeKey,
-      };
-    },
-    /** A satellite cell press (mouse/touch — the pad routes through the
-     *  shell): hand the intent up, the shell owns the route change. */
-    auxCellPressed(c: AuxCell, index: number): void {
-      if (!this.auxInfoActive || !infoModeState.open) {
-        return;
-      }
-      this.$emit('aux-press', {key: c.key, index});
-    },
-    /**
-     * The protection sentence. The glyph states «shielded»; the label states
-     * the RULE — and for `half` that rule is «a removal still happens, its
-     * amount is halved, rounded up», never «half of it is safe».
-     */
-    protectionAria(subject: string, mark: RailProtectionMark, extra?: string): string {
-      const rule = mark.kind === 'half' ?
-        translateText('When targeted you lose half of it, rounded up') :
-        mark.kind === 'partial' ?
-          translateText('Opponents cannot remove the protected part') :
-          translateText('Opponents cannot remove it');
-      const parts = [`${subject}: ${translateText('protected')}`, rule];
-      if (extra !== undefined) {
-        parts.push(extra);
-      }
-      if (mark.sources.length > 0) {
-        parts.push(translateTextWithParams('Sources: ${0}', [mark.sources.map((c) => translateText(c)).join(', ')]));
-      }
-      return parts.join(' · ');
-    },
-    stockProtectionAria(row: ResourceRow): string {
-      return row.protection === undefined ? '' :
-        this.protectionAria(translateText(paymentUnitLabel(row.key)), row.protection);
-    },
-    /** Production wording is its own verb — «reduce», not «remove». */
-    productionProtectionAria(row: ResourceRow): string {
-      const mark = row.productionProtection;
-      if (mark === undefined) {
-        return '';
-      }
-      const parts = [
-        `${translateText(paymentUnitLabel(row.key))} · ${translateText('Production')}: ${translateText('protected')}`,
-        translateText('Opponents cannot reduce it'),
-      ];
-      if (mark.sources.length > 0) {
-        parts.push(translateTextWithParams('Sources: ${0}', [mark.sources.map((c) => translateText(c)).join(', ')]));
-      }
-      return parts.join(' · ');
-    },
-    /**
-     * The separate-store capsule's sentence: WHERE the M€ sits apart from
-     * the supply and that it spends by its own rule — the visible capsule
-     * carries only the cube + the number.
-     */
-    storeAria(row: ResourceRow): string {
-      const store = row.store;
-      if (store === undefined) {
-        return '';
-      }
-      const split = store.sources.map((s) => `${translateText(s.name)}: ${s.amount}`).join(' · ');
-      return translateTextWithParams('Stored separately: ${0}', [split]) +
-        ' · ' + translateText('Kept apart from the supply, spent by its own rule');
-    },
-    /**
-     * A chip aggregates every holder, so a PARTIAL mark must name the split —
-     * otherwise the shield would claim more than the rules give.
-     */
-    auxProtectionAria(group: AdditionalResourceRoleGroup): string {
-      const mark = this.protections.cardResources.get(group.resource);
-      if (mark === undefined) {
-        return '';
-      }
-      const extra = mark.kind === 'partial' ?
-        translateTextWithParams('Protected part of this stock: ${0} of ${1}',
-          [String(mark.protectedAmount ?? 0), String(mark.total ?? group.total)]) :
-        undefined;
-      return this.protectionAria(translateText(group.resource), mark, extra);
-    },
-    /** The VP badge for a МЕТКИ cell, if this tag is being scored right now. */
-    tagVpFor(tag: ConsoleTagCell): TagVpBadge | undefined {
-      // The no-tag counter is never a scoring tag — the map simply has no
-      // entry for it, so no branch is needed here.
-      return this.tagVp.get(tag as CardTag);
-    },
-    /**
-     * The cell's couch-reader sentence. Every tag names itself through its own
-     * i18n key; the no-tag counter is the ABSENCE of one, so it carries a
-     * spelled-out label instead («Карты без меток: 3»). A bot cell no track
-     * serves says so instead of lying a number.
-     */
-    cellAria(entry: ConsoleTagMatrixCell): string {
-      // The tag's name is the console's ONE word for it (`tagLabel` — the same
-      // the reasons and the score formulas use); the lowercase enum key read
-      // «микроб» beside «Бактерия» elsewhere (PL-096).
-      const name = entry.tag === NO_TAG_CELL ? this.$t('Cards with no tags') : (tagLabel(entry.tag) || this.$t(entry.tag));
-      if (entry.na) {
-        return name + ': ' + this.$t('not tracked');
-      }
-      const counted = name + ': ' + this.cellCount(entry);
-      // The addition NAMES its source — a number that appeared from nowhere is
-      // exactly the thing this rail must never show.
-      return entry.bonus === undefined ? counted : counted + ' · ' + this.bonusNote(entry.bonus);
-    },
-    /**
-     * The digit a cell shows: the count that is COUNTED right now — the
-     * printed tags plus what a standing rule adds (the Scientists' wild tag,
-     * R&D Funding's science tags). The source is the emblem on the medallion,
-     * so «0 +1» never needs to be printed: a cell the rule raises is a
-     * collected cell, lit like one.
-     */
-    cellCount(entry: ConsoleTagMatrixCell): number {
-      return entry.count + (entry.bonus?.amount ?? 0);
-    },
-    /**
-     * «+2 от закона «Финансирование исследований»» — the one sentence the
-     * addition is read by, in the hint and in the aria label alike.
-     */
-    bonusNote(bonus: ConsoleTagBonus): string {
-      if (bonus.party !== undefined) {
-        return translateTextWithParams('+${0} from the party effect «${1}»', [
-          String(bonus.amount),
-          translateText(partyNameKey(bonus.party)),
-        ]);
-      }
-      return translateTextWithParams('+${0} from the law «${1}»', [
-        String(bonus.amount),
-        translateText(resolutionName(bonus.resolution as ResolutionId)),
-      ]);
-    },
-    /**
-     * The party an addition comes from: the party effect's own party, or the
-     * party of the law that grants it (R&D Funding is a Scientists law).
-     */
-    bonusParty(bonus: ConsoleTagBonus): string | undefined {
-      if (bonus.party !== undefined) {
-        return bonus.party;
-      }
-      return bonus.resolution === undefined ? undefined : getResolution(bonus.resolution as ResolutionId)?.party;
-    },
-    /** The source party's emblem for the medallion's corner badge. */
-    bonusEmblem(bonus: ConsoleTagBonus): string | undefined {
-      const party = this.bonusParty(bonus);
-      return party === undefined ? undefined : requirementPartyEmblem(party as PartyName);
-    },
-    /** The e2e / probe hook: the party effect's party, else the law's id. */
-    bonusSourceKey(bonus: ConsoleTagBonus): string {
-      return bonus.party ?? bonus.resolution ?? '';
-    },
-    /**
-     * The MC badge's full accessible sentence: per fact «Сталь: 1 ед. = 3 M€
-     * за карты с меткой „Строительство“», facts joined. The visible badge
-     * carries only the figure — this label is the whole meaning.
-     */
-    mcBadgeAria(badge: RailMcBadge): string {
-      return badge.facts
-        .map((f) => translateTextWithParams('${0}: 1 unit pays ${1} M€ ${2}', [
-          // Two pools of one resource on ONE chip (EVA + Construction Mechs) name their cards.
-          translateText(paymentLaneLabel(f.unit, badge.facts)),
-          String(f.rate),
-          translateText(MC_CONTEXT_KEYS[f.context]),
-        ]))
-        .join(' · ');
-    },
-    /**
-     * Aux chips aggregate EVERY holder of a resource type; the badge's rate
-     * only applies to the enabling card's own stock, so when the two counts
-     * differ the label names the honest split (visual stays one clean coin).
-     */
-    /** The role badge's sentence: the role's caption and what one unit is worth here (PL-030). */
-    auxRoleAria(group: AdditionalResourceRoleGroup): string {
-      const role = group.role;
-      if (role.kind === 'store') {
-        return '';
-      }
-      const caption = translateText(holderRoleCaption(role) ?? '');
-      const reading = holderRoleReading(role);
-      if (reading === undefined) {
-        return caption;
-      }
-      // ONE renderer for a reading with params (PL-160) — the tail with its own params too.
-      return `${caption} · ${readingLineText(reading)}`;
-    },
-    /**
-     * The tender coin of a chip: the resource's card-bound badge — or, when two tender pools of the resource stand on
-     * the table (PL-136), the ONE unit's own coin out of it, so EVA's Space mechs and Construction Mechs' Building
-     * mechs each state their own rate and their own «where».
-     */
-    auxMcBadgeOf(group: AdditionalResourceRoleGroup): RailMcBadge | undefined {
-      if (group.role.kind !== 'payment') {
-        return undefined;
-      }
-      const merged = this.mcBadges.cardBound.get(group.resource);
-      return group.unitSplit ? badgeForUnit(merged, group.role.unit) : merged;
-    },
-    auxMcAria(group: AdditionalResourceRoleGroup): string {
-      const badge = this.auxMcBadgeOf(group);
-      if (badge === undefined) {
-        return '';
-      }
-      let label = this.mcBadgeAria(badge);
-      const spendable = badge.facts.reduce((sum, f) => sum + (f.spendableAmount ?? 0), 0);
-      if (spendable < group.total) {
-        label += ' · ' + translateTextWithParams('Spendable from this stock: ${0} of ${1}', [String(spendable), String(group.total)]);
-      }
-      return label;
-    },
-    /** The VP badge's accessible sentence: the rate + the scoring cards. */
-    tagVpAria(badge: TagVpBadge): string {
-      const sources = badge.sources.map((s) => translateText(s.card)).join(', ');
-      return translateTextWithParams('Converted into VP by played cards, current rate: ${0}', [badge.text]) +
-        ' · ' + translateTextWithParams('Sources: ${0}', [sources]);
-    },
-  },
+  });
+});
+const auxRootClasses = computed((): Record<string, boolean> => {
+  const info = auxInfoActive.value;
+  const state = extrasExplorerUi;
+  return {
+    // The workspace context: caption + interactivity + state paint.
+    'con-res-aux--info': info,
+    // The summary ring stands on the group (A opens the extras screen).
+    'con-res-aux--focused': info && infoModeState.open &&
+      infoModeState.route === 'summary' && infoModeState.summaryFocus === 'extras',
+    // The extras screen is live — cells carry the cursor / selection.
+    'con-res-aux--live': info && infoModeState.open && infoModeState.route === 'extras',
+    'con-res-aux--typeszone': info && infoModeState.open &&
+      infoModeState.route === 'extras' && state.zone === 'types',
+  };
+});
+/** The end-of-generation energy→heat transition targets THIS player. */
+const conversionActive = computed((): boolean => {
+  const s = energyConversionState;
+  return s.active && s.color !== '' && s.color === props.player.color;
+});
+
+/**
+ * THE RAIL RECEDES BEHIND A FORMULA (PL-139): while an action composer's stage stands, the rows its formula does
+ * not touch go quiet — the rail is context, the formula is the hero. Published by the composer
+ * (`consoleCardActionsUi.railFocus` — the rows of its cost / gain / forecast chips); `undefined` = every row lit.
+ */
+function railQuiet(key: string): boolean {
+  const focus = consoleCardActionsUi.railFocus;
+  return focus !== undefined && !botMode.value && !focus.includes(key);
+}
+/**
+ * A live CONVERSION PROMPT (Supercapacitors' amount) names this stock row
+ * as one of its two sides → the delicate pre-commit focus accent. Own rail
+ * only, and never while the transition itself plays (its own highlight
+ * takes over on the same rows).
+ */
+function convWatch(key: string): boolean {
+  if (!props.own || conversionActive.value) {
+    return false;
+  }
+  return conversionPromptUi.watchFrom === key || conversionPromptUi.watchTo === key;
+}
+/**
+ * 3+ characters (≥100, or a negative two-digit) step the score type down
+ * INSIDE its reserved slot — the header's geometry never moves with the
+ * digit count.
+ */
+function roleIconClass(icon: string | undefined): string {
+  return iconClassFor(icon);
+}
+function wideClass(value: number): string {
+  return String(value).length >= 3 ? 'con-score__value--wide' : '';
+}
+/** 'source' (energy) / 'target' (heat) while the transition plays. */
+function conversionRole(key: string): '' | 'source' | 'target' {
+  if (!conversionActive.value) {
+    return '';
+  }
+  return key === 'energy' ? 'source' : key === 'heat' ? 'target' : '';
+}
+/** The overlay's anchor value — set ONLY on the live conversion rows. */
+function conversionAnchor(key: string): string | undefined {
+  return conversionRole(key) !== '' ? key : undefined;
+}
+/**
+ * The interpolated stock during the transition (energy counts DOWN,
+ * heat counts UP in lock-step with the arrow — desktop PlayerResource
+ * parity); the canonical value otherwise.
+ */
+function displayValue(row: ResourceRow): number {
+  const role = conversionRole(row.key);
+  if (role === 'source') {
+    return Math.round(energyConversionState.displayEnergy);
+  }
+  if (role === 'target') {
+    return Math.round(energyConversionState.displayHeat);
+  }
+  return row.value;
+}
+/**
+ * True when the plants/heat cell should show the convert-ready highlight.
+ * Suppressed while the end-of-generation energy→heat transition plays so
+ * the two glows never compete on the heat cell.
+ */
+function convertReady(key: string): boolean {
+  if (conversionActive.value) {
+    return false;
+  }
+  if (key === 'plants') {
+    return props.convertPlants;
+  }
+  if (key === 'heat') {
+    return props.convertHeat;
+  }
+  return false;
+}
+/** The focus/selection paint of one satellite cell. On the SUMMARY the
+ *  chips are individual ring stops (the workspace focus family rides
+ *  the concrete chip, never a group plate); on the extras screen the
+ *  column is the type navigation (cursor + selection). */
+function auxCellClasses(c: AuxCell, index: number): Record<string, boolean> {
+  if (!auxInfoActive.value || !infoModeState.open) {
+    return {};
+  }
+  if (infoModeState.route === 'summary') {
+    const chipCount = auxCells.value.length;
+    const at = Math.min(infoModeState.extrasCursor, Math.max(0, chipCount - 1));
+    return {
+      'con-res-aux__cell--cursor': infoModeState.summaryFocus === 'extras' && index === at,
+    };
+  }
+  if (infoModeState.route !== 'extras') {
+    return {};
+  }
+  return {
+    'con-res-aux__cell--cursor': extrasExplorerUi.zone === 'types' && index === extrasExplorerUi.typeCursor,
+    'con-res-aux__cell--active': c.key === extrasExplorerUi.typeKey,
+  };
+}
+/** A satellite cell press (mouse/touch — the pad routes through the
+ *  shell): hand the intent up, the shell owns the route change. */
+function auxCellPressed(c: AuxCell, index: number): void {
+  if (!auxInfoActive.value || !infoModeState.open) {
+    return;
+  }
+  emit('aux-press', {key: c.key, index});
+}
+/**
+ * The protection sentence. The glyph states «shielded»; the label states
+ * the RULE — and for `half` that rule is «a removal still happens, its
+ * amount is halved, rounded up», never «half of it is safe».
+ */
+function protectionAria(subject: string, mark: RailProtectionMark, extra?: string): string {
+  const rule = mark.kind === 'half' ?
+    translateText('When targeted you lose half of it, rounded up') :
+    mark.kind === 'partial' ?
+      translateText('Opponents cannot remove the protected part') :
+      translateText('Opponents cannot remove it');
+  const parts = [`${subject}: ${translateText('protected')}`, rule];
+  if (extra !== undefined) {
+    parts.push(extra);
+  }
+  if (mark.sources.length > 0) {
+    parts.push(translateTextWithParams('Sources: ${0}', [mark.sources.map((c) => translateText(c)).join(', ')]));
+  }
+  return parts.join(' · ');
+}
+function stockProtectionAria(row: ResourceRow): string {
+  return row.protection === undefined ? '' :
+    protectionAria(translateText(paymentUnitLabel(row.key)), row.protection);
+}
+/** Production wording is its own verb — «reduce», not «remove». */
+function productionProtectionAria(row: ResourceRow): string {
+  const mark = row.productionProtection;
+  if (mark === undefined) {
+    return '';
+  }
+  const parts = [
+    `${translateText(paymentUnitLabel(row.key))} · ${translateText('Production')}: ${translateText('protected')}`,
+    translateText('Opponents cannot reduce it'),
+  ];
+  if (mark.sources.length > 0) {
+    parts.push(translateTextWithParams('Sources: ${0}', [mark.sources.map((c) => translateText(c)).join(', ')]));
+  }
+  return parts.join(' · ');
+}
+/**
+ * The separate-store capsule's sentence: WHERE the M€ sits apart from
+ * the supply and that it spends by its own rule — the visible capsule
+ * carries only the cube + the number.
+ */
+function storeAria(row: ResourceRow): string {
+  const store = row.store;
+  if (store === undefined) {
+    return '';
+  }
+  const split = store.sources.map((s) => `${translateText(s.name)}: ${s.amount}`).join(' · ');
+  return translateTextWithParams('Stored separately: ${0}', [split]) +
+    ' · ' + translateText('Kept apart from the supply, spent by its own rule');
+}
+/**
+ * A chip aggregates every holder, so a PARTIAL mark must name the split —
+ * otherwise the shield would claim more than the rules give.
+ */
+function auxProtectionAria(group: AdditionalResourceRoleGroup): string {
+  const mark = protections.value.cardResources.get(group.resource);
+  if (mark === undefined) {
+    return '';
+  }
+  const extra = mark.kind === 'partial' ?
+    translateTextWithParams('Protected part of this stock: ${0} of ${1}',
+      [String(mark.protectedAmount ?? 0), String(mark.total ?? group.total)]) :
+    undefined;
+  return protectionAria(translateText(group.resource), mark, extra);
+}
+/** The VP badge for a МЕТКИ cell, if this tag is being scored right now. */
+function tagVpFor(tag: ConsoleTagCell): TagVpBadge | undefined {
+  // The no-tag counter is never a scoring tag — the map simply has no
+  // entry for it, so no branch is needed here.
+  return tagVp.value.get(tag as CardTag);
+}
+/**
+ * The cell's couch-reader sentence. Every tag names itself through its own
+ * i18n key; the no-tag counter is the ABSENCE of one, so it carries a
+ * spelled-out label instead («Карты без меток: 3»). A bot cell no track
+ * serves says so instead of lying a number.
+ */
+function cellAria(entry: ConsoleTagMatrixCell): string {
+  // The tag's name is the console's ONE word for it (`tagLabel` — the same
+  // the reasons and the score formulas use); the lowercase enum key read
+  // «микроб» beside «Бактерия» elsewhere (PL-096).
+  const name = entry.tag === NO_TAG_CELL ? $t('Cards with no tags') : (tagLabel(entry.tag) || $t(entry.tag));
+  if (entry.na) {
+    return name + ': ' + $t('not tracked');
+  }
+  const counted = name + ': ' + cellCount(entry);
+  // The addition NAMES its source — a number that appeared from nowhere is
+  // exactly the thing this rail must never show.
+  return entry.bonus === undefined ? counted : counted + ' · ' + bonusNote(entry.bonus);
+}
+/**
+ * The digit a cell shows: the count that is COUNTED right now — the
+ * printed tags plus what a standing rule adds (the Scientists' wild tag,
+ * R&D Funding's science tags). The source is the emblem on the medallion,
+ * so «0 +1» never needs to be printed: a cell the rule raises is a
+ * collected cell, lit like one.
+ */
+function cellCount(entry: ConsoleTagMatrixCell): number {
+  return entry.count + (entry.bonus?.amount ?? 0);
+}
+/**
+ * «+2 от закона «Финансирование исследований»» — the one sentence the
+ * addition is read by, in the hint and in the aria label alike.
+ */
+function bonusNote(bonus: ConsoleTagBonus): string {
+  if (bonus.party !== undefined) {
+    return translateTextWithParams('+${0} from the party effect «${1}»', [
+      String(bonus.amount),
+      translateText(partyNameKey(bonus.party)),
+    ]);
+  }
+  return translateTextWithParams('+${0} from the law «${1}»', [
+    String(bonus.amount),
+    translateText(resolutionName(bonus.resolution as ResolutionId)),
+  ]);
+}
+/**
+ * The party an addition comes from: the party effect's own party, or the
+ * party of the law that grants it (R&D Funding is a Scientists law).
+ */
+function bonusParty(bonus: ConsoleTagBonus): string | undefined {
+  if (bonus.party !== undefined) {
+    return bonus.party;
+  }
+  return bonus.resolution === undefined ? undefined : getResolution(bonus.resolution as ResolutionId)?.party;
+}
+/** The source party's emblem for the medallion's corner badge. */
+function bonusEmblem(bonus: ConsoleTagBonus): string | undefined {
+  const party = bonusParty(bonus);
+  return party === undefined ? undefined : requirementPartyEmblem(party as PartyName);
+}
+/** The e2e / probe hook: the party effect's party, else the law's id. */
+function bonusSourceKey(bonus: ConsoleTagBonus): string {
+  return bonus.party ?? bonus.resolution ?? '';
+}
+/**
+ * The MC badge's full accessible sentence: per fact «Сталь: 1 ед. = 3 M€
+ * за карты с меткой „Строительство“», facts joined. The visible badge
+ * carries only the figure — this label is the whole meaning.
+ */
+function mcBadgeAria(badge: RailMcBadge): string {
+  return badge.facts
+    .map((f) => translateTextWithParams('${0}: 1 unit pays ${1} M€ ${2}', [
+      // Two pools of one resource on ONE chip (EVA + Construction Mechs) name their cards.
+      translateText(paymentLaneLabel(f.unit, badge.facts)),
+      String(f.rate),
+      translateText(MC_CONTEXT_KEYS[f.context]),
+    ]))
+    .join(' · ');
+}
+/**
+ * Aux chips aggregate EVERY holder of a resource type; the badge's rate
+ * only applies to the enabling card's own stock, so when the two counts
+ * differ the label names the honest split (visual stays one clean coin).
+ */
+/** The role badge's sentence: the role's caption and what one unit is worth here (PL-030). */
+function auxRoleAria(group: AdditionalResourceRoleGroup): string {
+  const role = group.role;
+  if (role.kind === 'store') {
+    return '';
+  }
+  const caption = translateText(holderRoleCaption(role) ?? '');
+  const reading = holderRoleReading(role);
+  if (reading === undefined) {
+    return caption;
+  }
+  // ONE renderer for a reading with params (PL-160) — the tail with its own params too.
+  return `${caption} · ${readingLineText(reading)}`;
+}
+/**
+ * The tender coin of a chip: the resource's card-bound badge — or, when two tender pools of the resource stand on
+ * the table (PL-136), the ONE unit's own coin out of it, so EVA's Space mechs and Construction Mechs' Building
+ * mechs each state their own rate and their own «where».
+ */
+function auxMcBadgeOf(group: AdditionalResourceRoleGroup): RailMcBadge | undefined {
+  if (group.role.kind !== 'payment') {
+    return undefined;
+  }
+  const merged = mcBadges.value.cardBound.get(group.resource);
+  return group.unitSplit ? badgeForUnit(merged, group.role.unit) : merged;
+}
+function auxMcAria(group: AdditionalResourceRoleGroup): string {
+  const badge = auxMcBadgeOf(group);
+  if (badge === undefined) {
+    return '';
+  }
+  let label = mcBadgeAria(badge);
+  const spendable = badge.facts.reduce((sum, f) => sum + (f.spendableAmount ?? 0), 0);
+  if (spendable < group.total) {
+    label += ' · ' + translateTextWithParams('Spendable from this stock: ${0} of ${1}', [String(spendable), String(group.total)]);
+  }
+  return label;
+}
+/** The VP badge's accessible sentence: the rate + the scoring cards. */
+function tagVpAria(badge: TagVpBadge): string {
+  const sources = badge.sources.map((s) => translateText(s.card)).join(', ');
+  return translateTextWithParams('Converted into VP by played cards, current rate: ${0}', [badge.text]) +
+    ' · ' + translateTextWithParams('Sources: ${0}', [sources]);
+}
+
+/** A new named cause from the ledger: shown for one read (the reading time is not motion — never scaled). */
+watch(() => vpShareState.reason?.seq, (seq: number | undefined): void => {
+  if (seq === undefined || !props.own) {
+    return;
+  }
+  vpReasonSeq.value = seq;
+  cancelVpReason();
+  cancelVpReason = flow.after(VP_REASON_READ_MS, 'the VP cause has been read', () => {
+    vpReasonSeq.value = 0;
+  });
+});
+watch(() => props.player.color, (): void => {
+  auxSwapMode.value = true;
+  cancelAuxSwap();
+  cancelAuxSwap = flow.after(320, 'the seat switch\'s in-place swap ends', () => {
+    auxSwapMode.value = false;
+  });
 });
 </script>
