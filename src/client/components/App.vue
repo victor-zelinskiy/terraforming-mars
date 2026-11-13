@@ -263,25 +263,35 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineAsyncComponent, defineComponent, nextTick} from 'vue';
+<script setup lang="ts">
+import {computed, nextTick, onErrorCaptured, onMounted, provide, ref, useTemplateRef, watch} from 'vue';
 import * as constants from '@/common/constants';
 
-const AdminHome = defineAsyncComponent(() => import(/* webpackChunkName: "admin" */ '@/client/components/admin/AdminHome.vue'));
-const CardList = defineAsyncComponent(() => import(/* webpackChunkName: "card-list" */ '@/client/components/cardlist/CardList.vue'));
-const GameEnd = defineAsyncComponent(() => import(/* webpackChunkName: "game-end" */ '@/client/components/GameEnd.vue'));
-const GameHome = defineAsyncComponent(() => import(/* webpackChunkName: "game-home" */ '@/client/components/GameHome.vue'));
-const GamesOverview = defineAsyncComponent(() => import(/* webpackChunkName: "games-overview" */ '@/client/components/GamesOverview.vue'));
-const Help = defineAsyncComponent(() => import(/* webpackChunkName: "help" */ '@/client/components/help/Help.vue'));
-const LoginHome = defineAsyncComponent(() => import(/* webpackChunkName: "login" */ '@/client/components/auth/LoginHome.vue'));
-const LoadGameForm = defineAsyncComponent(() => import(/* webpackChunkName: "load-game" */ '@/client/components/LoadGameForm.vue'));
-const StartScreen = defineAsyncComponent(() => import(/* webpackChunkName: "start-screen" */ '@/client/components/StartScreen.vue'));
-// Console-native pre-game shells (state-based pad navigation, no DOM focus) —
-// the ONLY menu / create screens since desktop-removal wave 3.
-const ConsoleMainMenu = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleMainMenu.vue'));
-const ConsoleCreateGame = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleCreateGame.vue'));
-const ConsoleCampaignMap = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/campaign/ConsoleCampaignMap.vue'));
-const ConsoleMenuZoomHost = defineAsyncComponent(() => import(/* webpackChunkName: "console-menu" */ '@/client/components/console/menu/ConsoleMenuZoomHost.vue'));
+// The root's lazy screens and layers (each a chunk of its own) — module state, so they live in the sibling
+// `appAsync.ts`: a wrapper keeps the component it resolved, and must be created once per module.
+import {
+  AdminHome,
+  CardList,
+  CardLorePlayground,
+  ConsoleCampaignMap,
+  ConsoleCreateGame,
+  ConsoleMainMenu,
+  ConsoleMenuZoomHost,
+  ConsolePlaygroundStand,
+  ConsoleResolutionsPlayground,
+  ConsoleShell,
+  ConsoleTendersPlayground,
+  EndgameExperience,
+  GameEnd,
+  GameHome,
+  GamesOverview,
+  Help,
+  LoadGameForm,
+  LoginHome,
+  PlayerCubePlayground,
+  PremiumCardsPlayground,
+  StartScreen,
+} from '@/client/components/appAsync';
 import AppBootLoader from '@/client/components/boot/AppBootLoader.vue';
 import {bootWarmupState, shouldRunBootWarmup, beginBootWarmup} from '@/client/components/boot/bootWarmupState';
 import RematchLayer from '@/client/components/rematch/RematchLayer.vue';
@@ -311,17 +321,6 @@ import {
   isHazardCleanupActive,
   runHazardCleanup,
 } from '@/client/components/feedback/hazardCleanupTransition';
-// Premium end-of-game experience (winner reveal + full-screen results). Async
-// so its charts / tabs only download once a game actually ends.
-const EndgameExperience = defineAsyncComponent(() => import(/* webpackChunkName: "endgame" */ '@/client/components/endgame/EndgameExperience.vue'));
-const PlayerCubePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "player-cube-playground" */ '@/client/components/PlayerCubePlayground.vue'));
-const ConsoleResolutionsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "resolutions-playground" */ '@/client/components/console/parliament/ConsoleResolutionsPlayground.vue'));
-const ConsoleTendersPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "tenders-playground" */ '@/client/components/console/campaign/ConsoleTendersPlayground.vue'));
-const PremiumCardsPlayground = defineAsyncComponent(() => import(/* webpackChunkName: "premium-cards-playground" */ '@/client/components/premiumCard/PremiumCardsPlayground.vue'));
-const CardLorePlayground = defineAsyncComponent(() => import(/* webpackChunkName: "card-lore-playground" */ '@/client/components/card/CardLorePlayground.vue'));
-// The console-native stand chassis the deep-linked showcases render inside.
-// Async with the console-menu chunk weight class: only dev URLs ever mount it.
-const ConsolePlaygroundStand = defineAsyncComponent(() => import(/* webpackChunkName: "playground-stand" */ '@/client/components/console/menu/ConsolePlaygroundStand.vue'));
 import NotificationLayer from '@/client/components/notifications/NotificationLayer.vue';
 import GamepadLayer from '@/client/components/gamepad/GamepadLayer.vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -329,7 +328,6 @@ import {consoleModeState, requestConsoleFullscreen} from '@/client/console/conso
 import {showConsoleAlert} from '@/client/console/consoleSystemAlertState';
 import ConsoleLoadingScreen from '@/client/components/console/ConsoleLoadingScreen.vue';
 import {beginLoading, consumeBootFlags, dismissStaticBootCurtain, failLoading, loadingScreenState, noteScreenResolved} from '@/client/console/loadingScreenState';
-const ConsoleShell = defineAsyncComponent(() => import(/* webpackChunkName: "console-shell" */ '@/client/components/console/ConsoleShell.vue'));
 import TurnHandoffLayer from '@/client/components/overview/TurnHandoffLayer.vue';
 import EffectDetailOverlay from '@/client/components/notifications/EffectDetailOverlay.vue';
 import RealtimeLayer from '@/client/components/realtime/RealtimeLayer.vue';
@@ -382,47 +380,15 @@ import {endgameAvailable} from '@/client/components/endgame/endgameState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {APP_ROOT, AppRoot, AppScreen} from '@/client/components/appRoot';
+import type {TransportRoot} from '@/client/console/transport/gameTransport';
 import {Color} from '@/common/Color';
 import {hasShowModal, showModal, windowHasHTMLDialogElement} from './HTMLDialogElementCompatibility';
 
 import dialogPolyfill from 'dialog-polyfill';
 import {setDocumentTitle} from '../utils/documentTitle';
+import {vI18n} from '@/client/directives/vDirectives';
 
 type Screen = AppScreen;
-export type MainAppData = {
-    screen: Screen;
-    /**
-     * playerView is set once the app component has loaded.
-     * Vue only watches properties that exist initially. When we
-     * use this property we can't trigger vue state without
-     * a refactor.
-     */
-    playerView?: PlayerViewModel;
-    // The transient-UI RESET EPOCH. Historically this was the `:key` of the
-    // desktop <player-home> — bumping it forced a full remount per server
-    // response. Since the no-remount rework
-    // (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md) nothing is keyed on it:
-    // a bump only triggers the explicit transient-UI reset (close overlays /
-    // pending prompts — the same reset the remount used to perform
-    // implicitly). The bump SITES and the preserve guards around them are
-    // unchanged, so "when the UI resets" is byte-identical to the legacy
-    // behavior.
-    playerkey: number;
-    isServerSideRequestInProgress: boolean;
-    componentsVisibility: {[x: string]: boolean};
-    game: SimpleGameModel | undefined;
-    login: string | undefined;
-    /**
-     * Live list of players the SERVER is currently waiting on for input.
-     * Updated every poll from `/api/waitingFor` (see WaitingFor.vue), even
-     * while the viewer themselves is mid-prompt — that way the spinning
-     * cube and status label stay in sync across simultaneous-action phases
-     * (drafting / research) without forcing a full playerView refresh that
-     * would reset the viewer's partial input state.
-     */
-    playersWaitingFor: ReadonlyArray<Color>;
-}
-
 // NOTE: this simplistic truncation to the last segment might cause issues if
 // this page starts supporting paths more than one level deep.
 function getLastPathSegment() {
@@ -430,684 +396,699 @@ function getLastPathSegment() {
   return window.location.pathname.replace(/.*\//g, '');
 }
 
-export default defineComponent({
-  name: 'App',
-  // THE APP ROOT'S PORT (`appRoot.ts`): what the tree may ask of its root comes DOWN by injection — a
-  // `<script setup>` / Vapor component has no `$root` to climb to. The assignment is the proof that this
-  // instance provides every member of the port.
-  provide() {
-    const root: AppRoot = this;
-    return {[APP_ROOT as symbol]: root};
-  },
-  data(): MainAppData {
-    return {
-      screen: 'empty',
-      playerkey: 0,
-      isServerSideRequestInProgress: false,
-      componentsVisibility: {
-        'milestones': true,
-        'awards_list': true,
-        'tags_concise': false,
-        'pinned_player_0': false,
-        'pinned_player_1': false,
-        'pinned_player_2': false,
-        'pinned_player_3': false,
-        'pinned_player_4': false,
-        'turmoil_parties': false,
-      } as {[x: string]: boolean},
-      game: undefined as SimpleGameModel | undefined,
-      playerView: undefined,
-      login: undefined,
-      playersWaitingFor: [] as ReadonlyArray<Color>,
-    };
-  },
-  components: {
-    'console-main-menu': ConsoleMainMenu,
-    'console-create-game': ConsoleCreateGame,
-    'console-campaign-map': ConsoleCampaignMap,
-    'console-menu-zoom-host': ConsoleMenuZoomHost,
-    'start-screen': StartScreen,
-    'load-game-form': LoadGameForm,
-    'game-home': GameHome,
-    'game-end': GameEnd,
-    'games-overview': GamesOverview,
-    'card-list': CardList,
-    'help': Help,
-    'admin-home': AdminHome,
-    'login-home': LoginHome,
-    AppBootLoader,
-    EnergyConversionOverlay,
-    HazardCleanupOverlay,
-    RematchLayer,
-    GameExitButton,
-    EndgameExperience,
-    PlayerCubePlayground,
-    ConsoleResolutionsPlayground,
-    ConsoleTendersPlayground,
-    PremiumCardsPlayground,
-    CardLorePlayground,
-    ConsolePlaygroundStand,
-    NotificationLayer,
-    GamepadLayer,
-    ConsoleShell,
-    ConsoleLoadingScreen,
-    TurnHandoffLayer,
-    EffectDetailOverlay,
-    RealtimeLayer,
-    DesktopUpdateOverlay,
-    AdditionalResourceDetailOverlay,
-    GameAtmosphere,
-  },
-  watch: {
-    // SCENE TRANSITION: route resolution only REPORTS itself to the
-    // director. A readiness-aware destination (game shell / menu / campaign
-    // map) then holds the curtain until its first frame is genuinely ready
-    // (armSceneDestination + released holds + a settled paint); a legacy
-    // screen reveals immediately — it has no boot work. A failed load keeps
-    // the curtain in its error/retry state instead.
-    screen(now: Screen) {
-      if (now !== 'empty' && loadingScreenState.active && loadingScreenState.error === '') {
-        noteScreenResolved(now);
-      }
-    },
-    // The reveal is the moment the player is ABOUT to see the destination —
-    // the right moment to hand a lost fullscreen to the shared trusted-
-    // gesture retry (the next real click/key brings it back; on the Xbox
-    // browser the pad sends real keys).
-    'loadingScreenState.phase'(phase: string) {
-      if (phase === 'revealing' && loadingScreenState.fullscreenLost && consoleModeState.enabled) {
-        requestConsoleFullscreen();
-        loadingScreenState.fullscreenLost = false;
-      }
-    },
-    // Single point that reconciles the server's reveal list into the
-    // module-level drawnCardsState, regardless of WHICH update path replaced
-    // playerView (poll App.update, POST-input WaitingFor.updatePlayerView,
-    // DraftFlowOverlay, the reveal ack response, undo). playerView is replaced
-    // wholesale each update so this shallow watch always fires. On initial
-    // load / refresh the server queue is empty (transient) → no modal.
-    playerView(view: PlayerViewModel | undefined) {
-      reconcileDrawnCards(view?.cardDrawReveals ?? []);
-      // Refresh the global name→live-resource map so card popups / fullscreens
-      // (journal, etc.) render the real resource count, not 0. See
-      // liveCardResources.ts. Fires on EVERY playerView replacement.
-      setLiveCardResources(view);
-      // Bind the PER-GAME "private score" preference to this game (the viewer's
-      // participant id). Idempotent — only a real game switch re-loads the
-      // stored value; leaving the game (view undefined) resets it to OFF. The
-      // central spot both shells (console + desktop) share.
-      bindPrivateScoreGame(view?.id);
-    },
-  },
-  computed: {
-    // Console Mode flag (module reactive) exposed to the template — drives
-    // the ConsoleShell vs PlayerHome shell split (docs/CONSOLE_MODE_CONCEPT.md).
-    consoleModeState() {
-      return consoleModeState;
-    },
-    loadingScreenState() {
-      return loadingScreenState;
-    },
-    bootWarmupState() {
-      return bootWarmupState;
-    },
-    // Participant id (playerId) for the realtime transport layer.
-    // Empty string when not on a game screen, which keeps the layer inert.
-    realtimeParticipantId(): string {
-      return this.playerView?.id ?? '';
-    },
-    // Dev-only: render the player-cube playground when the URL carries
-    // `?cubePlayground`. Never shown in normal play.
-    showCubePlayground(): boolean {
-      return window.location.search.includes('cubePlayground');
-    },
-    // Dev-only: render the premium-card-face showcase when the URL carries
-    // `?premiumCardsPlayground`. Never shown in normal play.
-    showPremiumCardsPlayground(): boolean {
-      return window.location.search.includes('premiumCardsPlayground');
-    },
-    // Dev-only: render the archive-entry (card lore) showcase when the URL
-    // carries `?lorePlayground`. Never shown in normal play.
-    showLorePlayground(): boolean {
-      return window.location.search.includes('lorePlayground');
-    },
-    // Dev-only: the Turmoil Redux resolutions showcase (`?resolutionsPlayground`).
-    showResolutionsPlayground(): boolean {
-      return window.location.search.includes('resolutionsPlayground');
-    },
-    // Dev-only: the campaign tenders showcase (`?tendersPlayground`).
-    showTendersPlayground(): boolean {
-      return window.location.search.includes('tendersPlayground');
-    },
-    /** Any deep-linked dev stand is up — the main menu must not mount under it
-     *  (single console-intent slot; see the template note). */
-    playgroundDeepLinkActive(): boolean {
-      return this.showCubePlayground || this.showPremiumCardsPlayground || this.showLorePlayground || this.showResolutionsPlayground || this.showTendersPlayground;
-    },
-    // The active player view ONLY when its game has ended —
-    // drives the App-level EndgameExperience mount. Undefined mid-game.
-    endgameView(): ViewModel | undefined {
-      if (this.screen === 'player-home' && endgameAvailable(this.playerView)) {
-        return this.playerView;
-      }
-      return undefined;
-    },
-    endgameViewerColor(): Color | undefined {
-      if (this.screen === 'player-home') {
-        return this.playerView?.thisPlayer?.color;
-      }
-      return undefined;
-    },
-    // The CONSOLE SHELL owns the post-game (its own scoring workspace): the
-    // desktop endgame surfaces go headless there.
-    endgameConsoleNative(): boolean {
-      return this.screen === 'player-home' && consoleModeState.enabled;
-    },
-  },
-  methods: {
-    /** B on a deep-linked dev stand: drop the ?…Playground query → main menu. */
-    closePlaygroundDeepLink(): void {
-      window.location.assign('/');
-    },
-    /** The resolutions stand's pad target — the slotted showcase (resolved late: it mounts async). */
-    resolutionsPlaygroundTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
-      return (this.$refs.resolutionsPg ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-    },
-    /** The tenders stand's pad target — the same late resolution. */
-    tendersPlaygroundTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
-      return (this.$refs.tendersPg ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-    },
-    showAlert(title: string, message: string, cb: () => void = () => {}): void {
-      // Console mode: the native <dialog> OK button is unreachable by the pad,
-      // so a server error froze the shell. Route to the pad-navigable
-      // console-native alert instead (dismiss with A/B).
-      if (consoleModeState.enabled) {
-        showConsoleAlert(title, message, cb);
-        return;
-      }
-      const dialogElement: HTMLElement | null = document.getElementById('alert-dialog');
-      const buttonElement: HTMLElement | null = document.getElementById('alert-dialog-button');
-      const messageElement: HTMLElement | null = document.getElementById('alert-dialog-message');
-      const titleElement: HTMLElement | null = document.getElementById('alert-dialog-title');
-      if (buttonElement !== null && titleElement !== null && messageElement !== null && dialogElement !== null && hasShowModal(dialogElement)) {
-        messageElement.innerHTML = $t(message);
-        titleElement.textContent = $t(title);
-        const handler = () => {
-          buttonElement.removeEventListener('click', handler);
-          cb();
-        };
-        buttonElement.addEventListener('click', handler);
-        showModal(dialogElement);
-      } else {
-        alert(message);
-        cb();
-      }
-    },
-    setVisibilityState(targetVar: string, isVisible: boolean) {
-      if (isVisible === this.getVisibilityState(targetVar)) {
-        return;
-      }
-      (this as unknown as MainAppData).componentsVisibility[targetVar] = isVisible;
-    },
-    getVisibilityState(targetVar: string): boolean {
-      return (this as unknown as MainAppData).componentsVisibility[targetVar] ? true : false;
-    },
-    update(path: typeof paths.PLAYER): void {
-      const currentPathname = getLastPathSegment();
-      const app = this as unknown as MainAppData;
+defineOptions({name: 'App'});
 
-      const url = apiUrl('api/' + path) + identitySearch().replace('&noredirect', '');
+const resolutionsPg = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('resolutionsPg');
+const tendersPg = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('tendersPg');
+const screen = ref<Screen>('empty');
+// The transient-UI RESET EPOCH. Historically this was the `:key` of the
+// desktop <player-home> — bumping it forced a full remount per server
+// response. Since the no-remount rework
+// (docs/REMOUNT_ANIMATION_REWORK_DESIGN.md) nothing is keyed on it:
+// a bump only triggers the explicit transient-UI reset (close overlays /
+// pending prompts — the same reset the remount used to perform
+// implicitly). The bump SITES and the preserve guards around them are
+// unchanged, so "when the UI resets" is byte-identical to the legacy
+// behavior.
+const playerkey = ref(0);
+// A request to the server is in flight — WRITTEN by the game transport through the root's port (below).
+const isServerSideRequestInProgress = ref(false);
+const componentsVisibility = ref<{[x: string]: boolean}>({
+  'milestones': true,
+  'awards_list': true,
+  'tags_concise': false,
+  'pinned_player_0': false,
+  'pinned_player_1': false,
+  'pinned_player_2': false,
+  'pinned_player_3': false,
+  'pinned_player_4': false,
+  'turmoil_parties': false,
+} as {[x: string]: boolean});
+const game = ref<SimpleGameModel | undefined>(undefined);
+/** The applied view of the running game — set once the route has loaded it, replaced by every update. */
+const playerView = ref<PlayerViewModel | undefined>(undefined);
+/**
+ * Live list of players the SERVER is currently waiting on for input.
+ * Updated every poll from `/api/waitingFor` (the game transport writes it through the root's port), even
+ * while the viewer themselves is mid-prompt — that way the spinning
+ * cube and status label stay in sync across simultaneous-action phases
+ * (drafting / research) without forcing a full playerView refresh that
+ * would reset the viewer's partial input state.
+ */
+const playersWaitingFor = ref<ReadonlyArray<Color>>([]);
 
-      // Ingest-phase marks (perfMarks — no-ops unless ?perf=1): the probe reads
-      // fetch → json → commit → flush deltas off these to attribute a model
-      // update's cost between network/server, parse, reactive apply and render.
-      perfMark('ingest:fetch:start');
-      fetch(url)
-        .then((resp) => {
-          if (!resp.ok) {
-            throw new Error(`Error getting game data: ${resp.statusText}`);
-          }
-          perfMark('ingest:fetch:resp');
-          return resp.json();
-        })
-        .then((model: ViewModel) => {
-          perfMark('ingest:json:done');
-          /*
-           * Re-entrancy guard for live scene transitions: while one is
-           * animating we must NOT swap playerView (that would pop panels to
-           * their final values mid-animation and open the next-phase modal
-           * over a running scene).
-           *
-           * ⚠️ A REFUSED REFRESH IS A DEBT, NEVER A DROP. This response
-           * routinely carries the player's own next prompt (the bot's paced
-           * turn resolves ~200 ms after a turn-ending card play and lands
-           * exactly while that play's cinematic runs), and the WS wake that
-           * triggered this fetch is already consumed — with a healthy socket
-           * the next fallback poll is ~20 s away. Dropping the model here
-           * measured 21.4 s from «screen free» to «control back». So the
-           * refusal parks a retry that re-runs `update()` the moment the
-           * scenes release (bounded — see deferredViewRefresh.ts).
-           */
-          const sceneBlocked = () =>
-            isEnergyConversionActive() || isHazardCleanupActive() || isTradeFleetActive() ||
-            isHydroMarkerActive() || isPlayedHeroActive() || isPatentSaleActive() ||
-            isCardDiscardActive() || isTilePlacementActive() || isNomadMoveActive();
-          if (sceneBlocked()) {
-            armDeferredViewRefresh(sceneBlocked, () => this.update(path));
-            return;
-          }
-          // A refresh is committing — any parked retry is superseded by it.
-          disarmDeferredViewRefresh();
-          /*
-           * Same preserve logic as WaitingFor.updatePlayerView:
-           * if we're continuing within a card-pick flow, swap
-           * playerView reactively without bumping the reset epoch so
-           * the flow's transient UI survives the update.
-           */
-          const preserveCardPickModal =
-            shouldPreserveCardPickModal(model as PlayerViewModel) ||
-            shouldPreserveInitialDraftOverlay(model as PlayerViewModel) ||
-            shouldPreserveSaleOverlay();
-          /*
-           * Informational overlays (cards, played cards, achievements,
-           * awards, effects, actions, colonies, VP) live inside
-           * <player-home>. A poll-driven update from another player's action
-           * used to bump playerkey and destroy that subtree, resetting
-           * PlayerHome.data().activeOverlay / coloniesOverlayOpen to closed.
-           *
-           * Skip only THIS App.update reset-epoch path while an overlay is
-           * already open. The fresh playerView is still swapped reactively, so board,
-           * side panels and the overlay contents update in place. Own action
-           * POST responses still go through WaitingFor.updatePlayerView(), so
-           * the existing "submit from overlay closes the overlay" behavior is
-           * preserved.
-           */
-          // Desktop-removal wave 1: PlayerHome (and its overlay stack) no
-          // longer mounts, so there is no desktop overlay left to preserve.
-          const preserveOpenOverlay = false;
-          /*
-           * Arm the Board Placement Animation gate if this polling
-           * update introduces a new tile vs. the currently displayed
-           * spaces — this is the path that fires when ANOTHER player
-           * places a tile (your client just polled and got back a
-           * playerView with their new tile). Without arming, the
-           * fresh tile would commit reactively with the animation
-           * gate still closed (it only opens for the local player's
-           * own submits via WaitingFor.fetchPlayerInput), and
-           * observers would see the tile pop in instantly.
-           *
-           * Skipped on initial load (`app.playerView === undefined`)
-           * — that's the F5 case
-           * where the whole board hydrates at once; armed should
-           * stay false so existing tiles silently establish their
-           * baseline rather than triggering N parallel impact rings.
-           */
-          const prevView: ViewModel | undefined = app.playerView;
-
-          const commit = () => {
-            perfMark('playerView:commit');
-            // Every rail row held BEFORE this block (P46 — «СРАБАТЫВАНИЕ КАРТЫ» on this road): the card-reaction seeder,
-            // run after every seeder below, tells a reaction row a host of THIS block holds from one nobody holds.
-            const railHeldBefore = snapshotRailHolds();
-            openReactionSeedBlock();
-            /*
-             * Console: fresh tiles from OTHER players (this poll path is how
-             * an opponent's placement arrives; the staged bot batch's LAST
-             * turn also commits through this closure) land with the premium
-             * REMOTE flight. Staged in this SAME synchronous block as the
-             * commit below, so the tiles commit HIDDEN behind the reveal
-             * hold and each becomes visible at its proxy's touchdown — the
-             * generic impact entrance below then only serves hazards. A
-             * no-op on desktop / reduced motion / no fresh tiles.
-             */
-            stageRemotePlacements(prevView?.game.spaces, model.game.spaces, {
-              aresExtension: model.game.gameOptions?.expansions?.ares === true,
-              gamePhase: model.game.phase,
-              viewerColor: (model as PlayerViewModel).thisPlayer?.color,
-              aresGrants: model.game.aresAdjacencyGrants,
-              // …and the server's word that a removal + a landing are ONE move (TR14).
-              tileMoves: model.game.tileMoves,
-              // …and its per-neighbour card payouts (TR21 — another seat's cities paying their card).
-              cardPayouts: model.game.cardAdjacencyPayouts,
-              prevCardPayouts: prevView?.game.cardAdjacencyPayouts,
-              viewerCards: (model as PlayerViewModel).thisPlayer?.tableau,
-              // …and its record of who placed each tile and what the cell paid them (the tile language).
-              placements: model.game.tilePlacements,
-              prevPlacements: prevView?.game.tilePlacements,
-              players: prevView !== undefined ? {before: prevView.players, after: model.players} : undefined,
-            });
-            // …and a REMOTE nomad hop (another player moved the camp — this
-            // poll path is how it arrives; an undo restore lands here too and
-            // the camp honestly walks back). Staged in this same synchronous
-            // block: the source keeps a ghost, the destination commits
-            // hidden, the committed token reveals at the proxy's touchdown.
-            stageRemoteNomadMove(prevView?.game.spaces, model.game.spaces, {
-              gamePhase: model.game.phase,
-            });
-            // …and an OVERLAY MARKER an opponent just placed (a cathedral in
-            // one of their cities) gets its own landing instead of popping in —
-            // as does a PLAYER MARKER on an empty cell (their Land Claim / an
-            // Arcadian community), which is a colour-only diff and so matches
-            // neither of the tile-shaped predicates.
-            if (prevView !== undefined &&
-                (shouldHoldForTilePlacement(prevView.game.spaces, model.game.spaces) ||
-                 shouldHoldForMarkerPlacement(prevView.game.spaces, model.game.spaces) ||
-                 shouldHoldForOwnerCubePlacement(prevView.game.spaces, model.game.spaces))) {
-              armPlacementAnimations();
-            }
-            // Structural sharing (viewSnapshotShare.ts): the assigned tree is
-            // content-identical to the fresh snapshot, but unchanged branches
-            // keep their previous references so child components skip
-            // re-rendering. The ROOT identity still changes, so this watcher-
-            // visible commit behaves exactly like a wholesale swap.
-            /*
-             * THE PROMPT-PRESERVING EPOCH RULE (mid-prompt refresh, mechanism
-             * A of presentation-reconciliation): a fetched view whose
-             * `waitingFor.promptId` equals the displayed one is the SAME
-             * server prompt object still standing — the refresh only brings
-             * the world around it up to date (another player's tile, moved
-             * scales, opponents' tableaus). Bumping the reset epoch would
-             * wipe the viewer's partial input (selections, picks, a locked
-             * placement cell) for a prompt that never changed, so the epoch
-             * is skipped — the generalization of the named preserve guards
-             * above from «these known pick flows» to «any unchanged prompt».
-             * A CHANGED promptId keeps the ordinary bump: the server
-             * replaced the prompt, and stale partial input must reset.
-             */
-            const prevPromptId = (prevView as PlayerViewModel | undefined)?.waitingFor?.promptId;
-            const promptPreserved = prevPromptId !== undefined &&
-              prevPromptId === (model as PlayerViewModel).waitingFor?.promptId;
-            // THE PARLIAMENT SITTING's reward (Turmoil Redux): this poll path is
-            // how the viewer learns that ANOTHER seat's gate answer paid them —
-            // the rail is held in the SAME synchronous block as the commit
-            // (the transport's `seedRewardHolds` does the same for the
-            // viewer's own submit), or the panel flushes a phantom −N chip.
-            // FIRST: a frame that RAN the sitting (another seat's pass) covers the board until the sitting stands.
-            noteSittingRise(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // A NEW sitting drops the old holds BEFORE anything of this frame seeds its own (the reward ledger's included).
-            enterParliamentSittingHolds(model as PlayerViewModel);
-            seedParliamentRewardHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and its display holds (v2): the other seat's answer moved the phase — the table as it stood is
-            // kept until the director's beats have moved it (the same block as the apply, on THIS path too).
-            seedParliamentSittingHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and a cube that appeared on a party's BANNER (Septem Tribus:redux) — held until its flight lands.
-            seedBannerCubeHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and «ПРЕДСЕДАТЕЛЬСТВО»'s (a quest gate answered through a poll / WS frame).
-            seedChairmanQuestHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and «КАРЬЕРА»'s (a card's walk whose answer arrived through a poll / WS frame — the same block as the apply).
-            seedAgendaWalkHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and a cell's chosen standard resource (Amazonis Planitia) — another seat's answer reaches this screen here.
-            seedCellResourceHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and «ДЕЛЕГАТЫ»'s (a card's rally of neutral delegates, TR31 — the same block as the apply).
-            seedNeutralRallyHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and a stripped support area (TR12) whose answer arrived through this frame (a parked tail landing later).
-            seedSupportDiscardHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and a figure a card took off the table (TR72) whose record arrived through this frame.
-            seedDelegateRemovalHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and a rival's delegate that arrived through this poll / WS frame (the same block as the apply).
-            seedRivalVotes(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and a deck-check verdict's stock reward (TR13) whose answer arrived through this frame.
-            seedRevealRewardHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and a CARD ACTION's rail half (T09 / BY — H5): the first view that PAYS the press may come through THIS road
-            // (a WebSocket wake or a poll applied ahead of the submit's own answer) — seeded only in the transport's block,
-            // the half was never held, never flown, and the shell folded at once. Idempotent: a plan is seeded once, and a
-            // view that has paid nothing of it yet (the press's own state) leaves the plan armed for the view that does.
-            seedActionCommitRail(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and a MILESTONE / AWARD's price (PL-1621) — the view that pays the claim may come through this road too.
-            seedMaPriceRail(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and the START STAGE's first action (TR81): its rail half, armed at the press, paid by whichever view comes first.
-            seedFirstActionRail(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and a COLONY ROSTER somebody else changed (a tile replaced / added / removed): held at the old table
-            // while the colony grid on screen plays the planet out and in — only when that grid stands.
-            seedColonyRosterHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and a CITY somebody laid on a colony tile (TR22): landed on its seat — only when a seat of that tile stands.
-            seedColonyCityHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and «МАРС ТЕРРАФОРМИРОВАН» (TR70): the SERVER's word arriving through a poll / WS frame — a rival's
-            // last step, a world move — arms the scene and holds the scales' last step in the park from this very
-            // block (the transport's `seedRewardHolds` does the same for the viewer's own submit).
-            seedTerraformedScene(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and what a SCALE STEP paid (TR24 — another seat's raise, a world move, the Solar Phase): the
-            // viewer's counter waits for the tokens born at the marker (the same block as the apply).
-            seedScaleStepRewardHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and a PARAMETER SWING another seat played (TR47 «ОБРАТНЫЙ ХОД» — the server's record): every seat watches
-            // the same story — the scene's start is presented from this very block, or the fall paints before its beat.
-            seedParameterSwings(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and the DECK COUNTER (PL-088): a draw that arrived through this frame keeps its cards on the counter
-            // until the flight that deals them (the same block as the apply).
-            seedDeckDrawHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            // …and THE SCORE CELL (TR55), the very LAST: what another seat's move did to the viewer's score is
-            // attributed off the server's two breakdowns — a share whose cause a scene will show (a rival's tile
-            // beside the viewer's city) waits for its token, every other one ticks now with its cause named.
-            // …and WHICH CARD REACTED to a move that arrived through this frame (P46 Colony Trade Hub, 2026-11-03 — «и на
-            // срабатывания от хода других игроков»): another seat's colony on the viewer's hub, a rival's play waking a
-            // card, a bot's lone turn — the viewer's own reactors play their chain (the cause named on a plate when the
-            // cause is another seat's), a rival's reactor rises at its chip. Before this road seeded nothing, so a card
-            // reaction reached the screen only through the viewer's OWN submit (the transport's `seedRewardHolds`). Only
-            // records under ANOTHER seat's root are taken here: the viewer's own press is the transport's (its hosts
-            // claim their answers in the submit's block — a WS frame that outran the answer must not tell it first).
-            const viewerColor = (model as PlayerViewModel).thisPlayer?.color;
-            seedCardReactionHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel, railHeldBefore,
-              {only: (r) => r.root.player !== undefined && r.root.player !== viewerColor});
-            seedVpShares(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
-            app.playerView = nextViewSnapshot(app.playerView, model as PlayerViewModel);
-            setTranslationContext(app.playerView);
-            if (!preserveCardPickModal && !preserveOpenOverlay && !promptPreserved) {
-              app.playerkey++;
-            }
-            // When the user navigated directly to /the-end, keep that screen.
-            if (currentPathname === paths.THE_END) {
-              app.screen = 'the-end';
-            } else {
-              app.screen = 'player-home';
-            }
-            if (currentPathname !== path && currentPathname !== paths.THE_END) {
-              window.history.replaceState(
-                model,
-                `${constants.APP_NAME} - Game`,
-                `${path}?id=${model.id}`,
-              );
-            }
-            perfMark('ingest:commit:done');
-            void nextTick(() => perfMark('ingest:flush:done'));
-          };
-
-          /*
-           * MarsBot turns (poll path) — NOTIFICATION-FIRST, and STAGED only
-           * when there is something to SEQUENCE. A response carrying SEVERAL
-           * fresh turns is not committed here: it is buffered by the staging
-           * window, and each turn's visual footprint (tiles / parameters /
-           * resource deltas) applies to the PRESENTED view exactly when that
-           * turn's compact card is DELIVERED; the LAST pending turn's delivery
-           * performs this full `commit`. Consequences never precede their
-           * explanation, and the queued turns' changes are never visible ahead
-           * of their card. While a window is open, later polls only refresh the
-           * buffered latest (also handled inside — returns true).
-           *
-           * A response carrying ONE fresh turn falls through to the immediate
-           * commit like any other: there is no order to keep, and buffering it
-           * only made the player wait out the card's own delivery for their own
-           * next prompt. So does a response with no fresh turns and no window.
-           */
-          if (presentFreshBotTurns(prevView, model as PlayerViewModel, {commitLatest: commit})) {
-            return;
-          }
-          /*
-           * Energy→heat conversion gate (poll path). When ANOTHER player's
-           * action advanced the game into production, the viewer's own
-           * conversion arrives via this poll. Play the paired animation and
-           * hold the commit (and therefore the research / draft / endgame
-           * screen, which all key off playerView) until it finishes. The
-           * re-entrancy guard above keeps a concurrent poll from committing
-           * mid-animation.
-           */
-          // Desktop-removal wave 1: the desktop staged setup reveal
-          // (primeStartSetupReveal) is gone — the console carries the beat
-          // through the deferred corporationPlay + hero landing.
-          const conversionEvent = detectEnergyConversion(prevView, model as PlayerViewModel);
-          if (conversionEvent !== undefined) {
-            runEnergyConversion(conversionEvent).then(() => {
-              commit();
-              nextTick(() => endEnergyConversion());
-            });
-            return;
-          }
-          /*
-           * Hazard-cleanup gate (poll path). When ANOTHER player builds over a
-           * hazard, the viewer sees it via this poll — play the
-           * cleanup sequence and hold the commit until it finishes, so the
-           * opponent's cleanup is just as legible as the viewer's own. The
-           * re-entrancy guard above stops a concurrent poll committing mid-run;
-           * the shared dedup set stops a double-run with the viewer's own submit.
-           */
-          const hazardCleanups = detectHazardCleanup(prevView, model as ViewModel);
-          if (hazardCleanups.length > 0 && prevView !== undefined) {
-            runHazardCleanup(
-              hazardCleanups,
-              () => applyHazardTileSwap(prevView.game.spaces, model.game.spaces, hazardCleanups),
-            ).then(() => {
-              commit();
-              nextTick(() => endHazardCleanup());
-            });
-            return;
-          }
-          commit();
-        })
-        .catch((err) => {
-          // Under the loading curtain the failure becomes the premium
-          // error/retry state (P10) — never a bare browser alert there.
-          if (loadingScreenState.active) {
-            failLoading('Error getting game data');
-          } else {
-            alert('Error getting game data');
-          }
-          console.error(err);
-        });
-    },
-    updatePlayer() {
-      this.update(paths.PLAYER);
-    },
-    // In-app SPA routing: resolve the `screen` (and trigger the right data load)
-    // from the CURRENT url. Called on initial mount, on in-app navigation
-    // (`navigateInApp`), and on browser back/forward (`popstate`). Faithfully
-    // reproduces the historical mount-time resolution.
-    applyRoute(): void {
-      const currentPathname = getLastPathSegment();
-      const app = this as unknown as MainAppData & {updatePlayer(): void};
-      if (currentPathname === paths.PLAYER) {
-        app.updatePlayer();
-      } else if (currentPathname === paths.THE_END) {
-        app.updatePlayer();
-      } else if (currentPathname === paths.GAME) {
-        const url = apiUrl(paths.API_GAME) + identitySearch();
-        fetch(url)
-          .then((resp) => {
-            if (!resp.ok) {
-              throw new Error(`Error getting game data: ${resp.statusText}`);
-            }
-            return resp.json();
-          })
-          .then((appGame: SimpleGameModel) => {
-            app.screen = 'game-home';
-            app.game = appGame;
-            window.history.replaceState(
-              appGame,
-              `${constants.APP_NAME} - Game`,
-              `${paths.GAME}?id=${appGame.id}`,
-            );
-          })
-          .catch((err) => {
-            alert('Error getting game data');
-            console.error(err);
-          });
-      } else if (currentPathname === paths.GAMES_OVERVIEW) {
-        app.screen = 'games-overview';
-      } else if (currentPathname === paths.NEW_GAME) {
-        // Desktop-removal wave 3: the upstream desktop create form is gone.
-        // The URL keeps working — it lands in the same console creator.
-        app.screen = 'premium-create-game';
-      } else if (currentPathname === paths.NEW_GAME_PREMIUM) {
-        app.screen = 'premium-create-game';
-      } else if (currentPathname === paths.CAMPAIGN) {
-        // Campaign mode: the Campaign Map — a console-native pre-game shell
-        // (also embedded as an endgame scene inside ConsoleShell).
-        app.screen = 'campaign';
-      } else if (currentPathname === paths.LOAD) {
-        app.screen = 'load';
-      } else if (currentPathname === paths.CARDS) {
-        app.screen = 'cards';
-      } else if (currentPathname === paths.HELP) {
-        app.screen = 'help';
-      } else if (currentPathname === paths.LEGACY) {
-        app.screen = 'start-screen';
-      } else if (currentPathname === paths.ADMIN) {
-        app.screen = 'admin';
-      } else if (currentPathname === paths.LOGIN) {
-        app.screen = 'login-home';
-      } else {
-        app.screen = 'main-menu';
-      }
-    },
-    // Navigate WITHOUT a full page reload: push a history entry, then re-resolve
-    // the screen from the new url. Used by the premium home↔create transitions
-    // (SPA-clean, Electron-ready). The GAME-BOUNDARY navigations (enter/leave a
-    // game) intentionally stay full reloads for now — a fresh page guarantees
-    // clean per-game module state; making them in-app needs a
-    // resetGameSessionState() audit (see WEBSOCKET_MIGRATION_PLAN §E-Phase 13).
-    navigateInApp(path: string): void {
-      window.history.pushState({}, '', path);
-      this.applyRoute();
-    },
-    onPopState(): void {
-      this.applyRoute();
-    },
-  },
-  mounted() {
-    setDocumentTitle();
-    // Premium launch screen + GPU shader warm-up — ONCE per session (survives the
-    // in-game reloads via sessionStorage). Overlays everything at z=13000 while it
-    // compiles the heavy Graphite pipelines; it does NOT block route/data loading
-    // (the real screen loads underneath and is revealed when the loader fades out).
-    if (shouldRunBootWarmup()) {
-      beginBootWarmup();
-    }
-    if (!windowHasHTMLDialogElement()) {
-      dialogPolyfill.registerDialog(document.getElementById('alert-dialog') as HTMLDialogElement);
-    }
-    // P10: raise the loading curtain BEFORE the first route resolution —
-    // either continuing the previous page's handoff (join / create / exit
-    // navigations set the sessionStorage flags) or covering a direct /
-    // reconnect load of a game page. The player never sees a raw texture.
-    const bootFlags = consumeBootFlags();
-    const pathNow = getLastPathSegment();
-    if (bootFlags !== undefined) {
-      beginLoading(bootFlags.stage, bootFlags.context, bootFlags.t0);
-    } else if (pathNow === paths.PLAYER || pathNow === paths.THE_END) {
-      beginLoading('sync');
-    } else {
-      // No transition on this boot — the static pre-Vue curtain (raised by
-      // the index.html inline script on the same conditions) must not
-      // outlive the decision. Normally the mounted Vue curtain replaces it;
-      // this is the belt for the storage-unavailable edge.
-      dismissStaticBootCurtain();
-    }
-    this.applyRoute();
-    // Browser back/forward re-resolves the screen in-app (no reload) for the
-    // navigations that use navigateInApp. App is the root and never unmounts,
-    // so no removal is needed.
-    window.addEventListener('popstate', this.onPopState);
-    // Desktop (Electron) update subscription — inert on the web (no desktopBridge).
-    initDesktopUpdates();
-  },
-  errorCaptured(err: unknown) {
-    // Chunk errors occur when the server is redeployed with new chunk names
-    // and the client doesn't know about them. In that case, reload the page.
-    if (err instanceof Error && err.name === 'ChunkLoadError') {
-      console.error(err);
-      // A RELEASE of the PAGE's scope: once OK is pressed the reload is owed, whatever game screen comes or goes.
-      this.showAlert('Page out of date', 'This page is out of date. Click OK to refresh it.', () => {
-        consoleAppScope().guarantee(100, 'the reload after a chunk load error', () => window.location.reload());
-      });
-    }
-  },
+// Participant id (playerId) for the realtime transport layer.
+// Empty string when not on a game screen, which keeps the layer inert.
+const realtimeParticipantId = computed((): string => {
+  return playerView.value?.id ?? '';
 });
+// Dev-only: render the player-cube playground when the URL carries
+// `?cubePlayground`. Never shown in normal play.
+const showCubePlayground = computed((): boolean => {
+  return window.location.search.includes('cubePlayground');
+});
+// Dev-only: render the premium-card-face showcase when the URL carries
+// `?premiumCardsPlayground`. Never shown in normal play.
+const showPremiumCardsPlayground = computed((): boolean => {
+  return window.location.search.includes('premiumCardsPlayground');
+});
+// Dev-only: render the archive-entry (card lore) showcase when the URL
+// carries `?lorePlayground`. Never shown in normal play.
+const showLorePlayground = computed((): boolean => {
+  return window.location.search.includes('lorePlayground');
+});
+// Dev-only: the Turmoil Redux resolutions showcase (`?resolutionsPlayground`).
+const showResolutionsPlayground = computed((): boolean => {
+  return window.location.search.includes('resolutionsPlayground');
+});
+// Dev-only: the campaign tenders showcase (`?tendersPlayground`).
+const showTendersPlayground = computed((): boolean => {
+  return window.location.search.includes('tendersPlayground');
+});
+/** Any deep-linked dev stand is up — the main menu must not mount under it
+ *  (single console-intent slot; see the template note). */
+const playgroundDeepLinkActive = computed((): boolean => {
+  return showCubePlayground.value || showPremiumCardsPlayground.value || showLorePlayground.value || showResolutionsPlayground.value || showTendersPlayground.value;
+});
+// The active player view ONLY when its game has ended —
+// drives the App-level EndgameExperience mount. Undefined mid-game.
+const endgameView = computed((): ViewModel | undefined => {
+  if (screen.value === 'player-home' && endgameAvailable(playerView.value)) {
+    return playerView.value;
+  }
+  return undefined;
+});
+const endgameViewerColor = computed((): Color | undefined => {
+  if (screen.value === 'player-home') {
+    return playerView.value?.thisPlayer?.color;
+  }
+  return undefined;
+});
+// The CONSOLE SHELL owns the post-game (its own scoring workspace): the
+// desktop endgame surfaces go headless there.
+const endgameConsoleNative = computed((): boolean => {
+  return screen.value === 'player-home' && consoleModeState.enabled;
+});
+
+/** B on a deep-linked dev stand: drop the ?…Playground query → main menu. */
+function closePlaygroundDeepLink(): void {
+  window.location.assign('/');
+}
+/** The resolutions stand's pad target — the slotted showcase (resolved late: it mounts async). */
+function resolutionsPlaygroundTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
+  return resolutionsPg.value ?? undefined;
+}
+/** The tenders stand's pad target — the same late resolution. */
+function tendersPlaygroundTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
+  return tendersPg.value ?? undefined;
+}
+function showAlert(title: string, message: string, cb: () => void = () => {}): void {
+  // Console mode: the native <dialog> OK button is unreachable by the pad,
+  // so a server error froze the shell. Route to the pad-navigable
+  // console-native alert instead (dismiss with A/B).
+  if (consoleModeState.enabled) {
+    showConsoleAlert(title, message, cb);
+    return;
+  }
+  const dialogElement: HTMLElement | null = document.getElementById('alert-dialog');
+  const buttonElement: HTMLElement | null = document.getElementById('alert-dialog-button');
+  const messageElement: HTMLElement | null = document.getElementById('alert-dialog-message');
+  const titleElement: HTMLElement | null = document.getElementById('alert-dialog-title');
+  if (buttonElement !== null && titleElement !== null && messageElement !== null && dialogElement !== null && hasShowModal(dialogElement)) {
+    messageElement.innerHTML = $t(message);
+    titleElement.textContent = $t(title);
+    const handler = () => {
+      buttonElement.removeEventListener('click', handler);
+      cb();
+    };
+    buttonElement.addEventListener('click', handler);
+    showModal(dialogElement);
+  } else {
+    alert(message);
+    cb();
+  }
+}
+function setVisibilityState(targetVar: string, isVisible: boolean) {
+  if (isVisible === getVisibilityState(targetVar)) {
+    return;
+  }
+  componentsVisibility.value[targetVar] = isVisible;
+}
+function getVisibilityState(targetVar: string): boolean {
+  return componentsVisibility.value[targetVar] ? true : false;
+}
+function update(path: typeof paths.PLAYER): void {
+  const currentPathname = getLastPathSegment();
+
+  const url = apiUrl('api/' + path) + identitySearch().replace('&noredirect', '');
+
+  // Ingest-phase marks (perfMarks — no-ops unless ?perf=1): the probe reads
+  // fetch → json → commit → flush deltas off these to attribute a model
+  // update's cost between network/server, parse, reactive apply and render.
+  perfMark('ingest:fetch:start');
+  fetch(url)
+    .then((resp) => {
+      if (!resp.ok) {
+        throw new Error(`Error getting game data: ${resp.statusText}`);
+      }
+      perfMark('ingest:fetch:resp');
+      return resp.json();
+    })
+    .then((model: ViewModel) => {
+      perfMark('ingest:json:done');
+      /*
+       * Re-entrancy guard for live scene transitions: while one is
+       * animating we must NOT swap playerView (that would pop panels to
+       * their final values mid-animation and open the next-phase modal
+       * over a running scene).
+       *
+       * ⚠️ A REFUSED REFRESH IS A DEBT, NEVER A DROP. This response
+       * routinely carries the player's own next prompt (the bot's paced
+       * turn resolves ~200 ms after a turn-ending card play and lands
+       * exactly while that play's cinematic runs), and the WS wake that
+       * triggered this fetch is already consumed — with a healthy socket
+       * the next fallback poll is ~20 s away. Dropping the model here
+       * measured 21.4 s from «screen free» to «control back». So the
+       * refusal parks a retry that re-runs `update()` the moment the
+       * scenes release (bounded — see deferredViewRefresh.ts).
+       */
+      const sceneBlocked = () =>
+        isEnergyConversionActive() || isHazardCleanupActive() || isTradeFleetActive() ||
+        isHydroMarkerActive() || isPlayedHeroActive() || isPatentSaleActive() ||
+        isCardDiscardActive() || isTilePlacementActive() || isNomadMoveActive();
+      if (sceneBlocked()) {
+        armDeferredViewRefresh(sceneBlocked, () => update(path));
+        return;
+      }
+      // A refresh is committing — any parked retry is superseded by it.
+      disarmDeferredViewRefresh();
+      /*
+       * Same preserve logic as WaitingFor.updatePlayerView:
+       * if we're continuing within a card-pick flow, swap
+       * playerView reactively without bumping the reset epoch so
+       * the flow's transient UI survives the update.
+       */
+      const preserveCardPickModal =
+        shouldPreserveCardPickModal(model as PlayerViewModel) ||
+        shouldPreserveInitialDraftOverlay(model as PlayerViewModel) ||
+        shouldPreserveSaleOverlay();
+      /*
+       * Informational overlays (cards, played cards, achievements,
+       * awards, effects, actions, colonies, VP) live inside
+       * <player-home>. A poll-driven update from another player's action
+       * used to bump playerkey and destroy that subtree, resetting
+       * PlayerHome.data().activeOverlay / coloniesOverlayOpen to closed.
+       *
+       * Skip only THIS App.update reset-epoch path while an overlay is
+       * already open. The fresh playerView is still swapped reactively, so board,
+       * side panels and the overlay contents update in place. Own action
+       * POST responses still go through WaitingFor.updatePlayerView(), so
+       * the existing "submit from overlay closes the overlay" behavior is
+       * preserved.
+       */
+      // Desktop-removal wave 1: PlayerHome (and its overlay stack) no
+      // longer mounts, so there is no desktop overlay left to preserve.
+      const preserveOpenOverlay = false;
+      /*
+       * Arm the Board Placement Animation gate if this polling
+       * update introduces a new tile vs. the currently displayed
+       * spaces — this is the path that fires when ANOTHER player
+       * places a tile (your client just polled and got back a
+       * playerView with their new tile). Without arming, the
+       * fresh tile would commit reactively with the animation
+       * gate still closed (it only opens for the local player's
+       * own submits via WaitingFor.fetchPlayerInput), and
+       * observers would see the tile pop in instantly.
+       *
+       * Skipped on initial load (`playerView === undefined`)
+       * — that's the F5 case
+       * where the whole board hydrates at once; armed should
+       * stay false so existing tiles silently establish their
+       * baseline rather than triggering N parallel impact rings.
+       */
+      const prevView: ViewModel | undefined = playerView.value;
+
+      const commit = () => {
+        perfMark('playerView:commit');
+        // Every rail row held BEFORE this block (P46 — «СРАБАТЫВАНИЕ КАРТЫ» on this road): the card-reaction seeder,
+        // run after every seeder below, tells a reaction row a host of THIS block holds from one nobody holds.
+        const railHeldBefore = snapshotRailHolds();
+        openReactionSeedBlock();
+        /*
+         * Console: fresh tiles from OTHER players (this poll path is how
+         * an opponent's placement arrives; the staged bot batch's LAST
+         * turn also commits through this closure) land with the premium
+         * REMOTE flight. Staged in this SAME synchronous block as the
+         * commit below, so the tiles commit HIDDEN behind the reveal
+         * hold and each becomes visible at its proxy's touchdown — the
+         * generic impact entrance below then only serves hazards. A
+         * no-op on desktop / reduced motion / no fresh tiles.
+         */
+        stageRemotePlacements(prevView?.game.spaces, model.game.spaces, {
+          aresExtension: model.game.gameOptions?.expansions?.ares === true,
+          gamePhase: model.game.phase,
+          viewerColor: (model as PlayerViewModel).thisPlayer?.color,
+          aresGrants: model.game.aresAdjacencyGrants,
+          // …and the server's word that a removal + a landing are ONE move (TR14).
+          tileMoves: model.game.tileMoves,
+          // …and its per-neighbour card payouts (TR21 — another seat's cities paying their card).
+          cardPayouts: model.game.cardAdjacencyPayouts,
+          prevCardPayouts: prevView?.game.cardAdjacencyPayouts,
+          viewerCards: (model as PlayerViewModel).thisPlayer?.tableau,
+          // …and its record of who placed each tile and what the cell paid them (the tile language).
+          placements: model.game.tilePlacements,
+          prevPlacements: prevView?.game.tilePlacements,
+          players: prevView !== undefined ? {before: prevView.players, after: model.players} : undefined,
+        });
+        // …and a REMOTE nomad hop (another player moved the camp — this
+        // poll path is how it arrives; an undo restore lands here too and
+        // the camp honestly walks back). Staged in this same synchronous
+        // block: the source keeps a ghost, the destination commits
+        // hidden, the committed token reveals at the proxy's touchdown.
+        stageRemoteNomadMove(prevView?.game.spaces, model.game.spaces, {
+          gamePhase: model.game.phase,
+        });
+        // …and an OVERLAY MARKER an opponent just placed (a cathedral in
+        // one of their cities) gets its own landing instead of popping in —
+        // as does a PLAYER MARKER on an empty cell (their Land Claim / an
+        // Arcadian community), which is a colour-only diff and so matches
+        // neither of the tile-shaped predicates.
+        if (prevView !== undefined &&
+            (shouldHoldForTilePlacement(prevView.game.spaces, model.game.spaces) ||
+             shouldHoldForMarkerPlacement(prevView.game.spaces, model.game.spaces) ||
+             shouldHoldForOwnerCubePlacement(prevView.game.spaces, model.game.spaces))) {
+          armPlacementAnimations();
+        }
+        // Structural sharing (viewSnapshotShare.ts): the assigned tree is
+        // content-identical to the fresh snapshot, but unchanged branches
+        // keep their previous references so child components skip
+        // re-rendering. The ROOT identity still changes, so this watcher-
+        // visible commit behaves exactly like a wholesale swap.
+        /*
+         * THE PROMPT-PRESERVING EPOCH RULE (mid-prompt refresh, mechanism
+         * A of presentation-reconciliation): a fetched view whose
+         * `waitingFor.promptId` equals the displayed one is the SAME
+         * server prompt object still standing — the refresh only brings
+         * the world around it up to date (another player's tile, moved
+         * scales, opponents' tableaus). Bumping the reset epoch would
+         * wipe the viewer's partial input (selections, picks, a locked
+         * placement cell) for a prompt that never changed, so the epoch
+         * is skipped — the generalization of the named preserve guards
+         * above from «these known pick flows» to «any unchanged prompt».
+         * A CHANGED promptId keeps the ordinary bump: the server
+         * replaced the prompt, and stale partial input must reset.
+         */
+        const prevPromptId = (prevView as PlayerViewModel | undefined)?.waitingFor?.promptId;
+        const promptPreserved = prevPromptId !== undefined &&
+          prevPromptId === (model as PlayerViewModel).waitingFor?.promptId;
+        // THE PARLIAMENT SITTING's reward (Turmoil Redux): this poll path is
+        // how the viewer learns that ANOTHER seat's gate answer paid them —
+        // the rail is held in the SAME synchronous block as the commit
+        // (the transport's `seedRewardHolds` does the same for the
+        // viewer's own submit), or the panel flushes a phantom −N chip.
+        // FIRST: a frame that RAN the sitting (another seat's pass) covers the board until the sitting stands.
+        noteSittingRise(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // A NEW sitting drops the old holds BEFORE anything of this frame seeds its own (the reward ledger's included).
+        enterParliamentSittingHolds(model as PlayerViewModel);
+        seedParliamentRewardHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and its display holds (v2): the other seat's answer moved the phase — the table as it stood is
+        // kept until the director's beats have moved it (the same block as the apply, on THIS path too).
+        seedParliamentSittingHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and a cube that appeared on a party's BANNER (Septem Tribus:redux) — held until its flight lands.
+        seedBannerCubeHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and «ПРЕДСЕДАТЕЛЬСТВО»'s (a quest gate answered through a poll / WS frame).
+        seedChairmanQuestHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and «КАРЬЕРА»'s (a card's walk whose answer arrived through a poll / WS frame — the same block as the apply).
+        seedAgendaWalkHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and a cell's chosen standard resource (Amazonis Planitia) — another seat's answer reaches this screen here.
+        seedCellResourceHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and «ДЕЛЕГАТЫ»'s (a card's rally of neutral delegates, TR31 — the same block as the apply).
+        seedNeutralRallyHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and a stripped support area (TR12) whose answer arrived through this frame (a parked tail landing later).
+        seedSupportDiscardHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and a figure a card took off the table (TR72) whose record arrived through this frame.
+        seedDelegateRemovalHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and a rival's delegate that arrived through this poll / WS frame (the same block as the apply).
+        seedRivalVotes(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and a deck-check verdict's stock reward (TR13) whose answer arrived through this frame.
+        seedRevealRewardHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and a CARD ACTION's rail half (T09 / BY — H5): the first view that PAYS the press may come through THIS road
+        // (a WebSocket wake or a poll applied ahead of the submit's own answer) — seeded only in the transport's block,
+        // the half was never held, never flown, and the shell folded at once. Idempotent: a plan is seeded once, and a
+        // view that has paid nothing of it yet (the press's own state) leaves the plan armed for the view that does.
+        seedActionCommitRail(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and a MILESTONE / AWARD's price (PL-1621) — the view that pays the claim may come through this road too.
+        seedMaPriceRail(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and the START STAGE's first action (TR81): its rail half, armed at the press, paid by whichever view comes first.
+        seedFirstActionRail(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and a COLONY ROSTER somebody else changed (a tile replaced / added / removed): held at the old table
+        // while the colony grid on screen plays the planet out and in — only when that grid stands.
+        seedColonyRosterHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and a CITY somebody laid on a colony tile (TR22): landed on its seat — only when a seat of that tile stands.
+        seedColonyCityHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and «МАРС ТЕРРАФОРМИРОВАН» (TR70): the SERVER's word arriving through a poll / WS frame — a rival's
+        // last step, a world move — arms the scene and holds the scales' last step in the park from this very
+        // block (the transport's `seedRewardHolds` does the same for the viewer's own submit).
+        seedTerraformedScene(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and what a SCALE STEP paid (TR24 — another seat's raise, a world move, the Solar Phase): the
+        // viewer's counter waits for the tokens born at the marker (the same block as the apply).
+        seedScaleStepRewardHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and a PARAMETER SWING another seat played (TR47 «ОБРАТНЫЙ ХОД» — the server's record): every seat watches
+        // the same story — the scene's start is presented from this very block, or the fall paints before its beat.
+        seedParameterSwings(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and the DECK COUNTER (PL-088): a draw that arrived through this frame keeps its cards on the counter
+        // until the flight that deals them (the same block as the apply).
+        seedDeckDrawHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        // …and THE SCORE CELL (TR55), the very LAST: what another seat's move did to the viewer's score is
+        // attributed off the server's two breakdowns — a share whose cause a scene will show (a rival's tile
+        // beside the viewer's city) waits for its token, every other one ticks now with its cause named.
+        // …and WHICH CARD REACTED to a move that arrived through this frame (P46 Colony Trade Hub, 2026-11-03 — «и на
+        // срабатывания от хода других игроков»): another seat's colony on the viewer's hub, a rival's play waking a
+        // card, a bot's lone turn — the viewer's own reactors play their chain (the cause named on a plate when the
+        // cause is another seat's), a rival's reactor rises at its chip. Before this road seeded nothing, so a card
+        // reaction reached the screen only through the viewer's OWN submit (the transport's `seedRewardHolds`). Only
+        // records under ANOTHER seat's root are taken here: the viewer's own press is the transport's (its hosts
+        // claim their answers in the submit's block — a WS frame that outran the answer must not tell it first).
+        const viewerColor = (model as PlayerViewModel).thisPlayer?.color;
+        seedCardReactionHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel, railHeldBefore,
+          {only: (r) => r.root.player !== undefined && r.root.player !== viewerColor});
+        seedVpShares(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+        playerView.value = nextViewSnapshot(playerView.value, model as PlayerViewModel);
+        setTranslationContext(playerView.value);
+        if (!preserveCardPickModal && !preserveOpenOverlay && !promptPreserved) {
+          playerkey.value++;
+        }
+        // When the user navigated directly to /the-end, keep that screen.
+        if (currentPathname === paths.THE_END) {
+          screen.value = 'the-end';
+        } else {
+          screen.value = 'player-home';
+        }
+        if (currentPathname !== path && currentPathname !== paths.THE_END) {
+          window.history.replaceState(
+            model,
+            `${constants.APP_NAME} - Game`,
+            `${path}?id=${model.id}`,
+          );
+        }
+        perfMark('ingest:commit:done');
+        void nextTick(() => perfMark('ingest:flush:done'));
+      };
+
+      /*
+       * MarsBot turns (poll path) — NOTIFICATION-FIRST, and STAGED only
+       * when there is something to SEQUENCE. A response carrying SEVERAL
+       * fresh turns is not committed here: it is buffered by the staging
+       * window, and each turn's visual footprint (tiles / parameters /
+       * resource deltas) applies to the PRESENTED view exactly when that
+       * turn's compact card is DELIVERED; the LAST pending turn's delivery
+       * performs this full `commit`. Consequences never precede their
+       * explanation, and the queued turns' changes are never visible ahead
+       * of their card. While a window is open, later polls only refresh the
+       * buffered latest (also handled inside — returns true).
+       *
+       * A response carrying ONE fresh turn falls through to the immediate
+       * commit like any other: there is no order to keep, and buffering it
+       * only made the player wait out the card's own delivery for their own
+       * next prompt. So does a response with no fresh turns and no window.
+       */
+      if (presentFreshBotTurns(prevView, model as PlayerViewModel, {commitLatest: commit})) {
+        return;
+      }
+      /*
+       * Energy→heat conversion gate (poll path). When ANOTHER player's
+       * action advanced the game into production, the viewer's own
+       * conversion arrives via this poll. Play the paired animation and
+       * hold the commit (and therefore the research / draft / endgame
+       * screen, which all key off playerView) until it finishes. The
+       * re-entrancy guard above keeps a concurrent poll from committing
+       * mid-animation.
+       */
+      // Desktop-removal wave 1: the desktop staged setup reveal
+      // (primeStartSetupReveal) is gone — the console carries the beat
+      // through the deferred corporationPlay + hero landing.
+      const conversionEvent = detectEnergyConversion(prevView, model as PlayerViewModel);
+      if (conversionEvent !== undefined) {
+        runEnergyConversion(conversionEvent).then(() => {
+          commit();
+          nextTick(() => endEnergyConversion());
+        });
+        return;
+      }
+      /*
+       * Hazard-cleanup gate (poll path). When ANOTHER player builds over a
+       * hazard, the viewer sees it via this poll — play the
+       * cleanup sequence and hold the commit until it finishes, so the
+       * opponent's cleanup is just as legible as the viewer's own. The
+       * re-entrancy guard above stops a concurrent poll committing mid-run;
+       * the shared dedup set stops a double-run with the viewer's own submit.
+       */
+      const hazardCleanups = detectHazardCleanup(prevView, model as ViewModel);
+      if (hazardCleanups.length > 0 && prevView !== undefined) {
+        runHazardCleanup(
+          hazardCleanups,
+          () => applyHazardTileSwap(prevView.game.spaces, model.game.spaces, hazardCleanups),
+        ).then(() => {
+          commit();
+          nextTick(() => endHazardCleanup());
+        });
+        return;
+      }
+      commit();
+    })
+    .catch((err) => {
+      // Under the loading curtain the failure becomes the premium
+      // error/retry state (P10) — never a bare browser alert there.
+      if (loadingScreenState.active) {
+        failLoading('Error getting game data');
+      } else {
+        alert('Error getting game data');
+      }
+      console.error(err);
+    });
+}
+function updatePlayer() {
+  update(paths.PLAYER);
+}
+// In-app SPA routing: resolve the `screen` (and trigger the right data load)
+// from the CURRENT url. Called on initial mount, on in-app navigation
+// (`navigateInApp`), and on browser back/forward (`popstate`). Faithfully
+// reproduces the historical mount-time resolution.
+function applyRoute(): void {
+  const currentPathname = getLastPathSegment();
+  if (currentPathname === paths.PLAYER) {
+    updatePlayer();
+  } else if (currentPathname === paths.THE_END) {
+    updatePlayer();
+  } else if (currentPathname === paths.GAME) {
+    const url = apiUrl(paths.API_GAME) + identitySearch();
+    fetch(url)
+      .then((resp) => {
+        if (!resp.ok) {
+          throw new Error(`Error getting game data: ${resp.statusText}`);
+        }
+        return resp.json();
+      })
+      .then((appGame: SimpleGameModel) => {
+        screen.value = 'game-home';
+        game.value = appGame;
+        window.history.replaceState(
+          appGame,
+          `${constants.APP_NAME} - Game`,
+          `${paths.GAME}?id=${appGame.id}`,
+        );
+      })
+      .catch((err) => {
+        alert('Error getting game data');
+        console.error(err);
+      });
+  } else if (currentPathname === paths.GAMES_OVERVIEW) {
+    screen.value = 'games-overview';
+  } else if (currentPathname === paths.NEW_GAME) {
+    // Desktop-removal wave 3: the upstream desktop create form is gone.
+    // The URL keeps working — it lands in the same console creator.
+    screen.value = 'premium-create-game';
+  } else if (currentPathname === paths.NEW_GAME_PREMIUM) {
+    screen.value = 'premium-create-game';
+  } else if (currentPathname === paths.CAMPAIGN) {
+    // Campaign mode: the Campaign Map — a console-native pre-game shell
+    // (also embedded as an endgame scene inside ConsoleShell).
+    screen.value = 'campaign';
+  } else if (currentPathname === paths.LOAD) {
+    screen.value = 'load';
+  } else if (currentPathname === paths.CARDS) {
+    screen.value = 'cards';
+  } else if (currentPathname === paths.HELP) {
+    screen.value = 'help';
+  } else if (currentPathname === paths.LEGACY) {
+    screen.value = 'start-screen';
+  } else if (currentPathname === paths.ADMIN) {
+    screen.value = 'admin';
+  } else if (currentPathname === paths.LOGIN) {
+    screen.value = 'login-home';
+  } else {
+    screen.value = 'main-menu';
+  }
+}
+// Navigate WITHOUT a full page reload: push a history entry, then re-resolve
+// the screen from the new url. Used by the premium home↔create transitions
+// (SPA-clean, Electron-ready). The GAME-BOUNDARY navigations (enter/leave a
+// game) intentionally stay full reloads for now — a fresh page guarantees
+// clean per-game module state; making them in-app needs a
+// resetGameSessionState() audit (see WEBSOCKET_MIGRATION_PLAN §E-Phase 13).
+function navigateInApp(path: string): void {
+  window.history.pushState({}, '', path);
+  applyRoute();
+}
+function onPopState(): void {
+  applyRoute();
+}
+
+// THE APP ROOT'S PORT (`appRoot.ts`). What the tree may ask of its root comes DOWN by injection — a `<script setup>` /
+// Vapor component has no `$root` to climb to, and the root itself has no instance to hand down. So the port is ONE
+// object of ACCESSORS over the root's own state and of its functions: a consumer that reads `root.screen` reads the
+// ref (and tracks it), one that writes it writes the ref. Two consumers take this one injection — `useAppRoot()` (the
+// interface `AppRoot`) and the game transport (`useTransportRoot()`, the contract `TransportRoot` it declares for
+// itself and WRITES through: the applied view, the reset epoch, the busy flag, who the server waits for). `satisfies`
+// is the proof that this object provides every member of both (the transport's `playerView` is typed present — it
+// runs only inside a game; here it is absent until the route has loaded one).
+const root = {
+  get screen(): Screen {
+    return screen.value;
+  },
+  set screen(now: Screen) {
+    screen.value = now;
+  },
+  get game(): SimpleGameModel | undefined {
+    return game.value;
+  },
+  set game(now: SimpleGameModel | undefined) {
+    game.value = now;
+  },
+  get playerView(): PlayerViewModel | undefined {
+    return playerView.value;
+  },
+  set playerView(now: PlayerViewModel | undefined) {
+    playerView.value = now;
+  },
+  get playerkey(): number {
+    return playerkey.value;
+  },
+  set playerkey(now: number) {
+    playerkey.value = now;
+  },
+  get playersWaitingFor(): Array<Color> {
+    return playersWaitingFor.value as Array<Color>;
+  },
+  set playersWaitingFor(now: Array<Color>) {
+    playersWaitingFor.value = now;
+  },
+  get isServerSideRequestInProgress(): boolean {
+    return isServerSideRequestInProgress.value;
+  },
+  set isServerSideRequestInProgress(now: boolean) {
+    isServerSideRequestInProgress.value = now;
+  },
+  navigateInApp,
+  setVisibilityState,
+  getVisibilityState,
+  updatePlayer,
+  showAlert,
+  /** A poll's / a route's refresh of the view (the root's own verb — the specs drive it). */
+  update,
+} satisfies AppRoot & Omit<TransportRoot, 'playerView'> & {update(path: typeof paths.PLAYER): void};
+provide(APP_ROOT, root);
+
+// SCENE TRANSITION: route resolution only REPORTS itself to the
+// director. A readiness-aware destination (game shell / menu / campaign
+// map) then holds the curtain until its first frame is genuinely ready
+// (armSceneDestination + released holds + a settled paint); a legacy
+// screen reveals immediately — it has no boot work. A failed load keeps
+// the curtain in its error/retry state instead.
+watch(() => screen.value, (now: Screen) => {
+  if (now !== 'empty' && loadingScreenState.active && loadingScreenState.error === '') {
+    noteScreenResolved(now);
+  }
+});
+// The reveal is the moment the player is ABOUT to see the destination —
+// the right moment to hand a lost fullscreen to the shared trusted-
+// gesture retry (the next real click/key brings it back; on the Xbox
+// browser the pad sends real keys).
+watch(() => loadingScreenState.phase, (phase: string) => {
+  if (phase === 'revealing' && loadingScreenState.fullscreenLost && consoleModeState.enabled) {
+    requestConsoleFullscreen();
+    loadingScreenState.fullscreenLost = false;
+  }
+});
+// Single point that reconciles the server's reveal list into the
+// module-level drawnCardsState, regardless of WHICH update path replaced
+// playerView (poll App.update, POST-input WaitingFor.updatePlayerView,
+// DraftFlowOverlay, the reveal ack response, undo). playerView is replaced
+// wholesale each update so this shallow watch always fires. On initial
+// load / refresh the server queue is empty (transient) → no modal.
+watch(() => playerView.value, (view: PlayerViewModel | undefined) => {
+  reconcileDrawnCards(view?.cardDrawReveals ?? []);
+  // Refresh the global name→live-resource map so card popups / fullscreens
+  // (journal, etc.) render the real resource count, not 0. See
+  // liveCardResources.ts. Fires on EVERY playerView replacement.
+  setLiveCardResources(view);
+  // Bind the PER-GAME "private score" preference to this game (the viewer's
+  // participant id). Idempotent — only a real game switch re-loads the
+  // stored value; leaving the game (view undefined) resets it to OFF. The
+  // central spot both shells (console + desktop) share.
+  bindPrivateScoreGame(view?.id);
+});
+
+onMounted(() => {
+  setDocumentTitle();
+  // Premium launch screen + GPU shader warm-up — ONCE per session (survives the
+  // in-game reloads via sessionStorage). Overlays everything at z=13000 while it
+  // compiles the heavy Graphite pipelines; it does NOT block route/data loading
+  // (the real screen loads underneath and is revealed when the loader fades out).
+  if (shouldRunBootWarmup()) {
+    beginBootWarmup();
+  }
+  if (!windowHasHTMLDialogElement()) {
+    dialogPolyfill.registerDialog(document.getElementById('alert-dialog') as HTMLDialogElement);
+  }
+  // P10: raise the loading curtain BEFORE the first route resolution —
+  // either continuing the previous page's handoff (join / create / exit
+  // navigations set the sessionStorage flags) or covering a direct /
+  // reconnect load of a game page. The player never sees a raw texture.
+  const bootFlags = consumeBootFlags();
+  const pathNow = getLastPathSegment();
+  if (bootFlags !== undefined) {
+    beginLoading(bootFlags.stage, bootFlags.context, bootFlags.t0);
+  } else if (pathNow === paths.PLAYER || pathNow === paths.THE_END) {
+    beginLoading('sync');
+  } else {
+    // No transition on this boot — the static pre-Vue curtain (raised by
+    // the index.html inline script on the same conditions) must not
+    // outlive the decision. Normally the mounted Vue curtain replaces it;
+    // this is the belt for the storage-unavailable edge.
+    dismissStaticBootCurtain();
+  }
+  applyRoute();
+  // Browser back/forward re-resolves the screen in-app (no reload) for the
+  // navigations that use navigateInApp. App is the root and never unmounts,
+  // so no removal is needed.
+  window.addEventListener('popstate', onPopState);
+  // Desktop (Electron) update subscription — inert on the web (no desktopBridge).
+  initDesktopUpdates();
+});
+onErrorCaptured((err: unknown) => {
+  // Chunk errors occur when the server is redeployed with new chunk names
+  // and the client doesn't know about them. In that case, reload the page.
+  if (err instanceof Error && err.name === 'ChunkLoadError') {
+    console.error(err);
+    // A RELEASE of the PAGE's scope: once OK is pressed the reload is owed, whatever game screen comes or goes.
+    showAlert('Page out of date', 'This page is out of date. Click OK to refresh it.', () => {
+      consoleAppScope().guarantee(100, 'the reload after a chunk load error', () => window.location.reload());
+    });
+  }
+});
+
+// THE ROOT'S PUBLIC SURFACE IS ITS PORT: what a holder of the root reaches (its unit specs — the application itself
+// holds no ref on it) is exactly the object the tree is given.
+defineExpose(root);
 </script>

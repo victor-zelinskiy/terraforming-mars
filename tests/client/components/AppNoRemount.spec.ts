@@ -17,12 +17,35 @@ import App from '@/client/components/App.vue';
 import {fakeGameModel, fakePlayerViewModel} from './testHelpers';
 import {FakeLocalStorage} from './FakeLocalStorage';
 import {paths} from '@/common/app/paths';
+import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {nextTick} from 'vue';
+
+/**
+ * THE ROOT'S PORT — what a holder of the root reaches (`defineExpose(root)` in `App.vue`: the very object the tree is
+ * given by injection). The root is `<script setup>`: its state is written, and its verbs called, through the port.
+ */
+type RootPort = {
+  screen: string,
+  playerView: PlayerViewModel | undefined,
+  playerkey: number,
+  update(path: typeof paths.PLAYER): void,
+};
+function portOf(wrapper: {vm: unknown}): RootPort {
+  return (wrapper.vm as {$: {exposed: RootPort}}).$.exposed;
+}
 
 async function flushPromises(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
+
+/**
+ * The game shell's stub. The root imports its lazy screens as bindings (`appAsync.ts`), and an imported lazy binding
+ * answers to the stub key `AsyncComponentWrapper` (RECIPES § 3) — so the shell is told apart from the other lazy
+ * screens by what the root hands IT: the live waiting list.
+ */
+const SHELL_STUB = 'async-component-wrapper-stub[waiting-on-players]';
 
 describe('AppNoRemount', () => {
   let localStorage: FakeLocalStorage;
@@ -47,24 +70,28 @@ describe('AppNoRemount', () => {
     const oldView = fakePlayerViewModel({game: fakeGameModel({gameAge: 1})});
     const newView = fakePlayerViewModel({game: fakeGameModel({gameAge: 2})});
     const wrapper = shallowMount(App, globalConfig);
-    await wrapper.setData({screen: 'player-home', playerView: oldView, playerkey: 7});
+    const root = portOf(wrapper);
+    root.screen = 'player-home';
+    root.playerView = oldView;
+    root.playerkey = 7;
+    await nextTick();
     (global as any).fetch = () => Promise.resolve({
       ok: true,
       json: () => Promise.resolve(newView),
     });
 
-    const before = wrapper.find('console-shell-stub');
+    const before = wrapper.find(SHELL_STUB);
     expect(before.exists()).to.be.true;
     const beforeEl = before.element;
 
-    (wrapper.vm as any).update(paths.PLAYER);
+    root.update(paths.PLAYER);
     await flushPromises();
-    await wrapper.vm.$nextTick();
+    await nextTick();
 
     // The reset epoch advanced (the old remount trigger still signals)…
-    expect((wrapper.vm as any).playerkey).to.eq(8);
+    expect(root.playerkey).to.eq(8);
     // …but the subtree was NOT recreated: same element.
-    expect(wrapper.find('console-shell-stub').element).to.eq(beforeEl);
+    expect(wrapper.find(SHELL_STUB).element).to.eq(beforeEl);
   });
 
   /*
@@ -81,18 +108,22 @@ describe('AppNoRemount', () => {
     const newView = fakePlayerViewModel({game: fakeGameModel({gameAge: 2})});
     (newView as any).waitingFor = {type: 'or', promptId: 41, options: []};
     const wrapper = shallowMount(App, globalConfig);
-    await wrapper.setData({screen: 'player-home', playerView: oldView, playerkey: 7});
+    const root = portOf(wrapper);
+    root.screen = 'player-home';
+    root.playerView = oldView;
+    root.playerkey = 7;
+    await nextTick();
     (global as any).fetch = () => Promise.resolve({
       ok: true,
       json: () => Promise.resolve(newView),
     });
 
-    (wrapper.vm as any).update(paths.PLAYER);
+    root.update(paths.PLAYER);
     await flushPromises();
-    await wrapper.vm.$nextTick();
+    await nextTick();
 
-    expect((wrapper.vm as any).playerkey, 'the epoch must survive an unchanged prompt').to.eq(7);
-    expect(((wrapper.vm as any).playerView.game as any).gameAge, 'the view still applied').to.eq(2);
+    expect(root.playerkey, 'the epoch must survive an unchanged prompt').to.eq(7);
+    expect(root.playerView?.game.gameAge, 'the view still applied').to.eq(2);
   });
 
   it('an update with a CHANGED promptId keeps the ordinary epoch bump', async () => {
@@ -101,16 +132,20 @@ describe('AppNoRemount', () => {
     const newView = fakePlayerViewModel({game: fakeGameModel({gameAge: 2})});
     (newView as any).waitingFor = {type: 'or', promptId: 42, options: []};
     const wrapper = shallowMount(App, globalConfig);
-    await wrapper.setData({screen: 'player-home', playerView: oldView, playerkey: 7});
+    const root = portOf(wrapper);
+    root.screen = 'player-home';
+    root.playerView = oldView;
+    root.playerkey = 7;
+    await nextTick();
     (global as any).fetch = () => Promise.resolve({
       ok: true,
       json: () => Promise.resolve(newView),
     });
 
-    (wrapper.vm as any).update(paths.PLAYER);
+    root.update(paths.PLAYER);
     await flushPromises();
-    await wrapper.vm.$nextTick();
+    await nextTick();
 
-    expect((wrapper.vm as any).playerkey).to.eq(8);
+    expect(root.playerkey).to.eq(8);
   });
 });
