@@ -187,8 +187,9 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import {Color} from '@/common/Color';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {SpaceId} from '@/common/Types';
@@ -204,7 +205,7 @@ import {readingText} from '@/client/console/readingText';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ColonyRosterChange, colonyRosterChangeText} from '@/common/colonies/ColonyRoster';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentTypes';
@@ -218,100 +219,94 @@ import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentType
  * stable position down the feed. Tile placements render with a "show on map"
  * button. Chips are toned by kind — gain / loss / production / saved (discount).
  */
-export default defineComponent({
-  name: 'JournalChildRow',
-  components: {JournalCardChip, JournalCardFan, ConsoleDrawSearchRule},
-  props: {
-    vm: {
-      type: Object as PropType<JournalChildVM>,
-      required: true,
-    },
-    players: {
-      type: Array as () => ReadonlyArray<PublicPlayerModel>,
-      required: true,
-    },
-    /** The group's own card (its headline names it) — a row sourced by it does not repeat it. */
-    ownCard: {
-      type: String as PropType<CardName | undefined>,
-      default: undefined,
-    },
+defineOptions({name: 'JournalChildRow'});
+const props = defineProps({
+  vm: {
+    type: Object as PropType<JournalChildVM>,
+    required: true,
   },
-  computed: {
-    sourceIsOwn(): boolean {
-      return this.ownCard !== undefined && this.vm.source.kind === 'card' && this.vm.source.card === this.ownCard;
-    },
-    // Whether the row has a result to point an arrow at (impacts OR a copied card).
-    hasResult(): boolean {
-      return this.vm.source.kind !== 'none' && (this.vm.chips.length > 0 || this.vm.copiedCard !== undefined);
-    },
-    /** «Вскрыто 6 · получено 3 · сброшено 3» — the search's counts through the one reading renderer (PL-160). */
-    searchTally(): string {
-      return this.vm.search === undefined ? '' : readingText(searchTallyReading(this.vm.search));
-    },
+  players: {
+    type: Array as () => ReadonlyArray<PublicPlayerModel>,
+    required: true,
   },
-  methods: {
-    playerName(color: Color): string {
-      return displayNameForColor(this.players, color);
-    },
-    iconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-    /** A lifted PARTY requirement's chip wears the party's emblem (TR70) — the hand's counter badge, in the icon's slot. */
-    /** «через «Марс вперёд»» — the partner an alliance stood on (TR62), in the class's one wording. */
-    allyText(via: PartyName | undefined): string {
-      return translateTextWithParams('through ${0}', [via !== undefined ? translateText(partyNameKey(via)) : '']);
-    },
-    easedEmblemStyle(party: PartyName | undefined): Record<string, string> | undefined {
-      const emblem = party === undefined ? undefined : requirementPartyEmblem(party);
-      return emblem === undefined ? undefined : {backgroundImage: `url(${emblem})`};
-    },
-    chipClass(chip: JournalImpactChip): Record<string, boolean> {
-      return {
-        'journal-child-row__chip--prod': chip.production === true,
-        'journal-child-row__chip--saved': chip.saved === true,
-        'journal-child-row__chip--neg': chip.production !== true && chip.saved !== true && chip.text.startsWith('−'),
-        'journal-child-row__chip--pos': chip.production !== true && chip.saved !== true && chip.text.startsWith('+'),
-      };
-    },
-    showOnMap(space: SpaceId): void {
-      highlightBoardSpace(space);
-    },
-    /** A Turmoil Redux resolution's printed name (the catalog's English key) — never a bare id. */
-    resolutionLabel(id: string): string {
-      return resolutionName(id);
-    },
-    /** «Карьера 1 → 3 · Влияние 2» — the position fact and the level the walk set (the chip beside it counts the steps). */
-    agendaLabel(from: number, to: number, level: number): string {
-      return `${translateTextWithParams('Agenda track ${0} → ${1}', [String(from), String(to)])} · ${translateText('Influence')} ${level}`;
-    },
-    /** «Влияние 2 → 3» — the seat's WHOLE influence around a bonus beyond the Career (T05; the chip says the bonus). */
-    influenceLabel(before: number, after: number): string {
-      return `${translateText('Influence')} ${before} → ${after}`;
-    },
-    /** «Трек колонии · Луна 3 → 7» — the tile's own 1-based readout (the chip beside it counts the steps). */
-    colonyTrackLabel(colony: string, before: number, after: number): string {
-      return `${translateText('Colony track')} · ${translateText(colony)} ${before + 1} → ${after + 1}`;
-    },
-    /** «Плитка колонии · − Церера · + Ио» — the roster's change by the tiles' own names (the leaving one first). */
-    /** «город — на плитке колонии «Луна»» — a tile laid on a colony tile (the tile's own word, then where it lies). */
-    colonyTileLabel(tile: string | undefined, colony: string): string {
-      return translateTextWithParams('${0} — on the ${1} colony tile', [translateText(tile ?? 'city'), translateText(colony)]);
-    },
-    colonyRosterLabel(change: ColonyRosterChange): string {
-      return `${translateText('Colony tile')} · ${colonyRosterChangeText(change, translateText)}`;
-    },
-    /** «за 3 соседних города» — the count the rule paid by; the unit's plural group agrees with it. */
-    basisLabel(count: number, unitKey: string): string {
-      return translateTextWithParams('for ${0} ${1}', [String(count), translateText(unitKey)]);
-    },
-    /** «Знамя партии · Учёные» — the banner the seat's cube now stands on (Septem Tribus:redux). */
-    bannerLabel(party: PartyName): string {
-      return `${translateText('Party banner')} · ${translateText(partyNameKey(party))}`;
-    },
-    /** «Народная поддержка · Зелёные · 3/3» — the area named by its party, with what it holds out of its ceiling. */
-    supportLabel(party: PartyName, total: number): string {
-      return `${translateText('Popular support')} · ${translateText(partyNameKey(party))} · ${total}/${PARLIAMENT_MAX_POPULAR_SUPPORT}`;
-    },
+  /** The group's own card (its headline names it) — a row sourced by it does not repeat it. */
+  ownCard: {
+    type: String as PropType<CardName | undefined>,
+    default: undefined,
   },
 });
+
+const sourceIsOwn = computed((): boolean => {
+  return props.ownCard !== undefined && props.vm.source.kind === 'card' && props.vm.source.card === props.ownCard;
+});
+// Whether the row has a result to point an arrow at (impacts OR a copied card).
+const hasResult = computed((): boolean => {
+  return props.vm.source.kind !== 'none' && (props.vm.chips.length > 0 || props.vm.copiedCard !== undefined);
+});
+/** «Вскрыто 6 · получено 3 · сброшено 3» — the search's counts through the one reading renderer (PL-160). */
+const searchTally = computed((): string => {
+  return props.vm.search === undefined ? '' : readingText(searchTallyReading(props.vm.search));
+});
+function playerName(color: Color): string {
+  return displayNameForColor(props.players, color);
+}
+function iconClass(icon: string): string {
+  return iconClassFor(icon);
+}
+/** A lifted PARTY requirement's chip wears the party's emblem (TR70) — the hand's counter badge, in the icon's slot. */
+/** «через «Марс вперёд»» — the partner an alliance stood on (TR62), in the class's one wording. */
+function allyText(via: PartyName | undefined): string {
+  return translateTextWithParams('through ${0}', [via !== undefined ? translateText(partyNameKey(via)) : '']);
+}
+function easedEmblemStyle(party: PartyName | undefined): Record<string, string> | undefined {
+  const emblem = party === undefined ? undefined : requirementPartyEmblem(party);
+  return emblem === undefined ? undefined : {backgroundImage: `url(${emblem})`};
+}
+function chipClass(chip: JournalImpactChip): Record<string, boolean> {
+  return {
+    'journal-child-row__chip--prod': chip.production === true,
+    'journal-child-row__chip--saved': chip.saved === true,
+    'journal-child-row__chip--neg': chip.production !== true && chip.saved !== true && chip.text.startsWith('−'),
+    'journal-child-row__chip--pos': chip.production !== true && chip.saved !== true && chip.text.startsWith('+'),
+  };
+}
+function showOnMap(space: SpaceId): void {
+  highlightBoardSpace(space);
+}
+/** A Turmoil Redux resolution's printed name (the catalog's English key) — never a bare id. */
+function resolutionLabel(id: string): string {
+  return resolutionName(id);
+}
+/** «Карьера 1 → 3 · Влияние 2» — the position fact and the level the walk set (the chip beside it counts the steps). */
+function agendaLabel(from: number, to: number, level: number): string {
+  return `${translateTextWithParams('Agenda track ${0} → ${1}', [String(from), String(to)])} · ${translateText('Influence')} ${level}`;
+}
+/** «Влияние 2 → 3» — the seat's WHOLE influence around a bonus beyond the Career (T05; the chip says the bonus). */
+function influenceLabel(before: number, after: number): string {
+  return `${translateText('Influence')} ${before} → ${after}`;
+}
+/** «Трек колонии · Луна 3 → 7» — the tile's own 1-based readout (the chip beside it counts the steps). */
+function colonyTrackLabel(colony: string, before: number, after: number): string {
+  return `${translateText('Colony track')} · ${translateText(colony)} ${before + 1} → ${after + 1}`;
+}
+/** «Плитка колонии · − Церера · + Ио» — the roster's change by the tiles' own names (the leaving one first). */
+/** «город — на плитке колонии «Луна»» — a tile laid on a colony tile (the tile's own word, then where it lies). */
+function colonyTileLabel(tile: string | undefined, colony: string): string {
+  return translateTextWithParams('${0} — on the ${1} colony tile', [translateText(tile ?? 'city'), translateText(colony)]);
+}
+function colonyRosterLabel(change: ColonyRosterChange): string {
+  return `${translateText('Colony tile')} · ${colonyRosterChangeText(change, translateText)}`;
+}
+/** «за 3 соседних города» — the count the rule paid by; the unit's plural group agrees with it. */
+function basisLabel(count: number, unitKey: string): string {
+  return translateTextWithParams('for ${0} ${1}', [String(count), translateText(unitKey)]);
+}
+/** «Знамя партии · Учёные» — the banner the seat's cube now stands on (Septem Tribus:redux). */
+function bannerLabel(party: PartyName): string {
+  return `${translateText('Party banner')} · ${translateText(partyNameKey(party))}`;
+}
+/** «Народная поддержка · Зелёные · 3/3» — the area named by its party, with what it holds out of its ceiling. */
+function supportLabel(party: PartyName, total: number): string {
+  return `${translateText('Popular support')} · ${translateText(partyNameKey(party))} · ${total}/${PARLIAMENT_MAX_POPULAR_SUPPORT}`;
+}
 </script>
