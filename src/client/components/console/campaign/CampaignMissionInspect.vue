@@ -74,8 +74,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import CampaignMissionResults from './CampaignMissionResults.vue';
 import CampaignModifierBadge from './CampaignModifierBadge.vue';
@@ -83,7 +83,7 @@ import {MissionModifierMeta, missionModifierMetas} from '@/client/console/campai
 import {MissionDetailsVm, OverviewMissionCard} from '@/client/console/campaign/campaignOverviewModel';
 import {mapLabelKey, mapMeta} from '@/client/components/create/premium/createGameMeta';
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
 /**
  * MISSION INSPECT («Осмотр миссии») — one body for inspecting ANY mission
@@ -96,44 +96,40 @@ import {translateTextWithParams} from '@/client/directives/i18n';
  * the in-game Information overview layer. Read-only; zero controller hints
  * (the hosts own the bars).
  */
-export default defineComponent({
-  name: 'CampaignMissionInspect',
-  components: {CampaignMissionResults, CampaignModifierBadge, PremiumMapFingerprint},
-  props: {
-    mission: {type: Object as PropType<OverviewMissionCard>, required: true},
-    /** The committed results (only meaningful for state 'committed'). */
-    details: {type: Object as PropType<MissionDetailsVm | undefined>, default: undefined},
-    youSeat: {type: Number as PropType<number | undefined>, default: undefined},
-    botCorporation: {type: String as PropType<MarsBotCorpId | undefined>, default: undefined},
-    /** The live mission's current generation (in-game host only). */
-    liveGeneration: {type: Number as PropType<number | undefined>, default: undefined},
-    /** Participant chips for the ACTIVE state (visible names, resolved). */
-    party: {type: Array as PropType<ReadonlyArray<{color: string, name: string}>>, default: () => []},
-    missionCount: {type: Number, default: 4},
-  },
-  computed: {
-    modifiers(): ReadonlyArray<MissionModifierMeta> {
-      return missionModifierMetas(this.mission.modifiers);
-    },
-    shuffled(): boolean {
-      return this.modifiers.some((m) => m.id === 'shuffleMap');
-    },
-    accent(): string {
-      return mapMeta(this.mission.board).accent;
-    },
-    boardLabel(): string {
-      return mapLabelKey(this.mission.board);
-    },
-    stateLabel(): string {
-      switch (this.mission.state) {
-      case 'committed': return 'Mission complete';
-      case 'active': return 'Mission in progress';
-      default: return 'Ahead';
-      }
-    },
-    missionOrdinal(): string {
-      return translateTextWithParams('Mission ${0} of ${1}', [String(this.mission.slot + 1), String(this.missionCount)]);
-    },
-  },
+defineOptions({name: 'CampaignMissionInspect'});
+const props = defineProps({
+  mission: {type: Object as PropType<OverviewMissionCard>, required: true},
+  /** The committed results (only meaningful for state 'committed'). */
+  details: {type: Object as PropType<MissionDetailsVm | undefined>, default: undefined},
+  youSeat: {type: Number as PropType<number | undefined>, default: undefined},
+  botCorporation: {type: String as PropType<MarsBotCorpId | undefined>, default: undefined},
+  /** The live mission's current generation (in-game host only). */
+  liveGeneration: {type: Number as PropType<number | undefined>, default: undefined},
+  /** Participant chips for the ACTIVE state (visible names, resolved). */
+  party: {type: Array as PropType<ReadonlyArray<{color: string, name: string}>>, default: () => []},
+  missionCount: {type: Number, default: 4},
+});
+
+const modifiers = computed((): ReadonlyArray<MissionModifierMeta> => {
+  return missionModifierMetas(props.mission.modifiers);
+});
+const shuffled = computed((): boolean => {
+  return modifiers.value.some((m) => m.id === 'shuffleMap');
+});
+const accent = computed((): string => {
+  return mapMeta(props.mission.board).accent;
+});
+const boardLabel = computed((): string => {
+  return mapLabelKey(props.mission.board);
+});
+const stateLabel = computed((): string => {
+  switch (props.mission.state) {
+  case 'committed': return 'Mission complete';
+  case 'active': return 'Mission in progress';
+  default: return 'Ahead';
+  }
+});
+const missionOrdinal = computed((): string => {
+  return translateTextWithParams('Mission ${0} of ${1}', [String(props.mission.slot + 1), String(props.missionCount)]);
 });
 </script>
