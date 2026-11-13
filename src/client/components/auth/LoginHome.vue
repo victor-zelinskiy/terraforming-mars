@@ -12,65 +12,55 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed, onMounted, ref} from 'vue';
 import raw_settings from '@/genfiles/settings.json';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 
-type Data = {
-  user: string | undefined;
-  discordClientId: string;
-};
+defineOptions({name: 'login-home'});
 
-export default defineComponent({
-  name: 'login-home',
-  data(): Data {
-    return {
-      user: undefined,
-      discordClientId: raw_settings.discordClientId,
-    };
-  },
-  mounted() {
-    const url = apiUrl(paths.API_PROFILE);
-    fetch(url)
-      .then((resp) => {
-        if (!resp.ok) {
-          console.error('Unexpected server response: ' + resp.statusText);
-          return null;
-        }
-        return resp.json();
-      })
-      .then((data) => {
-        if (!data) {
-          return;
-        }
-        try {
-          this.user = data._user.userid;
-        } catch (e) {
-          console.log('Error processing fetch response: ' + e);
-        }
-      })
-      .catch((err) => {
-        alert('Error getting session profile data');
-        console.error(err);
-      });
-  },
-  computed: {
-    loginUrl(): string {
-      const thisUrl = window.location.href;
-      const idx = window.location.href.lastIndexOf('/' + paths.LOGIN);
-      const url = thisUrl.substring(0, idx) + '/' + paths.AUTH_DISCORD_CALLBACK;
-      const encoded = encodeURI(url);
-      const clientId = this.discordClientId;
-      if (!clientId) {
-        return '';
+const user = ref<string | undefined>(undefined);
+const discordClientId = ref(raw_settings.discordClientId);
+
+const loginUrl = computed((): string => {
+  const thisUrl = window.location.href;
+  const idx = window.location.href.lastIndexOf('/' + paths.LOGIN);
+  const url = thisUrl.substring(0, idx) + '/' + paths.AUTH_DISCORD_CALLBACK;
+  const encoded = encodeURI(url);
+  const clientId = discordClientId.value;
+  if (!clientId) {
+    return '';
+  }
+  return 'https://discord.com/oauth2/authorize?client_id=' + clientId + '&response_type=code&scope=identify&redirect_uri=' + encoded;
+});
+const logoutURL = computed((): string => {
+  return paths.API_LOGOUT;
+});
+
+onMounted(() => {
+  const url = apiUrl(paths.API_PROFILE);
+  fetch(url)
+    .then((resp) => {
+      if (!resp.ok) {
+        console.error('Unexpected server response: ' + resp.statusText);
+        return null;
       }
-      return 'https://discord.com/oauth2/authorize?client_id=' + clientId + '&response_type=code&scope=identify&redirect_uri=' + encoded;
-    },
-    logoutURL(): string {
-      return paths.API_LOGOUT;
-    },
-  },
+      return resp.json();
+    })
+    .then((data) => {
+      if (!data) {
+        return;
+      }
+      try {
+        user.value = data._user.userid;
+      } catch (e) {
+        console.log('Error processing fetch response: ' + e);
+      }
+    })
+    .catch((err) => {
+      alert('Error getting session profile data');
+      console.error(err);
+    });
 });
 </script>
