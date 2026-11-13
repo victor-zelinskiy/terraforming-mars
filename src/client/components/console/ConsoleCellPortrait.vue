@@ -74,7 +74,7 @@
 import {computed, PropType} from 'vue';
 import {CellPortrait, CellPortraitPiece} from '@/common/boards/BoardInformationFacts';
 import {SpaceType} from '@/common/boards/SpaceType';
-import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
+import {tileCssClassOf} from '@/client/components/board/boardSpaceTileModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {cellBonusIcons} from '@/client/console/revealStageHead';
 import {CellMark, CellRingSlot} from '@/client/console/cellDossier';
