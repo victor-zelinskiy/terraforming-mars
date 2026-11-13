@@ -213,7 +213,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * Console status strip (docs/CONSOLE_MODE_CONCEPT.md §6; P27 rework) — the
  * TV-scale top HUD: global parameters + generation on the left, compact
@@ -227,7 +227,7 @@
  * animation the moment their status becomes active — the premium
  * "your turn" transition that replaced the central «ВАШ ХОД» pill.
  */
-import {defineComponent, markRaw, PropType} from 'vue';
+import {computed, markRaw, onBeforeUnmount, onBeforeUpdate, onMounted, onUpdated, PropType, ref, useTemplateRef, watch} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {MIN_TEMPERATURE} from '@/common/constants';
 import {GlobalParameterMaximums, getGlobalParameterMaximums} from '@/common/boards/GlobalParameterMaximums';
@@ -245,7 +245,7 @@ import {isNotificationDeliveryBlocked} from '@/client/components/presentation/pr
 import {finalGenerationActive} from '@/client/components/gameProgress/terraformingCelebration';
 import {terraformedSceneState} from '@/client/console/terraformedScene/terraformedScene';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import ConsoleProjectDeck from '@/client/components/console/ConsoleProjectDeck.vue';
@@ -266,429 +266,411 @@ const GLYPH_CHARS: Record<StatusGlyph, string> = {
   none: '',
 };
 
-export default defineComponent({
-  name: 'ConsoleStatusStrip',
-  components: {AnimatedMetricValue, ConsoleFlipValue, ConsoleProjectDeck},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    /**
-     * The LIVE `/api/waitingFor` poll. Without it the chips read the frozen
-     * `isWaitingForInput` snapshot, which goes STALE for the whole of a
-     * simultaneous-pick phase: while the viewer holds their own prompt the
-     * playerView is deliberately not refreshed (it would drop their partial
-     * input), so an opponent who has since submitted still reads as picking.
-     * The start scene's summary rail reads the same brain WITH the poll, so
-     * omitting it here made the two surfaces visibly disagree.
-     */
-    waitingOnPlayers: {type: Array as PropType<ReadonlyArray<Color>>, default: () => []},
-    /** playerView.runId — drives the delta-chip feedback ('' disables). */
-    epoch: {type: String, default: ''},
-    /**
-     * RAW "a mandatory decision awaits the viewer while its CTA surface is
-     * NOT on screen" signal (ConsoleShell: gate held / deferred, announce
-     * card hidden). The strip DEBOUNCES engagement (`attentionEngageMs`) so
-     * a transient off-screen window — an animation about to end on the board
-     * home, a section flip-through — never flashes the beacon; release is
-     * INSTANT the moment the announce card shows or the decision resolves,
-     * so the chip and the CTA card never double-signal.
-     *
-     * The beacon additionally requires the viewer's status to be ACTIONABLE
-     * — see `viewerAwaited`. "Pending" and "answerable NOW" are two different
-     * facts, and only the second one may raise an alarm.
-     */
-    attentionPending: {type: Boolean, default: false},
-    /**
-     * SPATIAL PRE-SELECT PREVIEW (std-projects §9): the global-parameter
-     * readout the FOCUSED project would move gets a quiet ring — «this dial
-     * is affected». Values never change, markers never move, and the ring is
-     * gone the moment focus leaves — a hint, never a pre-played result. The
-     * numbers themselves stay with the context chips (one source, no
-     * duplication).
-     */
-    ghostParam: {type: String as PropType<'temperature' | 'oxygen' | 'oceans' | 'venus' | undefined>, default: undefined},
-    /** Engagement debounce (ms). A prop so specs can shrink it. */
-    attentionEngageMs: {type: Number, default: 1200},
-    /**
-     * The DWELL window (ms) before a non-zero count may show: the backlog
-     * must wait CONTINUOUSLY for this long — a blocker that clears sooner, a
-     * card presenting, or the queue emptying cancels the timer and the slot
-     * never leaves its dormant «0». A prop so specs can shrink it.
-     */
-    pendingEngageMs: {type: Number, default: 500},
-    /**
-     * Rapid COUNT changes after engagement coalesce into one calm update
-     * inside this window (the truth stays exact — the fire reads the LIVE
-     * count). Dormant↔waiting edges apply immediately. A prop for specs.
-     */
-    pendingCoalesceMs: {type: Number, default: 120},
-  },
-  setup() {
-    return {flow: useFlowScope('console-status-strip')};
-  },
-  data() {
-    return {
-      /** One-shot "turn passed to YOU" attention burst on the viewer's chip. */
-      turnBurst: false,
-      cancelBurst: (() => {}) as () => void,
-      /** Debounced RAW pending state — half of the beacon (see `attention`). */
-      attentionEngaged: false,
-      /** The dwell's cancel — `undefined` while no dwell stands. */
-      cancelAttention: undefined as (() => void) | undefined,
-      /** One-shot terraforming-complete pulse on the Temp/O₂/Oceans group. */
-      celebrating: false,
-      cancelCelebrate: (() => {}) as () => void,
-      /**
-       * The generic pending-events signal, ENGAGED — the 500 ms dwell ran to
-       * completion with the raw state continuously true. The raw state is
-       * true for one flush during an ordinary promotion hand-over and for
-       * the whole life of a SHORT blocker; neither may reach the player's
-       * eye, so nothing shows until the dwell survives. Release is instant.
-       */
-      evqEngaged: false,
-      /** The dwell's cancel — `undefined` while no dwell stands. */
-      cancelEvq: undefined as (() => void) | undefined,
-      /** The DISPLAYED count («0» dormant / «N» / «9+») — follows the live
-       *  queue through the coalescing window, never a stale number. */
-      shownCountText: '0',
-      /** The coalescing window's cancel — `undefined` while no fire is pending. */
-      cancelEvqCount: undefined as (() => void) | undefined,
-      /** The generation-order chip conveyor — DOM choreography state, kept
-       *  out of reactivity (it holds Animations, clones and rects). */
-      conveyor: markRaw(createChipConveyor()),
-    };
-  },
-  computed: {
-    /** The seats' INTAKE plaques standing now (T06 — `console/statusIntake.ts`). */
-    intakes(): ReadonlyArray<SeatIntake> {
-      return statusIntakeState.intakes;
-    },
-    /**
-     * The game the strip DISPLAYS — THE TRUTH, AT ONCE (state delivery, 2026-10-28; the owner: «состояния в top bar
-     * должны меняться сразу же, как только на сервере поменялось»).
-     *
-     * The four global parameters read the APPLIED view: a scale another seat moved while this player stood inside a
-     * workspace flips on the strip the moment the view lands (ConsoleFlipValue + the globals delta chip), whatever
-     * the board behind the workspace can show. The board-beat park keeps holding the BOARD's presented values — the
-     * marker's glide, the capture flash and the parked bonus card still play when the board is uncovered, as the
-     * board's own story of a change the HUD has already told. Until 2026-10-28 the strip merged the park's held
-     * snapshot too («the HUD and the arcs can never disagree»), which held the HUD at a value the server had left
-     * up to 30 s earlier — a lie the player made decisions on. The HUD is an instrument, the board is a stage: the
-     * instrument reads true, the stage tells the story.
-     *
-     * The ONE merge kept: a PARAMETER SWING (TR47 «ОБРАТНЫЙ ХОД» — up and back in one response, the applied view's
-     * net change ZERO): its peak is presented until each leg's turn, so the fall is seen as a fall — the view's
-     * value is the scene's END, which the strip reaches with the last leg.
-     */
-    /** The MAP's maximums (Amazonis Planitia's tracks are longer — +14 °C, 18 %, 11 oceans, 33 %). */
-    maxima(): Readonly<GlobalParameterMaximums> {
-      return getGlobalParameterMaximums(this.playerView.game.gameOptions.boardName);
-    },
-    game(): GameModel {
-      if (boardBeatParkState.swingParams === undefined) {
-        return this.playerView.game;
-      }
-      return {
-        ...this.playerView.game,
-        ...boardBeatParkState.swingParams,
-      };
-    },
-    /** Four seats and more: the ribbon is crowded — the names outrank the waiting seats' words (R-20). */
-    denseSeats(): boolean {
-      return this.players.length >= 4;
-    },
-    players(): ReadonlyArray<PublicPlayerModel> {
-      return this.playerView.players;
-    },
-    thisPlayerColor(): Color {
-      return this.playerView.thisPlayer.color;
-    },
-    /** The viewer's status category — drives the one-shot burst watcher. */
-    myCategory(): StatusPresentation['category'] {
-      const me = this.players.find((p) => p.color === this.thisPlayerColor);
-      return me !== undefined ? this.presentation(me).category : 'none';
-    },
-    /**
-     * IS THE PENDING DECISION ANSWERABLE RIGHT NOW? The server is waiting on
-     * the viewer — the `active` category, which is exactly what this chip's
-     * own pill says («ДЕЙСТВИЕ» / «ФАЗА ПРОЛОГОВ» / …).
-     *
-     * WHY THE BEACON NEEDS IT. «A mandatory action is pending» and «you can
-     * answer it now» are two different facts, and only the second one is an
-     * alarm. A prompt can be owed while the table is still busy elsewhere (the
-     * corporation's first action while another player finishes their preludes;
-     * a minimized start workspace whose «ждём остальных» is honest), and there
-     * the player is legitimately free to walk the interface — pulsing amber at
-     * them demands something they cannot do. Worse, it CONTRADICTS the chip it
-     * sits on: the pill read «ОЖИДАЕТ» while the same chip flashed for
-     * attention. So the beacon is derived from the SAME presentation the pill
-     * renders — that contradiction is now unexpressible — and it lights the
-     * instant the status turns active, with no further debounce (the pending
-     * half has been engaged all along).
-     *
-     * The announcement card is deliberately NOT gated on this: it is a calm
-     * plate on the player's own board home that says where to go, and A must
-     * keep taking them there whenever they choose to look.
-     */
-    viewerAwaited(): boolean {
-      return this.myCategory === 'active';
-    },
-    /** The beacon: a debounced PENDING decision that is answerable NOW. */
-    attention(): boolean {
-      return this.attentionEngaged && this.viewerAwaited;
-    },
-    /** The SHARED terraforming-progress math (same helper the desktop
-     *  sidebar gauge uses) — Temperature + Oxygen + Oceans ONLY. */
-    progress(): TerraformingProgress {
-      return terraformingProgress(this.game, this.maxima);
-    },
-    /**
-     * THE GENERATION THIS SEAT IS IN (Turmoil Redux, the soft gates): the sitting's while the seat has not closed it —
-     * the next generation already runs around it on the server, and the counter flips at the seat's own
-     * «Закрыть заседание» (`presentedGeneration` — the server's per-seat sitting, never a client memory).
-     */
-    shownGeneration(): number {
-      return this.game.parliament?.phase?.generation ?? this.game.generation;
-    },
-    /** This generation is authoritatively the game's last one. */
-    finalGeneration(): boolean {
-      return finalGenerationActive(this.playerView);
-    },
-    /**
-     * The terraformed SCENE's show (TR70 — `terraformedScene.ts`): the one-shot pulse of the trio rides the
-     * scene's tact 3 — the frame the held values let go and the chips flip — never the raw completion nonce,
-     * which fires at the apply while the readouts still hold the previous numbers.
-     */
-    sceneShowNonce(): number {
-      return terraformedSceneState.showNonce;
-    },
-    /**
-     * RAW generic-signal state: prepared events wait in the FIFO, NO card is
-     * active, and delivery is GENUINELY blocked (an animation / a reveal /
-     * the theater / a ceremony own the screen). All three, deliberately:
-     *  - with a card active the backlog belongs to «ДАЛЬШЕ +N» (mutual
-     *    exclusion by construction);
-     *  - with delivery open the next card presents in the same flush — that
-     *    transitional shape must never light the slot.
-     */
-    /** The pending-events instrument is shown at all (the opt-in — statusEventCounter.ts). */
-    eventCounterOn(): boolean {
-      return statusEventCounterState.enabled;
-    },
-    pendingSignalRaw(): boolean {
-      return notificationState.transient.length === 0 &&
-        notificationState.queue.length > 0 &&
-        isNotificationDeliveryBlocked();
-    },
-    /** The signal as SHOWN — the dwell latch AND the live conditions (the
-     *  «re-check at expiry» of the contract is this conjunction). */
-    pendingSignalShown(): boolean {
-      return this.evqEngaged && this.pendingSignalRaw;
-    },
-    /** Absolute live backlog, 9+ capped (the truth the display follows). */
-    pendingCountText(): string {
-      const n = notificationState.queue.length;
-      return n > 9 ? '9+' : String(n);
-    },
-    /** What the slot SHOULD read right now — «0» whenever it is not shown. */
-    evqTarget(): string {
-      return this.pendingSignalShown ? this.pendingCountText : '0';
-    },
-    terraAriaLabel(): string {
-      return `${translateText('Terraforming progress')}: ${this.progress.percent}%`;
-    },
-  },
-  watch: {
-    attentionPending: {
-      immediate: true,
-      handler(pending: boolean): void {
-        if (pending) {
-          if (this.attentionEngaged || this.cancelAttention !== undefined) {
-            return;
-          }
-          this.cancelAttention = this.flow.after(this.attentionEngageMs, 'the attention beacon\'s dwell', () => {
-            this.cancelAttention = undefined;
-            this.attentionEngaged = true;
-          });
-        } else {
-          if (this.cancelAttention !== undefined) {
-            this.cancelAttention();
-            this.cancelAttention = undefined;
-          }
-          this.attentionEngaged = false;
-        }
-      },
-    },
-    myCategory(now: StatusPresentation['category'], before: StatusPresentation['category']) {
-      if (now === 'active' && before !== 'active') {
-        this.turnBurst = true;
-        this.cancelBurst();
-        this.cancelBurst = this.flow.after(motionMs(2600), 'the turn burst ends', () => {
-          this.turnBurst = false;
-        });
-      }
-    },
-    // The generic pending-events signal — the 500 ms DWELL. A rising raw
-    // state arms the timer; ANY interruption (blocker cleared, delivery
-    // started, a card presented, the queue emptied) cancels it on the falling
-    // edge, so «continuously waiting» is literal. The timer firing sets the
-    // latch only — whether anything SHOWS is re-derived from the LIVE raw
-    // state (`pendingSignalShown = engaged && raw`), which is the «re-check
-    // every condition at expiry» step by construction. Purely visual: the
-    // real queue/delivery never waits on any of this.
-    pendingSignalRaw: {
-      immediate: true,
-      handler(raw: boolean): void {
-        if (raw) {
-          if (this.evqEngaged || this.cancelEvq !== undefined) {
-            return;
-          }
-          this.cancelEvq = this.flow.after(this.pendingEngageMs, 'the pending-events signal\'s dwell', () => {
-            this.cancelEvq = undefined;
-            this.evqEngaged = true;
-          });
-        } else {
-          if (this.cancelEvq !== undefined) {
-            this.cancelEvq();
-            this.cancelEvq = undefined;
-          }
-          this.evqEngaged = false;
-        }
-      },
-    },
-    // The DISPLAYED count follows the target with a short coalescing window:
-    // dormant↔waiting edges apply IMMEDIATELY (the dwell already filtered the
-    // noise — engagement must show the real number at once, and the return to
-    // «0» must not lag the card that took over), while N→M churn inside the
-    // waiting state batches into one calm crossfade. The fire reads the LIVE
-    // target, so the digit shown is always the current truth.
-    evqTarget: {
-      immediate: true,
-      handler(target: string): void {
-        if (target === this.shownCountText) {
-          return;
-        }
-        if (target === '0' || this.shownCountText === '0') {
-          if (this.cancelEvqCount !== undefined) {
-            this.cancelEvqCount();
-            this.cancelEvqCount = undefined;
-          }
-          this.shownCountText = target;
-          return;
-        }
-        if (this.cancelEvqCount !== undefined) {
-          return; // the pending fire reads the live target — nothing to re-arm
-        }
-        this.cancelEvqCount = this.flow.after(this.pendingCoalesceMs, 'the pending count\'s coalescing window', () => {
-          this.cancelEvqCount = undefined;
-          this.shownCountText = this.evqTarget;
-        });
-      },
-    },
-    // One-shot pulse on the Temp/O₂/Oceans group when the terraformed scene
-    // SHOWS (the scene plays once per live completion, never on a reload — the
-    // calm --complete state carries the persistent look).
-    sceneShowNonce() {
-      this.celebrating = true;
-      this.cancelCelebrate();
-      this.cancelCelebrate = this.flow.after(motionMs(3400), 'the terraformed pulse ends', () => {
-        this.celebrating = false;
-      });
-    },
-  },
-  mounted() {
-    // Seed the conveyor with the order that is on screen — the initial open
-    // and a reconnect show the current order with no animation.
-    this.conveyor.sync(this.chipOrder());
-  },
-  beforeUpdate() {
-    // Pre-patch half of the reorder FLIP: measures only when the ORDER
-    // itself changed (content updates — statuses, counters, params — are a
-    // string compare and out).
-    this.conveyor.beforePatch(this.playersContainer(), this.chipOrder());
-  },
-  updated() {
-    this.conveyor.afterPatch(this.playersContainer(), this.chipOrder());
-  },
-  beforeUnmount() {
-    this.conveyor.dispose();
-  },
-  methods: {
-    /**
-     * A DIAL's reading (T05 · CG) — how far the shown value stands along its scale, 0…1: the temperature from −30 to
-     * the map's maximum (+8 °C; +14 °C on Amazonis Planitia), the oxygen from 0 to its maximum. The value is the one the cell prints (the board-beat park's display included).
-     */
-    paramFill(param: 'temperature' | 'oxygen' | 'venus'): string {
-      const fill = param === 'temperature' ?
-        (this.game.temperature - MIN_TEMPERATURE) / (this.maxima.temperature - MIN_TEMPERATURE) :
-        param === 'oxygen' ? this.game.oxygenLevel / this.maxima.oxygen : this.game.venusScaleLevel / this.maxima.venus;
-      return String(Math.max(0, Math.min(1, fill)));
-    },
-    /**
-     * WHERE a seat's intake hangs: under its chip — the plaque's left edge on the chip's, its stem on the seat's dot,
-     * its ring in the seat's tone (the dot's own paint). Measured in the ribbon's coordinates (the plaque rides the
-     * ribbon's one transform with its chip); `seq` re-renders it on every change of the plaque.
-     */
-    intakeStyle(intake: SeatIntake): Record<string, string> {
-      void intake.seq;
-      const ribbon = ((this.$refs.playersEl ?? undefined) as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-status__ribbon');
-      const chip = ribbon?.querySelector<HTMLElement>(`.con-status__player[data-color="${intake.seat}"]:not(.con-status__pghost)`);
-      const dot = chip?.querySelector<HTMLElement>('.con-status__dot');
-      if (ribbon === undefined || ribbon === null || chip === undefined || chip === null) {
-        return {display: 'none'};
-      }
-      const style: Record<string, string> = {left: `${chip.offsetLeft}px`};
-      if (dot !== null && dot !== undefined) {
-        style['--con-intake-stem-x'] = `${dot.offsetLeft + dot.offsetWidth / 2}px`;
-        style['--con-intake-tone'] = getComputedStyle(dot).backgroundColor;
-      }
-      return style;
-    },
-    intakeIconClass(resource: string): string {
-      return iconClassFor(resource);
-    },
-    intakeText(item: SeatIntakeItem): string {
-      return intakeItemText(item);
-    },
-    /** The generation readout finished its flip — the generation scene's FIRST beat is over (TR61). */
-    onGenerationFlipEnd(generation: number): void {
-      noteGenerationFlipEnd(generation);
-    },
-    /** The chips' identity sequence — the generation order as rendered. */
-    chipOrder(): Array<string> {
-      return this.players.map((p) => p.color as string);
-    },
-    playersContainer(): HTMLElement | undefined {
-      const el = this.$refs.playersEl;
-      return el instanceof HTMLElement ? el : undefined;
-    },
-    displayName(p: PublicPlayerModel): string {
-      return participantDisplayName(p);
-    },
-    actionLabel(p: PublicPlayerModel): ActionLabel {
-      return actionLabelForPlayer(this.playerView, p, liveWaitingSignal(this.waitingOnPlayers));
-    },
-    presentation(p: PublicPlayerModel): StatusPresentation {
-      return presentPlayerStatus(this.actionLabel(p), p.isMarsBot === true);
-    },
-    statusGlyph(p: PublicPlayerModel): string {
-      return GLYPH_CHARS[this.presentation(p).glyph];
-    },
-    actionCounter(p: PublicPlayerModel): string {
-      // ONE derivation, shared with the desktop card: a BONUS action counts the
-      // bonuses its card granted, a normal turn counts the turn's own actions.
-      return statusCounterText(p, this.actionLabel(p));
-    },
-    chipClasses(p: PublicPlayerModel): Record<string, boolean> {
-      const category = this.presentation(p).category;
-      const me = p.color === this.thisPlayerColor;
-      return {
-        'con-status__player--me': me,
-        'con-status__player--active': category === 'active',
-        'con-status__player--passed': category === 'passed',
-        'con-status__player--burst': me && this.turnBurst,
-        'con-status__player--attention': me && this.attention,
-      };
-    },
-  },
+defineOptions({name: 'ConsoleStatusStrip'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  /**
+   * The LIVE `/api/waitingFor` poll. Without it the chips read the frozen
+   * `isWaitingForInput` snapshot, which goes STALE for the whole of a
+   * simultaneous-pick phase: while the viewer holds their own prompt the
+   * playerView is deliberately not refreshed (it would drop their partial
+   * input), so an opponent who has since submitted still reads as picking.
+   * The start scene's summary rail reads the same brain WITH the poll, so
+   * omitting it here made the two surfaces visibly disagree.
+   */
+  waitingOnPlayers: {type: Array as PropType<ReadonlyArray<Color>>, default: () => []},
+  /** playerView.runId — drives the delta-chip feedback ('' disables). */
+  epoch: {type: String, default: ''},
+  /**
+   * RAW "a mandatory decision awaits the viewer while its CTA surface is
+   * NOT on screen" signal (ConsoleShell: gate held / deferred, announce
+   * card hidden). The strip DEBOUNCES engagement (`attentionEngageMs`) so
+   * a transient off-screen window — an animation about to end on the board
+   * home, a section flip-through — never flashes the beacon; release is
+   * INSTANT the moment the announce card shows or the decision resolves,
+   * so the chip and the CTA card never double-signal.
+   *
+   * The beacon additionally requires the viewer's status to be ACTIONABLE
+   * — see `viewerAwaited`. "Pending" and "answerable NOW" are two different
+   * facts, and only the second one may raise an alarm.
+   */
+  attentionPending: {type: Boolean, default: false},
+  /**
+   * SPATIAL PRE-SELECT PREVIEW (std-projects §9): the global-parameter
+   * readout the FOCUSED project would move gets a quiet ring — «this dial
+   * is affected». Values never change, markers never move, and the ring is
+   * gone the moment focus leaves — a hint, never a pre-played result. The
+   * numbers themselves stay with the context chips (one source, no
+   * duplication).
+   */
+  ghostParam: {type: String as PropType<'temperature' | 'oxygen' | 'oceans' | 'venus' | undefined>, default: undefined},
+  /** Engagement debounce (ms). A prop so specs can shrink it. */
+  attentionEngageMs: {type: Number, default: 1200},
+  /**
+   * The DWELL window (ms) before a non-zero count may show: the backlog
+   * must wait CONTINUOUSLY for this long — a blocker that clears sooner, a
+   * card presenting, or the queue emptying cancels the timer and the slot
+   * never leaves its dormant «0». A prop so specs can shrink it.
+   */
+  pendingEngageMs: {type: Number, default: 500},
+  /**
+   * Rapid COUNT changes after engagement coalesce into one calm update
+   * inside this window (the truth stays exact — the fire reads the LIVE
+   * count). Dormant↔waiting edges apply immediately. A prop for specs.
+   */
+  pendingCoalesceMs: {type: Number, default: 120},
+});
+
+const flow = useFlowScope('console-status-strip');
+const playersEl = useTemplateRef<HTMLElement>('playersEl');
+/** One-shot "turn passed to YOU" attention burst on the viewer's chip. */
+const turnBurst = ref(false);
+let cancelBurst = (() => {}) as () => void;
+/** Debounced RAW pending state — half of the beacon (see `attention`). */
+const attentionEngaged = ref(false);
+/** The dwell's cancel — `undefined` while no dwell stands. */
+let cancelAttention: (() => void) | undefined;
+/** One-shot terraforming-complete pulse on the Temp/O₂/Oceans group. */
+const celebrating = ref(false);
+let cancelCelebrate = (() => {}) as () => void;
+/**
+ * The generic pending-events signal, ENGAGED — the 500 ms dwell ran to
+ * completion with the raw state continuously true. The raw state is
+ * true for one flush during an ordinary promotion hand-over and for
+ * the whole life of a SHORT blocker; neither may reach the player's
+ * eye, so nothing shows until the dwell survives. Release is instant.
+ */
+const evqEngaged = ref(false);
+/** The dwell's cancel — `undefined` while no dwell stands. */
+let cancelEvq: (() => void) | undefined;
+/** The DISPLAYED count («0» dormant / «N» / «9+») — follows the live
+ *  queue through the coalescing window, never a stale number. */
+const shownCountText = ref('0');
+/** The coalescing window's cancel — `undefined` while no fire is pending. */
+let cancelEvqCount: (() => void) | undefined;
+/** The generation-order chip conveyor — DOM choreography state, kept
+ *  out of reactivity (it holds Animations, clones and rects). */
+const conveyor = ref(markRaw(createChipConveyor()));
+
+/** The seats' INTAKE plaques standing now (T06 — `console/statusIntake.ts`). */
+const intakes = computed((): ReadonlyArray<SeatIntake> => {
+  return statusIntakeState.intakes;
+});
+/**
+ * The game the strip DISPLAYS — THE TRUTH, AT ONCE (state delivery, 2026-10-28; the owner: «состояния в top bar
+ * должны меняться сразу же, как только на сервере поменялось»).
+ *
+ * The four global parameters read the APPLIED view: a scale another seat moved while this player stood inside a
+ * workspace flips on the strip the moment the view lands (ConsoleFlipValue + the globals delta chip), whatever
+ * the board behind the workspace can show. The board-beat park keeps holding the BOARD's presented values — the
+ * marker's glide, the capture flash and the parked bonus card still play when the board is uncovered, as the
+ * board's own story of a change the HUD has already told. Until 2026-10-28 the strip merged the park's held
+ * snapshot too («the HUD and the arcs can never disagree»), which held the HUD at a value the server had left
+ * up to 30 s earlier — a lie the player made decisions on. The HUD is an instrument, the board is a stage: the
+ * instrument reads true, the stage tells the story.
+ *
+ * The ONE merge kept: a PARAMETER SWING (TR47 «ОБРАТНЫЙ ХОД» — up and back in one response, the applied view's
+ * net change ZERO): its peak is presented until each leg's turn, so the fall is seen as a fall — the view's
+ * value is the scene's END, which the strip reaches with the last leg.
+ */
+/** The MAP's maximums (Amazonis Planitia's tracks are longer — +14 °C, 18 %, 11 oceans, 33 %). */
+const maxima = computed((): Readonly<GlobalParameterMaximums> => {
+  return getGlobalParameterMaximums(props.playerView.game.gameOptions.boardName);
+});
+const game = computed((): GameModel => {
+  if (boardBeatParkState.swingParams === undefined) {
+    return props.playerView.game;
+  }
+  return {
+    ...props.playerView.game,
+    ...boardBeatParkState.swingParams,
+  };
+});
+/** Four seats and more: the ribbon is crowded — the names outrank the waiting seats' words (R-20). */
+const denseSeats = computed((): boolean => {
+  return players.value.length >= 4;
+});
+const players = computed((): ReadonlyArray<PublicPlayerModel> => {
+  return props.playerView.players;
+});
+const thisPlayerColor = computed((): Color => {
+  return props.playerView.thisPlayer.color;
+});
+/** The viewer's status category — drives the one-shot burst watcher. */
+const myCategory = computed((): StatusPresentation['category'] => {
+  const me = players.value.find((p) => p.color === thisPlayerColor.value);
+  return me !== undefined ? presentation(me).category : 'none';
+});
+/**
+ * IS THE PENDING DECISION ANSWERABLE RIGHT NOW? The server is waiting on
+ * the viewer — the `active` category, which is exactly what this chip's
+ * own pill says («ДЕЙСТВИЕ» / «ФАЗА ПРОЛОГОВ» / …).
+ *
+ * WHY THE BEACON NEEDS IT. «A mandatory action is pending» and «you can
+ * answer it now» are two different facts, and only the second one is an
+ * alarm. A prompt can be owed while the table is still busy elsewhere (the
+ * corporation's first action while another player finishes their preludes;
+ * a minimized start workspace whose «ждём остальных» is honest), and there
+ * the player is legitimately free to walk the interface — pulsing amber at
+ * them demands something they cannot do. Worse, it CONTRADICTS the chip it
+ * sits on: the pill read «ОЖИДАЕТ» while the same chip flashed for
+ * attention. So the beacon is derived from the SAME presentation the pill
+ * renders — that contradiction is now unexpressible — and it lights the
+ * instant the status turns active, with no further debounce (the pending
+ * half has been engaged all along).
+ *
+ * The announcement card is deliberately NOT gated on this: it is a calm
+ * plate on the player's own board home that says where to go, and A must
+ * keep taking them there whenever they choose to look.
+ */
+const viewerAwaited = computed((): boolean => {
+  return myCategory.value === 'active';
+});
+/** The beacon: a debounced PENDING decision that is answerable NOW. */
+const attention = computed((): boolean => {
+  return attentionEngaged.value && viewerAwaited.value;
+});
+/** The SHARED terraforming-progress math (same helper the desktop
+ *  sidebar gauge uses) — Temperature + Oxygen + Oceans ONLY. */
+const progress = computed((): TerraformingProgress => {
+  return terraformingProgress(game.value, maxima.value);
+});
+/**
+ * THE GENERATION THIS SEAT IS IN (Turmoil Redux, the soft gates): the sitting's while the seat has not closed it —
+ * the next generation already runs around it on the server, and the counter flips at the seat's own
+ * «Закрыть заседание» (`presentedGeneration` — the server's per-seat sitting, never a client memory).
+ */
+const shownGeneration = computed((): number => {
+  return game.value.parliament?.phase?.generation ?? game.value.generation;
+});
+/** This generation is authoritatively the game's last one. */
+const finalGeneration = computed((): boolean => {
+  return finalGenerationActive(props.playerView);
+});
+/**
+ * The terraformed SCENE's show (TR70 — `terraformedScene.ts`): the one-shot pulse of the trio rides the
+ * scene's tact 3 — the frame the held values let go and the chips flip — never the raw completion nonce,
+ * which fires at the apply while the readouts still hold the previous numbers.
+ */
+const sceneShowNonce = computed((): number => {
+  return terraformedSceneState.showNonce;
+});
+/**
+ * RAW generic-signal state: prepared events wait in the FIFO, NO card is
+ * active, and delivery is GENUINELY blocked (an animation / a reveal /
+ * the theater / a ceremony own the screen). All three, deliberately:
+ *  - with a card active the backlog belongs to «ДАЛЬШЕ +N» (mutual
+ *    exclusion by construction);
+ *  - with delivery open the next card presents in the same flush — that
+ *    transitional shape must never light the slot.
+ */
+/** The pending-events instrument is shown at all (the opt-in — statusEventCounter.ts). */
+const eventCounterOn = computed((): boolean => {
+  return statusEventCounterState.enabled;
+});
+const pendingSignalRaw = computed((): boolean => {
+  return notificationState.transient.length === 0 &&
+    notificationState.queue.length > 0 &&
+    isNotificationDeliveryBlocked();
+});
+/** The signal as SHOWN — the dwell latch AND the live conditions (the
+ *  «re-check at expiry» of the contract is this conjunction). */
+const pendingSignalShown = computed((): boolean => {
+  return evqEngaged.value && pendingSignalRaw.value;
+});
+/** Absolute live backlog, 9+ capped (the truth the display follows). */
+const pendingCountText = computed((): string => {
+  const n = notificationState.queue.length;
+  return n > 9 ? '9+' : String(n);
+});
+/** What the slot SHOULD read right now — «0» whenever it is not shown. */
+const evqTarget = computed((): string => {
+  return pendingSignalShown.value ? pendingCountText.value : '0';
+});
+const terraAriaLabel = computed((): string => {
+  return `${translateText('Terraforming progress')}: ${progress.value.percent}%`;
+});
+
+/**
+ * A DIAL's reading (T05 · CG) — how far the shown value stands along its scale, 0…1: the temperature from −30 to
+ * the map's maximum (+8 °C; +14 °C on Amazonis Planitia), the oxygen from 0 to its maximum. The value is the one the cell prints (the board-beat park's display included).
+ */
+function paramFill(param: 'temperature' | 'oxygen' | 'venus'): string {
+  const fill = param === 'temperature' ?
+    (game.value.temperature - MIN_TEMPERATURE) / (maxima.value.temperature - MIN_TEMPERATURE) :
+    param === 'oxygen' ? game.value.oxygenLevel / maxima.value.oxygen : game.value.venusScaleLevel / maxima.value.venus;
+  return String(Math.max(0, Math.min(1, fill)));
+}
+/**
+ * WHERE a seat's intake hangs: under its chip — the plaque's left edge on the chip's, its stem on the seat's dot,
+ * its ring in the seat's tone (the dot's own paint). Measured in the ribbon's coordinates (the plaque rides the
+ * ribbon's one transform with its chip); `seq` re-renders it on every change of the plaque.
+ */
+function intakeStyle(intake: SeatIntake): Record<string, string> {
+  void intake.seq;
+  const ribbon = playersEl.value?.querySelector<HTMLElement>('.con-status__ribbon');
+  const chip = ribbon?.querySelector<HTMLElement>(`.con-status__player[data-color="${intake.seat}"]:not(.con-status__pghost)`);
+  const dot = chip?.querySelector<HTMLElement>('.con-status__dot');
+  if (ribbon === undefined || ribbon === null || chip === undefined || chip === null) {
+    return {display: 'none'};
+  }
+  const style: Record<string, string> = {left: `${chip.offsetLeft}px`};
+  if (dot !== null && dot !== undefined) {
+    style['--con-intake-stem-x'] = `${dot.offsetLeft + dot.offsetWidth / 2}px`;
+    style['--con-intake-tone'] = getComputedStyle(dot).backgroundColor;
+  }
+  return style;
+}
+function intakeIconClass(resource: string): string {
+  return iconClassFor(resource);
+}
+function intakeText(item: SeatIntakeItem): string {
+  return intakeItemText(item);
+}
+/** The generation readout finished its flip — the generation scene's FIRST beat is over (TR61). */
+function onGenerationFlipEnd(generation: number): void {
+  noteGenerationFlipEnd(generation);
+}
+/** The chips' identity sequence — the generation order as rendered. */
+function chipOrder(): Array<string> {
+  return players.value.map((p) => p.color as string);
+}
+function playersContainer(): HTMLElement | undefined {
+  const el = playersEl.value;
+  return el instanceof HTMLElement ? el : undefined;
+}
+function displayName(p: PublicPlayerModel): string {
+  return participantDisplayName(p);
+}
+function actionLabel(p: PublicPlayerModel): ActionLabel {
+  return actionLabelForPlayer(props.playerView, p, liveWaitingSignal(props.waitingOnPlayers));
+}
+function presentation(p: PublicPlayerModel): StatusPresentation {
+  return presentPlayerStatus(actionLabel(p), p.isMarsBot === true);
+}
+function statusGlyph(p: PublicPlayerModel): string {
+  return GLYPH_CHARS[presentation(p).glyph];
+}
+function actionCounter(p: PublicPlayerModel): string {
+  // ONE derivation, shared with the desktop card: a BONUS action counts the
+  // bonuses its card granted, a normal turn counts the turn's own actions.
+  return statusCounterText(p, actionLabel(p));
+}
+function chipClasses(p: PublicPlayerModel): Record<string, boolean> {
+  const category = presentation(p).category;
+  const me = p.color === thisPlayerColor.value;
+  return {
+    'con-status__player--me': me,
+    'con-status__player--active': category === 'active',
+    'con-status__player--passed': category === 'passed',
+    'con-status__player--burst': me && turnBurst.value,
+    'con-status__player--attention': me && attention.value,
+  };
+}
+
+watch(() => props.attentionPending, (pending: boolean): void => {
+  if (pending) {
+    if (attentionEngaged.value || cancelAttention !== undefined) {
+      return;
+    }
+    cancelAttention = flow.after(props.attentionEngageMs, 'the attention beacon\'s dwell', () => {
+      cancelAttention = undefined;
+      attentionEngaged.value = true;
+    });
+  } else {
+    if (cancelAttention !== undefined) {
+      cancelAttention();
+      cancelAttention = undefined;
+    }
+    attentionEngaged.value = false;
+  }
+}, {immediate: true});
+watch(() => myCategory.value, (now: StatusPresentation['category'], before: StatusPresentation['category']) => {
+  if (now === 'active' && before !== 'active') {
+    turnBurst.value = true;
+    cancelBurst();
+    cancelBurst = flow.after(motionMs(2600), 'the turn burst ends', () => {
+      turnBurst.value = false;
+    });
+  }
+});
+// The generic pending-events signal — the 500 ms DWELL. A rising raw
+// state arms the timer; ANY interruption (blocker cleared, delivery
+// started, a card presented, the queue emptied) cancels it on the falling
+// edge, so «continuously waiting» is literal. The timer firing sets the
+// latch only — whether anything SHOWS is re-derived from the LIVE raw
+// state (`pendingSignalShown = engaged && raw`), which is the «re-check
+// every condition at expiry» step by construction. Purely visual: the
+// real queue/delivery never waits on any of this.
+watch(() => pendingSignalRaw.value, (raw: boolean): void => {
+  if (raw) {
+    if (evqEngaged.value || cancelEvq !== undefined) {
+      return;
+    }
+    cancelEvq = flow.after(props.pendingEngageMs, 'the pending-events signal\'s dwell', () => {
+      cancelEvq = undefined;
+      evqEngaged.value = true;
+    });
+  } else {
+    if (cancelEvq !== undefined) {
+      cancelEvq();
+      cancelEvq = undefined;
+    }
+    evqEngaged.value = false;
+  }
+}, {immediate: true});
+// The DISPLAYED count follows the target with a short coalescing window:
+// dormant↔waiting edges apply IMMEDIATELY (the dwell already filtered the
+// noise — engagement must show the real number at once, and the return to
+// «0» must not lag the card that took over), while N→M churn inside the
+// waiting state batches into one calm crossfade. The fire reads the LIVE
+// target, so the digit shown is always the current truth.
+watch(() => evqTarget.value, (target: string): void => {
+  if (target === shownCountText.value) {
+    return;
+  }
+  if (target === '0' || shownCountText.value === '0') {
+    if (cancelEvqCount !== undefined) {
+      cancelEvqCount();
+      cancelEvqCount = undefined;
+    }
+    shownCountText.value = target;
+    return;
+  }
+  if (cancelEvqCount !== undefined) {
+    return; // the pending fire reads the live target — nothing to re-arm
+  }
+  cancelEvqCount = flow.after(props.pendingCoalesceMs, 'the pending count\'s coalescing window', () => {
+    cancelEvqCount = undefined;
+    shownCountText.value = evqTarget.value;
+  });
+}, {immediate: true});
+// One-shot pulse on the Temp/O₂/Oceans group when the terraformed scene
+// SHOWS (the scene plays once per live completion, never on a reload — the
+// calm --complete state carries the persistent look).
+watch(() => sceneShowNonce.value, () => {
+  celebrating.value = true;
+  cancelCelebrate();
+  cancelCelebrate = flow.after(motionMs(3400), 'the terraformed pulse ends', () => {
+    celebrating.value = false;
+  });
+});
+
+onMounted(() => {
+  // Seed the conveyor with the order that is on screen — the initial open
+  // and a reconnect show the current order with no animation.
+  conveyor.value.sync(chipOrder());
+});
+onBeforeUpdate(() => {
+  // Pre-patch half of the reorder FLIP: measures only when the ORDER
+  // itself changed (content updates — statuses, counters, params — are a
+  // string compare and out).
+  conveyor.value.beforePatch(playersContainer(), chipOrder());
+});
+onUpdated(() => {
+  conveyor.value.afterPatch(playersContainer(), chipOrder());
+});
+onBeforeUnmount(() => {
+  conveyor.value.dispose();
 });
 </script>

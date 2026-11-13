@@ -402,3 +402,41 @@ describe('ConsoleStatusStrip — the PLANET dial (EW, 2026-11-03: the total is a
     expect(Number((venus.element as HTMLElement).style.getPropertyValue('--con-param-fill'))).eq(0.5);
   });
 });
+
+/*
+ * THE SEAT'S INTAKE (T06 — `console/statusIntake.ts`): a plaque hangs from ITS seat's chip, measured inside the
+ * ribbon the strip finds through its own template ref (`playersEl` — docs/claude/vapor/RECIPES.md R11: the strip is
+ * `<script setup>`, and the ref is read by a function the template calls). jsdom lays nothing out, so «on the chip»
+ * reads `left: 0px`; «no chip to hang from» is `display: none`.
+ */
+import {resetStatusIntakes, statusIntakeState} from '@/client/console/statusIntake';
+
+describe('ConsoleStatusStrip — a seat\'s intake plaque hangs from that seat\'s chip', () => {
+  afterEach(() => resetStatusIntakes());
+
+  it('a plaque opened under a standing strip is placed on its chip and prints its items; a seat with no chip is never drawn', async () => {
+    const w = mountStrip(5);
+    expect(w.find('.con-status__intake').exists(), 'no plaque while nothing is on its way').to.be.false;
+
+    statusIntakeState.intakes = [
+      {seat: 'green', items: [{resource: 'steel', expected: 2, received: 0}, {resource: 'energy', production: true, expected: 1, received: 1}], phase: 'expecting', seq: 1},
+      {seat: 'blue', items: [{resource: 'steel', expected: 1, received: 0}], phase: 'expecting', seq: 1},
+    ];
+    await w.vm.$nextTick();
+
+    const plaque = w.find('.con-status__intake[data-intake-seat="green"]');
+    expect(plaque.exists()).to.be.true;
+    expect(plaque.classes()).to.include('con-status__intake--expecting');
+    expect((plaque.element as HTMLElement).style.display, 'the chip was found under the strip\'s own ribbon').to.not.eq('none');
+    expect((plaque.element as HTMLElement).style.left).to.eq('0px');
+    const items = plaque.findAll('.con-status__intake-item');
+    expect(items.map((i) => i.attributes('data-intake-resource'))).to.deep.eq(['steel', 'energy']);
+    expect(items.map((i) => i.find('.con-status__intake-num').text()), '«…» until a unit lands, «+N» after').to.deep.eq(['…', '+1']);
+    expect(items[0].find('.con-status__intake-prod').exists(), 'stock wears no production frame').to.be.false;
+    expect(items[1].find('.con-status__intake-prod > .con-status__intake-icon').exists(), 'production wears it').to.be.true;
+
+    // No seat «blue» at this table: nothing to hang the plaque from — it is not drawn.
+    const orphan = w.find('.con-status__intake[data-intake-seat="blue"]');
+    expect((orphan.element as HTMLElement).style.display).to.eq('none');
+  });
+});
