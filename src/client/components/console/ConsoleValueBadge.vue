@@ -1,23 +1,4 @@
 <template>
-  <!--
-    A VALUE BADGE physically pinned to a rail icon's corner — the passive
-    information layer of the left rail. TWO variants, deliberately different
-    in SHAPE and MATERIAL (never colour alone):
-
-     · mc — the game's own megacredit tile (gold coin, dark engraved figure):
-       «one unit of this resource replaces N M€». A dual-rate text («3/2»,
-       Luna Trade Federation) swaps the square tile for a gold pill so the
-       figures stay legible instead of shrinking inside the square.
-     · vp — the console's own award shield (ConsoleVpBadge's silhouette, gold
-       rim over graphite): «this tag currently earns N VP each» (or a vulgar
-       fraction — ½ · ⅓ · 2⁄2 — for ratio scoring).
-
-    Purely presentational + one micro-behaviour: when the VALUE changes for
-    the SAME displayed seat, a short scale pulse acknowledges the change
-    (transform/opacity only — console paint baseline). Switching the
-    inspected player swaps the whole context, so a scope change never pulses.
-    No focus, no input, no layout: position comes from the host's wrapper.
-  -->
   <span class="con-valbadge"
         :class="['con-valbadge--' + variant, {
           'con-valbadge--wide': wide,
@@ -39,8 +20,29 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * A VALUE BADGE physically pinned to a rail icon's corner — the passive
+ * information layer of the left rail. TWO variants, deliberately different
+ * in SHAPE and MATERIAL (never colour alone):
+ *
+ *  · mc — the game's own megacredit tile (gold coin, dark engraved figure):
+ *    «one unit of this resource replaces N M€». A dual-rate text («3/2»,
+ *    Luna Trade Federation) swaps the square tile for a gold pill so the
+ *    figures stay legible instead of shrinking inside the square.
+ *  · vp — the console's own award shield (ConsoleVpBadge's silhouette, gold
+ *    rim over graphite): «this tag currently earns N VP each» (or a vulgar
+ *    fraction — ½ · ⅓ · 2⁄2 — for ratio scoring).
+ *
+ * Purely presentational + one micro-behaviour: when the VALUE changes for
+ * the SAME displayed seat, a short scale pulse acknowledges the change
+ * (transform/opacity only — console paint baseline). Switching the
+ * inspected player swaps the whole context, so a scope change never pulses.
+ * No focus, no input, no layout: position comes from the host's wrapper.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType, ref, watch} from 'vue';
 import {FlowScope} from '@/client/console/kernel/flowScope';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -50,63 +52,51 @@ import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/comp
 const nextFrame: (owner: FlowScope, cb: () => void) => void =
   typeof requestAnimationFrame === 'function' ? (owner, cb) => owner.afterFrame('the badge\'s pulse re-arms', cb) : (_owner, cb) => cb();
 
-export default defineComponent({
-  name: 'ConsoleValueBadge',
-  props: {
-    /** mc — megacredit rate coin · vp — tag scoring shield. */
-    variant: {type: String as PropType<'mc' | 'vp'>, required: true},
-    /** The figure(s): '3', '3/2', '½', '2⁄2', … */
-    text: {type: String, required: true},
-    /** Full accessible sentence (the visible text is only the figure). */
-    label: {type: String, required: true},
-    /** 2+ characters → the compact/pill form (host model decides). */
-    wide: {type: Boolean, default: false},
-    /**
-     * The displayed seat's identity (player color). A text change within ONE
-     * scope is a real value change and pulses; a scope change (inspecting
-     * another player) swaps context and must stay silent.
-     */
-    scopeKey: {type: String, default: ''},
-  },
-  setup() {
-    return {flow: useFlowScope('console-value-badge')};
-  },
-  data() {
-    return {
-      pulsing: false,
-      cancelPulse: (() => {}) as () => void,
-    };
-  },
-  computed: {
-    /** One watched identity so scope+text move atomically (no watcher races). */
-    identity(): {scope: string, text: string} {
-      return {scope: this.scopeKey, text: this.text};
-    },
-  },
-  watch: {
-    identity(next: {scope: string, text: string}, prev: {scope: string, text: string}) {
-      if (next.scope === prev.scope && next.text !== prev.text) {
-        this.firePulse();
-      }
-    },
-  },
-  methods: {
-    firePulse(): void {
-      if (consoleReducedMotionActive()) {
-        return; // reduced motion — the new figure is the whole story
-      }
-      const duration = consoleMotionMs(420);
-      // Re-arm cleanly: drop the class for a frame so a rapid second change
-      // restarts the animation instead of being swallowed mid-run.
-      this.pulsing = false;
-      this.cancelPulse();
-      nextFrame(this.flow, () => {
-        this.pulsing = true;
-        this.cancelPulse = this.flow.after(duration, 'the badge\'s pulse ends', () => {
-          this.pulsing = false;
-        });
-      });
-    },
-  },
+defineOptions({name: 'ConsoleValueBadge'});
+const props = defineProps({
+  /** mc — megacredit rate coin · vp — tag scoring shield. */
+  variant: {type: String as PropType<'mc' | 'vp'>, required: true},
+  /** The figure(s): '3', '3/2', '½', '2⁄2', … */
+  text: {type: String, required: true},
+  /** Full accessible sentence (the visible text is only the figure). */
+  label: {type: String, required: true},
+  /** 2+ characters → the compact/pill form (host model decides). */
+  wide: {type: Boolean, default: false},
+  /**
+   * The displayed seat's identity (player color). A text change within ONE
+   * scope is a real value change and pulses; a scope change (inspecting
+   * another player) swaps context and must stay silent.
+   */
+  scopeKey: {type: String, default: ''},
+});
+
+const flow = useFlowScope('console-value-badge');
+const pulsing = ref(false);
+let cancelPulse = (() => {}) as () => void;
+/** One watched identity so scope+text move atomically (no watcher races). */
+const identity = computed((): {scope: string, text: string} => {
+  return {scope: props.scopeKey, text: props.text};
+});
+function firePulse(): void {
+  if (consoleReducedMotionActive()) {
+    return; // reduced motion — the new figure is the whole story
+  }
+  const duration = consoleMotionMs(420);
+  // Re-arm cleanly: drop the class for a frame so a rapid second change
+  // restarts the animation instead of being swallowed mid-run.
+  pulsing.value = false;
+  cancelPulse();
+  nextFrame(flow, () => {
+    pulsing.value = true;
+    cancelPulse = flow.after(duration, 'the badge\'s pulse ends', () => {
+      pulsing.value = false;
+    });
+  });
+}
+
+watch(() => identity.value, (next: {scope: string, text: string}, prev: {scope: string, text: string}) => {
+  if (next.scope === prev.scope && next.text !== prev.text) {
+    firePulse();
+  }
 });
 </script>
