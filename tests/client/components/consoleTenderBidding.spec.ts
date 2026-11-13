@@ -1,11 +1,12 @@
 import {mount, VueWrapper} from '@vue/test-utils';
 import {expect} from 'chai';
+import {defineComponent, h} from 'vue';
 import {globalConfig} from './getLocalVue';
 import ConsoleTenderBidding from '@/client/components/console/campaign/ConsoleTenderBidding.vue';
 import ConsoleTenderCard from '@/client/components/console/campaign/ConsoleTenderCard.vue';
 import {BiddingModel} from '@/common/campaign/CampaignModel';
 import {CampaignSeat} from '@/common/campaign/CampaignTypes';
-import {resetBiddingRevealsForTesting, tenderBiddingUi} from '@/client/console/campaign/tenderBiddingUi';
+import {markBiddingRevealPlayed, resetBiddingRevealsForTesting, tenderBiddingUi} from '@/client/console/campaign/tenderBiddingUi';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {closeConsoleCardZoom, consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {isTenderZoom} from '@/client/components/card/cardZoomTypes';
@@ -137,5 +138,27 @@ describe('ConsoleTenderBidding', () => {
     expect(wrapper.findAll('.con-bidding__slot--taken')).has.length(2);
     expect(wrapper.attributes('data-bidding-done')).eq('yes');
     expect(wrapper.find('[data-bidding-status]').text()).not.empty;
+  });
+
+  // The scene is a `<script setup>` component (step A of docs/claude/vapor/RECIPES.md): a host's ref sees ONLY what it
+  // exposes. Its hosts (the endgame workspace, the campaign map, the tenders stand) route the pad through that ref —
+  // mounted here the way they mount it, and read by their own cast. (`wrapper.vm` above sees the whole setup state.)
+  it('a PARENT\'s ref sees exactly `handleIntent` — and the pad a host routes through it reaches the scene', () => {
+    // A settled table (this client has already seen the reveal): the pad is the scene's from the first frame.
+    markBiddingRevealPlayed('ctest:0');
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleTenderBidding, {ref: 'bidding', bidding: bidding(), seats: SEATS, youSeat: 0, missionLabel: 'Миссия 1', revealKey: 'ctest:0'})]),
+    });
+    const host = mount(Host, globalConfig);
+    const scene = (host.vm.$refs.bidding ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
+    expect(scene, 'the host\'s ref stands').not.undefined;
+    expect(Object.keys(scene ?? {}), 'the exposed list is the contract — nothing else of the script').deep.eq(['handleIntent']);
+    for (const inner of ['endReveal', 'onSlotAnimationEnd', 'cursor', 'props']) {
+      expect((scene as unknown as Record<string, unknown>)[inner], `«${inner}» stays inside`).is.undefined;
+    }
+    expect(host.find('.con-bidding__slot--focused').attributes('data-bidding-card')).eq('t0-0');
+    expect(scene?.handleIntent?.(nav('right')), 'the scene consumes the pad').is.true;
+    expect(scene?.handleIntent?.(press('back'))).is.true;
+    expect(host.findComponent(ConsoleTenderBidding).emitted('back'), 'B reached the scene through the ref').has.length(1);
   });
 });

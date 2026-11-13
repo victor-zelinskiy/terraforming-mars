@@ -1,5 +1,5 @@
 <template>
-  <div class="con-bidding"
+  <div ref="rootEl" class="con-bidding"
        :class="{'con-bidding--embedded': embedded, 'con-bidding--revealing': revealing, 'con-bidding--done': bidding.done}"
        role="dialog" :aria-label="$t('Bidding')" data-bidding-stage :data-bidding-turn="turnSeat" :data-bidding-done="bidding.done ? 'yes' : undefined">
     <!--
@@ -67,8 +67,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {CampaignSeat} from '@/common/campaign/CampaignTypes';
 import {BiddingModel} from '@/common/campaign/CampaignModel';
 import {BiddingOfferCard, biddingPickerCount, biddingTurnSeat} from '@/common/campaign/tenders';
@@ -80,7 +80,7 @@ import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {noteInputAbsorbed, registerInputAbsorber} from '@/client/console/inputAbsorb';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleTenderCard, {TenderCardState} from './ConsoleTenderCard.vue';
 import ConsoleTenderBack from './ConsoleTenderBack.vue';
@@ -94,293 +94,280 @@ const REVEAL_ABSORBER = 'tender-bidding-reveal';
 
 type OrderRow = {seat: number, name: string, color: Color, you: boolean, turn: boolean, done: boolean, none: boolean, lot: boolean};
 
-export default defineComponent({
-  name: 'ConsoleTenderBidding',
-  components: {ConsoleWsHead, ConsoleTenderCard, ConsoleTenderBack},
-  props: {
-    bidding: {type: Object as PropType<BiddingModel>, required: true},
-    seats: {type: Array as PropType<ReadonlyArray<CampaignSeat>>, required: true},
-    youSeat: {type: Number as PropType<number | undefined>, default: undefined},
-    /** «Миссия N» — the mission whose end this bidding closes (already in the player's language). */
-    missionLabel: {type: String, required: true},
-    /** The host's workspace root (i18n key). */
-    root: {type: String, default: 'Campaign'},
-    /** `campaignId:slot` — the reveal plays once per bidding on this client. */
-    revealKey: {type: String, required: true},
-    submitting: {type: Boolean, default: false},
-    error: {type: String, default: ''},
-    embedded: {type: Boolean, default: false},
-  },
-  emits: ['bid', 'back'],
-  data() {
-    return {
-      cursor: 0,
-      revealing: false,
-      /** Picks already PRESENTED here (instances) — a taken lot not in it is a pick still to be shown. */
-      shown: new Set<string>(),
-      /** The lot whose taking plays right now. */
-      presenting: undefined as string | undefined,
-      queue: [] as Array<string>,
-      hold: undefined as AnimationHold | undefined,
-      absorbOff: undefined as (() => void) | undefined,
-    };
-  },
-  computed: {
-    turnSeat(): number | undefined {
-      return biddingTurnSeat(this.bidding);
-    },
-    yourTurn(): boolean {
-      return !this.bidding.done && this.turnSeat !== undefined && this.turnSeat === this.youSeat;
-    },
-    orderRows(): Array<OrderRow> {
-      const pickers = biddingPickerCount(this.bidding);
-      return this.bidding.order.map((seat, i) => {
-        const s = this.seats.find((x) => x.seat === seat);
-        return {
-          seat,
-          name: s === undefined ? '' : participantDisplayName({name: s.name, isMarsBot: s.kind === 'bot'}),
-          color: s?.color ?? ('neutral' as Color),
-          you: seat === this.youSeat,
-          turn: !this.bidding.done && i === this.bidding.pointer,
-          done: i < this.bidding.pointer,
-          none: i >= pickers,
-          lot: this.bidding.lots.some((l) => l.seats.includes(seat)),
-        };
-      });
-    },
-    focusedCard(): BiddingOfferCard | undefined {
-      return this.bidding.offer[this.cursor];
-    },
-    focusedOpen(): boolean {
-      const card = this.focusedCard;
-      return card !== undefined && card.takenBy === undefined && card.withdrawn !== true;
-    },
-    turnName(): string {
-      const seat = this.turnSeat;
-      const s = seat === undefined ? undefined : this.seats.find((x) => x.seat === seat);
-      return s === undefined ? '' : participantDisplayName({name: s.name, isMarsBot: s.kind === 'bot'});
-    },
-    statusText(): string {
-      if (this.revealing) {
-        return translateText('The Register deals the table…');
-      }
-      if (this.bidding.done) {
-        return translateText('The bidding is over');
-      }
-      if (this.yourTurn) {
-        return translateText('Your pick');
-      }
-      return translateTextWithParams('${0} is picking…', [this.turnName]);
-    },
-    /** The verbs the host's ONE bar renders. */
-    commands(): Array<ConsoleCommand> {
-      if (this.revealing) {
-        // A swallowed window is DECLARED — a disabled status, never an empty list.
-        return [{control: 'confirm', label: 'Take the tender', enabled: false}];
-      }
-      const cmds: Array<ConsoleCommand> = [];
-      if (this.bidding.offer.length > 1) {
-        cmds.push({control: 'dpadH', label: 'Choose'});
-      }
-      if (this.yourTurn) {
-        cmds.push({control: 'confirm', label: 'Take the tender', enabled: this.focusedOpen && !this.submitting, highlight: true});
-      }
-      if (this.bidding.offer.length > 0) {
-        cmds.push({control: 'secondary', label: 'Inspect the tender'});
-      }
-      cmds.push({control: 'back', label: 'Minimize', priority: 5});
-      return cmds;
-    },
-  },
-  watch: {
-    'commands': {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>): void {
-        tenderBiddingUi.commands = cmds;
-      },
-    },
-    // A pick that arrived (the viewer's own answer, a rival's push, the bot's instant pick) is PRESENTED — in turn.
-    'bidding.offer': {
-      deep: true,
-      handler(): void {
-        this.enqueueNewPicks();
-      },
-    },
-    // The cursor rests on an OPEN lot once the turn is the viewer's.
-    yourTurn(mine: boolean): void {
-      if (mine && !this.focusedOpen) {
-        const open = this.bidding.offer.findIndex((c) => c.takenBy === undefined && c.withdrawn !== true);
-        if (open >= 0) {
-          this.cursor = open;
-        }
-      }
-    },
-  },
-  created() {
-    // The decision is taken BEFORE the first render: the first painted frame already wears the reveal (never a
-    // face-up frame before the deal), and a settled mount stands every past pick stamped from its first frame.
-    const playsReveal = !this.bidding.done && this.bidding.offer.length > 0 &&
-      !biddingRevealPlayed(this.revealKey) && !consoleReducedMotionActive();
-    if (playsReveal) {
-      markBiddingRevealPlayed(this.revealKey);
-      this.revealing = true;
-      tenderBiddingUi.revealing = true;
-      // The owner's own end is the last lot's turn; the ceiling's expiry runs the same door.
-      this.hold = beginAnimationHold('tender-bidding-reveal', {expire: () => this.endReveal()});
-    } else {
-      // Settled: every pick already made stands presented.
-      for (const card of this.bidding.offer) {
-        if (card.takenBy !== undefined) {
-          this.shown.add(card.instance);
-        }
-      }
-      // A played reveal with no cinematic (reduced motion / a return) still counts as seen.
-      if (!this.bidding.done && this.bidding.offer.length > 0) {
-        markBiddingRevealPlayed(this.revealKey);
-      }
-    }
-    if (this.yourTurn && !this.focusedOpen) {
-      const open = this.bidding.offer.findIndex((c) => c.takenBy === undefined && c.withdrawn !== true);
-      this.cursor = Math.max(0, open);
-    }
-  },
-  mounted() {
-    this.absorbOff = registerInputAbsorber(REVEAL_ABSORBER, () => this.revealing);
-  },
-  beforeUnmount() {
-    this.absorbOff?.();
-    this.absorbOff = undefined;
-    this.endReveal();
-    tenderBiddingUi.commands = [];
-  },
-  methods: {
-    cardState(card: BiddingOfferCard): TenderCardState {
-      if (card.withdrawn === true) {
-        return 'withdrawn';
-      }
-      // A lot being presented keeps its open look until its stamp lands.
-      return card.takenBy !== undefined && this.shown.has(card.instance) ? 'taken' : 'open';
-    },
-    ownerOf(card: BiddingOfferCard): {name: string, color: Color} | undefined {
-      if (card.takenBy === undefined || !this.shown.has(card.instance)) {
-        return undefined;
-      }
-      const s = this.seats.find((x) => x.seat === card.takenBy);
-      return s === undefined ? undefined : {name: participantDisplayName({name: s.name, isMarsBot: s.kind === 'bot'}), color: s.color};
-    },
-    slotClass(card: BiddingOfferCard, i: number): Record<string, boolean> {
-      return {
-        'con-bidding__slot--reveal': this.revealing,
-        'con-bidding__slot--taking': this.presenting === card.instance,
-        'con-bidding__slot--taken': card.takenBy !== undefined && this.shown.has(card.instance),
-        'con-bidding__slot--withdrawn': card.withdrawn === true,
-        'con-bidding__slot--focused': this.cursor === i && !this.revealing,
-      };
-    },
-    onSlotAnimationEnd(event: AnimationEvent, card: BiddingOfferCard, i: number): void {
-      if (event.animationName === 'con-tender-flip' && i === this.bidding.offer.length - 1) {
-        this.endReveal();
-        return;
-      }
-      if (event.animationName === 'con-tender-taking' && this.presenting === card.instance) {
-        this.shown.add(card.instance);
-        this.presenting = undefined;
-        this.pump();
-      }
-    },
-    /** The reveal is over (its own last turn, the ceiling, the unmount) — idempotent. */
-    endReveal(): void {
-      if (!this.revealing) {
-        return;
-      }
-      this.revealing = false;
-      tenderBiddingUi.revealing = false;
-      this.hold?.release();
-      this.hold = undefined;
-      this.enqueueNewPicks();
-    },
-    enqueueNewPicks(): void {
-      for (const card of this.bidding.offer) {
-        if (card.takenBy !== undefined && !this.shown.has(card.instance) &&
-            this.presenting !== card.instance && !this.queue.includes(card.instance)) {
-          this.queue.push(card.instance);
-        }
-      }
-      this.pump();
-    },
-    /** One presentation at a time — the next pick plays after the previous stamp landed; reduced motion lands at once. */
-    pump(): void {
-      if (this.revealing || this.presenting !== undefined) {
-        return;
-      }
-      const next = this.queue.shift();
-      if (next === undefined) {
-        return;
-      }
-      if (consoleReducedMotionActive()) {
-        this.shown.add(next);
-        this.pump();
-        return;
-      }
-      this.presenting = next;
-    },
-    /**
-     * X — the table in the ONE fullscreen viewer (§16.6): every lot with its stamps as they stand (taken by a seat,
-     * withdrawn), the focused one first, lifted out of its own slot; LB/RB keep the table's cursor in lockstep.
-     */
-    openTableZoom(): void {
-      const offer = this.bidding.offer;
-      if (offer.length === 0) {
-        return;
-      }
-      const list = offer.map((c) => tenderZoomEntry(c.id, {instance: c.instance, state: this.cardState(c), owner: this.ownerOf(c)}));
-      const root = this.$el as HTMLElement | undefined;
-      openConsoleCardZoom(list, Math.min(Math.max(this.cursor, 0), list.length - 1), undefined, undefined, {
-        contextLabel: 'Bidding',
-        origin: {
-          kind: 'physical',
-          resolve: (i) => {
-            const c = offer[i];
-            return c !== undefined ? root?.querySelector<HTMLElement>(`[data-bidding-card="${CSS.escape(c.instance)}"]`) ?? null : null;
-          },
-          onBrowse: (i) => {
-            this.cursor = i;
-          },
-        },
-      });
-    },
-    /** The host routes pad intents here. Returns true when consumed. */
-    handleIntent(intent: GamepadIntent): boolean {
-      if (this.revealing) {
-        noteInputAbsorbed(REVEAL_ABSORBER);
-        return true;
-      }
-      if (intent.kind === 'nav') {
-        const n = this.bidding.offer.length;
-        if (n > 0 && (intent.dir === 'left' || intent.dir === 'right')) {
-          const step = intent.dir === 'left' ? -1 : 1;
-          this.cursor = Math.max(0, Math.min(n - 1, this.cursor + step));
-        }
-        return true;
-      }
-      const action = consoleActionOf(intent, {});
-      switch (action) {
-      case 'primary':
-        if (this.yourTurn && this.focusedOpen && !this.submitting && this.focusedCard !== undefined) {
-          this.$emit('bid', this.focusedCard.instance);
-        }
-        return true;
-      case 'inspect':
-        this.openTableZoom();
-        return true;
-      case 'back':
-        this.$emit('back');
-        return true;
-      default:
-        return true;
-      }
-    },
-  },
+defineOptions({name: 'ConsoleTenderBidding'});
+const props = defineProps({
+  bidding: {type: Object as PropType<BiddingModel>, required: true},
+  seats: {type: Array as PropType<ReadonlyArray<CampaignSeat>>, required: true},
+  youSeat: {type: Number as PropType<number | undefined>, default: undefined},
+  /** «Миссия N» — the mission whose end this bidding closes (already in the player's language). */
+  missionLabel: {type: String, required: true},
+  /** The host's workspace root (i18n key). */
+  root: {type: String, default: 'Campaign'},
+  /** `campaignId:slot` — the reveal plays once per bidding on this client. */
+  revealKey: {type: String, required: true},
+  submitting: {type: Boolean, default: false},
+  error: {type: String, default: ''},
+  embedded: {type: Boolean, default: false},
 });
+const emit = defineEmits(['bid', 'back']);
+
+// The scene's root element — the lots the fullscreen viewer lifts out of their slots are looked up inside it. The key
+// and the const are `rootEl`: `root` is taken here, by the PROP that names the host's workspace root.
+const rootEl = useTemplateRef<HTMLElement>('rootEl');
+const cursor = ref(0);
+const revealing = ref(false);
+/** Picks already PRESENTED here (instances) — a taken lot not in it is a pick still to be shown. */
+const shown = ref(new Set<string>());
+/** The lot whose taking plays right now. */
+const presenting = ref<string | undefined>(undefined);
+const queue = ref<Array<string>>([]);
+let hold: AnimationHold | undefined;
+let absorbOff: (() => void) | undefined;
+const turnSeat = computed((): number | undefined => {
+  return biddingTurnSeat(props.bidding);
+});
+const yourTurn = computed((): boolean => {
+  return !props.bidding.done && turnSeat.value !== undefined && turnSeat.value === props.youSeat;
+});
+const orderRows = computed((): Array<OrderRow> => {
+  const pickers = biddingPickerCount(props.bidding);
+  return props.bidding.order.map((seat, i) => {
+    const s = props.seats.find((x) => x.seat === seat);
+    return {
+      seat,
+      name: s === undefined ? '' : participantDisplayName({name: s.name, isMarsBot: s.kind === 'bot'}),
+      color: s?.color ?? ('neutral' as Color),
+      you: seat === props.youSeat,
+      turn: !props.bidding.done && i === props.bidding.pointer,
+      done: i < props.bidding.pointer,
+      none: i >= pickers,
+      lot: props.bidding.lots.some((l) => l.seats.includes(seat)),
+    };
+  });
+});
+const focusedCard = computed((): BiddingOfferCard | undefined => {
+  return props.bidding.offer[cursor.value];
+});
+const focusedOpen = computed((): boolean => {
+  const card = focusedCard.value;
+  return card !== undefined && card.takenBy === undefined && card.withdrawn !== true;
+});
+const turnName = computed((): string => {
+  const seat = turnSeat.value;
+  const s = seat === undefined ? undefined : props.seats.find((x) => x.seat === seat);
+  return s === undefined ? '' : participantDisplayName({name: s.name, isMarsBot: s.kind === 'bot'});
+});
+const statusText = computed((): string => {
+  if (revealing.value) {
+    return translateText('The Register deals the table…');
+  }
+  if (props.bidding.done) {
+    return translateText('The bidding is over');
+  }
+  if (yourTurn.value) {
+    return translateText('Your pick');
+  }
+  return translateTextWithParams('${0} is picking…', [turnName.value]);
+});
+/** The verbs the host's ONE bar renders. */
+const commands = computed((): Array<ConsoleCommand> => {
+  if (revealing.value) {
+    // A swallowed window is DECLARED — a disabled status, never an empty list.
+    return [{control: 'confirm', label: 'Take the tender', enabled: false}];
+  }
+  const cmds: Array<ConsoleCommand> = [];
+  if (props.bidding.offer.length > 1) {
+    cmds.push({control: 'dpadH', label: 'Choose'});
+  }
+  if (yourTurn.value) {
+    cmds.push({control: 'confirm', label: 'Take the tender', enabled: focusedOpen.value && !props.submitting, highlight: true});
+  }
+  if (props.bidding.offer.length > 0) {
+    cmds.push({control: 'secondary', label: 'Inspect the tender'});
+  }
+  cmds.push({control: 'back', label: 'Minimize', priority: 5});
+  return cmds;
+});
+function cardState(card: BiddingOfferCard): TenderCardState {
+  if (card.withdrawn === true) {
+    return 'withdrawn';
+  }
+  // A lot being presented keeps its open look until its stamp lands.
+  return card.takenBy !== undefined && shown.value.has(card.instance) ? 'taken' : 'open';
+}
+function ownerOf(card: BiddingOfferCard): {name: string, color: Color} | undefined {
+  if (card.takenBy === undefined || !shown.value.has(card.instance)) {
+    return undefined;
+  }
+  const s = props.seats.find((x) => x.seat === card.takenBy);
+  return s === undefined ? undefined : {name: participantDisplayName({name: s.name, isMarsBot: s.kind === 'bot'}), color: s.color};
+}
+function slotClass(card: BiddingOfferCard, i: number): Record<string, boolean> {
+  return {
+    'con-bidding__slot--reveal': revealing.value,
+    'con-bidding__slot--taking': presenting.value === card.instance,
+    'con-bidding__slot--taken': card.takenBy !== undefined && shown.value.has(card.instance),
+    'con-bidding__slot--withdrawn': card.withdrawn === true,
+    'con-bidding__slot--focused': cursor.value === i && !revealing.value,
+  };
+}
+function onSlotAnimationEnd(event: AnimationEvent, card: BiddingOfferCard, i: number): void {
+  if (event.animationName === 'con-tender-flip' && i === props.bidding.offer.length - 1) {
+    endReveal();
+    return;
+  }
+  if (event.animationName === 'con-tender-taking' && presenting.value === card.instance) {
+    shown.value.add(card.instance);
+    presenting.value = undefined;
+    pump();
+  }
+}
+/** The reveal is over (its own last turn, the ceiling, the unmount) — idempotent. */
+function endReveal(): void {
+  if (!revealing.value) {
+    return;
+  }
+  revealing.value = false;
+  tenderBiddingUi.revealing = false;
+  hold?.release();
+  hold = undefined;
+  enqueueNewPicks();
+}
+function enqueueNewPicks(): void {
+  for (const card of props.bidding.offer) {
+    if (card.takenBy !== undefined && !shown.value.has(card.instance) &&
+        presenting.value !== card.instance && !queue.value.includes(card.instance)) {
+      queue.value.push(card.instance);
+    }
+  }
+  pump();
+}
+/** One presentation at a time — the next pick plays after the previous stamp landed; reduced motion lands at once. */
+function pump(): void {
+  if (revealing.value || presenting.value !== undefined) {
+    return;
+  }
+  const next = queue.value.shift();
+  if (next === undefined) {
+    return;
+  }
+  if (consoleReducedMotionActive()) {
+    shown.value.add(next);
+    pump();
+    return;
+  }
+  presenting.value = next;
+}
+/**
+ * X — the table in the ONE fullscreen viewer (§16.6): every lot with its stamps as they stand (taken by a seat,
+ * withdrawn), the focused one first, lifted out of its own slot; LB/RB keep the table's cursor in lockstep.
+ */
+function openTableZoom(): void {
+  const offer = props.bidding.offer;
+  if (offer.length === 0) {
+    return;
+  }
+  const list = offer.map((c) => tenderZoomEntry(c.id, {instance: c.instance, state: cardState(c), owner: ownerOf(c)}));
+  const root = rootEl.value;
+  openConsoleCardZoom(list, Math.min(Math.max(cursor.value, 0), list.length - 1), undefined, undefined, {
+    contextLabel: 'Bidding',
+    origin: {
+      kind: 'physical',
+      resolve: (i) => {
+        const c = offer[i];
+        return c !== undefined ? root?.querySelector<HTMLElement>(`[data-bidding-card="${CSS.escape(c.instance)}"]`) ?? null : null;
+      },
+      onBrowse: (i) => {
+        cursor.value = i;
+      },
+    },
+  });
+}
+/** The host routes pad intents here. Returns true when consumed. */
+function handleIntent(intent: GamepadIntent): boolean {
+  if (revealing.value) {
+    noteInputAbsorbed(REVEAL_ABSORBER);
+    return true;
+  }
+  if (intent.kind === 'nav') {
+    const n = props.bidding.offer.length;
+    if (n > 0 && (intent.dir === 'left' || intent.dir === 'right')) {
+      const step = intent.dir === 'left' ? -1 : 1;
+      cursor.value = Math.max(0, Math.min(n - 1, cursor.value + step));
+    }
+    return true;
+  }
+  const action = consoleActionOf(intent, {});
+  switch (action) {
+  case 'primary':
+    if (yourTurn.value && focusedOpen.value && !props.submitting && focusedCard.value !== undefined) {
+      emit('bid', focusedCard.value.instance);
+    }
+    return true;
+  case 'inspect':
+    openTableZoom();
+    return true;
+  case 'back':
+    emit('back');
+    return true;
+  default:
+    return true;
+  }
+}
+
+watch(() => commands.value, (cmds: ReadonlyArray<ConsoleCommand>): void => {
+  tenderBiddingUi.commands = cmds;
+}, {immediate: true, deep: true});
+// A pick that arrived (the viewer's own answer, a rival's push, the bot's instant pick) is PRESENTED — in turn.
+watch(() => props.bidding.offer, (): void => {
+  enqueueNewPicks();
+}, {deep: true});
+// The cursor rests on an OPEN lot once the turn is the viewer's.
+watch(() => yourTurn.value, (mine: boolean): void => {
+  if (mine && !focusedOpen.value) {
+    const open = props.bidding.offer.findIndex((c) => c.takenBy === undefined && c.withdrawn !== true);
+    if (open >= 0) {
+      cursor.value = open;
+    }
+  }
+});
+
+// The decision is taken BEFORE the first render: the first painted frame already wears the reveal (never a
+// face-up frame before the deal), and a settled mount stands every past pick stamped from its first frame.
+const playsReveal = !props.bidding.done && props.bidding.offer.length > 0 &&
+  !biddingRevealPlayed(props.revealKey) && !consoleReducedMotionActive();
+if (playsReveal) {
+  markBiddingRevealPlayed(props.revealKey);
+  revealing.value = true;
+  tenderBiddingUi.revealing = true;
+  // The owner's own end is the last lot's turn; the ceiling's expiry runs the same door.
+  hold = beginAnimationHold('tender-bidding-reveal', {expire: () => endReveal()});
+} else {
+  // Settled: every pick already made stands presented.
+  for (const card of props.bidding.offer) {
+    if (card.takenBy !== undefined) {
+      shown.value.add(card.instance);
+    }
+  }
+  // A played reveal with no cinematic (reduced motion / a return) still counts as seen.
+  if (!props.bidding.done && props.bidding.offer.length > 0) {
+    markBiddingRevealPlayed(props.revealKey);
+  }
+}
+if (yourTurn.value && !focusedOpen.value) {
+  const open = props.bidding.offer.findIndex((c) => c.takenBy === undefined && c.withdrawn !== true);
+  cursor.value = Math.max(0, open);
+}
+
+onMounted(() => {
+  absorbOff = registerInputAbsorber(REVEAL_ABSORBER, () => revealing.value);
+});
+onBeforeUnmount(() => {
+  absorbOff?.();
+  absorbOff = undefined;
+  endReveal();
+  tenderBiddingUi.commands = [];
+});
+
+defineExpose({handleIntent});
 </script>
