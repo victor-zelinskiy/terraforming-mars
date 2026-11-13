@@ -145,14 +145,15 @@ describe('a city on a colony tile — the wiring', () => {
 
   describe('the grid as a receipt — ONE reading for every flow that folds its stage home', () => {
     it('`receiptOn` is the roster\'s receipt OR the city\'s OR a card-built colony\'s (TR25) — the roster\'s own reading is untouched', () => {
-      expect(section).to.match(/receiptOn\(\): boolean \{\s*return this\.rosterReceiptOn \|\| this\.cityReceiptOn \|\| this\.buildReceiptOn;\s*\}/);
-      expect(section).to.match(/rosterReceiptOn\(\): boolean \{/);
+      // (The section is `<script setup>`: a computed is a `const`, read as `x.value`.)
+      expect(section).to.match(/const receiptOn = computed\(\(\): boolean => \{\s*return rosterReceiptOn\.value \|\| cityReceiptOn\.value \|\| buildReceiptOn\.value;\s*\}\);/);
+      expect(section).to.match(/const rosterReceiptOn = computed\(\(\): boolean => \{/);
       expect(section).to.include(':data-colony-roster-receipt="rosterReceiptOn ? \'\' : undefined"');
       expect(section).to.include(':data-colony-city-receipt="cityReceiptOn ? \'\' : undefined"');
     });
 
     it('nothing folds the stage under the piece: the section\'s own completion yields to an answered city', () => {
-      expect(section).to.match(/if \(this\.cityAnswered\) \{\s*return;\s*\}/);
+      expect(section).to.match(/if \(cityAnswered\.value\) \{\s*return;\s*\}/);
     });
   });
 

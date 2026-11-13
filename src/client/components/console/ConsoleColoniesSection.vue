@@ -1,11 +1,5 @@
 <template>
-  <!-- THE COLONY WORKSPACE. `con-ws` = the workspace-family marker (rail
-       lifted + ringed while this section lives); the `__frame` plate is the
-       SAME chrome as `.con-hand__frame` / `.con-cardactions__frame` — one
-       system, read from the plane before a word. When EMBEDDED (a step of
-       another workspace) the shell comes off (rule 1) and the host's frame
-       is the room. -->
-  <div class="con-colonies"
+  <div ref="root" class="con-colonies"
        :class="[
          'con-colonies--' + layout,
          {
@@ -448,9 +442,20 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE COLONY WORKSPACE. `con-ws` = the workspace-family marker (rail
+ *       lifted + ringed while this section lives); the `__frame` plate is the
+ *       SAME chrome as `.con-hand__frame` / `.con-cardactions__frame` — one
+ *       system, read from the plane before a word. When EMBEDDED (a step of
+ *       another workspace) the shell comes off (rule 1) and the host's frame
+ *       is the room.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {colonyTrackRaiseLive} from '@/client/console/colonyTrade/colonyTrackRaise';
-import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 /**
  * Console-native COLONY WORKSPACE (iteration 3 — the workspace-family
  * rework). The colony surface keeps its strongest ideas VERBATIM — separate
@@ -469,7 +474,6 @@ import {vEmbedZone} from '@/client/console/embedZoneRegistry';
  * ONLY in the shell's bottom command bar.
  */
 import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
-import {defineComponent, PropType} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {ColonyModel} from '@/common/models/ColonyModel';
@@ -506,7 +510,7 @@ import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDi
 import {openDiscardPile, releaseDiscardPile} from '@/client/console/discardPile/discardPile';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {freeTradeFleets, effectiveTradePosition, rewardAtPosition, TradeRewardAt, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {freeTradeFleets, effectiveTradePosition, rewardAtPosition, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {fetchColonyTradePreview, fetchFleetDockPreview} from '@/client/components/colonies/colonyTradePreviewFetch';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {FleetDockPreviewModel} from '@/common/models/ColonyTradePreviewModel';
@@ -530,9 +534,9 @@ import ConsoleFleetDockStage from '@/client/components/console/ConsoleFleetDockS
 import {forecastStageText} from '@/client/console/consoleEffectForecast';
 import {VersionedView} from '@/client/console/gameStateVersion';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
-import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+// The trade-launch controller — drives the launching-ship hide.
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {colonyTradeState, colonyTradeTileStatusText, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {colonyBuildAnswered, ColonyBuildReceipt, colonyBuildState} from '@/client/console/colonyBuild/consoleColonyBuild';
@@ -547,7 +551,7 @@ import {cssLengthPx} from '@/client/console/cssUnits';
 // deck pick honour, so a host's seat can never overlap whichever guest it
 // happens to be standing beside.
 import {sourceSeatReservePx} from '@/client/console/consoleWsStageLayout';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {colonyRosterState, setColonyRosterLanding} from '@/client/console/colonyRoster/consoleColonyRoster';
 import {playReseatIn, playReseatOut} from '@/client/console/colonyRoster/colonyRosterDirector';
@@ -568,9 +572,9 @@ import {
   armColonyFocusQuickExit,
 } from '@/client/console/consoleColonyFocusMotion';
 import type {ConsoleColonyPick} from '@/client/components/console/consoleColoniesSectionTypes';
+import {vEmbedZone} from '@/client/directives/vDirectives';
 
 export type {ConsoleColonyPick};
-
 
 /** The focus stage's confirm payload (forwarded verbatim to the shell). */
 export type ColonyTradeConfirmPayload = {
@@ -578,7 +582,6 @@ export type ColonyTradeConfirmPayload = {
   steps: ReadonlyArray<TradeStep>,
   captures: Readonly<Record<number, unknown>>,
 };
-
 
 /** The tile-fit bounds: how far the base tile may shrink / grow to fill space.
  *  The grow cap is deliberately generous — on the 4K tv profile the grid's
@@ -607,2020 +610,1959 @@ const FIT_SLACK = 12;
  */
 const COMPLETION_SETTLE_MS = 300;
 
-export default defineComponent({
-  name: 'ConsoleColoniesSection',
-  directives: {embedZone: vEmbedZone},
-  components: {ConsoleWsHead, ConsoleTeleport, ConsoleSourceDock, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ConsoleColonyInspect, ConsoleFleetDockTile, ConsoleFleetDockStage, ActionEffectChip, ColonyFleetIcon, BenefitGlyph, PlayerCube, PremiumCountGlyph},
-  props: {
-    colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
-    index: {type: Number, required: true},
-    /** Server-tradeable colony names (empty when it's not the trade window). */
-    tradeable: {type: Array as PropType<ReadonlyArray<string>>, required: true},
-    /** Honest reason when trade is impossible right now ('' when tradeable). */
-    tradeBlockReason: {type: String, default: ''},
-    /**
-     * The REAL turn signals feeding `colonyTradeReason`'s last two rungs. They
-     * are props, not constants: pinning them `true` (as this component once did)
-     * makes rung 3 always fire, so an off-turn player with a free fleet and an
-     * empty active colony was told «не хватает ресурсов на оплату» — a blocker
-     * that wasn't there. Rung 4 (the turn) was unreachable.
-     */
-    myTurn: {type: Boolean, default: false},
-    awaitingInput: {type: Boolean, default: false},
-    /** Set = SelectColony pick mode (shell submits; this only renders states). */
-    pick: {type: Object as PropType<ConsoleColonyPick | undefined>, default: undefined},
-    /**
-     * THE RAIL IS THE ADD-A-TILE CATALOG (Aridor's first action, Maria): the
-     * tiles on it are the game's UNUSED colonies, offered so one may be put
-     * into play. They are not in the game — no track, no cubes, no trade — so
-     * nothing server-scoped exists for them and none may be asked for.
-     * Everything else (including the Build-Colony pick) rails IN-GAME colonies.
-     */
-    catalog: {type: Boolean, default: false},
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    tradeOffset: {type: Number, default: 0},
-    /** The colony whose fleet JUST docked (a one-shot settle glow; '' = none). */
-    dockedColony: {type: String, default: ''},
-    /** The trade window's payment paths (the AndOptions' inner OrOptions). */
-    tradePaymentOptions: {type: Array as PropType<ReadonlyArray<SelectOptionModel>>, default: () => []},
-    tradeDisabledPayments: {type: Array as PropType<NonNullable<OrOptionsModel['disabledOptions']>>, default: () => []},
-    /** The viewer (stocks / production / id for the focus stage's outcome). */
-    thisPlayer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
-    /** The viewer's player id — the focus stage's server preview fetch. */
-    playerId: {type: String, default: ''},
-    /** The viewer's versioned view — the dock stage's R3 «Эффекты» layer asks the reacting seats' effect stats with it. */
-    statsView: {type: Object as PropType<VersionedView | undefined>, default: undefined},
-    /** The game-state version (`gameAge|undoCount`) — a moved state re-pulls
-     *  the focused colony's trade preview, so the stage's candidate sets and
-     *  captures are re-judged against CURRENT truth (never a stale pick). */
-    viewVersion: {type: String, default: ''},
-    /** The colony whose DELEGATE GRANT is standing (the Redux Venus) — the crumb's subject while the Parliament's vote is hosted here. */
-    grantColony: {type: String, default: ''},
-    /**
-     * A STEP of another workspace (rule 1 — host-agnostic): the shell chrome
-     * (frame plate, ConsoleWsHead, `con-ws` marker) comes off; grid, fit,
-     * d-pad, focus stage and every capture are untouched.
-     */
-    embedded: {type: Boolean, default: false},
-    /**
-     * The viewer's FLEET DOCKS (`fleetDockModel.fleetDockViews` — Turmoil Redux
-     * TR06 Water Hauling and its sisters): the «ПРИЧАЛЫ» column. Empty = no
-     * column at all. The live verdict rides each view's `offer` (the pick's
-     * marker); the column never derives availability itself.
-     */
-    docks: {type: Array as PropType<ReadonlyArray<FleetDockView>>, default: () => []},
-  },
-  emits: ['trade-confirm', 'build-confirm', 'pick-confirm', 'flow-complete', 'inspect-enter', 'dock-confirm', 'dock-inspect', 'dock-flow-complete'],
-  setup() {
-    return {flow: useFlowScope('colonies-section')};
-  },
-  data() {
-    return {
-      /** The fleet berth the step last stood in while its frame lived (see `fleetBerth`). */
-      berthLatch: '',
-      /** The grant's colony, LATCHED for the hosted vote's whole life: the prompt moves on at the submit while the cubes still fly. */
-      grantSubject: '',
-      /** The resolution's LAST payout stage — the crumb's tail keeps it between stages (forward-only). */
-      lastPayoutStage: '',
-      /** The trade-launch controller — drives the launching-ship hide. */
-      tradeFleetState,
-      /** The reward transaction + build hero — the auto-fold watchers'
-       *  mirrors (module reactives must sit in data for path watchers). */
-      tradeState: colonyTradeState,
-      buildState: colonyBuildState,
-      /** The workspace flow state (module-level — the shell reads it too). */
-      focusState: colonyFocusState,
-      /** The embedded-outcome claim (the Pluto reveal re-homes into us). */
-      outcomeState: workspaceOutcomeState,
-      /** The resolution's presentation state (discard stage flag + receipt). */
-      resolutionUi: colonyResolutionUi,
-      /** A chosen track's move (TR07), mirrored: the stage it was confirmed on plays it, so nothing folds it before. */
-      trackMoveFlow: colonyTrackMoveFlow,
-      /** THE ROSTER CEREMONY's state (a tile replaced / added / removed): the free orbit, the receipt, the confession. */
-      rosterState: colonyRosterState,
-      /** The stage's colony model as last seen on the rail — kept for a tile the answer removed (see `focusColonyModel`). */
-      focusModelLatch: undefined as ColonyModel | undefined,
-      /** …and the roster act's reading as last derived from the prompt (the answer takes the prompt away). */
-      rosterStageLatch: undefined as ColonyRosterStageView | undefined,
-      /** A CITY's landing on a colony tile (TR22): the scene's state — the receipt, the confession. */
-      cityState: colonyCityState,
-      /** …and the city act's reading as last derived from the prompt (the answer takes the prompt away mid-scene). */
-      cityStageLatch: undefined as ColonyCityStageView | undefined,
-      /** …and the name the «city» DOOR's grid wore before the descent — B from the stage walks the tail back to it. */
-      cityDoorStage: '',
-      /**
-       * A LANDED city's receipt, kept for as long as the door's pick stands on THIS surface. The shell clears the
-       * scene's state when the read ends, while the section still rides its host's dissolve with the staged pick
-       * latched — without this the ghosts and the pick's rail came back for the last frames of the leave.
-       */
-      cityReceiptLatch: undefined as ColonyCityReceipt | undefined,
-      /** The same latch for a STAGED BUILD's receipt (TR25): the transaction's own is cleared when the read ends. */
-      buildReceiptLatch: undefined as ColonyBuildReceipt | undefined,
-      /** The focus stage's server preview (fetched per focused colony). */
-      focusPreview: undefined as ColonyTradePreviewModel | undefined,
-      /** The CHOSEN payment path's own track advance (the Unity action's 1) — the offset the preview was asked with. */
-      focusPathOffset: 0,
-      /** The newest preview request wins: an older answer (a different colony or offset) is dropped. */
-      focusPreviewSeq: 0,
-      /** The fit-set zoom on every tile (grows them to fill the space). */
-      tileScale: 1,
-      /** The fit-set grid max-width so the layout's column count holds. */
-      gridMaxW: 0,
-      /** The pending fit frame's cancel (`flow.afterFrame`) — `undefined` when none is owed. */
-      fitRaf: undefined as (() => void) | undefined,
-      /** THE HOST'S SOURCE SEAT, reserved once for this whole surface — see
-       *  `fit()`. Written by the fit (the one thing that runs on mount, on
-       *  resize and on every zone change) and read straight into the root's
-       *  padding. */
-      seatReservePx: 0,
-      /** VueUse stop-handles (auto-managed listeners; no raw addEventListener). */
-      stopResize: undefined as (() => void) | undefined,
-      stopResizeObs: undefined as (() => void) | undefined,
-      /** The completion dwell (a breathing beat, never a gate) — its cancel (a timer of `flow`). */
-      completeTimer: undefined as (() => void) | undefined,
-      /**
-       * THE TRADE FELL WHILE ITS FLEET STILL FLEW (wait graph R7): the trade's falling edge stands its completion down
-       * while the fleet is active, so the ending is OWED to the fleet's own fall — latched here, consumed there.
-       */
-      tradeEndOwed: false,
-      /** The overview cursor's docks zone (module state — the shell steps it). */
-      dockCursor: colonyDockCursor,
-      /** The dock stage's server preview (`?dock=`), re-asked on every state move. */
-      dockPreview: undefined as FleetDockPreviewModel | undefined,
-      dockPreviewSeq: 0,
-      /** The stage's room, measured at the dock's press — the hero card is solved against it BEFORE the stage mounts. */
-      dockRoomH: 0,
-      /**
-       * The dock stage's ENTRY is in flight — from the door until the descend phrase's own `done` (ledger EZ): the
-       * stage keeps the hero's zoom frozen and its art on the thumb tier until then.
-       */
-      dockEntering: false,
-    };
-  },
-  computed: {
-    /**
-     * A PLAY'S RAISE IS BEING TOLD (P48 — `colonyTrackRaise.ts`): the grid is a show step until the last marker lands —
-     * the pick's ask («Выберите…») appears after it, the pad is locked meanwhile (`isColonyTradeInputLocked`).
-     */
-    raiseTelling(): boolean {
-      return this.pick !== undefined && colonyTrackRaiseLive();
-    },
-    /** The grid stands as the RECEIPT of a finished roster change (the stage has folded home). */
-    rosterReceiptOn(): boolean {
-      return this.rosterState.receipt !== undefined && !this.rosterState.live && !this.focusState.open;
-    },
-    /** The grid stands as the RECEIPT of a city just laid on a colony tile (TR22 — the stage has folded home). */
-    cityReceiptOn(): boolean {
-      return this.cityReceipt !== undefined && !this.cityState.live && !this.focusState.open;
-    },
-    /** The receipt of a landed city: the scene's own while it stands, then this surface's copy (see `cityReceiptLatch`). */
-    cityReceipt(): ColonyCityReceipt | undefined {
-      return this.cityState.receipt ?? this.cityReceiptLatch;
-    },
-    /** A «city» door's pick stands on this surface (live, staged, or latched through the host's dissolve). */
-    cityDoorStands(): boolean {
-      return this.pick?.tileSite !== undefined;
-    },
-    /** A card's own BUILD door stands on this surface (live, staged, or latched through the host's dissolve). */
-    buildDoorStands(): boolean {
-      return this.pick?.buildProjected === true;
-    },
-    /**
-     * The receipt of a staged build: the transaction's own while it stands, then this surface's copy. It belongs to
-     * the HOSTED instance the build was made in (a staged door's grid is always a step of its host): a FRESH
-     * «Колонии» the player opens beside a parked flow (the delegates' step set aside) is an ordinary grid.
-     */
-    buildReceipt(): ColonyBuildReceipt | undefined {
-      return this.embedded ? this.buildState.receipt ?? this.buildReceiptLatch : undefined;
-    },
-    buildReceiptOn(): boolean {
-      return this.buildReceipt !== undefined && !this.buildState.active && !this.focusState.open;
-    },
-    /**
-     * A staged build of the player's own is ANSWERED (on the wire, playing, homing or standing as its receipt):
-     * the door's prompt has outlived its answer — no tile is offered, refused or projected any more.
-     */
-    buildAnswered(): boolean {
-      // …on the HOSTED instance the build was made in — a fresh «Колонии» beside a parked flow answers its own presses.
-      return this.embedded && (colonyBuildAnswered() || this.buildReceipt !== undefined);
-    },
-    /** The server's projection of a build on the FOCUSED tile (its berth, beyond the limit or not) — `undefined` off a build door. */
-    focusBuildSite(): ColonyBuildSite | undefined {
-      const model = this.focusColonyModel;
-      return model === undefined ? undefined : buildSiteOf(this.pick?.buildSites, model.name);
-    },
-    /**
-     * THE GRID IS A RECEIPT — one reading for every flow that folds its stage home and lets the grid state the
-     * result (a roster change, a city laid on a tile, a colony a card built): no cursor, no verbs, the landed
-     * tile in the calm amber.
-     */
-    receiptOn(): boolean {
-      return this.rosterReceiptOn || this.cityReceiptOn || this.buildReceiptOn;
-    },
-    receiptText(): string {
-      if (this.rosterReceiptOn) {
-        return this.rosterReceiptText;
-      }
-      if (this.buildReceiptOn && this.buildReceipt !== undefined) {
-        const built = this.buildReceipt;
-        return translateTextWithParams(
-          berthIsOverLimit(built.slot) ? 'Colony built on ${0} — berth ${1}, over the limit' : 'Colony built on ${0} — berth ${1}',
-          [translateText(built.colony), String(built.slot + 1)]);
-      }
-      const receipt = this.cityReceipt;
-      if (receipt === undefined) {
-        return '';
-      }
-      const city = receipt.card !== undefined ? translateText(receipt.card) : translateText('City');
-      return translateTextWithParams('${0} — on the ${1} colony tile', [city, translateText(receipt.colony)]);
-    },
-    /**
-     * A city act of the player's own is ANSWERED (on the wire, playing, homing or standing as its receipt): the
-     * door's prompt has outlived its answer — no tile is offered, refused or projected any more.
-     */
-    cityAnswered(): boolean {
-      // (A WATCHER's landing is not an answer of this player's: it takes no status line and no rail away.)
-      return this.cityState.armed !== undefined || colonyCityOwnSceneLive() || this.cityState.homing || this.cityReceipt !== undefined;
-    },
-    /** The counted object of the «city» rail — the space city RX08's readings draw. */
-    spaceCityGlyph(): CountedObjectGlyph {
-      return {kind: 'tile', tile: 'spaceCity'};
-    },
-    /** The focused tile's reading of a «city» pick (a candidate's only) — the server's marker, phrased. */
-    focusedCityReading(): ColonyCityReading | undefined {
-      const colony = this.colonies[this.index];
-      const site = this.pick?.tileSite;
-      if (colony === undefined || site === undefined || !this.isPickable(colony.name)) {
-        return undefined;
-      }
-      return colonyCityReading(site, colony.name as ColonyName);
-    },
-    /** The city act as the stage reads it — pinned at the press (the answer takes the prompt away mid-scene). */
-    stageCity(): ColonyCityStageView | undefined {
-      if (this.focusState.intent !== 'city') {
-        return undefined;
-      }
-      const site = this.pick?.tileSite;
-      const model = this.focusColonyModel;
-      if (site === undefined || model === undefined) {
-        return this.cityStageLatch;
-      }
-      return {
-        reading: colonyCityReading(site, model.name as ColonyName),
-        // A STAGED door's A is the PLAY's one submit — it speaks the play's verb; a live door the server's own.
-        verbKey: this.pick?.staged === true ? 'Play card' : (this.pick?.labelKey ?? 'Select'),
-        stageKey: COLONY_CITY_STAGE,
-      };
-    },
-    /** «− Церера · + Ио · колония построена» — the change in the roster's own words, then the colony. */
-    rosterReceiptText(): string {
-      const receipt = this.rosterState.receipt;
-      if (receipt === undefined) {
-        return '';
-      }
-      const kind = receipt.removed !== undefined && receipt.added !== undefined ? 'replace' : (receipt.added !== undefined ? 'add' : 'remove');
-      const text = colonyRosterChangeText({kind, removed: receipt.removed, added: receipt.added, slot: 0}, (name) => translateText(name));
-      return receipt.built ? `${text} · ${translateText('Colony built')}` : text;
-    },
-    /** The focused tile's card resource(s) — the ONE list the rail's glyph and the «lost» reading take (several for the Redux Vesta). */
-    cardResourceKinds(): ReadonlyArray<CardResource> {
-      return this.focusedMeta === undefined ? [] : colonyCardResources(this.focusedMeta);
-    },
-    /** The grid's layout — chosen by its CELLS: the colonies and, last in reading order, the viewer's docks. */
-    layout(): ColonyGridLayout {
-      return colonyGridLayout(this.colonies.length, this.pick !== undefined, this.docks.length);
-    },
-    gridStyle(): Record<string, string> {
-      // Catalog (>6) wraps freely; every other layout caps the width so the
-      // intended column count holds around the fitted tiles.
-      return this.gridMaxW > 0 && this.layout !== 'catalog' ? {maxWidth: this.gridMaxW + 'px'} : {};
-    },
-    /** Every player's fleet situation, the viewer first. */
-    fleetChips(): Array<ColonyFleetChip> {
-      const chips: Array<ColonyFleetChip> = this.players.map((player) => ({
-        color: player.color,
-        name: participantDisplayName(player),
-        free: this.freeFleetsFor(player),
-        total: player.fleetSize,
-        me: player.color === this.viewerColor,
-      }));
-      return chips.sort((a, b) => Number(b.me) - Number(a.me));
-    },
-    /** The colour whose fleet is lifting off right now (the viewer's own —
-     *  only the console shell arms flights for this client). */
-    launchingFleetColor(): Color | '' {
-      return this.tradeFleetState.active && this.viewerColor !== undefined ? this.viewerColor : '';
-    },
-    // ── The workspace crumb (ConsoleWsHead) ────────────────────────────────
-    // Two depths share the one line: the FOCUS STAGE (pre-commit — cyan) and
-    // the EMBEDDED PAYOUT (post-commit — amber): «КОЛОНИИ › ПЛУТОН › ДОБОР
-    // КАРТ». Stable context before the mutable stage; only the tail moves.
-    /** The board cell that asked for this pick (MSL Curiosity) — the head's source plate. */
-    cellGiverView(): PromptSourceView | undefined {
-      const giver = this.pick?.cellGiver;
-      return giver === undefined ? undefined : choiceSourceView(giver.source);
-    },
-    crumbSubject(): string {
-      // THE HOSTED VOTE (a colony's delegate grant) is the build's / the trade's
-      // continuation: the carried object survives into the step — «КОЛОНИИ ›
-      // ВЕНЕРА › ГОЛОСОВАНИЕ» — by the giver the SERVER names on the grant
-      // marker, latched past the submit (the prompt is gone while the cubes
-      // land), never by a memory of the last focus (folded a beat earlier).
-      if (this.parliamentStepHosted && (this.grantColony !== '' || this.grantSubject !== '')) {
-        return this.grantColony !== '' ? this.grantColony : this.grantSubject;
-      }
-      // A REPLACEMENT names BOTH tiles from the moment the leaving one is chosen: «ЭНЦЕЛАД» on the catalog,
-      // «ЭНЦЕЛАД → ТИТАН» on the stage — the tail only ever gains (translated here: the pair is not one key).
-      const leaving = this.pick?.roster?.outgoing ?? (this.rosterStageLatch?.kind === 'replace' ? this.rosterStageLatch.leaves : undefined);
-      if (leaving !== undefined && (this.pick?.roster !== undefined || this.rosterBusy)) {
-        return this.focusState.open && this.focusState.colonyName !== '' ?
-          `${translateText(leaving)} → ${translateText(this.focusState.colonyName)}` : leaving;
-      }
-      if (this.focusState.open && this.focusState.colonyName !== '') {
-        return this.focusState.colonyName;
-      }
-      // A CITY's receipt (TR22): the stage has folded home and the result still belongs to its tile — the tail
-      // keeps «ЛУНА · ГОРОД» while the grid is read (it only ever moves forward past the commit).
-      const cityTile = this.cityReceipt?.colony ?? this.cityState.armed?.colony;
-      if (this.cityAnswered && cityTile !== undefined) {
-        return cityTile;
-      }
-      // A FLEET DOCK's stage: the card is the carried object — «КОЛОНИИ ›
-      // ПЕРЕВОЗКА ВОДЫ › ТОРГОВЛЯ».
-      if (this.focusState.open && this.focusState.dock !== '') {
-        return this.focusState.dock;
-      }
-      if (this.revealEmbedActive && this.outcomeState.sourceCard !== '') {
-        return this.outcomeState.sourceCard;
-      }
-      return '';
-    },
-    /**
-     * THE SETTLEMENT TABLE'S STAGE — «Бонус N из K» while place N's card is on the table, «Сброс N из K» once it was
-     * taken (its discard owed or in flight); '' when no table stands here.
-     */
-    settlementStage(): string {
-      const t = settlementTable;
-      if (t.nonce === 0 || !this.revealEmbedActive || t.index === 0) {
-        return '';
-      }
-      const kind = t.taken.includes(t.index) ? 'discard' : 'bonus';
-      return settlementStageText(kind, {index: t.index, total: t.total}) ?? '';
-    },
-    /** The payout's own stage right now ('' between stages) — remembered as `lastPayoutStage` (forward-only). */
-    payoutStage(): string {
-      if (this.handStepHosted) {
-        const stage = workspaceFrameStage('hand');
-        return stage !== '' ? stage : 'Discarding a card';
-      }
-      if (this.revealEmbedPresenting) {
-        return this.settlementStage !== '' ? this.settlementStage :
-          (this.outcomeState.phaseKey !== '' ? this.outcomeState.phaseKey :
-            (revealIsOwnerBonus(colonyRevealSourceOf(currentRevealEvent())) ? 'Owner bonus' : 'Card draw'));
-      }
-      return this.settlementStage;
-    },
-    crumbStage(): string {
-      // THE NESTED HAND STEP is the deepest frame — its stage IS the crumb's
-      // tail: «КОЛОНИИ › ПЛУТОН › СБРОС КАРТЫ». Stable context before the
-      // mutable stage; only this tail advances through the resolution.
-      if (this.handStepHosted) {
-        const stage = workspaceFrameStage('hand');
-        return stage !== '' ? stage : 'Discarding a card';
-      }
-      // …and THE NESTED PARLIAMENT STEP the same way: «КОЛОНИИ › ВЕНЕРА ›
-      // ГОЛОСОВАНИЕ» — the Parliament hands its stage up, the tail only moves forward.
-      if (this.parliamentStepHosted) {
-        const stage = workspaceFrameStage('parliament');
-        return stage !== '' ? stage : 'Voting';
-      }
-      // The PAYOUT REVEAL is the deeper step — while it presents (over the
-      // focus stage or over the grid alike) the tail names IT: «… › ПЛУТОН ›
-      // ДОБОР КАРТ» for the trade income, «… › БОНУС ВЛАДЕЛЬЦА» for a colony
-      // bonus wave (the batch's own role tag decides — never a title).
-      if (this.revealEmbedPresenting) {
-        // A SETTLEMENT TABLE names the place resolving now, with its ordinal (colony polish 1): «БОНУС 1 ИЗ 2 →
-        // СБРОС 1 ИЗ 2 → БОНУС 2 ИЗ 2 → СБРОС 2 ИЗ 2» — the tail only ever moves forward.
-        const table = this.settlementStage;
-        if (table !== '') {
-          return table;
-        }
-        if (this.outcomeState.phaseKey !== '') {
-          return this.outcomeState.phaseKey;
-        }
-        return revealIsOwnerBonus(colonyRevealSourceOf(currentRevealEvent())) ? 'Owner bonus' : 'Card draw';
-      }
-      // …AND IT NEVER WALKS BACK. Between the payout's stages (the table parked under the returning stage, the
-      // closing track reset) the focus stage would name its own act again («ТОРГОВЛЯ», and — the act spent —
-      // «ОСМОТР»): the tail keeps the LAST payout stage for as long as the resolution's claim stands.
-      // (Kept to the stage's own close, not the claim's release: the resolution's claim lets go a beat BEFORE the
-      // workspace leaves, and the tail would read «ТОРГОВЛЯ» / «ОСМОТР» over the departing payout.)
-      if (this.focusState.open && this.lastPayoutStage !== '') {
-        return this.lastPayoutStage;
-      }
-      if (this.focusState.open) {
-        // A CHOSEN TRACK's stage names itself from the descent on (the stage publishes «Трек» a flush later — the
-        // tail must not animate through «ЛУНА · ВЫБОР КОЛОНИИ» on the way).
-        // (A «city» stage — TR22 — the same way: never through «ЛУНА · ВЫБОР КОЛОНИИ».)
-        if (this.focusState.stage === '' && this.focusState.intent === 'city') {
-          return COLONY_CITY_STAGE;
-        }
-        const stage = this.focusState.stage !== '' ? this.focusState.stage : (this.focusState.intent === 'track' ? 'Track' : '');
-        // A STAGE's R3 «Эффекты» layer (the dock's — PL-060; the colony's — PL-066) is a level INSIDE the stage: the
-        // tail gains «· ЭФФЕКТЫ» (+ the source card at its detail) and gives it back on B / R3 — the composers' own
-        // rule, a composed, pre-translated string.
-        return forecastStageText(this.focusState.dock !== '' ? 'dock' : 'colony', stage) ?? stage;
-      }
-      // A «CITY» act with its stage closed: ANSWERED — the grid is the receipt of «… · ГОРОД»; still a QUESTION (B
-      // from the stage) — the grid is the door again and the tail walks BACK to the name the door wore.
-      if (this.cityAnswered) {
-        return COLONY_CITY_STAGE;
-      }
-      if (this.pick?.tileSite !== undefined && this.cityDoorStage !== '') {
-        return this.cityDoorStage;
-      }
-      if (this.revealEmbedActive) {
-        return this.outcomeState.phaseKey !== '' ? this.outcomeState.phaseKey : 'Card draw';
-      }
-      // A ROSTER pick's grid names its level: «СНЯТИЕ» while the leaving tile is chosen, then the act's own stage
-      // («ЗАМЕНА» / «ДОБАВЛЕНИЕ») on the reserve — the same word the stage keeps.
-      const roster = this.pick?.roster;
-      if (roster !== undefined) {
-        return roster.level === 'outgoing' ? ROSTER_KIND_COPY.remove.stage : ROSTER_KIND_COPY[roster.prompt.kind].stage;
-      }
-      return '';
-    },
-    /** The berth the HOST hosting us NOW offers for our fleet dock ('' = keep it locally) — never another host's. */
-    liveFleetBerth(): string {
-      return this.embedded ? colonyFleetBerthFor(workspaceFrameHost('colonies')) : '';
-    },
-    /**
-     * The berth the dock stands in. A step that RIDES its host's dissolve (TR07's staged colony — the shell's
-     * `coloniesLeaving`: the frame is gone, the section still on screen inside the leaving hand) belongs to the
-     * PREVIOUS state: with no frame there is no host to ask, the live answer falls to '' and the toolbar came back
-     * INSIDE the zone — a row stolen from the grid while it dissolved (CI 2026-11-08, `console-colony-sponsors`,
-     * since the berth became owned in c74ac75f9f). So the decision the step stood in is kept until it unmounts.
-     */
-    fleetBerth(): string {
-      return this.embedded && !workspaceFrameKnown('colonies') ? this.berthLatch : this.liveFleetBerth;
-    },
-    /** The pair handed up to a HOSTING workspace's breadcrumb (see the watcher). */
-    /**
-     * ── THE HEADER STATES THE FLOW, WHEREVER THIS SCREEN IS STANDING ──────
-     *
-     * Nested (depth > 0) but NOT teleported into a host's zone — the
-     * scene-handover shape — the crumb is the STACK's: root = the workspace the
-     * player entered, subject = the deepest carried object, emblem = the
-     * PARENT's identity symbol (it belongs to the parent anchor and must be the
-     * same box before and after the step opened). At depth 0 this screen is its
-     * own root and everything falls back to «КОЛОНИИ».
-     */
-    /** This screen is standing OVER a workspace that handed it the scene. */
-    sceneOverlay(): boolean {
-      return !this.embedded && workspaceFrameIsOverlay('colonies');
-    },
-    stackCrumb(): {root: string, subject?: {text: string}, stage?: string} | undefined {
-      return workspaceFrameIndex('colonies') > 0 ? workspaceStackCrumb() : undefined;
-    },
-    headRoot(): string {
-      return this.stackCrumb?.root ?? 'Colonies';
-    },
-    headEmblem(): string {
-      const rootKind = this.stackCrumb !== undefined ? workspaceStackRootKind() : undefined;
-      return (rootKind !== undefined ? workspaceFrameEmblem(rootKind).emblem : undefined) ?? 'colonies';
-    },
-    headWheelAnchor(): string {
-      const rootKind = this.stackCrumb !== undefined ? workspaceStackRootKind() : undefined;
-      return (rootKind !== undefined ? workspaceFrameEmblem(rootKind).wheelAnchor : undefined) ?? 'trading';
-    },
-    headStage(): string {
-      // Nested: the tail is the STACK's — which is this screen's own stage,
-      // published up by the watcher, and never regressing to '' (the flow's
-      // step has a name even when the browse layer does not).
-      return this.stackCrumb?.stage ?? this.crumbStage;
-    },
-    headSubject(): string {
-      // The host's own subject leads while this screen carries nothing yet
-      // («ГИДРОСЕТЬ МАРСА › МИКРОБНАЯ ФИКСАЦИЯ › ВЫБОР КОЛОНИИ»); once a colony
-      // is picked up, IT is the deepest carried object and the stack says so.
-      return this.stackCrumb?.subject?.text ?? this.crumbSubject;
-    },
-    embeddedCrumb(): {embedded: boolean, subject: string, stage: string} {
-      return {embedded: this.embedded, subject: this.crumbSubject, stage: this.crumbStage};
-    },
-    crumbCommitted(): boolean {
-      return this.focusState.committing || this.tradeFleetState.active ||
-        (this.tradeState.active && !this.resolutionParked) ||
-        this.revealEmbedActive || this.handStepHosted || this.parliamentStepHosted;
-    },
-    // ── The nested HAND STEP (the resolution's mandatory discard) ──────────
-    /** The hand workspace is standing INSIDE us as a step of the resolution. */
-    handStepHosted(): boolean {
-      return workspaceFrameHost('hand') === 'colonies';
-    },
-    /**
-     * The PARLIAMENT is standing INSIDE us as a step (Turmoil Redux — the Venus
-     * tile's delegates: the vote mode, hosted, in the same full-stage zone the
-     * hand's discard takes).
-     */
-    parliamentStepHosted(): boolean {
-      return workspaceFrameHost('parliament') === 'colonies';
-    },
-    /**
-     * THE FRAME SLOT — the teleport target we publish for the hand step
-     * (`workspaceFrameTarget('hand')` reads it). ONE zone, always the
-     * SECTION-level full-stage host: the discard's whole job is comparing
-     * every card, so the hand owns the central area outright — a hand
-     * squeezed beside the hero planet was the reported broken intermediate
-     * state, and that zone no longer exists.
-     */
-    handSlotSelector(): string {
-      return this.handStepHosted ? '[data-embed-slot="colonies-hand"]' : '';
-    },
-    /**
-     * THE ONE SLOT this frame publishes for whatever frame stands on it — the
-     * hand's discard or the Parliament's vote step, each its own full-stage
-     * zone (a frame hosts one step at a time; the stack says which).
-     */
-    frameSlotSelector(): string {
-      if (this.parliamentStepHosted) {
-        return '[data-embed-slot="colonies-parliament"]';
-      }
-      return this.handSlotSelector;
-    },
-    /** The seat stands through the pick, the flight and as the receipt. */
-    discardSeatLive(): boolean {
-      return this.handStepHosted || cardDiscardColonyBonus() !== undefined ||
-        (this.revealEmbedActive && this.resolutionUi.discarded > 0);
-    },
-    /**
-     * THE RESOLUTION'S RECEIPT ON THE TABLE'S PILE (TR52, PL-264): once a bonus's discard has landed, the pile beside
-     * the HUD deck stays out (with its count) for the rest of the resolution — between the cycles it is what the
-     * old corner seat said, in the one place every discard goes.
-     */
-    colonyDiscardPileLease(): boolean {
-      return this.discardSeatLive && this.resolutionUi.discarded > 0;
-    },
-    /**
-     * THE RESOLUTION IS SET ASIDE — its whole chain (colonies ⊃ hand) lives in
-     * the PARK, and THIS mount is a lateral browse visit the player made from
-     * the wheel. The visit must not adopt the parked flow's presentation: the
-     * claim, the discard-stage yield and the resolution crumb all belong to
-     * the parked chain (its way back is the board-home restore card). Without
-     * this gate the visit rendered the parked claim's crumb «ПЛУТОН › ДОБОР
-     * КАРТ» over a yielded (empty) browse — the reported blank screen.
-     */
-    resolutionParked(): boolean {
-      return workspaceFrameParked('colonies');
-    },
-    // ── The embedded-outcome zone (the Pluto payout reveal) ────────────────
-    /** The claim is ours — the zone must stand (rendered from SUBMIT time).
-     *  OURS means the LIVE chain's: a parked resolution keeps its claim, and
-     *  a browse visit beside it must not stand the zone up (see above). */
-    revealEmbedActive(): boolean {
-      return this.outcomeState.host === 'colonies' && !this.resolutionParked;
-    },
-    /** The reveal is genuinely ON SCREEN inside the zone — the grid yields. */
-    revealEmbedPresenting(): boolean {
-      return this.revealEmbedActive && this.outcomeState.stage === 'presenting';
-    },
-    /**
-     * The FOCUS STAGE hosts the follow-up while it stands — this is the
-     * TELEPORT TARGET's existence, and nothing else. It must be true from
-     * SUBMIT time (a teleport whose target does not exist yet drops its
-     * content), which is precisely why it may not also mean «the follow-up is
-     * on screen»: an owned-but-empty zone that paints itself is the empty
-     * dimmed box a colony with no payout used to stand.
-     */
-    focusOutcomeZone(): boolean {
-      return this.revealEmbedActive && this.focusState.open;
-    },
-    /**
-     * A full-stage step owns the room and the stage waits under it (see the stage's `receded`): the resolution's
-     * discard, or the Parliament's vote step a trade's delegate cells pay (the Redux Venus — the trade stage stands
-     * until its income is answered, so it must recede, never paint through the vote).
-     */
-    focusStageReceded(): boolean {
-      return this.focusState.open && !this.resolutionParked && (this.resolutionUi.discardStage || this.parliamentStepHosted);
-    },
-    /**
-     * THE ONE SLOT SELECTOR. Two elements can host the follow-up — the focus
-     * stage's own zone (while the player is inside a colony) and the
-     * section's zone (after the stage folded, e.g. a payout that returns from
-     * a hand discard). Exactly ONE writer decides which, so the two can never
-     * both claim the teleport and drop its content.
-     *
-     * DURING THE FULL-STAGE DISCARD the selector is EMPTY on purpose: the
-     * next cycle's batch can ride the very response that answered the
-     * discard, and presenting it while the hand still owns the room would
-     * stack two scenes. An empty slot HOLDS the claimed reveal (render
-     * nowhere — embed rule 4's provably-transient gap); the focus restore
-     * republishes and the batch opens on the big stage.
-     */
-    outcomeSlotSelector(): string {
-      if (!this.revealEmbedActive) {
-        return '';
-      }
-      // …EXCEPT WHILE THE STAGE STANDS UNDER THE HAND (colony polish 1): the stage RECEDES instead of closing, and
-      // its zone is where the settlement table waits, parked — the same instance the player will find again. The
-      // next cycle's batch is then held by the shell explicitly (`revealHeldForWorkspace` § the discard stage),
-      // never by an empty slot. A discard stage with NO stage (a reload straight into the discard) keeps the old
-      // empty selector.
-      if (this.resolutionUi.discardStage && !this.focusState.open) {
-        return '';
-      }
-      // THE DOSSIER PUBLISHES NO ZONE. Named here while the inspect
-      // composition stood, the focus-reveal selector pointed at a node that
-      // did not exist, and the teleport degraded to a bare child of the root
-      // — the card-target picker floated over the planet with a raw title
-      // (2026-09-28). The dossier folds on the claim's rising edge (below),
-      // and until it has, the slot stays EMPTY (render nowhere for the gap).
-      if (this.focusState.open && this.focusState.intent === 'inspect') {
-        return '';
-      }
-      return this.focusState.open ?
-        '[data-embed-slot="colonies-focus-reveal"]' :
-        '[data-embed-slot="colonies-reveal"]';
-    },
-    // ── The FLEET DOCKS (the «ПРИЧАЛЫ» column — fleetDockModel) ────────────
-    /** The cursor stands on a dock (the column exists and the zone is active). */
-    dockCursorOn(): boolean {
-      return this.dockCursor.active && this.docks.length > 0;
-    },
-    viewerPlayer(): PublicPlayerModel | undefined {
-      return this.players.find((p) => p.color === this.viewerColor);
-    },
-    /** The viewer's free fleets — the same arithmetic as the fleet dock's chips. */
-    viewerFreeFleets(): number {
-      return this.viewerPlayer === undefined ? 0 : this.freeFleetsFor(this.viewerPlayer);
-    },
-    /** Every destination the OPEN window offers: the colonies and the available docks. */
-    tradeWindowDestinations(): ReadonlyArray<string> {
-      const docks = this.docks.filter((d) => d.offer?.available === true).map((d) => d.card as string);
-      return [...this.tradeable, ...docks];
-    },
-    focusedDock(): FleetDockView | undefined {
-      return this.dockCursorOn ? this.docks[Math.min(this.dockCursor.index, this.docks.length - 1)] : undefined;
-    },
-    /** The focused dock's ONE reason (its tile's refusal), translated; '' when it is a destination. */
-    focusedDockReason(): string {
-      const dock = this.focusedDock;
-      if (dock === undefined) {
-        return '';
-      }
-      const status = this.dockTileStatus(dock);
-      return status.kind === 'free' ? '' : translateText(status.text);
-    },
-    /** What the trade brings — the marker's chips (the server's `current → resulting`). */
-    focusedDockChips(): ReadonlyArray<ActionEffect> {
-      return this.focusedDock?.offer?.effects ?? [];
-    },
-    focusDockView(): FleetDockView | undefined {
-      const card = this.focusState.dock;
-      return card === '' ? undefined : this.docks.find((d) => d.card === card);
-    },
-    /** The server offers this dock right now (the pick's marker — never derived here). */
-    focusDockAvailable(): boolean {
-      return this.focusDockView?.offer?.available === true;
-    },
-    focusDockReason(): ColonyTradeReason | undefined {
-      const dock = this.focusDockView;
-      return dock === undefined || this.focusDockAvailable ? undefined : fleetDockReason(dock, this.dockReasonInput(this.myTurn, this.awaitingInput));
-    },
-    /** The stage's ONE reason (an English key — the colony ladder's, the turn included). */
-    focusDockBlockReason(): string {
-      if (this.focusDockAvailable || this.focusDockView === undefined) {
-        return '';
-      }
-      return this.focusDockReason?.key ?? 'Trade unavailable';
-    },
-    focusDockBlockTone(): 'warning' | 'danger' {
-      return this.focusDockReason?.blocker.tone === 'warning' ? 'warning' : 'danger';
-    },
-    // ── The focus stage's inputs ───────────────────────────────────────────
-    focusColonyModel(): ColonyModel | undefined {
-      if (this.focusState.colonyName === '') {
-        return undefined;
-      }
-      const found = this.focusModelOnRail;
-      // A REMOVAL of one's own (the solo trim): the answer takes the stage's tile OFF the table while the stage is
-      // still saying goodbye to it — the model it stood on is kept until the roster flow ends.
-      return found ?? (this.rosterBusy ? this.focusModelLatch : undefined);
-    },
-    /** The stage's colony as it stands on the rail right now (undefined once the table lost it). */
-    focusModelOnRail(): ColonyModel | undefined {
-      return this.focusState.colonyName === '' ? undefined : this.colonies.find((c) => c.name === this.focusState.colonyName);
-    },
-    /** A roster change of the player's own is on the wire, playing, or being read as a receipt. */
-    rosterBusy(): boolean {
-      return this.rosterState.armed !== undefined || this.rosterState.live || this.rosterState.receipt !== undefined;
-    },
-    focusTradeable(): boolean {
-      const model = this.focusColonyModel;
-      return this.pick === undefined && model !== undefined && this.tradeable.includes(model.name);
-    },
-    /** The focused intent's action is genuinely offerable (server truth):
-     *  trade → the trade window names this colony; build/pick → the server's
-     *  SelectColony accepts it. Inspect never acts. */
-    focusActionAvailable(): boolean {
-      const model = this.focusColonyModel;
-      if (model === undefined) {
-        return false;
-      }
-      if (this.focusState.intent === 'trade') {
-        return this.focusTradeable;
-      }
-      if (this.focusState.intent === 'build' || this.focusState.intent === 'pick' || this.focusState.intent === 'track' || this.focusState.intent === 'roster' || this.focusState.intent === 'city') {
-        return this.pick !== undefined && this.pick.selectable.includes(model.name);
-      }
-      return false;
-    },
-    /**
-     * THE STAGE'S COMPOSITION for the act. A ROSTER act wears the build's (the berths first, the destination
-     * pulsing — a colony lands by the same answer) or the plain pick's, and carries its own reading beside it.
-     */
-    stageIntent(): ColonyFocusIntent {
-      // A CITY act wears the plain pick's composition (a short panel, no configuration; the working half stands as
-      // it is — the city touches none of it) and carries its own reading beside it (`stageCity`).
-      if (this.focusState.intent === 'city') {
-        return 'pick';
-      }
-      if (this.focusState.intent !== 'roster') {
-        return this.focusState.intent;
-      }
-      return this.stageRoster?.reading.build?.lands === true ? 'build' : 'pick';
-    },
-    /** The roster act as the stage reads it — pinned at the press (the answer takes the prompt away mid-ceremony). */
-    stageRoster(): ColonyRosterStageView | undefined {
-      if (this.focusState.intent !== 'roster') {
-        return undefined;
-      }
-      const roster = this.pick?.roster;
-      const model = this.focusColonyModel;
-      if (roster === undefined || model === undefined) {
-        return this.rosterStageLatch;
-      }
-      const name = model.name as ColonyName;
-      const kind = roster.prompt.kind;
-      const leaves = kind === 'remove' ? name : roster.outgoing;
-      const copy = ROSTER_KIND_COPY[kind];
-      return {
-        kind,
-        leaves,
-        reading: rosterStageReading(roster.prompt, leaves, kind === 'remove' ? undefined : name, (colony) => colonyCardResources(getColony(colony))),
-        // A STAGED door's A is the PLAY's one submit — it speaks the play's verb; a live door the roster's own.
-        verbKey: this.pick?.staged === true ? 'Play card' : copy.verb,
-        stageKey: copy.stage,
-      };
-    },
-    /** The server's projected move of the focused colony (a `track` pick only — TR07). */
-    focusTrackMove(): ColonyTrackMove | undefined {
-      const model = this.focusColonyModel;
-      return model === undefined ? undefined : trackMoveOf(this.pick?.trackMoves, model.name);
-    },
-    /**
-     * THE ACT BEHIND THE DOSSIER'S A — the same derivation the grid's A makes
-     * (`confirmColonySelection`): a server SelectColony pick outranks the
-     * trade; without a pick the act is the trade.
-     */
-    inspectActIntent(): ColonyFocusIntent {
-      if (this.pick !== undefined) {
-        return colonyPickIntent(this.pick);
-      }
-      return 'trade';
-    },
-    /** …and whether it is genuinely offerable for the inspected colony (the
-     *  stage's own `focusActionAvailable`, asked about the dossier's act). */
-    inspectActionAvailable(): boolean {
-      const model = this.focusColonyModel;
-      if (model === undefined) {
-        return false;
-      }
-      if (this.inspectActIntent === 'trade') {
-        return this.pick === undefined && this.tradeable.includes(model.name);
-      }
-      return this.pick !== undefined && this.pick.selectable.includes(model.name);
-    },
-    inspectBlockReason(): string {
-      const model = this.focusColonyModel;
-      if (this.inspectActionAvailable || model === undefined) {
-        return '';
-      }
-      if (this.pick !== undefined) {
-        return this.inspectActIntent === 'trade' ? 'Trade unavailable' : this.pickReasonFor(model.name);
-      }
-      return this.reasonFor(model);
-    },
-    inspectBlockTone(): 'warning' | 'danger' {
-      if (this.inspectActionAvailable || this.pick !== undefined || this.focusColonyModel === undefined) {
-        return 'danger';
-      }
-      return this.blockerFor(this.focusColonyModel)?.tone ?? 'danger';
-    },
-    focusBlockReason(): string {
-      if (this.focusActionAvailable) {
-        return '';
-      }
-      const model = this.focusColonyModel;
-      if (model === undefined) {
-        return '';
-      }
-      if (this.pick !== undefined) {
-        // A pick refused THIS colony: the server's own reason.
-        if (this.focusState.intent === 'build' || this.focusState.intent === 'pick' || this.focusState.intent === 'track' || this.focusState.intent === 'roster' || this.focusState.intent === 'city') {
-          return this.pickReasonFor(model.name);
-        }
-        // Mid-pick the trade window simply is not open — the stage's verdict
-        // states that plainly rather than inventing a colony-intrinsic fault.
-        return 'Trade unavailable';
-      }
-      return this.reasonFor(model);
-    },
-    /**
-     * The stage verdict's REGISTER. A trade blocked only by the turn is legal in
-     * every rule sense — it wears «НЕ СЕЙЧАС», not the red ✕ that says the
-     * colony refused the player. Read from the shared blocker model, never from
-     * the reason's text.
-     */
-    focusBlockTone(): 'warning' | 'danger' {
-      if (this.focusActionAvailable || this.pick !== undefined || this.focusColonyModel === undefined) {
-        return 'danger';
-      }
-      return this.blockerFor(this.focusColonyModel)?.tone ?? 'danger';
-    },
-    // ── Focused-colony compact rail (mirrors ConsoleColonyTile's reward/bonus
-    //    logic so the readout can never disagree with the tile). ──
-    focusedMeta(): ColonyMetadata | undefined {
-      const colony = this.colonies[this.index];
-      return colony === undefined ? undefined : getColony(colony.name);
-    },
-    focusedPosition(): number {
-      const colony = this.colonies[this.index];
-      if (colony === undefined || this.focusedMeta === undefined) {
-        return 0;
-      }
-      const offset = colony.isActive ? this.tradeOffset : 0;
-      // The PRESENTED colony — mid-trade the committed track reset stays
-      // frozen behind the transaction (same helper the tile reads), so the
-      // rail readout can never leak the new position early.
-      return effectiveTradePosition(presentedColonyModel(colony), this.focusedMeta, offset);
-    },
-    focusedTrackMax(): number {
-      return this.focusedMeta === undefined ? 0 : this.focusedMeta.trade.quantity.length - 1;
-    },
-    focusedOffset(): number {
-      const colony = this.colonies[this.index];
-      if (colony === undefined) {
-        return 0;
-      }
-      return Math.max(0, this.focusedPosition - Math.min(presentedColonyModel(colony).trackPosition, this.focusedTrackMax));
-    },
-    focusedReward(): TradeRewardAt {
-      return rewardAtPosition(this.focusedMeta as ColonyMetadata, this.focusedPosition);
-    },
-    focusedTradeBenefit(): {type: ColonyMetadata['trade']['type'], quantity: ReadonlyArray<number>, resource?: unknown} {
-      const t = (this.focusedMeta as ColonyMetadata).trade;
-      const resource = Array.isArray(t.resource) ? t.resource[this.focusedPosition] : t.resource;
-      return {type: t.type, quantity: t.quantity, resource};
-    },
-    focusedColonyBenefit(): {type: ColonyMetadata['colony']['type'], quantity: ReadonlyArray<number>, resource?: unknown} {
-      const c = (this.focusedMeta as ColonyMetadata).colony;
-      return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
-    },
-    focusedBonusQty(): number {
-      return this.focusedMeta === undefined ? 1 : (this.focusedMeta.colony.quantity ?? 1);
-    },
-    focusedTrackDisplay(): string {
-      const colony = this.colonies[this.index];
-      if (colony === undefined) {
-        return '';
-      }
-      return `${Math.min(presentedColonyModel(colony).trackPosition, this.focusedTrackMax) + 1}/${this.focusedTrackMax + 1}`;
-    },
-    focusedStatus(): ConsoleColonyTileStatus {
-      const colony = this.colonies[this.index];
-      return colony === undefined ? {kind: 'none', text: ''} : this.tileStatus(colony);
-    },
-    /**
-     * THE ONE POSITIVE FACT the rail's blocked arm stands on: this colony has
-     * a real, named blocker. `tileStatus` produces exactly two such kinds
-     * (`blocked` / `inactive`) and both carry their text by construction —
-     * `none` ("nothing to report") and `ok` (a live transaction beat) are not
-     * blockers and must never route here. Reading it as `kind !== 'ok'`
-     * silently made every ordinary browse frame "blocked", which is how a
-     * colony the server was actively offering announced «Торговля
-     * недоступна» while the player was choosing it.
-     */
-    railBlocked(): boolean {
-      return this.focusedStatus.kind === 'blocked' || this.focusedStatus.kind === 'inactive';
-    },
-    /** Settlement OWNERS on the focused colony — the recipients of the colony
-     *  bonus when anyone trades here (empty ⇒ the bonus goes to no one). */
-    focusedOwners(): ReadonlyArray<Color> {
-      return this.colonies[this.index]?.colonies ?? [];
-    },
-    /** Which rail the compact readout shows: a SelectColony pick titled
-     *  'Build' grants a settlement + placement bonus (NOT trade); other picks
-     *  are identity-only; no pick ⇒ the trade rail. */
-    railMode(): 'trade' | 'build' | 'select' | 'track' | 'roster' | 'city' {
-      if (this.pick === undefined) {
-        return 'trade';
-      }
-      const intent = colonyPickIntent(this.pick);
-      if (intent === 'build' || intent === 'track' || intent === 'roster' || intent === 'city') {
-        return intent;
-      }
-      return 'select';
-    },
-    /** «будет снята · на её место — плитка из резерва (N)» — what choosing the focused tile to leave does. */
-    rosterLeaveNote(): string {
-      const roster = this.pick?.roster;
-      if (roster === undefined) {
-        return '';
-      }
-      const reserve = roster.prompt.incoming?.length ?? 0;
-      return roster.prompt.kind === 'remove' ? translateText('leaves the game') :
-        translateTextWithParams('leaves the game · a reserve tile takes its place (${0})', [String(reserve)]);
-    },
-    /** The focused tile's projected move, read for the rail (a `track` pick's candidate only). */
-    focusedTrackReading(): ColonyTrackMoveReading | undefined {
-      const colony = this.colonies[this.index];
-      const move = colony === undefined ? undefined : trackMoveOf(this.pick?.trackMoves, colony.name);
-      return move === undefined || this.focusedMeta === undefined ? undefined : colonyTrackMoveReading(this.focusedMeta, move);
-    },
-    /** The berth a new settlement lands in — the ONE reading (`colonyBerths.nextBuildSlot`), never a clamp. */
-    focusedBuildSlot(): number {
-      const colony = this.colonies[this.index];
-      return colony === undefined ? 0 : nextBuildSlot(colony, buildSiteOf(this.pick?.buildSites, colony.name));
-    },
-    /** «Место 4 · сверх лимита» — the focused candidate's berth lies beyond the printed limit (the server's `buildSites`); '' otherwise. */
-    focusedOverLimitText(): string {
-      const colony = this.colonies[this.index];
-      const site = colony === undefined ? undefined : buildSiteOf(this.pick?.buildSites, colony.name);
-      return site !== undefined && site.overLimit && this.isPickable(site.colony) ?
-        translateTextWithParams('Berth ${0} · over the limit', [String(site.slot + 1)]) : '';
-    },
-    /** The bonus that berth pays, resolved for a glyph (a list of one — read with `idx: 0`). */
-    focusedBuildBenefit(): BerthBenefit {
-      return berthBuildBenefit(this.focusedMeta as ColonyMetadata, this.focusedBuildSlot);
-    },
-    /** How many PRINTED berths are still free on the focused tile (never negative). */
-    focusedFreeBerths(): number {
-      const colony = this.colonies[this.index];
-      return colony === undefined ? 0 : freeBerths(colony);
-    },
-    focusedBuildQty(): number {
-      return this.focusedMeta === undefined ? 0 : buildBenefitAt(this.focusedMeta, this.focusedBuildSlot).quantity;
-    },
-    /** A card-resource TRADE reward with no card to hold it ⇒ it is lost —
-     *  read at the position the trade would pay (the Redux Pluto: data low,
-     *  cards high — only the data positions can be lost). */
-    focusedTradeLost(): boolean {
-      return this.focusedMeta !== undefined &&
-        this.benefitResourceLost(rewardAtPosition(this.focusedMeta, this.focusedPosition).type);
-    },
-    /** A card-resource BUILD (placement) bonus with no card to hold it ⇒ lost
-     *  (the placement bonus is a card resource — e.g. Miranda's animals). */
-    focusedBuildLost(): boolean {
-      return this.focusedMeta !== undefined && this.benefitResourceLost(this.focusedMeta.build.type);
-    },
-  },
-  watch: {
-    liveFleetBerth: {
-      immediate: true,
-      handler(berth: string): void {
-        // Only while the frame lives — a dissolve past the frame keeps what it stood in.
-        if (workspaceFrameKnown('colonies')) {
-          this.berthLatch = berth;
-        }
-      },
-    },
-    colonyDiscardPileLease: {
-      immediate: true,
-      handler(on: boolean): void {
-        if (on) {
-          openDiscardPile('colony');
-        } else {
-          releaseDiscardPile('colony');
-        }
-      },
-    },
-    /** The crumb's tail only moves forward through a payout — remember its last stage (see `crumbStage`). */
-    payoutStage: {
-      immediate: true,
-      handler(stage: string): void {
-        if (stage !== '') {
-          this.lastPayoutStage = stage;
-        }
-      },
-    },
-    /** The bar reads the ONE receipt reading (it states the result while the grid takes no verb). */
-    receiptOn: {
-      immediate: true,
-      handler(on: boolean): void {
-        consoleColoniesUi.receipt = on;
-      },
-    },
-    /**
-     * A CLAIMED ARTIFACT ARRIVES WHILE THE DOSSIER STANDS (a late card-target
-     * pick, a reveal): the dossier is a READING and hosts nothing, so it folds
-     * to the grid and the section's own zone takes the artifact — never a
-     * picker teleported at a zone the dossier does not have.
-     */
-    revealEmbedActive(on: boolean): void {
-      if (on && this.focusState.open && this.focusState.intent === 'inspect') {
-        closeColonyFocus();
-      }
-    },
-    grantColony: {
-      immediate: true,
-      handler(name: string): void {
-        if (name !== '') {
-          this.grantSubject = name;
-        }
-      },
-    },
-    parliamentStepHosted(hosted: boolean): void {
-      if (!hosted) {
-        this.grantSubject = '';
-      }
-    },
-    index() {
-      void this.$nextTick(() => this.scrollSelectedIntoView());
-    },
-    // THE ROSTER FLOW'S LATCHES: what the stage stood on, kept past the answer that takes it away (the prompt,
-    // and — for a removal — the tile itself). Dropped when the flow is over and the stage is closed.
-    focusModelOnRail: {
-      immediate: true,
-      handler(model: ColonyModel | undefined): void {
-        if (model !== undefined) {
-          this.focusModelLatch = model;
-        }
-      },
-    },
-    stageRoster: {
-      immediate: true,
-      handler(view: ColonyRosterStageView | undefined): void {
-        if (view !== undefined && this.pick?.roster !== undefined) {
-          this.rosterStageLatch = view;
-        }
-      },
-    },
-    rosterBusy(busy: boolean): void {
-      if (!busy && !this.focusState.open) {
-        this.focusModelLatch = undefined;
-        this.rosterStageLatch = undefined;
-      }
-    },
-    stageCity: {
-      immediate: true,
-      handler(view: ColonyCityStageView | undefined): void {
-        if (view !== undefined && this.pick?.tileSite !== undefined) {
-          this.cityStageLatch = view;
-        }
-      },
-    },
-    'cityState.receipt'(receipt: ColonyCityReceipt | undefined): void {
-      if (receipt !== undefined && this.cityDoorStands) {
-        this.cityReceiptLatch = {...receipt};
-      }
-    },
-    'buildState.receipt'(receipt: ColonyBuildReceipt | undefined): void {
-      if (receipt !== undefined && this.buildDoorStands) {
-        this.buildReceiptLatch = {...receipt};
-      }
-    },
-    buildDoorStands(stands: boolean): void {
-      if (!stands) {
-        this.buildReceiptLatch = undefined;
-      }
-    },
-    cityDoorStands(stands: boolean): void {
-      if (!stands) {
-        this.cityReceiptLatch = undefined;
-      }
-    },
-    cityAnswered(answered: boolean): void {
-      if (!answered && !this.focusState.open) {
-        this.cityStageLatch = undefined;
-      }
-    },
-    'focusState.open'(open: boolean): void {
-      // A watcher's landing was measured on the surface that has just changed — it ends in its final poses.
-      endWatchedColonyCity();
-      if (!open && !this.rosterBusy) {
-        this.focusModelLatch = undefined;
-        this.rosterStageLatch = undefined;
-      }
-      if (!open && !this.cityAnswered) {
-        this.cityStageLatch = undefined;
-      }
-      // The crumb's remembered payout stage dies with the stage it was read on (see `lastPayoutStage`).
-      if (!open) {
-        this.lastPayoutStage = '';
-      }
-    },
-    /**
-     * HAND THE CRUMB UP. Embedded, this section draws no header of its own —
-     * the host does, and the host's subject slot is already spent on the card
-     * that opened us. So the colony and its stage travel up as the FRAME's own
-     * subject + stage and the host folds them into one tail («ГАНИМЕД ·
-     * ТОРГОВЛЯ»). Publishing the pair rather than a finished phrase keeps the
-     * grammar in the header, where it belongs, and keeps both parts i18n keys.
-     */
-    embeddedCrumb: {
-      immediate: true,
-      handler(crumb: {embedded: boolean, subject: string, stage: string}) {
-        // A NESTED FRAME HANDS ITS STAGE UP whether it is teleported into the
-        // host's zone or standing on the whole scene: both are steps of the
-        // flow below, and the crumb is derived from the STACK either way. Keyed
-        // on «am I nested», not on «am I embedded» — the second is a rendering
-        // detail and it silently stopped the tail from advancing the moment a
-        // host chose to hand the scene over instead of lending a zone.
-        if (!crumb.embedded && workspaceFrameIndex('colonies') <= 0) {
-          return;
-        }
-        setWorkspaceFrameSubject('colonies', crumb.subject);
-        // A screen with no stage of its own yet (the plain pick, before a colony is picked up) KEEPS the name
-        // the door pushed for it — «КОЛОНИИ» for the sitting's own step, «ВЫБОР КОЛОНИИ» everywhere else (the
-        // stage the prompt's source decides, `followUpStepStage`); overwriting it made the tail say two things.
-        setWorkspaceFrameStage('colonies', crumb.stage !== '' ? crumb.stage : (workspaceFrameStage('colonies') || 'Colony selection'));
-      },
-    },
-    layout() {
-      this.scheduleFit();
-    },
-    colonies() {
-      this.scheduleFit();
-    },
-    // The focus stage's server preview follows the descended-into colony.
-    'focusState.colonyName'(name: ColonyName | '') {
-      this.focusPreview = undefined;
-      this.focusPathOffset = 0;
-      if (name !== '') {
-        void this.loadFocusPreview(name);
-      }
-    },
-    // The DOCK stage's preview follows the descended-into card — and the state.
-    'focusState.dock'(card: string) {
-      this.dockPreview = undefined;
-      if (card !== '') {
-        // Every door into the dock's stage (a press, a restore, a prompt) solves its hero against the room BEFORE
-        // the stage renders (a `pre` watcher: the stage mounts in the update this one precedes) — ONE measurement,
-        // held until the entry has landed.
-        const room = (this.$el as HTMLElement | null)?.querySelector<HTMLElement>('.con-colonies__stagewrap')?.clientHeight ?? 0;
-        if (room > 0) {
-          this.dockRoomH = room;
-        }
-        this.dockEntering = true;
-        // The hero's FULL art is decoded while the FLIP flies the thumb (shown only once the entry has settled).
-        preloadPremiumCardArt([card as CardName], ['thumb', 'full']);
-        void this.loadDockPreview(card);
-      } else {
-        this.dockEntering = false;
-      }
-    },
-    // …and follows the GAME STATE: a response that moved the world (an undo,
-    // a mid-turn effect) re-pulls the preview for the SAME colony, so the
-    // stage's candidate lists — and through them every captured pick — are
-    // re-validated against current truth instead of a snapshot. Quiet while
-    // the trade is resolving: the commit-boundary freeze owns that window,
-    // and the transaction's own conclusion folds the stage anyway.
-    viewVersion() {
-      const name = this.focusState.colonyName;
-      if (name !== '' && !colonyTradeState.active) {
-        void this.loadFocusPreview(name);
-      }
-      // The dock's preview is a verdict about the whole state: re-asked on every
-      // move (the stage pins its receipt at the commit, so the answer's re-pricing
-      // never reaches a trade already on the wire).
-      if (this.focusState.dock !== '') {
-        void this.loadDockPreview(this.focusState.dock);
-      }
-    },
-    docks() {
-      this.scheduleFit();
-    },
-    // OWNERSHIP ≠ READINESS (embed rule 4): publish the zone's selector only
-    // once the element genuinely stands (`flush: 'post'`), retract before it
-    // unmounts. The teleport's target must exist before Vue resolves it.
-    outcomeSlotSelector: {
-      flush: 'post',
-      handler(selector: string, previous: string | undefined): void {
-        // A zone switching OFF retracts only what THIS host published — a blind '' wiped a slot another host had
-        // published meanwhile (the lent-node class of game-pdb19bfa, ledger HC).
-        if (selector !== '') {
-          setWorkspaceOutcomeSlot(selector);
-        } else {
-          retractWorkspaceOutcomeSlot(previous ?? '');
-        }
-      },
-    },
-    // The HOSTED STEP's teleport target (the hand's discard, the Parliament's
-    // vote) — same law, the STACK channel: the frame below publishes the zone
-    // the frame above teleports into.
-    frameSlotSelector: {
-      flush: 'post',
-      handler(selector: string): void {
-        setWorkspaceFrameSlot('colonies', selector);
-      },
-    },
-    // THE RESOLUTION'S FALLING EDGE auto-folds the focus stage back to the
-    // overview: the trade (fleet → waves → payout → glide → settle) or the
-    // build (cube seated, grant delivered) completed ON the stage — the fold
-    // is the completion's own signal, never a timer. The updated overview
-    // (new track position, the seated cube, the docked fleet) is what the
-    // fold reveals. Embedded flows fold through their own latch finalize.
-    'tradeState.active'(active: boolean, was: boolean): void {
-      if (active) {
-        this.tradeEndOwed = false;
-        return;
-      }
-      if (!was || !this.focusState.open) {
-        return;
-      }
-      if (this.tradeFleetState.active) {
-        // The fleet still flies: its own fall re-asks the ending (below) — never a dropped edge.
-        this.tradeEndOwed = true;
-        return;
-      }
-      this.completeFlow();
-    },
-    /**
-     * THE FLEET'S OWN FALL — the edge the trade's ending was waiting for when the trade fell first (R7). Without it the
-     * stage stood until some unrelated edge happened to re-ask, and the workspace held the screen with nothing owed.
-     */
-    'tradeFleetState.active'(active: boolean, was: boolean): void {
-      if (active || !was || !this.tradeEndOwed) {
-        return;
-      }
-      this.tradeEndOwed = false;
-      if (this.focusState.open && !this.tradeState.active && !this.buildState.active) {
-        this.completeFlow();
-      }
-    },
-    'buildState.active'(active: boolean, was: boolean): void {
-      if (!active && was && this.focusState.open) {
-        this.completeFlow();
-      }
-    },
-    /** A claimed FOLLOW-UP owned the screen; it has now released. THAT is the
-     *  moment the whole action is over, so the completion runs here instead
-     *  of at the transaction's edge (which fired while the payout was still
-     *  standing). */
-    'outcomeState.sourceCard'(now: string, was: string): void {
-      if (now === '' && was !== '' && this.focusState.open &&
-          !this.tradeState.active && !this.buildState.active) {
-        this.completeFlow();
-      }
-    },
-    /** …and the same for the PRESENTED CARD scene: its release is the last
-     *  physical beat of a card-resource payout, so the completion belongs to
-     *  its falling edge exactly as it belongs to the claim's. */
-    'resolutionUi.cardSceneLive'(now: boolean, was: boolean): void {
-      if (!now && was && this.focusState.open &&
-          !this.tradeState.active && !this.buildState.active) {
-        this.completeFlow();
-      }
-    },
-  },
-  methods: {
-    /**
-     * The SERVER's refusal of `colony` for the viewer — the colony's own rule
-     * about the player (`PublicPlayerModel.colonyTradeBlocks`), the one rung
-     * of the ladder the client could never derive honestly.
-     */
-    serverColonyBlock(colony: ColonyModel): string | undefined {
-      const viewer = this.players.find((p) => p.color === this.viewerColor);
-      return viewer?.colonyTradeBlocks?.find((b) => b.colony === colony.name)?.reason;
-    },
-    /** A card-resource benefit (`ADD_RESOURCES_TO_CARD` / `…_VENUS_CARD`) is
-     *  LOST when the viewer owns no card able to hold that resource — shared
-     *  by the trade + build rails (and mirrored at the focus stage). */
-    benefitResourceLost(type: ColonyBenefit): boolean {
-      // The holders of ANY of the tile's kinds (the WARE wildcard included).
-      const kinds = this.cardResourceKinds;
-      if (kinds.length === 0) {
-        return false;
-      }
-      if (type !== ColonyBenefit.ADD_RESOURCES_TO_CARD && type !== ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
-        return false;
-      }
-      const viewer = this.players.find((p) => p.color === this.viewerColor);
-      return !holdsAnyOf(viewer?.tableau ?? [], kinds);
-    },
-    /**
-     * Size the tiles to FILL the free area for the count layout: the largest
-     * uniform scale at which `cols × rows` base-size tiles (+ gaps + padding)
-     * fit the scroll box, clamped to sane bounds. Applied as a `zoom` on every
-     * tile (so the planet / docked fleet / fonts all grow together) plus a grid
-     * max-width so the intended columns hold. Pure measure → no-op under JSDOM
-     * (rects are 0), so the CSS base size is the graceful fallback.
-     */
-    /**
-     * THE HOST'S SOURCE SEAT, RESERVED ONCE FOR THIS WHOLE SURFACE.
-     *
-     * A step hosted inside a workspace can stand BESIDE the card that caused it
-     * («ПОВТОР ДЕЙСТВИЯ · Летающая платформа» on the Hydronetwork's stage 7).
-     * The seat is `position: absolute` on purpose — context must not shrink the
-     * thing it is context for — which means a guest laid out against the raw
-     * zone simply renders UNDER it: the repeated trade drew its colony grid,
-     * and then its focus stage's whole left column, beneath the card that was
-     * explaining why it was being asked at all.
-     *
-     * Reserved as a PADDING on this surface's root, not inside one of its
-     * layouts: the colonies have two (the grid and the focus stage) and both
-     * were wrong. One reserve at the root is a property of the SURFACE, so a
-     * third layout inherits it, and the grid fit needs no arithmetic — it reads
-     * `clientWidth`, which the padding has already narrowed.
-     *
-     * BOTH sides, because what it contains is centred: that is what makes the
-     * overlap inexpressible rather than merely unlikely, at any focus scale.
-     * The measurement is the shared one (`sourceSeatReservePx`, off the seat's
-     * real box) — never a second copy of the seat's own CSS width.
-     */
-    fit(): void {
-      const scroll = (this.$refs.scroll ?? undefined) as HTMLElement | null | undefined;
-      const root = this.$el as HTMLElement | null | undefined;
-      const count = this.colonies.length;
-      if (scroll === undefined || scroll === null || root === undefined || root === null || count === 0) {
-        return;
-      }
-      // ── THE HOST'S SOURCE SEAT IS NOT FREE WIDTH ────────────────────────
-      // A step hosted inside a workspace can stand BESIDE the card that caused
-      // it («ПОВТОР ДЕЙСТВИЯ · Летающая платформа» on the Hydronetwork's stage
-      // 7). The seat is `position: absolute` on purpose — context must not
-      // shrink the thing it is context for — so a guest laid out against the
-      // raw zone renders UNDER it: the repeated trade drew its colony grid, and
-      // then its focus stage's whole left column, beneath the very card that
-      // was explaining why it was being asked.
-      //
-      // Reserved as a PADDING on this surface's ROOT, not inside one of its
-      // layouts: the colonies have two (the grid and the focus stage) and both
-      // were wrong. At the root it is a property of the SURFACE, so a third
-      // layout inherits it and the arithmetic below needs no term — the
-      // `clientWidth` it reads has already been narrowed. BOTH sides, because
-      // what it holds is centred: that is what makes the overlap inexpressible
-      // rather than merely unlikely, at any focus scale. The measurement is the
-      // SHARED one (off the seat's real box), never a copy of its CSS width.
-      // ⚠️ ONLY WHEN TELEPORTED INTO A HOST'S ZONE. `sourceSeatReservePx` asks
-      // the DOCUMENT for a seat, so a surface that is NOT inside one would
-      // reserve room for somebody else's furniture — and since a host that
-      // hands the whole scene over keeps its box (`visibility`, not `display`),
-      // its seat still measures. Scoped to `embedded`, the question is only
-      // ever asked where the answer is about this surface's own room.
-      //
-      // …and the re-solve is gated on a WHOLE pixel of change: this branch
-      // returns without fitting, so a sub-pixel jitter would re-schedule
-      // forever and the fit would never land.
-      const seat = this.embedded ? Math.round(sourceSeatReservePx(conUiScale())) : 0;
-      if (Math.abs(seat - this.seatReservePx) >= 1) {
-        this.seatReservePx = seat;
-        // The padding it just published is what the room below is measured
-        // against — solve on the next frame, against the narrowed box.
-        this.scheduleFit();
-        return;
-      }
-      const availW = scroll.clientWidth;
-      const availH = scroll.clientHeight;
-      if (availW <= 0 || availH <= 0) {
-        return; // not laid out yet / JSDOM / parked behind the focus stage
-      }
-      const cs = getComputedStyle(root);
-      // The base-size vars are rem-authored (TV logical space) — resolve
-      // them properly; a bare parseFloat would read "18.3rem" as 18.3px
-      // and collapse the whole grid fit.
-      const baseW = cssLengthPx(cs.getPropertyValue('--coltile-base-w'), 366);
-      const baseH = cssLengthPx(cs.getPropertyValue('--coltile-base-h'), 220);
-      // THE CELLS ARE THE COLONIES AND THE DOCKS (ledger EZ): one grid, one layout over the total, ONE scale.
-      const cells = count + this.docks.length;
-      const cols = Math.min(Math.max(1, colonyGridCols(this.layout, cells)), cells);
-      const rows = Math.max(1, Math.ceil(cells / cols));
-      // The CSS grid gaps/padding are rem-authored (they scale with the TV
-      // profile); these constants mirror them, so they must scale too. The
-      // tile scale itself stays relative — baseW/baseH come from the CSS
-      // vars via getComputedStyle, already in scaled px.
-      const s = conUiScale();
-      const slack = FIT_SLACK * s;
-      // (The host's SOURCE SEAT is already out of `availW`: it is reserved as
-      //  a padding on this surface's own root — see `seatReserveStyle` — so
-      //  `scroll.clientWidth` is the room that is really free. One reserve,
-      //  read by the grid and by the focus stage alike.)
-      const scaleW = (availW - GRID_PAD_X * s - (cols - 1) * COL_GAP * s - slack) / (cols * baseW);
-      const scaleH = (availH - GRID_PAD_Y * s - (rows - 1) * ROW_GAP * s) / (rows * baseH);
-      const scale = Math.max(MIN_TILE_SCALE, Math.min(MAX_TILE_SCALE, Math.min(scaleW, scaleH)));
-      this.tileScale = Math.round(scale * 1000) / 1000;
-      // The cap gets the SAME slack on top — zoom-rounded tiles need the
-      // room, and a whole extra column would need ~baseW, so the planned
-      // column count still holds.
-      this.gridMaxW = Math.ceil(cols * baseW * this.tileScale + (cols - 1) * COL_GAP * s + GRID_PAD_X * s + slack);
-    },
-    scheduleFit(): void {
-      if (this.fitRaf !== undefined || typeof window === 'undefined') {
-        return;
-      }
-      this.fitRaf = this.flow.afterFrame('the colonies grid\'s fit', () => {
-        this.fitRaf = undefined;
-        this.fit();
-      });
-    },
-    /**
-     * How many of a player's fleets are truly FREE (in their supply, not
-     * deployed). A fleet PHYSICALLY parked on a colony (its `visitor`) is OUT —
-     * even when `usedTradeFleets` doesn't reflect it: the Automa sets colony
-     * visitors DIRECTLY (AutomaColonies) without touching usedTradeFleets, so
-     * `freeTradeFleets` alone showed a deployed bot fleet as a free ship (the
-     * board's fleet-on-colony AND a home platform — the double-count bug). Take
-     * the MORE restrictive of "used-trade-fleets" and "physically-deployed".
-     */
-    freeFleetsFor(player: PublicPlayerModel): number {
-      const deployed = this.colonies.filter((c) => c.visitor === player.color).length;
-      return Math.min(freeTradeFleets(player), Math.max(0, player.fleetSize - deployed));
-    },
-    isPickable(name: string): boolean {
-      return this.pick !== undefined && this.pick.selectable.includes(name);
-    },
-    pickReasonFor(name: string): string {
-      const reason = this.pick?.reasons[name];
-      return reason !== undefined && reason !== '' ? reason : translateText('Unavailable right now');
-    },
-    /** The shared smart ladder's verdict for `colony` (undefined = tradeable). */
-    tradeReasonFor(colony: ColonyModel): ColonyTradeReason | undefined {
-      const viewer = this.players.find((p) => p.color === this.viewerColor);
-      return colonyTradeReason({
-        colony,
-        tradeable: this.tradeable,
-        colonyBlock: this.serverColonyBlock(colony),
-        viewerColor: this.viewerColor ?? ('' as Color),
-        availableFleets: viewer !== undefined ? this.freeFleetsFor(viewer) : 0,
-        myTurn: this.myTurn,
-        awaitingInput: this.awaitingInput,
-        resolveName: (color) => {
-          const p = this.players.find((x) => x.color === color);
-          return p !== undefined ? participantDisplayName(p) : '';
-        },
-      });
-    },
-    /** Its structured semantics (undefined = nothing blocks the trade). */
-    blockerFor(colony: ColonyModel): AvailabilityBlocker | undefined {
-      return this.tradeReasonFor(colony)?.blocker;
-    },
-    /** The full «why can't I trade here» reason for `colony` (translated). */
-    reasonFor(colony: ColonyModel): string {
-      const reason = this.tradeReasonFor(colony);
-      if (reason === undefined) {
-        return this.tradeBlockReason;
-      }
-      return reason.params !== undefined ?
-        translateTextWithParams(reason.key, reason.params.map(String)) :
-        translateText(reason.key);
-    },
-    tileStatus(colony: ColonyModel): ConsoleColonyTileStatus {
-      // A ROSTER change is answered and playing / standing as its receipt: the grid is a RESULT — no tile is being
-      // offered or refused any more (a staged door's prompt outlives the answer, and its «not pickable» is stale).
-      if (this.rosterState.receipt !== undefined || this.cityAnswered || this.buildAnswered) {
-        return {kind: 'none', text: ''};
-      }
-      // The trade transaction narrates its own beats on the traded tile —
-      // a short unobtrusive caption in the EXISTING status line (never a
-      // toast): reward → bonus → the colony update.
-      const beat = colonyTradeTileStatusText(colony.name);
-      if (beat !== undefined) {
-        return {kind: 'ok', text: beat};
-      }
-      if (this.pick !== undefined) {
-        // A RESERVE tile of a roster pick states HOW IT WOULD ENTER — the server's projection, never the bare
-        // tile's own flag (a catalog model is serialized inactive whatever it is): active or not, and whether the
-        // colony the effect builds would stand. The candidate stays selectable either way.
-        const entry = this.pick.roster?.level === 'incoming' ? rosterIncomingOf(this.pick.roster.prompt, colony.name) : undefined;
-        if (entry !== undefined) {
-          const noColony = entry.build !== undefined && !rosterBuildLands(entry.build);
-          const text = translateText(entry.entersActive ? 'Enters active' : 'Enters inactive') +
-            (noColony ? ` · ${translateText('no colony')}` : '');
-          return {kind: entry.entersActive ? 'ok' : 'inactive', text};
-        }
-        // A pickable colony is the NORMAL case in a pick — the focus ring and
-        // the command bar already say so. Only a refusal earns a line.
-        if (this.isPickable(colony.name)) {
-          // …and what a CARD's build LIFTS on this candidate — calm, never a refusal: the berth beyond the
-          // printed limit, or a second colony of one's own. The server's projection (`buildSites`), read as is.
-          const site = this.buildDoorStands ? buildSiteOf(this.pick.buildSites, colony.name) : undefined;
-          if (site !== undefined && site.overLimit) {
-            return {kind: 'ok', text: translateText('Over the limit — by the card')};
-          }
-          if (site !== undefined && site.own > 0) {
-            return {kind: 'ok', text: translateText('Second colony — by the card')};
-          }
-          return {kind: 'none', text: ''};
-        }
-        return {kind: 'blocked', text: this.pickReasonFor(colony.name)};
-      }
-      // ONE smart source of truth for «why can't I trade here» — shared with the
-      // shell's trade-attempt notice (colonyTradeReason) so a tile and the notice
-      // over it can never disagree. On the TILE only COLONY-INTRINSIC blockers
-      // (not built / a fleet already docked) get a hard ✕; a turn/fleet/afford
-      // block stays CALM (its reason surfaces on the A-press notice) — except a
-      // window open for OTHER colonies, which keeps the explicit «Trade unavailable».
-      const viewer = this.players.find((p) => p.color === this.viewerColor);
-      const reason = colonyTradeReason({
-        colony,
-        tradeable: this.tradeable,
-        colonyBlock: this.serverColonyBlock(colony),
-        viewerColor: this.viewerColor ?? ('' as Color),
-        availableFleets: viewer !== undefined ? this.freeFleetsFor(viewer) : 0,
-        // Non-intrinsic reasons are DISCARDED on the tile (mapped by tradeable
-        // length below), so the turn scalars don't affect the tile's output.
-        myTurn: false,
-        awaitingInput: false,
-        resolveName: (color) => {
-          const p = this.players.find((x) => x.color === color);
-          return p !== undefined ? participantDisplayName(p) : '';
-        },
-      });
-      if (reason === undefined) {
-        // NORMAL. Five tiles each announcing «Доступна торговля» is five times
-        // the same non-information; the exception is what the eye needs.
-        return {kind: 'none', text: ''};
-      }
-      if (reason.intrinsic) {
-        // The tile keeps the COMPACT «Not active yet»; the fuller reason.key
-        // ('This colony is not active yet') is for the notice/inspect.
-        if (!colony.isActive) {
-          return {kind: 'inactive', text: translateText('Not active yet')};
-        }
-        const text = reason.params !== undefined ?
-          translateTextWithParams(reason.key, reason.params.map(String)) :
-          translateText(reason.key);
-        return {kind: 'blocked', text};
-      }
-      // A window open for other colonies → name it; otherwise stay calm.
-      if (this.tradeable.length > 0) {
-        return {kind: 'blocked', text: translateText('Trade unavailable')};
+defineOptions({name: 'ConsoleColoniesSection'});
+const props = defineProps({
+  colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
+  index: {type: Number, required: true},
+  /** Server-tradeable colony names (empty when it's not the trade window). */
+  tradeable: {type: Array as PropType<ReadonlyArray<string>>, required: true},
+  /** Honest reason when trade is impossible right now ('' when tradeable). */
+  tradeBlockReason: {type: String, default: ''},
+  /**
+   * The REAL turn signals feeding `colonyTradeReason`'s last two rungs. They
+   * are props, not constants: pinning them `true` (as this component once did)
+   * makes rung 3 always fire, so an off-turn player with a free fleet and an
+   * empty active colony was told «не хватает ресурсов на оплату» — a blocker
+   * that wasn't there. Rung 4 (the turn) was unreachable.
+   */
+  myTurn: {type: Boolean, default: false},
+  awaitingInput: {type: Boolean, default: false},
+  /** Set = SelectColony pick mode (shell submits; this only renders states). */
+  pick: {type: Object as PropType<ConsoleColonyPick | undefined>, default: undefined},
+  /**
+   * THE RAIL IS THE ADD-A-TILE CATALOG (Aridor's first action, Maria): the
+   * tiles on it are the game's UNUSED colonies, offered so one may be put
+   * into play. They are not in the game — no track, no cubes, no trade — so
+   * nothing server-scoped exists for them and none may be asked for.
+   * Everything else (including the Build-Colony pick) rails IN-GAME colonies.
+   */
+  catalog: {type: Boolean, default: false},
+  players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  tradeOffset: {type: Number, default: 0},
+  /** The colony whose fleet JUST docked (a one-shot settle glow; '' = none). */
+  dockedColony: {type: String, default: ''},
+  /** The trade window's payment paths (the AndOptions' inner OrOptions). */
+  tradePaymentOptions: {type: Array as PropType<ReadonlyArray<SelectOptionModel>>, default: () => []},
+  tradeDisabledPayments: {type: Array as PropType<NonNullable<OrOptionsModel['disabledOptions']>>, default: () => []},
+  /** The viewer (stocks / production / id for the focus stage's outcome). */
+  thisPlayer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
+  /** The viewer's player id — the focus stage's server preview fetch. */
+  playerId: {type: String, default: ''},
+  /** The viewer's versioned view — the dock stage's R3 «Эффекты» layer asks the reacting seats' effect stats with it. */
+  statsView: {type: Object as PropType<VersionedView | undefined>, default: undefined},
+  /** The game-state version (`gameAge|undoCount`) — a moved state re-pulls
+   *  the focused colony's trade preview, so the stage's candidate sets and
+   *  captures are re-judged against CURRENT truth (never a stale pick). */
+  viewVersion: {type: String, default: ''},
+  /** The colony whose DELEGATE GRANT is standing (the Redux Venus) — the crumb's subject while the Parliament's vote is hosted here. */
+  grantColony: {type: String, default: ''},
+  /**
+   * A STEP of another workspace (rule 1 — host-agnostic): the shell chrome
+   * (frame plate, ConsoleWsHead, `con-ws` marker) comes off; grid, fit,
+   * d-pad, focus stage and every capture are untouched.
+   */
+  embedded: {type: Boolean, default: false},
+  /**
+   * The viewer's FLEET DOCKS (`fleetDockModel.fleetDockViews` — Turmoil Redux
+   * TR06 Water Hauling and its sisters): the «ПРИЧАЛЫ» column. Empty = no
+   * column at all. The live verdict rides each view's `offer` (the pick's
+   * marker); the column never derives availability itself.
+   */
+  docks: {type: Array as PropType<ReadonlyArray<FleetDockView>>, default: () => []},
+});
+const emit = defineEmits(['trade-confirm', 'build-confirm', 'pick-confirm', 'flow-complete', 'inspect-enter', 'dock-confirm', 'dock-inspect', 'dock-flow-complete']);
+
+const flow = useFlowScope('colonies-section');
+const scroll = useTemplateRef<HTMLElement>('scroll');
+const selectedDock = useTemplateRef<HTMLElement | Array<HTMLElement>>('selectedDock');
+const dockStage = useTemplateRef<InstanceType<typeof ConsoleFleetDockStage>>('dockStage');
+const selectedSlot = useTemplateRef<HTMLElement | Array<HTMLElement>>('selectedSlot');
+const grid = useTemplateRef<HTMLElement>('grid');
+const inspectStage = useTemplateRef<InstanceType<typeof ConsoleColonyInspect>>('inspectStage');
+const focusStage = useTemplateRef<InstanceType<typeof ConsoleColonyFocusStage>>('focusStage');
+const root = useTemplateRef<HTMLElement>('root');
+/** The fleet berth the step last stood in while its frame lived (see `fleetBerth`). */
+const berthLatch = ref('');
+/** The grant's colony, LATCHED for the hosted vote's whole life: the prompt moves on at the submit while the cubes still fly. */
+const grantSubject = ref('');
+/** The resolution's LAST payout stage — the crumb's tail keeps it between stages (forward-only). */
+const lastPayoutStage = ref('');
+/** The reward transaction + build hero — the module reactives the auto-fold
+ *  watchers read, under the names this script reads them by. */
+const tradeState = colonyTradeState;
+const buildState = colonyBuildState;
+/** The workspace flow state (module-level — the shell reads it too). */
+const focusState = colonyFocusState;
+/** The embedded-outcome claim (the Pluto reveal re-homes into us). */
+const outcomeState = workspaceOutcomeState;
+/** The resolution's presentation state (discard stage flag + receipt). */
+const resolutionUi = colonyResolutionUi;
+/** A chosen track's move (TR07 — the module's flow state): the stage it was confirmed on plays it, so nothing folds it before. */
+const trackMoveFlow = colonyTrackMoveFlow;
+/** THE ROSTER CEREMONY's state (a tile replaced / added / removed): the free orbit, the receipt, the confession. */
+const rosterState = colonyRosterState;
+/** The stage's colony model as last seen on the rail — kept for a tile the answer removed (see `focusColonyModel`). */
+const focusModelLatch = ref<ColonyModel | undefined>(undefined);
+/** …and the roster act's reading as last derived from the prompt (the answer takes the prompt away). */
+const rosterStageLatch = ref<ColonyRosterStageView | undefined>(undefined);
+/** A CITY's landing on a colony tile (TR22): the scene's state — the receipt, the confession. */
+const cityState = colonyCityState;
+/** …and the city act's reading as last derived from the prompt (the answer takes the prompt away mid-scene). */
+const cityStageLatch = ref<ColonyCityStageView | undefined>(undefined);
+/** …and the name the «city» DOOR's grid wore before the descent — B from the stage walks the tail back to it. */
+const cityDoorStage = ref('');
+/**
+ * A LANDED city's receipt, kept for as long as the door's pick stands on THIS surface. The shell clears the
+ * scene's state when the read ends, while the section still rides its host's dissolve with the staged pick
+ * latched — without this the ghosts and the pick's rail came back for the last frames of the leave.
+ */
+const cityReceiptLatch = ref<ColonyCityReceipt | undefined>(undefined);
+/** The same latch for a STAGED BUILD's receipt (TR25): the transaction's own is cleared when the read ends. */
+const buildReceiptLatch = ref<ColonyBuildReceipt | undefined>(undefined);
+/** The focus stage's server preview (fetched per focused colony). */
+const focusPreview = ref<ColonyTradePreviewModel | undefined>(undefined);
+/** The CHOSEN payment path's own track advance (the Unity action's 1) — the offset the preview was asked with. */
+const focusPathOffset = ref(0);
+/** The newest preview request wins: an older answer (a different colony or offset) is dropped. */
+const focusPreviewSeq = ref(0);
+/** The fit-set zoom on every tile (grows them to fill the space). */
+const tileScale = ref(1);
+/** The fit-set grid max-width so the layout's column count holds. */
+const gridMaxW = ref(0);
+/** The pending fit frame's cancel (`flow.afterFrame`) — `undefined` when none is owed. */
+let fitRaf: (() => void) | undefined;
+/** THE HOST'S SOURCE SEAT, reserved once for this whole surface — see
+ *  `fit()`. Written by the fit (the one thing that runs on mount, on
+ *  resize and on every zone change) and read straight into the root's
+ *  padding. */
+const seatReservePx = ref(0);
+/** VueUse stop-handles (auto-managed listeners; no raw addEventListener). */
+let stopResize: (() => void) | undefined;
+let stopResizeObs: (() => void) | undefined;
+/** The completion dwell (a breathing beat, never a gate) — its cancel (a timer of `flow`). */
+let completeTimer: (() => void) | undefined;
+/**
+ * THE TRADE FELL WHILE ITS FLEET STILL FLEW (wait graph R7): the trade's falling edge stands its completion down
+ * while the fleet is active, so the ending is OWED to the fleet's own fall — latched here, consumed there.
+ */
+const tradeEndOwed = ref(false);
+/** The overview cursor's docks zone (module state — the shell steps it). */
+const dockCursor = colonyDockCursor;
+/** The dock stage's server preview (`?dock=`), re-asked on every state move. */
+const dockPreview = ref<FleetDockPreviewModel | undefined>(undefined);
+const dockPreviewSeq = ref(0);
+/** The stage's room, measured at the dock's press — the hero card is solved against it BEFORE the stage mounts. */
+const dockRoomH = ref(0);
+/**
+ * The dock stage's ENTRY is in flight — from the door until the descend phrase's own `done` (ledger EZ): the
+ * stage keeps the hero's zoom frozen and its art on the thumb tier until then.
+ */
+const dockEntering = ref(false);
+
+/**
+ * A PLAY'S RAISE IS BEING TOLD (P48 — `colonyTrackRaise.ts`): the grid is a show step until the last marker lands —
+ * the pick's ask («Выберите…») appears after it, the pad is locked meanwhile (`isColonyTradeInputLocked`).
+ */
+const raiseTelling = computed((): boolean => {
+  return props.pick !== undefined && colonyTrackRaiseLive();
+});
+/** The grid stands as the RECEIPT of a finished roster change (the stage has folded home). */
+const rosterReceiptOn = computed((): boolean => {
+  return rosterState.receipt !== undefined && !rosterState.live && !focusState.open;
+});
+/** The grid stands as the RECEIPT of a city just laid on a colony tile (TR22 — the stage has folded home). */
+const cityReceiptOn = computed((): boolean => {
+  return cityReceipt.value !== undefined && !cityState.live && !focusState.open;
+});
+/** The receipt of a landed city: the scene's own while it stands, then this surface's copy (see `cityReceiptLatch`). */
+const cityReceipt = computed((): ColonyCityReceipt | undefined => {
+  return cityState.receipt ?? cityReceiptLatch.value;
+});
+/** A «city» door's pick stands on this surface (live, staged, or latched through the host's dissolve). */
+const cityDoorStands = computed((): boolean => {
+  return props.pick?.tileSite !== undefined;
+});
+/** A card's own BUILD door stands on this surface (live, staged, or latched through the host's dissolve). */
+const buildDoorStands = computed((): boolean => {
+  return props.pick?.buildProjected === true;
+});
+/**
+ * The receipt of a staged build: the transaction's own while it stands, then this surface's copy. It belongs to
+ * the HOSTED instance the build was made in (a staged door's grid is always a step of its host): a FRESH
+ * «Колонии» the player opens beside a parked flow (the delegates' step set aside) is an ordinary grid.
+ */
+const buildReceipt = computed((): ColonyBuildReceipt | undefined => {
+  return props.embedded ? buildState.receipt ?? buildReceiptLatch.value : undefined;
+});
+const buildReceiptOn = computed((): boolean => {
+  return buildReceipt.value !== undefined && !buildState.active && !focusState.open;
+});
+/**
+ * A staged build of the player's own is ANSWERED (on the wire, playing, homing or standing as its receipt):
+ * the door's prompt has outlived its answer — no tile is offered, refused or projected any more.
+ */
+const buildAnswered = computed((): boolean => {
+  // …on the HOSTED instance the build was made in — a fresh «Колонии» beside a parked flow answers its own presses.
+  return props.embedded && (colonyBuildAnswered() || buildReceipt.value !== undefined);
+});
+/** The server's projection of a build on the FOCUSED tile (its berth, beyond the limit or not) — `undefined` off a build door. */
+const focusBuildSite = computed((): ColonyBuildSite | undefined => {
+  const model = focusColonyModel.value;
+  return model === undefined ? undefined : buildSiteOf(props.pick?.buildSites, model.name);
+});
+/**
+ * THE GRID IS A RECEIPT — one reading for every flow that folds its stage home and lets the grid state the
+ * result (a roster change, a city laid on a tile, a colony a card built): no cursor, no verbs, the landed
+ * tile in the calm amber.
+ */
+const receiptOn = computed((): boolean => {
+  return rosterReceiptOn.value || cityReceiptOn.value || buildReceiptOn.value;
+});
+const receiptText = computed((): string => {
+  if (rosterReceiptOn.value) {
+    return rosterReceiptText.value;
+  }
+  if (buildReceiptOn.value && buildReceipt.value !== undefined) {
+    const built = buildReceipt.value;
+    return translateTextWithParams(
+      berthIsOverLimit(built.slot) ? 'Colony built on ${0} — berth ${1}, over the limit' : 'Colony built on ${0} — berth ${1}',
+      [translateText(built.colony), String(built.slot + 1)]);
+  }
+  const receipt = cityReceipt.value;
+  if (receipt === undefined) {
+    return '';
+  }
+  const city = receipt.card !== undefined ? translateText(receipt.card) : translateText('City');
+  return translateTextWithParams('${0} — on the ${1} colony tile', [city, translateText(receipt.colony)]);
+});
+/**
+ * A city act of the player's own is ANSWERED (on the wire, playing, homing or standing as its receipt): the
+ * door's prompt has outlived its answer — no tile is offered, refused or projected any more.
+ */
+const cityAnswered = computed((): boolean => {
+  // (A WATCHER's landing is not an answer of this player's: it takes no status line and no rail away.)
+  return cityState.armed !== undefined || colonyCityOwnSceneLive() || cityState.homing || cityReceipt.value !== undefined;
+});
+/** The counted object of the «city» rail — the space city RX08's readings draw. */
+const spaceCityGlyph = computed((): CountedObjectGlyph => {
+  return {kind: 'tile', tile: 'spaceCity'};
+});
+/** The focused tile's reading of a «city» pick (a candidate's only) — the server's marker, phrased. */
+const focusedCityReading = computed((): ColonyCityReading | undefined => {
+  const colony = props.colonies[props.index];
+  const site = props.pick?.tileSite;
+  if (colony === undefined || site === undefined || !isPickable(colony.name)) {
+    return undefined;
+  }
+  return colonyCityReading(site, colony.name as ColonyName);
+});
+/** The city act as the stage reads it — pinned at the press (the answer takes the prompt away mid-scene). */
+const stageCity = computed((): ColonyCityStageView | undefined => {
+  if (focusState.intent !== 'city') {
+    return undefined;
+  }
+  const site = props.pick?.tileSite;
+  const model = focusColonyModel.value;
+  if (site === undefined || model === undefined) {
+    return cityStageLatch.value;
+  }
+  return {
+    reading: colonyCityReading(site, model.name as ColonyName),
+    // A STAGED door's A is the PLAY's one submit — it speaks the play's verb; a live door the server's own.
+    verbKey: props.pick?.staged === true ? 'Play card' : (props.pick?.labelKey ?? 'Select'),
+    stageKey: COLONY_CITY_STAGE,
+  };
+});
+/** «− Церера · + Ио · колония построена» — the change in the roster's own words, then the colony. */
+const rosterReceiptText = computed((): string => {
+  const receipt = rosterState.receipt;
+  if (receipt === undefined) {
+    return '';
+  }
+  const kind = receipt.removed !== undefined && receipt.added !== undefined ? 'replace' : (receipt.added !== undefined ? 'add' : 'remove');
+  const text = colonyRosterChangeText({kind, removed: receipt.removed, added: receipt.added, slot: 0}, (name) => translateText(name));
+  return receipt.built ? `${text} · ${translateText('Colony built')}` : text;
+});
+/** The focused tile's card resource(s) — the ONE list the rail's glyph and the «lost» reading take (several for the Redux Vesta). */
+const cardResourceKinds = computed((): ReadonlyArray<CardResource> => {
+  return focusedMeta.value === undefined ? [] : colonyCardResources(focusedMeta.value);
+});
+/** The grid's layout — chosen by its CELLS: the colonies and, last in reading order, the viewer's docks. */
+const layout = computed((): ColonyGridLayout => {
+  return colonyGridLayout(props.colonies.length, props.pick !== undefined, props.docks.length);
+});
+const gridStyle = computed((): Record<string, string> => {
+  // Catalog (>6) wraps freely; every other layout caps the width so the
+  // intended column count holds around the fitted tiles.
+  return gridMaxW.value > 0 && layout.value !== 'catalog' ? {maxWidth: gridMaxW.value + 'px'} : {};
+});
+/** Every player's fleet situation, the viewer first. */
+const fleetChips = computed((): Array<ColonyFleetChip> => {
+  const chips: Array<ColonyFleetChip> = props.players.map((player) => ({
+    color: player.color,
+    name: participantDisplayName(player),
+    free: freeFleetsFor(player),
+    total: player.fleetSize,
+    me: player.color === props.viewerColor,
+  }));
+  return chips.sort((a, b) => Number(b.me) - Number(a.me));
+});
+/** The colour whose fleet is lifting off right now (the viewer's own —
+ *  only the console shell arms flights for this client). */
+const launchingFleetColor = computed((): Color | '' => {
+  return tradeFleetState.active && props.viewerColor !== undefined ? props.viewerColor : '';
+});
+// ── The workspace crumb (ConsoleWsHead) ────────────────────────────────
+// Two depths share the one line: the FOCUS STAGE (pre-commit — cyan) and
+// the EMBEDDED PAYOUT (post-commit — amber): «КОЛОНИИ › ПЛУТОН › ДОБОР
+// КАРТ». Stable context before the mutable stage; only the tail moves.
+/** The board cell that asked for this pick (MSL Curiosity) — the head's source plate. */
+const cellGiverView = computed((): PromptSourceView | undefined => {
+  const giver = props.pick?.cellGiver;
+  return giver === undefined ? undefined : choiceSourceView(giver.source);
+});
+const crumbSubject = computed((): string => {
+  // THE HOSTED VOTE (a colony's delegate grant) is the build's / the trade's
+  // continuation: the carried object survives into the step — «КОЛОНИИ ›
+  // ВЕНЕРА › ГОЛОСОВАНИЕ» — by the giver the SERVER names on the grant
+  // marker, latched past the submit (the prompt is gone while the cubes
+  // land), never by a memory of the last focus (folded a beat earlier).
+  if (parliamentStepHosted.value && (props.grantColony !== '' || grantSubject.value !== '')) {
+    return props.grantColony !== '' ? props.grantColony : grantSubject.value;
+  }
+  // A REPLACEMENT names BOTH tiles from the moment the leaving one is chosen: «ЭНЦЕЛАД» on the catalog,
+  // «ЭНЦЕЛАД → ТИТАН» on the stage — the tail only ever gains (translated here: the pair is not one key).
+  const leaving = props.pick?.roster?.outgoing ?? (rosterStageLatch.value?.kind === 'replace' ? rosterStageLatch.value.leaves : undefined);
+  if (leaving !== undefined && (props.pick?.roster !== undefined || rosterBusy.value)) {
+    return focusState.open && focusState.colonyName !== '' ?
+      `${translateText(leaving)} → ${translateText(focusState.colonyName)}` : leaving;
+  }
+  if (focusState.open && focusState.colonyName !== '') {
+    return focusState.colonyName;
+  }
+  // A CITY's receipt (TR22): the stage has folded home and the result still belongs to its tile — the tail
+  // keeps «ЛУНА · ГОРОД» while the grid is read (it only ever moves forward past the commit).
+  const cityTile = cityReceipt.value?.colony ?? cityState.armed?.colony;
+  if (cityAnswered.value && cityTile !== undefined) {
+    return cityTile;
+  }
+  // A FLEET DOCK's stage: the card is the carried object — «КОЛОНИИ ›
+  // ПЕРЕВОЗКА ВОДЫ › ТОРГОВЛЯ».
+  if (focusState.open && focusState.dock !== '') {
+    return focusState.dock;
+  }
+  if (revealEmbedActive.value && outcomeState.sourceCard !== '') {
+    return outcomeState.sourceCard;
+  }
+  return '';
+});
+/**
+ * THE SETTLEMENT TABLE'S STAGE — «Бонус N из K» while place N's card is on the table, «Сброс N из K» once it was
+ * taken (its discard owed or in flight); '' when no table stands here.
+ */
+const settlementStage = computed((): string => {
+  const t = settlementTable;
+  if (t.nonce === 0 || !revealEmbedActive.value || t.index === 0) {
+    return '';
+  }
+  const kind = t.taken.includes(t.index) ? 'discard' : 'bonus';
+  return settlementStageText(kind, {index: t.index, total: t.total}) ?? '';
+});
+/** The payout's own stage right now ('' between stages) — remembered as `lastPayoutStage` (forward-only). */
+const payoutStage = computed((): string => {
+  if (handStepHosted.value) {
+    const stage = workspaceFrameStage('hand');
+    return stage !== '' ? stage : 'Discarding a card';
+  }
+  if (revealEmbedPresenting.value) {
+    return settlementStage.value !== '' ? settlementStage.value :
+      (outcomeState.phaseKey !== '' ? outcomeState.phaseKey :
+        (revealIsOwnerBonus(colonyRevealSourceOf(currentRevealEvent())) ? 'Owner bonus' : 'Card draw'));
+  }
+  return settlementStage.value;
+});
+const crumbStage = computed((): string => {
+  // THE NESTED HAND STEP is the deepest frame — its stage IS the crumb's
+  // tail: «КОЛОНИИ › ПЛУТОН › СБРОС КАРТЫ». Stable context before the
+  // mutable stage; only this tail advances through the resolution.
+  if (handStepHosted.value) {
+    const stage = workspaceFrameStage('hand');
+    return stage !== '' ? stage : 'Discarding a card';
+  }
+  // …and THE NESTED PARLIAMENT STEP the same way: «КОЛОНИИ › ВЕНЕРА ›
+  // ГОЛОСОВАНИЕ» — the Parliament hands its stage up, the tail only moves forward.
+  if (parliamentStepHosted.value) {
+    const stage = workspaceFrameStage('parliament');
+    return stage !== '' ? stage : 'Voting';
+  }
+  // The PAYOUT REVEAL is the deeper step — while it presents (over the
+  // focus stage or over the grid alike) the tail names IT: «… › ПЛУТОН ›
+  // ДОБОР КАРТ» for the trade income, «… › БОНУС ВЛАДЕЛЬЦА» for a colony
+  // bonus wave (the batch's own role tag decides — never a title).
+  if (revealEmbedPresenting.value) {
+    // A SETTLEMENT TABLE names the place resolving now, with its ordinal (colony polish 1): «БОНУС 1 ИЗ 2 →
+    // СБРОС 1 ИЗ 2 → БОНУС 2 ИЗ 2 → СБРОС 2 ИЗ 2» — the tail only ever moves forward.
+    const table = settlementStage.value;
+    if (table !== '') {
+      return table;
+    }
+    if (outcomeState.phaseKey !== '') {
+      return outcomeState.phaseKey;
+    }
+    return revealIsOwnerBonus(colonyRevealSourceOf(currentRevealEvent())) ? 'Owner bonus' : 'Card draw';
+  }
+  // …AND IT NEVER WALKS BACK. Between the payout's stages (the table parked under the returning stage, the
+  // closing track reset) the focus stage would name its own act again («ТОРГОВЛЯ», and — the act spent —
+  // «ОСМОТР»): the tail keeps the LAST payout stage for as long as the resolution's claim stands.
+  // (Kept to the stage's own close, not the claim's release: the resolution's claim lets go a beat BEFORE the
+  // workspace leaves, and the tail would read «ТОРГОВЛЯ» / «ОСМОТР» over the departing payout.)
+  if (focusState.open && lastPayoutStage.value !== '') {
+    return lastPayoutStage.value;
+  }
+  if (focusState.open) {
+    // A CHOSEN TRACK's stage names itself from the descent on (the stage publishes «Трек» a flush later — the
+    // tail must not animate through «ЛУНА · ВЫБОР КОЛОНИИ» on the way).
+    // (A «city» stage — TR22 — the same way: never through «ЛУНА · ВЫБОР КОЛОНИИ».)
+    if (focusState.stage === '' && focusState.intent === 'city') {
+      return COLONY_CITY_STAGE;
+    }
+    const stage = focusState.stage !== '' ? focusState.stage : (focusState.intent === 'track' ? 'Track' : '');
+    // A STAGE's R3 «Эффекты» layer (the dock's — PL-060; the colony's — PL-066) is a level INSIDE the stage: the
+    // tail gains «· ЭФФЕКТЫ» (+ the source card at its detail) and gives it back on B / R3 — the composers' own
+    // rule, a composed, pre-translated string.
+    return forecastStageText(focusState.dock !== '' ? 'dock' : 'colony', stage) ?? stage;
+  }
+  // A «CITY» act with its stage closed: ANSWERED — the grid is the receipt of «… · ГОРОД»; still a QUESTION (B
+  // from the stage) — the grid is the door again and the tail walks BACK to the name the door wore.
+  if (cityAnswered.value) {
+    return COLONY_CITY_STAGE;
+  }
+  if (props.pick?.tileSite !== undefined && cityDoorStage.value !== '') {
+    return cityDoorStage.value;
+  }
+  if (revealEmbedActive.value) {
+    return outcomeState.phaseKey !== '' ? outcomeState.phaseKey : 'Card draw';
+  }
+  // A ROSTER pick's grid names its level: «СНЯТИЕ» while the leaving tile is chosen, then the act's own stage
+  // («ЗАМЕНА» / «ДОБАВЛЕНИЕ») on the reserve — the same word the stage keeps.
+  const roster = props.pick?.roster;
+  if (roster !== undefined) {
+    return roster.level === 'outgoing' ? ROSTER_KIND_COPY.remove.stage : ROSTER_KIND_COPY[roster.prompt.kind].stage;
+  }
+  return '';
+});
+/** The berth the HOST hosting us NOW offers for our fleet dock ('' = keep it locally) — never another host's. */
+const liveFleetBerth = computed((): string => {
+  return props.embedded ? colonyFleetBerthFor(workspaceFrameHost('colonies')) : '';
+});
+/**
+ * The berth the dock stands in. A step that RIDES its host's dissolve (TR07's staged colony — the shell's
+ * `coloniesLeaving`: the frame is gone, the section still on screen inside the leaving hand) belongs to the
+ * PREVIOUS state: with no frame there is no host to ask, the live answer falls to '' and the toolbar came back
+ * INSIDE the zone — a row stolen from the grid while it dissolved (CI 2026-11-08, `console-colony-sponsors`,
+ * since the berth became owned in c74ac75f9f). So the decision the step stood in is kept until it unmounts.
+ */
+const fleetBerth = computed((): string => {
+  return props.embedded && !workspaceFrameKnown('colonies') ? berthLatch.value : liveFleetBerth.value;
+});
+/** The pair handed up to a HOSTING workspace's breadcrumb (see the watcher). */
+/**
+ * ── THE HEADER STATES THE FLOW, WHEREVER THIS SCREEN IS STANDING ──────
+ *
+ * Nested (depth > 0) but NOT teleported into a host's zone — the
+ * scene-handover shape — the crumb is the STACK's: root = the workspace the
+ * player entered, subject = the deepest carried object, emblem = the
+ * PARENT's identity symbol (it belongs to the parent anchor and must be the
+ * same box before and after the step opened). At depth 0 this screen is its
+ * own root and everything falls back to «КОЛОНИИ».
+ */
+/** This screen is standing OVER a workspace that handed it the scene. */
+const sceneOverlay = computed((): boolean => {
+  return !props.embedded && workspaceFrameIsOverlay('colonies');
+});
+const stackCrumb = computed((): {root: string, subject?: {text: string}, stage?: string} | undefined => {
+  return workspaceFrameIndex('colonies') > 0 ? workspaceStackCrumb() : undefined;
+});
+const headRoot = computed((): string => {
+  return stackCrumb.value?.root ?? 'Colonies';
+});
+const headEmblem = computed((): string => {
+  const rootKind = stackCrumb.value !== undefined ? workspaceStackRootKind() : undefined;
+  return (rootKind !== undefined ? workspaceFrameEmblem(rootKind).emblem : undefined) ?? 'colonies';
+});
+const headWheelAnchor = computed((): string => {
+  const rootKind = stackCrumb.value !== undefined ? workspaceStackRootKind() : undefined;
+  return (rootKind !== undefined ? workspaceFrameEmblem(rootKind).wheelAnchor : undefined) ?? 'trading';
+});
+const headStage = computed((): string => {
+  // Nested: the tail is the STACK's — which is this screen's own stage,
+  // published up by the watcher, and never regressing to '' (the flow's
+  // step has a name even when the browse layer does not).
+  return stackCrumb.value?.stage ?? crumbStage.value;
+});
+const headSubject = computed((): string => {
+  // The host's own subject leads while this screen carries nothing yet
+  // («ГИДРОСЕТЬ МАРСА › МИКРОБНАЯ ФИКСАЦИЯ › ВЫБОР КОЛОНИИ»); once a colony
+  // is picked up, IT is the deepest carried object and the stack says so.
+  return stackCrumb.value?.subject?.text ?? crumbSubject.value;
+});
+const embeddedCrumb = computed((): {embedded: boolean, subject: string, stage: string} => {
+  return {embedded: props.embedded, subject: crumbSubject.value, stage: crumbStage.value};
+});
+const crumbCommitted = computed((): boolean => {
+  return focusState.committing || tradeFleetState.active ||
+    (tradeState.active && !resolutionParked.value) ||
+    revealEmbedActive.value || handStepHosted.value || parliamentStepHosted.value;
+});
+// ── The nested HAND STEP (the resolution's mandatory discard) ──────────
+/** The hand workspace is standing INSIDE us as a step of the resolution. */
+const handStepHosted = computed((): boolean => {
+  return workspaceFrameHost('hand') === 'colonies';
+});
+/**
+ * The PARLIAMENT is standing INSIDE us as a step (Turmoil Redux — the Venus
+ * tile's delegates: the vote mode, hosted, in the same full-stage zone the
+ * hand's discard takes).
+ */
+const parliamentStepHosted = computed((): boolean => {
+  return workspaceFrameHost('parliament') === 'colonies';
+});
+/**
+ * THE FRAME SLOT — the teleport target we publish for the hand step
+ * (`workspaceFrameTarget('hand')` reads it). ONE zone, always the
+ * SECTION-level full-stage host: the discard's whole job is comparing
+ * every card, so the hand owns the central area outright — a hand
+ * squeezed beside the hero planet was the reported broken intermediate
+ * state, and that zone no longer exists.
+ */
+const handSlotSelector = computed((): string => {
+  return handStepHosted.value ? '[data-embed-slot="colonies-hand"]' : '';
+});
+/**
+ * THE ONE SLOT this frame publishes for whatever frame stands on it — the
+ * hand's discard or the Parliament's vote step, each its own full-stage
+ * zone (a frame hosts one step at a time; the stack says which).
+ */
+const frameSlotSelector = computed((): string => {
+  if (parliamentStepHosted.value) {
+    return '[data-embed-slot="colonies-parliament"]';
+  }
+  return handSlotSelector.value;
+});
+/** The seat stands through the pick, the flight and as the receipt. */
+const discardSeatLive = computed((): boolean => {
+  return handStepHosted.value || cardDiscardColonyBonus() !== undefined ||
+    (revealEmbedActive.value && resolutionUi.discarded > 0);
+});
+/**
+ * THE RESOLUTION'S RECEIPT ON THE TABLE'S PILE (TR52, PL-264): once a bonus's discard has landed, the pile beside
+ * the HUD deck stays out (with its count) for the rest of the resolution — between the cycles it is what the
+ * old corner seat said, in the one place every discard goes.
+ */
+const colonyDiscardPileLease = computed((): boolean => {
+  return discardSeatLive.value && resolutionUi.discarded > 0;
+});
+/**
+ * THE RESOLUTION IS SET ASIDE — its whole chain (colonies ⊃ hand) lives in
+ * the PARK, and THIS mount is a lateral browse visit the player made from
+ * the wheel. The visit must not adopt the parked flow's presentation: the
+ * claim, the discard-stage yield and the resolution crumb all belong to
+ * the parked chain (its way back is the board-home restore card). Without
+ * this gate the visit rendered the parked claim's crumb «ПЛУТОН › ДОБОР
+ * КАРТ» over a yielded (empty) browse — the reported blank screen.
+ */
+const resolutionParked = computed((): boolean => {
+  return workspaceFrameParked('colonies');
+});
+// ── The embedded-outcome zone (the Pluto payout reveal) ────────────────
+/** The claim is ours — the zone must stand (rendered from SUBMIT time).
+ *  OURS means the LIVE chain's: a parked resolution keeps its claim, and
+ *  a browse visit beside it must not stand the zone up (see above). */
+const revealEmbedActive = computed((): boolean => {
+  return outcomeState.host === 'colonies' && !resolutionParked.value;
+});
+/** The reveal is genuinely ON SCREEN inside the zone — the grid yields. */
+const revealEmbedPresenting = computed((): boolean => {
+  return revealEmbedActive.value && outcomeState.stage === 'presenting';
+});
+/**
+ * The FOCUS STAGE hosts the follow-up while it stands — this is the
+ * TELEPORT TARGET's existence, and nothing else. It must be true from
+ * SUBMIT time (a teleport whose target does not exist yet drops its
+ * content), which is precisely why it may not also mean «the follow-up is
+ * on screen»: an owned-but-empty zone that paints itself is the empty
+ * dimmed box a colony with no payout used to stand.
+ */
+const focusOutcomeZone = computed((): boolean => {
+  return revealEmbedActive.value && focusState.open;
+});
+/**
+ * A full-stage step owns the room and the stage waits under it (see the stage's `receded`): the resolution's
+ * discard, or the Parliament's vote step a trade's delegate cells pay (the Redux Venus — the trade stage stands
+ * until its income is answered, so it must recede, never paint through the vote).
+ */
+const focusStageReceded = computed((): boolean => {
+  return focusState.open && !resolutionParked.value && (resolutionUi.discardStage || parliamentStepHosted.value);
+});
+/**
+ * THE ONE SLOT SELECTOR. Two elements can host the follow-up — the focus
+ * stage's own zone (while the player is inside a colony) and the
+ * section's zone (after the stage folded, e.g. a payout that returns from
+ * a hand discard). Exactly ONE writer decides which, so the two can never
+ * both claim the teleport and drop its content.
+ *
+ * DURING THE FULL-STAGE DISCARD the selector is EMPTY on purpose: the
+ * next cycle's batch can ride the very response that answered the
+ * discard, and presenting it while the hand still owns the room would
+ * stack two scenes. An empty slot HOLDS the claimed reveal (render
+ * nowhere — embed rule 4's provably-transient gap); the focus restore
+ * republishes and the batch opens on the big stage.
+ */
+const outcomeSlotSelector = computed((): string => {
+  if (!revealEmbedActive.value) {
+    return '';
+  }
+  // …EXCEPT WHILE THE STAGE STANDS UNDER THE HAND (colony polish 1): the stage RECEDES instead of closing, and
+  // its zone is where the settlement table waits, parked — the same instance the player will find again. The
+  // next cycle's batch is then held by the shell explicitly (`revealHeldForWorkspace` § the discard stage),
+  // never by an empty slot. A discard stage with NO stage (a reload straight into the discard) keeps the old
+  // empty selector.
+  if (resolutionUi.discardStage && !focusState.open) {
+    return '';
+  }
+  // THE DOSSIER PUBLISHES NO ZONE. Named here while the inspect
+  // composition stood, the focus-reveal selector pointed at a node that
+  // did not exist, and the teleport degraded to a bare child of the root
+  // — the card-target picker floated over the planet with a raw title
+  // (2026-09-28). The dossier folds on the claim's rising edge (below),
+  // and until it has, the slot stays EMPTY (render nowhere for the gap).
+  if (focusState.open && focusState.intent === 'inspect') {
+    return '';
+  }
+  return focusState.open ?
+    '[data-embed-slot="colonies-focus-reveal"]' :
+    '[data-embed-slot="colonies-reveal"]';
+});
+// ── The FLEET DOCKS (the «ПРИЧАЛЫ» column — fleetDockModel) ────────────
+/** The cursor stands on a dock (the column exists and the zone is active). */
+const dockCursorOn = computed((): boolean => {
+  return dockCursor.active && props.docks.length > 0;
+});
+const viewerPlayer = computed((): PublicPlayerModel | undefined => {
+  return props.players.find((p) => p.color === props.viewerColor);
+});
+/** The viewer's free fleets — the same arithmetic as the fleet dock's chips. */
+const viewerFreeFleets = computed((): number => {
+  return viewerPlayer.value === undefined ? 0 : freeFleetsFor(viewerPlayer.value);
+});
+/** Every destination the OPEN window offers: the colonies and the available docks. */
+const tradeWindowDestinations = computed((): ReadonlyArray<string> => {
+  const docks = props.docks.filter((d) => d.offer?.available === true).map((d) => d.card as string);
+  return [...props.tradeable, ...docks];
+});
+const focusedDock = computed((): FleetDockView | undefined => {
+  return dockCursorOn.value ? props.docks[Math.min(dockCursor.index, props.docks.length - 1)] : undefined;
+});
+/** The focused dock's ONE reason (its tile's refusal), translated; '' when it is a destination. */
+const focusedDockReason = computed((): string => {
+  const dock = focusedDock.value;
+  if (dock === undefined) {
+    return '';
+  }
+  const status = dockTileStatus(dock);
+  return status.kind === 'free' ? '' : translateText(status.text);
+});
+/** What the trade brings — the marker's chips (the server's `current → resulting`). */
+const focusedDockChips = computed((): ReadonlyArray<ActionEffect> => {
+  return focusedDock.value?.offer?.effects ?? [];
+});
+const focusDockView = computed((): FleetDockView | undefined => {
+  const card = focusState.dock;
+  return card === '' ? undefined : props.docks.find((d) => d.card === card);
+});
+/** The server offers this dock right now (the pick's marker — never derived here). */
+const focusDockAvailable = computed((): boolean => {
+  return focusDockView.value?.offer?.available === true;
+});
+const focusDockReason = computed((): ColonyTradeReason | undefined => {
+  const dock = focusDockView.value;
+  return dock === undefined || focusDockAvailable.value ? undefined : fleetDockReason(dock, dockReasonInput(props.myTurn, props.awaitingInput));
+});
+/** The stage's ONE reason (an English key — the colony ladder's, the turn included). */
+const focusDockBlockReason = computed((): string => {
+  if (focusDockAvailable.value || focusDockView.value === undefined) {
+    return '';
+  }
+  return focusDockReason.value?.key ?? 'Trade unavailable';
+});
+const focusDockBlockTone = computed((): 'warning' | 'danger' => {
+  return focusDockReason.value?.blocker.tone === 'warning' ? 'warning' : 'danger';
+});
+// ── The focus stage's inputs ───────────────────────────────────────────
+const focusColonyModel = computed((): ColonyModel | undefined => {
+  if (focusState.colonyName === '') {
+    return undefined;
+  }
+  const found = focusModelOnRail.value;
+  // A REMOVAL of one's own (the solo trim): the answer takes the stage's tile OFF the table while the stage is
+  // still saying goodbye to it — the model it stood on is kept until the roster flow ends.
+  return found ?? (rosterBusy.value ? focusModelLatch.value : undefined);
+});
+/** The stage's colony as it stands on the rail right now (undefined once the table lost it). */
+const focusModelOnRail = computed((): ColonyModel | undefined => {
+  return focusState.colonyName === '' ? undefined : props.colonies.find((c) => c.name === focusState.colonyName);
+});
+/** A roster change of the player's own is on the wire, playing, or being read as a receipt. */
+const rosterBusy = computed((): boolean => {
+  return rosterState.armed !== undefined || rosterState.live || rosterState.receipt !== undefined;
+});
+const focusTradeable = computed((): boolean => {
+  const model = focusColonyModel.value;
+  return props.pick === undefined && model !== undefined && props.tradeable.includes(model.name);
+});
+/** The focused intent's action is genuinely offerable (server truth):
+ *  trade → the trade window names this colony; build/pick → the server's
+ *  SelectColony accepts it. Inspect never acts. */
+const focusActionAvailable = computed((): boolean => {
+  const model = focusColonyModel.value;
+  if (model === undefined) {
+    return false;
+  }
+  if (focusState.intent === 'trade') {
+    return focusTradeable.value;
+  }
+  if (focusState.intent === 'build' || focusState.intent === 'pick' || focusState.intent === 'track' || focusState.intent === 'roster' || focusState.intent === 'city') {
+    return props.pick !== undefined && props.pick.selectable.includes(model.name);
+  }
+  return false;
+});
+/**
+ * THE STAGE'S COMPOSITION for the act. A ROSTER act wears the build's (the berths first, the destination
+ * pulsing — a colony lands by the same answer) or the plain pick's, and carries its own reading beside it.
+ */
+const stageIntent = computed((): ColonyFocusIntent => {
+  // A CITY act wears the plain pick's composition (a short panel, no configuration; the working half stands as
+  // it is — the city touches none of it) and carries its own reading beside it (`stageCity`).
+  if (focusState.intent === 'city') {
+    return 'pick';
+  }
+  if (focusState.intent !== 'roster') {
+    return focusState.intent;
+  }
+  return stageRoster.value?.reading.build?.lands === true ? 'build' : 'pick';
+});
+/** The roster act as the stage reads it — pinned at the press (the answer takes the prompt away mid-ceremony). */
+const stageRoster = computed((): ColonyRosterStageView | undefined => {
+  if (focusState.intent !== 'roster') {
+    return undefined;
+  }
+  const roster = props.pick?.roster;
+  const model = focusColonyModel.value;
+  if (roster === undefined || model === undefined) {
+    return rosterStageLatch.value;
+  }
+  const name = model.name as ColonyName;
+  const kind = roster.prompt.kind;
+  const leaves = kind === 'remove' ? name : roster.outgoing;
+  const copy = ROSTER_KIND_COPY[kind];
+  return {
+    kind,
+    leaves,
+    reading: rosterStageReading(roster.prompt, leaves, kind === 'remove' ? undefined : name, (colony) => colonyCardResources(getColony(colony))),
+    // A STAGED door's A is the PLAY's one submit — it speaks the play's verb; a live door the roster's own.
+    verbKey: props.pick?.staged === true ? 'Play card' : copy.verb,
+    stageKey: copy.stage,
+  };
+});
+/** The server's projected move of the focused colony (a `track` pick only — TR07). */
+const focusTrackMove = computed((): ColonyTrackMove | undefined => {
+  const model = focusColonyModel.value;
+  return model === undefined ? undefined : trackMoveOf(props.pick?.trackMoves, model.name);
+});
+/**
+ * THE ACT BEHIND THE DOSSIER'S A — the same derivation the grid's A makes
+ * (`confirmColonySelection`): a server SelectColony pick outranks the
+ * trade; without a pick the act is the trade.
+ */
+const inspectActIntent = computed((): ColonyFocusIntent => {
+  if (props.pick !== undefined) {
+    return colonyPickIntent(props.pick);
+  }
+  return 'trade';
+});
+/** …and whether it is genuinely offerable for the inspected colony (the
+ *  stage's own `focusActionAvailable`, asked about the dossier's act). */
+const inspectActionAvailable = computed((): boolean => {
+  const model = focusColonyModel.value;
+  if (model === undefined) {
+    return false;
+  }
+  if (inspectActIntent.value === 'trade') {
+    return props.pick === undefined && props.tradeable.includes(model.name);
+  }
+  return props.pick !== undefined && props.pick.selectable.includes(model.name);
+});
+const inspectBlockReason = computed((): string => {
+  const model = focusColonyModel.value;
+  if (inspectActionAvailable.value || model === undefined) {
+    return '';
+  }
+  if (props.pick !== undefined) {
+    return inspectActIntent.value === 'trade' ? 'Trade unavailable' : pickReasonFor(model.name);
+  }
+  return reasonFor(model);
+});
+const inspectBlockTone = computed((): 'warning' | 'danger' => {
+  if (inspectActionAvailable.value || props.pick !== undefined || focusColonyModel.value === undefined) {
+    return 'danger';
+  }
+  return blockerFor(focusColonyModel.value)?.tone ?? 'danger';
+});
+const focusBlockReason = computed((): string => {
+  if (focusActionAvailable.value) {
+    return '';
+  }
+  const model = focusColonyModel.value;
+  if (model === undefined) {
+    return '';
+  }
+  if (props.pick !== undefined) {
+    // A pick refused THIS colony: the server's own reason.
+    if (focusState.intent === 'build' || focusState.intent === 'pick' || focusState.intent === 'track' || focusState.intent === 'roster' || focusState.intent === 'city') {
+      return pickReasonFor(model.name);
+    }
+    // Mid-pick the trade window simply is not open — the stage's verdict
+    // states that plainly rather than inventing a colony-intrinsic fault.
+    return 'Trade unavailable';
+  }
+  return reasonFor(model);
+});
+/**
+ * The stage verdict's REGISTER. A trade blocked only by the turn is legal in
+ * every rule sense — it wears «НЕ СЕЙЧАС», not the red ✕ that says the
+ * colony refused the player. Read from the shared blocker model, never from
+ * the reason's text.
+ */
+const focusBlockTone = computed((): 'warning' | 'danger' => {
+  if (focusActionAvailable.value || props.pick !== undefined || focusColonyModel.value === undefined) {
+    return 'danger';
+  }
+  return blockerFor(focusColonyModel.value)?.tone ?? 'danger';
+});
+// ── Focused-colony compact rail (mirrors ConsoleColonyTile's reward/bonus
+//    logic so the readout can never disagree with the tile). ──
+const focusedMeta = computed((): ColonyMetadata | undefined => {
+  const colony = props.colonies[props.index];
+  return colony === undefined ? undefined : getColony(colony.name);
+});
+const focusedPosition = computed((): number => {
+  const colony = props.colonies[props.index];
+  if (colony === undefined || focusedMeta.value === undefined) {
+    return 0;
+  }
+  const offset = colony.isActive ? props.tradeOffset : 0;
+  // The PRESENTED colony — mid-trade the committed track reset stays
+  // frozen behind the transaction (same helper the tile reads), so the
+  // rail readout can never leak the new position early.
+  return effectiveTradePosition(presentedColonyModel(colony), focusedMeta.value, offset);
+});
+const focusedTrackMax = computed((): number => {
+  return focusedMeta.value === undefined ? 0 : focusedMeta.value.trade.quantity.length - 1;
+});
+const focusedOffset = computed((): number => {
+  const colony = props.colonies[props.index];
+  if (colony === undefined) {
+    return 0;
+  }
+  return Math.max(0, focusedPosition.value - Math.min(presentedColonyModel(colony).trackPosition, focusedTrackMax.value));
+});
+const focusedTrackDisplay = computed((): string => {
+  const colony = props.colonies[props.index];
+  if (colony === undefined) {
+    return '';
+  }
+  return `${Math.min(presentedColonyModel(colony).trackPosition, focusedTrackMax.value) + 1}/${focusedTrackMax.value + 1}`;
+});
+const focusedStatus = computed((): ConsoleColonyTileStatus => {
+  const colony = props.colonies[props.index];
+  return colony === undefined ? {kind: 'none', text: ''} : tileStatus(colony);
+});
+/**
+ * THE ONE POSITIVE FACT the rail's blocked arm stands on: this colony has
+ * a real, named blocker. `tileStatus` produces exactly two such kinds
+ * (`blocked` / `inactive`) and both carry their text by construction —
+ * `none` ("nothing to report") and `ok` (a live transaction beat) are not
+ * blockers and must never route here. Reading it as `kind !== 'ok'`
+ * silently made every ordinary browse frame "blocked", which is how a
+ * colony the server was actively offering announced «Торговля
+ * недоступна» while the player was choosing it.
+ */
+const railBlocked = computed((): boolean => {
+  return focusedStatus.value.kind === 'blocked' || focusedStatus.value.kind === 'inactive';
+});
+/** Which rail the compact readout shows: a SelectColony pick titled
+ *  'Build' grants a settlement + placement bonus (NOT trade); other picks
+ *  are identity-only; no pick ⇒ the trade rail. */
+const railMode = computed((): 'trade' | 'build' | 'select' | 'track' | 'roster' | 'city' => {
+  if (props.pick === undefined) {
+    return 'trade';
+  }
+  const intent = colonyPickIntent(props.pick);
+  if (intent === 'build' || intent === 'track' || intent === 'roster' || intent === 'city') {
+    return intent;
+  }
+  return 'select';
+});
+/** «будет снята · на её место — плитка из резерва (N)» — what choosing the focused tile to leave does. */
+const rosterLeaveNote = computed((): string => {
+  const roster = props.pick?.roster;
+  if (roster === undefined) {
+    return '';
+  }
+  const reserve = roster.prompt.incoming?.length ?? 0;
+  return roster.prompt.kind === 'remove' ? translateText('leaves the game') :
+    translateTextWithParams('leaves the game · a reserve tile takes its place (${0})', [String(reserve)]);
+});
+/** The focused tile's projected move, read for the rail (a `track` pick's candidate only). */
+const focusedTrackReading = computed((): ColonyTrackMoveReading | undefined => {
+  const colony = props.colonies[props.index];
+  const move = colony === undefined ? undefined : trackMoveOf(props.pick?.trackMoves, colony.name);
+  return move === undefined || focusedMeta.value === undefined ? undefined : colonyTrackMoveReading(focusedMeta.value, move);
+});
+/** The berth a new settlement lands in — the ONE reading (`colonyBerths.nextBuildSlot`), never a clamp. */
+const focusedBuildSlot = computed((): number => {
+  const colony = props.colonies[props.index];
+  return colony === undefined ? 0 : nextBuildSlot(colony, buildSiteOf(props.pick?.buildSites, colony.name));
+});
+/** «Место 4 · сверх лимита» — the focused candidate's berth lies beyond the printed limit (the server's `buildSites`); '' otherwise. */
+const focusedOverLimitText = computed((): string => {
+  const colony = props.colonies[props.index];
+  const site = colony === undefined ? undefined : buildSiteOf(props.pick?.buildSites, colony.name);
+  return site !== undefined && site.overLimit && isPickable(site.colony) ?
+    translateTextWithParams('Berth ${0} · over the limit', [String(site.slot + 1)]) : '';
+});
+/** The bonus that berth pays, resolved for a glyph (a list of one — read with `idx: 0`). */
+const focusedBuildBenefit = computed((): BerthBenefit => {
+  return berthBuildBenefit(focusedMeta.value as ColonyMetadata, focusedBuildSlot.value);
+});
+/** How many PRINTED berths are still free on the focused tile (never negative). */
+const focusedFreeBerths = computed((): number => {
+  const colony = props.colonies[props.index];
+  return colony === undefined ? 0 : freeBerths(colony);
+});
+const focusedBuildQty = computed((): number => {
+  return focusedMeta.value === undefined ? 0 : buildBenefitAt(focusedMeta.value, focusedBuildSlot.value).quantity;
+});
+/** A card-resource TRADE reward with no card to hold it ⇒ it is lost —
+ *  read at the position the trade would pay (the Redux Pluto: data low,
+ *  cards high — only the data positions can be lost). */
+const focusedTradeLost = computed((): boolean => {
+  return focusedMeta.value !== undefined &&
+    benefitResourceLost(rewardAtPosition(focusedMeta.value, focusedPosition.value).type);
+});
+/** A card-resource BUILD (placement) bonus with no card to hold it ⇒ lost
+ *  (the placement bonus is a card resource — e.g. Miranda's animals). */
+const focusedBuildLost = computed((): boolean => {
+  return focusedMeta.value !== undefined && benefitResourceLost(focusedMeta.value.build.type);
+});
+
+/**
+ * The SERVER's refusal of `colony` for the viewer — the colony's own rule
+ * about the player (`PublicPlayerModel.colonyTradeBlocks`), the one rung
+ * of the ladder the client could never derive honestly.
+ */
+function serverColonyBlock(colony: ColonyModel): string | undefined {
+  const viewer = props.players.find((p) => p.color === props.viewerColor);
+  return viewer?.colonyTradeBlocks?.find((b) => b.colony === colony.name)?.reason;
+}
+/** A card-resource benefit (`ADD_RESOURCES_TO_CARD` / `…_VENUS_CARD`) is
+ *  LOST when the viewer owns no card able to hold that resource — shared
+ *  by the trade + build rails (and mirrored at the focus stage). */
+function benefitResourceLost(type: ColonyBenefit): boolean {
+  // The holders of ANY of the tile's kinds (the WARE wildcard included).
+  const kinds = cardResourceKinds.value;
+  if (kinds.length === 0) {
+    return false;
+  }
+  if (type !== ColonyBenefit.ADD_RESOURCES_TO_CARD && type !== ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
+    return false;
+  }
+  const viewer = props.players.find((p) => p.color === props.viewerColor);
+  return !holdsAnyOf(viewer?.tableau ?? [], kinds);
+}
+/**
+ * Size the tiles to FILL the free area for the count layout: the largest
+ * uniform scale at which `cols × rows` base-size tiles (+ gaps + padding)
+ * fit the scroll box, clamped to sane bounds. Applied as a `zoom` on every
+ * tile (so the planet / docked fleet / fonts all grow together) plus a grid
+ * max-width so the intended columns hold. Pure measure → no-op under JSDOM
+ * (rects are 0), so the CSS base size is the graceful fallback.
+ */
+/**
+ * THE HOST'S SOURCE SEAT, RESERVED ONCE FOR THIS WHOLE SURFACE.
+ *
+ * A step hosted inside a workspace can stand BESIDE the card that caused it
+ * («ПОВТОР ДЕЙСТВИЯ · Летающая платформа» on the Hydronetwork's stage 7).
+ * The seat is `position: absolute` on purpose — context must not shrink the
+ * thing it is context for — which means a guest laid out against the raw
+ * zone simply renders UNDER it: the repeated trade drew its colony grid,
+ * and then its focus stage's whole left column, beneath the card that was
+ * explaining why it was being asked at all.
+ *
+ * Reserved as a PADDING on this surface's root, not inside one of its
+ * layouts: the colonies have two (the grid and the focus stage) and both
+ * were wrong. One reserve at the root is a property of the SURFACE, so a
+ * third layout inherits it, and the grid fit needs no arithmetic — it reads
+ * `clientWidth`, which the padding has already narrowed.
+ *
+ * BOTH sides, because what it contains is centred: that is what makes the
+ * overlap inexpressible rather than merely unlikely, at any focus scale.
+ * The measurement is the shared one (`sourceSeatReservePx`, off the seat's
+ * real box) — never a second copy of the seat's own CSS width.
+ */
+function fit(): void {
+  const scrollNow = scroll.value ?? undefined;
+  const rootNow = root.value ?? undefined;
+  const count = props.colonies.length;
+  if (scrollNow === undefined || scrollNow === null || rootNow === undefined || rootNow === null || count === 0) {
+    return;
+  }
+  // ── THE HOST'S SOURCE SEAT IS NOT FREE WIDTH ────────────────────────
+  // A step hosted inside a workspace can stand BESIDE the card that caused
+  // it («ПОВТОР ДЕЙСТВИЯ · Летающая платформа» on the Hydronetwork's stage
+  // 7). The seat is `position: absolute` on purpose — context must not
+  // shrink the thing it is context for — so a guest laid out against the
+  // raw zone renders UNDER it: the repeated trade drew its colony grid, and
+  // then its focus stage's whole left column, beneath the very card that
+  // was explaining why it was being asked.
+  //
+  // Reserved as a PADDING on this surface's ROOT, not inside one of its
+  // layouts: the colonies have two (the grid and the focus stage) and both
+  // were wrong. At the root it is a property of the SURFACE, so a third
+  // layout inherits it and the arithmetic below needs no term — the
+  // `clientWidth` it reads has already been narrowed. BOTH sides, because
+  // what it holds is centred: that is what makes the overlap inexpressible
+  // rather than merely unlikely, at any focus scale. The measurement is the
+  // SHARED one (off the seat's real box), never a copy of its CSS width.
+  // ⚠️ ONLY WHEN TELEPORTED INTO A HOST'S ZONE. `sourceSeatReservePx` asks
+  // the DOCUMENT for a seat, so a surface that is NOT inside one would
+  // reserve room for somebody else's furniture — and since a host that
+  // hands the whole scene over keeps its box (`visibility`, not `display`),
+  // its seat still measures. Scoped to `embedded`, the question is only
+  // ever asked where the answer is about this surface's own room.
+  //
+  // …and the re-solve is gated on a WHOLE pixel of change: this branch
+  // returns without fitting, so a sub-pixel jitter would re-schedule
+  // forever and the fit would never land.
+  const seat = props.embedded ? Math.round(sourceSeatReservePx(conUiScale())) : 0;
+  if (Math.abs(seat - seatReservePx.value) >= 1) {
+    seatReservePx.value = seat;
+    // The padding it just published is what the room below is measured
+    // against — solve on the next frame, against the narrowed box.
+    scheduleFit();
+    return;
+  }
+  const availW = scrollNow.clientWidth;
+  const availH = scrollNow.clientHeight;
+  if (availW <= 0 || availH <= 0) {
+    return; // not laid out yet / JSDOM / parked behind the focus stage
+  }
+  const cs = getComputedStyle(rootNow);
+  // The base-size vars are rem-authored (TV logical space) — resolve
+  // them properly; a bare parseFloat would read "18.3rem" as 18.3px
+  // and collapse the whole grid fit.
+  const baseW = cssLengthPx(cs.getPropertyValue('--coltile-base-w'), 366);
+  const baseH = cssLengthPx(cs.getPropertyValue('--coltile-base-h'), 220);
+  // THE CELLS ARE THE COLONIES AND THE DOCKS (ledger EZ): one grid, one layout over the total, ONE scale.
+  const cells = count + props.docks.length;
+  const cols = Math.min(Math.max(1, colonyGridCols(layout.value, cells)), cells);
+  const rows = Math.max(1, Math.ceil(cells / cols));
+  // The CSS grid gaps/padding are rem-authored (they scale with the TV
+  // profile); these constants mirror them, so they must scale too. The
+  // tile scale itself stays relative — baseW/baseH come from the CSS
+  // vars via getComputedStyle, already in scaled px.
+  const s = conUiScale();
+  const slack = FIT_SLACK * s;
+  // (The host's SOURCE SEAT is already out of `availW`: it is reserved as
+  //  a padding on this surface's own root — see `seatReserveStyle` — so
+  //  `scroll.clientWidth` is the room that is really free. One reserve,
+  //  read by the grid and by the focus stage alike.)
+  const scaleW = (availW - GRID_PAD_X * s - (cols - 1) * COL_GAP * s - slack) / (cols * baseW);
+  const scaleH = (availH - GRID_PAD_Y * s - (rows - 1) * ROW_GAP * s) / (rows * baseH);
+  const scale = Math.max(MIN_TILE_SCALE, Math.min(MAX_TILE_SCALE, Math.min(scaleW, scaleH)));
+  tileScale.value = Math.round(scale * 1000) / 1000;
+  // The cap gets the SAME slack on top — zoom-rounded tiles need the
+  // room, and a whole extra column would need ~baseW, so the planned
+  // column count still holds.
+  gridMaxW.value = Math.ceil(cols * baseW * tileScale.value + (cols - 1) * COL_GAP * s + GRID_PAD_X * s + slack);
+}
+function scheduleFit(): void {
+  if (fitRaf !== undefined || typeof window === 'undefined') {
+    return;
+  }
+  fitRaf = flow.afterFrame('the colonies grid\'s fit', () => {
+    fitRaf = undefined;
+    fit();
+  });
+}
+/**
+ * How many of a player's fleets are truly FREE (in their supply, not
+ * deployed). A fleet PHYSICALLY parked on a colony (its `visitor`) is OUT —
+ * even when `usedTradeFleets` doesn't reflect it: the Automa sets colony
+ * visitors DIRECTLY (AutomaColonies) without touching usedTradeFleets, so
+ * `freeTradeFleets` alone showed a deployed bot fleet as a free ship (the
+ * board's fleet-on-colony AND a home platform — the double-count bug). Take
+ * the MORE restrictive of "used-trade-fleets" and "physically-deployed".
+ */
+function freeFleetsFor(player: PublicPlayerModel): number {
+  const deployed = props.colonies.filter((c) => c.visitor === player.color).length;
+  return Math.min(freeTradeFleets(player), Math.max(0, player.fleetSize - deployed));
+}
+function isPickable(name: string): boolean {
+  return props.pick !== undefined && props.pick.selectable.includes(name);
+}
+function pickReasonFor(name: string): string {
+  const reason = props.pick?.reasons[name];
+  return reason !== undefined && reason !== '' ? reason : translateText('Unavailable right now');
+}
+/** The shared smart ladder's verdict for `colony` (undefined = tradeable). */
+function tradeReasonFor(colony: ColonyModel): ColonyTradeReason | undefined {
+  const viewer = props.players.find((p) => p.color === props.viewerColor);
+  return colonyTradeReason({
+    colony,
+    tradeable: props.tradeable,
+    colonyBlock: serverColonyBlock(colony),
+    viewerColor: props.viewerColor ?? ('' as Color),
+    availableFleets: viewer !== undefined ? freeFleetsFor(viewer) : 0,
+    myTurn: props.myTurn,
+    awaitingInput: props.awaitingInput,
+    resolveName: (color) => {
+      const p = props.players.find((x) => x.color === color);
+      return p !== undefined ? participantDisplayName(p) : '';
+    },
+  });
+}
+/** Its structured semantics (undefined = nothing blocks the trade). */
+function blockerFor(colony: ColonyModel): AvailabilityBlocker | undefined {
+  return tradeReasonFor(colony)?.blocker;
+}
+/** The full «why can't I trade here» reason for `colony` (translated). */
+function reasonFor(colony: ColonyModel): string {
+  const reason = tradeReasonFor(colony);
+  if (reason === undefined) {
+    return props.tradeBlockReason;
+  }
+  return reason.params !== undefined ?
+    translateTextWithParams(reason.key, reason.params.map(String)) :
+    translateText(reason.key);
+}
+function tileStatus(colony: ColonyModel): ConsoleColonyTileStatus {
+  // A ROSTER change is answered and playing / standing as its receipt: the grid is a RESULT — no tile is being
+  // offered or refused any more (a staged door's prompt outlives the answer, and its «not pickable» is stale).
+  if (rosterState.receipt !== undefined || cityAnswered.value || buildAnswered.value) {
+    return {kind: 'none', text: ''};
+  }
+  // The trade transaction narrates its own beats on the traded tile —
+  // a short unobtrusive caption in the EXISTING status line (never a
+  // toast): reward → bonus → the colony update.
+  const beat = colonyTradeTileStatusText(colony.name);
+  if (beat !== undefined) {
+    return {kind: 'ok', text: beat};
+  }
+  if (props.pick !== undefined) {
+    // A RESERVE tile of a roster pick states HOW IT WOULD ENTER — the server's projection, never the bare
+    // tile's own flag (a catalog model is serialized inactive whatever it is): active or not, and whether the
+    // colony the effect builds would stand. The candidate stays selectable either way.
+    const entry = props.pick.roster?.level === 'incoming' ? rosterIncomingOf(props.pick.roster.prompt, colony.name) : undefined;
+    if (entry !== undefined) {
+      const noColony = entry.build !== undefined && !rosterBuildLands(entry.build);
+      const text = translateText(entry.entersActive ? 'Enters active' : 'Enters inactive') +
+        (noColony ? ` · ${translateText('no colony')}` : '');
+      return {kind: entry.entersActive ? 'ok' : 'inactive', text};
+    }
+    // A pickable colony is the NORMAL case in a pick — the focus ring and
+    // the command bar already say so. Only a refusal earns a line.
+    if (isPickable(colony.name)) {
+      // …and what a CARD's build LIFTS on this candidate — calm, never a refusal: the berth beyond the
+      // printed limit, or a second colony of one's own. The server's projection (`buildSites`), read as is.
+      const site = buildDoorStands.value ? buildSiteOf(props.pick.buildSites, colony.name) : undefined;
+      if (site !== undefined && site.overLimit) {
+        return {kind: 'ok', text: translateText('Over the limit — by the card')};
+      }
+      if (site !== undefined && site.own > 0) {
+        return {kind: 'ok', text: translateText('Second colony — by the card')};
       }
       return {kind: 'none', text: ''};
-    },
-    /** The ladder's input for a dock — the window's destinations, the viewer's free fleets, the turn. */
-    dockReasonInput(myTurn: boolean, awaitingInput: boolean): FleetDockReasonInput {
-      return {
-        tradeable: this.tradeWindowDestinations,
-        viewerColor: this.viewerColor ?? ('' as Color),
-        availableFleets: this.viewerFreeFleets,
-        myTurn,
-        awaitingInput,
-      };
-    },
-    /** A dock tile's status — the SAME ladder as a colony tile (the turn never reads on a tile). */
-    dockTileStatus(dock: FleetDockView): FleetDockTileStatus {
-      return fleetDockTileStatus(dock, this.dockReasonInput(false, false));
-    },
-    async loadDockPreview(card: string): Promise<void> {
-      if (this.playerId === '') {
-        return;
-      }
-      const seq = ++this.dockPreviewSeq;
-      const preview = await fetchFleetDockPreview(this.playerId, card as FleetDockView['card']);
-      if (seq === this.dockPreviewSeq && preview !== undefined && preview.card === this.focusState.dock) {
-        this.dockPreview = preview;
-      }
-    },
-    /**
-     * Descend into the FOCUSED DOCK (A on its tile): the same phrase as a
-     * colony — the tile's rect is the unfold's origin, and the CARD is the
-     * carried object (its face FLIPs into the stage's hero, the descend
-     * hooks reading it as the stage's carried identity).
-     */
-    enterDockFocus(): void {
-      const dock = this.focusedDock;
-      if (dock === undefined || this.focusState.open) {
-        return;
-      }
-      const slot = (this.$refs.selectedDock ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
-      const el = Array.isArray(slot) ? slot[0] : slot;
-      const tile = el?.querySelector<HTMLElement>('.con-fleetdock-tile');
-      const face = tile?.querySelector<HTMLElement>('[data-fleet-dock-face]');
-      const rectOf = (node: HTMLElement | null | undefined) => {
-        const r = node?.getBoundingClientRect();
-        return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
-      };
-      armColonyFocusOrigin(rectOf(tile), rectOf(face));
-      // (The stage's room — the height the hero card is solved in — is measured ONCE, by the `focusState.dock`
-      //  watcher every door shares, and held until the entry lands.)
-      openFleetDockFocus(dock.card);
-    },
-    /** The shell ACCEPTED the dock's confirm — the stage becomes its own receipt. */
-    holdDockStage(): void {
-      ((this.$refs.dockStage ?? undefined) as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.holdPresentation();
-    },
-    /** A refused submit gives the dock's stage back as it was. */
-    releaseDockStage(): void {
-      ((this.$refs.dockStage ?? undefined) as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.releasePresentation();
-    },
-    scrollSelectedIntoView(): void {
-      const slot = (this.$refs.selectedSlot ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
-      const el = Array.isArray(slot) ? slot[0] : slot;
-      // On the cursor's clock, bounded to the grid's own scroller (TR58 — never `scrollIntoView`).
-      if (el !== undefined && el !== null) {
-        for (const axis of ['y', 'x'] as const) {
-          const box = scrollContainerOf(el, axis);
-          if (box !== undefined) {
-            cursorEnsureVisible(box, el, {axis});
-          }
-        }
-      }
-    },
-    // ── The COLONY FOCUS descend (browse → focus and back) ─────────────────
-    /**
-     * Descend into the FOCUSED colony (A = the act intent — trade / build /
-     * pick, X = inspect — ONE stage either way; nothing irreversible happens
-     * on the overview any more). Arms the descend origins SYNCHRONOUSLY at
-     * the press: the tile's rect (the unfold source) plus the THREE carried
-     * identities' rects — the planet medallion, the compact track strip and
-     * the build-slot row — so each physically continues into its expanded
-     * counterpart (never a new unrelated detail page).
-     */
-    /**
-     * The colour of the city a «city» pick would lay on this tile ('' = no such door, or not a candidate) — the
-     * server's `tileSite` marker. The seat itself stops reading it once the door is answered (`colonyCityAnswered`).
-     */
-    tileCityProjection(colony: ColonyModel): Color | '' {
-      const site = this.pick?.tileSite;
-      if (site === undefined || this.cityAnswered || !this.isPickable(colony.name)) {
-        return '';
-      }
-      return site.color;
-    },
-    /**
-     * The berth the projected cube would take — the server's (`buildSites` for a card's build door; a roster
-     * build lands in the entering tile's own next berth).
-     */
-    tileProjectedCubeSlot(colony: ColonyModel): number {
-      const site = this.buildDoorStands ? buildSiteOf(this.pick?.buildSites, colony.name) : undefined;
-      if (site !== undefined) {
-        return site.slot;
-      }
-      const build = this.pick?.roster?.level === 'incoming' ? rosterIncomingOf(this.pick.roster.prompt, colony.name)?.build : undefined;
-      return rosterBuildLands(build) ? build.slot : 0;
-    },
-    /**
-     * The colour of the colony a pick would BUILD on this tile ('' = none) — the server's projection: a roster
-     * pick's reserve tile, or a candidate of a CARD's own build door (TR25 — its `buildSites`; the ghost stands in
-     * the berth the marker names, the fourth on a tile at its limit). Never once the door is answered.
-     */
-    tileProjectedCube(colony: ColonyModel): string {
-      if (this.buildDoorStands) {
-        return !this.buildAnswered && this.isPickable(colony.name) && buildSiteOf(this.pick?.buildSites, colony.name) !== undefined ?
-          (this.viewerColor ?? '') : '';
-      }
-      const roster = this.pick?.roster;
-      if (roster === undefined || roster.level !== 'incoming') {
-        return '';
-      }
-      return rosterBuildLands(rosterIncomingOf(roster.prompt, colony.name)?.build) ? (this.viewerColor ?? '') : '';
-    },
-    /**
-     * THE LANDING's destination (the roster's own flow): the stage folds HOME into the slot `name` now holds on
-     * the table — re-measured here, AFTER the grid's fit, at REST (the parked layer's recede transform is taken
-     * off for the read and put back in the same task: nothing paints in between). `false` when the tile cannot
-     * be measured — the fold then lets go where it stands.
-     */
-    retargetFocusHome(name: string): boolean {
-      const grid = (this.$refs.grid ?? undefined) as HTMLElement | null | undefined;
-      const tile = grid?.querySelector<HTMLElement>(`[data-test="con-colony-${name.replace(/["\\]/g, '\\$&')}"]`);
-      const browse = (this.$el as HTMLElement | null)?.querySelector<HTMLElement>('.con-colonies__browse');
-      if (tile === null || tile === undefined) {
-        armColonyFocusQuickExit();
-        return false;
-      }
-      const held = browse?.style.transform ?? '';
-      if (browse !== null && browse !== undefined) {
-        browse.style.transform = 'none';
-      }
-      const rect = restingRectOf(tile);
-      if (browse !== null && browse !== undefined) {
-        browse.style.transform = held;
-      }
-      if (rect.width < 10 || rect.height < 10) {
-        armColonyFocusQuickExit();
-        return false;
-      }
-      retargetColonyFocusHome(rect);
-      return true;
-    },
-    /**
-     * A ROSTER PICK CHANGES ITS LEVEL (the table ⇄ the reserve) — the rail's population changes, and that is
-     * a RESEAT, never a swap: the tiles' content lets go, `apply` changes the level (the rail re-renders dark),
-     * and the new tiles surface. Opacity only — text under a `zoom` never travels and never scales. The pad is
-     * the beat's (`landing`); reduced motion and an unmeasurable grid apply at once.
-     */
-    async reseatRosterLevel(apply: () => void): Promise<void> {
-      const grid = (this.$refs.grid ?? undefined) as HTMLElement | null | undefined;
-      if (grid === undefined || grid === null || consoleReducedMotionActive() || this.rosterState.landing) {
-        apply();
-        return;
-      }
-      setColonyRosterLanding(true);
-      try {
-        await new Promise<void>((resolve) => {
-          playReseatOut(grid, resolve);
-        });
-        apply();
-        await this.$nextTick();
-        const next = (this.$refs.grid ?? undefined) as HTMLElement | null | undefined;
-        if (next !== undefined && next !== null) {
-          await new Promise<void>((resolve) => {
-            playReseatIn(next, null, resolve);
-          });
-        }
-      } finally {
-        setColonyRosterLanding(false);
-      }
-    },
-    /** A removal's stage has nothing to fold into — it lets go where it stands. */
-    releaseFocusInPlace(): void {
-      armColonyFocusQuickExit();
-    },
-    enterFocus(intent: ColonyFocusIntent): void {
-      const colony = this.colonies[this.index];
-      if (colony === undefined || this.focusState.open) {
-        return;
-      }
-      const slot = (this.$refs.selectedSlot ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
-      const el = Array.isArray(slot) ? slot[0] : slot;
-      const tile = el?.querySelector<HTMLElement>('.con-coltile');
-      const planet = tile?.querySelector<HTMLElement>('.con-coltile__planet-berth');
-      const track = tile?.querySelector<HTMLElement>('.con-coltile__track');
-      const slots = tile?.querySelector<HTMLElement>('.con-coltile__build');
-      // The CITY'S SEAT — the fifth carried object (its box is always laid out, an empty seat included).
-      const seat = tile?.querySelector<HTMLElement>('.con-coltile__head [data-colony-city-seat]');
-      if (intent === 'city' && workspaceFrameStage('colonies') !== COLONY_CITY_STAGE) {
-        // The door's own name, kept for the way back (the stage is about to hand «ГОРОД» up over it).
-        this.cityDoorStage = workspaceFrameStage('colonies');
-      }
-      const rectOf = (node: HTMLElement | null | undefined) => {
-        const r = node?.getBoundingClientRect();
-        return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
-      };
-      armColonyFocusOrigin(rectOf(tile), rectOf(planet), rectOf(track), rectOf(slots), rectOf(seat));
-      openColonyFocus(colony.name as ColonyName, intent);
-    },
-    /** Fold back to the browse surface (B / cancel) — PRE-commit only. */
-    closeFocus(): void {
-      closeColonyFocus();
-    },
-    /**
-     * THE ACTION IS OVER. Give the scene a short breathing beat — the token
-     * has just docked, the guard has just latched, the marker has just landed,
-     * and folding on the same frame means the player never sees what changed —
-     * then hand the screen FORWARD. Never back through the configuration
-     * surface: a committed action does not travel backwards (the shell picks
-     * the destination — the next unresolved effect, or the field).
-     *
-     * A live outcome CLAIM means a follow-up owns the screen; the completion
-     * then belongs to the claim's own falling edge, not to this one.
-     */
-    completeFlow(): void {
-      // A REWARD STILL ARRIVING ON A CARD IS THE ACT STILL HAPPENING. The
-      // build's own transaction ends when the cube seats — its floaters are
-      // still in the air — so routing home here tore the receiving card off
-      // the screen mid-flight. The scene publishes its presence
-      // (`cardSceneLive`, released by its own landing + read beat, with its
-      // own bounded net), and the completion re-runs on that falling edge.
-      if (this.completeTimer !== undefined || workspaceOutcomeClaimed() || this.resolutionUi.cardSceneLive) {
-        return;
-      }
-      // A FLEET DOCK's trade owns its own ending: the dock's scene answers, reads and concludes the workspace
-      // through the shell's ONE guarded conclusion (`onFleetDockFlowComplete`). A dock whose reward lands on a card
-      // claims its `pick` (TR27), and that claim's release a tick after the answer used to fold the stage HERE —
-      // mid-impulse, before a single token had left the card.
-      if (this.focusState.dock !== '') {
-        return;
-      }
-      // A CHOSEN TRACK's move (TR07) owns its own ending: the STAGED door ends with the play (the shell's
-      // `endStagedColony`), and the move — owed or in flight — plays on THIS stage first. Folding here (the play's
-      // own claim releasing a tick after the answer) sent the marker to the tile behind a closed stage.
-      if (this.pick?.staged === true || this.trackMoveFlow.owed !== undefined || this.trackMoveFlow.live) {
-        return;
-      }
-      // A ROSTER change owns its own ending too: the ceremony, then the LANDING into the slot, then the receipt's
-      // read — the shell's `landColonyRoster` folds this stage home; nothing may fold it earlier.
-      if (this.rosterBusy) {
-        return;
-      }
-      // A CITY's landing (TR22) owns its own ending as well: the scene, then the stage folding HOME, then the
-      // receipt's read — the shell's `landColonyCity`; nothing may fold the stage under the piece.
-      if (this.cityAnswered) {
-        return;
-      }
-      // …and a STAGED BUILD's (TR25): the cube, what its bonus still owes inside the stage, HOME, the receipt —
-      // the shell's `landColonyBuild`.
-      if (this.buildAnswered) {
-        return;
-      }
-      // PACING: a section that left has nothing to fold and nobody to tell — the dwell is taken back with it.
-      this.completeTimer = this.flow.after(motionMs(COMPLETION_SETTLE_MS), 'the colony flow\'s completion dwell', () => {
-        this.completeTimer = undefined;
-        if (workspaceOutcomeClaimed() || !this.focusState.open || this.resolutionUi.cardSceneLive) {
-          return;
-        }
-        closeColonyFocus();
-        this.$emit('flow-complete');
-      });
-    },
-    /** The stage confirmed the trade — hand the payload UP. The stage STAYS:
-     *  the fleet, the reward waves, the Pluto reveal and the track glide all
-     *  resolve on the stage's own live anchors (iteration 2), and the
-     *  transaction's falling edge auto-folds back to the overview. */
-    onFocusConfirm(payload: ColonyTradeConfirmPayload): void {
-      this.$emit('trade-confirm', payload);
-    },
-    /** The shell routes the pad here while the focus stage — the action
-     *  stage OR the dossier — is open. */
-    handleFocusIntent(intent: GamepadIntent): void {
-      if (this.focusState.dock !== '') {
-        ((this.$refs.dockStage ?? undefined) as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.handleIntent(intent);
-        return;
-      }
-      if (this.focusState.intent === 'inspect') {
-        const dossier = (this.$refs.inspectStage ?? undefined) as InstanceType<typeof ConsoleColonyInspect> | undefined;
-        dossier?.handleIntent(intent);
-        return;
-      }
-      const stage = (this.$refs.focusStage ?? undefined) as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
-      stage?.handleIntent(intent);
-    },
-    /**
-     * A ON THE DOSSIER — ENTER THE ACT. The same colony, the act intent; the
-     * stage takes the dossier's place as a HAND-OFF: the descend registers are
-     * armed from the DOSSIER's live rects (its surface, its planet, its track,
-     * its berths), so the stage's own enter hook FLIPs the three identities
-     * out of the dossier instead of out of the (parked) tile, while the
-     * dossier steps back underneath. The fold home stays the tile's rect —
-     * B from the stage still folds into the tile the flow opened from.
-     */
-    enterFocusFromInspect(intent: ColonyFocusIntent): void {
-      if (!this.focusState.open || this.focusState.intent !== 'inspect' || intent === 'inspect') {
-        return;
-      }
-      const root = this.$el as HTMLElement | null | undefined;
-      const dossier = root?.querySelector<HTMLElement>('.con-colinspect');
-      const surface = dossier?.querySelector<HTMLElement>('.con-colinspect__surface');
-      const planet = dossier?.querySelector<HTMLElement>('[data-colony-focus-planet]');
-      const track = dossier?.querySelector<HTMLElement>('[data-colony-focus-track]');
-      const slots = dossier?.querySelector<HTMLElement>('[data-colony-focus-slots]');
-      const seat = dossier?.querySelector<HTMLElement>('[data-colony-city-seat]');
-      const rectOf = (node: HTMLElement | null | undefined) => {
-        const r = node?.getBoundingClientRect();
-        return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
-      };
-      armColonyFocusOrigin(rectOf(surface), rectOf(planet), rectOf(track), rectOf(slots), rectOf(seat));
-      armColonyFocusHandoff();
-      switchColonyFocusIntent(intent);
-    },
-    /**
-     * THE TILE'S PROJECTED CELL — a `track` pick's candidate reads the
-     * server's projection (the ghost at the top, «+N»); every other tile (and
-     * every trade) passes −1 and keeps the trade's own projection.
-     */
-    tileProjection(colony: ColonyModel): number {
-      return trackMoveOf(this.pick?.trackMoves, colony.name)?.after ?? -1;
-    },
-    /** X on a `track` / `city` stage — the colony's dossier, the act kept (A on the dossier leads back to it). */
-    onStageInspect(): void {
-      // (…and a CARD's own build door — TR25: its stage offers X as the other staged acts do.)
-      if (this.focusState.open && (this.focusState.intent === 'track' || this.focusState.intent === 'city' ||
-          (this.focusState.intent === 'build' && this.buildDoorStands))) {
-        switchColonyFocusIntent('inspect');
-      }
-    },
-    /** The commit did not hold (a refusal, a live re-ask): the stage is a door again (see the stage's `releasePresentation`). */
-    releaseFocusStage(): void {
-      const stage = (this.$refs.focusStage ?? undefined) as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
-      stage?.releasePresentation();
-    },
-    /** The shell ACCEPTED a stage confirm — pin the stage's presentation
-     *  across the commit boundary (see the stage's `holdPresentation`). */
-    holdFocusStage(): void {
-      const stage = (this.$refs.focusStage ?? undefined) as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
-      stage?.holdPresentation();
-    },
-    async loadFocusPreview(name: ColonyName): Promise<void> {
-      // A CATALOG TILE IS NOT IN THE GAME, so there is no trade to price: the
-      // stage reads it from the manifest exactly as it does while a preview is
-      // still on the wire. Asking anyway is a request the server can only
-      // decline — see the `catalog` prop.
-      if (this.playerId === '' || this.catalog) {
-        return;
-      }
-      const seq = ++this.focusPreviewSeq;
-      const preview = await fetchColonyTradePreview(this.playerId, name, this.focusPathOffset);
-      if (seq === this.focusPreviewSeq && preview !== undefined && preview.colonyName === this.focusState.colonyName) {
-        this.focusPreview = preview;
-      }
-    },
-    /**
-     * THE CHOSEN PATH MOVES THE TRACK (the Unity action's «advance 1 step
-     * first»): the stage names the path's own offset the moment the cursor
-     * picks it, and the preview is re-asked with it — so the marker's move,
-     * the reward read there and the track-choice step the batch pre-collects
-     * all describe the trade THIS path will make. Quiet while a trade resolves.
-     */
-    onFocusPathOffset(offset: number): void {
-      if (offset === this.focusPathOffset) {
-        return;
-      }
-      this.focusPathOffset = offset;
-      const name = this.focusState.colonyName;
-      if (name !== '' && !colonyTradeState.active) {
-        void this.loadFocusPreview(name);
-      }
-    },
-    // ── The descend transition hooks (consoleColonyFocusMotion) ────────────
-    onFocusEnter(el: Element, done: () => void): void {
-      colonyFocusEnterHook(el, () => {
-        done();
-        // The dock stage's entry has LANDED: its room and its art may follow from here (ledger EZ).
-        if ((el as HTMLElement).classList?.contains('con-fleetdock')) {
-          this.dockEntering = false;
-        }
-      });
-    },
-    onFocusLeave(el: Element, done: () => void): void {
-      colonyFocusLeaveHook(el, done);
-    },
-    onFocusEnterCancelled(el: Element): void {
-      colonyFocusEnterCancelledHook(el);
-      if ((el as HTMLElement).classList?.contains('con-fleetdock')) {
-        this.dockEntering = false;
-      }
-    },
-    onFocusLeaveCancelled(el: Element): void {
-      colonyFocusLeaveCancelledHook(el);
-    },
-  },
-  mounted() {
-    this.scrollSelectedIntoView();
-    this.fit();
-    // AN EMBEDDED STEP OWNS ITS OWN ARRIVAL. Standalone, the band-surface
-    // director plays the workspace switch; as a STEP that director passes
-    // through by contract (no `data-motion-surface`), so this speaks the
-    // workspace-descend phrase one level in instead — and it runs AFTER `fit`,
-    // so the grid is already solved and no tile can resize under the opening.
-    if (this.embedded) {
-      playColonyStepEntry(this.$el as HTMLElement);
     }
-    // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
-    // The SCROLLER is the room the fit solves (the docks are cells of the grid — no group beside it).
-    const room = (this.$refs.scroll ?? undefined) as HTMLElement | undefined;
-    if (room !== undefined) {
-      this.stopResizeObs = useResizeObserver(room, () => this.scheduleFit()).stop;
+    return {kind: 'blocked', text: pickReasonFor(colony.name)};
+  }
+  // ONE smart source of truth for «why can't I trade here» — shared with the
+  // shell's trade-attempt notice (colonyTradeReason) so a tile and the notice
+  // over it can never disagree. On the TILE only COLONY-INTRINSIC blockers
+  // (not built / a fleet already docked) get a hard ✕; a turn/fleet/afford
+  // block stays CALM (its reason surfaces on the A-press notice) — except a
+  // window open for OTHER colonies, which keeps the explicit «Trade unavailable».
+  const viewer = props.players.find((p) => p.color === props.viewerColor);
+  const reason = colonyTradeReason({
+    colony,
+    tradeable: props.tradeable,
+    colonyBlock: serverColonyBlock(colony),
+    viewerColor: props.viewerColor ?? ('' as Color),
+    availableFleets: viewer !== undefined ? freeFleetsFor(viewer) : 0,
+    // Non-intrinsic reasons are DISCARDED on the tile (mapped by tradeable
+    // length below), so the turn scalars don't affect the tile's output.
+    myTurn: false,
+    awaitingInput: false,
+    resolveName: (color) => {
+      const p = props.players.find((x) => x.color === color);
+      return p !== undefined ? participantDisplayName(p) : '';
+    },
+  });
+  if (reason === undefined) {
+    // NORMAL. Five tiles each announcing «Доступна торговля» is five times
+    // the same non-information; the exception is what the eye needs.
+    return {kind: 'none', text: ''};
+  }
+  if (reason.intrinsic) {
+    // The tile keeps the COMPACT «Not active yet»; the fuller reason.key
+    // ('This colony is not active yet') is for the notice/inspect.
+    if (!colony.isActive) {
+      return {kind: 'inactive', text: translateText('Not active yet')};
     }
-    this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
-    // Embed rule 4, second half: a REMOUNT under a live claim (the Pluto
-    // sequence returning home from the hand discard) re-creates the zone
-    // while the claim value never changes — the watcher has nothing to fire
-    // on, so the slot is published from here too.
-    if (this.revealEmbedActive) {
-      void this.$nextTick(() => {
-        if (this.revealEmbedActive) {
-          setWorkspaceOutcomeSlot(this.outcomeSlotSelector);
-        }
+    const text = reason.params !== undefined ?
+      translateTextWithParams(reason.key, reason.params.map(String)) :
+      translateText(reason.key);
+    return {kind: 'blocked', text};
+  }
+  // A window open for other colonies → name it; otherwise stay calm.
+  if (props.tradeable.length > 0) {
+    return {kind: 'blocked', text: translateText('Trade unavailable')};
+  }
+  return {kind: 'none', text: ''};
+}
+/** The ladder's input for a dock — the window's destinations, the viewer's free fleets, the turn. */
+function dockReasonInput(myTurn: boolean, awaitingInput: boolean): FleetDockReasonInput {
+  return {
+    tradeable: tradeWindowDestinations.value,
+    viewerColor: props.viewerColor ?? ('' as Color),
+    availableFleets: viewerFreeFleets.value,
+    myTurn,
+    awaitingInput,
+  };
+}
+/** A dock tile's status — the SAME ladder as a colony tile (the turn never reads on a tile). */
+function dockTileStatus(dock: FleetDockView): FleetDockTileStatus {
+  return fleetDockTileStatus(dock, dockReasonInput(false, false));
+}
+async function loadDockPreview(card: string): Promise<void> {
+  if (props.playerId === '') {
+    return;
+  }
+  const seq = ++dockPreviewSeq.value;
+  const preview = await fetchFleetDockPreview(props.playerId, card as FleetDockView['card']);
+  if (seq === dockPreviewSeq.value && preview !== undefined && preview.card === focusState.dock) {
+    dockPreview.value = preview;
+  }
+}
+/**
+ * Descend into the FOCUSED DOCK (A on its tile): the same phrase as a
+ * colony — the tile's rect is the unfold's origin, and the CARD is the
+ * carried object (its face FLIPs into the stage's hero, the descend
+ * hooks reading it as the stage's carried identity).
+ */
+function enterDockFocus(): void {
+  const dock = focusedDock.value;
+  if (dock === undefined || focusState.open) {
+    return;
+  }
+  const slot = selectedDock.value ?? undefined;
+  const el = Array.isArray(slot) ? slot[0] : slot;
+  const tile = el?.querySelector<HTMLElement>('.con-fleetdock-tile');
+  const face = tile?.querySelector<HTMLElement>('[data-fleet-dock-face]');
+  const rectOf = (node: HTMLElement | null | undefined) => {
+    const r = node?.getBoundingClientRect();
+    return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
+  };
+  armColonyFocusOrigin(rectOf(tile), rectOf(face));
+  // (The stage's room — the height the hero card is solved in — is measured ONCE, by the `focusState.dock`
+  //  watcher every door shares, and held until the entry lands.)
+  openFleetDockFocus(dock.card);
+}
+/** The shell ACCEPTED the dock's confirm — the stage becomes its own receipt. */
+function holdDockStage(): void {
+  dockStage.value?.holdPresentation();
+}
+function scrollSelectedIntoView(): void {
+  const slot = selectedSlot.value ?? undefined;
+  const el = Array.isArray(slot) ? slot[0] : slot;
+  // On the cursor's clock, bounded to the grid's own scroller (TR58 — never `scrollIntoView`).
+  if (el !== undefined && el !== null) {
+    for (const axis of ['y', 'x'] as const) {
+      const box = scrollContainerOf(el, axis);
+      if (box !== undefined) {
+        cursorEnsureVisible(box, el, {axis});
+      }
+    }
+  }
+}
+// ── The COLONY FOCUS descend (browse → focus and back) ─────────────────
+/**
+ * Descend into the FOCUSED colony (A = the act intent — trade / build /
+ * pick, X = inspect — ONE stage either way; nothing irreversible happens
+ * on the overview any more). Arms the descend origins SYNCHRONOUSLY at
+ * the press: the tile's rect (the unfold source) plus the THREE carried
+ * identities' rects — the planet medallion, the compact track strip and
+ * the build-slot row — so each physically continues into its expanded
+ * counterpart (never a new unrelated detail page).
+ */
+/**
+ * The colour of the city a «city» pick would lay on this tile ('' = no such door, or not a candidate) — the
+ * server's `tileSite` marker. The seat itself stops reading it once the door is answered (`colonyCityAnswered`).
+ */
+function tileCityProjection(colony: ColonyModel): Color | '' {
+  const site = props.pick?.tileSite;
+  if (site === undefined || cityAnswered.value || !isPickable(colony.name)) {
+    return '';
+  }
+  return site.color;
+}
+/**
+ * The berth the projected cube would take — the server's (`buildSites` for a card's build door; a roster
+ * build lands in the entering tile's own next berth).
+ */
+function tileProjectedCubeSlot(colony: ColonyModel): number {
+  const site = buildDoorStands.value ? buildSiteOf(props.pick?.buildSites, colony.name) : undefined;
+  if (site !== undefined) {
+    return site.slot;
+  }
+  const build = props.pick?.roster?.level === 'incoming' ? rosterIncomingOf(props.pick.roster.prompt, colony.name)?.build : undefined;
+  return rosterBuildLands(build) ? build.slot : 0;
+}
+/**
+ * The colour of the colony a pick would BUILD on this tile ('' = none) — the server's projection: a roster
+ * pick's reserve tile, or a candidate of a CARD's own build door (TR25 — its `buildSites`; the ghost stands in
+ * the berth the marker names, the fourth on a tile at its limit). Never once the door is answered.
+ */
+function tileProjectedCube(colony: ColonyModel): string {
+  if (buildDoorStands.value) {
+    return !buildAnswered.value && isPickable(colony.name) && buildSiteOf(props.pick?.buildSites, colony.name) !== undefined ?
+      (props.viewerColor ?? '') : '';
+  }
+  const roster = props.pick?.roster;
+  if (roster === undefined || roster.level !== 'incoming') {
+    return '';
+  }
+  return rosterBuildLands(rosterIncomingOf(roster.prompt, colony.name)?.build) ? (props.viewerColor ?? '') : '';
+}
+/**
+ * THE LANDING's destination (the roster's own flow): the stage folds HOME into the slot `name` now holds on
+ * the table — re-measured here, AFTER the grid's fit, at REST (the parked layer's recede transform is taken
+ * off for the read and put back in the same task: nothing paints in between). `false` when the tile cannot
+ * be measured — the fold then lets go where it stands.
+ */
+function retargetFocusHome(name: string): boolean {
+  const gridNow = grid.value ?? undefined;
+  const tile = gridNow?.querySelector<HTMLElement>(`[data-test="con-colony-${name.replace(/["\\]/g, '\\$&')}"]`);
+  const browse = root.value?.querySelector<HTMLElement>('.con-colonies__browse');
+  if (tile === null || tile === undefined) {
+    armColonyFocusQuickExit();
+    return false;
+  }
+  const held = browse?.style.transform ?? '';
+  if (browse !== null && browse !== undefined) {
+    browse.style.transform = 'none';
+  }
+  const rect = restingRectOf(tile);
+  if (browse !== null && browse !== undefined) {
+    browse.style.transform = held;
+  }
+  if (rect.width < 10 || rect.height < 10) {
+    armColonyFocusQuickExit();
+    return false;
+  }
+  retargetColonyFocusHome(rect);
+  return true;
+}
+/**
+ * A ROSTER PICK CHANGES ITS LEVEL (the table ⇄ the reserve) — the rail's population changes, and that is
+ * a RESEAT, never a swap: the tiles' content lets go, `apply` changes the level (the rail re-renders dark),
+ * and the new tiles surface. Opacity only — text under a `zoom` never travels and never scales. The pad is
+ * the beat's (`landing`); reduced motion and an unmeasurable grid apply at once.
+ */
+async function reseatRosterLevel(apply: () => void): Promise<void> {
+  const gridNow = grid.value ?? undefined;
+  if (gridNow === undefined || gridNow === null || consoleReducedMotionActive() || rosterState.landing) {
+    apply();
+    return;
+  }
+  setColonyRosterLanding(true);
+  try {
+    await new Promise<void>((resolve) => {
+      playReseatOut(gridNow, resolve);
+    });
+    apply();
+    await nextTick();
+    const next = grid.value ?? undefined;
+    if (next !== undefined && next !== null) {
+      await new Promise<void>((resolve) => {
+        playReseatIn(next, null, resolve);
       });
     }
-    // Same for a hosted step's frame slot (a restore mid-discard, a restore mid-vote).
-    if (this.frameSlotSelector !== '') {
-      void this.$nextTick(() => {
-        if (this.frameSlotSelector !== '') {
-          setWorkspaceFrameSlot('colonies', this.frameSlotSelector);
-        }
-      });
+  } finally {
+    setColonyRosterLanding(false);
+  }
+}
+/** A removal's stage has nothing to fold into — it lets go where it stands. */
+function releaseFocusInPlace(): void {
+  armColonyFocusQuickExit();
+}
+function enterFocus(intent: ColonyFocusIntent): void {
+  const colony = props.colonies[props.index];
+  if (colony === undefined || focusState.open) {
+    return;
+  }
+  const slot = selectedSlot.value ?? undefined;
+  const el = Array.isArray(slot) ? slot[0] : slot;
+  const tile = el?.querySelector<HTMLElement>('.con-coltile');
+  const planet = tile?.querySelector<HTMLElement>('.con-coltile__planet-berth');
+  const track = tile?.querySelector<HTMLElement>('.con-coltile__track');
+  const slots = tile?.querySelector<HTMLElement>('.con-coltile__build');
+  // The CITY'S SEAT — the fifth carried object (its box is always laid out, an empty seat included).
+  const seat = tile?.querySelector<HTMLElement>('.con-coltile__head [data-colony-city-seat]');
+  if (intent === 'city' && workspaceFrameStage('colonies') !== COLONY_CITY_STAGE) {
+    // The door's own name, kept for the way back (the stage is about to hand «ГОРОД» up over it).
+    cityDoorStage.value = workspaceFrameStage('colonies');
+  }
+  const rectOf = (node: HTMLElement | null | undefined) => {
+    const r = node?.getBoundingClientRect();
+    return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
+  };
+  armColonyFocusOrigin(rectOf(tile), rectOf(planet), rectOf(track), rectOf(slots), rectOf(seat));
+  openColonyFocus(colony.name as ColonyName, intent);
+}
+/** Fold back to the browse surface (B / cancel) — PRE-commit only. */
+function closeFocus(): void {
+  closeColonyFocus();
+}
+/**
+ * THE ACTION IS OVER. Give the scene a short breathing beat — the token
+ * has just docked, the guard has just latched, the marker has just landed,
+ * and folding on the same frame means the player never sees what changed —
+ * then hand the screen FORWARD. Never back through the configuration
+ * surface: a committed action does not travel backwards (the shell picks
+ * the destination — the next unresolved effect, or the field).
+ *
+ * A live outcome CLAIM means a follow-up owns the screen; the completion
+ * then belongs to the claim's own falling edge, not to this one.
+ */
+function completeFlow(): void {
+  // A REWARD STILL ARRIVING ON A CARD IS THE ACT STILL HAPPENING. The
+  // build's own transaction ends when the cube seats — its floaters are
+  // still in the air — so routing home here tore the receiving card off
+  // the screen mid-flight. The scene publishes its presence
+  // (`cardSceneLive`, released by its own landing + read beat, with its
+  // own bounded net), and the completion re-runs on that falling edge.
+  if (completeTimer !== undefined || workspaceOutcomeClaimed() || resolutionUi.cardSceneLive) {
+    return;
+  }
+  // A FLEET DOCK's trade owns its own ending: the dock's scene answers, reads and concludes the workspace
+  // through the shell's ONE guarded conclusion (`onFleetDockFlowComplete`). A dock whose reward lands on a card
+  // claims its `pick` (TR27), and that claim's release a tick after the answer used to fold the stage HERE —
+  // mid-impulse, before a single token had left the card.
+  if (focusState.dock !== '') {
+    return;
+  }
+  // A CHOSEN TRACK's move (TR07) owns its own ending: the STAGED door ends with the play (the shell's
+  // `endStagedColony`), and the move — owed or in flight — plays on THIS stage first. Folding here (the play's
+  // own claim releasing a tick after the answer) sent the marker to the tile behind a closed stage.
+  if (props.pick?.staged === true || trackMoveFlow.owed !== undefined || trackMoveFlow.live) {
+    return;
+  }
+  // A ROSTER change owns its own ending too: the ceremony, then the LANDING into the slot, then the receipt's
+  // read — the shell's `landColonyRoster` folds this stage home; nothing may fold it earlier.
+  if (rosterBusy.value) {
+    return;
+  }
+  // A CITY's landing (TR22) owns its own ending as well: the scene, then the stage folding HOME, then the
+  // receipt's read — the shell's `landColonyCity`; nothing may fold the stage under the piece.
+  if (cityAnswered.value) {
+    return;
+  }
+  // …and a STAGED BUILD's (TR25): the cube, what its bonus still owes inside the stage, HOME, the receipt —
+  // the shell's `landColonyBuild`.
+  if (buildAnswered.value) {
+    return;
+  }
+  // PACING: a section that left has nothing to fold and nobody to tell — the dwell is taken back with it.
+  completeTimer = flow.after(motionMs(COMPLETION_SETTLE_MS), 'the colony flow\'s completion dwell', () => {
+    completeTimer = undefined;
+    if (workspaceOutcomeClaimed() || !focusState.open || resolutionUi.cardSceneLive) {
+      return;
     }
-  },
-  beforeUnmount() {
-    releaseDiscardPile('colony');
-    // A watcher's landing has no seat left to land on.
-    endWatchedColonyCity();
-    consoleColoniesUi.receipt = false;
-    this.stopResizeObs?.();
-    this.stopResize?.();
-    // (The completion dwell and the fit frame are `flow`'s — taken back with it.)
-    // Retract OUR zone before it unmounts (a stale selector teleports the
-    // next batch into a detached node — embed rule 4). Checked on the RAW
-    // claim, not `revealEmbedActive`: a COLLAPSE parks the frames BEFORE this
-    // unmount runs, so the parked-gated computed is already false here — and
-    // the slot this very mount published would survive as a selector into a
-    // detached node.
-    if (this.outcomeState.host === 'colonies') {
-      // Only OUR zone (ledger HC): whatever the colonies published, never a slot another host holds now.
-      retractWorkspaceOutcomeSlot(workspaceOutcomeState.embedSlot.startsWith('[data-embed-slot="colonies-') ? workspaceOutcomeState.embedSlot : this.outcomeSlotSelector);
-    }
-    // …and the hand step's frame slot, for the same reason.
-    setWorkspaceFrameSlot('colonies', '');
-    // Leaving the section closes the flow: reopening always lands on browse
-    // (and on a colony — the cursor on a dock cell is part of the visit).
     closeColonyFocus();
-    resetColonyDockCursor();
-    resetColonyFocusMotion();
-  },
+    emit('flow-complete');
+  });
+}
+/** The stage confirmed the trade — hand the payload UP. The stage STAYS:
+ *  the fleet, the reward waves, the Pluto reveal and the track glide all
+ *  resolve on the stage's own live anchors (iteration 2), and the
+ *  transaction's falling edge auto-folds back to the overview. */
+function onFocusConfirm(payload: ColonyTradeConfirmPayload): void {
+  emit('trade-confirm', payload);
+}
+/** The shell routes the pad here while the focus stage — the action
+ *  stage OR the dossier — is open. */
+function handleFocusIntent(intent: GamepadIntent): void {
+  if (focusState.dock !== '') {
+    dockStage.value?.handleIntent(intent);
+    return;
+  }
+  if (focusState.intent === 'inspect') {
+    const dossier = inspectStage.value ?? undefined;
+    dossier?.handleIntent(intent);
+    return;
+  }
+  const stage = focusStage.value ?? undefined;
+  stage?.handleIntent(intent);
+}
+/**
+ * A ON THE DOSSIER — ENTER THE ACT. The same colony, the act intent; the
+ * stage takes the dossier's place as a HAND-OFF: the descend registers are
+ * armed from the DOSSIER's live rects (its surface, its planet, its track,
+ * its berths), so the stage's own enter hook FLIPs the three identities
+ * out of the dossier instead of out of the (parked) tile, while the
+ * dossier steps back underneath. The fold home stays the tile's rect —
+ * B from the stage still folds into the tile the flow opened from.
+ */
+function enterFocusFromInspect(intent: ColonyFocusIntent): void {
+  if (!focusState.open || focusState.intent !== 'inspect' || intent === 'inspect') {
+    return;
+  }
+  const rootNow = root.value ?? undefined;
+  const dossier = rootNow?.querySelector<HTMLElement>('.con-colinspect');
+  const surface = dossier?.querySelector<HTMLElement>('.con-colinspect__surface');
+  const planet = dossier?.querySelector<HTMLElement>('[data-colony-focus-planet]');
+  const track = dossier?.querySelector<HTMLElement>('[data-colony-focus-track]');
+  const slots = dossier?.querySelector<HTMLElement>('[data-colony-focus-slots]');
+  const seat = dossier?.querySelector<HTMLElement>('[data-colony-city-seat]');
+  const rectOf = (node: HTMLElement | null | undefined) => {
+    const r = node?.getBoundingClientRect();
+    return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
+  };
+  armColonyFocusOrigin(rectOf(surface), rectOf(planet), rectOf(track), rectOf(slots), rectOf(seat));
+  armColonyFocusHandoff();
+  switchColonyFocusIntent(intent);
+}
+/**
+ * THE TILE'S PROJECTED CELL — a `track` pick's candidate reads the
+ * server's projection (the ghost at the top, «+N»); every other tile (and
+ * every trade) passes −1 and keeps the trade's own projection.
+ */
+function tileProjection(colony: ColonyModel): number {
+  return trackMoveOf(props.pick?.trackMoves, colony.name)?.after ?? -1;
+}
+/** X on a `track` / `city` stage — the colony's dossier, the act kept (A on the dossier leads back to it). */
+function onStageInspect(): void {
+  // (…and a CARD's own build door — TR25: its stage offers X as the other staged acts do.)
+  if (focusState.open && (focusState.intent === 'track' || focusState.intent === 'city' ||
+      (focusState.intent === 'build' && buildDoorStands.value))) {
+    switchColonyFocusIntent('inspect');
+  }
+}
+/** The commit did not hold (a refusal, a live re-ask): the stage is a door again (see the stage's `releasePresentation`). */
+function releaseFocusStage(): void {
+  const stage = focusStage.value ?? undefined;
+  stage?.releasePresentation();
+}
+/** The shell ACCEPTED a stage confirm — pin the stage's presentation
+ *  across the commit boundary (see the stage's `holdPresentation`). */
+function holdFocusStage(): void {
+  const stage = focusStage.value ?? undefined;
+  stage?.holdPresentation();
+}
+async function loadFocusPreview(name: ColonyName): Promise<void> {
+  // A CATALOG TILE IS NOT IN THE GAME, so there is no trade to price: the
+  // stage reads it from the manifest exactly as it does while a preview is
+  // still on the wire. Asking anyway is a request the server can only
+  // decline — see the `catalog` prop.
+  if (props.playerId === '' || props.catalog) {
+    return;
+  }
+  const seq = ++focusPreviewSeq.value;
+  const preview = await fetchColonyTradePreview(props.playerId, name, focusPathOffset.value);
+  if (seq === focusPreviewSeq.value && preview !== undefined && preview.colonyName === focusState.colonyName) {
+    focusPreview.value = preview;
+  }
+}
+/**
+ * THE CHOSEN PATH MOVES THE TRACK (the Unity action's «advance 1 step
+ * first»): the stage names the path's own offset the moment the cursor
+ * picks it, and the preview is re-asked with it — so the marker's move,
+ * the reward read there and the track-choice step the batch pre-collects
+ * all describe the trade THIS path will make. Quiet while a trade resolves.
+ */
+function onFocusPathOffset(offset: number): void {
+  if (offset === focusPathOffset.value) {
+    return;
+  }
+  focusPathOffset.value = offset;
+  const name = focusState.colonyName;
+  if (name !== '' && !colonyTradeState.active) {
+    void loadFocusPreview(name);
+  }
+}
+// ── The descend transition hooks (consoleColonyFocusMotion) ────────────
+function onFocusEnter(el: Element, done: () => void): void {
+  colonyFocusEnterHook(el, () => {
+    done();
+    // The dock stage's entry has LANDED: its room and its art may follow from here (ledger EZ).
+    if ((el as HTMLElement).classList?.contains('con-fleetdock')) {
+      dockEntering.value = false;
+    }
+  });
+}
+function onFocusLeave(el: Element, done: () => void): void {
+  colonyFocusLeaveHook(el, done);
+}
+function onFocusEnterCancelled(el: Element): void {
+  colonyFocusEnterCancelledHook(el);
+  if ((el as HTMLElement).classList?.contains('con-fleetdock')) {
+    dockEntering.value = false;
+  }
+}
+function onFocusLeaveCancelled(el: Element): void {
+  colonyFocusLeaveCancelledHook(el);
+}
+
+watch(() => liveFleetBerth.value, (berth: string): void => {
+  // Only while the frame lives — a dissolve past the frame keeps what it stood in.
+  if (workspaceFrameKnown('colonies')) {
+    berthLatch.value = berth;
+  }
+}, {immediate: true});
+watch(() => colonyDiscardPileLease.value, (on: boolean): void => {
+  if (on) {
+    openDiscardPile('colony');
+  } else {
+    releaseDiscardPile('colony');
+  }
+}, {immediate: true});
+/** The crumb's tail only moves forward through a payout — remember its last stage (see `crumbStage`). */
+watch(() => payoutStage.value, (stage: string): void => {
+  if (stage !== '') {
+    lastPayoutStage.value = stage;
+  }
+}, {immediate: true});
+/** The bar reads the ONE receipt reading (it states the result while the grid takes no verb). */
+watch(() => receiptOn.value, (on: boolean): void => {
+  consoleColoniesUi.receipt = on;
+}, {immediate: true});
+/**
+ * A CLAIMED ARTIFACT ARRIVES WHILE THE DOSSIER STANDS (a late card-target
+ * pick, a reveal): the dossier is a READING and hosts nothing, so it folds
+ * to the grid and the section's own zone takes the artifact — never a
+ * picker teleported at a zone the dossier does not have.
+ */
+watch(() => revealEmbedActive.value, (on: boolean): void => {
+  if (on && focusState.open && focusState.intent === 'inspect') {
+    closeColonyFocus();
+  }
 });
+watch(() => props.grantColony, (name: string): void => {
+  if (name !== '') {
+    grantSubject.value = name;
+  }
+}, {immediate: true});
+watch(() => parliamentStepHosted.value, (hosted: boolean): void => {
+  if (!hosted) {
+    grantSubject.value = '';
+  }
+});
+watch(() => props.index, () => {
+  void nextTick(() => scrollSelectedIntoView());
+});
+// THE ROSTER FLOW'S LATCHES: what the stage stood on, kept past the answer that takes it away (the prompt,
+// and — for a removal — the tile itself). Dropped when the flow is over and the stage is closed.
+watch(() => focusModelOnRail.value, (model: ColonyModel | undefined): void => {
+  if (model !== undefined) {
+    focusModelLatch.value = model;
+  }
+}, {immediate: true});
+watch(() => stageRoster.value, (view: ColonyRosterStageView | undefined): void => {
+  if (view !== undefined && props.pick?.roster !== undefined) {
+    rosterStageLatch.value = view;
+  }
+}, {immediate: true});
+watch(() => rosterBusy.value, (busy: boolean): void => {
+  if (!busy && !focusState.open) {
+    focusModelLatch.value = undefined;
+    rosterStageLatch.value = undefined;
+  }
+});
+watch(() => stageCity.value, (view: ColonyCityStageView | undefined): void => {
+  if (view !== undefined && props.pick?.tileSite !== undefined) {
+    cityStageLatch.value = view;
+  }
+}, {immediate: true});
+watch(() => cityState.receipt, (receipt: ColonyCityReceipt | undefined): void => {
+  if (receipt !== undefined && cityDoorStands.value) {
+    cityReceiptLatch.value = {...receipt};
+  }
+});
+watch(() => buildState.receipt, (receipt: ColonyBuildReceipt | undefined): void => {
+  if (receipt !== undefined && buildDoorStands.value) {
+    buildReceiptLatch.value = {...receipt};
+  }
+});
+watch(() => buildDoorStands.value, (stands: boolean): void => {
+  if (!stands) {
+    buildReceiptLatch.value = undefined;
+  }
+});
+watch(() => cityDoorStands.value, (stands: boolean): void => {
+  if (!stands) {
+    cityReceiptLatch.value = undefined;
+  }
+});
+watch(() => cityAnswered.value, (answered: boolean): void => {
+  if (!answered && !focusState.open) {
+    cityStageLatch.value = undefined;
+  }
+});
+watch(() => focusState.open, (open: boolean): void => {
+  // A watcher's landing was measured on the surface that has just changed — it ends in its final poses.
+  endWatchedColonyCity();
+  if (!open && !rosterBusy.value) {
+    focusModelLatch.value = undefined;
+    rosterStageLatch.value = undefined;
+  }
+  if (!open && !cityAnswered.value) {
+    cityStageLatch.value = undefined;
+  }
+  // The crumb's remembered payout stage dies with the stage it was read on (see `lastPayoutStage`).
+  if (!open) {
+    lastPayoutStage.value = '';
+  }
+});
+/**
+ * HAND THE CRUMB UP. Embedded, this section draws no header of its own —
+ * the host does, and the host's subject slot is already spent on the card
+ * that opened us. So the colony and its stage travel up as the FRAME's own
+ * subject + stage and the host folds them into one tail («ГАНИМЕД ·
+ * ТОРГОВЛЯ»). Publishing the pair rather than a finished phrase keeps the
+ * grammar in the header, where it belongs, and keeps both parts i18n keys.
+ */
+watch(() => embeddedCrumb.value, (crumb: {embedded: boolean, subject: string, stage: string}) => {
+  // A NESTED FRAME HANDS ITS STAGE UP whether it is teleported into the
+  // host's zone or standing on the whole scene: both are steps of the
+  // flow below, and the crumb is derived from the STACK either way. Keyed
+  // on «am I nested», not on «am I embedded» — the second is a rendering
+  // detail and it silently stopped the tail from advancing the moment a
+  // host chose to hand the scene over instead of lending a zone.
+  if (!crumb.embedded && workspaceFrameIndex('colonies') <= 0) {
+    return;
+  }
+  setWorkspaceFrameSubject('colonies', crumb.subject);
+  // A screen with no stage of its own yet (the plain pick, before a colony is picked up) KEEPS the name
+  // the door pushed for it — «КОЛОНИИ» for the sitting's own step, «ВЫБОР КОЛОНИИ» everywhere else (the
+  // stage the prompt's source decides, `followUpStepStage`); overwriting it made the tail say two things.
+  setWorkspaceFrameStage('colonies', crumb.stage !== '' ? crumb.stage : (workspaceFrameStage('colonies') || 'Colony selection'));
+}, {immediate: true});
+watch(() => layout.value, () => {
+  scheduleFit();
+});
+watch(() => props.colonies, () => {
+  scheduleFit();
+});
+// The focus stage's server preview follows the descended-into colony.
+watch(() => focusState.colonyName, (name: ColonyName | '') => {
+  focusPreview.value = undefined;
+  focusPathOffset.value = 0;
+  if (name !== '') {
+    void loadFocusPreview(name);
+  }
+});
+// The DOCK stage's preview follows the descended-into card — and the state.
+watch(() => focusState.dock, (card: string) => {
+  dockPreview.value = undefined;
+  if (card !== '') {
+    // Every door into the dock's stage (a press, a restore, a prompt) solves its hero against the room BEFORE
+    // the stage renders (a `pre` watcher: the stage mounts in the update this one precedes) — ONE measurement,
+    // held until the entry has landed.
+    const room = root.value?.querySelector<HTMLElement>('.con-colonies__stagewrap')?.clientHeight ?? 0;
+    if (room > 0) {
+      dockRoomH.value = room;
+    }
+    dockEntering.value = true;
+    // The hero's FULL art is decoded while the FLIP flies the thumb (shown only once the entry has settled).
+    preloadPremiumCardArt([card as CardName], ['thumb', 'full']);
+    void loadDockPreview(card);
+  } else {
+    dockEntering.value = false;
+  }
+});
+// …and follows the GAME STATE: a response that moved the world (an undo,
+// a mid-turn effect) re-pulls the preview for the SAME colony, so the
+// stage's candidate lists — and through them every captured pick — are
+// re-validated against current truth instead of a snapshot. Quiet while
+// the trade is resolving: the commit-boundary freeze owns that window,
+// and the transaction's own conclusion folds the stage anyway.
+watch(() => props.viewVersion, () => {
+  const name = focusState.colonyName;
+  if (name !== '' && !colonyTradeState.active) {
+    void loadFocusPreview(name);
+  }
+  // The dock's preview is a verdict about the whole state: re-asked on every
+  // move (the stage pins its receipt at the commit, so the answer's re-pricing
+  // never reaches a trade already on the wire).
+  if (focusState.dock !== '') {
+    void loadDockPreview(focusState.dock);
+  }
+});
+watch(() => props.docks, () => {
+  scheduleFit();
+});
+// OWNERSHIP ≠ READINESS (embed rule 4): publish the zone's selector only
+// once the element genuinely stands (`flush: 'post'`), retract before it
+// unmounts. The teleport's target must exist before Vue resolves it.
+watch(() => outcomeSlotSelector.value, (selector: string, previous: string | undefined): void => {
+  // A zone switching OFF retracts only what THIS host published — a blind '' wiped a slot another host had
+  // published meanwhile (the lent-node class of game-pdb19bfa, ledger HC).
+  if (selector !== '') {
+    setWorkspaceOutcomeSlot(selector);
+  } else {
+    retractWorkspaceOutcomeSlot(previous ?? '');
+  }
+}, {flush: 'post'});
+// The HOSTED STEP's teleport target (the hand's discard, the Parliament's
+// vote) — same law, the STACK channel: the frame below publishes the zone
+// the frame above teleports into.
+watch(() => frameSlotSelector.value, (selector: string): void => {
+  setWorkspaceFrameSlot('colonies', selector);
+}, {flush: 'post'});
+// THE RESOLUTION'S FALLING EDGE auto-folds the focus stage back to the
+// overview: the trade (fleet → waves → payout → glide → settle) or the
+// build (cube seated, grant delivered) completed ON the stage — the fold
+// is the completion's own signal, never a timer. The updated overview
+// (new track position, the seated cube, the docked fleet) is what the
+// fold reveals. Embedded flows fold through their own latch finalize.
+watch(() => tradeState.active, (active: boolean, was: boolean): void => {
+  if (active) {
+    tradeEndOwed.value = false;
+    return;
+  }
+  if (!was || !focusState.open) {
+    return;
+  }
+  if (tradeFleetState.active) {
+    // The fleet still flies: its own fall re-asks the ending (below) — never a dropped edge.
+    tradeEndOwed.value = true;
+    return;
+  }
+  completeFlow();
+});
+/**
+ * THE FLEET'S OWN FALL — the edge the trade's ending was waiting for when the trade fell first (R7). Without it the
+ * stage stood until some unrelated edge happened to re-ask, and the workspace held the screen with nothing owed.
+ */
+watch(() => tradeFleetState.active, (active: boolean, was: boolean): void => {
+  if (active || !was || !tradeEndOwed.value) {
+    return;
+  }
+  tradeEndOwed.value = false;
+  if (focusState.open && !tradeState.active && !buildState.active) {
+    completeFlow();
+  }
+});
+watch(() => buildState.active, (active: boolean, was: boolean): void => {
+  if (!active && was && focusState.open) {
+    completeFlow();
+  }
+});
+/** A claimed FOLLOW-UP owned the screen; it has now released. THAT is the
+ *  moment the whole action is over, so the completion runs here instead
+ *  of at the transaction's edge (which fired while the payout was still
+ *  standing). */
+watch(() => outcomeState.sourceCard, (now: string, was: string): void => {
+  if (now === '' && was !== '' && focusState.open &&
+      !tradeState.active && !buildState.active) {
+    completeFlow();
+  }
+});
+/** …and the same for the PRESENTED CARD scene: its release is the last
+ *  physical beat of a card-resource payout, so the completion belongs to
+ *  its falling edge exactly as it belongs to the claim's. */
+watch(() => resolutionUi.cardSceneLive, (now: boolean, was: boolean): void => {
+  if (!now && was && focusState.open &&
+      !tradeState.active && !buildState.active) {
+    completeFlow();
+  }
+});
+
+onMounted(() => {
+  scrollSelectedIntoView();
+  fit();
+  // AN EMBEDDED STEP OWNS ITS OWN ARRIVAL. Standalone, the band-surface
+  // director plays the workspace switch; as a STEP that director passes
+  // through by contract (no `data-motion-surface`), so this speaks the
+  // workspace-descend phrase one level in instead — and it runs AFTER `fit`,
+  // so the grid is already solved and no tile can resize under the opening.
+  if (props.embedded) {
+    playColonyStepEntry(root.value as HTMLElement);
+  }
+  // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
+  // The SCROLLER is the room the fit solves (the docks are cells of the grid — no group beside it).
+  const room = scroll.value ?? undefined;
+  if (room !== undefined) {
+    stopResizeObs = useResizeObserver(room, () => scheduleFit()).stop;
+  }
+  stopResize = useEventListener(window, 'resize', scheduleFit);
+  // Embed rule 4, second half: a REMOUNT under a live claim (the Pluto
+  // sequence returning home from the hand discard) re-creates the zone
+  // while the claim value never changes — the watcher has nothing to fire
+  // on, so the slot is published from here too.
+  if (revealEmbedActive.value) {
+    void nextTick(() => {
+      if (revealEmbedActive.value) {
+        setWorkspaceOutcomeSlot(outcomeSlotSelector.value);
+      }
+    });
+  }
+  // Same for a hosted step's frame slot (a restore mid-discard, a restore mid-vote).
+  if (frameSlotSelector.value !== '') {
+    void nextTick(() => {
+      if (frameSlotSelector.value !== '') {
+        setWorkspaceFrameSlot('colonies', frameSlotSelector.value);
+      }
+    });
+  }
+});
+onBeforeUnmount(() => {
+  releaseDiscardPile('colony');
+  // A watcher's landing has no seat left to land on.
+  endWatchedColonyCity();
+  consoleColoniesUi.receipt = false;
+  stopResizeObs?.();
+  stopResize?.();
+  // (The completion dwell and the fit frame are `flow`'s — taken back with it.)
+  // Retract OUR zone before it unmounts (a stale selector teleports the
+  // next batch into a detached node — embed rule 4). Checked on the RAW
+  // claim, not `revealEmbedActive`: a COLLAPSE parks the frames BEFORE this
+  // unmount runs, so the parked-gated computed is already false here — and
+  // the slot this very mount published would survive as a selector into a
+  // detached node.
+  if (outcomeState.host === 'colonies') {
+    // Only OUR zone (ledger HC): whatever the colonies published, never a slot another host holds now.
+    retractWorkspaceOutcomeSlot(workspaceOutcomeState.embedSlot.startsWith('[data-embed-slot="colonies-') ? workspaceOutcomeState.embedSlot : outcomeSlotSelector.value);
+  }
+  // …and the hand step's frame slot, for the same reason.
+  setWorkspaceFrameSlot('colonies', '');
+  // Leaving the section closes the flow: reopening always lands on browse
+  // (and on a colony — the cursor on a dock cell is part of the visit).
+  closeColonyFocus();
+  resetColonyDockCursor();
+  resetColonyFocusMotion();
+});
+defineExpose({completeFlow, enterDockFocus, enterFocus, enterFocusFromInspect, handleFocusIntent, holdDockStage, holdFocusStage, releaseFocusInPlace, releaseFocusStage, reseatRosterLevel, retargetFocusHome});
 </script>

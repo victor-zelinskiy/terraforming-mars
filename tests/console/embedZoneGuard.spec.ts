@@ -113,7 +113,8 @@ function publishedSelectors(): Map<string, string> {
       }
     }
     if (rel.endsWith('ConsoleColoniesSection.vue')) {
-      for (const lit of literals(block(text, 'outcomeSlotSelector(): string'))) {
+      // (`<script setup>`: the computed is a `const` — the block is its arrow's body.)
+      for (const lit of literals(block(text, 'const outcomeSlotSelector = computed('))) {
         found.set(lit, rel);
       }
     }
