@@ -13,8 +13,8 @@
   </Teleport>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel, simpleColonyModel} from '@/common/models/ColonyModel';
 import ColonyTile from '@/client/components/colonies/ColonyTile.vue';
@@ -32,44 +32,40 @@ const PREVIEW_HEIGHT = 360;
 const GAP = 14;
 const VIEWPORT_MARGIN = 8;
 
-export default defineComponent({
-  name: 'ColonyPreviewPopover',
-  components: {ColonyTile},
-  props: {
-    name: {
-      type: String as () => ColonyName | undefined,
-      default: undefined,
-    },
-    visible: {
-      type: Boolean,
-      default: false,
-    },
-    anchor: {
-      type: Object as PropType<DOMRect | undefined>,
-      default: undefined,
-    },
+defineOptions({name: 'ColonyPreviewPopover'});
+const props = defineProps({
+  name: {
+    type: String as () => ColonyName | undefined,
+    default: undefined,
   },
-  computed: {
-    colonyModel(): ColonyModel {
-      // A static preview: the colony at track position 0, no fleet / owners.
-      return simpleColonyModel(this.name as ColonyName);
-    },
-    positionStyle(): Record<string, string> {
-      const a = this.anchor;
-      if (a === undefined) {
-        return {display: 'none'};
-      }
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      let left = a.left - GAP - PREVIEW_WIDTH;
-      if (left < VIEWPORT_MARGIN) {
-        left = a.right + GAP;
-      }
-      left = Math.max(VIEWPORT_MARGIN, Math.min(left, vw - PREVIEW_WIDTH - VIEWPORT_MARGIN));
-      let top = a.top + a.height / 2 - PREVIEW_HEIGHT / 2;
-      top = Math.max(VIEWPORT_MARGIN, Math.min(top, vh - PREVIEW_HEIGHT - VIEWPORT_MARGIN));
-      return {left: `${Math.round(left)}px`, top: `${Math.round(top)}px`};
-    },
+  visible: {
+    type: Boolean,
+    default: false,
   },
+  anchor: {
+    type: Object as PropType<DOMRect | undefined>,
+    default: undefined,
+  },
+});
+
+const colonyModel = computed((): ColonyModel => {
+  // A static preview: the colony at track position 0, no fleet / owners.
+  return simpleColonyModel(props.name as ColonyName);
+});
+const positionStyle = computed((): Record<string, string> => {
+  const a = props.anchor;
+  if (a === undefined) {
+    return {display: 'none'};
+  }
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let left = a.left - GAP - PREVIEW_WIDTH;
+  if (left < VIEWPORT_MARGIN) {
+    left = a.right + GAP;
+  }
+  left = Math.max(VIEWPORT_MARGIN, Math.min(left, vw - PREVIEW_WIDTH - VIEWPORT_MARGIN));
+  let top = a.top + a.height / 2 - PREVIEW_HEIGHT / 2;
+  top = Math.max(VIEWPORT_MARGIN, Math.min(top, vh - PREVIEW_HEIGHT - VIEWPORT_MARGIN));
+  return {left: `${Math.round(left)}px`, top: `${Math.round(top)}px`};
 });
 </script>
