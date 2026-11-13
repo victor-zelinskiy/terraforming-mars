@@ -6,27 +6,6 @@ row, the payout hero, the fullscreen viewer, the flight proxies, the source
 dock, the stand) gets this ONE anatomy.
 -->
 <template>
-  <!--
-    THE BILL. A resolution is not a project: it has no cost and no tags, nobody
-    plays it, it is never held or tabled. It is a bill a PARTY brings in — a
-    document with an author, a body every player receives, a clause of its own
-    for the winner of the vote, and a condition it puts in force (the chairman
-    quest). The face is that document, and its anatomy is its mechanics:
-
-      · the SHEET — a page with a folded corner (no gold frame, no nameplate on
-        top, no cost corner): told from a project card by its outline alone;
-      · the ILLUSTRATION heads the page, edge to edge;
-      · the BAND — a vellum strip bound round the page carries the TITLE, and
-        the AUTHOR'S SEAL (the party's own emblem) closes it; the band's lower
-        edge is dyed the party's colour. The party reads without a word;
-      · the ARTICLES — the printed effect, through the ONE formula renderer
-        (`PremiumMechanicsPanel`); the winner's clause is set apart by the row's
-        own structure (`MechGroup.winnerRow`);
-      · the FOOTNOTE — the chairman quest under a rule: the chair (the mark the
-        Parliament already uses for the chairmanship) and the printed condition
-        as a graphic. Not a block, and not a caption repeated on every card:
-        the words live in the government's quest block and the inspector.
-  -->
   <div class="pcard-bill__sheet" aria-hidden="true">
     <div class="pcard-bill__art"><PremiumCardArt :art="art" :tier="artTier" /></div>
     <div class="pcard-bill__band">
@@ -62,19 +41,43 @@ dock, the stand) gets this ONE anatomy.
     <span class="pcard-bill__keyline"></span>
     <span class="pcard-bill__fold"></span>
   </div>
-  <!-- THE AUTHOR'S SEAL stands over the sheet's clip (it closes the band across the illustration's edge). -->
   <span class="pcard-bill__seal" aria-hidden="true">
+    <!-- THE AUTHOR'S SEAL stands over the sheet's clip (it closes the band across the illustration's edge). -->
     <span class="pcard-bill__tails"></span>
     <span class="pcard-bill__rosette"></span>
     <img class="pcard__party-emblem" :src="emblemUrl" alt="" draggable="false" />
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * THE BILL. A resolution is not a project: it has no cost and no tags, nobody
+ * plays it, it is never held or tabled. It is a bill a PARTY brings in — a
+ * document with an author, a body every player receives, a clause of its own
+ * for the winner of the vote, and a condition it puts in force (the chairman
+ * quest). The face is that document, and its anatomy is its mechanics:
+ *
+ *   · the SHEET — a page with a folded corner (no gold frame, no nameplate on
+ *     top, no cost corner): told from a project card by its outline alone;
+ *   · the ILLUSTRATION heads the page, edge to edge;
+ *   · the BAND — a vellum strip bound round the page carries the TITLE, and
+ *     the AUTHOR'S SEAL (the party's own emblem) closes it; the band's lower
+ *     edge is dyed the party's colour. The party reads without a word;
+ *   · the ARTICLES — the printed effect, through the ONE formula renderer
+ *     (`PremiumMechanicsPanel`); the winner's clause is set apart by the row's
+ *     own structure (`MechGroup.winnerRow`);
+ *   · the FOOTNOTE — the chairman quest under a rule: the chair (the mark the
+ *     Parliament already uses for the chairmanship) and the printed condition
+ *     as a graphic. Not a block, and not a caption repeated on every card:
+ *     the words live in the government's quest block and the inspector.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed} from 'vue';
 import {ItemType} from '@/common/cards/render/Types';
 import {GameModule} from '@/common/cards/GameModule';
 import {CardArtTier, PremiumCardArt as CardArtRef} from '@/client/cards/cardArt';
+import {$t} from '@/client/directives/i18n';
 import {PremiumCardVM} from './premiumCardViewModel';
 import {renderableNodes} from './mechanicsModel';
 import {TitleTier} from './titleFit';
@@ -84,51 +87,47 @@ import PremiumChairGlyph from './PremiumChairGlyph.vue';
 import PremiumMechanicsPanel from './PremiumMechanicsPanel.vue';
 import PremiumMechNode from './PremiumMechNode.vue';
 
-export default defineComponent({
-  name: 'PremiumResolutionFace',
-  components: {PremiumCardArt, PremiumChairGlyph, PremiumMechanicsPanel, PremiumMechNode},
-  props: {
-    vm: {type: Object as () => PremiumCardVM, required: true},
-    /** The translated title and its length tier (the host face already derived both). */
-    title: {type: String, required: true},
-    titleTier: {type: Number as unknown as () => TitleTier, required: true},
-    artTier: {type: String as () => CardArtTier, default: 'full'},
-    /** «Настройки» → «Номера карт» (`cardNumberDisplay.ts`), off by default. */
-    showCode: {type: Boolean, default: false},
-  },
-  computed: {
-    emblemUrl(): string {
-      return this.vm.parliament?.emblemUrl ?? '';
-    },
-    /** A resolution always resolves an art: its illustration, else its party's emblem (`sealArt`). */
-    art(): CardArtRef {
-      return this.vm.art ?? {url: this.emblemUrl, fallback: false};
-    },
-    /** The chairman quest's goal nodes — the first row of its render root. */
-    questNodes(): ReadonlyArray<ItemType> {
-      const root = this.vm.parliament?.questRenderData;
-      return root === undefined ? [] : renderableNodes(root.rows[0] ?? []);
-    },
-    expansionIcon(): string | undefined {
-      return expansionIconUrl(this.vm.expansion);
-    },
-    expansionStyle(): Record<string, string> {
-      return this.expansionIcon !== undefined ? {backgroundImage: `url(${this.expansionIcon})`} : {};
-    },
-    /** The expansions the resolution DEPENDS on (its `compatibility`, the module itself aside), each with its icon. */
-    compatibilityIcons(): Array<{module: GameModule, url: string}> {
-      const out: Array<{module: GameModule, url: string}> = [];
-      for (const module of this.vm.compatibility) {
-        if (module === this.vm.expansion) {
-          continue;
-        }
-        const url = expansionIconUrl(module);
-        if (url !== undefined) {
-          out.push({module, url});
-        }
-      }
-      return out;
-    },
-  },
+defineOptions({name: 'PremiumResolutionFace'});
+const props = defineProps({
+  vm: {type: Object as () => PremiumCardVM, required: true},
+  /** The translated title and its length tier (the host face already derived both). */
+  title: {type: String, required: true},
+  titleTier: {type: Number as unknown as () => TitleTier, required: true},
+  artTier: {type: String as () => CardArtTier, default: 'full'},
+  /** «Настройки» → «Номера карт» (`cardNumberDisplay.ts`), off by default. */
+  showCode: {type: Boolean, default: false},
+});
+
+const emblemUrl = computed((): string => {
+  return props.vm.parliament?.emblemUrl ?? '';
+});
+/** A resolution always resolves an art: its illustration, else its party's emblem (`sealArt`). */
+const art = computed((): CardArtRef => {
+  return props.vm.art ?? {url: emblemUrl.value, fallback: false};
+});
+/** The chairman quest's goal nodes — the first row of its render root. */
+const questNodes = computed((): ReadonlyArray<ItemType> => {
+  const root = props.vm.parliament?.questRenderData;
+  return root === undefined ? [] : renderableNodes(root.rows[0] ?? []);
+});
+const expansionIcon = computed((): string | undefined => {
+  return expansionIconUrl(props.vm.expansion);
+});
+const expansionStyle = computed((): Record<string, string> => {
+  return expansionIcon.value !== undefined ? {backgroundImage: `url(${expansionIcon.value})`} : {};
+});
+/** The expansions the resolution DEPENDS on (its `compatibility`, the module itself aside), each with its icon. */
+const compatibilityIcons = computed((): Array<{module: GameModule, url: string}> => {
+  const out: Array<{module: GameModule, url: string}> = [];
+  for (const module of props.vm.compatibility) {
+    if (module === props.vm.expansion) {
+      continue;
+    }
+    const url = expansionIconUrl(module);
+    if (url !== undefined) {
+      out.push({module, url});
+    }
+  }
+  return out;
 });
 </script>
