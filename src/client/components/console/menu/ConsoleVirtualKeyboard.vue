@@ -1,6 +1,4 @@
 <template>
-  <!-- Teleported to <body> so it escapes the host editor's stacking context
-       (.cm-overlay, z 11500) and covers EVERYTHING, including the command bar. -->
   <Teleport to="body">
   <div class="cm-vk-overlay" role="dialog" :aria-label="$t('On-screen keyboard')">
     <div class="cm-vk-panel">
@@ -37,7 +35,13 @@
   </Teleport>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * Teleported to <body> so it escapes the host editor's stacking context
+ * (.cm-overlay, z 11500) and covers EVERYTHING, including the command bar.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * CONSOLE-NATIVE VIRTUAL KEYBOARD — the premium on-screen keyboard for name
  * entry on the create/profile screens, so the console flow never falls back
@@ -67,242 +71,236 @@
  * Host contract: the parent renders this while name entry is active and routes
  * pad intents into `handleIntent`; it listens for `commit(value)` / `cancel`.
  */
-import {defineComponent, markRaw} from 'vue';
+import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef} from 'vue';
 import Keyboard from 'simple-keyboard';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {$t} from '@/client/directives/i18n';
 import {VkLayout, resolveUserKeyboardLayouts} from '@/client/components/console/menu/consoleKeyboardLayouts';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
-export default defineComponent({
-  name: 'ConsoleVirtualKeyboard',
-  components: {GamepadGlyph},
-  props: {
-    initial: {type: String, default: ''},
-    maxLength: {type: Number, default: 32},
-    title: {type: String, default: 'Player name'},
-    /** English i18n source for a validation message shown above the keys. */
-    issue: {type: String, default: ''},
-  },
-  emits: ['commit', 'cancel', 'update'],
-  data() {
-    return {
-      value: this.initial,
-      layouts: resolveUserKeyboardLayouts(),
-      layoutIndex: 0,
-      shift: false,
-      cursorRow: 1,
-      cursorCol: 0,
-      keyboard: undefined as Keyboard | undefined,
-      keyGrid: [] as Array<Array<HTMLElement>>,
-    };
-  },
-  computed: {
-    activeLayout(): VkLayout {
-      return this.layouts[this.layoutIndex];
-    },
-    multiLang(): boolean {
-      return this.layouts.length > 1;
-    },
-    langBadge(): string {
-      return this.activeLayout.code;
-    },
-    layoutName(): string {
-      return this.activeLayout.id + (this.shift ? 'Shift' : '');
-    },
-  },
-  mounted() {
-    // The mount lives inside a Teleport; the ref is populated by mount time,
-    // but guard defensively so a timing miss retries instead of crashing.
-    void this.$nextTick(() => this.initKeyboard());
-    window.addEventListener('keydown', this.onPhysicalKey, {capture: true});
-  },
-  beforeUnmount() {
-    window.removeEventListener('keydown', this.onPhysicalKey, {capture: true});
-    this.keyboard?.destroy();
-    this.keyboard = undefined;
-  },
-  methods: {
-    initKeyboard(): void {
-      const el = (this.$refs.kb ?? undefined) as HTMLDivElement | undefined;
-      if (el === undefined) {
-        void this.$nextTick(() => this.initKeyboard());
-        return;
-      }
-      this.keyboard = markRaw(new Keyboard(el, {
-        layout: this.buildLayout(),
-        layoutName: this.layoutName,
-        display: this.displayMap(),
-        mergeDisplay: true,
-        maxLength: this.maxLength,
-        theme: 'hg-theme-default cm-vk',
-        buttonTheme: [
-          {class: 'cm-vk__key--fn', buttons: '{bksp} {shift} {lang} {space}'},
-          {class: 'cm-vk__key--lang', buttons: '{lang}'},
-          {class: 'cm-vk__key--done', buttons: '{done}'},
-          {class: 'cm-vk__key--wide', buttons: '{space}'},
-        ],
-        onChange: (input: string) => this.onChange(input),
-        onKeyPress: (button: string) => this.onKeyPress(button),
-      }));
-      this.keyboard.setInput(this.value);
-      void this.$nextTick(() => {
-        this.recollect();
-        this.moveTo(1, 0);
-      });
-    },
-    /** Build the simple-keyboard layout object from the user's resolved layouts. */
-    buildLayout(): Record<string, Array<string>> {
-      // The {lang} key is only meaningful when >1 layout is offered.
-      const fnDefault = (this.multiLang ? '{lang} ' : '') + '- {space} {done}';
-      const fnShift = (this.multiLang ? '{lang} ' : '') + '_ {space} {done}';
-      const obj: Record<string, Array<string>> = {};
-      for (const l of this.layouts) {
-        obj[l.id] = [...l.rows, fnDefault];
-        obj[l.id + 'Shift'] = [...l.shiftRows, fnShift];
-      }
-      return obj;
-    },
-    displayMap(): Record<string, string> {
-      const next = this.layouts[(this.layoutIndex + 1) % this.layouts.length];
-      return {
-        // The {lang} / {done} keys carry their gamepad-hotkey glyph via CSS
-        // (::before badge), so their display stays compact — the layout code
-        // for {lang}, a bare check for {done}.
-        '{bksp}': '⌫',
-        '{shift}': '⇧',
-        '{space}': $t('Space bar'),
-        '{lang}': next.code,
-        '{done}': '✓',
-      };
-    },
-    // ── Host-routed pad intents ────────────────────────────────────────
-    handleIntent(intent: GamepadIntent): boolean {
-      if (intent.kind === 'nav') {
-        this.moveCursor(intent.dir);
-        return true;
-      }
-      if (intent.kind !== 'press') {
-        return true;
-      }
-      switch (intent.button) {
-      case 'confirm': this.pressCursored(); return true;
-      case 'secondary': this.press('{bksp}'); return true; // X — backspace
-      case 'inspect': this.$emit('commit', this.value); return true; // Y — CONFIRM (commit)
-      case 'triggerR': this.toggleLang(); return true; // RT — input language
-      case 'bumperL': this.toggleShift(); return true; // LB — shift
-      case 'bumperR': this.press('{space}'); return true; // RB — space
-      case 'back': this.$emit('cancel'); return true; // B — cancel
-      default: return true;
-      }
-    },
-    // ── Key grid + cursor ──────────────────────────────────────────────
-    recollect(): void {
-      const root = (this.$refs.kb ?? undefined) as HTMLElement | undefined;
-      if (root === undefined) {
-        this.keyGrid = [];
-        return;
-      }
-      this.keyGrid = Array.from(root.querySelectorAll<HTMLElement>('.hg-row'))
-        .map((row) => Array.from(row.querySelectorAll<HTMLElement>('.hg-button')));
-    },
-    moveCursor(dir: NavDirection): void {
-      if (dir === 'left') {
-        this.moveTo(this.cursorRow, this.cursorCol - 1);
-      } else if (dir === 'right') {
-        this.moveTo(this.cursorRow, this.cursorCol + 1);
-      } else if (dir === 'up') {
-        this.moveTo(this.cursorRow - 1, this.cursorCol);
-      } else if (dir === 'down') {
-        this.moveTo(this.cursorRow + 1, this.cursorCol);
-      }
-    },
-    moveTo(row: number, col: number): void {
-      const rows = this.keyGrid;
-      if (rows.length === 0) {
-        return;
-      }
-      const r = Math.min(Math.max(0, row), rows.length - 1);
-      const c = Math.min(Math.max(0, col), rows[r].length - 1);
-      this.cursorRow = r;
-      this.cursorCol = c;
-      this.paintCursor();
-    },
-    paintCursor(): void {
-      for (const row of this.keyGrid) {
-        for (const key of row) {
-          key.classList.remove('cm-vk__key--cursor');
-        }
-      }
-      this.keyGrid[this.cursorRow]?.[this.cursorCol]?.classList.add('cm-vk__key--cursor');
-    },
-    pressCursored(): void {
-      const el = this.keyGrid[this.cursorRow]?.[this.cursorCol];
-      const name = el?.getAttribute('data-skbtn');
-      if (name !== null && name !== undefined) {
-        this.press(name);
-      }
-    },
-    press(button: string): void {
-      this.keyboard?.handleButtonClicked(button);
-    },
-    // ── Library callbacks ──────────────────────────────────────────────
-    onChange(input: string): void {
-      this.value = input;
-      this.$emit('update', input);
-    },
-    onKeyPress(button: string): void {
-      if (button === '{lang}') {
-        this.toggleLang();
-      } else if (button === '{shift}') {
-        this.toggleShift();
-      } else if (button === '{done}') {
-        this.$emit('commit', this.value);
-      }
-      // Plain chars + {bksp}/{space} are applied by simple-keyboard → onChange.
-    },
-    // ── Layout switching ───────────────────────────────────────────────
-    toggleShift(): void {
-      this.shift = !this.shift;
-      this.applyLayout();
-    },
-    toggleLang(): void {
-      if (!this.multiLang) {
-        return; // Only one layout offered — nothing to cycle.
-      }
-      this.layoutIndex = (this.layoutIndex + 1) % this.layouts.length;
-      this.applyLayout();
-    },
-    applyLayout(): void {
-      this.keyboard?.setOptions({layoutName: this.layoutName, display: this.displayMap()});
-      // Re-render swaps the DOM — re-collect the grid and keep the cursor sane.
-      void this.$nextTick(() => {
-        this.recollect();
-        this.moveTo(this.cursorRow, this.cursorCol);
-      });
-    },
-    // ── Physical keyboard (desktop convenience; Deck is pad-only) ───────
-    onPhysicalKey(e: KeyboardEvent): void {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        this.$emit('commit', this.value);
-        return;
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        this.$emit('cancel');
-        return;
-      }
-      if (e.key === 'Backspace') {
-        e.preventDefault();
-        this.press('{bksp}');
-        return;
-      }
-      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        this.press(e.key);
-      }
-    },
-  },
+defineOptions({name: 'ConsoleVirtualKeyboard'});
+const props = defineProps({
+  initial: {type: String, default: ''},
+  maxLength: {type: Number, default: 32},
+  title: {type: String, default: 'Player name'},
+  /** English i18n source for a validation message shown above the keys. */
+  issue: {type: String, default: ''},
 });
+const emit = defineEmits(['commit', 'cancel', 'update']);
+
+const kb = useTemplateRef<HTMLDivElement>('kb');
+const value = ref(props.initial);
+const layouts = ref(resolveUserKeyboardLayouts());
+const layoutIndex = ref(0);
+const shift = ref(false);
+const cursorRow = ref(1);
+const cursorCol = ref(0);
+let keyboard: Keyboard | undefined;
+let keyGrid: Array<Array<HTMLElement>> = [];
+const activeLayout = computed((): VkLayout => {
+  return layouts.value[layoutIndex.value];
+});
+const multiLang = computed((): boolean => {
+  return layouts.value.length > 1;
+});
+const langBadge = computed((): string => {
+  return activeLayout.value.code;
+});
+const layoutName = computed((): string => {
+  return activeLayout.value.id + (shift.value ? 'Shift' : '');
+});
+
+function initKeyboard(): void {
+  const el = kb.value;
+  if (el === null) {
+    void nextTick(() => initKeyboard());
+    return;
+  }
+  keyboard = markRaw(new Keyboard(el, {
+    layout: buildLayout(),
+    layoutName: layoutName.value,
+    display: displayMap(),
+    mergeDisplay: true,
+    maxLength: props.maxLength,
+    theme: 'hg-theme-default cm-vk',
+    buttonTheme: [
+      {class: 'cm-vk__key--fn', buttons: '{bksp} {shift} {lang} {space}'},
+      {class: 'cm-vk__key--lang', buttons: '{lang}'},
+      {class: 'cm-vk__key--done', buttons: '{done}'},
+      {class: 'cm-vk__key--wide', buttons: '{space}'},
+    ],
+    onChange: (input: string) => onChange(input),
+    onKeyPress: (button: string) => onKeyPress(button),
+  }));
+  keyboard.setInput(value.value);
+  void nextTick(() => {
+    recollect();
+    moveTo(1, 0);
+  });
+}
+/** Build the simple-keyboard layout object from the user's resolved layouts. */
+function buildLayout(): Record<string, Array<string>> {
+  // The {lang} key is only meaningful when >1 layout is offered.
+  const fnDefault = (multiLang.value ? '{lang} ' : '') + '- {space} {done}';
+  const fnShift = (multiLang.value ? '{lang} ' : '') + '_ {space} {done}';
+  const obj: Record<string, Array<string>> = {};
+  for (const l of layouts.value) {
+    obj[l.id] = [...l.rows, fnDefault];
+    obj[l.id + 'Shift'] = [...l.shiftRows, fnShift];
+  }
+  return obj;
+}
+function displayMap(): Record<string, string> {
+  const next = layouts.value[(layoutIndex.value + 1) % layouts.value.length];
+  return {
+    // The {lang} / {done} keys carry their gamepad-hotkey glyph via CSS
+    // (::before badge), so their display stays compact — the layout code
+    // for {lang}, a bare check for {done}.
+    '{bksp}': '⌫',
+    '{shift}': '⇧',
+    '{space}': $t('Space bar'),
+    '{lang}': next.code,
+    '{done}': '✓',
+  };
+}
+// ── Host-routed pad intents ────────────────────────────────────────
+function handleIntent(intent: GamepadIntent): boolean {
+  if (intent.kind === 'nav') {
+    moveCursor(intent.dir);
+    return true;
+  }
+  if (intent.kind !== 'press') {
+    return true;
+  }
+  switch (intent.button) {
+  case 'confirm': pressCursored(); return true;
+  case 'secondary': press('{bksp}'); return true; // X — backspace
+  case 'inspect': emit('commit', value.value); return true; // Y — CONFIRM (commit)
+  case 'triggerR': toggleLang(); return true; // RT — input language
+  case 'bumperL': toggleShift(); return true; // LB — shift
+  case 'bumperR': press('{space}'); return true; // RB — space
+  case 'back': emit('cancel'); return true; // B — cancel
+  default: return true;
+  }
+}
+// ── Key grid + cursor ──────────────────────────────────────────────
+function recollect(): void {
+  const root = kb.value;
+  if (root === null) {
+    keyGrid = [];
+    return;
+  }
+  keyGrid = Array.from(root.querySelectorAll<HTMLElement>('.hg-row'))
+    .map((row) => Array.from(row.querySelectorAll<HTMLElement>('.hg-button')));
+}
+function moveCursor(dir: NavDirection): void {
+  if (dir === 'left') {
+    moveTo(cursorRow.value, cursorCol.value - 1);
+  } else if (dir === 'right') {
+    moveTo(cursorRow.value, cursorCol.value + 1);
+  } else if (dir === 'up') {
+    moveTo(cursorRow.value - 1, cursorCol.value);
+  } else if (dir === 'down') {
+    moveTo(cursorRow.value + 1, cursorCol.value);
+  }
+}
+function moveTo(row: number, col: number): void {
+  const rows = keyGrid;
+  if (rows.length === 0) {
+    return;
+  }
+  const r = Math.min(Math.max(0, row), rows.length - 1);
+  const c = Math.min(Math.max(0, col), rows[r].length - 1);
+  cursorRow.value = r;
+  cursorCol.value = c;
+  paintCursor();
+}
+function paintCursor(): void {
+  for (const row of keyGrid) {
+    for (const key of row) {
+      key.classList.remove('cm-vk__key--cursor');
+    }
+  }
+  keyGrid[cursorRow.value]?.[cursorCol.value]?.classList.add('cm-vk__key--cursor');
+}
+function pressCursored(): void {
+  const el = keyGrid[cursorRow.value]?.[cursorCol.value];
+  const name = el?.getAttribute('data-skbtn');
+  if (name !== null && name !== undefined) {
+    press(name);
+  }
+}
+function press(button: string): void {
+  keyboard?.handleButtonClicked(button);
+}
+// ── Library callbacks ──────────────────────────────────────────────
+function onChange(input: string): void {
+  value.value = input;
+  emit('update', input);
+}
+function onKeyPress(button: string): void {
+  if (button === '{lang}') {
+    toggleLang();
+  } else if (button === '{shift}') {
+    toggleShift();
+  } else if (button === '{done}') {
+    emit('commit', value.value);
+  }
+  // Plain chars + {bksp}/{space} are applied by simple-keyboard → onChange.
+}
+// ── Layout switching ───────────────────────────────────────────────
+function toggleShift(): void {
+  shift.value = !shift.value;
+  applyLayout();
+}
+function toggleLang(): void {
+  if (!multiLang.value) {
+    return; // Only one layout offered — nothing to cycle.
+  }
+  layoutIndex.value = (layoutIndex.value + 1) % layouts.value.length;
+  applyLayout();
+}
+function applyLayout(): void {
+  keyboard?.setOptions({layoutName: layoutName.value, display: displayMap()});
+  // Re-render swaps the DOM — re-collect the grid and keep the cursor sane.
+  void nextTick(() => {
+    recollect();
+    moveTo(cursorRow.value, cursorCol.value);
+  });
+}
+// ── Physical keyboard (desktop convenience; Deck is pad-only) ───────
+function onPhysicalKey(e: KeyboardEvent): void {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    emit('commit', value.value);
+    return;
+  }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    emit('cancel');
+    return;
+  }
+  if (e.key === 'Backspace') {
+    e.preventDefault();
+    press('{bksp}');
+    return;
+  }
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    press(e.key);
+  }
+}
+
+onMounted(() => {
+  // The mount lives inside a Teleport; the ref is populated by mount time,
+  // but guard defensively so a timing miss retries instead of crashing.
+  void nextTick(() => initKeyboard());
+  window.addEventListener('keydown', onPhysicalKey, {capture: true});
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onPhysicalKey, {capture: true});
+  keyboard?.destroy();
+  keyboard = undefined;
+});
+defineExpose({handleIntent});
 </script>
