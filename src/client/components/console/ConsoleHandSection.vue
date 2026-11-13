@@ -1,15 +1,5 @@
 <template>
-  <!-- `con-ws` — the WORKSPACE-family marker: `.con-root--ws-open` lifts
-       and rings the player rail while this screen lives (leave transitions
-       included), hides the ДОП.РЕСУРСЫ satellite that would paint into the
-       band, and idles the board's infinite loops underneath. The hand is a
-       first-class workspace, not a section that happens to fill the space —
-       and the rail is the wallet every play on this screen is paid from.
-       `data-flow` — the EXPLICIT state of the descent (browse · configure ·
-       picking, the last one being «the stage is claimed but a pick bridge has
-       borrowed the shelf»), read by the chrome and by e2e; never inferred from
-       an animation's side effects. -->
-  <div class="con-hand con-hand--album"
+  <div ref="root" class="con-hand con-hand--album"
        :class="{'con-ws': !embedded, 'con-hand--embedded': embedded, 'con-hand--transit': transitHold, 'con-hand--chrome-wait': chromeWait, 'con-hand--frame-wait': frameWait, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding, 'con-hand--staged': stageOpen, 'con-hand--stagepaused': stagePaused}"
        :data-flow="stageOpen ? (stagePaused ? 'picking' : 'configure') : 'browse'"
        :data-cursor-pending="cursorPending ? '' : undefined"
@@ -41,7 +31,7 @@
          filters stand over a configure stage they no longer apply to. Held,
          not unmounted: the row keeps its height (no layout shift) and the
          filter state survives untouched. -->
-    <component :is="embedded ? 'div' : 'ConsoleWsHead'"
+    <component :is="embedded ? 'div' : ConsoleWsHead"
                :class="embedded ? ['con-hand__toolbar', {'con-hand__toolbar--held': stageOpen}] : 'con-hand__head'"
                v-bind="embedded ? {} : {
                  root: 'Cards in hand',
@@ -562,8 +552,22 @@
   </div>
 </template>
 
-<script lang="ts">
-import {vEmbedZone} from '@/client/console/embedZoneRegistry';
+<script setup lang="ts">
+/*
+ * `con-ws` — the WORKSPACE-family marker: `.con-root--ws-open` lifts
+ *       and rings the player rail while this screen lives (leave transitions
+ *       included), hides the ДОП.РЕСУРСЫ satellite that would paint into the
+ *       band, and idles the board's infinite loops underneath. The hand is a
+ *       first-class workspace, not a section that happens to fill the space —
+ *       and the rail is the wallet every play on this screen is paid from.
+ *       `data-flow` — the EXPLICIT state of the descent (browse · configure ·
+ *       picking, the last one being «the stage is claimed but a pick bridge has
+ *       borrowed the shelf»), read by the chrome and by e2e; never inferred from
+ *       an animation's side effects.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
 /**
  * Console Hand section — the PREMIUM ALBUM (the rework of the vertically-
  * scrolling smart grid). The pure page/layout/navigation math lives in
@@ -590,7 +594,7 @@ import {vEmbedZone} from '@/client/console/embedZoneRegistry';
  * shell; the info panel under the album carries the play state + the SERVER's
  * structured unplayable reasons. Button hints live ONLY in the footer.
  */
-import {defineComponent, PropType, markRaw} from 'vue';
+import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {artTierForWidth, CardArtTier, preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {handCursor, handRevealState} from '@/client/console/handDock/handRevealState';
@@ -601,21 +605,15 @@ import ConsoleDeferPlate from '@/client/components/console/foundation/ConsoleDef
 import type {DeferPlateModel} from '@/client/console/tableQuestionRow';
 import {setWorkspaceFrameSlot, workspaceFrameHost, workspaceFrameParked} from '@/client/console/consoleWorkspaceStack';
 import {offerColonyFleetBerth, retractColonyFleetBerth} from '@/client/console/consoleColoniesModel';
-import {
-  releaseWorkspaceOutcome, retractWorkspaceOutcomeSlot, setWorkspaceOutcomeSlot, workspaceOutcomeState,
-} from '@/client/console/consoleWorkspaceOutcome';
+import {releaseWorkspaceOutcome, retractWorkspaceOutcomeSlot, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {rehomePlayOutcome} from '@/client/console/played/consolePlayOutcomeClaim';
-import {
-  handStageEnterHook,
-  handStageLeaveHook,
-  handStageEnterCancelledHook,
-  handStageLeaveCancelledHook,
-  handStagePickPause,
-  handStagePickResume,
-} from '@/client/console/consoleHandStageMotion';
+// The WORKSPACE DESCEND phrase, one level deeper than «Действия карт»'s
+// (consoleHandStageMotion): the stage unfolds from the pressed card's rect
+// and folds back into it. The four hooks are the template's `<transition>` bindings.
+import {handStageEnterHook, handStageLeaveHook, handStageEnterCancelledHook, handStageLeaveCancelledHook, handStagePickPause, handStagePickResume} from '@/client/console/consoleHandStageMotion';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {readingText} from '@/client/console/readingText';
 import {colonyBonusFreshFor, colonyResolutionUi} from '@/client/console/colonyTrade/colonyResolution';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView, CardAvailabilityReasonView} from '@/client/console/cardAvailability';
@@ -623,10 +621,7 @@ import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCar
 import {consoleState} from '@/client/console/consoleRouter';
 import {shortBlockerLabel, HandNavDir} from '@/client/components/console/consoleHandGrid';
 import {unplayableReasonChip} from '@/client/components/handCards/unplayableReasonFormat';
-import {
-  albumSpecFor, planHandAlbum, planAlbumPage, pageRowsFor, pageOfIndex, pageSlotOfIndex,
-  stepHandAlbum, pageJumpIndex, packetRect, HandAlbumPlan, AlbumPagePlan, PacketSide,
-} from '@/client/components/console/consoleHandAlbum';
+import {albumSpecFor, planHandAlbum, planAlbumPage, pageRowsFor, pageOfIndex, pageSlotOfIndex, stepHandAlbum, pageJumpIndex, packetRect, HandAlbumPlan, AlbumPagePlan, PacketSide} from '@/client/components/console/consoleHandAlbum';
 import {albumLayoutState} from '@/client/console/consoleAlbumLayout';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {AlbumFilter, AlbumFilterOption} from '@/client/components/console/consoleHandFilter';
@@ -648,9 +643,9 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import type {ConsoleHandEntry, ConsoleHandSelectMode, ConsoleHandStage, HandTransitionTargets} from '@/client/components/console/consoleHandSectionTypes';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {vEmbedZone, vI18n} from '@/client/directives/vDirectives';
 
 export type {ConsoleHandEntry, ConsoleHandSelectMode, ConsoleHandStage, HandTransitionTargets};
-
 
 /** Fallback box before the first measure / under JSDOM (rects are 0). */
 const FALLBACK_W = 1280;
@@ -672,1213 +667,1176 @@ function clampNum(lo: number, hi: number, v: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
-
 /** One rendered cell: the entry + its flat hand index. */
 type AlbumCell = {e: ConsoleHandEntry, gi: number};
 
-export default defineComponent({
-  name: 'ConsoleHandSection',
-  directives: {embedZone: vEmbedZone},
-  components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleDeclinePlate, ConsoleDeferPlate, ConsoleArmedEffectsStrip, PremiumModifierMarks},
-  props: {
-    entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},
-    index: {type: Number, required: true},
-    /** Sell-patents mode: A toggles picks, RT confirms (shell owns the flow). */
-    saleActive: {type: Boolean, default: false},
-    saleSelected: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
-    /** The player's current M€ — drives the sale summary's before → after. */
-    saleMegacredits: {type: Number, default: 0},
-    /** The sale prompt's RATE (`SelectCardModel.patentSale`) — the project's M€ and the table's answers per card. */
-    salePatent: {type: Object as PropType<PatentSaleModel | undefined>, default: undefined},
-    /**
-     * The hand's OWNER (К-H1, TR48): what pays for a card M€ alone cannot — the tender plate reads the opening
-     * payment mix off this model (`handTenderPlate.handTenderItems`). Absent → no tender plate.
-     */
-    payer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
-    /** MANDATORY hand-select mode (discard / reveal / place) — undefined when
-     *  the section is the normal play/browse hand. */
-    select: {type: Object as PropType<ConsoleHandSelectMode | undefined>, default: undefined},
-    /**
-     * Cards of the hand's UNIVERSE that are outside the current view (tag
-     * filter / «only suitable») — they are NOT on any page, but they are
-     * physically in the album: the reveal transition parks them with the
-     * far-side page packets, so the dock genuinely empties when the hand
-     * opens and every card has exactly one home.
-     */
-    packetExtras: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
-    /**
-     * The discard cinematic is holding the chosen cards ABOVE this album (they
-     * are proxies on the discard layer; their real slots are held empty). The
-     * rest of the hand recedes so the eye stays on what is leaving — a pure
-     * CSS beat (`.con-hand--discarding`), no timeline, transform/opacity only.
-     */
-    discarding: {type: Boolean, default: false},
-    /** The turn/phase reason (i18n key) for a card that is rules-OK but not
-     *  playable right now (opponent's turn / mid-action). Set by the shell. */
-    softReason: {type: String, default: 'Not your turn to take any actions'},
-    /** The play WINDOW is closed (opponent's turn or an owed decision) — set
-     *  by the shell from its one blocked-reason source. Decides whether the
-     *  turn note joins a blocked card's reason list (never re-derived here). */
-    turnWindowClosed: {type: Boolean, default: false},
-    /** Tag-filter options (All + tags present in the hand) built by the shell. */
-    tagFilters: {type: Array as PropType<ReadonlyArray<AlbumFilterOption>>, default: () => []},
-    /** The active filter (`'all'`, one tag, or a picker's «pays») — drives the chip highlight. */
-    activeTag: {type: String as PropType<AlbumFilter>, default: 'all'},
-    /** Candidates the picker's chip hides (FD) — «скрыто фильтром: N»; 0 prints nothing. */
-    hiddenByFilter: {type: Number, default: 0},
-    /** What each card pays if thrown under a per-tag exchange (FD) — empty for any other album. */
-    cardPayouts: {type: Object as PropType<Readonly<Record<string, number>>>, default: () => ({})},
-    /** The exchange's payout icon (the plate's and the «ПЛАТЯТ» chip's). */
-    payIcon: {type: String, default: 'megacredits'},
-    /**
-     * The card currently STAGED in the play composer (or mid-return /
-     * mid-depart) — its hand slot is held empty via a VUE-managed
-     * `con-deal-hold` (patch-proof, unlike a runtime classList): one
-     * physical card can never sit in the hand AND the modal at once.
-     */
-    stagedCard: {type: String as PropType<CardName | undefined>, default: undefined},
-    /**
-     * The dock ↔ overlay REVEAL transition owns the cards right now: every
-     * slot renders held (the flying proxies are the single visible
-     * representation of each card — handRevealDirector.ts). Vue-managed so
-     * a mid-episode patch can't wash the hold off. Also pins the page strip
-     * (no slide mid-episode — the flight targets were measured against the
-     * current layout).
-     */
-    transitHold: {type: Boolean, default: false},
-    /**
-     * A tag-FILTER episode is airborne (`handRevealState.filterActive`):
-     * the status rail HOLDS its text (the already-swapped verdict/counts
-     * must not read over cards still gathering) — it fades back in with
-     * the settle.
-     */
-    filterBusy: {type: Boolean, default: false},
-    /**
-     * A bottom-reaching scene is up (the shell's `footerUnderScene` — play
-     * composer etc. — or the reveal modal): the status rail DROPS back
-     * under the overlay band. In the calm open hand it rides ABOVE the
-     * footer/dock (z 11711) so the reveal flights pass BEHIND it, never
-     * over its text.
-     */
-    underScene: {type: Boolean, default: false},
-    /**
-     * THE OPEN DESCENT (undefined = the browse layer owns the screen). Present
-     * ⇔ the workspace has been entered one level deeper: the header grows its
-     * tail, the album parks, and the stage zone renders as the teleport target
-     * for the shell's play composer.
-     */
-    stage: {type: Object as PropType<ConsoleHandStage | undefined>, default: undefined},
-    /**
-     * THIS SCREEN IS A STEP OF ANOTHER WORKSPACE (the Game Start Workspace's
-     * play-from-hand prelude). The SHELL comes off — the shared header, the
-     * frame plate, the `con-ws` rail marker — and the host draws all three;
-     * the CONTENT (the album, the filters, the status rail, the playability
-     * presentation, the stage zone the composer descends into) is untouched,
-     * which is the whole point: the player gets their real hand, not a picker.
-     *
-     * Mirrors `ConsolePlayCardConfirm.embedded` / `ConsoleTaskHost.embedded`:
-     * one prop, never one per flavour.
-     */
-    embedded: {type: Boolean, default: false},
-    /**
-     * THE DESCENT IS PAUSED — a pick BRIDGE is out (the composer sent the
-     * player back to this very shelf to choose a card for the play it is
-     * configuring). The stage stays CLAIMED (the zone keeps its slot and the
-     * composer keeps every capture — retracting it here would unmount the
-     * composer and lose the whole configuration), but the shelf must come back
-     * to full strength: it is the picker now, and a parked 7 %-opacity album is
-     * one the player cannot choose from.
-     */
-    stagePaused: {type: Boolean, default: false},
-    /**
-     * …and the pause is a HAND PICK answering the stage's own question (the `consoleHandPick` bridge) — the one
-     * pause that plays the workspace phrase (`handStagePickPause` / `handStagePickResume`). A repeat pick or a scene
-     * handover pauses the stage too, with handoffs of their own.
-     */
-    handPickOpen: {type: Boolean, default: false},
-  },
-  /** `pick-resumed`: the pick's RESUME phrase is done (or needed no phrase) — the shell releases the shelf's frozen look. */
-  emits: ['pick-resumed'],
-  setup() {
-    return {flow: useFlowScope('hand-section')};
-  },
-  data() {
-    return {
-      box: {w: 0, h: 0},
-      /** The workspace OUTCOME claim (module reactive — a path watcher needs
-       *  the mirror here, or it never fires). */
-      outcome: workspaceOutcomeState,
-      /** The layout profile (module reactive — the album's page shape). */
-      layout: consoleLayoutState,
-      /** The «Компоновка альбома» preference (module reactive). */
-      albumLayout: albumLayoutState,
-      /** A page slide is airborne — `will-change` scoped to the turn only. */
-      turning: false,
-      cancelTurnSafety: (() => {}) as () => void,
-      /** The edge that answered the last page press (one-shot impulse). */
-      edgePulse: undefined as 'left' | 'right' | undefined,
-      cancelEdgePulse: (() => {}) as () => void,
-      /** The strip transition arms only after the mount has settled — the
-       *  first paint (and every fresh open) must land on its page with no
-       *  slide from x=0. */
-      pageMotionLive: false,
-      /** The page the strip last SETTLED on — the render window keeps both
-       *  the settled and the target page mounted, so a mid-slide page never
-       *  unmounts under the player (a pop). */
-      settledPage: 0,
-      /** The IDENTITY the cursor is anchored to — when entries re-sort or
-       *  shrink, focus follows the card, not the number. */
-      focusName: undefined as string | undefined,
-      lastFlickAt: 0,
-      wheelAcc: 0,
-      wheelAt: 0,
-      ro: undefined as ResizeObserver | undefined,
-      /** A measure is scheduled for the next frame (its cancel) — `undefined` when none stands. */
-      cancelMeasure: undefined as (() => void) | undefined,
-      /** Debounce handle for the focused card's full-art prewarm. */
-      cancelPrewarm: (() => {}) as () => void,
-    };
-  },
-  computed: {
-    /**
-     * THE CURSOR'S POSE IS GATED (TR58, `[data-cursor-pending]` → `.con-cursor()`): while the copies hold the slots and
-     * through the handoff the focused card stands at REST — the copies land on the resting box and leave on the next
-     * frame — then the cursor ARRIVES (`handCursor`, released by the episode's handoff or by a step).
-     */
-    cursorPending(): boolean {
-      return this.transitHold || handCursor.pending;
-    },
-    /** Every hand card's forecast plate (a walk or a counted play), keyed by name — the server's reading, never a client count. */
-    forecastPlates(): ReadonlyMap<CardName, HandForecastPlate> {
-      const out = new Map<CardName, HandForecastPlate>();
-      for (const e of this.entries) {
-        const plate = handForecastPlate(e.card);
-        if (plate !== undefined) {
-          out.set(e.card.name, plate);
-        }
-      }
-      return out;
-    },
-    /**
-     * THE PLATE'S THIRD READER (К-H1, TR48 — the owner's decision 2026-10-12): the CARD-BOUND tender the opening
-     * payment mix spends on a card M€ alone cannot pay — «[data] 4» on a Science card that Supercomputer's data
-     * make playable. Keyed by name; the panel's own mix (`handTenderItems`), never a second rule.
-     */
-    tenderPlates(): ReadonlyMap<CardName, ReadonlyArray<HandTenderItem>> {
-      const out = new Map<CardName, ReadonlyArray<HandTenderItem>>();
-      if (this.payer === undefined) {
-        return out;
-      }
-      for (const e of this.entries) {
-        const items = handTenderItems(e.card, this.payer);
-        if (items.length > 0) {
-          out.set(e.card.name, items);
-        }
-      }
-      return out;
-    },
-    /** The workspace has been descended into — the browse layer is parked. */
-    stageOpen(): boolean {
-      return this.stage !== undefined;
-    },
-    /** A hand pick answers the open stage's question right now (see `handPickOpen`). */
-    stagePickOut(): boolean {
-      return this.stageOpen && this.stagePaused && this.handPickOpen;
-    },
-    /** The COLONIES stand inside this hand as its step (TR07's staged colony; a played card's live pick). */
-    colonyStepHosted(): boolean {
-      return workspaceFrameHost('colonies') === 'hand';
-    },
-    /** …and this header lends them its fleet berth (only the root header exists to lend it). */
-    berthOffered(): boolean {
-      return !this.embedded && this.colonyStepHosted;
-    },
-    /**
-     * THIS workspace holds the outcome claim of the play it is standing in —
-     * its zone is owed (see the template). Read straight off the claim, never
-     * off «is something on screen»: the zone has to exist BEFORE the artifact
-     * looks for it.
-     */
-    outcomeZoneOn(): boolean {
-      return this.outcome.host === 'hand' && this.outcome.sourceCard !== '';
-    },
-    selected(): CardModel | undefined {
-      return this.entries[this.index]?.card;
-    },
-    selectedPlayable(): boolean {
-      return this.entries[this.index]?.playable === true;
-    },
-    /**
-     * The selected card is blocked ONLY by the execution window — legal by the
-     * rules (`potential`), just not submittable this moment (`!playable`). Read
-     * from the entry the shell already classified through the shared blocker
-     * model, so the info bar and the card's own pose can never disagree.
-     */
-    softBlocked(): boolean {
-      return !this.saleActive && !this.selectActive && this.selected !== undefined &&
-        !this.selectedPlayable && this.entries[this.index]?.potential === true;
-    },
-    /**
-     * The selected card's availability in the PLAY voice — the SHARED
-     * cardAvailability model, the very view the fullscreen panel renders for
-     * this card, so the verdict bar's lines and the fullscreen list can never
-     * drift (ordering, de-dupe and the turn note's place included). The bar
-     * shows the first two rows; the rest wait in the fullscreen.
-     */
-    playAvailability(): CardAvailabilityView | undefined {
-      if (this.selected === undefined || this.saleActive || this.selectActive || this.selectedPlayable) {
-        return undefined;
-      }
-      return buildCardAvailability({
-        reasons: this.selected.unplayableReasons,
-        easing: this.selected.requirementEasing,
-        turnReason: this.turnWindowClosed ? this.softReason : undefined,
-      }, 'play');
-    },
-    /**
-     * A PLAYABLE card met ONLY thanks to a requirement modifier names it (TR49 class) — the eased voice's compact form
-     * of the SAME shared model the fullscreen panel renders; '' when the card needs no help.
-     */
-    /** The focused card's play counts as a pass (`ClientCard.playCountsAsPass`, P80) — the verdict bar names it. */
-    selectedPasses(): boolean {
-      return this.selected !== undefined && getCard(this.selected.name)?.playCountsAsPass === true;
-    },
-    selectedEasedThanks(): string {
-      if (this.selected === undefined || !this.selectedPlayable || this.saleActive || this.selectActive) {
-        return '';
-      }
-      const view = buildCardAvailability({reasons: undefined, easing: this.selected.requirementEasing}, 'play');
-      return view?.severity === 'eased' ? view.primary?.compact ?? '' : '';
-    },
-    /** The viewer's armed one-play effects (TR49 class) — the public seat model the shell hands in as the payer. */
-    armedEffects(): ReadonlyArray<PresentedArmedEffect> {
-      return presentedArmedEffects(armedEffectsOf(this.payer));
-    },
-    /** The plate's requirement reader (TR49 class), keyed by name. */
-    easingPlates(): ReadonlyMap<CardName, HandEasingPlate> {
-      const out = new Map<CardName, HandEasingPlate>();
-      for (const e of this.entries) {
-        const plate = handEasingPlate(e.card);
-        if (plate !== undefined) {
-          out.set(e.card.name, plate);
-        }
-      }
-      return out;
-    },
-    /** The verdict bar's visible rows (compact: the top of the shared list). */
-    playReasonRows(): ReadonlyArray<CardAvailabilityReasonView> {
-      return (this.playAvailability?.reasons ?? []).slice(0, 2);
-    },
-    /**
-     * The focused card's availability for the GIVE-UP modes (sale / select) —
-     * the shared model in the requirement voice ('hand-sell' / 'hand-give' →
-     * draft): the decision is «part with this card or keep it», so only the
-     * printed requirements' trajectory speaks (amber «пока не выполнено», red
-     * «уже не выполнить»), never money, never the current turn. Purely
-     * informational — the prompt's own candidacy and the sale's selection
-     * state stay the authoritative layers above.
-     */
-    evaluationAvailability(): CardAvailabilityView | undefined {
-      if (this.selected === undefined || (!this.saleActive && !this.selectActive)) {
-        return undefined;
-      }
-      const context = availabilityContextFor(this.saleActive ? 'hand-sell' : 'hand-give');
-      if (context === undefined) {
-        return undefined;
-      }
-      return buildCardAvailability({reasons: this.selected.unplayableReasons}, context);
-    },
-    // ── mandatory hand SELECT (discard / reveal / place) ──────────────────
-    selectActive(): boolean {
-      return this.select?.active === true;
-    },
-    // ── DISCARD skin (one derivation, every discard case) ─────────────────
-    /** The pre-derived discard presentation, or undefined for a normal pick. */
-    discard(): DiscardIntent | undefined {
-      return this.selectActive ? this.select?.discard : undefined;
-    },
-    /** A multi DISCARD holds as many cards as it may (`max` > 1) — another card is a named refusal (the limit's numbers). */
-    discardSetFull(): boolean {
-      const d = this.discard;
-      return d !== undefined && d.max > 1 && (this.select?.selected.length ?? 0) >= d.max;
-    },
-    discardSetFullText(): string {
-      const max = this.discard?.max ?? 0;
-      return translateTextWithParams('Limit ${0}/${1} reached — deselect one of the marked cards', [String(max), String(max)]);
-    },
-    /** The DECLINE of an optional pick (RT answers it; its plate stands in the question line). */
-    pickDecline(): DeclineModel | undefined {
-      return this.selectActive ? this.select?.decline : undefined;
-    },
-    /** «Decide after the draw» of a table question that may wait (R3; its plate beside the decline's). */
-    pickDefer(): DeferPlateModel | undefined {
-      return this.selectActive ? this.select?.defer : undefined;
-    },
-    /** The question line stands: past the descent for a discard (the header's own block is under the deep crumb), and
-     *  for any pick that can be declined or left for after a draw (its plates have nowhere else to stand). */
-    questionShown(): boolean {
-      return this.selectActive && (this.questionAskShown || this.pickDecline !== undefined || this.pickDefer !== undefined);
-    },
-    /** …and it carries the ASK only where the header cannot (past the descent) — never the same block twice. */
-    questionAskShown(): boolean {
-      return this.stageOpen && this.discard !== undefined;
-    },
-    /** «Сбросьте 1 карту» / «Сбросьте 3 карты» / «Сбросьте до 3 карт». */
-    discardAsk(): string {
-      const headline = this.discard?.headline;
-      if (headline === undefined) {
-        return '';
-      }
-      return headline.amount === undefined ?
-        translateText(headline.key) :
-        translateTextWithParams(headline.key, [String(headline.amount)]);
-    },
-    /** WHO demands it: the source card's name when there is one, the COLONY's
-     *  own name for a colony bonus (its planet mini stands beside it), else
-     *  the kind («Правило игры») — never a bare unexplained ask. */
-    discardSource(): string {
-      const intent = this.discard;
-      if (intent === undefined) {
-        return '';
-      }
-      // A COLONY's bonus leads with the colony, whoever pays it: its planet stands beside the name, and a CARD
-      // that pays it (TR23 — the discard's source is that card) is already the crumb's subject one line above.
-      if (intent.colonyName !== undefined) {
-        return translateText(intent.colonyName);
-      }
-      if (intent.card !== undefined) {
-        return translateText(intent.card);
-      }
-      if (intent.partyName !== undefined) {
-        return translateTextWithParams('Party action of ${0}', [translateText(intent.partyName)]);
-      }
-      // An enacted LAW asks (Open IP Trade's action): its printed name, never a bare «Резолюция».
-      if (intent.resolution !== undefined) {
-        return translateText(resolutionName(intent.resolution));
-      }
-      return translateText(intent.sourceKey);
-    },
-    /** The demanding colony's planet art ('' = not a colony discard). */
-    discardPlanetClass(): string {
-      const name = this.discard?.colonyName;
-      return name === undefined || name === '' ? '' : name.replace(' ', '-') + '-background';
-    },
-    /** «Бонус колонии 2 из 3» — Pluto resolves one cube at a time. A SINGLE
-     *  colony shows the plain «Бонус колонии»: «1 из 1» numbers a sequence
-     *  that does not exist, and the player reads it as a progress bar. */
-    discardSequence(): string {
-      const seq = this.discard?.sequence;
-      if (seq === undefined) {
-        return '';
-      }
-      if (seq.total <= 1) {
-        return translateText('Colony bonus');
-      }
-      return translateTextWithParams('Colony bonus ${0} of ${1}', [String(seq.index), String(seq.total)]);
-    },
-    /**
-     * THE NEXT SETTLEMENT this discard opens (0 = none): a colony bonus paid per settlement, not the last one —
-     * its card lies sealed until this discard is answered (`colonyTrade/settlementTable.ts`).
-     */
-    discardSealNext(): number {
-      const seq = this.discard?.sequence;
-      return seq !== undefined && seq.total > 1 && seq.index < seq.total ? seq.index + 1 : 0;
-    },
-    discardSealText(): string {
-      return readingText({label: 'opens bonus ${0}', params: [String(this.discardSealNext)]});
-    },
-    /**
-     * THE CARD THIS BONUS JUST BROUGHT IN wears «НОВАЯ · БОНУС N» while its discard is asked (К-4) — the player
-     * watched it go into the hand a moment ago and must be able to find it among the rest (or keep it). «НОВАЯ»
-     * alone for a single settlement: «бонус 1» would number a sequence that does not exist.
-     */
-    freshBonusText(): string {
-      const seq = this.discard?.sequence;
-      if (seq === undefined) {
-        return '';
-      }
-      return seq.total > 1 ? readingText({label: 'New · bonus ${0}', params: [String(seq.index)]}) : translateText('New card');
-    },
-    discardExchangeIconClass(): string {
-      return iconClassFor(this.discard?.exchange?.icon ?? 'cards');
-    },
-    /** SALE mode: the live pick summary (count / payout / answers / before → after) — the server's rate × the pick. */
-    sale(): PatentSaleSummary {
-      return patentSaleSummary(this.salePatent, this.saleSelected.length, this.saleMegacredits);
-    },
-    /**
-     * The table's answers as the bar reads them: the amount for the pick, or —
-     * at zero picks — the RATE of one card (dim, «за карту»), so the answer is
-     * named before the first selection.
-     */
-    saleAnswers(): Array<PatentSaleAnswer & {shown: number}> {
-      const rows = this.sale.count > 0 ? this.sale.answers : patentSaleAnswers(this.salePatent, 1);
-      return rows.map((a) => ({...a, shown: a.amount}));
-    },
-    /** The focused card's per-card «why not» reason (non-selectable only). */
-    focusedSelectReason(): string {
-      const name = this.selected?.name;
-      return name !== undefined ? this.selectReason(name) : '';
-    },
-    /** Multi-pick payout summary (present only for a paying client pick). */
-    selectPayout(): {icon: string, amount: number, current?: number, cards?: number} | undefined {
-      return this.select?.payout;
-    },
-    pickCount(): number {
-      return this.select?.selected.length ?? 0;
-    },
-    pickGain(): number {
-      return this.pickCount * (this.selectPayout?.amount ?? 0);
-    },
-    /** The second payout in CARDS for the current pick (0 when the pick pays none). */
-    pickCardGain(): number {
-      return this.pickCount * (this.selectPayout?.cards ?? 0);
-    },
-    payoutIconClass(): string {
-      return iconClassFor(this.selectPayout?.icon ?? 'megacredits');
-    },
-    // ── header / filter panel ─────────────────────────────────────────────
-    showFilters(): boolean {
-      // Only worth a filter panel when there's a real chip beyond "All" — in EVERY album mode (FD): a picker's chips
-      // are its own, beside the «suitable only» toggle of a narrowed prompt.
-      return this.tagFilters.length > 1;
-    },
-    /** The focused chip (FD — the row as a focusable line), −1 while the cursor is on the cards. */
-    filterFocus(): number {
-      return this.showFilters ? consoleState.filterFocus : -1;
-    },
-    payIconClass(): string {
-      return iconClassFor(this.payIcon);
-    },
-    hiddenText(): string {
-      return translateTextWithParams('Hidden by the filter: ${0}', [String(this.hiddenByFilter)]);
-    },
-    totalCount(): number {
-      return this.tagFilters.find((o) => o.value === 'all')?.count ?? this.entries.length;
-    },
-    /**
-     * THE CHROME COMES IN BEATS, NEVER IN THE HANDOFF'S FLUSH (PL-508). Through the open episode the header and the
-     * verdict rail are RESERVED in layout (zero shifts) but transparent — they used to stand opaque from frame 0, and
-     * the flights, which dive BEHIND the rail by z-design, read as covered by it. Then they rose together in the very
-     * flush that handed the copies over, the cursor a frame later — three events in one beat. Now the director's
-     * `chrome` beat drives them, never a timer: the FRAME (header, page edges) rises as the copies take off — it is
-     * never on their path —, the READING (the rail — it names the card under the cursor) comes with the cursor's
-     * arrival, after the copies have gone (`chromeWait`). A cancelled open (B mid-flight) never raises the rail.
-     */
-    chromeWait(): boolean {
-      const phase = handRevealState.phase;
-      return phase === 'opening' || ((phase === 'open' || phase === 'closing') && handRevealState.chrome !== 'all');
-    },
-    /**
-     * A HOSTED hand whose entry IS the bodies' flight (P86): the host's own step entry (`con-stdp-step-in` — opacity
-     * from 0) must not hide the slots the bodies land on, or the player sees the hand «appear» with its cards already
-     * down. Without a flight (reduced motion, the short path) the host's entry plays as before.
-     */
-    arrivesByFlight(): boolean {
-      return this.embedded && (handRevealState.phase === 'opening' || this.chromeWait);
-    },
-    /** The album's FRAME (the header, the page edges) waits only for the copies to take off (PL-508). */
-    frameWait(): boolean {
-      return handRevealState.phase === 'opening' && handRevealState.chrome === 'held';
-    },
-    /** «Можно разыграть: N» — POTENTIAL, the same number the wheel shows: a
-     *  count that halves because an opponent started thinking is not a fact
-     *  about the hand. (The press itself still needs `playable`.) */
-    playableCount(): number {
-      return this.entries.reduce((n, e) => n + (e.potential ? 1 : 0), 0);
-    },
-    /** The header shows the plain total ONLY when there are no filter chips to
-     *  carry it (the "All" chip shows it otherwise). It NEVER shows "Показано X
-     *  из Y" — that would widen the header on a filter toggle and wrap the chips
-     *  to a second row (the header must stay a stable height); that count lives
-     *  compactly in the bottom info bar instead (`filteredCountText`).
-     *  In SELECT mode the number gets its label — a bare «37» beside the ask
-     *  plate read as an unexplained figure. */
-    countText(): string {
-      if (this.showFilters) {
-        return '';
-      }
-      return this.selectActive ?
-        translateTextWithParams('Total cards: ${0}', [String(this.totalCount)]) :
-        String(this.totalCount);
-    },
-    /** "Показано 8 из 33" — shown ONLY when a tag filter is active (never in
-     *  sale mode, where the whole hand is shown), in the bottom info bar (never
-     *  the header, so the header height can't jump). */
-    filteredCountText(): string {
-      if (this.saleActive) {
-        return '';
-      }
-      // Select mode: "Показано X из Y" only while the "suitable only" filter is
-      // hiding non-candidate cards. A CLIENT pick supplies its own honest
-      // universe (`total` — staged / SRR-hosted cards are outside the pick).
-      if (this.selectActive) {
-        return this.select?.filtered === true && this.select.suitableOnly ?
-          translateTextWithParams('Shown ${0} of ${1}', [String(this.entries.length), String(this.select.total ?? this.totalCount)]) :
-          '';
-      }
-      return this.activeTag !== 'all' ?
-        translateTextWithParams('Shown ${0} of ${1}', [String(this.entries.length), String(this.totalCount)]) :
-        '';
-    },
-    emptyMessage(): string {
-      return this.activeTag !== 'all' ? translateText('No cards with this tag') : translateText('No cards in hand');
-    },
-    /**
-     * THE ALBUM BACKBONE PLAN — page CAPACITY from the profile + the player's
-     * «Компоновка альбома» preference (read synchronously at module import,
-     * so the very first measure — and the HandDock flight aiming at it — is
-     * already in the chosen composition), the STANDARD two-row card size
-     * from the box. Pagination facts only: stride, page count, the standard
-     * zoom every full two-row page shares. The per-page DENSITY geometry
-     * (Showcase Pages) lives in `pagePlanFor`.
-     */
-    plan(): HandAlbumPlan {
-      return planHandAlbum({
-        availW: this.box.w > 0 ? this.box.w : FALLBACK_W,
-        availH: this.box.h > 0 ? this.box.h : FALLBACK_H,
-        count: this.entries.length,
-        spec: albumSpecFor(this.layout.profile, this.albumLayout.layout),
-        uiScale: conUiScale(),
-      });
-    },
-    /** The ACTIVE page's row composition — navigation's vertical map. */
-    activePageRows(): ReadonlyArray<number> {
-      const start = this.activePage * this.plan.perPage;
-      const n = Math.min(this.entries.length - start, this.plan.perPage);
-      return pageRowsFor(Math.max(0, n), albumSpecFor(this.layout.profile, this.albumLayout.layout));
-    },
-    /** The page the cursor lives on — the album's viewport, BY DERIVATION.
-     *  Focus and page can never disagree; restoring one restores the other. */
-    activePage(): number {
-      const clamped = clampNum(0, Math.max(0, this.entries.length - 1), this.index);
-      return Math.min(this.plan.pageCount - 1, pageOfIndex(clamped, this.plan.perPage));
-    },
-    /** Pages kept mounted: the active page ± 1, plus the last SETTLED page's
-     *  neighbourhood — a page mid-slide never unmounts under the player. */
-    renderPages(): Array<number> {
-      if (this.entries.length === 0) {
-        return [];
-      }
-      const last = this.plan.pageCount - 1;
-      const keep = new Set<number>();
-      for (const centre of [this.activePage, Math.min(last, this.settledPage)]) {
-        for (let p = Math.max(0, centre - 1); p <= Math.min(last, centre + 1); p++) {
-          keep.add(p);
-        }
-      }
-      return [...keep].sort((a, b) => a - b);
-    },
-    rootStyle(): Record<string, string> {
-      return {'--con-hand-zoom': String(this.plan.cardZoom)};
-    },
-    /**
-     * ART TIER for the album grid (perf iteration 3). The plan's slot width
-     * is real CSS px (the solver multiplies uiScale in), so the shared
-     * `artTierForWidth` rule lands exactly like the played grid's: ~272 px
-     * slots at 1080p paint the 512-px thumb build (an open hand held 8
-     * full-res decodes ≈ 48 MB — all oversized, measured by the long-game
-     * probe), while 4K's ~544 px slots keep the full file for couch
-     * sharpness. The fullscreen inspector is covered by the focused-card
-     * prewarm below.
-     */
-    handArtTier(): CardArtTier {
-      return artTierForWidth(this.plan.slotW);
-    },
-    /** The strip slides one stride per page — transform only (interruptible,
-     *  retargetable, zero layout, zero scroll geometry). */
-    stripStyle(): Record<string, string> {
-      return {transform: `translateX(${-this.activePage * this.plan.stride}px)`};
-    },
-    /** The cursor SEMANTICS epoch — a mode flip (browse ↔ sale ↔ select/pick)
-     *  re-seats the cursor on the shell's side, so the identity anchor must
-     *  adopt the new position even when the index number did not change. */
-    modeKey(): string {
-      return `${this.saleActive}|${this.selectActive}`;
-    },
-  },
-  watch: {
-    /**
-     * THE PICK BRIDGE IS A PHRASE, never a cut (the owner's hard rule 2026-10-13 — the 4K storyboard showed the
-     * composer gone in one frame and the album there in the next). `post`: the album has rendered its pick and the
-     * stage its last frame — the phrase poses both inline before this flush paints. A stage that CLOSED under the pick
-     * (the play left) has nothing to resume; a discard the pick answered owns its own exit (the tray seizes the cards).
-     */
-    stagePickOut: {
-      flush: 'post',
-      handler(out: boolean, was: boolean): void {
-        const root = this.$el as HTMLElement | undefined;
-        if (root === undefined || out === was || !(root instanceof HTMLElement)) {
-          return;
-        }
-        if (out) {
-          handStagePickPause(root);
-        } else if (this.stageOpen && !this.discarding) {
-          handStagePickResume(root, () => this.$emit('pick-resumed'));
-        } else {
-          this.$emit('pick-resumed');
-        }
-      },
-    },
-    /**
-     * The reveal flights must decode the DESTINATION'S file — stamp the
-     * album's tier for the layer's proxies (perf iteration 3).
-     */
-    handArtTier: {
-      immediate: true,
-      handler(tier: CardArtTier) {
-        handRevealState.artTier = tier;
-      },
-    },
-    /** Thumb-tier albums prewarm the FOCUSED card's full art (debounced) so
-     *  the fullscreen inspector opens onto an already-decoded picture — the
-     *  played grid's exact pattern. */
-    focusName: {
-      immediate: true,
-      handler() {
-        this.cancelPrewarm();
-        const name = this.focusName;
-        if (this.handArtTier !== 'thumb' || name === undefined) {
-          return;
-        }
-        this.cancelPrewarm = this.flow.after(160, 'the focused card\'s art prewarm (debounced)', () => {
-          preloadPremiumCardArt([name as CardName]);
-        });
-      },
-    },
-    /**
-     * Publish / retract the TELEPORT TARGET as the stage zone comes and goes.
-     * The consumer depends on this VALUE, not on a `document.querySelector` in
-     * a computed — a computed tracks reactive reads, not the DOM, so it would
-     * never re-run when the node appears, and a teleport whose target does not
-     * exist drops its content on the floor.
-     */
-    stageOpen: {
-      immediate: true,
-      // POST-FLUSH, and that is the whole trick. A `pre` watcher publishes the
-      // selector BEFORE this component has rendered the node it names — and the
-      // shell is our PARENT, so it re-renders first and resolves the teleport
-      // against a target that does not exist yet. Vue then warns and leaves the
-      // content sitting in its original place: the composer appeared BELOW the
-      // command bar, in flow, with the workspace standing empty above it.
-      // Publishing after the DOM update means the node is always there before
-      // anyone can look for it.
-      flush: 'post',
-      handler(on: boolean) {
-        setWorkspaceFrameSlot('hand', on ? '[data-embed-slot="hand-play"]' : '');
-      },
-    },
-    /**
-     * The FLEET BERTH the hosted colonies' dock teleports into (TR07) — offered
-     * while the step stands, retracted the moment it leaves, so the section
-     * falls back to its own toolbar for a host with no header. POST-flush, the
-     * slot's law: the node exists before anyone resolves it.
-     */
-    berthOffered: {
-      immediate: true,
-      flush: 'post',
-      handler(on: boolean) {
-        if (on) {
-          offerColonyFleetBerth('hand', '[data-colony-fleet-berth]');
-        } else {
-          retractColonyFleetBerth('hand');
-        }
-      },
-    },
-    /** The OUTCOME zone, same law and same reason (POST-flush: the shell is our
-     *  parent and resolves the teleport before we have rendered the node). */
-    outcomeZoneOn: {
-      immediate: true,
-      flush: 'post',
-      handler(on: boolean) {
-        if (on) {
-          setWorkspaceOutcomeSlot('[data-embed-slot="hand-outcome"]');
-        } else {
-          // Only OUR selector: the claim may already have moved to another host.
-          retractWorkspaceOutcomeSlot('[data-embed-slot="hand-outcome"]');
-        }
-      },
-    },
-    /* ── FOCUS IDENTITY + PAGE DERIVATION ─────────────────────────────────
-       Declared in this order ON PURPOSE — watchers fire in declaration order
-       within one flush, so an explicit index write (the shell seating a pick)
-       refreshes the anchor BEFORE the entries watcher could «follow» a card
-       the player is no longer on. */
-    index() {
-      this.focusName = this.entries[clampNum(0, Math.max(0, this.entries.length - 1), this.index)]?.card.name;
-      // A step DURING the cursor's arrival IS the arrival — the ring comes to the new card now, input never waits for
-      // an animation (TR58). While the copies still fly the slots are held anyway (`transitHold`).
-      if (!this.transitHold && handCursor.pending) {
-        releaseCursor(handCursor);
-      }
-    },
-    /** A MODE flip re-seats the cursor semantics (select/sale enter and leave
-     *  set their own index) — adopt the current position as the new anchor
-     *  even when the number itself did not change. */
-    modeKey() {
-      this.focusName = this.entries[clampNum(0, Math.max(0, this.entries.length - 1), this.index)]?.card.name;
-    },
-    /**
-     * FOCUS FOLLOWS THE CARD, NOT THE NUMBER. When the entries re-sort (a card
-     * became unplayable and sank in the playable-first order) or shrink, the
-     * cursor stays on the card it was on; only when that card is GONE does it
-     * fall back to the nearest logical slot (same index, clamped) — never to a
-     * random first page. The active page follows by derivation.
-     */
-    entries(list: ReadonlyArray<ConsoleHandEntry>) {
-      const len = list.length;
-      if (len === 0) {
-        if (consoleState.handIndex !== 0) {
-          consoleState.handIndex = 0;
-        }
-        this.focusName = undefined;
-        return;
-      }
-      const cur = clampNum(0, len - 1, this.index);
-      const curName = list[cur]?.card.name;
-      if (this.focusName !== undefined && curName !== this.focusName) {
-        const at = list.findIndex((e) => e.card.name === this.focusName);
-        if (at >= 0) {
-          consoleState.handIndex = at;
-          return;
-        }
-      }
-      if (this.index > len - 1) {
-        consoleState.handIndex = len - 1;
-      }
-      this.focusName = list[clampNum(0, len - 1, consoleState.handIndex)]?.card.name;
-    },
-    /** The page turn's will-change window + the settled-page render anchor. */
-    activePage(now: number) {
-      if (!this.pageMotionLive || this.transitHold) {
-        this.settledPage = now;
-        return;
-      }
-      this.turning = true;
-      this.cancelTurnSafety();
-      this.cancelTurnSafety = this.flow.after(TURN_SAFETY_MS, 'the page turn\'s safety release', () => {
-        this.turning = false;
-        this.settledPage = this.activePage;
-      });
-    },
-  },
-  methods: {
-    answerIconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-    // The WORKSPACE DESCEND phrase, one level deeper than «Действия карт»'s
-    // (consoleHandStageMotion): the stage unfolds from the pressed card's rect
-    // and folds back into it. Bound as methods so the template stays readable.
-    handStageEnterHook,
-    handStageLeaveHook,
-    handStageEnterCancelledHook,
-    handStageLeaveCancelledHook,
-    /**
-     * ONE PAGE'S DENSITY SOLVE (Showcase Pages): the composition + the card
-     * size for exactly the cards standing on it. Pure math over the same
-     * measured box — cheap enough to call from the render path.
-     */
-    pagePlanFor(page: number): AlbumPagePlan {
-      const start = page * this.plan.perPage;
-      const n = Math.max(0, Math.min(this.entries.length - start, this.plan.perPage));
-      return planAlbumPage({
-        availW: this.box.w > 0 ? this.box.w : FALLBACK_W,
-        availH: this.box.h > 0 ? this.box.h : FALLBACK_H,
-        count: n,
-        spec: albumSpecFor(this.layout.profile, this.albumLayout.layout),
-        uiScale: conUiScale(),
-      }, n, this.plan);
-    },
-    /** The rows of one page per its COMPOSED density (e.g. [5,4] / [3]),
-     *  each cell carrying its FLAT hand index. */
-    pageRows(page: number): Array<Array<AlbumCell>> {
-      const start = page * this.plan.perPage;
-      const slice = this.entries.slice(start, start + this.plan.perPage);
-      const composition = this.pagePlanFor(page).rows;
-      const rows: Array<Array<AlbumCell>> = [];
-      let at = 0;
-      for (const len of composition) {
-        rows.push(slice.slice(at, at + len).map((e, ci) => ({e, gi: start + at + ci})));
-        at += len;
-      }
-      return rows;
-    },
-    /** One page's berth on the strip: its stride slot + its OWN centring
-     *  pads and card scale (`--con-hand-zoom` rides the page, so a showcase
-     *  page's chips/bands counter-zoom against ITS size, not the base). */
-    pageStyle(page: number): Record<string, string> {
-      const pp = this.pagePlanFor(page);
-      return {
-        'transform': `translate(${page * this.plan.stride + pp.padX}px, ${pp.padTop}px)`,
-        'width': pp.pageW + 'px',
-        'rowGap': pp.gapY + 'px',
-        '--con-hand-zoom': String(pp.zoom),
-      };
-    },
-    /** The row line style of one page (slot height + column gap). */
-    pageRowStyle(page: number): Record<string, string> {
-      const pp = this.pagePlanFor(page);
-      return {height: pp.slotH + 'px', columnGap: pp.gapX + 'px'};
-    },
-    onStripSettled(e: TransitionEvent): void {
-      if (e.propertyName !== 'transform') {
-        return;
-      }
-      this.turning = false;
-      this.settledPage = this.activePage;
-      this.cancelTurnSafety();
-    },
-    isSaleSelected(name: string): boolean {
-      return this.saleSelected.includes(name);
-    },
-    /** Select mode: is this card a candidate the player may pick? */
-    isSelectable(name: string): boolean {
-      return this.select?.selectable.includes(name) ?? false;
-    },
-    /** Select mode: is this card currently picked? */
-    isSelectPicked(name: string): boolean {
-      return this.select?.selected.includes(name) ?? false;
-    },
-    /** A colony-bonus discard: is this the card that cycle's bonus just brought in (К-4)? */
-    isBonusFresh(name: string): boolean {
-      const d = this.discard;
-      if (d === undefined || d.sequence === undefined || d.colonyName === undefined) {
-        return false;
-      }
-      return colonyBonusFreshFor(colonyResolutionUi.bonusFresh, {colonyName: d.colonyName, index: d.sequence.index}, name);
-    },
-    /** A discard LEFT FOR AFTER THE DRAW: is this the card the draw just brought (2026-10-15)? */
-    isDrawFresh(name: string): boolean {
-      return this.select?.fresh?.includes(name) ?? false;
-    },
-    /** Select mode: the pre-translated «why not» reason for a non-candidate. */
-    selectReason(name: string): string {
-      return this.select?.reasons[name] ?? '';
-    },
-    /** Compact blocker chip label for an unavailable card (english i18n key). */
-    signedAmount(n: number): string {
-      return signedAmount(n);
-    },
-    /** «ещё N» — the counted goods past the plate's two, in WORDS: a «+N» beside «+1» amounts read as one more amount. */
-    /** A chosen count's ceiling (TR54): «до +4» — one reading renderer (PL-160). */
-    plateUpToText(n: number): string {
-      return readingText({label: 'up to ${0}', params: [signedAmount(n)]});
-    },
-    plateMoreText(n: number): string {
-      return readingText({label: 'and ${0} more', params: [String(n)]});
-    },
-    /** A tender unit's sprite (the payment panel's own table — `seeds` → seed, `supercomputerData` → data). */
-    tenderIconClass(unit: string): string {
-      return iconClassFor(paymentUnitIcon(unit));
-    },
-    /** The M€ the card-bound tender pays on this card — Σ count × rate, the panel's own contributions. */
-    tenderWorth(name: CardName): number {
-      return (this.tenderPlates.get(name) ?? []).reduce((sum, t) => sum + t.megacredits, 0);
-    },
-    /** The e2e hook of the tender plate: «unit:count» per unit, in the mix's order (undefined without one). */
-    tenderHook(name: CardName): string | undefined {
-      const items = this.tenderPlates.get(name);
-      return items === undefined ? undefined : items.map((t) => t.unit + ':' + t.count).join(' ');
-    },
-    /** The e2e hook of the requirement plate (TR49 class): «waive ✓» / «±2» / «ally ✓» (TR62 — met through the alliance). */
-    easingHook(name: CardName): string | undefined {
-      const plate = this.easingPlates.get(name);
-      if (plate === undefined) {
-        return undefined;
-      }
-      const items = plate.items.map((i) => i.kind === 'waive' ? 'waive' : i.kind === 'ally' ? 'ally' : '±' + i.steps).join(' ');
-      return plate.decisive ? items + ' ✓' : items;
-    },
-    chipLabel(entry: ConsoleHandEntry): string | undefined {
-      return shortBlockerLabel(entry.card.unplayableReasons ?? []);
-    },
-    chipEmblem(entry: ConsoleHandEntry): {emblem: string, text: string} | undefined {
-      return unplayableReasonChip(entry.card.unplayableReasons ?? []);
-    },
-    // ── navigation (called by the shell, mirrors ConsoleBoardSection) ──────
-    /**
-     * D-pad / left-stick: deterministic album stepping. Horizontal walks the
-     * flat hand order — crossing a page edge IS the page turn (the strip
-     * follows the derived active page); vertical moves between the ACTIVE
-     * page's COMPOSED rows ([5,4] / [4,3] / a single showcase row), column
-     * preserved. Nothing wraps; every edge is felt.
-     */
-    move(dir: HandNavDir): void {
-      // THE CHIP ROW (FD): ◀▶ walk the chips (no wrap), ▼ hands the cursor back to the cards.
-      if (this.filterFocus >= 0) {
-        if (dir === 'left' || dir === 'right') {
-          consoleState.filterFocus = Math.max(0, Math.min(this.tagFilters.length - 1, this.filterFocus + (dir === 'left' ? -1 : 1)));
-        } else if (dir === 'down') {
-          consoleState.filterFocus = -1;
-        }
-        return;
-      }
-      if (dir === 'up' && this.showFilters) {
-        const next = stepHandAlbum(this.index, dir, this.entries.length, {perPage: this.plan.perPage, rows: this.activePageRows});
-        if (next === this.index || this.entries.length === 0) {
-          // ▲ from the top row of cards ENTERS the chip row, on the active chip.
-          consoleState.filterFocus = Math.max(0, this.tagFilters.findIndex((o) => o.value === this.activeTag));
-          return;
-        }
-      }
-      consoleState.handIndex = stepHandAlbum(this.index, dir, this.entries.length, {
-        perPage: this.plan.perPage,
-        rows: this.activePageRows,
-      });
-    },
-    /** The explicit page turn (LB/RB, edge click, stick flick, wheel): same
-     *  relative slot on the neighbouring page. The pressed EDGE answers on
-     *  the press frame — a short impulse, never a ceremony in front of the
-     *  slide (the transform retarget still redirects a repeat press). */
-    turnPage(dir: 1 | -1): void {
-      if (this.transitHold) {
-        return;
-      }
-      const next = pageJumpIndex(this.index, dir, this.entries.length, this.plan.perPage);
-      if (next !== this.index) {
-        this.pulseEdge(dir === 1 ? 'right' : 'left');
-      }
-      consoleState.handIndex = next;
-    },
-    /** The edge's press response (CSS `--pulse`, one shot). */
-    pulseEdge(side: 'left' | 'right'): void {
-      this.edgePulse = side;
-      this.cancelEdgePulse();
-      this.cancelEdgePulse = this.flow.after(EDGE_PULSE_MS, 'the edge\'s press impulse reads', () => {
-        this.edgePulse = undefined;
-      });
-    },
-    /**
-     * Right stick — the PAGE FLICK (replaces the old free vertical scroll):
-     * a firm push turns one page toward the push; holding it pages at a
-     * controlled cadence. The CSS slide retargets mid-flight, so rapid
-     * flicks redirect the same motion instead of queueing five animations.
-     */
-    stickScroll(dy: number, dx = 0): void {
-      const v = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
-      if (Math.abs(v) < FLICK_THRESHOLD) {
-        return;
-      }
-      const now = Date.now();
-      if (now - this.lastFlickAt < FLICK_REPEAT_MS) {
-        return;
-      }
-      this.lastFlickAt = now;
-      this.turnPage(v > 0 ? 1 : -1);
-    },
-    /** A scroll on the album is always programmatic (see the template note) —
-     *  pin it back so a stray `scrollIntoView` can never shift the strip. */
-    pinScroll(): void {
-      const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
-      if (album !== undefined && (album.scrollLeft !== 0 || album.scrollTop !== 0)) {
-        album.scrollLeft = 0;
-        album.scrollTop = 0;
-      }
-    },
-    /** Mouse wheel: accumulate into one page turn per firm notch group. */
-    onWheel(e: WheelEvent): void {
-      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      const now = Date.now();
-      if (now - this.wheelAt > WHEEL_DECAY_MS) {
-        this.wheelAcc = 0;
-      }
-      this.wheelAt = now;
-      this.wheelAcc += d;
-      if (Math.abs(this.wheelAcc) >= WHEEL_STEP) {
-        this.turnPage(this.wheelAcc > 0 ? 1 : -1);
-        this.wheelAcc = 0;
-      }
-    },
-    /** The album derives its viewport from the focus — nothing to scroll.
-     *  Kept (as a no-op) because the filter episode's measure path and the
-     *  shell's refocus call it; the page follows `handIndex` reactively. */
-    ensureSelectedVisible(): void {
-      // Intentionally empty: activePage is derived from the focus index.
-    },
-    /** Scroll restoration is gone with the scroll itself — the page derives
-     *  from the restored focus index. Kept for the director's hook shape. */
-    restoreScroll(_px: number): void {
-      // Intentionally empty.
-    },
-    // ── the dock ↔ album reveal transition (handRevealDirector) ───────────
-    /**
-     * Every hand card's ALBUM home, in entries order + the out-of-view
-     * UNIVERSE extras:
-     *  - active-page cards → their real slot rects (`visible: true`);
-     *  - cards of other pages → their page PACKET anchor beyond the stage
-     *    edge (left for earlier pages, right for later — `visible: false`,
-     *    the proxies dissolve at the boundary while flying toward it);
-     *  - `packetExtras` (outside the current filter) → the far right packet.
-     * One read batch; no writes; no clipping (a page never crosses the
-     * viewport edge — partially visible rows are gone with the scroll).
-     */
-    transitionTargets(): HandTransitionTargets {
-      const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
-      if (album === undefined || (this.entries.length === 0 && this.packetExtras.length === 0)) {
-        return {pairs: [], scrollTop: 0};
-      }
-      const box = album.getBoundingClientRect();
-      // The album's x-range — the PHYSICAL boundary packet flights cross.
-      // The director erases/reveals a packet-bound card exactly by this
-      // edge as it slides past (never an alpha fade in mid-air).
-      const stage = {left: box.left, right: box.left + box.width};
-      const p = this.plan;
-      const s = conUiScale();
-      const active = this.activePage;
-      const packetOf = (side: PacketSide, depth: number, seq: number) =>
-        packetRect(side, depth, seq, {left: box.left, top: box.top, width: box.width, height: box.height}, p.slotW, p.slotH, s);
-      // A packet-bound card WIPES behind the stage edge (a side clip in the
-      // director's language) instead of sliding whole over the HUD beside
-      // the album — the leading side of the card hides first.
-      const packetClip = (side: PacketSide) =>
-        side === 'left' ? {top: 0, bottom: 0, left: p.slotW} : {top: 0, bottom: 0, right: p.slotW};
-      const pairs = this.entries.map((e, i) => {
-        const page = pageOfIndex(i, p.perPage);
-        if (page !== active) {
-          const side: PacketSide = page < active ? 'left' : 'right';
-          return {name: e.card.name as CardName, rect: packetOf(side, Math.abs(page - active), pageSlotOfIndex(i, p.perPage)), visible: false, clip: packetClip(side)};
-        }
-        const slotCard = album.querySelector<HTMLElement>(`[data-zoom-slot="${CSS.escape(e.card.name)}"] :is(.card-container, .pcard)`);
-        if (slotCard !== null) {
-          const r = slotCard.getBoundingClientRect();
-          return {name: e.card.name as CardName, rect: {left: r.left, top: r.top, width: r.width, height: r.height}, visible: true};
-        }
-        // Plan-derived fallback (pre-paint measure): mirror the rendered
-        // DENSITY geometry — the page block at its own pads, the composed
-        // rows individually centred, this page's own card size.
-        const pp = this.pagePlanFor(page);
-        const slot = pageSlotOfIndex(i, p.perPage);
-        let row = 0;
-        let rowStart = 0;
-        while (row < pp.rows.length - 1 && slot >= rowStart + pp.rows[row]) {
-          rowStart += pp.rows[row];
-          row++;
-        }
-        const col = slot - rowStart;
-        const inRow = pp.rows[row] ?? 1;
-        const rowW = inRow * pp.slotW + (inRow - 1) * pp.gapX;
-        const rect = {
-          left: box.left + pp.padX + (pp.pageW - rowW) / 2 + col * (pp.slotW + pp.gapX),
-          top: box.top + pp.padTop + row * (pp.slotH + pp.gapY),
-          width: pp.slotW,
-          height: pp.slotH,
-        };
-        return {name: e.card.name as CardName, rect, visible: true};
-      });
-      // The out-of-view universe (tag-filtered / non-suitable): parked past
-      // the LAST page's packets on the right — physically in the album, so
-      // the dock genuinely empties and the close gathers every card home.
-      const farDepth = Math.max(1, p.pageCount - active);
-      this.packetExtras.forEach((name, k) => {
-        pairs.push({name: name as CardName, rect: packetOf('right', farDepth + 1, k % p.perPage), visible: false, clip: packetClip('right')});
-      });
-      return {pairs, scrollTop: 0, stage};
-    },
-    /**
-     * Packet flight anchors for a set of names (the filter episode's leaver
-     * landings / enterer origins): cards leaving the current view gather into
-     * the right-edge packet; cards entering it fan out of the same place.
-     */
-    packetHomeRects(names: ReadonlyArray<string>, side: PacketSide = 'right'): Map<string, {left: number, top: number, width: number, height: number}> {
-      const out = new Map<string, {left: number, top: number, width: number, height: number}>();
-      const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
-      if (album === undefined) {
-        return out;
-      }
-      const box = album.getBoundingClientRect();
-      const p = this.plan;
-      const s = conUiScale();
-      names.forEach((name, k) => {
-        out.set(name, packetRect(side, 1, k % p.perPage, {left: box.left, top: box.top, width: box.width, height: box.height}, p.slotW, p.slotH, s));
-      });
-      return out;
-    },
-    measure(): void {
-      const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
-      if (album === undefined) {
-        return;
-      }
-      const w = album.clientWidth;
-      const h = album.clientHeight;
-      if (w !== this.box.w || h !== this.box.h) {
-        this.box = {w, h};
-      }
-    },
-    scheduleMeasure(): void {
-      if (this.cancelMeasure !== undefined) {
-        return;
-      }
-      this.cancelMeasure = this.flow.afterFrame('the album is re-measured', () => {
-        this.cancelMeasure = undefined;
-        this.measure();
-      });
-    },
-  },
-  mounted() {
-    const album = (this.$refs.album ?? undefined) as HTMLElement | undefined;
-    if (album !== undefined && typeof ResizeObserver !== 'undefined') {
-      this.ro = markRaw(new ResizeObserver(() => this.scheduleMeasure()));
-      this.ro.observe(album);
-    }
-    this.measure();
-    this.focusName = this.entries[clampNum(0, Math.max(0, this.entries.length - 1), this.index)]?.card.name;
-    this.settledPage = this.activePage;
-    // Arm the page-slide transition only after the first paint has settled:
-    // a fresh open (possibly restored onto page 3) must LAND on its page,
-    // never slide to it from x = 0.
-    void this.$nextTick(() => {
-      this.flow.afterFrame('the first paint settles', () => {
-        this.pageMotionLive = true;
-      });
-    });
-  },
-  beforeUnmount() {
-    // Retract the target HERE, never from the flow side: a stale selector
-    // teleports the next surface into a detached node, and the unmount watcher
-    // does not fire (Vue tears the component down before its watchers run).
-    setWorkspaceFrameSlot('hand', '');
-    // …and the fleet berth this header lent the hosted colonies, by the same law.
-    // UNCONDITIONALLY — by the time the hand unmounts the colonies frame is
-    // usually gone, so «am I offering?» already reads false while the berth we
-    // lent is still published (the field crash of game-pdb19bfa). Only OUR berth
-    // is taken back.
-    retractColonyFleetBerth('hand');
-    // …AND THE OUTCOME ZONE IS THE SAME LAW — PARK INCLUDED. The CLAIM
-    // deliberately survives «свернуть» (below); the DOM node does not, and the
-    // slot describes a NODE. Left published, it is not merely stale: a
-    // `<Teleport>`'s `to` is UNCHANGED across the park, so Vue never re-resolves
-    // it and keeps the DETACHED div as its target — the restored surface then
-    // mounts into a node that is not in the document. Measured on «Марсианский
-    // университет»: collapse the embedded decision, return from the board card,
-    // and the crumb, the kicker and the command bar all announce the stage while
-    // NOTHING is on screen (`[console-leak-detector] STRANDED PROMPT: "or"`).
-    // Cleared here, the host re-publishes the same selector on its way back and
-    // that CHANGE is what makes the teleport look the target up again. Guards
-    // all four consumers of the zone at once — the embedded reveal, the deck
-    // pick, the buy prompt and the effect decision.
-    // Only OUR zone (ledger HC) — never a slot another host published meanwhile.
-    retractWorkspaceOutcomeSlot('[data-embed-slot="hand-outcome"]');
-    // A CLAIM CAN NEVER OUTLIVE ITS FLOW: an orphaned one is worse than a leak
-    // (it suppresses the standalone presenters, so the artifact shows NOWHERE).
-    // …unless the workspace was PARKED — «свернуть» keeps the whole decision
-    // alive at full depth, and its surface unmounting is exactly how that
-    // looks. (The raw claim is read here, not the gated computed: the park
-    // happens BEFORE this hook and would already have flipped it false.)
-    if (this.outcome.host === 'hand' && this.outcome.sourceCard !== '' &&
-        !workspaceFrameParked('hand')) {
-      // …AND «THIS STEP IS OVER» IS NOT «THE FLOW IS OVER». When the hand is a
-      // STEP of another workspace («Эпатажный спонсор» plays a project from
-      // inside the Game Start Workspace), the step exists only for the play and
-      // unmounts the moment the card lands — beats before the play's own
-      // follow-up arrives. The outcome then belongs one level UP, to the
-      // workspace the player never left; released here it belonged to nobody,
-      // and «Деловые контакты» raised its pick as a standalone band over a
-      // deployment that had already started its next stage on top of it.
-      if (!rehomePlayOutcome('hand')) {
-        releaseWorkspaceOutcome('hand-unmount');
-      }
-    }
-    this.ro?.disconnect();
-  },
+defineOptions({name: 'ConsoleHandSection'});
+const props = defineProps({
+  entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},
+  index: {type: Number, required: true},
+  /** Sell-patents mode: A toggles picks, RT confirms (shell owns the flow). */
+  saleActive: {type: Boolean, default: false},
+  saleSelected: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+  /** The player's current M€ — drives the sale summary's before → after. */
+  saleMegacredits: {type: Number, default: 0},
+  /** The sale prompt's RATE (`SelectCardModel.patentSale`) — the project's M€ and the table's answers per card. */
+  salePatent: {type: Object as PropType<PatentSaleModel | undefined>, default: undefined},
+  /**
+   * The hand's OWNER (К-H1, TR48): what pays for a card M€ alone cannot — the tender plate reads the opening
+   * payment mix off this model (`handTenderPlate.handTenderItems`). Absent → no tender plate.
+   */
+  payer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
+  /** MANDATORY hand-select mode (discard / reveal / place) — undefined when
+   *  the section is the normal play/browse hand. */
+  select: {type: Object as PropType<ConsoleHandSelectMode | undefined>, default: undefined},
+  /**
+   * Cards of the hand's UNIVERSE that are outside the current view (tag
+   * filter / «only suitable») — they are NOT on any page, but they are
+   * physically in the album: the reveal transition parks them with the
+   * far-side page packets, so the dock genuinely empties when the hand
+   * opens and every card has exactly one home.
+   */
+  packetExtras: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+  /**
+   * The discard cinematic is holding the chosen cards ABOVE this album (they
+   * are proxies on the discard layer; their real slots are held empty). The
+   * rest of the hand recedes so the eye stays on what is leaving — a pure
+   * CSS beat (`.con-hand--discarding`), no timeline, transform/opacity only.
+   */
+  discarding: {type: Boolean, default: false},
+  /** The turn/phase reason (i18n key) for a card that is rules-OK but not
+   *  playable right now (opponent's turn / mid-action). Set by the shell. */
+  softReason: {type: String, default: 'Not your turn to take any actions'},
+  /** The play WINDOW is closed (opponent's turn or an owed decision) — set
+   *  by the shell from its one blocked-reason source. Decides whether the
+   *  turn note joins a blocked card's reason list (never re-derived here). */
+  turnWindowClosed: {type: Boolean, default: false},
+  /** Tag-filter options (All + tags present in the hand) built by the shell. */
+  tagFilters: {type: Array as PropType<ReadonlyArray<AlbumFilterOption>>, default: () => []},
+  /** The active filter (`'all'`, one tag, or a picker's «pays») — drives the chip highlight. */
+  activeTag: {type: String as PropType<AlbumFilter>, default: 'all'},
+  /** Candidates the picker's chip hides (FD) — «скрыто фильтром: N»; 0 prints nothing. */
+  hiddenByFilter: {type: Number, default: 0},
+  /** What each card pays if thrown under a per-tag exchange (FD) — empty for any other album. */
+  cardPayouts: {type: Object as PropType<Readonly<Record<string, number>>>, default: () => ({})},
+  /** The exchange's payout icon (the plate's and the «ПЛАТЯТ» chip's). */
+  payIcon: {type: String, default: 'megacredits'},
+  /**
+   * The card currently STAGED in the play composer (or mid-return /
+   * mid-depart) — its hand slot is held empty via a VUE-managed
+   * `con-deal-hold` (patch-proof, unlike a runtime classList): one
+   * physical card can never sit in the hand AND the modal at once.
+   */
+  stagedCard: {type: String as PropType<CardName | undefined>, default: undefined},
+  /**
+   * The dock ↔ overlay REVEAL transition owns the cards right now: every
+   * slot renders held (the flying proxies are the single visible
+   * representation of each card — handRevealDirector.ts). Vue-managed so
+   * a mid-episode patch can't wash the hold off. Also pins the page strip
+   * (no slide mid-episode — the flight targets were measured against the
+   * current layout).
+   */
+  transitHold: {type: Boolean, default: false},
+  /**
+   * A tag-FILTER episode is airborne (`handRevealState.filterActive`):
+   * the status rail HOLDS its text (the already-swapped verdict/counts
+   * must not read over cards still gathering) — it fades back in with
+   * the settle.
+   */
+  filterBusy: {type: Boolean, default: false},
+  /**
+   * A bottom-reaching scene is up (the shell's `footerUnderScene` — play
+   * composer etc. — or the reveal modal): the status rail DROPS back
+   * under the overlay band. In the calm open hand it rides ABOVE the
+   * footer/dock (z 11711) so the reveal flights pass BEHIND it, never
+   * over its text.
+   */
+  underScene: {type: Boolean, default: false},
+  /**
+   * THE OPEN DESCENT (undefined = the browse layer owns the screen). Present
+   * ⇔ the workspace has been entered one level deeper: the header grows its
+   * tail, the album parks, and the stage zone renders as the teleport target
+   * for the shell's play composer.
+   */
+  stage: {type: Object as PropType<ConsoleHandStage | undefined>, default: undefined},
+  /**
+   * THIS SCREEN IS A STEP OF ANOTHER WORKSPACE (the Game Start Workspace's
+   * play-from-hand prelude). The SHELL comes off — the shared header, the
+   * frame plate, the `con-ws` rail marker — and the host draws all three;
+   * the CONTENT (the album, the filters, the status rail, the playability
+   * presentation, the stage zone the composer descends into) is untouched,
+   * which is the whole point: the player gets their real hand, not a picker.
+   *
+   * Mirrors `ConsolePlayCardConfirm.embedded` / `ConsoleTaskHost.embedded`:
+   * one prop, never one per flavour.
+   */
+  embedded: {type: Boolean, default: false},
+  /**
+   * THE DESCENT IS PAUSED — a pick BRIDGE is out (the composer sent the
+   * player back to this very shelf to choose a card for the play it is
+   * configuring). The stage stays CLAIMED (the zone keeps its slot and the
+   * composer keeps every capture — retracting it here would unmount the
+   * composer and lose the whole configuration), but the shelf must come back
+   * to full strength: it is the picker now, and a parked 7 %-opacity album is
+   * one the player cannot choose from.
+   */
+  stagePaused: {type: Boolean, default: false},
+  /**
+   * …and the pause is a HAND PICK answering the stage's own question (the `consoleHandPick` bridge) — the one
+   * pause that plays the workspace phrase (`handStagePickPause` / `handStagePickResume`). A repeat pick or a scene
+   * handover pauses the stage too, with handoffs of their own.
+   */
+  handPickOpen: {type: Boolean, default: false},
 });
+/** `pick-resumed`: the pick's RESUME phrase is done (or needed no phrase) — the shell releases the shelf's frozen look. */
+const emit = defineEmits(['pick-resumed']);
+
+const flow = useFlowScope('hand-section');
+const album = useTemplateRef<HTMLElement>('album');
+const root = useTemplateRef<HTMLElement>('root');
+const box = ref({w: 0, h: 0});
+/** The workspace OUTCOME claim (module reactive — read straight off the
+ *  module; `outcomeZoneOn` and the unmount hook follow it). */
+const outcome = workspaceOutcomeState;
+/** The layout profile (module reactive — the album's page shape). */
+const layout = consoleLayoutState;
+/** The «Компоновка альбома» preference (module reactive). */
+const albumLayout = albumLayoutState;
+/** A page slide is airborne — `will-change` scoped to the turn only. */
+const turning = ref(false);
+let cancelTurnSafety = (() => {}) as () => void;
+/** The edge that answered the last page press (one-shot impulse). */
+const edgePulse = ref<'left' | 'right' | undefined>(undefined);
+let cancelEdgePulse = (() => {}) as () => void;
+/** The strip transition arms only after the mount has settled — the
+ *  first paint (and every fresh open) must land on its page with no
+ *  slide from x=0. */
+const pageMotionLive = ref(false);
+/** The page the strip last SETTLED on — the render window keeps both
+ *  the settled and the target page mounted, so a mid-slide page never
+ *  unmounts under the player (a pop). */
+const settledPage = ref(0);
+/** The IDENTITY the cursor is anchored to — when entries re-sort or
+ *  shrink, focus follows the card, not the number. */
+const focusName = ref<string | undefined>(undefined);
+const lastFlickAt = ref(0);
+const wheelAcc = ref(0);
+const wheelAt = ref(0);
+let ro: ResizeObserver | undefined;
+/** A measure is scheduled for the next frame (its cancel) — `undefined` when none stands. */
+let cancelMeasure: (() => void) | undefined;
+/** Debounce handle for the focused card's full-art prewarm. */
+let cancelPrewarm = (() => {}) as () => void;
+
+/**
+ * THE CURSOR'S POSE IS GATED (TR58, `[data-cursor-pending]` → `.con-cursor()`): while the copies hold the slots and
+ * through the handoff the focused card stands at REST — the copies land on the resting box and leave on the next
+ * frame — then the cursor ARRIVES (`handCursor`, released by the episode's handoff or by a step).
+ */
+const cursorPending = computed((): boolean => {
+  return props.transitHold || handCursor.pending;
+});
+/** Every hand card's forecast plate (a walk or a counted play), keyed by name — the server's reading, never a client count. */
+const forecastPlates = computed((): ReadonlyMap<CardName, HandForecastPlate> => {
+  const out = new Map<CardName, HandForecastPlate>();
+  for (const e of props.entries) {
+    const plate = handForecastPlate(e.card);
+    if (plate !== undefined) {
+      out.set(e.card.name, plate);
+    }
+  }
+  return out;
+});
+/**
+ * THE PLATE'S THIRD READER (К-H1, TR48 — the owner's decision 2026-10-12): the CARD-BOUND tender the opening
+ * payment mix spends on a card M€ alone cannot pay — «[data] 4» on a Science card that Supercomputer's data
+ * make playable. Keyed by name; the panel's own mix (`handTenderItems`), never a second rule.
+ */
+const tenderPlates = computed((): ReadonlyMap<CardName, ReadonlyArray<HandTenderItem>> => {
+  const out = new Map<CardName, ReadonlyArray<HandTenderItem>>();
+  if (props.payer === undefined) {
+    return out;
+  }
+  for (const e of props.entries) {
+    const items = handTenderItems(e.card, props.payer);
+    if (items.length > 0) {
+      out.set(e.card.name, items);
+    }
+  }
+  return out;
+});
+/** The workspace has been descended into — the browse layer is parked. */
+const stageOpen = computed((): boolean => {
+  return props.stage !== undefined;
+});
+/** A hand pick answers the open stage's question right now (see `handPickOpen`). */
+const stagePickOut = computed((): boolean => {
+  return stageOpen.value && props.stagePaused && props.handPickOpen;
+});
+/** The COLONIES stand inside this hand as its step (TR07's staged colony; a played card's live pick). */
+const colonyStepHosted = computed((): boolean => {
+  return workspaceFrameHost('colonies') === 'hand';
+});
+/** …and this header lends them its fleet berth (only the root header exists to lend it). */
+const berthOffered = computed((): boolean => {
+  return !props.embedded && colonyStepHosted.value;
+});
+/**
+ * THIS workspace holds the outcome claim of the play it is standing in —
+ * its zone is owed (see the template). Read straight off the claim, never
+ * off «is something on screen»: the zone has to exist BEFORE the artifact
+ * looks for it.
+ */
+const outcomeZoneOn = computed((): boolean => {
+  return outcome.host === 'hand' && outcome.sourceCard !== '';
+});
+const selected = computed((): CardModel | undefined => {
+  return props.entries[props.index]?.card;
+});
+const selectedPlayable = computed((): boolean => {
+  return props.entries[props.index]?.playable === true;
+});
+/**
+ * The selected card is blocked ONLY by the execution window — legal by the
+ * rules (`potential`), just not submittable this moment (`!playable`). Read
+ * from the entry the shell already classified through the shared blocker
+ * model, so the info bar and the card's own pose can never disagree.
+ */
+const softBlocked = computed((): boolean => {
+  return !props.saleActive && !selectActive.value && selected.value !== undefined &&
+    !selectedPlayable.value && props.entries[props.index]?.potential === true;
+});
+/**
+ * The selected card's availability in the PLAY voice — the SHARED
+ * cardAvailability model, the very view the fullscreen panel renders for
+ * this card, so the verdict bar's lines and the fullscreen list can never
+ * drift (ordering, de-dupe and the turn note's place included). The bar
+ * shows the first two rows; the rest wait in the fullscreen.
+ */
+const playAvailability = computed((): CardAvailabilityView | undefined => {
+  if (selected.value === undefined || props.saleActive || selectActive.value || selectedPlayable.value) {
+    return undefined;
+  }
+  return buildCardAvailability({
+    reasons: selected.value.unplayableReasons,
+    easing: selected.value.requirementEasing,
+    turnReason: props.turnWindowClosed ? props.softReason : undefined,
+  }, 'play');
+});
+/**
+ * A PLAYABLE card met ONLY thanks to a requirement modifier names it (TR49 class) — the eased voice's compact form
+ * of the SAME shared model the fullscreen panel renders; '' when the card needs no help.
+ */
+/** The focused card's play counts as a pass (`ClientCard.playCountsAsPass`, P80) — the verdict bar names it. */
+const selectedPasses = computed((): boolean => {
+  return selected.value !== undefined && getCard(selected.value.name)?.playCountsAsPass === true;
+});
+const selectedEasedThanks = computed((): string => {
+  if (selected.value === undefined || !selectedPlayable.value || props.saleActive || selectActive.value) {
+    return '';
+  }
+  const view = buildCardAvailability({reasons: undefined, easing: selected.value.requirementEasing}, 'play');
+  return view?.severity === 'eased' ? view.primary?.compact ?? '' : '';
+});
+/** The viewer's armed one-play effects (TR49 class) — the public seat model the shell hands in as the payer. */
+const armedEffects = computed((): ReadonlyArray<PresentedArmedEffect> => {
+  return presentedArmedEffects(armedEffectsOf(props.payer));
+});
+/** The plate's requirement reader (TR49 class), keyed by name. */
+const easingPlates = computed((): ReadonlyMap<CardName, HandEasingPlate> => {
+  const out = new Map<CardName, HandEasingPlate>();
+  for (const e of props.entries) {
+    const plate = handEasingPlate(e.card);
+    if (plate !== undefined) {
+      out.set(e.card.name, plate);
+    }
+  }
+  return out;
+});
+/** The verdict bar's visible rows (compact: the top of the shared list). */
+const playReasonRows = computed((): ReadonlyArray<CardAvailabilityReasonView> => {
+  return (playAvailability.value?.reasons ?? []).slice(0, 2);
+});
+/**
+ * The focused card's availability for the GIVE-UP modes (sale / select) —
+ * the shared model in the requirement voice ('hand-sell' / 'hand-give' →
+ * draft): the decision is «part with this card or keep it», so only the
+ * printed requirements' trajectory speaks (amber «пока не выполнено», red
+ * «уже не выполнить»), never money, never the current turn. Purely
+ * informational — the prompt's own candidacy and the sale's selection
+ * state stay the authoritative layers above.
+ */
+const evaluationAvailability = computed((): CardAvailabilityView | undefined => {
+  if (selected.value === undefined || (!props.saleActive && !selectActive.value)) {
+    return undefined;
+  }
+  const context = availabilityContextFor(props.saleActive ? 'hand-sell' : 'hand-give');
+  if (context === undefined) {
+    return undefined;
+  }
+  return buildCardAvailability({reasons: selected.value.unplayableReasons}, context);
+});
+// ── mandatory hand SELECT (discard / reveal / place) ──────────────────
+const selectActive = computed((): boolean => {
+  return props.select?.active === true;
+});
+// ── DISCARD skin (one derivation, every discard case) ─────────────────
+/** The pre-derived discard presentation, or undefined for a normal pick. */
+const discard = computed((): DiscardIntent | undefined => {
+  return selectActive.value ? props.select?.discard : undefined;
+});
+/** A multi DISCARD holds as many cards as it may (`max` > 1) — another card is a named refusal (the limit's numbers). */
+const discardSetFull = computed((): boolean => {
+  const d = discard.value;
+  return d !== undefined && d.max > 1 && (props.select?.selected.length ?? 0) >= d.max;
+});
+const discardSetFullText = computed((): string => {
+  const max = discard.value?.max ?? 0;
+  return translateTextWithParams('Limit ${0}/${1} reached — deselect one of the marked cards', [String(max), String(max)]);
+});
+/** The DECLINE of an optional pick (RT answers it; its plate stands in the question line). */
+const pickDecline = computed((): DeclineModel | undefined => {
+  return selectActive.value ? props.select?.decline : undefined;
+});
+/** «Decide after the draw» of a table question that may wait (R3; its plate beside the decline's). */
+const pickDefer = computed((): DeferPlateModel | undefined => {
+  return selectActive.value ? props.select?.defer : undefined;
+});
+/** The question line stands: past the descent for a discard (the header's own block is under the deep crumb), and
+ *  for any pick that can be declined or left for after a draw (its plates have nowhere else to stand). */
+const questionShown = computed((): boolean => {
+  return selectActive.value && (questionAskShown.value || pickDecline.value !== undefined || pickDefer.value !== undefined);
+});
+/** …and it carries the ASK only where the header cannot (past the descent) — never the same block twice. */
+const questionAskShown = computed((): boolean => {
+  return stageOpen.value && discard.value !== undefined;
+});
+/** «Сбросьте 1 карту» / «Сбросьте 3 карты» / «Сбросьте до 3 карт». */
+const discardAsk = computed((): string => {
+  const headline = discard.value?.headline;
+  if (headline === undefined) {
+    return '';
+  }
+  return headline.amount === undefined ?
+    translateText(headline.key) :
+    translateTextWithParams(headline.key, [String(headline.amount)]);
+});
+/** WHO demands it: the source card's name when there is one, the COLONY's
+ *  own name for a colony bonus (its planet mini stands beside it), else
+ *  the kind («Правило игры») — never a bare unexplained ask. */
+const discardSource = computed((): string => {
+  const intent = discard.value;
+  if (intent === undefined) {
+    return '';
+  }
+  // A COLONY's bonus leads with the colony, whoever pays it: its planet stands beside the name, and a CARD
+  // that pays it (TR23 — the discard's source is that card) is already the crumb's subject one line above.
+  if (intent.colonyName !== undefined) {
+    return translateText(intent.colonyName);
+  }
+  if (intent.card !== undefined) {
+    return translateText(intent.card);
+  }
+  if (intent.partyName !== undefined) {
+    return translateTextWithParams('Party action of ${0}', [translateText(intent.partyName)]);
+  }
+  // An enacted LAW asks (Open IP Trade's action): its printed name, never a bare «Резолюция».
+  if (intent.resolution !== undefined) {
+    return translateText(resolutionName(intent.resolution));
+  }
+  return translateText(intent.sourceKey);
+});
+/** The demanding colony's planet art ('' = not a colony discard). */
+const discardPlanetClass = computed((): string => {
+  const name = discard.value?.colonyName;
+  return name === undefined || name === '' ? '' : name.replace(' ', '-') + '-background';
+});
+/** «Бонус колонии 2 из 3» — Pluto resolves one cube at a time. A SINGLE
+ *  colony shows the plain «Бонус колонии»: «1 из 1» numbers a sequence
+ *  that does not exist, and the player reads it as a progress bar. */
+const discardSequence = computed((): string => {
+  const seq = discard.value?.sequence;
+  if (seq === undefined) {
+    return '';
+  }
+  if (seq.total <= 1) {
+    return translateText('Colony bonus');
+  }
+  return translateTextWithParams('Colony bonus ${0} of ${1}', [String(seq.index), String(seq.total)]);
+});
+/**
+ * THE NEXT SETTLEMENT this discard opens (0 = none): a colony bonus paid per settlement, not the last one —
+ * its card lies sealed until this discard is answered (`colonyTrade/settlementTable.ts`).
+ */
+const discardSealNext = computed((): number => {
+  const seq = discard.value?.sequence;
+  return seq !== undefined && seq.total > 1 && seq.index < seq.total ? seq.index + 1 : 0;
+});
+const discardSealText = computed((): string => {
+  return readingText({label: 'opens bonus ${0}', params: [String(discardSealNext.value)]});
+});
+/**
+ * THE CARD THIS BONUS JUST BROUGHT IN wears «НОВАЯ · БОНУС N» while its discard is asked (К-4) — the player
+ * watched it go into the hand a moment ago and must be able to find it among the rest (or keep it). «НОВАЯ»
+ * alone for a single settlement: «бонус 1» would number a sequence that does not exist.
+ */
+const freshBonusText = computed((): string => {
+  const seq = discard.value?.sequence;
+  if (seq === undefined) {
+    return '';
+  }
+  return seq.total > 1 ? readingText({label: 'New · bonus ${0}', params: [String(seq.index)]}) : translateText('New card');
+});
+const discardExchangeIconClass = computed((): string => {
+  return iconClassFor(discard.value?.exchange?.icon ?? 'cards');
+});
+/** SALE mode: the live pick summary (count / payout / answers / before → after) — the server's rate × the pick. */
+const sale = computed((): PatentSaleSummary => {
+  return patentSaleSummary(props.salePatent, props.saleSelected.length, props.saleMegacredits);
+});
+/**
+ * The table's answers as the bar reads them: the amount for the pick, or —
+ * at zero picks — the RATE of one card (dim, «за карту»), so the answer is
+ * named before the first selection.
+ */
+const saleAnswers = computed((): Array<PatentSaleAnswer & {shown: number}> => {
+  const rows = sale.value.count > 0 ? sale.value.answers : patentSaleAnswers(props.salePatent, 1);
+  return rows.map((a) => ({...a, shown: a.amount}));
+});
+/** The focused card's per-card «why not» reason (non-selectable only). */
+const focusedSelectReason = computed((): string => {
+  const name = selected.value?.name;
+  return name !== undefined ? selectReason(name) : '';
+});
+/** Multi-pick payout summary (present only for a paying client pick). */
+const selectPayout = computed((): {icon: string, amount: number, current?: number, cards?: number} | undefined => {
+  return props.select?.payout;
+});
+const pickCount = computed((): number => {
+  return props.select?.selected.length ?? 0;
+});
+const pickGain = computed((): number => {
+  return pickCount.value * (selectPayout.value?.amount ?? 0);
+});
+/** The second payout in CARDS for the current pick (0 when the pick pays none). */
+const pickCardGain = computed((): number => {
+  return pickCount.value * (selectPayout.value?.cards ?? 0);
+});
+const payoutIconClass = computed((): string => {
+  return iconClassFor(selectPayout.value?.icon ?? 'megacredits');
+});
+// ── header / filter panel ─────────────────────────────────────────────
+const showFilters = computed((): boolean => {
+  // Only worth a filter panel when there's a real chip beyond "All" — in EVERY album mode (FD): a picker's chips
+  // are its own, beside the «suitable only» toggle of a narrowed prompt.
+  return props.tagFilters.length > 1;
+});
+/** The focused chip (FD — the row as a focusable line), −1 while the cursor is on the cards. */
+const filterFocus = computed((): number => {
+  return showFilters.value ? consoleState.filterFocus : -1;
+});
+const payIconClass = computed((): string => {
+  return iconClassFor(props.payIcon);
+});
+const hiddenText = computed((): string => {
+  return translateTextWithParams('Hidden by the filter: ${0}', [String(props.hiddenByFilter)]);
+});
+const totalCount = computed((): number => {
+  return props.tagFilters.find((o) => o.value === 'all')?.count ?? props.entries.length;
+});
+/**
+ * THE CHROME COMES IN BEATS, NEVER IN THE HANDOFF'S FLUSH (PL-508). Through the open episode the header and the
+ * verdict rail are RESERVED in layout (zero shifts) but transparent — they used to stand opaque from frame 0, and
+ * the flights, which dive BEHIND the rail by z-design, read as covered by it. Then they rose together in the very
+ * flush that handed the copies over, the cursor a frame later — three events in one beat. Now the director's
+ * `chrome` beat drives them, never a timer: the FRAME (header, page edges) rises as the copies take off — it is
+ * never on their path —, the READING (the rail — it names the card under the cursor) comes with the cursor's
+ * arrival, after the copies have gone (`chromeWait`). A cancelled open (B mid-flight) never raises the rail.
+ */
+const chromeWait = computed((): boolean => {
+  const phase = handRevealState.phase;
+  return phase === 'opening' || ((phase === 'open' || phase === 'closing') && handRevealState.chrome !== 'all');
+});
+/**
+ * A HOSTED hand whose entry IS the bodies' flight (P86): the host's own step entry (`con-stdp-step-in` — opacity
+ * from 0) must not hide the slots the bodies land on, or the player sees the hand «appear» with its cards already
+ * down. Without a flight (reduced motion, the short path) the host's entry plays as before.
+ */
+const arrivesByFlight = computed((): boolean => {
+  return props.embedded && (handRevealState.phase === 'opening' || chromeWait.value);
+});
+/** The album's FRAME (the header, the page edges) waits only for the copies to take off (PL-508). */
+const frameWait = computed((): boolean => {
+  return handRevealState.phase === 'opening' && handRevealState.chrome === 'held';
+});
+/** «Можно разыграть: N» — POTENTIAL, the same number the wheel shows: a
+ *  count that halves because an opponent started thinking is not a fact
+ *  about the hand. (The press itself still needs `playable`.) */
+const playableCount = computed((): number => {
+  return props.entries.reduce((n, e) => n + (e.potential ? 1 : 0), 0);
+});
+/** The header shows the plain total ONLY when there are no filter chips to
+ *  carry it (the "All" chip shows it otherwise). It NEVER shows "Показано X
+ *  из Y" — that would widen the header on a filter toggle and wrap the chips
+ *  to a second row (the header must stay a stable height); that count lives
+ *  compactly in the bottom info bar instead (`filteredCountText`).
+ *  In SELECT mode the number gets its label — a bare «37» beside the ask
+ *  plate read as an unexplained figure. */
+const countText = computed((): string => {
+  if (showFilters.value) {
+    return '';
+  }
+  return selectActive.value ?
+    translateTextWithParams('Total cards: ${0}', [String(totalCount.value)]) :
+    String(totalCount.value);
+});
+/** "Показано 8 из 33" — shown ONLY when a tag filter is active (never in
+ *  sale mode, where the whole hand is shown), in the bottom info bar (never
+ *  the header, so the header height can't jump). */
+const filteredCountText = computed((): string => {
+  if (props.saleActive) {
+    return '';
+  }
+  // Select mode: "Показано X из Y" only while the "suitable only" filter is
+  // hiding non-candidate cards. A CLIENT pick supplies its own honest
+  // universe (`total` — staged / SRR-hosted cards are outside the pick).
+  if (selectActive.value) {
+    return props.select?.filtered === true && props.select.suitableOnly ?
+      translateTextWithParams('Shown ${0} of ${1}', [String(props.entries.length), String(props.select.total ?? totalCount.value)]) :
+      '';
+  }
+  return props.activeTag !== 'all' ?
+    translateTextWithParams('Shown ${0} of ${1}', [String(props.entries.length), String(totalCount.value)]) :
+    '';
+});
+const emptyMessage = computed((): string => {
+  return props.activeTag !== 'all' ? translateText('No cards with this tag') : translateText('No cards in hand');
+});
+/**
+ * THE ALBUM BACKBONE PLAN — page CAPACITY from the profile + the player's
+ * «Компоновка альбома» preference (read synchronously at module import,
+ * so the very first measure — and the HandDock flight aiming at it — is
+ * already in the chosen composition), the STANDARD two-row card size
+ * from the box. Pagination facts only: stride, page count, the standard
+ * zoom every full two-row page shares. The per-page DENSITY geometry
+ * (Showcase Pages) lives in `pagePlanFor`.
+ */
+const plan = computed((): HandAlbumPlan => {
+  return planHandAlbum({
+    availW: box.value.w > 0 ? box.value.w : FALLBACK_W,
+    availH: box.value.h > 0 ? box.value.h : FALLBACK_H,
+    count: props.entries.length,
+    spec: albumSpecFor(layout.profile, albumLayout.layout),
+    uiScale: conUiScale(),
+  });
+});
+/** The ACTIVE page's row composition — navigation's vertical map. */
+const activePageRows = computed((): ReadonlyArray<number> => {
+  const start = activePage.value * plan.value.perPage;
+  const n = Math.min(props.entries.length - start, plan.value.perPage);
+  return pageRowsFor(Math.max(0, n), albumSpecFor(layout.profile, albumLayout.layout));
+});
+/** The page the cursor lives on — the album's viewport, BY DERIVATION.
+ *  Focus and page can never disagree; restoring one restores the other. */
+const activePage = computed((): number => {
+  const clamped = clampNum(0, Math.max(0, props.entries.length - 1), props.index);
+  return Math.min(plan.value.pageCount - 1, pageOfIndex(clamped, plan.value.perPage));
+});
+/** Pages kept mounted: the active page ± 1, plus the last SETTLED page's
+ *  neighbourhood — a page mid-slide never unmounts under the player. */
+const renderPages = computed((): Array<number> => {
+  if (props.entries.length === 0) {
+    return [];
+  }
+  const last = plan.value.pageCount - 1;
+  const keep = new Set<number>();
+  for (const centre of [activePage.value, Math.min(last, settledPage.value)]) {
+    for (let p = Math.max(0, centre - 1); p <= Math.min(last, centre + 1); p++) {
+      keep.add(p);
+    }
+  }
+  return [...keep].sort((a, b) => a - b);
+});
+const rootStyle = computed((): Record<string, string> => {
+  return {'--con-hand-zoom': String(plan.value.cardZoom)};
+});
+/**
+ * ART TIER for the album grid (perf iteration 3). The plan's slot width
+ * is real CSS px (the solver multiplies uiScale in), so the shared
+ * `artTierForWidth` rule lands exactly like the played grid's: ~272 px
+ * slots at 1080p paint the 512-px thumb build (an open hand held 8
+ * full-res decodes ≈ 48 MB — all oversized, measured by the long-game
+ * probe), while 4K's ~544 px slots keep the full file for couch
+ * sharpness. The fullscreen inspector is covered by the focused-card
+ * prewarm below.
+ */
+const handArtTier = computed((): CardArtTier => {
+  return artTierForWidth(plan.value.slotW);
+});
+/** The strip slides one stride per page — transform only (interruptible,
+ *  retargetable, zero layout, zero scroll geometry). */
+const stripStyle = computed((): Record<string, string> => {
+  return {transform: `translateX(${-activePage.value * plan.value.stride}px)`};
+});
+/** The cursor SEMANTICS epoch — a mode flip (browse ↔ sale ↔ select/pick)
+ *  re-seats the cursor on the shell's side, so the identity anchor must
+ *  adopt the new position even when the index number did not change. */
+const modeKey = computed((): string => {
+  return `${props.saleActive}|${selectActive.value}`;
+});
+
+function answerIconClass(icon: string): string {
+  return iconClassFor(icon);
+}
+/**
+ * ONE PAGE'S DENSITY SOLVE (Showcase Pages): the composition + the card
+ * size for exactly the cards standing on it. Pure math over the same
+ * measured box — cheap enough to call from the render path.
+ */
+function pagePlanFor(page: number): AlbumPagePlan {
+  const start = page * plan.value.perPage;
+  const n = Math.max(0, Math.min(props.entries.length - start, plan.value.perPage));
+  return planAlbumPage({
+    availW: box.value.w > 0 ? box.value.w : FALLBACK_W,
+    availH: box.value.h > 0 ? box.value.h : FALLBACK_H,
+    count: n,
+    spec: albumSpecFor(layout.profile, albumLayout.layout),
+    uiScale: conUiScale(),
+  }, n, plan.value);
+}
+/** The rows of one page per its COMPOSED density (e.g. [5,4] / [3]),
+ *  each cell carrying its FLAT hand index. */
+function pageRows(page: number): Array<Array<AlbumCell>> {
+  const start = page * plan.value.perPage;
+  const slice = props.entries.slice(start, start + plan.value.perPage);
+  const composition = pagePlanFor(page).rows;
+  const rows: Array<Array<AlbumCell>> = [];
+  let at = 0;
+  for (const len of composition) {
+    rows.push(slice.slice(at, at + len).map((e, ci) => ({e, gi: start + at + ci})));
+    at += len;
+  }
+  return rows;
+}
+/** One page's berth on the strip: its stride slot + its OWN centring
+ *  pads and card scale (`--con-hand-zoom` rides the page, so a showcase
+ *  page's chips/bands counter-zoom against ITS size, not the base). */
+function pageStyle(page: number): Record<string, string> {
+  const pp = pagePlanFor(page);
+  return {
+    'transform': `translate(${page * plan.value.stride + pp.padX}px, ${pp.padTop}px)`,
+    'width': pp.pageW + 'px',
+    'rowGap': pp.gapY + 'px',
+    '--con-hand-zoom': String(pp.zoom),
+  };
+}
+/** The row line style of one page (slot height + column gap). */
+function pageRowStyle(page: number): Record<string, string> {
+  const pp = pagePlanFor(page);
+  return {height: pp.slotH + 'px', columnGap: pp.gapX + 'px'};
+}
+function onStripSettled(e: TransitionEvent): void {
+  if (e.propertyName !== 'transform') {
+    return;
+  }
+  turning.value = false;
+  settledPage.value = activePage.value;
+  cancelTurnSafety();
+}
+function isSaleSelected(name: string): boolean {
+  return props.saleSelected.includes(name);
+}
+/** Select mode: is this card a candidate the player may pick? */
+function isSelectable(name: string): boolean {
+  return props.select?.selectable.includes(name) ?? false;
+}
+/** Select mode: is this card currently picked? */
+function isSelectPicked(name: string): boolean {
+  return props.select?.selected.includes(name) ?? false;
+}
+/** A colony-bonus discard: is this the card that cycle's bonus just brought in (К-4)? */
+function isBonusFresh(name: string): boolean {
+  const d = discard.value;
+  if (d === undefined || d.sequence === undefined || d.colonyName === undefined) {
+    return false;
+  }
+  return colonyBonusFreshFor(colonyResolutionUi.bonusFresh, {colonyName: d.colonyName, index: d.sequence.index}, name);
+}
+/** A discard LEFT FOR AFTER THE DRAW: is this the card the draw just brought (2026-10-15)? */
+function isDrawFresh(name: string): boolean {
+  return props.select?.fresh?.includes(name) ?? false;
+}
+/** Select mode: the pre-translated «why not» reason for a non-candidate. */
+function selectReason(name: string): string {
+  return props.select?.reasons[name] ?? '';
+}
+/** «ещё N» — the counted goods past the plate's two, in WORDS: a «+N» beside «+1» amounts read as one more amount. */
+/** A chosen count's ceiling (TR54): «до +4» — one reading renderer (PL-160). */
+function plateUpToText(n: number): string {
+  return readingText({label: 'up to ${0}', params: [signedAmount(n)]});
+}
+function plateMoreText(n: number): string {
+  return readingText({label: 'and ${0} more', params: [String(n)]});
+}
+/** A tender unit's sprite (the payment panel's own table — `seeds` → seed, `supercomputerData` → data). */
+function tenderIconClass(unit: string): string {
+  return iconClassFor(paymentUnitIcon(unit));
+}
+/** The M€ the card-bound tender pays on this card — Σ count × rate, the panel's own contributions. */
+function tenderWorth(name: CardName): number {
+  return (tenderPlates.value.get(name) ?? []).reduce((sum, t) => sum + t.megacredits, 0);
+}
+/** The e2e hook of the tender plate: «unit:count» per unit, in the mix's order (undefined without one). */
+function tenderHook(name: CardName): string | undefined {
+  const items = tenderPlates.value.get(name);
+  return items === undefined ? undefined : items.map((t) => t.unit + ':' + t.count).join(' ');
+}
+/** The e2e hook of the requirement plate (TR49 class): «waive ✓» / «±2» / «ally ✓» (TR62 — met through the alliance). */
+function easingHook(name: CardName): string | undefined {
+  const plate = easingPlates.value.get(name);
+  if (plate === undefined) {
+    return undefined;
+  }
+  const items = plate.items.map((i) => i.kind === 'waive' ? 'waive' : i.kind === 'ally' ? 'ally' : '±' + i.steps).join(' ');
+  return plate.decisive ? items + ' ✓' : items;
+}
+/** Compact blocker chip label for an unavailable card (english i18n key). */
+function chipLabel(entry: ConsoleHandEntry): string | undefined {
+  return shortBlockerLabel(entry.card.unplayableReasons ?? []);
+}
+function chipEmblem(entry: ConsoleHandEntry): {emblem: string, text: string} | undefined {
+  return unplayableReasonChip(entry.card.unplayableReasons ?? []);
+}
+// ── navigation (called by the shell, mirrors ConsoleBoardSection) ──────
+/**
+ * D-pad / left-stick: deterministic album stepping. Horizontal walks the
+ * flat hand order — crossing a page edge IS the page turn (the strip
+ * follows the derived active page); vertical moves between the ACTIVE
+ * page's COMPOSED rows ([5,4] / [4,3] / a single showcase row), column
+ * preserved. Nothing wraps; every edge is felt.
+ */
+function move(dir: HandNavDir): void {
+  // THE CHIP ROW (FD): ◀▶ walk the chips (no wrap), ▼ hands the cursor back to the cards.
+  if (filterFocus.value >= 0) {
+    if (dir === 'left' || dir === 'right') {
+      consoleState.filterFocus = Math.max(0, Math.min(props.tagFilters.length - 1, filterFocus.value + (dir === 'left' ? -1 : 1)));
+    } else if (dir === 'down') {
+      consoleState.filterFocus = -1;
+    }
+    return;
+  }
+  if (dir === 'up' && showFilters.value) {
+    const next = stepHandAlbum(props.index, dir, props.entries.length, {perPage: plan.value.perPage, rows: activePageRows.value});
+    if (next === props.index || props.entries.length === 0) {
+      // ▲ from the top row of cards ENTERS the chip row, on the active chip.
+      consoleState.filterFocus = Math.max(0, props.tagFilters.findIndex((o) => o.value === props.activeTag));
+      return;
+    }
+  }
+  consoleState.handIndex = stepHandAlbum(props.index, dir, props.entries.length, {
+    perPage: plan.value.perPage,
+    rows: activePageRows.value,
+  });
+}
+/** The explicit page turn (LB/RB, edge click, stick flick, wheel): same
+ *  relative slot on the neighbouring page. The pressed EDGE answers on
+ *  the press frame — a short impulse, never a ceremony in front of the
+ *  slide (the transform retarget still redirects a repeat press). */
+function turnPage(dir: 1 | -1): void {
+  if (props.transitHold) {
+    return;
+  }
+  const next = pageJumpIndex(props.index, dir, props.entries.length, plan.value.perPage);
+  if (next !== props.index) {
+    pulseEdge(dir === 1 ? 'right' : 'left');
+  }
+  consoleState.handIndex = next;
+}
+/** The edge's press response (CSS `--pulse`, one shot). */
+function pulseEdge(side: 'left' | 'right'): void {
+  edgePulse.value = side;
+  cancelEdgePulse();
+  cancelEdgePulse = flow.after(EDGE_PULSE_MS, 'the edge\'s press impulse reads', () => {
+    edgePulse.value = undefined;
+  });
+}
+/**
+ * Right stick — the PAGE FLICK (replaces the old free vertical scroll):
+ * a firm push turns one page toward the push; holding it pages at a
+ * controlled cadence. The CSS slide retargets mid-flight, so rapid
+ * flicks redirect the same motion instead of queueing five animations.
+ */
+function stickScroll(dy: number, dx = 0): void {
+  const v = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
+  if (Math.abs(v) < FLICK_THRESHOLD) {
+    return;
+  }
+  const now = Date.now();
+  if (now - lastFlickAt.value < FLICK_REPEAT_MS) {
+    return;
+  }
+  lastFlickAt.value = now;
+  turnPage(v > 0 ? 1 : -1);
+}
+/** A scroll on the album is always programmatic (see the template note) —
+ *  pin it back so a stray `scrollIntoView` can never shift the strip. */
+function pinScroll(): void {
+  const albumNow = album.value ?? undefined;
+  if (albumNow !== undefined && (albumNow.scrollLeft !== 0 || albumNow.scrollTop !== 0)) {
+    albumNow.scrollLeft = 0;
+    albumNow.scrollTop = 0;
+  }
+}
+/** Mouse wheel: accumulate into one page turn per firm notch group. */
+function onWheel(e: WheelEvent): void {
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  const now = Date.now();
+  if (now - wheelAt.value > WHEEL_DECAY_MS) {
+    wheelAcc.value = 0;
+  }
+  wheelAt.value = now;
+  wheelAcc.value += d;
+  if (Math.abs(wheelAcc.value) >= WHEEL_STEP) {
+    turnPage(wheelAcc.value > 0 ? 1 : -1);
+    wheelAcc.value = 0;
+  }
+}
+/** The album derives its viewport from the focus — nothing to scroll.
+ *  Kept (as a no-op) because the filter episode's measure path and the
+ *  shell's refocus call it; the page follows `handIndex` reactively. */
+function ensureSelectedVisible(): void {
+  // Intentionally empty: activePage is derived from the focus index.
+}
+/** Scroll restoration is gone with the scroll itself — the page derives
+ *  from the restored focus index. Kept for the director's hook shape. */
+function restoreScroll(_px: number): void {
+  // Intentionally empty.
+}
+// ── the dock ↔ album reveal transition (handRevealDirector) ───────────
+/**
+ * Every hand card's ALBUM home, in entries order + the out-of-view
+ * UNIVERSE extras:
+ *  - active-page cards → their real slot rects (`visible: true`);
+ *  - cards of other pages → their page PACKET anchor beyond the stage
+ *    edge (left for earlier pages, right for later — `visible: false`,
+ *    the proxies dissolve at the boundary while flying toward it);
+ *  - `packetExtras` (outside the current filter) → the far right packet.
+ * One read batch; no writes; no clipping (a page never crosses the
+ * viewport edge — partially visible rows are gone with the scroll).
+ */
+function transitionTargets(): HandTransitionTargets {
+  const albumNow = album.value ?? undefined;
+  if (albumNow === undefined || (props.entries.length === 0 && props.packetExtras.length === 0)) {
+    return {pairs: [], scrollTop: 0};
+  }
+  const box = albumNow.getBoundingClientRect();
+  // The album's x-range — the PHYSICAL boundary packet flights cross.
+  // The director erases/reveals a packet-bound card exactly by this
+  // edge as it slides past (never an alpha fade in mid-air).
+  const stage = {left: box.left, right: box.left + box.width};
+  const p = plan.value;
+  const s = conUiScale();
+  const active = activePage.value;
+  const packetOf = (side: PacketSide, depth: number, seq: number) =>
+    packetRect(side, depth, seq, {left: box.left, top: box.top, width: box.width, height: box.height}, p.slotW, p.slotH, s);
+  // A packet-bound card WIPES behind the stage edge (a side clip in the
+  // director's language) instead of sliding whole over the HUD beside
+  // the album — the leading side of the card hides first.
+  const packetClip = (side: PacketSide) =>
+    side === 'left' ? {top: 0, bottom: 0, left: p.slotW} : {top: 0, bottom: 0, right: p.slotW};
+  const pairs = props.entries.map((e, i) => {
+    const page = pageOfIndex(i, p.perPage);
+    if (page !== active) {
+      const side: PacketSide = page < active ? 'left' : 'right';
+      return {name: e.card.name as CardName, rect: packetOf(side, Math.abs(page - active), pageSlotOfIndex(i, p.perPage)), visible: false, clip: packetClip(side)};
+    }
+    const slotCard = albumNow.querySelector<HTMLElement>(`[data-zoom-slot="${CSS.escape(e.card.name)}"] :is(.card-container, .pcard)`);
+    if (slotCard !== null) {
+      const r = slotCard.getBoundingClientRect();
+      return {name: e.card.name as CardName, rect: {left: r.left, top: r.top, width: r.width, height: r.height}, visible: true};
+    }
+    // Plan-derived fallback (pre-paint measure): mirror the rendered
+    // DENSITY geometry — the page block at its own pads, the composed
+    // rows individually centred, this page's own card size.
+    const pp = pagePlanFor(page);
+    const slot = pageSlotOfIndex(i, p.perPage);
+    let row = 0;
+    let rowStart = 0;
+    while (row < pp.rows.length - 1 && slot >= rowStart + pp.rows[row]) {
+      rowStart += pp.rows[row];
+      row++;
+    }
+    const col = slot - rowStart;
+    const inRow = pp.rows[row] ?? 1;
+    const rowW = inRow * pp.slotW + (inRow - 1) * pp.gapX;
+    const rect = {
+      left: box.left + pp.padX + (pp.pageW - rowW) / 2 + col * (pp.slotW + pp.gapX),
+      top: box.top + pp.padTop + row * (pp.slotH + pp.gapY),
+      width: pp.slotW,
+      height: pp.slotH,
+    };
+    return {name: e.card.name as CardName, rect, visible: true};
+  });
+  // The out-of-view universe (tag-filtered / non-suitable): parked past
+  // the LAST page's packets on the right — physically in the album, so
+  // the dock genuinely empties and the close gathers every card home.
+  const farDepth = Math.max(1, p.pageCount - active);
+  props.packetExtras.forEach((name, k) => {
+    pairs.push({name: name as CardName, rect: packetOf('right', farDepth + 1, k % p.perPage), visible: false, clip: packetClip('right')});
+  });
+  return {pairs, scrollTop: 0, stage};
+}
+/**
+ * Packet flight anchors for a set of names (the filter episode's leaver
+ * landings / enterer origins): cards leaving the current view gather into
+ * the right-edge packet; cards entering it fan out of the same place.
+ */
+function packetHomeRects(names: ReadonlyArray<string>, side: PacketSide = 'right'): Map<string, {left: number, top: number, width: number, height: number}> {
+  const out = new Map<string, {left: number, top: number, width: number, height: number}>();
+  const albumNow = album.value ?? undefined;
+  if (albumNow === undefined) {
+    return out;
+  }
+  const box = albumNow.getBoundingClientRect();
+  const p = plan.value;
+  const s = conUiScale();
+  names.forEach((name, k) => {
+    out.set(name, packetRect(side, 1, k % p.perPage, {left: box.left, top: box.top, width: box.width, height: box.height}, p.slotW, p.slotH, s));
+  });
+  return out;
+}
+function measure(): void {
+  const albumNow = album.value ?? undefined;
+  if (albumNow === undefined) {
+    return;
+  }
+  const w = albumNow.clientWidth;
+  const h = albumNow.clientHeight;
+  if (w !== box.value.w || h !== box.value.h) {
+    box.value = {w, h};
+  }
+}
+function scheduleMeasure(): void {
+  if (cancelMeasure !== undefined) {
+    return;
+  }
+  cancelMeasure = flow.afterFrame('the album is re-measured', () => {
+    cancelMeasure = undefined;
+    measure();
+  });
+}
+
+/**
+ * THE PICK BRIDGE IS A PHRASE, never a cut (the owner's hard rule 2026-10-13 — the 4K storyboard showed the
+ * composer gone in one frame and the album there in the next). `post`: the album has rendered its pick and the
+ * stage its last frame — the phrase poses both inline before this flush paints. A stage that CLOSED under the pick
+ * (the play left) has nothing to resume; a discard the pick answered owns its own exit (the tray seizes the cards).
+ */
+watch(() => stagePickOut.value, (out: boolean, was: boolean): void => {
+  const rootNow = root.value ?? undefined;
+  if (rootNow === undefined || out === was || !(rootNow instanceof HTMLElement)) {
+    return;
+  }
+  if (out) {
+    handStagePickPause(rootNow);
+  } else if (stageOpen.value && !props.discarding) {
+    handStagePickResume(rootNow, () => emit('pick-resumed'));
+  } else {
+    emit('pick-resumed');
+  }
+}, {flush: 'post'});
+/**
+ * The reveal flights must decode the DESTINATION'S file — stamp the
+ * album's tier for the layer's proxies (perf iteration 3).
+ */
+watch(() => handArtTier.value, (tier: CardArtTier) => {
+  handRevealState.artTier = tier;
+}, {immediate: true});
+/** Thumb-tier albums prewarm the FOCUSED card's full art (debounced) so
+ *  the fullscreen inspector opens onto an already-decoded picture — the
+ *  played grid's exact pattern. */
+watch(() => focusName.value, () => {
+  cancelPrewarm();
+  const name = focusName.value;
+  if (handArtTier.value !== 'thumb' || name === undefined) {
+    return;
+  }
+  cancelPrewarm = flow.after(160, 'the focused card\'s art prewarm (debounced)', () => {
+    preloadPremiumCardArt([name as CardName]);
+  });
+}, {immediate: true});
+/**
+ * Publish / retract the TELEPORT TARGET as the stage zone comes and goes.
+ * The consumer depends on this VALUE, not on a `document.querySelector` in
+ * a computed — a computed tracks reactive reads, not the DOM, so it would
+ * never re-run when the node appears, and a teleport whose target does not
+ * exist drops its content on the floor.
+ */
+watch(() => stageOpen.value, (on: boolean) => {
+  setWorkspaceFrameSlot('hand', on ? '[data-embed-slot="hand-play"]' : '');
+}, {
+  immediate: true,
+  // POST-FLUSH, and that is the whole trick. A `pre` watcher publishes the
+  // selector BEFORE this component has rendered the node it names — and the
+  // shell is our PARENT, so it re-renders first and resolves the teleport
+  // against a target that does not exist yet. Vue then warns and leaves the
+  // content sitting in its original place: the composer appeared BELOW the
+  // command bar, in flow, with the workspace standing empty above it.
+  // Publishing after the DOM update means the node is always there before
+  // anyone can look for it.
+  flush: 'post',
+});
+/**
+ * The FLEET BERTH the hosted colonies' dock teleports into (TR07) — offered
+ * while the step stands, retracted the moment it leaves, so the section
+ * falls back to its own toolbar for a host with no header. POST-flush, the
+ * slot's law: the node exists before anyone resolves it.
+ */
+watch(() => berthOffered.value, (on: boolean) => {
+  if (on) {
+    offerColonyFleetBerth('hand', '[data-colony-fleet-berth]');
+  } else {
+    retractColonyFleetBerth('hand');
+  }
+}, {immediate: true, flush: 'post'});
+/** The OUTCOME zone, same law and same reason (POST-flush: the shell is our
+ *  parent and resolves the teleport before we have rendered the node). */
+watch(() => outcomeZoneOn.value, (on: boolean) => {
+  if (on) {
+    setWorkspaceOutcomeSlot('[data-embed-slot="hand-outcome"]');
+  } else {
+    // Only OUR selector: the claim may already have moved to another host.
+    retractWorkspaceOutcomeSlot('[data-embed-slot="hand-outcome"]');
+  }
+}, {immediate: true, flush: 'post'});
+/* ── FOCUS IDENTITY + PAGE DERIVATION ─────────────────────────────────
+   Declared in this order ON PURPOSE — watchers fire in declaration order
+   within one flush, so an explicit index write (the shell seating a pick)
+   refreshes the anchor BEFORE the entries watcher could «follow» a card
+   the player is no longer on. */
+watch(() => props.index, () => {
+  focusName.value = props.entries[clampNum(0, Math.max(0, props.entries.length - 1), props.index)]?.card.name;
+  // A step DURING the cursor's arrival IS the arrival — the ring comes to the new card now, input never waits for
+  // an animation (TR58). While the copies still fly the slots are held anyway (`transitHold`).
+  if (!props.transitHold && handCursor.pending) {
+    releaseCursor(handCursor);
+  }
+});
+/** A MODE flip re-seats the cursor semantics (select/sale enter and leave
+ *  set their own index) — adopt the current position as the new anchor
+ *  even when the number itself did not change. */
+watch(() => modeKey.value, () => {
+  focusName.value = props.entries[clampNum(0, Math.max(0, props.entries.length - 1), props.index)]?.card.name;
+});
+/**
+ * FOCUS FOLLOWS THE CARD, NOT THE NUMBER. When the entries re-sort (a card
+ * became unplayable and sank in the playable-first order) or shrink, the
+ * cursor stays on the card it was on; only when that card is GONE does it
+ * fall back to the nearest logical slot (same index, clamped) — never to a
+ * random first page. The active page follows by derivation.
+ */
+watch(() => props.entries, (list: ReadonlyArray<ConsoleHandEntry>) => {
+  const len = list.length;
+  if (len === 0) {
+    if (consoleState.handIndex !== 0) {
+      consoleState.handIndex = 0;
+    }
+    focusName.value = undefined;
+    return;
+  }
+  const cur = clampNum(0, len - 1, props.index);
+  const curName = list[cur]?.card.name;
+  if (focusName.value !== undefined && curName !== focusName.value) {
+    const at = list.findIndex((e) => e.card.name === focusName.value);
+    if (at >= 0) {
+      consoleState.handIndex = at;
+      return;
+    }
+  }
+  if (props.index > len - 1) {
+    consoleState.handIndex = len - 1;
+  }
+  focusName.value = list[clampNum(0, len - 1, consoleState.handIndex)]?.card.name;
+});
+/** The page turn's will-change window + the settled-page render anchor. */
+watch(() => activePage.value, (now: number) => {
+  if (!pageMotionLive.value || props.transitHold) {
+    settledPage.value = now;
+    return;
+  }
+  turning.value = true;
+  cancelTurnSafety();
+  cancelTurnSafety = flow.after(TURN_SAFETY_MS, 'the page turn\'s safety release', () => {
+    turning.value = false;
+    settledPage.value = activePage.value;
+  });
+});
+
+onMounted(() => {
+  const albumNow = album.value ?? undefined;
+  if (albumNow !== undefined && typeof ResizeObserver !== 'undefined') {
+    ro = markRaw(new ResizeObserver(() => scheduleMeasure()));
+    ro.observe(albumNow);
+  }
+  measure();
+  focusName.value = props.entries[clampNum(0, Math.max(0, props.entries.length - 1), props.index)]?.card.name;
+  settledPage.value = activePage.value;
+  // Arm the page-slide transition only after the first paint has settled:
+  // a fresh open (possibly restored onto page 3) must LAND on its page,
+  // never slide to it from x = 0.
+  void nextTick(() => {
+    flow.afterFrame('the first paint settles', () => {
+      pageMotionLive.value = true;
+    });
+  });
+});
+onBeforeUnmount(() => {
+  // Retract the target HERE, never from the flow side: a stale selector
+  // teleports the next surface into a detached node, and the unmount watcher
+  // does not fire (Vue tears the component down before its watchers run).
+  setWorkspaceFrameSlot('hand', '');
+  // …and the fleet berth this header lent the hosted colonies, by the same law.
+  // UNCONDITIONALLY — by the time the hand unmounts the colonies frame is
+  // usually gone, so «am I offering?» already reads false while the berth we
+  // lent is still published (the field crash of game-pdb19bfa). Only OUR berth
+  // is taken back.
+  retractColonyFleetBerth('hand');
+  // …AND THE OUTCOME ZONE IS THE SAME LAW — PARK INCLUDED. The CLAIM
+  // deliberately survives «свернуть» (below); the DOM node does not, and the
+  // slot describes a NODE. Left published, it is not merely stale: a
+  // `<Teleport>`'s `to` is UNCHANGED across the park, so Vue never re-resolves
+  // it and keeps the DETACHED div as its target — the restored surface then
+  // mounts into a node that is not in the document. Measured on «Марсианский
+  // университет»: collapse the embedded decision, return from the board card,
+  // and the crumb, the kicker and the command bar all announce the stage while
+  // NOTHING is on screen (`[console-leak-detector] STRANDED PROMPT: "or"`).
+  // Cleared here, the host re-publishes the same selector on its way back and
+  // that CHANGE is what makes the teleport look the target up again. Guards
+  // all four consumers of the zone at once — the embedded reveal, the deck
+  // pick, the buy prompt and the effect decision.
+  // Only OUR zone (ledger HC) — never a slot another host published meanwhile.
+  retractWorkspaceOutcomeSlot('[data-embed-slot="hand-outcome"]');
+  // A CLAIM CAN NEVER OUTLIVE ITS FLOW: an orphaned one is worse than a leak
+  // (it suppresses the standalone presenters, so the artifact shows NOWHERE).
+  // …unless the workspace was PARKED — «свернуть» keeps the whole decision
+  // alive at full depth, and its surface unmounting is exactly how that
+  // looks. (The raw claim is read here, not the gated computed: the park
+  // happens BEFORE this hook and would already have flipped it false.)
+  if (outcome.host === 'hand' && outcome.sourceCard !== '' &&
+      !workspaceFrameParked('hand')) {
+    // …AND «THIS STEP IS OVER» IS NOT «THE FLOW IS OVER». When the hand is a
+    // STEP of another workspace («Эпатажный спонсор» plays a project from
+    // inside the Game Start Workspace), the step exists only for the play and
+    // unmounts the moment the card lands — beats before the play's own
+    // follow-up arrives. The outcome then belongs one level UP, to the
+    // workspace the player never left; released here it belonged to nobody,
+    // and «Деловые контакты» raised its pick as a standalone band over a
+    // deployment that had already started its next stage on top of it.
+    if (!rehomePlayOutcome('hand')) {
+      releaseWorkspaceOutcome('hand-unmount');
+    }
+  }
+  ro?.disconnect();
+});
+defineExpose({ensureSelectedVisible, move, packetHomeRects, restoreScroll, stickScroll, transitionTargets, turnPage});
 </script>
