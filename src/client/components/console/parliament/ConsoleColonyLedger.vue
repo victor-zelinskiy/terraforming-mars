@@ -1,36 +1,4 @@
 <template>
-  <!--
-    THE COLONY LEDGER (Turmoil Redux — Colonial Affairs): the ONE reading of
-    «gain all your colony bonuses k times», wherever a surface needs it — the
-    vote panel (compact), the fullscreen inspector's footer (compact), the
-    sitting's REWARD stage (hero, the ledger IS the stage's body) and the
-    playground.
-
-    Two tiers, one hierarchy. THE MULTIPLIER is the influence-yield block's
-    own reading («[influence] 3 → ×3», «+1 if you win · step 3») — the same
-    grammar every scaled effect reads in. THE ROWS are the player's tiles, in
-    the table's order: the planet, the name, the PRINTED bonus of one repeat,
-    «× k =», the row's total. Pluto's pair never merges: its row reads
-    «k × (card → discard)». THE SUMS by unit close the block. A seat with no
-    cube says so in words — never an empty box.
-
-    Nothing here computes: the rows arrive from the SERVER's registry through
-    `colonyLedgerModel.ts`, the states are the server's own records, the
-    multiplier is the one shared formula. A row's «received» is the flight's
-    landing (the stage hands it in), never the record's arrival.
-
-    …AND THE SAME LEDGER OUTSIDE THE PARLIAMENT: a CARD that pays «all your
-    colony bonuses» (TR23 Habitat Science's action, Productive Outpost's play)
-    reads it in its own composer — `cardColonyLedgerOf`, contexts `preview` ·
-    `paying` · `paid`. A card has no influence, so there is no multiplier line;
-    a row's «× N» is its CUBES and is printed only above one (with its total);
-    a pending row wears the WORD of what it will ask after the press («card
-    choice», «take the card», «card → discard»); a row that cannot land is
-    refused in the amber register with the server's reason; and the sums are
-    NOT repeated — the composer's ordinary effect chips answer «how much», the
-    ledger answers «from where». A row reads «received» on its own landing
-    (`landedColonies`), the only receipt a card's payout has.
-  -->
   <div class="con-cledger" :class="['con-cledger--' + size, 'con-cledger--' + reading.context, {'con-cledger--empty': reading.empty, 'con-cledger--card': card}]"
        data-colony-ledger
        :data-colony-ledger-context="reading.context"
@@ -123,8 +91,42 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE COLONY LEDGER (Turmoil Redux — Colonial Affairs): the ONE reading of
+ * «gain all your colony bonuses k times», wherever a surface needs it — the
+ * vote panel (compact), the fullscreen inspector's footer (compact), the
+ * sitting's REWARD stage (hero, the ledger IS the stage's body) and the
+ * playground.
+ *
+ * Two tiers, one hierarchy. THE MULTIPLIER is the influence-yield block's
+ * own reading («[influence] 3 → ×3», «+1 if you win · step 3») — the same
+ * grammar every scaled effect reads in. THE ROWS are the player's tiles, in
+ * the table's order: the planet, the name, the PRINTED bonus of one repeat,
+ * «× k =», the row's total. Pluto's pair never merges: its row reads
+ * «k × (card → discard)». THE SUMS by unit close the block. A seat with no
+ * cube says so in words — never an empty box.
+ *
+ * Nothing here computes: the rows arrive from the SERVER's registry through
+ * `colonyLedgerModel.ts`, the states are the server's own records, the
+ * multiplier is the one shared formula. A row's «received» is the flight's
+ * landing (the stage hands it in), never the record's arrival.
+ *
+ * …AND THE SAME LEDGER OUTSIDE THE PARLIAMENT: a CARD that pays «all your
+ * colony bonuses» (TR23 Habitat Science's action, Productive Outpost's play)
+ * reads it in its own composer — `cardColonyLedgerOf`, contexts `preview` ·
+ * `paying` · `paid`. A card has no influence, so there is no multiplier line;
+ * a row's «× N» is its CUBES and is printed only above one (with its total);
+ * a pending row wears the WORD of what it will ask after the press («card
+ * choice», «take the card», «card → discard»); a row that cannot land is
+ * refused in the amber register with the server's reason; and the sums are
+ * NOT repeated — the composer's ordinary effect chips answer «how much», the
+ * ledger answers «from where». A row reads «received» on its own landing
+ * (`landedColonies`), the only receipt a card's payout has.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import {ColonyLedgerBonus, ColonyLedgerRow} from '@/common/parliament/colonyLedger';
 import {colonyLedgerAskKey, colonyLedgerEmptyKey, COLONY_LEDGER_TOTAL, ColonyLedgerReading, isCardLedgerContext} from '@/client/console/parliament/colonyLedgerModel';
@@ -132,121 +134,115 @@ import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ReadingPerson} from '@/client/console/parliament/influenceYieldModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 import {resolvePluralGroups} from '@/client/i18n/pluralForms';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 
 type Sum = {key: string, text: string, unit: string, word?: string};
 
-export default defineComponent({
-  name: 'ConsoleColonyLedger',
-  components: {ConsoleInfluenceYield},
-  props: {
-    reading: {type: Object as PropType<ColonyLedgerReading>, required: true},
-    /** `compact` in a panel / a footer, `normal` in a block, `hero` on the stage. */
-    size: {type: String as PropType<'compact' | 'normal' | 'hero'>, default: 'normal'},
-    /** An i18n key over the block (the stage prints none — the band is its kicker). */
-    kicker: {type: String as PropType<string | undefined>, default: undefined},
-    /** WHOSE ledger this is — the viewer's own, or another seat's (its one second-person phrase follows). */
-    person: {type: String as PropType<ReadingPerson>, default: 'you'},
-    /** The row whose wave is in the air right now (the stage marks exactly one). */
-    activeColony: {type: String as PropType<string | undefined>, default: undefined},
-    /**
-     * The rows whose payout has LANDED — the stage's own fact (a chip's touchdown), so a row reads «received»
-     * on the landing and never on the record's arrival. Absent: a paid record reads as received at once.
-     */
-    landedColonies: {type: Object as PropType<ReadonlySet<string> | undefined>, default: undefined},
-  },
-  computed: {
-    /** A CARD's reading (`preview` · `paying` · `paid`) — no multiplier line, no sums, receipts by landing. */
-    card(): boolean {
-      return isCardLedgerContext(this.reading.context);
-    },
-    yields(): ReadonlyArray<InfluenceYield> {
-      return this.reading.yields ?? [];
-    },
-    emptyKey(): string {
-      return colonyLedgerEmptyKey(this.person);
-    },
-    totalKey(): string {
-      return COLONY_LEDGER_TOTAL;
-    },
-    timesKey(): string {
-      return 'time(s)';
-    },
-    cardsClass(): string {
-      return iconClassFor('cards');
-    },
-    /** The sums as chips: stock by resource, production by resource, card resources by resource, cards, pairs, the rest. */
-    sums(): Array<Sum> {
-      const t = this.reading.totals;
-      const out: Array<Sum> = [];
-      for (const entry of t.stock) {
-        out.push({key: `stock:${entry.resource}`, text: this.signed(entry.amount), unit: iconClassFor(entry.resource)});
-      }
-      for (const entry of t.production) {
-        out.push({key: `production:${entry.resource}`, text: this.signed(entry.amount), unit: iconClassFor(entry.resource) + ' con-cledger__unit--prod'});
-      }
-      for (const entry of t.cardResources) {
-        out.push({key: `card-resource:${entry.resource}`, text: this.signed(entry.amount), unit: iconClassFor(cardResourceKey(entry.resource))});
-      }
-      if (t.cards > 0) {
-        out.push({key: 'cards', text: this.signed(t.cards), unit: iconClassFor('cards')});
-      }
-      if (t.pairs > 0) {
-        out.push({key: 'pairs', text: String(t.pairs), unit: iconClassFor('cards') + ' con-cledger__unit--pair', word: 'card → discard'});
-      }
-      return out;
-    },
-  },
-  methods: {
-    signed(amount: number): string {
-      return amount > 0 ? `+${amount}` : String(amount);
-    },
-    /** «раз / раза / раз» for the row's count — the plural group of the key, resolved by the number printed beside it. */
-    timesWord(n: number): string {
-      return resolvePluralGroups(translateText(this.timesKey), getPreferences().lang, n);
-    },
-    /** Are the row's «× N» and its total printed? Always for a resolution (k is the reading); for a card only above one. */
-    repeatsShown(row: ColonyLedgerRow): boolean {
-      return !this.card || row.multiplier > 1;
-    },
-    /** The word a CARD's pending row wears for the step it will raise (undefined elsewhere). */
-    askKey(row: ColonyLedgerRow): string | undefined {
-      return this.card ? colonyLedgerAskKey(row.asks) : undefined;
-    },
-    /** The state the row reads in: a recorded skip, a landed payout, else pending. */
-    rowState(row: ColonyLedgerRow): 'pending' | 'received' | 'skipped' {
-      if (row.state === 'skipped') {
-        return 'skipped';
-      }
-      // A CARD's payout keeps no record: a row's receipt is its own landing, and nothing else.
-      if (this.card) {
-        return this.landedColonies !== undefined && this.landedColonies.has(row.colony) ? 'received' : 'pending';
-      }
-      if (row.state !== 'paid') {
-        return 'pending';
-      }
-      return this.landedColonies === undefined || this.landedColonies.has(row.colony) ? 'received' : 'pending';
-    },
-    planetClass(colony: string): string {
-      return colony.replace(' ', '-') + '-background';
-    },
-    /** The icon(s) of a bonus's unit — the console's own sprite families; a unit over SEVERAL kinds is the icons «or»-joined (one unit, never one icon for three). */
-    unitClasses(bonus: ColonyLedgerBonus): Array<string> {
-      switch (bonus.kind) {
-      case 'stock': return [iconClassFor(bonus.resource ?? 'megacredits')];
-      case 'production': return [iconClassFor(bonus.resource ?? 'megacredits') + ' con-cledger__unit--prod'];
-      case 'card-resource':
-        if (bonus.resources !== undefined && bonus.resources.length > 0) {
-          return bonus.resources.map((r) => iconClassFor(cardResourceKey(r)));
-        }
-        return [bonus.resource === undefined ? iconClassFor('cards') : iconClassFor(cardResourceKey(bonus.resource))];
-      case 'cards': return [iconClassFor('cards')];
-      case 'draw-discard': return [iconClassFor('cards')];
-      case 'hud': return [bonus.resource === undefined ? '' : iconClassFor(bonus.resource)];
-      }
-    },
-  },
+defineOptions({name: 'ConsoleColonyLedger'});
+const props = defineProps({
+  reading: {type: Object as PropType<ColonyLedgerReading>, required: true},
+  /** `compact` in a panel / a footer, `normal` in a block, `hero` on the stage. */
+  size: {type: String as PropType<'compact' | 'normal' | 'hero'>, default: 'normal'},
+  /** An i18n key over the block (the stage prints none — the band is its kicker). */
+  kicker: {type: String as PropType<string | undefined>, default: undefined},
+  /** WHOSE ledger this is — the viewer's own, or another seat's (its one second-person phrase follows). */
+  person: {type: String as PropType<ReadingPerson>, default: 'you'},
+  /** The row whose wave is in the air right now (the stage marks exactly one). */
+  activeColony: {type: String as PropType<string | undefined>, default: undefined},
+  /**
+   * The rows whose payout has LANDED — the stage's own fact (a chip's touchdown), so a row reads «received»
+   * on the landing and never on the record's arrival. Absent: a paid record reads as received at once.
+   */
+  landedColonies: {type: Object as PropType<ReadonlySet<string> | undefined>, default: undefined},
 });
+
+/** A CARD's reading (`preview` · `paying` · `paid`) — no multiplier line, no sums, receipts by landing. */
+const card = computed((): boolean => {
+  return isCardLedgerContext(props.reading.context);
+});
+const yields = computed((): ReadonlyArray<InfluenceYield> => {
+  return props.reading.yields ?? [];
+});
+const emptyKey = computed((): string => {
+  return colonyLedgerEmptyKey(props.person);
+});
+const totalKey = computed((): string => {
+  return COLONY_LEDGER_TOTAL;
+});
+const timesKey = computed((): string => {
+  return 'time(s)';
+});
+const cardsClass = computed((): string => {
+  return iconClassFor('cards');
+});
+/** The sums as chips: stock by resource, production by resource, card resources by resource, cards, pairs, the rest. */
+const sums = computed((): Array<Sum> => {
+  const t = props.reading.totals;
+  const out: Array<Sum> = [];
+  for (const entry of t.stock) {
+    out.push({key: `stock:${entry.resource}`, text: signed(entry.amount), unit: iconClassFor(entry.resource)});
+  }
+  for (const entry of t.production) {
+    out.push({key: `production:${entry.resource}`, text: signed(entry.amount), unit: iconClassFor(entry.resource) + ' con-cledger__unit--prod'});
+  }
+  for (const entry of t.cardResources) {
+    out.push({key: `card-resource:${entry.resource}`, text: signed(entry.amount), unit: iconClassFor(cardResourceKey(entry.resource))});
+  }
+  if (t.cards > 0) {
+    out.push({key: 'cards', text: signed(t.cards), unit: iconClassFor('cards')});
+  }
+  if (t.pairs > 0) {
+    out.push({key: 'pairs', text: String(t.pairs), unit: iconClassFor('cards') + ' con-cledger__unit--pair', word: 'card → discard'});
+  }
+  return out;
+});
+function signed(amount: number): string {
+  return amount > 0 ? `+${amount}` : String(amount);
+}
+/** «раз / раза / раз» for the row's count — the plural group of the key, resolved by the number printed beside it. */
+function timesWord(n: number): string {
+  return resolvePluralGroups(translateText(timesKey.value), getPreferences().lang, n);
+}
+/** Are the row's «× N» and its total printed? Always for a resolution (k is the reading); for a card only above one. */
+function repeatsShown(row: ColonyLedgerRow): boolean {
+  return !card.value || row.multiplier > 1;
+}
+/** The word a CARD's pending row wears for the step it will raise (undefined elsewhere). */
+function askKey(row: ColonyLedgerRow): string | undefined {
+  return card.value ? colonyLedgerAskKey(row.asks) : undefined;
+}
+/** The state the row reads in: a recorded skip, a landed payout, else pending. */
+function rowState(row: ColonyLedgerRow): 'pending' | 'received' | 'skipped' {
+  if (row.state === 'skipped') {
+    return 'skipped';
+  }
+  // A CARD's payout keeps no record: a row's receipt is its own landing, and nothing else.
+  if (card.value) {
+    return props.landedColonies !== undefined && props.landedColonies.has(row.colony) ? 'received' : 'pending';
+  }
+  if (row.state !== 'paid') {
+    return 'pending';
+  }
+  return props.landedColonies === undefined || props.landedColonies.has(row.colony) ? 'received' : 'pending';
+}
+function planetClass(colony: string): string {
+  return colony.replace(' ', '-') + '-background';
+}
+/** The icon(s) of a bonus's unit — the console's own sprite families; a unit over SEVERAL kinds is the icons «or»-joined (one unit, never one icon for three). */
+function unitClasses(bonus: ColonyLedgerBonus): Array<string> {
+  switch (bonus.kind) {
+  case 'stock': return [iconClassFor(bonus.resource ?? 'megacredits')];
+  case 'production': return [iconClassFor(bonus.resource ?? 'megacredits') + ' con-cledger__unit--prod'];
+  case 'card-resource':
+    if (bonus.resources !== undefined && bonus.resources.length > 0) {
+      return bonus.resources.map((r) => iconClassFor(cardResourceKey(r)));
+    }
+    return [bonus.resource === undefined ? iconClassFor('cards') : iconClassFor(cardResourceKey(bonus.resource))];
+  case 'cards': return [iconClassFor('cards')];
+  case 'draw-discard': return [iconClassFor('cards')];
+  case 'hud': return [bonus.resource === undefined ? '' : iconClassFor(bonus.resource)];
+  }
+}
 </script>
