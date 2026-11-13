@@ -1,10 +1,4 @@
 <template>
-  <!-- WHAT ONE SEAT GOT — its TOTALS, one token per unit (`parliamentResultsModel.resultsTotalsOf`), never a chip per
-       record (P71 · ledger CY). The ONE renderer of a seat's total, shared by the results card's ledger and the
-       breakdown under it («ПОДРОБНОСТИ ВЫПЛАТ» — its «ИТОГО»), so the two surfaces can never disagree on what a seat got.
-       The number is the loudest voice (weight and size, never light); an object (a tile, a parameter's step, a walk)
-       and a skip are ONE record each, drawn by the one record renderer (`ConsoleSitPayoutPart`). The marks row under
-       the tokens says WHERE they came from in icons only — a planet with its «×k», a party's seal, the crown. -->
   <span class="con-sit__totals" data-sit-totals>
     <span v-if="shown.length > 0 || hidden > 0" class="con-sit__totals-tokens">
       <template v-for="total in shown" :key="total.id">
@@ -47,8 +41,18 @@
     </span>
   </span>
 </template>
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * WHAT ONE SEAT GOT — its TOTALS, one token per unit (`parliamentResultsModel.resultsTotalsOf`), never a chip per
+ * record (P71 · ledger CY). The ONE renderer of a seat's total, shared by the results card's ledger and the
+ * breakdown under it («ПОДРОБНОСТИ ВЫПЛАТ» — its «ИТОГО»), so the two surfaces can never disagree on what a seat got.
+ * The number is the loudest voice (weight and size, never light); an object (a tile, a parameter's step, a walk)
+ * and a skip are ONE record each, drawn by the one record renderer (`ConsoleSitPayoutPart`). The marks row under
+ * the tokens says WHERE they came from in icons only — a planet with its «×k», a party's seal, the crown.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -56,58 +60,53 @@ import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYiel
 import ConsoleSitPayoutPart from '@/client/components/console/parliament/ConsoleSitPayoutPart.vue';
 import {OWN_KIND_UNIT, ResultsTotal, ResultsTotalSource, totalSourceKey} from '@/client/console/parliament/parliamentResultsModel';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {$t} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleSitTotals',
-  components: {ConsoleYieldUnit, ConsoleSitPayoutPart},
-  props: {
-    totals: {type: Array as PropType<ReadonlyArray<ResultsTotal>>, required: true},
-    /** The marks row (the card's) — where the totals came from. The breakdown prints its sources as lines instead. */
-    marks: {type: Array as PropType<ReadonlyArray<ResultsTotalSource>>, default: () => []},
-    /** The solver's fold: show only this many tokens, count the rest (undefined = all). */
-    fold: {type: Number as PropType<number | undefined>, default: undefined},
-  },
-  computed: {
-    tokens(): ReadonlyArray<ResultsTotal> {
-      return this.totals.filter((t) => t.kind !== 'skipped');
-    },
-    shown(): ReadonlyArray<ResultsTotal> {
-      return this.fold === undefined ? this.tokens : this.tokens.slice(0, this.fold);
-    },
-    hidden(): number {
-      return this.tokens.length - this.shown.length;
-    },
-    skips(): ReadonlyArray<ResultsTotal> {
-      return this.totals.filter((t) => t.kind === 'skipped');
-    },
-  },
-  methods: {
-    signedAmount(amount: number | undefined): string {
-      const n = amount ?? 0;
-      return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
-    },
-    /** The unit's own sprite — the production frame for a production step, a card resource's cube, the card. */
-    unitClass(total: ResultsTotal): string {
-      if (total.family === 'cardResource') {
-        return total.unit === OWN_KIND_UNIT ? iconClassFor('wild') : iconClassFor(cardResourceKey(total.unit));
-      }
-      return iconClassFor(total.unit) + (total.production ? ' con-iyield__unit--prod' : '');
-    },
-    unitClasses(total: ResultsTotal): Array<string> {
-      return (total.units ?? []).map((unit) => iconClassFor(cardResourceKey(unit)));
-    },
-    emblemUrl(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-    planetClass(colony: string): string {
-      return colony.replace(' ', '-') + '-background';
-    },
-    markKey(mark: ResultsTotalSource): string {
-      return totalSourceKey(mark);
-    },
-    markOf(mark: ResultsTotalSource): string | undefined {
-      return mark.kind === 'colony' ? mark.colony : mark.kind === 'party' ? mark.party : undefined;
-    },
-  },
+defineOptions({name: 'ConsoleSitTotals'});
+const props = defineProps({
+  totals: {type: Array as PropType<ReadonlyArray<ResultsTotal>>, required: true},
+  /** The marks row (the card's) — where the totals came from. The breakdown prints its sources as lines instead. */
+  marks: {type: Array as PropType<ReadonlyArray<ResultsTotalSource>>, default: () => []},
+  /** The solver's fold: show only this many tokens, count the rest (undefined = all). */
+  fold: {type: Number as PropType<number | undefined>, default: undefined},
 });
+
+const tokens = computed((): ReadonlyArray<ResultsTotal> => {
+  return props.totals.filter((t) => t.kind !== 'skipped');
+});
+const shown = computed((): ReadonlyArray<ResultsTotal> => {
+  return props.fold === undefined ? tokens.value : tokens.value.slice(0, props.fold);
+});
+const hidden = computed((): number => {
+  return tokens.value.length - shown.value.length;
+});
+const skips = computed((): ReadonlyArray<ResultsTotal> => {
+  return props.totals.filter((t) => t.kind === 'skipped');
+});
+function signedAmount(amount: number | undefined): string {
+  const n = amount ?? 0;
+  return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
+}
+/** The unit's own sprite — the production frame for a production step, a card resource's cube, the card. */
+function unitClass(total: ResultsTotal): string {
+  if (total.family === 'cardResource') {
+    return total.unit === OWN_KIND_UNIT ? iconClassFor('wild') : iconClassFor(cardResourceKey(total.unit));
+  }
+  return iconClassFor(total.unit) + (total.production ? ' con-iyield__unit--prod' : '');
+}
+function unitClasses(total: ResultsTotal): Array<string> {
+  return (total.units ?? []).map((unit) => iconClassFor(cardResourceKey(unit)));
+}
+function emblemUrl(party: ReduxParty): string {
+  return partyEmblemUrl(party);
+}
+function planetClass(colony: string): string {
+  return colony.replace(' ', '-') + '-background';
+}
+function markKey(mark: ResultsTotalSource): string {
+  return totalSourceKey(mark);
+}
+function markOf(mark: ResultsTotalSource): string | undefined {
+  return mark.kind === 'colony' ? mark.colony : mark.kind === 'party' ? mark.party : undefined;
+}
 </script>
