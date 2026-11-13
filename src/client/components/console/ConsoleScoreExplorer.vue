@@ -1,12 +1,5 @@
 <template>
-  <!-- THE SCORE EXPLORER — the vp subtree of the Information workspace as
-       ONE component: the overview (level 1), a category's detail (level 2)
-       and a card family's table (level 3) are LAYERS of one surface, so a
-       level change is a real FLIP/unfold phrase, never an out-in blink.
-       The HERO (total + segmented bar) is the same object on every level —
-       and the same object the summary tile hands over (data-vpx-total /
-       data-vpx-bar are the shared-element anchors of both directions). -->
-  <div class="con-vpx" :class="{'con-vpx--deep': level >= 2}">
+  <div ref="root" class="con-vpx" :class="{'con-vpx--deep': level >= 2}">
     <template v-if="vpVisible">
       <!-- The HERO. The shared total keeps ONE structure on both sides of
            the summary handoff (no contextual label inside the anchor — a
@@ -279,7 +272,19 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE SCORE EXPLORER — the vp subtree of the Information workspace as
+ *       ONE component: the overview (level 1), a category's detail (level 2)
+ *       and a card family's table (level 3) are LAYERS of one surface, so a
+ *       level change is a real FLIP/unfold phrase, never an out-in blink.
+ *       The HERO (total + segmented bar) is the same object on every level —
+ *       and the same object the summary tile hands over (data-vpx-total /
+ *       data-vpx-bar are the shared-element anchors of both directions).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
 /**
  * THE SCORE EXPLORER (Information workspace, vp subtree) — presentation +
  * per-level input over the PURE `scoreExplorerModel` builders. Reads only
@@ -299,8 +304,8 @@
  *    `onBrowse`, and B lands the card back in the preview — no duplicates,
  *    ever (the endgame's two-instance detail is exactly what this avoids).
  */
+import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
-import {defineComponent, PropType, markRaw, nextTick} from 'vue';
 import {gsap} from 'gsap';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
@@ -311,7 +316,7 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {buildLiveScoreModel, LiveScoreModel} from '@/client/console/liveScoreModel';
 import {
   buildAwardCollection,
@@ -384,877 +389,874 @@ import Card from '@/client/components/card/CardFace.vue';
 import {maArtPath} from '@/client/console/maArt';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 
-export default defineComponent({
-  name: 'ConsoleScoreExplorer',
-  components: {Card, ConsoleScrollArea, PremiumCountGlyph, ConsoleDossierSealed, ConsoleScoreDisc},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-  },
-  setup() {
-    const viewport = useConsoleViewport();
-    return {viewport};
-  },
-  data() {
-    return {
-      infoModeState,
-      ui: scoreExplorerUi,
-      /** Leave latches — keep a departing layer mounted through its fold. */
-      overviewLeaving: false,
-      catLeaving: false,
-      tableLeaving: false,
-      /** The category stays VISIBLE through its own recede under the
-       *  unfolding table (v-show would cut the breath at the route flip). */
-      catReceding: false,
-      /** The preview card's share of its nominal zoom (PL-095 — the card
-       *  yields to the words under it; `previewCardFit`). */
-      previewFit: 1,
-      previewRo: undefined as ResizeObserver | undefined,
-    };
-  },
-  computed: {
-    route(): InfoRouteId {
-      return this.infoModeState.route;
-    },
-    level(): number {
-      return this.route === 'vpCards' ? 3 : this.route === 'vpCategory' ? 2 : 1;
-    },
-    viewed(): PublicPlayerModel {
-      const color = this.infoModeState.playerColor;
-      return this.playerView.players.find((p) => p.color === color) ?? this.playerView.thisPlayer;
-    },
-    isSelf(): boolean {
-      return this.viewed.color === this.playerView.thisPlayer.color;
-    },
-    viewedIsBot(): boolean {
-      return this.viewed.isMarsBot === true;
-    },
-    /** The public facts of a sealed score (the rating, the seat's claimed milestones and funded awards) — no VP. */
-    sealedFacts(): DossierSealedFacts {
-      const game = this.playerView.game;
-      return dossierSealedFacts(this.viewed.terraformRating, this.viewed.color,
-        (game.milestones ?? []).map((m) => ({name: m.name, color: m.color})),
-        (game.awards ?? []).map((a) => ({name: a.name, color: a.color})),
-        maArtSlug);
-    },
-    vpVisible(): boolean {
-      return this.isSelf || this.viewedIsBot ||
-        this.playerView.game.gameOptions.showOtherPlayersVP === true;
-    },
-    liveScore(): LiveScoreModel {
-      const game = this.playerView.game;
-      return buildLiveScoreModel(this.viewed.victoryPointsBreakdown, {
-        isBot: this.viewedIsBot,
-        hasMoon: game.moon !== undefined,
-        hasPathfinders: game.pathfinders !== undefined,
-        hasDelta: game.gameOptions.expansions.deltaProject === true,
-        hasTitles: game.gameOptions.campaign?.final === true,
-        hasParliament: game.parliament !== undefined,
-      });
-    },
-    explorerCtx(): ScoreExplorerContext {
-      return {
-        isBot: this.viewedIsBot,
-        deltaPosition: this.viewed.deltaProject?.position,
-        awards: this.playerView.game.awards?.map((a) => ({
-          name: a.name,
-          funder: a.playerName,
-          scores: a.scores.map((s) => ({playerColor: s.color as string, playerScore: s.score})),
-        })),
-        milestones: this.playerView.game.milestones?.map((m) => ({
-          name: m.name,
-          threshold: m.threshold,
-          description: m.description,
-          scores: m.scores.map((s) => ({playerColor: s.color as string, playerScore: s.score})),
-        })),
-        viewedColor: this.viewed.color,
-        resolveName: (color) => displayNameForColor(this.playerView.players, color as never),
-        describeMa: (kind, name) => {
-          try {
-            return kind === 'milestone' ?
-              getMilestone(name as MilestoneName).description :
-              getAward(name as AwardName).description;
-          } catch (err) {
-            return '';
-          }
-        },
-      };
-    },
-    isMaCategory(): boolean {
-      return this.renderCategoryKey === 'milestones' || this.renderCategoryKey === 'awards';
-    },
-    maCollection(): ScoreMaCollection {
-      const b = this.viewed.victoryPointsBreakdown;
-      return this.renderCategoryKey === 'awards' ?
-        buildAwardCollection(b, this.explorerCtx) :
-        buildMilestoneCollection(b, this.explorerCtx);
-    },
-    /** The category the top bar LIGHTS — the focused tile on the overview,
-     *  the selected category past it (colour continuity of the descend).
-     *  A ZERO category has no stripe to link — the bar rests whole (the
-     *  share line still answers «0 ПО»). */
-    litKey(): string {
-      const key = this.level >= 2 ? this.renderCategoryKey :
-        (this.route === 'vp' ? this.overview.tiles[this.ui.gridFocus]?.key ?? '' : '');
-      const tile = this.overview.tiles.find((t) => t.key === key);
-      return tile !== undefined && tile.value > 0 ? key : '';
-    },
-    /** The share line follows the CURSOR even on a zero tile. */
-    shareKey(): string {
-      if (this.level >= 2) {
-        return this.renderCategoryKey;
-      }
-      return this.route === 'vp' ? this.overview.tiles[this.ui.gridFocus]?.key ?? '' : '';
-    },
-    /** The share line beside the bar: «23 / 39 · 59%» for the lit stripe,
-     *  an honest «0 ПО» when the cursor stands on a zero category. */
-    litShare(): string {
-      const tile = this.overview.tiles.find((t) => t.key === this.shareKey);
-      if (tile === undefined) {
+defineOptions({name: 'ConsoleScoreExplorer'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+});
+
+const viewport = useConsoleViewport();
+const previewEl = useTemplateRef<HTMLElement>('previewEl');
+const rowScroll = useTemplateRef<InstanceType<typeof ConsoleScrollArea>>('rowScroll');
+const inspectEl = useTemplateRef<HTMLElement>('inspectEl');
+const stageEl = useTemplateRef<HTMLElement>('stageEl');
+const catEl = useTemplateRef<HTMLElement>('catEl');
+const overviewEl = useTemplateRef<HTMLElement>('overviewEl');
+const tableEl = useTemplateRef<HTMLElement>('tableEl');
+const root = useTemplateRef<HTMLElement>('root');
+const ui = scoreExplorerUi;
+/** Leave latches — keep a departing layer mounted through its fold. */
+const overviewLeaving = ref(false);
+const catLeaving = ref(false);
+const tableLeaving = ref(false);
+/** The category stays VISIBLE through its own recede under the
+ *  unfolding table (v-show would cut the breath at the route flip). */
+const catReceding = ref(false);
+/** The preview card's share of its nominal zoom (PL-095 — the card
+ *  yields to the words under it; `previewCardFit`). */
+const previewFit = ref(1);
+let previewRo: ResizeObserver | undefined;
+
+const route = computed((): InfoRouteId => {
+  return infoModeState.route;
+});
+const level = computed((): number => {
+  return route.value === 'vpCards' ? 3 : route.value === 'vpCategory' ? 2 : 1;
+});
+const viewed = computed((): PublicPlayerModel => {
+  const color = infoModeState.playerColor;
+  return props.playerView.players.find((p) => p.color === color) ?? props.playerView.thisPlayer;
+});
+const isSelf = computed((): boolean => {
+  return viewed.value.color === props.playerView.thisPlayer.color;
+});
+const viewedIsBot = computed((): boolean => {
+  return viewed.value.isMarsBot === true;
+});
+/** The public facts of a sealed score (the rating, the seat's claimed milestones and funded awards) — no VP. */
+const sealedFacts = computed((): DossierSealedFacts => {
+  const game = props.playerView.game;
+  return dossierSealedFacts(viewed.value.terraformRating, viewed.value.color,
+    (game.milestones ?? []).map((m) => ({name: m.name, color: m.color})),
+    (game.awards ?? []).map((a) => ({name: a.name, color: a.color})),
+    maArtSlug);
+});
+const vpVisible = computed((): boolean => {
+  return isSelf.value || viewedIsBot.value ||
+    props.playerView.game.gameOptions.showOtherPlayersVP === true;
+});
+const liveScore = computed((): LiveScoreModel => {
+  const game = props.playerView.game;
+  return buildLiveScoreModel(viewed.value.victoryPointsBreakdown, {
+    isBot: viewedIsBot.value,
+    hasMoon: game.moon !== undefined,
+    hasPathfinders: game.pathfinders !== undefined,
+    hasDelta: game.gameOptions.expansions.deltaProject === true,
+    hasTitles: game.gameOptions.campaign?.final === true,
+    hasParliament: game.parliament !== undefined,
+  });
+});
+const explorerCtx = computed((): ScoreExplorerContext => {
+  return {
+    isBot: viewedIsBot.value,
+    deltaPosition: viewed.value.deltaProject?.position,
+    awards: props.playerView.game.awards?.map((a) => ({
+      name: a.name,
+      funder: a.playerName,
+      scores: a.scores.map((s) => ({playerColor: s.color as string, playerScore: s.score})),
+    })),
+    milestones: props.playerView.game.milestones?.map((m) => ({
+      name: m.name,
+      threshold: m.threshold,
+      description: m.description,
+      scores: m.scores.map((s) => ({playerColor: s.color as string, playerScore: s.score})),
+    })),
+    viewedColor: viewed.value.color,
+    resolveName: (color) => displayNameForColor(props.playerView.players, color as never),
+    describeMa: (kind, name) => {
+      try {
+        return kind === 'milestone' ?
+          getMilestone(name as MilestoneName).description :
+          getAward(name as AwardName).description;
+      } catch (err) {
         return '';
       }
-      if (tile.value <= 0) {
-        return `${tile.value} ${translateText('VP')}`;
-      }
-      return `${tile.value} / ${this.overview.total} · ${Math.round(tile.sharePct)}%`;
     },
-    overview(): ScoreOverviewModel {
-      return buildScoreOverview(this.liveScore, this.viewed.victoryPointsBreakdown, this.explorerCtx);
-    },
-    /** Each overview category's medallion symbol — the dossier's own (`dossierMedallions`, the earned emblems included). */
-    tileGlyphs(): Readonly<Record<string, DossierGlyph>> {
-      const out: Record<string, DossierGlyph> = {};
-      for (const m of dossierMedallions(this.overview)) {
-        out[m.key] = m.glyph;
-      }
-      return out;
-    },
-    barSegments(): Array<{key: string, accent: string, widthPct: number}> {
-      return this.overview.tiles
-        .filter((t) => t.value > 0)
-        .map((t) => ({key: t.key, accent: t.accent, widthPct: t.sharePct}));
-    },
-    /** The category rendered on level ≥ 2 — the param, kept through a fold. */
-    renderCategoryKey(): string {
-      return this.infoModeState.vpCategoryKey ?? '';
-    },
-    renderGroupKey(): string {
-      return this.infoModeState.vpCardsGroup ?? '';
-    },
-    categoryLabel(): string {
-      return SCORE_CATEGORY_TABLE.find((c) => c.key === this.renderCategoryKey)?.label ?? '';
-    },
-    categoryTile(): ScoreTile | undefined {
-      return this.overview.tiles.find((t) => t.key === this.renderCategoryKey);
-    },
-    categoryValue(): number {
-      return this.categoryTile?.value ?? 0;
-    },
-    categoryShare(): number | undefined {
-      const tile = this.categoryTile;
-      return tile !== undefined && tile.value > 0 ? Math.round(tile.sharePct) : undefined;
-    },
-    overviewShown(): boolean {
-      return this.route === 'vp' || this.overviewLeaving;
-    },
-    catMounted(): boolean {
-      return (this.route === 'vpCategory' || this.route === 'vpCards' || this.catLeaving) &&
-        this.renderCategoryKey !== '';
-    },
-    tableMounted(): boolean {
-      return (this.route === 'vpCards' || this.tableLeaving) && this.renderGroupKey !== '';
-    },
-    trModel(): TrProvenanceModel {
-      return buildTrProvenance(this.viewed.victoryPointsBreakdown, this.viewedIsBot);
-    },
-    cardsHub(): CardsHubModel {
-      return buildCardsHub(this.liveScore, this.viewed.victoryPointsBreakdown, this.viewedIsBot);
-    },
-    factsModel(): CategoryFactsModel {
-      const b = this.viewed.victoryPointsBreakdown;
-      switch (this.renderCategoryKey) {
-      case 'city': return buildCityFacts(b.detailsCities);
-      case 'greenery': return buildGreeneryFacts(b);
-      case 'delta': return buildHydroFacts(b, this.explorerCtx);
-      case 'titles': return buildTitleFacts(b);
-      case 'penalty': return buildPenaltyFacts(b);
-      default: {
-        const cat = this.liveScore.categories.find((c) => c.key === this.renderCategoryKey);
-        return cat !== undefined ?
-          {rows: cat.subs.map((s) => ({key: s.key, label: s.label, value: s.value})), emptyKey: 'Nothing scored here yet'} :
-          {rows: [], emptyKey: 'Nothing scored here yet'};
-      }
-      }
-    },
-    resourcesByName(): Partial<Record<string, number>> {
-      const out: Partial<Record<string, number>> = {};
-      for (const c of this.viewed.tableau) {
-        if (c.resources !== undefined && c.resources > 0) {
-          out[c.name] = c.resources;
-        }
-      }
-      return out;
-    },
-    tableModel(): CardGroupTableModel {
-      const group = (this.renderGroupKey || 'cards-resource') as ScoreCardGroupKey;
-      if (this.viewedIsBot) {
-        return buildBotGroupFacts(this.viewed.victoryPointsBreakdown, group, this.viewed.megacredits);
-      }
-      return buildCardGroupTable(
-        this.viewed.victoryPointsBreakdown,
-        group,
-        this.resourcesByName,
-        (name) => {
-          try {
-            const card = getCard(name as never);
-            return card === undefined ? undefined : {exists: true, resourceType: card.resourceType};
-          } catch (err) {
-            return undefined;
-          }
-        },
-      );
-    },
-    currentRow(): ScoreCardRow | undefined {
-      return this.tableModel.rows[this.ui.rowFocus];
-    },
-    currentRowName(): string {
-      return this.currentRow?.cardName ?? '';
-    },
-    hasPreviewColumn(): boolean {
-      return this.tableModel.rows.some((r) => r.previewable);
-    },
-    /** The preview column is in the DOM (its fit observer follows it). */
-    previewColumnLive(): boolean {
-      return this.tableMounted && this.hasPreviewColumn;
-    },
-    previewModel(): CardModel | undefined {
-      const row = this.currentRow;
-      if (row === undefined || !row.previewable) {
+  };
+});
+const isMaCategory = computed((): boolean => {
+  return renderCategoryKey.value === 'milestones' || renderCategoryKey.value === 'awards';
+});
+const maCollection = computed((): ScoreMaCollection => {
+  const b = viewed.value.victoryPointsBreakdown;
+  return renderCategoryKey.value === 'awards' ?
+    buildAwardCollection(b, explorerCtx.value) :
+    buildMilestoneCollection(b, explorerCtx.value);
+});
+/** The category the top bar LIGHTS — the focused tile on the overview,
+ *  the selected category past it (colour continuity of the descend).
+ *  A ZERO category has no stripe to link — the bar rests whole (the
+ *  share line still answers «0 ПО»). */
+const litKey = computed((): string => {
+  const key = level.value >= 2 ? renderCategoryKey.value :
+    (route.value === 'vp' ? overview.value.tiles[ui.gridFocus]?.key ?? '' : '');
+  const tile = overview.value.tiles.find((t) => t.key === key);
+  return tile !== undefined && tile.value > 0 ? key : '';
+});
+/** The share line follows the CURSOR even on a zero tile. */
+const shareKey = computed((): string => {
+  if (level.value >= 2) {
+    return renderCategoryKey.value;
+  }
+  return route.value === 'vp' ? overview.value.tiles[ui.gridFocus]?.key ?? '' : '';
+});
+/** The share line beside the bar: «23 / 39 · 59%» for the lit stripe,
+ *  an honest «0 ПО» when the cursor stands on a zero category. */
+const litShare = computed((): string => {
+  const tile = overview.value.tiles.find((t) => t.key === shareKey.value);
+  if (tile === undefined) {
+    return '';
+  }
+  if (tile.value <= 0) {
+    return `${tile.value} ${translateText('VP')}`;
+  }
+  return `${tile.value} / ${overview.value.total} · ${Math.round(tile.sharePct)}%`;
+});
+const overview = computed((): ScoreOverviewModel => {
+  return buildScoreOverview(liveScore.value, viewed.value.victoryPointsBreakdown, explorerCtx.value);
+});
+/** Each overview category's medallion symbol — the dossier's own (`dossierMedallions`, the earned emblems included). */
+const tileGlyphs = computed((): Readonly<Record<string, DossierGlyph>> => {
+  const out: Record<string, DossierGlyph> = {};
+  for (const m of dossierMedallions(overview.value)) {
+    out[m.key] = m.glyph;
+  }
+  return out;
+});
+const barSegments = computed((): Array<{key: string, accent: string, widthPct: number}> => {
+  return overview.value.tiles
+    .filter((t) => t.value > 0)
+    .map((t) => ({key: t.key, accent: t.accent, widthPct: t.sharePct}));
+});
+/** The category rendered on level ≥ 2 — the param, kept through a fold. */
+const renderCategoryKey = computed((): string => {
+  return infoModeState.vpCategoryKey ?? '';
+});
+const renderGroupKey = computed((): string => {
+  return infoModeState.vpCardsGroup ?? '';
+});
+const categoryLabel = computed((): string => {
+  return SCORE_CATEGORY_TABLE.find((c) => c.key === renderCategoryKey.value)?.label ?? '';
+});
+const categoryTile = computed((): ScoreTile | undefined => {
+  return overview.value.tiles.find((t) => t.key === renderCategoryKey.value);
+});
+const categoryValue = computed((): number => {
+  return categoryTile.value?.value ?? 0;
+});
+const categoryShare = computed((): number | undefined => {
+  const tile = categoryTile.value;
+  return tile !== undefined && tile.value > 0 ? Math.round(tile.sharePct) : undefined;
+});
+const overviewShown = computed((): boolean => {
+  return route.value === 'vp' || overviewLeaving.value;
+});
+const catMounted = computed((): boolean => {
+  return (route.value === 'vpCategory' || route.value === 'vpCards' || catLeaving.value) &&
+    renderCategoryKey.value !== '';
+});
+const tableMounted = computed((): boolean => {
+  return (route.value === 'vpCards' || tableLeaving.value) && renderGroupKey.value !== '';
+});
+const trModel = computed((): TrProvenanceModel => {
+  return buildTrProvenance(viewed.value.victoryPointsBreakdown, viewedIsBot.value);
+});
+const cardsHub = computed((): CardsHubModel => {
+  return buildCardsHub(liveScore.value, viewed.value.victoryPointsBreakdown, viewedIsBot.value);
+});
+const factsModel = computed((): CategoryFactsModel => {
+  const b = viewed.value.victoryPointsBreakdown;
+  switch (renderCategoryKey.value) {
+  case 'city': return buildCityFacts(b.detailsCities);
+  case 'greenery': return buildGreeneryFacts(b);
+  case 'delta': return buildHydroFacts(b, explorerCtx.value);
+  case 'titles': return buildTitleFacts(b);
+  case 'penalty': return buildPenaltyFacts(b);
+  default: {
+    const cat = liveScore.value.categories.find((c) => c.key === renderCategoryKey.value);
+    return cat !== undefined ?
+      {rows: cat.subs.map((s) => ({key: s.key, label: s.label, value: s.value})), emptyKey: 'Nothing scored here yet'} :
+      {rows: [], emptyKey: 'Nothing scored here yet'};
+  }
+  }
+});
+const resourcesByName = computed((): Partial<Record<string, number>> => {
+  const out: Partial<Record<string, number>> = {};
+  for (const c of viewed.value.tableau) {
+    if (c.resources !== undefined && c.resources > 0) {
+      out[c.name] = c.resources;
+    }
+  }
+  return out;
+});
+const tableModel = computed((): CardGroupTableModel => {
+  const group = (renderGroupKey.value || 'cards-resource') as ScoreCardGroupKey;
+  if (viewedIsBot.value) {
+    return buildBotGroupFacts(viewed.value.victoryPointsBreakdown, group, viewed.value.megacredits);
+  }
+  return buildCardGroupTable(
+    viewed.value.victoryPointsBreakdown,
+    group,
+    resourcesByName.value,
+    (name) => {
+      try {
+        const card = getCard(name as never);
+        return card === undefined ? undefined : {exists: true, resourceType: card.resourceType};
+      } catch (err) {
         return undefined;
       }
-      return this.viewed.tableau.find((c) => c.name === row.cardName) ?? ({name: row.cardName} as CardModel);
     },
-    gridCols(): number {
-      return this.viewport.isHandheld.value ? 2 : 3;
-    },
-    /** The explorer's live command contract — ConsoleInfoMode republishes it. */
-    barState(): Array<ConsoleCommand> {
-      const cmds: Array<ConsoleCommand> = [
-        {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
-      ];
-      if (!this.vpVisible) {
-        cmds.push({control: 'back', label: this.level >= 2 ? 'Back' : 'To overview'});
-        cmds.push({control: 'inspect', label: 'Close', priority: 0});
-        return cmds;
-      }
-      // The INSPECTION owns the pad: one read, one way back.
-      if (this.ui.inspect !== undefined) {
-        cmds.push({control: 'back', label: 'Back'});
-        cmds.push({control: 'inspect', label: 'Close', priority: 0});
-        return cmds;
-      }
-      if (this.route === 'vp') {
-        cmds.push({control: 'confirm', label: 'Open', enabled: this.overview.tiles.length > 0});
-        cmds.push({control: 'back', label: 'To overview'});
-      } else if (this.route === 'vpCategory') {
-        if (this.renderCategoryKey === 'cards') {
-          const tile = this.cardsHub.tiles[this.ui.hubFocus];
-          cmds.push({control: 'confirm', label: 'Open', enabled: tile?.enterable === true});
-        }
-        if (this.isMaCategory && this.maCollection.entries[this.ui.catFocus] !== undefined) {
-          cmds.push({control: 'secondary', label: 'Inspect'});
-        }
-        cmds.push({control: 'back', label: 'Back'});
-      } else {
-        if (this.currentRow?.previewable === true) {
-          cmds.push({control: 'secondary', label: 'Inspect'});
-        }
-        cmds.push({control: 'back', label: 'Back'});
-      }
-      cmds.push({control: 'inspect', label: 'Close', priority: 0});
-      return cmds;
-    },
-  },
-  watch: {
-    barState: {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>) {
-        scoreExplorerUi.barCommands = cmds;
-      },
-    },
-    'infoModeState.route'(to: InfoRouteId, from: InfoRouteId): void {
-      this.onRouteChange(to, from);
-    },
-    /** A seat switch keeps the depth but never a stale dossier — the
-     *  entity may not exist for the arriving participant. */
-    'infoModeState.playerColor'(): void {
-      this.dropInspect();
-    },
-    /** Clamp the cursors when a seat switch shrinks a list (same depth). */
-    'tableModel.rows.length'(len: number): void {
-      if (this.ui.rowFocus >= len) {
-        this.ui.rowFocus = Math.max(0, len - 1);
-      }
-    },
-    'overview.tiles.length'(len: number): void {
-      if (this.ui.gridFocus >= len) {
-        this.ui.gridFocus = Math.max(0, len - 1);
-      }
-    },
-    'maCollection.entries.length'(len: number): void {
-      if (this.ui.catFocus >= len) {
-        this.ui.catFocus = Math.max(0, len - 1);
-      }
-    },
-    /** The column mounts and unmounts with the table: the observer follows it. */
-    previewColumnLive: {
-      flush: 'post',
-      handler(live: boolean): void {
-        this.observePreview(live);
-      },
-    },
-    /** Another row → other words under the card (a second formula line, the counted cells). */
-    currentRowName: {
-      flush: 'post',
-      handler(): void {
-        this.fitPreview();
-      },
-    },
-  },
-  mounted() {
-    this.observePreview(this.previewColumnLive);
-  },
-  beforeUnmount() {
-    this.observePreview(false);
-    this.dropInspect();
-    const stage = (this.$refs.stageEl ?? undefined) as HTMLElement | undefined;
-    if (stage !== undefined) {
-      killDescendEpisode(stage);
-    }
-    this.overviewLeaving = false;
-    this.catLeaving = false;
-    this.tableLeaving = false;
-    scoreExplorerUi.barCommands = undefined;
-  },
-  methods: {
-    tileGlyph(key: string): DossierGlyph {
-      return this.tileGlyphs[key] ?? {kind: 'mark'};
-    },
-    observePreview(live: boolean): void {
-      this.previewRo?.disconnect();
-      this.previewRo = undefined;
-      const col = (this.$refs.previewEl ?? undefined) as HTMLElement | undefined;
-      if (!live || col === undefined || typeof ResizeObserver === 'undefined') {
-        return;
-      }
-      this.previewRo = markRaw(new ResizeObserver(() => this.fitPreview()));
-      this.previewRo.observe(col);
-      const meta = col.querySelector<HTMLElement>('.con-vpx__preview-meta');
-      if (meta !== null) {
-        this.previewRo.observe(meta);
-      }
-      this.fitPreview();
-    },
-    /**
-     * The card yields to the words under it (`previewCardFit`). Measured in
-     * LAYOUT pixels: the card's painted height is rescaled by the column's own
-     * painted-to-layout ratio, so the table's entry scale cancels out.
-     */
-    fitPreview(): void {
-      const col = (this.$refs.previewEl ?? undefined) as HTMLElement | undefined;
-      const card = col?.querySelector<HTMLElement>('.con-vpx__preview-card');
-      const meta = col?.querySelector<HTMLElement>('.con-vpx__preview-meta');
-      if (col === undefined || card === null || card === undefined || meta === null || meta === undefined) {
-        return;
-      }
-      const painted = col.getBoundingClientRect().height;
-      if (painted <= 0) {
-        return;
-      }
-      const fit = previewCardFit({
-        columnH: col.clientHeight,
-        metaH: meta.offsetHeight,
-        gapPx: parseFloat(getComputedStyle(col).rowGap) || 0,
-        cardH: card.getBoundingClientRect().height * (col.clientHeight / painted),
-        currentFit: this.previewFit,
-      });
-      if (Math.abs(fit - this.previewFit) > 0.002) {
-        this.previewFit = fit;
-      }
-    },
-    signed(v: number): string {
-      return String(v);
-    },
-    /** «+N» for every additive chain piece past the first (the start term). */
-    plus(v: number): string {
-      return v > 0 ? `+${v}` : String(v);
-    },
-    ledgerNum(v: number, index: number): string {
-      return index === 0 ? String(v) : this.plus(v);
-    },
-    moreText(n: number): string {
-      return translateTextWithParams('+${0} more', [String(n)]);
-    },
-    maArtStyle(slug: string): Record<string, string> {
-      return {backgroundImage: `url(${maArtPath(slug, getPreferences().lang)})`};
-    },
-    thresholdText(e: ScoreMaEntry): string {
-      return e.myScore !== undefined ?
-        translateTextWithParams('Threshold: ${0} · your score: ${1}', [String(e.threshold), String(e.myScore)]) :
-        translateTextWithParams('Threshold: ${0}', [String(e.threshold)]);
-    },
-    genText(g: number): string {
-      return translateTextWithParams('gen ${0}', [String(g)]);
-    },
-    factText(row: {label: string, params?: ReadonlyArray<string | number>}): string {
-      return row.params !== undefined ?
-        translateTextWithParams(row.label, row.params.map(String)) :
-        translateText(row.label);
-    },
-    noteText(note: {label: string, params?: ReadonlyArray<string | number>}): string {
-      return this.factText(note);
-    },
-    rowDisplayName(row: ScoreCardRow): string {
-      if (row.formula.kind === 'fact') {
-        return this.factText({label: row.formula.label, params: row.formula.params});
-      }
-      return translateText(row.cardName);
-    },
-    /** The formula in the row's own words — the ONE formatter
-     *  (`scoreExplorerModel.formulaText`), shared with the play composer. */
-    formulaText(row: ScoreCardRow): string {
-      return scoreFormulaText(row.formula);
-    },
-    /** The row's formula — its own VP cell states the result (PL-098). */
-    formulaRowText(row: ScoreCardRow): string {
-      return scoreFormulaRowText(row.formula);
-    },
-    remainderText(row: ScoreCardRow): string {
-      return scoreRemainderText(row.formula);
-    },
-    formulaTagIcon(row: ScoreCardRow): string | undefined {
-      return scoreFormulaTagIcon(row.formula);
-    },
-    /**
-     * The counted OBJECT of a formula that counts no tag (a «per space city» rule) —
-     * `scoreExplorerModel.formulaGlyph`. A list of none or one: the template indexes
-     * it under its own length guard, so the glyph is never an `undefined` prop.
-     */
-    formulaCountGlyphs(row: ScoreCardRow): Array<CountedObjectGlyph> {
-      const glyph = scoreFormulaGlyph(row.formula);
-      return glyph?.kind === 'counted' ? [glyph.glyph] : [];
-    },
-    /** The cities a «per city of a named place» rule counted, by name — a city on a colony tile names its tile. */
-    countedCities(row: ScoreCardRow): Array<string> {
-      return scoreFormulaCountedCities(row.formula, this.playerView.game.colonies, translateText);
-    },
-    rowResourceIcon(row: ScoreCardRow): string {
-      const type = row.resourceType;
-      if (type === undefined) {
-        return '';
-      }
-      return iconClassFor((type as CardResource).toLowerCase().replace(/ /g, '-'));
-    },
-    // ── input (forwarded by the shell while a vp route is up) ────────────
-    handleIntent(intent: GamepadIntent): void {
-      if (!this.vpVisible) {
-        return;
-      }
-      if (intent.kind === 'nav') {
-        this.onNav(intent.dir);
-        return;
-      }
-      if (intent.kind !== 'press') {
-        return;
-      }
-      const action = consoleActionOf(intent);
-      if (action === 'primary') {
-        this.onPrimary();
-      } else if (action === 'inspect') {
-        this.onInspectRow();
-      }
-    },
-    onNav(dir: 'up' | 'down' | 'left' | 'right'): void {
-      if (this.ui.inspect !== undefined) {
-        return; // the inspection is a read — the pad rests until B
-      }
-      if (this.route === 'vp') {
-        this.ui.gridFocus = scoreGridNavigate(this.overview.tiles.length, this.ui.gridFocus, dir, this.gridCols);
-        return;
-      }
-      if (this.route === 'vpCategory') {
-        if (this.renderCategoryKey === 'cards') {
-          const step = dir === 'down' || dir === 'right' ? 1 : -1;
-          this.ui.hubFocus = Math.min(Math.max(this.ui.hubFocus + step, 0), this.cardsHub.tiles.length - 1);
-          return;
-        }
-        if (this.isMaCategory && this.maCollection.entries.length > 0 && (dir === 'up' || dir === 'down')) {
-          const step = dir === 'down' ? 1 : -1;
-          const next = Math.min(Math.max(this.ui.catFocus + step, 0), this.maCollection.entries.length - 1);
-          if (next !== this.ui.catFocus) {
-            this.ui.catFocus = next;
-            nextTick(() => {
-              const el = (this.$el as HTMLElement).querySelector<HTMLElement>('.con-vpx__maent--focused');
-              const box = el === null ? undefined : scrollContainerOf(el, 'y');
-              if (el !== null && box !== undefined) {
-                cursorEnsureVisible(box, el, {axis: 'y'});
-              }
-            });
-          }
-          return;
-        }
-        this.scrollCatBody(dir);
-        return;
-      }
-      if (this.route === 'vpCards' && (dir === 'up' || dir === 'down')) {
-        const step = dir === 'down' ? 1 : -1;
-        const next = Math.min(Math.max(this.ui.rowFocus + step, 0), Math.max(0, this.tableModel.rows.length - 1));
-        if (next !== this.ui.rowFocus) {
-          this.ui.rowFocus = next;
-          nextTick(() => {
-            const rowEl = (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-vpx-row="${next}"]`);
-            const scroll = (this.$refs.rowScroll ?? undefined) as InstanceType<typeof ConsoleScrollArea> | undefined;
-            if (rowEl !== null && scroll !== undefined) {
-              (scroll as unknown as {ensureVisible?: (el: HTMLElement) => void}).ensureVisible?.(rowEl);
-            }
-          });
-        }
-      }
-    },
-    scrollCatBody(dir: 'up' | 'down' | 'left' | 'right'): void {
-      if (dir !== 'up' && dir !== 'down') {
-        return;
-      }
-      const viewportEl = (this.$el as HTMLElement).querySelector<HTMLElement>('.con-vpx__catbody .con-scroll-area__viewport');
-      viewportEl?.scrollBy({top: (dir === 'down' ? 120 : -120) * (window.devicePixelRatio > 0 ? 1 : 1), behavior: 'smooth'});
-    },
-    onPrimary(): void {
-      if (this.route === 'vp') {
-        this.descendCategory();
-      } else if (this.route === 'vpCategory' && this.renderCategoryKey === 'cards') {
-        this.descendGroup();
-      }
-    },
-    tilePressed(i: number): void {
-      this.ui.gridFocus = i;
-      this.descendCategory();
-    },
-    groupPressed(i: number): void {
-      this.ui.hubFocus = i;
-      this.descendGroup();
-    },
-    rowPressed(i: number): void {
-      this.ui.rowFocus = i;
-    },
-    descendCategory(): void {
-      const tile = this.overview.tiles[this.ui.gridFocus];
-      if (tile === undefined) {
-        return;
-      }
-      const el = (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-vpx-tile="${CSS.escape(tile.key)}"]`);
-      const rect = descendRectOf(el);
-      armDescendRect('vpx-cat', rect);
-      armDescendOrigin('vpx-cat', rect !== undefined ? {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2} : undefined);
-      this.ui.hubFocus = 0;
-      this.ui.catFocus = 0;
-      this.infoModeState.vpCategoryKey = tile.key;
-      this.infoModeState.route = 'vpCategory';
-    },
-    descendGroup(): void {
-      const tileModel = this.cardsHub.tiles[this.ui.hubFocus];
-      if (tileModel === undefined || !tileModel.enterable) {
-        return;
-      }
-      const el = (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-vpx-group="${CSS.escape(tileModel.key)}"]`);
-      armDescendRect('vpx-grp', descendRectOf(el));
-      this.ui.rowFocus = 0;
-      this.infoModeState.vpCardsGroup = tileModel.key;
-      this.infoModeState.route = 'vpCards';
-    },
-    onInspectRow(): void {
-      // X on a LAUREL — the read-only MA inspection (both participants).
-      if (this.route === 'vpCategory' && this.isMaCategory) {
-        const entry = this.maCollection.entries[this.ui.catFocus];
-        if (entry !== undefined && this.ui.inspect === undefined) {
-          this.openMaInspect(entry);
-        }
-        return;
-      }
-      if (this.route !== 'vpCards' || this.viewedIsBot) {
-        return;
-      }
-      const rows = this.tableModel.rows.filter((r) => r.previewable);
-      const current = this.currentRow;
-      if (current === undefined || !current.previewable || rows.length === 0) {
-        return;
-      }
-      const cards = rows.map((r): CardModel =>
-        this.viewed.tableau.find((c) => c.name === r.cardName) ?? ({name: r.cardName} as CardModel));
-      const idx = Math.max(0, rows.findIndex((r) => r.cardName === current.cardName));
-      openConsoleCardZoom(cards, idx, undefined, undefined, {
-        contextLabel: 'Victory Points',
-        origin: slotZoomOrigin(
-          () => this.$el as HTMLElement,
-          (i) => rows[i]?.cardName ?? '',
-          (i) => {
-            const name = rows[i]?.cardName;
-            const at = this.tableModel.rows.findIndex((r) => r.cardName === name);
-            if (at >= 0) {
-              this.ui.rowFocus = at;
-            }
-          },
-        ),
-      });
-    },
-    // ── the MA inspection (X → dossier, B → fold back) ───────────────────
-    /** The focused entry's OWN art node in the collection. */
-    maSourceArt(key: string): HTMLElement | null {
-      return (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-vpx-ma-art="${CSS.escape(key)}"]`);
-    },
-    openMaInspect(entry: ScoreMaEntry): void {
-      const sourceArt = this.maSourceArt(entry.key);
-      const entryEl = (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-vpx-ma="${CSS.escape(entry.key)}"]`);
-      armDescendRect('vpx-ins-art', descendRectOf(sourceArt));
-      armDescendRect('vpx-ins-panel', descendRectOf(entryEl));
-      this.ui.inspect = entry;
-      if (consoleReducedMotionActive()) {
-        return;
-      }
-      nextTick(() => {
-        const layer = (this.$refs.inspectEl ?? undefined) as HTMLElement | undefined;
-        if (layer === undefined) {
-          return;
-        }
-        // The SOURCE emblem yields to its flying twin for the layer's whole
-        // life (one physical object; restored on every close path).
-        if (sourceArt !== null) {
-          sourceArt.style.visibility = 'hidden';
-        }
-        guardedDescend(layer, 640, () => {}, (finish) => {
-          const panel = layer.querySelector<HTMLElement>('.con-vpx__inspect-panel');
-          const art = layer.querySelector<HTMLElement>('[data-vpx-inspect-art]');
-          if (panel === null) {
-            return undefined;
-          }
-          const tl = gsap.timeline({onComplete: finish});
-          if (!descendUnfold(tl, panel, takeDescendRect('vpx-ins-panel'), motionMs(280) / 1000, 0)) {
-            tl.fromTo(panel, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
-          }
-          if (art !== null) {
-            const from = takeDescendRect('vpx-ins-art');
-            const flip = from !== undefined ? descendFlipFrom(art, from) : undefined;
-            if (flip !== undefined) {
-              tl.fromTo(art,
-                {x: flip.x, y: flip.y, scale: flip.scale, transformOrigin: 'top left'},
-                {x: 0, y: 0, scale: 1, duration: motionMs(320) / 1000, ease: 'expo.out', clearProps: 'transform'}, 0);
-            }
-          }
-          descendCascade(tl, Array.from(layer.querySelectorAll<HTMLElement>('[data-vpx-inspect-row]')), motionMs(170) / 1000, motionMs(150) / 1000, 0.025);
-          return tl;
-        });
-      });
-    },
-    /** B while the inspection stands — fold it back into its entry.
-     *  Returns true when the press was consumed (the shell asks FIRST). */
-    consumeScoreBack(): boolean {
-      const entry = this.ui.inspect;
-      if (entry === undefined) {
-        return false;
-      }
-      const layer = (this.$refs.inspectEl ?? undefined) as HTMLElement | undefined;
-      const sourceArt = this.maSourceArt(entry.key);
-      const restore = () => {
-        sourceArt?.style.removeProperty('visibility');
-        this.ui.inspect = undefined;
-      };
-      if (consoleReducedMotionActive() || layer === undefined) {
-        restore();
-        return true;
-      }
-      guardedDescend(layer, 520, restore, (finish) => {
-        const panel = layer.querySelector<HTMLElement>('.con-vpx__inspect-panel');
-        const art = layer.querySelector<HTMLElement>('[data-vpx-inspect-art]');
-        if (panel === null) {
-          return undefined;
-        }
-        const tl = gsap.timeline({onComplete: finish});
-        descendCascadeOut(tl, Array.from(layer.querySelectorAll<HTMLElement>('[data-vpx-inspect-row]')), motionMs(100) / 1000, 0);
-        if (art !== null && sourceArt !== null) {
-          const home = descendRectOf(sourceArt);
-          const flip = home !== undefined ? descendFlipFrom(art, home) : undefined;
-          if (flip !== undefined) {
-            tl.to(art, {x: flip.x, y: flip.y, scale: flip.scale, transformOrigin: 'top left', duration: motionMs(260) / 1000, ease: 'power2.inOut'}, 0);
-          }
-        }
-        if (!descendFold(tl, panel, descendRectOf((this.$el as HTMLElement).querySelector(`[data-vpx-ma="${CSS.escape(entry.key)}"]`)), motionMs(240) / 1000, motionMs(40) / 1000)) {
-          tl.to(panel, {autoAlpha: 0, duration: motionMs(130) / 1000}, 0);
-        }
-        return tl;
-      });
-      return true;
-    },
-    /** A seat switch / route move dismisses the inspection INSTANTLY (the
-     *  entity may not exist on the other side — never a stale dossier). */
-    dropInspect(): void {
-      const entry = this.ui.inspect;
-      if (entry === undefined) {
-        return;
-      }
-      const layer = (this.$refs.inspectEl ?? undefined) as HTMLElement | undefined;
-      if (layer !== undefined) {
-        killDescendEpisode(layer);
-      }
-      this.maSourceArt(entry.key)?.style.removeProperty('visibility');
-      this.ui.inspect = undefined;
-    },
-    // ── the level transitions (the workspace-descend phrase) ─────────────
-    onRouteChange(to: InfoRouteId, from: InfoRouteId): void {
-      this.dropInspect();
-      const stage = (this.$refs.stageEl ?? undefined) as HTMLElement | undefined;
-      if (stage !== undefined) {
-        killDescendEpisode(stage);
-      }
-      // Settle any interrupted leave FIRST — state stays consistent under
-      // rapid presses (an aborted fold never strands a param or a latch).
-      this.settleCatLeave();
-      this.settleTableLeave();
-      this.overviewLeaving = false;
-      this.catReceding = false;
-
-      if (!isVpRoute(to)) {
-        // Leaving the subtree entirely (a shortcut / Y) — tidy the params.
-        this.infoModeState.vpCategoryKey = undefined;
-        this.infoModeState.vpCardsGroup = undefined;
-        return;
-      }
-      if (consoleReducedMotionActive() || stage === undefined) {
-        if (to === 'vp') {
-          this.infoModeState.vpCategoryKey = undefined;
-          this.infoModeState.vpCardsGroup = undefined;
-        } else if (to === 'vpCategory') {
-          this.infoModeState.vpCardsGroup = undefined;
-        }
-        return;
-      }
-      if (from === 'vp' && to === 'vpCategory') {
-        this.playCatEnter(stage);
-      } else if (from === 'vpCategory' && to === 'vp') {
-        this.playCatLeave(stage);
-      } else if (from === 'vpCategory' && to === 'vpCards') {
-        this.playTableEnter(stage);
-      } else if (from === 'vpCards' && to === 'vpCategory') {
-        this.playTableLeave(stage);
-      }
-    },
-    settleCatLeave(): void {
-      if (this.catLeaving) {
-        this.catLeaving = false;
-        if (this.route !== 'vpCategory' && this.route !== 'vpCards') {
-          this.infoModeState.vpCategoryKey = undefined;
-        }
-      }
-    },
-    settleTableLeave(): void {
-      if (this.tableLeaving) {
-        this.tableLeaving = false;
-        if (this.route !== 'vpCards') {
-          this.infoModeState.vpCardsGroup = undefined;
-        }
-      }
-    },
-    playCatEnter(stage: HTMLElement): void {
-      this.overviewLeaving = true;
-      nextTick(() => {
-        guardedDescend(stage, 620, () => {
-          this.overviewLeaving = false;
-        }, (finish) => {
-          const catEl = (this.$refs.catEl ?? undefined) as HTMLElement | undefined;
-          const overviewEl = (this.$refs.overviewEl ?? undefined) as HTMLElement | undefined;
-          if (catEl === undefined || overviewEl === undefined) {
-            return undefined;
-          }
-          const tl = gsap.timeline({onComplete: finish});
-          descendRecede(tl, overviewEl, takeDescendOrigin('vpx-cat'), motionMs(150) / 1000, 0);
-          const from = takeDescendRect('vpx-cat');
-          if (!descendUnfold(tl, catEl, from, motionMs(280) / 1000, motionMs(40) / 1000)) {
-            tl.fromTo(catEl, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
-          }
-          descendCascade(tl, this.catRows(catEl), motionMs(175) / 1000, motionMs(170) / 1000);
-          return tl;
-        });
-      });
-    },
-    playCatLeave(stage: HTMLElement): void {
-      this.catLeaving = true;
-      guardedDescend(stage, 560, () => {
-        this.settleCatLeave();
-      }, (finish) => {
-        const catEl = (this.$refs.catEl ?? undefined) as HTMLElement | undefined;
-        const overviewEl = (this.$refs.overviewEl ?? undefined) as HTMLElement | undefined;
-        if (catEl === undefined || overviewEl === undefined) {
-          return undefined;
-        }
-        const tl = gsap.timeline({onComplete: finish});
-        descendCascadeOut(tl, this.catRows(catEl), motionMs(110) / 1000, 0);
-        const tile = (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-vpx-tile="${CSS.escape(this.renderCategoryKey)}"]`);
-        if (!descendFold(tl, catEl, descendRectOf(tile), motionMs(240) / 1000, motionMs(50) / 1000)) {
-          tl.to(catEl, {autoAlpha: 0, duration: motionMs(140) / 1000}, 0);
-        }
-        descendReturn(tl, overviewEl, motionMs(220) / 1000, motionMs(120) / 1000);
-        return tl;
-      });
-    },
-    playTableEnter(stage: HTMLElement): void {
-      this.catReceding = true;
-      nextTick(() => {
-        guardedDescend(stage, 620, () => {
-          this.catReceding = false;
-        }, (finish) => {
-          const tableEl = (this.$refs.tableEl ?? undefined) as HTMLElement | undefined;
-          const catEl = (this.$refs.catEl ?? undefined) as HTMLElement | undefined;
-          if (tableEl === undefined) {
-            return undefined;
-          }
-          const tl = gsap.timeline({onComplete: finish});
-          if (catEl !== undefined) {
-            descendRecede(tl, catEl, undefined, motionMs(140) / 1000, 0);
-          }
-          const from = takeDescendRect('vpx-grp');
-          if (!descendUnfold(tl, tableEl, from, motionMs(280) / 1000, motionMs(40) / 1000)) {
-            tl.fromTo(tableEl, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
-          }
-          descendCascade(tl, this.tableRows(tableEl), motionMs(170) / 1000, motionMs(170) / 1000, 0.02);
-          return tl;
-        });
-      });
-    },
-    playTableLeave(stage: HTMLElement): void {
-      this.tableLeaving = true;
-      guardedDescend(stage, 560, () => {
-        this.settleTableLeave();
-      }, (finish) => {
-        const tableEl = (this.$refs.tableEl ?? undefined) as HTMLElement | undefined;
-        const catEl = (this.$refs.catEl ?? undefined) as HTMLElement | undefined;
-        if (tableEl === undefined) {
-          return undefined;
-        }
-        const tl = gsap.timeline({onComplete: finish});
-        const group = (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-vpx-group="${CSS.escape(this.renderGroupKey)}"]`);
-        if (!descendFold(tl, tableEl, descendRectOf(group), motionMs(240) / 1000, motionMs(30) / 1000)) {
-          tl.to(tableEl, {autoAlpha: 0, duration: motionMs(140) / 1000}, 0);
-        }
-        if (catEl !== undefined) {
-          descendReturn(tl, catEl, motionMs(210) / 1000, motionMs(110) / 1000);
-        }
-        return tl;
-      });
-    },
-    catRows(catEl: HTMLElement): Array<HTMLElement> {
-      return Array.from(catEl.querySelectorAll<HTMLElement>('[data-vpx-catrow]'));
-    },
-    tableRows(tableEl: HTMLElement): Array<HTMLElement> {
-      return Array.from(tableEl.querySelectorAll<HTMLElement>('.con-vpx__row, .con-vpx__preview, .con-vpx__tabhead'));
-    },
-  },
+  );
 });
+const currentRow = computed((): ScoreCardRow | undefined => {
+  return tableModel.value.rows[ui.rowFocus];
+});
+const currentRowName = computed((): string => {
+  return currentRow.value?.cardName ?? '';
+});
+const hasPreviewColumn = computed((): boolean => {
+  return tableModel.value.rows.some((r) => r.previewable);
+});
+/** The preview column is in the DOM (its fit observer follows it). */
+const previewColumnLive = computed((): boolean => {
+  return tableMounted.value && hasPreviewColumn.value;
+});
+const previewModel = computed((): CardModel | undefined => {
+  const row = currentRow.value;
+  if (row === undefined || !row.previewable) {
+    return undefined;
+  }
+  return viewed.value.tableau.find((c) => c.name === row.cardName) ?? ({name: row.cardName} as CardModel);
+});
+const gridCols = computed((): number => {
+  return viewport.isHandheld.value ? 2 : 3;
+});
+/** The explorer's live command contract — ConsoleInfoMode republishes it. */
+const barState = computed((): Array<ConsoleCommand> => {
+  const cmds: Array<ConsoleCommand> = [
+    {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
+  ];
+  if (!vpVisible.value) {
+    cmds.push({control: 'back', label: level.value >= 2 ? 'Back' : 'To overview'});
+    cmds.push({control: 'inspect', label: 'Close', priority: 0});
+    return cmds;
+  }
+  // The INSPECTION owns the pad: one read, one way back.
+  if (ui.inspect !== undefined) {
+    cmds.push({control: 'back', label: 'Back'});
+    cmds.push({control: 'inspect', label: 'Close', priority: 0});
+    return cmds;
+  }
+  if (route.value === 'vp') {
+    cmds.push({control: 'confirm', label: 'Open', enabled: overview.value.tiles.length > 0});
+    cmds.push({control: 'back', label: 'To overview'});
+  } else if (route.value === 'vpCategory') {
+    if (renderCategoryKey.value === 'cards') {
+      const tile = cardsHub.value.tiles[ui.hubFocus];
+      cmds.push({control: 'confirm', label: 'Open', enabled: tile?.enterable === true});
+    }
+    if (isMaCategory.value && maCollection.value.entries[ui.catFocus] !== undefined) {
+      cmds.push({control: 'secondary', label: 'Inspect'});
+    }
+    cmds.push({control: 'back', label: 'Back'});
+  } else {
+    if (currentRow.value?.previewable === true) {
+      cmds.push({control: 'secondary', label: 'Inspect'});
+    }
+    cmds.push({control: 'back', label: 'Back'});
+  }
+  cmds.push({control: 'inspect', label: 'Close', priority: 0});
+  return cmds;
+});
+
+function tileGlyph(key: string): DossierGlyph {
+  return tileGlyphs.value[key] ?? {kind: 'mark'};
+}
+function observePreview(live: boolean): void {
+  previewRo?.disconnect();
+  previewRo = undefined;
+  const col = previewEl.value ?? undefined;
+  if (!live || col === undefined || typeof ResizeObserver === 'undefined') {
+    return;
+  }
+  previewRo = markRaw(new ResizeObserver(() => fitPreview()));
+  previewRo.observe(col);
+  const meta = col.querySelector<HTMLElement>('.con-vpx__preview-meta');
+  if (meta !== null) {
+    previewRo.observe(meta);
+  }
+  fitPreview();
+}
+/**
+ * The card yields to the words under it (`previewCardFit`). Measured in
+ * LAYOUT pixels: the card's painted height is rescaled by the column's own
+ * painted-to-layout ratio, so the table's entry scale cancels out.
+ */
+function fitPreview(): void {
+  const col = previewEl.value ?? undefined;
+  const card = col?.querySelector<HTMLElement>('.con-vpx__preview-card');
+  const meta = col?.querySelector<HTMLElement>('.con-vpx__preview-meta');
+  if (col === undefined || card === null || card === undefined || meta === null || meta === undefined) {
+    return;
+  }
+  const painted = col.getBoundingClientRect().height;
+  if (painted <= 0) {
+    return;
+  }
+  const fit = previewCardFit({
+    columnH: col.clientHeight,
+    metaH: meta.offsetHeight,
+    gapPx: parseFloat(getComputedStyle(col).rowGap) || 0,
+    cardH: card.getBoundingClientRect().height * (col.clientHeight / painted),
+    currentFit: previewFit.value,
+  });
+  if (Math.abs(fit - previewFit.value) > 0.002) {
+    previewFit.value = fit;
+  }
+}
+function signed(v: number): string {
+  return String(v);
+}
+/** «+N» for every additive chain piece past the first (the start term). */
+function plus(v: number): string {
+  return v > 0 ? `+${v}` : String(v);
+}
+function ledgerNum(v: number, index: number): string {
+  return index === 0 ? String(v) : plus(v);
+}
+function moreText(n: number): string {
+  return translateTextWithParams('+${0} more', [String(n)]);
+}
+function maArtStyle(slug: string): Record<string, string> {
+  return {backgroundImage: `url(${maArtPath(slug, getPreferences().lang)})`};
+}
+function thresholdText(e: ScoreMaEntry): string {
+  return e.myScore !== undefined ?
+    translateTextWithParams('Threshold: ${0} · your score: ${1}', [String(e.threshold), String(e.myScore)]) :
+    translateTextWithParams('Threshold: ${0}', [String(e.threshold)]);
+}
+function genText(g: number): string {
+  return translateTextWithParams('gen ${0}', [String(g)]);
+}
+function factText(row: {label: string, params?: ReadonlyArray<string | number>}): string {
+  return row.params !== undefined ?
+    translateTextWithParams(row.label, row.params.map(String)) :
+    translateText(row.label);
+}
+function noteText(note: {label: string, params?: ReadonlyArray<string | number>}): string {
+  return factText(note);
+}
+function rowDisplayName(row: ScoreCardRow): string {
+  if (row.formula.kind === 'fact') {
+    return factText({label: row.formula.label, params: row.formula.params});
+  }
+  return translateText(row.cardName);
+}
+/** The formula in the row's own words — the ONE formatter
+ *  (`scoreExplorerModel.formulaText`), shared with the play composer. */
+function formulaText(row: ScoreCardRow): string {
+  return scoreFormulaText(row.formula);
+}
+/** The row's formula — its own VP cell states the result (PL-098). */
+function formulaRowText(row: ScoreCardRow): string {
+  return scoreFormulaRowText(row.formula);
+}
+function remainderText(row: ScoreCardRow): string {
+  return scoreRemainderText(row.formula);
+}
+function formulaTagIcon(row: ScoreCardRow): string | undefined {
+  return scoreFormulaTagIcon(row.formula);
+}
+/**
+ * The counted OBJECT of a formula that counts no tag (a «per space city» rule) —
+ * `scoreExplorerModel.formulaGlyph`. A list of none or one: the template indexes
+ * it under its own length guard, so the glyph is never an `undefined` prop.
+ */
+function formulaCountGlyphs(row: ScoreCardRow): Array<CountedObjectGlyph> {
+  const glyph = scoreFormulaGlyph(row.formula);
+  return glyph?.kind === 'counted' ? [glyph.glyph] : [];
+}
+/** The cities a «per city of a named place» rule counted, by name — a city on a colony tile names its tile. */
+function countedCities(row: ScoreCardRow): Array<string> {
+  return scoreFormulaCountedCities(row.formula, props.playerView.game.colonies, translateText);
+}
+function rowResourceIcon(row: ScoreCardRow): string {
+  const type = row.resourceType;
+  if (type === undefined) {
+    return '';
+  }
+  return iconClassFor((type as CardResource).toLowerCase().replace(/ /g, '-'));
+}
+// ── input (forwarded by the shell while a vp route is up) ────────────
+function handleIntent(intent: GamepadIntent): void {
+  if (!vpVisible.value) {
+    return;
+  }
+  if (intent.kind === 'nav') {
+    onNav(intent.dir);
+    return;
+  }
+  if (intent.kind !== 'press') {
+    return;
+  }
+  const action = consoleActionOf(intent);
+  if (action === 'primary') {
+    onPrimary();
+  } else if (action === 'inspect') {
+    onInspectRow();
+  }
+}
+function onNav(dir: 'up' | 'down' | 'left' | 'right'): void {
+  if (ui.inspect !== undefined) {
+    return; // the inspection is a read — the pad rests until B
+  }
+  if (route.value === 'vp') {
+    ui.gridFocus = scoreGridNavigate(overview.value.tiles.length, ui.gridFocus, dir, gridCols.value);
+    return;
+  }
+  if (route.value === 'vpCategory') {
+    if (renderCategoryKey.value === 'cards') {
+      const step = dir === 'down' || dir === 'right' ? 1 : -1;
+      ui.hubFocus = Math.min(Math.max(ui.hubFocus + step, 0), cardsHub.value.tiles.length - 1);
+      return;
+    }
+    if (isMaCategory.value && maCollection.value.entries.length > 0 && (dir === 'up' || dir === 'down')) {
+      const step = dir === 'down' ? 1 : -1;
+      const next = Math.min(Math.max(ui.catFocus + step, 0), maCollection.value.entries.length - 1);
+      if (next !== ui.catFocus) {
+        ui.catFocus = next;
+        nextTick(() => {
+          // A tick later the explorer may be gone — its root ref is `null` then.
+          const rootNow = root.value;
+          if (rootNow === null) {
+            return;
+          }
+          const el = rootNow.querySelector<HTMLElement>('.con-vpx__maent--focused');
+          const box = el === null ? undefined : scrollContainerOf(el, 'y');
+          if (el !== null && box !== undefined) {
+            cursorEnsureVisible(box, el, {axis: 'y'});
+          }
+        });
+      }
+      return;
+    }
+    scrollCatBody(dir);
+    return;
+  }
+  if (route.value === 'vpCards' && (dir === 'up' || dir === 'down')) {
+    const step = dir === 'down' ? 1 : -1;
+    const next = Math.min(Math.max(ui.rowFocus + step, 0), Math.max(0, tableModel.value.rows.length - 1));
+    if (next !== ui.rowFocus) {
+      ui.rowFocus = next;
+      nextTick(() => {
+        // A tick later the explorer may be gone — its root ref is `null` then.
+        const rootNow = root.value;
+        if (rootNow === null) {
+          return;
+        }
+        const rowEl = rootNow.querySelector<HTMLElement>(`[data-vpx-row="${next}"]`);
+        const scroll = rowScroll.value ?? undefined;
+        if (rowEl !== null && scroll !== undefined) {
+          (scroll as unknown as {ensureVisible?: (el: HTMLElement) => void}).ensureVisible?.(rowEl);
+        }
+      });
+    }
+  }
+}
+function scrollCatBody(dir: 'up' | 'down' | 'left' | 'right'): void {
+  if (dir !== 'up' && dir !== 'down') {
+    return;
+  }
+  const viewportEl = root.value?.querySelector<HTMLElement>('.con-vpx__catbody .con-scroll-area__viewport') ?? null;
+  viewportEl?.scrollBy({top: (dir === 'down' ? 120 : -120) * (window.devicePixelRatio > 0 ? 1 : 1), behavior: 'smooth'});
+}
+function onPrimary(): void {
+  if (route.value === 'vp') {
+    descendCategory();
+  } else if (route.value === 'vpCategory' && renderCategoryKey.value === 'cards') {
+    descendGroup();
+  }
+}
+function tilePressed(i: number): void {
+  ui.gridFocus = i;
+  descendCategory();
+}
+function groupPressed(i: number): void {
+  ui.hubFocus = i;
+  descendGroup();
+}
+function rowPressed(i: number): void {
+  ui.rowFocus = i;
+}
+function descendCategory(): void {
+  const tile = overview.value.tiles[ui.gridFocus];
+  if (tile === undefined) {
+    return;
+  }
+  const el = root.value?.querySelector<HTMLElement>(`[data-vpx-tile="${CSS.escape(tile.key)}"]`) ?? null;
+  const rect = descendRectOf(el);
+  armDescendRect('vpx-cat', rect);
+  armDescendOrigin('vpx-cat', rect !== undefined ? {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2} : undefined);
+  ui.hubFocus = 0;
+  ui.catFocus = 0;
+  infoModeState.vpCategoryKey = tile.key;
+  infoModeState.route = 'vpCategory';
+}
+function descendGroup(): void {
+  const tileModel = cardsHub.value.tiles[ui.hubFocus];
+  if (tileModel === undefined || !tileModel.enterable) {
+    return;
+  }
+  const el = root.value?.querySelector<HTMLElement>(`[data-vpx-group="${CSS.escape(tileModel.key)}"]`) ?? null;
+  armDescendRect('vpx-grp', descendRectOf(el));
+  ui.rowFocus = 0;
+  infoModeState.vpCardsGroup = tileModel.key;
+  infoModeState.route = 'vpCards';
+}
+function onInspectRow(): void {
+  // X on a LAUREL — the read-only MA inspection (both participants).
+  if (route.value === 'vpCategory' && isMaCategory.value) {
+    const entry = maCollection.value.entries[ui.catFocus];
+    if (entry !== undefined && ui.inspect === undefined) {
+      openMaInspect(entry);
+    }
+    return;
+  }
+  if (route.value !== 'vpCards' || viewedIsBot.value) {
+    return;
+  }
+  const rows = tableModel.value.rows.filter((r) => r.previewable);
+  const current = currentRow.value;
+  if (current === undefined || !current.previewable || rows.length === 0) {
+    return;
+  }
+  const cards = rows.map((r): CardModel =>
+    viewed.value.tableau.find((c) => c.name === r.cardName) ?? ({name: r.cardName} as CardModel));
+  const idx = Math.max(0, rows.findIndex((r) => r.cardName === current.cardName));
+  openConsoleCardZoom(cards, idx, undefined, undefined, {
+    contextLabel: 'Victory Points',
+    origin: slotZoomOrigin(
+      () => root.value as HTMLElement,
+      (i) => rows[i]?.cardName ?? '',
+      (i) => {
+        const name = rows[i]?.cardName;
+        const at = tableModel.value.rows.findIndex((r) => r.cardName === name);
+        if (at >= 0) {
+          ui.rowFocus = at;
+        }
+      },
+    ),
+  });
+}
+// ── the MA inspection (X → dossier, B → fold back) ───────────────────
+/** The focused entry's OWN art node in the collection. */
+function maSourceArt(key: string): HTMLElement | null {
+  return root.value?.querySelector<HTMLElement>(`[data-vpx-ma-art="${CSS.escape(key)}"]`) ?? null;
+}
+function openMaInspect(entry: ScoreMaEntry): void {
+  const sourceArt = maSourceArt(entry.key);
+  const entryEl = root.value?.querySelector<HTMLElement>(`[data-vpx-ma="${CSS.escape(entry.key)}"]`) ?? null;
+  armDescendRect('vpx-ins-art', descendRectOf(sourceArt));
+  armDescendRect('vpx-ins-panel', descendRectOf(entryEl));
+  ui.inspect = entry;
+  if (consoleReducedMotionActive()) {
+    return;
+  }
+  nextTick(() => {
+    const layer = inspectEl.value ?? undefined;
+    if (layer === undefined) {
+      return;
+    }
+    // The SOURCE emblem yields to its flying twin for the layer's whole
+    // life (one physical object; restored on every close path).
+    if (sourceArt !== null) {
+      sourceArt.style.visibility = 'hidden';
+    }
+    guardedDescend(layer, 640, () => {}, (finish) => {
+      const panel = layer.querySelector<HTMLElement>('.con-vpx__inspect-panel');
+      const art = layer.querySelector<HTMLElement>('[data-vpx-inspect-art]');
+      if (panel === null) {
+        return undefined;
+      }
+      const tl = gsap.timeline({onComplete: finish});
+      if (!descendUnfold(tl, panel, takeDescendRect('vpx-ins-panel'), motionMs(280) / 1000, 0)) {
+        tl.fromTo(panel, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
+      }
+      if (art !== null) {
+        const from = takeDescendRect('vpx-ins-art');
+        const flip = from !== undefined ? descendFlipFrom(art, from) : undefined;
+        if (flip !== undefined) {
+          tl.fromTo(art,
+            {x: flip.x, y: flip.y, scale: flip.scale, transformOrigin: 'top left'},
+            {x: 0, y: 0, scale: 1, duration: motionMs(320) / 1000, ease: 'expo.out', clearProps: 'transform'}, 0);
+        }
+      }
+      descendCascade(tl, Array.from(layer.querySelectorAll<HTMLElement>('[data-vpx-inspect-row]')), motionMs(170) / 1000, motionMs(150) / 1000, 0.025);
+      return tl;
+    });
+  });
+}
+/** B while the inspection stands — fold it back into its entry.
+ *  Returns true when the press was consumed (the shell asks FIRST). */
+function consumeScoreBack(): boolean {
+  const entry = ui.inspect;
+  if (entry === undefined) {
+    return false;
+  }
+  const layer = inspectEl.value ?? undefined;
+  const sourceArt = maSourceArt(entry.key);
+  const restore = () => {
+    sourceArt?.style.removeProperty('visibility');
+    ui.inspect = undefined;
+  };
+  if (consoleReducedMotionActive() || layer === undefined) {
+    restore();
+    return true;
+  }
+  guardedDescend(layer, 520, restore, (finish) => {
+    const panel = layer.querySelector<HTMLElement>('.con-vpx__inspect-panel');
+    const art = layer.querySelector<HTMLElement>('[data-vpx-inspect-art]');
+    if (panel === null) {
+      return undefined;
+    }
+    const tl = gsap.timeline({onComplete: finish});
+    descendCascadeOut(tl, Array.from(layer.querySelectorAll<HTMLElement>('[data-vpx-inspect-row]')), motionMs(100) / 1000, 0);
+    if (art !== null && sourceArt !== null) {
+      const home = descendRectOf(sourceArt);
+      const flip = home !== undefined ? descendFlipFrom(art, home) : undefined;
+      if (flip !== undefined) {
+        tl.to(art, {x: flip.x, y: flip.y, scale: flip.scale, transformOrigin: 'top left', duration: motionMs(260) / 1000, ease: 'power2.inOut'}, 0);
+      }
+    }
+    if (!descendFold(tl, panel, descendRectOf((root.value?.querySelector(`[data-vpx-ma="${CSS.escape(entry.key)}"]`) ?? null)), motionMs(240) / 1000, motionMs(40) / 1000)) {
+      tl.to(panel, {autoAlpha: 0, duration: motionMs(130) / 1000}, 0);
+    }
+    return tl;
+  });
+  return true;
+}
+/** A seat switch / route move dismisses the inspection INSTANTLY (the
+ *  entity may not exist on the other side — never a stale dossier). */
+function dropInspect(): void {
+  const entry = ui.inspect;
+  if (entry === undefined) {
+    return;
+  }
+  const layer = inspectEl.value ?? undefined;
+  if (layer !== undefined) {
+    killDescendEpisode(layer);
+  }
+  maSourceArt(entry.key)?.style.removeProperty('visibility');
+  ui.inspect = undefined;
+}
+// ── the level transitions (the workspace-descend phrase) ─────────────
+function onRouteChange(to: InfoRouteId, from: InfoRouteId): void {
+  dropInspect();
+  const stage = stageEl.value ?? undefined;
+  if (stage !== undefined) {
+    killDescendEpisode(stage);
+  }
+  // Settle any interrupted leave FIRST — state stays consistent under
+  // rapid presses (an aborted fold never strands a param or a latch).
+  settleCatLeave();
+  settleTableLeave();
+  overviewLeaving.value = false;
+  catReceding.value = false;
+
+  if (!isVpRoute(to)) {
+    // Leaving the subtree entirely (a shortcut / Y) — tidy the params.
+    infoModeState.vpCategoryKey = undefined;
+    infoModeState.vpCardsGroup = undefined;
+    return;
+  }
+  if (consoleReducedMotionActive() || stage === undefined) {
+    if (to === 'vp') {
+      infoModeState.vpCategoryKey = undefined;
+      infoModeState.vpCardsGroup = undefined;
+    } else if (to === 'vpCategory') {
+      infoModeState.vpCardsGroup = undefined;
+    }
+    return;
+  }
+  if (from === 'vp' && to === 'vpCategory') {
+    playCatEnter(stage);
+  } else if (from === 'vpCategory' && to === 'vp') {
+    playCatLeave(stage);
+  } else if (from === 'vpCategory' && to === 'vpCards') {
+    playTableEnter(stage);
+  } else if (from === 'vpCards' && to === 'vpCategory') {
+    playTableLeave(stage);
+  }
+}
+function settleCatLeave(): void {
+  if (catLeaving.value) {
+    catLeaving.value = false;
+    if (route.value !== 'vpCategory' && route.value !== 'vpCards') {
+      infoModeState.vpCategoryKey = undefined;
+    }
+  }
+}
+function settleTableLeave(): void {
+  if (tableLeaving.value) {
+    tableLeaving.value = false;
+    if (route.value !== 'vpCards') {
+      infoModeState.vpCardsGroup = undefined;
+    }
+  }
+}
+function playCatEnter(stage: HTMLElement): void {
+  overviewLeaving.value = true;
+  nextTick(() => {
+    guardedDescend(stage, 620, () => {
+      overviewLeaving.value = false;
+    }, (finish) => {
+      const catElNow = catEl.value ?? undefined;
+      const overviewElNow = overviewEl.value ?? undefined;
+      if (catElNow === undefined || overviewElNow === undefined) {
+        return undefined;
+      }
+      const tl = gsap.timeline({onComplete: finish});
+      descendRecede(tl, overviewElNow, takeDescendOrigin('vpx-cat'), motionMs(150) / 1000, 0);
+      const from = takeDescendRect('vpx-cat');
+      if (!descendUnfold(tl, catElNow, from, motionMs(280) / 1000, motionMs(40) / 1000)) {
+        tl.fromTo(catElNow, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
+      }
+      descendCascade(tl, catRows(catElNow), motionMs(175) / 1000, motionMs(170) / 1000);
+      return tl;
+    });
+  });
+}
+function playCatLeave(stage: HTMLElement): void {
+  catLeaving.value = true;
+  guardedDescend(stage, 560, () => {
+    settleCatLeave();
+  }, (finish) => {
+    const catElNow = catEl.value ?? undefined;
+    const overviewElNow = overviewEl.value ?? undefined;
+    if (catElNow === undefined || overviewElNow === undefined) {
+      return undefined;
+    }
+    const tl = gsap.timeline({onComplete: finish});
+    descendCascadeOut(tl, catRows(catElNow), motionMs(110) / 1000, 0);
+    const tile = root.value?.querySelector<HTMLElement>(`[data-vpx-tile="${CSS.escape(renderCategoryKey.value)}"]`) ?? null;
+    if (!descendFold(tl, catElNow, descendRectOf(tile), motionMs(240) / 1000, motionMs(50) / 1000)) {
+      tl.to(catElNow, {autoAlpha: 0, duration: motionMs(140) / 1000}, 0);
+    }
+    descendReturn(tl, overviewElNow, motionMs(220) / 1000, motionMs(120) / 1000);
+    return tl;
+  });
+}
+function playTableEnter(stage: HTMLElement): void {
+  catReceding.value = true;
+  nextTick(() => {
+    guardedDescend(stage, 620, () => {
+      catReceding.value = false;
+    }, (finish) => {
+      const tableElNow = tableEl.value ?? undefined;
+      const catElNow = catEl.value ?? undefined;
+      if (tableElNow === undefined) {
+        return undefined;
+      }
+      const tl = gsap.timeline({onComplete: finish});
+      if (catElNow !== undefined) {
+        descendRecede(tl, catElNow, undefined, motionMs(140) / 1000, 0);
+      }
+      const from = takeDescendRect('vpx-grp');
+      if (!descendUnfold(tl, tableElNow, from, motionMs(280) / 1000, motionMs(40) / 1000)) {
+        tl.fromTo(tableElNow, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
+      }
+      descendCascade(tl, tableRows(tableElNow), motionMs(170) / 1000, motionMs(170) / 1000, 0.02);
+      return tl;
+    });
+  });
+}
+function playTableLeave(stage: HTMLElement): void {
+  tableLeaving.value = true;
+  guardedDescend(stage, 560, () => {
+    settleTableLeave();
+  }, (finish) => {
+    const tableElNow = tableEl.value ?? undefined;
+    const catElNow = catEl.value ?? undefined;
+    if (tableElNow === undefined) {
+      return undefined;
+    }
+    const tl = gsap.timeline({onComplete: finish});
+    const group = root.value?.querySelector<HTMLElement>(`[data-vpx-group="${CSS.escape(renderGroupKey.value)}"]`) ?? null;
+    if (!descendFold(tl, tableElNow, descendRectOf(group), motionMs(240) / 1000, motionMs(30) / 1000)) {
+      tl.to(tableElNow, {autoAlpha: 0, duration: motionMs(140) / 1000}, 0);
+    }
+    if (catElNow !== undefined) {
+      descendReturn(tl, catElNow, motionMs(210) / 1000, motionMs(110) / 1000);
+    }
+    return tl;
+  });
+}
+function catRows(catEl: HTMLElement): Array<HTMLElement> {
+  return Array.from(catEl.querySelectorAll<HTMLElement>('[data-vpx-catrow]'));
+}
+function tableRows(tableEl: HTMLElement): Array<HTMLElement> {
+  return Array.from(tableEl.querySelectorAll<HTMLElement>('.con-vpx__row, .con-vpx__preview, .con-vpx__tabhead'));
+}
+
+watch(() => barState.value, (cmds: ReadonlyArray<ConsoleCommand>) => {
+  scoreExplorerUi.barCommands = cmds;
+}, {immediate: true, deep: true});
+watch(() => infoModeState.route, (to: InfoRouteId, from: InfoRouteId): void => {
+  onRouteChange(to, from);
+});
+/** A seat switch keeps the depth but never a stale dossier — the
+ *  entity may not exist for the arriving participant. */
+watch(() => infoModeState.playerColor, (): void => {
+  dropInspect();
+});
+/** Clamp the cursors when a seat switch shrinks a list (same depth). */
+watch(() => tableModel.value.rows.length, (len: number): void => {
+  if (ui.rowFocus >= len) {
+    ui.rowFocus = Math.max(0, len - 1);
+  }
+});
+watch(() => overview.value.tiles.length, (len: number): void => {
+  if (ui.gridFocus >= len) {
+    ui.gridFocus = Math.max(0, len - 1);
+  }
+});
+watch(() => maCollection.value.entries.length, (len: number): void => {
+  if (ui.catFocus >= len) {
+    ui.catFocus = Math.max(0, len - 1);
+  }
+});
+/** The column mounts and unmounts with the table: the observer follows it. */
+watch(() => previewColumnLive.value, (live: boolean): void => {
+  observePreview(live);
+}, {flush: 'post'});
+/** Another row → other words under the card (a second formula line, the counted cells). */
+watch(() => currentRowName.value, (): void => {
+  fitPreview();
+}, {flush: 'post'});
+
+onMounted(() => {
+  observePreview(previewColumnLive.value);
+});
+onBeforeUnmount(() => {
+  observePreview(false);
+  dropInspect();
+  const stage = stageEl.value ?? undefined;
+  if (stage !== undefined) {
+    killDescendEpisode(stage);
+  }
+  overviewLeaving.value = false;
+  catLeaving.value = false;
+  tableLeaving.value = false;
+  scoreExplorerUi.barCommands = undefined;
+});
+defineExpose({consumeScoreBack, handleIntent});
 </script>
