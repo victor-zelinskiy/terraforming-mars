@@ -1,8 +1,4 @@
 <template>
-  <!-- TR59 «ОДИН ВЗГЛЯД»: a toast lives a few seconds and answers THREE questions at a glance — what changed for
-       YOU (the hero band, the card's largest numbers), WHY (one cause line: your tile / card / colony, or the
-       attacker's card · the trigger · the actor's move), WHOSE turn (the head's actor chip, the ONE place the
-       actor is named). Everything else is quiet (one line of what the actor got) or the journal's (hold X). -->
   <article class="con-notif"
            :class="[
              'notification-card--variant-' + notification.variant,
@@ -258,7 +254,16 @@
   </article>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * TR59 «ОДИН ВЗГЛЯД»: a toast lives a few seconds and answers THREE questions at a glance — what changed for
+ *       YOU (the hero band, the card's largest numbers), WHY (one cause line: your tile / card / colony, or the
+ *       attacker's card · the trigger · the actor's move), WHOSE turn (the head's actor chip, the ONE place the
+ *       actor is named). Everything else is quiet (one line of what the actor got) or the journal's (hold X).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
 /**
  * CONSOLE transient notification card — the console-native presentation of
  * the shared NotificationModel (one brain: NotificationLayer /
@@ -290,8 +295,8 @@
  * AT this event), B = close. The variant ACCENT is inherited from the
  * standalone `.notification-card--variant-*` rules.
  */
-import {defineComponent, PropType} from 'vue';
-import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {computed, onMounted, PropType} from 'vue';
+import {$t, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {parseLocalizedLog} from '@/client/components/journal/logLocalization';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
@@ -312,6 +317,7 @@ import {BAND_PHRASE_LABEL, BandStatements, bandStatements, clusterSides, notific
 import {LiveNotification, NotificationEasedLine, NotificationPillGroup, NotificationSkippedLine, NotificationVariant} from '@/client/components/notifications/notificationTypes';
 import {EASING_KEYS, lawName} from '@/client/console/requirementEasingText';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
+import {vI18n} from '@/client/directives/vDirectives';
 
 // The spoken UNIT of a band chip — the resource's NAME beside its icon, so the
 // hero statement reads «ТЕПЛО +1», not a lone glyph in a large frame. Standard
@@ -322,403 +328,400 @@ const UNIT_LABEL: Readonly<Record<string, string>> = {
   'energy': 'Energy', 'heat': 'Heat', 'cards': 'cards', 'tr': 'TR', 'vp': 'VP',
   // (A chip with no number — the Modular Floodgates blockade — is a SENTENCE, `BAND_PHRASE_LABEL`, never a unit.)
 };
+
 // …and a PRODUCTION delta says so in its own unit (TR59): with the «from production» line gone (one number, one
 // statement), the unit is where «stock or income?» is answered — «ПР. ЭНЕРГИИ −1», never a bare «ЭНЕРГИЯ −1».
 const PRODUCTION_UNIT_LABEL: Readonly<Record<string, string>> = {
   'megacredits': 'M€ prod.', 'steel': 'Steel prod.', 'titanium': 'Titanium prod.', 'plants': 'Plant prod.',
   'energy': 'Energy prod.', 'heat': 'Heat prod.',
 };
+
 // "What an opponent did" variants tint the rail in the actor colour;
 // prestige / system variants keep the variant accent (same rule as desktop).
 const ACTOR_RAIL_VARIANTS: ReadonlySet<NotificationVariant> = new Set<NotificationVariant>([
   'play-card', 'blue-action', 'standard-project', 'colony', 'hydronetwork', 'passive-effect', 'event', 'bot-turn',
 ]);
+
 // The variants whose TYPE LABEL already says what happened («Карта сыграна», «Действие карты», «Стандартный
 // проект»): their headline is the CARD alone — the log's verb said the type a second time (TR59).
 const CARD_HEADLINE_VARIANTS: ReadonlySet<NotificationVariant> = new Set<NotificationVariant>([
   'play-card', 'blue-action', 'standard-project',
 ]);
 
-export default defineComponent({
-  name: 'ConsoleNotificationCard',
-  components: {JournalTokenRenderer, GamepadGlyph},
-  props: {
-    notification: {type: Object as PropType<LiveNotification>, required: true},
-    players: {type: Array as () => ReadonlyArray<PublicPlayerModel>, required: true},
-    viewerColor: {type: String as () => Color, default: undefined},
-  },
-  emits: ['dismiss'],
-  computed: {
-    /** The viewer band — present exactly when something personal happened. */
-    impactBand(): ViewerImpactMeta | undefined {
-      const impact = this.notification.viewerImpact;
-      if (impact === undefined || impact.sign === 'neutral') {
-        return undefined;
-      }
-      return impact;
-    },
-    /** The band's numbers and its word outcomes apart (FK — a phrase is a sentence, never a pill). */
-    bandSays(): BandStatements {
-      const band = this.impactBand;
-      return band === undefined ? {losses: [], gains: [], phrases: []} : bandStatements(band);
-    },
-    /** Who the transfer arrow names — nobody when it is the actor the head named (FK). */
-    taker(): Color | undefined {
-      const band = this.impactBand;
-      return band === undefined ? undefined : transferTaker(band, this.notification.actor);
-    },
-    /** ONE delta → the label and the statement share a line (no empty frame). */
-    bandDense(): boolean {
-      if (this.impactBand === undefined) {
-        return false;
-      }
-      return this.bandSays.losses.length + this.bandSays.gains.length === 1 && this.bandSays.phrases.length === 0 && this.taker === undefined;
-    },
-    prestige(): boolean {
-      return this.notification.variant === 'milestone' || this.notification.variant === 'award';
-    },
-    actorName(): string {
-      const a = this.notification.actor;
-      if (a === undefined) {
-        return '';
-      }
-      return displayNameForColor(this.players, a);
-    },
-    /** The kicker's card (PL-150) — only when the headline that would name it is NOT on screen (TR59: once). */
-    kickerCard(): CardName | undefined {
-      return this.headlineVisible ? undefined : this.notification.typeLabelCard;
-    },
-    /** The requirement-eased lines (TR49 class) — two at most, like the skips. */
-    easedLines(): ReadonlyArray<NotificationEasedLine> {
-      return (this.notification.eased ?? []).slice(0, 2);
-    },
-    /** The skipped-effect lines — two at most: the card is a toast, the journal holds the rest. */
-    skippedLines(): ReadonlyArray<NotificationSkippedLine> {
-      return (this.notification.skipped ?? []).slice(0, 2);
-    },
-    attackerName(): string {
-      const a = this.impactBand?.attacker;
-      if (a === undefined) {
-        return '';
-      }
-      return displayNameForColor(this.players, a);
-    },
-    /** The sign, spoken (i18n keys — a channel colour can never carry alone). */
-    signLabel(): string {
-      // A standing ban (the Modular Floodgates blockade) is not a spent
-      // amount — «You lost: advancement blocked» misreads, so the band leads
-      // with the hostile register instead.
-      if (this.impactBand?.losses.some((c) => c.text === '' && BAND_PHRASE_LABEL[c.icon] !== undefined) === true) {
-        return 'Against you';
-      }
-      switch (this.notification.sign) {
-      case 'positive': return 'You gained';
-      case 'negative': return 'You lost';
-      default: return 'For you';
-      }
-    },
-    signGlyph(): string {
-      switch (this.notification.sign) {
-      case 'positive': return '▲';
-      case 'negative': return '▼';
-      default: return '⇄';
-      }
-    },
-    /**
-     * The «почему»-zone lines — the typed causes of the band, mapped by the
-     * pure `causeLinesOf`. Always present when the band is (guarded by the
-     * corpus spec); an empty result under a live band is a producer defect —
-     * surfaced as a dev diagnostic in `mounted()`, never masked by a
-     * placeholder.
-     */
-    causeLines(): ReadonlyArray<NotificationCauseLine> {
-      const band = this.impactBand;
-      // The source is named ONCE (PL-548): a line naming the card the kicker already names keeps only its tails.
-      return band === undefined ? [] : causeLinesOf(band, {namedCard: this.kickerCard});
-    },
-    /** Every nameable cause, the card's own naming aside — the «is the zone buildable» question. */
-    rawCauseLines(): ReadonlyArray<NotificationCauseLine> {
-      const band = this.impactBand;
-      return band === undefined ? [] : causeLinesOf(band);
-    },
-    /**
-     * The headline renders event-first (no band). Under a live band the
-     * «почему»-zone is the cause voice for EVERY family — the bot-turn card
-     * included. The headline returns only if the zone could not be built (an
-     * old save's script with no attribution and no reveal step).
-     */
-    headlineVisible(): boolean {
-      if (this.notification.header === undefined) {
-        return false;
-      }
-      if (this.impactBand === undefined) {
-        return true;
-      }
-      return this.notification.variant === 'bot-turn' && this.rawCauseLines.length === 0;
-    },
-    /** Bot-turn headline under a live band = the secondary cause voice. */
-    headlineAsCause(): boolean {
-      return this.impactBand !== undefined && this.notification.variant === 'bot-turn';
-    },
-    /** What the others got stays for neutral events and under a positive band; a loss / mixed card drops it (the
-     *  band + its cause carry that story; the journal has the ledger). */
-    showContext(): boolean {
-      return this.notification.sign === 'neutral' || this.notification.sign === 'positive';
-    },
-    /** The ownership clusters — structured when the producer split them, else
-     *  the flat pills degrade to ONE actor-scoped cluster (burst summaries). */
-    pillClusters(): ReadonlyArray<NotificationPillGroup> {
-      const groups = this.notification.pillGroups;
-      if (groups !== undefined && groups.length > 0) {
-        return groups;
-      }
-      if (this.notification.pills.length === 0) {
-        return [];
-      }
-      return [{scope: 'actor', chips: this.notification.pills}];
-    },
-    revealVerb(): string {
-      return this.notification.reveal?.origin === 'hand' ? 'showed from hand' : 'revealed from deck';
-    },
-    revealResultLabel(): string {
-      switch (this.notification.reveal?.result) {
-      case 'discarded': return 'discarded';
-      case 'kept': return 'kept';
-      case 'shown': return 'shown';
-      default: return 'revealed';
-      }
-    },
-    /** The honest «and N more» tail of a capped outcome list, plural-correct. */
-    overflowLabel(): string {
-      const n = this.notification.summaryOverflow ?? 0;
-      return translateTextWithParams('+${0} more {event|events}', [String(n)]);
-    },
-    railColorClass(): string {
-      const a = this.notification.actor;
-      if (a !== undefined && ACTOR_RAIL_VARIANTS.has(this.notification.variant)) {
-        return 'player_bg_color_' + a;
-      }
-      return '';
-    },
-    headerEntries(): ReadonlyArray<string | LogMessageData> {
-      const h = this.notification.header;
-      if (h === undefined) {
-        return [];
-      }
-      // A play / an action / a standard project: the CARD alone — the type label says what happened (TR59).
-      if (CARD_HEADLINE_VARIANTS.has(this.notification.variant)) {
-        const cards = h.data.filter((tok) => tok.type === LogMessageDataType.CARD || tok.type === LogMessageDataType.CARDS);
-        if (cards.length > 0) {
-          return cards.flatMap((tok, i) => (i === 0 ? [tok] : [' ', tok]));
-        }
-      }
-      return this.withoutLeadingActor(parseLocalizedLog(h));
-    },
-    /** The LAW's own line (a resolution-sourced passive card): the header when it is the effect's own journal
-     *  line — never the generic «Effect triggered» fallback, which the type label and the source already say. */
-    lawLineEntries(): ReadonlyArray<string | LogMessageData> {
-      const h = this.notification.header;
-      if (h === undefined || h.message === 'Effect triggered: ${0}') {
-        return [];
-      }
-      return this.withoutLeadingActor(parseLocalizedLog(h));
-    },
-    /** The prompt as text — a plain string or a tokenised `Message`. */
-    promptText(): string {
-      const p = this.notification.prompt;
-      if (p === undefined) {
-        return '';
-      }
-      return typeof p === 'string' ? this.$t(p) : translateMessage(p);
-    },
-    /** The head's glyph — a TEXT glyph of the family, never an emoji (FK). */
-    glyph(): string {
-      return notificationGlyph(this.notification.variant);
-    },
-    metaLine(): string | undefined {
-      if (this.notification.kind === 'important' && this.notification.typeLabelKey === 'New generation') {
-        return `${this.$t('Generation')} ${this.notification.generation}`;
-      }
-      return undefined;
-    },
-    showProgress(): boolean {
-      return !this.notification.persistent && this.notification.ttl > 0;
-    },
-    /** The fired passive's source, by name (a card name key, or the resolution's printed name key). */
-    effectSourceName(): string {
-      const source = this.notification.effectSource;
-      if (source === undefined) {
-        return '';
-      }
-      return source.kind === 'card' ? source.card : resolutionName(source.resolution);
-    },
-    /** A fired passive of the ENACTED RESOLUTION: the detail is its inspector. */
-    inspectsResolution(): boolean {
-      return this.notification.variant === 'passive-effect' && this.notification.effectSource?.kind === 'resolution';
-    },
-    /** The toast's DETAIL action: the AI-turn review, the enacted resolution's
-     *  inspector, or the journal AT this event (any card carrying a
-     *  correlationId — the full causal chain). */
-    hasDetailAction(): boolean {
-      if (this.notification.holdsFlow === true && this.notification.botTurnKey !== undefined) {
-        return true;
-      }
-      return this.inspectsResolution || this.notification.reveal !== undefined || this.notification.correlationId !== undefined;
-    },
-    detailLabel(): string {
-      if (this.notification.holdsFlow === true && this.notification.botTurnKey !== undefined) {
-        return 'Watch turn';
-      }
-      if (this.inspectsResolution) {
-        return 'Inspect';
-      }
-      // A card about revealed / shown cards opens THEM — the reveal viewer (PL-557), never the journal.
-      if (this.notification.reveal !== undefined) {
-        return 'View';
-      }
-      // THE OBJECT THE CARD IS ABOUT (PL-025): a chairmanship card and a card whose chain carries a Parliament
-      // outcome (a delegate placed, a rally, a party's support, a walk) open the Parliament — the model's own CTA.
-      if (this.notification.cta?.action === 'open-parliament') {
-        return 'Open the Parliament';
-      }
-      return 'Log';
-    },
-    /** The X-hold on THIS card is filling (shell-tracked, module-reactive). */
-    holdActive(): boolean {
-      return notifHoldState.noteId === this.notification.id;
-    },
-    holdMs(): number {
-      return NOTIF_HOLD_MS;
-    },
-  },
-  mounted() {
-    // A live band with NO nameable cause is a producer defect (an event that
-    // recorded with no source anywhere in its chain). Never masked by a
-    // placeholder — say it where a developer looks.
-    if (this.impactBand !== undefined && this.rawCauseLines.length === 0) {
-      console.warn(`[notifications] band with no nameable cause: ${this.notification.id}`,
-        JSON.stringify(this.impactBand.causes));
+defineOptions({name: 'ConsoleNotificationCard'});
+const props = defineProps({
+  notification: {type: Object as PropType<LiveNotification>, required: true},
+  players: {type: Array as () => ReadonlyArray<PublicPlayerModel>, required: true},
+  viewerColor: {type: String as () => Color, default: undefined},
+});
+defineEmits(['dismiss']);
+
+/** The viewer band — present exactly when something personal happened. */
+const impactBand = computed((): ViewerImpactMeta | undefined => {
+  const impact = props.notification.viewerImpact;
+  if (impact === undefined || impact.sign === 'neutral') {
+    return undefined;
+  }
+  return impact;
+});
+/** The band's numbers and its word outcomes apart (FK — a phrase is a sentence, never a pill). */
+const bandSays = computed((): BandStatements => {
+  const band = impactBand.value;
+  return band === undefined ? {losses: [], gains: [], phrases: []} : bandStatements(band);
+});
+/** Who the transfer arrow names — nobody when it is the actor the head named (FK). */
+const taker = computed((): Color | undefined => {
+  const band = impactBand.value;
+  return band === undefined ? undefined : transferTaker(band, props.notification.actor);
+});
+/** ONE delta → the label and the statement share a line (no empty frame). */
+const bandDense = computed((): boolean => {
+  if (impactBand.value === undefined) {
+    return false;
+  }
+  return bandSays.value.losses.length + bandSays.value.gains.length === 1 && bandSays.value.phrases.length === 0 && taker.value === undefined;
+});
+const prestige = computed((): boolean => {
+  return props.notification.variant === 'milestone' || props.notification.variant === 'award';
+});
+const actorName = computed((): string => {
+  const a = props.notification.actor;
+  if (a === undefined) {
+    return '';
+  }
+  return displayNameForColor(props.players, a);
+});
+/** The kicker's card (PL-150) — only when the headline that would name it is NOT on screen (TR59: once). */
+const kickerCard = computed((): CardName | undefined => {
+  return headlineVisible.value ? undefined : props.notification.typeLabelCard;
+});
+/** The requirement-eased lines (TR49 class) — two at most, like the skips. */
+const easedLines = computed((): ReadonlyArray<NotificationEasedLine> => {
+  return (props.notification.eased ?? []).slice(0, 2);
+});
+/** The skipped-effect lines — two at most: the card is a toast, the journal holds the rest. */
+const skippedLines = computed((): ReadonlyArray<NotificationSkippedLine> => {
+  return (props.notification.skipped ?? []).slice(0, 2);
+});
+const attackerName = computed((): string => {
+  const a = impactBand.value?.attacker;
+  if (a === undefined) {
+    return '';
+  }
+  return displayNameForColor(props.players, a);
+});
+/** The sign, spoken (i18n keys — a channel colour can never carry alone). */
+const signLabel = computed((): string => {
+  // A standing ban (the Modular Floodgates blockade) is not a spent
+  // amount — «You lost: advancement blocked» misreads, so the band leads
+  // with the hostile register instead.
+  if (impactBand.value?.losses.some((c) => c.text === '' && BAND_PHRASE_LABEL[c.icon] !== undefined) === true) {
+    return 'Against you';
+  }
+  switch (props.notification.sign) {
+  case 'positive': return 'You gained';
+  case 'negative': return 'You lost';
+  default: return 'For you';
+  }
+});
+const signGlyph = computed((): string => {
+  switch (props.notification.sign) {
+  case 'positive': return '▲';
+  case 'negative': return '▼';
+  default: return '⇄';
+  }
+});
+/**
+ * The «почему»-zone lines — the typed causes of the band, mapped by the
+ * pure `causeLinesOf`. Always present when the band is (guarded by the
+ * corpus spec); an empty result under a live band is a producer defect —
+ * surfaced as a dev diagnostic in `onMounted`, never masked by a
+ * placeholder.
+ */
+const causeLines = computed((): ReadonlyArray<NotificationCauseLine> => {
+  const band = impactBand.value;
+  // The source is named ONCE (PL-548): a line naming the card the kicker already names keeps only its tails.
+  return band === undefined ? [] : causeLinesOf(band, {namedCard: kickerCard.value});
+});
+/** Every nameable cause, the card's own naming aside — the «is the zone buildable» question. */
+const rawCauseLines = computed((): ReadonlyArray<NotificationCauseLine> => {
+  const band = impactBand.value;
+  return band === undefined ? [] : causeLinesOf(band);
+});
+/**
+ * The headline renders event-first (no band). Under a live band the
+ * «почему»-zone is the cause voice for EVERY family — the bot-turn card
+ * included. The headline returns only if the zone could not be built (an
+ * old save's script with no attribution and no reveal step).
+ */
+const headlineVisible = computed((): boolean => {
+  if (props.notification.header === undefined) {
+    return false;
+  }
+  if (impactBand.value === undefined) {
+    return true;
+  }
+  return props.notification.variant === 'bot-turn' && rawCauseLines.value.length === 0;
+});
+/** Bot-turn headline under a live band = the secondary cause voice. */
+const headlineAsCause = computed((): boolean => {
+  return impactBand.value !== undefined && props.notification.variant === 'bot-turn';
+});
+/** What the others got stays for neutral events and under a positive band; a loss / mixed card drops it (the
+ *  band + its cause carry that story; the journal has the ledger). */
+const showContext = computed((): boolean => {
+  return props.notification.sign === 'neutral' || props.notification.sign === 'positive';
+});
+/** The ownership clusters — structured when the producer split them, else
+ *  the flat pills degrade to ONE actor-scoped cluster (burst summaries). */
+const pillClusters = computed((): ReadonlyArray<NotificationPillGroup> => {
+  const groups = props.notification.pillGroups;
+  if (groups !== undefined && groups.length > 0) {
+    return groups;
+  }
+  if (props.notification.pills.length === 0) {
+    return [];
+  }
+  return [{scope: 'actor', chips: props.notification.pills}];
+});
+const revealVerb = computed((): string => {
+  return props.notification.reveal?.origin === 'hand' ? 'showed from hand' : 'revealed from deck';
+});
+const revealResultLabel = computed((): string => {
+  switch (props.notification.reveal?.result) {
+  case 'discarded': return 'discarded';
+  case 'kept': return 'kept';
+  case 'shown': return 'shown';
+  default: return 'revealed';
+  }
+});
+/** The honest «and N more» tail of a capped outcome list, plural-correct. */
+const overflowLabel = computed((): string => {
+  const n = props.notification.summaryOverflow ?? 0;
+  return translateTextWithParams('+${0} more {event|events}', [String(n)]);
+});
+const railColorClass = computed((): string => {
+  const a = props.notification.actor;
+  if (a !== undefined && ACTOR_RAIL_VARIANTS.has(props.notification.variant)) {
+    return 'player_bg_color_' + a;
+  }
+  return '';
+});
+const headerEntries = computed((): ReadonlyArray<string | LogMessageData> => {
+  const h = props.notification.header;
+  if (h === undefined) {
+    return [];
+  }
+  // A play / an action / a standard project: the CARD alone — the type label says what happened (TR59).
+  if (CARD_HEADLINE_VARIANTS.has(props.notification.variant)) {
+    const cards = h.data.filter((tok) => tok.type === LogMessageDataType.CARD || tok.type === LogMessageDataType.CARDS);
+    if (cards.length > 0) {
+      return cards.flatMap((tok, i) => (i === 0 ? [tok] : [' ', tok]));
     }
-  },
-  methods: {
-    /** «Требования игнорируются · Новаторская разработка» / «±2 · Особая разработка» (+ «один розыгрыш»). */
-    easedLineText(line: NotificationEasedLine): string {
-      const what = line.kind === 'waive' ? translateText(EASING_KEYS.requirementIgnored) :
-        line.kind === 'ally' ? translateTextWithParams(EASING_KEYS.throughAlly, [line.via !== undefined ? translateText(partyNameKey(line.via)) : '']) :
-          `±${line.steps ?? 0}`;
-      // A LAW's waiver (RX36) is named by the law — never a card it is not.
-      const parts = [what, line.law !== undefined ? lawName(line.law) : translateText(line.source ?? '')];
-      if (line.oneShot) {
-        parts.push(translateText(EASING_KEYS.oneShot));
-      }
-      return parts.join(' · ');
-    },
-    /** «за 14 тайлов на Марсе» — the journal's own reading of a counted gain's basis (JournalChildRow.basisLabel). */
-    basisLabel(basis: {count: number, unitKey: string}): string {
-      return translateTextWithParams('for ${0} ${1}', [String(basis.count), translateText(basis.unitKey)]);
-    },
-    ownerName(color: Color): string {
-      return displayNameForColor(this.players, color);
-    },
-    iconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-    /** The trigger tail, translated (`${0}` carries a localized name). */
-    triggerText(line: NotificationCauseLine): string {
-      if (line.triggerKey === undefined) {
-        return '';
-      }
-      if (line.triggerParamKey !== undefined) {
-        return translateTextWithParams(line.triggerKey, [this.$t(line.triggerParamKey)]);
-      }
-      return this.$t(line.triggerKey);
-    },
-    /** The actor's move tail — «ход: Купольный кратер» (`${0}` carries a localized name). */
-    viaText(line: NotificationCauseLine): string {
-      if (line.viaKey === undefined) {
-        return '';
-      }
-      return translateTextWithParams(line.viaKey, [this.$t(line.viaParamKey ?? '')]);
-    },
-    /** The chip's spoken unit — the resource name beside its icon (band chips
-     *  always; context chips only where the icon alone is mute — vp). */
-    chipUnit(chip: JournalImpactChip): string | undefined {
-      if (chip.icon === 'vp') {
-        return 'VP';
-      }
-      return undefined;
-    },
-    /** The BAND chip's unit — spoken for every standard resource; a production delta names its production. */
-    bandUnit(chip: JournalImpactChip): string | undefined {
-      if (chip.production === true) {
-        return PRODUCTION_UNIT_LABEL[chip.icon] ?? UNIT_LABEL[chip.icon];
-      }
-      return UNIT_LABEL[chip.icon];
-    },
-    /** Whose dot a cluster wears: the actor's (named in the head), a third player's, none for the planet. */
-    clusterOwner(cluster: NotificationPillGroup): Color | undefined {
-      switch (cluster.scope) {
-      case 'planet': return undefined;
-      case 'others': return cluster.owner;
-      default: return this.notification.actor;
-      }
-    },
-    /** A cluster's words: the planet's, a third player's name — and NOTHING for the actor (the head named them —
-     *  ONE ACTOR STATEMENT; their dot ties the line to the chip). */
-    clusterLabel(cluster: NotificationPillGroup): string {
-      switch (cluster.scope) {
-      case 'planet': return 'Mars';
-      case 'others': return cluster.owner !== undefined ? displayNameForColor(this.players, cluster.owner) : 'Others';
-      default: return this.notification.actor === undefined ? 'Player' : '';
-      }
-    },
-    /**
-     * Drop the line's LEADING actor token when it repeats the head's actor
-     * chip (the same compaction the journal's grouped rows use) — the card
-     * states the initiator ONCE; every line after that reads as what happened.
-     */
-    withoutLeadingActor(tokens: ReadonlyArray<string | LogMessageData>): ReadonlyArray<string | LogMessageData> {
-      const actor = this.notification.actor;
-      const first = tokens[0];
-      if (actor === undefined || first === undefined || typeof first === 'string' ||
-        first.type !== LogMessageDataType.PLAYER || first.value !== actor) {
-        return tokens;
-      }
-      const rest = [...tokens.slice(1)];
-      if (typeof rest[0] === 'string') {
-        rest[0] = (rest[0] as string).replace(/^\s+/, '');
-      }
-      return rest;
-    },
-    // One compact outcome line (summaryLines) → localized journal tokens,
-    // minus the redundant leading actor.
-    lineEntries(line: LogMessage): ReadonlyArray<string | LogMessageData> {
-      return this.withoutLeadingActor(parseLocalizedLog(line));
-    },
-    /** An actor's line in two labelled groups — what they got, what they paid (FK · PL-087). Labels only when both
-     *  sides stand: a lone income or a lone price reads by its sign. */
-    clusterSidesOf(cluster: NotificationPillGroup): Array<{key: 'got' | 'paid', label?: string, chips: ReadonlyArray<JournalImpactChip>}> {
-      const {got, paid} = clusterSides(cluster.chips);
-      const both = got.length > 0 && paid.length > 0;
-      const out: Array<{key: 'got' | 'paid', label?: string, chips: ReadonlyArray<JournalImpactChip>}> = [];
-      if (got.length > 0) {
-        out.push({key: 'got', ...(both ? {label: 'gained'} : {}), chips: got});
-      }
-      if (paid.length > 0) {
-        out.push({key: 'paid', ...(both ? {label: 'paid'} : {}), chips: paid});
-      }
-      return out;
-    },
-    chipClass(chip: JournalImpactChip): Record<string, boolean> {
-      const plain = chip.production !== true && chip.saved !== true && chip.neutral !== true;
-      return {
-        'con-notif__chip--prod': chip.production === true,
-        'con-notif__chip--saved': chip.saved === true,
-        'con-notif__chip--neutral': chip.neutral === true,
-        'con-notif__chip--neg': plain && chip.text.startsWith('−'),
-        'con-notif__chip--pos': plain && chip.text.startsWith('+'),
-      };
-    },
-  },
+  }
+  return withoutLeadingActor(parseLocalizedLog(h));
+});
+/** The LAW's own line (a resolution-sourced passive card): the header when it is the effect's own journal
+ *  line — never the generic «Effect triggered» fallback, which the type label and the source already say. */
+const lawLineEntries = computed((): ReadonlyArray<string | LogMessageData> => {
+  const h = props.notification.header;
+  if (h === undefined || h.message === 'Effect triggered: ${0}') {
+    return [];
+  }
+  return withoutLeadingActor(parseLocalizedLog(h));
+});
+/** The prompt as text — a plain string or a tokenised `Message`. */
+const promptText = computed((): string => {
+  const p = props.notification.prompt;
+  if (p === undefined) {
+    return '';
+  }
+  return typeof p === 'string' ? $t(p) : translateMessage(p);
+});
+/** The head's glyph — a TEXT glyph of the family, never an emoji (FK). */
+const glyph = computed((): string => {
+  return notificationGlyph(props.notification.variant);
+});
+const metaLine = computed((): string | undefined => {
+  if (props.notification.kind === 'important' && props.notification.typeLabelKey === 'New generation') {
+    return `${$t('Generation')} ${props.notification.generation}`;
+  }
+  return undefined;
+});
+const showProgress = computed((): boolean => {
+  return !props.notification.persistent && props.notification.ttl > 0;
+});
+/** The fired passive's source, by name (a card name key, or the resolution's printed name key). */
+const effectSourceName = computed((): string => {
+  const source = props.notification.effectSource;
+  if (source === undefined) {
+    return '';
+  }
+  return source.kind === 'card' ? source.card : resolutionName(source.resolution);
+});
+/** A fired passive of the ENACTED RESOLUTION: the detail is its inspector. */
+const inspectsResolution = computed((): boolean => {
+  return props.notification.variant === 'passive-effect' && props.notification.effectSource?.kind === 'resolution';
+});
+/** The toast's DETAIL action: the AI-turn review, the enacted resolution's
+ *  inspector, or the journal AT this event (any card carrying a
+ *  correlationId — the full causal chain). */
+const hasDetailAction = computed((): boolean => {
+  if (props.notification.holdsFlow === true && props.notification.botTurnKey !== undefined) {
+    return true;
+  }
+  return inspectsResolution.value || props.notification.reveal !== undefined || props.notification.correlationId !== undefined;
+});
+const detailLabel = computed((): string => {
+  if (props.notification.holdsFlow === true && props.notification.botTurnKey !== undefined) {
+    return 'Watch turn';
+  }
+  if (inspectsResolution.value) {
+    return 'Inspect';
+  }
+  // A card about revealed / shown cards opens THEM — the reveal viewer (PL-557), never the journal.
+  if (props.notification.reveal !== undefined) {
+    return 'View';
+  }
+  // THE OBJECT THE CARD IS ABOUT (PL-025): a chairmanship card and a card whose chain carries a Parliament
+  // outcome (a delegate placed, a rally, a party's support, a walk) open the Parliament — the model's own CTA.
+  if (props.notification.cta?.action === 'open-parliament') {
+    return 'Open the Parliament';
+  }
+  return 'Log';
+});
+/** The X-hold on THIS card is filling (shell-tracked, module-reactive). */
+const holdActive = computed((): boolean => {
+  return notifHoldState.noteId === props.notification.id;
+});
+const holdMs = NOTIF_HOLD_MS;
+
+/** «Требования игнорируются · Новаторская разработка» / «±2 · Особая разработка» (+ «один розыгрыш»). */
+function easedLineText(line: NotificationEasedLine): string {
+  const what = line.kind === 'waive' ? translateText(EASING_KEYS.requirementIgnored) :
+    line.kind === 'ally' ? translateTextWithParams(EASING_KEYS.throughAlly, [line.via !== undefined ? translateText(partyNameKey(line.via)) : '']) :
+      `±${line.steps ?? 0}`;
+  // A LAW's waiver (RX36) is named by the law — never a card it is not.
+  const parts = [what, line.law !== undefined ? lawName(line.law) : translateText(line.source ?? '')];
+  if (line.oneShot) {
+    parts.push(translateText(EASING_KEYS.oneShot));
+  }
+  return parts.join(' · ');
+}
+/** «за 14 тайлов на Марсе» — the journal's own reading of a counted gain's basis (JournalChildRow.basisLabel). */
+function basisLabel(basis: {count: number, unitKey: string}): string {
+  return translateTextWithParams('for ${0} ${1}', [String(basis.count), translateText(basis.unitKey)]);
+}
+function ownerName(color: Color): string {
+  return displayNameForColor(props.players, color);
+}
+function iconClass(icon: string): string {
+  return iconClassFor(icon);
+}
+/** The trigger tail, translated (`${0}` carries a localized name). */
+function triggerText(line: NotificationCauseLine): string {
+  if (line.triggerKey === undefined) {
+    return '';
+  }
+  if (line.triggerParamKey !== undefined) {
+    return translateTextWithParams(line.triggerKey, [$t(line.triggerParamKey)]);
+  }
+  return $t(line.triggerKey);
+}
+/** The actor's move tail — «ход: Купольный кратер» (`${0}` carries a localized name). */
+function viaText(line: NotificationCauseLine): string {
+  if (line.viaKey === undefined) {
+    return '';
+  }
+  return translateTextWithParams(line.viaKey, [$t(line.viaParamKey ?? '')]);
+}
+/** The chip's spoken unit — the resource name beside its icon (band chips
+ *  always; context chips only where the icon alone is mute — vp). */
+function chipUnit(chip: JournalImpactChip): string | undefined {
+  if (chip.icon === 'vp') {
+    return 'VP';
+  }
+  return undefined;
+}
+/** The BAND chip's unit — spoken for every standard resource; a production delta names its production. */
+function bandUnit(chip: JournalImpactChip): string | undefined {
+  if (chip.production === true) {
+    return PRODUCTION_UNIT_LABEL[chip.icon] ?? UNIT_LABEL[chip.icon];
+  }
+  return UNIT_LABEL[chip.icon];
+}
+/** Whose dot a cluster wears: the actor's (named in the head), a third player's, none for the planet. */
+function clusterOwner(cluster: NotificationPillGroup): Color | undefined {
+  switch (cluster.scope) {
+  case 'planet': return undefined;
+  case 'others': return cluster.owner;
+  default: return props.notification.actor;
+  }
+}
+/** A cluster's words: the planet's, a third player's name — and NOTHING for the actor (the head named them —
+ *  ONE ACTOR STATEMENT; their dot ties the line to the chip). */
+function clusterLabel(cluster: NotificationPillGroup): string {
+  switch (cluster.scope) {
+  case 'planet': return 'Mars';
+  case 'others': return cluster.owner !== undefined ? displayNameForColor(props.players, cluster.owner) : 'Others';
+  default: return props.notification.actor === undefined ? 'Player' : '';
+  }
+}
+/**
+ * Drop the line's LEADING actor token when it repeats the head's actor
+ * chip (the same compaction the journal's grouped rows use) — the card
+ * states the initiator ONCE; every line after that reads as what happened.
+ */
+function withoutLeadingActor(tokens: ReadonlyArray<string | LogMessageData>): ReadonlyArray<string | LogMessageData> {
+  const actor = props.notification.actor;
+  const first = tokens[0];
+  if (actor === undefined || first === undefined || typeof first === 'string' ||
+    first.type !== LogMessageDataType.PLAYER || first.value !== actor) {
+    return tokens;
+  }
+  const rest = [...tokens.slice(1)];
+  if (typeof rest[0] === 'string') {
+    rest[0] = (rest[0] as string).replace(/^\s+/, '');
+  }
+  return rest;
+}
+// One compact outcome line (summaryLines) → localized journal tokens,
+// minus the redundant leading actor.
+function lineEntries(line: LogMessage): ReadonlyArray<string | LogMessageData> {
+  return withoutLeadingActor(parseLocalizedLog(line));
+}
+/** An actor's line in two labelled groups — what they got, what they paid (FK · PL-087). Labels only when both
+ *  sides stand: a lone income or a lone price reads by its sign. */
+function clusterSidesOf(cluster: NotificationPillGroup): Array<{key: 'got' | 'paid', label?: string, chips: ReadonlyArray<JournalImpactChip>}> {
+  const {got, paid} = clusterSides(cluster.chips);
+  const both = got.length > 0 && paid.length > 0;
+  const out: Array<{key: 'got' | 'paid', label?: string, chips: ReadonlyArray<JournalImpactChip>}> = [];
+  if (got.length > 0) {
+    out.push({key: 'got', ...(both ? {label: 'gained'} : {}), chips: got});
+  }
+  if (paid.length > 0) {
+    out.push({key: 'paid', ...(both ? {label: 'paid'} : {}), chips: paid});
+  }
+  return out;
+}
+function chipClass(chip: JournalImpactChip): Record<string, boolean> {
+  const plain = chip.production !== true && chip.saved !== true && chip.neutral !== true;
+  return {
+    'con-notif__chip--prod': chip.production === true,
+    'con-notif__chip--saved': chip.saved === true,
+    'con-notif__chip--neutral': chip.neutral === true,
+    'con-notif__chip--neg': plain && chip.text.startsWith('−'),
+    'con-notif__chip--pos': plain && chip.text.startsWith('+'),
+  };
+}
+
+onMounted(() => {
+  // A live band with NO nameable cause is a producer defect (an event that
+  // recorded with no source anywhere in its chain). Never masked by a
+  // placeholder — say it where a developer looks.
+  if (impactBand.value !== undefined && rawCauseLines.value.length === 0) {
+    console.warn(`[notifications] band with no nameable cause: ${props.notification.id}`,
+      JSON.stringify(impactBand.value.causes));
+  }
 });
 </script>
