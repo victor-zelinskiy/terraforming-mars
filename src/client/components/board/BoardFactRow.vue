@@ -25,104 +25,98 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import {BoardFact} from '@/common/boards/BoardInformationFacts';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import {vI18n} from '@/client/directives/vDirectives';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 
-export default defineComponent({
-  name: 'BoardFactRow',
-  components: {ActionEffectChip},
-  props: {
-    fact: {
-      type: Object as PropType<BoardFact>,
-      required: true,
-    },
-    /**
-     * The timing the HOSTING section already states in its heading ("At game
-     * end" / "Risk"). A tag repeating its own heading is a wasted line on a
-     * finite panel, so the row drops it — while a DIFFERENT timing inside the
-     * same block (a `future` fact under "At game end") still earns its tag.
-     * Unset on the hover popover, which groups by recipient and states no timing.
-     */
-    sectionTiming: {
-      type: String as PropType<BoardFact['timing'] | undefined>,
-      default: undefined,
-    },
+defineOptions({name: 'BoardFactRow'});
+const props = defineProps({
+  fact: {
+    type: Object as PropType<BoardFact>,
+    required: true,
   },
-  computed: {
-    Math() {
-      return Math;
-    },
-    // BoardFactDelta is shape-compatible with ActionEffect, so the existing
-    // premium chip renders it (icon + current → resulting / signed amount).
-    deltaEffect(): ActionEffect | undefined {
-      const d = this.fact.delta;
-      if (d === undefined) {
-        return undefined;
-      }
-      return {
-        direction: d.direction,
-        icon: d.icon,
-        amount: d.amount,
-        current: d.current,
-        resulting: d.resulting,
-        unit: d.unit,
-        // A PRODUCTION change must read as production, not as a one-off gain —
-        // same `note` the action-preview chips use (`actionPreviews.productionChange`).
-        note: d.production === true ? 'production' : undefined,
-      };
-    },
-    /**
-     * The card / rule that produces this fact. Only shown when it ADDS
-     * information: a `board-cell` or `map-rule` source repeats what the section
-     * heading already says, so it stays hidden.
-     */
-    sourceLabel(): string | undefined {
-      const source = this.fact.source;
-      if (source === undefined || source.label === undefined) {
-        return undefined;
-      }
-      if (source.type === 'board-cell' || source.type === 'map-rule') {
-        return undefined;
-      }
-      return typeof source.label === 'string' ? source.label : undefined;
-    },
-    vpAmount(): number | undefined {
-      if (this.fact.vp === undefined) {
-        return undefined;
-      }
-      return this.fact.vp.to - this.fact.vp.from;
-    },
-    vpSign(): string {
-      return (this.vpAmount ?? 0) < 0 ? '−' : '+';
-    },
-    /** The placement reaches the claim threshold — the badge lights up. */
-    progressReached(): boolean {
-      const p = this.fact.progress;
-      return p !== undefined && p.target !== undefined && p.to >= p.target;
-    },
-    // A small contextual tag for non-immediate timings (the chip colour already
-    // conveys cost vs gain for immediate facts).
-    timingTag(): string | undefined {
-      // A progress row lives in its own "Milestones and awards" block and shows a
-      // `from → to` badge; a "Later" tag beside it says nothing new.
-      if (this.fact.progress !== undefined) {
-        return undefined;
-      }
-      // The section heading already said it.
-      if (this.sectionTiming !== undefined && this.fact.timing === this.sectionTiming) {
-        return undefined;
-      }
-      switch (this.fact.timing) {
-      case 'endgame': return 'At game end';
-      case 'future': return 'Later';
-      case 'warning': return 'Warning';
-      default: return undefined;
-      }
-    },
+  /**
+   * The timing the HOSTING section already states in its heading ("At game
+   * end" / "Risk"). A tag repeating its own heading is a wasted line on a
+   * finite panel, so the row drops it — while a DIFFERENT timing inside the
+   * same block (a `future` fact under "At game end") still earns its tag.
+   * Unset on the hover popover, which groups by recipient and states no timing.
+   */
+  sectionTiming: {
+    type: String as PropType<BoardFact['timing'] | undefined>,
+    default: undefined,
   },
+});
+
+// BoardFactDelta is shape-compatible with ActionEffect, so the existing
+// premium chip renders it (icon + current → resulting / signed amount).
+const deltaEffect = computed((): ActionEffect | undefined => {
+  const d = props.fact.delta;
+  if (d === undefined) {
+    return undefined;
+  }
+  return {
+    direction: d.direction,
+    icon: d.icon,
+    amount: d.amount,
+    current: d.current,
+    resulting: d.resulting,
+    unit: d.unit,
+    // A PRODUCTION change must read as production, not as a one-off gain —
+    // same `note` the action-preview chips use (`actionPreviews.productionChange`).
+    note: d.production === true ? 'production' : undefined,
+  };
+});
+/**
+ * The card / rule that produces this fact. Only shown when it ADDS
+ * information: a `board-cell` or `map-rule` source repeats what the section
+ * heading already says, so it stays hidden.
+ */
+const sourceLabel = computed((): string | undefined => {
+  const source = props.fact.source;
+  if (source === undefined || source.label === undefined) {
+    return undefined;
+  }
+  if (source.type === 'board-cell' || source.type === 'map-rule') {
+    return undefined;
+  }
+  return typeof source.label === 'string' ? source.label : undefined;
+});
+const vpAmount = computed((): number | undefined => {
+  if (props.fact.vp === undefined) {
+    return undefined;
+  }
+  return props.fact.vp.to - props.fact.vp.from;
+});
+const vpSign = computed((): string => {
+  return (vpAmount.value ?? 0) < 0 ? '−' : '+';
+});
+/** The placement reaches the claim threshold — the badge lights up. */
+const progressReached = computed((): boolean => {
+  const p = props.fact.progress;
+  return p !== undefined && p.target !== undefined && p.to >= p.target;
+});
+// A small contextual tag for non-immediate timings (the chip colour already
+// conveys cost vs gain for immediate facts).
+const timingTag = computed((): string | undefined => {
+  // A progress row lives in its own "Milestones and awards" block and shows a
+  // `from → to` badge; a "Later" tag beside it says nothing new.
+  if (props.fact.progress !== undefined) {
+    return undefined;
+  }
+  // The section heading already said it.
+  if (props.sectionTiming !== undefined && props.fact.timing === props.sectionTiming) {
+    return undefined;
+  }
+  switch (props.fact.timing) {
+  case 'endgame': return 'At game end';
+  case 'future': return 'Later';
+  case 'warning': return 'Warning';
+  default: return undefined;
+  }
 });
 </script>
 
