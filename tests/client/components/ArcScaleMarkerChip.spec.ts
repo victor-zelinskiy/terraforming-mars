@@ -22,9 +22,9 @@ describe('ArcScaleMarkerChip', () => {
     resetScaleBonusClaimsSeen();
   });
 
-  // NOTE: the SFC template opens with a comment node, so in the dev build the
-  // component is multi-root and `wrapper.classes()` reads the COMMENT — every
-  // class read goes through the rendered chip element instead.
+  // NOTE: the SFC template starts with its root now (the comment that opened
+  // it moved into the script — RECIPES R24), so the chip element IS the
+  // component's root; every class read still goes through `.arc-marker`.
   function chip(state: string, claimColor = '') {
     const wrapper = mount(ArcScaleMarkerChip, {
       ...globalConfig,
