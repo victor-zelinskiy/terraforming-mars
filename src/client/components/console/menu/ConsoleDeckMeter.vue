@@ -57,7 +57,7 @@
   </section>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * THE DECK METER (T04 «the deck is visible before launch») — what the party's decks will
  * hold for the creator's CURRENT settings, read off the server's own count
@@ -72,55 +72,49 @@
  * card colours, validated on the console surface (green stepped into the lightness band),
  * every segment directly labelled with its count and word, so the colour is never alone.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import {deckCompositionState} from '@/client/console/menu/deckCompositionState';
 import {DeckExtra, DeckMeterView, DeckTile, ProjectSegment, deckMeterView} from '@/client/console/menu/deckCompositionModel';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
 export type DeckMeterVariant = 'deck' | 'brief';
 
-export default defineComponent({
-  name: 'ConsoleDeckMeter',
-  components: {ConsoleFlipValue},
-  props: {
-    variant: {type: String as PropType<DeckMeterVariant>, default: 'deck'},
-  },
-  computed: {
-    view(): DeckMeterView | undefined {
-      const composition = deckCompositionState.composition;
-      return composition === undefined ? undefined : deckMeterView(composition);
-    },
-    tiles(): ReadonlyArray<DeckTile> {
-      return this.view?.tiles ?? [];
-    },
-    segments(): ReadonlyArray<ProjectSegment> {
-      return this.view?.segments ?? [];
-    },
-    extras(): ReadonlyArray<DeckExtra> {
-      return this.view?.extras ?? [];
-    },
-    status(): string {
-      return deckCompositionState.status;
-    },
-    pending(): boolean {
-      return deckCompositionState.status === 'loading' && this.view !== undefined;
-    },
-    failed(): boolean {
-      return deckCompositionState.status === 'error';
-    },
-  },
-  methods: {
-    /** Where segment `i` starts — the shares before it, in the fixed order. */
-    offset(i: number): number {
-      return this.segments.slice(0, i).reduce((sum, s) => sum + s.share, 0);
-    },
-    readSegment(segment: ProjectSegment): string {
-      return translateTextWithParams(segment.labelKey, [String(segment.count)]);
-    },
-    readExtra(extra: DeckExtra): string {
-      return translateTextWithParams(extra.key, [...extra.params]);
-    },
-  },
+defineOptions({name: 'ConsoleDeckMeter'});
+defineProps({
+  variant: {type: String as PropType<DeckMeterVariant>, default: 'deck'},
 });
+
+const view = computed((): DeckMeterView | undefined => {
+  const composition = deckCompositionState.composition;
+  return composition === undefined ? undefined : deckMeterView(composition);
+});
+const tiles = computed((): ReadonlyArray<DeckTile> => {
+  return view.value?.tiles ?? [];
+});
+const segments = computed((): ReadonlyArray<ProjectSegment> => {
+  return view.value?.segments ?? [];
+});
+const extras = computed((): ReadonlyArray<DeckExtra> => {
+  return view.value?.extras ?? [];
+});
+const status = computed((): string => {
+  return deckCompositionState.status;
+});
+const pending = computed((): boolean => {
+  return deckCompositionState.status === 'loading' && view.value !== undefined;
+});
+const failed = computed((): boolean => {
+  return deckCompositionState.status === 'error';
+});
+/** Where segment `i` starts — the shares before it, in the fixed order. */
+function offset(i: number): number {
+  return segments.value.slice(0, i).reduce((sum, s) => sum + s.share, 0);
+}
+function readSegment(segment: ProjectSegment): string {
+  return translateTextWithParams(segment.labelKey, [String(segment.count)]);
+}
+function readExtra(extra: DeckExtra): string {
+  return translateTextWithParams(extra.key, [...extra.params]);
+}
 </script>
