@@ -1,29 +1,4 @@
 <template>
-  <!--
-    THE EFFECTS EXPLORER («Информация › Эффекты») — the card-actions browse
-    language re-hosted READ-ONLY: a dossier column (the focused effect's source
-    card — the physical zoom slot and the descend FLIP thumb) + a 2-column grid
-    of per-EFFECT tiles, and an in-explorer DETAIL layer (the effect dossier:
-    hero card + printed rule + the «За партию» summary) that UNFOLDS out of the
-    pressed tile (consoleEffectsFocusMotion — the action-focus phrase).
-
-    Host-agnostic on purpose: everything derives from the `cards` prop (any
-    seat's tableau — or, for a future host, any card set) + the optional
-    `stats`; the ONE bottom bar carries every verb (barCommands published on
-    the host's `EffectsExplorerUi`, returned verbatim by the host). The host
-    provides the frame and the crumb — this surface draws NO kicker of its own
-    (the stage name travels up through `effectsStagePath` /
-    `forecastStageText`).
-
-    TWO MODES, ONE CHASSIS. `mode="forecast"` is the composers' R3 «Эффекты»
-    layer: the SAME tiles, dossier column, detail stage, motion, fit ladders
-    and input — fed by the server's `EffectForecast` instead of the tableau.
-    The facet strip cycles the eight forecast GROUPS instead of the four
-    families, the «ПОРЯДОК» band appears when the queue order is honest, and
-    every tile's meta line is the forecast FOR THIS PLAY (never a statistic).
-    The dossier answers the five questions — WHAT / WHY / UNDER WHAT CONDITION
-    / TO WHOM / WHEN — from the server's fact; nothing is derived here.
-  -->
   <div ref="rootEl" class="con-efx" :class="{'con-efx--forecast': forecastMode, 'con-efx--column': workColumn}" role="region" :aria-label="$t('Effects')">
     <div class="con-efx__stagewrap">
       <div ref="browseEl" class="con-efx__browse" :class="{'con-efx__browse--parked': detailUp}">
@@ -423,8 +398,36 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE EFFECTS EXPLORER («Информация › Эффекты») — the card-actions browse
+ * language re-hosted READ-ONLY: a dossier column (the focused effect's source
+ * card — the physical zoom slot and the descend FLIP thumb) + a 2-column grid
+ * of per-EFFECT tiles, and an in-explorer DETAIL layer (the effect dossier:
+ * hero card + printed rule + the «За партию» summary) that UNFOLDS out of the
+ * pressed tile (consoleEffectsFocusMotion — the action-focus phrase).
+ *
+ * Host-agnostic on purpose: everything derives from the `cards` prop (any
+ * seat's tableau — or, for a future host, any card set) + the optional
+ * `stats`; the ONE bottom bar carries every verb (barCommands published on
+ * the host's `EffectsExplorerUi`, returned verbatim by the host). The host
+ * provides the frame and the crumb — this surface draws NO kicker of its own
+ * (the stage name travels up through `effectsStagePath` /
+ * `forecastStageText`).
+ *
+ * TWO MODES, ONE CHASSIS. `mode="forecast"` is the composers' R3 «Эффекты»
+ * layer: the SAME tiles, dossier column, detail stage, motion, fit ladders
+ * and input — fed by the server's `EffectForecast` instead of the tableau.
+ * The facet strip cycles the eight forecast GROUPS instead of the four
+ * families, the «ПОРЯДОК» band appears when the queue order is honest, and
+ * every tile's meta line is the forecast FOR THIS PLAY (never a statistic).
+ * The dossier answers the five questions — WHAT / WHY / UNDER WHAT CONDITION
+ * / TO WHOM / WHEN — from the server's fact; nothing is derived here.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Tag} from '@/common/cards/Tag';
@@ -488,9 +491,8 @@ import {fitActionCanvases} from '@/client/console/consoleActionCanvasFit';
 import {fitDescTiers} from '@/client/console/descTier';
 import {resolveDetailFit} from '@/client/console/consoleDetailFit';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {stripEffectPrefix} from '@/client/directives/stripEffectPrefix';
 import {reasonParams} from '@/client/cards/tagLabel';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {
@@ -514,6 +516,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
+import {vI18n, vStripEffectPrefix} from '@/client/directives/vDirectives';
 
 type ExplorerTile = EffectsTileVm<ExplorerEntry>;
 type ExplorerGroup = EffectsGroupVm<ExplorerEntry>;
@@ -552,1205 +555,6 @@ type ForecastQuestion = {
   note?: string,
 };
 
-export default defineComponent({
-  name: 'ConsoleEffectsExplorer',
-  components: {ConsoleScrollArea, ConsoleCardFaceLite, ConsoleEffectSummary, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, ColonyFleetIcon, PremiumPartyRequirementGlyph, PremiumCard},
-  directives: {stripEffectPrefix},
-  props: {
-    /** The inspected seat's tableau (or any future host's card set). In the
-     *  forecast mode: the VIEWER's tableau (live resources of own sources). */
-    cards: {type: Array as PropType<ReadonlyArray<CardModel>>, required: true},
-    /** The seat identity — a change drops the detail layer instantly. */
-    color: {type: String, required: true},
-    /**
-     * THE PARLIAMENT'S standing effects of this seat (Turmoil Redux «один фреймворк») — built by the host
-     * (`politicalEffectEntries(politicalSources(…))`), shown as ordinary groups of the grid, FIRST (decision Р1: the law,
-     * the ruling party, then the board's order). Stats mode only.
-     */
-    politicalEntries: {type: Array as PropType<ReadonlyArray<PoliticalEffectEntry>>, default: () => []},
-    /** The seat's effect stats (undefined = loading — metas claim nothing). */
-    stats: {type: Array as PropType<ReadonlyArray<EffectOverlayStat>>, default: undefined},
-    /**
-     * `stats` — the Information workspace's whole-tableau explorer;
-     * `forecast` — a composer's R3 «Эффекты» layer over the server's
-     * `EffectForecast` (the same chassis, the eight groups as facets).
-     */
-    mode: {type: String as PropType<'stats' | 'forecast'>, default: 'stats'},
-    /**
-     * The transient cursors this instance reads and writes. The Information
-     * workspace passes nothing (the module-level instance); a composer passes
-     * its OWN (`forecastExplorerUi(host)`), so two explorers never share a
-     * cursor.
-     */
-    explorerUi: {type: Object as PropType<EffectsExplorerUi>, default: () => effectsExplorerUi},
-    /**
-     * The host stands the explorer in a WORK COLUMN (a share of the band beside another zone — the Parliament's
-     * «ВАШИ ЭФФЕКТЫ» beside its actions): its tiles run one per row, as the forecast layer's do. Two abreast cut the
-     * tile's caption to one letter per line at 4K (the owner's frame of 2026-10-24).
-     */
-    workColumn: {type: Boolean, default: false},
-    /** Forecast mode: the server's forecast (rides inside the preview). */
-    forecast: {type: Object as PropType<EffectForecast | undefined>, default: undefined},
-    /** Forecast mode: every seat of the game — names, colours, live tableaux. */
-    players: {type: Array as PropType<ReadonlyArray<ForecastSeat>>, default: () => []},
-    /** Forecast mode: the composer's branches (position + title + availability). */
-    branches: {type: Array as PropType<ReadonlyArray<ForecastBranchInfo>>, default: () => []},
-    /** Forecast mode: the branch the composer has selected (live, no request). */
-    selectedBranchPos: {type: Number, default: undefined},
-    /** Forecast mode: per-seat effect stats (undefined per seat = loading). */
-    statsByColor: {type: Object as PropType<Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>>>, default: () => ({})},
-    /** Forecast mode: the play's own steps the «ПОРЯДОК» band interleaves. */
-    orderFlags: {type: Object as PropType<{cardChoices: boolean, placesTile: boolean}>, default: () => ({cardChoices: false, placesTile: false})},
-    /** Forecast mode: the OPERATION the forecast is about — the WHEN answer
-     *  of an immediate reaction is «сразу после розыгрыша» for a card play
-     *  and «сразу после выполнения» for a card action. */
-    operation: {type: String as PropType<ForecastOperation>, default: 'play'},
-  },
-  setup() {
-    return {flow: useFlowScope('effects-explorer')};
-  },
-  data() {
-    return {
-      /** The one-shot CSS commit pulse on the pressed tile. */
-      descendKey: '',
-      lastFlatIndex: 0,
-      /** The pending canvas-fit frame — its cancel (the explorer's scope takes it back on unmount). */
-      fitFrame: undefined as (() => void) | undefined,
-    };
-  },
-  computed: {
-    ui(): EffectsExplorerUi {
-      return this.explorerUi;
-    },
-    forecastMode(): boolean {
-      return this.mode === 'forecast';
-    },
-    entries(): ReadonlyArray<ExplorerEntry> {
-      return this.forecastMode ? playerEffects(this.cards) : [...this.politicalEntries, ...playerEffects(this.cards)];
-    },
-    columns(): 1 | 2 {
-      // The FORECAST layer stands in a composer's work column — half the
-      // band, beside the dossier — so its tiles run ONE per row: the printed
-      // canvas keeps its size and the caption + the meta chips keep their
-      // reading measure (two abreast truncated both at 4K).
-      return consoleLayoutState.profile === 'handheld' || this.forecastMode || this.workColumn ? 1 : 2;
-    },
-    model(): EffectsBrowseModel<ExplorerEntry> {
-      return buildEffectsBrowseModel({
-        entries: this.entries,
-        tableau: this.cards,
-        stats: this.stats,
-        familyFilter: this.ui.familyFilter,
-        columns: this.columns,
-      });
-    },
-    // ── forecast mode ─────────────────────────────────────────────────────
-    fmodel(): ForecastBrowseModel {
-      return buildForecastBrowseModel({
-        forecast: this.forecastMode ? this.forecast : undefined,
-        branches: this.branches,
-        sectionFilter: this.ui.sectionFilter,
-        columns: this.columns,
-      });
-    },
-    /** The unfiltered model — the open dossier survives a facet change. */
-    fmodelAll(): ForecastBrowseModel {
-      return buildForecastBrowseModel({
-        forecast: this.forecastMode ? this.forecast : undefined,
-        branches: this.branches,
-        sectionFilter: 'all',
-        columns: this.columns,
-      });
-    },
-    ftileByKey(): Map<string, ForecastTileVm> {
-      const map = new Map<string, ForecastTileVm>();
-      for (const s of this.fmodelAll.sections) {
-        for (const t of s.tiles) {
-          map.set(t.key, t);
-        }
-      }
-      return map;
-    },
-    focusedFTile(): ForecastTileVm | undefined {
-      return this.forecastMode ? this.ftileByKey.get(this.ui.focusKey) : undefined;
-    },
-    /** The focused forecast item's source card ('' for a cardless source). */
-    focusedFCardName(): CardName {
-      const tile = this.focusedFTile;
-      return (tile === undefined ? undefined : this.ftileCard(tile)) ?? ('' as CardName);
-    },
-    detailFTile(): ForecastTileVm | undefined {
-      const detail = this.ui.detail;
-      return this.forecastMode && detail !== undefined ? this.ftileByKey.get(detail.effectKey) : undefined;
-    },
-    /** The printed effect entries of every source card the forecast names,
-     *  read through the manifest — a foreign seat's card included. */
-    forecastEntries(): Map<CardName, ReadonlyArray<EffectEntry>> {
-      const map = new Map<CardName, ReadonlyArray<EffectEntry>>();
-      if (!this.forecastMode) {
-        return map;
-      }
-      for (const tile of this.ftileByKey.values()) {
-        const name = forecastItemCard(tile.item);
-        if (name === undefined || map.has(name)) {
-          continue;
-        }
-        map.set(name, playerEffects([this.liveCardOf(name, this.ftileOwner(tile))]));
-      }
-      return map;
-    },
-    orderSteps(): ReadonlyArray<OrderStep> {
-      return this.forecastMode ? forecastOrderBand(this.forecast, this.selectedBranchPos, this.orderFlags) : [];
-    },
-    /** «итого 10 → 8» — the discounts group's shared total line. */
-    discountTotal(): string {
-      const d = this.forecast?.discounts;
-      if (d === undefined || d.final >= d.base) {
-        return '';
-      }
-      return `${d.base} → ${d.final}`;
-    },
-    // ── mode-independent geometry ──────────────────────────────────────────
-    flatKeys(): ReadonlyArray<string> {
-      return this.forecastMode ? this.fmodel.flatKeys : this.model.flatKeys;
-    },
-    rows(): ReadonlyArray<ReadonlyArray<string>> {
-      return this.forecastMode ? this.fmodel.rows : this.model.rows;
-    },
-    detailUp(): boolean {
-      return this.ui.detail !== undefined;
-    },
-    tileByKey(): Map<string, ExplorerTile> {
-      const map = new Map<string, ExplorerTile>();
-      for (const g of this.model.groups) {
-        for (const t of g.tiles) {
-          map.set(t.key, t);
-        }
-      }
-      return map;
-    },
-    focusedTile(): ExplorerTile | undefined {
-      return this.forecastMode ? undefined : this.tileByKey.get(this.ui.focusKey);
-    },
-    focusedGroup(): ExplorerGroup | undefined {
-      return this.forecastMode ? undefined : this.model.groups.find((g) => g.tiles.some((t) => t.key === this.ui.focusKey));
-    },
-    focusedRule(): string {
-      return this.fullRuleOf(this.focusedTile);
-    },
-    focusedOrdinal(): string {
-      const g = this.focusedGroup;
-      const t = this.focusedTile;
-      if (g === undefined || t === undefined || g.tiles.length <= 1) {
-        return '';
-      }
-      return `${translateText('Effect')} ${translateTextWithParams('${0} of ${1}', [String(t.entry.effectIndex + 1), String(g.tiles.length)])}`;
-    },
-    /** The open dossier's tile (survives a filter change — resolved over the
-     *  UNFILTERED entry set so the stage never goes dark under the player). */
-    detailTile(): ExplorerTile | undefined {
-      const detail = this.ui.detail;
-      if (detail === undefined || this.forecastMode) {
-        return undefined;
-      }
-      const shown = this.tileByKey.get(detail.effectKey);
-      if (shown !== undefined) {
-        return shown;
-      }
-      const entry = this.entries.find((e) => e.key === detail.effectKey);
-      if (entry === undefined) {
-        return undefined;
-      }
-      const all = buildEffectsBrowseModel({entries: this.entries, tableau: this.cards, stats: this.stats, familyFilter: 'all', columns: this.columns});
-      for (const g of all.groups) {
-        for (const t of g.tiles) {
-          if (t.key === detail.effectKey) {
-            return t;
-          }
-        }
-      }
-      return undefined;
-    },
-    detailCardName(): CardName {
-      return this.ui.detail?.cardName ?? ('' as CardName);
-    },
-    /** The open dossier's POLITICAL entry (a party / the law), else undefined. */
-    detailPolitical(): PoliticalEffectEntry | undefined {
-      const entry = this.forecastMode ? undefined : this.detailTile?.entry;
-      return entry !== undefined && isPoliticalEntry(entry) ? entry : undefined;
-    },
-    /** The hero's zoom-slot key — the card's name, the party's / the law's zoom entry name, else none. */
-    detailZoomName(): string | undefined {
-      if (this.detailCardName !== '') {
-        return this.detailCardName;
-      }
-      const political = this.detailPolitical;
-      return political === undefined ? undefined : politicalZoomName(political);
-    },
-    /** Forecast mode: the seat holding the open dossier's source. */
-    detailOwner(): Color | undefined {
-      const tile = this.detailFTile;
-      return tile === undefined ? undefined : this.ftileOwner(tile);
-    },
-    /** The printed effect the open dossier stands on (stats: the tile's
-     *  entry; forecast: the ATTRIBUTED one, or none). */
-    detailEntry(): ExplorerEntry | undefined {
-      if (this.forecastMode) {
-        const tile = this.detailFTile;
-        return tile === undefined ? undefined : this.ftileEntry(tile);
-      }
-      return this.detailTile?.entry;
-    },
-    detailEffectNode(): EffectEntry['effectNode'] {
-      return this.detailEntry?.effectNode;
-    },
-    detailRenderRoot(): EffectEntry['renderRoot'] {
-      return this.detailEntry?.renderRoot;
-    },
-    detailRule(): string {
-      if (this.forecastMode) {
-        const tile = this.detailFTile;
-        return tile === undefined ? '' : this.ftileRule(tile);
-      }
-      return this.fullRuleOf(this.detailTile);
-    },
-    detailPos(): number {
-      const i = this.flatKeys.indexOf(this.ui.detail?.effectKey ?? '');
-      return i >= 0 ? i + 1 : 1;
-    },
-    /** Forecast mode: the «За партию» panel renders only for a source whose
-     *  seat's stats have ARRIVED (a bot / rule source has none — no skeleton
-     *  standing forever). */
-    detailSummaryAvailable(): boolean {
-      if (!this.forecastMode) {
-        // A political source keeps no statistic — the block is honestly absent, never a skeleton standing forever.
-        return this.detailPolitical === undefined;
-      }
-      const tile = this.detailFTile;
-      return tile !== undefined && this.detailEntry !== undefined && this.statsFor(this.ftileOwner(tile)) !== undefined;
-    },
-    detailSummary(): EffectSummaryViewModel | undefined {
-      const candidate = this.detailEntry;
-      if (candidate === undefined || isPoliticalEntry(candidate)) {
-        return undefined;
-      }
-      const entry: EffectEntry = candidate;
-      const owner = this.forecastMode ? this.detailOwner : undefined;
-      const stats = this.forecastMode ? this.statsFor(owner) : this.stats;
-      if (stats === undefined) {
-        return undefined; // loading — the skeleton renders, never a fake zero
-      }
-      const cardEntries: ReadonlyArray<EffectEntry> = this.forecastMode ?
-        (this.forecastEntries.get(entry.cardName) ?? [entry]) :
-        this.cardEntriesOf(entry.cardName);
-      const cardStat = stats.find((s) => s.card === entry.cardName && (s.kind === 'corporation') === entry.isCorporation);
-      const per = (!this.forecastMode ? this.detailTile?.per : undefined) ?? perEffectStat(entry, cardEntries, cardStat);
-      const sourceKind = entry.isCorporation ? 'corporation' as const : 'card' as const;
-      const resourceType = getCard(entry.cardName)?.resourceType;
-      const live = this.forecastMode ? this.liveCardOf(entry.cardName, owner) : this.liveCard(entry.cardName);
-      const base = {
-        sourceName: entry.cardName,
-        sourceKind,
-        cardResourceType: resourceType,
-        currentCardResource: resourceType !== undefined ? (live.resources ?? 0) : undefined,
-        effectIndex: entry.effectIndex,
-        signature: entry.signature,
-      };
-      const stat = per.stat ?? emptyEffectOverlayStat(entry.cardName, sourceKind);
-      if (per.scope === 'effect') {
-        // The channel split made this stat honestly THIS effect's — single-effect
-        // semantics apply (real trigger count, no card-scoped caption).
-        return getEffectSummary(stat, {...base, effectCount: 1, siblingIcons: []});
-      }
-      const siblingIcons = cardEntries.filter((e) => e.key !== entry.key).flatMap((e) => [...e.signature.icons]);
-      return getEffectSummary(stat, {...base, effectCount: cardEntries.length, siblingIcons});
-    },
-    /** The explorer's live command contract — the host republishes it. */
-    barState(): Array<ConsoleCommand> {
-      if (this.forecastMode) {
-        return this.forecastBarState();
-      }
-      const close: ConsoleCommand = {control: 'inspect', label: 'Close', priority: 0};
-      if (this.detailUp) {
-        const cmds: Array<ConsoleCommand> = [];
-        if (this.model.flatKeys.length > 1) {
-          cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Other effects', priority: 1});
-        }
-        cmds.push({control: 'secondary', label: 'Inspect'});
-        cmds.push({control: 'back', label: 'Back'});
-        cmds.push(close);
-        return cmds;
-      }
-      if (this.model.groups.length === 0) {
-        const cmds: Array<ConsoleCommand> = [{control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1}];
-        if (this.ui.familyFilter !== 'all' && this.model.total > 0) {
-          cmds.push({control: 'stickR', label: 'Reset'});
-        }
-        cmds.push({control: 'back', label: 'To overview'});
-        cmds.push(close);
-        return cmds;
-      }
-      return [
-        {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
-        {control: 'confirm', label: 'Open'},
-        {control: 'secondary', label: 'Inspect'},
-        {control: 'back', label: 'To overview'},
-        close,
-      ];
-    },
-  },
-  watch: {
-    'barState': {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>) {
-        this.ui.barCommands = cmds;
-      },
-    },
-    /** Track the cursor's live flat position (feeds the nearest-survivor pick). */
-    'ui.focusKey'(key: string): void {
-      const i = this.flatKeys.indexOf(key);
-      if (i >= 0) {
-        this.lastFlatIndex = i;
-      }
-    },
-    /** Keep the cursor on a valid, present tile (filter change / seat switch /
-     *  update) — the nearest-survivor rule, never a jarring reset to first. */
-    'flatKeys': {
-      immediate: true,
-      handler(keys: ReadonlyArray<string>) {
-        if (keys.length === 0) {
-          this.ui.focusKey = '';
-          return;
-        }
-        const liveIndex = keys.indexOf(this.ui.focusKey);
-        if (liveIndex >= 0) {
-          this.lastFlatIndex = liveIndex;
-          return;
-        }
-        const at = Math.min(this.lastFlatIndex, keys.length - 1);
-        this.ui.focusKey = keys[at];
-        this.lastFlatIndex = at;
-      },
-    },
-    /** A seat switch drops the detail INSTANTLY — another seat almost never
-     *  has the same effect, and a stranger's fold must not play. */
-    color(): void {
-      this.dropDetail();
-    },
-    /** Forecast mode: a refreshed forecast that no longer carries the open
-     *  item drops the dossier (the browse layer updates in place). */
-    detailFTile(tile: ForecastTileVm | undefined): void {
-      if (this.forecastMode && this.detailUp && tile === undefined) {
-        this.dropDetail();
-      }
-    },
-    /** Re-fit the printed graphics whenever the grid recomposes. */
-    model(): void {
-      this.scheduleCanvasFit();
-    },
-    fmodel(): void {
-      this.scheduleCanvasFit();
-    },
-  },
-  mounted() {
-    this.scheduleCanvasFit();
-  },
-  beforeUnmount() {
-    this.ui.barCommands = undefined;
-  },
-  methods: {
-    iconClassFor,
-    // The browse ⇄ detail transition hooks (the copied action-focus phrase) —
-    // exposed as methods so the template's <transition> can bind them.
-    effectsFocusEnterHook,
-    effectsFocusLeaveHook,
-    effectsFocusEnterCancelledHook,
-    effectsFocusLeaveCancelledHook,
-    liveCard(name: CardName | string): CardModel {
-      return this.cards.find((c) => c.name === name) ?? ({name: name as CardName} as CardModel);
-    },
-    /** Forecast mode: the live model of a card held by ANY seat — the owner's
-     *  tableau first (foreign resources are public), the viewer's, else a
-     *  bare name (the manifest draws the face; a bot's corp has no model). */
-    liveCardOf(name: CardName | string | undefined, owner: Color | string | undefined): CardModel {
-      if (name === undefined) {
-        return {name: '' as CardName} as CardModel;
-      }
-      const seat = owner === undefined ? undefined : this.players.find((p) => p.color === owner);
-      return seat?.tableau.find((c) => c.name === name) ?? this.liveCard(name);
-    },
-    textOf(v: string | Message | undefined, tag?: Tag): string {
-      if (v === undefined) {
-        return '';
-      }
-      if (typeof v !== 'string') {
-        return translateMessage(v);
-      }
-      return tag !== undefined ? translateTextWithParams(v, reasonParams(undefined, tag)) : translateText(v);
-    },
-    statsFor(owner: Color | string | undefined): ReadonlyArray<EffectOverlayStat> | undefined {
-      return owner === undefined ? undefined : this.statsByColor[owner];
-    },
-    /** The card entries of one source card (stats mode). */
-    cardEntriesOf(cardName: CardName): Array<EffectEntry> {
-      return this.entries.filter((e): e is EffectEntry => !isPoliticalEntry(e) && e.cardName === cardName);
-    },
-    /** The resolved rule record of one effect (info-group short + full). */
-    rulesOf(tile: ExplorerTile | undefined): EffectRules | undefined {
-      if (tile === undefined) {
-        return undefined;
-      }
-      const entry = tile.entry;
-      if (isPoliticalEntry(entry)) {
-        // A party / a law: its printed sentence IS the rule (the catalog's `text.passive`, one per block).
-        const text = entry.description ?? entry.text ?? '';
-        return text === '' ? undefined : {lines: [{kind: 'rule', text}], summary: text, curated: false};
-      }
-      return this.rulesOfEntry(entry, this.cardEntriesOf(entry.cardName).length);
-    },
-    rulesOfEntry(entry: EffectEntry, count: number): EffectRules | undefined {
-      return effectRules({
-        cardName: entry.cardName,
-        effectIndex: entry.effectIndex,
-        effectNode: entry.effectNode,
-        description: entry.description,
-        text: entry.text,
-      }, count);
-    },
-    /** The FULL rule — the dossier's and the detail stage's reading. */
-    fullRuleOf(tile: ExplorerTile | undefined): string {
-      return this.rulesOf(tile)?.lines[0]?.text ?? tile?.entry.description ?? tile?.entry.text ?? '';
-    },
-    /** A group's NAME key — the card, the party's glossary name, the law's printed name. */
-    groupTitle(g: ExplorerGroup): string {
-      const first = g.tiles[0]?.entry;
-      return first !== undefined && isPoliticalEntry(first) ? first.title : (g.cardName ?? '');
-    },
-    /** A political group's badge party (a law wears its own party). */
-    politicalParty(g: ExplorerGroup): ReduxParty {
-      const first = g.tiles[0]?.entry;
-      return (first !== undefined && isPoliticalEntry(first) ? first.party : REDUX_PARTIES[0]) as ReduxParty;
-    },
-    partyEmblemOf(g: ExplorerGroup): string {
-      return partyEmblemUrl(this.politicalParty(g));
-    },
-    partyAccentOf(g: ExplorerGroup): string {
-      return partyAccent(this.politicalParty(g));
-    },
-    lawVmOf(resolution: string): PremiumCardVM | undefined {
-      const law = getResolution(resolution);
-      return law === undefined ? undefined : resolutionPremiumVm(law);
-    },
-    /** A party's CHARTER (`partyPremiumVm`) — the one face a party wears wherever a card would stand. */
-    partyVmOf(party: ReduxParty | undefined): PremiumCardVM | undefined {
-      return party === undefined ? undefined : partyPremiumVm(party);
-    },
-    partyFaceVm(g: ExplorerGroup): PremiumCardVM | undefined {
-      return g.source.kind === 'party' ? this.partyVmOf(g.source.party) : undefined;
-    },
-    lawFaceVm(g: ExplorerGroup): PremiumCardVM | undefined {
-      return g.source.kind === 'law' ? this.lawVmOf(g.source.resolution) : undefined;
-    },
-    /** A group's zoom-slot key — the card's name, or its zoom entry's name (`PARTY_<party>` / the law's id). */
-    groupZoomName(g: ExplorerGroup): string {
-      if (g.cardName !== undefined) {
-        return g.cardName;
-      }
-      const first = g.tiles[0]?.entry;
-      return first !== undefined && isPoliticalEntry(first) ? politicalZoomName(first) : g.key;
-    },
-    /** What X opens for a group — the live card, the party's effect, the law's face. */
-    groupZoomCard(g: ExplorerGroup): ZoomCard {
-      if (g.cardName !== undefined) {
-        return this.liveCard(g.cardName);
-      }
-      return g.source.kind === 'law' ? resolutionZoomEntry(g.source.resolution) : partyEffectZoomEntry(this.politicalParty(g));
-    },
-    /** The access reading (an i18n key + its params, the names already translated). */
-    accessText(meta: {label: string, params: ReadonlyArray<string>}): string {
-      return meta.params.length > 0 ? translateTextWithParams(meta.label, [...meta.params]) : translateText(meta.label);
-    },
-    tileOrdinal(tile: ExplorerTile): string {
-      return `${translateText('Effect')} ${tile.entry.effectIndex + 1}`;
-    },
-    tileDesc(tile: ExplorerTile): string {
-      // The tile CAPTION: the card's curated short when the full rule is too
-      // long for a calm one/two-line read, else the full sentence (never a
-      // truncation — the effectDescription contract). Text-only overrides
-      // already ARE the graphic — no duplicate caption.
-      if (tile.entry.effectNode === undefined && tile.entry.renderRoot === undefined) {
-        return '';
-      }
-      return this.rulesOf(tile)?.summary ?? tile.entry.description ?? '';
-    },
-    tileDescTier(tile: ExplorerTile): string {
-      return actionDescTier(translateText(this.tileDesc(tile)).replace(/^(Effect|Действие|Эффект):\s*/i, ''));
-    },
-    /** The trade fleet standing on a fleet-dock card (its owner's livery) — public state. */
-    fleetDockedOn(cardName: CardName): Color | undefined {
-      return this.cards.find((c) => c.name === cardName)?.fleetDocked;
-    },
-    plateChip(g: ExplorerGroup): {icon: string, count: number} | undefined {
-      if (g.cardName === undefined) {
-        return undefined;
-      }
-      const resourceType = getCard(g.cardName)?.resourceType;
-      if (resourceType === undefined) {
-        return undefined;
-      }
-      const live = this.liveCard(g.cardName);
-      return {icon: iconClassFor(String(resourceType)), count: live.resources ?? 0};
-    },
-    groupIsLive(g: ExplorerGroup): boolean {
-      return g.tiles.some((t) => t.key === this.ui.focusKey);
-    },
-    setFamily(id: EffectFamily | 'all'): void {
-      this.ui.familyFilter = id;
-    },
-    cycleFamily(dir: 1 | -1): void {
-      const ids = this.model.familyChips.map((c) => c.id);
-      if (ids.length <= 1) {
-        return;
-      }
-      const at = ids.indexOf(this.ui.familyFilter);
-      const next = (at + dir + ids.length) % ids.length;
-      this.ui.familyFilter = ids[next];
-    },
-    // ── forecast mode helpers ──────────────────────────────────────────────
-    setSection(id: ForecastGroupId | 'all'): void {
-      this.ui.sectionFilter = id;
-    },
-    cycleSection(dir: 1 | -1): void {
-      if (this.fmodel.groups.length === 0) {
-        return;
-      }
-      this.ui.sectionFilter = cycleForecastSection(this.fmodel.groups, this.ui.sectionFilter, dir);
-    },
-    ftileCard(tile: ForecastTileVm): CardName | undefined {
-      return forecastItemCard(tile.item);
-    },
-    /**
-     * A PARTY- or RESOLUTION-sourced fact's emblem (Turmoil Redux) — the cardless
-     * source's own face; a DISCOUNT the law or a party's policy took off the
-     * price wears the same emblem (an enacted resolution's law lowering a
-     * Building card is the parliament's doing, and the tile says so).
-     */
-    ftilePartyEmblem(tile: ForecastTileVm): string | undefined {
-      const item = tile.item;
-      const political = forecastItemPoliticalSource(item);
-      if (political !== undefined) {
-        return this.politicalEmblem(political.kind === 'resolution' ? getResolution(political.id)?.party : political.name);
-      }
-      if (item.kind !== 'fact') {
-        return undefined;
-      }
-      const source = item.fact.source;
-      if (source.kind === 'resolution') {
-        return this.politicalEmblem(getResolution(source.name)?.party);
-      }
-      return source.kind === 'party' ? this.politicalEmblem(source.name) : undefined;
-    },
-    politicalEmblem(party: string | undefined): string | undefined {
-      return party !== undefined && (REDUX_PARTIES as ReadonlyArray<string>).includes(party) ? partyEmblemUrl(party as ReduxParty) : undefined;
-    },
-    /** A cardless source's NAME key: a resolution resolves to its printed name through the parliament manifest. */
-    fsourceName(source: {kind: string, name: string}): string {
-      return source.kind === 'resolution' ? (getResolution(source.name)?.text.name ?? source.name) : source.name;
-    },
-    /**
-     * A political DISCOUNT's name key (the law's printed name through the
-     * manifest, a party's own name) — '' for a discount of a card. The tile's
-     * title, its canvas and the dossier's WHY all read this one answer.
-     */
-    fdiscountLawName(tile: ForecastTileVm): string {
-      const political = forecastItemPoliticalSource(tile.item);
-      if (political === undefined) {
-        return '';
-      }
-      return political.kind === 'resolution' ? (getResolution(political.id)?.text.name ?? political.id) : political.name;
-    },
-    detailPartyEmblem(): string | undefined {
-      const tile = this.detailFTile;
-      return tile === undefined ? undefined : this.ftilePartyEmblem(tile);
-    },
-    ftileOwner(tile: ForecastTileVm): Color | undefined {
-      return forecastItemOwner(tile.item, this.color as Color);
-    },
-    /** The owner's name — ONLY for a foreign source (own cards need no plate). */
-    ftileOwnerName(tile: ForecastTileVm): string {
-      const owner = this.ftileOwner(tile);
-      if (owner === undefined || owner === this.color) {
-        return '';
-      }
-      return displayNameForColor(this.players, owner);
-    },
-    ftileEntry(tile: ForecastTileVm): EffectEntry | undefined {
-      const name = this.ftileCard(tile);
-      if (name === undefined) {
-        return undefined;
-      }
-      return attributeItemToEffect(tile.item, this.forecastEntries.get(name) ?? []);
-    },
-    ftileEffectNode(tile: ForecastTileVm): ICardRenderEffect | undefined {
-      return this.ftileEntry(tile)?.effectNode;
-    },
-    /** The template's non-optional binding — called only behind the v-if. */
-    ftileEffectNodeOf(tile: ForecastTileVm): ICardRenderEffect {
-      return this.ftileEffectNode(tile) as ICardRenderEffect;
-    },
-    ftileRenderRoot(tile: ForecastTileVm): ICardRenderRoot | undefined {
-      return this.ftileEntry(tile)?.renderRoot;
-    },
-    ftileRenderRootOf(tile: ForecastTileVm): ICardRenderRoot {
-      return this.ftileRenderRoot(tile) as ICardRenderRoot;
-    },
-    /** The tile's TITLE — the source card (an i18n key), the rule's name, the
-     *  cardless remainder, or the branch the empty row belongs to. */
-    ftileTitle(tile: ForecastTileVm): string {
-      const item = tile.item;
-      switch (item.kind) {
-      case 'fact':
-        return translateText(this.fsourceName(item.fact.source));
-      case 'other-discount':
-        return translateText('Other discounts');
-      case 'branch-empty':
-        return this.branchTitle(item.branchPos);
-      default: {
-        const name = this.ftileCard(tile);
-        if (name !== undefined) {
-          return translateText(name);
-        }
-        // A discount of the LAW / a party's policy is named, never «other»: the
-        // player must know WHY the price fell, not only that it did.
-        const law = this.fdiscountLawName(tile);
-        return law === '' ? translateText('Other discounts') : translateText(law);
-      }
-      }
-    },
-    branchTitle(pos: number): string {
-      const branch = this.branches.find((b) => b.pos === pos);
-      const title = branch === undefined ? '' : this.textOf(branch.title);
-      return translateTextWithParams('If you choose «${0}»', [title]);
-    },
-    /** The canvas text when no printed block can be vouched for — the honest
-     *  «an effect of this card» (never a guess at WHICH block). */
-    ftileCanvasText(tile: ForecastTileVm): string {
-      const item = tile.item;
-      if (item.kind === 'fact' && forecastSourceIsCardless(item.fact.source)) {
-        return translateText(this.fsourceName(item.fact.source));
-      }
-      if (item.kind === 'other-discount') {
-        return translateText('A discount with no card source');
-      }
-      if (item.kind === 'branch-empty') {
-        return translateText('Nothing will trigger');
-      }
-      if (item.kind === 'modifier') {
-        return item.armed !== undefined ? armedEffectFormula(item.armed.effect) : item.easings.map((e) => easingLine(e)).join(' · ');
-      }
-      const law = this.fdiscountLawName(tile);
-      return translateText(law === '' ? 'Effect of this card' : law);
-    },
-    ftileDesc(tile: ForecastTileVm): string {
-      const entry = this.ftileEntry(tile);
-      if (entry === undefined || (entry.effectNode === undefined && entry.renderRoot === undefined)) {
-        return '';
-      }
-      const name = entry.cardName;
-      const count = (this.forecastEntries.get(name) ?? []).length;
-      return this.rulesOfEntry(entry, count)?.summary ?? entry.description ?? '';
-    },
-    ftileDescTier(tile: ForecastTileVm): string {
-      return actionDescTier(translateText(this.ftileDesc(tile)).replace(/^(Effect|Действие|Эффект):\s*/i, ''));
-    },
-    /** The FULL printed rule of the attributed effect ('' when unattributed). */
-    ftileRule(tile: ForecastTileVm): string {
-      const entry = this.ftileEntry(tile);
-      if (entry === undefined) {
-        return '';
-      }
-      const count = (this.forecastEntries.get(entry.cardName) ?? []).length;
-      return this.rulesOfEntry(entry, count)?.lines[0]?.text ?? entry.description ?? entry.text ?? '';
-    },
-    ftileMeta(tile: ForecastTileVm): ForecastMetaLine {
-      return forecastMetaLine(tile.item, this.operation);
-    },
-    /** The WHY sentence with its last word split off, so the tag icon can
-     *  ride that word in a `nowrap` pair (no tag → the whole sentence). The
-     *  separating space stays at the END of `text`: a whitespace-only node
-     *  between two template elements is condensed away by the compiler
-     *  («с меткойнауки» shipped that way), while a space inside the
-     *  interpolated text survives and is the one break opportunity before
-     *  the unbreakable tail. */
-    whyText(text: string, tag: Tag | undefined): {text: string, textTail?: string} {
-      if (tag === undefined) {
-        return {text};
-      }
-      const trimmed = text.trimEnd();
-      const at = trimmed.lastIndexOf(' ');
-      if (at <= 0) {
-        return {text: '', textTail: trimmed};
-      }
-      return {text: trimmed.slice(0, at + 1), textTail: trimmed.slice(at + 1)};
-    },
-    /** The meta line's value signature — its re-mount key. */
-    ftileMetaKey(tile: ForecastTileVm): string {
-      const item = tile.item;
-      if (item.kind !== 'fact') {
-        return item.kind === 'discount' || item.kind === 'other-discount' ? `${item.kind}:${item.amount}:${item.kind === 'discount' ? item.saved ?? '' : ''}` :
-          (item.kind === 'payment' ? `payment:${item.value.value}:${item.value.count}` : item.kind);
-      }
-      const sig = (e: ActionEffect) => `${e.icon}${e.amount}${e.current ?? ''}${e.resulting ?? ''}`;
-      const line = forecastMetaLine(item);
-      return `${line.chips.map(sig).join(',')}|${(line.alternative?.chips ?? []).map(sig).join(',')}`;
-    },
-    /** «За партию: срабатывал N раз» — one quiet line, only once the owner's
-     *  stats have arrived (a bot / rule source claims nothing). */
-    ftileStatLine(tile: ForecastTileVm): string {
-      const entry = this.ftileEntry(tile);
-      const stats = this.statsFor(this.ftileOwner(tile));
-      if (entry === undefined || stats === undefined) {
-        return '';
-      }
-      const cardEntries = this.forecastEntries.get(entry.cardName) ?? [entry];
-      const cardStat = stats.find((s) => s.card === entry.cardName && (s.kind === 'corporation') === entry.isCorporation);
-      const per = perEffectStat(entry, cardEntries, cardStat);
-      const count = per.stat?.triggerCount ?? 0;
-      return count > 0 ? `${translateText('Times triggered')}: ${count}` : translateText('Not triggered yet');
-    },
-    /** A modifier tile's meta: spent by this play / spent for nothing / a standing modifier (TR49 class). */
-    modifierMetaText(item: ForecastModifierItem): string {
-      if (!item.oneShot) {
-        return translateText('Standing modifier');
-      }
-      return translateText(item.used ? 'One play — spent by this play' : 'One play — this play spends it for nothing');
-    },
-    paymentAvailable(count: number): string {
-      return translateTextWithParams('${0} available in payment', [String(count)]);
-    },
-    /** «из 2» — the offer an emptied-by-the-floor discount line names as its cap (P62 · GB). */
-    discountCapText(offer: number): string {
-      return translateTextWithParams('of ${0}', [String(offer)]);
-    },
-    stateLabel(state: 'met' | 'depends' | 'unmet'): string {
-      switch (state) {
-      case 'met': return 'Condition met';
-      case 'depends': return 'Depends on your choice';
-      default: return 'Condition not met';
-      }
-    },
-    recipientText(recipient: EffectForecastRecipient): string {
-      if (recipient.kind === 'you') {
-        return translateText('You');
-      }
-      return displayNameForColor(this.players, recipient.color);
-    },
-    /** The dossier's five questions in their fixed order — every answer is
-     *  the SERVER's (`reason`, `condition`, `recipient`, `timing`), only
-     *  worded here. */
-    ftileQuestions(tile: ForecastTileVm): Array<ForecastQuestion> {
-      const item = tile.item;
-      const out: Array<ForecastQuestion> = [];
-      if (item.kind === 'fact') {
-        const fact = item.fact;
-        const what: ForecastQuestion = {id: 'what', label: 'What', chips: fact.effects, recipient: fact.recipient, skipped: fact.certainty === 'skipped'};
-        if (fact.alternatives !== undefined && fact.alternatives.length > 0) {
-          what.alternatives = fact.alternatives.map((a) => ({label: this.textOf(a.label), chips: a.effects}));
-        }
-        if (fact.effects.length === 0 && (fact.certainty === 'no' || fact.certainty === 'unknown')) {
-          what.text = translateText(CERTAINTY_LABEL[fact.certainty]);
-        }
-        if (factBeyondOwnEffect(fact)) {
-          what.note = translateText('Beyond the card\'s own effect');
-        }
-        if (fact.note !== undefined) {
-          what.note = (what.note === undefined ? '' : what.note + ' · ') + this.textOf(fact.note);
-        }
-        out.push(what);
-        out.push({id: 'why', label: 'Why', ...this.whyText(this.textOf(fact.reason, fact.reasonTag), fact.reasonTag), tag: fact.reasonTag});
-        if (fact.condition !== undefined) {
-          const cond: ForecastQuestion = {id: 'condition', label: 'Condition', state: fact.condition.state};
-          if (fact.condition.state === 'depends' && fact.condition.branchPos !== undefined) {
-            cond.text = this.branchTitle(fact.condition.branchPos);
-            if (fact.condition.branchPos === this.selectedBranchPos) {
-              cond.note = translateText('Selected');
-            }
-          } else if (this.textOf(fact.condition.text, fact.reasonTag) !== this.textOf(fact.reason, fact.reasonTag)) {
-            cond.text = this.textOf(fact.condition.text, fact.reasonTag);
-          }
-          out.push(cond);
-        }
-        out.push({id: 'whom', label: 'To whom', text: this.recipientText(fact.recipient), recipient: fact.recipient});
-        out.push({id: 'when', label: 'When', text: translateText(timingLabel(fact.timing, this.operation))});
-        return out;
-      }
-      if (item.kind === 'discount' || item.kind === 'other-discount') {
-        // The saving, never the offer: an offer the 0-floor cut says so in words (invariant 4 — P62 · GB).
-        const saved = item.kind === 'discount' ? item.saved : undefined;
-        out.push({id: 'what', label: 'What', chips: [{direction: 'gain', icon: 'megacredits', amount: saved ?? item.amount, note: 'discount'}],
-          note: saved === undefined ? undefined : translateTextWithParams('The price cannot go below 0 — ${0} of the ${1} offered', [String(saved), String(item.amount)])});
-        out.push({id: 'why', label: 'Why', text: item.kind === 'discount' ?
-          translateTextWithParams('${0} lowers the printed cost', [this.ftileTitle(tile)]) :
-          translateText('A discount with no card source')});
-        out.push({id: 'condition', label: 'Condition', text: this.discountTotal === '' ? '' : `${translateText('Cost')} ${this.discountTotal}`, state: 'met'});
-        out.push({id: 'whom', label: 'To whom', text: translateText('You')});
-        out.push({id: 'when', label: 'When', text: translateText('At payment')});
-        return out;
-      }
-      if (item.kind === 'modifier') {
-        // THE FIVE QUESTIONS of a requirement modifier (TR49 class) — every word from the class's one formatter.
-        const name = this.ftileTitle(tile);
-        out.push({id: 'what', label: 'What', text: item.armed !== undefined ? armedEffectFormula(item.armed.effect) : item.easings.map((e) => easingLine(e)).join(' · '),
-          note: item.oneShot ? translateText(item.used ? 'One play — spent by this play' : 'One play — this play spends it for nothing') : undefined});
-        out.push({id: 'why', label: 'Why', text: translateTextWithParams(item.armed !== undefined ? '${0} armed it for your next card' : '${0} bends the printed requirement', [name])});
-        if (item.easings.length > 0) {
-          out.push({id: 'condition', label: 'Condition', text: item.easings.map((e) => easingLine(e)).join(' · '), state: item.easings.every((e) => e.met) ? 'met' : 'unmet'});
-        }
-        out.push({id: 'whom', label: 'To whom', text: translateText('You')});
-        out.push({id: 'when', label: 'When', text: translateText('On play')});
-        return out;
-      }
-      if (item.kind === 'payment') {
-        const v = item.value;
-        out.push({id: 'what', label: 'What', chips: [{direction: 'gain', icon: String(v.resource).toLowerCase(), amount: 1, note: `= ${v.value} M€`}]});
-        out.push({id: 'why', label: 'Why', text: translateTextWithParams('${0} lets you pay with this resource', [this.ftileTitle(tile)])});
-        out.push({id: 'condition', label: 'Condition', text: this.paymentAvailable(v.count), state: v.count > 0 ? 'met' : 'unmet'});
-        out.push({id: 'whom', label: 'To whom', text: translateText('You')});
-        out.push({id: 'when', label: 'When', text: translateText('At payment')});
-        return out;
-      }
-      out.push({id: 'what', label: 'What', text: translateText('Nothing will trigger')});
-      out.push({id: 'condition', label: 'Condition', text: this.branchTitle(item.branchPos), state: 'depends',
-        note: item.branchPos === this.selectedBranchPos ? translateText('Selected') : undefined});
-      return out;
-    },
-    orderStepText(step: OrderStep): string {
-      switch (step.kind) {
-      case 'card-choice':
-        return translateText('The card\'s own choice');
-      case 'cell':
-        return translateText('The cell for the tile');
-      default: {
-        const fact = step.fact;
-        const source = translateText(this.fsourceName(fact.source));
-        if (fact.certainty === 'asks') {
-          return `${source} — ${translateText('asks')}`;
-        }
-        const chip = fact.effects[0];
-        if (chip === undefined) {
-          return source;
-        }
-        const sign = chip.direction === 'cost' ? '−' : '+';
-        return `${source} ${sign}${chip.amount} ${translateText(iconWord(chip.icon))}`;
-      }
-      }
-    },
-    forecastBarState(): Array<ConsoleCommand> {
-      const close: ConsoleCommand = {control: 'stickR', label: 'Close', priority: 0};
-      if (this.detailUp) {
-        const cmds: Array<ConsoleCommand> = [];
-        if (this.flatKeys.length > 1) {
-          cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Other effects', priority: 1});
-        }
-        if (this.detailCardName !== '') {
-          cmds.push({control: 'secondary', label: 'Inspect'});
-        }
-        cmds.push({control: 'back', label: 'Back'});
-        cmds.push(close);
-        return cmds;
-      }
-      const cmds: Array<ConsoleCommand> = [];
-      if (this.fmodel.chips.length > 2) {
-        cmds.push({control: 'triggerL', control2: 'triggerR', label: 'Sections', priority: 1});
-      }
-      if (this.focusedFTile !== undefined) {
-        cmds.push({control: 'confirm', label: 'Open'});
-        if (this.ftileCard(this.focusedFTile) !== undefined) {
-          cmds.push({control: 'secondary', label: 'Inspect'});
-        }
-      }
-      cmds.push({control: 'back', label: 'Back'});
-      cmds.push(close);
-      return cmds;
-    },
-    // ── geometry ───────────────────────────────────────────────────────────
-    tileEl(key: string): HTMLElement | null {
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-      if (root === undefined || key === '') {
-        return null;
-      }
-      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(key) : key.replace(/"/g, '\\"');
-      return root.querySelector<HTMLElement>(`[data-effect-key="${esc}"]`);
-    },
-    scrollFocusedIntoView(): void {
-      const list = (this.$refs.list ?? undefined) as ScrollAreaRef | undefined;
-      const el = this.tileEl(this.ui.focusKey);
-      if (list === undefined || el === null) {
-        return;
-      }
-      // The FIRST row belongs to the top of the list (the facet strip's gap
-      // would otherwise read as «stuck»). Asked of the ROWS, never of a
-      // remembered index — `lastFlatIndex` is the nearest-survivor record, and
-      // read here it pinned every d-pad step back to the top (the owner's
-      // 4K frame of 2026-11-02: the grid never scrolled on the d-pad).
-      if (this.rows[0]?.includes(this.ui.focusKey) === true) {
-        list.scrollToStart();
-        return;
-      }
-      // The tile's GROUP comes along — its plate names the source above the
-      // tile; a group taller than the viewport keeps the tile itself in view.
-      const group = el.closest<HTMLElement>('.con-efx__group');
-      const viewport = el.closest<HTMLElement>('.con-scroll-area__viewport');
-      const fits = group !== null && viewport !== null && group.offsetHeight <= viewport.clientHeight - 2 * 22 * conUiScale();
-      list.ensureVisible(fits ? group : el, Math.round(22 * conUiScale()));
-    },
-    scheduleCanvasFit(): void {
-      if (typeof window === 'undefined' || typeof requestAnimationFrame !== 'function') {
-        return;
-      }
-      if (this.fitFrame !== undefined) {
-        this.fitFrame();
-      }
-      this.fitFrame = this.flow.afterFrame('the effect canvases fit after the paint', () => {
-        this.fitFrame = undefined;
-        fitActionCanvases((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, {
-          graphicSelector: '.con-efx__graphic',
-          canvasClass: 'con-efx__canvas',
-          varName: '--efx-fit',
-        });
-        // The caption's tier is the column's to decide (PL-123): this column is ~20% narrower than the action centre's.
-        fitDescTiers((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, {selector: '.con-efx__desc', classPrefix: 'con-efx__desc'});
-        // The dossier column composes rather than scrolls (no reachable
-        // scroll context there) — the measured ladder steps it down only as
-        // far as a real overflow demands.
-        const detail = (this.$refs.detailEl ?? undefined) as HTMLElement | undefined;
-        if (detail !== undefined) {
-          resolveDetailFit(detail, detail, (level) => detail.setAttribute('data-fit', String(level)));
-        }
-      });
-    },
-    // ── input (forwarded by the host while the explorer is up) ─────────────
-    handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'scroll') {
-        const target = this.detailUp ?
-          ((this.$refs.stageScroll ?? undefined) as ScrollAreaRef | undefined) :
-          ((this.$refs.list ?? undefined) as ScrollAreaRef | undefined);
-        target?.scrollByPx(intent.dy * 22 * conUiScale());
-        return;
-      }
-      if (intent.kind === 'nav') {
-        this.onNav(intent.dir);
-        return;
-      }
-      if (intent.kind !== 'press') {
-        return;
-      }
-      // R3 is «reset the facet» in the Information workspace only — inside a
-      // composer's layer it is the host's own close verb, handled above us.
-      const action = consoleActionOf(intent, this.forecastMode ? undefined : {stickR: 'reset'});
-      if (this.detailUp) {
-        if (action === 'prevSection' || action === 'nextSection') {
-          this.stepDetail(action === 'prevSection' ? -1 : 1);
-        } else if (action === 'inspect') {
-          this.inspectDetail();
-        }
-        return;
-      }
-      switch (action) {
-      case 'primary': this.descendFocused(); break;
-      case 'inspect': this.inspectFocused(); break;
-      case 'prevTab': this.forecastMode ? this.cycleSection(-1) : this.cycleFamily(-1); break;
-      case 'nextTab': this.forecastMode ? this.cycleSection(1) : this.cycleFamily(1); break;
-      case 'reset': if (!this.forecastMode) {
-        this.setFamily('all');
-      } break;
-      default: break;
-      }
-    },
-    onNav(dir: 'up' | 'down' | 'left' | 'right'): void {
-      if (this.detailUp) {
-        // The dossier's own reading scroll (its list cursor lives in browse).
-        const stage = (this.$refs.stageScroll ?? undefined) as ScrollAreaRef | undefined;
-        if (dir === 'up' || dir === 'down') {
-          stage?.scrollByPx((dir === 'down' ? 1 : -1) * 90 * conUiScale());
-        }
-        return;
-      }
-      if (this.rows.length === 0) {
-        return;
-      }
-      const next = stepActionRows(this.rows, this.ui.focusKey, dir);
-      if (next !== this.ui.focusKey) {
-        this.ui.focusKey = next;
-        this.$nextTick(() => this.scrollFocusedIntoView());
-      }
-    },
-    onTilePressed(key: string): void {
-      this.ui.focusKey = key;
-      this.descendFocused();
-    },
-    /** The identity the detail layer opens on for the focused tile. */
-    detailIdentityOf(key: string): {cardName: CardName, effectKey: string, title?: string} | undefined {
-      if (this.forecastMode) {
-        const tile = this.ftileByKey.get(key);
-        return tile === undefined ? undefined : {cardName: this.ftileCard(tile) ?? ('' as CardName), effectKey: key};
-      }
-      const tile = this.tileByKey.get(key);
-      if (tile === undefined) {
-        return undefined;
-      }
-      // A party / the law has no card: the crumb names it by its own title (the stage tail «ЭФФЕКТЫ · КРАСНЫЕ»).
-      return isPoliticalEntry(tile.entry) ? {cardName: '' as CardName, effectKey: key, title: tile.entry.title} : {cardName: tile.entry.cardName, effectKey: key};
-    },
-    /** A on a tile — the WORKSPACE DESCEND into the effect dossier. Arming is
-     *  SYNCHRONOUS in the press handler (armed rects expire in 1 s). */
-    descendFocused(): void {
-      const identity = this.detailIdentityOf(this.ui.focusKey);
-      if (identity === undefined || this.detailUp) {
-        return;
-      }
-      const slotEl = this.tileEl(identity.effectKey);
-      const slotRect = descendRectOf(slotEl);
-      if (slotRect !== undefined) {
-        armEffectsSlot(slotRect);
-        armEffectsPress({x: slotRect.left + slotRect.width / 2, y: slotRect.top + slotRect.height / 2});
-      }
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-      armEffectsFocusOrigin(descendRectOf(root?.querySelector<HTMLElement>('[data-effect-flow-thumb]')));
-      this.descendKey = identity.effectKey;
-      this.ui.detail = identity;
-    },
-    /** B at detail — fold back one level (the host asks before its own back). */
-    consumeEffectsBack(): boolean {
-      if (!this.detailUp) {
-        return false;
-      }
-      this.descendKey = '';
-      this.ui.detail = undefined;
-      return true;
-    },
-    /** Seat switch / reset — the stage drops with NO fold (instant). */
-    dropDetail(): void {
-      if (!this.detailUp) {
-        return;
-      }
-      armEffectsInstantFold();
-      this.descendKey = '';
-      this.ui.detail = undefined;
-    },
-    /** Detail LB/RB — the sibling effect, patched IN the standing stage. */
-    stepDetail(dir: 1 | -1): void {
-      const current = this.ui.detail;
-      if (current === undefined) {
-        return;
-      }
-      const next = stepEffect(this.flatKeys, current.effectKey, dir);
-      if (next === current.effectKey) {
-        return;
-      }
-      const identity = this.detailIdentityOf(next);
-      if (identity === undefined) {
-        return;
-      }
-      // The browse cursor follows UNDER the parked layer, and the fold's
-      // destination re-arms to the stepped tile (autoAlpha keeps layout, so
-      // the rect is live) — B after stepping folds into the RIGHT slot.
-      this.ui.focusKey = next;
-      this.lastFlatIndex = Math.max(0, this.flatKeys.indexOf(next));
-      const slotRect = descendRectOf(this.tileEl(next));
-      if (slotRect !== undefined) {
-        armEffectsSlot(slotRect);
-      }
-      this.ui.detail = identity;
-      playEffectsDetailStep((this.$refs.stageEl ?? undefined) as HTMLElement | undefined, dir);
-    },
-    /** X at browse — the source card fullscreen, browsing across GROUPS. */
-    inspectFocused(): void {
-      if (this.forecastMode) {
-        this.inspectForecastFocused();
-        return;
-      }
-      const groups = this.model.groups;
-      const at = groups.findIndex((g) => g.tiles.some((t) => t.key === this.ui.focusKey));
-      if (groups.length === 0 || at === -1) {
-        return;
-      }
-      openConsoleCardZoom(groups.map((g) => this.groupZoomCard(g)), at, undefined, undefined, {
-        contextLabel: 'Effects',
-        origin: slotZoomOrigin(
-          () => this.$refs.rootEl as HTMLElement,
-          (i) => (groups[i] === undefined ? '' : this.groupZoomName(groups[i])),
-          (i) => {
-            const g = groups[i];
-            if (g !== undefined) {
-              this.ui.focusKey = g.tiles[0].key;
-              this.$nextTick(() => this.scrollFocusedIntoView());
-            }
-          },
-        ),
-      });
-    },
-    /** Forecast browse X — the DISTINCT source cards of the visible order, the
-     *  focused one first under the cursor; stepping in the viewer moves the
-     *  browse cursor onto that card's first tile. */
-    inspectForecastFocused(): void {
-      const cards: Array<{name: CardName, owner: Color | undefined, firstKey: string}> = [];
-      for (const key of this.flatKeys) {
-        const tile = this.ftileByKey.get(key);
-        const name = tile === undefined ? undefined : this.ftileCard(tile);
-        if (tile === undefined || name === undefined || cards.some((c) => c.name === name)) {
-          continue;
-        }
-        cards.push({name, owner: this.ftileOwner(tile), firstKey: key});
-      }
-      const focused = this.focusedFTile;
-      const focusedName = focused === undefined ? undefined : this.ftileCard(focused);
-      const at = cards.findIndex((c) => c.name === focusedName);
-      if (cards.length === 0 || at === -1) {
-        return;
-      }
-      openConsoleCardZoom(cards.map((c) => this.liveCardOf(c.name, c.owner)), at, undefined, undefined, {
-        contextLabel: 'Effects',
-        origin: slotZoomOrigin(
-          () => this.$refs.rootEl as HTMLElement,
-          (i) => cards[i]?.name ?? '',
-          (i) => {
-            const c = cards[i];
-            if (c !== undefined) {
-              this.ui.focusKey = c.firstKey;
-              this.$nextTick(() => this.scrollFocusedIntoView());
-            }
-          },
-        ),
-      });
-    },
-    /** X at detail — the hero card fullscreen (one-card list, hero slot). */
-    inspectDetail(): void {
-      const political = this.detailPolitical;
-      if (political !== undefined) {
-        // A party's effect / the law's face — the same viewer the Parliament's X opens.
-        const zoomName = politicalZoomName(political);
-        const card = political.source.kind === 'law' ? resolutionZoomEntry(political.source.resolution) : partyEffectZoomEntry(political.party);
-        openConsoleCardZoom([card], 0, undefined, undefined, {
-          contextLabel: 'Effects',
-          origin: slotZoomOrigin(() => this.$refs.rootEl as HTMLElement, () => zoomName),
-        });
-        return;
-      }
-      const name = this.ui.detail?.cardName;
-      if (name === undefined || name === '') {
-        return;
-      }
-      const card = this.forecastMode ? this.liveCardOf(name, this.detailOwner) : this.liveCard(name);
-      openConsoleCardZoom([card], 0, undefined, undefined, {
-        contextLabel: 'Effects',
-        origin: slotZoomOrigin(() => this.$refs.rootEl as HTMLElement, () => name),
-      });
-    },
-  },
-});
-
 /** The zoom-entry name of a political source — `PARTY_<party>` for a party's effect, the law's id (`cardZoomTypes`). */
 function politicalZoomName(entry: PoliticalEffectEntry): string {
   return entry.source.kind === 'law' ? resolutionZoomEntry(entry.source.resolution).name : partyEffectZoomEntry(entry.party).name;
@@ -1771,4 +575,1184 @@ function iconWord(icon: string): string {
   default: return icon;
   }
 }
+
+defineOptions({name: 'ConsoleEffectsExplorer'});
+const props = defineProps({
+  /** The inspected seat's tableau (or any future host's card set). In the
+   *  forecast mode: the VIEWER's tableau (live resources of own sources). */
+  cards: {type: Array as PropType<ReadonlyArray<CardModel>>, required: true},
+  /** The seat identity — a change drops the detail layer instantly. */
+  color: {type: String, required: true},
+  /**
+   * THE PARLIAMENT'S standing effects of this seat (Turmoil Redux «один фреймворк») — built by the host
+   * (`politicalEffectEntries(politicalSources(…))`), shown as ordinary groups of the grid, FIRST (decision Р1: the law,
+   * the ruling party, then the board's order). Stats mode only.
+   */
+  politicalEntries: {type: Array as PropType<ReadonlyArray<PoliticalEffectEntry>>, default: () => []},
+  /** The seat's effect stats (undefined = loading — metas claim nothing). */
+  stats: {type: Array as PropType<ReadonlyArray<EffectOverlayStat>>, default: undefined},
+  /**
+   * `stats` — the Information workspace's whole-tableau explorer;
+   * `forecast` — a composer's R3 «Эффекты» layer over the server's
+   * `EffectForecast` (the same chassis, the eight groups as facets).
+   */
+  mode: {type: String as PropType<'stats' | 'forecast'>, default: 'stats'},
+  /**
+   * The transient cursors this instance reads and writes. The Information
+   * workspace passes nothing (the module-level instance); a composer passes
+   * its OWN (`forecastExplorerUi(host)`), so two explorers never share a
+   * cursor.
+   */
+  explorerUi: {type: Object as PropType<EffectsExplorerUi>, default: () => effectsExplorerUi},
+  /**
+   * The host stands the explorer in a WORK COLUMN (a share of the band beside another zone — the Parliament's
+   * «ВАШИ ЭФФЕКТЫ» beside its actions): its tiles run one per row, as the forecast layer's do. Two abreast cut the
+   * tile's caption to one letter per line at 4K (the owner's frame of 2026-10-24).
+   */
+  workColumn: {type: Boolean, default: false},
+  /** Forecast mode: the server's forecast (rides inside the preview). */
+  forecast: {type: Object as PropType<EffectForecast | undefined>, default: undefined},
+  /** Forecast mode: every seat of the game — names, colours, live tableaux. */
+  players: {type: Array as PropType<ReadonlyArray<ForecastSeat>>, default: () => []},
+  /** Forecast mode: the composer's branches (position + title + availability). */
+  branches: {type: Array as PropType<ReadonlyArray<ForecastBranchInfo>>, default: () => []},
+  /** Forecast mode: the branch the composer has selected (live, no request). */
+  selectedBranchPos: {type: Number, default: undefined},
+  /** Forecast mode: per-seat effect stats (undefined per seat = loading). */
+  statsByColor: {type: Object as PropType<Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>>>, default: () => ({})},
+  /** Forecast mode: the play's own steps the «ПОРЯДОК» band interleaves. */
+  orderFlags: {type: Object as PropType<{cardChoices: boolean, placesTile: boolean}>, default: () => ({cardChoices: false, placesTile: false})},
+  /** Forecast mode: the OPERATION the forecast is about — the WHEN answer
+   *  of an immediate reaction is «сразу после розыгрыша» for a card play
+   *  and «сразу после выполнения» for a card action. */
+  operation: {type: String as PropType<ForecastOperation>, default: 'play'},
+});
+
+const flow = useFlowScope('effects-explorer');
+const rootEl = useTemplateRef<HTMLElement>('rootEl');
+const list = useTemplateRef<ScrollAreaRef>('list');
+const detailEl = useTemplateRef<HTMLElement>('detailEl');
+const stageScroll = useTemplateRef<ScrollAreaRef>('stageScroll');
+const stageEl = useTemplateRef<HTMLElement>('stageEl');
+/** The one-shot CSS commit pulse on the pressed tile. */
+const descendKey = ref('');
+const lastFlatIndex = ref(0);
+/** The pending canvas-fit frame — its cancel (the explorer's scope takes it back on unmount). */
+let fitFrame: (() => void) | undefined;
+
+const ui = computed((): EffectsExplorerUi => {
+  return props.explorerUi;
+});
+const forecastMode = computed((): boolean => {
+  return props.mode === 'forecast';
+});
+const entries = computed((): ReadonlyArray<ExplorerEntry> => {
+  return forecastMode.value ? playerEffects(props.cards) : [...props.politicalEntries, ...playerEffects(props.cards)];
+});
+const columns = computed((): 1 | 2 => {
+  // The FORECAST layer stands in a composer's work column — half the
+  // band, beside the dossier — so its tiles run ONE per row: the printed
+  // canvas keeps its size and the caption + the meta chips keep their
+  // reading measure (two abreast truncated both at 4K).
+  return consoleLayoutState.profile === 'handheld' || forecastMode.value || props.workColumn ? 1 : 2;
+});
+const model = computed((): EffectsBrowseModel<ExplorerEntry> => {
+  return buildEffectsBrowseModel({
+    entries: entries.value,
+    tableau: props.cards,
+    stats: props.stats,
+    familyFilter: ui.value.familyFilter,
+    columns: columns.value,
+  });
+});
+// ── forecast mode ─────────────────────────────────────────────────────
+const fmodel = computed((): ForecastBrowseModel => {
+  return buildForecastBrowseModel({
+    forecast: forecastMode.value ? props.forecast : undefined,
+    branches: props.branches,
+    sectionFilter: ui.value.sectionFilter,
+    columns: columns.value,
+  });
+});
+/** The unfiltered model — the open dossier survives a facet change. */
+const fmodelAll = computed((): ForecastBrowseModel => {
+  return buildForecastBrowseModel({
+    forecast: forecastMode.value ? props.forecast : undefined,
+    branches: props.branches,
+    sectionFilter: 'all',
+    columns: columns.value,
+  });
+});
+const ftileByKey = computed((): Map<string, ForecastTileVm> => {
+  const map = new Map<string, ForecastTileVm>();
+  for (const s of fmodelAll.value.sections) {
+    for (const t of s.tiles) {
+      map.set(t.key, t);
+    }
+  }
+  return map;
+});
+const focusedFTile = computed((): ForecastTileVm | undefined => {
+  return forecastMode.value ? ftileByKey.value.get(ui.value.focusKey) : undefined;
+});
+/** The focused forecast item's source card ('' for a cardless source). */
+const focusedFCardName = computed((): CardName => {
+  const tile = focusedFTile.value;
+  return (tile === undefined ? undefined : ftileCard(tile)) ?? ('' as CardName);
+});
+const detailFTile = computed((): ForecastTileVm | undefined => {
+  const detail = ui.value.detail;
+  return forecastMode.value && detail !== undefined ? ftileByKey.value.get(detail.effectKey) : undefined;
+});
+/** The printed effect entries of every source card the forecast names,
+ *  read through the manifest — a foreign seat's card included. */
+const forecastEntries = computed((): Map<CardName, ReadonlyArray<EffectEntry>> => {
+  const map = new Map<CardName, ReadonlyArray<EffectEntry>>();
+  if (!forecastMode.value) {
+    return map;
+  }
+  for (const tile of ftileByKey.value.values()) {
+    const name = forecastItemCard(tile.item);
+    if (name === undefined || map.has(name)) {
+      continue;
+    }
+    map.set(name, playerEffects([liveCardOf(name, ftileOwner(tile))]));
+  }
+  return map;
+});
+const orderSteps = computed((): ReadonlyArray<OrderStep> => {
+  return forecastMode.value ? forecastOrderBand(props.forecast, props.selectedBranchPos, props.orderFlags) : [];
+});
+/** «итого 10 → 8» — the discounts group's shared total line. */
+const discountTotal = computed((): string => {
+  const d = props.forecast?.discounts;
+  if (d === undefined || d.final >= d.base) {
+    return '';
+  }
+  return `${d.base} → ${d.final}`;
+});
+// ── mode-independent geometry ──────────────────────────────────────────
+const flatKeys = computed((): ReadonlyArray<string> => {
+  return forecastMode.value ? fmodel.value.flatKeys : model.value.flatKeys;
+});
+const rows = computed((): ReadonlyArray<ReadonlyArray<string>> => {
+  return forecastMode.value ? fmodel.value.rows : model.value.rows;
+});
+const detailUp = computed((): boolean => {
+  return ui.value.detail !== undefined;
+});
+const tileByKey = computed((): Map<string, ExplorerTile> => {
+  const map = new Map<string, ExplorerTile>();
+  for (const g of model.value.groups) {
+    for (const t of g.tiles) {
+      map.set(t.key, t);
+    }
+  }
+  return map;
+});
+const focusedTile = computed((): ExplorerTile | undefined => {
+  return forecastMode.value ? undefined : tileByKey.value.get(ui.value.focusKey);
+});
+const focusedGroup = computed((): ExplorerGroup | undefined => {
+  return forecastMode.value ? undefined : model.value.groups.find((g) => g.tiles.some((t) => t.key === ui.value.focusKey));
+});
+const focusedRule = computed((): string => {
+  return fullRuleOf(focusedTile.value);
+});
+const focusedOrdinal = computed((): string => {
+  const g = focusedGroup.value;
+  const t = focusedTile.value;
+  if (g === undefined || t === undefined || g.tiles.length <= 1) {
+    return '';
+  }
+  return `${translateText('Effect')} ${translateTextWithParams('${0} of ${1}', [String(t.entry.effectIndex + 1), String(g.tiles.length)])}`;
+});
+/** The open dossier's tile (survives a filter change — resolved over the
+ *  UNFILTERED entry set so the stage never goes dark under the player). */
+const detailTile = computed((): ExplorerTile | undefined => {
+  const detail = ui.value.detail;
+  if (detail === undefined || forecastMode.value) {
+    return undefined;
+  }
+  const shown = tileByKey.value.get(detail.effectKey);
+  if (shown !== undefined) {
+    return shown;
+  }
+  const entry = entries.value.find((e) => e.key === detail.effectKey);
+  if (entry === undefined) {
+    return undefined;
+  }
+  const all = buildEffectsBrowseModel({entries: entries.value, tableau: props.cards, stats: props.stats, familyFilter: 'all', columns: columns.value});
+  for (const g of all.groups) {
+    for (const t of g.tiles) {
+      if (t.key === detail.effectKey) {
+        return t;
+      }
+    }
+  }
+  return undefined;
+});
+const detailCardName = computed((): CardName => {
+  return ui.value.detail?.cardName ?? ('' as CardName);
+});
+/** The open dossier's POLITICAL entry (a party / the law), else undefined. */
+const detailPolitical = computed((): PoliticalEffectEntry | undefined => {
+  const entry = forecastMode.value ? undefined : detailTile.value?.entry;
+  return entry !== undefined && isPoliticalEntry(entry) ? entry : undefined;
+});
+/** The hero's zoom-slot key — the card's name, the party's / the law's zoom entry name, else none. */
+const detailZoomName = computed((): string | undefined => {
+  if (detailCardName.value !== '') {
+    return detailCardName.value;
+  }
+  const political = detailPolitical.value;
+  return political === undefined ? undefined : politicalZoomName(political);
+});
+/** Forecast mode: the seat holding the open dossier's source. */
+const detailOwner = computed((): Color | undefined => {
+  const tile = detailFTile.value;
+  return tile === undefined ? undefined : ftileOwner(tile);
+});
+/** The printed effect the open dossier stands on (stats: the tile's
+ *  entry; forecast: the ATTRIBUTED one, or none). */
+const detailEntry = computed((): ExplorerEntry | undefined => {
+  if (forecastMode.value) {
+    const tile = detailFTile.value;
+    return tile === undefined ? undefined : ftileEntry(tile);
+  }
+  return detailTile.value?.entry;
+});
+const detailEffectNode = computed((): EffectEntry['effectNode'] => {
+  return detailEntry.value?.effectNode;
+});
+const detailRenderRoot = computed((): EffectEntry['renderRoot'] => {
+  return detailEntry.value?.renderRoot;
+});
+const detailRule = computed((): string => {
+  if (forecastMode.value) {
+    const tile = detailFTile.value;
+    return tile === undefined ? '' : ftileRule(tile);
+  }
+  return fullRuleOf(detailTile.value);
+});
+const detailPos = computed((): number => {
+  const i = flatKeys.value.indexOf(ui.value.detail?.effectKey ?? '');
+  return i >= 0 ? i + 1 : 1;
+});
+/** Forecast mode: the «За партию» panel renders only for a source whose
+ *  seat's stats have ARRIVED (a bot / rule source has none — no skeleton
+ *  standing forever). */
+const detailSummaryAvailable = computed((): boolean => {
+  if (!forecastMode.value) {
+    // A political source keeps no statistic — the block is honestly absent, never a skeleton standing forever.
+    return detailPolitical.value === undefined;
+  }
+  const tile = detailFTile.value;
+  return tile !== undefined && detailEntry.value !== undefined && statsFor(ftileOwner(tile)) !== undefined;
+});
+const detailSummary = computed((): EffectSummaryViewModel | undefined => {
+  const candidate = detailEntry.value;
+  if (candidate === undefined || isPoliticalEntry(candidate)) {
+    return undefined;
+  }
+  const entry: EffectEntry = candidate;
+  const owner = forecastMode.value ? detailOwner.value : undefined;
+  const stats = forecastMode.value ? statsFor(owner) : props.stats;
+  if (stats === undefined) {
+    return undefined; // loading — the skeleton renders, never a fake zero
+  }
+  const cardEntries: ReadonlyArray<EffectEntry> = forecastMode.value ?
+    (forecastEntries.value.get(entry.cardName) ?? [entry]) :
+    cardEntriesOf(entry.cardName);
+  const cardStat = stats.find((s) => s.card === entry.cardName && (s.kind === 'corporation') === entry.isCorporation);
+  const per = (!forecastMode.value ? detailTile.value?.per : undefined) ?? perEffectStat(entry, cardEntries, cardStat);
+  const sourceKind = entry.isCorporation ? 'corporation' as const : 'card' as const;
+  const resourceType = getCard(entry.cardName)?.resourceType;
+  const live = forecastMode.value ? liveCardOf(entry.cardName, owner) : liveCard(entry.cardName);
+  const base = {
+    sourceName: entry.cardName,
+    sourceKind,
+    cardResourceType: resourceType,
+    currentCardResource: resourceType !== undefined ? (live.resources ?? 0) : undefined,
+    effectIndex: entry.effectIndex,
+    signature: entry.signature,
+  };
+  const stat = per.stat ?? emptyEffectOverlayStat(entry.cardName, sourceKind);
+  if (per.scope === 'effect') {
+    // The channel split made this stat honestly THIS effect's — single-effect
+    // semantics apply (real trigger count, no card-scoped caption).
+    return getEffectSummary(stat, {...base, effectCount: 1, siblingIcons: []});
+  }
+  const siblingIcons = cardEntries.filter((e) => e.key !== entry.key).flatMap((e) => [...e.signature.icons]);
+  return getEffectSummary(stat, {...base, effectCount: cardEntries.length, siblingIcons});
+});
+/** The explorer's live command contract — the host republishes it. */
+const barState = computed((): Array<ConsoleCommand> => {
+  if (forecastMode.value) {
+    return forecastBarState();
+  }
+  const close: ConsoleCommand = {control: 'inspect', label: 'Close', priority: 0};
+  if (detailUp.value) {
+    const cmds: Array<ConsoleCommand> = [];
+    if (model.value.flatKeys.length > 1) {
+      cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Other effects', priority: 1});
+    }
+    cmds.push({control: 'secondary', label: 'Inspect'});
+    cmds.push({control: 'back', label: 'Back'});
+    cmds.push(close);
+    return cmds;
+  }
+  if (model.value.groups.length === 0) {
+    const cmds: Array<ConsoleCommand> = [{control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1}];
+    if (ui.value.familyFilter !== 'all' && model.value.total > 0) {
+      cmds.push({control: 'stickR', label: 'Reset'});
+    }
+    cmds.push({control: 'back', label: 'To overview'});
+    cmds.push(close);
+    return cmds;
+  }
+  return [
+    {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
+    {control: 'confirm', label: 'Open'},
+    {control: 'secondary', label: 'Inspect'},
+    {control: 'back', label: 'To overview'},
+    close,
+  ];
+});
+
+function liveCard(name: CardName | string): CardModel {
+  return props.cards.find((c) => c.name === name) ?? ({name: name as CardName} as CardModel);
+}
+/** Forecast mode: the live model of a card held by ANY seat — the owner's
+ *  tableau first (foreign resources are public), the viewer's, else a
+ *  bare name (the manifest draws the face; a bot's corp has no model). */
+function liveCardOf(name: CardName | string | undefined, owner: Color | string | undefined): CardModel {
+  if (name === undefined) {
+    return {name: '' as CardName} as CardModel;
+  }
+  const seat = owner === undefined ? undefined : props.players.find((p) => p.color === owner);
+  return seat?.tableau.find((c) => c.name === name) ?? liveCard(name);
+}
+function textOf(v: string | Message | undefined, tag?: Tag): string {
+  if (v === undefined) {
+    return '';
+  }
+  if (typeof v !== 'string') {
+    return translateMessage(v);
+  }
+  return tag !== undefined ? translateTextWithParams(v, reasonParams(undefined, tag)) : translateText(v);
+}
+function statsFor(owner: Color | string | undefined): ReadonlyArray<EffectOverlayStat> | undefined {
+  return owner === undefined ? undefined : props.statsByColor[owner];
+}
+/** The card entries of one source card (stats mode). */
+function cardEntriesOf(cardName: CardName): Array<EffectEntry> {
+  return entries.value.filter((e): e is EffectEntry => !isPoliticalEntry(e) && e.cardName === cardName);
+}
+/** The resolved rule record of one effect (info-group short + full). */
+function rulesOf(tile: ExplorerTile | undefined): EffectRules | undefined {
+  if (tile === undefined) {
+    return undefined;
+  }
+  const entry = tile.entry;
+  if (isPoliticalEntry(entry)) {
+    // A party / a law: its printed sentence IS the rule (the catalog's `text.passive`, one per block).
+    const text = entry.description ?? entry.text ?? '';
+    return text === '' ? undefined : {lines: [{kind: 'rule', text}], summary: text, curated: false};
+  }
+  return rulesOfEntry(entry, cardEntriesOf(entry.cardName).length);
+}
+function rulesOfEntry(entry: EffectEntry, count: number): EffectRules | undefined {
+  return effectRules({
+    cardName: entry.cardName,
+    effectIndex: entry.effectIndex,
+    effectNode: entry.effectNode,
+    description: entry.description,
+    text: entry.text,
+  }, count);
+}
+/** The FULL rule — the dossier's and the detail stage's reading. */
+function fullRuleOf(tile: ExplorerTile | undefined): string {
+  return rulesOf(tile)?.lines[0]?.text ?? tile?.entry.description ?? tile?.entry.text ?? '';
+}
+/** A group's NAME key — the card, the party's glossary name, the law's printed name. */
+function groupTitle(g: ExplorerGroup): string {
+  const first = g.tiles[0]?.entry;
+  return first !== undefined && isPoliticalEntry(first) ? first.title : (g.cardName ?? '');
+}
+/** A political group's badge party (a law wears its own party). */
+function politicalParty(g: ExplorerGroup): ReduxParty {
+  const first = g.tiles[0]?.entry;
+  return (first !== undefined && isPoliticalEntry(first) ? first.party : REDUX_PARTIES[0]) as ReduxParty;
+}
+function partyEmblemOf(g: ExplorerGroup): string {
+  return partyEmblemUrl(politicalParty(g));
+}
+function partyAccentOf(g: ExplorerGroup): string {
+  return partyAccent(politicalParty(g));
+}
+function lawVmOf(resolution: string): PremiumCardVM | undefined {
+  const law = getResolution(resolution);
+  return law === undefined ? undefined : resolutionPremiumVm(law);
+}
+/** A party's CHARTER (`partyPremiumVm`) — the one face a party wears wherever a card would stand. */
+function partyVmOf(party: ReduxParty | undefined): PremiumCardVM | undefined {
+  return party === undefined ? undefined : partyPremiumVm(party);
+}
+function partyFaceVm(g: ExplorerGroup): PremiumCardVM | undefined {
+  return g.source.kind === 'party' ? partyVmOf(g.source.party) : undefined;
+}
+function lawFaceVm(g: ExplorerGroup): PremiumCardVM | undefined {
+  return g.source.kind === 'law' ? lawVmOf(g.source.resolution) : undefined;
+}
+/** A group's zoom-slot key — the card's name, or its zoom entry's name (`PARTY_<party>` / the law's id). */
+function groupZoomName(g: ExplorerGroup): string {
+  if (g.cardName !== undefined) {
+    return g.cardName;
+  }
+  const first = g.tiles[0]?.entry;
+  return first !== undefined && isPoliticalEntry(first) ? politicalZoomName(first) : g.key;
+}
+/** What X opens for a group — the live card, the party's effect, the law's face. */
+function groupZoomCard(g: ExplorerGroup): ZoomCard {
+  if (g.cardName !== undefined) {
+    return liveCard(g.cardName);
+  }
+  return g.source.kind === 'law' ? resolutionZoomEntry(g.source.resolution) : partyEffectZoomEntry(politicalParty(g));
+}
+/** The access reading (an i18n key + its params, the names already translated). */
+function accessText(meta: {label: string, params: ReadonlyArray<string>}): string {
+  return meta.params.length > 0 ? translateTextWithParams(meta.label, [...meta.params]) : translateText(meta.label);
+}
+function tileOrdinal(tile: ExplorerTile): string {
+  return `${translateText('Effect')} ${tile.entry.effectIndex + 1}`;
+}
+function tileDesc(tile: ExplorerTile): string {
+  // The tile CAPTION: the card's curated short when the full rule is too
+  // long for a calm one/two-line read, else the full sentence (never a
+  // truncation — the effectDescription contract). Text-only overrides
+  // already ARE the graphic — no duplicate caption.
+  if (tile.entry.effectNode === undefined && tile.entry.renderRoot === undefined) {
+    return '';
+  }
+  return rulesOf(tile)?.summary ?? tile.entry.description ?? '';
+}
+function tileDescTier(tile: ExplorerTile): string {
+  return actionDescTier(translateText(tileDesc(tile)).replace(/^(Effect|Действие|Эффект):\s*/i, ''));
+}
+/** The trade fleet standing on a fleet-dock card (its owner's livery) — public state. */
+function fleetDockedOn(cardName: CardName): Color | undefined {
+  return props.cards.find((c) => c.name === cardName)?.fleetDocked;
+}
+function plateChip(g: ExplorerGroup): {icon: string, count: number} | undefined {
+  if (g.cardName === undefined) {
+    return undefined;
+  }
+  const resourceType = getCard(g.cardName)?.resourceType;
+  if (resourceType === undefined) {
+    return undefined;
+  }
+  const live = liveCard(g.cardName);
+  return {icon: iconClassFor(String(resourceType)), count: live.resources ?? 0};
+}
+function groupIsLive(g: ExplorerGroup): boolean {
+  return g.tiles.some((t) => t.key === ui.value.focusKey);
+}
+function setFamily(id: EffectFamily | 'all'): void {
+  ui.value.familyFilter = id;
+}
+function cycleFamily(dir: 1 | -1): void {
+  const ids = model.value.familyChips.map((c) => c.id);
+  if (ids.length <= 1) {
+    return;
+  }
+  const at = ids.indexOf(ui.value.familyFilter);
+  const next = (at + dir + ids.length) % ids.length;
+  ui.value.familyFilter = ids[next];
+}
+// ── forecast mode helpers ──────────────────────────────────────────────
+function setSection(id: ForecastGroupId | 'all'): void {
+  ui.value.sectionFilter = id;
+}
+function cycleSection(dir: 1 | -1): void {
+  if (fmodel.value.groups.length === 0) {
+    return;
+  }
+  ui.value.sectionFilter = cycleForecastSection(fmodel.value.groups, ui.value.sectionFilter, dir);
+}
+function ftileCard(tile: ForecastTileVm): CardName | undefined {
+  return forecastItemCard(tile.item);
+}
+/**
+ * A PARTY- or RESOLUTION-sourced fact's emblem (Turmoil Redux) — the cardless
+ * source's own face; a DISCOUNT the law or a party's policy took off the
+ * price wears the same emblem (an enacted resolution's law lowering a
+ * Building card is the parliament's doing, and the tile says so).
+ */
+function ftilePartyEmblem(tile: ForecastTileVm): string | undefined {
+  const item = tile.item;
+  const political = forecastItemPoliticalSource(item);
+  if (political !== undefined) {
+    return politicalEmblem(political.kind === 'resolution' ? getResolution(political.id)?.party : political.name);
+  }
+  if (item.kind !== 'fact') {
+    return undefined;
+  }
+  const source = item.fact.source;
+  if (source.kind === 'resolution') {
+    return politicalEmblem(getResolution(source.name)?.party);
+  }
+  return source.kind === 'party' ? politicalEmblem(source.name) : undefined;
+}
+function politicalEmblem(party: string | undefined): string | undefined {
+  return party !== undefined && (REDUX_PARTIES as ReadonlyArray<string>).includes(party) ? partyEmblemUrl(party as ReduxParty) : undefined;
+}
+/** A cardless source's NAME key: a resolution resolves to its printed name through the parliament manifest. */
+function fsourceName(source: {kind: string, name: string}): string {
+  return source.kind === 'resolution' ? (getResolution(source.name)?.text.name ?? source.name) : source.name;
+}
+/**
+ * A political DISCOUNT's name key (the law's printed name through the
+ * manifest, a party's own name) — '' for a discount of a card. The tile's
+ * title, its canvas and the dossier's WHY all read this one answer.
+ */
+function fdiscountLawName(tile: ForecastTileVm): string {
+  const political = forecastItemPoliticalSource(tile.item);
+  if (political === undefined) {
+    return '';
+  }
+  return political.kind === 'resolution' ? (getResolution(political.id)?.text.name ?? political.id) : political.name;
+}
+function detailPartyEmblem(): string | undefined {
+  const tile = detailFTile.value;
+  return tile === undefined ? undefined : ftilePartyEmblem(tile);
+}
+function ftileOwner(tile: ForecastTileVm): Color | undefined {
+  return forecastItemOwner(tile.item, props.color as Color);
+}
+/** The owner's name — ONLY for a foreign source (own cards need no plate). */
+function ftileOwnerName(tile: ForecastTileVm): string {
+  const owner = ftileOwner(tile);
+  if (owner === undefined || owner === props.color) {
+    return '';
+  }
+  return displayNameForColor(props.players, owner);
+}
+function ftileEntry(tile: ForecastTileVm): EffectEntry | undefined {
+  const name = ftileCard(tile);
+  if (name === undefined) {
+    return undefined;
+  }
+  return attributeItemToEffect(tile.item, forecastEntries.value.get(name) ?? []);
+}
+function ftileEffectNode(tile: ForecastTileVm): ICardRenderEffect | undefined {
+  return ftileEntry(tile)?.effectNode;
+}
+/** The template's non-optional binding — called only behind the v-if. */
+function ftileEffectNodeOf(tile: ForecastTileVm): ICardRenderEffect {
+  return ftileEffectNode(tile) as ICardRenderEffect;
+}
+function ftileRenderRoot(tile: ForecastTileVm): ICardRenderRoot | undefined {
+  return ftileEntry(tile)?.renderRoot;
+}
+function ftileRenderRootOf(tile: ForecastTileVm): ICardRenderRoot {
+  return ftileRenderRoot(tile) as ICardRenderRoot;
+}
+/** The tile's TITLE — the source card (an i18n key), the rule's name, the
+ *  cardless remainder, or the branch the empty row belongs to. */
+function ftileTitle(tile: ForecastTileVm): string {
+  const item = tile.item;
+  switch (item.kind) {
+  case 'fact':
+    return translateText(fsourceName(item.fact.source));
+  case 'other-discount':
+    return translateText('Other discounts');
+  case 'branch-empty':
+    return branchTitle(item.branchPos);
+  default: {
+    const name = ftileCard(tile);
+    if (name !== undefined) {
+      return translateText(name);
+    }
+    // A discount of the LAW / a party's policy is named, never «other»: the
+    // player must know WHY the price fell, not only that it did.
+    const law = fdiscountLawName(tile);
+    return law === '' ? translateText('Other discounts') : translateText(law);
+  }
+  }
+}
+function branchTitle(pos: number): string {
+  const branch = props.branches.find((b) => b.pos === pos);
+  const title = branch === undefined ? '' : textOf(branch.title);
+  return translateTextWithParams('If you choose «${0}»', [title]);
+}
+/** The canvas text when no printed block can be vouched for — the honest
+ *  «an effect of this card» (never a guess at WHICH block). */
+function ftileCanvasText(tile: ForecastTileVm): string {
+  const item = tile.item;
+  if (item.kind === 'fact' && forecastSourceIsCardless(item.fact.source)) {
+    return translateText(fsourceName(item.fact.source));
+  }
+  if (item.kind === 'other-discount') {
+    return translateText('A discount with no card source');
+  }
+  if (item.kind === 'branch-empty') {
+    return translateText('Nothing will trigger');
+  }
+  if (item.kind === 'modifier') {
+    return item.armed !== undefined ? armedEffectFormula(item.armed.effect) : item.easings.map((e) => easingLine(e)).join(' · ');
+  }
+  const law = fdiscountLawName(tile);
+  return translateText(law === '' ? 'Effect of this card' : law);
+}
+function ftileDesc(tile: ForecastTileVm): string {
+  const entry = ftileEntry(tile);
+  if (entry === undefined || (entry.effectNode === undefined && entry.renderRoot === undefined)) {
+    return '';
+  }
+  const name = entry.cardName;
+  const count = (forecastEntries.value.get(name) ?? []).length;
+  return rulesOfEntry(entry, count)?.summary ?? entry.description ?? '';
+}
+function ftileDescTier(tile: ForecastTileVm): string {
+  return actionDescTier(translateText(ftileDesc(tile)).replace(/^(Effect|Действие|Эффект):\s*/i, ''));
+}
+/** The FULL printed rule of the attributed effect ('' when unattributed). */
+function ftileRule(tile: ForecastTileVm): string {
+  const entry = ftileEntry(tile);
+  if (entry === undefined) {
+    return '';
+  }
+  const count = (forecastEntries.value.get(entry.cardName) ?? []).length;
+  return rulesOfEntry(entry, count)?.lines[0]?.text ?? entry.description ?? entry.text ?? '';
+}
+function ftileMeta(tile: ForecastTileVm): ForecastMetaLine {
+  return forecastMetaLine(tile.item, props.operation);
+}
+/** The WHY sentence with its last word split off, so the tag icon can
+ *  ride that word in a `nowrap` pair (no tag → the whole sentence). The
+ *  separating space stays at the END of `text`: a whitespace-only node
+ *  between two template elements is condensed away by the compiler
+ *  («с меткойнауки» shipped that way), while a space inside the
+ *  interpolated text survives and is the one break opportunity before
+ *  the unbreakable tail. */
+function whyText(text: string, tag: Tag | undefined): {text: string, textTail?: string} {
+  if (tag === undefined) {
+    return {text};
+  }
+  const trimmed = text.trimEnd();
+  const at = trimmed.lastIndexOf(' ');
+  if (at <= 0) {
+    return {text: '', textTail: trimmed};
+  }
+  return {text: trimmed.slice(0, at + 1), textTail: trimmed.slice(at + 1)};
+}
+/** The meta line's value signature — its re-mount key. */
+function ftileMetaKey(tile: ForecastTileVm): string {
+  const item = tile.item;
+  if (item.kind !== 'fact') {
+    return item.kind === 'discount' || item.kind === 'other-discount' ? `${item.kind}:${item.amount}:${item.kind === 'discount' ? item.saved ?? '' : ''}` :
+      (item.kind === 'payment' ? `payment:${item.value.value}:${item.value.count}` : item.kind);
+  }
+  const sig = (e: ActionEffect) => `${e.icon}${e.amount}${e.current ?? ''}${e.resulting ?? ''}`;
+  const line = forecastMetaLine(item);
+  return `${line.chips.map(sig).join(',')}|${(line.alternative?.chips ?? []).map(sig).join(',')}`;
+}
+/** «За партию: срабатывал N раз» — one quiet line, only once the owner's
+ *  stats have arrived (a bot / rule source claims nothing). */
+function ftileStatLine(tile: ForecastTileVm): string {
+  const entry = ftileEntry(tile);
+  const stats = statsFor(ftileOwner(tile));
+  if (entry === undefined || stats === undefined) {
+    return '';
+  }
+  const cardEntries = forecastEntries.value.get(entry.cardName) ?? [entry];
+  const cardStat = stats.find((s) => s.card === entry.cardName && (s.kind === 'corporation') === entry.isCorporation);
+  const per = perEffectStat(entry, cardEntries, cardStat);
+  const count = per.stat?.triggerCount ?? 0;
+  return count > 0 ? `${translateText('Times triggered')}: ${count}` : translateText('Not triggered yet');
+}
+/** A modifier tile's meta: spent by this play / spent for nothing / a standing modifier (TR49 class). */
+function modifierMetaText(item: ForecastModifierItem): string {
+  if (!item.oneShot) {
+    return translateText('Standing modifier');
+  }
+  return translateText(item.used ? 'One play — spent by this play' : 'One play — this play spends it for nothing');
+}
+function paymentAvailable(count: number): string {
+  return translateTextWithParams('${0} available in payment', [String(count)]);
+}
+/** «из 2» — the offer an emptied-by-the-floor discount line names as its cap (P62 · GB). */
+function discountCapText(offer: number): string {
+  return translateTextWithParams('of ${0}', [String(offer)]);
+}
+function stateLabel(state: 'met' | 'depends' | 'unmet'): string {
+  switch (state) {
+  case 'met': return 'Condition met';
+  case 'depends': return 'Depends on your choice';
+  default: return 'Condition not met';
+  }
+}
+function recipientText(recipient: EffectForecastRecipient): string {
+  if (recipient.kind === 'you') {
+    return translateText('You');
+  }
+  return displayNameForColor(props.players, recipient.color);
+}
+/** The dossier's five questions in their fixed order — every answer is
+ *  the SERVER's (`reason`, `condition`, `recipient`, `timing`), only
+ *  worded here. */
+function ftileQuestions(tile: ForecastTileVm): Array<ForecastQuestion> {
+  const item = tile.item;
+  const out: Array<ForecastQuestion> = [];
+  if (item.kind === 'fact') {
+    const fact = item.fact;
+    const what: ForecastQuestion = {id: 'what', label: 'What', chips: fact.effects, recipient: fact.recipient, skipped: fact.certainty === 'skipped'};
+    if (fact.alternatives !== undefined && fact.alternatives.length > 0) {
+      what.alternatives = fact.alternatives.map((a) => ({label: textOf(a.label), chips: a.effects}));
+    }
+    if (fact.effects.length === 0 && (fact.certainty === 'no' || fact.certainty === 'unknown')) {
+      what.text = translateText(CERTAINTY_LABEL[fact.certainty]);
+    }
+    if (factBeyondOwnEffect(fact)) {
+      what.note = translateText('Beyond the card\'s own effect');
+    }
+    if (fact.note !== undefined) {
+      what.note = (what.note === undefined ? '' : what.note + ' · ') + textOf(fact.note);
+    }
+    out.push(what);
+    out.push({id: 'why', label: 'Why', ...whyText(textOf(fact.reason, fact.reasonTag), fact.reasonTag), tag: fact.reasonTag});
+    if (fact.condition !== undefined) {
+      const cond: ForecastQuestion = {id: 'condition', label: 'Condition', state: fact.condition.state};
+      if (fact.condition.state === 'depends' && fact.condition.branchPos !== undefined) {
+        cond.text = branchTitle(fact.condition.branchPos);
+        if (fact.condition.branchPos === props.selectedBranchPos) {
+          cond.note = translateText('Selected');
+        }
+      } else if (textOf(fact.condition.text, fact.reasonTag) !== textOf(fact.reason, fact.reasonTag)) {
+        cond.text = textOf(fact.condition.text, fact.reasonTag);
+      }
+      out.push(cond);
+    }
+    out.push({id: 'whom', label: 'To whom', text: recipientText(fact.recipient), recipient: fact.recipient});
+    out.push({id: 'when', label: 'When', text: translateText(timingLabel(fact.timing, props.operation))});
+    return out;
+  }
+  if (item.kind === 'discount' || item.kind === 'other-discount') {
+    // The saving, never the offer: an offer the 0-floor cut says so in words (invariant 4 — P62 · GB).
+    const saved = item.kind === 'discount' ? item.saved : undefined;
+    out.push({id: 'what', label: 'What', chips: [{direction: 'gain', icon: 'megacredits', amount: saved ?? item.amount, note: 'discount'}],
+      note: saved === undefined ? undefined : translateTextWithParams('The price cannot go below 0 — ${0} of the ${1} offered', [String(saved), String(item.amount)])});
+    out.push({id: 'why', label: 'Why', text: item.kind === 'discount' ?
+      translateTextWithParams('${0} lowers the printed cost', [ftileTitle(tile)]) :
+      translateText('A discount with no card source')});
+    out.push({id: 'condition', label: 'Condition', text: discountTotal.value === '' ? '' : `${translateText('Cost')} ${discountTotal.value}`, state: 'met'});
+    out.push({id: 'whom', label: 'To whom', text: translateText('You')});
+    out.push({id: 'when', label: 'When', text: translateText('At payment')});
+    return out;
+  }
+  if (item.kind === 'modifier') {
+    // THE FIVE QUESTIONS of a requirement modifier (TR49 class) — every word from the class's one formatter.
+    const name = ftileTitle(tile);
+    out.push({id: 'what', label: 'What', text: item.armed !== undefined ? armedEffectFormula(item.armed.effect) : item.easings.map((e) => easingLine(e)).join(' · '),
+      note: item.oneShot ? translateText(item.used ? 'One play — spent by this play' : 'One play — this play spends it for nothing') : undefined});
+    out.push({id: 'why', label: 'Why', text: translateTextWithParams(item.armed !== undefined ? '${0} armed it for your next card' : '${0} bends the printed requirement', [name])});
+    if (item.easings.length > 0) {
+      out.push({id: 'condition', label: 'Condition', text: item.easings.map((e) => easingLine(e)).join(' · '), state: item.easings.every((e) => e.met) ? 'met' : 'unmet'});
+    }
+    out.push({id: 'whom', label: 'To whom', text: translateText('You')});
+    out.push({id: 'when', label: 'When', text: translateText('On play')});
+    return out;
+  }
+  if (item.kind === 'payment') {
+    const v = item.value;
+    out.push({id: 'what', label: 'What', chips: [{direction: 'gain', icon: String(v.resource).toLowerCase(), amount: 1, note: `= ${v.value} M€`}]});
+    out.push({id: 'why', label: 'Why', text: translateTextWithParams('${0} lets you pay with this resource', [ftileTitle(tile)])});
+    out.push({id: 'condition', label: 'Condition', text: paymentAvailable(v.count), state: v.count > 0 ? 'met' : 'unmet'});
+    out.push({id: 'whom', label: 'To whom', text: translateText('You')});
+    out.push({id: 'when', label: 'When', text: translateText('At payment')});
+    return out;
+  }
+  out.push({id: 'what', label: 'What', text: translateText('Nothing will trigger')});
+  out.push({id: 'condition', label: 'Condition', text: branchTitle(item.branchPos), state: 'depends',
+    note: item.branchPos === props.selectedBranchPos ? translateText('Selected') : undefined});
+  return out;
+}
+function orderStepText(step: OrderStep): string {
+  switch (step.kind) {
+  case 'card-choice':
+    return translateText('The card\'s own choice');
+  case 'cell':
+    return translateText('The cell for the tile');
+  default: {
+    const fact = step.fact;
+    const source = translateText(fsourceName(fact.source));
+    if (fact.certainty === 'asks') {
+      return `${source} — ${translateText('asks')}`;
+    }
+    const chip = fact.effects[0];
+    if (chip === undefined) {
+      return source;
+    }
+    const sign = chip.direction === 'cost' ? '−' : '+';
+    return `${source} ${sign}${chip.amount} ${translateText(iconWord(chip.icon))}`;
+  }
+  }
+}
+function forecastBarState(): Array<ConsoleCommand> {
+  const close: ConsoleCommand = {control: 'stickR', label: 'Close', priority: 0};
+  if (detailUp.value) {
+    const cmds: Array<ConsoleCommand> = [];
+    if (flatKeys.value.length > 1) {
+      cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Other effects', priority: 1});
+    }
+    if (detailCardName.value !== '') {
+      cmds.push({control: 'secondary', label: 'Inspect'});
+    }
+    cmds.push({control: 'back', label: 'Back'});
+    cmds.push(close);
+    return cmds;
+  }
+  const cmds: Array<ConsoleCommand> = [];
+  if (fmodel.value.chips.length > 2) {
+    cmds.push({control: 'triggerL', control2: 'triggerR', label: 'Sections', priority: 1});
+  }
+  if (focusedFTile.value !== undefined) {
+    cmds.push({control: 'confirm', label: 'Open'});
+    if (ftileCard(focusedFTile.value) !== undefined) {
+      cmds.push({control: 'secondary', label: 'Inspect'});
+    }
+  }
+  cmds.push({control: 'back', label: 'Back'});
+  cmds.push(close);
+  return cmds;
+}
+// ── geometry ───────────────────────────────────────────────────────────
+function tileEl(key: string): HTMLElement | null {
+  const root = rootEl.value ?? undefined;
+  if (root === undefined || key === '') {
+    return null;
+  }
+  const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(key) : key.replace(/"/g, '\\"');
+  return root.querySelector<HTMLElement>(`[data-effect-key="${esc}"]`);
+}
+function scrollFocusedIntoView(): void {
+  const listNow = list.value ?? undefined;
+  const el = tileEl(ui.value.focusKey);
+  if (listNow === undefined || el === null) {
+    return;
+  }
+  // The FIRST row belongs to the top of the list (the facet strip's gap
+  // would otherwise read as «stuck»). Asked of the ROWS, never of a
+  // remembered index — `lastFlatIndex` is the nearest-survivor record, and
+  // read here it pinned every d-pad step back to the top (the owner's
+  // 4K frame of 2026-11-02: the grid never scrolled on the d-pad).
+  if (rows.value[0]?.includes(ui.value.focusKey) === true) {
+    listNow.scrollToStart();
+    return;
+  }
+  // The tile's GROUP comes along — its plate names the source above the
+  // tile; a group taller than the viewport keeps the tile itself in view.
+  const group = el.closest<HTMLElement>('.con-efx__group');
+  const viewport = el.closest<HTMLElement>('.con-scroll-area__viewport');
+  const fits = group !== null && viewport !== null && group.offsetHeight <= viewport.clientHeight - 2 * 22 * conUiScale();
+  listNow.ensureVisible(fits ? group : el, Math.round(22 * conUiScale()));
+}
+function scheduleCanvasFit(): void {
+  if (typeof window === 'undefined' || typeof requestAnimationFrame !== 'function') {
+    return;
+  }
+  if (fitFrame !== undefined) {
+    fitFrame();
+  }
+  fitFrame = flow.afterFrame('the effect canvases fit after the paint', () => {
+    fitFrame = undefined;
+    fitActionCanvases(rootEl.value ?? undefined, {
+      graphicSelector: '.con-efx__graphic',
+      canvasClass: 'con-efx__canvas',
+      varName: '--efx-fit',
+    });
+    // The caption's tier is the column's to decide (PL-123): this column is ~20% narrower than the action centre's.
+    fitDescTiers(rootEl.value ?? undefined, {selector: '.con-efx__desc', classPrefix: 'con-efx__desc'});
+    // The dossier column composes rather than scrolls (no reachable
+    // scroll context there) — the measured ladder steps it down only as
+    // far as a real overflow demands.
+    const detail = detailEl.value ?? undefined;
+    if (detail !== undefined) {
+      resolveDetailFit(detail, detail, (level) => detail.setAttribute('data-fit', String(level)));
+    }
+  });
+}
+// ── input (forwarded by the host while the explorer is up) ─────────────
+function handleIntent(intent: GamepadIntent): void {
+  if (intent.kind === 'scroll') {
+    const target = detailUp.value ?
+      (stageScroll.value ?? undefined) :
+      (list.value ?? undefined);
+    target?.scrollByPx(intent.dy * 22 * conUiScale());
+    return;
+  }
+  if (intent.kind === 'nav') {
+    onNav(intent.dir);
+    return;
+  }
+  if (intent.kind !== 'press') {
+    return;
+  }
+  // R3 is «reset the facet» in the Information workspace only — inside a
+  // composer's layer it is the host's own close verb, handled above us.
+  const action = consoleActionOf(intent, forecastMode.value ? undefined : {stickR: 'reset'});
+  if (detailUp.value) {
+    if (action === 'prevSection' || action === 'nextSection') {
+      stepDetail(action === 'prevSection' ? -1 : 1);
+    } else if (action === 'inspect') {
+      inspectDetail();
+    }
+    return;
+  }
+  switch (action) {
+  case 'primary': descendFocused(); break;
+  case 'inspect': inspectFocused(); break;
+  case 'prevTab': forecastMode.value ? cycleSection(-1) : cycleFamily(-1); break;
+  case 'nextTab': forecastMode.value ? cycleSection(1) : cycleFamily(1); break;
+  case 'reset': if (!forecastMode.value) {
+    setFamily('all');
+  } break;
+  default: break;
+  }
+}
+function onNav(dir: 'up' | 'down' | 'left' | 'right'): void {
+  if (detailUp.value) {
+    // The dossier's own reading scroll (its list cursor lives in browse).
+    const stage = stageScroll.value ?? undefined;
+    if (dir === 'up' || dir === 'down') {
+      stage?.scrollByPx((dir === 'down' ? 1 : -1) * 90 * conUiScale());
+    }
+    return;
+  }
+  if (rows.value.length === 0) {
+    return;
+  }
+  const next = stepActionRows(rows.value, ui.value.focusKey, dir);
+  if (next !== ui.value.focusKey) {
+    ui.value.focusKey = next;
+    nextTick(() => scrollFocusedIntoView());
+  }
+}
+function onTilePressed(key: string): void {
+  ui.value.focusKey = key;
+  descendFocused();
+}
+/** The identity the detail layer opens on for the focused tile. */
+function detailIdentityOf(key: string): {cardName: CardName, effectKey: string, title?: string} | undefined {
+  if (forecastMode.value) {
+    const tile = ftileByKey.value.get(key);
+    return tile === undefined ? undefined : {cardName: ftileCard(tile) ?? ('' as CardName), effectKey: key};
+  }
+  const tile = tileByKey.value.get(key);
+  if (tile === undefined) {
+    return undefined;
+  }
+  // A party / the law has no card: the crumb names it by its own title (the stage tail «ЭФФЕКТЫ · КРАСНЫЕ»).
+  return isPoliticalEntry(tile.entry) ? {cardName: '' as CardName, effectKey: key, title: tile.entry.title} : {cardName: tile.entry.cardName, effectKey: key};
+}
+/** A on a tile — the WORKSPACE DESCEND into the effect dossier. Arming is
+ *  SYNCHRONOUS in the press handler (armed rects expire in 1 s). */
+function descendFocused(): void {
+  const identity = detailIdentityOf(ui.value.focusKey);
+  if (identity === undefined || detailUp.value) {
+    return;
+  }
+  const slotEl = tileEl(identity.effectKey);
+  const slotRect = descendRectOf(slotEl);
+  if (slotRect !== undefined) {
+    armEffectsSlot(slotRect);
+    armEffectsPress({x: slotRect.left + slotRect.width / 2, y: slotRect.top + slotRect.height / 2});
+  }
+  const root = rootEl.value ?? undefined;
+  armEffectsFocusOrigin(descendRectOf(root?.querySelector<HTMLElement>('[data-effect-flow-thumb]')));
+  descendKey.value = identity.effectKey;
+  ui.value.detail = identity;
+}
+/** B at detail — fold back one level (the host asks before its own back). */
+function consumeEffectsBack(): boolean {
+  if (!detailUp.value) {
+    return false;
+  }
+  descendKey.value = '';
+  ui.value.detail = undefined;
+  return true;
+}
+/** Seat switch / reset — the stage drops with NO fold (instant). */
+function dropDetail(): void {
+  if (!detailUp.value) {
+    return;
+  }
+  armEffectsInstantFold();
+  descendKey.value = '';
+  ui.value.detail = undefined;
+}
+/** Detail LB/RB — the sibling effect, patched IN the standing stage. */
+function stepDetail(dir: 1 | -1): void {
+  const current = ui.value.detail;
+  if (current === undefined) {
+    return;
+  }
+  const next = stepEffect(flatKeys.value, current.effectKey, dir);
+  if (next === current.effectKey) {
+    return;
+  }
+  const identity = detailIdentityOf(next);
+  if (identity === undefined) {
+    return;
+  }
+  // The browse cursor follows UNDER the parked layer, and the fold's
+  // destination re-arms to the stepped tile (autoAlpha keeps layout, so
+  // the rect is live) — B after stepping folds into the RIGHT slot.
+  ui.value.focusKey = next;
+  lastFlatIndex.value = Math.max(0, flatKeys.value.indexOf(next));
+  const slotRect = descendRectOf(tileEl(next));
+  if (slotRect !== undefined) {
+    armEffectsSlot(slotRect);
+  }
+  ui.value.detail = identity;
+  playEffectsDetailStep(stageEl.value ?? undefined, dir);
+}
+/** X at browse — the source card fullscreen, browsing across GROUPS. */
+function inspectFocused(): void {
+  if (forecastMode.value) {
+    inspectForecastFocused();
+    return;
+  }
+  const groups = model.value.groups;
+  const at = groups.findIndex((g) => g.tiles.some((t) => t.key === ui.value.focusKey));
+  if (groups.length === 0 || at === -1) {
+    return;
+  }
+  openConsoleCardZoom(groups.map((g) => groupZoomCard(g)), at, undefined, undefined, {
+    contextLabel: 'Effects',
+    origin: slotZoomOrigin(
+      () => rootEl.value as HTMLElement,
+      (i) => (groups[i] === undefined ? '' : groupZoomName(groups[i])),
+      (i) => {
+        const g = groups[i];
+        if (g !== undefined) {
+          ui.value.focusKey = g.tiles[0].key;
+          nextTick(() => scrollFocusedIntoView());
+        }
+      },
+    ),
+  });
+}
+/** Forecast browse X — the DISTINCT source cards of the visible order, the
+ *  focused one first under the cursor; stepping in the viewer moves the
+ *  browse cursor onto that card's first tile. */
+function inspectForecastFocused(): void {
+  const cards: Array<{name: CardName, owner: Color | undefined, firstKey: string}> = [];
+  for (const key of flatKeys.value) {
+    const tile = ftileByKey.value.get(key);
+    const name = tile === undefined ? undefined : ftileCard(tile);
+    if (tile === undefined || name === undefined || cards.some((c) => c.name === name)) {
+      continue;
+    }
+    cards.push({name, owner: ftileOwner(tile), firstKey: key});
+  }
+  const focused = focusedFTile.value;
+  const focusedName = focused === undefined ? undefined : ftileCard(focused);
+  const at = cards.findIndex((c) => c.name === focusedName);
+  if (cards.length === 0 || at === -1) {
+    return;
+  }
+  openConsoleCardZoom(cards.map((c) => liveCardOf(c.name, c.owner)), at, undefined, undefined, {
+    contextLabel: 'Effects',
+    origin: slotZoomOrigin(
+      () => rootEl.value as HTMLElement,
+      (i) => cards[i]?.name ?? '',
+      (i) => {
+        const c = cards[i];
+        if (c !== undefined) {
+          ui.value.focusKey = c.firstKey;
+          nextTick(() => scrollFocusedIntoView());
+        }
+      },
+    ),
+  });
+}
+/** X at detail — the hero card fullscreen (one-card list, hero slot). */
+function inspectDetail(): void {
+  const political = detailPolitical.value;
+  if (political !== undefined) {
+    // A party's effect / the law's face — the same viewer the Parliament's X opens.
+    const zoomName = politicalZoomName(political);
+    const card = political.source.kind === 'law' ? resolutionZoomEntry(political.source.resolution) : partyEffectZoomEntry(political.party);
+    openConsoleCardZoom([card], 0, undefined, undefined, {
+      contextLabel: 'Effects',
+      origin: slotZoomOrigin(() => rootEl.value as HTMLElement, () => zoomName),
+    });
+    return;
+  }
+  const name = ui.value.detail?.cardName;
+  if (name === undefined || name === '') {
+    return;
+  }
+  const card = forecastMode.value ? liveCardOf(name, detailOwner.value) : liveCard(name);
+  openConsoleCardZoom([card], 0, undefined, undefined, {
+    contextLabel: 'Effects',
+    origin: slotZoomOrigin(() => rootEl.value as HTMLElement, () => name),
+  });
+}
+
+watch(() => barState.value, (cmds: ReadonlyArray<ConsoleCommand>) => {
+  ui.value.barCommands = cmds;
+}, {immediate: true, deep: true});
+/** Track the cursor's live flat position (feeds the nearest-survivor pick). */
+watch(() => ui.value.focusKey, (key: string): void => {
+  const i = flatKeys.value.indexOf(key);
+  if (i >= 0) {
+    lastFlatIndex.value = i;
+  }
+});
+/** Keep the cursor on a valid, present tile (filter change / seat switch /
+ *  update) — the nearest-survivor rule, never a jarring reset to first. */
+watch(() => flatKeys.value, (keys: ReadonlyArray<string>) => {
+  if (keys.length === 0) {
+    ui.value.focusKey = '';
+    return;
+  }
+  const liveIndex = keys.indexOf(ui.value.focusKey);
+  if (liveIndex >= 0) {
+    lastFlatIndex.value = liveIndex;
+    return;
+  }
+  const at = Math.min(lastFlatIndex.value, keys.length - 1);
+  ui.value.focusKey = keys[at];
+  lastFlatIndex.value = at;
+}, {immediate: true});
+/** A seat switch drops the detail INSTANTLY — another seat almost never
+ *  has the same effect, and a stranger's fold must not play. */
+watch(() => props.color, (): void => {
+  dropDetail();
+});
+/** Forecast mode: a refreshed forecast that no longer carries the open
+ *  item drops the dossier (the browse layer updates in place). */
+watch(() => detailFTile.value, (tile: ForecastTileVm | undefined): void => {
+  if (forecastMode.value && detailUp.value && tile === undefined) {
+    dropDetail();
+  }
+});
+/** Re-fit the printed graphics whenever the grid recomposes. */
+watch(() => model.value, (): void => {
+  scheduleCanvasFit();
+});
+watch(() => fmodel.value, (): void => {
+  scheduleCanvasFit();
+});
+
+onMounted(() => {
+  scheduleCanvasFit();
+});
+onBeforeUnmount(() => {
+  ui.value.barCommands = undefined;
+});
+defineExpose({consumeEffectsBack, handleIntent});
 </script>
