@@ -1,18 +1,4 @@
 <template>
-  <!--
-    THE DECISION STRIP — the reward decisions a movement plan owes, as ONE
-    surface however many there are.
-
-    Today's production plan is always length 1 (the stage-1/2 reward choice),
-    and this strip IS that step: the single decision renders exactly the
-    physical D-pad row the step always had. A longer plan changes only the
-    DATA: the progress chip appears («Решение K из M»), the other decisions
-    stand as a compact rail of stage chips (made ✓ / open ○, each named after
-    its own stop — a choice never loses the stage it belongs to), and the
-    ACTIVE decision keeps the same one-at-a-time options row. Nothing scrolls:
-    the rail is a shrinkable flex row, the options row is always exactly one
-    decision's, so the strip's height is bounded by construction.
-  -->
   <div class="con-hydro__plansteps">
     <!-- The progress head — ONLY when there is a plan to walk (a «1 из 1»
          over a single choice is noise, not information). -->
@@ -81,7 +67,23 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE DECISION STRIP — the reward decisions a movement plan owes, as ONE
+ * surface however many there are.
+ *
+ * Today's production plan is always length 1 (the stage-1/2 reward choice),
+ * and this strip IS that step: the single decision renders exactly the
+ * physical D-pad row the step always had. A longer plan changes only the
+ * DATA: the progress chip appears («Решение K из M»), the other decisions
+ * stand as a compact rail of stage chips (made ✓ / open ○, each named after
+ * its own stop — a choice never loses the stage it belongs to), and the
+ * ACTIVE decision keeps the same one-at-a-time options row. Nothing scrolls:
+ * the rail is a shrinkable flex row, the options row is always exactly one
+ * decision's, so the strip's height is bounded by construction.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * Presentation only: which decisions a plan holds, which is active and what
  * each offers is decided by the caller (today the hydro workspace's reward
@@ -89,7 +91,7 @@
  * and emits the active decision's pick — focus and confirm stay the caller's,
  * exactly as they are for the single-step flow.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
 import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
@@ -97,48 +99,41 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward';
 import {HydroPlanDecision, hydroPlanProgress, HydroPlanProgress} from '@/client/console/hydroFlow/hydroPlanSteps';
 
-export default defineComponent({
-  name: 'ConsoleHydroPlanSteps',
-  components: {HydroReward, ConsoleForecastReactions},
-  props: {
-    steps: {type: Array as PropType<ReadonlyArray<HydroPlanDecision>>, required: true},
-    /** The focused option INSIDE the active decision. */
-    focus: {type: Number, default: 0},
-    /** Where the cursor stands: on the options, or on the commit below. */
-    stage: {type: String as PropType<'options' | 'confirm'>, default: 'options'},
-  },
-  emits: ['pick'],
-  computed: {
-    progress(): HydroPlanProgress {
-      return hydroPlanProgress(this.steps);
-    },
-    /** The decision the options row shows — the first open one, else the last
-     *  (a fully-made plan keeps its final decision reviewable). */
-    activeIdx(): number {
-      if (this.progress.activeIdx >= 0) {
-        return this.progress.activeIdx;
-      }
-      return this.steps.length - 1;
-    },
-    active(): HydroPlanDecision | undefined {
-      return this.steps[this.activeIdx];
-    },
-    progressText(): string {
-      return translateTextWithParams('Decision ${0} of ${1}',
-        [String(Math.min(this.activeIdx + 1, this.progress.total)), String(this.progress.total)]);
-    },
-  },
-  methods: {
-    $t,
-    iconClass(l: HydroDeltaLine): string {
-      if (l.special === 'jovian-tag') {
-        return 'resource-tag tag-jovian';
-      }
-      if (l.special === 'animals') {
-        return 'card-resource card-resource-animal';
-      }
-      return l.resource !== undefined ? iconClassFor(l.resource) : '';
-    },
-  },
+defineOptions({name: 'ConsoleHydroPlanSteps'});
+const props = defineProps({
+  steps: {type: Array as PropType<ReadonlyArray<HydroPlanDecision>>, required: true},
+  /** The focused option INSIDE the active decision. */
+  focus: {type: Number, default: 0},
+  /** Where the cursor stands: on the options, or on the commit below. */
+  stage: {type: String as PropType<'options' | 'confirm'>, default: 'options'},
 });
+defineEmits(['pick']);
+
+const progress = computed((): HydroPlanProgress => {
+  return hydroPlanProgress(props.steps);
+});
+/** The decision the options row shows — the first open one, else the last
+ *  (a fully-made plan keeps its final decision reviewable). */
+const activeIdx = computed((): number => {
+  if (progress.value.activeIdx >= 0) {
+    return progress.value.activeIdx;
+  }
+  return props.steps.length - 1;
+});
+const active = computed((): HydroPlanDecision | undefined => {
+  return props.steps[activeIdx.value];
+});
+const progressText = computed((): string => {
+  return translateTextWithParams('Decision ${0} of ${1}',
+    [String(Math.min(activeIdx.value + 1, progress.value.total)), String(progress.value.total)]);
+});
+function iconClass(l: HydroDeltaLine): string {
+  if (l.special === 'jovian-tag') {
+    return 'resource-tag tag-jovian';
+  }
+  if (l.special === 'animals') {
+    return 'card-resource card-resource-animal';
+  }
+  return l.resource !== undefined ? iconClassFor(l.resource) : '';
+}
 </script>
