@@ -1,10 +1,4 @@
 <template>
-  <!-- THE ALBUM SPINE — the ONE place an album's page position renders: «LB ‹ 2 / 4 › RB» seated in a chamfered
-       instrument well, a progress hairline under the numbers. Extracted from the hand dock's bay (P87) so every album
-       surface carries the SAME instrument: the hand's dock seats it in its plate, «Наследие проектов» in its own foot.
-       The class tree is the dock's (`con-handdock__pager*`) on purpose — one LESS, one look; the variant only positions
-       it. A direction with no page that way mutes IN PLACE (never hidden — the shape is constant); an actual page change
-       fires the side chip of its direction once. -->
   <span class="con-handdock__pager con-album-spine"
         :class="{
           'con-album-spine--foot': variant === 'foot',
@@ -56,8 +50,18 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE ALBUM SPINE — the ONE place an album's page position renders: «LB ‹ 2 / 4 › RB» seated in a chamfered
+ * instrument well, a progress hairline under the numbers. Extracted from the hand dock's bay (P87) so every album
+ * surface carries the SAME instrument: the hand's dock seats it in its plate, «Наследие проектов» in its own foot.
+ * The class tree is the dock's (`con-handdock__pager*`) on purpose — one LESS, one look; the variant only positions
+ * it. A direction with no page that way mutes IN PLACE (never hidden — the shape is constant); an actual page change
+ * fires the side chip of its direction once.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType, ref, watch} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import type {AlbumSpinePosition} from '@/client/components/console/foundation/consoleAlbumSpineTypes';
@@ -70,58 +74,45 @@ export type {AlbumSpinePosition};
  * @console-shared LIVE — the album spine (P87). Hosts: `ConsoleHandDock` (the bay, variant `dock`) and
  * `ConsoleCarryoverPicker` (the stage's foot, variant `foot`).
  */
-export default defineComponent({
-  name: 'ConsoleAlbumSpine',
-  components: {GamepadGlyph},
-  props: {
-    album: {type: Object as PropType<AlbumSpinePosition>, required: true},
-    /** Held transparent + pointer-inert (a reveal episode is airborne). */
-    held: {type: Boolean, default: false},
-    /** Where it is seated: the dock's plate (absolute, centred) or a surface's foot (in flow). */
-    variant: {type: String as PropType<'dock' | 'foot'>, default: 'dock'},
-  },
-  emits: ['page'],
-  setup() {
-    return {flow: useFlowScope('album-spine')};
-  },
-  data() {
-    return {
-      /** Which way the last page turn went — the number enters from the opposite side. */
-      turnDir: 'next' as 'next' | 'prev',
-      /** An ACTUAL page change just landed — the side chip of its direction fires once. */
-      pageFlash: undefined as 'next' | 'prev' | undefined,
-      cancelPageFlash: (() => {}) as () => void,
-    };
-  },
-  computed: {
-    /** The continuous progress fill (many-page albums). */
-    progressStyle(): Record<string, string> {
-      const a = this.album;
-      return a.pages <= 1 ? {width: '0%'} : {width: `${(a.page / a.pages) * 100}%`};
-    },
-  },
-  watch: {
-    /** The DIRECTION of a page change for the number's swap + the matching side chip, once (an availability re-derive
-     *  without a page move fires nothing). */
-    'album.page'(now: number, was: number) {
-      if (now === was) {
-        return;
-      }
-      this.turnDir = now > was ? 'next' : 'prev';
-      this.pageFlash = this.turnDir;
-      this.cancelPageFlash();
-      this.cancelPageFlash = this.flow.after(motionMs(300), 'the page chip\'s flash reads', () => {
-        this.pageFlash = undefined;
-      });
-    },
-  },
-  methods: {
-    /** A side clicked — the host turns the page. A muted side still swallows the click (the edge is felt). */
-    onPage(dir: 1 | -1): void {
-      if (dir === 1 ? this.album.canNext : this.album.canPrev) {
-        this.$emit('page', dir);
-      }
-    },
-  },
+defineOptions({name: 'ConsoleAlbumSpine'});
+const props = defineProps({
+  album: {type: Object as PropType<AlbumSpinePosition>, required: true},
+  /** Held transparent + pointer-inert (a reveal episode is airborne). */
+  held: {type: Boolean, default: false},
+  /** Where it is seated: the dock's plate (absolute, centred) or a surface's foot (in flow). */
+  variant: {type: String as PropType<'dock' | 'foot'>, default: 'dock'},
+});
+const emit = defineEmits(['page']);
+
+const flow = useFlowScope('album-spine');
+/** Which way the last page turn went — the number enters from the opposite side. */
+const turnDir = ref<'next' | 'prev'>('next');
+/** An ACTUAL page change just landed — the side chip of its direction fires once. */
+const pageFlash = ref<'next' | 'prev' | undefined>(undefined);
+let cancelPageFlash: () => void = () => {};
+/** The continuous progress fill (many-page albums). */
+const progressStyle = computed((): Record<string, string> => {
+  const a = props.album;
+  return a.pages <= 1 ? {width: '0%'} : {width: `${(a.page / a.pages) * 100}%`};
+});
+/** A side clicked — the host turns the page. A muted side still swallows the click (the edge is felt). */
+function onPage(dir: 1 | -1): void {
+  if (dir === 1 ? props.album.canNext : props.album.canPrev) {
+    emit('page', dir);
+  }
+}
+
+/** The DIRECTION of a page change for the number's swap + the matching side chip, once (an availability re-derive
+ *  without a page move fires nothing). */
+watch(() => props.album.page, (now: number, was: number) => {
+  if (now === was) {
+    return;
+  }
+  turnDir.value = now > was ? 'next' : 'prev';
+  pageFlash.value = turnDir.value;
+  cancelPageFlash();
+  cancelPageFlash = flow.after(motionMs(300), 'the page chip\'s flash reads', () => {
+    pageFlash.value = undefined;
+  });
 });
 </script>
