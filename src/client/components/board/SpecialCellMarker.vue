@@ -41,8 +41,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import {BoardName} from '@/common/boards/BoardName';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {getSpecialCellInfo, SpecialCellInfo} from '@/client/components/board/specialCellInfo';
@@ -69,44 +69,39 @@ import {hoverBoardCell, clearBoardCellHover, boardInfoState} from '@/client/comp
  * (not just this marker's own hover), so when path (2) fires the marker
  * still pops visually in sync with the popup.
  */
-export default defineComponent({
-  name: 'SpecialCellMarker',
-  props: {
-    space: {
-      type: Object as PropType<SpaceModel>,
-      required: true,
-    },
-    boardName: {
-      type: String as PropType<BoardName>,
-      required: true,
-    },
+defineOptions({name: 'SpecialCellMarker'});
+const props = defineProps({
+  space: {
+    type: Object as PropType<SpaceModel>,
+    required: true,
   },
-  computed: {
-    info(): SpecialCellInfo | undefined {
-      return getSpecialCellInfo(this.space.id, this.boardName);
-    },
-    isEmpty(): boolean {
-      return this.space.tileType === undefined;
-    },
-    positionClass(): string {
-      return `board-space-${this.space.id}`;
-    },
-    isActive(): boolean {
-      // The badge pops in sync with the unified BoardInformation popover — and only for a cursor the player SEES (a
-      // mouse hover, a console inspection / placement), never for the console's idle selection warming the facts.
-      return boardInfoState.spaceId === this.space.id && !boardInfoState.quiet;
-    },
-  },
-  methods: {
-    // The badge is an extra affordance for the SAME general inspector the
-    // hex-wide hover drives — so hovering it shows the unified popover (lore +
-    // tile bonuses / owner / scoring), not a separate lore-only overlay.
-    onActivate(): void {
-      hoverBoardCell(this.space.id);
-    },
-    onDeactivate(): void {
-      clearBoardCellHover(this.space.id);
-    },
+  boardName: {
+    type: String as PropType<BoardName>,
+    required: true,
   },
 });
+
+const info = computed((): SpecialCellInfo | undefined => {
+  return getSpecialCellInfo(props.space.id, props.boardName);
+});
+const isEmpty = computed((): boolean => {
+  return props.space.tileType === undefined;
+});
+const positionClass = computed((): string => {
+  return `board-space-${props.space.id}`;
+});
+const isActive = computed((): boolean => {
+  // The badge pops in sync with the unified BoardInformation popover — and only for a cursor the player SEES (a
+  // mouse hover, a console inspection / placement), never for the console's idle selection warming the facts.
+  return boardInfoState.spaceId === props.space.id && !boardInfoState.quiet;
+});
+// The badge is an extra affordance for the SAME general inspector the
+// hex-wide hover drives — so hovering it shows the unified popover (lore +
+// tile bonuses / owner / scoring), not a separate lore-only overlay.
+function onActivate(): void {
+  hoverBoardCell(props.space.id);
+}
+function onDeactivate(): void {
+  clearBoardCellHover(props.space.id);
+}
 </script>
