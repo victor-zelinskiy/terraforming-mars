@@ -17,12 +17,13 @@
   </dialog>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {onMounted, ref, useTemplateRef} from 'vue';
 import {useClipboard} from '@vueuse/core';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
 import raw_settings from '@/genfiles/settings.json';
-import {vueRoot} from '@/client/components/vueRoot';
+import {useAppRoot} from '@/client/components/appRoot';
+import {vI18n} from '@/client/directives/vDirectives';
 import {getPreferences} from '../utils/PreferencesManager';
 
 import dialogPolyfill from 'dialog-polyfill';
@@ -50,78 +51,78 @@ function browser(): string {
   return match.join(' ');
 }
 
-type Refs = {
-  dialog: HTMLDialogElement;
-  textarea: HTMLTextAreaElement;
-};
+defineOptions({name: 'BugReportDialog'});
 
-export default defineComponent({
-  name: 'BugReportDialog',
-  setup() {
-    // VueUse clipboard (navigator.clipboard + execCommand legacy fallback — the
-    // direct writeText here had NO fallback for older browsers).
-    const {copy: clipboardCopy} = useClipboard({legacy: true});
-    return {clipboardCopy};
-  },
-  data() {
-    return {
-      message: '',
-      showCopied: false,
-    };
-  },
-  computed: {
-    typedRefs(): Refs {
-      return this.$refs as unknown as Refs;
-    },
-  },
-  methods: {
-    show() {
-      showModal(this.typedRefs.dialog);
-    },
-    copyTextArea() {
-      this.typedRefs.textarea.select();
-      void this.clipboardCopy(this.typedRefs.textarea.value);
-      this.showCopied = true;
-    },
-    url() {
-      return new URL(window.location.href);
-    },
-    setMessage() {
-      const playerView = vueRoot(this).playerView;
-      const content: Record<string, any> = {
-        url: this.url(),
-      };
-      if (playerView !== undefined) {
-        Object.assign(
-          content,
-          {
-            color: playerView.thisPlayer.color,
-            expansions: Object.entries(playerView.game.gameOptions.expansions)
-              .filter(([_k, v]) => v === true)
-              .map(([k, _v]) => k)
-              .join(', '),
-            step: playerView.game.step,
-          });
-      }
-      if (playerView?.game?.turmoil) {
-        content['party'] = playerView.game.turmoil.ruling ?? 'None';
-      }
-      Object.assign(content,
-        {
-          version: raw_settings.head,
-          builtAt: raw_settings.builtAt,
-          browser: browser(),
-          language: getPreferences().lang,
-          experimental_ui: getPreferences().experimental_ui,
-        });
-      this.message = JSON.stringify(content, null, 2);
-    },
-  },
-  mounted() {
-    if (!windowHasHTMLDialogElement()) {
-      dialogPolyfill.registerDialog(this.typedRefs.dialog);
+// the app root's port (R26): `undefined` outside the application — the report then carries no game, as it does on a
+// screen that has none
+const root = useAppRoot();
+// VueUse clipboard (navigator.clipboard + execCommand legacy fallback — the
+// direct writeText here had NO fallback for older browsers).
+const {copy: clipboardCopy} = useClipboard({legacy: true});
+const dialog = useTemplateRef<HTMLDialogElement>('dialog');
+const textarea = useTemplateRef<HTMLTextAreaElement>('textarea');
+const message = ref('');
+const showCopied = ref(false);
+function show() {
+  const el = dialog.value;
+  if (el === null) {
+    return;
+  }
+  showModal(el);
+}
+function copyTextArea() {
+  const el = textarea.value;
+  if (el === null) {
+    return;
+  }
+  el.select();
+  void clipboardCopy(el.value);
+  showCopied.value = true;
+}
+function url() {
+  return new URL(window.location.href);
+}
+function setMessage() {
+  const playerView = root?.playerView;
+  const content: Record<string, any> = {
+    url: url(),
+  };
+  if (playerView !== undefined) {
+    Object.assign(
+      content,
+      {
+        color: playerView.thisPlayer.color,
+        expansions: Object.entries(playerView.game.gameOptions.expansions)
+          .filter(([_k, v]) => v === true)
+          .map(([k, _v]) => k)
+          .join(', '),
+        step: playerView.game.step,
+      });
+  }
+  if (playerView?.game?.turmoil) {
+    content['party'] = playerView.game.turmoil.ruling ?? 'None';
+  }
+  Object.assign(content,
+    {
+      version: raw_settings.head,
+      builtAt: raw_settings.builtAt,
+      browser: browser(),
+      language: getPreferences().lang,
+      experimental_ui: getPreferences().experimental_ui,
+    });
+  message.value = JSON.stringify(content, null, 2);
+}
+
+onMounted(() => {
+  if (!windowHasHTMLDialogElement()) {
+    const el = dialog.value;
+    if (el === null) {
+      return;
     }
-    this.setMessage();
-  },
+    dialogPolyfill.registerDialog(el);
+  }
+  setMessage();
 });
+// What `PreferencesDialog` reaches through its `ref="bugDialog"` — `show()` — and nothing else.
+defineExpose({show});
 </script>
