@@ -32,7 +32,7 @@
            player cubes (SVG gradient/3D/shadow), and the global-parameter arc
            scales (SVG paths + gradients). Same pipelines the first game-entry
            compiles. Isolated components (not the full Board) to avoid a fragile
-           full mock; errorCaptured() below keeps a warm-up failure from ever
+           full mock; onErrorCaptured() below keeps a warm-up failure from ever
            crashing the app. -->
       <div v-if="warmReady" class="boot-loader__warm-game">
         <board-space v-for="s in warmSpaces" :key="s.id"
@@ -113,7 +113,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * APP BOOT LOADER — premium app-launch screen + GPU shader warm-up.
  * Shown once per session (see bootWarmupState). Renders the REAL card faces
@@ -122,7 +122,7 @@
  * finishes and fades out. Purely presentational — does not block route/data
  * loading (the real screen loads underneath and is revealed on fade-out).
  */
-import {defineComponent} from 'vue';
+import {computed, nextTick, onBeforeUnmount, onErrorCaptured, onMounted, ref, useTemplateRef} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import Card from '@/client/components/card/CardFace.vue';
 import {CardName} from '@/common/cards/CardName';
@@ -142,6 +142,7 @@ import {SpaceType} from '@/common/boards/SpaceType';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import {TileType} from '@/common/TileType';
 import {Color} from '@/common/Color';
+import {$t} from '@/client/directives/i18n';
 
 // English text = i18n key (fork convention). Kept short; one per warm-up phase.
 const STAGES = [
@@ -190,146 +191,134 @@ const WARM_SCALES = [
   {key: 'venus', theme: ARC_SCALE_THEMES.venus, config: VENUS_ARC, value: 0},
 ];
 
-export default defineComponent({
-  name: 'AppBootLoader',
-  components: {Card, BoardSpace, PlayerCube, ArcScale},
-  setup() {
-    /*
-     * The loader's own scope. The loader stands outside any console shell, so the scope is the PAGE's (`useFlowScope`
-     * reads the component tree) — never a game session's: the warm-up's phase chain is LIVENESS (it is what lowers
-     * `bootWarmupState.active`), and a game screen that came and went under it must not take the chain back. It ends
-     * with the component, and its beats with it.
-     */
-    const flow = useFlowScope('app-boot-loader');
-    return {flow};
-  },
-  data() {
-    return {
-      // Built in data() so the cards render from the FIRST loader frame (warm-up
-      // starts immediately, behind the panel).
-      warmCards: WARMUP_CARDS.map(modelOf).filter((c): c is CardModel => c !== undefined),
-      warmSpaces: WARM_SPACES,
-      warmCubes: WARM_CUBES,
-      warmScales: WARM_SCALES,
-      // The warm-up elements render ONLY once GPU compositing is live (see mounted)
-      // so their pipelines compile on Graphite, not the software path during init.
-      warmReady: false,
-      // Wall-clock orbit phase — the same formula every curtain surface uses,
-      // so the loader's satellite agrees with the curtain it fades out over.
-      orbitDelay: `${orbitPhaseDelayMs()}ms`,
-      phase: 0,
-      progress: 8,
-      gpuReadyHandler: undefined as (() => void) | undefined,
-    };
-  },
-  computed: {
-    stageText(): string {
-      return STAGES[Math.min(this.phase, STAGES.length - 1)];
-    },
-    /** The PLAYER-facing line — calm, never a technical stage name (the
-     *  internal phase names only pace the warm-up). */
-    displayText(): string {
-      return this.phase >= STAGES.length - 1 ? 'Almost ready…' : 'Preparing the game';
-    },
-  },
-  methods: {
-    // Warm the two extra render states a real deal hits: the selected halo/rim
-    // and the unplayable grayscale — otherwise their pipelines compile on the
-    // first pick / first unplayable card.
-    warmCardStateClass(i: number): string {
-      if (i === 0) {
-        return 'boot-loader__warm-card--selected';
-      }
-      if (i === 1) {
-        return 'boot-loader__warm-card--disabled';
-      }
-      return '';
-    },
-    step(perPhase: number): void {
-      this.progress = Math.round(((this.phase + 1) / STAGES.length) * 100);
-      if (this.phase >= STAGES.length - 1) {
-        // Last phase: hold briefly at 100%, then finish + let the fade play. A RELEASE: the module flag App's
-        // `v-if` reads is lowered at the hold's length — or when the loader leaves first, never left raised.
-        this.flow.guarantee(perPhase, 'the boot warm-up finishes', () => finishBootWarmup());
-        return;
-      }
-      this.flow.after(perPhase, 'the boot warm-up\'s next phase', () => {
-        this.phase += 1;
-        this.step(perPhase);
-      });
-    },
-  },
-  mounted() {
-    // Nudge the card art (webp) into the browser cache so the first REAL deal
-    // doesn't pay the image decode either (harmless if already cached / missing).
-    for (const name of WARMUP_CARDS) {
-      const url = cardArtUrl(name);
-      if (url !== undefined) {
-        const img = new Image();
-        img.src = url;
-      }
+defineOptions({name: 'AppBootLoader'});
+
+/*
+ * The loader's own scope. The loader stands outside any console shell, so the scope is the PAGE's (`useFlowScope`
+ * reads the component tree) — never a game session's: the warm-up's phase chain is LIVENESS (it is what lowers
+ * `bootWarmupState.active`), and a game screen that came and went under it must not take the chain back. It ends
+ * with the component, and its beats with it.
+ */
+const flow = useFlowScope('app-boot-loader');
+const warmDialog = useTemplateRef<HTMLDialogElement>('warmDialog');
+// Built in setup so the cards render from the FIRST loader frame (warm-up
+// starts immediately, behind the panel).
+const warmCards = ref(WARMUP_CARDS.map(modelOf).filter((c): c is CardModel => c !== undefined));
+const warmSpaces = WARM_SPACES;
+const warmCubes = WARM_CUBES;
+const warmScales = WARM_SCALES;
+// The warm-up elements render ONLY once GPU compositing is live (see onMounted)
+// so their pipelines compile on Graphite, not the software path during init.
+const warmReady = ref(false);
+// Wall-clock orbit phase — the same formula every curtain surface uses,
+// so the loader's satellite agrees with the curtain it fades out over.
+const orbitDelay = ref(`${orbitPhaseDelayMs()}ms`);
+const phase = ref(0);
+const progress = ref(8);
+let gpuReadyHandler: (() => void) | undefined;
+
+/** The PLAYER-facing line — calm, never a technical stage name (the
+ *  internal phase names only pace the warm-up). */
+const displayText = computed((): string => {
+  return phase.value >= STAGES.length - 1 ? 'Almost ready…' : 'Preparing the game';
+});
+
+// Warm the two extra render states a real deal hits: the selected halo/rim
+// and the unplayable grayscale — otherwise their pipelines compile on the
+// first pick / first unplayable card.
+function warmCardStateClass(i: number): string {
+  if (i === 0) {
+    return 'boot-loader__warm-card--selected';
+  }
+  if (i === 1) {
+    return 'boot-loader__warm-card--disabled';
+  }
+  return '';
+}
+function step(perPhase: number): void {
+  progress.value = Math.round(((phase.value + 1) / STAGES.length) * 100);
+  if (phase.value >= STAGES.length - 1) {
+    // Last phase: hold briefly at 100%, then finish + let the fade play. A RELEASE: the module flag App's
+    // `v-if` reads is lowered at the hold's length — or when the loader leaves first, never left raised.
+    flow.guarantee(perPhase, 'the boot warm-up finishes', () => finishBootWarmup());
+    return;
+  }
+  flow.after(perPhase, 'the boot warm-up\'s next phase', () => {
+    phase.value += 1;
+    step(perPhase);
+  });
+}
+
+onMounted(() => {
+  // Nudge the card art (webp) into the browser cache so the first REAL deal
+  // doesn't pay the image decode either (harmless if already cached / missing).
+  for (const name of WARMUP_CARDS) {
+    const url = cardArtUrl(name);
+    if (url !== undefined) {
+      const img = new Image();
+      img.src = url;
     }
-    const reduced = typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-    // Each phase gives Graphite time to compile that phase's pipelines. Reduced
-    // motion shortens the hold but still runs the phases (not decoration).
-    const perPhase = motionMs(reduced ? 340 : 900);
-    // START the phases ONLY once GPU compositing is live, so (a) the cards render
-    // on Graphite (not the software path during the ~330ms GPU-process init — else
-    // the pipelines compile on software and the real deal recompiles them, the
-    // residual hitch), and (b) the full warm-up hold happens AFTER the cards mount.
-    // main signals `tm-gpu-ready`; fall back after 1.4s if it never arrives.
-    const start = (): void => {
-      if (this.warmReady) {
-        return; // guard: event + fallback must not both start it
+  }
+  const reduced = typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  // Each phase gives Graphite time to compile that phase's pipelines. Reduced
+  // motion shortens the hold but still runs the phases (not decoration).
+  const perPhase = motionMs(reduced ? 340 : 900);
+  // START the phases ONLY once GPU compositing is live, so (a) the cards render
+  // on Graphite (not the software path during the ~330ms GPU-process init — else
+  // the pipelines compile on software and the real deal recompiles them, the
+  // residual hitch), and (b) the full warm-up hold happens AFTER the cards mount.
+  // main signals `tm-gpu-ready`; fall back after 1.4s if it never arrives.
+  const start = (): void => {
+    if (warmReady.value) {
+      return; // guard: event + fallback must not both start it
+    }
+    warmReady.value = true;
+    step(perPhase);
+    // Top-layer warm-up (see the template comment): open the near-invisible
+    // dialog for a beat so Graphite allocates the top-layer + transformed-stage
+    // textures NOW instead of at the first real fullscreen zoom.
+    nextTick(() => {
+      const dlg = warmDialog.value ?? undefined;
+      try {
+        dlg?.showModal();
+      } catch {
+        // unsupported / already open — the real zoom then just pays first-use
       }
-      this.warmReady = true;
-      this.step(perPhase);
-      // Top-layer warm-up (see the template comment): open the near-invisible
-      // dialog for a beat so Graphite allocates the top-layer + transformed-stage
-      // textures NOW instead of at the first real fullscreen zoom.
-      this.$nextTick(() => {
-        const dlg = (this.$refs.warmDialog ?? undefined) as HTMLDialogElement | undefined;
+      flow.after(motionMs(500), 'the top-layer warm-up dialog closes', () => {
         try {
-          dlg?.showModal();
+          dlg?.close();
         } catch {
-          // unsupported / already open — the real zoom then just pays first-use
+          // already closed — fine
         }
-        this.flow.after(motionMs(500), 'the top-layer warm-up dialog closes', () => {
-          try {
-            dlg?.close();
-          } catch {
-            // already closed — fine
-          }
-        });
       });
-    };
-    const w = window as {__tmGpuReady?: boolean};
-    if (w.__tmGpuReady === true) {
-      start();
-    } else {
-      this.gpuReadyHandler = start;
-      window.addEventListener('tm-gpu-ready', start, {once: true});
-      this.flow.after(1400, 'the GPU-ready signal\'s fallback', start);
-    }
-  },
-  beforeUnmount() {
-    if (this.gpuReadyHandler !== undefined) {
-      window.removeEventListener('tm-gpu-ready', this.gpuReadyHandler);
-    }
-    // The warm-up dialog must NEVER outlive the loader in the top layer.
-    try {
-      ((this.$refs.warmDialog ?? undefined) as HTMLDialogElement | undefined)?.close();
-    } catch {
-      // already closed — fine
-    }
-  },
-  errorCaptured(): boolean {
-    // A warm-up render failure (an isolated board component missing some game
-    // context it normally gets from a live game) must NEVER crash the app —
-    // swallow it here. The pipeline it would have warmed just compiles at first
-    // real use instead. The loader itself keeps running.
-    return false;
-  },
+    });
+  };
+  const w = window as {__tmGpuReady?: boolean};
+  if (w.__tmGpuReady === true) {
+    start();
+  } else {
+    gpuReadyHandler = start;
+    window.addEventListener('tm-gpu-ready', start, {once: true});
+    flow.after(1400, 'the GPU-ready signal\'s fallback', start);
+  }
+});
+onBeforeUnmount(() => {
+  if (gpuReadyHandler !== undefined) {
+    window.removeEventListener('tm-gpu-ready', gpuReadyHandler);
+  }
+  // The warm-up dialog must NEVER outlive the loader in the top layer.
+  try {
+    warmDialog.value?.close();
+  } catch {
+    // already closed — fine
+  }
+});
+onErrorCaptured((): boolean => {
+  // A warm-up render failure (an isolated board component missing some game
+  // context it normally gets from a live game) must NEVER crash the app —
+  // swallow it here. The pipeline it would have warmed just compiles at first
+  // real use instead. The loader itself keeps running.
+  return false;
 });
 </script>
