@@ -1,18 +1,4 @@
 <template>
-  <!--
-    One colony card in the new sci-fi overlay grid. Steam-inspired layout:
-    title strip (with optional fleet badge) → 3 build-bonus slots + planet
-    image → two summary rows (Trade / Bonus) → SELECT footer button
-    integrated into the bottom of the frame.
-
-    Body click → 'view' (opens the detail view); SELECT click → 'select'
-    (commits the action, stops propagation so it doesn't ALSO open detail).
-
-    The card body stays at full visibility when the colony isn't pickable
-    right now — we only dim the SELECT footer. Players are still expected
-    to read / inspect every colony freely; "unavailable" is only about
-    whether the action button does anything.
-  -->
   <div class="colony-tile"
        :class="{
          'colony-tile--disabled': !selectable,
@@ -251,8 +237,24 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * One colony card in the new sci-fi overlay grid. Steam-inspired layout:
+ * title strip (with optional fleet badge) → 3 build-bonus slots + planet
+ * image → two summary rows (Trade / Bonus) → SELECT footer button
+ * integrated into the bottom of the frame.
+ *
+ * Body click → 'view' (opens the detail view); SELECT click → 'select'
+ * (commits the action, stops propagation so it doesn't ALSO open detail).
+ *
+ * The card body stays at full visibility when the colony isn't pickable
+ * right now — we only dim the SELECT footer. Players are still expected
+ * to read / inspect every colony freely; "unavailable" is only about
+ * whether the action button does anything.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {buildBenefitAt, ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
 import {colonyBerthsOf} from '@/client/console/colonyBuild/colonyBerths';
@@ -260,190 +262,179 @@ import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Color} from '@/common/Color';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {rewardAtPosition, TradeRewardAt} from '@/client/components/colonies/colonyTradePlan';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import BuildBenefit from './BuildBenefit.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
+import {SIMPLE_BUILD_TYPES} from '@/client/components/colonies/colonyTileModel';
 
-const SIMPLE_BUILD_TYPES: ReadonlySet<ColonyBenefit> = new Set([
-  ColonyBenefit.GAIN_RESOURCES,
-  ColonyBenefit.ADD_RESOURCES_TO_CARD,
-]);
-
-export default defineComponent({
-  name: 'ColonyTile',
-  components: {BuildBenefit, ColonyFleetIcon},
-  props: {
-    colony: {
-      type: Object as () => ColonyModel,
-      required: true,
-    },
-    // Overlay mode — drives the action-button label (ТОРГОВАТЬ in trade mode,
-    // ВЫБРАТЬ otherwise).
-    mode: {
-      type: String as () => 'trade' | 'build' | 'view',
-      default: 'view',
-    },
-    selectable: {
-      type: Boolean,
-      default: false,
-    },
-    disabledReason: {
-      type: String,
-      default: '',
-    },
-    visitor: {
-      type: String as () => Color | undefined,
-      default: undefined,
-    },
-    // Display name of the visiting player (when known). The parent
-    // looks this up against the players list and passes the resolved
-    // name here so the tooltip can read "Здесь стоит флот игрока
-    // NASTYA" instead of forcing the user to mentally map ship colour
-    // to player.
-    visitorName: {
-      type: String,
-      default: '',
-    },
-    // Viewer (you) colour. Lets us tell apart "your own fleet is here"
-    // (you traded already) vs "someone else's fleet is here" in the
-    // visitor tooltip — otherwise the message lies about whose fleet
-    // is parked.
-    viewerColor: {
-      type: String as () => Color | undefined,
-      default: undefined,
-    },
+defineOptions({name: 'ColonyTile'});
+const props = defineProps({
+  colony: {
+    type: Object as () => ColonyModel,
+    required: true,
   },
-  emits: ['view', 'select'],
-  computed: {
-    metadata(): ColonyMetadata {
-      return getColony(this.colony.name);
-    },
-    /** The berths this tile draws — the console's ONE berths model (a fourth cube built beyond the limit is a fourth slot). */
-    berthIndexes(): Array<number> {
-      return colonyBerthsOf(this.colony).map((berth) => berth.index);
-    },
-    planetClass(): string {
-      return this.colony.name.replace(' ', '-') + '-background';
-    },
-    titleClass(): string {
-      return this.colony.name + '-title';
-    },
-    hasVisitor(): boolean {
-      return this.visitor !== undefined;
-    },
-    // A non-selectable colony with a known reason shows a visible reason chip
-    // instead of a dead SELECT button.
-    showReasonChip(): boolean {
-      return this.selectable === false && this.disabledReason !== '';
-    },
-    // Action-button label: ТОРГОВАТЬ when the overlay is opened for trading,
-    // ВЫБРАТЬ for SelectColony (build / pick a colony for an effect).
-    selectLabel(): string {
-      return translateText(this.mode === 'trade' ? 'Trade' : 'Select');
-    },
-    trackPositionDisplay(): number {
-      const pos = Math.min(this.colony.trackPosition, 6);
-      return pos + 1;
-    },
-    // Convenience alias for use in the template's v-else-if chain — saves
-    // having to import ColonyBenefit at every reference site.
-    BG(): typeof ColonyBenefit {
-      return ColonyBenefit;
-    },
-    /** One bare icon class per card-resource kind of the tile (several for the Redux Vesta). */
-    cardResourceClasses(): Array<string> {
-      return colonyCardResources(this.metadata).map((kind) => kind.toString().toLowerCase().replace(/\s+/g, '-'));
-    },
-    /** The income at the marker's position — kind, amount and resource resolved together. */
-    tradeReward(): TradeRewardAt {
-      return rewardAtPosition(this.metadata, Math.min(this.colony.trackPosition, 6));
-    },
-    tradeRewardClass(): string {
-      const t = this.tradeReward;
-      if (t.type === ColonyBenefit.GAIN_RESOURCES && typeof t.resource === 'string') {
-        return t.resource.toString().toLowerCase();
-      }
-      if (t.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && this.cardResourceClasses.length === 1) {
-        return this.cardResourceClasses[0];
-      }
-      return 'colony-tile__row-reward-icon--abstract';
-    },
-    // For GAIN_PRODUCTION trade rewards, the resource depends on the
-    // colony's current track position when it's an array (Europa).
-    // Single-resource production colonies (none today, but trivial to
-    // support) just use the resource directly.
-    tradeProductionResourceClass(): string {
-      const t = this.metadata.trade;
-      const pos = Math.min(this.colony.trackPosition, 6);
-      const r = Array.isArray(t.resource) ? t.resource[pos] : t.resource;
-      if (typeof r === 'string') {
-        return r.toLowerCase();
-      }
-      return '';
-    },
-    tradeRewardNum(): number {
-      return this.tradeReward.quantity || 1;
-    },
-    colonyBonusClass(): string {
-      const c = this.metadata.colony;
-      if (c.type === ColonyBenefit.GAIN_RESOURCES && typeof c.resource === 'string') {
-        return c.resource.toString().toLowerCase();
-      }
-      if (c.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && this.cardResourceClasses.length === 1) {
-        return this.cardResourceClasses[0];
-      }
-      return 'colony-tile__row-reward-icon--abstract';
-    },
-    colonyBonusNum(): number {
-      return this.metadata.colony.quantity ?? 1;
-    },
-    usesSimpleBuildContent(): boolean {
-      return SIMPLE_BUILD_TYPES.has(this.metadata.build.type);
-    },
-    buildResourceClass(): string {
-      const b = this.metadata.build;
-      if (b.type === ColonyBenefit.GAIN_RESOURCES && typeof b.resource === 'string') {
-        return b.resource.toString().toLowerCase();
-      }
-      if (b.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && this.cardResourceClasses.length === 1) {
-        return this.cardResourceClasses[0];
-      }
-      return 'colony-tile__row-reward-icon--abstract';
-    },
-    selectButtonTooltip(): string {
-      return this.$t('Select this colony');
-    },
-    reasonTooltip(): string {
-      if (!this.colony.isActive) {
-        return translateText('After activation, you can build a colony here or send a trade fleet here.');
-      }
-      return this.disabledReason;
-    },
-    // Tooltip for the in-header fleet badge. Three cases:
-    //   1. visitor === viewer  → "Your trade fleet is currently here"
-    //      (lets you know you've already traded — not someone else)
-    //   2. visitor name known → "Trade fleet of NAME is currently here"
-    //   3. visitor unknown / colour only → generic "Trade fleet here"
-    visitorTooltip(): string {
-      if (this.visitor !== undefined && this.visitor === this.viewerColor) {
-        return translateText('Your trade fleet is currently here');
-      }
-      if (this.visitorName) {
-        return translateTextWithParams(
-          'Trade fleet of ${0} is currently here',
-          [this.visitorName]);
-      }
-      return translateText('Trade fleet currently here');
-    },
+  // Overlay mode — drives the action-button label (ТОРГОВАТЬ in trade mode,
+  // ВЫБРАТЬ otherwise).
+  mode: {
+    type: String as () => 'trade' | 'build' | 'view',
+    default: 'view',
   },
-  methods: {
-    buildQuantityAt(idx: number): number {
-      return buildBenefitAt(this.metadata, idx).quantity;
-    },
-    /** The printed cell a berth's bonus is read from — the last one for a berth beyond them (the frozen `BuildBenefit` indexes the row itself). */
-    printedBuildCell(idx: number): number {
-      return Math.min(idx, this.metadata.build.quantity.length - 1);
-    },
+  selectable: {
+    type: Boolean,
+    default: false,
+  },
+  disabledReason: {
+    type: String,
+    default: '',
+  },
+  visitor: {
+    type: String as () => Color | undefined,
+    default: undefined,
+  },
+  // Display name of the visiting player (when known). The parent
+  // looks this up against the players list and passes the resolved
+  // name here so the tooltip can read "Здесь стоит флот игрока
+  // NASTYA" instead of forcing the user to mentally map ship colour
+  // to player.
+  visitorName: {
+    type: String,
+    default: '',
+  },
+  // Viewer (you) colour. Lets us tell apart "your own fleet is here"
+  // (you traded already) vs "someone else's fleet is here" in the
+  // visitor tooltip — otherwise the message lies about whose fleet
+  // is parked.
+  viewerColor: {
+    type: String as () => Color | undefined,
+    default: undefined,
   },
 });
+defineEmits(['view', 'select']);
+
+const metadata = computed((): ColonyMetadata => {
+  return getColony(props.colony.name);
+});
+/** The berths this tile draws — the console's ONE berths model (a fourth cube built beyond the limit is a fourth slot). */
+const berthIndexes = computed((): Array<number> => {
+  return colonyBerthsOf(props.colony).map((berth) => berth.index);
+});
+const planetClass = computed((): string => {
+  return props.colony.name.replace(' ', '-') + '-background';
+});
+const titleClass = computed((): string => {
+  return props.colony.name + '-title';
+});
+const hasVisitor = computed((): boolean => {
+  return props.visitor !== undefined;
+});
+// A non-selectable colony with a known reason shows a visible reason chip
+// instead of a dead SELECT button.
+const showReasonChip = computed((): boolean => {
+  return props.selectable === false && props.disabledReason !== '';
+});
+// Action-button label: ТОРГОВАТЬ when the overlay is opened for trading,
+// ВЫБРАТЬ for SelectColony (build / pick a colony for an effect).
+const selectLabel = computed((): string => {
+  return translateText(props.mode === 'trade' ? 'Trade' : 'Select');
+});
+const trackPositionDisplay = computed((): number => {
+  const pos = Math.min(props.colony.trackPosition, 6);
+  return pos + 1;
+});
+// Convenience alias for use in the template's v-else-if chain — saves
+// having to import ColonyBenefit at every reference site.
+const BG = ColonyBenefit;
+/** One bare icon class per card-resource kind of the tile (several for the Redux Vesta). */
+const cardResourceClasses = computed((): Array<string> => {
+  return colonyCardResources(metadata.value).map((kind) => kind.toString().toLowerCase().replace(/\s+/g, '-'));
+});
+/** The income at the marker's position — kind, amount and resource resolved together. */
+const tradeReward = computed((): TradeRewardAt => {
+  return rewardAtPosition(metadata.value, Math.min(props.colony.trackPosition, 6));
+});
+const tradeRewardClass = computed((): string => {
+  const t = tradeReward.value;
+  if (t.type === ColonyBenefit.GAIN_RESOURCES && typeof t.resource === 'string') {
+    return t.resource.toString().toLowerCase();
+  }
+  if (t.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && cardResourceClasses.value.length === 1) {
+    return cardResourceClasses.value[0];
+  }
+  return 'colony-tile__row-reward-icon--abstract';
+});
+// For GAIN_PRODUCTION trade rewards, the resource depends on the
+// colony's current track position when it's an array (Europa).
+// Single-resource production colonies (none today, but trivial to
+// support) just use the resource directly.
+const tradeProductionResourceClass = computed((): string => {
+  const t = metadata.value.trade;
+  const pos = Math.min(props.colony.trackPosition, 6);
+  const r = Array.isArray(t.resource) ? t.resource[pos] : t.resource;
+  if (typeof r === 'string') {
+    return r.toLowerCase();
+  }
+  return '';
+});
+const tradeRewardNum = computed((): number => {
+  return tradeReward.value.quantity || 1;
+});
+const colonyBonusClass = computed((): string => {
+  const c = metadata.value.colony;
+  if (c.type === ColonyBenefit.GAIN_RESOURCES && typeof c.resource === 'string') {
+    return c.resource.toString().toLowerCase();
+  }
+  if (c.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && cardResourceClasses.value.length === 1) {
+    return cardResourceClasses.value[0];
+  }
+  return 'colony-tile__row-reward-icon--abstract';
+});
+const colonyBonusNum = computed((): number => {
+  return metadata.value.colony.quantity ?? 1;
+});
+const usesSimpleBuildContent = computed((): boolean => {
+  return SIMPLE_BUILD_TYPES.has(metadata.value.build.type);
+});
+const buildResourceClass = computed((): string => {
+  const b = metadata.value.build;
+  if (b.type === ColonyBenefit.GAIN_RESOURCES && typeof b.resource === 'string') {
+    return b.resource.toString().toLowerCase();
+  }
+  if (b.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && cardResourceClasses.value.length === 1) {
+    return cardResourceClasses.value[0];
+  }
+  return 'colony-tile__row-reward-icon--abstract';
+});
+const selectButtonTooltip = computed((): string => {
+  return $t('Select this colony');
+});
+const reasonTooltip = computed((): string => {
+  if (!props.colony.isActive) {
+    return translateText('After activation, you can build a colony here or send a trade fleet here.');
+  }
+  return props.disabledReason;
+});
+// Tooltip for the in-header fleet badge. Three cases:
+//   1. visitor === viewer  → "Your trade fleet is currently here"
+//      (lets you know you've already traded — not someone else)
+//   2. visitor name known → "Trade fleet of NAME is currently here"
+//   3. visitor unknown / colour only → generic "Trade fleet here"
+const visitorTooltip = computed((): string => {
+  if (props.visitor !== undefined && props.visitor === props.viewerColor) {
+    return translateText('Your trade fleet is currently here');
+  }
+  if (props.visitorName) {
+    return translateTextWithParams(
+      'Trade fleet of ${0} is currently here',
+      [props.visitorName]);
+  }
+  return translateText('Trade fleet currently here');
+});
+function buildQuantityAt(idx: number): number {
+  return buildBenefitAt(metadata.value, idx).quantity;
+}
+/** The printed cell a berth's bonus is read from — the last one for a berth beyond them (the frozen `BuildBenefit` indexes the row itself). */
+function printedBuildCell(idx: number): number {
+  return Math.min(idx, metadata.value.build.quantity.length - 1);
+}
 </script>
