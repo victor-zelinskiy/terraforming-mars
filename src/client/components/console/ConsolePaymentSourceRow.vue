@@ -1,13 +1,4 @@
 <template>
-  <!-- ONE payment SOURCE row — the atom shared by the compact summary and the
-       expanded editor. Both densities render THIS markup: same icon, same
-       name, same `available → remaining`, same «used», same M€ contribution,
-       same order — INCLUDING the micro captions that name each number, which
-       are what stop a column of bare numbers from being a puzzle in the quick
-       summary. `mode` only changes how loud they read and whether the row can
-       take the cursor — the geometry is identical in both, which is what makes
-       LT read as "the same block opening up" instead of a jump to another
-       screen. -->
   <div class="con-payrow"
        :class="{
          'con-payrow--auto': row.auto,
@@ -78,7 +69,20 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * ONE payment SOURCE row — the atom shared by the compact summary and the
+ * expanded editor. Both densities render THIS markup: same icon, same
+ * name, same `available → remaining`, same «used», same M€ contribution,
+ * same order — INCLUDING the micro captions that name each number, which
+ * are what stop a column of bare numbers from being a puzzle in the quick
+ * summary. `mode` only changes how loud they read and whether the row can
+ * take the cursor — the geometry is identical in both, which is what makes
+ * LT read as "the same block opening up" instead of a jump to another
+ * screen.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * ConsolePaymentSourceRow — one row of the console-native payment panel.
  *
@@ -90,58 +94,54 @@
  * Accessibility: the row is icon-led, so it carries a composed `aria-label`
  * naming the resource, what is spent, what remains and what it is worth.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import {PaymentSourceRow, paymentUnitIcon, paymentUnitLabel} from '@/client/console/paymentPlan';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsolePaymentSourceRow',
-  components: {GamepadGlyph},
-  props: {
-    row: {type: Object as PropType<PaymentSourceRow>, required: true},
-    /** Density — `compact` mutes the micro captions, `expanded` lifts them. */
-    mode: {type: String as PropType<'compact' | 'expanded'>, default: 'compact'},
-    /** The price's denomination — the contribution column's icon/aria unit. */
-    costUnit: {type: String, default: 'megacredits'},
-    /** The expanded editor's cursor is on this row (LB/RB drive it). */
-    focused: {type: Boolean, default: false},
-    /** Bumped by the host on each adjust to re-key the one-shot pulse. */
-    flashNonce: {type: Number, default: 0},
-  },
-  computed: {
-    iconClass(): string {
-      // The LEDGER key is not the SPRITE key (`microbes` → `microbe`,
-      // `auroraiData` → `data`, …) — one translation, in the pure model.
-      return iconClassFor(paymentUnitIcon(this.row.unit));
-    },
-    /** The dial pills belong to the row the bumpers actually drive: the single
-     *  quick-adjust lane on the compact screen, the focused lane when expanded. */
-    showPills(): boolean {
-      if (this.row.auto || !this.row.editable) {
-        return false;
-      }
-      return this.mode === 'expanded' ? this.focused : this.row.quickAdjust;
-    },
-    /** The auto M€ lane does not "use" a chosen amount — it TOPS UP the rest. */
-    usedCapKey(): string {
-      return this.row.auto ? 'Tops up' : 'Used';
-    },
-    ariaLabel(): string {
-      const r = this.row;
-      const unit = this.costUnit === 'megacredits' ? 'M€' : translateText(paymentUnitLabel(this.costUnit));
-      const parts = [
-        r.sourceCard === undefined ? translateText(r.labelKey) : `${translateText(r.labelKey)} · ${translateText(r.sourceCard)}`,
-        `${translateText(this.usedCapKey)}: ${r.used}`,
-        `${translateText('Remaining')}: ${r.remaining} ${translateText('of')} ${r.available}`,
-        `${translateText('Contribution')}: ${r.contribution} ${unit}`,
-      ];
-      if (r.auto) {
-        parts.push(translateText('Paid automatically'));
-      }
-      return parts.join(', ');
-    },
-  },
+defineOptions({name: 'ConsolePaymentSourceRow'});
+const props = defineProps({
+  row: {type: Object as PropType<PaymentSourceRow>, required: true},
+  /** Density — `compact` mutes the micro captions, `expanded` lifts them. */
+  mode: {type: String as PropType<'compact' | 'expanded'>, default: 'compact'},
+  /** The price's denomination — the contribution column's icon/aria unit. */
+  costUnit: {type: String, default: 'megacredits'},
+  /** The expanded editor's cursor is on this row (LB/RB drive it). */
+  focused: {type: Boolean, default: false},
+  /** Bumped by the host on each adjust to re-key the one-shot pulse. */
+  flashNonce: {type: Number, default: 0},
+});
+
+const iconClass = computed((): string => {
+  // The LEDGER key is not the SPRITE key (`microbes` → `microbe`,
+  // `auroraiData` → `data`, …) — one translation, in the pure model.
+  return iconClassFor(paymentUnitIcon(props.row.unit));
+});
+/** The dial pills belong to the row the bumpers actually drive: the single
+ *  quick-adjust lane on the compact screen, the focused lane when expanded. */
+const showPills = computed((): boolean => {
+  if (props.row.auto || !props.row.editable) {
+    return false;
+  }
+  return props.mode === 'expanded' ? props.focused : props.row.quickAdjust;
+});
+/** The auto M€ lane does not "use" a chosen amount — it TOPS UP the rest. */
+const usedCapKey = computed((): string => {
+  return props.row.auto ? 'Tops up' : 'Used';
+});
+const ariaLabel = computed((): string => {
+  const r = props.row;
+  const unit = props.costUnit === 'megacredits' ? 'M€' : translateText(paymentUnitLabel(props.costUnit));
+  const parts = [
+    r.sourceCard === undefined ? translateText(r.labelKey) : `${translateText(r.labelKey)} · ${translateText(r.sourceCard)}`,
+    `${translateText(usedCapKey.value)}: ${r.used}`,
+    `${translateText('Remaining')}: ${r.remaining} ${translateText('of')} ${r.available}`,
+    `${translateText('Contribution')}: ${r.contribution} ${unit}`,
+  ];
+  if (r.auto) {
+    parts.push(translateText('Paid automatically'));
+  }
+  return parts.join(', ');
 });
 </script>
