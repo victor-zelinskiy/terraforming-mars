@@ -1,5 +1,4 @@
 <template>
-  <!-- Is board-cont necessary? -->
   <div class="board-cont moon-board" id="moon_board">
     <svg id="moon_board_legend" height="550" width="630" class="board-legend">
       <g id="mare_imbrium" transform="translate(250, 40)">
@@ -72,9 +71,13 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * Is board-cont necessary?
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 
-import {defineComponent} from 'vue';
 import {MoonModel} from '@/common/models/MoonModel';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {SpaceType} from '@/common/boards/SpaceType';
@@ -88,78 +91,72 @@ type MoonParamLevel = {
   strValue: string,
 };
 
-export default defineComponent({
-  name: 'MoonBoard',
-  props: {
-    model: {
-      type: Object as () => MoonModel,
-      required: true,
-    },
-    tileView: {
-      type: String as () => TileView,
-      default: 'show',
-    },
+defineOptions({name: 'MoonBoard'});
+const props = defineProps({
+  model: {
+    type: Object as () => MoonModel,
+    required: true,
   },
-  components: {
-    MoonSpace,
-  },
-  methods: {
-    getAllNonColonySpaces(): Array<SpaceModel> {
-      const boardSpaces: Array<SpaceModel> = [...this.model.spaces];
-      boardSpaces.sort(
-        (space1: SpaceModel, space2: SpaceModel) => {
-          return parseInt(space1.id) - parseInt(space2.id);
-        },
-      );
-      return boardSpaces.filter((s: SpaceModel) => {
-        return s.spaceType !== SpaceType.COLONY;
-      });
-    },
-    getSpaceById(spaceId: SpaceId) {
-      for (const space of this.model.spaces) {
-        if (space.id === spaceId) {
-          return space;
-        }
-      }
-      throw new Error('Board space not found by id \'' + spaceId + '\'');
-    },
-    getValuesForParameter(targetParameter: 'logistic' | 'mining' | 'habitat'): Array<MoonParamLevel> {
-      let curValue: number;
-
-      switch (targetParameter) {
-      case 'logistic':
-        curValue = this.model.logisticRate;
-        break;
-      case 'mining':
-        curValue = this.model.miningRate;
-        break;
-      case 'habitat':
-        curValue = this.model.habitatRate;
-        break;
-      default:
-        throw new Error('Wrong parameter to get values from: ' + targetParameter);
-      }
-
-      const values = [];
-      for (let value = 8; value >= 0; value -= 1) {
-        values.push({
-          value: value,
-          isActive: value === curValue,
-          strValue: value.toString(),
-        });
-      }
-      return values;
-    },
-    getScaleCSS(paramLevel: MoonParamLevel): string {
-      let css = 'global-numbers-value val-' + paramLevel.value + ' ';
-      if (paramLevel.value === 0) {
-        css += 'zero-gap ';
-      }
-      if (paramLevel.isActive) {
-        css += 'val-is-active';
-      }
-      return css;
-    },
+  tileView: {
+    type: String as () => TileView,
+    default: 'show',
   },
 });
+
+function getAllNonColonySpaces(): Array<SpaceModel> {
+  const boardSpaces: Array<SpaceModel> = [...props.model.spaces];
+  boardSpaces.sort(
+    (space1: SpaceModel, space2: SpaceModel) => {
+      return parseInt(space1.id) - parseInt(space2.id);
+    },
+  );
+  return boardSpaces.filter((s: SpaceModel) => {
+    return s.spaceType !== SpaceType.COLONY;
+  });
+}
+function getSpaceById(spaceId: SpaceId) {
+  for (const space of props.model.spaces) {
+    if (space.id === spaceId) {
+      return space;
+    }
+  }
+  throw new Error('Board space not found by id \'' + spaceId + '\'');
+}
+function getValuesForParameter(targetParameter: 'logistic' | 'mining' | 'habitat'): Array<MoonParamLevel> {
+  let curValue: number;
+
+  switch (targetParameter) {
+  case 'logistic':
+    curValue = props.model.logisticRate;
+    break;
+  case 'mining':
+    curValue = props.model.miningRate;
+    break;
+  case 'habitat':
+    curValue = props.model.habitatRate;
+    break;
+  default:
+    throw new Error('Wrong parameter to get values from: ' + targetParameter);
+  }
+
+  const values = [];
+  for (let value = 8; value >= 0; value -= 1) {
+    values.push({
+      value: value,
+      isActive: value === curValue,
+      strValue: value.toString(),
+    });
+  }
+  return values;
+}
+function getScaleCSS(paramLevel: MoonParamLevel): string {
+  let css = 'global-numbers-value val-' + paramLevel.value + ' ';
+  if (paramLevel.value === 0) {
+    css += 'zero-gap ';
+  }
+  if (paramLevel.isActive) {
+    css += 'val-is-active';
+  }
+  return css;
+}
 </script>
