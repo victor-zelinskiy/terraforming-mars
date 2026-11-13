@@ -1,17 +1,4 @@
 <template>
-  <!--
-    THE CELL'S PORTRAIT (TR67 «КЛЕТКА — ОДНО ДОСЬЕ») — the head of the board
-    column in every mode: the square at scene scale (its tile's real art, or
-    its printed bonus as large icons on its kind's ground), the owner's cube,
-    the tile's own points, and its SIX NEIGHBOURS around it in the board's true
-    geometry — each wearing the relation tone the board lights it with and,
-    when the server states one, what that ONE neighbour means for this cell.
-
-    DATA, NOT MOTION: a d-pad step swaps the portrait's content in the same
-    frame (nothing here has a transition); the slots themselves never move —
-    the six neighbour positions are fixed by CSS, so the geometry is constant
-    from one cell to the next and an edge simply draws no hex.
-  -->
   <div class="con-cellp" :class="{'con-cellp--ring': ring.length > 0}"
        data-cell-portrait :data-cell-space="portrait.space">
     <div class="con-cellp__stage">
@@ -63,95 +50,99 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE CELL'S PORTRAIT (TR67 «КЛЕТКА — ОДНО ДОСЬЕ») — the head of the board
+ * column in every mode: the square at scene scale (its tile's real art, or
+ * its printed bonus as large icons on its kind's ground), the owner's cube,
+ * the tile's own points, and its SIX NEIGHBOURS around it in the board's true
+ * geometry — each wearing the relation tone the board lights it with and,
+ * when the server states one, what that ONE neighbour means for this cell.
+ *
+ * DATA, NOT MOTION: a d-pad step swaps the portrait's content in the same
+ * frame (nothing here has a transition); the slots themselves never move —
+ * the six neighbour positions are fixed by CSS, so the geometry is constant
+ * from one cell to the next and an edge simply draws no hex.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * Presentation only — what the portrait SAYS (the ring's tones and chips, the
  * marks, the tile's own points) is decided by the pure `cellDossier.ts` over
  * the server's `BoardCellInfo.portrait`; this file only draws it.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import {CellPortrait, CellPortraitPiece} from '@/common/boards/BoardInformationFacts';
 import {SpaceType} from '@/common/boards/SpaceType';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {cellBonusIcons} from '@/client/console/revealStageHead';
 import {CellMark, CellRingSlot} from '@/client/console/cellDossier';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 
-export default defineComponent({
-  name: 'ConsoleCellPortrait',
-  components: {ConsoleVpBadge},
-  props: {
-    portrait: {type: Object as PropType<CellPortrait>, required: true},
-    ring: {type: Array as PropType<ReadonlyArray<CellRingSlot>>, default: () => []},
-    marks: {type: Array as PropType<ReadonlyArray<CellMark>>, default: () => []},
-    ownVp: {type: Number as PropType<number | undefined>, default: undefined},
-    /** Ares tile-art variants are active (`tileCssClassOf` needs the flag). */
-    aresTiles: {type: Boolean, default: false},
-  },
-  computed: {
-    Math(): Math {
-      return Math;
-    },
-    centreArt(): string {
-      return this.artClass(this.portrait);
-    },
-    underArt(): string {
-      const under = this.portrait.under;
-      if (under === undefined) {
-        return '';
-      }
-      const suffix = tileCssClassOf(under, this.aresTiles);
-      return suffix === '' ? '' : 'board-space-tile--' + suffix;
-    },
-    bonusIcons(): Array<string> {
-      return cellBonusIcons(this.portrait.bonus);
-    },
-  },
-  methods: {
-    /** The board's own tile art for a piece ('' = an empty square). */
-    artClass(piece: CellPortraitPiece): string {
-      if (piece.tileType === undefined) {
-        return '';
-      }
-      const suffix = tileCssClassOf(piece.tileType, this.aresTiles);
-      return suffix === '' ? '' : 'board-space-tile--' + suffix;
-    },
-    /** The square's printed kind as its ground (land / an ocean reserve / a reserved square). */
-    groundClass(piece: CellPortraitPiece): string {
-      if (piece.reserved !== undefined) {
-        return 'con-cellp__hex--reserved';
-      }
-      switch (piece.spaceType) {
-      case SpaceType.OCEAN: return 'con-cellp__hex--ocean';
-      // A cove is TWO surfaces — the field's own two halves (ocean left, land right; a volcanic cove's land half volcanic).
-      case SpaceType.COVE: return piece.volcanic === true ? 'con-cellp__hex--cove-volcanic' : 'con-cellp__hex--cove';
-      case SpaceType.DEFLECTION_ZONE: return 'con-cellp__hex--deflection';
-      default: return piece.volcanic === true ? 'con-cellp__hex--volcanic' : 'con-cellp__hex--land';
-      }
-    },
-    nbClasses(slot: CellRingSlot): Array<string> {
-      const out = ['con-cellp__nb--d' + slot.dir];
-      if (slot.piece === undefined) {
-        out.push('con-cellp__nb--edge');
-      } else if (slot.tone !== undefined) {
-        out.push('con-cellp__nb--lit', 'con-cellp__nb--' + slot.tone);
-      } else if (slot.piece.tileType === undefined) {
-        out.push('con-cellp__nb--quiet');
-      }
-      return out;
-    },
-    chipKey(slot: CellRingSlot): string {
-      const c = slot.chip;
-      return c === undefined ? '' : `${c.delta?.icon ?? ''}${c.delta?.amount ?? ''}|${c.vp ?? ''}|${c.for ?? ''}`;
-    },
-    iconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-    markText(mark: CellMark): string {
-      return mark.params !== undefined ? translateTextWithParams(mark.key, [...mark.params]) : translateText(mark.key);
-    },
-  },
+defineOptions({name: 'ConsoleCellPortrait'});
+const props = defineProps({
+  portrait: {type: Object as PropType<CellPortrait>, required: true},
+  ring: {type: Array as PropType<ReadonlyArray<CellRingSlot>>, default: () => []},
+  marks: {type: Array as PropType<ReadonlyArray<CellMark>>, default: () => []},
+  ownVp: {type: Number as PropType<number | undefined>, default: undefined},
+  /** Ares tile-art variants are active (`tileCssClassOf` needs the flag). */
+  aresTiles: {type: Boolean, default: false},
 });
+
+const centreArt = computed((): string => {
+  return artClass(props.portrait);
+});
+const underArt = computed((): string => {
+  const under = props.portrait.under;
+  if (under === undefined) {
+    return '';
+  }
+  const suffix = tileCssClassOf(under, props.aresTiles);
+  return suffix === '' ? '' : 'board-space-tile--' + suffix;
+});
+const bonusIcons = computed((): Array<string> => {
+  return cellBonusIcons(props.portrait.bonus);
+});
+/** The board's own tile art for a piece ('' = an empty square). */
+function artClass(piece: CellPortraitPiece): string {
+  if (piece.tileType === undefined) {
+    return '';
+  }
+  const suffix = tileCssClassOf(piece.tileType, props.aresTiles);
+  return suffix === '' ? '' : 'board-space-tile--' + suffix;
+}
+/** The square's printed kind as its ground (land / an ocean reserve / a reserved square). */
+function groundClass(piece: CellPortraitPiece): string {
+  if (piece.reserved !== undefined) {
+    return 'con-cellp__hex--reserved';
+  }
+  switch (piece.spaceType) {
+  case SpaceType.OCEAN: return 'con-cellp__hex--ocean';
+  // A cove is TWO surfaces — the field's own two halves (ocean left, land right; a volcanic cove's land half volcanic).
+  case SpaceType.COVE: return piece.volcanic === true ? 'con-cellp__hex--cove-volcanic' : 'con-cellp__hex--cove';
+  case SpaceType.DEFLECTION_ZONE: return 'con-cellp__hex--deflection';
+  default: return piece.volcanic === true ? 'con-cellp__hex--volcanic' : 'con-cellp__hex--land';
+  }
+}
+function nbClasses(slot: CellRingSlot): Array<string> {
+  const out = ['con-cellp__nb--d' + slot.dir];
+  if (slot.piece === undefined) {
+    out.push('con-cellp__nb--edge');
+  } else if (slot.tone !== undefined) {
+    out.push('con-cellp__nb--lit', 'con-cellp__nb--' + slot.tone);
+  } else if (slot.piece.tileType === undefined) {
+    out.push('con-cellp__nb--quiet');
+  }
+  return out;
+}
+function chipKey(slot: CellRingSlot): string {
+  const c = slot.chip;
+  return c === undefined ? '' : `${c.delta?.icon ?? ''}${c.delta?.amount ?? ''}|${c.vp ?? ''}|${c.for ?? ''}`;
+}
+const iconClass = iconClassFor;
+function markText(mark: CellMark): string {
+  return mark.params !== undefined ? translateTextWithParams(mark.key, [...mark.params]) : translateText(mark.key);
+}
 </script>
