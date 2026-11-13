@@ -42,11 +42,12 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {computed, onMounted, ref} from 'vue';
 import * as constants from '@/common/constants';
 import {translateTextWithParams} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import GameOverview from '@/client/components/admin/GameOverview.vue';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {GameId, ParticipantId} from '@/common/Types';
@@ -57,145 +58,125 @@ type FetchStatus = {
   game: SimpleGameModel | undefined;
   status: 'loading' | 'error' | 'done';
 }
-type DataModel = {
-  entries: Array<FetchStatus>,
-  selectedGameIds: Array<GameId>,
-  bulkDeleting: boolean,
-  bulkDeletingGameIds: Array<GameId>,
-};
 
 // Copied from routes/Game.ts and probably IDatabase. Should be centralized I suppose
 type Response = {gameId: GameId, participants: Array<ParticipantId>};
 
-export default defineComponent({
-  name: 'games-overview',
-  data(): DataModel {
-    return {
-      entries: [],
-      selectedGameIds: [],
-      bulkDeleting: false,
-      bulkDeletingGameIds: [],
-    };
-  },
-  mounted() {
-    this.getGames();
-  },
-  components: {
-    GameOverview,
-  },
-  methods: {
-    async getGames() {
-      try {
-        const response = await fetch(apiUrl('api/games?serverId=' + this.serverId));
-        if (!response.ok) {
-          alert('Unexpected response fetching games from API');
-          return;
-        }
-        const result: Response[] = await response.json();
-        if (result instanceof Array) {
-          this.entries = result.map((response) => ({
-            id: response.gameId,
-            game: undefined,
-            status: 'loading',
-          }));
-          this.entries.forEach((_, idx) => this.getGame(idx));
-        } else {
-          alert('Unexpected response fetching games from API');
-        }
-      } catch (error) {
-        alert('Error getting games data');
-      }
-    },
-    async getGame(idx: number) {
-      if (idx >= this.entries.length) {
-        return;
-      }
-      const entry = this.entries[idx];
-      const gameId = entry.id;
-      try {
-        const response = await fetch(apiUrl('api/game?id=' + gameId));
-        if (response.ok) {
-          const game = await response.json() as SimpleGameModel;
-          entry.status = 'done';
-          entry.game = game;
-        } else {
-          entry.status = 'error';
-        }
-      } catch (error) {
-        entry.status = 'error';
-      }
-    },
-    onGameDeleted(gameId: GameId) {
-      this.entries = this.entries.filter((entry) => entry.id !== gameId);
-      this.selectedGameIds = this.selectedGameIds.filter((id) => id !== gameId);
-      this.bulkDeletingGameIds = this.bulkDeletingGameIds.filter((id) => id !== gameId);
-    },
-    onGameSelected(payload: {id: GameId, selected: boolean}) {
-      if (payload.selected) {
-        if (!this.selectedGameIds.includes(payload.id)) {
-          this.selectedGameIds.push(payload.id);
-        }
+defineOptions({name: 'games-overview'});
+
+const entries = ref<Array<FetchStatus>>([]);
+const selectedGameIds = ref<Array<GameId>>([]);
+const bulkDeleting = ref(false);
+const bulkDeletingGameIds = ref<Array<GameId>>([]);
+const serverId = computed((): string => {
+  const href = typeof location === 'undefined' ? window.location.href : location.href;
+  return (new URL(href)).searchParams.get('serverId') || '';
+});
+const selectedCount = computed((): number => {
+  return selectedGameIds.value.length;
+});
+const allGamesSelected = computed((): boolean => {
+  return entries.value.length > 0 && selectedGameIds.value.length === entries.value.length;
+});
+async function getGames() {
+  try {
+    const response = await fetch(apiUrl('api/games?serverId=' + serverId.value));
+    if (!response.ok) {
+      alert('Unexpected response fetching games from API');
+      return;
+    }
+    const result: Response[] = await response.json();
+    if (result instanceof Array) {
+      entries.value = result.map((response) => ({
+        id: response.gameId,
+        game: undefined,
+        status: 'loading',
+      }));
+      entries.value.forEach((_, idx) => getGame(idx));
+    } else {
+      alert('Unexpected response fetching games from API');
+    }
+  } catch (error) {
+    alert('Error getting games data');
+  }
+}
+async function getGame(idx: number) {
+  if (idx >= entries.value.length) {
+    return;
+  }
+  const entry = entries.value[idx];
+  const gameId = entry.id;
+  try {
+    const response = await fetch(apiUrl('api/game?id=' + gameId));
+    if (response.ok) {
+      const game = await response.json() as SimpleGameModel;
+      entry.status = 'done';
+      entry.game = game;
+    } else {
+      entry.status = 'error';
+    }
+  } catch (error) {
+    entry.status = 'error';
+  }
+}
+function onGameDeleted(gameId: GameId) {
+  entries.value = entries.value.filter((entry) => entry.id !== gameId);
+  selectedGameIds.value = selectedGameIds.value.filter((id) => id !== gameId);
+  bulkDeletingGameIds.value = bulkDeletingGameIds.value.filter((id) => id !== gameId);
+}
+function onGameSelected(payload: {id: GameId, selected: boolean}) {
+  if (payload.selected) {
+    if (!selectedGameIds.value.includes(payload.id)) {
+      selectedGameIds.value.push(payload.id);
+    }
+  } else {
+    selectedGameIds.value = selectedGameIds.value.filter((id) => id !== payload.id);
+  }
+}
+function toggleAllGames(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  selectedGameIds.value = checked ? entries.value.map((entry) => entry.id) : [];
+}
+function clearSelection() {
+  selectedGameIds.value = [];
+}
+async function bulkDeleteSelected() {
+  if (bulkDeleting.value) {
+    return;
+  }
+  const ids = selectedGameIds.value.filter((id) => entries.value.some((entry) => entry.id === id));
+  if (ids.length === 0) {
+    return;
+  }
+  if (!confirm(translateTextWithParams('Delete the selected games (${0}) from the database? This action cannot be undone.', [String(ids.length)]))) {
+    return;
+  }
+
+  bulkDeleting.value = true;
+  bulkDeletingGameIds.value = ids.slice();
+  const failed: Array<GameId> = [];
+
+  for (const id of ids) {
+    try {
+      const response = await fetch(apiUrl(`api/game/delete?serverId=${encodeURIComponent(serverId.value)}&id=${encodeURIComponent(id)}`), {method: 'POST'});
+      if (response.ok) {
+        onGameDeleted(id);
       } else {
-        this.selectedGameIds = this.selectedGameIds.filter((id) => id !== payload.id);
+        failed.push(id);
       }
-    },
-    toggleAllGames(event: Event) {
-      const checked = (event.target as HTMLInputElement).checked;
-      this.selectedGameIds = checked ? this.entries.map((entry) => entry.id) : [];
-    },
-    clearSelection() {
-      this.selectedGameIds = [];
-    },
-    async bulkDeleteSelected() {
-      if (this.bulkDeleting) {
-        return;
-      }
-      const ids = this.selectedGameIds.filter((id) => this.entries.some((entry) => entry.id === id));
-      if (ids.length === 0) {
-        return;
-      }
-      if (!confirm(translateTextWithParams('Delete the selected games (${0}) from the database? This action cannot be undone.', [String(ids.length)]))) {
-        return;
-      }
+    } catch (error) {
+      failed.push(id);
+    }
+  }
 
-      this.bulkDeleting = true;
-      this.bulkDeletingGameIds = ids.slice();
-      const failed: Array<GameId> = [];
+  bulkDeleting.value = false;
+  bulkDeletingGameIds.value = [];
+  if (failed.length > 0) {
+    alert(translateTextWithParams('Failed to delete ${0} game(s). They remain in the list.', [String(failed.length)]));
+  }
+}
 
-      for (const id of ids) {
-        try {
-          const response = await fetch(apiUrl(`api/game/delete?serverId=${encodeURIComponent(this.serverId)}&id=${encodeURIComponent(id)}`), {method: 'POST'});
-          if (response.ok) {
-            this.onGameDeleted(id);
-          } else {
-            failed.push(id);
-          }
-        } catch (error) {
-          failed.push(id);
-        }
-      }
-
-      this.bulkDeleting = false;
-      this.bulkDeletingGameIds = [];
-      if (failed.length > 0) {
-        alert(translateTextWithParams('Failed to delete ${0} game(s). They remain in the list.', [String(failed.length)]));
-      }
-    },
-  },
-  computed: {
-    constants(): typeof constants {
-      return constants;
-    },
-    serverId(): string {
-      const href = typeof location === 'undefined' ? window.location.href : location.href;
-      return (new URL(href)).searchParams.get('serverId') || '';
-    },
-    selectedCount(): number {
-      return this.selectedGameIds.length;
-    },
-    allGamesSelected(): boolean {
-      return this.entries.length > 0 && this.selectedGameIds.length === this.entries.length;
-    },
-  },
+onMounted(() => {
+  getGames();
 });
 </script>
