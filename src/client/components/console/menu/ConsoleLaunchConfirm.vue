@@ -67,7 +67,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * LAUNCH CEREMONY (console create) — the final confirm overlay: the party at
  * a glance (crew / map / expansions), then ONE unambiguous context where
@@ -75,7 +75,7 @@
  * `submitPremiumCreateGame`, owned by the screen root). While creating, the
  * pad is swallowed by the root and the spinner owns the card.
  */
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 import {Color} from '@/common/Color';
 import {createGameState, isCampaignMode} from '@/client/components/create/premium/createGameState';
 import {botSeated, selectedMapKey} from '@/client/console/menu/consoleCreateModel';
@@ -91,70 +91,64 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {BoardName} from '@/common/boards/BoardName';
 import {Expansion} from '@/common/cards/GameModule';
 import {deckCompositionState} from '@/client/console/menu/deckCompositionState';
-import {deckLine} from '@/client/console/menu/deckCompositionModel';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {deckLine as deckLineOf} from '@/client/console/menu/deckCompositionModel';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleLaunchConfirm',
-  components: {PremiumMapFingerprint, GamepadGlyph},
-  emits: ['confirm', 'cancel'],
-  computed: {
-    campaign(): boolean {
-      return isCampaignMode();
-    },
-    freezeNote(): string {
-      return translateTextWithParams('The roster, rules and expansions freeze for the whole campaign (missions: ${0}); its route of unique boards is generated once.',
-        [String(createGameState.config.campaignMissionCount)]);
-    },
-    /** The campaign's route in one line — its length (the creator's dial) and how the boards come. */
-    routeLine(): string {
-      return translateTextWithParams('Missions: ${0} · unique boards, generated at assembly', [String(createGameState.config.campaignMissionCount)]) +
-        ' · ' + translateText(createGameState.config.campaignRewardMode === 'tenders' ? 'Tenders' : 'Titles');
-    },
-    humanChips(): ReadonlyArray<{index: number, name: string, color: Color}> {
-      return createGameState.config.players.map((p, index) => ({index, name: p.name.trim(), color: p.color}));
-    },
-    bot(): boolean {
-      return botSeated();
-    },
-    botDifficultyLabel(): string {
-      return botDifficultyMeta(createGameState.config.botDifficulty).labelKey;
-    },
-    mapLabel(): string {
-      return mapMeta(selectedMapKey()).labelKey;
-    },
-    mapAccent(): string {
-      return mapMeta(selectedMapKey()).accent;
-    },
-    mapRandom(): boolean {
-      return mapMeta(selectedMapKey()).random;
-    },
-    mapBoardId(): BoardName | undefined {
-      const meta = mapMeta(selectedMapKey());
-      return meta.random ? undefined : meta.id as BoardName;
-    },
-    enabledExpansions(): ReadonlyArray<PremiumExpansionMeta> {
-      const selected = createGameState.config.selectedExpansions;
-      return PREMIUM_EXPANSIONS.filter((e) => selected[e.id] === true);
-    },
-    creating(): boolean {
-      return createGameState.creating;
-    },
-    error(): string {
-      return createGameState.error;
-    },
-    deckLine(): ReturnType<typeof deckLine> {
-      const composition = deckCompositionState.composition;
-      return composition === undefined ? [] : deckLine(composition);
-    },
-  },
-  methods: {
-    icon(id: Expansion): string {
-      return expansionIcon(id);
-    },
-    readPart(part: {key: string, amount: number}): string {
-      return translateTextWithParams(part.key, [String(part.amount)]);
-    },
-  },
+defineOptions({name: 'ConsoleLaunchConfirm'});
+defineEmits(['confirm', 'cancel']);
+
+const campaign = computed((): boolean => {
+  return isCampaignMode();
 });
+const freezeNote = computed((): string => {
+  return translateTextWithParams('The roster, rules and expansions freeze for the whole campaign (missions: ${0}); its route of unique boards is generated once.',
+    [String(createGameState.config.campaignMissionCount)]);
+});
+/** The campaign's route in one line — its length (the creator's dial) and how the boards come. */
+const routeLine = computed((): string => {
+  return translateTextWithParams('Missions: ${0} · unique boards, generated at assembly', [String(createGameState.config.campaignMissionCount)]) +
+    ' · ' + translateText(createGameState.config.campaignRewardMode === 'tenders' ? 'Tenders' : 'Titles');
+});
+const humanChips = computed((): ReadonlyArray<{index: number, name: string, color: Color}> => {
+  return createGameState.config.players.map((p, index) => ({index, name: p.name.trim(), color: p.color}));
+});
+const bot = computed((): boolean => {
+  return botSeated();
+});
+const botDifficultyLabel = computed((): string => {
+  return botDifficultyMeta(createGameState.config.botDifficulty).labelKey;
+});
+const mapLabel = computed((): string => {
+  return mapMeta(selectedMapKey()).labelKey;
+});
+const mapAccent = computed((): string => {
+  return mapMeta(selectedMapKey()).accent;
+});
+const mapRandom = computed((): boolean => {
+  return mapMeta(selectedMapKey()).random;
+});
+const mapBoardId = computed((): BoardName | undefined => {
+  const meta = mapMeta(selectedMapKey());
+  return meta.random ? undefined : meta.id as BoardName;
+});
+const enabledExpansions = computed((): ReadonlyArray<PremiumExpansionMeta> => {
+  const selected = createGameState.config.selectedExpansions;
+  return PREMIUM_EXPANSIONS.filter((e) => selected[e.id] === true);
+});
+const creating = computed((): boolean => {
+  return createGameState.creating;
+});
+const error = computed((): string => {
+  return createGameState.error;
+});
+const deckLine = computed((): ReturnType<typeof deckLineOf> => {
+  const composition = deckCompositionState.composition;
+  return composition === undefined ? [] : deckLineOf(composition);
+});
+function icon(id: Expansion): string {
+  return expansionIcon(id);
+}
+function readPart(part: {key: string, amount: number}): string {
+  return translateTextWithParams(part.key, [String(part.amount)]);
+}
 </script>
