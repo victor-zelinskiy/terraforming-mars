@@ -1,22 +1,4 @@
 <template>
-  <!--
-    Premium FINAL SCORING REVEAL — the "reward" surface for hidden-VP games.
-    Shown the moment a hidden-score game ends, BEFORE the detailed results
-    overlay: the score is revealed category by category (TR split into its real
-    sub-parts), each player's running total counting up while their STACKED,
-    colour-segmented bar fills, so the winner stays a mystery until the swingy
-    categories land — then a winner SCAN sweeps the lanes and settles on them.
-
-    Numbers come from the SAME endgame model the results screen uses (via the
-    pure `finalScoringRevealModel` adapter) — no second source of truth. The
-    final totals are NEVER in the DOM until the winner step; lanes only ever
-    render the running (revealed-so-far) total, and a not-yet-revealed group's
-    value is never shown.
-
-    Performance: the bars reveal with `transform: scaleX()` (compositor only, no
-    layout), the only per-frame work is easing 1 number per player; everything
-    else is CSS transitions on transform/opacity. Honours reduced motion.
-  -->
   <div class="fsr" :class="{'fsr--done': phase === 'winner'}" tabindex="-1" ref="root" @keydown.esc.stop.prevent="onEsc">
     <div class="fsr__backdrop" aria-hidden="true"></div>
     <div class="fsr__aurora" aria-hidden="true"></div>
@@ -269,8 +251,29 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * Premium FINAL SCORING REVEAL — the "reward" surface for hidden-VP games.
+ * Shown the moment a hidden-score game ends, BEFORE the detailed results
+ * overlay: the score is revealed category by category (TR split into its real
+ * sub-parts), each player's running total counting up while their STACKED,
+ * colour-segmented bar fills, so the winner stays a mystery until the swingy
+ * categories land — then a winner SCAN sweeps the lanes and settles on them.
+ *
+ * Numbers come from the SAME endgame model the results screen uses (via the
+ * pure `finalScoringRevealModel` adapter) — no second source of truth. The
+ * final totals are NEVER in the DOM until the winner step; lanes only ever
+ * render the running (revealed-so-far) total, and a not-yet-revealed group's
+ * value is never shown.
+ *
+ * Performance: the bars reveal with `transform: scaleX()` (compositor only, no
+ * layout), the only per-frame work is easing 1 number per player; everything
+ * else is CSS transitions on transform/opacity. Honours reduced motion.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef} from 'vue';
 import {Color} from '@/common/Color';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {CardName} from '@/common/cards/CardName';
@@ -281,9 +284,10 @@ import {EndgameModel} from '@/client/components/endgame/endgameModel';
 import {buildFinalScoringRevealModel, cardKindTotal, FinalScoringRevealModel, FinalScoringInspectorContent, RevealGroupKey} from '@/client/components/endgame/finalScoringRevealModel';
 import {openEndgameResults} from '@/client/components/endgame/endgameState';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import FinalScoringInspector from '@/client/components/endgame/FinalScoringInspector.vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {vI18n} from '@/client/directives/vDirectives';
 
 // Base step durations (ms). Reduced motion snaps them.
 const D = {
@@ -316,672 +320,664 @@ const MIN_SEG_PCT = 0.7;
 // Group-level card list is capped; hover a subcategory for the full list.
 const MAX_GROUP_CARDS = 5;
 
-export default defineComponent({
-  name: 'FinalScoringReveal',
-  components: {FinalScoringInspector},
-  props: {
-    model: {type: Object as () => EndgameModel, required: true},
-    // Neutral lane order (seating order) so the lanes never spoil the result.
-    playerOrder: {type: Array as () => ReadonlyArray<Color>, required: true},
-    // Resource counts on each player's cards (card name → units) — for the
-    // inspector's resource-card detail. Optional → absent rows just omit it.
-    cardResources: {type: Object as () => Partial<Record<Color, Partial<Record<CardName, number>>>> | undefined, default: undefined},
-  },
-  setup() {
-    return {flow: useFlowScope('final-scoring-reveal')};
-  },
-  data() {
+defineOptions({name: 'FinalScoringReveal'});
+const props = defineProps({
+  model: {type: Object as () => EndgameModel, required: true},
+  // Neutral lane order (seating order) so the lanes never spoil the result.
+  playerOrder: {type: Array as () => ReadonlyArray<Color>, required: true},
+  // Resource counts on each player's cards (card name → units) — for the
+  // inspector's resource-card detail. Optional → absent rows just omit it.
+  cardResources: {type: Object as () => Partial<Record<Color, Partial<Record<CardName, number>>>> | undefined, default: undefined},
+});
+
+const flow = useFlowScope('final-scoring-reveal');
+const inspectorWrap = useTemplateRef<HTMLElement>('inspectorWrap');
+const root = useTemplateRef<HTMLElement>('root');
+const phase = ref('intro' as Phase);
+// How many segments have been applied to the running totals.
+const revealedSegments = ref(0);
+// The segment index currently being highlighted (-1 = none / between).
+const activeSegment = ref(-1);
+// Lane index currently lit by the winner scan (-1 = none).
+const scanIndex = ref(-1);
+const showTieBreak = ref(false);
+// Animated running totals + their targets, keyed by color.
+const displayed = ref<Record<string, number>>({});
+const targets = ref<Record<string, number>>({});
+// Unified interaction state — one selection drives timeline + chips +
+// subchips + bar + popup. `hoverSub` (a segment key) scopes to a single
+// subcategory; null means the whole group.
+const hoverGroup = ref<RevealGroupKey | null>(null);
+const hoverSub = ref<string | null>(null);
+const hoverLane = ref<Color | null>(null);
+// The popup is anchor-DRIVEN: we keep the live anchor element and the
+// content, and recompute the position from a FRESH rect on every open +
+// resize / scroll / fullscreen change (never a cached coordinate).
+const inspector = ref<FinalScoringInspectorContent | undefined>(undefined);
+let inspectorAnchor: HTMLElement | undefined;
+const inspectorPos = ref({top: -9999, left: -9999} as {top: number; left: number});
+// ON THE FLOW KERNEL (architecture v2 — PLAN §10 · C1): every timer / frame below is owned by the reveal's scope
+// (`flow`) and taken back when it unmounts; the plain `let`s below are the cancels (handles — nothing reactive reads them).
+let cancelCloseTimer = (() => {}) as () => void;
+let cancelReposition: (() => void) | undefined;
+let popupObserver: ResizeObserver | undefined;
+let timers: Array<() => void> = [];
+
+const reveal = computed((): FinalScoringRevealModel => {
+  return buildFinalScoringRevealModel(props.model, props.playerOrder);
+});
+// Precomputed lane layout (stable) — segment left/width as % of maxTotal,
+// so the per-frame work is only the counters, never layout math.
+const lanes = computed((): Array<Lane> => {
+  const max = reveal.value.maxTotal;
+  return reveal.value.players.map((p) => {
+    // Positives stack left→right; penalties are placed as overlays on the
+    // TAIL of the positive bar (they reveal from the right and "eat" length).
+    let posCum = 0;
+    let penCum: number | null = null;
+    const segs: Array<LaneSeg> = reveal.value.segments.map((seg) => {
+      const v = seg.values[p.color] ?? 0;
+      let leftPct: number;
+      let subtractive = false;
+      if (v >= 0) {
+        leftPct = posCum / max * 100;
+        posCum += v;
+      } else {
+        if (penCum === null) {
+          penCum = posCum; // penalties begin at the positive end
+        }
+        penCum -= Math.abs(v);
+        leftPct = penCum / max * 100;
+        subtractive = true;
+      }
+      const widthPct = Math.max(MIN_SEG_PCT, Math.abs(v) / max * 100);
+      return {index: seg.order, key: seg.key, group: seg.group, label: seg.label, value: v, leftPct, widthPct, subtractive};
+    });
+    return {color: p.color, name: p.name, corp: p.corporation, segs};
+  });
+});
+// Groups that have begun revealing — drive the lane chips.
+const startedGroupsFor = computed(() => {
+  return reveal.value.groups.filter((g) => groupStarted(g.key));
+});
+const activeGroupKey = computed((): RevealGroupKey | undefined => {
+  return activeSegment.value >= 0 ? reveal.value.segments[activeSegment.value]?.group : undefined;
+});
+// The TWO PERMANENT breakdown rows (Terraform rating + Cards). Each is
+// ALWAYS reserved — its full set of sub-segments is fixed at build time, so
+// the rows never appear/disappear and the lane height stays stable. Chips
+// change STATE (ghost → revealed) instead of the row showing/hiding.
+const breakdownRows = computed((): Array<{group: RevealGroupKey; accent: string; shortLabel: string; subs: Array<{index: number; key: string; group: RevealGroupKey; label: string; accent: string}>}> => {
+  const subsFor = (g: RevealGroupKey) => reveal.value.segments
+    .filter((s) => s.group === g)
+    .map((s) => ({index: s.order, key: s.key, group: s.group, label: s.label, accent: s.key}));
+  return [
+    {group: 'tr', accent: 'tr-cards', shortLabel: 'TR', subs: subsFor('tr')},
+    {group: 'cards', accent: 'cards', shortLabel: 'Cards', subs: subsFor('cards')},
+  ];
+});
+// The current leader by the categories revealed SO FAR (running totals).
+// Neutral mid-reveal status — NOT the final winner.
+const leader = computed((): {colors: Array<Color>; total: number; margin: number} => {
+  const totals = reveal.value.players.map((p) => targets.value[p.color] ?? 0);
+  const max = totals.length > 0 ? Math.max(...totals) : 0;
+  const colors = reveal.value.players.filter((p) => (targets.value[p.color] ?? 0) === max).map((p) => p.color);
+  const sorted = [...totals].sort((a, b) => b - a);
+  const margin = sorted.length > 1 ? sorted[0] - sorted[1] : 0;
+  return {colors, total: max, margin};
+});
+// The current-stage block content (group label + sub-part + "Stage i of N").
+const activeStage = computed((): {accent: string; groupLabel: string; subLabel: string; description: string; index: number} | undefined => {
+  if (activeSegment.value < 0) {
+    return undefined;
+  }
+  const seg = reveal.value.segments[activeSegment.value];
+  const gi = reveal.value.groups.findIndex((g) => g.key === seg.group);
+  const group = reveal.value.groups[gi];
+  if (group === undefined) {
+    return undefined;
+  }
+  // Only show the sub-part line for a multi-segment group (TR / Cards / Penalties).
+  const subLabel = group.segmentIndexes.length > 1 ? seg.label : '';
+  return {accent: group.accent, groupLabel: group.label, subLabel, description: group.description, index: gi + 1};
+});
+const winnerNames = computed((): string => {
+  return reveal.value.winners.map((c) => nameOf(c)).join(' · ');
+});
+// Leader-panel display text (mid-reveal) — single leader vs tie.
+const leaderTitleKey = computed((): string => {
+  return leader.value.colors.length > 1 ? 'Tie for the lead' : 'Leader after revealed categories';
+});
+const leaderNames = computed((): string => {
+  return leader.value.colors.map((c) => nameOf(c)).join(' · ');
+});
+const leaderMarginText = computed((): string => {
+  return translateTextWithParams('+${0} ahead of the runner-up', [String(leader.value.margin)]);
+});
+// Translated + substituted here (NOT via v-i18n="[params]", which mutates the
+// template text on first run and then sticks — "Stage 1 of N" forever).
+const stageStepText = computed((): string => {
+  if (activeStage.value === undefined) {
+    return '';
+  }
+  return translateTextWithParams('Stage ${0} of ${1}', [String(activeStage.value.index), String(reveal.value.groups.length)]);
+});
+
+function nameOf(color: Color): string {
+  const p = reveal.value.players.find((pp) => pp.color === color);
+  return p !== undefined ? participantDisplayName(p) : '';
+}
+function displayedTotal(color: Color): number {
+  return Math.round(displayed.value[color] ?? 0);
+}
+// Running revealed value of a group for a player (sum of its revealed segments).
+function groupValue(group: RevealGroupKey, color: Color): number {
+  const g = reveal.value.groups.find((x) => x.key === group);
+  if (g === undefined) {
+    return 0;
+  }
+  let sum = 0;
+  for (const i of g.segmentIndexes) {
+    if (i < revealedSegments.value) {
+      sum += reveal.value.segments[i].values[color] ?? 0;
+    }
+  }
+  return sum;
+}
+function groupStarted(group: RevealGroupKey): boolean {
+  const g = reveal.value.groups.find((x) => x.key === group);
+  return g !== undefined && g.segmentIndexes.some((i) => i < revealedSegments.value);
+}
+function groupDone(group: RevealGroupKey): boolean {
+  const g = reveal.value.groups.find((x) => x.key === group);
+  return g !== undefined && g.segmentIndexes.every((i) => i < revealedSegments.value);
+}
+function groupActive(group: RevealGroupKey): boolean {
+  return activeGroupKey.value === group;
+}
+function hasSubs(group: RevealGroupKey): boolean {
+  const g = reveal.value.groups.find((x) => x.key === group);
+  return g !== undefined && g.segmentIndexes.length > 1;
+}
+// Hover only on fully-revealed groups — never implies a future value.
+function canHover(group: RevealGroupKey): boolean {
+  return groupDone(group);
+}
+// Unified highlight: one selection (group or sub-segment) lights up the
+// matching timeline node / chip / subchip / bar segment, dims the rest.
+// Pass (group) for a top-level element, (group, subKey) for a sub element.
+function hlClass(group: RevealGroupKey, subKey?: string): string {
+  if (hoverSub.value !== null) {
+    if (subKey !== undefined) {
+      return subKey === hoverSub.value ? 'fsr-hl' : 'fsr-dim';
+    }
+    return group === hoverGroup.value ? 'fsr-hl' : 'fsr-dim';
+  }
+  if (hoverGroup.value === null) {
+    return '';
+  }
+  return group === hoverGroup.value ? 'fsr-hl' : 'fsr-dim';
+}
+function pendingFor(color: Color): number {
+  if (phase.value !== 'revealing' || activeSegment.value < 0) {
+    return 0;
+  }
+  return reveal.value.segments[activeSegment.value]?.values[color] ?? 0;
+}
+function isWinnerLane(color: Color): boolean {
+  return phase.value === 'winner' && reveal.value.winners.includes(color);
+}
+// Mid-reveal leader lane — a NEUTRAL marker, never the gold winner treatment.
+function isLeaderLane(color: Color): boolean {
+  return (phase.value === 'revealing' || phase.value === 'tiebreak' || phase.value === 'winnerScan') &&
+    revealedSegments.value > 0 && leader.value.colors.length === 1 && leader.value.colors[0] === color;
+}
+// Running revealed value of a single sub-segment (for the subchips).
+function subValue(segIndex: number, color: Color): number {
+  return reveal.value.segments[segIndex]?.values[color] ?? 0;
+}
+// The two groups that have a PERMANENT breakdown row — their detail lives in
+// those rows, so their top-level chip only highlights (never opens a popup).
+function hasBreakdownRow(group: RevealGroupKey): boolean {
+  return group === 'tr' || group === 'cards';
+}
+function subRevealed(segIndex: number): boolean {
+  return segIndex < revealedSegments.value;
+}
+// ── Hover / inspector ──────────────────────────────────────────────
+// A TOP-LEVEL category (pill or chip): TR / Cards only HIGHLIGHT (their
+// detail is the always-visible breakdown row); every other (leaf) category
+// opens its own scoped popup directly.
+function onPillHover(group: RevealGroupKey, evt: Event): void {
+  if (hasBreakdownRow(group)) {
+    highlightOnly(group);
+  } else {
+    setHover(group, null, null, evt);
+  }
+}
+function onChipHover(group: RevealGroupKey, color: Color, evt: Event): void {
+  if (hasBreakdownRow(group)) {
+    highlightOnly(group);
+  } else {
+    setHover(group, null, color, evt);
+  }
+}
+// A subchip opens its subcategory popup (only once its group is revealed —
+// setHover gates on canHover, so a ghost subchip never leaks a value).
+function onSubchipHover(group: RevealGroupKey, subKey: string, color: Color, evt: Event): void {
+  setHover(group, subKey, color, evt);
+}
+// A bar segment IS a subcategory — scope to it (unless its group has one segment).
+function onSegHover(group: RevealGroupKey, subKey: string, color: Color, evt: Event): void {
+  const g = reveal.value.groups.find((x) => x.key === group);
+  const sub = g !== undefined && g.segmentIndexes.length > 1 ? subKey : null;
+  setHover(group, sub, color, evt);
+}
+// Highlight a group everywhere WITHOUT opening a popup (top-level multi-sub).
+function highlightOnly(group: RevealGroupKey): void {
+  cancelClose();
+  hoverGroup.value = group;
+  hoverSub.value = null;
+  hoverLane.value = null;
+  inspector.value = undefined;
+}
+function setHover(group: RevealGroupKey, subKey: string | null, color: Color | null, evt: Event): void {
+  if (!canHover(group)) {
+    return;
+  }
+  cancelClose();
+  const content = buildInspectorContent(group, subKey, color);
+  const target = evt.currentTarget as HTMLElement | null;
+  if (content === undefined || target === null || typeof target.getBoundingClientRect !== 'function') {
+    return;
+  }
+  // Content + ANCHOR are set together (atomic): the popup is never showing
+  // new content at a stale position. Position is derived from the live anchor.
+  hoverGroup.value = group;
+  hoverSub.value = subKey;
+  hoverLane.value = color;
+  inspector.value = content;
+  inspectorAnchor = target;
+  reposition(content); // rough now (estimated size)
+  // Refine once the popup is laid out (real width/height) + start observing it.
+  nextTick(() => {
+    observePopup();
+    reposition();
+  });
+}
+// Recompute the popup position from a FRESH anchor rect + the popup's real
+// size. Never uses cached coordinates. Closes if the anchor went away.
+function reposition(content?: FinalScoringInspectorContent): void {
+  const anchor = inspectorAnchor;
+  if (inspector.value === undefined || anchor === undefined) {
+    return;
+  }
+  if (anchor.isConnected === false || typeof anchor.getBoundingClientRect !== 'function') {
+    clearHover(); // anchor detached → close, never leave it orphaned
+    return;
+  }
+  const r = anchor.getBoundingClientRect();
+  const c = content ?? inspector.value;
+  const popup = inspectorWrap.value ?? undefined;
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+  // Real measured size when the popup is laid out, else a content estimate.
+  const pw = popup?.offsetWidth ?? 0;
+  const ph = popup?.offsetHeight ?? 0;
+  const w = pw > 0 ? pw : 318;
+  const estH = 92 + c.subRows.length * 20 + c.cards.length * 22 + c.sources.length * 22 + c.compare.length * 22;
+  const h = ph > 0 ? ph : estH;
+  const GAP = 12;
+  // Horizontal: centre on the anchor, clamp to the viewport.
+  const left = Math.max(GAP, Math.min(r.left + r.width / 2 - w / 2, vw - w - GAP));
+  // Vertical: prefer above; flip below if it doesn't fit; clamp either way.
+  let top = r.top - GAP - h;
+  if (top < GAP) {
+    const below = r.bottom + GAP;
+    top = (below + h <= vh - GAP) ? below : Math.max(GAP, vh - h - GAP);
+  }
+  inspectorPos.value = {top, left};
+}
+// rAF-throttled reposition for high-frequency events (scroll/resize).
+function scheduleReposition(): void {
+  if (inspector.value === undefined || typeof requestAnimationFrame === 'undefined') {
+    return;
+  }
+  if (cancelReposition !== undefined) {
+    return;
+  }
+  cancelReposition = flow.afterFrame('the inspector re-positions', () => {
+    cancelReposition = undefined;
+    reposition();
+  });
+}
+function observePopup(): void {
+  if (typeof ResizeObserver === 'undefined') {
+    return;
+  }
+  const popup = inspectorWrap.value ?? undefined;
+  if (popup === undefined) {
+    return;
+  }
+  popupObserver?.disconnect();
+  popupObserver = new ResizeObserver(() => reposition());
+  popupObserver.observe(popup);
+}
+// Build the breakdown for a category (subKey === null) OR a SINGLE
+// subcategory (subKey set → scoped: only that sub-part's data). Reads
+// model.players[].breakdown — the SAME numbers the results screen uses.
+function buildInspectorContent(group: RevealGroupKey, subKey: string | null, color: Color | null): FinalScoringInspectorContent | undefined {
+  const g = reveal.value.groups.find((x) => x.key === group);
+  if (g === undefined) {
+    return undefined;
+  }
+  const seg = subKey !== null ? reveal.value.segments.find((s) => s.key === subKey) : undefined;
+  const base = {
+    group,
+    accent: seg !== undefined ? seg.key : g.accent,
+    label: seg !== undefined ? seg.label : g.label,
+    description: g.description,
+  };
+  if (color === null) {
+    // Pill hover → cross-player comparison.
     return {
-      phase: 'intro' as Phase,
-      // How many segments have been applied to the running totals.
-      revealedSegments: 0,
-      // The segment index currently being highlighted (-1 = none / between).
-      activeSegment: -1,
-      // Lane index currently lit by the winner scan (-1 = none).
-      scanIndex: -1,
-      showTieBreak: false,
-      // Animated running totals + their targets, keyed by color.
-      displayed: {} as Record<string, number>,
-      targets: {} as Record<string, number>,
-      // Unified interaction state — one selection drives timeline + chips +
-      // subchips + bar + popup. `hoverSub` (a segment key) scopes to a single
-      // subcategory; null means the whole group.
-      hoverGroup: null as RevealGroupKey | null,
-      hoverSub: null as string | null,
-      hoverLane: null as Color | null,
-      // The popup is anchor-DRIVEN: we keep the live anchor element and the
-      // content, and recompute the position from a FRESH rect on every open +
-      // resize / scroll / fullscreen change (never a cached coordinate).
-      inspector: undefined as FinalScoringInspectorContent | undefined,
-      inspectorAnchor: undefined as HTMLElement | undefined,
-      inspectorPos: {top: -9999, left: -9999} as {top: number; left: number},
-      // ON THE FLOW KERNEL (architecture v2 — PLAN §10 · C1): every timer / frame below is owned by the reveal's scope
-      // (`flow`) and taken back when it unmounts; the fields are the cancels.
-      cancelCloseTimer: (() => {}) as () => void,
-      cancelReposition: undefined as (() => void) | undefined,
-      popupObserver: undefined as ResizeObserver | undefined,
-      timers: [] as Array<() => void>,
+      ...base, playerName: '', playerColor: undefined, total: 0,
+      subRows: [], cards: [], cardsLabel: '', hint: '', sources: [], sourcesLabel: '',
+      compare: reveal.value.players.map((p) => ({color: p.color, name: p.name, value: g.values[p.color] ?? 0})),
     };
-  },
-  computed: {
-    reveal(): FinalScoringRevealModel {
-      return buildFinalScoringRevealModel(this.model, this.playerOrder);
-    },
-    // Precomputed lane layout (stable) — segment left/width as % of maxTotal,
-    // so the per-frame work is only the counters, never layout math.
-    lanes(): Array<Lane> {
-      const max = this.reveal.maxTotal;
-      return this.reveal.players.map((p) => {
-        // Positives stack left→right; penalties are placed as overlays on the
-        // TAIL of the positive bar (they reveal from the right and "eat" length).
-        let posCum = 0;
-        let penCum: number | null = null;
-        const segs: Array<LaneSeg> = this.reveal.segments.map((seg) => {
-          const v = seg.values[p.color] ?? 0;
-          let leftPct: number;
-          let subtractive = false;
-          if (v >= 0) {
-            leftPct = posCum / max * 100;
-            posCum += v;
-          } else {
-            if (penCum === null) {
-              penCum = posCum; // penalties begin at the positive end
-            }
-            penCum -= Math.abs(v);
-            leftPct = penCum / max * 100;
-            subtractive = true;
-          }
-          const widthPct = Math.max(MIN_SEG_PCT, Math.abs(v) / max * 100);
-          return {index: seg.order, key: seg.key, group: seg.group, label: seg.label, value: v, leftPct, widthPct, subtractive};
-        });
-        return {color: p.color, name: p.name, corp: p.corporation, segs};
-      });
-    },
-    // Groups that have begun revealing — drive the lane chips.
-    startedGroupsFor() {
-      return this.reveal.groups.filter((g) => this.groupStarted(g.key));
-    },
-    activeGroupKey(): RevealGroupKey | undefined {
-      return this.activeSegment >= 0 ? this.reveal.segments[this.activeSegment]?.group : undefined;
-    },
-    // The TWO PERMANENT breakdown rows (Terraform rating + Cards). Each is
-    // ALWAYS reserved — its full set of sub-segments is fixed at build time, so
-    // the rows never appear/disappear and the lane height stays stable. Chips
-    // change STATE (ghost → revealed) instead of the row showing/hiding.
-    breakdownRows(): Array<{group: RevealGroupKey; accent: string; shortLabel: string; subs: Array<{index: number; key: string; group: RevealGroupKey; label: string; accent: string}>}> {
-      const subsFor = (g: RevealGroupKey) => this.reveal.segments
-        .filter((s) => s.group === g)
-        .map((s) => ({index: s.order, key: s.key, group: s.group, label: s.label, accent: s.key}));
-      return [
-        {group: 'tr', accent: 'tr-cards', shortLabel: 'TR', subs: subsFor('tr')},
-        {group: 'cards', accent: 'cards', shortLabel: 'Cards', subs: subsFor('cards')},
-      ];
-    },
-    // The current leader by the categories revealed SO FAR (running totals).
-    // Neutral mid-reveal status — NOT the final winner.
-    leader(): {colors: Array<Color>; total: number; margin: number} {
-      const totals = this.reveal.players.map((p) => this.targets[p.color] ?? 0);
-      const max = totals.length > 0 ? Math.max(...totals) : 0;
-      const colors = this.reveal.players.filter((p) => (this.targets[p.color] ?? 0) === max).map((p) => p.color);
-      const sorted = [...totals].sort((a, b) => b - a);
-      const margin = sorted.length > 1 ? sorted[0] - sorted[1] : 0;
-      return {colors, total: max, margin};
-    },
-    // The current-stage block content (group label + sub-part + "Stage i of N").
-    activeStage(): {accent: string; groupLabel: string; subLabel: string; description: string; index: number} | undefined {
-      if (this.activeSegment < 0) {
-        return undefined;
-      }
-      const seg = this.reveal.segments[this.activeSegment];
-      const gi = this.reveal.groups.findIndex((g) => g.key === seg.group);
-      const group = this.reveal.groups[gi];
-      if (group === undefined) {
-        return undefined;
-      }
-      // Only show the sub-part line for a multi-segment group (TR / Cards / Penalties).
-      const subLabel = group.segmentIndexes.length > 1 ? seg.label : '';
-      return {accent: group.accent, groupLabel: group.label, subLabel, description: group.description, index: gi + 1};
-    },
-    winnerNames(): string {
-      return this.reveal.winners.map((c) => this.nameOf(c)).join(' · ');
-    },
-    // Leader-panel display text (mid-reveal) — single leader vs tie.
-    leaderTitleKey(): string {
-      return this.leader.colors.length > 1 ? 'Tie for the lead' : 'Leader after revealed categories';
-    },
-    leaderNames(): string {
-      return this.leader.colors.map((c) => this.nameOf(c)).join(' · ');
-    },
-    leaderMarginText(): string {
-      return translateTextWithParams('+${0} ahead of the runner-up', [String(this.leader.margin)]);
-    },
-    // Translated + substituted here (NOT via v-i18n="[params]", which mutates the
-    // template text on first run and then sticks — "Stage 1 of N" forever).
-    stageStepText(): string {
-      if (this.activeStage === undefined) {
-        return '';
-      }
-      return translateTextWithParams('Stage ${0} of ${1}', [String(this.activeStage.index), String(this.reveal.groups.length)]);
-    },
-  },
-  methods: {
-    nameOf(color: Color): string {
-      const p = this.reveal.players.find((pp) => pp.color === color);
-      return p !== undefined ? participantDisplayName(p) : '';
-    },
-    displayedTotal(color: Color): number {
-      return Math.round(this.displayed[color] ?? 0);
-    },
-    // Running revealed value of a group for a player (sum of its revealed segments).
-    groupValue(group: RevealGroupKey, color: Color): number {
-      const g = this.reveal.groups.find((x) => x.key === group);
-      if (g === undefined) {
-        return 0;
-      }
-      let sum = 0;
-      for (const i of g.segmentIndexes) {
-        if (i < this.revealedSegments) {
-          sum += this.reveal.segments[i].values[color] ?? 0;
-        }
-      }
-      return sum;
-    },
-    groupStarted(group: RevealGroupKey): boolean {
-      const g = this.reveal.groups.find((x) => x.key === group);
-      return g !== undefined && g.segmentIndexes.some((i) => i < this.revealedSegments);
-    },
-    groupDone(group: RevealGroupKey): boolean {
-      const g = this.reveal.groups.find((x) => x.key === group);
-      return g !== undefined && g.segmentIndexes.every((i) => i < this.revealedSegments);
-    },
-    groupActive(group: RevealGroupKey): boolean {
-      return this.activeGroupKey === group;
-    },
-    hasSubs(group: RevealGroupKey): boolean {
-      const g = this.reveal.groups.find((x) => x.key === group);
-      return g !== undefined && g.segmentIndexes.length > 1;
-    },
-    // Hover only on fully-revealed groups — never implies a future value.
-    canHover(group: RevealGroupKey): boolean {
-      return this.groupDone(group);
-    },
-    // Unified highlight: one selection (group or sub-segment) lights up the
-    // matching timeline node / chip / subchip / bar segment, dims the rest.
-    // Pass (group) for a top-level element, (group, subKey) for a sub element.
-    hlClass(group: RevealGroupKey, subKey?: string): string {
-      if (this.hoverSub !== null) {
-        if (subKey !== undefined) {
-          return subKey === this.hoverSub ? 'fsr-hl' : 'fsr-dim';
-        }
-        return group === this.hoverGroup ? 'fsr-hl' : 'fsr-dim';
-      }
-      if (this.hoverGroup === null) {
-        return '';
-      }
-      return group === this.hoverGroup ? 'fsr-hl' : 'fsr-dim';
-    },
-    pendingFor(color: Color): number {
-      if (this.phase !== 'revealing' || this.activeSegment < 0) {
-        return 0;
-      }
-      return this.reveal.segments[this.activeSegment]?.values[color] ?? 0;
-    },
-    isWinnerLane(color: Color): boolean {
-      return this.phase === 'winner' && this.reveal.winners.includes(color);
-    },
-    // Mid-reveal leader lane — a NEUTRAL marker, never the gold winner treatment.
-    isLeaderLane(color: Color): boolean {
-      return (this.phase === 'revealing' || this.phase === 'tiebreak' || this.phase === 'winnerScan') &&
-        this.revealedSegments > 0 && this.leader.colors.length === 1 && this.leader.colors[0] === color;
-    },
-    // Running revealed value of a single sub-segment (for the subchips).
-    subValue(segIndex: number, color: Color): number {
-      return this.reveal.segments[segIndex]?.values[color] ?? 0;
-    },
-    // The two groups that have a PERMANENT breakdown row — their detail lives in
-    // those rows, so their top-level chip only highlights (never opens a popup).
-    hasBreakdownRow(group: RevealGroupKey): boolean {
-      return group === 'tr' || group === 'cards';
-    },
-    subRevealed(segIndex: number): boolean {
-      return segIndex < this.revealedSegments;
-    },
-    // ── Hover / inspector ──────────────────────────────────────────────
-    // A TOP-LEVEL category (pill or chip): TR / Cards only HIGHLIGHT (their
-    // detail is the always-visible breakdown row); every other (leaf) category
-    // opens its own scoped popup directly.
-    onPillHover(group: RevealGroupKey, evt: Event): void {
-      if (this.hasBreakdownRow(group)) {
-        this.highlightOnly(group);
-      } else {
-        this.setHover(group, null, null, evt);
-      }
-    },
-    onChipHover(group: RevealGroupKey, color: Color, evt: Event): void {
-      if (this.hasBreakdownRow(group)) {
-        this.highlightOnly(group);
-      } else {
-        this.setHover(group, null, color, evt);
-      }
-    },
-    // A subchip opens its subcategory popup (only once its group is revealed —
-    // setHover gates on canHover, so a ghost subchip never leaks a value).
-    onSubchipHover(group: RevealGroupKey, subKey: string, color: Color, evt: Event): void {
-      this.setHover(group, subKey, color, evt);
-    },
-    // A bar segment IS a subcategory — scope to it (unless its group has one segment).
-    onSegHover(group: RevealGroupKey, subKey: string, color: Color, evt: Event): void {
-      const g = this.reveal.groups.find((x) => x.key === group);
-      const sub = g !== undefined && g.segmentIndexes.length > 1 ? subKey : null;
-      this.setHover(group, sub, color, evt);
-    },
-    // Highlight a group everywhere WITHOUT opening a popup (top-level multi-sub).
-    highlightOnly(group: RevealGroupKey): void {
-      this.cancelClose();
-      this.hoverGroup = group;
-      this.hoverSub = null;
-      this.hoverLane = null;
-      this.inspector = undefined;
-    },
-    setHover(group: RevealGroupKey, subKey: string | null, color: Color | null, evt: Event): void {
-      if (!this.canHover(group)) {
-        return;
-      }
-      this.cancelClose();
-      const content = this.buildInspectorContent(group, subKey, color);
-      const target = evt.currentTarget as HTMLElement | null;
-      if (content === undefined || target === null || typeof target.getBoundingClientRect !== 'function') {
-        return;
-      }
-      // Content + ANCHOR are set together (atomic): the popup is never showing
-      // new content at a stale position. Position is derived from the live anchor.
-      this.hoverGroup = group;
-      this.hoverSub = subKey;
-      this.hoverLane = color;
-      this.inspector = content;
-      this.inspectorAnchor = target;
-      this.reposition(content); // rough now (estimated size)
-      // Refine once the popup is laid out (real width/height) + start observing it.
-      this.$nextTick(() => {
-        this.observePopup();
-        this.reposition();
-      });
-    },
-    // Recompute the popup position from a FRESH anchor rect + the popup's real
-    // size. Never uses cached coordinates. Closes if the anchor went away.
-    reposition(content?: FinalScoringInspectorContent): void {
-      const anchor = this.inspectorAnchor;
-      if (this.inspector === undefined || anchor === undefined) {
-        return;
-      }
-      if (anchor.isConnected === false || typeof anchor.getBoundingClientRect !== 'function') {
-        this.clearHover(); // anchor detached → close, never leave it orphaned
-        return;
-      }
-      const r = anchor.getBoundingClientRect();
-      const c = content ?? this.inspector;
-      const popup = (this.$refs.inspectorWrap ?? undefined) as HTMLElement | undefined;
-      const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
-      const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-      // Real measured size when the popup is laid out, else a content estimate.
-      const pw = popup?.offsetWidth ?? 0;
-      const ph = popup?.offsetHeight ?? 0;
-      const w = pw > 0 ? pw : 318;
-      const estH = 92 + c.subRows.length * 20 + c.cards.length * 22 + c.sources.length * 22 + c.compare.length * 22;
-      const h = ph > 0 ? ph : estH;
-      const GAP = 12;
-      // Horizontal: centre on the anchor, clamp to the viewport.
-      const left = Math.max(GAP, Math.min(r.left + r.width / 2 - w / 2, vw - w - GAP));
-      // Vertical: prefer above; flip below if it doesn't fit; clamp either way.
-      let top = r.top - GAP - h;
-      if (top < GAP) {
-        const below = r.bottom + GAP;
-        top = (below + h <= vh - GAP) ? below : Math.max(GAP, vh - h - GAP);
-      }
-      this.inspectorPos = {top, left};
-    },
-    // rAF-throttled reposition for high-frequency events (scroll/resize).
-    scheduleReposition(): void {
-      if (this.inspector === undefined || typeof requestAnimationFrame === 'undefined') {
-        return;
-      }
-      if (this.cancelReposition !== undefined) {
-        return;
-      }
-      this.cancelReposition = this.flow.afterFrame('the inspector re-positions', () => {
-        this.cancelReposition = undefined;
-        this.reposition();
-      });
-    },
-    observePopup(): void {
-      if (typeof ResizeObserver === 'undefined') {
-        return;
-      }
-      const popup = (this.$refs.inspectorWrap ?? undefined) as HTMLElement | undefined;
-      if (popup === undefined) {
-        return;
-      }
-      this.popupObserver?.disconnect();
-      this.popupObserver = new ResizeObserver(() => this.reposition());
-      this.popupObserver.observe(popup);
-    },
-    // Build the breakdown for a category (subKey === null) OR a SINGLE
-    // subcategory (subKey set → scoped: only that sub-part's data). Reads
-    // model.players[].breakdown — the SAME numbers the results screen uses.
-    buildInspectorContent(group: RevealGroupKey, subKey: string | null, color: Color | null): FinalScoringInspectorContent | undefined {
-      const g = this.reveal.groups.find((x) => x.key === group);
-      if (g === undefined) {
-        return undefined;
-      }
-      const seg = subKey !== null ? this.reveal.segments.find((s) => s.key === subKey) : undefined;
-      const base = {
-        group,
-        accent: seg !== undefined ? seg.key : g.accent,
-        label: seg !== undefined ? seg.label : g.label,
-        description: g.description,
-      };
-      if (color === null) {
-        // Pill hover → cross-player comparison.
-        return {
-          ...base, playerName: '', playerColor: undefined, total: 0,
-          subRows: [], cards: [], cardsLabel: '', hint: '', sources: [], sourcesLabel: '',
-          compare: this.reveal.players.map((p) => ({color: p.color, name: p.name, value: g.values[p.color] ?? 0})),
-        };
-      }
-      const b = this.model.players.find((p) => p.color === color)?.breakdown;
-      const content: FinalScoringInspectorContent = {
-        ...base, playerName: this.nameOf(color), playerColor: color,
-        total: seg !== undefined ? (seg.values[color] ?? 0) : (g.values[color] ?? 0),
-        subRows: [], cards: [], cardsLabel: '', hint: '', sources: [], sourcesLabel: '', compare: [],
-      };
-      if (b === undefined) {
-        return content;
-      }
-      // Resources are only meaningful for RESOURCE cards (their VP = stored resources).
-      const cardOf = (d: {cardName: string; kind: CardVictoryPointsKind; victoryPoint: number}) =>
-        ({name: d.cardName as CardName, kindLabel: CARD_KIND_LABEL[d.kind], vp: d.victoryPoint, resourcesText: d.kind === 'resource' ? this.resourcesText(color, d.cardName) : undefined});
+  }
+  const b = props.model.players.find((p) => p.color === color)?.breakdown;
+  const content: FinalScoringInspectorContent = {
+    ...base, playerName: nameOf(color), playerColor: color,
+    total: seg !== undefined ? (seg.values[color] ?? 0) : (g.values[color] ?? 0),
+    subRows: [], cards: [], cardsLabel: '', hint: '', sources: [], sourcesLabel: '', compare: [],
+  };
+  if (b === undefined) {
+    return content;
+  }
+  // Resources are only meaningful for RESOURCE cards (their VP = stored resources).
+  const cardOf = (d: {cardName: string; kind: CardVictoryPointsKind; victoryPoint: number}) =>
+    ({name: d.cardName as CardName, kindLabel: CARD_KIND_LABEL[d.kind], vp: d.victoryPoint, resourcesText: d.kind === 'resource' ? resourcesText(color, d.cardName) : undefined});
 
-      // ── SCOPED: a single subcategory ──────────────────────────────────
-      if (subKey !== null) {
-        const kindBySub: Partial<Record<string, CardVictoryPointsKind>> = {'cards-fixed': 'fixed', 'cards-conditional': 'conditional', 'cards-resource': 'resource'};
-        const kind = kindBySub[subKey];
-        if (subKey === 'tr-cards') {
-          // The "Cards & effects" TR sub-part — itemise the per-source TR entries
-          // (card sources get a card preview; the rest are plain source rows).
-          content.description = 'TR gained from cards, bonuses and effects';
-          for (const e of [...b.terraformRatingBreakdown.cardEntries ?? []].sort((a, c) => c.amount - a.amount)) {
-            if (e.sourceCardId !== undefined) {
-              content.cards = [...content.cards, {name: e.sourceCardId as CardName, kindLabel: this.trSourceTypeLabel(e.sourceType, e.sourceCardId), vp: e.amount}];
-            } else {
-              content.sources = [...content.sources, {text: this.$t(e.sourceName), vp: e.amount}];
-            }
-          }
-        } else if (kind !== undefined) {
-          // Scoped to ONE card family — the title already names it, so the
-          // per-row kind label is redundant noise → drop it (keep resourcesText).
-          content.cards = b.detailsCards.filter((d) => d.kind === kind && d.victoryPoint > 0)
-            .slice().sort((a, c) => c.victoryPoint - a.victoryPoint).map((d) => ({...cardOf(d), kindLabel: ''}));
-        } else if (subKey === 'penalty-cards') {
-          content.cards = b.detailsCards.filter((d) => d.kind === 'penalty' || d.victoryPoint < 0)
-            .slice().sort((a, c) => a.victoryPoint - c.victoryPoint).map((d) => ({...cardOf(d), kindLabel: ''}));
-        } else if (subKey === 'penalty-ev' && b.escapeVelocity !== 0) {
-          content.sources = [{text: this.$t('Escape Velocity'), vp: b.escapeVelocity}];
-        } else if (subKey === 'tr-base') {
-          // "Base rating" = standard starting rating + the TR Boost. Surface the
-          // handicap ("Фора") as a sub-item INSIDE this popup (only when present).
-          const t = b.terraformRatingBreakdown;
-          const handicap = t.handicap ?? 0;
-          const baseRating = t.baseRating ?? (t.base - handicap);
-          if (handicap !== 0) {
-            content.subRows = [
-              {key: 'tr-base-standard', label: 'Starting rating', accent: 'tr-base', value: baseRating},
-              {key: 'tr-handicap', label: 'Handicap', accent: 'tr-base', value: handicap},
-            ];
-          }
+  // ── SCOPED: a single subcategory ──────────────────────────────────
+  if (subKey !== null) {
+    const kindBySub: Partial<Record<string, CardVictoryPointsKind>> = {'cards-fixed': 'fixed', 'cards-conditional': 'conditional', 'cards-resource': 'resource'};
+    const kind = kindBySub[subKey];
+    if (subKey === 'tr-cards') {
+      // The "Cards & effects" TR sub-part — itemise the per-source TR entries
+      // (card sources get a card preview; the rest are plain source rows).
+      content.description = 'TR gained from cards, bonuses and effects';
+      for (const e of [...b.terraformRatingBreakdown.cardEntries ?? []].sort((a, c) => c.amount - a.amount)) {
+        if (e.sourceCardId !== undefined) {
+          content.cards = [...content.cards, {name: e.sourceCardId as CardName, kindLabel: trSourceTypeLabel(e.sourceType, e.sourceCardId), vp: e.amount}];
+        } else {
+          content.sources = [...content.sources, {text: $t(e.sourceName), vp: e.amount}];
         }
-        // TR / moon sub-parts have no finer breakdown — the header total says it all.
-        // No section header (cardsLabel/sourcesLabel) — the title IS the category.
-        return content;
       }
+    } else if (kind !== undefined) {
+      // Scoped to ONE card family — the title already names it, so the
+      // per-row kind label is redundant noise → drop it (keep resourcesText).
+      content.cards = b.detailsCards.filter((d) => d.kind === kind && d.victoryPoint > 0)
+        .slice().sort((a, c) => c.victoryPoint - a.victoryPoint).map((d) => ({...cardOf(d), kindLabel: ''}));
+    } else if (subKey === 'penalty-cards') {
+      content.cards = b.detailsCards.filter((d) => d.kind === 'penalty' || d.victoryPoint < 0)
+        .slice().sort((a, c) => a.victoryPoint - c.victoryPoint).map((d) => ({...cardOf(d), kindLabel: ''}));
+    } else if (subKey === 'penalty-ev' && b.escapeVelocity !== 0) {
+      content.sources = [{text: $t('Escape Velocity'), vp: b.escapeVelocity}];
+    } else if (subKey === 'tr-base') {
+      // "Base rating" = standard starting rating + the TR Boost. Surface the
+      // handicap ("Фора") as a sub-item INSIDE this popup (only when present).
+      const t = b.terraformRatingBreakdown;
+      const handicap = t.handicap ?? 0;
+      const baseRating = t.baseRating ?? (t.base - handicap);
+      if (handicap !== 0) {
+        content.subRows = [
+          {key: 'tr-base-standard', label: 'Starting rating', accent: 'tr-base', value: baseRating},
+          {key: 'tr-handicap', label: 'Handicap', accent: 'tr-base', value: handicap},
+        ];
+      }
+    }
+    // TR / moon sub-parts have no finer breakdown — the header total says it all.
+    // No section header (cardsLabel/sourcesLabel) — the title IS the category.
+    return content;
+  }
 
-      // ── GROUP level: sub-breakdown + a CAPPED card list + a hint ───────
-      if (group === 'tr') {
-        const t = b.terraformRatingBreakdown;
-        content.subRows = ([
-          {key: 'tr-base', label: 'Base rating', accent: 'tr-base', value: t.base}, // incl. handicap (detailed in its own popup)
-          {key: 'tr-temperature', label: 'Temperature', accent: 'tr-temperature', value: t.temperature},
-          {key: 'tr-oxygen', label: 'Oxygen', accent: 'tr-oxygen', value: t.oxygen},
-          {key: 'tr-oceans', label: 'Oceans', accent: 'tr-oceans', value: t.oceans},
-          {key: 'tr-venus', label: 'Venus', accent: 'tr-venus', value: t.venus},
-          {key: 'tr-hazards', label: 'Hazard cleanup', accent: 'tr-hazards', value: t.hazards ?? 0},
-          {key: 'tr-cards', label: 'Cards & effects', accent: 'tr-cards', value: t.cards},
-        ]).filter((r) => r.value !== 0);
-      } else if (group === 'cards') {
-        content.subRows = ([
-          {key: 'cards-fixed', label: 'Fixed VP cards', accent: 'cards-fixed', value: cardKindTotal(b, 'fixed')},
-          {key: 'cards-conditional', label: 'Conditional cards', accent: 'cards-conditional', value: cardKindTotal(b, 'conditional')},
-          {key: 'cards-resource', label: 'Resource cards', accent: 'cards-resource', value: cardKindTotal(b, 'resource')},
-        ]).filter((r) => r.value !== 0);
-        const all = b.detailsCards.filter((d) => d.kind !== 'penalty' && d.victoryPoint > 0).slice().sort((a, c) => c.victoryPoint - a.victoryPoint);
-        content.cards = all.slice(0, MAX_GROUP_CARDS).map(cardOf);
-        content.cardsLabel = content.cards.length > 0 ? 'Top cards' : '';
-        content.hint = all.length > MAX_GROUP_CARDS ? 'Hover a subcategory for the full list' : '';
-      } else if (group === 'milestones') {
-        content.sources = b.detailsMilestones.map((m) => ({text: translateTextWithParams(m.message, m.messageArgs ?? []), vp: m.victoryPoint}));
-        content.sourcesLabel = content.sources.length > 0 ? 'Milestones' : '';
-      } else if (group === 'awards') {
-        content.sources = b.detailsAwards.map((m) => ({text: translateTextWithParams(m.message, m.messageArgs ?? []), vp: m.victoryPoint}));
-        content.sourcesLabel = content.sources.length > 0 ? 'Awards' : '';
-      } else if (group === 'penalty') {
-        content.subRows = ([
-          {key: 'penalty-cards', label: 'Card penalties', accent: 'penalty-cards', value: cardKindTotal(b, 'penalty')},
-          {key: 'penalty-ev', label: 'Escape Velocity', accent: 'penalty-ev', value: b.escapeVelocity},
-        ]).filter((r) => r.value !== 0);
-        content.cards = b.detailsCards.filter((d) => d.kind === 'penalty' || d.victoryPoint < 0)
-          .slice().sort((a, c) => a.victoryPoint - c.victoryPoint).map(cardOf);
-        content.cardsLabel = content.cards.length > 0 ? 'Card penalties' : '';
-      } else if (group === 'moon') {
-        content.subRows = ([
-          {key: 'moon-hab', label: 'Habitats', accent: 'moon', value: b.moonHabitats},
-          {key: 'moon-mine', label: 'Mines', accent: 'moon', value: b.moonMines},
-          {key: 'moon-road', label: 'Roads', accent: 'moon', value: b.moonRoads},
-        ]).filter((r) => r.value !== 0);
-      }
-      return content;
-    },
-    resourcesText(color: Color, cardName: string): string | undefined {
-      const n = this.cardResources?.[color]?.[cardName as CardName];
-      if (n === undefined || n <= 0) {
-        return undefined;
-      }
-      return translateTextWithParams('${0} res.', [String(n)]);
-    },
-    // A short "source type" label (i18n KEY — rendered via v-i18n) for a TR
-    // entry; refines a card source into prelude / CEO / corporation via the manifest.
-    trSourceTypeLabel(sourceType: string, cardId?: string): string {
-      if (sourceType === 'venusTrackBonus') {
-        return 'Track bonus';
-      }
-      if (sourceType === 'globalEvent') {
-        return 'Global event';
-      }
-      if (sourceType === 'party') {
-        return 'Party';
-      }
-      if (cardId !== undefined) {
-        const t = getCard(cardId as CardName)?.type;
-        if (t === CardType.PRELUDE) {
-          return 'Prelude';
-        }
-        if (t === CardType.CEO) {
-          return 'CEO';
-        }
-        if (t === CardType.CORPORATION || sourceType === 'corporation') {
-          return 'Corporation';
-        }
-        return 'Card';
-      }
-      return 'Effect';
-    },
-    scheduleClose(): void {
-      this.cancelClose();
-      this.cancelCloseTimer = this.flow.after(INSPECTOR_CLOSE_MS, 'the inspector\'s close bridge', () => this.clearHover());
-    },
-    cancelClose(): void {
-      this.cancelCloseTimer();
-    },
-    clearHover(): void {
-      this.cancelClose();
-      this.hoverGroup = null;
-      this.hoverSub = null;
-      this.hoverLane = null;
-      this.inspector = undefined;
-      this.inspectorAnchor = undefined;
-      this.popupObserver?.disconnect();
-      this.popupObserver = undefined;
-    },
-    // ── Controls ───────────────────────────────────────────────────────
-    dur(base: number): number {
-      if (prefersReducedMotion()) {
-        return Math.max(30, base * 0.14);
-      }
-      return base;
-    },
-    onEsc(): void {
-      if (this.phase === 'winner') {
-        this.openResults();
-      } else {
-        this.skipAnimation();
-      }
-    },
-    openResults(): void {
-      openEndgameResults();
-    },
-    setTargets(count: number): void {
-      for (const p of this.reveal.players) {
-        let sum = 0;
-        for (let i = 0; i < count; i++) {
-          sum += this.reveal.segments[i].values[p.color] ?? 0;
-        }
-        this.targets[p.color] = sum;
-      }
-    },
-    // One persistent rAF loop easing every displayed total toward its target.
-    startEaseLoop(): void {
-      if (typeof requestAnimationFrame === 'undefined') {
-        return;
-      }
-      // An owned frame loop of the reveal: it runs for the component's whole life and ends with it.
-      this.flow.everyFrame('the running totals ease', () => {
-        for (const p of this.reveal.players) {
-          const cur = this.displayed[p.color] ?? 0;
-          const tgt = this.targets[p.color] ?? 0;
-          if (Math.abs(tgt - cur) > 0.4) {
-            this.displayed[p.color] = cur + (tgt - cur) * EASE;
-          } else if (cur !== tgt) {
-            this.displayed[p.color] = tgt;
-          }
-        }
-        return true;
-      });
-    },
-    later(fn: () => void, ms: number): void {
-      this.timers.push(this.flow.after(ms, 'the next step of the scoring reveal', fn));
-    },
-    clearTimers(): void {
-      for (const cancel of this.timers) {
-        cancel();
-      }
-      this.timers = [];
-    },
-    // ── The step machine: intro → segments → (tie-break) → winner scan → winner.
-    runSequence(): void {
-      this.later(() => this.revealSegment(0), this.dur(D.intro));
-    },
-    revealSegment(index: number): void {
-      if (index >= this.reveal.segments.length) {
-        this.toFinish();
-        return;
-      }
-      this.phase = 'revealing';
-      this.activeSegment = index;
-      // Highlight (pill + stage + pending +X), then grow the bar + count up.
-      this.later(() => {
-        this.revealedSegments = index + 1;
-        this.setTargets(this.revealedSegments);
-        this.later(() => {
-          this.activeSegment = -1;
-          this.revealSegment(index + 1);
-        }, this.dur(D.count) + this.dur(D.between));
-      }, this.dur(D.highlight));
-    },
-    toFinish(): void {
-      this.setTargets(this.reveal.segments.length);
-      if (this.reveal.tieBreak !== undefined) {
-        this.phase = 'tiebreak';
-        this.showTieBreak = true;
-        this.later(() => this.startWinnerScan(), this.dur(D.tiebreak));
-      } else {
-        this.startWinnerScan();
-      }
-    },
-    startWinnerScan(): void {
-      this.phase = 'winnerScan';
-      this.scanStep(0);
-    },
-    scanStep(i: number): void {
-      if (i >= this.lanes.length) {
-        this.scanIndex = -1;
-        this.later(() => {
-          this.phase = 'winner';
-        }, this.dur(D.scanSettle));
-        return;
-      }
-      this.scanIndex = i;
-      this.later(() => this.scanStep(i + 1), this.dur(D.scanStep));
-    },
-    // Skip the animation — snap to the finished state, keep the winner CTA.
-    skipAnimation(): void {
-      this.clearTimers();
-      this.revealedSegments = this.reveal.segments.length;
-      this.activeSegment = -1;
-      this.scanIndex = -1;
-      this.setTargets(this.reveal.segments.length);
-      for (const p of this.reveal.players) {
-        this.displayed[p.color] = this.targets[p.color];
-      }
-      this.showTieBreak = this.reveal.tieBreak !== undefined;
-      this.phase = 'winner';
-    },
-  },
-  created(): void {
-    for (const p of this.reveal.players) {
-      this.displayed[p.color] = 0;
-      this.targets[p.color] = 0;
+  // ── GROUP level: sub-breakdown + a CAPPED card list + a hint ───────
+  if (group === 'tr') {
+    const t = b.terraformRatingBreakdown;
+    content.subRows = ([
+      {key: 'tr-base', label: 'Base rating', accent: 'tr-base', value: t.base}, // incl. handicap (detailed in its own popup)
+      {key: 'tr-temperature', label: 'Temperature', accent: 'tr-temperature', value: t.temperature},
+      {key: 'tr-oxygen', label: 'Oxygen', accent: 'tr-oxygen', value: t.oxygen},
+      {key: 'tr-oceans', label: 'Oceans', accent: 'tr-oceans', value: t.oceans},
+      {key: 'tr-venus', label: 'Venus', accent: 'tr-venus', value: t.venus},
+      {key: 'tr-hazards', label: 'Hazard cleanup', accent: 'tr-hazards', value: t.hazards ?? 0},
+      {key: 'tr-cards', label: 'Cards & effects', accent: 'tr-cards', value: t.cards},
+    ]).filter((r) => r.value !== 0);
+  } else if (group === 'cards') {
+    content.subRows = ([
+      {key: 'cards-fixed', label: 'Fixed VP cards', accent: 'cards-fixed', value: cardKindTotal(b, 'fixed')},
+      {key: 'cards-conditional', label: 'Conditional cards', accent: 'cards-conditional', value: cardKindTotal(b, 'conditional')},
+      {key: 'cards-resource', label: 'Resource cards', accent: 'cards-resource', value: cardKindTotal(b, 'resource')},
+    ]).filter((r) => r.value !== 0);
+    const all = b.detailsCards.filter((d) => d.kind !== 'penalty' && d.victoryPoint > 0).slice().sort((a, c) => c.victoryPoint - a.victoryPoint);
+    content.cards = all.slice(0, MAX_GROUP_CARDS).map(cardOf);
+    content.cardsLabel = content.cards.length > 0 ? 'Top cards' : '';
+    content.hint = all.length > MAX_GROUP_CARDS ? 'Hover a subcategory for the full list' : '';
+  } else if (group === 'milestones') {
+    content.sources = b.detailsMilestones.map((m) => ({text: translateTextWithParams(m.message, m.messageArgs ?? []), vp: m.victoryPoint}));
+    content.sourcesLabel = content.sources.length > 0 ? 'Milestones' : '';
+  } else if (group === 'awards') {
+    content.sources = b.detailsAwards.map((m) => ({text: translateTextWithParams(m.message, m.messageArgs ?? []), vp: m.victoryPoint}));
+    content.sourcesLabel = content.sources.length > 0 ? 'Awards' : '';
+  } else if (group === 'penalty') {
+    content.subRows = ([
+      {key: 'penalty-cards', label: 'Card penalties', accent: 'penalty-cards', value: cardKindTotal(b, 'penalty')},
+      {key: 'penalty-ev', label: 'Escape Velocity', accent: 'penalty-ev', value: b.escapeVelocity},
+    ]).filter((r) => r.value !== 0);
+    content.cards = b.detailsCards.filter((d) => d.kind === 'penalty' || d.victoryPoint < 0)
+      .slice().sort((a, c) => a.victoryPoint - c.victoryPoint).map(cardOf);
+    content.cardsLabel = content.cards.length > 0 ? 'Card penalties' : '';
+  } else if (group === 'moon') {
+    content.subRows = ([
+      {key: 'moon-hab', label: 'Habitats', accent: 'moon', value: b.moonHabitats},
+      {key: 'moon-mine', label: 'Mines', accent: 'moon', value: b.moonMines},
+      {key: 'moon-road', label: 'Roads', accent: 'moon', value: b.moonRoads},
+    ]).filter((r) => r.value !== 0);
+  }
+  return content;
+}
+function resourcesText(color: Color, cardName: string): string | undefined {
+  const n = props.cardResources?.[color]?.[cardName as CardName];
+  if (n === undefined || n <= 0) {
+    return undefined;
+  }
+  return translateTextWithParams('${0} res.', [String(n)]);
+}
+// A short "source type" label (i18n KEY — rendered via v-i18n) for a TR
+// entry; refines a card source into prelude / CEO / corporation via the manifest.
+function trSourceTypeLabel(sourceType: string, cardId?: string): string {
+  if (sourceType === 'venusTrackBonus') {
+    return 'Track bonus';
+  }
+  if (sourceType === 'globalEvent') {
+    return 'Global event';
+  }
+  if (sourceType === 'party') {
+    return 'Party';
+  }
+  if (cardId !== undefined) {
+    const t = getCard(cardId as CardName)?.type;
+    if (t === CardType.PRELUDE) {
+      return 'Prelude';
     }
-  },
-  mounted(): void {
-    this.startEaseLoop();
-    ((this.$refs.root ?? undefined) as HTMLElement | undefined)?.focus?.();
-    // Keep the open popup glued to its anchor through every viewport change.
-    if (typeof window !== 'undefined') {
-      window.addEventListener('resize', this.scheduleReposition);
-      window.addEventListener('scroll', this.scheduleReposition, true); // capture → any scroll container
-      document.addEventListener('fullscreenchange', this.scheduleReposition);
+    if (t === CardType.CEO) {
+      return 'CEO';
     }
-    if (this.reveal.segments.length === 0) {
-      this.skipAnimation();
-      return;
+    if (t === CardType.CORPORATION || sourceType === 'corporation') {
+      return 'Corporation';
     }
-    this.runSequence();
-  },
-  beforeUnmount(): void {
-    this.popupObserver?.disconnect();
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('resize', this.scheduleReposition);
-      window.removeEventListener('scroll', this.scheduleReposition, true);
-      document.removeEventListener('fullscreenchange', this.scheduleReposition);
+    return 'Card';
+  }
+  return 'Effect';
+}
+function scheduleClose(): void {
+  cancelClose();
+  cancelCloseTimer = flow.after(INSPECTOR_CLOSE_MS, 'the inspector\'s close bridge', () => clearHover());
+}
+function cancelClose(): void {
+  cancelCloseTimer();
+}
+function clearHover(): void {
+  cancelClose();
+  hoverGroup.value = null;
+  hoverSub.value = null;
+  hoverLane.value = null;
+  inspector.value = undefined;
+  inspectorAnchor = undefined;
+  popupObserver?.disconnect();
+  popupObserver = undefined;
+}
+// ── Controls ───────────────────────────────────────────────────────
+function dur(base: number): number {
+  if (prefersReducedMotion()) {
+    return Math.max(30, base * 0.14);
+  }
+  return base;
+}
+function onEsc(): void {
+  if (phase.value === 'winner') {
+    openResults();
+  } else {
+    skipAnimation();
+  }
+}
+function openResults(): void {
+  openEndgameResults();
+}
+function setTargets(count: number): void {
+  for (const p of reveal.value.players) {
+    let sum = 0;
+    for (let i = 0; i < count; i++) {
+      sum += reveal.value.segments[i].values[p.color] ?? 0;
     }
-  },
+    targets.value[p.color] = sum;
+  }
+}
+// One persistent rAF loop easing every displayed total toward its target.
+function startEaseLoop(): void {
+  if (typeof requestAnimationFrame === 'undefined') {
+    return;
+  }
+  // An owned frame loop of the reveal: it runs for the component's whole life and ends with it.
+  flow.everyFrame('the running totals ease', () => {
+    for (const p of reveal.value.players) {
+      const cur = displayed.value[p.color] ?? 0;
+      const tgt = targets.value[p.color] ?? 0;
+      if (Math.abs(tgt - cur) > 0.4) {
+        displayed.value[p.color] = cur + (tgt - cur) * EASE;
+      } else if (cur !== tgt) {
+        displayed.value[p.color] = tgt;
+      }
+    }
+    return true;
+  });
+}
+function later(fn: () => void, ms: number): void {
+  timers.push(flow.after(ms, 'the next step of the scoring reveal', fn));
+}
+function clearTimers(): void {
+  for (const cancel of timers) {
+    cancel();
+  }
+  timers = [];
+}
+// ── The step machine: intro → segments → (tie-break) → winner scan → winner.
+function runSequence(): void {
+  later(() => revealSegment(0), dur(D.intro));
+}
+function revealSegment(index: number): void {
+  if (index >= reveal.value.segments.length) {
+    toFinish();
+    return;
+  }
+  phase.value = 'revealing';
+  activeSegment.value = index;
+  // Highlight (pill + stage + pending +X), then grow the bar + count up.
+  later(() => {
+    revealedSegments.value = index + 1;
+    setTargets(revealedSegments.value);
+    later(() => {
+      activeSegment.value = -1;
+      revealSegment(index + 1);
+    }, dur(D.count) + dur(D.between));
+  }, dur(D.highlight));
+}
+function toFinish(): void {
+  setTargets(reveal.value.segments.length);
+  if (reveal.value.tieBreak !== undefined) {
+    phase.value = 'tiebreak';
+    showTieBreak.value = true;
+    later(() => startWinnerScan(), dur(D.tiebreak));
+  } else {
+    startWinnerScan();
+  }
+}
+function startWinnerScan(): void {
+  phase.value = 'winnerScan';
+  scanStep(0);
+}
+function scanStep(i: number): void {
+  if (i >= lanes.value.length) {
+    scanIndex.value = -1;
+    later(() => {
+      phase.value = 'winner';
+    }, dur(D.scanSettle));
+    return;
+  }
+  scanIndex.value = i;
+  later(() => scanStep(i + 1), dur(D.scanStep));
+}
+// Skip the animation — snap to the finished state, keep the winner CTA.
+function skipAnimation(): void {
+  clearTimers();
+  revealedSegments.value = reveal.value.segments.length;
+  activeSegment.value = -1;
+  scanIndex.value = -1;
+  setTargets(reveal.value.segments.length);
+  for (const p of reveal.value.players) {
+    displayed.value[p.color] = targets.value[p.color];
+  }
+  showTieBreak.value = reveal.value.tieBreak !== undefined;
+  phase.value = 'winner';
+}
+
+for (const p of reveal.value.players) {
+  displayed.value[p.color] = 0;
+  targets.value[p.color] = 0;
+}
+
+onMounted((): void => {
+  startEaseLoop();
+  root.value?.focus?.();
+  // Keep the open popup glued to its anchor through every viewport change.
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', scheduleReposition);
+    window.addEventListener('scroll', scheduleReposition, true); // capture → any scroll container
+    document.addEventListener('fullscreenchange', scheduleReposition);
+  }
+  if (reveal.value.segments.length === 0) {
+    skipAnimation();
+    return;
+  }
+  runSequence();
+});
+onBeforeUnmount((): void => {
+  popupObserver?.disconnect();
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', scheduleReposition);
+    window.removeEventListener('scroll', scheduleReposition, true);
+    document.removeEventListener('fullscreenchange', scheduleReposition);
+  }
 });
 </script>
