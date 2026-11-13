@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
+import * as taskHostLogic from '@/client/components/console/consoleTaskHostLogic';
 
 /**
  * THE HYDRONETWORK DIVERGENCE STEPPER READS THE SERVER'S OWN LISTS.
@@ -14,26 +14,27 @@ import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
  * The lists are SPARSE when a blocked position splits them (`[1, 3]`), so the
  * dial must snap along them — every value it shows is submittable.
  *
- * Computeds/methods are exercised against a stub `this` — the point is WHICH
- * numbers they read, not the mount of the whole task host.
+ * The host's members (`consoleTaskHostLogic.ts` — the component delegates to
+ * them over its port) are exercised against a stub of that port — the point is
+ * WHICH numbers they read, not the mount of the whole task host.
  */
 
-type Computeds = Record<string, (this: unknown) => unknown>;
-type Methods = Record<string, (this: unknown, ...args: Array<unknown>) => unknown>;
+type Computeds = Record<string, (self: unknown) => unknown>;
+type Methods = Record<string, (self: unknown, ...args: Array<unknown>) => unknown>;
 
-const computeds = (ConsoleTaskHost as unknown as {computed: Computeds}).computed;
-const methods = (ConsoleTaskHost as unknown as {methods: Methods}).methods;
+const computeds = taskHostLogic as unknown as Computeds;
+const methods = taskHostLogic as unknown as Methods;
 
 function delta(validSteps: ReadonlyArray<number>) {
   const ctx: Record<string, unknown> = {wf: {type: 'deltaProject', validSteps}};
   Object.defineProperty(ctx, 'amountValidValues', {get() {
-    return computeds.amountValidValues.call(this);
+    return computeds.amountValidValues(this);
   }});
   Object.defineProperty(ctx, 'amountMin', {get() {
-    return computeds.amountMin.call(this);
+    return computeds.amountMin(this);
   }});
   Object.defineProperty(ctx, 'amountMax', {get() {
-    return computeds.amountMax.call(this);
+    return computeds.amountMax(this);
   }});
   return ctx;
 }
@@ -54,10 +55,10 @@ describe('console delta stepper (server-authoritative validSteps)', () => {
   it('deltaStageReward reads `claimable` through the same road', () => {
     const ctx: Record<string, unknown> = {wf: {type: 'deltaStageReward', claimable: [7, 2]}};
     Object.defineProperty(ctx, 'amountValidValues', {get() {
-      return computeds.amountValidValues.call(this);
+      return computeds.amountValidValues(this);
     }});
-    expect(computeds.amountMin.call(ctx)).to.eq(2);
-    expect(computeds.amountMax.call(ctx)).to.eq(7);
+    expect(computeds.amountMin(ctx)).to.eq(2);
+    expect(computeds.amountMax(ctx)).to.eq(7);
   });
 
   it('the dial SNAPS along a sparse list — a step never lands between two legal values', () => {
@@ -65,13 +66,13 @@ describe('console delta stepper (server-authoritative validSteps)', () => {
     ctx.submitting = false;
     ctx.activeTask = {kind: 'amount', flavor: 'delta'};
     ctx.value = 1;
-    methods.adjust.call(ctx, 1);
+    methods.adjust(ctx, 1);
     expect(ctx.value, 'up from 1 skips the blocked 2').to.eq(3);
-    methods.adjust.call(ctx, 1);
+    methods.adjust(ctx, 1);
     expect(ctx.value, 'clamped at the top').to.eq(3);
-    methods.adjust.call(ctx, -1);
+    methods.adjust(ctx, -1);
     expect(ctx.value, 'down from 3 skips the blocked 2').to.eq(1);
-    methods.adjust.call(ctx, -1);
+    methods.adjust(ctx, -1);
     expect(ctx.value, 'clamped at the floor').to.eq(1);
   });
 
@@ -83,17 +84,17 @@ describe('console delta stepper (server-authoritative validSteps)', () => {
       value: 4,
     };
     Object.defineProperty(ctx, 'amountValidValues', {get() {
-      return computeds.amountValidValues.call(this);
+      return computeds.amountValidValues(this);
     }});
     Object.defineProperty(ctx, 'amountMin', {get() {
-      return computeds.amountMin.call(this);
+      return computeds.amountMin(this);
     }});
     Object.defineProperty(ctx, 'amountMax', {get() {
-      return computeds.amountMax.call(this);
+      return computeds.amountMax(this);
     }});
-    methods.adjust.call(ctx, 1);
+    methods.adjust(ctx, 1);
     expect(ctx.value).to.eq(4);
-    methods.adjust.call(ctx, -1);
+    methods.adjust(ctx, -1);
     expect(ctx.value).to.eq(3);
   });
 });

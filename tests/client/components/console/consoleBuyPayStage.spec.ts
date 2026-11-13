@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
+import * as taskHostLogic from '@/client/components/console/consoleTaskHostLogic';
 import {CardName} from '@/common/cards/CardName';
 import {SelectPaymentModel} from '@/common/models/PlayerInputModel';
 import {discardOpenCards} from '@/client/console/cardDiscard/discardOpenCard';
@@ -10,14 +10,14 @@ import {discardPileState, openDiscardPile, resetDiscardPile} from '@/client/cons
  *
  * A workspace purchase whose price the SERVER asks (Helion's heat — the deck-pick marker's `payment`) stands its
  * payment as the purchase's own second stage and answers both prompts in ONE batch, the payment ADDRESSED to the
- * reveal's card: the payment never rises as a band of its own after the workspace folded. The computeds and the
- * batch are exercised against a stub `this` (the point is WHICH prompt they read and WHAT they send).
+ * reveal's card: the payment never rises as a band of its own after the workspace folded. The host's members
+ * (`consoleTaskHostLogic.ts` — the component delegates to them over its port) and the batch are exercised against a
+ * stub of that port (the point is WHICH prompt they read and WHAT they send).
  */
 
-type Fns = Record<string, (this: unknown, ...args: Array<unknown>) => unknown>;
-const host = ConsoleTaskHost as unknown as {computed: Fns, methods: Fns};
-const c = host.computed;
-const m = host.methods;
+type Fns = Record<string, (self: unknown, ...args: Array<unknown>) => unknown>;
+const c = taskHostLogic as unknown as Fns;
+const m = taskHostLogic as unknown as Fns;
 
 const ONE_CARD_PAYMENT = {
   type: 'payment', title: 'x', amount: 3,
@@ -33,9 +33,9 @@ function stub(o: {embedded: boolean, payment?: SelectPaymentModel, picks: number
     buyStage: 'pick',
     cardModel: {deckPickPrompt: {mode: 'buy', payment: o.payment, source: {kind: 'card', card: CardName.VENUS_ORBITAL_SURVEY}}},
   };
-  Object.defineProperty(self, 'buyPaysByPrompt', {get: () => c.buyPaysByPrompt.call(self)});
-  Object.defineProperty(self, 'buyPaymentPrompt', {get: () => c.buyPaymentPrompt.call(self)});
-  Object.defineProperty(self, 'buyPayStage', {get: () => c.buyPayStage.call(self)});
+  Object.defineProperty(self, 'buyPaysByPrompt', {get: () => c.buyPaysByPrompt(self)});
+  Object.defineProperty(self, 'buyPaymentPrompt', {get: () => c.buyPaymentPrompt(self)});
+  Object.defineProperty(self, 'buyPayStage', {get: () => c.buyPayStage(self)});
   return self;
 }
 
@@ -70,7 +70,7 @@ describe('the purchase pays in its own stage (PL-1411)', () => {
       megacreditsOnHand: 10,
       $emit: (name: string, payload?: unknown) => emitted.push([name, payload]),
     };
-    m.submitBuyBatch.call(s);
+    m.submitBuyBatch(s);
     expect(emitted.map(([name]) => name)).deep.eq(['result-detached', 'submit-batch']);
     const batch = emitted[1][1] as Array<Record<string, unknown>>;
     expect(batch).has.length(2);
@@ -78,7 +78,7 @@ describe('the purchase pays in its own stage (PL-1411)', () => {
     expect(batch[1].type).eq('payment');
     expect(batch[1].for).deep.eq({source: {kind: 'card', card: CardName.VENUS_ORBITAL_SURVEY}, role: 'payment'});
     // A second press while the batch is in flight sends nothing.
-    m.submitBuyBatch.call(s);
+    m.submitBuyBatch(s);
     expect(emitted).has.length(2);
   });
 });

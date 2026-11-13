@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
+import * as taskHostLogic from '@/client/components/console/consoleTaskHostLogic';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {CardName} from '@/common/cards/CardName';
@@ -15,9 +15,12 @@ import {TileType} from '@/common/TileType';
  *
  * …and the host's «ОЧЕРЁДНОСТЬ» body (P58 · FS, the hand's chain / the fallback band): its rows off the marker, the
  * cursor's row the FOCUSED OPTION's (sealed rows are no options), one press.
+ *
+ * The host's members live in `consoleTaskHostLogic.ts` (the component delegates to them over its port); they run here
+ * against a stub of that port.
  */
-type Computeds = Record<string, (this: unknown) => unknown>;
-const host = (ConsoleTaskHost as unknown as {computed: Computeds}).computed;
+type Members = Record<string, (self: unknown) => unknown>;
+const host = taskHostLogic as unknown as Members;
 
 const option = (title: string, metadata?: unknown) => ({type: 'option', title, buttonLabel: 'Confirm', metadata});
 const or = (promptId: number | undefined, options: Array<unknown>, extra: Record<string, unknown> = {}) =>
@@ -31,7 +34,7 @@ function ctx(wf: PlayerInputModel, extra: Record<string, unknown> = {}): Record<
     nested: undefined,
     ...extra,
   };
-  const lazy = (name: string) => Object.defineProperty(self, name, {get: () => host[name].call(self), configurable: true});
+  const lazy = (name: string) => Object.defineProperty(self, name, {get: () => host[name](self), configurable: true});
   for (const name of ['parentWf', 'wf', 'activeTask', 'baseKey', 'taskKey', 'choiceOnePress', 'placementOrderVariant']) {
     if (!(name in extra)) {
       lazy(name);
@@ -82,9 +85,9 @@ describe('ConsoleTaskHost — the «ОЧЕРЁДНОСТЬ» body (P58 · FS)', 
   it('the cursor\'s row is the focused OPTION\'s — sealed rows are no options', () => {
     const self = ctx(marked, {task: {kind: 'choice', flavor: 'placementOrder'}, focusIdx: 0,
       choiceEntries: [{index: 0}, {index: 1}]});
-    expect(host.placementOrderFocusRow.call(self)).to.eq(1); // option 0 is the CITY — the second row
+    expect(host.placementOrderFocusRow(self)).to.eq(1); // option 0 is the CITY — the second row
     self.focusIdx = 1;
-    expect(host.placementOrderFocusRow.call(self)).to.eq(0);
+    expect(host.placementOrderFocusRow(self)).to.eq(0);
   });
 
   it('a plain choice has no order body', () => {

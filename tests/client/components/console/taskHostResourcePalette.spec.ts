@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
+import * as taskHostLogic from '@/client/components/console/consoleTaskHostLogic';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 
@@ -7,10 +7,11 @@ import {PlayerInputModel} from '@/common/models/PlayerInputModel';
  * THE LIVE «WHICH STANDARD RESOURCE» PROMPT AS A PALETTE (TR54, H4). The task host drew `SelectResource` as six bare
  * icons — no number, no `current → resulting`. It is the variant grammar's palette now: each tile the resource's hero,
  * the number the SERVER states (`SelectResourceModel.amount`) and the viewer's own pool `current → current + amount`;
- * a prompt that states no number keeps the hero alone (never a guessed «+1»). The computeds run against a stub `this`.
+ * a prompt that states no number keeps the hero alone (never a guessed «+1»). The host's members
+ * (`consoleTaskHostLogic.ts` — the component delegates to them over its port) run against a stub of that port.
  */
-type Computeds = Record<string, (this: unknown) => unknown>;
-const host = (ConsoleTaskHost as unknown as {computed: Computeds}).computed;
+type Members = Record<string, (self: unknown) => unknown>;
+const host = taskHostLogic as unknown as Members;
 
 const VIEW = {
   thisPlayer: {color: 'blue', megacredits: 12, steel: 3, titanium: 0, plants: 5, energy: 2, heat: 7},
@@ -26,7 +27,7 @@ function ctx(wf: PlayerInputModel, extra: Record<string, unknown> = {}): Record<
     ...extra,
   };
   for (const name of ['resourceUnits', 'resourceGainAmount', 'resourceReadings', 'resourcePaletteOptions']) {
-    Object.defineProperty(self, name, {get: () => host[name].call(self), configurable: true});
+    Object.defineProperty(self, name, {get: () => host[name](self), configurable: true});
   }
   return self;
 }

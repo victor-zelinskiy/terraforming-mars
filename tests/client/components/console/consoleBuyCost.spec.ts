@@ -1,6 +1,6 @@
 import {expect} from 'chai';
-import ConsoleTaskHost from '@/client/components/console/ConsoleTaskHost.vue';
-import ConsoleDraftWorkspace from '@/client/components/console/draft/ConsoleDraftWorkspace.vue';
+import * as taskHost from '@/client/components/console/consoleTaskHostLogic';
+import * as draft from '@/client/components/console/draft/consoleDraftWorkspaceLogic';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /**
@@ -16,13 +16,11 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
  *
  * The computeds are exercised directly against a stub `this` — the point is
  * WHICH number they read, and a mount of these two large surfaces would test
- * everything except that.
+ * everything except that. (Both surfaces are `<script setup>` components —
+ * neither has a `computed` option to call: their bodies are the functions of
+ * `consoleTaskHostLogic.ts` and `consoleDraftWorkspaceLogic.ts`, the stub
+ * handed in as their port.)
  */
-
-type Computeds = Record<string, (this: unknown) => unknown>;
-
-const taskHost = (ConsoleTaskHost as unknown as {computed: Computeds}).computed;
-const draft = (ConsoleDraftWorkspace as unknown as {computed: Computeds}).computed;
 
 function view(cardCost: number, megacredits: number): PlayerViewModel {
   return {thisPlayer: {cardCost, megacredits}} as unknown as PlayerViewModel;
@@ -39,15 +37,15 @@ describe('console buy cost (server-authoritative)', () => {
     }
 
     it('takes the per-card price straight off the player model', () => {
-      expect(taskHost.buyCostPerCard.call(host(3, 40, 0))).to.eq(3);
-      expect(taskHost.buyCostPerCard.call(host(2, 40, 0))).to.eq(2);
-      expect(taskHost.buyCostPerCard.call(host(0, 40, 0))).to.eq(0);
+      expect(taskHost.buyCostPerCard(host(3, 40, 0))).to.eq(3);
+      expect(taskHost.buyCostPerCard(host(2, 40, 0))).to.eq(2);
+      expect(taskHost.buyCostPerCard(host(0, 40, 0))).to.eq(0);
     });
 
     it('totals picks × that price — every card discounted, not just one', () => {
       const ctx = host(2, 40, 3);
-      const self = {...ctx, buyCostPerCard: taskHost.buyCostPerCard.call(ctx)};
-      expect(taskHost.buyTotal.call(self)).to.eq(6);
+      const self = {...ctx, buyCostPerCard: taskHost.buyCostPerCard(ctx)};
+      expect(taskHost.buyTotal(self)).to.eq(6);
     });
 
     it('affordability and the readout use the SAME total', () => {
@@ -56,17 +54,17 @@ describe('console buy cost (server-authoritative)', () => {
         const ctx = host(cardCost, 4, 2);
         const self = {
           ...ctx,
-          buyCostPerCard: taskHost.buyCostPerCard.call(ctx),
+          buyCostPerCard: taskHost.buyCostPerCard(ctx),
           get buyTotal(): number {
-            return taskHost.buyTotal.call(this) as number;
+            return taskHost.buyTotal(this);
           },
           get megacreditsOnHand(): number {
-            return taskHost.megacreditsOnHand.call(this) as number;
+            return taskHost.megacreditsOnHand(this);
           },
         };
         expect(self.buyTotal).to.eq(cardCost * 2);
-        expect(taskHost.cardBuyAffordable.call(self)).to.eq(affordable);
-        expect(taskHost.megacreditsAfterPurchase.call(self)).to.eq(remaining);
+        expect(taskHost.cardBuyAffordable(self)).to.eq(affordable);
+        expect(taskHost.megacreditsAfterPurchase(self)).to.eq(remaining);
       }
     });
   });
@@ -76,16 +74,16 @@ describe('console buy cost (server-authoritative)', () => {
       const ctx = {
         playerView: view(cardCost, megacredits),
         picks: new Array(picks).fill('card'),
-        zone: 'buy',
+        zone: 'buy' as const,
       };
       return {
         ...ctx,
-        buyCostPerCard: draft.buyCostPerCard.call(ctx),
+        buyCostPerCard: draft.buyCostPerCard(ctx),
         get buyTotal(): number {
-          return draft.buyTotal.call(this) as number;
+          return draft.buyTotal(this);
         },
         get megacreditsOnHand(): number {
-          return draft.megacreditsOnHand.call(this) as number;
+          return draft.megacreditsOnHand(this);
         },
       };
     }
@@ -98,12 +96,12 @@ describe('console buy cost (server-authoritative)', () => {
     it('agrees with the task host on total, remainder and affordability', () => {
       const cheap = ws(2, 4, 2);
       expect(cheap.buyTotal).to.eq(4);
-      expect(draft.megacreditsAfterPurchase.call(cheap)).to.eq(0);
-      expect(draft.buyAffordable.call(cheap)).is.true;
+      expect(draft.megacreditsAfterPurchase(cheap)).to.eq(0);
+      expect(draft.buyAffordable(cheap)).is.true;
 
       const full = ws(3, 4, 2);
       expect(full.buyTotal).to.eq(6);
-      expect(draft.buyAffordable.call(full)).is.false;
+      expect(draft.buyAffordable(full)).is.false;
     });
   });
 });
