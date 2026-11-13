@@ -1,11 +1,4 @@
 <template>
-  <!--
-    HYDRO MARKER LAYER — the app-level stage the hydronetwork marker-advance
-    glides on (mounted once in ConsoleShell). A single small token proxy in
-    the viewer's colour glides from the old stop to the new stop and locks in;
-    the flight survives the confirm modal closing beneath it (the controller
-    owns the beats, the director the GSAP). Pointer-inert, clipped.
-  -->
   <div class="con-hydromarker-layer" aria-hidden="true">
     <div v-if="hydroMarkerState.active"
          ref="marker"
@@ -14,8 +7,17 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * HYDRO MARKER LAYER — the app-level stage the hydronetwork marker-advance
+ * glides on (mounted once in ConsoleShell). A single small token proxy in
+ * the viewer's colour glides from the old stop to the new stop and locks in;
+ * the flight survives the confirm modal closing beneath it (the controller
+ * owns the beats, the director the GSAP). Pointer-inert, clipped.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {nextTick, onBeforeUnmount, useTemplateRef, watch} from 'vue';
 import {
   hydroMarkerState, registerHydroMarkerHandle, setHydroMarkerPhase,
 } from '@/client/console/hydroMarker/consoleHydroMarker';
@@ -48,52 +50,47 @@ function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefi
   });
 }
 
-export default defineComponent({
-  name: 'ConsoleHydroMarkerLayer',
-  data() {
-    return {hydroMarkerState};
-  },
-  watch: {
-    /** A fresh advance (armHydroMarker bumped the nonce): run the glide. */
-    'hydroMarkerState.nonce'() {
-      void this.glide();
-    },
-  },
-  methods: {
-    async glide(): Promise<void> {
-      if (!hydroMarkerState.active || typeof window === 'undefined') {
-        return;
-      }
-      await this.$nextTick();
-      const marker = (this.$refs.marker ?? undefined) as HTMLElement | undefined;
-      if (marker === undefined || marker === null) {
-        return;
-      }
-      const [from, to] = await Promise.all([
-        stableRect(() => document.querySelector<HTMLElement>(`[data-hydro-marker="${hydroMarkerState.fromPosition}"]`)),
-        stableRect(() => document.querySelector<HTMLElement>(`[data-hydro-marker="${hydroMarkerState.toPosition}"]`)),
-      ]);
-      if (!hydroMarkerState.active) {
-        return; // aborted while probing
-      }
-      if (from === undefined || to === undefined) {
-        // No believable anchors (edge layout): skip the visual, but the
-        // controller phases still advance so the gate resolves on lock.
-        setHydroMarkerPhase('arrive');
-        return;
-      }
-      const handle = runHydroMarkerGlide({
-        marker,
-        from,
-        to,
-        reduced: hydroMarkerState.reducedMotion,
-        onPhase: (phase: MarkerPhaseName) => setHydroMarkerPhase(phase),
-      });
-      registerHydroMarkerHandle(handle);
-    },
-  },
-  beforeUnmount() {
-    registerHydroMarkerHandle(undefined);
-  },
+defineOptions({name: 'ConsoleHydroMarkerLayer'});
+
+const marker = useTemplateRef<HTMLElement>('marker');
+
+async function glide(): Promise<void> {
+  if (!hydroMarkerState.active || typeof window === 'undefined') {
+    return;
+  }
+  await nextTick();
+  const markerNow = marker.value;
+  if (markerNow === null) {
+    return;
+  }
+  const [from, to] = await Promise.all([
+    stableRect(() => document.querySelector<HTMLElement>(`[data-hydro-marker="${hydroMarkerState.fromPosition}"]`)),
+    stableRect(() => document.querySelector<HTMLElement>(`[data-hydro-marker="${hydroMarkerState.toPosition}"]`)),
+  ]);
+  if (!hydroMarkerState.active) {
+    return; // aborted while probing
+  }
+  if (from === undefined || to === undefined) {
+    // No believable anchors (edge layout): skip the visual, but the
+    // controller phases still advance so the gate resolves on lock.
+    setHydroMarkerPhase('arrive');
+    return;
+  }
+  const handle = runHydroMarkerGlide({
+    marker: markerNow,
+    from,
+    to,
+    reduced: hydroMarkerState.reducedMotion,
+    onPhase: (phase: MarkerPhaseName) => setHydroMarkerPhase(phase),
+  });
+  registerHydroMarkerHandle(handle);
+}
+
+/** A fresh advance (armHydroMarker bumped the nonce): run the glide. */
+watch(() => hydroMarkerState.nonce, () => {
+  void glide();
+});
+onBeforeUnmount(() => {
+  registerHydroMarkerHandle(undefined);
 });
 </script>
