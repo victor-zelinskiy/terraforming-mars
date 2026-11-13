@@ -1,5 +1,5 @@
 <template>
-  <div class="con-cmdbar" :class="{'con-cmdbar--bay': bay}" aria-hidden="true">
+  <div ref="root" class="con-cmdbar" :class="{'con-cmdbar--bay': bay}" aria-hidden="true">
     <div class="con-cmdbar__zone-left">
       <div class="con-cmdbar__context">{{ $t(context) }}</div>
       <div v-if="bay && cmdsLeft.length > 0" class="con-cmdbar__cmds con-cmdbar__cmds--left">
@@ -68,7 +68,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * THE console command bar (docs/CONSOLE_MODE_CONCEPT.md §6) — the single most
  * important shell element: the CURRENT meaning of every face button, always
@@ -87,13 +87,13 @@
  * flows to the left zone beside the context label. The menus / bot-review
  * embed the bar WITHOUT the bay — their layout is byte-identical to before.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, nextTick, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
 import {commandWidthRem, contextWidthRem, handDockBayRem} from '@/client/console/consoleHandDock';
 import {ConsoleCommand, defaultDropPriority, planCommandRun} from '@/client/console/consoleCommandModel';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {holdConfirmState} from '@/client/console/consoleHoldConfirm';
 import {LabelFont, labelFontOf, measureTextPx} from '@/client/console/consoleTextMeasure';
 
@@ -102,140 +102,129 @@ import {LabelFont, labelFontOf, measureTextPx} from '@/client/console/consoleTex
  * `from 'ConsoleCommandBar.vue'` path. */
 export type {ConsoleCommand};
 
-export default defineComponent({
-  name: 'ConsoleCommandBar',
-  components: {GamepadGlyph},
-  props: {
-    context: {type: String, required: true},
-    commands: {type: Array as PropType<ReadonlyArray<ConsoleCommand>>, required: true},
-    /** Reserve the centre hand-dock bay (the in-game shell footer). */
-    bay: {type: Boolean, default: false},
-  },
-  setup() {
-    const {width, profile, uiScale} = useConsoleViewport();
-    return {vpWidth: width, profile, uiScale};
-  },
-  data() {
-    return {
-      /** The bar's own label font (read off a rendered label; the fit plan measures with it — P-15). */
-      labelFont: undefined as LabelFont | undefined,
-      contextFont: undefined as LabelFont | undefined,
-    };
-  },
-  mounted() {
-    this.readFonts();
-  },
-  watch: {
-    profile() {
-      this.$nextTick(() => this.readFonts());
-    },
-    commands() {
-      if (this.labelFont === undefined) {
-        this.$nextTick(() => this.readFonts());
-      }
-    },
-  },
-  computed: {
-    /**
-     * The live progress of the SHARED hold gate (`consoleHoldConfirm`). Read
-     * globally on purpose: the bar shows at most one hold command at a time,
-     * so it needs no key of its own and cannot fall out of sync with whichever
-     * surface armed the hold.
-     */
-    holdProgress(): number {
-      return holdConfirmState.key === '' ? 0 : holdConfirmState.progress;
-    },
-    /**
-     * The TV fit plan: which commands RENDER and how they split around the
-     * bay. When the run overflows both zone budgets, whole low-priority
-     * commands DROP (consoleCommandModel) — a hint label never truncates.
-     * Classic (non-bay) bars keep every command (menus are hint-light).
-     */
-    runPlan(): {kept: ReadonlyArray<number>, splitIndex: number} {
-      const all = this.commands.map((_, i) => i);
-      if (!this.bay || this.commands.length === 0) {
-        return {kept: all, splitIndex: 0};
-      }
-      const remPx = 20 * (this.uiScale || 1);
-      const wRem = this.vpWidth / remPx;
-      // The rail's content inset (--con-hud-pad-x = --con-pad-x + breathing):
-      // the bar is FULL-BLEED now, so the whole horizontal inset lives on the
-      // bar itself (console.less / console_tv.less). rootPad mirrors the
-      // EDGE token --con-edge-x per profile (constants since the mirrored
-      // edge system replaced the vw-sized gutter), barPad the extra
-      // breathing.
-      const rootPad = this.profile === 'tv' ? 0.7 :
-        (this.profile === 'handheld' ? 0.45 : 0.6);
-      // Mirrors the alignment-grammar breathing of --con-hud-pad-x (the
-      // shared first-content anchor: safe area + ~the rail's interior).
-      const barPad = this.profile === 'handheld' ? 0.85 : 1.05;
-      const halfRem = wRem / 2 - handDockBayRem(this.profile) / 2 - rootPad - barPad - 1;
-      // The width estimate (`commandWidthRem`) is calibrated for the COMPACT
-      // bay typography (label .95rem / glyph 1.3rem). The TV profile renders
-      // the labels + glyphs LARGER (console_tv.less: label 1.05rem, glyph
-      // floor 1.55rem), so the raw estimate UNDER-counts — the fit model then
-      // keeps more commands than fit and the CSS truncates their labels (the
-      // exact broken bar on 4K). Scaling the estimate up at TV restores the
-      // model's contract: whole low-priority hints DROP (A/B always kept),
-      // labels never truncate. Conservative on purpose — a dropped step hint
-      // (the logic still works; the step chips show the structure) beats a
-      // clipped one.
-      const wScale = this.profile === 'tv' ? 1.15 : 1;
-      // MEASURED labels (consoleTextMeasure) once the bar has painted a label: the chrome (glyphs,
-      // gaps, badge) keeps the estimate scaled for the TV, the words are their painted width — a
-      // 2 % margin for the runner's glyph rounding. Before the first paint: the coarse estimate.
-      const labelRem = (text: string, font: LabelFont | undefined): number | undefined => {
-        const px = font === undefined ? undefined : measureTextPx(text, font);
-        return px === undefined ? undefined : (px * 1.02) / remPx;
-      };
-      const contextText = translateText(this.context);
-      const contextMeasured = labelRem(contextText, this.contextFont);
-      const zoneLeft = halfRem - (contextMeasured === undefined ?
-        contextWidthRem(contextText) * wScale :
-        contextWidthRem('', 0) * wScale + contextMeasured);
-      const entries = this.commands.map((c) => ({
-        // The estimate measures the RENDERED text — params included, or a
-        // parameterised label under-counts and truncates on 4K.
-        width: ((): number => {
-          const text = this.cmdLabel(c);
-          const opts = {badge: c.badge !== undefined && c.badge > 0, twoGlyphs: c.control2 !== undefined};
-          const measured = labelRem(text, this.labelFont);
-          return measured === undefined ?
-            commandWidthRem(text, opts) * wScale :
-            commandWidthRem('', {...opts, labelRem: 0}) * wScale + measured;
-        })(),
-        keep: c.control === 'confirm' || c.control === 'back',
-        dropPriority: c.priority ?? defaultDropPriority(c.control),
-      }));
-      const plan = planCommandRun(entries, zoneLeft, halfRem);
-      return {kept: plan.kept, splitIndex: plan.splitIndex};
-    },
-    cmdsLeft(): ReadonlyArray<ConsoleCommand> {
-      const {kept, splitIndex} = this.runPlan;
-      return kept.slice(0, splitIndex).map((i) => this.commands[i]);
-    },
-    cmdsRight(): ReadonlyArray<ConsoleCommand> {
-      const {kept, splitIndex} = this.runPlan;
-      return kept.slice(splitIndex).map((i) => this.commands[i]);
-    },
-  },
-  methods: {
-    /** The fonts the bar paints its labels and its context with — read off the DOM, re-read per profile. */
-    readFonts(): void {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
-        return;
-      }
-      this.labelFont = labelFontOf(root.querySelector('.con-cmdbar__label')) ?? this.labelFont;
-      this.contextFont = labelFontOf(root.querySelector('.con-cmdbar__context')) ?? this.contextFont;
-    },
-    /** A hint's rendered text: the plain key, or the `${0}`-parameterised
-     *  key interpolated with its (already translated) params. */
-    cmdLabel(cmd: ConsoleCommand): string {
-      return cmd.labelParams !== undefined ?
-        translateTextWithParams(cmd.label, [...cmd.labelParams]) :
-        translateText(cmd.label);
-    },
-  },
+defineOptions({name: 'ConsoleCommandBar'});
+const props = defineProps({
+  context: {type: String, required: true},
+  commands: {type: Array as PropType<ReadonlyArray<ConsoleCommand>>, required: true},
+  /** Reserve the centre hand-dock bay (the in-game shell footer). */
+  bay: {type: Boolean, default: false},
+});
+
+const {width: vpWidth, profile, uiScale} = useConsoleViewport();
+const root = useTemplateRef<HTMLElement>('root');
+/** The bar's own label font (read off a rendered label; the fit plan measures with it — P-15). */
+const labelFont = ref<LabelFont | undefined>(undefined);
+const contextFont = ref<LabelFont | undefined>(undefined);
+
+/**
+ * The live progress of the SHARED hold gate (`consoleHoldConfirm`). Read
+ * globally on purpose: the bar shows at most one hold command at a time,
+ * so it needs no key of its own and cannot fall out of sync with whichever
+ * surface armed the hold.
+ */
+const holdProgress = computed((): number => {
+  return holdConfirmState.key === '' ? 0 : holdConfirmState.progress;
+});
+/**
+ * The TV fit plan: which commands RENDER and how they split around the
+ * bay. When the run overflows both zone budgets, whole low-priority
+ * commands DROP (consoleCommandModel) — a hint label never truncates.
+ * Classic (non-bay) bars keep every command (menus are hint-light).
+ */
+const runPlan = computed((): {kept: ReadonlyArray<number>, splitIndex: number} => {
+  const all = props.commands.map((_, i) => i);
+  if (!props.bay || props.commands.length === 0) {
+    return {kept: all, splitIndex: 0};
+  }
+  const remPx = 20 * (uiScale.value || 1);
+  const wRem = vpWidth.value / remPx;
+  // The rail's content inset (--con-hud-pad-x = --con-pad-x + breathing):
+  // the bar is FULL-BLEED now, so the whole horizontal inset lives on the
+  // bar itself (console.less / console_tv.less). rootPad mirrors the
+  // EDGE token --con-edge-x per profile (constants since the mirrored
+  // edge system replaced the vw-sized gutter), barPad the extra
+  // breathing.
+  const rootPad = profile.value === 'tv' ? 0.7 :
+    (profile.value === 'handheld' ? 0.45 : 0.6);
+  // Mirrors the alignment-grammar breathing of --con-hud-pad-x (the
+  // shared first-content anchor: safe area + ~the rail's interior).
+  const barPad = profile.value === 'handheld' ? 0.85 : 1.05;
+  const halfRem = wRem / 2 - handDockBayRem(profile.value) / 2 - rootPad - barPad - 1;
+  // The width estimate (`commandWidthRem`) is calibrated for the COMPACT
+  // bay typography (label .95rem / glyph 1.3rem). The TV profile renders
+  // the labels + glyphs LARGER (console_tv.less: label 1.05rem, glyph
+  // floor 1.55rem), so the raw estimate UNDER-counts — the fit model then
+  // keeps more commands than fit and the CSS truncates their labels (the
+  // exact broken bar on 4K). Scaling the estimate up at TV restores the
+  // model's contract: whole low-priority hints DROP (A/B always kept),
+  // labels never truncate. Conservative on purpose — a dropped step hint
+  // (the logic still works; the step chips show the structure) beats a
+  // clipped one.
+  const wScale = profile.value === 'tv' ? 1.15 : 1;
+  // MEASURED labels (consoleTextMeasure) once the bar has painted a label: the chrome (glyphs,
+  // gaps, badge) keeps the estimate scaled for the TV, the words are their painted width — a
+  // 2 % margin for the runner's glyph rounding. Before the first paint: the coarse estimate.
+  const labelRem = (text: string, font: LabelFont | undefined): number | undefined => {
+    const px = font === undefined ? undefined : measureTextPx(text, font);
+    return px === undefined ? undefined : (px * 1.02) / remPx;
+  };
+  const contextText = translateText(props.context);
+  const contextMeasured = labelRem(contextText, contextFont.value);
+  const zoneLeft = halfRem - (contextMeasured === undefined ?
+    contextWidthRem(contextText) * wScale :
+    contextWidthRem('', 0) * wScale + contextMeasured);
+  const entries = props.commands.map((c) => ({
+    // The estimate measures the RENDERED text — params included, or a
+    // parameterised label under-counts and truncates on 4K.
+    width: ((): number => {
+      const text = cmdLabel(c);
+      const opts = {badge: c.badge !== undefined && c.badge > 0, twoGlyphs: c.control2 !== undefined};
+      const measured = labelRem(text, labelFont.value);
+      return measured === undefined ?
+        commandWidthRem(text, opts) * wScale :
+        commandWidthRem('', {...opts, labelRem: 0}) * wScale + measured;
+    })(),
+    keep: c.control === 'confirm' || c.control === 'back',
+    dropPriority: c.priority ?? defaultDropPriority(c.control),
+  }));
+  const plan = planCommandRun(entries, zoneLeft, halfRem);
+  return {kept: plan.kept, splitIndex: plan.splitIndex};
+});
+const cmdsLeft = computed((): ReadonlyArray<ConsoleCommand> => {
+  const {kept, splitIndex} = runPlan.value;
+  return kept.slice(0, splitIndex).map((i) => props.commands[i]);
+});
+const cmdsRight = computed((): ReadonlyArray<ConsoleCommand> => {
+  const {kept, splitIndex} = runPlan.value;
+  return kept.slice(splitIndex).map((i) => props.commands[i]);
+});
+
+/** The fonts the bar paints its labels and its context with — read off the DOM, re-read per profile. */
+function readFonts(): void {
+  const rootNow = root.value;
+  if (rootNow === null || typeof rootNow.querySelector !== 'function') {
+    return;
+  }
+  labelFont.value = labelFontOf(rootNow.querySelector('.con-cmdbar__label')) ?? labelFont.value;
+  contextFont.value = labelFontOf(rootNow.querySelector('.con-cmdbar__context')) ?? contextFont.value;
+}
+/** A hint's rendered text: the plain key, or the `${0}`-parameterised
+ *  key interpolated with its (already translated) params. */
+function cmdLabel(cmd: ConsoleCommand): string {
+  return cmd.labelParams !== undefined ?
+    translateTextWithParams(cmd.label, [...cmd.labelParams]) :
+    translateText(cmd.label);
+}
+
+watch(() => profile.value, () => {
+  void nextTick(() => readFonts());
+});
+watch(() => props.commands, () => {
+  if (labelFont.value === undefined) {
+    void nextTick(() => readFonts());
+  }
+});
+onMounted(() => {
+  readFonts();
 });
 </script>
