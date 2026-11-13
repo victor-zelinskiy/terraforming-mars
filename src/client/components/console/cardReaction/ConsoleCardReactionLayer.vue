@@ -1,18 +1,4 @@
 <template>
-  <!--
-    «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК» — the app-level stage of «a card's
-    printed effect fired» (the director: cardReaction/cardReactionDirector.ts;
-    the rise primitive: cardReactionStage.ts). Mounted beside the other flight
-    layers and never inside a teleported surface, so a fixed face resolves
-    against the viewport.
-
-    It paints only the REACTOR FACES that surface at a seat beside the receiver
-    (a real lite face with the card's LIVE model — the one physical object the
-    player knows); a reactor standing in the receiving stage rises out of its
-    own place there and never comes here. The tokens are the shared Resource
-    Transfer Framework's. Its root carries the scene's state for the probes
-    (`data-reaction-*`).
-  -->
   <div v-if="cardReactionState.phase !== 'idle' || cardReactionState.faces.length > 0"
        class="con-reaction" aria-hidden="true"
        :data-reaction-phase="cardReactionState.phase"
@@ -62,8 +48,25 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК» — the app-level stage of «a card's
+ * printed effect fired» (the director: cardReaction/cardReactionDirector.ts;
+ * the rise primitive: cardReactionStage.ts). Mounted beside the other flight
+ * layers and never inside a teleported surface, so a fixed face resolves
+ * against the viewport.
+ *
+ * It paints only the REACTOR FACES that surface at a seat beside the receiver
+ * (a real lite face with the card's LIVE model — the one physical object the
+ * player knows); a reactor standing in the receiving stage rises out of its
+ * own place there and never comes here. The tokens are the shared Resource
+ * Transfer Framework's. Its root carries the scene's state for the probes
+ * (`data-reaction-*`).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {onBeforeUnmount, onMounted} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import ConsolePlanetDisc from '@/client/components/console/ConsolePlanetDisc.vue';
@@ -71,59 +74,49 @@ import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewMode
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyPremiumVm} from '@/client/components/premiumCard/partyPremiumVm';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
-
-/** The party charters built so far — one VM per party, stable across renders. */
-const partyVms = new Map<string, PremiumCardVM | undefined>();
-
-/** The law faces built so far — one VM per resolution, stable across renders (a fresh object per render would re-mount the face). */
-const lawVms = new Map<string, PremiumCardVM | undefined>();
+// The two caches of built faces (the party charters, the law faces) are MODULE state: they live in the sibling module
+// (inside `<script setup>` a top-level `Map` would start empty in every instance of the layer).
+import {lawVms, partyVms} from '@/client/components/console/cardReaction/consoleCardReactionLayerState';
 import {cardReactionState, registerCardReactionStage} from '@/client/console/cardReaction/cardReactionStage';
 import {abortCardReactions} from '@/client/console/cardReaction/cardReactionDirector';
 
-export default defineComponent({
-  name: 'ConsoleCardReactionLayer',
-  components: {ConsoleCardFaceLite, PremiumCard, ConsolePlanetDisc},
-  data() {
-    return {
-      cardReactionState,
-      faceEls: new Map<string, HTMLElement>(),
-      unregister: undefined as (() => void) | undefined,
-    };
-  },
-  methods: {
-    partyVmOf(party: string): PremiumCardVM | undefined {
-      if (!partyVms.has(party)) {
-        partyVms.set(party, partyPremiumVm(party as ReduxParty));
-      }
-      return partyVms.get(party);
+defineOptions({name: 'ConsoleCardReactionLayer'});
+
+const faceEls = new Map<string, HTMLElement>();
+let unregister: (() => void) | undefined;
+
+function partyVmOf(party: string): PremiumCardVM | undefined {
+  if (!partyVms.has(party)) {
+    partyVms.set(party, partyPremiumVm(party as ReduxParty));
+  }
+  return partyVms.get(party);
+}
+function lawVmOf(id: string): PremiumCardVM | undefined {
+  if (!lawVms.has(id)) {
+    lawVms.set(id, resolutionPremiumVmById(id));
+  }
+  return lawVms.get(id);
+}
+function setFaceRef(key: string, el: HTMLElement | null): void {
+  if (el === null) {
+    faceEls.delete(key);
+  } else {
+    faceEls.set(key, el);
+  }
+}
+
+onMounted(() => {
+  unregister = registerCardReactionStage({
+    faceEl: (key: string): HTMLElement | null => {
+      const el = faceEls.get(key);
+      return el !== undefined && el.isConnected ? el : null;
     },
-    lawVmOf(id: string): PremiumCardVM | undefined {
-      if (!lawVms.has(id)) {
-        lawVms.set(id, resolutionPremiumVmById(id));
-      }
-      return lawVms.get(id);
-    },
-    setFaceRef(key: string, el: HTMLElement | null): void {
-      if (el === null) {
-        this.faceEls.delete(key);
-      } else {
-        this.faceEls.set(key, el);
-      }
-    },
-  },
-  mounted() {
-    this.unregister = registerCardReactionStage({
-      faceEl: (key: string): HTMLElement | null => {
-        const el = this.faceEls.get(key);
-        return el !== undefined && el.isConnected ? el : null;
-      },
-      stageRect: () => ({left: 0, top: 0, width: window.innerWidth, height: window.innerHeight}),
-    });
-  },
-  beforeUnmount() {
-    this.unregister?.();
-    // Shell teardown / game switch mid-scene: every owed hold is paid at once.
-    abortCardReactions();
-  },
+    stageRect: () => ({left: 0, top: 0, width: window.innerWidth, height: window.innerHeight}),
+  });
+});
+onBeforeUnmount(() => {
+  unregister?.();
+  // Shell teardown / game switch mid-scene: every owed hold is paid at once.
+  abortCardReactions();
 });
 </script>
