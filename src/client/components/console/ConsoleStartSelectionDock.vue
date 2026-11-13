@@ -155,15 +155,15 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleTenderCard from '@/client/components/console/campaign/ConsoleTenderCard.vue';
 import {tenderCardStateOf} from '@/client/console/campaign/tenderPortfolio';
 import {CardName} from '@/common/cards/CardName';
 import {TenderId, TenderStatus, tenderNameKey} from '@/common/campaign/tenders';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
 /** One tender on the shelf — the chip's data. */
 export type StartDockTender = {instance: string, id: TenderId, status: TenderStatus};
@@ -182,59 +182,51 @@ export type StartDockPile = {
   hot?: boolean,
 };
 
-export default defineComponent({
-  name: 'ConsoleStartSelectionDock',
-  components: {Card, GamepadGlyph, ConsoleTenderCard},
-  props: {
-    piles: {type: Array as PropType<ReadonlyArray<StartDockPile>>, required: true},
-    /** CAMPAIGN: the established corporation lineage («Наследие» block). */
-    lineage: {type: Array as PropType<ReadonlyArray<CardName>>, required: false, default: () => []},
-    /** CAMPAIGN: the carried project cards («Проекты наследия» block). */
-    carried: {type: Array as PropType<ReadonlyArray<CardName>>, required: false, default: () => []},
-    /** Show the R3 legacy-overview glyph (where the press actually opens it). */
-    lineageHint: {type: Boolean, required: false, default: false},
-    /** CAMPAIGN «ТЕНДЕРЫ»: the holder's tenders (the portfolio's home on the shelf). */
-    tenders: {type: Array as PropType<ReadonlyArray<StartDockTender>>, required: false, default: () => []},
-    /** The chip that just took its stamp (a one-shot class). */
-    stamped: {type: String, required: false, default: undefined},
-    /** The «ТЕНДЕРЫ» block is a DOOR here (L3 opens the list) — its glyph stands. */
-    tenderDoor: {type: Boolean, required: false, default: false},
-    /** How many tenders EXECUTE on the page the player stands on — > 0 lights the block («МОЖНО ИСПОЛНИТЬ · N»). */
-    tenderReady: {type: Number, required: false, default: 0},
-    /** Miniatures whose certificate is UP in the door's list (held empty — the flight home aims at them). */
-    heldTenders: {type: Array as PropType<ReadonlyArray<string>>, required: false, default: () => []},
-    /** The holdings that execute on the page standing now (bright in the dock; every other one dimmed). */
-    readyTenders: {type: Array as PropType<ReadonlyArray<string>>, required: false, default: () => []},
-    /** The tender standing in its mode on the page (its miniature is marked). */
-    activeTender: {type: String, required: false, default: undefined},
-    /** A tender's mode plate covers the shelf's row (the `plate` slot). */
-    plated: {type: Boolean, required: false, default: false},
-    /** Tiles whose card is physically UP in the legacy overview right now —
-     *  held empty (visibility only: the tile stays the flight's measured
-     *  home, and the shelf's geometry never changes). */
-    heldNames: {type: Array as PropType<ReadonlyArray<CardName>>, required: false, default: () => []},
-  },
-  emits: ['inspect-lineage'],
-  computed: {
-    /** How many of the holdings have already executed — the dock's quiet tally beside the cap. */
-    executedTenders(): number {
-      return this.tenders.filter((t) => t.status === 'executed').length;
-    },
-    readyText(): string {
-      return translateTextWithParams('Can execute: ${0}', [String(this.tenderReady)]);
-    },
-  },
-  methods: {
-    tenderNameKey,
-    tenderCardStateOf,
-    /** The pile's cards are laid out elsewhere (the summary tiles) — only
-     *  the informational label · count trace remains, no physical backs. */
-    traceOnly(pile: StartDockPile): boolean {
-      return pile.backs === 0 && pile.collected === true && pile.count > 0;
-    },
-    isHeld(name: CardName): boolean {
-      return this.heldNames.includes(name);
-    },
-  },
+defineOptions({name: 'ConsoleStartSelectionDock'});
+const props = defineProps({
+  piles: {type: Array as PropType<ReadonlyArray<StartDockPile>>, required: true},
+  /** CAMPAIGN: the established corporation lineage («Наследие» block). */
+  lineage: {type: Array as PropType<ReadonlyArray<CardName>>, required: false, default: () => []},
+  /** CAMPAIGN: the carried project cards («Проекты наследия» block). */
+  carried: {type: Array as PropType<ReadonlyArray<CardName>>, required: false, default: () => []},
+  /** Show the R3 legacy-overview glyph (where the press actually opens it). */
+  lineageHint: {type: Boolean, required: false, default: false},
+  /** CAMPAIGN «ТЕНДЕРЫ»: the holder's tenders (the portfolio's home on the shelf). */
+  tenders: {type: Array as PropType<ReadonlyArray<StartDockTender>>, required: false, default: () => []},
+  /** The chip that just took its stamp (a one-shot class). */
+  stamped: {type: String, required: false, default: undefined},
+  /** The «ТЕНДЕРЫ» block is a DOOR here (L3 opens the list) — its glyph stands. */
+  tenderDoor: {type: Boolean, required: false, default: false},
+  /** How many tenders EXECUTE on the page the player stands on — > 0 lights the block («МОЖНО ИСПОЛНИТЬ · N»). */
+  tenderReady: {type: Number, required: false, default: 0},
+  /** Miniatures whose certificate is UP in the door's list (held empty — the flight home aims at them). */
+  heldTenders: {type: Array as PropType<ReadonlyArray<string>>, required: false, default: () => []},
+  /** The holdings that execute on the page standing now (bright in the dock; every other one dimmed). */
+  readyTenders: {type: Array as PropType<ReadonlyArray<string>>, required: false, default: () => []},
+  /** The tender standing in its mode on the page (its miniature is marked). */
+  activeTender: {type: String, required: false, default: undefined},
+  /** A tender's mode plate covers the shelf's row (the `plate` slot). */
+  plated: {type: Boolean, required: false, default: false},
+  /** Tiles whose card is physically UP in the legacy overview right now —
+   *  held empty (visibility only: the tile stays the flight's measured
+   *  home, and the shelf's geometry never changes). */
+  heldNames: {type: Array as PropType<ReadonlyArray<CardName>>, required: false, default: () => []},
 });
+defineEmits(['inspect-lineage']);
+
+/** How many of the holdings have already executed — the dock's quiet tally beside the cap. */
+const executedTenders = computed((): number => {
+  return props.tenders.filter((t) => t.status === 'executed').length;
+});
+const readyText = computed((): string => {
+  return translateTextWithParams('Can execute: ${0}', [String(props.tenderReady)]);
+});
+/** The pile's cards are laid out elsewhere (the summary tiles) — only
+ *  the informational label · count trace remains, no physical backs. */
+function traceOnly(pile: StartDockPile): boolean {
+  return pile.backs === 0 && pile.collected === true && pile.count > 0;
+}
+function isHeld(name: CardName): boolean {
+  return props.heldNames.includes(name);
+}
 </script>
