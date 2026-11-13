@@ -1,10 +1,4 @@
 <template>
-  <!--
-    DEV-ONLY premium card showcase (URL: ?premiumCardsPlayground).
-    The visual acceptance surface for the from-scratch card renderer:
-    curated edge cases, density buckets, worst titles, tag extremes,
-    tiers/states, and the full in-scope catalog — all on one screen.
-  -->
   <div class="pcpg" :class="{'pcpg--embedded': embedded}">
     <header class="pcpg__head">
       <h1>PREMIUM CARDS — SHOWCASE</h1>
@@ -129,8 +123,16 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * DEV-ONLY premium card showcase (URL: ?premiumCardsPlayground).
+ * The visual acceptance surface for the from-scratch card renderer:
+ * curated edge cases, density buckets, worst titles, tag extremes,
+ * tiers/states, and the full in-scope catalog — all on one screen.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, ref} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
@@ -152,138 +154,126 @@ type ReqCase = {label: string, reqs: Array<NormalizedRequirement>};
 /** Build a requirement from a synthetic descriptor (the real normalize path). */
 const req = (d: CardRequirementDescriptor): NormalizedRequirement => normalizeRequirement(d);
 
-export default defineComponent({
-  name: 'PremiumCardsPlayground',
-  components: {PremiumCard, PremiumRequirementsBar},
-  props: {
-    /**
-     * Hosted inside the console playground stand (ConsolePlaygroundStand):
-     * the HOST owns fullscreen + scrolling (ConsoleScrollArea — a native
-     * scrollbar is a console bug), so the root drops its own fixed/scroll
-     * chrome and becomes a plain document.
-     */
-    embedded: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
-  },
-  data() {
-    return {
-      moduleFilter: 'base' as GameModule,
-      stateCard: CardName.PREDATORS,
-      resourceCard: CardName.PREDATORS,
-    };
-  },
-  computed: {
-    scopeCards(): Array<ClientCard> {
-      return getCards((c) => inPremiumScope(c, PREMIUM_FACE_SCOPE_MODULES) && isPremiumFaceType(c.type));
-    },
-    modules(): ReadonlyArray<GameModule> {
-      return PREMIUM_FACE_SCOPE_MODULES;
-    },
-    referenceNames(): Array<CardName> {
-      // green / blue / red / prelude — the theme quartet next to the back.
-      return [CardName.TREES, CardName.PREDATORS, CardName.COMET, CardName.DONATION];
-    },
-    /** The mandatory requirement acceptance cases (single / max / suffixes /
-     *  tags / multiple / {all}) — rendered from synthetic requirements so every
-     *  shape (incl. the {all} variant, which no in-scope card carries) is here. */
-    reqCases(): Array<ReqCase> {
-      return [
-        {label: 'Океан ≥ 5', reqs: [req({oceans: 5})]},
-        {label: 'Океан ≤ 3 (макс.)', reqs: [req({oceans: 3, max: true})]},
-        {label: 'Кислород ≥ 11%', reqs: [req({oxygen: 11})]},
-        {label: 'Температура ≤ −18°C', reqs: [req({temperature: -18, max: true})]},
-        {label: 'Венера ≥ 12%', reqs: [req({venus: 12})]},
-        {label: 'Наука ≥ 5', reqs: [req({tag: Tag.SCIENCE, count: 5})]},
-        {label: '3 тега ≥ 1', reqs: [req({tag: Tag.PLANT}), req({tag: Tag.ANIMAL}), req({tag: Tag.MICROBE})]},
-        {label: 'Наука ≥ 3 | Кислород ≥ 7%', reqs: [req({tag: Tag.SCIENCE, count: 3}), req({oxygen: 7})]},
-        {label: '{all}: Кислород ≤ 5% (все)', reqs: [req({oxygen: 5, max: true, all: true})]},
-        {label: '{all}: 2 требования (все)', reqs: [req({tag: Tag.JOVIAN, count: 2, all: true}), req({venus: 10, all: true})]},
-      ];
-    },
-    curated(): Array<CuratedCase> {
-      return [
-        {label: 'скидка −4', model: this.modelOf(CardName.COMET, {calculatedCost: 17})},
-        {label: 'стоимость 0 экв.', model: this.modelOf(CardName.MICRO_MILLS, {calculatedCost: 0})},
-        {label: 'dynamic VP */3', model: this.modelOf(CardName.SEARCH_FOR_LIFE)},
-        {label: 'vermin VP', model: this.modelOf(CardName.VERMIN)},
-        {label: 'нет арта (fallback)', model: this.modelOf(CardName.DONATION)},
-        {label: 'без механик (VP-only)', model: this.modelOf(CardName.DUST_SEALS)},
-        {label: 'Столица (база)', model: this.modelOf(CardName.CAPITAL)},
-        {label: 'Столица (Ares-тайл)', model: this.modelOf(CardName.CAPITAL_ARES)},
-        {label: 'Торг. район (Ares-тайл)', model: this.modelOf(CardName.COMMERCIAL_DISTRICT_ARES)},
-        {label: 'Deimos Down (Ares-тайл)', model: this.modelOf(CardName.DEIMOS_DOWN_ARES)},
-      ];
-    },
-    /** CEO showcase (wave 4): the reference face, the longest rule prose
-     *  (tier ladder), a tagged CEO, the one VP CEO, the plainText-fallback
-     *  prose (Xavier), and the spent-OPG disabled state. */
-    ceoCases(): Array<CuratedCase> {
-      return [
-        {label: 'референс (Asimov)', model: this.modelOf(CardName.ASIMOV)},
-        {label: 'самое длинное правило (Caesar)', model: this.modelOf(CardName.CAESAR)},
-        {label: 'метка Венеры (Xu)', model: this.modelOf(CardName.XU)},
-        {label: 'VP «?» + проза (Duncan)', model: this.modelOf(CardName.DUNCAN)},
-        {label: 'проза из plainText (Xavier)', model: this.modelOf(CardName.XAVIER)},
-        {label: 'OPG потрачен (disabled)', model: this.modelOf(CardName.ASIMOV, {isDisabled: true})},
-      ];
-    },
-    /** Corporation showcase: css / bespoke / image / text-fallback wordmarks,
-     *  effect-action box, live resources, a long brand name. */
-    corpCases(): Array<CuratedCase> {
-      return [
-        {label: 'css-вордмарк (Helion)', model: this.modelOf(CardName.HELION)},
-        {label: 'bespoke SVG + effect-action + ресурсы', model: this.modelOf(CardName.STORMCRAFT_INCORPORATED, {resources: 4})},
-        {label: 'длинное имя (Interplanetary Cinematics)', model: this.modelOf(CardName.INTERPLANETARY_CINEMATICS)},
-        {label: 'действие корпорации (UNMI)', model: this.modelOf(CardName.UNITED_NATIONS_MARS_INITIATIVE)},
-        {label: 'плата за карты (Polyphemos)', model: this.modelOf(CardName.POLYPHEMOS)},
-        {label: 'text-fallback (Beginner)', model: this.modelOf(CardName.BEGINNER_CORPORATION)},
-      ];
-    },
-    densityBuckets(): Array<{density: MechDensity, total: number, samples: Array<CardName>}> {
-      const buckets = new Map<MechDensity, Array<CardName>>([
-        ['sparse', []], ['normal', []], ['dense', []], ['veryDense', []],
-      ]);
-      for (const card of this.scopeCards) {
-        const vm = buildPremiumCardViewModel(card);
-        buckets.get(vm.mechanics.density)?.push(card.name);
-      }
-      return Array.from(buckets.entries()).map(([density, names]) => ({
-        density,
-        total: names.length,
-        samples: names.slice(0, 5),
-      }));
-    },
-    longestTitles(): Array<CardName> {
-      return this.scopeCards
-        .map((c) => ({name: c.name, len: translateText(c.name).length}))
-        .sort((a, b) => b.len - a.len)
-        .slice(0, 6)
-        .map((e) => e.name);
-    },
-    mostTags(): Array<CardName> {
-      return this.scopeCards
-        .map((c) => ({name: c.name, tags: buildPremiumCardViewModel(c).tags.length}))
-        .sort((a, b) => b.tags - a.tags)
-        .slice(0, 6)
-        .map((e) => e.name);
-    },
-    disabledModel(): CardModel {
-      return this.modelOf(this.stateCard, {isDisabled: true});
-    },
-    catalog(): Array<ClientCard> {
-      return this.scopeCards.filter((c) => c.module === this.moduleFilter);
-    },
-  },
-  methods: {
-    modelOf(name: CardName, overrides: Partial<CardModel> = {}): CardModel {
-      const printed = getCardOrThrow(name).cost;
-      return {name, calculatedCost: printed, ...overrides} as CardModel;
-    },
+defineOptions({name: 'PremiumCardsPlayground'});
+defineProps({
+  /**
+   * Hosted inside the console playground stand (ConsolePlaygroundStand):
+   * the HOST owns fullscreen + scrolling (ConsoleScrollArea — a native
+   * scrollbar is a console bug), so the root drops its own fixed/scroll
+   * chrome and becomes a plain document.
+   */
+  embedded: {
+    type: Boolean,
+    required: false,
+    default: false,
   },
 });
+
+const moduleFilter = ref<GameModule>('base');
+const stateCard = ref(CardName.PREDATORS);
+const resourceCard = ref(CardName.PREDATORS);
+const scopeCards = computed((): Array<ClientCard> => {
+  return getCards((c) => inPremiumScope(c, PREMIUM_FACE_SCOPE_MODULES) && isPremiumFaceType(c.type));
+});
+const modules = PREMIUM_FACE_SCOPE_MODULES;
+const referenceNames = computed((): Array<CardName> => {
+  // green / blue / red / prelude — the theme quartet next to the back.
+  return [CardName.TREES, CardName.PREDATORS, CardName.COMET, CardName.DONATION];
+});
+/** The mandatory requirement acceptance cases (single / max / suffixes /
+ *  tags / multiple / {all}) — rendered from synthetic requirements so every
+ *  shape (incl. the {all} variant, which no in-scope card carries) is here. */
+const reqCases = computed((): Array<ReqCase> => {
+  return [
+    {label: 'Океан ≥ 5', reqs: [req({oceans: 5})]},
+    {label: 'Океан ≤ 3 (макс.)', reqs: [req({oceans: 3, max: true})]},
+    {label: 'Кислород ≥ 11%', reqs: [req({oxygen: 11})]},
+    {label: 'Температура ≤ −18°C', reqs: [req({temperature: -18, max: true})]},
+    {label: 'Венера ≥ 12%', reqs: [req({venus: 12})]},
+    {label: 'Наука ≥ 5', reqs: [req({tag: Tag.SCIENCE, count: 5})]},
+    {label: '3 тега ≥ 1', reqs: [req({tag: Tag.PLANT}), req({tag: Tag.ANIMAL}), req({tag: Tag.MICROBE})]},
+    {label: 'Наука ≥ 3 | Кислород ≥ 7%', reqs: [req({tag: Tag.SCIENCE, count: 3}), req({oxygen: 7})]},
+    {label: '{all}: Кислород ≤ 5% (все)', reqs: [req({oxygen: 5, max: true, all: true})]},
+    {label: '{all}: 2 требования (все)', reqs: [req({tag: Tag.JOVIAN, count: 2, all: true}), req({venus: 10, all: true})]},
+  ];
+});
+const curated = computed((): Array<CuratedCase> => {
+  return [
+    {label: 'скидка −4', model: modelOf(CardName.COMET, {calculatedCost: 17})},
+    {label: 'стоимость 0 экв.', model: modelOf(CardName.MICRO_MILLS, {calculatedCost: 0})},
+    {label: 'dynamic VP */3', model: modelOf(CardName.SEARCH_FOR_LIFE)},
+    {label: 'vermin VP', model: modelOf(CardName.VERMIN)},
+    {label: 'нет арта (fallback)', model: modelOf(CardName.DONATION)},
+    {label: 'без механик (VP-only)', model: modelOf(CardName.DUST_SEALS)},
+    {label: 'Столица (база)', model: modelOf(CardName.CAPITAL)},
+    {label: 'Столица (Ares-тайл)', model: modelOf(CardName.CAPITAL_ARES)},
+    {label: 'Торг. район (Ares-тайл)', model: modelOf(CardName.COMMERCIAL_DISTRICT_ARES)},
+    {label: 'Deimos Down (Ares-тайл)', model: modelOf(CardName.DEIMOS_DOWN_ARES)},
+  ];
+});
+/** CEO showcase (wave 4): the reference face, the longest rule prose
+ *  (tier ladder), a tagged CEO, the one VP CEO, the plainText-fallback
+ *  prose (Xavier), and the spent-OPG disabled state. */
+const ceoCases = computed((): Array<CuratedCase> => {
+  return [
+    {label: 'референс (Asimov)', model: modelOf(CardName.ASIMOV)},
+    {label: 'самое длинное правило (Caesar)', model: modelOf(CardName.CAESAR)},
+    {label: 'метка Венеры (Xu)', model: modelOf(CardName.XU)},
+    {label: 'VP «?» + проза (Duncan)', model: modelOf(CardName.DUNCAN)},
+    {label: 'проза из plainText (Xavier)', model: modelOf(CardName.XAVIER)},
+    {label: 'OPG потрачен (disabled)', model: modelOf(CardName.ASIMOV, {isDisabled: true})},
+  ];
+});
+/** Corporation showcase: css / bespoke / image / text-fallback wordmarks,
+ *  effect-action box, live resources, a long brand name. */
+const corpCases = computed((): Array<CuratedCase> => {
+  return [
+    {label: 'css-вордмарк (Helion)', model: modelOf(CardName.HELION)},
+    {label: 'bespoke SVG + effect-action + ресурсы', model: modelOf(CardName.STORMCRAFT_INCORPORATED, {resources: 4})},
+    {label: 'длинное имя (Interplanetary Cinematics)', model: modelOf(CardName.INTERPLANETARY_CINEMATICS)},
+    {label: 'действие корпорации (UNMI)', model: modelOf(CardName.UNITED_NATIONS_MARS_INITIATIVE)},
+    {label: 'плата за карты (Polyphemos)', model: modelOf(CardName.POLYPHEMOS)},
+    {label: 'text-fallback (Beginner)', model: modelOf(CardName.BEGINNER_CORPORATION)},
+  ];
+});
+const densityBuckets = computed((): Array<{density: MechDensity, total: number, samples: Array<CardName>}> => {
+  const buckets = new Map<MechDensity, Array<CardName>>([
+    ['sparse', []], ['normal', []], ['dense', []], ['veryDense', []],
+  ]);
+  for (const card of scopeCards.value) {
+    const vm = buildPremiumCardViewModel(card);
+    buckets.get(vm.mechanics.density)?.push(card.name);
+  }
+  return Array.from(buckets.entries()).map(([density, names]) => ({
+    density,
+    total: names.length,
+    samples: names.slice(0, 5),
+  }));
+});
+const longestTitles = computed((): Array<CardName> => {
+  return scopeCards.value
+    .map((c) => ({name: c.name, len: translateText(c.name).length}))
+    .sort((a, b) => b.len - a.len)
+    .slice(0, 6)
+    .map((e) => e.name);
+});
+const mostTags = computed((): Array<CardName> => {
+  return scopeCards.value
+    .map((c) => ({name: c.name, tags: buildPremiumCardViewModel(c).tags.length}))
+    .sort((a, b) => b.tags - a.tags)
+    .slice(0, 6)
+    .map((e) => e.name);
+});
+const disabledModel = computed((): CardModel => {
+  return modelOf(stateCard.value, {isDisabled: true});
+});
+const catalog = computed((): Array<ClientCard> => {
+  return scopeCards.value.filter((c) => c.module === moduleFilter.value);
+});
+function modelOf(name: CardName, overrides: Partial<CardModel> = {}): CardModel {
+  const printed = getCardOrThrow(name).cost;
+  return {name, calculatedCost: printed, ...overrides} as CardModel;
+}
 </script>
 
 <style>
