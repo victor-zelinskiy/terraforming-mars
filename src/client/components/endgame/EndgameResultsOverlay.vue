@@ -1,11 +1,4 @@
 <template>
-  <!--
-    Full-screen premium END-OF-GAME results overlay. Covers the entire viewport
-    (board + both side bars) — after the game ends this IS the main surface.
-    A dark-glass command-center: hero header + tab navigation + per-tab content.
-    "Minimize" collapses to a pill (handled by EndgameExperience) so the board
-    can still be inspected; New game / Home navigate away. No destructive close.
-  -->
   <div class="eg-results" role="dialog" :aria-label="$t('Game results')">
     <div class="eg-results__bg" aria-hidden="true"></div>
 
@@ -112,8 +105,20 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * Full-screen premium END-OF-GAME results overlay. Covers the entire viewport
+ * (board + both side bars) — after the game ends this IS the main surface.
+ * A dark-glass command-center: hero header + tab navigation + per-tab content.
+ * "Minimize" collapses to a pill (handled by EndgameExperience) so the board
+ * can still be inspected; New game / Home navigate away. No destructive close.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+// (`import type`, on purpose: the template's `<component>` tag makes the SFC compiler count a plain import named
+// `Component` as a binding the template uses — a development build would return the type from setup as a value.)
+import type {Component} from 'vue';
+import {computed, onBeforeUnmount, onMounted} from 'vue';
 import {useClipboard} from '@vueuse/core';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
@@ -122,6 +127,8 @@ import {endgameState, setEndgameTab, minimizeEndgameResults, replayEndgameReveal
 import {rematchState, submitRematch, rematchJoinHref} from '@/client/components/rematch/rematchState';
 import {RematchModel} from '@/common/models/RematchModel';
 import {paths} from '@/common/app/paths';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import EndgameOverviewTab from '@/client/components/endgame/tabs/EndgameOverviewTab.vue';
 import EndgameScoreTab from '@/client/components/endgame/tabs/EndgameScoreTab.vue';
 import EndgameTimelineTab from '@/client/components/endgame/tabs/EndgameTimelineTab.vue';
@@ -138,113 +145,105 @@ const TAB_LABEL: Record<EndgameTab, string> = {
   players: 'Players',
 };
 
-const TAB_COMPONENT: Record<EndgameTab, string> = {
-  overview: 'EndgameOverviewTab',
-  score: 'EndgameScoreTab',
-  timeline: 'EndgameTimelineTab',
-  cards: 'EndgameCardsTab',
-  parameters: 'EndgameParametersTab',
-  players: 'EndgamePlayersTab',
+const TAB_COMPONENT: Record<EndgameTab, Component> = {
+  overview: EndgameOverviewTab,
+  score: EndgameScoreTab,
+  timeline: EndgameTimelineTab,
+  cards: EndgameCardsTab,
+  parameters: EndgameParametersTab,
+  players: EndgamePlayersTab,
 };
 
-export default defineComponent({
-  name: 'EndgameResultsOverlay',
-  components: {EndgameOverviewTab, EndgameScoreTab, EndgameTimelineTab, EndgameCardsTab, EndgameParametersTab, EndgamePlayersTab},
-  props: {
-    model: {type: Object as () => EndgameModel, required: true},
-    view: {type: Object as () => ViewModel, required: true},
-    viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
-  },
-  setup() {
-    // VueUse clipboard: `copied` stays true for 2s after a copy, then auto-resets
-    // (was a hand-rolled navigator.clipboard branch + setTimeout).
-    const {copy: clipboardCopy, copied} = useClipboard({legacy: true, copiedDuring: 2000});
-    return {clipboardCopy, copied};
-  },
-  computed: {
-    activeTab(): EndgameTab {
-      return endgameState.activeTab;
-    },
-    tabs(): Array<{key: EndgameTab; label: string}> {
-      return ENDGAME_TABS.map((key) => ({key, label: TAB_LABEL[key]}));
-    },
-    activeComponent(): string {
-      return TAB_COMPONENT[this.activeTab];
-    },
-    newGameHref(): string {
-      // The premium "Mission Control" create-game screen — the self-contained
-      // replacement for the legacy create form (no legacy-UI dependency).
-      return paths.NEW_GAME_PREMIUM;
-    },
-    rematch(): RematchModel | undefined {
-      return rematchState.model;
-    },
-    rematchSubmitting(): boolean {
-      return rematchState.submitting;
-    },
-    viewerIsPlayer(): boolean {
-      return this.view.thisPlayer !== undefined;
-    },
-    rematchJoin(): string | undefined {
-      return rematchJoinHref(this.rematch);
-    },
-    acceptedCount(): number {
-      return (this.rematch?.votes ?? []).filter((v) => v.status === 'accepted').length;
-    },
-    totalCount(): number {
-      return (this.rematch?.votes ?? []).length;
-    },
-    // Hidden-VP game (opt-in, "Show real-time VP" OFF) → offer to replay the
-    // suspenseful final-scoring reveal.
-    hiddenVpMode(): boolean {
-      return this.view.game.gameOptions.showOtherPlayersVP === false && this.view.players.length > 1;
-    },
-  },
-  methods: {
-    replayReveal(): void {
-      replayEndgameReveal();
-    },
-    setTab(tab: EndgameTab): void {
-      setEndgameTab(tab);
-    },
-    offerRematch(): void {
-      this.submitRematchAction('offer');
-    },
-    acceptRematch(): void {
-      this.submitRematchAction('accept');
-    },
-    declineRematch(): void {
-      this.submitRematchAction('decline');
-    },
-    cancelRematch(): void {
-      this.submitRematchAction('cancel');
-    },
-    submitRematchAction(action: 'offer' | 'accept' | 'decline' | 'cancel'): void {
-      const id = this.view.id;
-      if (id !== undefined && this.viewerIsPlayer) {
-        void submitRematch(id, action);
-      }
-    },
-    minimize(): void {
-      minimizeEndgameResults();
-    },
-    copyLink(): void {
-      void this.clipboardCopy(window.location.href); // `copied` flips true for 2s
-    },
-    onKeydown(e: KeyboardEvent): void {
-      if (e.key === 'Escape') {
-        if (document.querySelector('dialog[open]') !== null) {
-          return;
-        }
-        this.minimize();
-      }
-    },
-  },
-  mounted(): void {
-    window.addEventListener('keydown', this.onKeydown);
-  },
-  beforeUnmount(): void {
-    window.removeEventListener('keydown', this.onKeydown);
-  },
+defineOptions({name: 'EndgameResultsOverlay'});
+const props = defineProps({
+  model: {type: Object as () => EndgameModel, required: true},
+  view: {type: Object as () => ViewModel, required: true},
+  viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
+});
+
+// VueUse clipboard: `copied` stays true for 2s after a copy, then auto-resets
+// (was a hand-rolled navigator.clipboard branch + setTimeout).
+const {copy: clipboardCopy, copied} = useClipboard({legacy: true, copiedDuring: 2000});
+const activeTab = computed((): EndgameTab => {
+  return endgameState.activeTab;
+});
+const tabs = computed((): Array<{key: EndgameTab; label: string}> => {
+  return ENDGAME_TABS.map((key) => ({key, label: TAB_LABEL[key]}));
+});
+const activeComponent = computed((): Component => {
+  return TAB_COMPONENT[activeTab.value];
+});
+const newGameHref = computed((): string => {
+  // The premium "Mission Control" create-game screen — the self-contained
+  // replacement for the legacy create form (no legacy-UI dependency).
+  return paths.NEW_GAME_PREMIUM;
+});
+const rematch = computed((): RematchModel | undefined => {
+  return rematchState.model;
+});
+const rematchSubmitting = computed((): boolean => {
+  return rematchState.submitting;
+});
+const viewerIsPlayer = computed((): boolean => {
+  return props.view.thisPlayer !== undefined;
+});
+const rematchJoin = computed((): string | undefined => {
+  return rematchJoinHref(rematch.value);
+});
+const acceptedCount = computed((): number => {
+  return (rematch.value?.votes ?? []).filter((v) => v.status === 'accepted').length;
+});
+const totalCount = computed((): number => {
+  return (rematch.value?.votes ?? []).length;
+});
+// Hidden-VP game (opt-in, "Show real-time VP" OFF) → offer to replay the
+// suspenseful final-scoring reveal.
+const hiddenVpMode = computed((): boolean => {
+  return props.view.game.gameOptions.showOtherPlayersVP === false && props.view.players.length > 1;
+});
+function replayReveal(): void {
+  replayEndgameReveal();
+}
+function setTab(tab: EndgameTab): void {
+  setEndgameTab(tab);
+}
+function offerRematch(): void {
+  submitRematchAction('offer');
+}
+function acceptRematch(): void {
+  submitRematchAction('accept');
+}
+function declineRematch(): void {
+  submitRematchAction('decline');
+}
+function cancelRematch(): void {
+  submitRematchAction('cancel');
+}
+function submitRematchAction(action: 'offer' | 'accept' | 'decline' | 'cancel'): void {
+  const id = props.view.id;
+  if (id !== undefined && viewerIsPlayer.value) {
+    void submitRematch(id, action);
+  }
+}
+function minimize(): void {
+  minimizeEndgameResults();
+}
+function copyLink(): void {
+  void clipboardCopy(window.location.href); // `copied` flips true for 2s
+}
+function onKeydown(e: KeyboardEvent): void {
+  if (e.key === 'Escape') {
+    if (document.querySelector('dialog[open]') !== null) {
+      return;
+    }
+    minimize();
+  }
+}
+
+onMounted((): void => {
+  window.addEventListener('keydown', onKeydown);
+});
+onBeforeUnmount((): void => {
+  window.removeEventListener('keydown', onKeydown);
 });
 </script>
