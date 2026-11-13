@@ -71,7 +71,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * SCENE TRANSITION SURFACE — the full-bleed curtain of every screen boundary
  * (menu ⇄ game ⇄ campaign). Driven entirely by the scene-transition director
@@ -83,7 +83,7 @@
  * ordinary focusables — the pre-game focus engine drives them from the pad
  * (scope `loadingScreen`).
  */
-import {defineComponent} from 'vue';
+import {computed, onMounted, ref, watch} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PULSE_MS, clearFullscreenLost, curtainKickerKey, curtainStatusKey, curtainTitleParts, dismissStaticBootCurtain, loadingScreenState, noteCurtainTextPainted, orbitPhaseDelayMs} from '@/client/console/loadingScreenState';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -91,77 +91,63 @@ import {probeTick} from '@/client/console/probeTick';
 import {requestConsoleFullscreen} from '@/client/console/consoleModeState';
 import {setNativeFullscreen, supportsNativeFullscreen} from '@/client/console/runtimeMode';
 import {inputModeState} from '@/client/gamepad/inputModeState';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleLoadingScreen',
-  components: {GamepadGlyph},
-  data() {
-    // The phase delays are computed ONCE, at this surface's birth — a negative
-    // delay against the wall clock; every other curtain surface computes the
-    // same formula, so they all agree on the angle at any instant.
-    return {
-      state: loadingScreenState,
-      orbitDelay: `${orbitPhaseDelayMs()}ms`,
-      pulseDelay: `${-(Date.now() % motionMs(PULSE_MS))}ms`,
-    };
-  },
-  computed: {
-    footShown(): boolean {
-      return this.state.textShown || this.state.error !== '';
-    },
-    // Copy comes from the director's shared helpers (ONE source with the
-    // Electron overlay — a fork here breaks the pixel-identical handoff).
-    kickerText(): string {
-      return translateText(curtainKickerKey(this.state.context));
-    },
-    /** The one context line that carries REAL data (mission identity). */
-    titleText(): string {
-      const parts = curtainTitleParts(this.state.context);
-      return parts === undefined ? '' : translateTextWithParams(parts.key, parts.params);
-    },
-    statusText(): string {
-      return curtainStatusKey(this.state.context, this.state.longWait);
-    },
-    padVisible(): boolean {
-      return inputModeState.mode === 'gamepad';
-    },
-  },
-  watch: {
-    // The readable dwell counts from the PAINT of the status line (a busy boot renders it late) — one settled
-    // tick after the patch that turned it on, the curtain tells the director the line is on screen.
-    footShown: {
-      handler(shown: boolean): void {
-        if (shown) {
-          probeTick(() => noteCurtainTextPainted());
-        }
-      },
-      flush: 'post',
-    },
-  },
-  mounted() {
-    // Take over from the STATIC pre-Vue curtain only after THIS surface has
-    // painted (two settled ticks) — the two are pixel-identical, so the
-    // handoff is invisible; removing earlier would re-open the dark gap the
-    // static node exists to close.
-    probeTick(() => probeTick(() => dismissStaticBootCurtain()));
-  },
-  methods: {
-    retry(): void {
-      console.warn('[transport] reload — the loading screen\'s retry');
-      window.location.reload();
-    },
-    restoreFullscreen(): void {
-      if (supportsNativeFullscreen()) {
-        setNativeFullscreen(true);
-        clearFullscreenLost();
-        return;
-      }
-      // Browser: needs a trusted activation; the shared helper retries on
-      // the next real gesture when this synthetic attempt is rejected.
-      requestConsoleFullscreen();
-      clearFullscreenLost();
-    },
-  },
+defineOptions({name: 'ConsoleLoadingScreen'});
+
+const state = loadingScreenState;
+// The phase delays are computed ONCE, at this surface's birth — a negative
+// delay against the wall clock; every other curtain surface computes the
+// same formula, so they all agree on the angle at any instant.
+const orbitDelay = ref(`${orbitPhaseDelayMs()}ms`);
+const pulseDelay = ref(`${-(Date.now() % motionMs(PULSE_MS))}ms`);
+const footShown = computed((): boolean => {
+  return state.textShown || state.error !== '';
+});
+// Copy comes from the director's shared helpers (ONE source with the
+// Electron overlay — a fork here breaks the pixel-identical handoff).
+const kickerText = computed((): string => {
+  return translateText(curtainKickerKey(state.context));
+});
+/** The one context line that carries REAL data (mission identity). */
+const titleText = computed((): string => {
+  const parts = curtainTitleParts(state.context);
+  return parts === undefined ? '' : translateTextWithParams(parts.key, parts.params);
+});
+const statusText = computed((): string => {
+  return curtainStatusKey(state.context, state.longWait);
+});
+const padVisible = computed((): boolean => {
+  return inputModeState.mode === 'gamepad';
+});
+function retry(): void {
+  console.warn('[transport] reload — the loading screen\'s retry');
+  window.location.reload();
+}
+function restoreFullscreen(): void {
+  if (supportsNativeFullscreen()) {
+    setNativeFullscreen(true);
+    clearFullscreenLost();
+    return;
+  }
+  // Browser: needs a trusted activation; the shared helper retries on
+  // the next real gesture when this synthetic attempt is rejected.
+  requestConsoleFullscreen();
+  clearFullscreenLost();
+}
+
+// The readable dwell counts from the PAINT of the status line (a busy boot renders it late) — one settled
+// tick after the patch that turned it on, the curtain tells the director the line is on screen.
+watch(() => footShown.value, (shown: boolean): void => {
+  if (shown) {
+    probeTick(() => noteCurtainTextPainted());
+  }
+}, {flush: 'post'});
+onMounted(() => {
+  // Take over from the STATIC pre-Vue curtain only after THIS surface has
+  // painted (two settled ticks) — the two are pixel-identical, so the
+  // handoff is invisible; removing earlier would re-open the dark gap the
+  // static node exists to close.
+  probeTick(() => probeTick(() => dismissStaticBootCurtain()));
 });
 </script>
