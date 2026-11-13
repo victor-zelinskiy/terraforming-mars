@@ -1,6 +1,8 @@
 import {expect} from 'chai';
 import {mount, VueWrapper} from '@vue/test-utils';
+import {defineComponent, h} from 'vue';
 import {globalConfig} from '../getLocalVue';
+import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {CardName} from '@/common/cards/CardName';
 import {FleetDockPreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {SelectCardModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
@@ -226,6 +228,40 @@ describe('ConsoleFleetDockStage — the reward\'s category decides how the trade
     const stage = mountStage(LINER);
     stage.vm.holdPresentation();
     stage.unmount();
+    expect(armedFleetDockScene(CardName.UNMI_LINER)).is.undefined;
+  });
+
+  // The stage is `<script setup>` (docs/claude/vapor/RECIPES.md R11): its parent's ref reaches ONLY what it exposes.
+  // Asserted the way the colonies section mounts it — under a host that holds `ref="dockStage"` — because
+  // `wrapper.vm` sees the whole setup state and would stay green with the list missing.
+  it('a PARENT\'s ref sees exactly `handleIntent`, `holdPresentation` and `releasePresentation` — the section\'s three reads', () => {
+    type StageReach = {handleIntent(intent: GamepadIntent): void, holdPresentation(): void, releasePresentation(): void};
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleFleetDockStage, {
+        ref: 'dockStage',
+        card: CardName.UNMI_LINER, model: {name: CardName.UNMI_LINER}, available: true, options: [energyPath],
+        preview: LINER, offerEffects: LINER.effects, thisPlayer: player, freeFleets: 2,
+      })]),
+    });
+    const host = mount(Host, {
+      global: {...globalConfig.global, stubs: {ConsoleCardFaceLite: {template: '<div class="pcard-stub"></div>'}}},
+    });
+    const stage = (host.vm.$refs.dockStage ?? undefined) as StageReach | undefined;
+    expect(stage, 'the host\'s ref stands').to.not.eq(undefined);
+    expect(Object.keys(stage!).sort(), 'the exposed list is the contract — nothing else of the script')
+      .to.deep.eq(['handleIntent', 'holdPresentation', 'releasePresentation']);
+    for (const inner of ['emitConfirm', 'onPrimary', 'targetPicked', 'sub', 'held', 'props']) {
+      expect((stage as unknown as Record<string, unknown>)[inner], `«${inner}» stays inside`).to.eq(undefined);
+    }
+
+    // Each member, called as the section calls it.
+    stage!.handleIntent({kind: 'press', button: 'secondary'});
+    expect(host.findComponent(ConsoleFleetDockStage).emitted('confirm'), 'X trades — through the ref').to.have.lengthOf(1);
+    stage!.holdPresentation();
+    expect(fleetDockUi.answered, 'the commit boundary').eq(true);
+    expect(armedFleetDockScene(CardName.UNMI_LINER)?.plan.category).eq('rail');
+    stage!.releasePresentation();
+    expect(fleetDockUi.answered, 'a refused submit gives the stage back').eq(false);
     expect(armedFleetDockScene(CardName.UNMI_LINER)).is.undefined;
   });
 });
