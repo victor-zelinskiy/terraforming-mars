@@ -1,46 +1,4 @@
 <template>
-  <!--
-    THE PLACEMENT RETICLE — the console's physical board cursor
-    (docs/claude/console/board-placement-flow.md).
-
-    One persistent element that TRAVELS between hexes (a retargetable
-    transform transition — never a per-cell class repaint), carrying the
-    PROJECTION of the tile about to be placed. It lives INSIDE `.board-cont`
-    (teleported there by ConsoleBoardSection), so it is positioned in
-    intrinsic board px and rides the planet's own scale/pan transform for
-    free — a re-fit can never strand it. All coordinates in this file are
-    board px (keep-px: board px-space).
-
-    Poses (driven by the placement flow phase + the focused cell's legality):
-     - navigate/legal:  mint ring + a QUIET tile projection — a silhouette,
-       not a second metal frame: the ring already owns «where», so the ghost
-       only has to say «what», and the cell's printed bonuses stay the
-       foreground (the ghost is masked down under the measured bonus
-       cluster — `bonusZone`);
-     - navigate/blocked: muted red ring, no projection (nothing can land);
-     - travel: the ghost LIFTS and lightens while the reticle glides — one
-       object leaving a hex, crossing, and settling into the next; a held
-       d-pad keeps it airborne, so fast scrolling is automatically the
-       compact form of the same motion;
-     - locked:  the projection SETTLES into the hex and turns MATERIAL
-       (opacity up, scale to 1, contact shadow), the ring tightens amber —
-       the commit boundary's own colour grammar;
-     - committing: the locked pose holds, breathing quietly, until the hero
-       scene takes the cell;
-     - marker (the tile language, W1): past the commit, while the tile FLIES in
-       from the table edge, the reticle stays on the cell as the tile's
-       reserved place — the steady amber contour, the projection a trace —
-       and lets go once the tile has touched it;
-     - pickup (a MOVE's «which city» level): the ring around the REAL tile on
-       the cell, no projection — a ghost of a tile over a tile would be a
-       second object. The host passes no art for it.
-
-    Paint budget: transform/opacity/box-shadow only (the console strips
-    `filter`/`text-shadow` permanently); the one INFINITE loop (`__pulse`)
-    is compositor-only and registered in the fx-lite / reduced-motion
-    stop-lists like `con-cell-active`. The bonus mask is STATIC per cell
-    (set at landing, never animated).
-  -->
   <div class="con-bcur"
        :class="poseClasses"
        :style="rootStyle"
@@ -55,8 +13,52 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE PLACEMENT RETICLE — the console's physical board cursor
+ * (docs/claude/console/board-placement-flow.md).
+ *
+ * One persistent element that TRAVELS between hexes (a retargetable
+ * transform transition — never a per-cell class repaint), carrying the
+ * PROJECTION of the tile about to be placed. It lives INSIDE `.board-cont`
+ * (teleported there by ConsoleBoardSection), so it is positioned in
+ * intrinsic board px and rides the planet's own scale/pan transform for
+ * free — a re-fit can never strand it. All coordinates in this file are
+ * board px (keep-px: board px-space).
+ *
+ * Poses (driven by the placement flow phase + the focused cell's legality):
+ *  - navigate/legal:  mint ring + a QUIET tile projection — a silhouette,
+ *    not a second metal frame: the ring already owns «where», so the ghost
+ *    only has to say «what», and the cell's printed bonuses stay the
+ *    foreground (the ghost is masked down under the measured bonus
+ *    cluster — `bonusZone`);
+ *  - navigate/blocked: muted red ring, no projection (nothing can land);
+ *  - travel: the ghost LIFTS and lightens while the reticle glides — one
+ *    object leaving a hex, crossing, and settling into the next; a held
+ *    d-pad keeps it airborne, so fast scrolling is automatically the
+ *    compact form of the same motion;
+ *  - locked:  the projection SETTLES into the hex and turns MATERIAL
+ *    (opacity up, scale to 1, contact shadow), the ring tightens amber —
+ *    the commit boundary's own colour grammar;
+ *  - committing: the locked pose holds, breathing quietly, until the hero
+ *    scene takes the cell;
+ *  - marker (the tile language, W1): past the commit, while the tile FLIES in
+ *    from the table edge, the reticle stays on the cell as the tile's
+ *    reserved place — the steady amber contour, the projection a trace —
+ *    and lets go once the tile has touched it;
+ *  - pickup (a MOVE's «which city» level): the ring around the REAL tile on
+ *    the cell, no projection — a ghost of a tile over a tile would be a
+ *    second object. The host passes no art for it.
+ *
+ * Paint budget: transform/opacity/box-shadow only (the console strips
+ * `filter`/`text-shadow` permanently); the one INFINITE loop (`__pulse`)
+ * is compositor-only and registered in the fx-lite / reduced-motion
+ * stop-lists like `con-cell-active`. The bonus mask is STATIC per cell
+ * (set at landing, never animated).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType, ref, watch} from 'vue';
 import {PlacementFlowPhase} from '@/client/console/tilePlacement/placementFlow';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
@@ -75,112 +77,102 @@ const TRAVEL_MS = 120;
  *  whole run and lands ONCE, on the final cell. */
 const SETTLE_SLACK_MS = 45;
 
-export default defineComponent({
-  name: 'ConsoleBoardCursor',
-  props: {
-    /** Focused cell's top-left in intrinsic board-cont px. */
-    x: {type: Number, required: true},
-    y: {type: Number, required: true},
-    /** The focused cell is a legal landing spot right now. */
-    legal: {type: Boolean, required: true},
-    phase: {type: String as PropType<PlacementFlowPhase>, required: true},
-    /** `board-space-tile--*` art class of the projected tile ('' = ring only). */
-    tileArtClass: {type: String, default: ''},
-    /** Owner cube colour for tiles that seat one (never for oceans). */
-    cubeColor: {type: String as PropType<string | undefined>, default: undefined},
-    /** The cell's printed-bonus cluster (cell-local board px) — the ghost's
-     *  QUIET ZONE: the projection is masked down under it so the reward the
-     *  player is weighing always reads above the incoming tile. */
-    bonusZone: {type: Object as PropType<BonusZone | undefined>, default: undefined},
-    /**
-     * THE PICKUP POSE (a move's «which city» level, Turmoil Redux TR14): the
-     * cell under the reticle already holds the OBJECT — a real tile — so the
-     * reticle projects nothing and rings it a little wider, leaving the tile's
-     * own lift (console.less) to say «this one».
-     */
-    pickup: {type: Boolean, default: false},
-    /**
-     * THE AFLOAT POSE (a city ON TOP OF an ocean, Turmoil Redux TR44): the cell under the reticle holds the WATER,
-     * and the projection is the second object — truthfully: the ghost stands in the pile's lift over the water
-     * (the stack's step and scale — `stackLandingRect`), exactly where the board will paint the landed city, so
-     * the lock, the hero's proxy and the painted tile are one geometry. No quiet zone: the water took the bonus.
-     */
-    afloat: {type: Boolean, default: false},
-    /** THE LANDING MARKER (W1): the hero scene owns the cell and the tile is in the air — hold the place it will land. */
-    marker: {type: Boolean, default: false},
-  },
-  setup() {
-    return {flow: useFlowScope('board-cursor')};
-  },
-  data() {
-    return {
-      /** The reticle is mid-glide (kept true through a held-direction run). */
-      traveling: false,
-      /** The settle timer's cancel (a timer of `flow`) — `undefined` when none stands. */
-      settleTimer: undefined as (() => void) | undefined,
-    };
-  },
-  computed: {
-    rootStyle(): Record<string, string> {
-      const style: Record<string, string> = {
-        width: `${CELL_W}px`,
-        height: `${CELL_H}px`,
-        transform: `translate(${this.x}px, ${this.y}px)`,
-      };
-      const zone = this.bonusZone;
-      if (zone !== undefined) {
-        // The mask ellipse hugs the measured cluster with soft shoulders —
-        // enough that no ghost line crosses an icon, small enough that the
-        // tile still reads as one object. Cell-local px (keep-px).
-        style['--bcur-mask-x'] = `${zone.cx.toFixed(1)}px`;
-        style['--bcur-mask-y'] = `${zone.cy.toFixed(1)}px`;
-        style['--bcur-mask-rx'] = `${(zone.w / 2 + 5).toFixed(1)}px`;
-        style['--bcur-mask-ry'] = `${(zone.h / 2 + 4).toFixed(1)}px`;
-      }
-      return style;
-    },
-    poseClasses(): Record<string, boolean> {
-      return {
-        'con-bcur--legal': this.legal && this.phase === 'navigate',
-        'con-bcur--blocked': !this.legal,
-        'con-bcur--locked': this.legal && this.phase === 'locked',
-        'con-bcur--committing': this.legal && this.phase === 'committing',
-        // Travel is a NAVIGATE-only pose: a lock freezes the reticle on its
-        // cell, so a phase change mid-glide must not keep it airborne.
-        'con-bcur--travel': this.traveling && this.phase === 'navigate',
-        'con-bcur--pickup': this.pickup && this.legal && this.phase === 'navigate',
-        // The afloat pose rides every phase with a projection: aiming, travelling, locked and committing alike.
-        'con-bcur--afloat': this.afloat && this.tileArtClass !== '',
-        'con-bcur--marker': this.marker,
-      };
-    },
-    /** One key so a diagonal step arms exactly one settle cycle. */
-    travelKey(): string {
-      return `${this.x}|${this.y}`;
-    },
-  },
-  watch: {
-    /**
-     * The glide is a CSS transition (retargetable); this only tracks whether
-     * one is in flight so the ghost can ride an airborne pose. A timer, not
-     * `transitionend`: with nav-repeat (≈130 ms) each hop's end event fires
-     * ~10 ms before the next press, which would flicker land/lift per step —
-     * the re-armed timer instead keeps the pose up for the whole run.
-     * Reduced motion snaps the travel, so it never enters the pose at all.
-     */
-    travelKey(): void {
-      if (consoleReducedMotionActive()) {
-        return;
-      }
-      this.traveling = true;
-      if (this.settleTimer !== undefined) {
-        this.settleTimer();
-      }
-      this.settleTimer = this.flow.after(consoleMotionMs(TRAVEL_MS) + SETTLE_SLACK_MS, 'the reticle lands after its glide', () => {
-        this.settleTimer = undefined;
-        this.traveling = false;
-      });
-    },
-  },
+defineOptions({name: 'ConsoleBoardCursor'});
+const props = defineProps({
+  /** Focused cell's top-left in intrinsic board-cont px. */
+  x: {type: Number, required: true},
+  y: {type: Number, required: true},
+  /** The focused cell is a legal landing spot right now. */
+  legal: {type: Boolean, required: true},
+  phase: {type: String as PropType<PlacementFlowPhase>, required: true},
+  /** `board-space-tile--*` art class of the projected tile ('' = ring only). */
+  tileArtClass: {type: String, default: ''},
+  /** Owner cube colour for tiles that seat one (never for oceans). */
+  cubeColor: {type: String as PropType<string | undefined>, default: undefined},
+  /** The cell's printed-bonus cluster (cell-local board px) — the ghost's
+   *  QUIET ZONE: the projection is masked down under it so the reward the
+   *  player is weighing always reads above the incoming tile. */
+  bonusZone: {type: Object as PropType<BonusZone | undefined>, default: undefined},
+  /**
+   * THE PICKUP POSE (a move's «which city» level, Turmoil Redux TR14): the
+   * cell under the reticle already holds the OBJECT — a real tile — so the
+   * reticle projects nothing and rings it a little wider, leaving the tile's
+   * own lift (console.less) to say «this one».
+   */
+  pickup: {type: Boolean, default: false},
+  /**
+   * THE AFLOAT POSE (a city ON TOP OF an ocean, Turmoil Redux TR44): the cell under the reticle holds the WATER,
+   * and the projection is the second object — truthfully: the ghost stands in the pile's lift over the water
+   * (the stack's step and scale — `stackLandingRect`), exactly where the board will paint the landed city, so
+   * the lock, the hero's proxy and the painted tile are one geometry. No quiet zone: the water took the bonus.
+   */
+  afloat: {type: Boolean, default: false},
+  /** THE LANDING MARKER (W1): the hero scene owns the cell and the tile is in the air — hold the place it will land. */
+  marker: {type: Boolean, default: false},
+});
+
+const flow = useFlowScope('board-cursor');
+/** The reticle is mid-glide (kept true through a held-direction run). */
+const traveling = ref(false);
+/** The settle timer's cancel (a timer of `flow`) — `undefined` when none stands. */
+let settleTimer: (() => void) | undefined;
+const rootStyle = computed((): Record<string, string> => {
+  const style: Record<string, string> = {
+    width: `${CELL_W}px`,
+    height: `${CELL_H}px`,
+    transform: `translate(${props.x}px, ${props.y}px)`,
+  };
+  const zone = props.bonusZone;
+  if (zone !== undefined) {
+    // The mask ellipse hugs the measured cluster with soft shoulders —
+    // enough that no ghost line crosses an icon, small enough that the
+    // tile still reads as one object. Cell-local px (keep-px).
+    style['--bcur-mask-x'] = `${zone.cx.toFixed(1)}px`;
+    style['--bcur-mask-y'] = `${zone.cy.toFixed(1)}px`;
+    style['--bcur-mask-rx'] = `${(zone.w / 2 + 5).toFixed(1)}px`;
+    style['--bcur-mask-ry'] = `${(zone.h / 2 + 4).toFixed(1)}px`;
+  }
+  return style;
+});
+const poseClasses = computed((): Record<string, boolean> => {
+  return {
+    'con-bcur--legal': props.legal && props.phase === 'navigate',
+    'con-bcur--blocked': !props.legal,
+    'con-bcur--locked': props.legal && props.phase === 'locked',
+    'con-bcur--committing': props.legal && props.phase === 'committing',
+    // Travel is a NAVIGATE-only pose: a lock freezes the reticle on its
+    // cell, so a phase change mid-glide must not keep it airborne.
+    'con-bcur--travel': traveling.value && props.phase === 'navigate',
+    'con-bcur--pickup': props.pickup && props.legal && props.phase === 'navigate',
+    // The afloat pose rides every phase with a projection: aiming, travelling, locked and committing alike.
+    'con-bcur--afloat': props.afloat && props.tileArtClass !== '',
+    'con-bcur--marker': props.marker,
+  };
+});
+/** One key so a diagonal step arms exactly one settle cycle. */
+const travelKey = computed((): string => {
+  return `${props.x}|${props.y}`;
+});
+
+/**
+ * The glide is a CSS transition (retargetable); this only tracks whether
+ * one is in flight so the ghost can ride an airborne pose. A timer, not
+ * `transitionend`: with nav-repeat (≈130 ms) each hop's end event fires
+ * ~10 ms before the next press, which would flicker land/lift per step —
+ * the re-armed timer instead keeps the pose up for the whole run.
+ * Reduced motion snaps the travel, so it never enters the pose at all.
+ */
+watch(() => travelKey.value, (): void => {
+  if (consoleReducedMotionActive()) {
+    return;
+  }
+  traveling.value = true;
+  if (settleTimer !== undefined) {
+    settleTimer();
+  }
+  settleTimer = flow.after(consoleMotionMs(TRAVEL_MS) + SETTLE_SLACK_MS, 'the reticle lands after its glide', () => {
+    settleTimer = undefined;
+    traveling.value = false;
+  });
 });
 </script>
