@@ -1,5 +1,6 @@
-import {shallowMount} from '@vue/test-utils';
+import {mount, shallowMount} from '@vue/test-utils';
 import {expect} from 'chai';
+import {defineComponent, h, nextTick} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
 import ConsolePlacementFactRow from '@/client/components/console/ConsolePlacementFactRow.vue';
@@ -56,17 +57,28 @@ const info: BoardCellInfo = {
   facts: [{id: 'f', category: 'printed-placement-bonus', timing: 'immediate', severity: 'positive', recipient: {kind: 'current-player'}, title: 'f'}],
 };
 
+/** The stand-in of the lazy source dock: the chip's own classes, and the view the panel handed it. */
+const SourceDockStub = defineComponent({
+  name: 'AsyncComponentWrapper',
+  props: {view: {type: Object, default: undefined}, chip: {type: Boolean, default: false}},
+  render() {
+    return h('div', {class: 'con-src con-src--chip'});
+  },
+});
+
 function mountPanel(props: Record<string, unknown>) {
   return shallowMount(ConsoleContextPanel, {
     ...globalConfig,
     global: {
       ...globalConfig.global,
-      // `console-source-dock` is GLOBAL in the real app (it renders the card
-      // face, whose import chain zeroes a mochapack spec) — so it is stubbed
-      // here rather than resolved. Its own contract lives in
+      // `console-source-dock` is the LAZY binding of `asyncComponents` (it renders
+      // the card face, whose import chain is not this spec's subject) — so it is
+      // stubbed here rather than resolved, under the name that binding answers to
+      // (`AsyncComponentWrapper`: neither the import's name nor its tag matches a
+      // `<script setup>` component's lazy import). Its own contract lives in
       // `promptSource.spec.ts` + the placement e2e probe.
       stubs: {
-        'console-source-dock': {props: ['view', 'chip'], template: '<div class="con-src con-src--chip" />'},
+        'AsyncComponentWrapper': SourceDockStub,
         // THE ONE sections renderer both modes share (TR67) renders for real — its rows stay shallow stubs.
         'console-dossier-sections': false,
         'ConsoleDossierSections': false,
@@ -302,11 +314,54 @@ describe('ConsoleContextPanel', () => {
     it('names the control and fades the cut edge once content overflows', async () => {
       const wrapper = mountPanel({preview, info});
       // JSDOM reports every element as zero-height, so drive the measured state
-      // directly — the measurement itself is a three-property DOM read.
-      await wrapper.setData({moreBelow: true, scrolledDown: true});
+      // directly — the measurement itself is a three-property DOM read. (The
+      // component is `<script setup>` — step A of docs/claude/vapor/RECIPES.md:
+      // its state is refs, and the spec writes them where it used to `setData`.)
+      (wrapper.vm as any).moreBelow = true;
+      (wrapper.vm as any).scrolledDown = true;
+      await nextTick();
       expect(wrapper.find('.con-inspector__more').exists()).to.be.true;
       expect(wrapper.classes()).to.include('con-inspector--more');
       expect(wrapper.classes()).to.include('con-inspector--scrolled');
+    });
+  });
+
+  /**
+   * What the conversion to `<script setup>` must keep: the lazy source dock still stands where a prompt has a source
+   * (and steps aside for the staged play's plate), and the shell — which drives the panel by props alone and stands
+   * no ref on it — reaches nothing through one.
+   */
+  describe('the converted surface', () => {
+    it('WHO asked: the source chip takes the prompt\'s view — and yields its place to the staged play\'s plate', () => {
+      const sourceView = {kindKey: 'Card', card: CardName.CAPITAL, inspectable: true};
+      const asked = mountPanel({preview, info, selectedLegal: true, sourceView});
+      const dock = asked.findComponent(SourceDockStub);
+      expect(dock.exists(), 'the lazy binding renders under the panel').to.be.true;
+      expect(dock.props('view')).to.deep.eq(sourceView);
+      expect(dock.props('chip')).to.eq(true);
+      expect(asked.find('.con-context__id > .con-src--chip').exists(), 'in the identity block').to.be.true;
+
+      const staged = mountPanel({
+        preview, info, selectedLegal: true, sourceView,
+        stagedPlate: {card: CardName.CAPITAL, flow: 'play', price: {amount: 26, icon: 'megacredits'}},
+      });
+      expect(staged.findComponent(SourceDockStub).exists(), 'the plate names the card — no second chip').to.be.false;
+      expect(staged.find('[data-staged-plate] [data-staged-card]').text()).to.eq(CardName.CAPITAL);
+      expect(staged.find('[data-staged-price] b').text()).to.eq('26');
+
+      expect(mountPanel({preview, info, selectedLegal: true}).findComponent(SourceDockStub).exists(), 'nobody asked').to.be.false;
+    });
+
+    it('a parent\'s ref reaches nothing — the panel exposes no member', () => {
+      const Host = defineComponent({
+        render: () => h('div', [h(ConsoleContextPanel, {ref: 'panel', mode: 'placement', viewerColor: 'red', players: [], preview, info})]),
+      });
+      const host = mount(Host, {
+        ...globalConfig,
+        global: {...globalConfig.global, stubs: {AsyncComponentWrapper: SourceDockStub, ConsoleCellPortrait: true, ConsolePlacementFactRow: true}},
+      });
+      expect(host.find('.con-context').exists(), 'the panel stands under the host').to.be.true;
+      expect(Object.keys((host.vm.$refs.panel ?? {}) as object), 'every value is a prop; the shell stands no ref on it').to.deep.eq([]);
     });
   });
 });

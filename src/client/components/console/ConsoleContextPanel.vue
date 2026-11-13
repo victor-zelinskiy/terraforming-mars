@@ -326,7 +326,7 @@
   </aside>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * The right CONTEXT dossier (feedback iteration 2; P27 rework; P30: the
  * strategic idle summary moved OUT into the dedicated STRATEGY RAIL, and
@@ -343,7 +343,7 @@
  * Pure presentation: every value is a prop computed in ConsoleShell from
  * the same sources the desktop buttons use.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import ConsoleCellPortrait from '@/client/components/console/ConsoleCellPortrait.vue';
 import ConsoleDossierSections from '@/client/components/console/ConsoleDossierSections.vue';
 import ConsolePlacementFactRow from '@/client/components/console/ConsolePlacementFactRow.vue';
@@ -353,12 +353,12 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
-import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {ScaleTooltipContent} from '@/client/components/board/scaleTooltipState';
 import {CardName} from '@/common/cards/CardName';
 import {TileType} from '@/common/TileType';
 import {PromptSourceView} from '@/client/console/promptSource';
-import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
+import {tileCssClassOf} from '@/client/components/board/boardSpaceTileModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {
   DossierRow,
@@ -383,6 +383,7 @@ import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import {ScaleTooltipRow} from '@/client/components/board/scaleTooltipState';
 import {CellIdentity, CellMark, CellRingSlot, cellDossierSections, cellIdentity, cellMarks, cellOwnVp, cellRing} from '@/client/console/cellDossier';
 import {previewFacts} from '@/client/console/placementRelations';
+import {ConsoleSourceDock} from '@/client/components/asyncComponents';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -391,342 +392,327 @@ function textOf(v: string | Message | undefined): string {
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
 }
 
-export default defineComponent({
-  name: 'ConsoleContextPanel',
-  components: {ConsoleCellPortrait, ConsoleDossierSections, ConsolePlacementFactRow, GamepadGlyph},
-  data() {
-    return {
-      /** Content continues below the fold — drives the fade + the stick hint. */
-      moreBelow: false,
-      /** Something is already scrolled past — drives the TOP fade. */
-      scrolledDown: false,
-      /**
-       * TR67: the placement's portrait YIELDS to the decision text — a placement dossier that scrolls is a defect (the
-       * dossier law), so the first cell of a prompt whose dossier would overflow with the portrait drops it for the rest
-       * of THAT prompt (a one-time change, never a portrait flickering cell to cell). Reset by the next prompt.
-       */
-      portraitYield: false,
-      /**
-       * …and in the INSPECTION it steps down to the compact size instead (the portrait IS the inspection's head): the
-       * first cell whose dossier would overflow (a long lore at 4K) settles the size for the rest of the inspection.
-       */
-      portraitTight: false,
-      resizeObserver: undefined as ResizeObserver | undefined,
-      FINALE_BANK_LABEL,
-      LANDING_LINE,
-      QUEUE_LABEL,
-      SEAT_YOU,
-    };
-  },
-  watch: {
-    /** P21: a new inspected cell resets the panel scroll — the placement
-     *  STATUS is always the first thing visible. */
-    cellHeader() {
-      this.resetScroll();
-    },
-    selectedLegal() {
-      this.resetScroll();
-    },
-    /** New facts arrive asynchronously (the preview is fetched per cell), so
-     *  the overflow state has to be re-measured when they land. */
-    preview() {
-      this.$nextTick(() => this.measureScroll());
-    },
-    /** A new prompt (or another mode) earns the portrait back. */
-    placementPromptKey() {
-      this.portraitYield = false;
-      this.portraitTight = false;
-      this.$nextTick(() => this.measureScroll());
-    },
-  },
-  mounted() {
-    this.measureScroll();
-    const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
-    if (root !== undefined && typeof ResizeObserver !== 'undefined') {
-      this.resizeObserver = new ResizeObserver(() => this.measureScroll());
-      this.resizeObserver.observe(root);
-    }
-  },
-  beforeUnmount() {
-    this.resizeObserver?.disconnect();
-    this.resizeObserver = undefined;
-  },
-  props: {
-    mode: {type: String as PropType<'placement' | 'cell' | 'track'>, required: true},
-    info: {type: Object as PropType<BoardCellInfo | undefined>, default: undefined},
-    /** placement mode: the focused LEGAL cell's placement consequences. */
-    preview: {type: Object as PropType<BoardPlacementPreview | undefined>, default: undefined},
-    loading: {type: Boolean, default: false},
-    viewerColor: {type: String as PropType<Color>, required: true},
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
-    // placement mode
-    /** i18n KEY for the kicker — from `consoleTaskSummary.placementKicker`,
-     *  never composed here (that module is the ONE source of prompt copy). */
-    placementKickerKey: {type: String, default: 'Tile placement'},
-    placementTitle: {type: String, default: ''},
-    /** What lands (tileType / kind / effect / source) — the identity's input. */
-    placementShape: {type: Object as PropType<PlacementShape | undefined>, default: undefined},
-    /** The structurally-known exchange (convert plants) — the formula line. */
-    conversion: {type: Object as PropType<PlacementConversion | undefined>, default: undefined},
-    /** Ares tile-art variants are active (tileCssClassOf needs the flag). */
-    aresTiles: {type: Boolean, default: false},
-    selectedLegal: {type: Boolean, default: false},
-    illegalReason: {type: String, default: ''},
-    /** The two-phase placement flow's phase — the cell bar's locked accent
-     *  (paint-only; the bar renders no controller prompt, per contract). */
-    flowPhase: {type: String as PropType<'navigate' | 'locked' | 'committing'>, default: 'navigate'},
-    /** P20: the R3 inspect-all toggle is on (labels + the mode chip). */
-    inspectAll: {type: Boolean, default: false},
-    /** WHO asked for this placement — normalized by the shared model. */
-    sourceView: {type: Object as PropType<PromptSourceView | undefined>, default: undefined},
-    /** THE PLAY PLATE of a staged pick (T15 · CD) — undefined for every other placement and past the commit. */
-    stagedPlate: {type: Object as PropType<StagedPlayPlate | undefined>, default: undefined},
-    /** The card a reward the cell decides lands on, as the staged play chose it (Arboretum) — its live count. */
-    chosenTarget: {type: Object as PropType<DossierChosenTarget | undefined>, default: undefined},
-    // track mode (P27)
-    trackInfo: {type: Object as PropType<ScaleTooltipContent | null>, default: null},
-    /** P27c: the owning scale's overview (name / current value / description). */
-    trackScale: {type: Object as PropType<{titleKey: string, nounKey: string, valueText: string, descriptionKey: string} | null>, default: null},
-    // cell mode (P27b): curated special-cell lore
-    lore: {type: Object as PropType<{title: string, description: string} | undefined>, default: undefined},
-    /** The FINALE's block (the session's whole life, PL-304) — the stock, the yield, the order, the stage. */
-    finale: {type: Object as PropType<FinalePanelModel | undefined>, default: undefined},
-  },
-  computed: {
-    /** The staged card's art as the plate's thumbnail (the thumb tier — a 4.6rem swatch). */
-    stagedArtStyle(): Record<string, string> {
-      const url = this.stagedPlate === undefined ? undefined : cardArtUrl(this.stagedPlate.card);
-      return url === undefined ? {} : {backgroundImage: `url(${cardArtUrlAtTier(url, 'thumb')})`};
-    },
-    /** The price's resource glyph (M€ for a play). */
-    stagedPriceIconClass(): string {
-      return this.stagedPlate?.price === undefined ? '' : iconClassFor(this.stagedPlate.price.icon);
-    },
-    /** The plant glyph of the finale's stock line. */
-    plantIconClass(): string {
-      return iconClassFor('plants');
-    },
-    /** A whole greenery of the bank wears the board's own greenery art — the same sprite the cell will draw. */
-    finaleTileClass(): string {
-      const suffix = tileCssClassOf(TileType.GREENERY, this.aresTiles);
-      return suffix === '' ? '' : 'board-space-tile--' + suffix;
-    },
-    finaleEnoughText(): string {
-      return this.finale === undefined ? '' : translateTextWithParams(BANK_ENOUGH, [String(this.finale.bank.affordable)]);
-    },
-    finaleBurnText(): string {
-      return this.finale === undefined ? '' : translateTextWithParams(BANK_BURNS, [String(this.finale.bank.burns)]);
-    },
-    finaleCellsText(): string {
-      return this.finale?.freeCells === undefined ? '' : translateTextWithParams(BANK_CELLS, [String(this.finale.freeCells)]);
-    },
-    /** The stage pill's word. */
-    finaleStageKey(): string {
-      switch (this.finale?.stage) {
-      case 'wait': return STAGE_WAIT;
-      case 'landing': return STAGE_LANDING;
-      default: return STAGE_PICK;
-      }
-    },
-    /** «Ждём ответа: <seat>» — the seat the table waits on; the bare word when the poll has not named one yet. */
-    finaleWaitText(): string {
-      const who = this.finale?.waitingOn;
-      return who === undefined ? translateText(STAGE_WAIT) : translateTextWithParams(WAITING_ON, [who.name]);
-    },
-    /** The source CARD, when there is one — what L3 opens fullscreen. */
-    sourceCard(): CardName | undefined {
-      return this.sourceView?.inspectable === true ? this.sourceView.card : undefined;
-    },
-    /** The cell is LOCKED (or its commit is on the wire) — amber register. */
-    cellLocked(): boolean {
-      return this.selectedLegal && this.flowPhase !== 'navigate';
-    },
-    cellbarClass(): string {
-      if (!this.selectedLegal) {
-        return 'con-context__cellbar--no';
-      }
-      return this.cellLocked ? 'con-context__cellbar--locked' : 'con-context__cellbar--ok';
-    },
-    /** WHAT LANDS — the pure identity (title / swatch / demoted sentence). */
-    identity(): PlacementIdentity {
-      return placementIdentity({
-        translatedTitle: this.placementTitle,
-        tileType: this.placementShape?.tileType,
-        placementType: this.placementShape?.placementType,
-        placementEffect: this.placementShape?.placementEffect,
-        sourceCard: this.placementShape?.sourceCard,
-        hasConversion: this.conversion !== undefined,
-        translate: (key, params) =>
-          (params !== undefined ? translateTextWithParams(key, [...params]) : translateText(key)),
-      });
-    },
-    /** The PLAN line — the same action's later placements ('' → none). */
-    followUpLine(): string {
-      return placementFollowUpLine(this.placementShape?.followUpPlacements, (key, params) =>
-        (params !== undefined ? translateTextWithParams(key, [...params]) : translateText(key)));
-    },
-    /** The real board tile art class for the identity / formula swatch. */
-    swatchClass(): string | undefined {
-      const tt = this.identity.tileType;
-      if (tt === undefined) {
-        return undefined;
-      }
-      const suffix = tileCssClassOf(tt, this.aresTiles);
-      return suffix === '' ? undefined : 'board-space-tile--' + suffix;
-    },
-    conversionIconClass(): string {
-      return this.conversion !== undefined ? iconClassFor(this.conversion.icon) : '';
-    },
-    /** The dossier body — the preview's facts regrouped by intent. */
-    sections(): ReadonlyArray<DossierSection> {
-      return this.preview !== undefined ? dossierSections(this.preview, this.viewerColor, this.chosenTarget) : [];
-    },
-    /**
-     * This cell demands nothing extra — said as one quiet word on the cell
-     * line. Only for a LEGAL cell with a live preview: an illegal cell's line
-     * already carries the refusal, and no preview means no claim.
-     */
-    noToll(): boolean {
-      return this.selectedLegal && this.preview !== undefined &&
-        !this.sections.some((s) => s.key === 'effect');
-    },
-    emptyKey(): string | undefined {
-      return this.preview !== undefined ? dossierEmptyKey(this.preview) : undefined;
-    },
-    /** An illegal cell has no preview — the hover facts still explain it. */
-    fallbackRows(): ReadonlyArray<DossierRow> {
-      if (this.mode !== 'placement' || this.preview !== undefined) {
-        return [];
-      }
-      return buildDossierRows(this.info?.facts ?? []);
-    },
-    cellHeader(): string {
-      return textOf(this.info?.status.header);
-    },
-    /** The placement PROMPT's identity for the portrait's yield (the mode, the tile, the kind, the source, the title). */
-    placementPromptKey(): string {
-      const shape = this.placementShape;
-      return `${this.mode}|${shape?.tileType ?? ''}|${shape?.placementType ?? ''}|${shape?.placementEffect ?? ''}|${shape?.sourceCard ?? ''}|${this.placementTitle}`;
-    },
-    tileLabel(): string {
-      return textOf(this.info?.status.tileLabel);
-    },
-    // ── TR67 · THE STEP PORTRAIT (R3) ──────────────────────────────────
-    /** The scale's own accent — the step plate and the kicker wear it. */
-    trackAccentStyle(): Record<string, string> {
-      const accent = this.trackInfo?.accent;
-      return accent === undefined ? {} : {'--track-accent': ARC_SCALE_THEMES[accent].vars['--arc-accent'] ?? ''};
-    },
-    trackGlyphClass(): string {
-      const accent = this.trackInfo?.accent;
-      return accent === undefined ? '' : ARC_SCALE_THEMES[accent].glyphClass;
-    },
-    /** What the step GIVES (the band's reward / value / description rows). */
-    trackGives(): ReadonlyArray<ScaleTooltipRow> {
-      return (this.trackInfo?.rows ?? []).filter((r) => r.tone !== 'claim' && r.tone !== 'note');
-    },
-    /** Who already took it (a player's dot, the world government). */
-    trackClaims(): ReadonlyArray<ScaleTooltipRow> {
-      return (this.trackInfo?.rows ?? []).filter((r) => r.tone === 'claim' || r.tone === 'note');
-    },
-    // ── TR67 · THE CELL DOSSIER ─────────────────────────────────────────
-    /** The cell's OBJECT — the inspection's title (the tile, a special tile by name, a square by its kind). */
-    cellId(): CellIdentity {
-      if (this.info === undefined) {
-        return {title: translateText('Board cell'), tier: 'base', special: false, line: ''};
-      }
-      return cellIdentity(this.info, (key, params) =>
-        (params !== undefined ? translateTextWithParams(key, [...params]) : translateText(key)), translateMessage);
-    },
-    /** The server's portrait of the focused cell — the SAME payload in every mode (the hover info of that cell). */
-    portrait(): CellPortrait | undefined {
-      return this.info?.portrait;
-    },
-    /** The facts that light the ring: a placement's preview (what THIS placement touches), else the hover's own. */
-    ringFacts(): ReadonlyArray<BoardFact> {
-      if (this.mode === 'placement') {
-        return this.preview !== undefined ? previewFacts(this.preview) : [];
-      }
-      return this.info?.facts ?? [];
-    },
-    ring(): Array<CellRingSlot> {
-      return cellRing(this.portrait, this.ringFacts, this.viewerColor);
-    },
-    marks(): Array<CellMark> {
-      return this.info !== undefined ? cellMarks(this.info) : [];
-    },
-    /** The tile's OWN points at the end (the inspection only — a placement's VP lives in its endgame block). */
-    ownVp(): number | undefined {
-      return this.info !== undefined ? cellOwnVp(this.info) : undefined;
-    },
-    /** The CARD that put the tile here — the source chip; X opens its face. */
-    placedBy(): CardName | undefined {
-      return this.portrait?.sourceCard;
-    },
-    cellSections(): Array<DossierSection> {
-      return this.info !== undefined ? cellDossierSections(this.info, this.viewerColor, {lore: this.lore !== undefined}) : [];
-    },
-    cellBodySections(): Array<DossierSection> {
-      return this.cellSections.filter((s) => s.key !== 'rules');
-    },
-    cellFootSections(): Array<DossierSection> {
-      return this.cellSections.filter((s) => s.key === 'rules');
-    },
-    ownerColor(): Color | undefined {
-      return this.info?.status.ownerColor;
-    },
-    ownerName(): string {
-      const color = this.ownerColor;
-      if (color === undefined) {
-        return '';
-      }
-      const player = this.players.find((p) => p.color === color);
-      return player !== undefined ? participantDisplayName(player) : '';
-    },
-    /** P27b: hide the lore title when the cell header already names it. */
-    loreTitle(): string {
-      const t = this.lore?.title ?? '';
-      if (t === '') {
-        return '';
-      }
-      const translated = translateText(t);
-      return translated === this.cellHeader || translated === this.tileLabel ? '' : t;
-    },
-  },
-  methods: {
-    /** A seat's word in the finale order. */
-    seatStateKey(state: FinaleSeatState): string {
-      return state === 'done' ? SEAT_DONE : state === 'placing' ? SEAT_PLACING : SEAT_WAITING;
-    },
-    /**
-     * Recompute the two overflow affordances. Kept cheap (three reads, no
-     * layout write) and driven by the passive scroll event, a ResizeObserver and
-     * the preview watcher — the three moments the answer can change.
-     */
-    measureScroll(): void {
-      const root = (this.$refs.root ?? undefined) as HTMLElement | undefined;
-      if (root === undefined || root === null) {
-        return;
-      }
-      const remaining = root.scrollHeight - root.clientHeight - root.scrollTop;
-      if (remaining > 2 && this.mode === 'placement' && this.portrait !== undefined && !this.portraitYield) {
-        // The decision text outranks the cell's face: yield, then measure again (TR67).
-        this.portraitYield = true;
-        this.$nextTick(() => this.measureScroll());
-        return;
-      }
-      if (remaining > 2 && this.mode === 'cell' && this.portrait !== undefined && !this.portraitTight) {
-        this.portraitTight = true;
-        this.$nextTick(() => this.measureScroll());
-        return;
-      }
-      this.moreBelow = remaining > 2;
-      this.scrolledDown = root.scrollTop > 2;
-    },
-    resetScroll(): void {
-      ((this.$refs.root ?? undefined) as HTMLElement | undefined)?.scrollTo?.({top: 0});
-      this.$nextTick(() => this.measureScroll());
-    },
-  },
+defineOptions({name: 'ConsoleContextPanel'});
+const props = defineProps({
+  mode: {type: String as PropType<'placement' | 'cell' | 'track'>, required: true},
+  info: {type: Object as PropType<BoardCellInfo | undefined>, default: undefined},
+  /** placement mode: the focused LEGAL cell's placement consequences. */
+  preview: {type: Object as PropType<BoardPlacementPreview | undefined>, default: undefined},
+  loading: {type: Boolean, default: false},
+  viewerColor: {type: String as PropType<Color>, required: true},
+  players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
+  // placement mode
+  /** i18n KEY for the kicker — from `consoleTaskSummary.placementKicker`,
+   *  never composed here (that module is the ONE source of prompt copy). */
+  placementKickerKey: {type: String, default: 'Tile placement'},
+  placementTitle: {type: String, default: ''},
+  /** What lands (tileType / kind / effect / source) — the identity's input. */
+  placementShape: {type: Object as PropType<PlacementShape | undefined>, default: undefined},
+  /** The structurally-known exchange (convert plants) — the formula line. */
+  conversion: {type: Object as PropType<PlacementConversion | undefined>, default: undefined},
+  /** Ares tile-art variants are active (tileCssClassOf needs the flag). */
+  aresTiles: {type: Boolean, default: false},
+  selectedLegal: {type: Boolean, default: false},
+  illegalReason: {type: String, default: ''},
+  /** The two-phase placement flow's phase — the cell bar's locked accent
+   *  (paint-only; the bar renders no controller prompt, per contract). */
+  flowPhase: {type: String as PropType<'navigate' | 'locked' | 'committing'>, default: 'navigate'},
+  /** P20: the R3 inspect-all toggle is on (labels + the mode chip). */
+  inspectAll: {type: Boolean, default: false},
+  /** WHO asked for this placement — normalized by the shared model. */
+  sourceView: {type: Object as PropType<PromptSourceView | undefined>, default: undefined},
+  /** THE PLAY PLATE of a staged pick (T15 · CD) — undefined for every other placement and past the commit. */
+  stagedPlate: {type: Object as PropType<StagedPlayPlate | undefined>, default: undefined},
+  /** The card a reward the cell decides lands on, as the staged play chose it (Arboretum) — its live count. */
+  chosenTarget: {type: Object as PropType<DossierChosenTarget | undefined>, default: undefined},
+  // track mode (P27)
+  trackInfo: {type: Object as PropType<ScaleTooltipContent | null>, default: null},
+  /** P27c: the owning scale's overview (name / current value / description). */
+  trackScale: {type: Object as PropType<{titleKey: string, nounKey: string, valueText: string, descriptionKey: string} | null>, default: null},
+  // cell mode (P27b): curated special-cell lore
+  lore: {type: Object as PropType<{title: string, description: string} | undefined>, default: undefined},
+  /** The FINALE's block (the session's whole life, PL-304) — the stock, the yield, the order, the stage. */
+  finale: {type: Object as PropType<FinalePanelModel | undefined>, default: undefined},
+});
+
+const root = useTemplateRef<HTMLElement>('root');
+/** Content continues below the fold — drives the fade + the stick hint. */
+const moreBelow = ref(false);
+/** Something is already scrolled past — drives the TOP fade. */
+const scrolledDown = ref(false);
+/**
+ * TR67: the placement's portrait YIELDS to the decision text — a placement dossier that scrolls is a defect (the
+ * dossier law), so the first cell of a prompt whose dossier would overflow with the portrait drops it for the rest
+ * of THAT prompt (a one-time change, never a portrait flickering cell to cell). Reset by the next prompt.
+ */
+const portraitYield = ref(false);
+/**
+ * …and in the INSPECTION it steps down to the compact size instead (the portrait IS the inspection's head): the
+ * first cell whose dossier would overflow (a long lore at 4K) settles the size for the rest of the inspection.
+ */
+const portraitTight = ref(false);
+let resizeObserver: ResizeObserver | undefined;
+
+/** The staged card's art as the plate's thumbnail (the thumb tier — a 4.6rem swatch). */
+const stagedArtStyle = computed((): Record<string, string> => {
+  const url = props.stagedPlate === undefined ? undefined : cardArtUrl(props.stagedPlate.card);
+  return url === undefined ? {} : {backgroundImage: `url(${cardArtUrlAtTier(url, 'thumb')})`};
+});
+/** The price's resource glyph (M€ for a play). */
+const stagedPriceIconClass = computed((): string => {
+  return props.stagedPlate?.price === undefined ? '' : iconClassFor(props.stagedPlate.price.icon);
+});
+/** The plant glyph of the finale's stock line. */
+const plantIconClass = computed((): string => {
+  return iconClassFor('plants');
+});
+/** A whole greenery of the bank wears the board's own greenery art — the same sprite the cell will draw. */
+const finaleTileClass = computed((): string => {
+  const suffix = tileCssClassOf(TileType.GREENERY, props.aresTiles);
+  return suffix === '' ? '' : 'board-space-tile--' + suffix;
+});
+const finaleEnoughText = computed((): string => {
+  return props.finale === undefined ? '' : translateTextWithParams(BANK_ENOUGH, [String(props.finale.bank.affordable)]);
+});
+const finaleBurnText = computed((): string => {
+  return props.finale === undefined ? '' : translateTextWithParams(BANK_BURNS, [String(props.finale.bank.burns)]);
+});
+const finaleCellsText = computed((): string => {
+  return props.finale?.freeCells === undefined ? '' : translateTextWithParams(BANK_CELLS, [String(props.finale.freeCells)]);
+});
+/** The stage pill's word. */
+const finaleStageKey = computed((): string => {
+  switch (props.finale?.stage) {
+  case 'wait': return STAGE_WAIT;
+  case 'landing': return STAGE_LANDING;
+  default: return STAGE_PICK;
+  }
+});
+/** «Ждём ответа: <seat>» — the seat the table waits on; the bare word when the poll has not named one yet. */
+const finaleWaitText = computed((): string => {
+  const who = props.finale?.waitingOn;
+  return who === undefined ? translateText(STAGE_WAIT) : translateTextWithParams(WAITING_ON, [who.name]);
+});
+/** The cell is LOCKED (or its commit is on the wire) — amber register. */
+const cellLocked = computed((): boolean => {
+  return props.selectedLegal && props.flowPhase !== 'navigate';
+});
+const cellbarClass = computed((): string => {
+  if (!props.selectedLegal) {
+    return 'con-context__cellbar--no';
+  }
+  return cellLocked.value ? 'con-context__cellbar--locked' : 'con-context__cellbar--ok';
+});
+/** WHAT LANDS — the pure identity (title / swatch / demoted sentence). */
+const identity = computed((): PlacementIdentity => {
+  return placementIdentity({
+    translatedTitle: props.placementTitle,
+    tileType: props.placementShape?.tileType,
+    placementType: props.placementShape?.placementType,
+    placementEffect: props.placementShape?.placementEffect,
+    sourceCard: props.placementShape?.sourceCard,
+    hasConversion: props.conversion !== undefined,
+    translate: (key, params) =>
+      (params !== undefined ? translateTextWithParams(key, [...params]) : translateText(key)),
+  });
+});
+/** The PLAN line — the same action's later placements ('' → none). */
+const followUpLine = computed((): string => {
+  return placementFollowUpLine(props.placementShape?.followUpPlacements, (key, params) =>
+    (params !== undefined ? translateTextWithParams(key, [...params]) : translateText(key)));
+});
+/** The real board tile art class for the identity / formula swatch. */
+const swatchClass = computed((): string | undefined => {
+  const tt = identity.value.tileType;
+  if (tt === undefined) {
+    return undefined;
+  }
+  const suffix = tileCssClassOf(tt, props.aresTiles);
+  return suffix === '' ? undefined : 'board-space-tile--' + suffix;
+});
+const conversionIconClass = computed((): string => {
+  return props.conversion !== undefined ? iconClassFor(props.conversion.icon) : '';
+});
+/** The dossier body — the preview's facts regrouped by intent. */
+const sections = computed((): ReadonlyArray<DossierSection> => {
+  return props.preview !== undefined ? dossierSections(props.preview, props.viewerColor, props.chosenTarget) : [];
+});
+/**
+ * This cell demands nothing extra — said as one quiet word on the cell
+ * line. Only for a LEGAL cell with a live preview: an illegal cell's line
+ * already carries the refusal, and no preview means no claim.
+ */
+const noToll = computed((): boolean => {
+  return props.selectedLegal && props.preview !== undefined &&
+    !sections.value.some((s) => s.key === 'effect');
+});
+const emptyKey = computed((): string | undefined => {
+  return props.preview !== undefined ? dossierEmptyKey(props.preview) : undefined;
+});
+/** An illegal cell has no preview — the hover facts still explain it. */
+const fallbackRows = computed((): ReadonlyArray<DossierRow> => {
+  if (props.mode !== 'placement' || props.preview !== undefined) {
+    return [];
+  }
+  return buildDossierRows(props.info?.facts ?? []);
+});
+const cellHeader = computed((): string => {
+  return textOf(props.info?.status.header);
+});
+/** The placement PROMPT's identity for the portrait's yield (the mode, the tile, the kind, the source, the title). */
+const placementPromptKey = computed((): string => {
+  const shape = props.placementShape;
+  return `${props.mode}|${shape?.tileType ?? ''}|${shape?.placementType ?? ''}|${shape?.placementEffect ?? ''}|${shape?.sourceCard ?? ''}|${props.placementTitle}`;
+});
+const tileLabel = computed((): string => {
+  return textOf(props.info?.status.tileLabel);
+});
+// ── TR67 · THE STEP PORTRAIT (R3) ──────────────────────────────────
+/** The scale's own accent — the step plate and the kicker wear it. */
+const trackAccentStyle = computed((): Record<string, string> => {
+  const accent = props.trackInfo?.accent;
+  return accent === undefined ? {} : {'--track-accent': ARC_SCALE_THEMES[accent].vars['--arc-accent'] ?? ''};
+});
+const trackGlyphClass = computed((): string => {
+  const accent = props.trackInfo?.accent;
+  return accent === undefined ? '' : ARC_SCALE_THEMES[accent].glyphClass;
+});
+/** What the step GIVES (the band's reward / value / description rows). */
+const trackGives = computed((): ReadonlyArray<ScaleTooltipRow> => {
+  return (props.trackInfo?.rows ?? []).filter((r) => r.tone !== 'claim' && r.tone !== 'note');
+});
+/** Who already took it (a player's dot, the world government). */
+const trackClaims = computed((): ReadonlyArray<ScaleTooltipRow> => {
+  return (props.trackInfo?.rows ?? []).filter((r) => r.tone === 'claim' || r.tone === 'note');
+});
+// ── TR67 · THE CELL DOSSIER ─────────────────────────────────────────
+/** The cell's OBJECT — the inspection's title (the tile, a special tile by name, a square by its kind). */
+const cellId = computed((): CellIdentity => {
+  if (props.info === undefined) {
+    return {title: translateText('Board cell'), tier: 'base', special: false, line: ''};
+  }
+  return cellIdentity(props.info, (key, params) =>
+    (params !== undefined ? translateTextWithParams(key, [...params]) : translateText(key)), translateMessage);
+});
+/** The server's portrait of the focused cell — the SAME payload in every mode (the hover info of that cell). */
+const portrait = computed((): CellPortrait | undefined => {
+  return props.info?.portrait;
+});
+/** The facts that light the ring: a placement's preview (what THIS placement touches), else the hover's own. */
+const ringFacts = computed((): ReadonlyArray<BoardFact> => {
+  if (props.mode === 'placement') {
+    return props.preview !== undefined ? previewFacts(props.preview) : [];
+  }
+  return props.info?.facts ?? [];
+});
+const ring = computed((): Array<CellRingSlot> => {
+  return cellRing(portrait.value, ringFacts.value, props.viewerColor);
+});
+const marks = computed((): Array<CellMark> => {
+  return props.info !== undefined ? cellMarks(props.info) : [];
+});
+/** The tile's OWN points at the end (the inspection only — a placement's VP lives in its endgame block). */
+const ownVp = computed((): number | undefined => {
+  return props.info !== undefined ? cellOwnVp(props.info) : undefined;
+});
+/** The CARD that put the tile here — the source chip; X opens its face. */
+const placedBy = computed((): CardName | undefined => {
+  return portrait.value?.sourceCard;
+});
+const cellSections = computed((): Array<DossierSection> => {
+  return props.info !== undefined ? cellDossierSections(props.info, props.viewerColor, {lore: props.lore !== undefined}) : [];
+});
+const cellBodySections = computed((): Array<DossierSection> => {
+  return cellSections.value.filter((s) => s.key !== 'rules');
+});
+const cellFootSections = computed((): Array<DossierSection> => {
+  return cellSections.value.filter((s) => s.key === 'rules');
+});
+const ownerColor = computed((): Color | undefined => {
+  return props.info?.status.ownerColor;
+});
+const ownerName = computed((): string => {
+  const color = ownerColor.value;
+  if (color === undefined) {
+    return '';
+  }
+  const player = props.players.find((p) => p.color === color);
+  return player !== undefined ? participantDisplayName(player) : '';
+});
+/** P27b: hide the lore title when the cell header already names it. */
+const loreTitle = computed((): string => {
+  const t = props.lore?.title ?? '';
+  if (t === '') {
+    return '';
+  }
+  const translated = translateText(t);
+  return translated === cellHeader.value || translated === tileLabel.value ? '' : t;
+});
+
+/** A seat's word in the finale order. */
+function seatStateKey(state: FinaleSeatState): string {
+  return state === 'done' ? SEAT_DONE : state === 'placing' ? SEAT_PLACING : SEAT_WAITING;
+}
+/**
+ * Recompute the two overflow affordances. Kept cheap (three reads, no
+ * layout write) and driven by the passive scroll event, a ResizeObserver and
+ * the preview watcher — the three moments the answer can change.
+ */
+function measureScroll(): void {
+  const rootNow = root.value ?? undefined;
+  if (rootNow === undefined || rootNow === null) {
+    return;
+  }
+  const remaining = rootNow.scrollHeight - rootNow.clientHeight - rootNow.scrollTop;
+  if (remaining > 2 && props.mode === 'placement' && portrait.value !== undefined && !portraitYield.value) {
+    // The decision text outranks the cell's face: yield, then measure again (TR67).
+    portraitYield.value = true;
+    nextTick(() => measureScroll());
+    return;
+  }
+  if (remaining > 2 && props.mode === 'cell' && portrait.value !== undefined && !portraitTight.value) {
+    portraitTight.value = true;
+    nextTick(() => measureScroll());
+    return;
+  }
+  moreBelow.value = remaining > 2;
+  scrolledDown.value = rootNow.scrollTop > 2;
+}
+function resetScroll(): void {
+  root.value?.scrollTo?.({top: 0});
+  nextTick(() => measureScroll());
+}
+
+/** P21: a new inspected cell resets the panel scroll — the placement
+ *  STATUS is always the first thing visible. */
+watch(() => cellHeader.value, () => {
+  resetScroll();
+});
+watch(() => props.selectedLegal, () => {
+  resetScroll();
+});
+/** New facts arrive asynchronously (the preview is fetched per cell), so
+ *  the overflow state has to be re-measured when they land. */
+watch(() => props.preview, () => {
+  nextTick(() => measureScroll());
+});
+/** A new prompt (or another mode) earns the portrait back. */
+watch(() => placementPromptKey.value, () => {
+  portraitYield.value = false;
+  portraitTight.value = false;
+  nextTick(() => measureScroll());
+});
+
+onMounted(() => {
+  measureScroll();
+  const rootNow = root.value ?? undefined;
+  if (rootNow !== undefined && typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => measureScroll());
+    resizeObserver.observe(rootNow);
+  }
+});
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = undefined;
 });
 </script>
