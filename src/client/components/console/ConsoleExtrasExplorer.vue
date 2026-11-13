@@ -1,12 +1,5 @@
 <template>
-  <!-- THE EXTRAS EXPLORER — the «Доп. ресурсы» screen of the Information
-       workspace. The TYPE NAVIGATION is the rail satellite (`.con-res-aux`,
-       shell chrome — pixel-anchored, this component renders none of it);
-       what lives here is the CONTENT of the selected type: the hero header
-       (identity + honest summary), the card gallery (real premium faces,
-       strict pages) and the focused-card fact strip. Read-only by the
-       overlay's contract — nothing here submits anything. -->
-  <div class="con-exr" :class="{'con-exr--bot': viewedIsBot}">
+  <div ref="root" class="con-exr" :class="{'con-exr--bot': viewedIsBot}">
     <template v-if="types.length > 0 && selected !== undefined">
       <transition :css="false" mode="out-in"
                   @enter="typeSwapEnter" @leave="typeSwapLeave"
@@ -143,7 +136,19 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE EXTRAS EXPLORER — the «Доп. ресурсы» screen of the Information
+ *       workspace. The TYPE NAVIGATION is the rail satellite (`.con-res-aux`,
+ *       shell chrome — pixel-anchored, this component renders none of it);
+ *       what lives here is the CONTENT of the selected type: the hero header
+ *       (identity + honest summary), the card gallery (real premium faces,
+ *       strict pages) and the focused-card fact strip. Read-only by the
+ *       overlay's contract — nothing here submits anything.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
 /**
  * THE EXTRAS EXPLORER (Information workspace, extras route) — presentation
  * + input over the PURE `extrasExplorerModel` builders. Reads only PUBLIC
@@ -162,7 +167,7 @@
  *    `onBrowse` (the page follows the cursor — it is derived), and B lands
  *    the card back in its slot.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {gsap} from 'gsap';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
@@ -176,7 +181,7 @@ import {useConsoleViewport} from '@/client/console/composables/useConsoleViewpor
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {additionalResourceRoleGroups, resourceScoring} from '@/client/components/additionalResources/additionalResources';
 import {cardResourceCSS} from '@/client/components/common/cardResources';
 import {cardHasAction} from '@/client/components/actions/actionExtraction';
@@ -199,422 +204,405 @@ import {consoleCardZoom, openConsoleCardZoom, slotZoomOrigin} from '@/client/con
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import Card from '@/client/components/card/CardFace.vue';
 
-export default defineComponent({
-  name: 'ConsoleExtrasExplorer',
-  components: {Card},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-  },
-  setup() {
-    const viewport = useConsoleViewport();
-    return {viewport};
-  },
-  data() {
-    return {
-      infoModeState,
-      ui: extrasExplorerUi,
-      /** The last selected type's INDEX — signs the type-swap direction. */
-      lastTypeIndex: 0,
-      /** The last rendered page — signs the page-turn direction. */
-      lastPage: 0,
-    };
-  },
-  computed: {
-    viewed(): PublicPlayerModel {
-      const color = this.infoModeState.playerColor;
-      return this.playerView.players.find((p) => p.color === color) ?? this.playerView.thisPlayer;
-    },
-    isSelf(): boolean {
-      return this.viewed.color === this.playerView.thisPlayer.color;
-    },
-    viewedIsBot(): boolean {
-      return this.viewed.isMarsBot === true && this.botAutoma !== undefined;
-    },
-    botAutoma(): MarsBotModel | undefined {
-      return this.playerView.game.automa;
-    },
-    vpVisible(): boolean {
-      return this.isSelf || this.viewedIsBot ||
-        this.playerView.game.gameOptions.showOtherPlayersVP === true;
-    },
-    /** The canonical type list — the SAME derivation the satellite renders
-     *  (first-appearance order, zero holders included), so the column and
-     *  this screen can never disagree. */
-    types(): ReadonlyArray<ExtrasTypeVm> {
-      const automa = this.botAutoma;
-      if (this.viewedIsBot && automa !== undefined) {
-        return buildBotExtrasTypes(marsBotExtraGroups(automa, marsBotExtrasContext(this.playerView.game)));
-      }
-      return buildExtrasTypes({
-        groups: additionalResourceRoleGroups(this.viewed.tableau),
-        detailsCards: this.viewed.victoryPointsBreakdown.detailsCards,
-        vpVisible: this.vpVisible,
-        lookup: (name) => {
-          const card = getCard(name as CardName);
-          if (card === undefined) {
-            return undefined;
-          }
-          let hasAction = false;
-          try {
-            hasAction = cardHasAction(name as CardName);
-          } catch (err) {
-            hasAction = false;
-          }
-          const scoring = resourceScoring(name as CardName);
-          return {
-            isCorporation: card.type === CardType.CORPORATION,
-            hasAction,
-            printedRule: scoring !== undefined ? scoring :
-              (card.victoryPoints === 'special' && card.resourceType !== undefined ? 'special' : undefined),
-          };
-        },
-        iconFor: (resource: CardResource) => `card-resource ${cardResourceCSS[resource]}`,
-        protections: railProtections(this.viewed).cardResources,
-        payments: railMcBadges(this.viewed).cardBound,
-      });
-    },
-    selected(): ExtrasTypeVm | undefined {
-      return this.types.find((t) => t.key === this.ui.typeKey) ?? this.types[0];
-    },
-    selectedIndex(): number {
-      const key = this.selected?.key;
-      return Math.max(0, this.types.findIndex((t) => t.key === key));
-    },
-    perPage(): number {
-      return this.viewport.isHandheld.value ? 3 : 4;
-    },
-    page(): number {
-      return Math.min(
-        extrasPageOf(this.ui.cardCursor, this.perPage),
-        this.pages - 1);
-    },
-    pages(): number {
-      return extrasPageCount(this.selected?.cards.length ?? 0, this.perPage);
-    },
-    /** The page's slots — each with its live tableau CardModel (the real
-     *  premium face draws its own resource cubes). */
-    pageEntries(): Array<{card: ExtrasCardVm, model: CardModel, index: number}> {
-      const cards = this.selected?.cards ?? [];
-      const start = this.page * this.perPage;
-      return cards.slice(start, start + this.perPage).map((card, i) => ({
-        card,
-        model: this.liveCard(card.name),
-        index: start + i,
-      }));
-    },
-    focusedCard(): ExtrasCardVm | undefined {
-      return this.selected?.cards[this.ui.cardCursor] ?? this.selected?.cards[0];
-    },
-    focusedName(): string {
-      return this.focusedCard?.name ?? '';
-    },
-    /** The category title — PLURAL where the locale has one (a category
-     *  names the family, not one unit); the bot's labels arrive plural. */
-    typeTitle(): string {
-      const label = this.selected?.label ?? '';
-      const plural: Partial<Record<string, string>> = {
-        'Animal': 'Animals', 'Microbe': 'Microbes', 'Floater': 'Floaters',
-        'Asteroid': 'Asteroids', 'Seed': 'Seeds', 'Fighter': 'Fighters',
-        'Mech': 'Mechs',
-        // A mass noun in English — the plural is its own key (`ui.json`), never «Leverages».
-        'Leverage': 'Leverage resources',
-      };
-      const title = translateText(plural[label] ?? label);
-      // A type SPLIT by role (PL-030) names the role beside the resource: «Мехи · делегаты» / «Мехи · деньги».
-      const caption = this.selected?.roleCaption;
-      return caption === undefined ? title : `${title} · ${translateText(caption)}`;
-    },
-    heroSubtitle(): string {
-      const sel = this.selected;
-      if (sel === undefined) {
-        return '';
-      }
-      if (this.viewedIsBot) {
-        if (sel.holders.length === 0) {
-          return translateText('Common pool');
-        }
-        const notes = sel.botNotes ?? [];
-        // A CORP-only store's holder is the corporation card, not a
-        // shipping area — name it instead of claiming an area count.
-        if (notes.length === 1 && notes[0] === 'corp') {
-          return translateText(sel.holders[0].name);
-        }
-        // MIXED sources (Pluto science + a corp store): the type-agnostic
-        // holder count — «Storage areas: 2» would misname the corp card.
-        if (notes.includes('corp')) {
-          return translateTextWithParams('Holders: ${0}', [String(sel.holders.length)]);
-        }
-        return translateTextWithParams('Storage areas: ${0}', [String(sel.holders.length)]);
-      }
-      return translateTextWithParams('Holders: ${0}', [String(sel.cards.length)]);
-    },
-    vpChip(): string {
-      const sel = this.selected;
-      const vp = sel?.vpFromResources;
-      if (sel === undefined || vp === undefined || sel.scoringCards === 0) {
-        return '';
-      }
-      // All-conditional types speak through the conditional chip alone — a
-      // «+0» beside a real conditional sum would read as a contradiction.
-      if (vp === 0 && (sel.vpConditional ?? 0) !== 0) {
-        return '';
-      }
-      return translateTextWithParams('VP from resources: ${0}', [vp > 0 ? `+${vp}` : String(vp)]);
-    },
-    conditionalChip(): string {
-      const vp = this.selected?.vpConditional;
-      return vp !== undefined && vp !== 0 ?
-        translateTextWithParams('Conditional: ${0}', [`+${vp}`]) : '';
-    },
-    actionChip(): string {
-      return translateTextWithParams('Actions: ${0}', [String(this.selected?.actionCards ?? 0)]);
-    },
-    payChip(): string {
-      const badge = this.selected?.payment;
-      return badge !== undefined ?
-        translateTextWithParams('Pays: 1 = ${0} M€', [badge.text]) : '';
-    },
-    detailNowText(): string {
-      const s = this.focusedCard?.scoring;
-      if (s === undefined || s.vpNow === undefined) {
-        return '';
-      }
-      return translateTextWithParams('Now: ${0} VP', [s.vpNow > 0 ? `+${s.vpNow}` : String(s.vpNow)]);
-    },
-    detailNextText(): string {
-      const s = this.focusedCard?.scoring;
-      if (s === undefined || s.toNext === undefined) {
-        return '';
-      }
-      return translateTextWithParams('${0} toward the next VP', [String(s.toNext)]);
-    },
-    detailOtherVpText(): string {
-      const other = this.focusedCard?.otherVp;
-      if (other === undefined || other.vpNow === undefined) {
-        return '';
-      }
-      return other.conditional ?
-        translateTextWithParams('Card VP (not from resources): ${0}, conditional', [String(other.vpNow)]) :
-        translateTextWithParams('Card VP (not from resources): ${0}', [String(other.vpNow)]);
-    },
-    /** The explorer's live command contract — ConsoleInfoMode republishes it. */
-    barState(): Array<ConsoleCommand> {
-      const cmds: Array<ConsoleCommand> = [
-        {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
-      ];
-      if (this.types.length > 0) {
-        // The bot screen has only the type column; a human screen offers
-        // «Выбрать» over the column and «Осмотреть» over the gallery.
-        if (this.viewedIsBot || this.ui.zone === 'types') {
-          cmds.push({control: 'confirm', label: 'Select'});
-        } else if (this.focusedCard !== undefined) {
-          cmds.push({control: 'secondary', label: 'Inspect'});
-        }
-      }
-      cmds.push({control: 'back', label: 'To overview'});
-      cmds.push({control: 'inspect', label: 'Close', priority: 0});
-      return cmds;
-    },
-  },
-  watch: {
-    barState: {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>) {
-        extrasExplorerUi.barCommands = cmds;
-      },
-    },
-    /** Keep the selection VALID against the live list: a seat switch keeps
-     *  the type when the new participant has it (useful comparison
-     *  context), else lands on the first available one — predictable,
-     *  never dark. */
-    types: {
-      immediate: true,
-      handler() {
-        this.normalizeSelection();
-      },
-    },
-    'infoModeState.playerColor'(): void {
-      // The gallery list is a different player's — the card cursor restarts;
-      // the type survives when it exists (normalizeSelection).
-      this.ui.cardCursor = 0;
-      this.ui.zone = 'types';
-      this.normalizeSelection();
-    },
-  },
-  mounted() {
-    this.normalizeSelection();
-    this.lastTypeIndex = this.selectedIndex;
-  },
-  beforeUnmount() {
-    extrasExplorerUi.barCommands = undefined;
-  },
-  methods: {
-    liveCard(name: string): CardModel {
-      return this.viewed.tableau.find((c) => c.name === name) ?? ({name: name as CardName} as CardModel);
-    },
-    normalizeSelection(): void {
-      if (this.types.length === 0) {
-        this.ui.typeKey = undefined;
-        this.ui.typeCursor = 0;
-        this.ui.cardCursor = 0;
-        return;
-      }
-      const at = this.types.findIndex((t) => t.key === this.ui.typeKey);
-      if (at === -1) {
-        this.ui.typeKey = this.types[0].key;
-        this.ui.typeCursor = 0;
-        this.ui.cardCursor = 0;
-      } else {
-        this.ui.typeCursor = Math.min(this.ui.typeCursor, this.types.length - 1);
-      }
-      const count = this.selected?.cards.length ?? 0;
-      if (this.ui.cardCursor >= count) {
-        this.ui.cardCursor = Math.max(0, count - 1);
-      }
-    },
-    slotVpText(card: ExtrasCardVm): string {
-      const s = card.scoring;
-      if (s === undefined) {
-        return '';
-      }
-      if (s.vpNow === undefined) {
-        // Hidden score: the printed rule is public — state it, no values.
-        return s.kind === 'per' ? `${s.per}→${s.each} ${translateText('VP')}` : translateText('Special scoring');
-      }
-      if (s.kind === 'special') {
-        return `${s.vpNow > 0 ? '+' + s.vpNow : s.vpNow} ${translateText('VP')} · ${translateText('conditional')}`;
-      }
-      return `${s.vpNow > 0 ? '+' + s.vpNow : s.vpNow} ${translateText('VP')}`;
-    },
-    // ── input (forwarded by the shell while the extras route is up) ──────
-    handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        this.onNav(intent.dir);
-        return;
-      }
-      if (intent.kind !== 'press') {
-        return;
-      }
-      const action = consoleActionOf(intent);
-      if (action === 'primary') {
-        this.onPrimary();
-      } else if (action === 'inspect') {
-        this.onInspect();
-      }
-    },
-    onNav(dir: 'up' | 'down' | 'left' | 'right'): void {
-      const next = extrasNavigate(
-        {zone: this.ui.zone, typeCursor: this.ui.typeCursor, cardCursor: this.ui.cardCursor},
-        dir,
-        this.types.length,
-        this.viewedIsBot ? 0 : (this.selected?.cards.length ?? 0),
-      );
-      this.ui.zone = next.zone;
-      this.ui.typeCursor = next.typeCursor;
-      this.ui.cardCursor = next.cardCursor;
-    },
-    onPrimary(): void {
-      if (this.ui.zone === 'types') {
-        const tile = this.types[this.ui.typeCursor];
-        if (tile !== undefined && tile.key !== this.ui.typeKey) {
-          this.lastTypeIndex = this.selectedIndex;
-          selectExtrasType(tile.key, this.ui.typeCursor);
-        }
-        return;
-      }
-      // A in the gallery — the unadvertised alias of X (the one the thumb
-      // expects); the bar keeps advertising the console-wide X grammar.
-      this.onInspect();
-    },
-    /** The satellite cell press / the shell's aux-press route. */
-    selectType(key: string, index: number): void {
-      if (key === this.ui.typeKey) {
-        this.ui.typeCursor = index;
-        this.ui.zone = 'types';
-        return;
-      }
-      this.lastTypeIndex = this.selectedIndex;
-      selectExtrasType(key, index);
-      this.ui.zone = 'types';
-    },
-    slotPressed(index: number): void {
-      this.ui.zone = 'cards';
-      this.ui.cardCursor = index;
-      this.onInspect();
-    },
-    onInspect(): void {
-      if (this.viewedIsBot || this.selected === undefined || this.selected.cards.length === 0) {
-        return;
-      }
-      const cards = this.selected.cards.map((c) => this.liveCard(c.name));
-      const idx = Math.min(this.ui.cardCursor, cards.length - 1);
-      this.ui.zone = 'cards';
-      openConsoleCardZoom(cards, idx, undefined, undefined, {
-        contextLabel: 'Extra resources',
-        origin: slotZoomOrigin(
-          () => this.$el as HTMLElement,
-          (i) => this.selected?.cards[i]?.name ?? '',
-          (i) => {
-            // The viewer browses THIS list — the cursor (and the derived
-            // page) follows, so B lands on the very card being read.
-            this.ui.cardCursor = i;
-          },
-        ),
-      });
-    },
-    // ── the content transitions ──────────────────────────────────────────
-    /** A type change slides the body from the direction of the newly
-     *  selected cell (visual tether to the satellite column); a page turn
-     *  is the horizontal cousin. Reduced motion / an open zoom snap —
-     *  and an out-in `done` must be a MICROTASK, never synchronous. */
-    snapSwap(el: Element, done: () => void): boolean {
-      if (consoleReducedMotionActive() || consoleCardZoom.card !== undefined) {
-        gsap.set(el, {clearProps: 'transform,opacity'});
-        void Promise.resolve().then(done);
-        return true;
-      }
-      return false;
-    },
-    typeSwapEnter(el: Element, done: () => void): void {
-      if (this.snapSwap(el, done)) {
-        return;
-      }
-      const dir = this.selectedIndex >= this.lastTypeIndex ? 1 : -1;
-      this.lastTypeIndex = this.selectedIndex;
-      gsap.fromTo(el,
-        {opacity: 0, y: dir * 12 * conUiScale()},
-        {opacity: 1, y: 0, duration: motionMs(180) / 1000, ease: 'power2.out', clearProps: 'transform,opacity', onComplete: done});
-    },
-    typeSwapLeave(el: Element, done: () => void): void {
-      if (this.snapSwap(el, done)) {
-        return;
-      }
-      const dir = this.selectedIndex >= this.lastTypeIndex ? 1 : -1;
-      gsap.to(el, {opacity: 0, y: dir * -9 * conUiScale(), duration: motionMs(90) / 1000, ease: 'power1.in', onComplete: done});
-    },
-    typeSwapCancelled(el: Element): void {
-      gsap.killTweensOf(el);
-      gsap.set(el, {clearProps: 'transform,opacity'});
-    },
-    pageSwapEnter(el: Element, done: () => void): void {
-      if (this.snapSwap(el, done)) {
-        this.lastPage = this.page;
-        return;
-      }
-      const dir = this.page >= this.lastPage ? 1 : -1;
-      this.lastPage = this.page;
-      gsap.fromTo(el,
-        {opacity: 0, x: dir * 16 * conUiScale()},
-        {opacity: 1, x: 0, duration: motionMs(170) / 1000, ease: 'power2.out', clearProps: 'transform,opacity', onComplete: done});
-    },
-    pageSwapLeave(el: Element, done: () => void): void {
-      if (this.snapSwap(el, done)) {
-        return;
-      }
-      const dir = this.page >= this.lastPage ? 1 : -1;
-      gsap.to(el, {opacity: 0, x: dir * -12 * conUiScale(), duration: motionMs(80) / 1000, ease: 'power1.in', onComplete: done});
-    },
-  },
+defineOptions({name: 'ConsoleExtrasExplorer'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
 });
+
+const viewport = useConsoleViewport();
+const root = useTemplateRef<HTMLElement>('root');
+const ui = extrasExplorerUi;
+/** The last selected type's INDEX — signs the type-swap direction. */
+const lastTypeIndex = ref(0);
+/** The last rendered page — signs the page-turn direction. */
+const lastPage = ref(0);
+
+const viewed = computed((): PublicPlayerModel => {
+  const color = infoModeState.playerColor;
+  return props.playerView.players.find((p) => p.color === color) ?? props.playerView.thisPlayer;
+});
+const isSelf = computed((): boolean => {
+  return viewed.value.color === props.playerView.thisPlayer.color;
+});
+const viewedIsBot = computed((): boolean => {
+  return viewed.value.isMarsBot === true && botAutoma.value !== undefined;
+});
+const botAutoma = computed((): MarsBotModel | undefined => {
+  return props.playerView.game.automa;
+});
+const vpVisible = computed((): boolean => {
+  return isSelf.value || viewedIsBot.value ||
+    props.playerView.game.gameOptions.showOtherPlayersVP === true;
+});
+/** The canonical type list — the SAME derivation the satellite renders
+ *  (first-appearance order, zero holders included), so the column and
+ *  this screen can never disagree. */
+const types = computed((): ReadonlyArray<ExtrasTypeVm> => {
+  const automa = botAutoma.value;
+  if (viewedIsBot.value && automa !== undefined) {
+    return buildBotExtrasTypes(marsBotExtraGroups(automa, marsBotExtrasContext(props.playerView.game)));
+  }
+  return buildExtrasTypes({
+    groups: additionalResourceRoleGroups(viewed.value.tableau),
+    detailsCards: viewed.value.victoryPointsBreakdown.detailsCards,
+    vpVisible: vpVisible.value,
+    lookup: (name) => {
+      const card = getCard(name as CardName);
+      if (card === undefined) {
+        return undefined;
+      }
+      let hasAction = false;
+      try {
+        hasAction = cardHasAction(name as CardName);
+      } catch (err) {
+        hasAction = false;
+      }
+      const scoring = resourceScoring(name as CardName);
+      return {
+        isCorporation: card.type === CardType.CORPORATION,
+        hasAction,
+        printedRule: scoring !== undefined ? scoring :
+          (card.victoryPoints === 'special' && card.resourceType !== undefined ? 'special' : undefined),
+      };
+    },
+    iconFor: (resource: CardResource) => `card-resource ${cardResourceCSS[resource]}`,
+    protections: railProtections(viewed.value).cardResources,
+    payments: railMcBadges(viewed.value).cardBound,
+  });
+});
+const selected = computed((): ExtrasTypeVm | undefined => {
+  return types.value.find((t) => t.key === ui.typeKey) ?? types.value[0];
+});
+const selectedIndex = computed((): number => {
+  const key = selected.value?.key;
+  return Math.max(0, types.value.findIndex((t) => t.key === key));
+});
+const perPage = computed((): number => {
+  return viewport.isHandheld.value ? 3 : 4;
+});
+const page = computed((): number => {
+  return Math.min(
+    extrasPageOf(ui.cardCursor, perPage.value),
+    pages.value - 1);
+});
+const pages = computed((): number => {
+  return extrasPageCount(selected.value?.cards.length ?? 0, perPage.value);
+});
+/** The page's slots — each with its live tableau CardModel (the real
+ *  premium face draws its own resource cubes). */
+const pageEntries = computed((): Array<{card: ExtrasCardVm, model: CardModel, index: number}> => {
+  const cards = selected.value?.cards ?? [];
+  const start = page.value * perPage.value;
+  return cards.slice(start, start + perPage.value).map((card, i) => ({
+    card,
+    model: liveCard(card.name),
+    index: start + i,
+  }));
+});
+const focusedCard = computed((): ExtrasCardVm | undefined => {
+  return selected.value?.cards[ui.cardCursor] ?? selected.value?.cards[0];
+});
+const focusedName = computed((): string => {
+  return focusedCard.value?.name ?? '';
+});
+/** The category title — PLURAL where the locale has one (a category
+ *  names the family, not one unit); the bot's labels arrive plural. */
+const typeTitle = computed((): string => {
+  const label = selected.value?.label ?? '';
+  const plural: Partial<Record<string, string>> = {
+    'Animal': 'Animals', 'Microbe': 'Microbes', 'Floater': 'Floaters',
+    'Asteroid': 'Asteroids', 'Seed': 'Seeds', 'Fighter': 'Fighters',
+    'Mech': 'Mechs',
+    // A mass noun in English — the plural is its own key (`ui.json`), never «Leverages».
+    'Leverage': 'Leverage resources',
+  };
+  const title = translateText(plural[label] ?? label);
+  // A type SPLIT by role (PL-030) names the role beside the resource: «Мехи · делегаты» / «Мехи · деньги».
+  const caption = selected.value?.roleCaption;
+  return caption === undefined ? title : `${title} · ${translateText(caption)}`;
+});
+const heroSubtitle = computed((): string => {
+  const sel = selected.value;
+  if (sel === undefined) {
+    return '';
+  }
+  if (viewedIsBot.value) {
+    if (sel.holders.length === 0) {
+      return translateText('Common pool');
+    }
+    const notes = sel.botNotes ?? [];
+    // A CORP-only store's holder is the corporation card, not a
+    // shipping area — name it instead of claiming an area count.
+    if (notes.length === 1 && notes[0] === 'corp') {
+      return translateText(sel.holders[0].name);
+    }
+    // MIXED sources (Pluto science + a corp store): the type-agnostic
+    // holder count — «Storage areas: 2» would misname the corp card.
+    if (notes.includes('corp')) {
+      return translateTextWithParams('Holders: ${0}', [String(sel.holders.length)]);
+    }
+    return translateTextWithParams('Storage areas: ${0}', [String(sel.holders.length)]);
+  }
+  return translateTextWithParams('Holders: ${0}', [String(sel.cards.length)]);
+});
+const vpChip = computed((): string => {
+  const sel = selected.value;
+  const vp = sel?.vpFromResources;
+  if (sel === undefined || vp === undefined || sel.scoringCards === 0) {
+    return '';
+  }
+  // All-conditional types speak through the conditional chip alone — a
+  // «+0» beside a real conditional sum would read as a contradiction.
+  if (vp === 0 && (sel.vpConditional ?? 0) !== 0) {
+    return '';
+  }
+  return translateTextWithParams('VP from resources: ${0}', [vp > 0 ? `+${vp}` : String(vp)]);
+});
+const conditionalChip = computed((): string => {
+  const vp = selected.value?.vpConditional;
+  return vp !== undefined && vp !== 0 ?
+    translateTextWithParams('Conditional: ${0}', [`+${vp}`]) : '';
+});
+const actionChip = computed((): string => {
+  return translateTextWithParams('Actions: ${0}', [String(selected.value?.actionCards ?? 0)]);
+});
+const payChip = computed((): string => {
+  const badge = selected.value?.payment;
+  return badge !== undefined ?
+    translateTextWithParams('Pays: 1 = ${0} M€', [badge.text]) : '';
+});
+const detailNowText = computed((): string => {
+  const s = focusedCard.value?.scoring;
+  if (s === undefined || s.vpNow === undefined) {
+    return '';
+  }
+  return translateTextWithParams('Now: ${0} VP', [s.vpNow > 0 ? `+${s.vpNow}` : String(s.vpNow)]);
+});
+const detailNextText = computed((): string => {
+  const s = focusedCard.value?.scoring;
+  if (s === undefined || s.toNext === undefined) {
+    return '';
+  }
+  return translateTextWithParams('${0} toward the next VP', [String(s.toNext)]);
+});
+const detailOtherVpText = computed((): string => {
+  const other = focusedCard.value?.otherVp;
+  if (other === undefined || other.vpNow === undefined) {
+    return '';
+  }
+  return other.conditional ?
+    translateTextWithParams('Card VP (not from resources): ${0}, conditional', [String(other.vpNow)]) :
+    translateTextWithParams('Card VP (not from resources): ${0}', [String(other.vpNow)]);
+});
+/** The explorer's live command contract — ConsoleInfoMode republishes it. */
+const barState = computed((): Array<ConsoleCommand> => {
+  const cmds: Array<ConsoleCommand> = [
+    {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
+  ];
+  if (types.value.length > 0) {
+    // The bot screen has only the type column; a human screen offers
+    // «Выбрать» over the column and «Осмотреть» over the gallery.
+    if (viewedIsBot.value || ui.zone === 'types') {
+      cmds.push({control: 'confirm', label: 'Select'});
+    } else if (focusedCard.value !== undefined) {
+      cmds.push({control: 'secondary', label: 'Inspect'});
+    }
+  }
+  cmds.push({control: 'back', label: 'To overview'});
+  cmds.push({control: 'inspect', label: 'Close', priority: 0});
+  return cmds;
+});
+
+function liveCard(name: string): CardModel {
+  return viewed.value.tableau.find((c) => c.name === name) ?? ({name: name as CardName} as CardModel);
+}
+function normalizeSelection(): void {
+  if (types.value.length === 0) {
+    ui.typeKey = undefined;
+    ui.typeCursor = 0;
+    ui.cardCursor = 0;
+    return;
+  }
+  const at = types.value.findIndex((t) => t.key === ui.typeKey);
+  if (at === -1) {
+    ui.typeKey = types.value[0].key;
+    ui.typeCursor = 0;
+    ui.cardCursor = 0;
+  } else {
+    ui.typeCursor = Math.min(ui.typeCursor, types.value.length - 1);
+  }
+  const count = selected.value?.cards.length ?? 0;
+  if (ui.cardCursor >= count) {
+    ui.cardCursor = Math.max(0, count - 1);
+  }
+}
+function slotVpText(card: ExtrasCardVm): string {
+  const s = card.scoring;
+  if (s === undefined) {
+    return '';
+  }
+  if (s.vpNow === undefined) {
+    // Hidden score: the printed rule is public — state it, no values.
+    return s.kind === 'per' ? `${s.per}→${s.each} ${translateText('VP')}` : translateText('Special scoring');
+  }
+  if (s.kind === 'special') {
+    return `${s.vpNow > 0 ? '+' + s.vpNow : s.vpNow} ${translateText('VP')} · ${translateText('conditional')}`;
+  }
+  return `${s.vpNow > 0 ? '+' + s.vpNow : s.vpNow} ${translateText('VP')}`;
+}
+// ── input (forwarded by the shell while the extras route is up) ──────
+function handleIntent(intent: GamepadIntent): void {
+  if (intent.kind === 'nav') {
+    onNav(intent.dir);
+    return;
+  }
+  if (intent.kind !== 'press') {
+    return;
+  }
+  const action = consoleActionOf(intent);
+  if (action === 'primary') {
+    onPrimary();
+  } else if (action === 'inspect') {
+    onInspect();
+  }
+}
+function onNav(dir: 'up' | 'down' | 'left' | 'right'): void {
+  const next = extrasNavigate(
+    {zone: ui.zone, typeCursor: ui.typeCursor, cardCursor: ui.cardCursor},
+    dir,
+    types.value.length,
+    viewedIsBot.value ? 0 : (selected.value?.cards.length ?? 0),
+  );
+  ui.zone = next.zone;
+  ui.typeCursor = next.typeCursor;
+  ui.cardCursor = next.cardCursor;
+}
+function onPrimary(): void {
+  if (ui.zone === 'types') {
+    const tile = types.value[ui.typeCursor];
+    if (tile !== undefined && tile.key !== ui.typeKey) {
+      lastTypeIndex.value = selectedIndex.value;
+      selectExtrasType(tile.key, ui.typeCursor);
+    }
+    return;
+  }
+  // A in the gallery — the unadvertised alias of X (the one the thumb
+  // expects); the bar keeps advertising the console-wide X grammar.
+  onInspect();
+}
+/** The satellite cell press / the shell's aux-press route. */
+function selectType(key: string, index: number): void {
+  if (key === ui.typeKey) {
+    ui.typeCursor = index;
+    ui.zone = 'types';
+    return;
+  }
+  lastTypeIndex.value = selectedIndex.value;
+  selectExtrasType(key, index);
+  ui.zone = 'types';
+}
+function slotPressed(index: number): void {
+  ui.zone = 'cards';
+  ui.cardCursor = index;
+  onInspect();
+}
+function onInspect(): void {
+  if (viewedIsBot.value || selected.value === undefined || selected.value.cards.length === 0) {
+    return;
+  }
+  const cards = selected.value.cards.map((c) => liveCard(c.name));
+  const idx = Math.min(ui.cardCursor, cards.length - 1);
+  ui.zone = 'cards';
+  openConsoleCardZoom(cards, idx, undefined, undefined, {
+    contextLabel: 'Extra resources',
+    origin: slotZoomOrigin(
+      () => root.value as HTMLElement,
+      (i) => selected.value?.cards[i]?.name ?? '',
+      (i) => {
+        // The viewer browses THIS list — the cursor (and the derived
+        // page) follows, so B lands on the very card being read.
+        ui.cardCursor = i;
+      },
+    ),
+  });
+}
+// ── the content transitions ──────────────────────────────────────────
+/** A type change slides the body from the direction of the newly
+ *  selected cell (visual tether to the satellite column); a page turn
+ *  is the horizontal cousin. Reduced motion / an open zoom snap —
+ *  and an out-in `done` must be a MICROTASK, never synchronous. */
+function snapSwap(el: Element, done: () => void): boolean {
+  if (consoleReducedMotionActive() || consoleCardZoom.card !== undefined) {
+    gsap.set(el, {clearProps: 'transform,opacity'});
+    void Promise.resolve().then(done);
+    return true;
+  }
+  return false;
+}
+function typeSwapEnter(el: Element, done: () => void): void {
+  if (snapSwap(el, done)) {
+    return;
+  }
+  const dir = selectedIndex.value >= lastTypeIndex.value ? 1 : -1;
+  lastTypeIndex.value = selectedIndex.value;
+  gsap.fromTo(el,
+    {opacity: 0, y: dir * 12 * conUiScale()},
+    {opacity: 1, y: 0, duration: motionMs(180) / 1000, ease: 'power2.out', clearProps: 'transform,opacity', onComplete: done});
+}
+function typeSwapLeave(el: Element, done: () => void): void {
+  if (snapSwap(el, done)) {
+    return;
+  }
+  const dir = selectedIndex.value >= lastTypeIndex.value ? 1 : -1;
+  gsap.to(el, {opacity: 0, y: dir * -9 * conUiScale(), duration: motionMs(90) / 1000, ease: 'power1.in', onComplete: done});
+}
+function typeSwapCancelled(el: Element): void {
+  gsap.killTweensOf(el);
+  gsap.set(el, {clearProps: 'transform,opacity'});
+}
+function pageSwapEnter(el: Element, done: () => void): void {
+  if (snapSwap(el, done)) {
+    lastPage.value = page.value;
+    return;
+  }
+  const dir = page.value >= lastPage.value ? 1 : -1;
+  lastPage.value = page.value;
+  gsap.fromTo(el,
+    {opacity: 0, x: dir * 16 * conUiScale()},
+    {opacity: 1, x: 0, duration: motionMs(170) / 1000, ease: 'power2.out', clearProps: 'transform,opacity', onComplete: done});
+}
+function pageSwapLeave(el: Element, done: () => void): void {
+  if (snapSwap(el, done)) {
+    return;
+  }
+  const dir = page.value >= lastPage.value ? 1 : -1;
+  gsap.to(el, {opacity: 0, x: dir * -12 * conUiScale(), duration: motionMs(80) / 1000, ease: 'power1.in', onComplete: done});
+}
+
+watch(() => barState.value, (cmds: ReadonlyArray<ConsoleCommand>) => {
+  extrasExplorerUi.barCommands = cmds;
+}, {immediate: true, deep: true});
+/** Keep the selection VALID against the live list: a seat switch keeps
+ *  the type when the new participant has it (useful comparison
+ *  context), else lands on the first available one — predictable,
+ *  never dark. */
+watch(() => types.value, () => {
+  normalizeSelection();
+}, {immediate: true});
+watch(() => infoModeState.playerColor, (): void => {
+  // The gallery list is a different player's — the card cursor restarts;
+  // the type survives when it exists (normalizeSelection).
+  ui.cardCursor = 0;
+  ui.zone = 'types';
+  normalizeSelection();
+});
+
+onMounted(() => {
+  normalizeSelection();
+  lastTypeIndex.value = selectedIndex.value;
+});
+onBeforeUnmount(() => {
+  extrasExplorerUi.barCommands = undefined;
+});
+defineExpose({handleIntent, selectType});
 </script>
