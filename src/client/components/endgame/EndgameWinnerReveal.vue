@@ -1,13 +1,4 @@
 <template>
-  <!--
-    Cinematic winner announcement shown the moment a game ends (and once on
-    re-entering an ended game). Premium sci-fi, NOT a party screen: the board
-    sinks behind a deep vignette tinted with the winner's colour, two scan
-    sweeps cross the screen, a slow halo ring breathes behind the winner's
-    name, the score counts up, then a hero CTA materializes after a beat.
-    Choreography is pure CSS delays + one rAF count-up — transform/opacity
-    only, so the sequence never stutters. Skippable (button / Esc).
-  -->
   <div class="eg-reveal" :style="glowVars" @keydown.esc="skip">
     <div class="eg-reveal__backdrop" aria-hidden="true"></div>
     <div class="eg-reveal__aurora" aria-hidden="true"></div>
@@ -73,105 +64,108 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * Cinematic winner announcement shown the moment a game ends (and once on
+ * re-entering an ended game). Premium sci-fi, NOT a party screen: the board
+ * sinks behind a deep vignette tinted with the winner's colour, two scan
+ * sweeps cross the screen, a slow halo ring breathes behind the winner's
+ * name, the score counts up, then a hero CTA materializes after a beat.
+ * Choreography is pure CSS delays + one rAF count-up — transform/opacity
+ * only, so the sequence never stutters. Skippable (button / Esc).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
 import {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {openEndgameResults, skipEndgameReveal} from '@/client/components/endgame/endgameState';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
 // When the score count-up starts / how long it runs — tuned to land right
 // after the score block's CSS entrance (see endgame.less choreography).
 const COUNT_DELAY_MS = 850;
 const COUNT_DURATION_MS = 950;
 
-export default defineComponent({
-  name: 'EndgameWinnerReveal',
-  props: {
-    model: {type: Object as () => EndgameModel, required: true},
-  },
-  setup() {
-    return {flow: useFlowScope('endgame-winner-reveal')};
-  },
-  data() {
-    return {
-      shownScore: 0,
-    };
-  },
-  computed: {
-    winner(): EndgamePlayerScore | undefined {
-      return this.model.winner;
-    },
-    winnerCorp(): string {
-      if (this.winner === undefined) {
-        return '';
-      }
-      // The MarsBot seat keeps `corporations` empty — its corp identity rides
-      // `botCorporation` (absent on legacy corpless saves).
-      return this.winner.corporations.length > 0 ? this.winner.corporations[0] : (this.winner.botCorporation?.name ?? '');
-    },
-    glowVars(): Record<string, string> {
-      const hex = this.winner !== undefined ? endgamePlayerHex(this.winner.color) : '#6ab0e6';
-      return {'--eg-glow': hex};
-    },
-    titleText(): string {
-      if (this.model.mode === 'solo') {
-        return this.model.soloWin ? this.$t('Victory') : this.$t('Defeat');
-      }
-      return this.$t('Winner');
-    },
-    titleClass(): string {
-      if (this.model.mode === 'solo' && !this.model.soloWin) {
-        return 'eg-reveal__title--defeat';
-      }
-      return '';
-    },
-    // 2nd (and 3rd) place lines under the winner — duel shows the single
-    // opponent, standings shows up to the next two.
-    runners(): Array<EndgamePlayerScore> {
-      if (this.model.mode === 'solo') {
-        return [];
-      }
-      return this.model.players.filter((p) => !p.isWinner).slice(0, this.model.mode === 'duel' ? 1 : 2);
-    },
-  },
-  methods: {
-    open(): void {
-      openEndgameResults();
-    },
-    skip(): void {
-      skipEndgameReveal();
-    },
-    onKeydown(e: KeyboardEvent): void {
-      if (e.key === 'Escape') {
-        this.skip();
-      }
-    },
-    // rAF count-up 0 → total with an ease-out so the last points land slowly.
-    startCountUp(): void {
-      const total = this.winner?.total ?? 0;
-      const t0 = performance.now();
-      // An owned frame loop of the reveal (flow kernel — PLAN §10 · C1): it ends at the total, or with the component.
-      this.flow.everyFrame('the winner\'s score counts up', () => {
-        const k = Math.min(1, (performance.now() - t0) / COUNT_DURATION_MS);
-        const eased = 1 - Math.pow(1 - k, 3);
-        this.shownScore = Math.round(total * eased);
-        return k < 1;
-      });
-    },
-  },
-  mounted(): void {
-    window.addEventListener('keydown', this.onKeydown);
-    const total = this.winner?.total ?? 0;
-    if (prefersReducedMotion() || typeof requestAnimationFrame === 'undefined') {
-      this.shownScore = total;
-    } else {
-      this.flow.after(COUNT_DELAY_MS, 'the score block\'s entrance ends', () => this.startCountUp());
-    }
-  },
-  beforeUnmount(): void {
-    window.removeEventListener('keydown', this.onKeydown);
-  },
+defineOptions({name: 'EndgameWinnerReveal'});
+const props = defineProps({
+  model: {type: Object as () => EndgameModel, required: true},
+});
+
+const flow = useFlowScope('endgame-winner-reveal');
+const shownScore = ref(0);
+const winner = computed((): EndgamePlayerScore | undefined => {
+  return props.model.winner;
+});
+const winnerCorp = computed((): string => {
+  if (winner.value === undefined) {
+    return '';
+  }
+  // The MarsBot seat keeps `corporations` empty — its corp identity rides
+  // `botCorporation` (absent on legacy corpless saves).
+  return winner.value.corporations.length > 0 ? winner.value.corporations[0] : (winner.value.botCorporation?.name ?? '');
+});
+const glowVars = computed((): Record<string, string> => {
+  const hex = winner.value !== undefined ? endgamePlayerHex(winner.value.color) : '#6ab0e6';
+  return {'--eg-glow': hex};
+});
+const titleText = computed((): string => {
+  if (props.model.mode === 'solo') {
+    return props.model.soloWin ? $t('Victory') : $t('Defeat');
+  }
+  return $t('Winner');
+});
+const titleClass = computed((): string => {
+  if (props.model.mode === 'solo' && !props.model.soloWin) {
+    return 'eg-reveal__title--defeat';
+  }
+  return '';
+});
+// 2nd (and 3rd) place lines under the winner — duel shows the single
+// opponent, standings shows up to the next two.
+const runners = computed((): Array<EndgamePlayerScore> => {
+  if (props.model.mode === 'solo') {
+    return [];
+  }
+  return props.model.players.filter((p) => !p.isWinner).slice(0, props.model.mode === 'duel' ? 1 : 2);
+});
+function open(): void {
+  openEndgameResults();
+}
+function skip(): void {
+  skipEndgameReveal();
+}
+function onKeydown(e: KeyboardEvent): void {
+  if (e.key === 'Escape') {
+    skip();
+  }
+}
+// rAF count-up 0 → total with an ease-out so the last points land slowly.
+function startCountUp(): void {
+  const total = winner.value?.total ?? 0;
+  const t0 = performance.now();
+  // An owned frame loop of the reveal (flow kernel — PLAN §10 · C1): it ends at the total, or with the component.
+  flow.everyFrame('the winner\'s score counts up', () => {
+    const k = Math.min(1, (performance.now() - t0) / COUNT_DURATION_MS);
+    const eased = 1 - Math.pow(1 - k, 3);
+    shownScore.value = Math.round(total * eased);
+    return k < 1;
+  });
+}
+
+onMounted((): void => {
+  window.addEventListener('keydown', onKeydown);
+  const total = winner.value?.total ?? 0;
+  if (prefersReducedMotion() || typeof requestAnimationFrame === 'undefined') {
+    shownScore.value = total;
+  } else {
+    flow.after(COUNT_DELAY_MS, 'the score block\'s entrance ends', () => startCountUp());
+  }
+});
+onBeforeUnmount((): void => {
+  window.removeEventListener('keydown', onKeydown);
 });
 </script>
