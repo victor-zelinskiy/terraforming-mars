@@ -75,8 +75,10 @@
   </li>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed} from 'vue';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {Color} from '@/common/Color';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
@@ -114,166 +116,160 @@ import {openBotTurnReviewByCorrelation} from '@/client/components/marsbot/marsBo
  * Collapse is NOT per-group: a top-level `mode` (detailed / summary) controls
  * whether consequences are shown in full or as a compact count.
  */
-export default defineComponent({
-  name: 'JournalGroup',
-  components: {JournalTokenRenderer, JournalChildRow},
-  props: {
-    header: {
-      type: Object as () => LogMessage,
-      required: true,
-    },
-    children: {
-      type: Array as () => ReadonlyArray<LogMessage>,
-      required: true,
-    },
-    // Structured events of THIS correlation chain (root event included). When
-    // present, children render event-driven (source → impact); else fallback.
-    events: {
-      type: Array as () => ReadonlyArray<GameEvent>,
-      default: () => [],
-    },
-    category: {
-      type: String as () => JournalActionCategory | undefined,
-      required: false,
-      default: undefined,
-    },
-    /** The feed shows the stamp only where it changes (the panel decides — it knows the previous row). */
-    timeShown: {
-      type: Boolean,
-      default: true,
-    },
-    players: {
-      type: Array as () => ReadonlyArray<PublicPlayerModel>,
-      required: true,
-    },
-    // 'summary' shows only the root + a consequence count; 'detailed' shows rows.
-    mode: {
-      type: String as () => 'detailed' | 'summary',
-      default: 'detailed',
-    },
-    freshSet: {
-      type: Object as () => ReadonlySet<LogMessage>,
-      default: () => new Set<LogMessage>(),
-    },
-    filterActive: {
-      type: Boolean,
-      default: false,
-    },
-    headerMatched: {
-      type: Boolean,
-      default: true,
-    },
-    childMatched: {
-      type: Array as () => ReadonlyArray<boolean>,
-      default: () => [],
-    },
+defineOptions({name: 'JournalGroup'});
+const props = defineProps({
+  header: {
+    type: Object as () => LogMessage,
+    required: true,
   },
-  computed: {
-    summary(): boolean {
-      return this.mode === 'summary';
-    },
-    categoryClass(): string {
-      return 'journal-group--' + (this.category ?? 'generic');
-    },
-    headerEntries(): ReadonlyArray<string | LogMessageData> {
-      return this.parse(this.header);
-    },
-    headerFresh(): boolean {
-      return this.freshSet.has(this.header);
-    },
-    /**
-     * The FIRST card the header names — the event's object (a play, an action, a standard project). The Delta
-     * Project is the «Гидросеть» subsystem and never shows as a card; a card with no art shows nothing.
-     */
-    subject(): JournalSubject | undefined {
-      for (const tok of this.headerEntries) {
-        if (typeof tok === 'string' || tok.type !== LogMessageDataType.CARD) {
-          continue;
-        }
-        const name = tok.value as CardName;
-        if (name === CardName.DELTA_PROJECT) {
-          return undefined;
-        }
-        const type = getCard(name)?.type;
-        if (type === CardType.STANDARD_PROJECT || type === CardType.STANDARD_ACTION) {
-          return {kind: 'project', name, icon: standardProjectVisual(name).iconClass};
-        }
-        const url = cardArtUrl(name);
-        return url === undefined ? undefined : {kind: 'card', name, art: cardArtUrlAtTier(url, 'thumb')};
-      }
-      return undefined;
-    },
-    // The actor of the root action — used to drop redundant child player chips.
-    rootPlayerColor(): Color | undefined {
-      for (const tok of this.headerEntries) {
-        if (typeof tok !== 'string' && tok.type === LogMessageDataType.PLAYER) {
-          return tok.value;
-        }
-      }
-      return undefined;
-    },
-    // Event-driven children (source → impact) for this chain, when events exist.
-    eventVMs(): ReadonlyArray<JournalChildVM> {
-      if (this.events.length === 0 || this.header.correlationId === undefined) {
-        return [];
-      }
-      return buildEventChildren(this.events, this.header.correlationId, this.rootPlayerColor);
-    },
-    useEvents(): boolean {
-      return this.eventVMs.length > 0;
-    },
-    hasChildren(): boolean {
-      return this.useEvents ? true : this.children.length > 0;
-    },
-    consequenceCount(): number {
-      return this.useEvents ? this.eventVMs.length : this.children.length;
-    },
-    // A MarsBot turn group whose script is in the client archive — the
-    // journal's permanent «watch it again» affordance (reactive: the archive
-    // is a reactive Map, so the button appears the moment the turn lands).
-    botReplayAvailable(): boolean {
-      return this.category === 'automa-turn' && botReplayAvailableFor(this.header.correlationId);
-    },
-    when(): string {
-      const d = new Date(this.header.timestamp);
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    },
-    fullWhen(): string {
-      return new Date(this.header.timestamp).toLocaleString();
-    },
+  children: {
+    type: Array as () => ReadonlyArray<LogMessage>,
+    required: true,
   },
-  methods: {
-    openBotReplay(): void {
-      if (this.header.correlationId !== undefined) {
-        openBotTurnReviewByCorrelation(this.header.correlationId);
-      }
-    },
-    parse(message: LogMessage): ReadonlyArray<string | LogMessageData> {
-      // The shared seam: translate + parse + resolve plural groups across
-      // token boundaries («2 {деления}» with the number in its own token).
-      return parseLocalizedLog(message);
-    },
-    // Compact a child for its grouped context: when the row's leading actor is
-    // the SAME player as the root action, drop that chip (and the now-leading
-    // whitespace) so it reads as a consequence, not a standalone action.
-    childTokens(child: LogMessage): ReadonlyArray<string | LogMessageData> {
-      const tokens = this.parse(child);
-      const first = tokens[0];
-      if (this.rootPlayerColor !== undefined &&
-          typeof first !== 'string' &&
-          first?.type === LogMessageDataType.PLAYER &&
-          first.value === this.rootPlayerColor) {
-        const rest = tokens.slice(1);
-        if (typeof rest[0] === 'string') {
-          rest[0] = rest[0].replace(/^\s+/, '');
-        }
-        return rest;
-      }
-      return tokens;
-    },
-    childFresh(child: LogMessage): boolean {
-      return this.freshSet.has(child) && !this.headerFresh;
-    },
+  // Structured events of THIS correlation chain (root event included). When
+  // present, children render event-driven (source → impact); else fallback.
+  events: {
+    type: Array as () => ReadonlyArray<GameEvent>,
+    default: () => [],
+  },
+  category: {
+    type: String as () => JournalActionCategory | undefined,
+    required: false,
+    default: undefined,
+  },
+  /** The feed shows the stamp only where it changes (the panel decides — it knows the previous row). */
+  timeShown: {
+    type: Boolean,
+    default: true,
+  },
+  players: {
+    type: Array as () => ReadonlyArray<PublicPlayerModel>,
+    required: true,
+  },
+  // 'summary' shows only the root + a consequence count; 'detailed' shows rows.
+  mode: {
+    type: String as () => 'detailed' | 'summary',
+    default: 'detailed',
+  },
+  freshSet: {
+    type: Object as () => ReadonlySet<LogMessage>,
+    default: () => new Set<LogMessage>(),
+  },
+  filterActive: {
+    type: Boolean,
+    default: false,
+  },
+  headerMatched: {
+    type: Boolean,
+    default: true,
+  },
+  childMatched: {
+    type: Array as () => ReadonlyArray<boolean>,
+    default: () => [],
   },
 });
+
+const summary = computed((): boolean => {
+  return props.mode === 'summary';
+});
+const categoryClass = computed((): string => {
+  return 'journal-group--' + (props.category ?? 'generic');
+});
+const headerEntries = computed((): ReadonlyArray<string | LogMessageData> => {
+  return parse(props.header);
+});
+const headerFresh = computed((): boolean => {
+  return props.freshSet.has(props.header);
+});
+/**
+ * The FIRST card the header names — the event's object (a play, an action, a standard project). The Delta
+ * Project is the «Гидросеть» subsystem and never shows as a card; a card with no art shows nothing.
+ */
+const subject = computed((): JournalSubject | undefined => {
+  for (const tok of headerEntries.value) {
+    if (typeof tok === 'string' || tok.type !== LogMessageDataType.CARD) {
+      continue;
+    }
+    const name = tok.value as CardName;
+    if (name === CardName.DELTA_PROJECT) {
+      return undefined;
+    }
+    const type = getCard(name)?.type;
+    if (type === CardType.STANDARD_PROJECT || type === CardType.STANDARD_ACTION) {
+      return {kind: 'project', name, icon: standardProjectVisual(name).iconClass};
+    }
+    const url = cardArtUrl(name);
+    return url === undefined ? undefined : {kind: 'card', name, art: cardArtUrlAtTier(url, 'thumb')};
+  }
+  return undefined;
+});
+// The actor of the root action — used to drop redundant child player chips.
+const rootPlayerColor = computed((): Color | undefined => {
+  for (const tok of headerEntries.value) {
+    if (typeof tok !== 'string' && tok.type === LogMessageDataType.PLAYER) {
+      return tok.value;
+    }
+  }
+  return undefined;
+});
+// Event-driven children (source → impact) for this chain, when events exist.
+const eventVMs = computed((): ReadonlyArray<JournalChildVM> => {
+  if (props.events.length === 0 || props.header.correlationId === undefined) {
+    return [];
+  }
+  return buildEventChildren(props.events, props.header.correlationId, rootPlayerColor.value);
+});
+const useEvents = computed((): boolean => {
+  return eventVMs.value.length > 0;
+});
+const hasChildren = computed((): boolean => {
+  return useEvents.value ? true : props.children.length > 0;
+});
+const consequenceCount = computed((): number => {
+  return useEvents.value ? eventVMs.value.length : props.children.length;
+});
+// A MarsBot turn group whose script is in the client archive — the
+// journal's permanent «watch it again» affordance (reactive: the archive
+// is a reactive Map, so the button appears the moment the turn lands).
+const botReplayAvailable = computed((): boolean => {
+  return props.category === 'automa-turn' && botReplayAvailableFor(props.header.correlationId);
+});
+const when = computed((): string => {
+  const d = new Date(props.header.timestamp);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+});
+const fullWhen = computed((): string => {
+  return new Date(props.header.timestamp).toLocaleString();
+});
+function openBotReplay(): void {
+  if (props.header.correlationId !== undefined) {
+    openBotTurnReviewByCorrelation(props.header.correlationId);
+  }
+}
+function parse(message: LogMessage): ReadonlyArray<string | LogMessageData> {
+  // The shared seam: translate + parse + resolve plural groups across
+  // token boundaries («2 {деления}» with the number in its own token).
+  return parseLocalizedLog(message);
+}
+// Compact a child for its grouped context: when the row's leading actor is
+// the SAME player as the root action, drop that chip (and the now-leading
+// whitespace) so it reads as a consequence, not a standalone action.
+function childTokens(child: LogMessage): ReadonlyArray<string | LogMessageData> {
+  const tokens = parse(child);
+  const first = tokens[0];
+  if (rootPlayerColor.value !== undefined &&
+      typeof first !== 'string' &&
+      first?.type === LogMessageDataType.PLAYER &&
+      first.value === rootPlayerColor.value) {
+    const rest = tokens.slice(1);
+    if (typeof rest[0] === 'string') {
+      rest[0] = rest[0].replace(/^\s+/, '');
+    }
+    return rest;
+  }
+  return tokens;
+}
+function childFresh(child: LogMessage): boolean {
+  return props.freshSet.has(child) && !headerFresh.value;
+}
 </script>
