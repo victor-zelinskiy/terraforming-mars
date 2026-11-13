@@ -10,10 +10,8 @@
   <div class="help-hotkeys-example"></div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {vI18n} from '@/client/directives/vDirectives';
 
-export default defineComponent({
-  name: 'HelpHotkeys',
-});
+defineOptions({name: 'HelpHotkeys'});
 </script>
