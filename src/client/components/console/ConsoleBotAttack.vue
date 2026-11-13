@@ -1,22 +1,4 @@
 <template>
-  <!--
-    THE BOT ATTACK — the console's compact modal for «бот атаковал вас».
-
-    It wears the project's ORDINARY cold glass (the same plate `.con-decision`
-    and `.con-task` stand on). The attack is a SEMANTIC accent — one kicker, the
-    bridge, the pending-removal ring, the negative delta — never a red surface:
-    a modal that repaints itself for one event reads as a combat UI borrowed
-    from another game.
-
-    THE COMPOSITION IS A CAUSAL SENTENCE, left to right:
-
-        [ the bot's real card ]  →  ⊖ resource  →  [ your card + result ]
-            SOURCE                   BRIDGE            TARGET
-
-    …so the bot's own face is the physical origin of the effect and never a text
-    rectangle behind an inspect verb. It is content-sized: with one candidate
-    the whole row centres and the panel shrinks with it.
-  -->
   <div class="con-botattack con-ws"
        :class="{'con-botattack--committing': committing}"
        role="dialog" :aria-label="ariaLabel"
@@ -110,7 +92,28 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE BOT ATTACK — the console's compact modal for «бот атаковал вас».
+ *
+ * It wears the project's ORDINARY cold glass (the same plate `.con-decision`
+ * and `.con-task` stand on). The attack is a SEMANTIC accent — one kicker, the
+ * bridge, the pending-removal ring, the negative delta — never a red surface:
+ * a modal that repaints itself for one event reads as a combat UI borrowed
+ * from another game.
+ *
+ * THE COMPOSITION IS A CAUSAL SENTENCE, left to right:
+ *
+ *     [ the bot's real card ]  →  ⊖ resource  →  [ your card + result ]
+ *         SOURCE                   BRIDGE            TARGET
+ *
+ * …so the bot's own face is the physical origin of the effect and never a text
+ * rectangle behind an inspect verb. It is content-sized: with one candidate
+ * the whole row centres and the panel shrinks with it.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
 /**
  * THE ATTACK SCREEN. It owns focus, the pad contract and the submit — nothing
  * else. Every judgement about what the prompt MEANS was made by the pure model
@@ -130,7 +133,7 @@
  *  · `consoleCommitGate` — the one authority on «may this be confirmed yet»,
  *    which is what keeps the CTA from ever showing a live Ⓐ it would refuse.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -140,7 +143,7 @@ import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
@@ -164,6 +167,8 @@ import ConsolePromptHead from '@/client/components/console/foundation/ConsolePro
 import {promptSequenceKey} from '@/client/console/promptSequence';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+// `console-source-dock` is the lazy binding of `asyncComponents.ts` (async on purpose) — see the note there.
+import {ConsoleSourceDock} from '@/client/components/asyncComponents';
 
 /** The commit BEAT: the chosen cube visibly leaves before the answer is sent —
  *  short, once, and never a substitute for the server's own confirmation. */
@@ -181,324 +186,304 @@ function phraseText(phrase: BotAttackPhrase): string {
   return translateTextWithParams(phrase.key, params);
 }
 
-export default defineComponent({
-  name: 'ConsoleBotAttack',
-  // `console-source-dock` is GLOBAL (main.ts) — see the note there.
-  components: {ConsolePlayedTargetStep, GamepadGlyph, ConsolePromptHead},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    vm: {type: Object as PropType<BotAttackViewModel>, required: true},
-  },
-  emits: ['submit', 'defer'],
-  setup() {
-    return {flow: useFlowScope('bot-attack')};
-  },
-  data() {
-    return {
-      // The module-level store is MIRRORED into `data` on purpose: a path
-      // watcher over a module `reactive` does not fire otherwise (the console's
-      // own hard-won rule — see `journalState` and friends).
-      botAttackState,
-      zone: 'targets' as BotAttackZone,
-      focus: undefined as PlayedTargetFocus | undefined,
-      /** The card the player has CHOSEN — never seeded, never the cursor. */
-      selected: undefined as CardName | undefined,
-      committing: false,
-      submitting: false,
-      targetsHeight: 0,
-      targetsWidth: 0,
-      stopResizeObs: undefined as (() => void) | undefined,
-      /** The commit beat's cancel (undefined ⇔ no beat pending); the screen's scope takes it back on unmount. */
-      beat: undefined as (() => void) | undefined,
-    };
-  },
-  computed: {
-    emptyKey(): string {
-      return EMPTY_NO_TARGETS;
-    },
-    prompt(): SelectCardModel | undefined {
-      const wf = this.playerView.waitingFor;
-      return wf?.type === 'card' ? (wf as SelectCardModel) : undefined;
-    },
-    /**
-     * THE ACTOR'S VISIBLE NAME — the one existing resolver, never a literal.
-     * `displayNameForColor` routes the bot seat through the `'MarsBot'` i18n
-     * key («Бот» in Russian) and any other seat through its own name, so a
-     * locale change re-labels this surface with no code path of its own.
-     */
-    actorName(): string {
-      return displayNameForColor(this.playerView.players, this.vm.attacker);
-    },
-    headlineText(): string {
-      const card = this.vm.sourceNameKey;
-      return card === undefined ?
-        translateTextWithParams(this.vm.headlineKey, [this.actorName]) :
-        translateTextWithParams(this.vm.headlineKey, [this.actorName, translateText(card)]);
-    },
-    explanationText(): string {
-      return phraseText(this.vm.explanation);
-    },
-    restrictionText(): string {
-      return this.vm.restrictionKey === undefined ? '' : translateText(this.vm.restrictionKey);
-    },
-    commitText(): string {
-      return phraseText(this.vm.commit);
-    },
-    ariaLabel(): string {
-      return `${translateText(this.vm.eyebrowKey)}: ${this.actorName}`;
-    },
-    /** The decision's identity in the sequence (`promptSequence.ts`) — an attack is always a LOSS for its victim. */
-    sequenceKey(): string {
-      const wf = this.playerView.waitingFor;
-      return wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
-    },
-    /** The removed resource's sprite, for the bridge chip. */
-    resourceIcon(): string {
-      return this.vm.resourceIcon === undefined ? '' : iconClassFor(this.vm.resourceIcon);
-    },
-    /**
-     * THE TARGET MODEL — the shared builder, in its `remove` direction. The
-     * candidate set is the SERVER's own (`prompt.cards`), so eligibility is
-     * never re-derived here; the preview is injected from the marker.
-     */
-    targetModel(): PlayedTargetModel | undefined {
-      const prompt = this.prompt;
-      if (prompt === undefined) {
-        return undefined;
-      }
-      return buildPlayedTargetModel({
-        candidates: prompt.cards,
-        players: this.playerView.players,
-        viewerColor: this.playerView.thisPlayer.color,
-        // The modal's own header states the ask in full; the selector must not
-        // restate it (and `hostStatesAsk` hides the line that would).
-        ask: '',
-        direction: 'remove',
-        typeOf: (name) => getCard(name)?.type,
-        preview: (name) => botAttackPreviewFor(this.vm, name),
-        resourceContext: (name) => botAttackResourceFor(this.vm, name),
-      });
-    },
-    targetLayout(): PlayedTargetLayout {
-      return planPlayedTargetLayout({
-        owners: this.targetModel?.owners ?? [],
-        availW: this.targetsWidth,
-        ui: conUiScale(),
-        handheld: consoleLayoutState.profile === 'handheld',
-      });
-    },
-    /** The focus the child renders — reseated whenever the model moves. */
-    targetFocus(): PlayedTargetFocus | undefined {
-      return reseatPlayedTargetFocus(this.focus, this.targetModel?.owners ?? []);
-    },
-    focusedCard(): CardName | undefined {
-      const at = this.targetFocus;
-      const owners = this.targetModel?.owners ?? [];
-      return at === undefined ? undefined : playedTargetAt(at, owners)?.cardName;
-    },
-    /**
-     * The ONE authority on «may this be confirmed». A single requirement — a
-     * chosen target — so the CTA cannot take the cursor before there is
-     * something to commit, and cannot run when the choice went stale.
-     */
-    gate() {
-      const stale = this.selected !== undefined &&
-        findPlayedTargetFocus(this.selected, this.targetModel?.owners ?? []) === undefined;
-      return computeCommitGate({
-        requirements: [{
-          index: 0,
-          verb: VERB_CHOOSE_TARGET,
-          satisfied: this.selected !== undefined && !stale,
-          stale,
-        }],
-        submitting: this.submitting,
-      });
-    },
-    commitReady(): boolean {
-      return commitAllowed(this.gate);
-    },
-    /**
-     * The pad contract. A verb's GLYPH follows what the verb IS, never its
-     * position in the list — read by index, the no-target «Продолжить» (an A
-     * press) was drawn on the d-pad. The COMMIT («Удалить 1 ресурс») is the
-     * loss being accepted: it wears the bar's danger ink, the family's tone
-     * verb (`console_prompt.less`).
-     */
-    footCommands(): Array<ConsoleCommand> {
-      return botAttackCommandKeys(this.vm, this.zone, this.selected).map((label): ConsoleCommand => {
-        switch (label) {
-        case VERB_NAVIGATE:
-          return {control: 'dpad', label};
-        case VERB_INSPECT_CARD:
-          return {control: 'secondary', label};
-        case VERB_MINIMIZE:
-          return {control: 'back', label};
-        default:
-          return label === this.vm.commitVerbKey ? {control: 'confirm', label, tone: 'danger'} : {control: 'confirm', label};
-        }
-      });
-    },
-  },
-  watch: {
-    footCommands: {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>): void {
-        setPanelCommands('botAttack', cmds);
-      },
-    },
-    /**
-     * A SELECTION THAT STOPPED BEING LEGAL is dropped, and the cursor goes
-     * back to the targets. The realtime path can move the table under the
-     * player (an effect removed the last cube), and a CTA still offering to
-     * remove from a card the server would refuse is the one state this screen
-     * must never be in.
-     */
-    gate: {
-      handler(): void {
-        if (this.gate.kind === 'stale') {
-          this.selected = undefined;
-          this.zone = 'targets';
-        }
-      },
-    },
-    /**
-     * THE SERVER REFUSED the answer (a stale target, a dropped connection).
-     * The removal did not happen, so the beat is undone and the choice becomes
-     * editable again — a sealed CTA over a prompt the server is still asking is
-     * the one state this screen must never be left in.
-     */
-    'botAttackState.abortNonce'(): void {
-      this.resetSubmitting();
-    },
-  },
-  mounted() {
-    // NOTHING IS SELECTED ON OPEN. The cursor rests on the first candidate so
-    // the pad has somewhere to start; a cursor is not a choice, and the CTA
-    // stays refused until the player makes one.
-    this.focus = reseatPlayedTargetFocus(undefined, this.targetModel?.owners ?? []);
-    const el = (this.$refs.targets ?? undefined) as HTMLElement | undefined;
-    if (el !== undefined) {
-      this.measure();
-      this.stopResizeObs = useResizeObserver(el, () => this.measure()).stop;
-    }
-  },
-  beforeUnmount() {
-    clearPanelCommands('botAttack');
-    this.stopResizeObs?.();
-    this.stopResizeObs = undefined;
-  },
-  methods: {
-    measure(): void {
-      const el = (this.$refs.targets ?? undefined) as HTMLElement | undefined;
-      if (el === undefined) {
-        return;
-      }
-      this.targetsHeight = el.clientHeight;
-      this.targetsWidth = el.clientWidth;
-    },
-    /**
-     * The shell routes the pad here while this screen serves. WHAT a press
-     * means is decided by the pure model, so the rules worth guarding (B is
-     * never an answer, a second A cannot submit twice, A on a candidate never
-     * removes anything) live in a unit-tested module rather than here.
-     */
-    handleIntent(intent: GamepadIntent): void {
-      if (this.committing) {
-        return; // the beat owns the screen — input is absorbed BY PHASE
-      }
-      if (intent.kind === 'nav') {
-        this.navigate(intent.dir);
-        return;
-      }
-      const press = botAttackPressIntent({
-        vm: this.vm,
-        zone: this.zone,
-        focused: this.focusedCard,
-        selected: this.selected,
-        action: consoleActionOf(intent),
-        submitting: this.submitting,
-      });
-      if (press === undefined) {
-        return;
-      }
-      switch (press.kind) {
-      case 'defer':
-        this.$emit('defer');
-        return;
-      case 'inspectTarget':
-        openConsoleCardZoom([{name: press.card}], 0);
-        return;
-      case 'select':
-        this.selected = press.card;
-        // The cursor follows the gate: with the choice made, the next real
-        // step is the commit, so that is where the player is put.
-        this.zone = 'commit';
-        return;
-      case 'skip':
-        this.submitting = true;
-        this.$emit('submit', {type: 'card', cards: []});
-        return;
-      case 'commit':
-      default:
-        this.runCommit(press.card);
-      }
-    },
-    navigate(dir: 'up' | 'down' | 'left' | 'right'): void {
-      if (this.zone === 'commit') {
-        // UP re-opens the choice; every other direction stays put (the CTA is
-        // one control, not a grid).
-        if (dir === 'up') {
-          this.zone = 'targets';
-        }
-        return;
-      }
-      const step = (this.$refs.targetStep ?? undefined) as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
-      const cells = step?.cells?.() ?? [];
-      const at = this.targetFocus;
-      const next = at === undefined ? undefined : stepPlayedTargetFocusVia(step, at, dir, cells);
-      if (next !== undefined) {
-        this.focus = next;
-        // The step's own viewport keeps the cursored candidate in view — the
-        // host calls it after every move (the target step's contract).
-        ((this.$refs.targetStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
-        return;
-      }
-      // An EDGE HOLDS inside the grid — except downwards, where the CTA is the
-      // next thing on screen and must be reachable by the same d-pad.
-      if (dir === 'down' && this.commitReady) {
-        this.zone = 'commit';
-      }
-    },
-    /**
-     * THE COMMIT BEAT — the cube visibly leaves before the answer is sent.
-     *
-     * Order is deliberate and is the whole physicality of the moment: the
-     * chosen card is marked as losing its resource, the beat plays once, and
-     * only then does the response leave. Nothing is destroyed client-side (the
-     * counters still read the server's numbers) — the modal closes when the
-     * server has answered, so the player never sees a result the game has not
-     * committed to. Reduced motion shortens the beat; it never removes the
-     * ordering.
-     */
-    runCommit(card: CardName): void {
-      this.committing = true;
-      this.submitting = true;
-      this.beat = this.flow.after(Math.max(1, consoleMotionMs(COMMIT_BEAT_MS)), 'the attack\'s commit beat, then the answer is sent', () => {
-        this.beat = undefined;
-        this.$emit('submit', {type: 'card', cards: [card]});
-      });
-    },
-    /** A rollback the abort signal triggers when the server REFUSES the answer:
-     *  the beat is undone and the choice becomes editable again. */
-    resetSubmitting(): void {
-      this.submitting = false;
-      this.committing = false;
-      if (this.beat !== undefined) {
-        this.beat();
-        this.beat = undefined;
-      }
-    },
-  },
+defineOptions({name: 'ConsoleBotAttack'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  vm: {type: Object as PropType<BotAttackViewModel>, required: true},
 });
+const emit = defineEmits(['submit', 'defer']);
+
+const flow = useFlowScope('bot-attack');
+const targets = useTemplateRef<HTMLElement>('targets');
+const targetStep = useTemplateRef<{cells?: () => ReadonlyArray<PlayedTargetCell>} & {ensureFocusVisible?: () => void}>('targetStep');
+const zone = ref('targets' as BotAttackZone);
+const focus = ref<PlayedTargetFocus | undefined>(undefined);
+/** The card the player has CHOSEN — never seeded, never the cursor. */
+const selected = ref<CardName | undefined>(undefined);
+const committing = ref(false);
+const submitting = ref(false);
+const targetsHeight = ref(0);
+const targetsWidth = ref(0);
+let stopResizeObs: (() => void) | undefined;
+/** The commit beat's cancel (undefined ⇔ no beat pending); the screen's scope takes it back on unmount. */
+let beat: (() => void) | undefined;
+
+const emptyKey = EMPTY_NO_TARGETS;
+const prompt = computed((): SelectCardModel | undefined => {
+  const wf = props.playerView.waitingFor;
+  return wf?.type === 'card' ? (wf as SelectCardModel) : undefined;
+});
+/**
+ * THE ACTOR'S VISIBLE NAME — the one existing resolver, never a literal.
+ * `displayNameForColor` routes the bot seat through the `'MarsBot'` i18n
+ * key («Бот» in Russian) and any other seat through its own name, so a
+ * locale change re-labels this surface with no code path of its own.
+ */
+const actorName = computed((): string => {
+  return displayNameForColor(props.playerView.players, props.vm.attacker);
+});
+const headlineText = computed((): string => {
+  const card = props.vm.sourceNameKey;
+  return card === undefined ?
+    translateTextWithParams(props.vm.headlineKey, [actorName.value]) :
+    translateTextWithParams(props.vm.headlineKey, [actorName.value, translateText(card)]);
+});
+const explanationText = computed((): string => {
+  return phraseText(props.vm.explanation);
+});
+const restrictionText = computed((): string => {
+  return props.vm.restrictionKey === undefined ? '' : translateText(props.vm.restrictionKey);
+});
+const commitText = computed((): string => {
+  return phraseText(props.vm.commit);
+});
+const ariaLabel = computed((): string => {
+  return `${translateText(props.vm.eyebrowKey)}: ${actorName.value}`;
+});
+/** The decision's identity in the sequence (`promptSequence.ts`) — an attack is always a LOSS for its victim. */
+const sequenceKey = computed((): string => {
+  const wf = props.playerView.waitingFor;
+  return wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
+});
+/** The removed resource's sprite, for the bridge chip. */
+const resourceIcon = computed((): string => {
+  return props.vm.resourceIcon === undefined ? '' : iconClassFor(props.vm.resourceIcon);
+});
+/**
+ * THE TARGET MODEL — the shared builder, in its `remove` direction. The
+ * candidate set is the SERVER's own (`prompt.cards`), so eligibility is
+ * never re-derived here; the preview is injected from the marker.
+ */
+const targetModel = computed((): PlayedTargetModel | undefined => {
+  const promptNow = prompt.value;
+  if (promptNow === undefined) {
+    return undefined;
+  }
+  return buildPlayedTargetModel({
+    candidates: promptNow.cards,
+    players: props.playerView.players,
+    viewerColor: props.playerView.thisPlayer.color,
+    // The modal's own header states the ask in full; the selector must not
+    // restate it (and `hostStatesAsk` hides the line that would).
+    ask: '',
+    direction: 'remove',
+    typeOf: (name) => getCard(name)?.type,
+    preview: (name) => botAttackPreviewFor(props.vm, name),
+    resourceContext: (name) => botAttackResourceFor(props.vm, name),
+  });
+});
+const targetLayout = computed((): PlayedTargetLayout => {
+  return planPlayedTargetLayout({
+    owners: targetModel.value?.owners ?? [],
+    availW: targetsWidth.value,
+    ui: conUiScale(),
+    handheld: consoleLayoutState.profile === 'handheld',
+  });
+});
+/** The focus the child renders — reseated whenever the model moves. */
+const targetFocus = computed((): PlayedTargetFocus | undefined => {
+  return reseatPlayedTargetFocus(focus.value, targetModel.value?.owners ?? []);
+});
+const focusedCard = computed((): CardName | undefined => {
+  const at = targetFocus.value;
+  const owners = targetModel.value?.owners ?? [];
+  return at === undefined ? undefined : playedTargetAt(at, owners)?.cardName;
+});
+/**
+ * The ONE authority on «may this be confirmed». A single requirement — a
+ * chosen target — so the CTA cannot take the cursor before there is
+ * something to commit, and cannot run when the choice went stale.
+ */
+const gate = computed(() => {
+  const stale = selected.value !== undefined &&
+    findPlayedTargetFocus(selected.value, targetModel.value?.owners ?? []) === undefined;
+  return computeCommitGate({
+    requirements: [{
+      index: 0,
+      verb: VERB_CHOOSE_TARGET,
+      satisfied: selected.value !== undefined && !stale,
+      stale,
+    }],
+    submitting: submitting.value,
+  });
+});
+const commitReady = computed((): boolean => {
+  return commitAllowed(gate.value);
+});
+/**
+ * The pad contract. A verb's GLYPH follows what the verb IS, never its
+ * position in the list — read by index, the no-target «Продолжить» (an A
+ * press) was drawn on the d-pad. The COMMIT («Удалить 1 ресурс») is the
+ * loss being accepted: it wears the bar's danger ink, the family's tone
+ * verb (`console_prompt.less`).
+ */
+const footCommands = computed((): Array<ConsoleCommand> => {
+  return botAttackCommandKeys(props.vm, zone.value, selected.value).map((label): ConsoleCommand => {
+    switch (label) {
+    case VERB_NAVIGATE:
+      return {control: 'dpad', label};
+    case VERB_INSPECT_CARD:
+      return {control: 'secondary', label};
+    case VERB_MINIMIZE:
+      return {control: 'back', label};
+    default:
+      return label === props.vm.commitVerbKey ? {control: 'confirm', label, tone: 'danger'} : {control: 'confirm', label};
+    }
+  });
+});
+
+function measure(): void {
+  const el = targets.value ?? undefined;
+  if (el === undefined) {
+    return;
+  }
+  targetsHeight.value = el.clientHeight;
+  targetsWidth.value = el.clientWidth;
+}
+/**
+ * The shell routes the pad here while this screen serves. WHAT a press
+ * means is decided by the pure model, so the rules worth guarding (B is
+ * never an answer, a second A cannot submit twice, A on a candidate never
+ * removes anything) live in a unit-tested module rather than here.
+ */
+function handleIntent(intent: GamepadIntent): void {
+  if (committing.value) {
+    return; // the beat owns the screen — input is absorbed BY PHASE
+  }
+  if (intent.kind === 'nav') {
+    navigate(intent.dir);
+    return;
+  }
+  const press = botAttackPressIntent({
+    vm: props.vm,
+    zone: zone.value,
+    focused: focusedCard.value,
+    selected: selected.value,
+    action: consoleActionOf(intent),
+    submitting: submitting.value,
+  });
+  if (press === undefined) {
+    return;
+  }
+  switch (press.kind) {
+  case 'defer':
+    emit('defer');
+    return;
+  case 'inspectTarget':
+    openConsoleCardZoom([{name: press.card}], 0);
+    return;
+  case 'select':
+    selected.value = press.card;
+    // The cursor follows the gate: with the choice made, the next real
+    // step is the commit, so that is where the player is put.
+    zone.value = 'commit';
+    return;
+  case 'skip':
+    submitting.value = true;
+    emit('submit', {type: 'card', cards: []});
+    return;
+  case 'commit':
+  default:
+    runCommit(press.card);
+  }
+}
+function navigate(dir: 'up' | 'down' | 'left' | 'right'): void {
+  if (zone.value === 'commit') {
+    // UP re-opens the choice; every other direction stays put (the CTA is
+    // one control, not a grid).
+    if (dir === 'up') {
+      zone.value = 'targets';
+    }
+    return;
+  }
+  const step = targetStep.value ?? undefined;
+  const cells = step?.cells?.() ?? [];
+  const at = targetFocus.value;
+  const next = at === undefined ? undefined : stepPlayedTargetFocusVia(step, at, dir, cells);
+  if (next !== undefined) {
+    focus.value = next;
+    // The step's own viewport keeps the cursored candidate in view — the
+    // host calls it after every move (the target step's contract).
+    targetStep.value?.ensureFocusVisible?.();
+    return;
+  }
+  // An EDGE HOLDS inside the grid — except downwards, where the CTA is the
+  // next thing on screen and must be reachable by the same d-pad.
+  if (dir === 'down' && commitReady.value) {
+    zone.value = 'commit';
+  }
+}
+/**
+ * THE COMMIT BEAT — the cube visibly leaves before the answer is sent.
+ *
+ * Order is deliberate and is the whole physicality of the moment: the
+ * chosen card is marked as losing its resource, the beat plays once, and
+ * only then does the response leave. Nothing is destroyed client-side (the
+ * counters still read the server's numbers) — the modal closes when the
+ * server has answered, so the player never sees a result the game has not
+ * committed to. Reduced motion shortens the beat; it never removes the
+ * ordering.
+ */
+function runCommit(card: CardName): void {
+  committing.value = true;
+  submitting.value = true;
+  beat = flow.after(Math.max(1, consoleMotionMs(COMMIT_BEAT_MS)), 'the attack\'s commit beat, then the answer is sent', () => {
+    beat = undefined;
+    emit('submit', {type: 'card', cards: [card]});
+  });
+}
+/** A rollback the abort signal triggers when the server REFUSES the answer:
+ *  the beat is undone and the choice becomes editable again. */
+function resetSubmitting(): void {
+  submitting.value = false;
+  committing.value = false;
+  if (beat !== undefined) {
+    beat();
+    beat = undefined;
+  }
+}
+
+watch(() => footCommands.value, (cmds: ReadonlyArray<ConsoleCommand>): void => {
+  setPanelCommands('botAttack', cmds);
+}, {immediate: true, deep: true});
+/**
+ * A SELECTION THAT STOPPED BEING LEGAL is dropped, and the cursor goes
+ * back to the targets. The realtime path can move the table under the
+ * player (an effect removed the last cube), and a CTA still offering to
+ * remove from a card the server would refuse is the one state this screen
+ * must never be in.
+ */
+watch(() => gate.value, (): void => {
+  if (gate.value.kind === 'stale') {
+    selected.value = undefined;
+    zone.value = 'targets';
+  }
+});
+/**
+ * THE SERVER REFUSED the answer (a stale target, a dropped connection).
+ * The removal did not happen, so the beat is undone and the choice becomes
+ * editable again — a sealed CTA over a prompt the server is still asking is
+ * the one state this screen must never be left in.
+ */
+watch(() => botAttackState.abortNonce, (): void => {
+  resetSubmitting();
+});
+
+onMounted(() => {
+  // NOTHING IS SELECTED ON OPEN. The cursor rests on the first candidate so
+  // the pad has somewhere to start; a cursor is not a choice, and the CTA
+  // stays refused until the player makes one.
+  focus.value = reseatPlayedTargetFocus(undefined, targetModel.value?.owners ?? []);
+  const el = targets.value ?? undefined;
+  if (el !== undefined) {
+    measure();
+    stopResizeObs = useResizeObserver(el, () => measure()).stop;
+  }
+});
+onBeforeUnmount(() => {
+  clearPanelCommands('botAttack');
+  stopResizeObs?.();
+  stopResizeObs = undefined;
+});
+defineExpose({handleIntent});
 </script>
