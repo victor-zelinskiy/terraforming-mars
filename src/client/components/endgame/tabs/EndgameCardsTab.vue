@@ -60,14 +60,16 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {CardVictoryPointsKind} from '@/common/game/VictoryPointsBreakdown';
 import {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {getCard} from '@/client/cards/ClientCardManifest';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
 
 type TopItem = {color: Color; owner: string; cardName: string; victoryPoint: number};
@@ -88,49 +90,44 @@ const KIND_LABEL: Record<CardVictoryPointsKind, string> = {
 // A contribution at/above this stands out visually in the per-player grids.
 const BIG_CARD_VP = 5;
 
-export default defineComponent({
-  name: 'EndgameCardsTab',
-  components: {JournalCardChip},
-  props: {
-    model: {type: Object as () => EndgameModel, required: true},
-    // Declared so the shell's shared props don't fall through (unused here).
-    view: {type: Object, required: false, default: undefined},
-    viewerColor: {type: String, required: false, default: undefined},
-  },
-  computed: {
-    topCards(): Array<TopItem> {
-      const all: Array<TopItem> = [];
-      for (const p of this.model.players) {
-        for (const c of p.topCards) {
-          all.push({color: p.color, owner: p.name, cardName: c.cardName, victoryPoint: c.victoryPoint});
-        }
-      }
-      all.sort((a, b) => b.victoryPoint - a.victoryPoint);
-      return all.slice(0, 10);
-    },
-    bigThreshold(): number {
-      return BIG_CARD_VP;
-    },
-  },
-  methods: {
-    hex(color: Color): string {
-      return endgamePlayerHex(color);
-    },
-    isCard(name: string): boolean {
-      return getCard(name as CardName) !== undefined;
-    },
-    asCardName(name: string): CardName {
-      return name as CardName;
-    },
-    kindAccent(kind: CardVictoryPointsKind): string {
-      return KIND_ACCENT[kind];
-    },
-    kindLabel(kind: CardVictoryPointsKind): string {
-      return KIND_LABEL[kind];
-    },
-    scoringCount(p: EndgamePlayerScore): number {
-      return p.topCards.length + p.penaltyCards.length;
-    },
-  },
+defineOptions({name: 'EndgameCardsTab'});
+const props = defineProps({
+  model: {type: Object as () => EndgameModel, required: true},
+  // Declared so the shell's shared props don't fall through (unused here).
+  view: {type: Object, required: false, default: undefined},
+  viewerColor: {type: String, required: false, default: undefined},
 });
+
+const topCards = computed((): Array<TopItem> => {
+  const all: Array<TopItem> = [];
+  for (const p of props.model.players) {
+    for (const c of p.topCards) {
+      all.push({color: p.color, owner: p.name, cardName: c.cardName, victoryPoint: c.victoryPoint});
+    }
+  }
+  all.sort((a, b) => b.victoryPoint - a.victoryPoint);
+  return all.slice(0, 10);
+});
+const bigThreshold = computed((): number => {
+  return BIG_CARD_VP;
+});
+
+function hex(color: Color): string {
+  return endgamePlayerHex(color);
+}
+function isCard(name: string): boolean {
+  return getCard(name as CardName) !== undefined;
+}
+function asCardName(name: string): CardName {
+  return name as CardName;
+}
+function kindAccent(kind: CardVictoryPointsKind): string {
+  return KIND_ACCENT[kind];
+}
+function kindLabel(kind: CardVictoryPointsKind): string {
+  return KIND_LABEL[kind];
+}
+function scoringCount(p: EndgamePlayerScore): number {
+  return p.topCards.length + p.penaltyCards.length;
+}
 </script>
