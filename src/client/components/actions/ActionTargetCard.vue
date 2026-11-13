@@ -1,16 +1,4 @@
 <template>
-  <!--
-    Premium CARD-TARGET picker for an action / play step (e.g. "add 2 microbes to
-    ANOTHER card", or Predators / Ants: remove a resource from any card). Candidates
-    are GROUPED BY OWNER so the player can never confuse whose card they're about to
-    touch — the viewer's OWN cards sit in a clearly-marked amber "Вы" group with a
-    warning, opponents in their colour. Each candidate is an EXPLICIT selectable
-    option: the card preview, a prominent `current → resulting` impact line (when the
-    step adds/removes a fixed amount), a SELECT affordance, and a strong selected
-    state. Fullscreen is a SEPARATE ⤢ control (so a tap selects, never zooms — the
-    card's own click-zoom is suppressed). Single-select: picking EMITS `change`; the
-    host owns the single final submit.
-  -->
   <div class="action-target-card">
     <span v-if="promptText !== ''" class="action-target-card__prompt" v-i18n>{{ promptText }}</span>
 
@@ -106,8 +94,22 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType, nextTick} from 'vue';
+<script setup lang="ts">
+/*
+ * Premium CARD-TARGET picker for an action / play step (e.g. "add 2 microbes to
+ * ANOTHER card", or Predators / Ants: remove a resource from any card). Candidates
+ * are GROUPED BY OWNER so the player can never confuse whose card they're about to
+ * touch — the viewer's OWN cards sit in a clearly-marked amber "Вы" group with a
+ * warning, opponents in their colour. Each candidate is an EXPLICIT selectable
+ * option: the card preview, a prominent `current → resulting` impact line (when the
+ * step adds/removes a fixed amount), a SELECT affordance, and a strong selected
+ * state. Fullscreen is a SEPARATE ⤢ control (so a tap selects, never zooms — the
+ * card's own click-zoom is suppressed). Single-select: picking EMITS `change`; the
+ * host owns the single final submit.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, nextTick, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -117,7 +119,8 @@ import {SelectCardResponse} from '@/common/inputs/InputResponse';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {resourceScoring} from '@/client/components/additionalResources/additionalResources';
-import {translateText, translateMessage} from '@/client/directives/i18n';
+import {$t, translateText, translateMessage} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import Card from '@/client/components/card/CardFace.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
@@ -150,161 +153,152 @@ type Group = {
   cards: Array<Tile>;
 };
 
-export default defineComponent({
-  name: 'ActionTargetCard',
-  components: {Card, CardZoomModal, ActionVpProgress},
-  props: {
-    input: {
-      type: Object as PropType<SelectCardModel>,
-      required: true,
-    },
-    playerView: {
-      type: Object as PropType<PlayerViewModel>,
-      required: true,
-    },
-    // The currently-captured selection (for the highlight), owned by the parent.
-    selectedName: {
-      type: String as PropType<CardName | undefined>,
-      default: undefined,
-    },
-    // Signed resource delta the choice applies to the chosen card (e.g. +2 for
-    // "add 2 microbes"), driving the per-candidate `current → resulting` preview.
-    amount: {
-      type: Number as PropType<number | undefined>,
-      default: undefined,
-    },
-    // Pre-select the lone candidate when there's exactly one. Default true (a
-    // single-target pick reads as "already chosen"). Pass false when this picker is
-    // ONE side of a larger CHOICE the player must make consciously (Virus: animals
-    // OR plants — auto-picking the animal would pre-commit the OR branch).
-    autoSelect: {
-      type: Boolean,
-      default: true,
-    },
+defineOptions({name: 'ActionTargetCard'});
+const props = defineProps({
+  input: {
+    type: Object as PropType<SelectCardModel>,
+    required: true,
   },
-  emits: ['change'],
-  data() {
-    return {
-      zoomCard: undefined as CardModel | undefined,
-    };
+  playerView: {
+    type: Object as PropType<PlayerViewModel>,
+    required: true,
   },
-  mounted(): void {
-    this.$nextTick(() => this.maybeAutoSelectSingle());
+  // The currently-captured selection (for the highlight), owned by the parent.
+  selectedName: {
+    type: String as PropType<CardName | undefined>,
+    default: undefined,
   },
-  watch: {
-    // When the candidate set collapses to a SINGLE selectable card (e.g. Titan
-    // Shuttles with only one Jovian card), pre-select it. The no-autoselect
-    // principle still SHOWS the target with its current count + impact line — it
-    // just doesn't make the player click "ВЫБРАТЬ" when there's no real choice.
-    selectableNames(): void {
-      this.maybeAutoSelectSingle();
-    },
+  // Signed resource delta the choice applies to the chosen card (e.g. +2 for
+  // "add 2 microbes"), driving the per-candidate `current → resulting` preview.
+  amount: {
+    type: Number as PropType<number | undefined>,
+    default: undefined,
   },
-  computed: {
-    // A stable signature of the selectable candidate names, so the watcher fires
-    // when the candidate SET changes (e.g. the modal swaps to a new step's input)
-    // — not on every unrelated re-render.
-    selectableNames(): string {
-      return this.input.cards.map((c) => c.name).join(',');
-    },
-    promptText(): string {
-      const t = this.input.title;
-      return typeof t === 'string' ? t : '';
-    },
-    // Only show the per-owner grouping when the targets span MORE THAN ONE player.
-    // A single-owner pick (self-only — the common "add to your own card" case) is
-    // rendered flat, without the redundant player-name wrapper.
-    showOwners(): boolean {
-      return this.groups.length > 1;
-    },
-    groups(): ReadonlyArray<Group> {
-      const tiles: Array<Tile> = [
-        ...this.input.cards.map((c) => this.buildTile(c, false)),
-        ...(this.input.disabledCards ?? []).map((c) => this.buildTile(c, true)),
-      ];
-      const byColor = new Map<Color, Group>();
-      for (const tile of tiles) {
-        let g = byColor.get(tile.ownerColor);
-        if (g === undefined) {
-          g = {color: tile.ownerColor, name: tile.ownerName, self: tile.self, cards: []};
-          byColor.set(tile.ownerColor, g);
-        }
-        g.cards.push(tile);
-      }
-      // Opponents first, the viewer's own cards last (clearly marked) so a
-      // self-target is a deliberate, visible choice — never an accidental one.
-      return [...byColor.values()].sort((a, b) => Number(a.self) - Number(b.self));
-    },
+  // Pre-select the lone candidate when there's exactly one. Default true (a
+  // single-target pick reads as "already chosen"). Pass false when this picker is
+  // ONE side of a larger CHOICE the player must make consciously (Virus: animals
+  // OR plants — auto-picking the animal would pre-commit the OR branch).
+  autoSelect: {
+    type: Boolean,
+    default: true,
   },
-  methods: {
-    buildTile(model: CardModel, disabled: boolean): Tile {
-      const owner = this.findOwner(model);
-      const ownerColor: Color = owner?.color ?? ('neutral' as Color);
-      const self = this.playerView.thisPlayer?.color === ownerColor;
-      const resourceType = getCard(model.name)?.resourceType;
-      const resourceKey = resourceType !== undefined ?
-        String(resourceType).toLowerCase().replace(/\s+/g, '-') :
-        '';
-      const resourceIcon = resourceKey !== '' ? iconClassFor(resourceKey) : '';
-      const reason = disabled && model.disabledReason !== undefined ?
-        (typeof model.disabledReason === 'string' ? translateText(model.disabledReason) : translateMessage(model.disabledReason)) :
-        '';
-      const count = model.resources ?? 0;
-      const resulting = this.amount !== undefined ? Math.max(0, count + this.amount) : undefined;
-      return {
-        name: model.name,
-        model,
-        ownerColor,
-        ownerName: owner?.name ?? translateText('Neutral'),
-        self,
-        resourceIcon,
-        resourceKey,
-        scores: resourceScoring(model.name) !== undefined,
-        count,
-        resulting,
-        disabled,
-        reason,
-      };
-    },
-    findOwner(card: CardModel): {name: string, color: Color} | undefined {
-      for (const player of this.playerView.players) {
-        if (player.tableau.find((c) => c.name === card.name)) {
-          return {name: participantDisplayName(player), color: player.color};
-        }
-      }
-      // Not on anyone's tableau → it's the VIEWER's own card not in play yet: a
-      // hand card or an SRR-hosted card. Attribute it to the viewer (so it reads
-      // "<you>", not a misleading "Neutral" group).
-      const me = this.playerView.thisPlayer;
-      return me !== undefined ? {name: me.name, color: me.color} : undefined;
-    },
-    // Pre-select the lone candidate (when there's exactly ONE selectable card and
-    // nothing chosen yet) so a single-target pick reads as "already chosen, here's
-    // where it goes" rather than forcing a redundant click.
-    maybeAutoSelectSingle(): void {
-      if (this.selectedName !== undefined || !this.autoSelect) {
-        return;
-      }
-      const cards = this.input.cards;
-      if (cards.length === 1) {
-        const response: SelectCardResponse = {type: 'card', cards: [cards[0].name]};
-        this.$emit('change', response);
-      }
-    },
-    select(tile: Tile): void {
-      if (tile.disabled) {
-        return;
-      }
-      const response: SelectCardResponse = {type: 'card', cards: [tile.name]};
-      this.$emit('change', response);
-    },
-    openZoom(tile: Tile): void {
-      this.zoomCard = tile.model;
-      nextTick(() => {
-        ((this.$refs.zoomModal ?? undefined) as {show?: () => void} | undefined)?.show?.();
-      });
-    },
-  },
+});
+const emit = defineEmits(['change']);
+
+const zoomModal =useTemplateRef<InstanceType<typeof CardZoomModal>>('zoomModal');
+const zoomCard = ref<CardModel | undefined>(undefined);
+// A stable signature of the selectable candidate names, so the watcher fires
+// when the candidate SET changes (e.g. the modal swaps to a new step's input)
+// — not on every unrelated re-render.
+const selectableNames = computed((): string => {
+  return props.input.cards.map((c) => c.name).join(',');
+});
+const promptText = computed((): string => {
+  const t = props.input.title;
+  return typeof t === 'string' ? t : '';
+});
+// Only show the per-owner grouping when the targets span MORE THAN ONE player.
+// A single-owner pick (self-only — the common "add to your own card" case) is
+// rendered flat, without the redundant player-name wrapper.
+const showOwners = computed((): boolean => {
+  return groups.value.length > 1;
+});
+const groups = computed((): ReadonlyArray<Group> => {
+  const tiles: Array<Tile> = [
+    ...props.input.cards.map((c) => buildTile(c, false)),
+    ...(props.input.disabledCards ?? []).map((c) => buildTile(c, true)),
+  ];
+  const byColor = new Map<Color, Group>();
+  for (const tile of tiles) {
+    let g = byColor.get(tile.ownerColor);
+    if (g === undefined) {
+      g = {color: tile.ownerColor, name: tile.ownerName, self: tile.self, cards: []};
+      byColor.set(tile.ownerColor, g);
+    }
+    g.cards.push(tile);
+  }
+  // Opponents first, the viewer's own cards last (clearly marked) so a
+  // self-target is a deliberate, visible choice — never an accidental one.
+  return [...byColor.values()].sort((a, b) => Number(a.self) - Number(b.self));
+});
+
+function buildTile(model: CardModel, disabled: boolean): Tile {
+  const owner = findOwner(model);
+  const ownerColor: Color = owner?.color ?? ('neutral' as Color);
+  const self = props.playerView.thisPlayer?.color === ownerColor;
+  const resourceType = getCard(model.name)?.resourceType;
+  const resourceKey = resourceType !== undefined ?
+    String(resourceType).toLowerCase().replace(/\s+/g, '-') :
+    '';
+  const resourceIcon = resourceKey !== '' ? iconClassFor(resourceKey) : '';
+  const reason = disabled && model.disabledReason !== undefined ?
+    (typeof model.disabledReason === 'string' ? translateText(model.disabledReason) : translateMessage(model.disabledReason)) :
+    '';
+  const count = model.resources ?? 0;
+  const resulting = props.amount !== undefined ? Math.max(0, count + props.amount) : undefined;
+  return {
+    name: model.name,
+    model,
+    ownerColor,
+    ownerName: owner?.name ?? translateText('Neutral'),
+    self,
+    resourceIcon,
+    resourceKey,
+    scores: resourceScoring(model.name) !== undefined,
+    count,
+    resulting,
+    disabled,
+    reason,
+  };
+}
+function findOwner(card: CardModel): {name: string, color: Color} | undefined {
+  for (const player of props.playerView.players) {
+    if (player.tableau.find((c) => c.name === card.name)) {
+      return {name: participantDisplayName(player), color: player.color};
+    }
+  }
+  // Not on anyone's tableau → it's the VIEWER's own card not in play yet: a
+  // hand card or an SRR-hosted card. Attribute it to the viewer (so it reads
+  // "<you>", not a misleading "Neutral" group).
+  const me = props.playerView.thisPlayer;
+  return me !== undefined ? {name: me.name, color: me.color} : undefined;
+}
+// Pre-select the lone candidate (when there's exactly ONE selectable card and
+// nothing chosen yet) so a single-target pick reads as "already chosen, here's
+// where it goes" rather than forcing a redundant click.
+function maybeAutoSelectSingle(): void {
+  if (props.selectedName !== undefined || !props.autoSelect) {
+    return;
+  }
+  const cards = props.input.cards;
+  if (cards.length === 1) {
+    const response: SelectCardResponse = {type: 'card', cards: [cards[0].name]};
+    emit('change', response);
+  }
+}
+function select(tile: Tile): void {
+  if (tile.disabled) {
+    return;
+  }
+  const response: SelectCardResponse = {type: 'card', cards: [tile.name]};
+  emit('change', response);
+}
+function openZoom(tile: Tile): void {
+  zoomCard.value = tile.model;
+  nextTick(() => {
+    zoomModal.value?.show();
+  });
+}
+
+// When the candidate set collapses to a SINGLE selectable card (e.g. Titan
+// Shuttles with only one Jovian card), pre-select it. The no-autoselect
+// principle still SHOWS the target with its current count + impact line — it
+// just doesn't make the player click "ВЫБРАТЬ" when there's no real choice.
+watch(() => selectableNames.value, (): void => {
+  maybeAutoSelectSingle();
+});
+onMounted((): void => {
+  void nextTick(() => maybeAutoSelectSingle());
 });
 </script>
 
