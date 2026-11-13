@@ -10,8 +10,9 @@
   <ColonyPreviewPopover :name="name" :anchor="anchor" :visible="previewVisible" />
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {ref, useTemplateRef} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import ColonyPreviewPopover from '@/client/components/journal/ColonyPreviewPopover.vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
@@ -23,41 +24,33 @@ const HOVER_DELAY = 160;
  * `JournalCardChip`). Used in the journal feed + notifications (via
  * `JournalTokenRenderer`) + the drawn-cards source link.
  */
-export default defineComponent({
-  name: 'JournalColonyChip',
-  components: {ColonyPreviewPopover},
-  props: {
-    name: {
-      type: String as () => ColonyName,
-      required: true,
-    },
-  },
-  setup() {
-    return {flow: useFlowScope('journal-colony-chip')};
-  },
-  data() {
-    return {
-      previewVisible: false,
-      anchor: undefined as DOMRect | undefined,
-      cancelHover: (() => {}) as () => void,
-    };
-  },
-  methods: {
-    onEnter(): void {
-      this.clearTimer();
-      this.cancelHover = this.flow.after(HOVER_DELAY, 'the chip\'s hover delay', () => {
-        const el = (this.$refs.chip ?? undefined) as HTMLElement | undefined;
-        this.anchor = el?.getBoundingClientRect();
-        this.previewVisible = true;
-      });
-    },
-    onLeave(): void {
-      this.clearTimer();
-      this.previewVisible = false;
-    },
-    clearTimer(): void {
-      this.cancelHover();
-    },
+defineOptions({name: 'JournalColonyChip'});
+defineProps({
+  name: {
+    type: String as () => ColonyName,
+    required: true,
   },
 });
+
+const flow = useFlowScope('journal-colony-chip');
+const chip = useTemplateRef<HTMLElement>('chip');
+const previewVisible = ref(false);
+const anchor = ref<DOMRect | undefined>(undefined);
+let cancelHover = (() => {}) as () => void;
+
+function onEnter(): void {
+  clearTimer();
+  cancelHover = flow.after(HOVER_DELAY, 'the chip\'s hover delay', () => {
+    const el = chip.value ?? undefined;
+    anchor.value = el?.getBoundingClientRect();
+    previewVisible.value = true;
+  });
+}
+function onLeave(): void {
+  clearTimer();
+  previewVisible.value = false;
+}
+function clearTimer(): void {
+  cancelHover();
+}
 </script>
