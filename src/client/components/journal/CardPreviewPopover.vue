@@ -15,8 +15,8 @@
   </Teleport>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import Card from '@/client/components/card/CardFace.vue';
@@ -49,63 +49,59 @@ const PREVIEW_HEIGHT = 336;
 const GAP = 14;
 const VIEWPORT_MARGIN = 8;
 
-export default defineComponent({
-  name: 'CardPreviewPopover',
-  components: {Card},
-  props: {
-    name: {
-      type: String as () => CardName,
-      default: '' as CardName,
-    },
-    // When provided, the live CardModel is rendered (includes current resources).
-    // Falls back to {name} when absent.
-    card: {
-      type: Object as PropType<CardModel>,
-      default: undefined,
-    },
-    visible: {
-      type: Boolean,
-      default: false,
-    },
-    // Bounding rect of the token that triggered the preview, in viewport
-    // coordinates (from getBoundingClientRect()).
-    anchor: {
-      type: Object as () => DOMRect | undefined,
-      default: undefined,
-    },
+defineOptions({name: 'CardPreviewPopover'});
+const props = defineProps({
+  name: {
+    type: String as () => CardName,
+    default: '' as CardName,
   },
-  computed: {
-    resolvedCard(): CardModel {
-      // Fill the live resource count for played cards shown by name only (the
-      // journal builds {name}); a caller-supplied live card keeps its own value.
-      return withLiveResources(this.card ?? ({name: this.name} as CardModel));
-    },
-    positionStyle(): Record<string, string> {
-      const a = this.anchor;
-      if (a === undefined) {
-        return {display: 'none'};
-      }
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-
-      // Horizontal: prefer left of the token.
-      let left = a.left - GAP - PREVIEW_WIDTH;
-      if (left < VIEWPORT_MARGIN) {
-        // Not enough room on the left — flip to the right of the token.
-        left = a.right + GAP;
-      }
-      // Final clamp so we never spill off either edge.
-      left = Math.max(VIEWPORT_MARGIN, Math.min(left, vw - PREVIEW_WIDTH - VIEWPORT_MARGIN));
-
-      // Vertical: centre on the token, then clamp into the viewport.
-      let top = a.top + a.height / 2 - PREVIEW_HEIGHT / 2;
-      top = Math.max(VIEWPORT_MARGIN, Math.min(top, vh - PREVIEW_HEIGHT - VIEWPORT_MARGIN));
-
-      return {
-        left: `${Math.round(left)}px`,
-        top: `${Math.round(top)}px`,
-      };
-    },
+  // When provided, the live CardModel is rendered (includes current resources).
+  // Falls back to {name} when absent.
+  card: {
+    type: Object as PropType<CardModel>,
+    default: undefined,
   },
+  visible: {
+    type: Boolean,
+    default: false,
+  },
+  // Bounding rect of the token that triggered the preview, in viewport
+  // coordinates (from getBoundingClientRect()).
+  anchor: {
+    type: Object as () => DOMRect | undefined,
+    default: undefined,
+  },
+});
+
+const resolvedCard = computed((): CardModel => {
+  // Fill the live resource count for played cards shown by name only (the
+  // journal builds {name}); a caller-supplied live card keeps its own value.
+  return withLiveResources(props.card ?? ({name: props.name} as CardModel));
+});
+const positionStyle = computed((): Record<string, string> => {
+  const a = props.anchor;
+  if (a === undefined) {
+    return {display: 'none'};
+  }
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  // Horizontal: prefer left of the token.
+  let left = a.left - GAP - PREVIEW_WIDTH;
+  if (left < VIEWPORT_MARGIN) {
+    // Not enough room on the left — flip to the right of the token.
+    left = a.right + GAP;
+  }
+  // Final clamp so we never spill off either edge.
+  left = Math.max(VIEWPORT_MARGIN, Math.min(left, vw - PREVIEW_WIDTH - VIEWPORT_MARGIN));
+
+  // Vertical: centre on the token, then clamp into the viewport.
+  let top = a.top + a.height / 2 - PREVIEW_HEIGHT / 2;
+  top = Math.max(VIEWPORT_MARGIN, Math.min(top, vh - PREVIEW_HEIGHT - VIEWPORT_MARGIN));
+
+  return {
+    left: `${Math.round(left)}px`,
+    top: `${Math.round(top)}px`,
+  };
 });
 </script>
