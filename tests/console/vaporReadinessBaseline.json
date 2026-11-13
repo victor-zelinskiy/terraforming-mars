@@ -6,10 +6,7 @@
   "parent-root": {},
   "root-through-instance": {},
   "mixin": {},
-  "global-registration": {
-   "src/client/main.ts": 4,
-   "src/client/plugins/i18n.plugin.ts": 2
-  },
+  "global-registration": {},
   "render-function": {
    "src/client/components/console/foundation/ConsoleTeleport.vue": 4
   },
@@ -18,9 +15,7 @@
    "src/client/components/console/ConsoleStrategyRail.vue": 1
   },
   "refs": {},
-  "global-in-setup": {
-   "src/client/components/cardlist/TurmoilAgendaContainer.vue": 2
-  }
+  "global-in-setup": {}
  },
  "vapor": [
   "src/client/components/card/CardDescription.vue",

@@ -193,7 +193,7 @@ export function translateText(englishText: string, options?: TranslateTextOption
   }
 
   if (translatedText === undefined) {
-  // The i18n plugin sends translated strings back here. That means that sometimes this tries to
+  // The `v-i18n` directive sends translated strings back here. That means that sometimes this tries to
   // Since the phrase it sends is not English, it can't be found, and this reports an error to the
   // browser.
   //

@@ -1,5 +1,3 @@
-import i18nPlugin from '@/client/plugins/i18n.plugin';
-
 /*
  * Promote Vue runtime warnings (e.g. "Missing required prop") to test failures.
  *
@@ -13,7 +11,6 @@ function failOnVueWarning(msg: string, _instance: unknown, trace: string): never
 
 export const globalConfig = {
   global: {
-    plugins: [i18nPlugin],
     directives: {
       'trim-whitespace': {},
     },

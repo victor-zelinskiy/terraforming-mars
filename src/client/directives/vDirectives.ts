@@ -20,10 +20,10 @@
  *  · a VIRTUAL-DOM component calls a function directive on `mounted` AND on every `updated`: `(el, binding, vnode)`
  *    with `binding` an object. That is the old global directive's exact behaviour.
  *
- * The GLOBAL registrations (`app.directive('i18n', …)` in `plugins/i18n.plugin.ts`, `trim-whitespace` in `main.ts`)
- * stay for the Options-API components until the last one is converted. A `<script setup>` component must not lean on
- * them (the readiness ledger's «global-in-setup» row): resolved by name inside a Vapor component, a global directive
- * is the virtual-DOM OBJECT — it is not callable there.
+ * There is NO global registration any more (2026-11-13: the i18n plugin and `main.ts`'s `app.directive` /
+ * `app.component` calls are gone with the last component that leaned on them — the readiness ledger's
+ * «global-registration» and «global-in-setup» rows are at zero). A component imports the binding; resolved by name
+ * inside a Vapor component, a global directive would be the virtual-DOM OBJECT — not callable there.
  */
 import {watch} from 'vue';
 import type {DirectiveBinding} from 'vue';

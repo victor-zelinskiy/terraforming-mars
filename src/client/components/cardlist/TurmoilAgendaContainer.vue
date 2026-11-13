@@ -10,6 +10,7 @@
 
 <script setup lang="ts">
 import {computed} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {agendaInfoById, AgendaInfo, BonusId, PolicyId} from '@/common/turmoil/Types';
 import TurmoilAgenda from '@/client/components/turmoil/TurmoilAgenda.vue';
 

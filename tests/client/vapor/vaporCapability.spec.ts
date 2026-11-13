@@ -21,7 +21,6 @@ import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
 import {defineAsyncComponent, defineComponent, h, nextTick, provide, reactive, ref} from 'vue';
 import type {Component} from 'vue';
-import i18nPlugin from '@/client/plugins/i18n.plugin';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
 import {createManualClock, setFlowClock} from '@/client/console/kernel/flowClock';
 import {FlowScope} from '@/client/console/kernel/flowScope';
@@ -65,7 +64,7 @@ function mountVapor<P extends Record<string, unknown>>(component: Component, pro
   // `vaporInteropPlugin` is installed for every mount of the bundle (tests/client/components/bundleSetup.ts).
   // The suite's test-utils applies its default `transition` stubs to a Vapor render too (vaporTestUtils.ts): this
   // table is about the REAL components, so it opts out — as a virtual-DOM spec of a transition does.
-  const wrapper = mount(Host, {global: {plugins: [i18nPlugin], stubs: {'transition': false, 'transition-group': false}}, attachTo: document.body});
+  const wrapper = mount(Host, {global: {stubs: {'transition': false, 'transition-group': false}}, attachTo: document.body});
   const root = (): Element => wrapper.element as Element;
   return {wrapper, root, props: live, q: (selector: string) => root().querySelector<HTMLElement>(selector)};
 }
@@ -312,10 +311,12 @@ describe('Vapor in the virtual-DOM app — what it takes (vue 3.6.0-rc.15, throu
       expect(blanks).to.deep.equal([]);
     });
 
-    it('a Vapor PARENT hosts an Options-API CHILD: its props, its `$emit`, the slot it is given — and the child keeps the GLOBAL `v-i18n` / `$t`', async () => {
+    // The app registers no `$t` / `v-i18n` global: a virtual-DOM child inside a Vapor parent keeps working on its own
+    // imports (a local `directives` entry, `$t` as a method), the same as every product component.
+    it('a Vapor PARENT hosts an Options-API CHILD: its props, its `$emit`, the slot it is given — and the child\'s IMPORTED `v-i18n` / `$t`', async () => {
       const {props, q} = mountVapor(VaporHostsVdom, {label: 'Research phase'});
-      expect(q('.opt-child__label')!.textContent, 'the vdom child\'s global directive').to.equal('Фаза исследований');
-      expect(q('.opt-child__t')!.textContent, '…and its global `$t`').to.equal('Фаза исследований');
+      expect(q('.opt-child__label')!.textContent, 'the vdom child\'s imported directive').to.equal('Фаза исследований');
+      expect(q('.opt-child__t')!.textContent, '…and its imported `$t`').to.equal('Фаза исследований');
       expect(q('.vp-hosts__slot')!.textContent, 'a scoped slot passed DOWN from Vapor into vdom').to.equal('slot 7');
       q('.opt-child')!.click();
       await nextTick();

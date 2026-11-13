@@ -1,10 +1,8 @@
 import {createApp, vaporInteropPlugin} from 'vue';
 
-import {trimEmptyTextNodes} from '@/client/directives/TrimWhitespace';
 import App from '@/client/components/App.vue';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 
-import i18nPlugin from '@/client/plugins/i18n.plugin';
 import {startOauth} from '@/client/oauth';
 import {perfMark, perfMeasure, startLongTaskObserver} from '@/client/utils/perfMarks';
 import {applyMotionCssScale, onMotionFpsCapChange} from '@/client/components/motion/motionTokens';
@@ -15,10 +13,6 @@ import {applyConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {installConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
 import {warmDisplayFonts} from '@/client/utils/fontWarmup';
 import {installVueErrorReport} from '@/client/console/vueErrorReport';
-// The three components that are ASYNC ON PURPOSE (`components/asyncComponents.ts` says why each is): registered by
-// name below for the Options-API components that still reach them that way; a `<script setup>` component imports the
-// same binding instead.
-import {ActionTargetCard, ConsoleSourceDock, PremiumCardFace} from '@/client/components/asyncComponents';
 
 declare global {
   interface Window {
@@ -86,16 +80,10 @@ async function bootstrap() {
   // this plugin is what lets them. It goes with the switch of V4 (a Vapor app needs no interop).
   app.use(vaporInteropPlugin);
 
-  app.use(i18nPlugin);
-
-  app.component('action-target-card', ActionTargetCard);
-  app.component('premium-card-face', PremiumCardFace);
-  app.component('console-source-dock', ConsoleSourceDock);
-
-  app.directive('trim-whitespace', {
-    mounted: trimEmptyTextNodes,
-    updated: trimEmptyTextNodes,
-  });
+  // NOTHING IS REGISTERED ON THE APP (ROADMAP § 4a · B10): no global component, no global directive, no global
+  // property. Every component imports what it renders and calls (`$t` from `directives/i18n`, the directives from
+  // `directives/vDirectives`, the three lazy tags from `components/asyncComponents`) — a Vapor component reads no
+  // global, and the readiness ledger fails one that leans on any.
 
   // Service workers are only supported on http/https origins. Under the Electron
   // desktop shell's custom `app://` scheme (and file://) registration is
