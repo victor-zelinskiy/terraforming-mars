@@ -1,16 +1,5 @@
 <template>
-  <!-- ══ THE ENGINE OF THE CAREER («Зал» v7, the owner's idea of 2026-10-18): the chairman's CHAIR with its
-       QUEST stands at the HEAD of the career track — completing the quest IS a step on that track (one server
-       function, `walkAgenda`, for the vote's winner, the quest and the cards), so the quest is drawn where it
-       leads: the chair (the office's cube, or its empty silhouette), the printed condition as its GRAPHIC, the
-       step it pays («→ +1»), and the RACE as pips per seat. No words: the reading line names the condition and
-       the office under the cursor, the dossier (X) states the rule.
-       It keeps every anchor the chairman-quest director and the sitting's enactment beat fly to / turn over:
-       `[data-parl-quest]` (the block that RELEASES and REVEALS with the government), `[data-parl-chair]` and the
-       seat cube `[data-parl-seat-chair]`, the race `[data-parl-quest-progress]`, the condition's graphic.
-       DURING THE SITTING it reads the OLD quest, closed, until the enactment's beat turns it over (the display
-       holds); during a card's walk the quest as it stood before the walk (its TR is what closes it). ══ -->
-  <div class="con-parl__engine"
+  <div ref="root" class="con-parl__engine"
        :class="{
          'con-parl__engine--done': questShown !== undefined && questShown.completedBy !== undefined,
          // The QUEST's own state name (the plate IS the quest — `[data-parl-quest]`): the walk probes read «done» by it.
@@ -95,8 +84,24 @@
     </div>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, markRaw, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ══ THE ENGINE OF THE CAREER («Зал» v7, the owner's idea of 2026-10-18): the chairman's CHAIR with its
+ * QUEST stands at the HEAD of the career track — completing the quest IS a step on that track (one server
+ * function, `walkAgenda`, for the vote's winner, the quest and the cards), so the quest is drawn where it
+ * leads: the chair (the office's cube, or its empty silhouette), the printed condition as its GRAPHIC, the
+ * step it pays («→ +1»), and the RACE as pips per seat. No words: the reading line names the condition and
+ * the office under the cursor, the dossier (X) states the rule.
+ * It keeps every anchor the chairman-quest director and the sitting's enactment beat fly to / turn over:
+ * `[data-parl-quest]` (the block that RELEASES and REVEALS with the government), `[data-parl-chair]` and the
+ * seat cube `[data-parl-seat-chair]`, the race `[data-parl-quest-progress]`, the condition's graphic.
+ * DURING THE SITTING it reads the OLD quest, closed, until the enactment's beat turns it over (the display
+ * holds); during a card's walk the quest as it stood before the walk (its TR is what closes it). ══
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
@@ -120,182 +125,168 @@ const PIPS_MAX = 5;
  */
 const ENGINE_FIT_FLOOR = 0.55;
 
-export default defineComponent({
-  name: 'ConsoleParliamentEngine',
-  components: {PlayerDelegate, PremiumChairGlyph, PremiumMechanicsPanel},
-  props: {
-    view: {type: Object as PropType<ParliamentViewVm>, required: true},
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** The SITTING's stage on screen ('' outside the sitting) — the verdict reads the quest closed. */
-    sittingStage: {type: String, default: ''},
-    /** The browse cursor stands on the engine. */
-    focused: {type: Boolean, default: false},
-  },
-  data() {
-    return {
-      questPulse: false,
-      PIPS_MAX,
-      /** The observer that re-solves the condition's fit when the plate's room changes (raw — never reactive). */
-      fitObs: undefined as ResizeObserver | undefined,
-    };
-  },
-  computed: {
-    /** The chair's medallion paints in the holder's cube palette (`--pt-*`); an empty chair keeps the gold. */
-    chairVars(): Record<string, string> {
-      return this.chairmanShown === undefined ? {} : tokenStyleVars(this.chairmanShown);
-    },
-    /** The holder's display label under the chair ('' while the chair is empty — the slot keeps its line). */
-    chairmanName(): string {
-      const color = this.chairmanShown;
-      const player = color === undefined ? undefined : this.players.find((p) => p.color === color);
-      return player === undefined ? '' : participantDisplayName(player);
-    },
-    /** Who completed the quest standing on the plate — the seal's subject (undefined while it is open). */
-    questDoneBy(): Color | undefined {
-      return this.questShown?.completedBy;
-    },
-    flow() {
-      return parliamentFlow;
-    },
-    holds() {
-      return parliamentHolds;
-    },
-    /**
-     * THE QUEST AS SHOWN: the previous quest (closed) until the new one unfolds with the government; during a
-     * card's walk of the track (TR04) the quest as it stood before the walk (OPEN, its old progress) until the
-     * walk's rewards have landed — the TR a step pays is what closes it.
-     */
-    questShown(): ParliamentQuestVm | undefined {
-      const before = this.holds.questBefore;
-      if (before !== undefined) {
-        return before.quest;
-      }
-      return this.holds.questWalkBefore ?? this.view.quest;
-    },
-    questCount(): number {
-      return this.questShown?.definition.count ?? 1;
-    },
-    chairmanShown(): Color | undefined {
-      // «ПРЕДСЕДАТЕЛЬСТВО»: the office has changed on the server and NOT on screen yet — the chair keeps the
-      // previous holder (and reads empty from the frame the outgoing delegate lifts off) until the new cube lands.
-      const chair = this.holds.chairAwaits;
-      if (chair !== undefined) {
-        return chair.from;
-      }
-      const before = this.holds.questBefore;
-      return before !== undefined ? before.chairman : this.view.chairman;
-    },
-    /** THE QUEST READS CLOSED from the VERDICT on (v3 В2): the generation is over, so its race is over. */
-    questClosed(): boolean {
-      return this.holds.questBefore !== undefined || this.sittingStage === 'verdict';
-    },
-    viewerIsChairman(): boolean {
-      return this.viewerColor !== undefined && this.chairmanShown === this.viewerColor;
-    },
-    questMechanics(): MechanicsVM | undefined {
-      const root = this.questShown?.renderData;
-      return root === undefined ? undefined : buildMechanics(root, PARLIAMENT_GRAPHIC);
-    },
-    questRows(): ReadonlyArray<{color: Color, value: number, bot: boolean}> {
-      return (this.questShown?.progress ?? []).filter((row) => row.participates);
-    },
-    /**
-     * WHO IS CLOSEST TO THE CHAIR (P70 · K4): the ONE seat strictly ahead of every other in the race, while the quest is
-     * open — its pips wear the kant. A tie, nobody started, a quest taken or closed: no leader (nothing is told).
-     */
-    questLeader(): Color | undefined {
-      if (this.questDoneBy !== undefined || this.questClosed) {
-        return undefined;
-      }
-      const rows = this.questRows.filter((row) => !this.rowUnreachable(row));
-      const top = Math.max(0, ...rows.map((row) => row.value));
-      const leaders = rows.filter((row) => row.value === top);
-      return top > 0 && leaders.length === 1 ? leaders[0].color : undefined;
-    },
-    questCompletedBy(): Color | undefined {
-      return this.view.quest?.completedBy;
-    },
-    /** What the condition's graphic depends on — a new quest is a new drawing to fit. */
-    questFitKey(): string {
-      return `${this.questShown?.text ?? ''}|${this.questCount}`;
-    },
-  },
-  watch: {
-    questFitKey(): void {
-      void this.$nextTick(() => this.fitCondition());
-    },
-    questCompletedBy(now: Color | undefined, was: Color | undefined): void {
-      if (now !== undefined && was === undefined && parliamentFlow.stage !== 'sitting') {
-        // A CSS one-shot (`con-parl-quest-pulse`): the flag is cleared by the animation's own end, never by a timer.
-        this.questPulse = true;
-      }
-    },
-  },
-  mounted() {
-    if (typeof ResizeObserver !== 'undefined' && this.$el instanceof HTMLElement) {
-      // The plate's box (its column token, the profile) and the fixed members beside the condition (the chair, the
-      // reward chip — a font swap re-measures them): the condition's fit is a function of their sizes, never of its own.
-      this.fitObs = markRaw(new ResizeObserver(() => this.fitCondition()));
-      this.fitObs.observe(this.$el);
-      this.$el.querySelectorAll<HTMLElement>('.con-parl__throne, [data-parl-quest-reward]').forEach((el) => this.fitObs?.observe(el));
-    }
-    this.fitCondition();
-  },
-  beforeUnmount() {
-    this.fitObs?.disconnect();
-    this.fitObs = undefined;
-  },
-  methods: {
-    /**
-     * THE CONDITION FITS ITS PLATE — never under the chair (the owner, 2026-10-24: «задания с большим количеством
-     * графики задевают зону кресла»). The formula row is chair · condition · arrow · reward, packed in the middle; the
-     * condition's printed graphic rides the plate's formula scale (`--con-parl-engine-zoom`) times the fit solved here
-     * (`--con-parl-engine-fit`, ≤ 1): the room is the plate's content width minus the chair, the arrow, the reward
-     * and the row's five gaps — all sizes that do not depend on the fit — and the graphic is measured at fit 1 in the
-     * same synchronous block (no frame paints the probe). One coordinate space: every length is a rect, the padding
-     * and the gap scaled by the plate's own rect/layout ratio (an entry's transform scales both alike).
-     */
-    fitCondition(): void {
-      const root = this.$el;
-      if (!(root instanceof HTMLElement)) {
-        return;
-      }
-      const graphic = root.querySelector<HTMLElement>('.con-parl__engine-cond .con-parl__quest-graphic');
-      if (graphic === null || root.offsetWidth === 0) {
-        root.style.removeProperty('--con-parl-engine-fit');
-        return;
-      }
-      root.style.setProperty('--con-parl-engine-fit', '1');
-      const natural = graphic.getBoundingClientRect().width;
-      const rect = root.getBoundingClientRect();
-      const scale = rect.width / root.offsetWidth;
-      const cs = getComputedStyle(root);
-      const inner = (root.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)) * scale;
-      const gap = (parseFloat(cs.columnGap) || 0) * scale;
-      const width = (sel: string) => root.querySelector<HTMLElement>(sel)?.getBoundingClientRect().width ?? 0;
-      const room = inner - width('.con-parl__throne') - width('.con-parl__engine-arrow') - width('[data-parl-quest-reward]') - 5 * gap;
-      if (natural <= 0 || natural <= room) {
-        return;
-      }
-      const fit = Math.max(ENGINE_FIT_FLOOR, Math.floor((room / natural) * 1000) / 1000);
-      root.style.setProperty('--con-parl-engine-fit', String(fit));
-    },
-    /** The bot's row, on a quest its play cannot reach — the server's verdict on the quest, read for the bot seat alone. */
-    rowUnreachable(row: {bot: boolean}): boolean {
-      return row.bot && this.questShown?.botReachable === false;
-    },
-    onQuestPulseEnd(event: AnimationEvent): void {
-      if (event.animationName === 'con-parl-quest-pulse') {
-        this.questPulse = false;
-        settleParliamentQuestPulse();
-      }
-    },
-    onChairPulseEnd(event: AnimationEvent): void {
-      if (event.animationName === 'con-parl-land-flash') {
-        settleParliamentChairPulse();
-      }
-    },
-  },
+defineOptions({name: 'ConsoleParliamentEngine'});
+const props = defineProps({
+  view: {type: Object as PropType<ParliamentViewVm>, required: true},
+  players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  /** The SITTING's stage on screen ('' outside the sitting) — the verdict reads the quest closed. */
+  sittingStage: {type: String, default: ''},
+  /** The browse cursor stands on the engine. */
+  focused: {type: Boolean, default: false},
+});
+
+const root = useTemplateRef<HTMLElement>('root');
+const questPulse = ref(false);
+/** The observer that re-solves the condition's fit when the plate's room changes (raw — never reactive). */
+let fitObs: ResizeObserver | undefined;
+/** The chair's medallion paints in the holder's cube palette (`--pt-*`); an empty chair keeps the gold. */
+const chairVars = computed((): Record<string, string> => {
+  return chairmanShown.value === undefined ? {} : tokenStyleVars(chairmanShown.value);
+});
+/** The holder's display label under the chair ('' while the chair is empty — the slot keeps its line). */
+const chairmanName = computed((): string => {
+  const color = chairmanShown.value;
+  const player = color === undefined ? undefined : props.players.find((p) => p.color === color);
+  return player === undefined ? '' : participantDisplayName(player);
+});
+/** Who completed the quest standing on the plate — the seal's subject (undefined while it is open). */
+const questDoneBy = computed((): Color | undefined => {
+  return questShown.value?.completedBy;
+});
+const flow = parliamentFlow;
+const holds = parliamentHolds;
+/**
+ * THE QUEST AS SHOWN: the previous quest (closed) until the new one unfolds with the government; during a
+ * card's walk of the track (TR04) the quest as it stood before the walk (OPEN, its old progress) until the
+ * walk's rewards have landed — the TR a step pays is what closes it.
+ */
+const questShown = computed((): ParliamentQuestVm | undefined => {
+  const before = holds.questBefore;
+  if (before !== undefined) {
+    return before.quest;
+  }
+  return holds.questWalkBefore ?? props.view.quest;
+});
+const questCount = computed((): number => {
+  return questShown.value?.definition.count ?? 1;
+});
+const chairmanShown = computed((): Color | undefined => {
+  // «ПРЕДСЕДАТЕЛЬСТВО»: the office has changed on the server and NOT on screen yet — the chair keeps the
+  // previous holder (and reads empty from the frame the outgoing delegate lifts off) until the new cube lands.
+  const chair = holds.chairAwaits;
+  if (chair !== undefined) {
+    return chair.from;
+  }
+  const before = holds.questBefore;
+  return before !== undefined ? before.chairman : props.view.chairman;
+});
+/** THE QUEST READS CLOSED from the VERDICT on (v3 В2): the generation is over, so its race is over. */
+const questClosed = computed((): boolean => {
+  return holds.questBefore !== undefined || props.sittingStage === 'verdict';
+});
+const viewerIsChairman = computed((): boolean => {
+  return props.viewerColor !== undefined && chairmanShown.value === props.viewerColor;
+});
+const questMechanics = computed((): MechanicsVM | undefined => {
+  const root = questShown.value?.renderData;
+  return root === undefined ? undefined : buildMechanics(root, PARLIAMENT_GRAPHIC);
+});
+const questRows = computed((): ReadonlyArray<{color: Color, value: number, bot: boolean}> => {
+  return (questShown.value?.progress ?? []).filter((row) => row.participates);
+});
+/**
+ * WHO IS CLOSEST TO THE CHAIR (P70 · K4): the ONE seat strictly ahead of every other in the race, while the quest is
+ * open — its pips wear the kant. A tie, nobody started, a quest taken or closed: no leader (nothing is told).
+ */
+const questLeader = computed((): Color | undefined => {
+  if (questDoneBy.value !== undefined || questClosed.value) {
+    return undefined;
+  }
+  const rows = questRows.value.filter((row) => !rowUnreachable(row));
+  const top = Math.max(0, ...rows.map((row) => row.value));
+  const leaders = rows.filter((row) => row.value === top);
+  return top > 0 && leaders.length === 1 ? leaders[0].color : undefined;
+});
+const questCompletedBy = computed((): Color | undefined => {
+  return props.view.quest?.completedBy;
+});
+/** What the condition's graphic depends on — a new quest is a new drawing to fit. */
+const questFitKey = computed((): string => {
+  return `${questShown.value?.text ?? ''}|${questCount.value}`;
+});
+
+/**
+ * THE CONDITION FITS ITS PLATE — never under the chair (the owner, 2026-10-24: «задания с большим количеством
+ * графики задевают зону кресла»). The formula row is chair · condition · arrow · reward, packed in the middle; the
+ * condition's printed graphic rides the plate's formula scale (`--con-parl-engine-zoom`) times the fit solved here
+ * (`--con-parl-engine-fit`, ≤ 1): the room is the plate's content width minus the chair, the arrow, the reward
+ * and the row's five gaps — all sizes that do not depend on the fit — and the graphic is measured at fit 1 in the
+ * same synchronous block (no frame paints the probe). One coordinate space: every length is a rect, the padding
+ * and the gap scaled by the plate's own rect/layout ratio (an entry's transform scales both alike).
+ */
+function fitCondition(): void {
+  const rootNow = root.value;
+  if (!(rootNow instanceof HTMLElement)) {
+    return;
+  }
+  const graphic = rootNow.querySelector<HTMLElement>('.con-parl__engine-cond .con-parl__quest-graphic');
+  if (graphic === null || rootNow.offsetWidth === 0) {
+    rootNow.style.removeProperty('--con-parl-engine-fit');
+    return;
+  }
+  rootNow.style.setProperty('--con-parl-engine-fit', '1');
+  const natural = graphic.getBoundingClientRect().width;
+  const rect = rootNow.getBoundingClientRect();
+  const scale = rect.width / rootNow.offsetWidth;
+  const cs = getComputedStyle(rootNow);
+  const inner = (rootNow.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)) * scale;
+  const gap = (parseFloat(cs.columnGap) || 0) * scale;
+  const width = (sel: string) => rootNow.querySelector<HTMLElement>(sel)?.getBoundingClientRect().width ?? 0;
+  const room = inner - width('.con-parl__throne') - width('.con-parl__engine-arrow') - width('[data-parl-quest-reward]') - 5 * gap;
+  if (natural <= 0 || natural <= room) {
+    return;
+  }
+  const fit = Math.max(ENGINE_FIT_FLOOR, Math.floor((room / natural) * 1000) / 1000);
+  rootNow.style.setProperty('--con-parl-engine-fit', String(fit));
+}
+/** The bot's row, on a quest its play cannot reach — the server's verdict on the quest, read for the bot seat alone. */
+function rowUnreachable(row: {bot: boolean}): boolean {
+  return row.bot && questShown.value?.botReachable === false;
+}
+function onQuestPulseEnd(event: AnimationEvent): void {
+  if (event.animationName === 'con-parl-quest-pulse') {
+    questPulse.value = false;
+    settleParliamentQuestPulse();
+  }
+}
+function onChairPulseEnd(event: AnimationEvent): void {
+  if (event.animationName === 'con-parl-land-flash') {
+    settleParliamentChairPulse();
+  }
+}
+
+watch(() => questFitKey.value, (): void => {
+  void nextTick(() => fitCondition());
+});
+watch(() => questCompletedBy.value, (now: Color | undefined, was: Color | undefined): void => {
+  if (now !== undefined && was === undefined && parliamentFlow.stage !== 'sitting') {
+    // A CSS one-shot (`con-parl-quest-pulse`): the flag is cleared by the animation's own end, never by a timer.
+    questPulse.value = true;
+  }
+});
+onMounted(() => {
+  if (typeof ResizeObserver !== 'undefined' && root.value instanceof HTMLElement) {
+    // The plate's box (its column token, the profile) and the fixed members beside the condition (the chair, the
+    // reward chip — a font swap re-measures them): the condition's fit is a function of their sizes, never of its own.
+    fitObs = markRaw(new ResizeObserver(() => fitCondition()));
+    fitObs.observe(root.value);
+    root.value.querySelectorAll<HTMLElement>('.con-parl__throne, [data-parl-quest-reward]').forEach((el) => fitObs?.observe(el));
+  }
+  fitCondition();
+});
+onBeforeUnmount(() => {
+  fitObs?.disconnect();
+  fitObs = undefined;
 });
 </script>
