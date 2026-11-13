@@ -136,7 +136,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * «Разбор хода» — the shared, static body both surfaces render. ONE premium
  * cause → effect flow: minimal identity header (the game summary lives in the
@@ -146,13 +146,14 @@
  * action → consequences, so "this card tag advanced this track" is unmistakable
  * and a card tag driving its own-tag track never shows a mute "icon → same icon".
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {BonusCardId, MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {buildBonusCardView} from '@/common/automa/BonusCardData';
 import {MarsBotBonusFate} from '@/common/automa/MarsBotTurn';
 import {BotReviewTechnicalReveal, BotTurnReview} from './botTurnReviewModel';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {marsBotCorpDisplayName, participantDisplayName} from './marsBotDisplay';
 import {DIFFICULTY_LABEL} from './marsBotView';
 import BotReviewLineContent from './BotReviewLineContent.vue';
@@ -166,63 +167,57 @@ const FATE_LABEL: Record<MarsBotBonusFate, string> = {
   reshuffled: 'Shuffled back into the bonus deck',
 };
 
-export default defineComponent({
-  name: 'BotTurnReviewBody',
-  components: {BotReviewLineContent, JournalCardChip, Tag},
-  // `zoomBonus` hands a bonus-card id UP to the host, which opens it in the
-  // surface-appropriate fullscreen viewer (desktop → BonusCardZoomOverlay,
-  // console → the union CardZoomModal). The body itself never owns a viewer.
-  emits: ['peek', 'zoomBonus'],
-  props: {
-    review: {type: Object as PropType<BotTurnReview>, required: true},
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
-    /** TV-readable sizing (console). */
-    large: {type: Boolean, default: false},
-  },
-  computed: {
-    botName(): string {
-      return participantDisplayName({name: this.review.botName, isMarsBot: true});
-    },
-    difficultyLabel(): string {
-      return translateText(DIFFICULTY_LABEL[this.review.difficulty]);
-    },
-    /** A turn with no revealed card AND no effect chains — the card + chain
-     *  sections both render nothing (a PASS, or an internal-only turn). */
-    isQuiet(): boolean {
-      return this.review.card === undefined && this.review.chains.length === 0;
-    },
-    /** The verdict the model already computed (e.g. «Бот спасовал») — shown only
-     *  in the quiet state, so a normal turn never duplicates the notification's
-     *  summary. */
-    quietText(): string {
-      return translateTextWithParams(this.review.verdict.key, [...this.review.verdict.params]);
-    },
-    quietGlyph(): string {
-      return this.review.verdict.key === 'MarsBot passed this turn' ? '⏸' : '◦';
-    },
-  },
-  methods: {
-    bonusName(id: BonusCardId): string {
-      return buildBonusCardView(id, this.review.ctx).name;
-    },
-    /** The corporation-effect chain's title — the ORIGINAL corp's name (untranslated, RB-B). */
-    corpName(id: MarsBotCorpId): string {
-      return marsBotCorpDisplayName(id);
-    },
-    /** A SHORT essence of a bonus card's effect (its primary line) — never the full rules. */
-    bonusEssence(id: BonusCardId): string {
-      const line = buildBonusCardView(id, this.review.ctx).lines[0];
-      return line !== undefined ? translateTextWithParams(line.text, [...(line.params ?? [])]) : '';
-    },
-    branchText(branch: {key: string, params?: ReadonlyArray<string>}): string {
-      return translateTextWithParams(branch.key, [...(branch.params ?? [])]);
-    },
-    fateLabel(fate: MarsBotBonusFate | undefined): string {
-      return fate !== undefined ? FATE_LABEL[fate] : '';
-    },
-    techReason(reason: BotReviewTechnicalReveal['reason']): string {
-      return reason === 'tiebreak' ? 'to break a tie' : 'to pick a tile';
-    },
-  },
+defineOptions({name: 'BotTurnReviewBody'});
+const props = defineProps({
+  review: {type: Object as PropType<BotTurnReview>, required: true},
+  players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
+  /** TV-readable sizing (console). */
+  large: {type: Boolean, default: false},
 });
+// `zoomBonus` hands a bonus-card id UP to the host, which opens it in the
+// surface-appropriate fullscreen viewer (desktop → BonusCardZoomOverlay,
+// console → the union CardZoomModal). The body itself never owns a viewer.
+defineEmits(['peek', 'zoomBonus']);
+
+const botName = computed((): string => {
+  return participantDisplayName({name: props.review.botName, isMarsBot: true});
+});
+const difficultyLabel = computed((): string => {
+  return translateText(DIFFICULTY_LABEL[props.review.difficulty]);
+});
+/** A turn with no revealed card AND no effect chains — the card + chain
+ *  sections both render nothing (a PASS, or an internal-only turn). */
+const isQuiet = computed((): boolean => {
+  return props.review.card === undefined && props.review.chains.length === 0;
+});
+/** The verdict the model already computed (e.g. «Бот спасовал») — shown only
+ *  in the quiet state, so a normal turn never duplicates the notification's
+ *  summary. */
+const quietText = computed((): string => {
+  return translateTextWithParams(props.review.verdict.key, [...props.review.verdict.params]);
+});
+const quietGlyph = computed((): string => {
+  return props.review.verdict.key === 'MarsBot passed this turn' ? '⏸' : '◦';
+});
+function bonusName(id: BonusCardId): string {
+  return buildBonusCardView(id, props.review.ctx).name;
+}
+/** The corporation-effect chain's title — the ORIGINAL corp's name (untranslated, RB-B). */
+function corpName(id: MarsBotCorpId): string {
+  return marsBotCorpDisplayName(id);
+}
+/** A SHORT essence of a bonus card's effect (its primary line) — never the full rules. */
+function bonusEssence(id: BonusCardId): string {
+  const line = buildBonusCardView(id, props.review.ctx).lines[0];
+  return line !== undefined ? translateTextWithParams(line.text, [...(line.params ?? [])]) : '';
+}
+function branchText(branch: {key: string, params?: ReadonlyArray<string>}): string {
+  return translateTextWithParams(branch.key, [...(branch.params ?? [])]);
+}
+function fateLabel(fate: MarsBotBonusFate | undefined): string {
+  return fate !== undefined ? FATE_LABEL[fate] : '';
+}
+function techReason(reason: BotReviewTechnicalReveal['reason']): string {
+  return reason === 'tiebreak' ? 'to break a tie' : 'to pick a tile';
+}
 </script>
