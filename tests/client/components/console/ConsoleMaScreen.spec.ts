@@ -1,8 +1,12 @@
-import {mount} from '@vue/test-utils';
+import {flushPromises, mount} from '@vue/test-utils';
+import {defineComponent, h, nextTick} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
 import {ConsoleMaItem, ConsoleMaKind} from '@/client/components/console/consoleMaModel';
+import {maFocusState, openMaFocus, resetMaFocus} from '@/client/console/consoleMaFocus';
+import {createManualClock, setFlowClock} from '@/client/console/kernel/flowClock';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import type {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 
@@ -168,5 +172,125 @@ describe('ConsoleMaScreen — the claimable milestone reads at a glance', () => 
     const none = mountScreen('milestones', 0);
     await none.vm.$nextTick();
     expect(none.find('.con-ma').classes()).not.contains('con-ma--rollcall');
+  });
+});
+
+/*
+ * The screen is a `<script setup>` component (step A of docs/claude/vapor/RECIPES.md), so a parent's ref sees ONLY
+ * what it exposes. The shell's MA controller reaches it through the surface registry and reads exactly one member —
+ * `enterFocus()` (A on the overview: the descend into the item under the cursor). Mounted here the way the shell
+ * holds it, under a host with a ref; then what the script does through its OWN template refs: the root (a
+ * restore-mount parks the browse layer from it), the scroll area (a cursor step, a family switch).
+ */
+describe('ConsoleMaScreen — what the shell reads through its ref, and the screen\'s own refs', () => {
+  // The focus stage is a MODULE (the descend outlives a park by design): every test leaves it closed, no draft kept.
+  afterEach(() => resetMaFocus());
+
+  function mountUnderHost(kind: ConsoleMaKind, index: number) {
+    const items = kind === 'milestones' ? MILESTONES : AWARDS;
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleMaScreen, {ref: 'maScreen', kind, items, index, myMegacredits: 30})]),
+    });
+    const wrapper = mount(Host, {...globalConfig});
+    return {
+      wrapper,
+      /** Exactly the controller's read: the surface standing under its ref. */
+      reach: () => (wrapper.vm.$refs.maScreen ?? undefined) as {enterFocus(): void} | undefined,
+    };
+  }
+
+  it('a PARENT\'s ref sees exactly `enterFocus` — nothing else of the script', () => {
+    const {reach} = mountUnderHost('awards', 2);
+    const screen = reach();
+    expect(screen, 'the host\'s ref stands').to.not.eq(undefined);
+    expect(Object.keys(screen!), 'the exposed list is the contract').to.deep.eq(['enterFocus']);
+    for (const inner of ['startRollcall', 'onCardClick', 'revealNames', 'rollcall', 'flow', 'props']) {
+      expect((screen as unknown as Record<string, unknown>)[inner], `«${inner}» stays inside`).to.eq(undefined);
+    }
+  });
+
+  it('`enterFocus()` descends into the item under the cursor: the stage opens on it and the browse layer is parked, never unmounted', async () => {
+    const {wrapper, reach} = mountUnderHost('awards', 2);
+    expect(maFocusState.open).to.eq(false);
+
+    reach()!.enterFocus();
+    await nextTick();
+
+    expect({open: maFocusState.open, kind: maFocusState.kind, name: maFocusState.name, phase: maFocusState.phase})
+      .to.deep.eq({open: true, kind: 'award', name: 'Scientist', phase: 'detail'});
+    expect(wrapper.find('.con-ma').classes()).to.contain('con-ma--focus');
+    expect(wrapper.find('.con-ma__browse').classes()).to.contain('con-ma__browse--parked');
+    expect(wrapper.findAll('.con-ma__card'), 'the list keeps its nodes (selection and scroll survive the descent)').to.have.length(6);
+
+    // A second press while the stage stands is nobody's: the open stage is left exactly as it stood.
+    const openedAt = maFocusState.openedAt;
+    reach()!.enterFocus();
+    expect({name: maFocusState.name, openedAt: maFocusState.openedAt}).to.deep.eq({name: 'Scientist', openedAt});
+
+    // Leaving under a live PRE-COMMIT detail keeps it as the suspended draft (the restore door re-seats it).
+    wrapper.unmount();
+    expect(maFocusState.open).to.eq(false);
+    expect(maFocusState.draft).to.deep.eq({kind: 'award', name: 'Scientist'});
+  });
+
+  it('a RESTORE-mount (the stage already open) parks the browse layer at once, from the screen\'s own root — and plays no roll call', async () => {
+    openMaFocus('milestone', 'Mayor');
+    const w = mountScreen('milestones', 1, MILESTONES.map((it) => it.name === 'Planner' ? {...it, myReady: true, myScore: 4, available: true} : it));
+    await nextTick();
+    const browse = w.find('.con-ma__browse').element as HTMLElement;
+    expect(browse.style.visibility, 'parked with no episode: the stage plays no enter hook on a restore').to.eq('hidden');
+    expect(browse.style.opacity).to.eq('0');
+    expect(w.find('.con-ma').classes()).to.contain('con-ma--focus');
+    expect(w.find('.con-ma').classes(), 'an offer is standing, the opening phrase is not replayed under the stage').to.not.contain('con-ma--rollcall');
+  });
+
+  it('a cursor step hands the tile now under the cursor to the scroll area; LB/RB sends the list to its top and plays the ARRIVE beat once', async () => {
+    const calls = {ensured: [] as Array<Element | null | undefined>, toStart: 0};
+    // The scroll area is a primitive with a spec of its own; the stand-in renders the slot and exposes the two functions
+    // the screen reads through its `ref="grid"`. (A render function: the runtime compiler is not in this build.)
+    const ScrollAreaStub = defineComponent({
+      name: 'ConsoleScrollArea',
+      props: {contentClass: {type: String, default: ''}},
+      setup(props, {slots, expose}) {
+        expose({
+          ensureVisible: (el: Element | null | undefined) => {
+            calls.ensured.push(el);
+          },
+          scrollToStart: () => {
+            calls.toStart++;
+          },
+        });
+        return () => h('div', {class: 'scroll-stub'}, [h('div', {class: props.contentClass}, slots.default?.())]);
+      },
+    });
+    const clock = createManualClock(0);
+    setFlowClock(clock);
+    try {
+      const w = mount(ConsoleMaScreen, {
+        ...globalConfig,
+        props: {kind: 'milestones' as ConsoleMaKind, items: MILESTONES as ReadonlyArray<ConsoleMaItem>, index: 0, myMegacredits: 30},
+        global: {...globalConfig.global, stubs: {ConsoleScrollArea: ScrollAreaStub}},
+      });
+      expect(calls.ensured, 'standing still asks for nothing').to.deep.eq([]);
+
+      await w.setProps({index: 2});
+      await flushPromises();
+      expect(calls.ensured.length).to.eq(1);
+      expect(calls.ensured[0], 'the tile that carries the cursor after the re-render').to.eq(w.find('[data-ma-row="Gardener"]').element);
+      expect(calls.toStart, 'a step never resets the list').to.eq(0);
+
+      await w.setProps({kind: 'awards', items: AWARDS, index: 0});
+      await flushPromises();
+      expect(calls.toStart, 'the other family\'s list starts at its top').to.eq(1);
+      expect(w.find('.con-ma__browse').classes(), 'RB: the awards come in from the right').to.contain('con-ma__browse--arrive-r');
+      clock.advance(motionMs(260));
+      await nextTick();
+      expect(w.find('.con-ma__browse').classes(), 'one beat, then the list stands').to.not.contain('con-ma__browse--arrive-r');
+
+      await w.setProps({kind: 'milestones', items: MILESTONES, index: 0});
+      expect(w.find('.con-ma__browse').classes(), 'LB: the milestones come in from the left').to.contain('con-ma__browse--arrive-l');
+    } finally {
+      setFlowClock(undefined);
+    }
   });
 });
