@@ -1,8 +1,4 @@
 <template>
-  <!-- tm-has-i18n stops the v-i18n walker from descending into the stylized
-       brand-name text (SATURN / SYSTEMS / INTERPLANETARY / CINEMATICS / …).
-       Corporation logos are graphic wordmarks, never translated — without this
-       every logo word spammed `please translate: "<WORD>"` to the console. -->
   <div class="card-corporation-logo" tm-has-i18n="true">
     <template v-if="logos[title] === 'bespoke'">
       <template v-if="title === CardName.AERON_GENOMICS">
@@ -648,9 +644,17 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * tm-has-i18n stops the v-i18n walker from descending into the stylized
+ * brand-name text (SATURN / SYSTEMS / INTERPLANETARY / CINEMATICS / …).
+ * Corporation logos are graphic wordmarks, never translated — without this
+ * every logo word spammed `please translate: "<WORD>"` to the console.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 
 
@@ -757,39 +761,30 @@ const logos: Partial<Record<CardName, 'image' | 'css' | 'bespoke'>> = {
   [CardName.VOLTAGON]: 'bespoke',
 };
 
-export default defineComponent({
-  name: 'CardCorporationLogo',
-  props: {
-    title: {
-      type: String as () => CardName,
-      required: true,
-    },
+defineOptions({name: 'CardCorporationLogo'});
+const props = defineProps({
+  title: {
+    type: String as () => CardName,
+    required: true,
   },
-  computed: {
-    logos(): typeof logos {
-      return logos;
-    },
-    CardName(): typeof CardName {
-      return CardName;
-    },
-    logoClass(): string {
-      const type = logos[this.title];
-      switch (type) {
-      case 'image':
-      case 'css':
-        const local = this.title.toLowerCase()
-          .replaceAll(' ', '-')
-          .replaceAll('&', '')
-          .replaceAll('--', '-');
-        return `card-${local}-logo`;
-      default:
-        return '';
-      }
-    },
-    capsTitle(): string {
-      return logos[this.title] === 'image' ? '' : this.title.toUpperCase();
-    },
-  },
+});
+
+const logoClass = computed((): string => {
+  const type = logos[props.title];
+  switch (type) {
+  case 'image':
+  case 'css':
+    const local = props.title.toLowerCase()
+      .replaceAll(' ', '-')
+      .replaceAll('&', '')
+      .replaceAll('--', '-');
+    return `card-${local}-logo`;
+  default:
+    return '';
+  }
+});
+const capsTitle = computed((): string => {
+  return logos[props.title] === 'image' ? '' : props.title.toUpperCase();
 });
 
 </script>
