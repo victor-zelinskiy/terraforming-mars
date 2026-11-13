@@ -1,10 +1,4 @@
 <template>
-  <!--
-    Rework §2.1 — the DUEL result block. Both players read as equal participants in a
-    head-to-head; the MARGIN is the central focal element; the winner is crowned + glows,
-    the runner-up keeps a calm second state. Corporations are shown. A short thesis (the
-    Story DNA headline) sits underneath. No category bars (§1).
-  -->
   <section class="eg-rhduel" :class="'eg-theme--' + theme.motif" :style="{'--eg-theme': theme.accent}">
     <span class="eg-rhduel__motif eg-motif" aria-hidden="true"></span>
     <!-- §1 — a true head-to-head: winner | CENTRAL margin | runner-up. -->
@@ -68,8 +62,16 @@
   </section>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * Rework §2.1 — the DUEL result block. Both players read as equal participants in a
+ * head-to-head; the MARGIN is the central focal element; the winner is crowned + glows,
+ * the runner-up keeps a calm second state. Corporations are shown. A short thesis (the
+ * Story DNA headline) sits underneath. No category bars (§1).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed} from 'vue';
 import {Color} from '@/common/Color';
 import {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
@@ -78,59 +80,54 @@ import {strategyLabel} from '@/client/components/endgame/strategyArchetypes';
 import {buildStrategyTermDetail, type ChipDetail} from '@/client/components/endgame/insightDetail';
 import ExplainableBadge from '@/client/components/endgame/ExplainableBadge.vue';
 import FinishVerdictBanner from '@/client/components/endgame/FinishVerdictBanner.vue';
+import {vI18n} from '@/client/directives/vDirectives';
 
 type DuelSide = EndgamePlayerScore & {style?: string};
 
-export default defineComponent({
-  name: 'ResultHeroDuel',
-  components: {ExplainableBadge, FinishVerdictBanner},
-  props: {
-    model: {type: Object as () => EndgameModel, required: true},
-    viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
-  },
-  computed: {
-    // Winner on the LEFT, runner-up on the RIGHT, the margin between them (§1).
-    sides(): Array<DuelSide> {
-      const [a, b] = this.model.players;
-      const ordered = a.isWinner ? [a, b] : [b, a];
-      return ordered.map((p) => ({...p, style: this.styleOf(p)}));
-    },
-    winnerSide(): DuelSide {
-      return this.sides[0];
-    },
-    runnerSide(): DuelSide {
-      return this.sides[1];
-    },
-    theme(): StrategyVisualTheme {
-      return themeForArchetype(this.model.winner?.strategyProfile?.primary?.archetype);
-    },
-    // §4/§5 — the "Main line" / "Answer" terms are hoverable (same detail as the story).
-    winnerLineDetail(): ChipDetail | undefined {
-      return this.lineDetail(this.winnerSide);
-    },
-    runnerLineDetail(): ChipDetail | undefined {
-      return this.lineDetail(this.runnerSide);
-    },
-  },
-  methods: {
-    lineDetail(side: DuelSide): ChipDetail | undefined {
-      const archetype = side.strategyProfile?.primary?.archetype;
-      return archetype !== undefined ? buildStrategyTermDetail(this.model.players, side.color, archetype) : undefined;
-    },
-    hex(color: Color): string {
-      return endgamePlayerHex(color);
-    },
-    isViewer(color: Color): boolean {
-      return this.viewerColor === color;
-    },
-    corp(p: EndgamePlayerScore): string {
-      // The MarsBot seat keeps `corporations` empty — its corp rides `botCorporation`.
-      return p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? '');
-    },
-    styleOf(p: EndgamePlayerScore): string | undefined {
-      const prim = p.strategyProfile?.primary;
-      return prim !== undefined ? strategyLabel(prim.archetype) : undefined;
-    },
-  },
+defineOptions({name: 'ResultHeroDuel'});
+const props = defineProps({
+  model: {type: Object as () => EndgameModel, required: true},
+  viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
 });
+
+// Winner on the LEFT, runner-up on the RIGHT, the margin between them (§1).
+const sides = computed((): Array<DuelSide> => {
+  const [a, b] = props.model.players;
+  const ordered = a.isWinner ? [a, b] : [b, a];
+  return ordered.map((p) => ({...p, style: styleOf(p)}));
+});
+const winnerSide = computed((): DuelSide => {
+  return sides.value[0];
+});
+const runnerSide = computed((): DuelSide => {
+  return sides.value[1];
+});
+const theme = computed((): StrategyVisualTheme => {
+  return themeForArchetype(props.model.winner?.strategyProfile?.primary?.archetype);
+});
+// §4/§5 — the "Main line" / "Answer" terms are hoverable (same detail as the story).
+const winnerLineDetail = computed((): ChipDetail | undefined => {
+  return lineDetail(winnerSide.value);
+});
+const runnerLineDetail = computed((): ChipDetail | undefined => {
+  return lineDetail(runnerSide.value);
+});
+function lineDetail(side: DuelSide): ChipDetail | undefined {
+  const archetype = side.strategyProfile?.primary?.archetype;
+  return archetype !== undefined ? buildStrategyTermDetail(props.model.players, side.color, archetype) : undefined;
+}
+function hex(color: Color): string {
+  return endgamePlayerHex(color);
+}
+function isViewer(color: Color): boolean {
+  return props.viewerColor === color;
+}
+function corp(p: EndgamePlayerScore): string {
+  // The MarsBot seat keeps `corporations` empty — its corp rides `botCorporation`.
+  return p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? '');
+}
+function styleOf(p: EndgamePlayerScore): string | undefined {
+  const prim = p.strategyProfile?.primary;
+  return prim !== undefined ? strategyLabel(prim.archetype) : undefined;
+}
 </script>

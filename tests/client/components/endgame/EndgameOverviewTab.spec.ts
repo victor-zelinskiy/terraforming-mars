@@ -1,9 +1,11 @@
 import {mount} from '@vue/test-utils';
+import {defineComponent, h, PropType} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import EndgameOverviewTab from '@/client/components/endgame/tabs/EndgameOverviewTab.vue';
 import EndgameResultsOverlay from '@/client/components/endgame/EndgameResultsOverlay.vue';
 import {buildEndgameModel, EndgamePlayerInput, EndgameModel} from '@/client/components/endgame/endgameModel';
+import {endgameState, ENDGAME_TABS, resetEndgameState} from '@/client/components/endgame/endgameState';
 import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {Color} from '@/common/Color';
 import {ViewModel} from '@/common/models/PlayerModel';
@@ -110,6 +112,9 @@ describe('EndgameOverviewTab', () => {
 });
 
 describe('EndgameResultsOverlay', () => {
+  // The active tab is MODULE state (it outlives the overlay): every test leaves the ring on its first tab.
+  afterEach(resetEndgameState);
+
   function view(): ViewModel {
     const v: RecursivePartial<ViewModel> = {
       id: 'p-test',
@@ -136,5 +141,39 @@ describe('EndgameResultsOverlay', () => {
     expect(wrapper.find('.eg-results__winner-chip').text()).to.include('Victor');
     // The default tab is Overview, so the duel result block renders.
     expect(wrapper.find('.eg-rhduel').exists()).to.eq(true);
+  });
+
+  // The overlay is a `<script setup>` component (step A of docs/claude/vapor/RECIPES.md — R21): its `<component :is>`
+  // is handed the IMPORTED component of the active tab. A `<script setup>` component registers nothing by name, so a
+  // string there would render an unknown element named after the tab. The six tabs are stubbed under their own names.
+  it('a press on a tab stands THAT tab\'s own component in the body — handed the model, the view and the viewer', async () => {
+    const TAB_COMPONENTS = ['EndgameOverviewTab', 'EndgameScoreTab', 'EndgameTimelineTab', 'EndgameCardsTab', 'EndgameParametersTab', 'EndgamePlayersTab'];
+    const stubs = Object.fromEntries(TAB_COMPONENTS.map((name) => [name, defineComponent({
+      name,
+      props: {model: Object, view: {type: Object as PropType<ViewModel>, required: true}, viewerColor: String},
+      render() {
+        return h('i', {'class': 'tab-stub', 'data-tab': name, 'data-game': this.view.game.name, 'data-viewer': this.viewerColor});
+      },
+    })]));
+    const m = model([
+      input('red', 'Victor', {terraformRating: 35}),
+      input('blue', 'Nastya', {terraformRating: 30}),
+    ]);
+    const wrapper = mount(EndgameResultsOverlay, {
+      global: {...globalConfig.global, stubs},
+      props: {model: m, view: view(), viewerColor: 'red' as Color},
+    });
+    const body = () => wrapper.findAll('.eg-results__body > *')
+      .map((el) => [el.element.tagName, el.attributes('data-tab'), el.attributes('data-game'), el.attributes('data-viewer')]);
+    const active = () => wrapper.findAll('.eg-results__tab').map((t) => t.classes().includes('eg-results__tab--active')).indexOf(true);
+    expect(body()).to.deep.eq([['I', 'EndgameOverviewTab', 'Test Game', 'red']]);
+    expect(active()).to.eq(0);
+
+    for (let i = 1; i < TAB_COMPONENTS.length; i++) {
+      await wrapper.findAll('.eg-results__tab')[i].trigger('click');
+      expect(endgameState.activeTab, 'the press asks the module for the tab').to.eq(ENDGAME_TABS[i]);
+      expect(body(), `the ${ENDGAME_TABS[i]} tab`).to.deep.eq([['I', TAB_COMPONENTS[i], 'Test Game', 'red']]);
+      expect(active()).to.eq(i);
+    }
   });
 });
