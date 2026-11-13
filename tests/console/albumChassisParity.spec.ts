@@ -140,6 +140,7 @@ describe('albumChassisParity — the hand and the album are ONE chassis (P87)', 
     expect(offenders).deep.eq([]);
     const map = read('src/client/components/console/campaign/ConsoleCampaignMap.vue');
     expect(map, 'the toggle reads the seat limit').include('yourCarryLimit');
-    expect(map).not.match(/carryDraft\.length < 2/);
+    // `<script setup>`: the script reads the draft as `carryDraft.value.length`, the template as `carryDraft.length`.
+    expect(map).not.match(/carryDraft(?:\.value)?\.length < 2/);
   });
 });
