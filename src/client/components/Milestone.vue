@@ -29,61 +29,51 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import {ClaimedMilestoneModel, MilestoneScore} from '@/common/models/ClaimedMilestoneModel';
 import {getMilestone} from '@/client/MilestoneAwardManifest';
 import {playerSymbol} from '@/client/utils/playerSymbol';
-import {Color} from '@/common/Color';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 
-export default defineComponent({
-  name: 'Milestone',
-  components: {
-    'player-cube': PlayerCube,
+defineOptions({name: 'Milestone'});
+const props = defineProps({
+  milestone: {
+    type: Object as () => ClaimedMilestoneModel,
+    required: true,
   },
-  props: {
-    milestone: {
-      type: Object as () => ClaimedMilestoneModel,
-      required: true,
-    },
-    showScores: {
-      type: Boolean,
-      default: true,
-    },
-    showDescription: {
-      type: Boolean,
-    },
+  showScores: {
+    type: Boolean,
+    default: true,
   },
-  methods: {
-    playerSymbol(color: Color): string {
-      return playerSymbol(color);
-    },
-    getClass(score: MilestoneScore): string {
-      let classes = 'ma-score';
-      classes += ` player_bg_color_${score.color}`;
-      if (score.claimable) {
-        classes += ' claimable';
-      } else {
-        classes += ' not-claimable';
-      }
-      return classes;
-    },
-  },
-  computed: {
-    name(): string {
-      return this.milestone.name.replace(/[0-9]+$/, '');
-    },
-    nameCss(): string {
-      return 'ma-name ma-name--' + this.milestone.name.replaceAll(' ', '-').replaceAll('.', '').toLowerCase();
-    },
-    sortedScores(): Array<MilestoneScore> {
-      return [...this.milestone.scores].sort((s1, s2) => s2.score - s1.score);
-    },
-    description(): string {
-      return getMilestone(this.milestone.name).description;
-    },
+  showDescription: {
+    type: Boolean,
   },
 });
+
+const name = computed((): string => {
+  return props.milestone.name.replace(/[0-9]+$/, '');
+});
+const nameCss = computed((): string => {
+  return 'ma-name ma-name--' + props.milestone.name.replaceAll(' ', '-').replaceAll('.', '').toLowerCase();
+});
+const sortedScores = computed((): Array<MilestoneScore> => {
+  return [...props.milestone.scores].sort((s1, s2) => s2.score - s1.score);
+});
+const description = computed((): string => {
+  return getMilestone(props.milestone.name).description;
+});
+
+function getClass(score: MilestoneScore): string {
+  let classes = 'ma-score';
+  classes += ` player_bg_color_${score.color}`;
+  if (score.claimable) {
+    classes += ' claimable';
+  } else {
+    classes += ' not-claimable';
+  }
+  return classes;
+}
 </script>
