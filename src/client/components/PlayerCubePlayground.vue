@@ -1,12 +1,4 @@
 <template>
-  <!--
-    Dev-only QA page (?cubePlayground) for the premium PlayerCube.
-    Lets you eyeball every colour at every size, on representative board
-    backgrounds, with the colour-blind glyph / glow / shadow toggles, the
-    placement animation, and a side-by-side comparison against the legacy
-    `board_icons.png` sprite cube — BEFORE rolling PlayerCube out across the
-    ~10 consumer sites.
-  -->
   <div class="cube-playground" :class="{'cube-playground--embedded': embedded}">
     <div class="cube-playground__bar">
       <span class="cube-playground__title">Player cube — playground</span>
@@ -97,8 +89,18 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * Dev-only QA page (?cubePlayground) for the premium PlayerCube.
+ * Lets you eyeball every colour at every size, on representative board
+ * backgrounds, with the colour-blind glyph / glow / shadow toggles, the
+ * placement animation, and a side-by-side comparison against the legacy
+ * `board_icons.png` sprite cube — BEFORE rolling PlayerCube out across the
+ * ~10 consumer sites.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {ref} from 'vue';
 import {Color} from '@/common/Color';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
@@ -110,63 +112,45 @@ const COLORS: ReadonlyArray<Color> = ['red', 'green', 'yellow', 'blue', 'black',
 /** The delegate stand: the eight player colours and the neutral delegate's steel. */
 const TOKEN_COLORS: ReadonlyArray<Color> = ['red', 'green', 'yellow', 'blue', 'black', 'purple', 'orange', 'pink', 'neutral'];
 
-export default defineComponent({
-  name: 'PlayerCubePlayground',
-  components: {
-    'player-cube': PlayerCube,
-    'player-delegate': PlayerDelegate,
-  },
-  props: {
-    /** Hosted in the console playground stand — the host owns fullscreen + scroll. */
-    embedded: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
-  },
-  setup() {
-    return {flow: useFlowScope('player-cube-playground')};
-  },
-  data() {
-    return {
-      overlaySymbol: false,
-      glow: true,
-      shadow: true,
-      animateIn: false,
-      animKey: 0,
-      scaleColor: 'blue' as Color,
-      sizes: [14, 18, 21, 28, 40, 64],
-      figureSizes: [18, 24, 28],
-      surfaces: [
-        {key: 'dark', label: 'Dark board panel'},
-        {key: 'mars', label: 'Mars tile (warm)'},
-        {key: 'light', label: 'Light surface'},
-        {key: 'panel', label: 'Glass HUD'},
-      ],
-    };
-  },
-  computed: {
-    colors(): ReadonlyArray<Color> {
-      return COLORS;
-    },
-    tokenColors(): ReadonlyArray<Color> {
-      return TOKEN_COLORS;
-    },
-  },
-  methods: {
-    /** A figure's height at the hall's scale (the floor enforced) — a cube beside it at the logical size it is given. */
-    figurePx(logical: number): number {
-      return logical >= 18 ? delegateFigurePx(logical) : conLogicalPx(logical);
-    },
-    // Force a remount (animKey) with animateIn on, so the placement keyframe
-    // replays for every cube; then drop the flag back.
-    replay(): void {
-      this.animateIn = true;
-      this.animKey++;
-      this.flow.after(700, 'the replayed placement keyframe ends', () => {
-        this.animateIn = false;
-      });
-    },
+defineOptions({name: 'PlayerCubePlayground'});
+defineProps({
+  /** Hosted in the console playground stand — the host owns fullscreen + scroll. */
+  embedded: {
+    type: Boolean,
+    required: false,
+    default: false,
   },
 });
+
+const flow = useFlowScope('player-cube-playground');
+const overlaySymbol = ref(false);
+const glow = ref(true);
+const shadow = ref(true);
+const animateIn = ref(false);
+const animKey = ref(0);
+const scaleColor = ref<Color>('blue');
+const sizes = ref([14, 18, 21, 28, 40, 64]);
+const figureSizes = ref([18, 24, 28]);
+const surfaces = ref([
+  {key: 'dark', label: 'Dark board panel'},
+  {key: 'mars', label: 'Mars tile (warm)'},
+  {key: 'light', label: 'Light surface'},
+  {key: 'panel', label: 'Glass HUD'},
+]);
+const colors = COLORS;
+const tokenColors = TOKEN_COLORS;
+
+/** A figure's height at the hall's scale (the floor enforced) — a cube beside it at the logical size it is given. */
+function figurePx(logical: number): number {
+  return logical >= 18 ? delegateFigurePx(logical) : conLogicalPx(logical);
+}
+// Force a remount (animKey) with animateIn on, so the placement keyframe
+// replays for every cube; then drop the flag back.
+function replay(): void {
+  animateIn.value = true;
+  animKey.value++;
+  flow.after(700, 'the replayed placement keyframe ends', () => {
+    animateIn.value = false;
+  });
+}
 </script>
