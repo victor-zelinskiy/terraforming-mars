@@ -3,9 +3,10 @@
  * (step A of docs/claude/vapor/RECIPES.md): what it renders for its props over the overview's module state (the head,
  * the tab rail, ONE pane), the pane-swap machine its bumpers drive (out → swap → in, on the motion clock), the
  * «A Подробнее» honesty it writes into the module — and what `ConsoleEndgameWorkspace` reaches through its
- * `ref="overview"`: `handleIntent`, and nothing else. Mounted the way the workspace mounts it: under an Options host
- * with a string ref. The six panes are stubbed by name (each is its own spec's subject); a stub answers the PANE API
- * (`nav` / `primary`) the scene forwards the pad to. The unit runner renders the English keys.
+ * `ref="overview"`: `handleIntent`, and nothing else. Mounted the way the workspace mounts it: under a host that
+ * holds a string ref on it (the workspace reads it through `useTemplateRef('overview')` — whoever holds the ref sees
+ * the same exposed object). The six panes are stubbed by name (each is its own spec's subject); a stub answers the
+ * PANE API (`nav` / `primary`) the scene forwards the pad to. The unit runner renders the English keys.
  */
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
@@ -139,7 +140,7 @@ describe('ConsoleEndgameOverview — the analytics scene of the endgame', () => 
       wrapper,
       vm,
       playerView,
-      /** Exactly the workspace's read: `(this.$refs.overview ?? undefined) as … | undefined`. */
+      /** The workspace's read — `overview.value` of its `useTemplateRef('overview')` — taken here off the host's `$refs`. */
       reach: () => (wrapper.vm.$refs.overview ?? undefined) as OverviewReach | undefined,
       panes: () => wrapper.findAll('.pane-stub').map((p) => p.attributes('data-pane')),
     };

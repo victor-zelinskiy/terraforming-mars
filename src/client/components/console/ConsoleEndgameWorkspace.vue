@@ -1,39 +1,5 @@
 <template>
-  <!--
-    CONSOLE FINAL SCORING — the post-game workspace (`?console=1`).
-
-    THE ceremony: every player permanently on screen as one comparable row
-    (place · identity · one shared-scale bar · exact values anchored to their
-    segments · a large running total), categories revealed in sequence for
-    the whole table at once as a four-part phrase (focus → grow → settle →
-    breath), TR and Cards opening as quick two-level micro-reveals that MERGE
-    back into one calm segment, penalties physically RETRACTING the bar, the
-    ranking settled by ONE FLIP after the last number lands, then the winner
-    beat AS THE FIRST ROW ITSELF (a hero treatment — never a duplicate
-    plate). The MarsBot is an ordinary row — its legacy scoring category is
-    dissolved into the card families by the VM (consoleEndgameModel).
-
-    STABILITY CONTRACT (the audit's three findings, kept fixed):
-    · the row grid has as many children as columns, ALWAYS — the running
-      total lives in its own fixed column and the count-up writes arrive as
-      direct textContent (never a reactive per-frame write), so the track
-      cannot re-solve mid-count;
-    · `--noanim` suppresses TRANSITIONS only — re-enabling a suppressed
-      keyframe ANIMATION restarts it from its first frame, which is exactly
-      the settled-scene flash this workspace once shipped;
-    · sub-segment shades and seams exist only until the category MERGES —
-      the settled bar is one hue per top-level category, never a barcode.
-
-    A full-bleed scene (start-scene family): it covers the frame while the
-    command bar below stays live. B = «Свернуть» — the scene hides (state
-    intact, a running ceremony PAUSES) and the final board is open for
-    inspection; B/A returns and resumes. «Обзор партии» is an INTERNAL SCENE
-    of this same workspace (ConsoleEndgameOverview): the scoring stage PARKS
-    under it (opacity/visibility — never display, so no keyframe restarts and
-    no replayed ceremony) and returns on B. The desktop results overlay never
-    rises in console mode.
-  -->
-  <div class="con-endgame" role="region" :aria-label="$t('Final scoring')"
+  <div ref="root" class="con-endgame" role="region" :aria-label="$t('Final scoring')"
        :class="{'con-endgame--noanim': noanim, 'con-endgame--ovopen': overviewParked || campaignScene !== undefined, ['con-endgame--' + ui.phase]: true}"
        :style="{'--eg-horizon-y': horizonY + 'px', '--eg-arc-r': arcRadius + 'px'}"
        :data-eg-beat="ui.beatStage" :data-eg-cat="ui.catIdx" :data-eg-hurried="ui.hurry === 'off' ? undefined : ui.hurry">
@@ -370,7 +336,44 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * CONSOLE FINAL SCORING — the post-game workspace (`?console=1`).
+ *
+ * THE ceremony: every player permanently on screen as one comparable row
+ * (place · identity · one shared-scale bar · exact values anchored to their
+ * segments · a large running total), categories revealed in sequence for
+ * the whole table at once as a four-part phrase (focus → grow → settle →
+ * breath), TR and Cards opening as quick two-level micro-reveals that MERGE
+ * back into one calm segment, penalties physically RETRACTING the bar, the
+ * ranking settled by ONE FLIP after the last number lands, then the winner
+ * beat AS THE FIRST ROW ITSELF (a hero treatment — never a duplicate
+ * plate). The MarsBot is an ordinary row — its legacy scoring category is
+ * dissolved into the card families by the VM (consoleEndgameModel).
+ *
+ * STABILITY CONTRACT (the audit's three findings, kept fixed):
+ * · the row grid has as many children as columns, ALWAYS — the running
+ *   total lives in its own fixed column and the count-up writes arrive as
+ *   direct textContent (never a reactive per-frame write), so the track
+ *   cannot re-solve mid-count;
+ * · `--noanim` suppresses TRANSITIONS only — re-enabling a suppressed
+ *   keyframe ANIMATION restarts it from its first frame, which is exactly
+ *   the settled-scene flash this workspace once shipped;
+ * · sub-segment shades and seams exist only until the category MERGES —
+ *   the settled bar is one hue per top-level category, never a barcode.
+ *
+ * A full-bleed scene (start-scene family): it covers the frame while the
+ * command bar below stays live. B = «Свернуть» — the scene hides (state
+ * intact, a running ceremony PAUSES) and the final board is open for
+ * inspection; B/A returns and resumes. «Обзор партии» is an INTERNAL SCENE
+ * of this same workspace (ConsoleEndgameOverview): the scoring stage PARKS
+ * under it (opacity/visibility — never display, so no keyframe restarts and
+ * no replayed ceremony) and returns on B. The desktop results overlay never
+ * rises in console mode.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
 /**
  * The scoring WORKSPACE component. Rendering + input + the DOM moments the
  * director cannot know (the ranking FLIP, the crowning FLIP, the category
@@ -380,7 +383,7 @@
  * director, the observable stages in the module state — all unit-tested
  * without this file.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {gsap} from 'gsap';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
@@ -398,16 +401,9 @@ import {endgameModelFromView, botColorsFromView} from '@/client/components/endga
 import {requestEndgameFacts, cachedEndgameFacts} from '@/client/components/endgame/endgameFactsCache';
 import {rematchState, submitRematch, rematchJoinHref} from '@/client/components/rematch/rematchState';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
-import {
-  buildConsoleEndgameVm, ConsoleEndgameVm, ConsoleEndgameCategory, ConsoleEndgameCategoryKey, ConsoleEndgameRow,
-} from '@/client/console/endgame/consoleEndgameModel';
-import {
-  buildRowGeometry, EndgameRowGeo, EndgameSegGeo, EndgameSubGeo,
-} from '@/client/console/endgame/consoleEndgameLayout';
-import {
-  faceZoom, horizonDrop, horizonRadius, LINEAGE_VISIBLE, lineageShown, planPodium, podiumOrder, PodiumPlan, SeatGeo,
-  slotOffset,
-} from '@/client/console/endgame/consoleEndgamePodium';
+import {buildConsoleEndgameVm, ConsoleEndgameVm, ConsoleEndgameCategory, ConsoleEndgameCategoryKey, ConsoleEndgameRow} from '@/client/console/endgame/consoleEndgameModel';
+import {buildRowGeometry, EndgameRowGeo, EndgameSegGeo, EndgameSubGeo} from '@/client/console/endgame/consoleEndgameLayout';
+import {faceZoom, horizonDrop, horizonRadius, LINEAGE_VISIBLE, lineageShown, planPodium, podiumOrder, PodiumPlan, SeatGeo, slotOffset} from '@/client/console/endgame/consoleEndgamePodium';
 import {CEREMONY_MS} from '@/client/console/endgame/consoleEndgameScript';
 import {runEndgameCeremony, CeremonyHandle, CeremonyIgnition, CeremonyLightBeat} from '@/client/console/endgame/consoleEndgameDirector';
 import {DossierGlyph, scoreCategoryGlyph} from '@/client/console/infoDossierModel';
@@ -418,12 +414,8 @@ import ConsoleScoreDisc from '@/client/components/console/info/ConsoleScoreDisc.
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
-import {
-  consoleEndgameUi, ceremonyShouldPlay, resetCeremonyProgress, finalizeCeremony,
-} from '@/client/console/endgame/consoleEndgameState';
-import {
-  consoleOverviewUi, openEndgameOverview, OVERVIEW_MS,
-} from '@/client/console/endgame/consoleOverviewState';
+import {consoleEndgameUi, ceremonyShouldPlay, resetCeremonyProgress, finalizeCeremony} from '@/client/console/endgame/consoleEndgameState';
+import {consoleOverviewUi, openEndgameOverview, OVERVIEW_MS} from '@/client/console/endgame/consoleOverviewState';
 import ConsoleEndgameOverview from '@/client/components/console/ConsoleEndgameOverview.vue';
 // Campaign mode: the mission coda («Титулы» / champion) and the embedded
 // Campaign Map — «Следующая миссия» is ONE flow inside the map scene
@@ -432,11 +424,9 @@ import {TitleName} from '@/common/campaign/CampaignTypes';
 import {CampaignGameContract} from '@/common/campaign/CampaignGameContract';
 import {BiddingModel, MissionResultModel, campaignModelRewardMode} from '@/common/campaign/CampaignModel';
 import {BiddingState, TenderId} from '@/common/campaign/tenders';
-import {
-  campaignState, openCampaign, setCampaignViewerName, startCampaignWatch, stopCampaignWatch, submitCampaignBid,
-} from '@/client/console/campaign/campaignState';
+import {campaignState, openCampaign, setCampaignViewerName, startCampaignWatch, stopCampaignWatch, submitCampaignBid} from '@/client/console/campaign/campaignState';
 import {campaignMapUi} from '@/client/console/campaign/campaignMapUi';
-import {biddingRevealKey, tenderBiddingUi} from '@/client/console/campaign/tenderBiddingUi';
+import {biddingRevealKey as biddingRevealKeyOf, tenderBiddingUi} from '@/client/console/campaign/tenderBiddingUi';
 import ConsoleTenderBidding from '@/client/components/console/campaign/ConsoleTenderBidding.vue';
 import ConsoleTenderCard from '@/client/components/console/campaign/ConsoleTenderCard.vue';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
@@ -447,6 +437,7 @@ import {paths} from '@/common/app/paths';
 import ConsoleCampaignMap from '@/client/components/console/campaign/ConsoleCampaignMap.vue';
 import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {RevealTieBreak} from '@/client/components/endgame/finalScoringRevealModel';
+import {vI18n} from '@/client/directives/vDirectives';
 
 /**
  * The post-game actions' SIGNS (PL-576) — one stroke path per action family (24 × 24, drawn in the plate's ink), so
@@ -531,1523 +522,1509 @@ function paintLightWash(canvas: HTMLCanvasElement, light: LightPaint): void {
   ctx.globalCompositeOperation = 'source-over';
 }
 
-export default defineComponent({
-  name: 'ConsoleEndgameWorkspace',
-  components: {ConsoleEndgameOverview, ConsoleCampaignMap, ConsoleTenderBidding, ConsoleTenderCard, ConsoleScoreDisc, ConsoleVpBadge, ConsoleCardFaceLite, MarsBotCorpFace},
-  props: {
-    playerView: {type: Object as PropType<ViewModel>, required: true},
-  },
-  setup() {
-    const {reduced} = useConsoleReducedMotion();
-    const {width: vpWidth} = useConsoleViewport();
-    // The light's live paint (hotspot + tone) — a plain object, never reactive: a glide writes it every frame.
-    const light: LightPaint = {x: 0.5, r: 138, g: 164, b: 192};
-    // The workspace's own scope: its frames and the pill's commit beat are taken back when it is unmounted.
-    const flow = useFlowScope('endgame-workspace');
-    return {reduced, vpWidth, light, campaignState, flow};
-  },
-  data() {
-    return {
-      handle: undefined as CeremonyHandle | undefined,
-      bursts: [] as Array<CeremonyBurstHandle>,
-      /** The «Обзор партии» pill's short commit response (pressed → scene). */
-      overviewCommitFx: false,
-      /** The pill's commit beat — its cancel (undefined ⇔ none pending). */
-      commitCall: undefined as (() => void) | undefined,
-      /** Suppresses every CSS TRANSITION for the skip's atomic jump frame
-       *  (never animations — a re-enabled keyframe animation restarts). */
-      noanim: false,
-      /** The cancel of the pending «transitions back on» frames. */
-      noanimRaf: (() => {}) as () => void,
-      /** The podium's MEASURED box (the seats' stage), px — the planner's one DOM input; 0 while hidden. */
-      stageW: 0,
-      stageH: 0,
-      /** The live rem, px (the TV profile's 40 at 4K). */
-      remPx: 20,
-      /** The podium's foot, px from the scene's top — where the horizon arc crests (the seats stand ON it). */
-      horizonY: 0,
-      /** The scene's width, px — the horizon's radius is a share of it. */
-      sceneW: 0,
-      /** Where each two-level category's sources line stands (px from the caption's left): under ITS head cell, clamped
-       *  inside the stage. Measured with the stage (cells never resize while the count runs). */
-      srcX: {} as Record<string, number>,
-      /** Per tied seat: the empty px of its number's reserved box (the M€ tab hangs off the digits). */
-      tieSlack: {} as Record<string, number>,
-      stageObserver: undefined as ResizeObserver | undefined,
-      totalEls: {} as Record<string, HTMLElement | undefined>,
-      /** The campaign scene — internal, the overview pattern (park + return).
-       *  `map`: the map hosts the whole interlude flow itself. `bidding`: the
-       *  «Тендеры» mode's BIDDING right after the ceremony (the same surface
-       *  the map hosts for a player who comes back later). */
-      campaignScene: undefined as undefined | 'map' | 'bidding',
-      /** The bidding scene opened itself once for this bidding (`campaignId:slot`). */
-      biddingAutoOpened: '',
-      /** The coda animates only when the ceremony itself played live. */
-      campaignCodaAnimated: false,
-      /** T08: the category whose light stands over the podium (its tone on the beam), undefined while dark. */
-      beamCat: undefined as ConsoleEndgameCategory['accent'] | undefined,
-    };
-  },
-  computed: {
-    ui() {
-      return consoleEndgameUi;
-    },
-    ov() {
-      return consoleOverviewUi;
-    },
-    /** The scoring stage is PARKED under the overview scene (a leave keeps
-     *  it live so the two layers crossfade — never a blank frame). */
-    overviewParked(): boolean {
-      return this.ov.phase === 'entering' || this.ov.phase === 'open';
-    },
-    // ── Campaign mode (docs/CAMPAIGN_MODE_ARCHITECTURE.md §5.3, §7) ──────
-    campaignContract(): CampaignGameContract | undefined {
-      return this.playerView.game.gameOptions.campaign;
-    },
-    campaignResult(): MissionResultModel | undefined {
-      const contract = this.campaignContract;
-      if (contract === undefined) {
-        return undefined;
-      }
-      return campaignState.model?.missions[contract.missionSlot]?.result;
-    },
-    /**
-     * The per-row TITLE BADGE map (Color → badge) — MISSIONS 1–3 only: the
-     * mission's title marks the holder's row. The final mission carries NO
-     * title badges (title POINTS are already the scoring bar's own «Титулы»
-     * category there) and the champion mark is the ceremony's own plate on
-     * the winner row — never a Governor-art badge (Governor stays a separate
-     * per-mission title, not the champion's emblem). A seat with only a
-     * comeback bonus gets no row mark — that consequence belongs to the NEXT
-     * mission and reads on the campaign map's seat rail.
-     */
-    campaignRowBadges(): Partial<Record<Color, {kind: string, art: TitleName, label: string, tp: number, order: number}>> {
-      const out: Partial<Record<Color, {kind: string, art: TitleName, label: string, tp: number, order: number}>> = {};
-      this.campaignTitleRows.forEach((row, i) => {
-        if (out[row.color] === undefined) {
-          out[row.color] = {kind: row.title, art: row.title, label: row.label, tp: row.titlePoints, order: i};
-        }
-      });
-      return out;
-    },
-    /**
-     * The «Тендеры» mode: THIS mission's bidding — live while open (the campaign
-     * document), the slot's record once done. Undefined on a titles campaign.
-     */
-    missionBidding(): BiddingModel | BiddingState | undefined {
-      const contract = this.campaignContract;
-      const model = campaignState.model;
-      if (contract === undefined || model === undefined || campaignModelRewardMode(model) !== 'tenders') {
-        return undefined;
-      }
-      if (model.bidding !== undefined && model.bidding.sourceSlot === contract.missionSlot) {
-        return model.bidding;
-      }
-      return model.missions[contract.missionSlot]?.bidding;
-    },
-    liveBidding(): BiddingModel | undefined {
-      const model = campaignState.model;
-      const contract = this.campaignContract;
-      const bidding = model?.bidding;
-      return bidding !== undefined && contract !== undefined && bidding.sourceSlot === contract.missionSlot && !bidding.done ?
-        bidding : undefined;
-    },
-    biddingRevealKey(): string {
-      const model = campaignState.model;
-      const contract = this.campaignContract;
-      return model !== undefined && contract !== undefined ? biddingRevealKey(model.id, contract.missionSlot) : '';
-    },
-    /** The bidding scene is DUE: the ceremony settled, a bidding is open for this mission, no scene stands. */
-    biddingDue(): boolean {
-      return this.ui.phase === 'actions' && !this.ui.collapsed && this.campaignScene === undefined &&
-        this.liveBidding !== undefined && this.biddingAutoOpened !== this.biddingRevealKey;
-    },
-    /** Color → the tender the seat TOOK at this mission's bidding (the crest plaque). */
-    campaignRowTenders(): Partial<Record<Color, {id: TenderId, instance: string}>> {
-      const out: Partial<Record<Color, {id: TenderId, instance: string}>> = {};
-      const bidding = this.missionBidding;
-      if (bidding === undefined) {
-        return out;
-      }
-      for (const card of bidding.offer) {
-        if (card.takenBy !== undefined) {
-          const seat = this.campaignSeatName(card.takenBy);
-          out[seat.color] = {id: card.id, instance: card.instance};
-        }
-      }
-      return out;
-    },
-    /** «Миссия N» — the bidding scene's subject (already in the player's language). */
-    missionOrdinalLabel(): string {
-      const contract = this.campaignContract;
-      return contract === undefined ? '' : translateTextWithParams('Mission ${0}', [String(contract.missionSlot + 1)]);
-    },
-    campaignSeatName(): (seat: number) => {name: string, color: Color} {
-      return (seat: number) => {
-        const s = campaignState.model?.seats.find((x) => x.seat === seat);
-        return {name: s?.name ?? '', color: (s?.color ?? 'neutral') as Color};
+defineOptions({name: 'ConsoleEndgameWorkspace'});
+const props = defineProps({
+  playerView: {type: Object as PropType<ViewModel>, required: true},
+});
+
+const {reduced} = useConsoleReducedMotion();
+const {width: vpWidth} = useConsoleViewport();
+
+// The light's live paint (hotspot + tone) — a plain object, never reactive: a glide writes it every frame.
+const light: LightPaint = {x: 0.5, r: 138, g: 164, b: 192};
+
+// The workspace's own scope: its frames and the pill's commit beat are taken back when it is unmounted.
+const flow = useFlowScope('endgame-workspace');
+const rowsEl = useTemplateRef<HTMLElement>('rowsEl');
+const captionEl = useTemplateRef<HTMLElement>('captionEl');
+const beamEl = useTemplateRef<HTMLElement>('beamEl');
+const washEl = useTemplateRef<HTMLCanvasElement>('washEl');
+const overview = useTemplateRef<InstanceType<typeof ConsoleEndgameOverview>>('overview');
+const campaignMap = useTemplateRef<{handleIntent?: (i: GamepadIntent) => boolean}>('campaignMap');
+const bidding = useTemplateRef<{handleIntent?: (i: GamepadIntent) => boolean}>('bidding');
+const root = useTemplateRef<HTMLElement>('root');
+const handle = ref<CeremonyHandle | undefined>(undefined);
+const bursts = ref<Array<CeremonyBurstHandle>>([]);
+/** The «Обзор партии» pill's short commit response (pressed → scene). */
+const overviewCommitFx = ref(false);
+/** The pill's commit beat — its cancel (undefined ⇔ none pending). */
+const commitCall = ref<(() => void) | undefined>(undefined);
+/** Suppresses every CSS TRANSITION for the skip's atomic jump frame
+ *  (never animations — a re-enabled keyframe animation restarts). */
+const noanim = ref(false);
+/** The cancel of the pending «transitions back on» frames. */
+let noanimRaf = (() => {}) as () => void;
+/** The podium's MEASURED box (the seats' stage), px — the planner's one DOM input; 0 while hidden. */
+const stageW = ref(0);
+const stageH = ref(0);
+/** The live rem, px (the TV profile's 40 at 4K). */
+const remPx = ref(20);
+/** The podium's foot, px from the scene's top — where the horizon arc crests (the seats stand ON it). */
+const horizonY = ref(0);
+/** The scene's width, px — the horizon's radius is a share of it. */
+const sceneW = ref(0);
+/** Where each two-level category's sources line stands (px from the caption's left): under ITS head cell, clamped
+ *  inside the stage. Measured with the stage (cells never resize while the count runs). */
+const srcX = ref<Record<string, number>>({});
+/** Per tied seat: the empty px of its number's reserved box (the M€ tab hangs off the digits). */
+const tieSlack = ref<Record<string, number>>({});
+let stageObserver: ResizeObserver | undefined;
+const totalEls = ref<Record<string, HTMLElement | undefined>>({});
+/** The campaign scene — internal, the overview pattern (park + return).
+ *  `map`: the map hosts the whole interlude flow itself. `bidding`: the
+ *  «Тендеры» mode's BIDDING right after the ceremony (the same surface
+ *  the map hosts for a player who comes back later). */
+const campaignScene = ref<undefined | 'map' | 'bidding'>(undefined);
+/** The bidding scene opened itself once for this bidding (`campaignId:slot`). */
+const biddingAutoOpened = ref('');
+/** The coda animates only when the ceremony itself played live. */
+const campaignCodaAnimated = ref(false);
+/** T08: the category whose light stands over the podium (its tone on the beam), undefined while dark. */
+const beamCat = ref<ConsoleEndgameCategory['accent'] | undefined>(undefined);
+
+const ui = consoleEndgameUi;
+const ov = consoleOverviewUi;
+/** The scoring stage is PARKED under the overview scene (a leave keeps
+ *  it live so the two layers crossfade — never a blank frame). */
+const overviewParked = computed((): boolean => {
+  return ov.phase === 'entering' || ov.phase === 'open';
+});
+// ── Campaign mode (docs/CAMPAIGN_MODE_ARCHITECTURE.md §5.3, §7) ──────
+const campaignContract = computed((): CampaignGameContract | undefined => {
+  return props.playerView.game.gameOptions.campaign;
+});
+const campaignResult = computed((): MissionResultModel | undefined => {
+  const contract = campaignContract.value;
+  if (contract === undefined) {
+    return undefined;
+  }
+  return campaignState.model?.missions[contract.missionSlot]?.result;
+});
+/**
+ * The per-row TITLE BADGE map (Color → badge) — MISSIONS 1–3 only: the
+ * mission's title marks the holder's row. The final mission carries NO
+ * title badges (title POINTS are already the scoring bar's own «Титулы»
+ * category there) and the champion mark is the ceremony's own plate on
+ * the winner row — never a Governor-art badge (Governor stays a separate
+ * per-mission title, not the champion's emblem). A seat with only a
+ * comeback bonus gets no row mark — that consequence belongs to the NEXT
+ * mission and reads on the campaign map's seat rail.
+ */
+const campaignRowBadges = computed((): Partial<Record<Color, {kind: string, art: TitleName, label: string, tp: number, order: number}>> => {
+  const out: Partial<Record<Color, {kind: string, art: TitleName, label: string, tp: number, order: number}>> = {};
+  campaignTitleRows.value.forEach((row, i) => {
+    if (out[row.color] === undefined) {
+      out[row.color] = {kind: row.title, art: row.title, label: row.label, tp: row.titlePoints, order: i};
+    }
+  });
+  return out;
+});
+/**
+ * The «Тендеры» mode: THIS mission's bidding — live while open (the campaign
+ * document), the slot's record once done. Undefined on a titles campaign.
+ */
+const missionBidding = computed((): BiddingModel | BiddingState | undefined => {
+  const contract = campaignContract.value;
+  const model = campaignState.model;
+  if (contract === undefined || model === undefined || campaignModelRewardMode(model) !== 'tenders') {
+    return undefined;
+  }
+  if (model.bidding !== undefined && model.bidding.sourceSlot === contract.missionSlot) {
+    return model.bidding;
+  }
+  return model.missions[contract.missionSlot]?.bidding;
+});
+const liveBidding = computed((): BiddingModel | undefined => {
+  const model = campaignState.model;
+  const contract = campaignContract.value;
+  const bidding = model?.bidding;
+  return bidding !== undefined && contract !== undefined && bidding.sourceSlot === contract.missionSlot && !bidding.done ?
+    bidding : undefined;
+});
+const biddingRevealKey = computed((): string => {
+  const model = campaignState.model;
+  const contract = campaignContract.value;
+  return model !== undefined && contract !== undefined ? biddingRevealKeyOf(model.id, contract.missionSlot) : '';
+});
+/** The bidding scene is DUE: the ceremony settled, a bidding is open for this mission, no scene stands. */
+const biddingDue = computed((): boolean => {
+  return ui.phase === 'actions' && !ui.collapsed && campaignScene.value === undefined &&
+    liveBidding.value !== undefined && biddingAutoOpened.value !== biddingRevealKey.value;
+});
+/** Color → the tender the seat TOOK at this mission's bidding (the crest plaque). */
+const campaignRowTenders = computed((): Partial<Record<Color, {id: TenderId, instance: string}>> => {
+  const out: Partial<Record<Color, {id: TenderId, instance: string}>> = {};
+  const bidding = missionBidding.value;
+  if (bidding === undefined) {
+    return out;
+  }
+  for (const card of bidding.offer) {
+    if (card.takenBy !== undefined) {
+      const seat = campaignSeatName.value(card.takenBy);
+      out[seat.color] = {id: card.id, instance: card.instance};
+    }
+  }
+  return out;
+});
+/** «Миссия N» — the bidding scene's subject (already in the player's language). */
+const missionOrdinalLabel = computed((): string => {
+  const contract = campaignContract.value;
+  return contract === undefined ? '' : translateTextWithParams('Mission ${0}', [String(contract.missionSlot + 1)]);
+});
+const campaignSeatName = computed((): (seat: number) => {name: string, color: Color} => {
+  return (seat: number) => {
+    const s = campaignState.model?.seats.find((x) => x.seat === seat);
+    return {name: s?.name ?? '', color: (s?.color ?? 'neutral') as Color};
+  };
+});
+/** Titles ASCENDING (Prefect → Administrator → Governor — the climax last). */
+const campaignTitleRows = computed((): ReadonlyArray<{seat: number, title: TitleName, label: string, name: string, color: Color, titlePoints: number, bonus: number, shared: boolean}> => {
+  const result = campaignResult.value;
+  if (result === undefined || campaignContract.value?.final === true) {
+    return [];
+  }
+  return [...result.titles]
+    .sort((a, b) => a.titlePoints - b.titlePoints)
+    .map((t) => {
+      const who = campaignSeatName.value(t.seat);
+      const standing = result.standings.find((s) => s.seat === t.seat);
+      return {
+        seat: t.seat,
+        title: t.title,
+        label: TITLE_LABEL[t.title],
+        name: who.name,
+        color: who.color,
+        titlePoints: t.titlePoints,
+        bonus: result.bonuses.find((b) => b.seat === t.seat)?.megaCredits ?? 0,
+        shared: (standing?.tiedWith.length ?? 0) > 0,
       };
-    },
-    /** Titles ASCENDING (Prefect → Administrator → Governor — the climax last). */
-    campaignTitleRows(): ReadonlyArray<{seat: number, title: TitleName, label: string, name: string, color: Color, titlePoints: number, bonus: number, shared: boolean}> {
-      const result = this.campaignResult;
-      if (result === undefined || this.campaignContract?.final === true) {
-        return [];
-      }
-      return [...result.titles]
-        .sort((a, b) => a.titlePoints - b.titlePoints)
-        .map((t) => {
-          const who = this.campaignSeatName(t.seat);
-          const standing = result.standings.find((s) => s.seat === t.seat);
-          return {
-            seat: t.seat,
-            title: t.title,
-            label: TITLE_LABEL[t.title],
-            name: who.name,
-            color: who.color,
-            titlePoints: t.titlePoints,
-            bonus: result.bonuses.find((b) => b.seat === t.seat)?.megaCredits ?? 0,
-            shared: (standing?.tiedWith.length ?? 0) > 0,
-          };
+    });
+});
+const carryConfirmed = computed((): boolean => {
+  const you = campaignState.model?.you?.seat;
+  if (you === undefined) {
+    return false;
+  }
+  return campaignState.model?.carryover?.bySeat.find((s) => s.seat === you)?.status === 'confirmed';
+});
+const viewerHasCarryDoor = computed((): boolean => {
+  const you = campaignState.model?.you?.seat;
+  return you !== undefined &&
+    campaignState.model?.phase === 'interlude' &&
+    campaignState.model?.carryover?.bySeat.some((s) => s.seat === you) === true;
+});
+/** The current slot's live seat link — «Следующая миссия» enters directly. */
+const campaignNextLink = computed((): {playerId: string, gameId?: string} | undefined => {
+  const model = campaignState.model;
+  const current = model?.missions[model.pointer];
+  if (current?.state === 'active' && current.yourPlayerId !== undefined) {
+    return {playerId: current.yourPlayerId, gameId: current.gameId};
+  }
+  return undefined;
+});
+/** The honest status line under the one CTA (pre-rendered, never a key). */
+const campaignNextNote = computed((): string | undefined => {
+  const model = campaignState.model;
+  if (model === undefined) {
+    return undefined;
+  }
+  if (campaignNextLink.value !== undefined) {
+    return $t('mission started — enter');
+  }
+  if (liveBidding.value !== undefined) {
+    return $t('the tender bidding is on');
+  }
+  if (viewerHasCarryDoor.value && !carryConfirmed.value) {
+    return $t('choose the project legacy');
+  }
+  if (model.you?.seat === 0) {
+    return $t(model.canLaunch ? 'ready to launch' : 'waiting for the crew');
+  }
+  if (carryConfirmed.value) {
+    return $t('you are ready — waiting for the launch');
+  }
+  return undefined;
+});
+/** ONE endgame model for the ceremony AND the overview. The facts feed
+ *  only the insight/episode engines — every scoring number is identical
+ *  with or without them, so a late fetch never moves a settled bar. */
+const model = computed((): EndgameModel => {
+  return endgameModelFromView(props.playerView, cachedEndgameFacts(props.playerView.id));
+});
+const vm = computed((): ConsoleEndgameVm => {
+  const order = props.playerView.players.map((p) => p.color);
+  const contract = campaignContract.value;
+  return buildConsoleEndgameVm(model.value, order, {
+    botColors: botColorsFromView(props.playerView),
+    // The FINAL campaign mission fact rides the server's own contract —
+    // it is what appends the champion beat to the ceremony script.
+    ...(contract !== undefined && contract.final ?
+      {campaignFinale: {missionCount: contract.missionCount}} : {}),
+  });
+});
+const campaignFinal = computed((): boolean => {
+  return vm.value.campaignFinale !== undefined;
+});
+/** The champion plate stands from the champion beat's PLATE window on —
+ *  and forever after (finalize keeps stage 4 on the settled screen). */
+const championPlateOn = computed((): boolean => {
+  return ui.championStage >= 3;
+});
+const missionPipCount = computed((): number => {
+  return vm.value.campaignFinale?.missionCount ?? 0;
+});
+const densityN = computed((): number => {
+  return Math.min(Math.max(vm.value.rows.length, 2), 5);
+});
+const headTitle = computed((): string => {
+  // The campaign finale's header arc: «ФИНАЛЬНЫЙ ПОДСЧЁТ» → (the result
+  // fixes) «ИТОГИ ПАРТИИ» → (the seal window) «КАМПАНИЯ ЗАВЕРШЕНА», which
+  // the settled screen then keeps. Ordinary games never see the third.
+  if (ui.championStage >= 1 || ui.championShown) {
+    return 'Campaign complete';
+  }
+  return ui.phase === 'actions' || ui.phase === 'champion' ? 'Game results' : 'Final scoring';
+});
+const rowOrder = computed((): ReadonlyArray<Color> => {
+  if (!ui.ranked) {
+    return vm.value.rows.map((r) => r.color);
+  }
+  // TR69: ranked, the seats stand as a PODIUM — the winner on the horizon's crest, the runner-up at its left, the
+  // third at its right, outwards; a duel reads left to right (the winner first).
+  return vm.value.rows.length <= 2 ? vm.value.rankedColors : podiumOrder(vm.value.rankedColors);
+});
+/** The horizon's radius, px — the arc the seats stand on (CSS draws it with the same number). */
+const arcRadius = computed((): number => {
+  return horizonRadius(sceneW.value);
+});
+/** Per-row track geometry — solved from the VM alone, cached by Vue. */
+/**
+ * T08 (PL-868): the running total's box holds the WIDEST number the count will show (the pre-penalty sum, the
+ * final total — whichever has more digits), so a digit arriving never moves the shield beside it: that shift
+ * re-painted the whole seat layer on every count-up that crossed a power of ten.
+ */
+const totalDigits = computed((): Record<string, number> => {
+  const out: Record<string, number> = {};
+  for (const row of vm.value.rows) {
+    const gross = vm.value.categories.reduce((sum, cat) => sum + Math.max(0, cat.values[row.color] ?? 0), 0);
+    out[row.color] = Math.max(String(gross).length, String(row.finalTotal).length);
+  }
+  return out;
+});
+const rowGeo = computed((): Record<string, EndgameRowGeo> => {
+  const out: Record<string, EndgameRowGeo> = {};
+  for (const row of vm.value.rows) {
+    out[row.color] = buildRowGeometry(vm.value, row.color);
+  }
+  return out;
+});
+/** THE PODIUM — the seats' geometry from the measured box (TR69); recomputed only on a box / profile change. */
+const podium = computed((): PodiumPlan => {
+  return planPodium({seats: vm.value.rows.length, boxW: stageW.value, boxH: stageH.value, rem: remPx.value, lineage: lineageDepth.value});
+});
+/** The table's deepest lineage — how many charters stand behind one face (every seat's stand reserves it). */
+const lineageDepth = computed((): number => {
+  return Math.max(0, ...vm.value.rows.map((r) => lineageShown(r.lineage.length)));
+});
+/** The podium FORMED: the crowning has happened (a solo game crowns its one seat, won or lost). */
+const podiumFormed = computed((): boolean => {
+  return ui.winnerShown;
+});
+/** The bot corporation's live stock (its face's capsule) — the one MarsBot seat of a bot game. */
+const botCorpResources = computed((): number => {
+  return props.playerView.game.automa?.corporation?.resources ?? 0;
+});
+const activeCategory = computed((): ConsoleEndgameCategory | undefined => {
+  return ui.catIdx >= 0 ? vm.value.categories[ui.catIdx] : undefined;
+});
+/** The two-level categories — the only ones with a sources line under the head. */
+const sourceCategories = computed((): ReadonlyArray<ConsoleEndgameCategory> => {
+  return vm.value.categories.filter((cat) => cat.subs.length > 1);
+});
+/** X still has a count to hurry — not yet hurried, a category still to tell, the ranking not reached. */
+const countHurriable = computed((): boolean => {
+  const p = ui.phase;
+  return ui.hurry === 'off' && ui.catsSettled < vm.value.categories.length &&
+    (p === 'idle' || p === 'entering' || p === 'scoring');
+});
+const sharedWin = computed((): boolean => {
+  return vm.value.winners.length > 1;
+});
+const soloDefeat = computed((): boolean => {
+  return vm.value.mode === 'solo' && !vm.value.soloWin;
+});
+const zoneNote = computed((): string | undefined => {
+  if (vm.value.automaClockWin) {
+    return 'Won on the clock — the final generation was reached';
+  }
+  if (sharedWin.value) {
+    // A FULL tie on the campaign finale shares the championship — the
+    // note announces the plural the moment the plates transform. Every
+    // tied row carries its own equal plate; no «main» champion exists.
+    return championPlateOn.value ? 'Campaign champions' : 'Shared victory';
+  }
+  return undefined;
+});
+/**
+ * The bottom zone's line, TRANSLATED — the winner's note (a shared victory, the clock) first; else the standing
+ * reason for an ordering of EQUAL totals: every VP tie the M€ settled (or could not), by place. The seat's tab says
+ * WHICH M€; this line says WHY two equal scores stand on different places.
+ */
+const zoneNoteText = computed((): string | undefined => {
+  if (zoneNote.value !== undefined) {
+    return translateText(zoneNote.value);
+  }
+  const lines = vm.value.tieBreaks.map((tb) => {
+    if (tb.leaders.length === 0) {
+      return translateTextWithParams('Tie on VP and M€ for place ${0} — the place is shared', [String(tb.place)]);
+    }
+    return tb.place === 1 ?
+      translateText('Tie on VP for the victory — decided on M€') :
+      translateTextWithParams('Tie on VP for place ${0} — decided on M€', [String(tb.place)]);
+  });
+  return lines.length > 0 ? lines.join(' · ') : undefined;
+});
+/** The post-game verbs. Only REAL flows: the console-native overview
+ *  scene, the rematch machinery (rematchState — polled by RematchLayer),
+ *  the local replay, the main menu (GameExitButton is gone at Phase.END,
+ *  so this list is the one road out). The ORDER is the priority: the
+ *  natural next step first, the replay a secondary local verb, the exit
+ *  last. */
+const actions = computed((): Array<PostGameAction> => {
+  const out: Array<PostGameAction> = [];
+  // Campaign mission verbs lead: the campaign owns the continuation.
+  // Missions 1–3 additionally SUPPRESS the rematch machinery — a rematch
+  // would fork a mission into an unlinked game; the final keeps it (an
+  // ordinary new single game with the same roster).
+  const contract = campaignContract.value;
+  if (contract !== undefined) {
+    if (contract.final) {
+      out.push({
+        id: 'campaign-map',
+        label: 'Campaign chronicle',
+        run: () => openCampaignScene(),
+      });
+    } else {
+      // ONE CTA — «Следующая миссия». It opens the map scene, which IS
+      // the interlude flow: the mandatory carryover step opens itself,
+      // the confirmation doubles as readiness, the host gets the launch
+      // press and a ready non-host waits with the auto-join armed. When
+      // the mission is already live, the same press enters it directly.
+      out.push({
+        id: 'campaign-next',
+        label: 'Next mission',
+        note: campaignNextNote.value,
+        run: () => runCampaignNext(),
+      });
+    }
+  }
+  out.push({
+    id: 'overview',
+    label: 'Game overview',
+    // «Обзор партии» descends INTO this workspace's own analytics scene
+    // (ConsoleEndgameOverview) — a short commit pulse on the pill, then
+    // the scoring stage parks and the overview unfolds in its place. The
+    // desktop EndgameResultsOverlay stays desktop-only.
+    run: () => beginOverviewCommit(),
+  });
+  const rematch = contract !== undefined && !contract.final ? undefined : rematchState.model;
+  const busy = rematchState.submitting;
+  const viewerId = props.playerView.id;
+  if (rematch !== undefined && rematch.viewerIsPlayer && viewerId !== undefined) {
+    // ONE human seat (a bot game / solo): the offer creates the new game
+    // instantly — «Реванш», never a proposal with nobody to propose to.
+    const soloHumans = rematch.votes.length <= 1;
+    if (rematch.status === 'created') {
+      const href = rematchJoinHref(rematch);
+      if (href !== undefined) {
+        out.push({
+          id: 'rematch-join',
+          label: rematch.joinKind === 'spectator' ? 'Watch rematch' : 'Join rematch',
+          run: () => navigateWithCurtain(href),
         });
-    },
-    carryConfirmed(): boolean {
-      const you = campaignState.model?.you?.seat;
-      if (you === undefined) {
-        return false;
       }
-      return campaignState.model?.carryover?.bySeat.find((s) => s.seat === you)?.status === 'confirmed';
-    },
-    viewerHasCarryDoor(): boolean {
-      const you = campaignState.model?.you?.seat;
-      return you !== undefined &&
-        campaignState.model?.phase === 'interlude' &&
-        campaignState.model?.carryover?.bySeat.some((s) => s.seat === you) === true;
-    },
-    /** The current slot's live seat link — «Следующая миссия» enters directly. */
-    campaignNextLink(): {playerId: string, gameId?: string} | undefined {
-      const model = campaignState.model;
-      const current = model?.missions[model.pointer];
-      if (current?.state === 'active' && current.yourPlayerId !== undefined) {
-        return {playerId: current.yourPlayerId, gameId: current.gameId};
-      }
-      return undefined;
-    },
-    /** The honest status line under the one CTA (pre-rendered, never a key). */
-    campaignNextNote(): string | undefined {
-      const model = campaignState.model;
-      if (model === undefined) {
-        return undefined;
-      }
-      if (this.campaignNextLink !== undefined) {
-        return $t('mission started — enter');
-      }
-      if (this.liveBidding !== undefined) {
-        return $t('the tender bidding is on');
-      }
-      if (this.viewerHasCarryDoor && !this.carryConfirmed) {
-        return $t('choose the project legacy');
-      }
-      if (model.you?.seat === 0) {
-        return $t(model.canLaunch ? 'ready to launch' : 'waiting for the crew');
-      }
-      if (this.carryConfirmed) {
-        return $t('you are ready — waiting for the launch');
-      }
-      return undefined;
-    },
-    /** ONE endgame model for the ceremony AND the overview. The facts feed
-     *  only the insight/episode engines — every scoring number is identical
-     *  with or without them, so a late fetch never moves a settled bar. */
-    model(): EndgameModel {
-      return endgameModelFromView(this.playerView, cachedEndgameFacts(this.playerView.id));
-    },
-    vm(): ConsoleEndgameVm {
-      const order = this.playerView.players.map((p) => p.color);
-      const contract = this.campaignContract;
-      return buildConsoleEndgameVm(this.model, order, {
-        botColors: botColorsFromView(this.playerView),
-        // The FINAL campaign mission fact rides the server's own contract —
-        // it is what appends the champion beat to the ceremony script.
-        ...(contract !== undefined && contract.final ?
-          {campaignFinale: {missionCount: contract.missionCount}} : {}),
-      });
-    },
-    campaignFinal(): boolean {
-      return this.vm.campaignFinale !== undefined;
-    },
-    /** The champion plate stands from the champion beat's PLATE window on —
-     *  and forever after (finalize keeps stage 4 on the settled screen). */
-    championPlateOn(): boolean {
-      return this.ui.championStage >= 3;
-    },
-    missionPipCount(): number {
-      return this.vm.campaignFinale?.missionCount ?? 0;
-    },
-    densityN(): number {
-      return Math.min(Math.max(this.vm.rows.length, 2), 5);
-    },
-    headTitle(): string {
-      // The campaign finale's header arc: «ФИНАЛЬНЫЙ ПОДСЧЁТ» → (the result
-      // fixes) «ИТОГИ ПАРТИИ» → (the seal window) «КАМПАНИЯ ЗАВЕРШЕНА», which
-      // the settled screen then keeps. Ordinary games never see the third.
-      if (this.ui.championStage >= 1 || this.ui.championShown) {
-        return 'Campaign complete';
-      }
-      return this.ui.phase === 'actions' || this.ui.phase === 'champion' ? 'Game results' : 'Final scoring';
-    },
-    rowOrder(): ReadonlyArray<Color> {
-      if (!this.ui.ranked) {
-        return this.vm.rows.map((r) => r.color);
-      }
-      // TR69: ranked, the seats stand as a PODIUM — the winner on the horizon's crest, the runner-up at its left, the
-      // third at its right, outwards; a duel reads left to right (the winner first).
-      return this.vm.rows.length <= 2 ? this.vm.rankedColors : podiumOrder(this.vm.rankedColors);
-    },
-    /** The horizon's radius, px — the arc the seats stand on (CSS draws it with the same number). */
-    arcRadius(): number {
-      return horizonRadius(this.sceneW);
-    },
-    /** Per-row track geometry — solved from the VM alone, cached by Vue. */
-    /**
-     * T08 (PL-868): the running total's box holds the WIDEST number the count will show (the pre-penalty sum, the
-     * final total — whichever has more digits), so a digit arriving never moves the shield beside it: that shift
-     * re-painted the whole seat layer on every count-up that crossed a power of ten.
-     */
-    totalDigits(): Record<string, number> {
-      const out: Record<string, number> = {};
-      for (const row of this.vm.rows) {
-        const gross = this.vm.categories.reduce((sum, cat) => sum + Math.max(0, cat.values[row.color] ?? 0), 0);
-        out[row.color] = Math.max(String(gross).length, String(row.finalTotal).length);
-      }
-      return out;
-    },
-    rowGeo(): Record<string, EndgameRowGeo> {
-      const out: Record<string, EndgameRowGeo> = {};
-      for (const row of this.vm.rows) {
-        out[row.color] = buildRowGeometry(this.vm, row.color);
-      }
-      return out;
-    },
-    /** THE PODIUM — the seats' geometry from the measured box (TR69); recomputed only on a box / profile change. */
-    podium(): PodiumPlan {
-      return planPodium({seats: this.vm.rows.length, boxW: this.stageW, boxH: this.stageH, rem: this.remPx, lineage: this.lineageDepth});
-    },
-    /** The table's deepest lineage — how many charters stand behind one face (every seat's stand reserves it). */
-    lineageDepth(): number {
-      return Math.max(0, ...this.vm.rows.map((r) => lineageShown(r.lineage.length)));
-    },
-    /** The podium FORMED: the crowning has happened (a solo game crowns its one seat, won or lost). */
-    podiumFormed(): boolean {
-      return this.ui.winnerShown;
-    },
-    /** The bot corporation's live stock (its face's capsule) — the one MarsBot seat of a bot game. */
-    botCorpResources(): number {
-      return this.playerView.game.automa?.corporation?.resources ?? 0;
-    },
-    activeCategory(): ConsoleEndgameCategory | undefined {
-      return this.ui.catIdx >= 0 ? this.vm.categories[this.ui.catIdx] : undefined;
-    },
-    /** The two-level categories — the only ones with a sources line under the head. */
-    sourceCategories(): ReadonlyArray<ConsoleEndgameCategory> {
-      return this.vm.categories.filter((cat) => cat.subs.length > 1);
-    },
-    /** X still has a count to hurry — not yet hurried, a category still to tell, the ranking not reached. */
-    countHurriable(): boolean {
-      const p = this.ui.phase;
-      return this.ui.hurry === 'off' && this.ui.catsSettled < this.vm.categories.length &&
-        (p === 'idle' || p === 'entering' || p === 'scoring');
-    },
-    sharedWin(): boolean {
-      return this.vm.winners.length > 1;
-    },
-    soloDefeat(): boolean {
-      return this.vm.mode === 'solo' && !this.vm.soloWin;
-    },
-    zoneNote(): string | undefined {
-      if (this.vm.automaClockWin) {
-        return 'Won on the clock — the final generation was reached';
-      }
-      if (this.sharedWin) {
-        // A FULL tie on the campaign finale shares the championship — the
-        // note announces the plural the moment the plates transform. Every
-        // tied row carries its own equal plate; no «main» champion exists.
-        return this.championPlateOn ? 'Campaign champions' : 'Shared victory';
-      }
-      return undefined;
-    },
-    /**
-     * The bottom zone's line, TRANSLATED — the winner's note (a shared victory, the clock) first; else the standing
-     * reason for an ordering of EQUAL totals: every VP tie the M€ settled (or could not), by place. The seat's tab says
-     * WHICH M€; this line says WHY two equal scores stand on different places.
-     */
-    zoneNoteText(): string | undefined {
-      if (this.zoneNote !== undefined) {
-        return translateText(this.zoneNote);
-      }
-      const lines = this.vm.tieBreaks.map((tb) => {
-        if (tb.leaders.length === 0) {
-          return translateTextWithParams('Tie on VP and M€ for place ${0} — the place is shared', [String(tb.place)]);
-        }
-        return tb.place === 1 ?
-          translateText('Tie on VP for the victory — decided on M€') :
-          translateTextWithParams('Tie on VP for place ${0} — decided on M€', [String(tb.place)]);
-      });
-      return lines.length > 0 ? lines.join(' · ') : undefined;
-    },
-    /** The post-game verbs. Only REAL flows: the console-native overview
-     *  scene, the rematch machinery (rematchState — polled by RematchLayer),
-     *  the local replay, the main menu (GameExitButton is gone at Phase.END,
-     *  so this list is the one road out). The ORDER is the priority: the
-     *  natural next step first, the replay a secondary local verb, the exit
-     *  last. */
-    actions(): Array<PostGameAction> {
-      const out: Array<PostGameAction> = [];
-      // Campaign mission verbs lead: the campaign owns the continuation.
-      // Missions 1–3 additionally SUPPRESS the rematch machinery — a rematch
-      // would fork a mission into an unlinked game; the final keeps it (an
-      // ordinary new single game with the same roster).
-      const contract = this.campaignContract;
-      if (contract !== undefined) {
-        if (contract.final) {
-          out.push({
-            id: 'campaign-map',
-            label: 'Campaign chronicle',
-            run: () => this.openCampaignScene(),
-          });
-        } else {
-          // ONE CTA — «Следующая миссия». It opens the map scene, which IS
-          // the interlude flow: the mandatory carryover step opens itself,
-          // the confirmation doubles as readiness, the host gets the launch
-          // press and a ready non-host waits with the auto-join armed. When
-          // the mission is already live, the same press enters it directly.
-          out.push({
-            id: 'campaign-next',
-            label: 'Next mission',
-            note: this.campaignNextNote,
-            run: () => this.runCampaignNext(),
-          });
-        }
-      }
+    } else if (rematch.viewerMustVote) {
       out.push({
-        id: 'overview',
-        label: 'Game overview',
-        // «Обзор партии» descends INTO this workspace's own analytics scene
-        // (ConsoleEndgameOverview) — a short commit pulse on the pill, then
-        // the scoring stage parks and the overview unfolds in its place. The
-        // desktop EndgameResultsOverlay stays desktop-only.
-        run: () => this.beginOverviewCommit(),
-      });
-      const rematch = contract !== undefined && !contract.final ? undefined : rematchState.model;
-      const busy = rematchState.submitting;
-      const viewerId = this.playerView.id;
-      if (rematch !== undefined && rematch.viewerIsPlayer && viewerId !== undefined) {
-        // ONE human seat (a bot game / solo): the offer creates the new game
-        // instantly — «Реванш», never a proposal with nobody to propose to.
-        const soloHumans = rematch.votes.length <= 1;
-        if (rematch.status === 'created') {
-          const href = rematchJoinHref(rematch);
-          if (href !== undefined) {
-            out.push({
-              id: 'rematch-join',
-              label: rematch.joinKind === 'spectator' ? 'Watch rematch' : 'Join rematch',
-              run: () => navigateWithCurtain(href),
-            });
-          }
-        } else if (rematch.viewerMustVote) {
-          out.push({
-            id: 'rematch-accept', label: 'Accept rematch', enabled: !busy,
-            note: this.rematchTally(rematch.votes),
-            run: () => void submitRematch(viewerId, 'accept'),
-          });
-          out.push({
-            id: 'rematch-decline', label: 'Decline', enabled: !busy,
-            run: () => void submitRematch(viewerId, 'decline'),
-          });
-        } else if (rematch.status === 'offered' && rematch.viewerIsOfferer) {
-          out.push({
-            id: 'rematch-cancel', label: 'Cancel', enabled: !busy,
-            note: this.rematchTally(rematch.votes),
-            run: () => void submitRematch(viewerId, 'cancel'),
-          });
-        } else if (rematch.status === 'offered') {
-          // A player who already voted while others are still deciding.
-          out.push({
-            id: 'rematch-wait', label: 'Offer rematch', enabled: false,
-            note: this.rematchTally(rematch.votes),
-            run: () => { /* disabled */ },
-          });
-        } else {
-          out.push({
-            id: 'rematch-offer',
-            label: soloHumans ? 'Rematch' : 'Offer rematch',
-            enabled: !busy,
-            run: () => void submitRematch(viewerId, 'offer'),
-          });
-        }
-      }
-      out.push({
-        id: 'replay',
-        label: 'Replay scoring',
-        run: () => this.replayCeremony(),
+        id: 'rematch-accept', label: 'Accept rematch', enabled: !busy,
+        note: rematchTally(rematch.votes),
+        run: () => void submitRematch(viewerId, 'accept'),
       });
       out.push({
-        id: 'menu',
-        label: 'To main menu',
-        run: () => navigateWithCurtain('/', 'interface'),
+        id: 'rematch-decline', label: 'Decline', enabled: !busy,
+        run: () => void submitRematch(viewerId, 'decline'),
       });
-      return out;
-    },
-    footCommands(): Array<ConsoleCommand> {
-      if (this.ui.collapsed) {
-        // NOTHING. The board is on show and the pad belongs to the post-game
-        // free roam — every surface it reaches publishes its own contract, and
-        // the road back («B Итоги партии») is appended by the shell to the
-        // BOARD HOME run, the one level where it is actually the next step.
-        // Publishing it from here put one verb over every screen the player
-        // walked to and hid what that screen could actually do.
-        return [];
-      }
-      if (this.ui.phase === 'champion') {
-        // THE MANDATORY CHAMPION CEREMONY: no commands at all. Every hint
-        // here would advertise a press the scene deliberately absorbs — and
-        // a controller bar must never promise what it will not honour.
-        return [];
-      }
-      if (this.campaignScene === 'map') {
-        // The map's OWN command list, mirrored whole through campaignMapUi
-        // (a $refs read is not reactive) — the host re-labels only the root
-        // B: inside the endgame it returns to the results, not the menu. A
-        // hand-copied verb list here is the drift class this replaces.
-        return campaignMapUi.commands.map((c) =>
-          c.control === 'back' && c.label === 'Main menu' ?
-            {...c, label: 'Game results', priority: 5} : c);
-      }
-      if (this.campaignScene === 'bidding') {
-        // The bidding scene's OWN verbs (the same mirror law); its root B returns to the results.
-        return tenderBiddingUi.commands.map((c) =>
-          c.control === 'back' && c.label === 'Minimize' ? {...c, label: 'Game results', priority: 5} : c);
-      }
-      if (this.overviewParked) {
-        // The overview scene: its own level's verbs, nothing inherited.
-        if (this.ov.detail !== undefined) {
-          return [
-            {control: 'dpad', label: 'Select'},
-            {control: 'back', label: 'Close', priority: 5},
-          ];
-        }
-        const run: Array<ConsoleCommand> = [
-          {control: 'bumperL', control2: 'bumperR', spread: true, label: 'Tab'},
-          {control: 'dpad', label: 'Select'},
-        ];
-        if (this.ov.primaryAvailable) {
-          run.push({control: 'confirm', label: 'Details'});
-        }
-        run.push({control: 'back', label: 'Game results', priority: 5});
-        return run;
-      }
-      if (this.ui.phase !== 'actions') {
-        // The count runs: B parks it (pause + board), X HURRIES it (T08) —
-        // quietly labelled, never the loudest thing on screen (the ceremony
-        // is the point). The verb exists only while there is a count left to
-        // hurry: once pressed, and through the ranking and the crowning
-        // (always at the full pace), the bar offers B alone. A deliberately
-        // does nothing (the count is not a dialog).
-        const cmds: Array<ConsoleCommand> = [{control: 'back', label: 'Minimize'}];
-        if (this.countHurriable) {
-          cmds.push({control: 'secondary', label: 'Hurry the count', priority: 0});
-        }
-        return cmds;
-      }
+    } else if (rematch.status === 'offered' && rematch.viewerIsOfferer) {
+      out.push({
+        id: 'rematch-cancel', label: 'Cancel', enabled: !busy,
+        note: rematchTally(rematch.votes),
+        run: () => void submitRematch(viewerId, 'cancel'),
+      });
+    } else if (rematch.status === 'offered') {
+      // A player who already voted while others are still deciding.
+      out.push({
+        id: 'rematch-wait', label: 'Offer rematch', enabled: false,
+        note: rematchTally(rematch.votes),
+        run: () => { /* disabled */ },
+      });
+    } else {
+      out.push({
+        id: 'rematch-offer',
+        label: soloHumans ? 'Rematch' : 'Offer rematch',
+        enabled: !busy,
+        run: () => void submitRematch(viewerId, 'offer'),
+      });
+    }
+  }
+  out.push({
+    id: 'replay',
+    label: 'Replay scoring',
+    run: () => replayCeremony(),
+  });
+  out.push({
+    id: 'menu',
+    label: 'To main menu',
+    run: () => navigateWithCurtain('/', 'interface'),
+  });
+  return out;
+});
+const footCommands = computed((): Array<ConsoleCommand> => {
+  if (ui.collapsed) {
+    // NOTHING. The board is on show and the pad belongs to the post-game
+    // free roam — every surface it reaches publishes its own contract, and
+    // the road back («B Итоги партии») is appended by the shell to the
+    // BOARD HOME run, the one level where it is actually the next step.
+    // Publishing it from here put one verb over every screen the player
+    // walked to and hid what that screen could actually do.
+    return [];
+  }
+  if (ui.phase === 'champion') {
+    // THE MANDATORY CHAMPION CEREMONY: no commands at all. Every hint
+    // here would advertise a press the scene deliberately absorbs — and
+    // a controller bar must never promise what it will not honour.
+    return [];
+  }
+  if (campaignScene.value === 'map') {
+    // The map's OWN command list, mirrored whole through campaignMapUi
+    // (the map publishes it there — its template ref hands over the pad's
+    // entry, never the list) — the host re-labels only the root
+    // B: inside the endgame it returns to the results, not the menu. A
+    // hand-copied verb list here is the drift class this replaces.
+    return campaignMapUi.commands.map((c) =>
+      c.control === 'back' && c.label === 'Main menu' ?
+        {...c, label: 'Game results', priority: 5} : c);
+  }
+  if (campaignScene.value === 'bidding') {
+    // The bidding scene's OWN verbs (the same mirror law); its root B returns to the results.
+    return tenderBiddingUi.commands.map((c) =>
+      c.control === 'back' && c.label === 'Minimize' ? {...c, label: 'Game results', priority: 5} : c);
+  }
+  if (overviewParked.value) {
+    // The overview scene: its own level's verbs, nothing inherited.
+    if (ov.detail !== undefined) {
       return [
         {control: 'dpad', label: 'Select'},
-        {control: 'confirm', label: 'Confirm'},
-        {control: 'back', label: 'Minimize'},
+        {control: 'back', label: 'Close', priority: 5},
       ];
-    },
-  },
-  watch: {
-    'footCommands': {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>): void {
-        setPanelCommands('endgame', cmds);
-      },
-    },
-    // The «Тендеры» mode: the BIDDING opens itself once the ceremony has settled — the mission's reward is the next
-    // thing on this screen, never a button to hunt for (the latch keeps a deliberate B honest; the CTA re-opens it).
-    'biddingDue': {
-      immediate: true,
-      handler(due: boolean): void {
-        if (due) {
-          this.openBiddingScene();
-        }
-      },
-    },
-    // The list is live (rematch states arrive by poll) — the cursor must
-    // never point past its end.
-    'actions.length': function(len: number): void {
-      if (this.ui.actionsFocus >= len) {
-        this.ui.actionsFocus = Math.max(0, len - 1);
-      }
-    },
-    // Skip / settle jumps suppress CSS TRANSITIONS for one frame, so the
-    // final state appears ATOMICALLY (no half-grown bars racing each other).
-    // Keyframe animations are deliberately NOT suppressed: re-enabling one
-    // restarts it — the settled scene would dip to opacity 0 and show the
-    // board (the audit's measured final flash).
-    'ui.skipSeq': function(): void {
-      this.noanim = true;
-      // The skip lands on the canonical final state — no light may still stand over it.
-      this.putOutLight();
-      this.writeAllTotals();
-      this.noanimRaf();
-      this.noanimRaf = this.flow.afterFrame('the skip\'s atomic jump has painted — transitions come back', () => {
-        this.noanim = false;
-      }, 2);
-    },
-    // The canonical settle record (per-beat boundaries, resets, reloads) —
-    // mirror it into the unbound number nodes.
-    'ui.displayTotals': {
-      deep: true,
-      handler(): void {
-        this.writeAllTotals();
-        if (this.vm.tieBreaks.length > 0) {
-          void this.$nextTick(() => this.fitTieTabs());
-        }
-      },
-    },
-    // A two-level category takes the head: its sources line is hung under its cell from a fresh read (the font that
-    // sizes the cells may have arrived after the mount's measure).
-    // The deciding M€ tab appears with the tie-break's values (or on a settled landing): hang it off the final digits.
-    'ui.tieStage': function(): void {
-      void this.$nextTick(() => this.fitTieTabs());
-    },
-    'ui.winnerShown': function(): void {
-      void this.$nextTick(() => this.fitTieTabs());
-    },
-    'ui.catIdx': function(idx: number): void {
-      if ((this.vm.categories[idx]?.subs.length ?? 0) > 1 && this.$el instanceof HTMLElement) {
-        this.measureSources(this.$el);
-      }
-    },
-    // Viewport change (profile flip / window resize): re-measure the podium's box and let the planner re-solve.
-    vpWidth(): void {
-      void this.$nextTick(() => this.measureStage());
-    },
-  },
-  mounted() {
-    // One fetch per load, shared with the desktop host — the facts enrich the
-    // overview's insight layer; every scoring number is complete without them.
-    requestEndgameFacts(this.playerView.id);
-    // Campaign mission: bind the campaign store to THIS game's viewer (the
-    // seat name, not the menu identity) and keep it fresh — the coda and the
-    // map scene render the SERVER's committed result, never a client guess.
-    const contract = this.campaignContract;
-    if (contract !== undefined) {
-      setCampaignViewerName(this.playerView.thisPlayer?.name);
-      this.campaignCodaAnimated = ceremonyShouldPlay();
-      void openCampaign(contract.campaignId);
-      startCampaignWatch();
     }
-    if (ceremonyShouldPlay()) {
-      this.startCeremony();
-    } else {
-      // Reload / re-entry into an already-ended game: the SETTLED final state,
-      // instantly and silently. Watching the count again is the explicit
-      // «Повторить подсчёт» action, never a side effect of arriving.
-      finalizeCeremony(this.vm);
+    const run: Array<ConsoleCommand> = [
+      {control: 'bumperL', control2: 'bumperR', spread: true, label: 'Tab'},
+      {control: 'dpad', label: 'Select'},
+    ];
+    if (ov.primaryAvailable) {
+      run.push({control: 'confirm', label: 'Details'});
     }
-    void this.$nextTick(() => {
-      this.measureStage();
-      this.writeAllTotals();
-    });
-    // The podium's box is the free space between the rail and the bottom zone — it changes with the profile, the
-    // fonts' arrival and the scene's own reveal (a hidden scene measures nothing and keeps the last box).
-    const rows = (this.$refs.rowsEl ?? undefined) as HTMLElement | undefined;
-    if (rows !== undefined && typeof ResizeObserver !== 'undefined') {
-      this.stageObserver = new ResizeObserver(() => this.measureStage());
-      this.stageObserver.observe(rows);
+    run.push({control: 'back', label: 'Game results', priority: 5});
+    return run;
+  }
+  if (ui.phase !== 'actions') {
+    // The count runs: B parks it (pause + board), X HURRIES it (T08) —
+    // quietly labelled, never the loudest thing on screen (the ceremony
+    // is the point). The verb exists only while there is a count left to
+    // hurry: once pressed, and through the ranking and the crowning
+    // (always at the full pace), the bar offers B alone. A deliberately
+    // does nothing (the count is not a dialog).
+    const cmds: Array<ConsoleCommand> = [{control: 'back', label: 'Minimize'}];
+    if (countHurriable.value) {
+      cmds.push({control: 'secondary', label: 'Hurry the count', priority: 0});
     }
-  },
-  beforeUnmount() {
-    this.stageObserver?.disconnect();
-    this.stageObserver = undefined;
-    this.teardown();
-    clearPanelCommands('endgame');
-    if (this.campaignContract !== undefined) {
-      stopCampaignWatch();
-      setCampaignViewerName(undefined);
-    }
-  },
-  methods: {
-    actionIcon(id: string): string {
-      return ACTION_ICON[id] ?? '';
-    },
-    rowBy(color: Color): ConsoleEndgameRow {
-      const row = this.vm.rows.find((r) => r.color === color);
-      // Every color in rowOrder/winners comes from the VM itself.
-      return row ?? this.vm.rows[0];
-    },
-    fmtLabel(v: number): string {
-      return v < 0 ? '−' + Math.abs(v) : String(v);
-    },
-    // ── the count-up sink (direct DOM writes — never reactive) ───────────
-    totalEl(color: string): HTMLElement | undefined {
-      const cached = this.totalEls[color];
-      if (cached !== undefined && cached.isConnected) {
-        return cached;
-      }
-      const el = (this.$el as HTMLElement | undefined)
-        ?.querySelector<HTMLElement>(`[data-eg-total="${color}"]`) ?? undefined;
-      this.totalEls[color] = el;
-      return el;
-    },
-    writeTotal(color: string, value: number): void {
-      const el = this.totalEl(color);
-      if (el !== undefined) {
-        el.textContent = String(value);
-      }
-    },
-    writeAllTotals(): void {
-      for (const row of this.vm.rows) {
-        this.writeTotal(row.color, this.ui.displayTotals[row.color] ?? 0);
-      }
-    },
-    /**
-     * The deciding M€ tab hangs off the number's DIGITS, not off its box: the box reserves the widest count (the
-     * count-up's stability — `totalDigits`), and the display font draws «111» far narrower than three zeros, so a tab
-     * hung on the box stood a hand's width from the score it explains. The empty part of the box is read once the
-     * totals are final (a Range over the digits, normalized by the seat's own scale) and handed to the anchor.
-     */
-    fitTieTabs(): void {
-      const next: Record<string, number> = {};
-      for (const tb of this.vm.tieBreaks) {
-        for (const color of tb.contenders) {
-          const el = this.totalEl(color);
-          const text = el?.firstChild;
-          if (el === undefined || text === null || text === undefined || el.offsetWidth <= 0) {
-            continue;
-          }
-          const range = document.createRange();
-          range.selectNodeContents(el);
-          const ink = range.getBoundingClientRect().width;
-          const box = el.getBoundingClientRect().width;
-          const scale = box / el.offsetWidth;
-          next[color] = scale > 0 ? Math.max(0, Math.round((box - ink) / scale)) : 0;
-        }
-      }
-      if (JSON.stringify(next) !== JSON.stringify(this.tieSlack)) {
-        this.tieSlack = next;
-      }
-    },
-    /**
-     * The podium's box: the seats' stage measured from the layout (its height is the free space between the rail and
-     * the bottom zone — never the seats' own content), the live rem, and the foot the horizon crests at. A hidden
-     * scene (collapse / overview round trip) measures 0 — the last honest box is kept.
-     */
-    measureStage(): void {
-      const root = this.$el as HTMLElement | undefined;
-      const rows = (this.$refs.rowsEl ?? undefined) as HTMLElement | undefined;
-      if (root === undefined || rows === undefined) {
-        return;
-      }
-      const box = rows.getBoundingClientRect();
-      if (box.width <= 0 || box.height <= 0) {
-        return;
-      }
-      this.stageW = Math.round(box.width);
-      this.stageH = Math.round(box.height);
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-      if (Number.isFinite(rem) && rem > 0) {
-        this.remPx = rem;
-      }
-      const scene = root.getBoundingClientRect();
-      this.horizonY = Math.round(box.bottom - scene.top);
-      this.sceneW = Math.round(scene.width);
-      this.measureSources(root);
-      this.fitTieTabs();
-    },
-    /** Hang each sources line under its head cell — centred on the cell, never past the caption's edges. */
-    measureSources(root: HTMLElement): void {
-      const caption = (this.$refs.captionEl ?? undefined) as HTMLElement | undefined;
-      const cap = caption?.getBoundingClientRect();
-      if (caption === undefined || cap === undefined || cap.width <= 0) {
-        return;
-      }
-      const next: Record<string, number> = {};
-      for (const cat of this.sourceCategories) {
-        const chip = root.querySelector<HTMLElement>(`[data-eg-rail="${cat.key}"]`);
-        const line = caption.querySelector<HTMLElement>(`[data-eg-sources="${cat.key}"]`);
-        if (chip === null || line === null) {
-          continue;
-        }
-        // The cell's centre: the head never translates a cell (its spotlight is paint), so the rect is the layout's.
-        const cell = chip.getBoundingClientRect();
-        const centre = cell.left + cell.width / 2 - cap.left;
-        // The pips are the line's box (centred under the cell); the speaking name trails them out of flow, so the
-        // right clamp keeps room for the longest name.
-        const half = line.offsetWidth / 2;
-        const names = line.querySelector<HTMLElement>('.con-eg__src-names');
-        const tail = names === null ? 0 : names.offsetWidth + this.remPx * 0.9;
-        next[cat.key] = Math.round(Math.min(cap.width - half - tail, Math.max(half, centre)));
-      }
-      this.srcX = next;
-    },
-    // ── the podium ───────────────────────────────────────────────────────
-    glyphOf(key: ConsoleEndgameCategoryKey): DossierGlyph {
-      return scoreCategoryGlyph(key);
-    },
-    /** A seat's geometry NOW: equal while the count runs; the hero or a place once the podium has formed. */
-    seatGeoOf(color: Color): SeatGeo {
-      if (!this.podiumFormed) {
-        return this.podium.equal;
-      }
-      const crowned = this.vm.rows.length === 1 || this.vm.winners.includes(color);
-      return crowned ? this.podium.hero : this.podium.place;
-    },
-    seatStyle(color: Color, i: number): Record<string, string | number> {
-      const geo = this.seatGeoOf(color);
-      const hero = this.podiumFormed && geo === this.podium.hero;
-      // Once RANKED the seat stands ON the planet's curve — the winner on the crest, the outer places lower. While the
-      // count runs the seats stand level: a curve under an untold ranking would crown the middle seat by geometry.
-      const drop = this.ui.ranked ? horizonDrop(slotOffset(i, this.rowOrder.length, geo.seatW, this.podium.gap), this.arcRadius) : 0;
-      return {
-        '--eg-i': i,
-        '--eg-seat-drop': Math.round(drop) + 'px',
-        '--eg-seat-w': geo.seatW + 'px',
-        '--eg-seat-h': geo.seatH + 'px',
-        '--eg-face-h': geo.faceH + 'px',
-        '--eg-read-h': (hero ? this.podium.heroReadH : this.podium.readH) + 'px',
-      };
-    },
-    faceZoomOf(color: Color): number {
-      return faceZoom(this.seatGeoOf(color).faceH);
-    },
-    /**
-     * The charters behind this seat's face, DEEPEST FIRST (paint order — the nearer one covers it): the first
-     * `LINEAGE_VISIBLE` corporations behind the face in play order, the deepest naming the rest («+N»).
-     * The bot's campaign holdings stand there exactly like a human's extra corporations, on their own face.
-     */
-    lineageShownOf(color: Color): Array<{name: CardName, depth: number, more: number, botId?: MarsBotCorpId}> {
-      const row = this.rowBy(color);
-      const lineage = row.lineage;
-      const shown = lineageShown(lineage.length);
-      const out: Array<{name: CardName, depth: number, more: number, botId?: MarsBotCorpId}> = [];
-      for (let depth = shown; depth >= 1; depth--) {
-        const botId = row.botLineage?.[depth - 1];
-        out.push({name: lineage[depth - 1], depth, more: depth === shown ? lineage.length - LINEAGE_VISIBLE : 0, ...(botId !== undefined ? {botId} : {})});
-      }
-      return out;
-    },
-    /** A corporation card as it stands on this seat's table (its stored resources honest on the face's capsule). */
-    tableauCard(color: Color, name: CardName): CardModel | undefined {
-      return this.playerView.players.find((p) => p.color === color)?.tableau.find((c) => c.name === name);
-    },
-    faceCardName(color: Color): CardName {
-      const face = this.rowBy(color).face;
-      return face?.kind === 'card' ? face.name : CardName.BEGINNER_CORPORATION;
-    },
-    faceBotId(color: Color): MarsBotCorpId {
-      const face = this.rowBy(color).face;
-      return face?.kind === 'bot' ? face.id : MarsBotCorpId.C01_CREDICOR;
-    },
-    /** The seat's corporation card as it stands on the table (its stored resources honest on the face's capsule). */
-    corporationModel(color: Color): CardModel | undefined {
-      const face = this.rowBy(color).face;
-      if (face?.kind !== 'card') {
-        return undefined;
-      }
-      return this.tableauCard(color, face.name);
-    },
-    /** T08: has THIS seat's medallion of this category IGNITED (its value standing, its segment grown)? */
-    landed(idx: number, color: Color): boolean {
-      if (idx < this.ui.catsSettled) {
-        return true;
-      }
-      if (idx !== this.ui.catIdx || this.ui.seatCat[color] !== idx) {
-        return false;
-      }
-      const cat = this.vm.categories[idx];
-      return cat.subs.length <= 1 || (this.ui.seatSub[color] ?? 0) > 0;
-    },
-    /** The medallion's value: the category's (a multi-sub category sums the sources THIS seat has lit); none before. */
-    medalValue(cat: ConsoleEndgameCategory, idx: number, color: Color): number | undefined {
-      if (!this.landed(idx, color)) {
-        return undefined;
-      }
-      if (idx >= this.ui.catsSettled && cat.subs.length > 1) {
-        const on = this.ui.seatSub[color] ?? 0;
-        return cat.subs.slice(0, on).reduce((sum, sub) => sum + (sub.values[color] ?? 0), 0);
-      }
-      return cat.values[color] ?? 0;
-    },
-    medalText(cat: ConsoleEndgameCategory, idx: number, color: Color): string {
-      const v = this.medalValue(cat, idx, color);
-      return v === undefined ? '' : this.fmtLabel(v);
-    },
-    medalClass(cat: ConsoleEndgameCategory, idx: number, color: Color): Record<string, boolean> {
-      const v = this.medalValue(cat, idx, color);
-      return {
-        ['con-eg-cat--' + cat.accent]: true,
-        'con-eg__medal--on': v !== undefined,
-        'con-eg__medal--zero': v === 0,
-        'con-eg__medal--minus': v !== undefined && v < 0,
-        'con-eg__medal--active': idx === this.ui.catIdx && this.ui.phase === 'scoring',
-      };
-    },
-    // ── layout state ─────────────────────────────────────────────────────
-    /** The seat's segment of this category grows out of its medallion — on THAT seat's ignition (T08), never ahead. */
-    segOn(idx: number, color: Color): boolean {
-      return this.landed(idx, color);
-    },
-    subOn(idx: number, cat: ConsoleEndgameCategory, sidx: number, color: Color): boolean {
-      if (idx < this.ui.catsSettled) {
-        return true;
-      }
-      if (idx !== this.ui.catIdx || this.ui.seatCat[color] !== idx) {
-        return false;
-      }
-      return cat.subs.length <= 1 || (this.ui.seatSub[color] ?? 0) > sidx;
-    },
-    /** The penalty's scar sweeps in on the seat's ignition of the penalty category (the bar's tip retreats). */
-    reclaimOn(color: Color): boolean {
-      const reclaim = this.rowGeo[color].reclaim;
-      return reclaim !== undefined && this.landed(reclaim.catIdx, color);
-    },
-    // ── classes ───────────────────────────────────────────────────────────
-    /** A two-level category's sources line stands while ITS steps are told (never under X — the pass names no step). */
-    sourcesOn(key: ConsoleEndgameCategoryKey): boolean {
-      return this.ui.phase === 'scoring' && this.ui.sweepStepMs === 0 && this.activeCategory?.key === key;
-    },
-    srcClass(key: ConsoleEndgameCategoryKey, si: number): Record<string, boolean> {
-      const idx = this.vm.categories.findIndex((cat) => cat.key === key);
-      const told = idx < this.ui.catsSettled || (idx === this.ui.catIdx && si < this.ui.subIdx);
-      return {
-        'con-eg__src--on': idx === this.ui.catIdx && si === this.ui.subIdx,
-        'con-eg__src--done': told,
-      };
-    },
-    lchipClass(cat: ConsoleEndgameCategory, i: number): Record<string, boolean> {
-      return {
-        ['con-eg-cat--' + cat.accent]: true,
-        'con-eg__lchip--active': i === this.ui.catIdx && this.ui.phase === 'scoring',
-        'con-eg__lchip--done': i < this.ui.catsSettled,
-      };
-    },
-    segClass(seg: EndgameSegGeo, color: Color): Record<string, boolean> {
-      const merged = this.ui.merged[seg.key] === true || seg.subs.length <= 1;
-      return {
-        ['con-eg-cat--' + seg.accent]: true,
-        'con-eg__seg--on': this.segOn(seg.catIdx, color),
-        'con-eg__seg--merged': merged,
-      };
-    },
-    subClass(seg: EndgameSegGeo, sub: EndgameSubGeo, color: Color): Record<string, boolean> {
-      const merged = this.ui.merged[seg.key] === true || seg.subs.length <= 1;
-      const cat = this.vm.categories[seg.catIdx];
-      return {
-        'con-eg__subseg--on': this.subOn(seg.catIdx, cat, sub.idx, color),
-        // The shades and seams are the micro-reveal's own voice — they
-        // DISSOLVE at the merge (the settled bar is one hue per category).
-        ['con-eg__subseg--s' + sub.shade]: !merged,
-        'con-eg__subseg--seamed': !merged,
-      };
-    },
-    rowClass(color: Color): Record<string, boolean> {
-      const winner = this.ui.winnerShown && this.vm.winners.includes(color);
-      const contender = this.ui.phase === 'tiebreak' && this.tieOf(color) !== undefined;
-      return {
-        'con-eg__row--winner': winner,
-        // The champion FRAME deepens the winner gold from the sweep window on
-        // and stays on the settled screen — the campaign's status is a state,
-        // not an effect. Every tied champion row carries it equally.
-        'con-eg__row--champion': this.ui.championStage >= 2 && this.vm.winners.includes(color),
-        'con-eg__row--solo-defeat': this.soloDefeat && this.ui.winnerShown,
-        // The rest of the table steps back HALF a tone — readable, never grey noise.
-        'con-eg__row--rest': this.ui.winnerShown && !winner && this.vm.winners.length > 0,
-        'con-eg__row--contender': contender,
-        'con-eg__row--bot': this.rowBy(color).isBot,
-        // THE HERO (TR69): a crowned seat of the formed podium — the larger reading block, the gold stage.
-        'con-eg__row--hero': this.podiumFormed && (this.vm.rows.length === 1 || this.vm.winners.includes(color)),
-        'con-eg__row--place': this.podiumFormed && this.vm.rows.length > 1 && !this.vm.winners.includes(color),
-      };
-    },
-    rowRibbon(color: Color): string | undefined {
-      if (!this.ui.winnerShown) {
-        return undefined;
-      }
-      if (this.vm.mode === 'solo') {
-        return this.vm.soloWin ? 'Victory' : 'Defeat';
-      }
-      if (!this.vm.winners.includes(color)) {
-        return undefined;
-      }
-      // On the campaign finale the ribbon yields to the champion plate at the
-      // plate window (the ribbon's fade + the plate's unfold share the anchor
-      // — one transformation). Before that window it reads «ПОБЕДИТЕЛЬ»: the
-      // mission is won first, the campaign crowns second. On missions 1–3 it
-      // yields the same way to the winner's title crest (`ribbonYields`) — and
-      // a settled screen (a reload, reduced replay) shows the crest alone.
-      // A title crest on the LIVE coda yields in place (the CSS-timed fade below); every other crest — a settled
-      // title, a seat's TENDER (the «Тендеры» mode: the lot lands while the bidding scene covers the podium, so the
-      // ribbon's leave plays unseen and only the plaque meets the eye on B) — simply takes the anchor.
-      if (this.rowCrest(color) && (!this.campaignCodaAnimated || this.rowTitleBadge(color) === undefined)) {
-        return undefined;
-      }
-      return this.championPlateOn ? undefined : 'Winner';
-    },
-    /** The ribbon fades on the crest anchor in the very beat its row's title crest unfolds there (CSS-timed: both
-     *  ride the title's ascending delay, so the swap is one motion — never two objects on one anchor). */
-    ribbonYields(color: Color): boolean {
-      return this.campaignCodaAnimated && this.rowTitleBadge(color) !== undefined;
-    },
-    /** A CREST stands on this row's anchor — the mission's title (the titles mode) or the seat's tender (the
-     *  «Тендеры» mode — HELD counts, scene or no scene: the plaque is only hidden under the bidding scene); the
-     *  «ПОБЕДИТЕЛЬ» ribbon never shares the anchor with one. */
-    rowCrest(color: Color): boolean {
-      return this.rowTitleBadge(color) !== undefined || (this.ui.winnerShown && this.campaignRowTenders[color] !== undefined);
-    },
-    /** The crest's place in the ascending reveal — the title's own order; a tender plaque is the first (and only) beat. */
-    rowCrestOrder(color: Color): number {
-      return this.rowTitleBadge(color)?.order ?? 0;
-    },
-    /** The seat's tender plaque — after the winner beat like the title, never under the bidding scene itself. */
-    rowTenderPlaque(color: Color): {id: TenderId, instance: string} | undefined {
-      if (!this.ui.winnerShown || this.campaignScene === 'bidding') {
-        return undefined;
-      }
-      return this.campaignRowTenders[color];
-    },
-    /** The champion plate — every row that shares first place, equally. */
-    championPlateFor(color: Color): boolean {
-      return this.championPlateOn && this.vm.winners.includes(color);
-    },
-    /** The rim sweep — transient, live champion ceremony only (its unmount
-     *  at settle is invisible: the bar's one-shot run ends at opacity 0). */
-    championSweepFor(color: Color): boolean {
-      return this.ui.phase === 'champion' && this.ui.championStage >= 2 && this.vm.winners.includes(color);
-    },
-    /** The final VP fixation accent (the champion beat's FIX window). */
-    championFixFor(color: Color): boolean {
-      return this.ui.championStage >= 4 && this.vm.winners.includes(color);
-    },
-    /** The campaign TITLE badge for this row — only once the winner is shown
-     *  (the titles are a consequence of the standings, so they may never mark
-     *  a row before the ranking that earned them has been revealed). */
-    rowTitleBadge(color: Color): {kind: string, art: TitleName, label: string, tp: number, order: number} | undefined {
-      if (!this.ui.winnerShown) {
-        return undefined;
-      }
-      return this.campaignRowBadges[color];
-    },
-    /** The VP tie this seat stood in, if the ranking had to settle one around it. */
-    tieOf(color: Color): RevealTieBreak | undefined {
-      return this.vm.tieBreaks.find((tb) => tb.contenders.includes(color));
-    },
-    /** A tie-break group's place in the annunciation («За победу» / «За 2-е место»). */
-    tiePlaceLabel(place: number): string {
-      return place === 1 ? translateText('For the victory') : translateTextWithParams('For place ${0}', [String(place)]);
-    },
-    tieChipClass(color: Color): Record<string, boolean> {
-      const tb = this.tieOf(color);
-      const decided = tb !== undefined && tb.leaders.length > 0 && (this.ui.phase !== 'tiebreak' || this.ui.tieStage >= 2);
-      return {
-        'con-eg__tiechip--lead': decided && tb.leaders.includes(color),
-        'con-eg__tiechip--trail': decided && !tb.leaders.includes(color),
-      };
-    },
-    tieChipVisible(color: Color): boolean {
-      if (this.tieOf(color) === undefined) {
-        return false;
-      }
-      // From the values stage of the tie-break ONWARD — the deciding M€
-      // stays readable in the settled state (a reload must still explain
-      // why two equal totals rank differently).
-      if (this.ui.phase === 'tiebreak') {
-        return this.ui.tieStage >= 1;
-      }
-      return this.ui.winnerShown;
-    },
-    rematchTally(votes: ReadonlyArray<{status: string}>): string {
-      const accepted = votes.filter((v) => v.status === 'accepted').length;
-      return `${accepted}/${votes.length}`;
-    },
-    // ── ceremony control ──────────────────────────────────────────────────
-    startCeremony(): void {
-      this.teardown();
-      resetCeremonyProgress();
-      consoleEndgameUi.ceremonyPlayed = true;
-      // A live run (first play AND every explicit replay) animates its coda
-      // marks; the settled-reload path never sets this.
-      this.campaignCodaAnimated = true;
-      this.handle = runEndgameCeremony(this.vm, {
-        onRankFlip: () => this.performRankFlip(),
-        onCrown: () => this.performCrown(),
-        onLight: (beat, attach) => this.playLight(beat, attach),
-        onIgnite: (ignition, attach) => this.igniteMedal(ignition, attach),
-        onWinnerFx: () => this.fireWinnerFx(),
-        onCount: (color, value) => this.writeTotal(color, value),
-        onChampionFx: () => this.fireChampionFx(),
-      });
-    },
-    replayCeremony(): void {
-      this.startCeremony();
-    },
-    skipCeremony(): void {
-      if (this.handle !== undefined) {
-        this.handle.skip();
-      } else {
-        finalizeCeremony(this.vm);
-      }
-    },
-    /**
-     * X (CI): HURRY the count — its OWN choreography: the categories left in ONE pass of the light, the totals an
-     * odometer, then the ranking and the crowning at ×1; a second press is a no-op. Reduced motion hurries too — the
-     * same beats, no light (the hooks draw none there); the atomic jump stays for the net and a reload only.
-     */
-    hurryCeremony(): void {
-      if (this.handle === undefined) {
-        this.skipCeremony();
-        return;
-      }
-      this.handle.hurry();
-    },
-    /** B = «Свернуть»: hide the scene, pause a running count, open the board. */
-    collapseToBoard(): void {
-      consoleEndgameUi.collapsed = true;
-      this.handle?.pause();
-    },
-    /** The road back: show the scene, then resume from the same beat. */
-    expandFromBoard(): void {
-      consoleEndgameUi.collapsed = false;
-      // Resume only after the scene has painted again — the player must see
-      // where the count stood before it moves on.
-      this.flow.afterFrame('the scene paints again before the count resumes', () => {
-        this.handle?.resume();
-      });
-    },
-    teardown(): void {
-      this.handle?.kill();
-      this.handle = undefined;
-      this.putOutLight();
-      this.commitCall?.();
-      this.commitCall = undefined;
-      for (const b of this.bursts.splice(0)) {
-        b.stop();
-      }
-    },
-    /**
-     * «Обзор партии»: a short tactile commit on the pill, then the scene
-     * descends — the pill fixes, the action list yields, the overview
-     * unfolds where the scoring stood. Repeat presses retarget harmlessly.
-     */
-    beginOverviewCommit(): void {
-      if (this.overviewCommitFx || this.overviewParked) {
-        return;
-      }
-      this.overviewCommitFx = true;
-      this.commitCall?.();
-      this.commitCall = motionAfter(consoleMotionMs(OVERVIEW_MS.commit), 'the overview pill\'s commit, then the scene descends', () => {
-        this.overviewCommitFx = false;
-        openEndgameOverview();
-      }, this.flow);
-    },
-    /**
-     * THE RANKING FLIP — capture, reorder, invert, play. Transform-only; the
-     * tweens register with the director so a skip mid-flight clears them
-     * atomically (clearProps) instead of stranding half-translated rows.
-     */
-    performRankFlip(): void {
-      const rowsEl = (this.$refs.rowsEl ?? undefined) as HTMLElement | undefined;
-      if (rowsEl === undefined) {
-        consoleEndgameUi.ranked = true;
-        return;
-      }
-      const first = new Map<string, DOMRect>();
-      rowsEl.querySelectorAll<HTMLElement>('[data-eg-row]').forEach((el) => {
-        first.set(el.dataset.egRow ?? '', el.getBoundingClientRect());
-      });
-      consoleEndgameUi.ranked = true;
-      void this.$nextTick(() => {
-        const els = [...rowsEl.querySelectorAll<HTMLElement>('[data-eg-row]')];
-        const tweens: Array<gsap.core.Tween> = [];
-        for (const el of els) {
-          const from = first.get(el.dataset.egRow ?? '');
-          if (from === undefined) {
-            continue;
-          }
-          // The seats change PLACES on the horizon (TR69: side by side) — the move is along both axes.
-          const now = el.getBoundingClientRect();
-          const dx = from.left - now.left;
-          const dy = from.top - now.top;
-          if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
-            continue;
-          }
-          tweens.push(gsap.fromTo(el,
-            {x: dx, y: dy},
-            {x: 0, y: 0, duration: consoleMotionMs(CEREMONY_MS.rankFlip) / 1000, ease: 'power3.inOut', clearProps: 'transform'}));
-        }
-        this.handle?.addCleanup(() => {
-          for (const t of tweens) {
-            t.kill();
-          }
-          gsap.set(els, {clearProps: 'transform'});
-        });
-      });
-    },
-    /**
-     * THE CROWNING FLIP (TR69) — the podium FORMS: the crowned seats rise to the hero's height, the rest step down.
-     * Measure every seat before the crowning class lands, then invert each new box to the old one (translate + a
-     * uniform scale from the seat's FOOT — the seats stand on the horizon) and play it home. Transform-only; the
-     * tweens register with the director so a skip or an unmount clears them atomically.
-     */
-    performCrown(): void {
-      const rowsEl = (this.$refs.rowsEl ?? undefined) as HTMLElement | undefined;
-      if (rowsEl === undefined || this.reduced) {
-        return;
-      }
-      const first = new Map<string, DOMRect>();
-      rowsEl.querySelectorAll<HTMLElement>('[data-eg-row]').forEach((el) => {
-        first.set(el.dataset.egRow ?? '', el.getBoundingClientRect());
-      });
-      void this.$nextTick(() => {
-        const els = [...rowsEl.querySelectorAll<HTMLElement>('[data-eg-row]')];
-        const tweens: Array<gsap.core.Tween> = [];
-        for (const el of els) {
-          const from = first.get(el.dataset.egRow ?? '');
-          if (from === undefined) {
-            continue;
-          }
-          const now = el.getBoundingClientRect();
-          if (now.height <= 0 || Math.abs(now.height - from.height) < 1) {
-            continue;
-          }
-          const scale = from.height / now.height;
-          const dx = (from.left + from.width / 2) - (now.left + now.width / 2);
-          const dy = from.bottom - now.bottom;
-          tweens.push(gsap.fromTo(el,
-            {x: dx, y: dy, scale, transformOrigin: '50% 100%'},
-            {x: 0, y: 0, scale: 1, duration: consoleMotionMs(CEREMONY_MS.crown) / 1000, ease: 'power3.out', clearProps: 'transform,transformOrigin'}));
-        }
-        this.handle?.addCleanup(() => {
-          for (const t of tweens) {
-            t.kill();
-          }
-          gsap.set(els, {clearProps: 'transform,transformOrigin'});
-        });
-      });
-    },
-    /**
-     * THE ONE LIGHT (CI «ФИНАЛ — ПРЕМИУМ, НЕ ДИСКОТЕКА») — a soft wash over the podium, its hotspot under the active
-     * category's chip, its tone that category's. `rise`: the box is posed once (from the sources line to the foot of
-     * the medallion row, across every seat — a static box, never an animated geometry) and the wash comes on, slowly;
-     * `glide`: the hotspot and the tone move to the next category in ONE motion (the canvas re-painted per frame — the
-     * light never switches off); `sweep` (X): one continuous glide over the categories left; `release`: it lets go,
-     * once, in place. Every length is already floored (`CEREMONY_MS.minEvent`). Under the director's clock
-     * (`attach`): a pause freezes it, a skip puts it out. Reduced motion draws no light.
-     */
-    playLight(beat: CeremonyLightBeat, attach: (tween: gsap.core.Animation) => void): void {
-      const root = this.$el as HTMLElement | undefined;
-      const beam = (this.$refs.beamEl ?? undefined) as HTMLElement | undefined;
-      const wash = (this.$refs.washEl ?? undefined) as HTMLCanvasElement | undefined;
-      if (root === undefined || beam === undefined || wash === undefined || this.vm.categories[beat.catIdx] === undefined || this.reduced) {
-        return;
-      }
-      const light = this.light;
-      if (beat.kind === 'release') {
-        gsap.killTweensOf(wash);
-        attach(gsap.to(wash, {opacity: 0, duration: beat.ms / 1000, ease: 'sine.inOut'}));
-        return;
-      }
-      const rising = beat.kind === 'rise' || Number(getComputedStyle(wash).opacity) < 0.05;
-      if (rising && !this.poseBeam(root, beam)) {
-        return;
-      }
-      const path = beat.path ?? [beat.catIdx];
-      const target = (idx: number): LightPaint => {
-        const [r, g, b] = toneRgb(this.toneOf(root, idx));
-        return {x: this.hotspotOf(root, beam, idx), r, g, b};
-      };
-      gsap.killTweensOf(light);
-      if (rising) {
-        // The light comes on where it is needed — at the path's first category — and only then moves.
-        Object.assign(light, target(path[0]));
-        paintLightWash(wash, light);
-        this.beamCat = this.vm.categories[path[0]].accent;
-        gsap.killTweensOf(wash);
-        attach(gsap.fromTo(wash,
-          {opacity: 0, scaleY: 0.82, transformOrigin: '50% 0%'},
-          {opacity: 1, scaleY: 1, duration: (beat.path === undefined ? beat.ms : Math.max(beat.ms * 0.3, CEREMONY_MS.minEvent)) / 1000, ease: 'sine.out'}));
-        if (beat.path === undefined) {
-          return;
-        }
-      }
-      // The glide — one tween per leg of the path, chained without a pause (a sweep is ONE motion over the rail).
-      const legs = rising ? path.slice(1) : path;
-      if (legs.length === 0) {
-        return;
-      }
-      const glide = gsap.timeline({onUpdate: () => paintLightWash(wash, light)});
-      const legSec = beat.ms / 1000 / legs.length;
-      legs.forEach((idx) => {
-        glide.to(light, {...target(idx), duration: legSec, ease: legs.length > 1 ? 'none' : 'power2.inOut'});
-      });
-      glide.call(() => {
-        this.beamCat = this.vm.categories[path[path.length - 1]].accent;
-      });
-      attach(glide);
-    },
-    /** Pose the light's box over the podium (once, when it comes on) — false while there is nothing to measure. */
-    poseBeam(root: HTMLElement, beam: HTMLElement): boolean {
-      const origin = root.getBoundingClientRect();
-      const plate = ((this.$refs.captionEl ?? undefined) as HTMLElement | undefined)?.getBoundingClientRect();
-      const seats = Array.from(root.querySelectorAll<HTMLElement>('[data-eg-row]')).map((el) => el.getBoundingClientRect());
-      const medals = Array.from(root.querySelectorAll<HTMLElement>('[data-eg-row] .con-eg__medals'))
-        .map((el) => el.getBoundingClientRect()).filter((r) => r.height > 0);
-      if (plate === undefined || plate.height <= 0 || seats.length === 0 || medals.length === 0) {
-        return false;
-      }
-      const left = Math.min(...seats.map((r) => r.left)) - origin.left;
-      const right = Math.max(...seats.map((r) => r.right)) - origin.left;
-      const top = plate.top + plate.height / 2 - origin.top;
-      const bottom = Math.max(...medals.map((r) => r.bottom)) - origin.top + this.remPx * 0.6;
-      const box = {left: `${Math.round(left)}px`, top: `${Math.round(top)}px`, width: `${Math.round(right - left)}px`, height: `${Math.max(0, Math.round(bottom - top))}px`};
-      for (const [prop, value] of Object.entries(box)) {
-        if (beam.style.getPropertyValue(prop) !== value) {
-          beam.style.setProperty(prop, value);
-        }
-      }
-      return true;
-    },
-    /** The category's tone — `--eg-c` on its rail chip (the palette has one source). */
-    toneOf(root: HTMLElement, idx: number): string {
-      const chip = root.querySelector<HTMLElement>(`[data-eg-rail="${this.vm.categories[idx].key}"]`);
-      return chip === null ? '' : getComputedStyle(chip).getPropertyValue('--eg-c').trim();
-    },
-    /**
-     * The light's hotspot for a category (0–1 of the podium's width): under its rail chip, pulled most of the way back
-     * towards the centre — the light LEANS to the category, it never leaves the podium.
-     */
-    hotspotOf(root: HTMLElement, beam: HTMLElement, idx: number): number {
-      const chip = root.querySelector<HTMLElement>(`[data-eg-rail="${this.vm.categories[idx].key}"]`)?.getBoundingClientRect();
-      const box = beam.getBoundingClientRect();
-      if (chip === undefined || box.width <= 0) {
-        return 0.5;
-      }
-      const frac = (chip.left + chip.width / 2 - box.left) / box.width;
-      return Math.min(0.85, Math.max(0.15, 0.5 + (frac - 0.5) * 0.6));
-    },
-    /**
-     * A SEAT'S MEDALLION IGNITES (T08; CI): a soft RISE of the medallion itself — its disc settles from a hair under
-     * its size while the CSS brings it up from dim (`--on`, the same length, ease-out). No ring, no flash, no attack:
-     * the light that brought the points is the podium's one wash. The value and the segment are the template's (the
-     * ignition is state); a zero rises without the settle (no fake celebration). Under the director's clock; reduced
-     * motion plays none of it.
-     */
-    igniteMedal(ignition: CeremonyIgnition, attach: (tween: gsap.core.Animation) => void): void {
-      const root = this.$el as HTMLElement | undefined;
-      const cat = this.vm.categories[ignition.catIdx];
-      if (root === undefined || cat === undefined || ignition.value === 0 || this.reduced) {
-        return;
-      }
-      const disc = root.querySelector<HTMLElement>(`[data-eg-row="${ignition.color}"] [data-eg-medal="${cat.key}"] .con-dscore__disc`);
-      if (disc === null) {
-        return;
-      }
-      const settle = () => gsap.set(disc, {clearProps: 'transform'});
-      attach(gsap.fromTo(disc, {scale: 0.92},
-        {scale: 1, duration: ignition.ms / 1000, ease: 'power2.out', onComplete: settle, onInterrupt: settle}));
-    },
-    /** Put the light out at once (a skip, a replay, a teardown) — the wash at rest, the beam dark. */
-    putOutLight(): void {
-      const wash = (this.$refs.washEl ?? undefined) as HTMLCanvasElement | undefined;
-      if (wash !== undefined) {
-        gsap.killTweensOf(wash);
-        gsap.set(wash, {opacity: 0, clearProps: 'transform'});
-      }
-      gsap.killTweensOf(this.light);
-      this.beamCat = undefined;
-    },
-    /** The champion FIX accent — one strong, restrained beat on every champion
-     *  total, EQUAL across a shared championship (no «main» champion): a gold
-     *  ping + a single GSAP scale pulse on the number (deliberately not a CSS
-     *  class — swapping the number's `animation` would restart the winner
-     *  crown pulse when the phase class drops). Reduced motion keeps only the
-     *  keel's semantic appearance (the fx module spawns nothing, the pulse is
-     *  skipped). Tweens register with the director's cleanup, so an unmount
-     *  or safety-net finalize can never strand a half-scaled number. */
-    fireChampionFx(): void {
-      void this.$nextTick(() => {
-        const rowsEl = (this.$refs.rowsEl ?? undefined) as HTMLElement | undefined;
-        for (const color of this.vm.winners) {
-          const host = rowsEl?.querySelector<HTMLElement>(`[data-eg-row="${color}"] .con-eg__total`);
-          if (host !== null && host !== undefined) {
-            this.bursts.push(playCeremonyBurst({
-              host, accent: 'gold', reduced: this.reduced, intensity: 'ping',
-            }));
-          }
-          if (this.reduced) {
-            continue;
-          }
-          const num = rowsEl?.querySelector<HTMLElement>(`[data-eg-row="${color}"] .con-eg__total-num`);
-          if (num !== null && num !== undefined) {
-            const tween = gsap.fromTo(num,
-              {scale: 1},
-              {scale: 1.14, duration: consoleMotionMs(260) / 1000, ease: 'power2.out', yoyo: true, repeat: 1, clearProps: 'transform'});
-            this.handle?.addCleanup(() => {
-              tween.kill();
-              gsap.set(num, {clearProps: 'transform'});
-            });
-          }
-        }
-      });
-    },
-    /** The winner burst — full on the first winner row, a quiet ping on
-     *  co-winners (one main focus, even in a shared victory). */
-    fireWinnerFx(): void {
-      if (this.soloDefeat) {
-        return; // a defeat gets a calm row, never a celebration
-      }
-      void this.$nextTick(() => {
-        const rowsEl = (this.$refs.rowsEl ?? undefined) as HTMLElement | undefined;
-        this.vm.winners.forEach((color, i) => {
-          const host = rowsEl?.querySelector<HTMLElement>(`[data-eg-row="${color}"]`);
-          if (host !== null && host !== undefined) {
-            // CI (decision 8): ONE wave with a soft attack — never the strobing rings / flash / sparks of the full
-            // burst; a co-winner's is the same wave, quieter.
-            this.bursts.push(playCeremonyBurst({
-              host, accent: 'gold', reduced: this.reduced, intensity: i === 0 ? 'wave' : 'wave-quiet',
-            }));
-          }
-        });
-      });
-    },
-    // ── the campaign scene ────────────────────────────────────────────────
-    titleArtUrl,
-    /** Explicit A on «Хроника кампании» / the map door (D9). */
-    openCampaignScene(): void {
-      this.campaignScene = 'map';
-    },
-    /** The «Тендеры» mode: the BIDDING scene — opened by itself once the ceremony settles, re-opened by the one CTA. */
-    openBiddingScene(): void {
-      this.biddingAutoOpened = this.biddingRevealKey;
-      this.campaignScene = 'bidding';
-    },
-    /** The viewer's pick — the server decides; the model's push presents the result on every seat's table. */
-    async onBid(instance: string): Promise<void> {
-      await submitCampaignBid(instance);
-    },
-    /**
-     * «СЛЕДУЮЩАЯ МИССИЯ» — the one continuation press. A live mission is
-     * entered directly (the launch already happened); otherwise the map scene
-     * opens and runs the interlude flow (carryover step → launch / waiting).
-     */
-    runCampaignNext(): void {
-      const link = this.campaignNextLink;
-      if (link !== undefined) {
-        const endpoint = currentServerEndpoint();
-        if (endpoint !== undefined) {
-          // LAN guest: the mission lives on the SAME pinned server.
-          pinServerEndpoint(link.playerId, endpoint);
-        }
-        recordLastGameEntered(link.gameId ?? '');
-        // The curtain carries the NEXT mission's identity — the campaign
-        // contract of the finished game knows its own slot and count.
-        const contract = this.campaignContract;
-        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(link.playerId), 'expedition',
-          contract === undefined ? undefined : {
-            kind: 'campaign-mission',
-            mission: Math.min(contract.missionSlot + 2, contract.missionCount),
-            missionCount: contract.missionCount,
-            resume: false,
-          });
-        return;
-      }
-      // The «Тендеры» mode: while the bidding is open it IS the next step.
-      if (this.liveBidding !== undefined) {
-        this.openBiddingScene();
-        return;
-      }
-      this.openCampaignScene();
-    },
-    closeCampaignScene(): void {
-      // B never silently confirms or discards: the server keeps whatever was
-      // last CONFIRMED (the map's own picker state closes with the scene).
-      this.campaignScene = undefined;
-    },
-    // ── input (delegated by the shell) ────────────────────────────────────
-    handleIntent(intent: GamepadIntent): void {
-      // ⚠ COLLAPSED, THIS IS NOT CALLED AT ALL. The shell routes on
-      // `endgameStageUp` (mounted AND showing): past «Свернуть» the pad
-      // belongs to the post-game READ-ONLY FREE ROAM — the board, the
-      // journal, «Разыграно», Information, the colonies — and the shell's own
-      // board-home B calls `expandFromBoard()` when there is nothing shallower
-      // left to close. A hidden scene must never eat a press; this one did,
-      // and the whole inspection was a static board with one live button.
-      if (this.ui.collapsed) {
-        return;
-      }
-      // The OVERVIEW SCENE owns the pad while it stands (entering included —
-      // a transition must never absorb input). Its `leaving` beat belongs to
-      // the scoring scene the player is returning to.
-      if (this.overviewParked) {
-        ((this.$refs.overview ?? undefined) as InstanceType<typeof ConsoleEndgameOverview> | undefined)?.handleIntent(intent);
-        return;
-      }
-      // THE CAMPAIGN SCENE owns the pad while it stands (the same law).
-      if (this.campaignScene === 'map') {
-        ((this.$refs.campaignMap ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
-        return;
-      }
-      if (this.campaignScene === 'bidding') {
-        ((this.$refs.bidding ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent);
-        return;
-      }
-      // THE MANDATORY CHAMPION CEREMONY absorbs the whole pad: no skip (X),
-      // no collapse (B), no confirm (A), no navigation — mashing lands on
-      // nothing and can never break the sequence. Control returns atomically
-      // when the director reaches `actions`; if anything goes wrong first,
-      // the director's safety net / unmount finalize there anyway, so the
-      // lock is bounded by construction.
-      if (this.ui.phase === 'champion') {
-        return;
-      }
-      if (intent.kind === 'nav') {
-        if (this.ui.phase === 'actions') {
-          const delta = intent.dir === 'down' || intent.dir === 'right' ? 1 : -1;
-          const len = this.actions.length;
-          this.ui.actionsFocus = (this.ui.actionsFocus + delta + len) % len;
-        }
-        return;
-      }
-      const action = consoleActionOf(intent);
-      if (action === undefined) {
-        return;
-      }
-      if (this.ui.phase !== 'actions') {
-        // X — the one labelled hurry verb (only while a count is left to
-        // hurry); B parks the ceremony (pause + board). A/Y deliberately do
-        // nothing: the count is not a dialog.
-        if (action === 'inspect') {
-          if (this.countHurriable) {
-            this.hurryCeremony();
-          }
-        } else if (action === 'back') {
-          this.collapseToBoard();
-        }
-        return;
-      }
-      if (action === 'primary') {
-        const a = this.actions[this.ui.actionsFocus];
-        if (a !== undefined && a.enabled !== false) {
-          a.run();
-        }
-      } else if (action === 'back') {
-        // B at the settled root: «Свернуть» — the final board, inspectable.
-        this.collapseToBoard();
-      }
-    },
-  },
+    return cmds;
+  }
+  return [
+    {control: 'dpad', label: 'Select'},
+    {control: 'confirm', label: 'Confirm'},
+    {control: 'back', label: 'Minimize'},
+  ];
 });
+
+function actionIcon(id: string): string {
+  return ACTION_ICON[id] ?? '';
+}
+function rowBy(color: Color): ConsoleEndgameRow {
+  const row = vm.value.rows.find((r) => r.color === color);
+  // Every color in rowOrder/winners comes from the VM itself.
+  return row ?? vm.value.rows[0];
+}
+function fmtLabel(v: number): string {
+  return v < 0 ? '−' + Math.abs(v) : String(v);
+}
+// ── the count-up sink (direct DOM writes — never reactive) ───────────
+function totalEl(color: string): HTMLElement | undefined {
+  const cached = totalEls.value[color];
+  if (cached !== undefined && cached.isConnected) {
+    return cached;
+  }
+  const el = root.value
+    ?.querySelector<HTMLElement>(`[data-eg-total="${color}"]`) ?? undefined;
+  totalEls.value[color] = el;
+  return el;
+}
+function writeTotal(color: string, value: number): void {
+  const el = totalEl(color);
+  if (el !== undefined) {
+    el.textContent = String(value);
+  }
+}
+function writeAllTotals(): void {
+  for (const row of vm.value.rows) {
+    writeTotal(row.color, ui.displayTotals[row.color] ?? 0);
+  }
+}
+/**
+ * The deciding M€ tab hangs off the number's DIGITS, not off its box: the box reserves the widest count (the
+ * count-up's stability — `totalDigits`), and the display font draws «111» far narrower than three zeros, so a tab
+ * hung on the box stood a hand's width from the score it explains. The empty part of the box is read once the
+ * totals are final (a Range over the digits, normalized by the seat's own scale) and handed to the anchor.
+ */
+function fitTieTabs(): void {
+  const next: Record<string, number> = {};
+  for (const tb of vm.value.tieBreaks) {
+    for (const color of tb.contenders) {
+      const el = totalEl(color);
+      const text = el?.firstChild;
+      if (el === undefined || text === null || text === undefined || el.offsetWidth <= 0) {
+        continue;
+      }
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const ink = range.getBoundingClientRect().width;
+      const box = el.getBoundingClientRect().width;
+      const scale = box / el.offsetWidth;
+      next[color] = scale > 0 ? Math.max(0, Math.round((box - ink) / scale)) : 0;
+    }
+  }
+  if (JSON.stringify(next) !== JSON.stringify(tieSlack.value)) {
+    tieSlack.value = next;
+  }
+}
+/**
+ * The podium's box: the seats' stage measured from the layout (its height is the free space between the rail and
+ * the bottom zone — never the seats' own content), the live rem, and the foot the horizon crests at. A hidden
+ * scene (collapse / overview round trip) measures 0 — the last honest box is kept.
+ */
+function measureStage(): void {
+  const rootNow = root.value ?? undefined;
+  const rows = rowsEl.value ?? undefined;
+  if (rootNow === undefined || rows === undefined) {
+    return;
+  }
+  const box = rows.getBoundingClientRect();
+  if (box.width <= 0 || box.height <= 0) {
+    return;
+  }
+  stageW.value = Math.round(box.width);
+  stageH.value = Math.round(box.height);
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  if (Number.isFinite(rem) && rem > 0) {
+    remPx.value = rem;
+  }
+  const scene = rootNow.getBoundingClientRect();
+  horizonY.value = Math.round(box.bottom - scene.top);
+  sceneW.value = Math.round(scene.width);
+  measureSources(rootNow);
+  fitTieTabs();
+}
+/** Hang each sources line under its head cell — centred on the cell, never past the caption's edges. */
+function measureSources(root: HTMLElement): void {
+  const caption = captionEl.value ?? undefined;
+  const cap = caption?.getBoundingClientRect();
+  if (caption === undefined || cap === undefined || cap.width <= 0) {
+    return;
+  }
+  const next: Record<string, number> = {};
+  for (const cat of sourceCategories.value) {
+    const chip = root.querySelector<HTMLElement>(`[data-eg-rail="${cat.key}"]`);
+    const line = caption.querySelector<HTMLElement>(`[data-eg-sources="${cat.key}"]`);
+    if (chip === null || line === null) {
+      continue;
+    }
+    // The cell's centre: the head never translates a cell (its spotlight is paint), so the rect is the layout's.
+    const cell = chip.getBoundingClientRect();
+    const centre = cell.left + cell.width / 2 - cap.left;
+    // The pips are the line's box (centred under the cell); the speaking name trails them out of flow, so the
+    // right clamp keeps room for the longest name.
+    const half = line.offsetWidth / 2;
+    const names = line.querySelector<HTMLElement>('.con-eg__src-names');
+    const tail = names === null ? 0 : names.offsetWidth + remPx.value * 0.9;
+    next[cat.key] = Math.round(Math.min(cap.width - half - tail, Math.max(half, centre)));
+  }
+  srcX.value = next;
+}
+// ── the podium ───────────────────────────────────────────────────────
+function glyphOf(key: ConsoleEndgameCategoryKey): DossierGlyph {
+  return scoreCategoryGlyph(key);
+}
+/** A seat's geometry NOW: equal while the count runs; the hero or a place once the podium has formed. */
+function seatGeoOf(color: Color): SeatGeo {
+  if (!podiumFormed.value) {
+    return podium.value.equal;
+  }
+  const crowned = vm.value.rows.length === 1 || vm.value.winners.includes(color);
+  return crowned ? podium.value.hero : podium.value.place;
+}
+function seatStyle(color: Color, i: number): Record<string, string | number> {
+  const geo = seatGeoOf(color);
+  const hero = podiumFormed.value && geo === podium.value.hero;
+  // Once RANKED the seat stands ON the planet's curve — the winner on the crest, the outer places lower. While the
+  // count runs the seats stand level: a curve under an untold ranking would crown the middle seat by geometry.
+  const drop = ui.ranked ? horizonDrop(slotOffset(i, rowOrder.value.length, geo.seatW, podium.value.gap), arcRadius.value) : 0;
+  return {
+    '--eg-i': i,
+    '--eg-seat-drop': Math.round(drop) + 'px',
+    '--eg-seat-w': geo.seatW + 'px',
+    '--eg-seat-h': geo.seatH + 'px',
+    '--eg-face-h': geo.faceH + 'px',
+    '--eg-read-h': (hero ? podium.value.heroReadH : podium.value.readH) + 'px',
+  };
+}
+function faceZoomOf(color: Color): number {
+  return faceZoom(seatGeoOf(color).faceH);
+}
+/**
+ * The charters behind this seat's face, DEEPEST FIRST (paint order — the nearer one covers it): the first
+ * `LINEAGE_VISIBLE` corporations behind the face in play order, the deepest naming the rest («+N»).
+ * The bot's campaign holdings stand there exactly like a human's extra corporations, on their own face.
+ */
+function lineageShownOf(color: Color): Array<{name: CardName, depth: number, more: number, botId?: MarsBotCorpId}> {
+  const row = rowBy(color);
+  const lineage = row.lineage;
+  const shown = lineageShown(lineage.length);
+  const out: Array<{name: CardName, depth: number, more: number, botId?: MarsBotCorpId}> = [];
+  for (let depth = shown; depth >= 1; depth--) {
+    const botId = row.botLineage?.[depth - 1];
+    out.push({name: lineage[depth - 1], depth, more: depth === shown ? lineage.length - LINEAGE_VISIBLE : 0, ...(botId !== undefined ? {botId} : {})});
+  }
+  return out;
+}
+/** A corporation card as it stands on this seat's table (its stored resources honest on the face's capsule). */
+function tableauCard(color: Color, name: CardName): CardModel | undefined {
+  return props.playerView.players.find((p) => p.color === color)?.tableau.find((c) => c.name === name);
+}
+function faceCardName(color: Color): CardName {
+  const face = rowBy(color).face;
+  return face?.kind === 'card' ? face.name : CardName.BEGINNER_CORPORATION;
+}
+function faceBotId(color: Color): MarsBotCorpId {
+  const face = rowBy(color).face;
+  return face?.kind === 'bot' ? face.id : MarsBotCorpId.C01_CREDICOR;
+}
+/** The seat's corporation card as it stands on the table (its stored resources honest on the face's capsule). */
+function corporationModel(color: Color): CardModel | undefined {
+  const face = rowBy(color).face;
+  if (face?.kind !== 'card') {
+    return undefined;
+  }
+  return tableauCard(color, face.name);
+}
+/** T08: has THIS seat's medallion of this category IGNITED (its value standing, its segment grown)? */
+function landed(idx: number, color: Color): boolean {
+  if (idx < ui.catsSettled) {
+    return true;
+  }
+  if (idx !== ui.catIdx || ui.seatCat[color] !== idx) {
+    return false;
+  }
+  const cat = vm.value.categories[idx];
+  return cat.subs.length <= 1 || (ui.seatSub[color] ?? 0) > 0;
+}
+/** The medallion's value: the category's (a multi-sub category sums the sources THIS seat has lit); none before. */
+function medalValue(cat: ConsoleEndgameCategory, idx: number, color: Color): number | undefined {
+  if (!landed(idx, color)) {
+    return undefined;
+  }
+  if (idx >= ui.catsSettled && cat.subs.length > 1) {
+    const on = ui.seatSub[color] ?? 0;
+    return cat.subs.slice(0, on).reduce((sum, sub) => sum + (sub.values[color] ?? 0), 0);
+  }
+  return cat.values[color] ?? 0;
+}
+function medalText(cat: ConsoleEndgameCategory, idx: number, color: Color): string {
+  const v = medalValue(cat, idx, color);
+  return v === undefined ? '' : fmtLabel(v);
+}
+function medalClass(cat: ConsoleEndgameCategory, idx: number, color: Color): Record<string, boolean> {
+  const v = medalValue(cat, idx, color);
+  return {
+    ['con-eg-cat--' + cat.accent]: true,
+    'con-eg__medal--on': v !== undefined,
+    'con-eg__medal--zero': v === 0,
+    'con-eg__medal--minus': v !== undefined && v < 0,
+    'con-eg__medal--active': idx === ui.catIdx && ui.phase === 'scoring',
+  };
+}
+// ── layout state ─────────────────────────────────────────────────────
+/** The seat's segment of this category grows out of its medallion — on THAT seat's ignition (T08), never ahead. */
+function segOn(idx: number, color: Color): boolean {
+  return landed(idx, color);
+}
+function subOn(idx: number, cat: ConsoleEndgameCategory, sidx: number, color: Color): boolean {
+  if (idx < ui.catsSettled) {
+    return true;
+  }
+  if (idx !== ui.catIdx || ui.seatCat[color] !== idx) {
+    return false;
+  }
+  return cat.subs.length <= 1 || (ui.seatSub[color] ?? 0) > sidx;
+}
+/** The penalty's scar sweeps in on the seat's ignition of the penalty category (the bar's tip retreats). */
+function reclaimOn(color: Color): boolean {
+  const reclaim = rowGeo.value[color].reclaim;
+  return reclaim !== undefined && landed(reclaim.catIdx, color);
+}
+// ── classes ───────────────────────────────────────────────────────────
+/** A two-level category's sources line stands while ITS steps are told (never under X — the pass names no step). */
+function sourcesOn(key: ConsoleEndgameCategoryKey): boolean {
+  return ui.phase === 'scoring' && ui.sweepStepMs === 0 && activeCategory.value?.key === key;
+}
+function srcClass(key: ConsoleEndgameCategoryKey, si: number): Record<string, boolean> {
+  const idx = vm.value.categories.findIndex((cat) => cat.key === key);
+  const told = idx < ui.catsSettled || (idx === ui.catIdx && si < ui.subIdx);
+  return {
+    'con-eg__src--on': idx === ui.catIdx && si === ui.subIdx,
+    'con-eg__src--done': told,
+  };
+}
+function lchipClass(cat: ConsoleEndgameCategory, i: number): Record<string, boolean> {
+  return {
+    ['con-eg-cat--' + cat.accent]: true,
+    'con-eg__lchip--active': i === ui.catIdx && ui.phase === 'scoring',
+    'con-eg__lchip--done': i < ui.catsSettled,
+  };
+}
+function segClass(seg: EndgameSegGeo, color: Color): Record<string, boolean> {
+  const merged = ui.merged[seg.key] === true || seg.subs.length <= 1;
+  return {
+    ['con-eg-cat--' + seg.accent]: true,
+    'con-eg__seg--on': segOn(seg.catIdx, color),
+    'con-eg__seg--merged': merged,
+  };
+}
+function subClass(seg: EndgameSegGeo, sub: EndgameSubGeo, color: Color): Record<string, boolean> {
+  const merged = ui.merged[seg.key] === true || seg.subs.length <= 1;
+  const cat = vm.value.categories[seg.catIdx];
+  return {
+    'con-eg__subseg--on': subOn(seg.catIdx, cat, sub.idx, color),
+    // The shades and seams are the micro-reveal's own voice — they
+    // DISSOLVE at the merge (the settled bar is one hue per category).
+    ['con-eg__subseg--s' + sub.shade]: !merged,
+    'con-eg__subseg--seamed': !merged,
+  };
+}
+function rowClass(color: Color): Record<string, boolean> {
+  const winner = ui.winnerShown && vm.value.winners.includes(color);
+  const contender = ui.phase === 'tiebreak' && tieOf(color) !== undefined;
+  return {
+    'con-eg__row--winner': winner,
+    // The champion FRAME deepens the winner gold from the sweep window on
+    // and stays on the settled screen — the campaign's status is a state,
+    // not an effect. Every tied champion row carries it equally.
+    'con-eg__row--champion': ui.championStage >= 2 && vm.value.winners.includes(color),
+    'con-eg__row--solo-defeat': soloDefeat.value && ui.winnerShown,
+    // The rest of the table steps back HALF a tone — readable, never grey noise.
+    'con-eg__row--rest': ui.winnerShown && !winner && vm.value.winners.length > 0,
+    'con-eg__row--contender': contender,
+    'con-eg__row--bot': rowBy(color).isBot,
+    // THE HERO (TR69): a crowned seat of the formed podium — the larger reading block, the gold stage.
+    'con-eg__row--hero': podiumFormed.value && (vm.value.rows.length === 1 || vm.value.winners.includes(color)),
+    'con-eg__row--place': podiumFormed.value && vm.value.rows.length > 1 && !vm.value.winners.includes(color),
+  };
+}
+function rowRibbon(color: Color): string | undefined {
+  if (!ui.winnerShown) {
+    return undefined;
+  }
+  if (vm.value.mode === 'solo') {
+    return vm.value.soloWin ? 'Victory' : 'Defeat';
+  }
+  if (!vm.value.winners.includes(color)) {
+    return undefined;
+  }
+  // On the campaign finale the ribbon yields to the champion plate at the
+  // plate window (the ribbon's fade + the plate's unfold share the anchor
+  // — one transformation). Before that window it reads «ПОБЕДИТЕЛЬ»: the
+  // mission is won first, the campaign crowns second. On missions 1–3 it
+  // yields the same way to the winner's title crest (`ribbonYields`) — and
+  // a settled screen (a reload, reduced replay) shows the crest alone.
+  // A title crest on the LIVE coda yields in place (the CSS-timed fade below); every other crest — a settled
+  // title, a seat's TENDER (the «Тендеры» mode: the lot lands while the bidding scene covers the podium, so the
+  // ribbon's leave plays unseen and only the plaque meets the eye on B) — simply takes the anchor.
+  if (rowCrest(color) && (!campaignCodaAnimated.value || rowTitleBadge(color) === undefined)) {
+    return undefined;
+  }
+  return championPlateOn.value ? undefined : 'Winner';
+}
+/** The ribbon fades on the crest anchor in the very beat its row's title crest unfolds there (CSS-timed: both
+ *  ride the title's ascending delay, so the swap is one motion — never two objects on one anchor). */
+function ribbonYields(color: Color): boolean {
+  return campaignCodaAnimated.value && rowTitleBadge(color) !== undefined;
+}
+/** A CREST stands on this row's anchor — the mission's title (the titles mode) or the seat's tender (the
+ *  «Тендеры» mode — HELD counts, scene or no scene: the plaque is only hidden under the bidding scene); the
+ *  «ПОБЕДИТЕЛЬ» ribbon never shares the anchor with one. */
+function rowCrest(color: Color): boolean {
+  return rowTitleBadge(color) !== undefined || (ui.winnerShown && campaignRowTenders.value[color] !== undefined);
+}
+/** The crest's place in the ascending reveal — the title's own order; a tender plaque is the first (and only) beat. */
+function rowCrestOrder(color: Color): number {
+  return rowTitleBadge(color)?.order ?? 0;
+}
+/** The seat's tender plaque — after the winner beat like the title, never under the bidding scene itself. */
+function rowTenderPlaque(color: Color): {id: TenderId, instance: string} | undefined {
+  if (!ui.winnerShown || campaignScene.value === 'bidding') {
+    return undefined;
+  }
+  return campaignRowTenders.value[color];
+}
+/** The champion plate — every row that shares first place, equally. */
+function championPlateFor(color: Color): boolean {
+  return championPlateOn.value && vm.value.winners.includes(color);
+}
+/** The rim sweep — transient, live champion ceremony only (its unmount
+ *  at settle is invisible: the bar's one-shot run ends at opacity 0). */
+function championSweepFor(color: Color): boolean {
+  return ui.phase === 'champion' && ui.championStage >= 2 && vm.value.winners.includes(color);
+}
+/** The final VP fixation accent (the champion beat's FIX window). */
+function championFixFor(color: Color): boolean {
+  return ui.championStage >= 4 && vm.value.winners.includes(color);
+}
+/** The campaign TITLE badge for this row — only once the winner is shown
+ *  (the titles are a consequence of the standings, so they may never mark
+ *  a row before the ranking that earned them has been revealed). */
+function rowTitleBadge(color: Color): {kind: string, art: TitleName, label: string, tp: number, order: number} | undefined {
+  if (!ui.winnerShown) {
+    return undefined;
+  }
+  return campaignRowBadges.value[color];
+}
+/** The VP tie this seat stood in, if the ranking had to settle one around it. */
+function tieOf(color: Color): RevealTieBreak | undefined {
+  return vm.value.tieBreaks.find((tb) => tb.contenders.includes(color));
+}
+/** A tie-break group's place in the annunciation («За победу» / «За 2-е место»). */
+function tiePlaceLabel(place: number): string {
+  return place === 1 ? translateText('For the victory') : translateTextWithParams('For place ${0}', [String(place)]);
+}
+function tieChipClass(color: Color): Record<string, boolean> {
+  const tb = tieOf(color);
+  const decided = tb !== undefined && tb.leaders.length > 0 && (ui.phase !== 'tiebreak' || ui.tieStage >= 2);
+  return {
+    'con-eg__tiechip--lead': decided && tb.leaders.includes(color),
+    'con-eg__tiechip--trail': decided && !tb.leaders.includes(color),
+  };
+}
+function tieChipVisible(color: Color): boolean {
+  if (tieOf(color) === undefined) {
+    return false;
+  }
+  // From the values stage of the tie-break ONWARD — the deciding M€
+  // stays readable in the settled state (a reload must still explain
+  // why two equal totals rank differently).
+  if (ui.phase === 'tiebreak') {
+    return ui.tieStage >= 1;
+  }
+  return ui.winnerShown;
+}
+function rematchTally(votes: ReadonlyArray<{status: string}>): string {
+  const accepted = votes.filter((v) => v.status === 'accepted').length;
+  return `${accepted}/${votes.length}`;
+}
+// ── ceremony control ──────────────────────────────────────────────────
+function startCeremony(): void {
+  teardown();
+  resetCeremonyProgress();
+  consoleEndgameUi.ceremonyPlayed = true;
+  // A live run (first play AND every explicit replay) animates its coda
+  // marks; the settled-reload path never sets this.
+  campaignCodaAnimated.value = true;
+  handle.value = runEndgameCeremony(vm.value, {
+    onRankFlip: () => performRankFlip(),
+    onCrown: () => performCrown(),
+    onLight: (beat, attach) => playLight(beat, attach),
+    onIgnite: (ignition, attach) => igniteMedal(ignition, attach),
+    onWinnerFx: () => fireWinnerFx(),
+    onCount: (color, value) => writeTotal(color, value),
+    onChampionFx: () => fireChampionFx(),
+  });
+}
+function replayCeremony(): void {
+  startCeremony();
+}
+function skipCeremony(): void {
+  if (handle.value !== undefined) {
+    handle.value.skip();
+  } else {
+    finalizeCeremony(vm.value);
+  }
+}
+/**
+ * X (CI): HURRY the count — its OWN choreography: the categories left in ONE pass of the light, the totals an
+ * odometer, then the ranking and the crowning at ×1; a second press is a no-op. Reduced motion hurries too — the
+ * same beats, no light (the hooks draw none there); the atomic jump stays for the net and a reload only.
+ */
+function hurryCeremony(): void {
+  if (handle.value === undefined) {
+    skipCeremony();
+    return;
+  }
+  handle.value.hurry();
+}
+/** B = «Свернуть»: hide the scene, pause a running count, open the board. */
+function collapseToBoard(): void {
+  consoleEndgameUi.collapsed = true;
+  handle.value?.pause();
+}
+/** The road back: show the scene, then resume from the same beat. */
+function expandFromBoard(): void {
+  consoleEndgameUi.collapsed = false;
+  // Resume only after the scene has painted again — the player must see
+  // where the count stood before it moves on.
+  flow.afterFrame('the scene paints again before the count resumes', () => {
+    handle.value?.resume();
+  });
+}
+function teardown(): void {
+  handle.value?.kill();
+  handle.value = undefined;
+  putOutLight();
+  commitCall.value?.();
+  commitCall.value = undefined;
+  for (const b of bursts.value.splice(0)) {
+    b.stop();
+  }
+}
+/**
+ * «Обзор партии»: a short tactile commit on the pill, then the scene
+ * descends — the pill fixes, the action list yields, the overview
+ * unfolds where the scoring stood. Repeat presses retarget harmlessly.
+ */
+function beginOverviewCommit(): void {
+  if (overviewCommitFx.value || overviewParked.value) {
+    return;
+  }
+  overviewCommitFx.value = true;
+  commitCall.value?.();
+  commitCall.value = motionAfter(consoleMotionMs(OVERVIEW_MS.commit), 'the overview pill\'s commit, then the scene descends', () => {
+    overviewCommitFx.value = false;
+    openEndgameOverview();
+  }, flow);
+}
+/**
+ * THE RANKING FLIP — capture, reorder, invert, play. Transform-only; the
+ * tweens register with the director so a skip mid-flight clears them
+ * atomically (clearProps) instead of stranding half-translated rows.
+ */
+function performRankFlip(): void {
+  const rowsElNow = rowsEl.value ?? undefined;
+  if (rowsElNow === undefined) {
+    consoleEndgameUi.ranked = true;
+    return;
+  }
+  const first = new Map<string, DOMRect>();
+  rowsElNow.querySelectorAll<HTMLElement>('[data-eg-row]').forEach((el) => {
+    first.set(el.dataset.egRow ?? '', el.getBoundingClientRect());
+  });
+  consoleEndgameUi.ranked = true;
+  void nextTick(() => {
+    const els = [...rowsElNow.querySelectorAll<HTMLElement>('[data-eg-row]')];
+    const tweens: Array<gsap.core.Tween> = [];
+    for (const el of els) {
+      const from = first.get(el.dataset.egRow ?? '');
+      if (from === undefined) {
+        continue;
+      }
+      // The seats change PLACES on the horizon (TR69: side by side) — the move is along both axes.
+      const now = el.getBoundingClientRect();
+      const dx = from.left - now.left;
+      const dy = from.top - now.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
+        continue;
+      }
+      tweens.push(gsap.fromTo(el,
+        {x: dx, y: dy},
+        {x: 0, y: 0, duration: consoleMotionMs(CEREMONY_MS.rankFlip) / 1000, ease: 'power3.inOut', clearProps: 'transform'}));
+    }
+    handle.value?.addCleanup(() => {
+      for (const t of tweens) {
+        t.kill();
+      }
+      gsap.set(els, {clearProps: 'transform'});
+    });
+  });
+}
+/**
+ * THE CROWNING FLIP (TR69) — the podium FORMS: the crowned seats rise to the hero's height, the rest step down.
+ * Measure every seat before the crowning class lands, then invert each new box to the old one (translate + a
+ * uniform scale from the seat's FOOT — the seats stand on the horizon) and play it home. Transform-only; the
+ * tweens register with the director so a skip or an unmount clears them atomically.
+ */
+function performCrown(): void {
+  const rowsElNow = rowsEl.value ?? undefined;
+  if (rowsElNow === undefined || reduced.value) {
+    return;
+  }
+  const first = new Map<string, DOMRect>();
+  rowsElNow.querySelectorAll<HTMLElement>('[data-eg-row]').forEach((el) => {
+    first.set(el.dataset.egRow ?? '', el.getBoundingClientRect());
+  });
+  void nextTick(() => {
+    const els = [...rowsElNow.querySelectorAll<HTMLElement>('[data-eg-row]')];
+    const tweens: Array<gsap.core.Tween> = [];
+    for (const el of els) {
+      const from = first.get(el.dataset.egRow ?? '');
+      if (from === undefined) {
+        continue;
+      }
+      const now = el.getBoundingClientRect();
+      if (now.height <= 0 || Math.abs(now.height - from.height) < 1) {
+        continue;
+      }
+      const scale = from.height / now.height;
+      const dx = (from.left + from.width / 2) - (now.left + now.width / 2);
+      const dy = from.bottom - now.bottom;
+      tweens.push(gsap.fromTo(el,
+        {x: dx, y: dy, scale, transformOrigin: '50% 100%'},
+        {x: 0, y: 0, scale: 1, duration: consoleMotionMs(CEREMONY_MS.crown) / 1000, ease: 'power3.out', clearProps: 'transform,transformOrigin'}));
+    }
+    handle.value?.addCleanup(() => {
+      for (const t of tweens) {
+        t.kill();
+      }
+      gsap.set(els, {clearProps: 'transform,transformOrigin'});
+    });
+  });
+}
+/**
+ * THE ONE LIGHT (CI «ФИНАЛ — ПРЕМИУМ, НЕ ДИСКОТЕКА») — a soft wash over the podium, its hotspot under the active
+ * category's chip, its tone that category's. `rise`: the box is posed once (from the sources line to the foot of
+ * the medallion row, across every seat — a static box, never an animated geometry) and the wash comes on, slowly;
+ * `glide`: the hotspot and the tone move to the next category in ONE motion (the canvas re-painted per frame — the
+ * light never switches off); `sweep` (X): one continuous glide over the categories left; `release`: it lets go,
+ * once, in place. Every length is already floored (`CEREMONY_MS.minEvent`). Under the director's clock
+ * (`attach`): a pause freezes it, a skip puts it out. Reduced motion draws no light.
+ */
+function playLight(beat: CeremonyLightBeat, attach: (tween: gsap.core.Animation) => void): void {
+  const rootNow = root.value ?? undefined;
+  const beam = beamEl.value ?? undefined;
+  const wash = washEl.value ?? undefined;
+  if (rootNow === undefined || beam === undefined || wash === undefined || vm.value.categories[beat.catIdx] === undefined || reduced.value) {
+    return;
+  }
+  const lightNow = light;
+  if (beat.kind === 'release') {
+    gsap.killTweensOf(wash);
+    attach(gsap.to(wash, {opacity: 0, duration: beat.ms / 1000, ease: 'sine.inOut'}));
+    return;
+  }
+  const rising = beat.kind === 'rise' || Number(getComputedStyle(wash).opacity) < 0.05;
+  if (rising && !poseBeam(rootNow, beam)) {
+    return;
+  }
+  const path = beat.path ?? [beat.catIdx];
+  const target = (idx: number): LightPaint => {
+    const [r, g, b] = toneRgb(toneOf(rootNow, idx));
+    return {x: hotspotOf(rootNow, beam, idx), r, g, b};
+  };
+  gsap.killTweensOf(lightNow);
+  if (rising) {
+    // The light comes on where it is needed — at the path's first category — and only then moves.
+    Object.assign(lightNow, target(path[0]));
+    paintLightWash(wash, lightNow);
+    beamCat.value = vm.value.categories[path[0]].accent;
+    gsap.killTweensOf(wash);
+    attach(gsap.fromTo(wash,
+      {opacity: 0, scaleY: 0.82, transformOrigin: '50% 0%'},
+      {opacity: 1, scaleY: 1, duration: (beat.path === undefined ? beat.ms : Math.max(beat.ms * 0.3, CEREMONY_MS.minEvent)) / 1000, ease: 'sine.out'}));
+    if (beat.path === undefined) {
+      return;
+    }
+  }
+  // The glide — one tween per leg of the path, chained without a pause (a sweep is ONE motion over the rail).
+  const legs = rising ? path.slice(1) : path;
+  if (legs.length === 0) {
+    return;
+  }
+  const glide = gsap.timeline({onUpdate: () => paintLightWash(wash, lightNow)});
+  const legSec = beat.ms / 1000 / legs.length;
+  legs.forEach((idx) => {
+    glide.to(lightNow, {...target(idx), duration: legSec, ease: legs.length > 1 ? 'none' : 'power2.inOut'});
+  });
+  glide.call(() => {
+    beamCat.value = vm.value.categories[path[path.length - 1]].accent;
+  });
+  attach(glide);
+}
+/** Pose the light's box over the podium (once, when it comes on) — false while there is nothing to measure. */
+function poseBeam(root: HTMLElement, beam: HTMLElement): boolean {
+  const origin = root.getBoundingClientRect();
+  const plate = captionEl.value?.getBoundingClientRect();
+  const seats = Array.from(root.querySelectorAll<HTMLElement>('[data-eg-row]')).map((el) => el.getBoundingClientRect());
+  const medals = Array.from(root.querySelectorAll<HTMLElement>('[data-eg-row] .con-eg__medals'))
+    .map((el) => el.getBoundingClientRect()).filter((r) => r.height > 0);
+  if (plate === undefined || plate.height <= 0 || seats.length === 0 || medals.length === 0) {
+    return false;
+  }
+  const left = Math.min(...seats.map((r) => r.left)) - origin.left;
+  const right = Math.max(...seats.map((r) => r.right)) - origin.left;
+  const top = plate.top + plate.height / 2 - origin.top;
+  const bottom = Math.max(...medals.map((r) => r.bottom)) - origin.top + remPx.value * 0.6;
+  const box = {left: `${Math.round(left)}px`, top: `${Math.round(top)}px`, width: `${Math.round(right - left)}px`, height: `${Math.max(0, Math.round(bottom - top))}px`};
+  for (const [prop, value] of Object.entries(box)) {
+    if (beam.style.getPropertyValue(prop) !== value) {
+      beam.style.setProperty(prop, value);
+    }
+  }
+  return true;
+}
+/** The category's tone — `--eg-c` on its rail chip (the palette has one source). */
+function toneOf(root: HTMLElement, idx: number): string {
+  const chip = root.querySelector<HTMLElement>(`[data-eg-rail="${vm.value.categories[idx].key}"]`);
+  return chip === null ? '' : getComputedStyle(chip).getPropertyValue('--eg-c').trim();
+}
+/**
+ * The light's hotspot for a category (0–1 of the podium's width): under its rail chip, pulled most of the way back
+ * towards the centre — the light LEANS to the category, it never leaves the podium.
+ */
+function hotspotOf(root: HTMLElement, beam: HTMLElement, idx: number): number {
+  const chip = root.querySelector<HTMLElement>(`[data-eg-rail="${vm.value.categories[idx].key}"]`)?.getBoundingClientRect();
+  const box = beam.getBoundingClientRect();
+  if (chip === undefined || box.width <= 0) {
+    return 0.5;
+  }
+  const frac = (chip.left + chip.width / 2 - box.left) / box.width;
+  return Math.min(0.85, Math.max(0.15, 0.5 + (frac - 0.5) * 0.6));
+}
+/**
+ * A SEAT'S MEDALLION IGNITES (T08; CI): a soft RISE of the medallion itself — its disc settles from a hair under
+ * its size while the CSS brings it up from dim (`--on`, the same length, ease-out). No ring, no flash, no attack:
+ * the light that brought the points is the podium's one wash. The value and the segment are the template's (the
+ * ignition is state); a zero rises without the settle (no fake celebration). Under the director's clock; reduced
+ * motion plays none of it.
+ */
+function igniteMedal(ignition: CeremonyIgnition, attach: (tween: gsap.core.Animation) => void): void {
+  const rootNow = root.value ?? undefined;
+  const cat = vm.value.categories[ignition.catIdx];
+  if (rootNow === undefined || cat === undefined || ignition.value === 0 || reduced.value) {
+    return;
+  }
+  const disc = rootNow.querySelector<HTMLElement>(`[data-eg-row="${ignition.color}"] [data-eg-medal="${cat.key}"] .con-dscore__disc`);
+  if (disc === null) {
+    return;
+  }
+  const settle = () => gsap.set(disc, {clearProps: 'transform'});
+  attach(gsap.fromTo(disc, {scale: 0.92},
+    {scale: 1, duration: ignition.ms / 1000, ease: 'power2.out', onComplete: settle, onInterrupt: settle}));
+}
+/** Put the light out at once (a skip, a replay, a teardown) — the wash at rest, the beam dark. */
+function putOutLight(): void {
+  const wash = washEl.value ?? undefined;
+  if (wash !== undefined) {
+    gsap.killTweensOf(wash);
+    gsap.set(wash, {opacity: 0, clearProps: 'transform'});
+  }
+  gsap.killTweensOf(light);
+  beamCat.value = undefined;
+}
+/** The champion FIX accent — one strong, restrained beat on every champion
+ *  total, EQUAL across a shared championship (no «main» champion): a gold
+ *  ping + a single GSAP scale pulse on the number (deliberately not a CSS
+ *  class — swapping the number's `animation` would restart the winner
+ *  crown pulse when the phase class drops). Reduced motion keeps only the
+ *  keel's semantic appearance (the fx module spawns nothing, the pulse is
+ *  skipped). Tweens register with the director's cleanup, so an unmount
+ *  or safety-net finalize can never strand a half-scaled number. */
+function fireChampionFx(): void {
+  void nextTick(() => {
+    const rowsElNow = rowsEl.value ?? undefined;
+    for (const color of vm.value.winners) {
+      const host = rowsElNow?.querySelector<HTMLElement>(`[data-eg-row="${color}"] .con-eg__total`);
+      if (host !== null && host !== undefined) {
+        bursts.value.push(playCeremonyBurst({
+          host, accent: 'gold', reduced: reduced.value, intensity: 'ping',
+        }));
+      }
+      if (reduced.value) {
+        continue;
+      }
+      const num = rowsElNow?.querySelector<HTMLElement>(`[data-eg-row="${color}"] .con-eg__total-num`);
+      if (num !== null && num !== undefined) {
+        const tween = gsap.fromTo(num,
+          {scale: 1},
+          {scale: 1.14, duration: consoleMotionMs(260) / 1000, ease: 'power2.out', yoyo: true, repeat: 1, clearProps: 'transform'});
+        handle.value?.addCleanup(() => {
+          tween.kill();
+          gsap.set(num, {clearProps: 'transform'});
+        });
+      }
+    }
+  });
+}
+/** The winner burst — full on the first winner row, a quiet ping on
+ *  co-winners (one main focus, even in a shared victory). */
+function fireWinnerFx(): void {
+  if (soloDefeat.value) {
+    return; // a defeat gets a calm row, never a celebration
+  }
+  void nextTick(() => {
+    const rowsElNow = rowsEl.value ?? undefined;
+    vm.value.winners.forEach((color, i) => {
+      const host = rowsElNow?.querySelector<HTMLElement>(`[data-eg-row="${color}"]`);
+      if (host !== null && host !== undefined) {
+        // CI (decision 8): ONE wave with a soft attack — never the strobing rings / flash / sparks of the full
+        // burst; a co-winner's is the same wave, quieter.
+        bursts.value.push(playCeremonyBurst({
+          host, accent: 'gold', reduced: reduced.value, intensity: i === 0 ? 'wave' : 'wave-quiet',
+        }));
+      }
+    });
+  });
+}
+// ── the campaign scene ────────────────────────────────────────────────
+/** Explicit A on «Хроника кампании» / the map door (D9). */
+function openCampaignScene(): void {
+  campaignScene.value = 'map';
+}
+/** The «Тендеры» mode: the BIDDING scene — opened by itself once the ceremony settles, re-opened by the one CTA. */
+function openBiddingScene(): void {
+  biddingAutoOpened.value = biddingRevealKey.value;
+  campaignScene.value = 'bidding';
+}
+/** The viewer's pick — the server decides; the model's push presents the result on every seat's table. */
+async function onBid(instance: string): Promise<void> {
+  await submitCampaignBid(instance);
+}
+/**
+ * «СЛЕДУЮЩАЯ МИССИЯ» — the one continuation press. A live mission is
+ * entered directly (the launch already happened); otherwise the map scene
+ * opens and runs the interlude flow (carryover step → launch / waiting).
+ */
+function runCampaignNext(): void {
+  const link = campaignNextLink.value;
+  if (link !== undefined) {
+    const endpoint = currentServerEndpoint();
+    if (endpoint !== undefined) {
+      // LAN guest: the mission lives on the SAME pinned server.
+      pinServerEndpoint(link.playerId, endpoint);
+    }
+    recordLastGameEntered(link.gameId ?? '');
+    // The curtain carries the NEXT mission's identity — the campaign
+    // contract of the finished game knows its own slot and count.
+    const contract = campaignContract.value;
+    navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(link.playerId), 'expedition',
+      contract === undefined ? undefined : {
+        kind: 'campaign-mission',
+        mission: Math.min(contract.missionSlot + 2, contract.missionCount),
+        missionCount: contract.missionCount,
+        resume: false,
+      });
+    return;
+  }
+  // The «Тендеры» mode: while the bidding is open it IS the next step.
+  if (liveBidding.value !== undefined) {
+    openBiddingScene();
+    return;
+  }
+  openCampaignScene();
+}
+function closeCampaignScene(): void {
+  // B never silently confirms or discards: the server keeps whatever was
+  // last CONFIRMED (the map's own picker state closes with the scene).
+  campaignScene.value = undefined;
+}
+// ── input (delegated by the shell) ────────────────────────────────────
+function handleIntent(intent: GamepadIntent): void {
+  // ⚠ COLLAPSED, THIS IS NOT CALLED AT ALL. The shell routes on
+  // `endgameStageUp` (mounted AND showing): past «Свернуть» the pad
+  // belongs to the post-game READ-ONLY FREE ROAM — the board, the
+  // journal, «Разыграно», Information, the colonies — and the shell's own
+  // board-home B calls `expandFromBoard()` when there is nothing shallower
+  // left to close. A hidden scene must never eat a press; this one did,
+  // and the whole inspection was a static board with one live button.
+  if (ui.collapsed) {
+    return;
+  }
+  // The OVERVIEW SCENE owns the pad while it stands (entering included —
+  // a transition must never absorb input). Its `leaving` beat belongs to
+  // the scoring scene the player is returning to.
+  if (overviewParked.value) {
+    overview.value?.handleIntent(intent);
+    return;
+  }
+  // THE CAMPAIGN SCENE owns the pad while it stands (the same law).
+  if (campaignScene.value === 'map') {
+    campaignMap.value?.handleIntent?.(intent);
+    return;
+  }
+  if (campaignScene.value === 'bidding') {
+    bidding.value?.handleIntent?.(intent);
+    return;
+  }
+  // THE MANDATORY CHAMPION CEREMONY absorbs the whole pad: no skip (X),
+  // no collapse (B), no confirm (A), no navigation — mashing lands on
+  // nothing and can never break the sequence. Control returns atomically
+  // when the director reaches `actions`; if anything goes wrong first,
+  // the director's safety net / unmount finalize there anyway, so the
+  // lock is bounded by construction.
+  if (ui.phase === 'champion') {
+    return;
+  }
+  if (intent.kind === 'nav') {
+    if (ui.phase === 'actions') {
+      const delta = intent.dir === 'down' || intent.dir === 'right' ? 1 : -1;
+      const len = actions.value.length;
+      ui.actionsFocus = (ui.actionsFocus + delta + len) % len;
+    }
+    return;
+  }
+  const action = consoleActionOf(intent);
+  if (action === undefined) {
+    return;
+  }
+  if (ui.phase !== 'actions') {
+    // X — the one labelled hurry verb (only while a count is left to
+    // hurry); B parks the ceremony (pause + board). A/Y deliberately do
+    // nothing: the count is not a dialog.
+    if (action === 'inspect') {
+      if (countHurriable.value) {
+        hurryCeremony();
+      }
+    } else if (action === 'back') {
+      collapseToBoard();
+    }
+    return;
+  }
+  if (action === 'primary') {
+    const a = actions.value[ui.actionsFocus];
+    if (a !== undefined && a.enabled !== false) {
+      a.run();
+    }
+  } else if (action === 'back') {
+    // B at the settled root: «Свернуть» — the final board, inspectable.
+    collapseToBoard();
+  }
+}
+
+watch(() => footCommands.value, (cmds: ReadonlyArray<ConsoleCommand>): void => {
+  setPanelCommands('endgame', cmds);
+}, {immediate: true, deep: true});
+// The «Тендеры» mode: the BIDDING opens itself once the ceremony has settled — the mission's reward is the next
+// thing on this screen, never a button to hunt for (the latch keeps a deliberate B honest; the CTA re-opens it).
+watch(() => biddingDue.value, (due: boolean): void => {
+  if (due) {
+    openBiddingScene();
+  }
+}, {immediate: true});
+// The list is live (rematch states arrive by poll) — the cursor must
+// never point past its end.
+watch(() => actions.value.length, (len: number): void => {
+  if (ui.actionsFocus >= len) {
+    ui.actionsFocus = Math.max(0, len - 1);
+  }
+});
+// Skip / settle jumps suppress CSS TRANSITIONS for one frame, so the
+// final state appears ATOMICALLY (no half-grown bars racing each other).
+// Keyframe animations are deliberately NOT suppressed: re-enabling one
+// restarts it — the settled scene would dip to opacity 0 and show the
+// board (the audit's measured final flash).
+watch(() => ui.skipSeq, (): void => {
+  noanim.value = true;
+  // The skip lands on the canonical final state — no light may still stand over it.
+  putOutLight();
+  writeAllTotals();
+  noanimRaf();
+  noanimRaf = flow.afterFrame('the skip\'s atomic jump has painted — transitions come back', () => {
+    noanim.value = false;
+  }, 2);
+});
+// The canonical settle record (per-beat boundaries, resets, reloads) —
+// mirror it into the unbound number nodes.
+watch(() => ui.displayTotals, (): void => {
+  writeAllTotals();
+  if (vm.value.tieBreaks.length > 0) {
+    void nextTick(() => fitTieTabs());
+  }
+}, {deep: true});
+// A two-level category takes the head: its sources line is hung under its cell from a fresh read (the font that
+// sizes the cells may have arrived after the mount's measure).
+// The deciding M€ tab appears with the tie-break's values (or on a settled landing): hang it off the final digits.
+watch(() => ui.tieStage, (): void => {
+  void nextTick(() => fitTieTabs());
+});
+watch(() => ui.winnerShown, (): void => {
+  void nextTick(() => fitTieTabs());
+});
+watch(() => ui.catIdx, (idx: number): void => {
+  if ((vm.value.categories[idx]?.subs.length ?? 0) > 1 && root.value instanceof HTMLElement) {
+    measureSources(root.value);
+  }
+});
+// Viewport change (profile flip / window resize): re-measure the podium's box and let the planner re-solve.
+watch(() => vpWidth.value, (): void => {
+  void nextTick(() => measureStage());
+});
+
+onMounted(() => {
+  // One fetch per load, shared with the desktop host — the facts enrich the
+  // overview's insight layer; every scoring number is complete without them.
+  requestEndgameFacts(props.playerView.id);
+  // Campaign mission: bind the campaign store to THIS game's viewer (the
+  // seat name, not the menu identity) and keep it fresh — the coda and the
+  // map scene render the SERVER's committed result, never a client guess.
+  const contract = campaignContract.value;
+  if (contract !== undefined) {
+    setCampaignViewerName(props.playerView.thisPlayer?.name);
+    campaignCodaAnimated.value = ceremonyShouldPlay();
+    void openCampaign(contract.campaignId);
+    startCampaignWatch();
+  }
+  if (ceremonyShouldPlay()) {
+    startCeremony();
+  } else {
+    // Reload / re-entry into an already-ended game: the SETTLED final state,
+    // instantly and silently. Watching the count again is the explicit
+    // «Повторить подсчёт» action, never a side effect of arriving.
+    finalizeCeremony(vm.value);
+  }
+  void nextTick(() => {
+    measureStage();
+    writeAllTotals();
+  });
+  // The podium's box is the free space between the rail and the bottom zone — it changes with the profile, the
+  // fonts' arrival and the scene's own reveal (a hidden scene measures nothing and keeps the last box).
+  const rows = rowsEl.value ?? undefined;
+  if (rows !== undefined && typeof ResizeObserver !== 'undefined') {
+    stageObserver = new ResizeObserver(() => measureStage());
+    stageObserver.observe(rows);
+  }
+});
+onBeforeUnmount(() => {
+  stageObserver?.disconnect();
+  stageObserver = undefined;
+  teardown();
+  clearPanelCommands('endgame');
+  if (campaignContract.value !== undefined) {
+    stopCampaignWatch();
+    setCampaignViewerName(undefined);
+  }
+});
+defineExpose({expandFromBoard, handleIntent});
 </script>
