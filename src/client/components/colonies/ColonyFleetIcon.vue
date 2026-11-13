@@ -1,24 +1,4 @@
 <template>
-  <!--
-    Trade-fleet SHIP — the per-player vessel mark used by the console
-    colonies surfaces, the desktop colonies overlay / tiles / detail /
-    card, AND the flying proxy of the console trade-launch cinematic.
-
-    DESIGN (the minimalist pass): a faceted STEALTH DART — one clean
-    geometric silhouette, two dark-glass facets for dimension, a hairline
-    edge, and the player colour reduced to a LIVERY of three restrained
-    marks (the keel line, the two wingtip edges, the engine slit). No
-    cockpit windows, no cargo latches, no beacon dots — a premium glyph,
-    not an illustrated toy. Every tone is EXPLICIT (flat fills + one plume
-    gradient): the console paint baseline strips CSS `filter` permanently,
-    so the mark must carry its own depth.
-
-    The plume gradient is declared per instance with a unique id (many
-    ships stand on one screen; `url(#…)` resolves document-wide).
-    States (CSS-driven): `free` lights the resting exhaust; `mode` 'hero'
-    is the flight proxy's higher-presence pass; `state` drives the launch
-    charge / in-flight thrust / docked settle.
-  -->
   <svg class="colony-fleet-icon"
        :class="[
          'fleet-hue--' + color,
@@ -63,9 +43,32 @@
   </svg>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * Trade-fleet SHIP — the per-player vessel mark used by the console
+ * colonies surfaces, the desktop colonies overlay / tiles / detail /
+ * card, AND the flying proxy of the console trade-launch cinematic.
+ *
+ * DESIGN (the minimalist pass): a faceted STEALTH DART — one clean
+ * geometric silhouette, two dark-glass facets for dimension, a hairline
+ * edge, and the player colour reduced to a LIVERY of three restrained
+ * marks (the keel line, the two wingtip edges, the engine slit). No
+ * cockpit windows, no cargo latches, no beacon dots — a premium glyph,
+ * not an illustrated toy. Every tone is EXPLICIT (flat fills + one plume
+ * gradient): the console paint baseline strips CSS `filter` permanently,
+ * so the mark must carry its own depth.
+ *
+ * The plume gradient is declared per instance with a unique id (many
+ * ships stand on one screen; `url(#…)` resolves document-wide).
+ * States (CSS-driven): `free` lights the resting exhaust; `mode` 'hero'
+ * is the flight proxy's higher-presence pass; `state` drives the launch
+ * charge / in-flight thrust / docked settle.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {PropType, ref} from 'vue';
 import {Color} from '@/common/Color';
+import {newFleetIconUid} from '@/client/components/colonies/colonyFleetIconState';
 
 /**
  * Stateless per-player fleet ship. Pass `color` (the fleet owner's player
@@ -76,20 +79,15 @@ import {Color} from '@/common/Color';
  */
 export type FleetShipState = 'idle' | 'armed' | 'launch' | 'flight' | 'docked';
 
-let fleetIconUid = 0;
-
-export default defineComponent({
-  name: 'ColonyFleetIcon',
-  props: {
-    color: {type: String as PropType<Color>, required: true},
-    free: {type: Boolean, default: false},
-    mode: {type: String as PropType<'icon' | 'hero'>, default: 'icon'},
-    state: {type: String as PropType<FleetShipState>, default: 'idle'},
-  },
-  data() {
-    // Unique per instance: many ships stand on one screen and `url(#…)`
-    // resolves document-wide — shared ids would all point at the first.
-    return {uid: `cfi${++fleetIconUid}`};
-  },
+defineOptions({name: 'ColonyFleetIcon'});
+defineProps({
+  color: {type: String as PropType<Color>, required: true},
+  free: {type: Boolean, default: false},
+  mode: {type: String as PropType<'icon' | 'hero'>, default: 'icon'},
+  state: {type: String as PropType<FleetShipState>, default: 'idle'},
 });
+
+// Unique per instance: many ships stand on one screen and `url(#…)`
+// resolves document-wide — shared ids would all point at the first.
+const uid = ref(`cfi${newFleetIconUid()}`);
 </script>
