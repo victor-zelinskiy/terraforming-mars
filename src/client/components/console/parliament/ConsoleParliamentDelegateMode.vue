@@ -1,11 +1,4 @@
 <template>
-  <!-- ══ THE DELEGATE MODE («ИЗГНАНИЕ», Turmoil Redux TR72 Banned Delegate:redux) — the Parliament picks ONE FIGURE off
-       the table. The objects are the figures where they stand: the three bills' ribbons (one stop per owner — the
-       owner's LATEST figure is the one that leaves) and the plaques' support places; the cursor walks them and nothing
-       moves (the bills stay on the table, the plaques on their benches — every target in view). THIS panel is the
-       reading of the figure under the cursor, standing over the CAREER's row (the one part of the chamber the pick is
-       not about). A commits the card's play; the answer plays on this very stage: the figure is taken off its place
-       and carried home — its owner's reserve or the common supply — one pose, no swap, then the surface leaves whole. ══ -->
   <div class="con-parl__delegate"
        :class="{
          'con-parl__delegate--committed': flow.delegateCommitted,
@@ -75,8 +68,20 @@
     </div>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, markRaw, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ══ THE DELEGATE MODE («ИЗГНАНИЕ», Turmoil Redux TR72 Banned Delegate:redux) — the Parliament picks ONE FIGURE off
+ *       the table. The objects are the figures where they stand: the three bills' ribbons (one stop per owner — the
+ *       owner's LATEST figure is the one that leaves) and the plaques' support places; the cursor walks them and nothing
+ *       moves (the bills stay on the table, the plaques on their benches — every target in view). THIS panel is the
+ *       reading of the figure under the cursor, standing over the CAREER's row (the one part of the chamber the pick is
+ *       not about). A commits the card's play; the answer plays on this very stage: the figure is taken off its place
+ *       and carried home — its owner's reserve or the common supply — one pose, no swap, then the surface leaves whole. ══
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, markRaw, nextTick, onBeforeUnmount, PropType, ref} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
@@ -91,7 +96,7 @@ import {AnimationHold, beginAnimationHold} from '@/client/components/presentatio
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {setWorkspaceFramePhase} from '@/client/console/consoleWorkspaceStack';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {StagedReceipt} from '@/client/console/stagedPlay';
 import {probeTick} from '@/client/console/probeTick';
@@ -124,388 +129,384 @@ const DELEGATE_READ_MS = 520;
  * (the figure carried home). The submit itself is the section's funnel (`send`). Nothing here computes a forecast:
  * every line is the server's row (`delegatePrompt.targets`).
  */
-export default defineComponent({
-  name: 'ConsoleParliamentDelegateMode',
-  components: {ConsoleVoteFactRow, GamepadGlyph, PlayerDelegate},
-  props: {
-    view: {type: Object as PropType<ParliamentViewVm>, required: true},
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    bridge: {type: Object as PropType<ParliamentPromptBridge>, required: true},
-    /** A STAGED card door's locked receipt (the play's price, as the composer settled it). */
-    cardReceipt: {type: Object as PropType<StagedReceipt | undefined>, default: undefined},
-    stagedFlow: {type: String as PropType<'play' | 'action'>, default: 'play'},
-  },
-  emits: ['notice', 'inspect', 'inspect-source', 'send', 'flow-complete'],
-  data() {
-    return {
-      latchedCard: undefined as CardName | undefined,
-      receiptKey: CARD_DOOR_RECEIPT,
-      flight: undefined as string | undefined,
-      outcomeHold: undefined as AnimationHold | undefined,
-      beat: undefined as ParliamentBeat | undefined,
-    };
-  },
-  computed: {
-    flow() {
-      return parliamentFlow;
-    },
-    meta(): DelegatePromptMeta | undefined {
-      return this.bridge.delegatePick?.meta ?? parliamentFlow.delegateMeta;
-    },
-    staged(): boolean {
-      return this.bridge.delegatePick?.staged === true;
-    },
-    /** The table as the cursor walks it — the bills as shown, the plaques in the order they stand. */
-    table(): DelegateTableVm {
-      const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
-      return {
-        slots: this.view.slots.map((slot) => ({party: slot.party, votes: slot.votes})),
-        areaOrder: supportCursorOrder(this.view.parties.map((p) => p.party), ruler),
-      };
-    },
-    ring(): Array<DelegateStop> {
-      return delegateRing(this.meta, this.table);
-    },
-    cursorStop(): DelegateStop | undefined {
-      return this.ring[parliamentFlow.delegateCursor] ?? this.ring[0];
-    },
-    reading(): DelegateReadingVm | undefined {
-      const snap = parliamentFlow.delegateSnapshot;
-      // Past the press the reading is the CHOSEN figure as the server projected it at the press.
-      // Past the press the reading is the CHOSEN figure, not a cursor: «Единственная цель» is a cursor's mark — never
-      // derived from the ring the ANSWER has already reshaped (an exchange that took one of two figures left a ring of one).
-      if (snap !== undefined) {
-        const chosen = delegateReadingOf({zone: snap.place === 'support' ? 'areas' : 'table', target: snap}, this.ring.length);
-        return chosen === undefined ? undefined : {...chosen, sole: false};
-      }
-      return delegateReadingOf(this.cursorStop, this.ring.length);
-    },
-    readingKey(): string {
-      const r = this.reading;
-      return r === undefined ? '' : delegateStopKey({target: {place: r.place, party: r.party, owner: r.owner} as DelegateStop['target']});
-    },
-    facts(): Array<VoteFactVm> {
-      const r = this.reading;
-      return r === undefined ? [] : delegateFactsOf(r, {
-        owner: (owner) => this.ownerName(owner),
-        resolution: (party) => this.view.slots.find((slot) => slot.party === party)?.resolution?.text.name,
-      });
-    },
-    kickerKey(): string {
-      return parliamentFlow.delegateCommitted ? 'Leaves the table' : 'Delegate';
-    },
-    placeLine(): string {
-      const r = this.reading;
-      if (r === undefined) {
-        return '';
-      }
-      if (r.place === 'support') {
-        return translateTextWithParams('From the Popular Support of «${0}»', [translateText(partyNameKey(r.party))]);
-      }
-      const name = this.view.slots.find((slot) => slot.party === r.party)?.resolution?.text.name;
-      return translateTextWithParams('From the resolution «${0}»', [translateText(name ?? partyNameKey(r.party))]);
-    },
-    destLine(): string {
-      const r = this.reading;
-      if (r === undefined) {
-        return '';
-      }
-      return r.returnsTo === 'reserve' && r.owner !== 'neutral' ?
-        translateTextWithParams('To the reserve of ${0}', [this.ownerName(r.owner)]) :
-        translateText('To the common supply');
-    },
-    /** AN EXCHANGE's arriving row: «Ваш делегат из резерва → на «R»». */
-    arriveLine(): string {
-      const r = this.reading;
-      if (r === undefined || r.arrives === undefined) {
-        return '';
-      }
-      const name = this.view.slots.find((slot) => slot.party === r.party)?.resolution?.text.name;
-      return translateTextWithParams('Your delegate from the reserve → onto «${0}»', [translateText(name ?? partyNameKey(r.party))]);
-    },
-    /** The pick EXCHANGES the figure (TR74) rather than removing it — the verbs follow the marker. */
-    exchange(): boolean {
-      return this.meta?.source === 'exchange';
-    },
-    figure(): number {
-      return delegateFigurePx(52);
-    },
-    factFigure(): number {
-      return delegateFigurePx(18);
-    },
-    receipt(): StagedReceipt | undefined {
-      return this.staged || parliamentFlow.delegateCommitted ? this.cardReceipt : undefined;
-    },
-    receiptIconClass(): string {
-      return iconClassFor(this.receipt?.icon);
-    },
-    ctaReady(): boolean {
-      return !parliamentFlow.delegateCommitted && this.reading !== undefined;
-    },
-    ctaText(): string {
-      if (parliamentFlow.delegateCommitted) {
-        return translateText(parliamentFlow.delegateBeat !== 'done' ? 'Performing…' : this.exchange ? 'Delegate recruited' : 'Delegate removed');
-      }
-      return translateText(this.staged ? stagedDoorVerb(this.stagedFlow) : this.exchange ? 'Recruit delegate' : 'Remove delegate');
-    },
-  },
-  beforeUnmount() {
-    this.stopOutcome();
-  },
-  methods: {
-    ownerName(owner: DelegateOwner): string {
-      if (owner === 'neutral') {
-        return translateText('Neutral');
-      }
-      return this.playerView.players.find((p) => p.color === owner)?.name ?? owner;
-    },
-    emblemOf(party: PartyName): string {
-      return partyEmblemUrl(party as ReduxParty);
-    },
-    /** X — the object the figure stands on: its bill, or its party's plaque. */
-    inspectRequest(): ParliamentInspectRequest | undefined {
-      const stop = this.cursorStop;
-      const root = parliamentRootEl();
-      if (stop === undefined) {
-        return undefined;
-      }
-      const party = stop.target.party as ReduxParty;
-      if (stop.zone === 'table') {
-        const slots = this.view.slots;
-        const index = slots.findIndex((slot) => slot.party === party);
-        if (index < 0) {
-          return undefined;
-        }
-        const instance = slots[index].instance;
-        return {
-          kind: 'resolution', ids: slots.map((s) => s.resolutionId), index,
-          origin: () => root?.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${instance}"] .pcard`) ?? null,
-        };
-      }
-      return {
-        kind: 'party', party,
-        origin: () => root?.querySelector<HTMLElement>(`[data-parl-support="${party}"]`)?.closest<HTMLElement>('.con-pseal') ?? null,
-      };
-    },
-    /** The mode's own verbs: the d-pad walks the figures, A commits, X inspects what the figure stands on, L3 the source card (B — the section's). */
-    handleIntent(intent: GamepadIntent): void {
-      if (parliamentFlow.delegateCommitted || parliamentFlow.stage !== 'delegate') {
-        return;
-      }
-      if (intent.kind === 'nav') {
-        const next = delegateCursorStep(this.ring, parliamentFlow.delegateCursor, intent.dir);
-        if (next >= 0) {
-          parliamentFlow.delegateCursor = next;
-        }
-        return;
-      }
-      if (intent.kind === 'press' && intent.button === 'stickL') {
-        const card = this.bridge.delegatePick?.card;
-        if (card !== undefined) {
-          this.$emit('inspect-source', card);
-        }
-        return;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'primary':
-        this.submit();
-        return;
-      case 'inspect': {
-        const request = this.inspectRequest();
-        if (request !== undefined) {
-          this.$emit('inspect', request);
-        }
-        return;
-      }
-      default:
-        return;
-      }
-    },
-    /** A — the pick's commit: the figure under the cursor, ADDRESSED to the card when the door is staged. Never auto. */
-    submit(): void {
-      const stop = this.cursorStop;
-      if (parliamentFlow.stage !== 'delegate' || parliamentFlow.delegateCommitted || stop === undefined) {
-        return;
-      }
-      const response = delegatePickResponse(this.bridge, stop.target);
-      if (response === undefined) {
-        this.$emit('notice', translateText('This option is no longer offered'));
-        return;
-      }
-      parliamentFlow.delegateMeta = this.meta;
-      this.latchedCard = this.bridge.delegatePick?.card;
-      parliamentFlow.delegateSnapshot = stop.target;
-      // FROM THE PRESS TO THE LEAVE nothing but text, the confirm's state and the flight may change (law 8).
-      freezeParliamentFit(true);
-      this.$emit('send', {response, from: 'delegate'});
-    },
-    /**
-     * THE ANSWER IS IN (the section's answer-key watcher, post-flush). Three honest outcomes:
-     *  · LANDED — the server's removal record arrived (the apply block owed its flight): the figure is carried home;
-     *  · RE-ASKED — the card's own pick stands LIVE again: this very mode BECOMES that door, in place;
-     *  · PARKED — the play is real but its answer waits behind another prompt: nothing flies, the step leaves whole.
-     */
-    answerAfterSubmit(): void {
-      const f = parliamentFlow;
-      const pick = this.bridge.delegatePick;
-      if (pick !== undefined && pick.staged !== true) {
-        f.stage = 'delegate';
-        f.delegateCommitted = false;
-        f.delegateLive = true;
-        f.delegateSnapshot = undefined;
-        freezeParliamentFit(false);
-        setWorkspaceFramePhase('parliament', 'committed');
-        return;
-      }
-      if (delegateRemovalFlow.owed !== undefined) {
-        this.playOutcome();
-        return;
-      }
-      const card = this.latchedCard;
-      // …the vote mode's rule: an ACTION's door commits when the action is recorded as used (its card never leaves the table).
-      const me = this.playerView.thisPlayer;
-      const committed = card === undefined || (this.stagedFlow === 'action' ? me.actionsThisGeneration.includes(card) : me.tableau.some((c) => c.name === card));
-      if (this.staged && !committed) {
-        // A key that moved for somebody else's reason while the staged commit is still on the wire: keep waiting.
-        return;
-      }
-      f.stage = 'delegate';
-      f.delegateCommitted = true;
-      f.delegateBeat = 'done';
-      this.$emit('flow-complete', 'delegate');
-    },
-    /** LANDED: the stage plays the answer in place — the figure carried home, a read, then the surface leaves whole. */
-    playOutcome(): void {
-      const f = parliamentFlow;
-      f.stage = 'delegate';
-      f.delegateCommitted = true;
-      f.delegateBeat = 'flight';
-      setWorkspaceFramePhase('parliament', 'executing');
-      this.outcomeHold?.release();
-      const hold = beginAnimationHold('parliament-delegate-removal', {
-        maxHoldMs: 4000,
-        // THE CEILING ENDS THE CARRY, not only its count: the figure (and the second one of an exchange) is dropped where
-        // the model has it, and the flow goes on by its own hand — the read, then the leave (`afterFlight`).
-        expire: () => {
-          if (this.outcomeHold !== hold || parliamentFlow.delegateBeat !== 'flight') {
-            return;
-          }
-          console.warn('[parliament] delegate removal: outlived its ceiling — ended');
-          if (this.flight !== undefined) {
-            dropFlight(this.flight, {silent: true});
-            this.flight = undefined;
-          }
-          settleDelegateRemoval();
-          this.afterFlight();
-        },
-      });
-      this.outcomeHold = markRaw(hold);
-      void this.$nextTick(() => probeTick(() => this.fly()));
-    },
-    fly(): void {
-      const owed = delegateRemovalFlow.owed;
-      const root = parliamentRootEl();
-      if (owed === undefined || root === undefined) {
-        settleDelegateRemoval();
-        this.afterFlight();
-        return;
-      }
-      const standing = owed.place === 'support' ? (this.view.parties.find((p) => p.party === owed.party)?.support ?? 0) + delegateRemovalSupportStanding(owed.party) : 0;
-      this.flight = flyRemovedDelegate(root, owed, standing, {
-        onLifted: () => liftRemovedDelegate(),
-        onLanded: () => {
-          landRemovedDelegate();
-          if (this.flight !== undefined) {
-            dropFlight(this.flight);
-            this.flight = undefined;
-          }
-          if (owed.exchange !== undefined) {
-            // AN EXCHANGE: the same phrase goes on at once — the player's own figure from the reserve onto the place.
-            this.flyArrival();
-            return;
-          }
-          settleDelegateRemoval();
-          this.afterFlight();
-        },
-        onDegraded: (why) => this.confess(why),
-      });
-    },
-    /** THE EXCHANGE'S SECOND MOVE (TR74): the player's figure off their reserve stack, set down where the neutral one stood. */
-    flyArrival(): void {
-      const owed = delegateRemovalFlow.owed;
-      const root = parliamentRootEl();
-      if (owed === undefined || root === undefined) {
-        settleDelegateRemoval();
-        this.afterFlight();
-        return;
-      }
-      this.flight = flyExchangedDelegate(root, owed, {
-        onLifted: () => liftExchangedDelegate(),
-        onLanded: () => {
-          landExchangedDelegate();
-          if (this.flight !== undefined) {
-            dropFlight(this.flight);
-            this.flight = undefined;
-          }
-          settleDelegateRemoval();
-          this.afterFlight();
-        },
-        onDegraded: (why) => this.confess(why),
-      });
-    },
-    /** A flight that could not be measured — CONFESSED on the section root, then the figure simply lands. */
-    confess(why: string): void {
-      delegateRemovalFlow.degraded = why;
-      console.warn(`[parliament] ${why} — settled without a flight`);
-    },
-    /** The figure is home: the table without it is READ, then the flow ends by its own hand. */
-    afterFlight(): void {
-      if (parliamentFlow.delegateBeat !== 'flight') {
-        return;
-      }
-      this.outcomeHold?.release();
-      this.outcomeHold = undefined;
-      parliamentFlow.delegateBeat = 'read';
-      this.beat?.kill();
-      this.beat = scheduleParliamentBeat(DELEGATE_READ_MS, () => {
-        this.beat = undefined;
-        this.finish();
-      });
-    },
-    finish(): void {
-      if (parliamentFlow.delegateBeat === 'done') {
-        return;
-      }
-      parliamentFlow.delegateBeat = 'done';
-      this.$emit('flow-complete', 'delegate');
-    },
-    /**
-     * THE QUESTION DOOR folds this FINISHED mode back to the overview (wait graph R1 — the conclusion held the frame for
-     * a question the overview opens): every beat cut, the fit thawed, the latch let go; the section then closes the stage.
-     * A mode still at work is never closed here.
-     */
-    closeFinished(): void {
-      if (parliamentFlow.delegateBeat !== 'done') {
-        return;
-      }
-      this.stopOutcome();
-      this.latchedCard = undefined;
-      freezeParliamentFit(false);
-    },
-    /** Cut every beat of this mode (the section unmounts): the flight lands in its final pose, the hold lets go. */
-    stopOutcome(): void {
-      this.beat?.kill();
-      this.beat = undefined;
-      if (this.flight !== undefined) {
-        // SILENT: its touchdown would start the exchange's second carry or the read on a mode that is going.
-        dropFlight(this.flight, {silent: true});
-        this.flight = undefined;
-      }
-      this.outcomeHold?.release();
-      this.outcomeHold = undefined;
-      settleDelegateRemoval();
-    },
-  },
+defineOptions({name: 'ConsoleParliamentDelegateMode'});
+const props = defineProps({
+  view: {type: Object as PropType<ParliamentViewVm>, required: true},
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  bridge: {type: Object as PropType<ParliamentPromptBridge>, required: true},
+  /** A STAGED card door's locked receipt (the play's price, as the composer settled it). */
+  cardReceipt: {type: Object as PropType<StagedReceipt | undefined>, default: undefined},
+  stagedFlow: {type: String as PropType<'play' | 'action'>, default: 'play'},
 });
+const emit = defineEmits(['notice', 'inspect', 'inspect-source', 'send', 'flow-complete']);
+
+const latchedCard = ref<CardName | undefined>(undefined);
+const receiptKey = CARD_DOOR_RECEIPT;
+const flight = ref<string | undefined>(undefined);
+let outcomeHold: AnimationHold | undefined;
+let beat: ParliamentBeat | undefined;
+
+const flow = parliamentFlow;
+const meta = computed((): DelegatePromptMeta | undefined => {
+  return props.bridge.delegatePick?.meta ?? parliamentFlow.delegateMeta;
+});
+const staged = computed((): boolean => {
+  return props.bridge.delegatePick?.staged === true;
+});
+/** The table as the cursor walks it — the bills as shown, the plaques in the order they stand. */
+const table = computed((): DelegateTableVm => {
+  const ruler = parliamentHolds.rulerBefore ?? props.view.rulingParty;
+  return {
+    slots: props.view.slots.map((slot) => ({party: slot.party, votes: slot.votes})),
+    areaOrder: supportCursorOrder(props.view.parties.map((p) => p.party), ruler),
+  };
+});
+const ring = computed((): Array<DelegateStop> => {
+  return delegateRing(meta.value, table.value);
+});
+const cursorStop = computed((): DelegateStop | undefined => {
+  return ring.value[parliamentFlow.delegateCursor] ?? ring.value[0];
+});
+const reading = computed((): DelegateReadingVm | undefined => {
+  const snap = parliamentFlow.delegateSnapshot;
+  // Past the press the reading is the CHOSEN figure as the server projected it at the press.
+  // Past the press the reading is the CHOSEN figure, not a cursor: «Единственная цель» is a cursor's mark — never
+  // derived from the ring the ANSWER has already reshaped (an exchange that took one of two figures left a ring of one).
+  if (snap !== undefined) {
+    const chosen = delegateReadingOf({zone: snap.place === 'support' ? 'areas' : 'table', target: snap}, ring.value.length);
+    return chosen === undefined ? undefined : {...chosen, sole: false};
+  }
+  return delegateReadingOf(cursorStop.value, ring.value.length);
+});
+const readingKey = computed((): string => {
+  const r = reading.value;
+  return r === undefined ? '' : delegateStopKey({target: {place: r.place, party: r.party, owner: r.owner} as DelegateStop['target']});
+});
+const facts = computed((): Array<VoteFactVm> => {
+  const r = reading.value;
+  return r === undefined ? [] : delegateFactsOf(r, {
+    owner: (owner) => ownerName(owner),
+    resolution: (party) => props.view.slots.find((slot) => slot.party === party)?.resolution?.text.name,
+  });
+});
+const kickerKey = computed((): string => {
+  return parliamentFlow.delegateCommitted ? 'Leaves the table' : 'Delegate';
+});
+const placeLine = computed((): string => {
+  const r = reading.value;
+  if (r === undefined) {
+    return '';
+  }
+  if (r.place === 'support') {
+    return translateTextWithParams('From the Popular Support of «${0}»', [translateText(partyNameKey(r.party))]);
+  }
+  const name = props.view.slots.find((slot) => slot.party === r.party)?.resolution?.text.name;
+  return translateTextWithParams('From the resolution «${0}»', [translateText(name ?? partyNameKey(r.party))]);
+});
+const destLine = computed((): string => {
+  const r = reading.value;
+  if (r === undefined) {
+    return '';
+  }
+  return r.returnsTo === 'reserve' && r.owner !== 'neutral' ?
+    translateTextWithParams('To the reserve of ${0}', [ownerName(r.owner)]) :
+    translateText('To the common supply');
+});
+/** AN EXCHANGE's arriving row: «Ваш делегат из резерва → на «R»». */
+const arriveLine = computed((): string => {
+  const r = reading.value;
+  if (r === undefined || r.arrives === undefined) {
+    return '';
+  }
+  const name = props.view.slots.find((slot) => slot.party === r.party)?.resolution?.text.name;
+  return translateTextWithParams('Your delegate from the reserve → onto «${0}»', [translateText(name ?? partyNameKey(r.party))]);
+});
+/** The pick EXCHANGES the figure (TR74) rather than removing it — the verbs follow the marker. */
+const exchange = computed((): boolean => {
+  return meta.value?.source === 'exchange';
+});
+const figure = computed((): number => {
+  return delegateFigurePx(52);
+});
+const factFigure = computed((): number => {
+  return delegateFigurePx(18);
+});
+const receipt = computed((): StagedReceipt | undefined => {
+  return staged.value || parliamentFlow.delegateCommitted ? props.cardReceipt : undefined;
+});
+const receiptIconClass = computed((): string => {
+  return iconClassFor(receipt.value?.icon);
+});
+const ctaReady = computed((): boolean => {
+  return !parliamentFlow.delegateCommitted && reading.value !== undefined;
+});
+const ctaText = computed((): string => {
+  if (parliamentFlow.delegateCommitted) {
+    return translateText(parliamentFlow.delegateBeat !== 'done' ? 'Performing…' : exchange.value ? 'Delegate recruited' : 'Delegate removed');
+  }
+  return translateText(staged.value ? stagedDoorVerb(props.stagedFlow) : exchange.value ? 'Recruit delegate' : 'Remove delegate');
+});
+
+function ownerName(owner: DelegateOwner): string {
+  if (owner === 'neutral') {
+    return translateText('Neutral');
+  }
+  return props.playerView.players.find((p) => p.color === owner)?.name ?? owner;
+}
+function emblemOf(party: PartyName): string {
+  return partyEmblemUrl(party as ReduxParty);
+}
+/** X — the object the figure stands on: its bill, or its party's plaque. */
+function inspectRequest(): ParliamentInspectRequest | undefined {
+  const stop = cursorStop.value;
+  const root = parliamentRootEl();
+  if (stop === undefined) {
+    return undefined;
+  }
+  const party = stop.target.party as ReduxParty;
+  if (stop.zone === 'table') {
+    const slots = props.view.slots;
+    const index = slots.findIndex((slot) => slot.party === party);
+    if (index < 0) {
+      return undefined;
+    }
+    const instance = slots[index].instance;
+    return {
+      kind: 'resolution', ids: slots.map((s) => s.resolutionId), index,
+      origin: () => root?.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${instance}"] .pcard`) ?? null,
+    };
+  }
+  return {
+    kind: 'party', party,
+    origin: () => root?.querySelector<HTMLElement>(`[data-parl-support="${party}"]`)?.closest<HTMLElement>('.con-pseal') ?? null,
+  };
+}
+/** The mode's own verbs: the d-pad walks the figures, A commits, X inspects what the figure stands on, L3 the source card (B — the section's). */
+function handleIntent(intent: GamepadIntent): void {
+  if (parliamentFlow.delegateCommitted || parliamentFlow.stage !== 'delegate') {
+    return;
+  }
+  if (intent.kind === 'nav') {
+    const next = delegateCursorStep(ring.value, parliamentFlow.delegateCursor, intent.dir);
+    if (next >= 0) {
+      parliamentFlow.delegateCursor = next;
+    }
+    return;
+  }
+  if (intent.kind === 'press' && intent.button === 'stickL') {
+    const card = props.bridge.delegatePick?.card;
+    if (card !== undefined) {
+      emit('inspect-source', card);
+    }
+    return;
+  }
+  switch (consoleActionOf(intent)) {
+  case 'primary':
+    submit();
+    return;
+  case 'inspect': {
+    const request = inspectRequest();
+    if (request !== undefined) {
+      emit('inspect', request);
+    }
+    return;
+  }
+  default:
+    return;
+  }
+}
+/** A — the pick's commit: the figure under the cursor, ADDRESSED to the card when the door is staged. Never auto. */
+function submit(): void {
+  const stop = cursorStop.value;
+  if (parliamentFlow.stage !== 'delegate' || parliamentFlow.delegateCommitted || stop === undefined) {
+    return;
+  }
+  const response = delegatePickResponse(props.bridge, stop.target);
+  if (response === undefined) {
+    emit('notice', translateText('This option is no longer offered'));
+    return;
+  }
+  parliamentFlow.delegateMeta = meta.value;
+  latchedCard.value = props.bridge.delegatePick?.card;
+  parliamentFlow.delegateSnapshot = stop.target;
+  // FROM THE PRESS TO THE LEAVE nothing but text, the confirm's state and the flight may change (law 8).
+  freezeParliamentFit(true);
+  emit('send', {response, from: 'delegate'});
+}
+/**
+ * THE ANSWER IS IN (the section's answer-key watcher, post-flush). Three honest outcomes:
+ *  · LANDED — the server's removal record arrived (the apply block owed its flight): the figure is carried home;
+ *  · RE-ASKED — the card's own pick stands LIVE again: this very mode BECOMES that door, in place;
+ *  · PARKED — the play is real but its answer waits behind another prompt: nothing flies, the step leaves whole.
+ */
+function answerAfterSubmit(): void {
+  const f = parliamentFlow;
+  const pick = props.bridge.delegatePick;
+  if (pick !== undefined && pick.staged !== true) {
+    f.stage = 'delegate';
+    f.delegateCommitted = false;
+    f.delegateLive = true;
+    f.delegateSnapshot = undefined;
+    freezeParliamentFit(false);
+    setWorkspaceFramePhase('parliament', 'committed');
+    return;
+  }
+  if (delegateRemovalFlow.owed !== undefined) {
+    playOutcome();
+    return;
+  }
+  const card = latchedCard.value;
+  // …the vote mode's rule: an ACTION's door commits when the action is recorded as used (its card never leaves the table).
+  const me = props.playerView.thisPlayer;
+  const committed = card === undefined || (props.stagedFlow === 'action' ? me.actionsThisGeneration.includes(card) : me.tableau.some((c) => c.name === card));
+  if (staged.value && !committed) {
+    // A key that moved for somebody else's reason while the staged commit is still on the wire: keep waiting.
+    return;
+  }
+  f.stage = 'delegate';
+  f.delegateCommitted = true;
+  f.delegateBeat = 'done';
+  emit('flow-complete', 'delegate');
+}
+/** LANDED: the stage plays the answer in place — the figure carried home, a read, then the surface leaves whole. */
+function playOutcome(): void {
+  const f = parliamentFlow;
+  f.stage = 'delegate';
+  f.delegateCommitted = true;
+  f.delegateBeat = 'flight';
+  setWorkspaceFramePhase('parliament', 'executing');
+  outcomeHold?.release();
+  const hold = beginAnimationHold('parliament-delegate-removal', {
+    maxHoldMs: 4000,
+    // THE CEILING ENDS THE CARRY, not only its count: the figure (and the second one of an exchange) is dropped where
+    // the model has it, and the flow goes on by its own hand — the read, then the leave (`afterFlight`).
+    expire: () => {
+      if (outcomeHold !== hold || parliamentFlow.delegateBeat !== 'flight') {
+        return;
+      }
+      console.warn('[parliament] delegate removal: outlived its ceiling — ended');
+      if (flight.value !== undefined) {
+        dropFlight(flight.value, {silent: true});
+        flight.value = undefined;
+      }
+      settleDelegateRemoval();
+      afterFlight();
+    },
+  });
+  outcomeHold = markRaw(hold);
+  void nextTick(() => probeTick(() => fly()));
+}
+function fly(): void {
+  const owed = delegateRemovalFlow.owed;
+  const root = parliamentRootEl();
+  if (owed === undefined || root === undefined) {
+    settleDelegateRemoval();
+    afterFlight();
+    return;
+  }
+  const standing = owed.place === 'support' ? (props.view.parties.find((p) => p.party === owed.party)?.support ?? 0) + delegateRemovalSupportStanding(owed.party) : 0;
+  flight.value = flyRemovedDelegate(root, owed, standing, {
+    onLifted: () => liftRemovedDelegate(),
+    onLanded: () => {
+      landRemovedDelegate();
+      if (flight.value !== undefined) {
+        dropFlight(flight.value);
+        flight.value = undefined;
+      }
+      if (owed.exchange !== undefined) {
+        // AN EXCHANGE: the same phrase goes on at once — the player's own figure from the reserve onto the place.
+        flyArrival();
+        return;
+      }
+      settleDelegateRemoval();
+      afterFlight();
+    },
+    onDegraded: (why) => confess(why),
+  });
+}
+/** THE EXCHANGE'S SECOND MOVE (TR74): the player's figure off their reserve stack, set down where the neutral one stood. */
+function flyArrival(): void {
+  const owed = delegateRemovalFlow.owed;
+  const root = parliamentRootEl();
+  if (owed === undefined || root === undefined) {
+    settleDelegateRemoval();
+    afterFlight();
+    return;
+  }
+  flight.value = flyExchangedDelegate(root, owed, {
+    onLifted: () => liftExchangedDelegate(),
+    onLanded: () => {
+      landExchangedDelegate();
+      if (flight.value !== undefined) {
+        dropFlight(flight.value);
+        flight.value = undefined;
+      }
+      settleDelegateRemoval();
+      afterFlight();
+    },
+    onDegraded: (why) => confess(why),
+  });
+}
+/** A flight that could not be measured — CONFESSED on the section root, then the figure simply lands. */
+function confess(why: string): void {
+  delegateRemovalFlow.degraded = why;
+  console.warn(`[parliament] ${why} — settled without a flight`);
+}
+/** The figure is home: the table without it is READ, then the flow ends by its own hand. */
+function afterFlight(): void {
+  if (parliamentFlow.delegateBeat !== 'flight') {
+    return;
+  }
+  outcomeHold?.release();
+  outcomeHold = undefined;
+  parliamentFlow.delegateBeat = 'read';
+  beat?.kill();
+  beat = scheduleParliamentBeat(DELEGATE_READ_MS, () => {
+    beat = undefined;
+    finish();
+  });
+}
+function finish(): void {
+  if (parliamentFlow.delegateBeat === 'done') {
+    return;
+  }
+  parliamentFlow.delegateBeat = 'done';
+  emit('flow-complete', 'delegate');
+}
+/**
+ * THE QUESTION DOOR folds this FINISHED mode back to the overview (wait graph R1 — the conclusion held the frame for
+ * a question the overview opens): every beat cut, the fit thawed, the latch let go; the section then closes the stage.
+ * A mode still at work is never closed here.
+ */
+function closeFinished(): void {
+  if (parliamentFlow.delegateBeat !== 'done') {
+    return;
+  }
+  stopOutcome();
+  latchedCard.value = undefined;
+  freezeParliamentFit(false);
+}
+/** Cut every beat of this mode (the section unmounts): the flight lands in its final pose, the hold lets go. */
+function stopOutcome(): void {
+  beat?.kill();
+  beat = undefined;
+  if (flight.value !== undefined) {
+    // SILENT: its touchdown would start the exchange's second carry or the read on a mode that is going.
+    dropFlight(flight.value, {silent: true});
+    flight.value = undefined;
+  }
+  outcomeHold?.release();
+  outcomeHold = undefined;
+  settleDelegateRemoval();
+}
+
+onBeforeUnmount(() => {
+  stopOutcome();
+});
+// What `ConsoleParliamentSection` reaches through its `ref="delegateMode"`: `answerAfterSubmit()` and `handleIntent()` by
+// name, and `closeFinished()` through the keyed read of its `foldFinishedStage` (`consoleParliamentSectionLogic.ts` —
+// `self.refs[ref]`, 'delegateMode' one of its three keys; the optional call would read `undefined` and fold a finished
+// mode without thawing the fit).
+defineExpose({answerAfterSubmit, handleIntent, closeFinished});
 </script>
