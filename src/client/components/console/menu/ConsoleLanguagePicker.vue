@@ -25,7 +25,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * Console-native LANGUAGE picker — the unobtrusive replacement for the
  * desktop footer's flag-chip row. Opened by a hotkey (Y on the main menu),
@@ -33,7 +33,8 @@
  * (PreferencesManager + reload, byte-identical to PremiumLanguageSwitcher),
  * B closes. Host routes pad intents via `handleIntent`.
  */
-import {defineComponent} from 'vue';
+import {computed, ref} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {LANGUAGES, LANGUAGE} from '@/common/constants';
 import {getPreferences, PreferencesManager} from '@/client/utils/PreferencesManager';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -49,48 +50,43 @@ const SHOWN: ReadonlyArray<{id: LANGUAGE, code: string}> = [
   {id: 'ua', code: 'UA'},
 ];
 
-export default defineComponent({
-  name: 'ConsoleLanguagePicker',
-  components: {GamepadGlyph},
-  emits: ['close'],
-  data() {
-    const currentLang = getPreferences().lang as LANGUAGE;
-    const cursor = Math.max(0, SHOWN.findIndex((o) => o.id === currentLang));
-    return {currentLang, cursor};
-  },
-  computed: {
-    options(): ReadonlyArray<LangOption> {
-      return SHOWN.map((o) => ({...o, native: LANGUAGES[o.id][0]}));
-    },
-  },
-  methods: {
-    /** Host-routed pad intents. Returns true when consumed. */
-    handleIntent(intent: GamepadIntent): boolean {
-      if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
-        const next = this.cursor + (intent.dir === 'down' ? 1 : -1);
-        this.cursor = Math.min(this.options.length - 1, Math.max(0, next));
-        return true;
-      }
-      if (intent.kind === 'press' && intent.button === 'confirm') {
-        this.pick(this.cursor);
-        return true;
-      }
-      if (intent.kind === 'press' && intent.button === 'back') {
-        this.$emit('close');
-        return true;
-      }
-      return true;
-    },
-    pick(i: number): void {
-      this.cursor = i;
-      const opt = this.options[i];
-      if (opt === undefined || opt.id === this.currentLang) {
-        this.$emit('close');
-        return;
-      }
-      PreferencesManager.INSTANCE.set('lang', opt.id);
-      window.location.reload();
-    },
-  },
+defineOptions({name: 'ConsoleLanguagePicker'});
+const emit = defineEmits(['close']);
+
+const currentLang = ref(getPreferences().lang as LANGUAGE);
+const cursor = ref(Math.max(0, SHOWN.findIndex((o) => o.id === currentLang.value)));
+const options = computed((): ReadonlyArray<LangOption> => {
+  return SHOWN.map((o) => ({...o, native: LANGUAGES[o.id][0]}));
 });
+/** Host-routed pad intents. Returns true when consumed. */
+function handleIntent(intent: GamepadIntent): boolean {
+  if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
+    const next = cursor.value + (intent.dir === 'down' ? 1 : -1);
+    cursor.value = Math.min(options.value.length - 1, Math.max(0, next));
+    return true;
+  }
+  if (intent.kind === 'press' && intent.button === 'confirm') {
+    pick(cursor.value);
+    return true;
+  }
+  if (intent.kind === 'press' && intent.button === 'back') {
+    emit('close');
+    return true;
+  }
+  return true;
+}
+function pick(i: number): void {
+  cursor.value = i;
+  const opt = options.value[i];
+  if (opt === undefined || opt.id === currentLang.value) {
+    emit('close');
+    return;
+  }
+  PreferencesManager.INSTANCE.set('lang', opt.id);
+  window.location.reload();
+}
+
+// What `ConsoleMainMenu` reaches through its `ref="language"`: `handleIntent` — and nothing else (it routes the pad's
+// intents here while the picker is the open overlay).
+defineExpose({handleIntent});
 </script>
