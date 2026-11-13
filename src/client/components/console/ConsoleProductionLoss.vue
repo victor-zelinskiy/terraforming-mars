@@ -1,6 +1,4 @@
 <template>
-  <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
-       director — no own backdrop. -->
   <div class="con-prodloss con-ws" role="dialog" :aria-label="titleText" data-motion-surface="production-loss">
     <!-- The prompt-modal family's plate (`console_prompt.less`): a LOSS — the hazard-tape crest, the warning emblem,
          «▼ УБЫТОК», the «ВЫ ПОТЕРЯЕТЕ» footer and «Принять убыток» on the bar. -->
@@ -68,7 +66,13 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+ * director — no own backdrop.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * ConsoleProductionLoss — the console-native premium surface for "reduce your
  * production" (`SelectProductionToLose`). It replaces the generic
@@ -89,14 +93,14 @@
  * For a cost-1 loss the whole thing is single-pick: A on another row simply
  * MOVES the single −1 there.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, onBeforeUnmount, PropType, ref, useTemplateRef, watch} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectProductionToLoseModel} from '@/common/models/PlayerInputModel';
 import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
 import {Message} from '@/common/logs/Message';
-import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
@@ -111,6 +115,11 @@ import ConsolePromptOutcome, {PromptOutcomeItem} from '@/client/components/conso
 import {PromptTone, promptCommitLabelKey, promptToneOf} from '@/client/console/promptTone';
 import {promptSequenceKey} from '@/client/console/promptSequence';
 import {promptIdentityKey} from '@/client/console/turnIntents';
+// `console-source-dock` is the LAZY binding of `asyncComponents` — deliberately not a
+// static import of the `.vue`: the dock renders the real card face, and that import chain
+// zeroes this file's unit spec (the known baseline class, same reason
+// `action-target-card` is lazy).
+import {ConsoleSourceDock} from '@/client/components/asyncComponents';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -119,277 +128,260 @@ function textOf(v: string | Message | undefined): string {
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
 }
 
-export default defineComponent({
-  name: 'ConsoleProductionLoss',
-  // `console-source-dock` is registered GLOBALLY (main.ts) — deliberately not a
-  // local import: the dock renders the real card face, and that import chain
-  // zeroes this file's mochapack spec (the known baseline class, same reason
-  // `action-target-card` is global).
-  components: {GamepadGlyph, ConsolePromptHead, ConsolePromptOutcome},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-  },
-  emits: ['submit', 'defer'],
-  data() {
-    return {
-      focusIdx: 0,
-      /** The chosen loss per resource (fills up to `cost`). */
-      units: {} as Partial<Record<keyof Units, number>>,
-      /** Blocks a duplicate submit between the emit and the next response. */
-      submitting: false,
-    };
-  },
-  computed: {
-    model(): SelectProductionToLoseModel | undefined {
-      const wf = this.playerView.waitingFor;
-      return wf?.type === 'productionToLose' ? (wf as SelectProductionToLoseModel) : undefined;
-    },
-    cost(): number {
-      return this.model?.payProduction.cost ?? 0;
-    },
-    rows(): Array<ProductionLossRow> {
-      const model = this.model;
-      return model !== undefined ? buildProductionLossRows(model.payProduction.units, this.cost) : [];
-    },
-    /** WHY the reduction is forced — normalized by the shared model, so a card
-     *  attack and an Ares hazard are described in ONE vocabulary. */
-    sourceView(): PromptSourceView | undefined {
-      return promptSourceView(this.model);
-    },
-    /** The card behind the loss, when it IS a card — what L3 opens. */
-    sourceCard(): CardName | undefined {
-      return this.sourceView?.inspectable === true ? this.sourceView.card : undefined;
-    },
-    /** Diegetic + translated title (bypasses the server's baked
-     *  "Choose N unit(s)…" string), mirroring the desktop premium surface. */
-    titleText(): string {
-      return this.cost === 1 ?
-        translateText('Reduce a production') :
-        translateTextWithParams('Reduce production by ${0}', [String(this.cost)]);
-    },
-    sum(): number {
-      return this.rows.reduce((acc, row) => acc + this.lossFor(row.unit), 0);
-    },
-    ready(): boolean {
-      return this.sum === this.cost && this.cost > 0;
-    },
-    /** The decision's character (`promptTone.ts`) — a production loss is always a LOSS. */
-    tone(): PromptTone {
-      return promptToneOf(this.model).tone;
-    },
-    /** The decision's identity in the press's sequence (`promptSequence.ts`). */
-    sequenceKey(): string {
-      return this.model === undefined ? '' : promptSequenceKey(this.model, promptIdentityKey(this.model));
-    },
-    /** The consequence footer: every production the player has marked, `current → resulting`. */
-    outcomeItems(): Array<PromptOutcomeItem> {
-      return this.rows
-        .filter((row) => this.lossFor(row.unit) > 0)
-        .map((row) => ({
-          key: row.unit,
-          iconClass: this.iconClass(row.unit),
-          prod: true,
-          delta: -this.lossFor(row.unit),
-          from: this.fmt(row.current),
-          to: this.fmt(this.resultingFor(row)),
-        }));
-    },
-    /** Prompt identity — a change is a genuinely new server ask (reset). */
-    promptKey(): string {
-      return `${textOf(this.model?.title)}|${this.cost}`;
-    },
-    /** The live command contract — published to the shell's ONE bottom
-     *  command bar through consolePanelUi (the footCommands watch below). */
-    footCommands(): Array<ConsoleCommand> {
-      // The COMMIT speaks the decision's character: a loss is ACCEPTED, in the
-      // bar's danger ink — never the same «Подтвердить» that takes a reward.
-      const cmds: Array<ConsoleCommand> = [
-        {control: 'dpad', label: 'Navigate'},
-        {control: 'confirm', label: '−1'},
-        {control: 'bumperL', label: 'Take back'},
-        {control: 'secondary', label: promptCommitLabelKey(this.tone, 'Confirm'), enabled: this.ready,
-          tone: this.tone === 'loss' ? 'danger' : undefined},
-      ];
-      // L3 = the SOURCE, the console-wide grammar («X = the current object,
-      // L3 = the source that produced it»). The subject here is the production
-      // rows; the card only caused them. Discoverable nowhere else, so it
-      // outlives the self-evident hints when the bar drops for fit.
-      if (this.sourceCard !== undefined) {
-        cmds.push({control: 'stickL', label: 'Source', priority: 1});
-      }
-      cmds.push({control: 'back', label: 'Minimize'});
-      return cmds;
-    },
-  },
-  watch: {
-    promptKey: {
-      immediate: true,
-      handler() {
-        this.resetSelection();
-      },
-    },
-    /** Every server response re-arms submission (root identity always changes). */
-    playerView() {
-      this.submitting = false;
-    },
-    /** Publish the CONTEXTUAL command contract to the shell's ONE bottom
-     *  command bar (consolePanelUi) — hints live only there, never in a
-     *  panel-local footer (CONSOLE_TV_PREMIUM_PLAN §3.2). */
-    footCommands: {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>) {
-        setPanelCommands('productionLoss', cmds);
-      },
-    },
-  },
-  beforeUnmount() {
-    clearPanelCommands('productionLoss');
-  },
-  methods: {
-    lossFor(unit: keyof Units): number {
-      return this.units[unit] ?? 0;
-    },
-    resultingFor(row: ProductionLossRow): number {
-      return row.current - this.lossFor(row.unit);
-    },
-    /** Signed production readout (+3 / +0 / −2) — these are income rates (a true minus, as every signed figure in the family). */
-    fmt(n: number): string {
-      return n >= 0 ? `+${n}` : `−${Math.abs(n)}`;
-    },
-    iconClass(unit: keyof Units): string {
-      return 'resource_icon resource_icon--' + unit;
-    },
-    /** The resource's ONE display name — the same key the gain lanes speak (`LANE_LABELS`). */
-    resourceName(unit: keyof Units): string {
-      return translateText(LANE_LABELS[unit] ?? unit);
-    },
-    /** The honest blocker note (never hidden): at-minimum, or a partial cap. */
-    noteFor(row: ProductionLossRow): string {
-      if (row.disabled) {
-        return translateText('Production already at minimum');
-      }
-      if (row.limitedTo !== undefined) {
-        return translateTextWithParams('Can only reduce by ${0}', [String(row.limitedTo)]);
-      }
-      return '';
-    },
-    resetSelection(): void {
-      this.units = {};
-      this.focusIdx = firstSelectableIndex(this.rows);
-      this.submitting = false;
-      // A lone forced option (one reducible production, lose 1) reads as a
-      // confirmation — pre-select it so the player just presses X.
-      if (this.cost === 1) {
-        const selectable = this.rows.filter((r) => !r.disabled);
-        if (selectable.length === 1) {
-          this.units = {[selectable[0].unit]: 1};
-        }
-      }
-    },
-    /** The shell routes every intent here while the panel is active. */
-    handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        this.onNav(intent.dir);
-        return;
-      }
-      // L3 — the source card fullscreen. Raw button (the stick presses carry no
-      // default semantic action by design); the panel is never unmounted, so
-      // the chosen distribution survives the round trip.
-      if (intent.kind === 'press' && intent.button === 'stickL' && this.sourceCard !== undefined) {
-        this.zoomSource();
-        return;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'primary': // A
-      case 'nextSection': // RB — both assign a −1 (user-mandated)
-        this.assignLoss();
-        return;
-      case 'prevSection': // LB — take a −1 back
-        this.removeLoss();
-        return;
-      case 'inspect': // X — confirm
-        this.confirm();
-        return;
-      case 'back': // B — minimize
-        this.$emit('defer');
-        return;
-      default:
-        return;
-      }
-    },
-    onNav(dir: NavDirection): void {
-      const n = this.rows.length;
-      if (n === 0) {
-        return;
-      }
-      const step = dir === 'down' ? 1 : dir === 'up' ? -1 : 0;
-      if (step === 0) {
-        return;
-      }
-      this.focusIdx = Math.min(n - 1, Math.max(0, this.focusIdx + step));
-    },
-    /** A / RB: assign a −1 to the focused production. */
-    assignLoss(): void {
-      const row = this.rows[this.focusIdx];
-      if (row === undefined || row.disabled) {
-        return; // a maxed row is readable, never selectable
-      }
-      // Cost 1 is single-pick: MOVE the lone −1 onto the focused row.
-      if (this.cost === 1) {
-        this.units = {[row.unit]: 1};
-        return;
-      }
-      // Cost 2: accumulate, capped by the row's own max AND the remaining loss.
-      if (this.sum >= this.cost || this.lossFor(row.unit) >= row.max) {
-        return;
-      }
-      this.units = {...this.units, [row.unit]: this.lossFor(row.unit) + 1};
-    },
-    /** LB: take a −1 back from the focused production. */
-    removeLoss(): void {
-      const row = this.rows[this.focusIdx];
-      if (row === undefined) {
-        return;
-      }
-      const current = this.lossFor(row.unit);
-      if (current <= 0) {
-        return;
-      }
-      const next = {...this.units};
-      if (current - 1 <= 0) {
-        delete next[row.unit];
-      } else {
-        next[row.unit] = current - 1;
-      }
-      this.units = next;
-    },
-    /** L3: the source card fullscreen, read-only (no select / action bridge,
-     *  so it can never submit). It lifts physically out of the dock. */
-    zoomSource(): void {
-      const name = this.sourceCard;
-      if (name === undefined) {
-        return;
-      }
-      openConsoleCardZoom([{name}], 0, undefined, undefined, {
-        statusLabel: 'Source',
-        origin: {
-          kind: 'physical',
-          resolve: () => {
-            const dock = (this.$refs.sourceDock ?? undefined) as {$el?: HTMLElement} | undefined;
-            return dock?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
-          },
-        },
-      });
-    },
-    /** X: confirm the distribution (byte-identical to the desktop submit). */
-    confirm(): void {
-      if (!this.ready || this.submitting) {
-        return;
-      }
-      this.submitting = true;
-      this.$emit('submit', productionToLoseResponse(this.units));
-    },
-  },
+defineOptions({name: 'ConsoleProductionLoss'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
 });
+const emit = defineEmits(['submit', 'defer']);
+
+const sourceDock = useTemplateRef<{$el?: HTMLElement}>('sourceDock');
+const focusIdx = ref(0);
+/** The chosen loss per resource (fills up to `cost`). */
+const units = ref<Partial<Record<keyof Units, number>>>({});
+/** Blocks a duplicate submit between the emit and the next response. */
+const submitting = ref(false);
+const model = computed((): SelectProductionToLoseModel | undefined => {
+  const wf = props.playerView.waitingFor;
+  return wf?.type === 'productionToLose' ? (wf as SelectProductionToLoseModel) : undefined;
+});
+const cost = computed((): number => {
+  return model.value?.payProduction.cost ?? 0;
+});
+const rows = computed((): Array<ProductionLossRow> => {
+  const modelNow = model.value;
+  return modelNow !== undefined ? buildProductionLossRows(modelNow.payProduction.units, cost.value) : [];
+});
+/** WHY the reduction is forced — normalized by the shared model, so a card
+ *  attack and an Ares hazard are described in ONE vocabulary. */
+const sourceView = computed((): PromptSourceView | undefined => {
+  return promptSourceView(model.value);
+});
+/** The card behind the loss, when it IS a card — what L3 opens. */
+const sourceCard = computed((): CardName | undefined => {
+  return sourceView.value?.inspectable === true ? sourceView.value.card : undefined;
+});
+/** Diegetic + translated title (bypasses the server's baked
+ *  "Choose N unit(s)…" string), mirroring the desktop premium surface. */
+const titleText = computed((): string => {
+  return cost.value === 1 ?
+    translateText('Reduce a production') :
+    translateTextWithParams('Reduce production by ${0}', [String(cost.value)]);
+});
+const sum = computed((): number => {
+  return rows.value.reduce((acc, row) => acc + lossFor(row.unit), 0);
+});
+const ready = computed((): boolean => {
+  return sum.value === cost.value && cost.value > 0;
+});
+/** The decision's character (`promptTone.ts`) — a production loss is always a LOSS. */
+const tone = computed((): PromptTone => {
+  return promptToneOf(model.value).tone;
+});
+/** The decision's identity in the press's sequence (`promptSequence.ts`). */
+const sequenceKey = computed((): string => {
+  return model.value === undefined ? '' : promptSequenceKey(model.value, promptIdentityKey(model.value));
+});
+/** The consequence footer: every production the player has marked, `current → resulting`. */
+const outcomeItems = computed((): Array<PromptOutcomeItem> => {
+  return rows.value
+    .filter((row) => lossFor(row.unit) > 0)
+    .map((row) => ({
+      key: row.unit,
+      iconClass: iconClass(row.unit),
+      prod: true,
+      delta: -lossFor(row.unit),
+      from: fmt(row.current),
+      to: fmt(resultingFor(row)),
+    }));
+});
+/** Prompt identity — a change is a genuinely new server ask (reset). */
+const promptKey = computed((): string => {
+  return `${textOf(model.value?.title)}|${cost.value}`;
+});
+/** The live command contract — published to the shell's ONE bottom
+ *  command bar through consolePanelUi (the footCommands watch below). */
+const footCommands = computed((): Array<ConsoleCommand> => {
+  // The COMMIT speaks the decision's character: a loss is ACCEPTED, in the
+  // bar's danger ink — never the same «Подтвердить» that takes a reward.
+  const cmds: Array<ConsoleCommand> = [
+    {control: 'dpad', label: 'Navigate'},
+    {control: 'confirm', label: '−1'},
+    {control: 'bumperL', label: 'Take back'},
+    {control: 'secondary', label: promptCommitLabelKey(tone.value, 'Confirm'), enabled: ready.value,
+      tone: tone.value === 'loss' ? 'danger' : undefined},
+  ];
+  // L3 = the SOURCE, the console-wide grammar («X = the current object,
+  // L3 = the source that produced it»). The subject here is the production
+  // rows; the card only caused them. Discoverable nowhere else, so it
+  // outlives the self-evident hints when the bar drops for fit.
+  if (sourceCard.value !== undefined) {
+    cmds.push({control: 'stickL', label: 'Source', priority: 1});
+  }
+  cmds.push({control: 'back', label: 'Minimize'});
+  return cmds;
+});
+function lossFor(unit: keyof Units): number {
+  return units.value[unit] ?? 0;
+}
+function resultingFor(row: ProductionLossRow): number {
+  return row.current - lossFor(row.unit);
+}
+/** Signed production readout (+3 / +0 / −2) — these are income rates (a true minus, as every signed figure in the family). */
+function fmt(n: number): string {
+  return n >= 0 ? `+${n}` : `−${Math.abs(n)}`;
+}
+function iconClass(unit: keyof Units): string {
+  return 'resource_icon resource_icon--' + unit;
+}
+/** The resource's ONE display name — the same key the gain lanes speak (`LANE_LABELS`). */
+function resourceName(unit: keyof Units): string {
+  return translateText(LANE_LABELS[unit] ?? unit);
+}
+/** The honest blocker note (never hidden): at-minimum, or a partial cap. */
+function noteFor(row: ProductionLossRow): string {
+  if (row.disabled) {
+    return translateText('Production already at minimum');
+  }
+  if (row.limitedTo !== undefined) {
+    return translateTextWithParams('Can only reduce by ${0}', [String(row.limitedTo)]);
+  }
+  return '';
+}
+function resetSelection(): void {
+  units.value = {};
+  focusIdx.value = firstSelectableIndex(rows.value);
+  submitting.value = false;
+  // A lone forced option (one reducible production, lose 1) reads as a
+  // confirmation — pre-select it so the player just presses X.
+  if (cost.value === 1) {
+    const selectable = rows.value.filter((r) => !r.disabled);
+    if (selectable.length === 1) {
+      units.value = {[selectable[0].unit]: 1};
+    }
+  }
+}
+/** The shell routes every intent here while the panel is active. */
+function handleIntent(intent: GamepadIntent): void {
+  if (intent.kind === 'nav') {
+    onNav(intent.dir);
+    return;
+  }
+  // L3 — the source card fullscreen. Raw button (the stick presses carry no
+  // default semantic action by design); the panel is never unmounted, so
+  // the chosen distribution survives the round trip.
+  if (intent.kind === 'press' && intent.button === 'stickL' && sourceCard.value !== undefined) {
+    zoomSource();
+    return;
+  }
+  switch (consoleActionOf(intent)) {
+  case 'primary': // A
+  case 'nextSection': // RB — both assign a −1 (user-mandated)
+    assignLoss();
+    return;
+  case 'prevSection': // LB — take a −1 back
+    removeLoss();
+    return;
+  case 'inspect': // X — confirm
+    confirm();
+    return;
+  case 'back': // B — minimize
+    emit('defer');
+    return;
+  default:
+    return;
+  }
+}
+function onNav(dir: NavDirection): void {
+  const n = rows.value.length;
+  if (n === 0) {
+    return;
+  }
+  const step = dir === 'down' ? 1 : dir === 'up' ? -1 : 0;
+  if (step === 0) {
+    return;
+  }
+  focusIdx.value = Math.min(n - 1, Math.max(0, focusIdx.value + step));
+}
+/** A / RB: assign a −1 to the focused production. */
+function assignLoss(): void {
+  const row = rows.value[focusIdx.value];
+  if (row === undefined || row.disabled) {
+    return; // a maxed row is readable, never selectable
+  }
+  // Cost 1 is single-pick: MOVE the lone −1 onto the focused row.
+  if (cost.value === 1) {
+    units.value = {[row.unit]: 1};
+    return;
+  }
+  // Cost 2: accumulate, capped by the row's own max AND the remaining loss.
+  if (sum.value >= cost.value || lossFor(row.unit) >= row.max) {
+    return;
+  }
+  units.value = {...units.value, [row.unit]: lossFor(row.unit) + 1};
+}
+/** LB: take a −1 back from the focused production. */
+function removeLoss(): void {
+  const row = rows.value[focusIdx.value];
+  if (row === undefined) {
+    return;
+  }
+  const current = lossFor(row.unit);
+  if (current <= 0) {
+    return;
+  }
+  const next = {...units.value};
+  if (current - 1 <= 0) {
+    delete next[row.unit];
+  } else {
+    next[row.unit] = current - 1;
+  }
+  units.value = next;
+}
+/** L3: the source card fullscreen, read-only (no select / action bridge,
+ *  so it can never submit). It lifts physically out of the dock. */
+function zoomSource(): void {
+  const name = sourceCard.value;
+  if (name === undefined) {
+    return;
+  }
+  openConsoleCardZoom([{name}], 0, undefined, undefined, {
+    statusLabel: 'Source',
+    origin: {
+      kind: 'physical',
+      resolve: () => {
+        const dock = sourceDock.value;
+        return dock?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
+      },
+    },
+  });
+}
+/** X: confirm the distribution (byte-identical to the desktop submit). */
+function confirm(): void {
+  if (!ready.value || submitting.value) {
+    return;
+  }
+  submitting.value = true;
+  emit('submit', productionToLoseResponse(units.value));
+}
+
+watch(() => promptKey.value, () => {
+  resetSelection();
+}, {immediate: true});
+/** Every server response re-arms submission (root identity always changes). */
+watch(() => props.playerView, () => {
+  submitting.value = false;
+});
+/** Publish the CONTEXTUAL command contract to the shell's ONE bottom
+ *  command bar (consolePanelUi) — hints live only there, never in a
+ *  panel-local footer (CONSOLE_TV_PREMIUM_PLAN §3.2). */
+watch(() => footCommands.value, (cmds: ReadonlyArray<ConsoleCommand>) => {
+  setPanelCommands('productionLoss', cmds);
+}, {immediate: true, deep: true});
+onBeforeUnmount(() => {
+  clearPanelCommands('productionLoss');
+});
+
+// What the shell's pad router reaches through the surface registry (`surfaces.at('prodLoss')` → `handedTo` calls
+// `handleIntent(intent)`), and nothing else.
+defineExpose({handleIntent});
 </script>

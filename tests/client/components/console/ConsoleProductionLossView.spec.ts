@@ -1,12 +1,15 @@
 import {mount} from '@vue/test-utils';
+import {defineComponent, h} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
 import {SelectProductionToLoseModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {Units} from '@/common/Units';
+import {CardName} from '@/common/cards/CardName';
 import {ProductionLossSource} from '@/common/models/ProductionLossSource';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {closeConsoleCardZoom, consoleCardZoom} from '@/client/console/consoleCardZoom';
 
 const A: GamepadIntent = {kind: 'press', button: 'confirm'}; // → assign −1
 const X: GamepadIntent = {kind: 'press', button: 'secondary'}; // → confirm
@@ -28,12 +31,13 @@ function mountWith(v: PlayerViewModel) {
   return mount(ConsoleProductionLoss, {
     global: {
       ...globalConfig.global,
-      // `console-source-dock` is GLOBAL in the real app (it renders the card
-      // face, whose import chain zeroes a mochapack spec) — so it is stubbed
-      // here rather than resolved. Its own contract is guarded by
+      // `console-source-dock` is the LAZY binding of `asyncComponents` (it renders
+      // the card face, whose import chain zeroes a unit spec) — so it is stubbed
+      // here rather than resolved, under the name that binding answers to
+      // (`AsyncComponentWrapper`). Its own contract is guarded by
       // `promptSource.spec.ts` + the e2e probe; what this file owns is WHICH
       // view the surface hands it and WHICH verbs it publishes.
-      stubs: {'GamepadGlyph': true, 'console-source-dock': ConsoleSourceDockStub},
+      stubs: {'GamepadGlyph': true, 'AsyncComponentWrapper': ConsoleSourceDockStub},
     },
     props: {playerView: v},
   });
@@ -170,5 +174,59 @@ describe('ConsoleProductionLoss (view)', () => {
     (w.vm as any).handleIntent(B);
     expect(w.emitted('defer')).to.have.length(1);
     expect(w.emitted('submit')).to.be.undefined;
+  });
+
+  // The surface is a `<script setup>` component (step A of docs/claude/vapor/RECIPES.md): what stands under its
+  // parent's ref is ONLY what it exposes. The shell's pad router reaches it through the surface registry
+  // (`surfaces.at('prodLoss')` → `handleIntent(intent)`), so a ref must carry exactly that — asserted through a
+  // host's ref, never through `wrapper.vm` (which sees the whole setup state).
+  it('a parent\'s ref sees `handleIntent` — and nothing else of the script', () => {
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleProductionLoss, {ref: 'prodLoss', playerView: view(1, {megacredits: -5, steel: 1})})]),
+    });
+    const host = mount(Host, {global: {...globalConfig.global, stubs: {GamepadGlyph: true}}});
+    const surface = (host.vm.$refs.prodLoss ?? undefined) as {handleIntent(intent: GamepadIntent): void} | undefined;
+    expect(surface, 'the host\'s ref stands').to.not.eq(undefined);
+    expect(Object.keys(surface!), 'the exposed list is the contract').to.deep.eq(['handleIntent']);
+    const leaked = ['playerView', 'units', 'focusIdx', 'submitting', 'rows', 'ready', 'footCommands', 'confirm', 'resetSelection']
+      .filter((key) => (surface as unknown as Record<string, unknown>)[key] !== undefined);
+    expect(leaked).to.deep.eq([]);
+
+    // The exposed function is the surface's whole input: B defers, X confirms the pre-selected lone production.
+    const panel = host.findComponent(ConsoleProductionLoss);
+    surface!.handleIntent(B);
+    expect(panel.emitted('defer')).to.have.length(1);
+    surface!.handleIntent(X);
+    expect(panel.emitted('submit')?.[0][0]).to.deep.eq({type: 'productionToLose', units: {...Units.EMPTY, steel: 1}});
+  });
+
+  it('L3 on a card cause opens the source card read-only, lifted out of the dock — the card\'s own element under the dock\'s ref', () => {
+    /** A dock that carries a card face (the real one renders `.pcard` inside its root). */
+    const DockWithFace = defineComponent({
+      props: {view: {type: Object, required: true}, compact: Boolean},
+      render: () => h('div', {class: 'con-src'}, [h('div', {class: 'pcard'})]),
+    });
+    const w = mount(ConsoleProductionLoss, {
+      global: {...globalConfig.global, stubs: {GamepadGlyph: true, AsyncComponentWrapper: DockWithFace}},
+      props: {playerView: view(1, {steel: 1}, {type: 'card', card: CardName.CAESAR})},
+    });
+    try {
+      (w.vm as unknown as {handleIntent(intent: GamepadIntent): void}).handleIntent({kind: 'press', button: 'stickL'});
+      expect(consoleCardZoom.cards).to.deep.eq([{name: CardName.CAESAR}]);
+      expect(consoleCardZoom.statusLabel).to.eq('Source');
+      expect(consoleCardZoom.select, 'read-only: no select bridge').to.eq(undefined);
+      expect(consoleCardZoom.origin.kind).to.eq('physical');
+      expect(consoleCardZoom.origin.resolve?.(0), 'the flight starts from the card standing in the dock').to.eq(w.find('.con-src > .pcard').element);
+    } finally {
+      // The viewer's state is a MODULE (bundle-shared): leave it closed.
+      closeConsoleCardZoom();
+    }
+  });
+
+  it('L3 with nothing to inspect (a hazard) opens nothing', () => {
+    const w = mountWith(view(1, {steel: 1}, {type: 'hazard'}));
+    (w.vm as unknown as {handleIntent(intent: GamepadIntent): void}).handleIntent({kind: 'press', button: 'stickL'});
+    expect(consoleCardZoom.cards).to.deep.eq([]);
+    expect(consoleCardZoom.origin.kind).to.eq('none');
   });
 });
