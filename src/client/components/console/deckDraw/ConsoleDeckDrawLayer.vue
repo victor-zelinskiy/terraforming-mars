@@ -1,15 +1,4 @@
 <template>
-  <!--
-    DECK-DRAW LAYER — the app-level stage the "cards physically come off the
-    top-bar project deck" cinematic plays on (mounted once in ConsoleShell).
-
-    Every card is born at the deck's own top-card rect (the SAME card.webp
-    sleeve the deck stack shows — a separation, never a new object), and is
-    routed by the SERVER's verdict: a discard is tossed aside onto the table's
-    discard pile (beside the deck — `ConsoleDiscardPile`), a match comes down
-    into the HOST's zone and settles into the hold row. Pointer-inert, clipped;
-    the controller owns the beats, the director the GSAP.
-  -->
   <div v-if="deckDrawState.active || deckDrawState.streaming || guestRun" class="con-deckdraw" :data-dd-phase="deckDrawState.phase" :data-dd-run="assemblyRun" aria-hidden="true">
     <!-- THE TRIGGER CARDS of the assembly scene («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»): the card that answered the press
          SURFACES beside the row (a real lite face), deals its card from its own printed draw icon, and recedes. -->
@@ -50,7 +39,21 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * DECK-DRAW LAYER — the app-level stage the "cards physically come off the
+ * top-bar project deck" cinematic plays on (mounted once in ConsoleShell).
+ *
+ * Every card is born at the deck's own top-card rect (the SAME card.webp
+ * sleeve the deck stack shows — a separation, never a new object), and is
+ * routed by the SERVER's verdict: a discard is tossed aside onto the table's
+ * discard pile (beside the deck — `ConsoleDiscardPile`), a match comes down
+ * into the HOST's zone and settles into the hold row. Pointer-inert, clipped;
+ * the controller owns the beats, the director the GSAP.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
 /**
  * The scene's lifecycle, in one place (the controller documents the gates):
  *
@@ -68,8 +71,7 @@
  * Every failure degrades honestly: no believable anchor → the scene is
  * skipped and the stock modal shows immediately (never a stranded reveal).
  */
-import {defineComponent, PropType} from 'vue';
-import {FlowScope} from '@/client/console/kernel/flowScope';
+import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, watch} from 'vue';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
@@ -107,18 +109,17 @@ import {
   DeckDrawTimings, DrawBeat, RectLike, SceneStage, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
   inspectPoint, inspectScale, planDeckDraw, reducedDeckDrawTimings, viewportStage,
 } from '@/client/console/deckDraw/deckDrawModel';
-import {
-  DeckDrawHandle, runDeckDrawAssemble, runDeckDrawBeat, runDeckDrawHandoff, runDeckSettleTick,
-} from '@/client/console/deckDraw/deckDrawDirector';
+import {runDeckDrawAssemble, runDeckDrawBeat, runDeckDrawHandoff, runDeckSettleTick} from '@/client/console/deckDraw/deckDrawDirector';
+import {clearTimers, ctx, sceneScope} from '@/client/components/console/deckDraw/consoleDeckDrawLayerState';
 import {
   discardPileHeldBy, discardPileSlotEl, expectDiscardPileCount, landOnDiscardPile, openDiscardPile, releaseDiscardPile,
   settleDiscardPile,
 } from '@/client/console/discardPile/discardPile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {BatchArrivalHandle, runBatchArrival} from '@/client/console/consoleBatchArrivalMotion';
+import {runBatchArrival} from '@/client/console/consoleBatchArrivalMotion';
 import {intakeAssemblyOwnsBatch, intakeAssemblyPresentsBatch, intakeSearchRun} from '@/client/console/cardIntake/intakeAssemblyPlan';
-import {IntakeAssemblyHandle, IntakeTriggerFace, planAssemblyFor, playIntakeAssembly} from '@/client/console/cardIntake/intakeAssemblyDirector';
+import {IntakeTriggerFace, planAssemblyFor, playIntakeAssembly} from '@/client/console/cardIntake/intakeAssemblyDirector';
 import {holdIntakeGuest, registerIntakeContinuation} from '@/client/console/cardIntake/intakeAssembly';
 import {noteTransferTrail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {conWsPresence} from '@/client/console/conWsPresenceBridge';
@@ -131,7 +132,6 @@ const CARD_NATURAL_H = 460;
 
 /** The top-bar deck's own top card — the source every flight is born at. */
 const DECK_SEL = '.con-deckstack__pile';
-
 
 /**
  * How long we wait for the scene that EARNED this draw to finish before
@@ -184,44 +184,7 @@ function cssEscape(value: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(value) : value.replace(/"/g, '\\"');
 }
 
-/*
- * Non-reactive scene context (module scope — the layer is a singleton, and
- * GSAP handles must never be wrapped in Vue reactivity).
- */
-type SceneCtx = {
-  beatHandles: Array<DeckDrawHandle>,
-  sceneHandle?: DeckDrawHandle,
-  /** The plain draw's single deck→slot batch flight (the shared director). */
-  batchHandle?: BatchArrivalHandle,
-  /**
-   * The DISCARD STREAM in flight or handing its lease over (PL-261): what a teardown must still settle — the owner's
-   * `onAllPeeled` (its flight waits on it) and the stream's lease on the pile. A killed timer must never strand either.
-   */
-  stream?: {lease: string, allPeeled: () => void},
-  /** The assembly scene's director handle («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» — `cardIntake/intakeAssemblyDirector.ts`). */
-  assemblyHandle?: IntakeAssemblyHandle,
-};
-const ctx: SceneCtx = {beatHandles: []};
-
-/**
- * THE SCENE'S SCOPE (architecture v2 — PLAN §10 · C1): every timer of the scene on stage — a beat's start, the frame's
- * entrance, a poll's next look, a net — is armed in ONE scope of the flow kernel and taken back together when the scene
- * is torn down (`clearTimers`), and when the game screen leaves. What the `timers` array kept by hand.
- */
-let sceneTimers: FlowScope | undefined;
-
-function sceneScope(): FlowScope {
-  if (sceneTimers === undefined || sceneTimers.ended !== undefined) {
-    sceneTimers = consoleSessionScope().open('scene', 'deck-draw-layer');
-  }
-  return sceneTimers;
-}
-
-function clearTimers(): void {
-  sceneTimers?.end({how: 'cancelled', reason: 'the scene was torn down'});
-  sceneTimers = undefined;
-}
-
+/** Kill every handle of the scene on stage and take its timers back (the handles and the scope: `consoleDeckDrawLayerState.ts`). */
 function killAll(): void {
   ctx.beatHandles.forEach((h) => h.kill());
   ctx.beatHandles = [];
@@ -234,1209 +197,1179 @@ function killAll(): void {
   clearTimers();
 }
 
-export default defineComponent({
-  name: 'ConsoleDeckDrawLayer',
-  components: {ConsoleCardFaceLite},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-  },
-  data() {
-    return {
-      deckDrawState,
-      sceneCards: [] as Array<SceneStep>,
-      sceneNonce: 0,
-      proxyRefs: [] as Array<HTMLElement | null>,
-      flipRefs: [] as Array<HTMLElement | null>,
-      /** The batch this scene deals — the name of its lease on the discard pile (`scene:<id>`). */
-      sceneEventId: undefined as number | undefined,
-      /** The hold zone's base is only drawn once a card is actually resting. */
-      showHoldBase: false,
-      holdBaseStyle: {} as Record<string, string>,
-      /** The assembly scene's trigger faces (one per `card`-origin run), and the run being dealt now (e2e probe). */
-      triggerFaces: [] as Array<IntakeTriggerFace>,
-      triggerRefs: {} as Record<number, HTMLElement | null>,
-      assemblyRun: undefined as number | undefined,
-      /**
-       * THE SEARCH RUN of a merged batch (R4): its cards' span in the batch and its tape's length in `sceneCards` —
-       * the theatre judges that span, the assembly deals the rest. `cardProxyIndex` maps a card of the batch to its
-       * flyer (the tape's rejects have flyers of their own, so the two orders differ). `drawnSoFar` counts every card
-       * that has left the deck in this scene (the HUD counter ticks per peel across the three legs).
-       */
-      searchSpan: undefined as {first: number, count: number, steps: number} | undefined,
-      cardProxyIndex: undefined as Array<number> | undefined,
-      drawnSoFar: 0,
-      /**
-       * A GUEST run: the board card-bonus scene opened a merged batch (its cover flew the cell's run) and handed
-       * the remaining runs over (`continueIntakeAssembly`). The layer stands without its own scene — the cover
-       * scene owns the gates and the handoff; this layer lends its trigger faces and flights.
-       */
-      guestRun: false,
-    };
-  },
-  computed: {
-    /**
-     * The reveal batch this layer should drive NOW, and WHOSE it is. Watched
-     * PRE-FLUSH so the arm lands BEFORE the overlay's first render — otherwise
-     * the finished modal would flash for a frame before the scene withheld it.
-     *
-     * ONE computed, ONE watcher, deliberately: the verdict and the MEMORY of it
-     * (`noteDeckDrawForeign`) have to be taken at the same instant. Split over
-     * two watchers they would fire in registration order, and a memory that ran
-     * second would already have missed the very fact it exists to remember.
-     *
-     * NOTE it does NOT wait for another running scene before deciding OWNERSHIP.
-     * The batch must be CLAIMED the instant it lands (see the watcher) — waiting
-     * would let the finished modal mount in the meantime, and the whole point is
-     * that it doesn't exist yet. The waiting happens after the claim, inside the
-     * scene.
-     */
-    revealVerdict(): {v: DeckDrawVerdict, e: DrawnCardEntry} | undefined {
-      const e = currentRevealEvent();
-      if (e === undefined) {
-        return undefined;
-      }
-      // A colony BUILD card bonus (Pluto) is the board-card-bonus scene's — the
-      // cover lifts off the COLONY, not off the deck; never grab it here too.
-      // `isBonusRevealStaged` (persisted past the scene's end) is load-bearing:
-      // the reveal stays `currentRevealEvent()` until the player TAKES the card,
-      // so once board-card-bonus ends we must STILL not re-grab it from the deck.
-      // The viewer's OWN colony-trade batch is the colony-trade scene's — its
-      // covers leave the traded tile's «ТОРГОВАТЬ» / «БОНУС» cells;
-      // `isPresentedTradeReveal` additionally covers a presented trade whose
-      // transaction already closed (or whose flight reduced-motion skipped)
-      // while the cards are still untaken. A FOREIGN trade's bonus batch
-      // (an opponent traded, we own a cube) stays ours — those cards honestly
-      // come off the deck.
-      // …and a batch a workspace claimed WITH ITS OWN ARRIVAL BEAT (the
-      // card-actions composer's prepared stage) is that workspace's: its
-      // beat already pulls the card off this very pile and lands it in the
-      // workspace's own zone — running this scene too means TWO flights for
-      // one card. The GAME START host has no beat of its own: this scene
-      // SERVES its claim, flying the cards from the HUD pile into the
-      // embedded reveal's slots (`workspaceClaimOwnsArrival` draws the line).
-      // ⚠️ That claim is the one owner here whose life is SHORTER than the
-      // batch's — it is dropped one tick before the last card is dismissed
-      // (`result-detached`) — which is why the verdict is REMEMBERED.
-      // …and the Parliament's Agenda CARD reward, while its track is on screen,
-      // is the cover scene's (it lifts off the step the marker reached — same
-      // predicate the scene itself reads); off screen the deck honestly deals it.
-      // …and a SETTLEMENT TABLE's later place: its card has been lying face-down on the table since the first
-      // payout and turns over WHERE IT LIES (colony polish 1) — dealing it off the deck would be the second arrival.
-      // …and a MERGED batch («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» — several causes) is the ASSEMBLY scene's whatever its
-      // root: its runs start from their own places and this layer plays them (`runAssembly`) — unless the board
-      // card-bonus scene has it (its cover lifted off the cell at the submit; it flies the cell's run and hands
-      // the rest over), or a workspace flies its own arrival, or a settlement table turns it in place.
-      const merged = intakeAssemblyOwnsBatch(e);
-      const foreign = (!merged && !isDeckDrawSource(e.source)) ||
-        settlementClaimsBatch(e.source, e) ||
-        workspaceClaimOwnsArrival(e) ||
-        boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
-        (!merged && isAgendaReveal(e.source) && agendaTrackOnScreen()) ||
-        colonyTradeClaimsReveal(e.source) || isColonyTradeRevealStaged(e.id) ||
-        isPresentedTradeReveal(e.source);
-      // A FOREIGN trade's owner bonus waits for its ENTRY (the mandatory
-      // announcement is the door): the cards must not start peeling off the
-      // deck over whatever screen the player is on. Once the entry is armed
-      // the hold drops and this scene SERVES the colony workspace's claim —
-      // the cards honestly come off the deck, into the embedded slots.
-      // …and during the FULL-STAGE DISCARD the next cycle's batch waits for
-      // the focus restore (its reveal slot is held empty; flying into an
-      // unmounted surface would only degrade). Reactive — the restore
-      // re-fires this computed. NEITHER is remembered: they are «not yet».
-      // …and a batch a HYDRONETWORK TRAVERSAL owes to a stage the marker has
-      // not physically reached waits for that stage, for the same reason and
-      // in the same slot. The server resolves a whole traversal inside ONE
-      // request (the parked tail drains in the response that answers the
-      // stage-5 deck pick), so a stage-7 «reuse a card action» reward puts its
-      // draw on the wire while the token is still two cells back — and this
-      // scene is the FIRST thing that reacts to a batch existing, well before
-      // any modal. Holding only the modal left the cards visibly peeling off
-      // the deck over the stage-5 scene, then vanishing, and the deal's own
-      // hold (`deckDrawHolds` → `cardArrivalBusy`) even blocked the walk that
-      // was supposed to reach stage 7 — so the wrong order was also the slow
-      // one. `waiting`, never `foreign`: the batch IS ours, just not yet, and
-      // the answer must be re-asked on arrival (a remembered verdict would
-      // mean the cards never get their deal at all).
-      // …and the Parliament's Agenda CARD batch PARKED by the reward ledger
-      // (the political phase's sitting still owes the enactment glide that
-      // reaches the step) is «not yet» in the same sense: released at the
-      // glide's landing, on a track the player sees — never dealt off the
-      // deck over the announce plate.
-      // …and a batch of a CARD's colony-bonus payout («the ledger pays», TR23) whose
-      // row has not come up yet: the rows before it are still paying on the
-      // ledger — the deck deals it when the walk stands on its row.
-      const waiting = remoteColonyBonusHold(this.playerView.waitingFor, e.source) ||
-        hydroStepQueuedFor(e.source) ||
-        parliamentParksReveal(e.source) ||
-        // …and a card's answer to a change of power (TR62): the sitting deals it at its enactment's tail, off the same pile.
-        rulingChangeParksReveal(e.source) ||
-        colonyBonusPayoutParksReveal(e.source) ||
-        (colonyResolutionUi.discardStage && workspaceClaimsColonyRevealBatch(e));
-      const v = deckDrawVerdict({eventId: e.id, foreign, waiting});
-      return v === undefined ? undefined : {v, e};
-    },
-    /**
-     * Another cinematic is mid-story. A draw is nearly always EARNED by one
-     * (the prelude / card being played, a tile landing, a sale): that scene
-     * tells the CAUSE, this one the CONSEQUENCE — so ours waits its turn
-     * rather than playing over it.
-     */
-    otherSceneOwnsScreen(): boolean {
-      return isPlayedHeroActive() || isPatentSaleActive() || tilePlacementHolding() ||
-        nomadMoveHolding() || isBoardCardBonusActive();
-    },
-  },
-  watch: {
-    revealVerdict: {
-      flush: 'pre',
-      handler(r: {v: DeckDrawVerdict, e: DrawnCardEntry} | undefined): void {
-        if (r === undefined || r.v === undefined) {
-          return;
-        }
-        if (r.v.kind === 'foreign') {
-          noteDeckDrawForeign(r.v.eventId);
-          // A SETTLEMENT TABLE's sealed card is not flown by anybody: it turns over in place, and the counter answers
-          // with the turn — the table ADOPTS the seed instead of letting it go (colony polish 1).
-          if (settlementClaimsBatch(r.e.source, r.e)) {
-            adoptSettlementDeck();
-            return;
-          }
-          // A WORKSPACE's own beat deals this batch (the card-actions composer — PL-261): it ADOPTS the seed at its
-          // entry and ticks it per card; released here, the answered count showed a beat before anything had left the
-          // deck whenever the answer beat the beat's entry (PL-281 — a fast local server, every run).
-          if (workspaceClaimOwnsArrival(r.e)) {
-            return;
-          }
-          // Somebody else flies it — the apply-block seed that kept its cards on the counter lets go (PL-088).
-          releaseDeckDrawSeed();
-          return;
-        }
-        this.claimScene(r.e);
-      },
-    },
-  },
-  mounted() {
-    registerDeckDrawHandle({abort: () => this.teardown()});
-    registerDiscardStreamPlayer((req) => this.playDiscardStream(req));
-    registerIntakeContinuation((e, fromCard, onDone) => this.playGuestAssembly(e, fromCard, onDone));
-    // The single-card fullscreen lifts THIS proxy (the card that just flew),
-    // rather than opening a fresh copy over it.
-    registerDeckDrawZoomOrigin(() => this.heldEls()[0] ?? null);
-    // A batch already on screen at mount (a reload straight into a reveal) is
-    // deliberately NOT animated: the cards are already the player's, and a
-    // cinematic replayed on refresh would be a lie.
-    if (currentRevealEvent() !== undefined) {
-      deckDrawState.stagedEventId = currentRevealEvent()?.id;
+defineOptions({name: 'ConsoleDeckDrawLayer'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+});
+
+const sceneCards = ref<Array<SceneStep>>([]);
+const sceneNonce = ref(0);
+const proxyRefs = ref<Array<HTMLElement | null>>([]);
+const flipRefs = ref<Array<HTMLElement | null>>([]);
+/** The batch this scene deals — the name of its lease on the discard pile (`scene:<id>`). */
+const sceneEventId = ref<number | undefined>(undefined);
+/** The hold zone's base is only drawn once a card is actually resting. */
+const showHoldBase = ref(false);
+const holdBaseStyle = ref<Record<string, string>>({});
+/** The assembly scene's trigger faces (one per `card`-origin run), and the run being dealt now (e2e probe). */
+const triggerFaces = ref<Array<IntakeTriggerFace>>([]);
+const triggerRefs = ref<Record<number, HTMLElement | null>>({});
+const assemblyRun = ref<number | undefined>(undefined);
+/**
+ * THE SEARCH RUN of a merged batch (R4): its cards' span in the batch and its tape's length in `sceneCards` —
+ * the theatre judges that span, the assembly deals the rest. `cardProxyIndex` maps a card of the batch to its
+ * flyer (the tape's rejects have flyers of their own, so the two orders differ). `drawnSoFar` counts every card
+ * that has left the deck in this scene (the HUD counter ticks per peel across the three legs).
+ */
+const searchSpan = ref<{first: number, count: number, steps: number} | undefined>(undefined);
+const cardProxyIndex = ref<Array<number> | undefined>(undefined);
+const drawnSoFar = ref(0);
+/**
+ * A GUEST run: the board card-bonus scene opened a merged batch (its cover flew the cell's run) and handed
+ * the remaining runs over (`continueIntakeAssembly`). The layer stands without its own scene — the cover
+ * scene owns the gates and the handoff; this layer lends its trigger faces and flights.
+ */
+const guestRun = ref(false);
+
+/**
+ * The reveal batch this layer should drive NOW, and WHOSE it is. Watched
+ * PRE-FLUSH so the arm lands BEFORE the overlay's first render — otherwise
+ * the finished modal would flash for a frame before the scene withheld it.
+ *
+ * ONE computed, ONE watcher, deliberately: the verdict and the MEMORY of it
+ * (`noteDeckDrawForeign`) have to be taken at the same instant. Split over
+ * two watchers they would fire in registration order, and a memory that ran
+ * second would already have missed the very fact it exists to remember.
+ *
+ * NOTE it does NOT wait for another running scene before deciding OWNERSHIP.
+ * The batch must be CLAIMED the instant it lands (see the watcher) — waiting
+ * would let the finished modal mount in the meantime, and the whole point is
+ * that it doesn't exist yet. The waiting happens after the claim, inside the
+ * scene.
+ */
+const revealVerdict = computed((): {v: DeckDrawVerdict, e: DrawnCardEntry} | undefined => {
+  const e = currentRevealEvent();
+  if (e === undefined) {
+    return undefined;
+  }
+  // A colony BUILD card bonus (Pluto) is the board-card-bonus scene's — the
+  // cover lifts off the COLONY, not off the deck; never grab it here too.
+  // `isBonusRevealStaged` (persisted past the scene's end) is load-bearing:
+  // the reveal stays `currentRevealEvent()` until the player TAKES the card,
+  // so once board-card-bonus ends we must STILL not re-grab it from the deck.
+  // The viewer's OWN colony-trade batch is the colony-trade scene's — its
+  // covers leave the traded tile's «ТОРГОВАТЬ» / «БОНУС» cells;
+  // `isPresentedTradeReveal` additionally covers a presented trade whose
+  // transaction already closed (or whose flight reduced-motion skipped)
+  // while the cards are still untaken. A FOREIGN trade's bonus batch
+  // (an opponent traded, we own a cube) stays ours — those cards honestly
+  // come off the deck.
+  // …and a batch a workspace claimed WITH ITS OWN ARRIVAL BEAT (the
+  // card-actions composer's prepared stage) is that workspace's: its
+  // beat already pulls the card off this very pile and lands it in the
+  // workspace's own zone — running this scene too means TWO flights for
+  // one card. The GAME START host has no beat of its own: this scene
+  // SERVES its claim, flying the cards from the HUD pile into the
+  // embedded reveal's slots (`workspaceClaimOwnsArrival` draws the line).
+  // ⚠️ That claim is the one owner here whose life is SHORTER than the
+  // batch's — it is dropped one tick before the last card is dismissed
+  // (`result-detached`) — which is why the verdict is REMEMBERED.
+  // …and the Parliament's Agenda CARD reward, while its track is on screen,
+  // is the cover scene's (it lifts off the step the marker reached — same
+  // predicate the scene itself reads); off screen the deck honestly deals it.
+  // …and a SETTLEMENT TABLE's later place: its card has been lying face-down on the table since the first
+  // payout and turns over WHERE IT LIES (colony polish 1) — dealing it off the deck would be the second arrival.
+  // …and a MERGED batch («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» — several causes) is the ASSEMBLY scene's whatever its
+  // root: its runs start from their own places and this layer plays them (`runAssembly`) — unless the board
+  // card-bonus scene has it (its cover lifted off the cell at the submit; it flies the cell's run and hands
+  // the rest over), or a workspace flies its own arrival, or a settlement table turns it in place.
+  const merged = intakeAssemblyOwnsBatch(e);
+  const foreign = (!merged && !isDeckDrawSource(e.source)) ||
+    settlementClaimsBatch(e.source, e) ||
+    workspaceClaimOwnsArrival(e) ||
+    boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
+    (!merged && isAgendaReveal(e.source) && agendaTrackOnScreen()) ||
+    colonyTradeClaimsReveal(e.source) || isColonyTradeRevealStaged(e.id) ||
+    isPresentedTradeReveal(e.source);
+  // A FOREIGN trade's owner bonus waits for its ENTRY (the mandatory
+  // announcement is the door): the cards must not start peeling off the
+  // deck over whatever screen the player is on. Once the entry is armed
+  // the hold drops and this scene SERVES the colony workspace's claim —
+  // the cards honestly come off the deck, into the embedded slots.
+  // …and during the FULL-STAGE DISCARD the next cycle's batch waits for
+  // the focus restore (its reveal slot is held empty; flying into an
+  // unmounted surface would only degrade). Reactive — the restore
+  // re-fires this computed. NEITHER is remembered: they are «not yet».
+  // …and a batch a HYDRONETWORK TRAVERSAL owes to a stage the marker has
+  // not physically reached waits for that stage, for the same reason and
+  // in the same slot. The server resolves a whole traversal inside ONE
+  // request (the parked tail drains in the response that answers the
+  // stage-5 deck pick), so a stage-7 «reuse a card action» reward puts its
+  // draw on the wire while the token is still two cells back — and this
+  // scene is the FIRST thing that reacts to a batch existing, well before
+  // any modal. Holding only the modal left the cards visibly peeling off
+  // the deck over the stage-5 scene, then vanishing, and the deal's own
+  // hold (`deckDrawHolds` → `cardArrivalBusy`) even blocked the walk that
+  // was supposed to reach stage 7 — so the wrong order was also the slow
+  // one. `waiting`, never `foreign`: the batch IS ours, just not yet, and
+  // the answer must be re-asked on arrival (a remembered verdict would
+  // mean the cards never get their deal at all).
+  // …and the Parliament's Agenda CARD batch PARKED by the reward ledger
+  // (the political phase's sitting still owes the enactment glide that
+  // reaches the step) is «not yet» in the same sense: released at the
+  // glide's landing, on a track the player sees — never dealt off the
+  // deck over the announce plate.
+  // …and a batch of a CARD's colony-bonus payout («the ledger pays», TR23) whose
+  // row has not come up yet: the rows before it are still paying on the
+  // ledger — the deck deals it when the walk stands on its row.
+  const waiting = remoteColonyBonusHold(props.playerView.waitingFor, e.source) ||
+    hydroStepQueuedFor(e.source) ||
+    parliamentParksReveal(e.source) ||
+    // …and a card's answer to a change of power (TR62): the sitting deals it at its enactment's tail, off the same pile.
+    rulingChangeParksReveal(e.source) ||
+    colonyBonusPayoutParksReveal(e.source) ||
+    (colonyResolutionUi.discardStage && workspaceClaimsColonyRevealBatch(e));
+  const v = deckDrawVerdict({eventId: e.id, foreign, waiting});
+  return v === undefined ? undefined : {v, e};
+});
+/**
+ * Another cinematic is mid-story. A draw is nearly always EARNED by one
+ * (the prelude / card being played, a tile landing, a sale): that scene
+ * tells the CAUSE, this one the CONSEQUENCE — so ours waits its turn
+ * rather than playing over it.
+ */
+const otherSceneOwnsScreen = computed((): boolean => {
+  return isPlayedHeroActive() || isPatentSaleActive() || tilePlacementHolding() ||
+    nomadMoveHolding() || isBoardCardBonusActive();
+});
+
+function setProxyRef(el: unknown, i: number): void {
+  proxyRefs.value[i] = (el as HTMLElement | null) ?? null;
+}
+function setFlipRef(el: unknown, i: number): void {
+  flipRefs.value[i] = (el as HTMLElement | null) ?? null;
+}
+function setTriggerRef(el: unknown, run: number): void {
+  triggerRefs.value[run] = (el as HTMLElement | null) ?? null;
+}
+function proxyEls(): Array<HTMLElement> {
+  return proxyRefs.value.filter((el): el is HTMLElement => el !== null);
+}
+/** The proxies of the MATCHED cards, in hold-slot order. */
+function heldEls(): Array<HTMLElement> {
+  const out: Array<HTMLElement> = [];
+  sceneCards.value.forEach((step, i) => {
+    const el = proxyRefs.value[i];
+    if (step.matched && step.tail !== true && el !== null && el !== undefined) {
+      out.push(el);
     }
-  },
-  beforeUnmount() {
-    registerDeckDrawHandle(undefined);
-    registerDiscardStreamPlayer(undefined);
-    registerIntakeContinuation(undefined);
-    registerDeckDrawZoomOrigin(undefined);
-    killAll();
-  },
-  methods: {
-    setProxyRef(el: unknown, i: number): void {
-      this.proxyRefs[i] = (el as HTMLElement | null) ?? null;
-    },
-    setFlipRef(el: unknown, i: number): void {
-      this.flipRefs[i] = (el as HTMLElement | null) ?? null;
-    },
-    setTriggerRef(el: unknown, run: number): void {
-      this.triggerRefs[run] = (el as HTMLElement | null) ?? null;
-    },
-    proxyEls(): Array<HTMLElement> {
-      return this.proxyRefs.filter((el): el is HTMLElement => el !== null);
-    },
-    /** The proxies of the MATCHED cards, in hold-slot order. */
-    heldEls(): Array<HTMLElement> {
-      const out: Array<HTMLElement> = [];
-      this.sceneCards.forEach((step, i) => {
-        const el = this.proxyRefs[i];
-        if (step.matched && step.tail !== true && el !== null && el !== undefined) {
-          out.push(el);
+  });
+  return out;
+}
+/** Every flyer that stands on a real card at the end of a MIXED scene (the finds + the other runs' cards). */
+function mixedProxies(): Array<HTMLElement> {
+  const out: Array<HTMLElement> = [];
+  sceneCards.value.forEach((step, i) => {
+    const el = proxyRefs.value[i];
+    if ((step.matched || step.tail === true) && el !== null && el !== undefined) {
+      out.push(el);
+    }
+  });
+  return out;
+}
+function timings(): DeckDrawTimings {
+  return deckDrawState.reducedMotion ? reducedDeckDrawTimings() : deckDrawTimings();
+}
+/**
+ * CLAIM the batch — SYNCHRONOUSLY, in the same tick it lands.
+ *
+ * This is the load-bearing half: the claim closes `deckDrawHolds()`, and
+ * that is what stops the reveal modal from ever mounting. Anything async
+ * (measuring the deck, waiting for another scene to finish) must happen
+ * AFTER it — a single awaited frame here and the finished modal appears
+ * behind our back, which is exactly the thing this scene exists to
+ * prevent.
+ */
+function claimScene(e: DrawnCardEntry): void {
+  // The sequence is the server's own record of the search. Without one
+  // (a plain draw, or a search that discarded nothing) every card simply
+  // came off the deck — the simpler visual language, by design.
+  let steps: Array<SceneStep> = e.sequence !== undefined && e.sequence.length > 0 ?
+    e.sequence.map((s) => ({name: s.card.name, matched: s.matched})) :
+    e.cards.map((c) => ({name: c.name, matched: true}));
+  let plain = e.sequence === undefined || e.sequence.length === 0 ||
+    !e.sequence.some((s) => !s.matched);
+  // THE SEARCH RUN of a MERGED batch («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» R4): ONE segment is a search that threw
+  // cards away, the others are plain. The theatre judges THAT run on its own tape (the rejects of this press's
+  // other causes do not exist); the cards of the other runs are flyers of their own (`tail`), dealt from their
+  // places by the assembly before and after it. The batch-level tape (every card the deck turned over, in
+  // order) stays the one-tape reading of the summary and of a batch with two searches.
+  const span = intakeSearchRun(e);
+  const searchSegment = span === undefined ? undefined : e.segments[span.index];
+  if (span !== undefined && searchSegment?.sequence !== undefined) {
+    const tape: Array<SceneStep> = searchSegment.sequence.map((s) => ({name: s.card.name, matched: s.matched}));
+    steps = [
+      ...e.cards.slice(0, span.first).map((c): SceneStep => ({name: c.name, matched: true, tail: true})),
+      ...tape,
+      ...e.cards.slice(span.first + span.count).map((c): SceneStep => ({name: c.name, matched: true, tail: true})),
+    ];
+    plain = false;
+    searchSpan.value = {first: span.first, count: span.count, steps: tape.length};
+    // A card of the batch → its flyer: the tails in place, the finds in the tape's order (the rejects skipped).
+    cardProxyIndex.value = steps.flatMap((step, i) => step.tail === true || step.matched ? [i] : []);
+  } else {
+    searchSpan.value = undefined;
+    cardProxyIndex.value = undefined;
+  }
+  if (steps.length === 0) {
+    return;
+  }
+  // The authoritative deckSize already dropped by everything revealed.
+  const preDraw = props.playerView.game.deckSize + steps.length;
+  if (!armDeckDraw(e.id, {
+    hasDiscards: !plain,
+    preDrawSize: preDraw,
+    reducedMotion: consoleReducedMotionActive(),
+  })) {
+    return;
+  }
+  // Warm each MATCHED card's art NOW so the webp is decoded before the
+  // face turns into view — otherwise the flip can land on a not-yet-loaded
+  // (black) art body, reading as a content switch. Discards never flip
+  // face-up, so only matched cards need it.
+  preloadPremiumCardArt(steps.filter((st) => st.matched).map((st) => st.name));
+  void runScene(e, steps, plain);
+}
+/**
+ * Wait for whatever scene earned this draw to finish telling its own
+ * story. Bounded: if it somehow never ends, ours plays anyway rather than
+ * withholding the reveal forever.
+ */
+function waitForStage(): Promise<void> {
+  return new Promise((done) => {
+    if (!otherSceneOwnsScreen.value) {
+      done();
+      return;
+    }
+    const started = Date.now();
+    // The wait has to wait: a node of the wait graph, its bound ending it said (`ceilingWait.ts`). A teardown drops
+    // the poll's timer — the node is abandoned with it (a killed handle of the scene).
+    const wait = beginCeilingWait({id: 'deck-draw:stage', owner: 'ConsoleDeckDrawLayer', what: 'the end of the scene that earned the draw', maxMs: STAGE_WAIT_MAX_MS});
+    ctx.beatHandles.push({kill: () => wait.end()});
+    const poll = () => {
+      if (!deckDrawState.active || !otherSceneOwnsScreen.value || Date.now() - started > STAGE_WAIT_MAX_MS) {
+        if (!deckDrawState.active) {
+          wait.end();
+        } else if (!otherSceneOwnsScreen.value) {
+          wait.met();
+        } else {
+          wait.ceiling();
         }
-      });
-      return out;
-    },
-    /** Every flyer that stands on a real card at the end of a MIXED scene (the finds + the other runs' cards). */
-    mixedProxies(): Array<HTMLElement> {
-      const out: Array<HTMLElement> = [];
-      this.sceneCards.forEach((step, i) => {
-        const el = this.proxyRefs[i];
-        if ((step.matched || step.tail === true) && el !== null && el !== undefined) {
-          out.push(el);
-        }
-      });
-      return out;
-    },
-    timings(): DeckDrawTimings {
-      return deckDrawState.reducedMotion ? reducedDeckDrawTimings() : deckDrawTimings();
-    },
-
-    /**
-     * CLAIM the batch — SYNCHRONOUSLY, in the same tick it lands.
-     *
-     * This is the load-bearing half: the claim closes `deckDrawHolds()`, and
-     * that is what stops the reveal modal from ever mounting. Anything async
-     * (measuring the deck, waiting for another scene to finish) must happen
-     * AFTER it — a single awaited frame here and the finished modal appears
-     * behind our back, which is exactly the thing this scene exists to
-     * prevent.
-     */
-    claimScene(e: DrawnCardEntry): void {
-      // The sequence is the server's own record of the search. Without one
-      // (a plain draw, or a search that discarded nothing) every card simply
-      // came off the deck — the simpler visual language, by design.
-      let steps: Array<SceneStep> = e.sequence !== undefined && e.sequence.length > 0 ?
-        e.sequence.map((s) => ({name: s.card.name, matched: s.matched})) :
-        e.cards.map((c) => ({name: c.name, matched: true}));
-      let plain = e.sequence === undefined || e.sequence.length === 0 ||
-        !e.sequence.some((s) => !s.matched);
-      // THE SEARCH RUN of a MERGED batch («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» R4): ONE segment is a search that threw
-      // cards away, the others are plain. The theatre judges THAT run on its own tape (the rejects of this press's
-      // other causes do not exist); the cards of the other runs are flyers of their own (`tail`), dealt from their
-      // places by the assembly before and after it. The batch-level tape (every card the deck turned over, in
-      // order) stays the one-tape reading of the summary and of a batch with two searches.
-      const span = intakeSearchRun(e);
-      const searchSegment = span === undefined ? undefined : e.segments[span.index];
-      if (span !== undefined && searchSegment?.sequence !== undefined) {
-        const tape: Array<SceneStep> = searchSegment.sequence.map((s) => ({name: s.card.name, matched: s.matched}));
-        steps = [
-          ...e.cards.slice(0, span.first).map((c): SceneStep => ({name: c.name, matched: true, tail: true})),
-          ...tape,
-          ...e.cards.slice(span.first + span.count).map((c): SceneStep => ({name: c.name, matched: true, tail: true})),
-        ];
-        plain = false;
-        this.searchSpan = {first: span.first, count: span.count, steps: tape.length};
-        // A card of the batch → its flyer: the tails in place, the finds in the tape's order (the rejects skipped).
-        this.cardProxyIndex = steps.flatMap((step, i) => step.tail === true || step.matched ? [i] : []);
-      } else {
-        this.searchSpan = undefined;
-        this.cardProxyIndex = undefined;
-      }
-      if (steps.length === 0) {
+        done();
         return;
       }
-      // The authoritative deckSize already dropped by everything revealed.
-      const preDraw = this.playerView.game.deckSize + steps.length;
-      if (!armDeckDraw(e.id, {
-        hasDiscards: !plain,
-        preDrawSize: preDraw,
-        reducedMotion: consoleReducedMotionActive(),
-      })) {
-        return;
-      }
-      // Warm each MATCHED card's art NOW so the webp is decoded before the
-      // face turns into view — otherwise the flip can land on a not-yet-loaded
-      // (black) art body, reading as a content switch. Discards never flip
-      // face-up, so only matched cards need it.
-      preloadPremiumCardArt(steps.filter((st) => st.matched).map((st) => st.name));
-      void this.runScene(e, steps, plain);
-    },
+      sceneScope().after(120, 'a beat of the deck draw', poll);
+    };
+    poll();
+  });
+}
+/** Play the whole scene (the batch is already claimed + in the state). */
+async function runScene(e: DrawnCardEntry, steps: Array<SceneStep>, plain: boolean): Promise<void> {
+  const reduced = deckDrawState.reducedMotion;
+  await waitForStage();
+  if (!deckDrawState.active) {
+    return;
+  }
+  const deckRect = await stableRect(() => document.querySelector<HTMLElement>(DECK_SEL));
+  if (deckRect === undefined || !deckDrawState.active) {
+    // No believable deck anchor (an unmounted HUD, JSDOM): abort, which
+    // releases every gate — the stock modal shows at once. Never a
+    // withheld reveal because a cinematic couldn't find its stage.
+    abortDeckDraw();
+    return;
+  }
+  const preDraw = deckDrawState.preDrawSize;
+  // The stage is ours now — a hosting workspace lets its own stage go on
+  // this same fact, and a search that throws cards away brings the table's
+  // DISCARD PILE out from under the strip in this very beat (its slide is
+  // shorter than the first card's peel + pull, so the pile is home before
+  // the first toss lands — the entry costs the scene nothing).
+  markDeckDrawDealing();
+  sceneEventId.value = e.id;
+  if (deckDrawState.hasDiscards) {
+    openDiscardPile(`scene:${e.id}`);
+    // THE PILE'S TRUTH (P86): the rejects this scene lays down are the server's tape — settled at the scene's end
+    // whatever its touchdowns did (a stalled frame, a teardown, a degraded scene).
+    expectDiscardPileCount(`scene:${e.id}`, steps.filter((st) => !st.matched && st.tail !== true).length);
+  }
 
-    /**
-     * Wait for whatever scene earned this draw to finish telling its own
-     * story. Bounded: if it somehow never ends, ours plays anyway rather than
-     * withholding the reveal forever.
-     */
-    waitForStage(): Promise<void> {
-      return new Promise((done) => {
-        if (!this.otherSceneOwnsScreen) {
-          done();
-          return;
-        }
-        const started = Date.now();
-        // The wait has to wait: a node of the wait graph, its bound ending it said (`ceilingWait.ts`). A teardown drops
-        // the poll's timer — the node is abandoned with it (a killed handle of the scene).
-        const wait = beginCeilingWait({id: 'deck-draw:stage', owner: 'ConsoleDeckDrawLayer', what: 'the end of the scene that earned the draw', maxMs: STAGE_WAIT_MAX_MS});
-        ctx.beatHandles.push({kill: () => wait.end()});
-        const poll = () => {
-          if (!deckDrawState.active || !this.otherSceneOwnsScreen || Date.now() - started > STAGE_WAIT_MAX_MS) {
-            if (!deckDrawState.active) {
-              wait.end();
-            } else if (!this.otherSceneOwnsScreen) {
-              wait.met();
-            } else {
-              wait.ceiling();
-            }
-            done();
-            return;
-          }
-          sceneScope().after(120, 'a beat of the deck draw', poll);
-        };
-        poll();
-      });
-    },
+  sceneCards.value = steps;
+  sceneNonce.value++;
+  proxyRefs.value = [];
+  flipRefs.value = [];
+  await nextTick();
 
-    /** Play the whole scene (the batch is already claimed + in the state). */
-    async runScene(e: DrawnCardEntry, steps: Array<SceneStep>, plain: boolean): Promise<void> {
-      const reduced = deckDrawState.reducedMotion;
-      await this.waitForStage();
-      if (!deckDrawState.active) {
-        return;
-      }
-      const deckRect = await stableRect(() => document.querySelector<HTMLElement>(DECK_SEL));
-      if (deckRect === undefined || !deckDrawState.active) {
-        // No believable deck anchor (an unmounted HUD, JSDOM): abort, which
-        // releases every gate — the stock modal shows at once. Never a
-        // withheld reveal because a cinematic couldn't find its stage.
-        abortDeckDraw();
-        return;
-      }
-      const preDraw = deckDrawState.preDrawSize;
-      // The stage is ours now — a hosting workspace lets its own stage go on
-      // this same fact, and a search that throws cards away brings the table's
-      // DISCARD PILE out from under the strip in this very beat (its slide is
-      // shorter than the first card's peel + pull, so the pile is home before
-      // the first toss lands — the entry costs the scene nothing).
-      markDeckDrawDealing();
-      this.sceneEventId = e.id;
-      if (deckDrawState.hasDiscards) {
-        openDiscardPile(`scene:${e.id}`);
-        // THE PILE'S TRUTH (P86): the rejects this scene lays down are the server's tape — settled at the scene's end
-        // whatever its touchdowns did (a stalled frame, a teardown, a degraded scene).
-        expectDiscardPileCount(`scene:${e.id}`, steps.filter((st) => !st.matched && st.tail !== true).length);
-      }
+  // A PLAIN multi-card draw has nothing to judge and nothing to discard:
+  // its cards' real destinations are the reveal's own slots, so they fly
+  // there ONCE — deck → slot, opening on the way — instead of building a
+  // hold-zone row they would only leave again. One flight, one language
+  // (the same shared batch director every embedded draw plays). The
+  // single-card HEADLESS reveal keeps the hold-zone path: the fullscreen
+  // viewer lifts the arrived proxy, and there is no slot to fly into.
+  const headlessSingle = drawnBatchGoesFullscreen(steps.length, workspaceClaimsRevealBatch(e));
+  if (plain && !headlessSingle) {
+    void runPlainBatch(e);
+    return;
+  }
 
-      this.sceneCards = steps;
-      this.sceneNonce++;
-      this.proxyRefs = [];
-      this.flipRefs = [];
-      await this.$nextTick();
-
-      // A PLAIN multi-card draw has nothing to judge and nothing to discard:
-      // its cards' real destinations are the reveal's own slots, so they fly
-      // there ONCE — deck → slot, opening on the way — instead of building a
-      // hold-zone row they would only leave again. One flight, one language
-      // (the same shared batch director every embedded draw plays). The
-      // single-card HEADLESS reveal keeps the hold-zone path: the fullscreen
-      // viewer lifts the arrived proxy, and there is no slot to fly into.
-      const headlessSingle = drawnBatchGoesFullscreen(steps.length, workspaceClaimsRevealBatch(e));
-      if (plain && !headlessSingle) {
-        void this.runPlainBatch(e);
-        return;
-      }
-
-      // A MIXED scene (the search run of a merged batch): the overlay stands VEILED from here (its slots are the
-      // other runs' landing places), and the runs BEFORE the search deal from their own places first — the server's
-      // order, never re-sorted. The theatre then judges the search run's own tape.
-      const span = this.searchSpan;
-      this.drawnSoFar = 0;
-      if (span !== undefined && span.first > 0) {
-        setDeckDrawPhase('assemble');
-        await this.$nextTick();
-        if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
-          return;
-        }
-        const alive = () => deckDrawState.active && deckDrawState.stagedEventId === e.id;
-        const geometry = await this.assemblyGeometry(e, alive);
-        if (geometry === undefined) {
-          this.releaseAndHandoff(this.mixedProxies());
-          return;
-        }
-        await new Promise<void>((resolve) => {
-          this.assemblyRun = 0;
-          this.playAssemblyRuns(e, geometry, 0, {
-            alive,
-            untilCard: span.first,
-            onCardPeeled: () => {
-              this.drawnSoFar++;
-              markDeckCardDrawn(deckCountAfter(preDraw, this.drawnSoFar));
-            },
-            onFirstApproach: () => setDeckDrawPhase('frame'),
-            onDone: resolve,
-          });
-        });
-        if (!alive()) {
-          return;
-        }
-      }
-      const searchSteps = span === undefined ? steps : steps.slice(span.first, span.first + span.steps);
-      const proxyOffset = span?.first ?? 0;
-      const t = this.timings();
-      const beats = planDeckDraw(searchSteps.map((s) => ({matched: s.matched})), t, plain);
-      const matches = searchSteps.filter((s) => s.matched).length;
-      // THE HOST's stage (PL-263): the cards are judged where they will land.
-      const stage = this.sceneStage();
-      const hScale = holdScale(stage.height, CARD_NATURAL_H);
-      const slots = holdSlots(matches, stage, CARD_NATURAL_W * hScale);
-      const inspect = inspectPoint(stage);
-      const iScale = inspectScale(stage.height, CARD_NATURAL_H);
-
-      // The pile's landing box, at REST (the pile is still sliding out from
-      // under the strip — `restingRectOf` un-maps its live entry), if this
-      // search has discards. No pile measurable → the discard dives out
-      // honestly (the director's degrade), never a toss at nothing.
-      const pileSlot = deckDrawState.hasDiscards ? discardPileSlotEl() : undefined;
-      const trayRect = pileSlot !== undefined ? restingRectOf(pileSlot) : undefined;
-      if (!deckDrawState.active) {
-        return; // aborted while probing
-      }
-
-      const deckAnchor = {rect: deckRect as RectLike, naturalH: CARD_NATURAL_H};
-      let landed = 0;
-      const total = beats.length;
-
-      beats.forEach((beat) => {
-        const proxy = this.proxyRefs[beat.index + proxyOffset];
-        const flip = this.flipRefs[beat.index + proxyOffset];
-        if (proxy === null || proxy === undefined || flip === null || flip === undefined) {
-          landed++;
-          return;
-        }
-        sceneScope().after(motionMs(beat.atMs), 'a beat of the search leaves the deck', () => {
-          if (!deckDrawState.active) {
-            return;
-          }
-          const handle = runDeckDrawBeat({
-            beat,
-            els: {proxy, flip},
-            deck: deckAnchor,
-            targets: this.targetsFor(beat, {inspect, iScale, slots, hScale, trayRect}),
-            t,
-            reduced,
-            onDrawn: () => {
-              this.drawnSoFar++;
-              markDeckCardDrawn(deckCountAfter(preDraw, this.drawnSoFar));
-              this.tickDeck();
-            },
-            onLanded: () => {
-              if (beat.kind === 'discard') {
-                markDeckDrawDiscarded();
-                landOnDiscardPile();
-              }
-              if (beat.kind !== 'discard') {
-                this.revealHoldBase(slots, hScale);
-              }
-              landed++;
-              if (landed >= total) {
-                this.finishSearch();
-              }
-            },
-          });
-          ctx.beatHandles.push(handle);
-        });
-      });
-
-      if (total === 0) {
-        this.finishSearch();
-      }
-    },
-
-    /**
-     * The PLAIN batch: deck → the reveal's REAL slots, one flight. The overlay
-     * mounts VEILED from the start (the staged-entrance grammar every flown
-     * batch already uses), the shared batch director deals the cards with its
-     * landing cadence + in-flight turn, the frame materializes around the
-     * arriving row, and the handoff releases the real cards under proxies that
-     * already stand exactly on them.
-     */
-    async runPlainBatch(e: DrawnCardEntry): Promise<void> {
-      // A merged batch — and a ONE-CAUSE batch whose cause is a card NOT on the stage (a single hook's draw: the
-      // trigger rises beside the row and deals from its own printed icon — «СРАБАТЫВАНИЕ КАРТЫ», decision 5).
-      if (intakeAssemblyPresentsBatch(e, workspaceClaimsRevealBatch(e) ? workspaceOutcomeState.sourceCard : undefined)) {
-        await this.runAssembly(e);
-        return;
-      }
-      setDeckDrawPhase('assemble');
-      await this.$nextTick();
-      if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
-        return;
-      }
-      const keys = e.cards.map((c, i) => `${c.name}#${i}`);
-      const slotOf = (key: string) => document.querySelector<HTMLElement>(
-        `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`);
-      // «ПРИЁМКА»: a batch the Parliament hosts (a card's answer to a change of power) is dealt into its draw stage's
-      // slots — they exist once the stage has entered (bounded by the stage's own net).
-      await parliamentDrawReady(e);
-      if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
-        return;
-      }
-      // One stable probe on the first slot — the veiled overlay's fit pass has
-      // settled once it answers; the director then measures RESTING rects for
-      // every slot itself.
-      await stableRect(() => slotOf(keys[0]));
-      if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
-        return;
-      }
-      const slots = keys.map(slotOf);
-      const pairs: Array<{proxy: HTMLElement, flip: HTMLElement}> = [];
-      const slotEls: Array<HTMLElement> = [];
-      keys.forEach((_key, i) => {
-        const proxy = this.proxyRefs[i];
-        const flip = this.flipRefs[i];
-        const slot = slots[i];
-        if (proxy !== null && proxy !== undefined && flip !== null && flip !== undefined &&
-            slot !== null) {
-          pairs.push({proxy, flip});
-          slotEls.push(slot);
-        }
-      });
-      if (pairs.length !== keys.length) {
-        // No believable stage (an unmeasurable overlay): hand over honestly —
-        // unveil where things stand, never fake a flight.
-        this.releaseAndHandoff(this.heldEls());
-        return;
-      }
-      const preDraw = deckDrawState.preDrawSize;
-      let peeled = 0;
-      const handle = runBatchArrival({
-        cards: pairs,
-        slots: slotEls,
-        mode: 'in-flight-reveal',
-        onCardPeeled: () => {
-          peeled++;
-          markDeckCardDrawn(deckCountAfter(preDraw, peeled));
-        },
-        onSettled: () => {
-          ctx.batchHandle = undefined;
-          this.releaseAndHandoff(this.heldEls());
-        },
-      });
-      ctx.batchHandle = handle;
-      // The frame enters while the first card is on final approach — the row
-      // lands into a materializing stage (the rise director's grammar).
-      const firstLand = handle.plan.beats[0]?.landAtMs ?? 0;
-      sceneScope().after(Math.max(0, motionMs(firstLand) - motionMs(70)), 'a beat of the deck draw', () => setDeckDrawPhase('frame'));
-    },
-
-    /**
-     * THE ASSEMBLY SCENE — a merged batch dealt RUN BY RUN from each cause's own place («ОДНО ДЕЙСТВИЕ — ОДИН
-     * ЗАБОР», Ф3; the pure plan is `cardIntake/intakeAssemblyPlan.ts`). The stage card's own run comes off the
-     * deck; a trigger card SURFACES beside the row and deals from its printed draw icon; a visible cell deals
-     * from its printed bonus. One row, one frame (cued at the first run's first approach), one handoff.
-     */
-    async runAssembly(e: DrawnCardEntry): Promise<void> {
-      setDeckDrawPhase('assemble');
-      await this.$nextTick();
-      if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
-        return;
-      }
-      const geometry = await this.assemblyGeometry(e, () => deckDrawState.active && deckDrawState.stagedEventId === e.id);
-      if (geometry === undefined) {
-        // No believable stage (an unmeasurable overlay): hand over honestly — never fake a flight.
-        this.releaseAndHandoff(this.heldEls());
-        return;
-      }
-      const preDraw = deckDrawState.preDrawSize;
-      let peeled = 0;
-      let frameCued = false;
-      this.assemblyRun = 0;
-      this.playAssemblyRuns(e, geometry, 0, {
-        alive: () => deckDrawState.active && deckDrawState.stagedEventId === e.id,
-        onCardPeeled: () => {
-          peeled++;
-          markDeckCardDrawn(deckCountAfter(preDraw, peeled));
-        },
-        onFirstApproach: () => {
-          if (!frameCued) {
-            frameCued = true;
-            setDeckDrawPhase('frame');
-          }
-        },
-        onDone: () => this.releaseAndHandoff(this.heldEls()),
-      });
-    },
-
-    /**
-     * THE GUEST RUN (the continuation the board card-bonus scene asks for): the cell's run has landed under
-     * that scene's covers; this layer renders the batch's proxies, flies the runs from `fromCard` on, dissolves
-     * its own proxies over the real cards and reports back — the cover scene then plays its handoff.
-     */
-    playGuestAssembly(e: DrawnCardEntry, fromCard: number, onDone: () => void): void {
-      if (deckDrawState.active || this.guestRun) {
-        noteTransferTrail('intake:guest-refused', {id: e.id, fromCard, deckActive: deckDrawState.active, guestRun: this.guestRun});
-        onDone();
-        return;
-      }
-      this.guestRun = true;
-      this.sceneCards = e.cards.map((c) => ({name: c.name, matched: true}));
-      this.sceneNonce++;
-      this.proxyRefs = [];
-      this.flipRefs = [];
-      preloadPremiumCardArt(e.cards.slice(fromCard).map((c) => c.name));
-      let finished = false;
-      const finish = () => {
-        if (finished) {
-          return;
-        }
-        finished = true;
-        // THE FLYERS HOVER IN THEIR SLOTS like the cell's own (the real cards are still HELD by the cover scene until
-        // its handoff): dissolving them here emptied the slot for the host's whole frame beat — the card vanished
-        // and came back (the owner's «мигнула», 2026-11-01). They dissolve in the host's handoff frame instead,
-        // bounded by our own safety in case the host never comes to it.
-        const own = this.proxyRefs.slice(fromCard).filter((el): el is HTMLElement => el !== null && el !== undefined);
-        let released = false;
-        const release = () => {
-          if (released) {
-            return;
-          }
-          released = true;
-          disarmSafety();
-          if (!this.guestRun) {
-            return;
-          }
-          ctx.sceneHandle = runDeckDrawHandoff({
-            proxies: own,
-            t: this.timings(),
-            onDone: () => this.endGuestRun(),
-          });
-        };
-        const disarmSafety = consoleSessionScope().guarantee(GUEST_HOVER_MAX_MS, 'the guest batch hovering for its host', () => {
-          holdIntakeGuest(undefined);
-          release();
-        });
-        holdIntakeGuest(release);
-        onDone();
-      };
-      void this.$nextTick().then(async () => {
-        const alive = () => this.guestRun && currentRevealEvent()?.id === e.id;
-        const geometry = await this.assemblyGeometry(e, alive);
-        if (geometry === undefined) {
-          noteTransferTrail('intake:guest-no-stage', {id: e.id, alive: alive(), current: currentRevealEvent()?.id});
-          this.endGuestRun();
-          onDone();
-          return;
-        }
-        // The cover scene's own proxies stand on the first run's slots — ours for those cards stay hidden.
-        this.proxyRefs.slice(0, fromCard).forEach((el) => {
-          if (el !== null && el !== undefined) {
-            gsap.set(el, {autoAlpha: 0});
-          }
-        });
-        this.assemblyRun = fromCard;
-        this.playAssemblyRuns(e, geometry, fromCard, {alive, onDone: finish});
-      });
-    },
-
-    endGuestRun(): void {
-      holdIntakeGuest(undefined);
-      ctx.assemblyHandle?.kill();
-      ctx.assemblyHandle = undefined;
-      this.guestRun = false;
-      this.assemblyRun = undefined;
-      this.triggerFaces = [];
-      this.sceneCards = [];
-    },
-
-    /** The slots and the flyers of every card of the batch, measured at rest; undefined = no believable stage. */
-    async assemblyGeometry(e: DrawnCardEntry, alive: () => boolean): Promise<{pairs: Array<{proxy: HTMLElement, flip: HTMLElement}>, slots: Array<HTMLElement>} | undefined> {
-      const keys = e.cards.map((c, i) => `${c.name}#${i}`);
-      const slotOf = (key: string) => document.querySelector<HTMLElement>(
-        `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`);
-      await stableRect(() => slotOf(keys[0]));
-      if (!alive()) {
-        return undefined;
-      }
-      const slots = keys.map(slotOf);
-      const pairs: Array<{proxy: HTMLElement, flip: HTMLElement}> = [];
-      const slotEls: Array<HTMLElement> = [];
-      keys.forEach((_key, i) => {
-        // A mixed scene's flyers stand in the TAPE's order (the rejects have flyers too) — the map says which is this card's.
-        const at = this.cardProxyIndex?.[i] ?? i;
-        const proxy = this.proxyRefs[at];
-        const flip = this.flipRefs[at];
-        const slot = slots[i];
-        if (proxy !== null && proxy !== undefined && flip !== null && flip !== undefined && slot !== null) {
-          pairs.push({proxy, flip});
-          slotEls.push(slot);
-        }
-      });
-      return pairs.length === keys.length ? {pairs, slots: slotEls} : undefined;
-    },
-
-    /** The printed card-bonus icon of a board cell, measurable on screen (the board visible) — else undefined. */
-    boardCellIconRect(spaceId: string): DOMRect | undefined {
-      if (conWsPresence.wsOpen) {
-        return undefined;
-      }
-      const el = document.querySelector<HTMLElement>(`.board-space[data_space_id="${cssEscape(spaceId)}"] .board-space-bonus--card`) ??
-        document.querySelector<HTMLElement>(`.board-space[data_space_id="${cssEscape(spaceId)}"]`);
-      const r = el?.getBoundingClientRect();
-      return r !== undefined && r.width > 4 && r.height > 4 ? r : undefined;
-    },
-
-    /** Plan and play the runs from `fromCard` on through the ONE assembly director (`cardIntake/intakeAssemblyDirector.ts`). */
-    playAssemblyRuns(e: DrawnCardEntry, geometry: {pairs: Array<{proxy: HTMLElement, flip: HTMLElement}>, slots: Array<HTMLElement>}, fromCard: number, hooks: {
-      alive: () => boolean,
-      /** Play the runs before this card only (a mixed scene's prologue — the search run and the rest follow). */
-      untilCard?: number,
-      onCardPeeled?: () => void,
-      onFirstApproach?: () => void,
-      onDone: () => void,
-    }): void {
-      const host = {
-        stageRect: () => this.sceneStage(),
-        triggerEl: (run: number) => this.triggerRefs[run] ?? null,
-        cellIconRect: (spaceId: string) => this.boardCellIconRect(spaceId),
-      };
-      // The card STANDING on the stage this batch presents in — its own run comes off the deck, never a surfaced copy.
-      const stageCard = workspaceClaimsRevealBatch(e) ? workspaceOutcomeState.sourceCard : undefined;
-      const {plan, triggers} = planAssemblyFor(e.segments, host, stageCard);
-      const until = hooks.untilCard ?? Number.POSITIVE_INFINITY;
-      this.triggerFaces = triggers.filter((f) => plan.runs.some((r) => r.index === f.run && r.first >= fromCard && r.first < until));
-      preloadPremiumCardArt(this.triggerFaces.map((f) => f.name));
-      void this.$nextTick().then(() => {
-        if (!hooks.alive()) {
-          return;
-        }
-        ctx.assemblyHandle?.kill();
-        ctx.assemblyHandle = playIntakeAssembly({
-          plan, fromCard, untilCard: hooks.untilCard, pairs: geometry.pairs, slots: geometry.slots, host,
-          alive: hooks.alive,
-          onCardPeeled: hooks.onCardPeeled,
-          onFirstApproach: hooks.onFirstApproach,
-          onDone: () => {
-            ctx.assemblyHandle = undefined;
-            this.assemblyRun = undefined;
-            hooks.onDone();
-          },
-        });
-      });
-    },
-
-    /** Resolve one beat's destinations from the scene geometry. */
-    targetsFor(beat: DrawBeat, geo: {
-      inspect: {x: number, y: number},
-      iScale: number,
-      slots: ReadonlyArray<{x: number, y: number}>,
-      hScale: number,
-      trayRect: RectLike | undefined,
-    }) {
-      const hold = beat.holdSlot !== undefined && geo.slots[beat.holdSlot] !== undefined ?
-        {...geo.slots[beat.holdSlot], scale: geo.hScale} : undefined;
-      return {
-        inspect: {...geo.inspect, scale: geo.iScale},
-        hold,
-        tray: beat.trayDepth !== undefined && geo.trayRect !== undefined ?
-          (geo.trayRect as RectLike) : undefined,
-      };
-    },
-
-    /** The deck's own physical reaction to losing a card. */
-    tickDeck(): void {
-      const deck = document.querySelector<HTMLElement>(DECK_SEL);
-      if (deck !== null) {
-        runDeckSettleTick(deck, deckDrawState.reducedMotion);
-      }
-    },
-
-    /** The hold zone's base fades in with its first resident card. */
-    revealHoldBase(slots: ReadonlyArray<{x: number, y: number}>, hScale: number): void {
-      if (this.showHoldBase || slots.length === 0) {
-        return;
-      }
-      const w = CARD_NATURAL_W * hScale;
-      const h = CARD_NATURAL_H * hScale;
-      const left = slots[0].x - w / 2;
-      const right = slots[slots.length - 1].x + w / 2;
-      this.holdBaseStyle = {
-        left: `${Math.round(left - 18)}px`,
-        top: `${Math.round(slots[0].y + h / 2 + 10)}px`,
-        width: `${Math.round(right - left + 36)}px`,
-      };
-      this.showHoldBase = true;
-    },
-
-    /**
-     * Every card has landed: the reveal assembles at once. (The old «settle»
-     * beat — a staggered hop across the finished row — is gone: an arrived
-     * card never re-animates, and each find already had its own confirmation
-     * at the inspect point.)
-     */
-    finishSearch(): void {
-      if (!deckDrawState.active) {
-        return;
-      }
-      void this.assembleReveal();
-    },
-
-    /**
-     * The reveal mounts VEILED (its slots are laid out but invisible), the
-     * held cards fly into those exact rects, the frame materializes around
-     * them, and only then are the real cards released under the proxies.
-     */
-    async assembleReveal(): Promise<void> {
-      if (!deckDrawState.active) {
-        return;
-      }
-      // Releasing the mount hold: from here the overlay exists, veiled. (A MIXED scene mounted it before its
-      // prologue and may already have cued the frame — never veil it again.)
-      if (deckDrawState.phase === 'search') {
-        setDeckDrawPhase('assemble');
-      }
-      await this.$nextTick();
-
-      const e = currentRevealEvent();
-      if (e === undefined || e.id !== deckDrawState.stagedEventId) {
-        // The batch vanished under us (acked elsewhere / a game switch).
-        this.teardown();
-        endDeckDraw();
-        return;
-      }
-      // A SINGLE received card is presented by the fullscreen viewer itself
-      // (that reveal is HEADLESS — no modal, no slots to fly into). The hold
-      // pose IS the hand-over: release the viewer's held auto-open, and it
-      // lifts THIS proxy via the existing zoom FLIP (registerDeckDrawZoomOrigin).
-      // NOT when a workspace claimed the batch: the EMBEDDED reveal renders a
-      // real slot even for one card (the card belongs inside the workspace,
-      // never in a fullscreen hand-over) — fall through to the slot flight.
-      if (drawnBatchGoesFullscreen(e.cards.length, workspaceClaimsRevealBatch(e))) {
-        setDeckDrawPhase('frame');
-        markDeckDrawZoomReady();
-        // End once the viewer has taken over: the input gate must not stay
-        // closed through the take (that would swallow the «A Взять» press).
-        sceneScope().after(motionMs(deckDrawState.reducedMotion ? 120 : 320), 'a beat of the deck draw', () => {
-          this.teardown();
-          endDeckDraw();
-        });
-        return;
-      }
-      const keys = e.cards.map((c, i) => `${c.name}#${i}`);
-      const targets = await Promise.all(keys.map((key) => stableRect(() => document.querySelector<HTMLElement>(
-        `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`,
-      ))));
-      if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
-        return;
-      }
-      const held = this.heldEls();
-      const resolved = targets.filter((r): r is DOMRect => r !== undefined);
-
-      // A MIXED scene: the finds fly into the SEARCH RUN's own slots; the runs after it follow from their places.
-      const span = this.searchSpan;
-      if (span !== undefined) {
-        const mine = targets.slice(span.first, span.first + span.count).filter((r): r is DOMRect => r !== undefined);
-        if (resolved.length !== keys.length || mine.length !== span.count || held.length !== span.count) {
-          this.releaseAndHandoff(this.mixedProxies());
-          return;
-        }
-        ctx.sceneHandle = runDeckDrawAssemble({
-          proxies: held,
-          targets: mine as ReadonlyArray<RectLike>,
-          naturalHs: mine.map((r) => r.height / Math.max(0.05, r.width / CARD_NATURAL_W)),
-          t: this.timings(),
-          reduced: deckDrawState.reducedMotion,
-          onFrameCue: () => setDeckDrawPhase('frame'),
-          onAllLanded: () => void this.finishMixedSearch(e, span),
-        });
-        return;
-      }
-
-      if (resolved.length !== keys.length || held.length !== keys.length) {
-        // The overlay produced no measurable slots (single-card headless
-        // reveal, or a layout we can't trust): hand off honestly — unveil the
-        // modal and dissolve the proxies where they stand. No teleport, no
-        // duplicate; the player simply doesn't get the fly-in leg.
-        this.releaseAndHandoff(held);
-        return;
-      }
-
-      // (The discard pile does not travel any more: it is the table's, it
-      // stays home beside the deck, and the reveal holds it out for as long
-      // as it presents this batch — PL-260.)
-      ctx.sceneHandle = runDeckDrawAssemble({
-        proxies: held,
-        targets: resolved as ReadonlyArray<RectLike>,
-        naturalHs: resolved.map((r) => r.height / Math.max(0.05, r.width / CARD_NATURAL_W)),
-        t: this.timings(),
-        reduced: deckDrawState.reducedMotion,
-        // The frame materializes AROUND the arriving row (just before the
-        // first touchdown), so the last card lands onto a finished stage and
-        // the handoff owes the player nothing further.
-        onFrameCue: () => setDeckDrawPhase('frame'),
-        onAllLanded: () => this.releaseAndHandoff(held),
-      });
-    },
-
-    /**
-     * THE EPILOGUE of a mixed scene: the finds stand in their slots; the runs AFTER the search run deal from their
-     * own places, then every flyer dissolves over the real cards at once.
-     */
-    async finishMixedSearch(e: DrawnCardEntry, span: {first: number, count: number, steps: number}): Promise<void> {
-      const alive = () => deckDrawState.active && deckDrawState.stagedEventId === e.id;
-      if (!alive()) {
-        return;
-      }
-      const fromCard = span.first + span.count;
-      if (fromCard >= e.cards.length) {
-        this.releaseAndHandoff(this.mixedProxies());
-        return;
-      }
-      const geometry = await this.assemblyGeometry(e, alive);
-      if (!alive()) {
-        return;
-      }
-      if (geometry === undefined) {
-        this.releaseAndHandoff(this.mixedProxies());
-        return;
-      }
-      const preDraw = deckDrawState.preDrawSize;
-      this.assemblyRun = fromCard;
-      this.playAssemblyRuns(e, geometry, fromCard, {
+  // A MIXED scene (the search run of a merged batch): the overlay stands VEILED from here (its slots are the
+  // other runs' landing places), and the runs BEFORE the search deal from their own places first — the server's
+  // order, never re-sorted. The theatre then judges the search run's own tape.
+  const span = searchSpan.value;
+  drawnSoFar.value = 0;
+  if (span !== undefined && span.first > 0) {
+    setDeckDrawPhase('assemble');
+    await nextTick();
+    if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
+      return;
+    }
+    const alive = () => deckDrawState.active && deckDrawState.stagedEventId === e.id;
+    const geometry = await assemblyGeometry(e, alive);
+    if (geometry === undefined) {
+      releaseAndHandoff(mixedProxies());
+      return;
+    }
+    await new Promise<void>((resolve) => {
+      assemblyRun.value = 0;
+      playAssemblyRuns(e, geometry, 0, {
         alive,
+        untilCard: span.first,
         onCardPeeled: () => {
-          this.drawnSoFar++;
-          markDeckCardDrawn(deckCountAfter(preDraw, this.drawnSoFar));
+          drawnSoFar.value++;
+          markDeckCardDrawn(deckCountAfter(preDraw, drawnSoFar.value));
         },
-        onDone: () => this.releaseAndHandoff(this.mixedProxies()),
+        onFirstApproach: () => setDeckDrawPhase('frame'),
+        onDone: resolve,
       });
-    },
+    });
+    if (!alive()) {
+      return;
+    }
+  }
+  const searchSteps = span === undefined ? steps : steps.slice(span.first, span.first + span.steps);
+  const proxyOffset = span?.first ?? 0;
+  const t = timings();
+  const beats = planDeckDraw(searchSteps.map((s) => ({matched: s.matched})), t, plain);
+  const matches = searchSteps.filter((s) => s.matched).length;
+  // THE HOST's stage (PL-263): the cards are judged where they will land.
+  const stage = sceneStage();
+  const hScale = holdScale(stage.height, CARD_NATURAL_H);
+  const slots = holdSlots(matches, stage, CARD_NATURAL_W * hScale);
+  const inspect = inspectPoint(stage);
+  const iScale = inspectScale(stage.height, CARD_NATURAL_H);
 
-    /** Release the overlay's real cards, then dissolve the proxies over them. */
-    releaseAndHandoff(held: ReadonlyArray<HTMLElement>): void {
+  // The pile's landing box, at REST (the pile is still sliding out from
+  // under the strip — `restingRectOf` un-maps its live entry), if this
+  // search has discards. No pile measurable → the discard dives out
+  // honestly (the director's degrade), never a toss at nothing.
+  const pileSlot = deckDrawState.hasDiscards ? discardPileSlotEl() : undefined;
+  const trayRect = pileSlot !== undefined ? restingRectOf(pileSlot) : undefined;
+  if (!deckDrawState.active) {
+    return; // aborted while probing
+  }
+
+  const deckAnchor = {rect: deckRect as RectLike, naturalH: CARD_NATURAL_H};
+  let landed = 0;
+  const total = beats.length;
+
+  beats.forEach((beat) => {
+    const proxy = proxyRefs.value[beat.index + proxyOffset];
+    const flip = flipRefs.value[beat.index + proxyOffset];
+    if (proxy === null || proxy === undefined || flip === null || flip === undefined) {
+      landed++;
+      return;
+    }
+    sceneScope().after(motionMs(beat.atMs), 'a beat of the search leaves the deck', () => {
       if (!deckDrawState.active) {
         return;
       }
-      setDeckDrawPhase('handoff');
-      // A workspace-claimed batch (the Game Start host) has physically
-      // ARRIVED — the real cards release under the proxies in this phase.
-      // Open the claim's arrival gate NOW (its 5 s backstop is a failure
-      // path, not the schedule).
-      // …and so has a COLONY batch a workspace claimed and THIS scene dealt (a
-      // card's «all your colony bonuses» — the take standing in the action
-      // composer's ledger zone): nobody else will say its card has landed. The
-      // colony workspace's own claims open their gate at the claim (their
-      // scenes carry the input lock), so for them this is a no-op.
-      if (workspaceClaimsRevealBatch(currentRevealEvent())) {
-        markWorkspaceOutcomeArrivalDone();
+      const handle = runDeckDrawBeat({
+        beat,
+        els: {proxy, flip},
+        deck: deckAnchor,
+        targets: targetsFor(beat, {inspect, iScale, slots, hScale, trayRect}),
+        t,
+        reduced,
+        onDrawn: () => {
+          drawnSoFar.value++;
+          markDeckCardDrawn(deckCountAfter(preDraw, drawnSoFar.value));
+          tickDeck();
+        },
+        onLanded: () => {
+          if (beat.kind === 'discard') {
+            markDeckDrawDiscarded();
+            landOnDiscardPile();
+          }
+          if (beat.kind !== 'discard') {
+            revealHoldBase(slots, hScale);
+          }
+          landed++;
+          if (landed >= total) {
+            finishSearch();
+          }
+        },
+      });
+      ctx.beatHandles.push(handle);
+    });
+  });
+
+  if (total === 0) {
+    finishSearch();
+  }
+}
+/**
+ * The PLAIN batch: deck → the reveal's REAL slots, one flight. The overlay
+ * mounts VEILED from the start (the staged-entrance grammar every flown
+ * batch already uses), the shared batch director deals the cards with its
+ * landing cadence + in-flight turn, the frame materializes around the
+ * arriving row, and the handoff releases the real cards under proxies that
+ * already stand exactly on them.
+ */
+async function runPlainBatch(e: DrawnCardEntry): Promise<void> {
+  // A merged batch — and a ONE-CAUSE batch whose cause is a card NOT on the stage (a single hook's draw: the
+  // trigger rises beside the row and deals from its own printed icon — «СРАБАТЫВАНИЕ КАРТЫ», decision 5).
+  if (intakeAssemblyPresentsBatch(e, workspaceClaimsRevealBatch(e) ? workspaceOutcomeState.sourceCard : undefined)) {
+    await runAssembly(e);
+    return;
+  }
+  setDeckDrawPhase('assemble');
+  await nextTick();
+  if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
+    return;
+  }
+  const keys = e.cards.map((c, i) => `${c.name}#${i}`);
+  const slotOf = (key: string) => document.querySelector<HTMLElement>(
+    `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`);
+  // «ПРИЁМКА»: a batch the Parliament hosts (a card's answer to a change of power) is dealt into its draw stage's
+  // slots — they exist once the stage has entered (bounded by the stage's own net).
+  await parliamentDrawReady(e);
+  if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
+    return;
+  }
+  // One stable probe on the first slot — the veiled overlay's fit pass has
+  // settled once it answers; the director then measures RESTING rects for
+  // every slot itself.
+  await stableRect(() => slotOf(keys[0]));
+  if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
+    return;
+  }
+  const slots = keys.map(slotOf);
+  const pairs: Array<{proxy: HTMLElement, flip: HTMLElement}> = [];
+  const slotEls: Array<HTMLElement> = [];
+  keys.forEach((_key, i) => {
+    const proxy = proxyRefs.value[i];
+    const flip = flipRefs.value[i];
+    const slot = slots[i];
+    if (proxy !== null && proxy !== undefined && flip !== null && flip !== undefined &&
+        slot !== null) {
+      pairs.push({proxy, flip});
+      slotEls.push(slot);
+    }
+  });
+  if (pairs.length !== keys.length) {
+    // No believable stage (an unmeasurable overlay): hand over honestly —
+    // unveil where things stand, never fake a flight.
+    releaseAndHandoff(heldEls());
+    return;
+  }
+  const preDraw = deckDrawState.preDrawSize;
+  let peeled = 0;
+  const handle = runBatchArrival({
+    cards: pairs,
+    slots: slotEls,
+    mode: 'in-flight-reveal',
+    onCardPeeled: () => {
+      peeled++;
+      markDeckCardDrawn(deckCountAfter(preDraw, peeled));
+    },
+    onSettled: () => {
+      ctx.batchHandle = undefined;
+      releaseAndHandoff(heldEls());
+    },
+  });
+  ctx.batchHandle = handle;
+  // The frame enters while the first card is on final approach — the row
+  // lands into a materializing stage (the rise director's grammar).
+  const firstLand = handle.plan.beats[0]?.landAtMs ?? 0;
+  sceneScope().after(Math.max(0, motionMs(firstLand) - motionMs(70)), 'a beat of the deck draw', () => setDeckDrawPhase('frame'));
+}
+/**
+ * THE ASSEMBLY SCENE — a merged batch dealt RUN BY RUN from each cause's own place («ОДНО ДЕЙСТВИЕ — ОДИН
+ * ЗАБОР», Ф3; the pure plan is `cardIntake/intakeAssemblyPlan.ts`). The stage card's own run comes off the
+ * deck; a trigger card SURFACES beside the row and deals from its printed draw icon; a visible cell deals
+ * from its printed bonus. One row, one frame (cued at the first run's first approach), one handoff.
+ */
+async function runAssembly(e: DrawnCardEntry): Promise<void> {
+  setDeckDrawPhase('assemble');
+  await nextTick();
+  if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
+    return;
+  }
+  const geometry = await assemblyGeometry(e, () => deckDrawState.active && deckDrawState.stagedEventId === e.id);
+  if (geometry === undefined) {
+    // No believable stage (an unmeasurable overlay): hand over honestly — never fake a flight.
+    releaseAndHandoff(heldEls());
+    return;
+  }
+  const preDraw = deckDrawState.preDrawSize;
+  let peeled = 0;
+  let frameCued = false;
+  assemblyRun.value = 0;
+  playAssemblyRuns(e, geometry, 0, {
+    alive: () => deckDrawState.active && deckDrawState.stagedEventId === e.id,
+    onCardPeeled: () => {
+      peeled++;
+      markDeckCardDrawn(deckCountAfter(preDraw, peeled));
+    },
+    onFirstApproach: () => {
+      if (!frameCued) {
+        frameCued = true;
+        setDeckDrawPhase('frame');
+      }
+    },
+    onDone: () => releaseAndHandoff(heldEls()),
+  });
+}
+/**
+ * THE GUEST RUN (the continuation the board card-bonus scene asks for): the cell's run has landed under
+ * that scene's covers; this layer renders the batch's proxies, flies the runs from `fromCard` on, dissolves
+ * its own proxies over the real cards and reports back — the cover scene then plays its handoff.
+ */
+function playGuestAssembly(e: DrawnCardEntry, fromCard: number, onDone: () => void): void {
+  if (deckDrawState.active || guestRun.value) {
+    noteTransferTrail('intake:guest-refused', {id: e.id, fromCard, deckActive: deckDrawState.active, guestRun: guestRun.value});
+    onDone();
+    return;
+  }
+  guestRun.value = true;
+  sceneCards.value = e.cards.map((c) => ({name: c.name, matched: true}));
+  sceneNonce.value++;
+  proxyRefs.value = [];
+  flipRefs.value = [];
+  preloadPremiumCardArt(e.cards.slice(fromCard).map((c) => c.name));
+  let finished = false;
+  const finish = () => {
+    if (finished) {
+      return;
+    }
+    finished = true;
+    // THE FLYERS HOVER IN THEIR SLOTS like the cell's own (the real cards are still HELD by the cover scene until
+    // its handoff): dissolving them here emptied the slot for the host's whole frame beat — the card vanished
+    // and came back (the owner's «мигнула», 2026-11-01). They dissolve in the host's handoff frame instead,
+    // bounded by our own safety in case the host never comes to it.
+    const own = proxyRefs.value.slice(fromCard).filter((el): el is HTMLElement => el !== null && el !== undefined);
+    let released = false;
+    const release = () => {
+      if (released) {
+        return;
+      }
+      released = true;
+      disarmSafety();
+      if (!guestRun.value) {
+        return;
       }
       ctx.sceneHandle = runDeckDrawHandoff({
-        proxies: held,
-        t: this.timings(),
-        onDone: () => {
-          endDeckDraw();
-          this.releasePile();
-          this.sceneCards = [];
-          this.triggerFaces = [];
-          this.assemblyRun = undefined;
-          this.searchSpan = undefined;
-          this.cardProxyIndex = undefined;
-          this.showHoldBase = false;
-        },
+        proxies: own,
+        t: timings(),
+        onDone: () => endGuestRun(),
       });
-    },
+    };
+    const disarmSafety = consoleSessionScope().guarantee(GUEST_HOVER_MAX_MS, 'the guest batch hovering for its host', () => {
+      holdIntakeGuest(undefined);
+      release();
+    });
+    holdIntakeGuest(release);
+    onDone();
+  };
+  void nextTick().then(async () => {
+    const alive = () => guestRun.value && currentRevealEvent()?.id === e.id;
+    const geometry = await assemblyGeometry(e, alive);
+    if (geometry === undefined) {
+      noteTransferTrail('intake:guest-no-stage', {id: e.id, alive: alive(), current: currentRevealEvent()?.id});
+      endGuestRun();
+      onDone();
+      return;
+    }
+    // The cover scene's own proxies stand on the first run's slots — ours for those cards stay hidden.
+    proxyRefs.value.slice(0, fromCard).forEach((el) => {
+      if (el !== null && el !== undefined) {
+        gsap.set(el, {autoAlpha: 0});
+      }
+    });
+    assemblyRun.value = fromCard;
+    playAssemblyRuns(e, geometry, fromCard, {alive, onDone: finish});
+  });
+}
+function endGuestRun(): void {
+  holdIntakeGuest(undefined);
+  ctx.assemblyHandle?.kill();
+  ctx.assemblyHandle = undefined;
+  guestRun.value = false;
+  assemblyRun.value = undefined;
+  triggerFaces.value = [];
+  sceneCards.value = [];
+}
+/** The slots and the flyers of every card of the batch, measured at rest; undefined = no believable stage. */
+async function assemblyGeometry(e: DrawnCardEntry, alive: () => boolean): Promise<{pairs: Array<{proxy: HTMLElement, flip: HTMLElement}>, slots: Array<HTMLElement>} | undefined> {
+  const keys = e.cards.map((c, i) => `${c.name}#${i}`);
+  const slotOf = (key: string) => document.querySelector<HTMLElement>(
+    `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`);
+  await stableRect(() => slotOf(keys[0]));
+  if (!alive()) {
+    return undefined;
+  }
+  const slots = keys.map(slotOf);
+  const pairs: Array<{proxy: HTMLElement, flip: HTMLElement}> = [];
+  const slotEls: Array<HTMLElement> = [];
+  keys.forEach((_key, i) => {
+    // A mixed scene's flyers stand in the TAPE's order (the rejects have flyers too) — the map says which is this card's.
+    const at = cardProxyIndex.value?.[i] ?? i;
+    const proxy = proxyRefs.value[at];
+    const flip = flipRefs.value[at];
+    const slot = slots[i];
+    if (proxy !== null && proxy !== undefined && flip !== null && flip !== undefined && slot !== null) {
+      pairs.push({proxy, flip});
+      slotEls.push(slot);
+    }
+  });
+  return pairs.length === keys.length ? {pairs, slots: slotEls} : undefined;
+}
+/** The printed card-bonus icon of a board cell, measurable on screen (the board visible) — else undefined. */
+function boardCellIconRect(spaceId: string): DOMRect | undefined {
+  if (conWsPresence.wsOpen) {
+    return undefined;
+  }
+  const el = document.querySelector<HTMLElement>(`.board-space[data_space_id="${cssEscape(spaceId)}"] .board-space-bonus--card`) ??
+    document.querySelector<HTMLElement>(`.board-space[data_space_id="${cssEscape(spaceId)}"]`);
+  const r = el?.getBoundingClientRect();
+  return r !== undefined && r.width > 4 && r.height > 4 ? r : undefined;
+}
+/** Plan and play the runs from `fromCard` on through the ONE assembly director (`cardIntake/intakeAssemblyDirector.ts`). */
+function playAssemblyRuns(e: DrawnCardEntry, geometry: {pairs: Array<{proxy: HTMLElement, flip: HTMLElement}>, slots: Array<HTMLElement>}, fromCard: number, hooks: {
+  alive: () => boolean,
+  /** Play the runs before this card only (a mixed scene's prologue — the search run and the rest follow). */
+  untilCard?: number,
+  onCardPeeled?: () => void,
+  onFirstApproach?: () => void,
+  onDone: () => void,
+}): void {
+  const host = {
+    stageRect: () => sceneStage(),
+    triggerEl: (run: number) => triggerRefs.value[run] ?? null,
+    cellIconRect: (spaceId: string) => boardCellIconRect(spaceId),
+  };
+  // The card STANDING on the stage this batch presents in — its own run comes off the deck, never a surfaced copy.
+  const stageCard = workspaceClaimsRevealBatch(e) ? workspaceOutcomeState.sourceCard : undefined;
+  const {plan, triggers} = planAssemblyFor(e.segments, host, stageCard);
+  const until = hooks.untilCard ?? Number.POSITIVE_INFINITY;
+  triggerFaces.value = triggers.filter((f) => plan.runs.some((r) => r.index === f.run && r.first >= fromCard && r.first < until));
+  preloadPremiumCardArt(triggerFaces.value.map((f) => f.name));
+  void nextTick().then(() => {
+    if (!hooks.alive()) {
+      return;
+    }
+    ctx.assemblyHandle?.kill();
+    ctx.assemblyHandle = playIntakeAssembly({
+      plan, fromCard, untilCard: hooks.untilCard, pairs: geometry.pairs, slots: geometry.slots, host,
+      alive: hooks.alive,
+      onCardPeeled: hooks.onCardPeeled,
+      onFirstApproach: hooks.onFirstApproach,
+      onDone: () => {
+        ctx.assemblyHandle = undefined;
+        assemblyRun.value = undefined;
+        hooks.onDone();
+      },
+    });
+  });
+}
+/** Resolve one beat's destinations from the scene geometry. */
+function targetsFor(beat: DrawBeat, geo: {
+  inspect: {x: number, y: number},
+  iScale: number,
+  slots: ReadonlyArray<{x: number, y: number}>,
+  hScale: number,
+  trayRect: RectLike | undefined,
+}) {
+  const hold = beat.holdSlot !== undefined && geo.slots[beat.holdSlot] !== undefined ?
+    {...geo.slots[beat.holdSlot], scale: geo.hScale} : undefined;
+  return {
+    inspect: {...geo.inspect, scale: geo.iScale},
+    hold,
+    tray: beat.trayDepth !== undefined && geo.trayRect !== undefined ?
+      (geo.trayRect as RectLike) : undefined,
+  };
+}
+/** The deck's own physical reaction to losing a card. */
+function tickDeck(): void {
+  const deck = document.querySelector<HTMLElement>(DECK_SEL);
+  if (deck !== null) {
+    runDeckSettleTick(deck, deckDrawState.reducedMotion);
+  }
+}
+/** The hold zone's base fades in with its first resident card. */
+function revealHoldBase(slots: ReadonlyArray<{x: number, y: number}>, hScale: number): void {
+  if (showHoldBase.value || slots.length === 0) {
+    return;
+  }
+  const w = CARD_NATURAL_W * hScale;
+  const h = CARD_NATURAL_H * hScale;
+  const left = slots[0].x - w / 2;
+  const right = slots[slots.length - 1].x + w / 2;
+  holdBaseStyle.value = {
+    left: `${Math.round(left - 18)}px`,
+    top: `${Math.round(slots[0].y + h / 2 + 10)}px`,
+    width: `${Math.round(right - left + 36)}px`,
+  };
+  showHoldBase.value = true;
+}
+/**
+ * Every card has landed: the reveal assembles at once. (The old «settle»
+ * beat — a staggered hop across the finished row — is gone: an arrived
+ * card never re-animates, and each find already had its own confirmation
+ * at the inspect point.)
+ */
+function finishSearch(): void {
+  if (!deckDrawState.active) {
+    return;
+  }
+  void assembleReveal();
+}
+/**
+ * The reveal mounts VEILED (its slots are laid out but invisible), the
+ * held cards fly into those exact rects, the frame materializes around
+ * them, and only then are the real cards released under the proxies.
+ */
+async function assembleReveal(): Promise<void> {
+  if (!deckDrawState.active) {
+    return;
+  }
+  // Releasing the mount hold: from here the overlay exists, veiled. (A MIXED scene mounted it before its
+  // prologue and may already have cued the frame — never veil it again.)
+  if (deckDrawState.phase === 'search') {
+    setDeckDrawPhase('assemble');
+  }
+  await nextTick();
 
-    /** Kill everything and drop the proxies (abort / unmount). */
-    teardown(): void {
-      killAll();
-      const els = this.proxyEls();
-      if (els.length > 0) {
-        gsap.set(els, {autoAlpha: 0});
-      }
-      this.sceneCards = [];
-      this.triggerFaces = [];
-      this.assemblyRun = undefined;
-      this.searchSpan = undefined;
-      this.cardProxyIndex = undefined;
-      this.guestRun = false;
-      this.showHoldBase = false;
-      // The pile is NOT cut here: the scene's lease lets go, and whatever
-      // presents the batch now (the stock reveal an abort unveils) holds it —
-      // the pile leaves with its own phrase only when nobody does.
-      this.releasePile();
-      this.settleStream();
+  const e = currentRevealEvent();
+  if (e === undefined || e.id !== deckDrawState.stagedEventId) {
+    // The batch vanished under us (acked elsewhere / a game switch).
+    teardown();
+    endDeckDraw();
+    return;
+  }
+  // A SINGLE received card is presented by the fullscreen viewer itself
+  // (that reveal is HEADLESS — no modal, no slots to fly into). The hold
+  // pose IS the hand-over: release the viewer's held auto-open, and it
+  // lifts THIS proxy via the existing zoom FLIP (registerDeckDrawZoomOrigin).
+  // NOT when a workspace claimed the batch: the EMBEDDED reveal renders a
+  // real slot even for one card (the card belongs inside the workspace,
+  // never in a fullscreen hand-over) — fall through to the slot flight.
+  if (drawnBatchGoesFullscreen(e.cards.length, workspaceClaimsRevealBatch(e))) {
+    setDeckDrawPhase('frame');
+    markDeckDrawZoomReady();
+    // End once the viewer has taken over: the input gate must not stay
+    // closed through the take (that would swallow the «A Взять» press).
+    sceneScope().after(motionMs(deckDrawState.reducedMotion ? 120 : 320), 'a beat of the deck draw', () => {
+      teardown();
+      endDeckDraw();
+    });
+    return;
+  }
+  const keys = e.cards.map((c, i) => `${c.name}#${i}`);
+  const targets = await Promise.all(keys.map((key) => stableRect(() => document.querySelector<HTMLElement>(
+    `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`,
+  ))));
+  if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
+    return;
+  }
+  const held = heldEls();
+  const resolved = targets.filter((r): r is DOMRect => r !== undefined);
+
+  // A MIXED scene: the finds fly into the SEARCH RUN's own slots; the runs after it follow from their places.
+  const span = searchSpan.value;
+  if (span !== undefined) {
+    const mine = targets.slice(span.first, span.first + span.count).filter((r): r is DOMRect => r !== undefined);
+    if (resolved.length !== keys.length || mine.length !== span.count || held.length !== span.count) {
+      releaseAndHandoff(mixedProxies());
+      return;
+    }
+    ctx.sceneHandle = runDeckDrawAssemble({
+      proxies: held,
+      targets: mine as ReadonlyArray<RectLike>,
+      naturalHs: mine.map((r) => r.height / Math.max(0.05, r.width / CARD_NATURAL_W)),
+      t: timings(),
+      reduced: deckDrawState.reducedMotion,
+      onFrameCue: () => setDeckDrawPhase('frame'),
+      onAllLanded: () => void finishMixedSearch(e, span),
+    });
+    return;
+  }
+
+  if (resolved.length !== keys.length || held.length !== keys.length) {
+    // The overlay produced no measurable slots (single-card headless
+    // reveal, or a layout we can't trust): hand off honestly — unveil the
+    // modal and dissolve the proxies where they stand. No teleport, no
+    // duplicate; the player simply doesn't get the fly-in leg.
+    releaseAndHandoff(held);
+    return;
+  }
+
+  // (The discard pile does not travel any more: it is the table's, it
+  // stays home beside the deck, and the reveal holds it out for as long
+  // as it presents this batch — PL-260.)
+  ctx.sceneHandle = runDeckDrawAssemble({
+    proxies: held,
+    targets: resolved as ReadonlyArray<RectLike>,
+    naturalHs: resolved.map((r) => r.height / Math.max(0.05, r.width / CARD_NATURAL_W)),
+    t: timings(),
+    reduced: deckDrawState.reducedMotion,
+    // The frame materializes AROUND the arriving row (just before the
+    // first touchdown), so the last card lands onto a finished stage and
+    // the handoff owes the player nothing further.
+    onFrameCue: () => setDeckDrawPhase('frame'),
+    onAllLanded: () => releaseAndHandoff(held),
+  });
+}
+/**
+ * THE EPILOGUE of a mixed scene: the finds stand in their slots; the runs AFTER the search run deal from their
+ * own places, then every flyer dissolves over the real cards at once.
+ */
+async function finishMixedSearch(e: DrawnCardEntry, span: {first: number, count: number, steps: number}): Promise<void> {
+  const alive = () => deckDrawState.active && deckDrawState.stagedEventId === e.id;
+  if (!alive()) {
+    return;
+  }
+  const fromCard = span.first + span.count;
+  if (fromCard >= e.cards.length) {
+    releaseAndHandoff(mixedProxies());
+    return;
+  }
+  const geometry = await assemblyGeometry(e, alive);
+  if (!alive()) {
+    return;
+  }
+  if (geometry === undefined) {
+    releaseAndHandoff(mixedProxies());
+    return;
+  }
+  const preDraw = deckDrawState.preDrawSize;
+  assemblyRun.value = fromCard;
+  playAssemblyRuns(e, geometry, fromCard, {
+    alive,
+    onCardPeeled: () => {
+      drawnSoFar.value++;
+      markDeckCardDrawn(deckCountAfter(preDraw, drawnSoFar.value));
     },
-    /** A stream cut short (teardown / unmount): its owner is told every card has left, and its lease lets go. */
-    settleStream(): void {
-      const stream = ctx.stream;
-      ctx.stream = undefined;
-      markDiscardStreaming(false);
-      if (stream !== undefined) {
-        stream.allPeeled();
-        settleDiscardPile(stream.lease);
-        releaseDiscardPile(stream.lease);
-      }
+    onDone: () => releaseAndHandoff(mixedProxies()),
+  });
+}
+/** Release the overlay's real cards, then dissolve the proxies over them. */
+function releaseAndHandoff(held: ReadonlyArray<HTMLElement>): void {
+  if (!deckDrawState.active) {
+    return;
+  }
+  setDeckDrawPhase('handoff');
+  // A workspace-claimed batch (the Game Start host) has physically
+  // ARRIVED — the real cards release under the proxies in this phase.
+  // Open the claim's arrival gate NOW (its 5 s backstop is a failure
+  // path, not the schedule).
+  // …and so has a COLONY batch a workspace claimed and THIS scene dealt (a
+  // card's «all your colony bonuses» — the take standing in the action
+  // composer's ledger zone): nobody else will say its card has landed. The
+  // colony workspace's own claims open their gate at the claim (their
+  // scenes carry the input lock), so for them this is a no-op.
+  if (workspaceClaimsRevealBatch(currentRevealEvent())) {
+    markWorkspaceOutcomeArrivalDone();
+  }
+  ctx.sceneHandle = runDeckDrawHandoff({
+    proxies: held,
+    t: timings(),
+    onDone: () => {
+      endDeckDraw();
+      releasePile();
+      sceneCards.value = [];
+      triggerFaces.value = [];
+      assemblyRun.value = undefined;
+      searchSpan.value = undefined;
+      cardProxyIndex.value = undefined;
+      showHoldBase.value = false;
     },
-    /**
-     * THE DISCARD STREAM (PL-261): a workspace's own beat deals the batch's FOUND cards; this layer deals its
-     * thrown-away ones — the scene's own dealer's gesture (off the HUD deck, aside onto the table's pile), the counter
-     * ticking one card per peel under the owner's hold. `onAllPeeled` fires exactly once, when the last thrown-away
-     * card has LEFT the deck (bounded: a beat with no proxy counts as peeled, and a net past the plan's own length
-     * fires it anyway — the owner's flight can never wait on a stream that stalled).
-     */
-    playDiscardStream(req: DiscardStreamRequest): boolean {
-      if (deckDrawState.active || deckDrawState.streaming) {
-        return false;
+  });
+}
+/** Kill everything and drop the proxies (abort / unmount). */
+function teardown(): void {
+  killAll();
+  const els = proxyEls();
+  if (els.length > 0) {
+    gsap.set(els, {autoAlpha: 0});
+  }
+  sceneCards.value = [];
+  triggerFaces.value = [];
+  assemblyRun.value = undefined;
+  searchSpan.value = undefined;
+  cardProxyIndex.value = undefined;
+  guestRun.value = false;
+  showHoldBase.value = false;
+  // The pile is NOT cut here: the scene's lease lets go, and whatever
+  // presents the batch now (the stock reveal an abort unveils) holds it —
+  // the pile leaves with its own phrase only when nobody does.
+  releasePile();
+  settleStream();
+}
+/** A stream cut short (teardown / unmount): its owner is told every card has left, and its lease lets go. */
+function settleStream(): void {
+  const stream = ctx.stream;
+  ctx.stream = undefined;
+  markDiscardStreaming(false);
+  if (stream !== undefined) {
+    stream.allPeeled();
+    settleDiscardPile(stream.lease);
+    releaseDiscardPile(stream.lease);
+  }
+}
+/**
+ * THE DISCARD STREAM (PL-261): a workspace's own beat deals the batch's FOUND cards; this layer deals its
+ * thrown-away ones — the scene's own dealer's gesture (off the HUD deck, aside onto the table's pile), the counter
+ * ticking one card per peel under the owner's hold. `onAllPeeled` fires exactly once, when the last thrown-away
+ * card has LEFT the deck (bounded: a beat with no proxy counts as peeled, and a net past the plan's own length
+ * fires it anyway — the owner's flight can never wait on a stream that stalled).
+ */
+function playDiscardStream(req: DiscardStreamRequest): boolean {
+  if (deckDrawState.active || deckDrawState.streaming) {
+    return false;
+  }
+  const deck = document.querySelector<HTMLElement>(DECK_SEL)?.getBoundingClientRect();
+  if (deck === undefined || deck.width < 2) {
+    return false;
+  }
+  markDiscardStreaming(true);
+  const lease = `stream:${req.eventId}`;
+  openDiscardPile(lease);
+  expectDiscardPileCount(lease, req.cards.length);
+  sceneCards.value = req.cards.map((name) => ({name, matched: false}));
+  sceneNonce.value++;
+  proxyRefs.value = [];
+  flipRefs.value = [];
+  const t = timings();
+  const reduced = consoleReducedMotionActive();
+  const beats = planDeckDraw(req.cards.map(() => ({matched: false})), t, false);
+  let peeled = 0;
+  let landed = 0;
+  let released = false;
+  const allPeeled = () => {
+    if (!released) {
+      released = true;
+      req.onAllPeeled();
+    }
+  };
+  ctx.stream = {lease, allPeeled};
+  // ONE CARD, ONE TICK, ITS OWN FRAME (`deckTickPacer.ts` — CI 43066263512: 283 → 280 in one step, and 283 → 281
+  // on the green retry). A card that leaves the deck OWES a tick; the pacer writes the first at once and every
+  // further one a frame later, and the owner hears «all peeled» (its flight then releases the hold to the server's
+  // number) only a frame after the last tick was written — the beats starting on one starved GSAP tick can no
+  // longer merge their ticks, nor the owner's release swallow the last one.
+  const counted = new Set<number>();
+  const pacer = createDeckTickPacer({
+    tick: () => {
+      tickDeckDisplay();
+      tickDeck();
+    },
+    nextFrame: (fn) => {
+      sceneScope().afterFrame('a tick of the discard stream', fn);
+    },
+  });
+  const owe = (index: number) => {
+    if (!counted.has(index)) {
+      counted.add(index);
+      pacer.owe();
+    }
+  };
+  const peelsDone = () => pacer.whenDrained(allPeeled);
+  // THE NET CATCHES A STALL, never a SLOW stream. The peels run on GSAP's frames, which lag-smooth on a starved
+  // renderer (a software-rastered 4K: a frame over 500 ms advances the timeline 33 ms), while a plain net at the
+  // plan's length runs on the wall clock — it fired before the peels, the owner's flight released the deck's
+  // hold, and the counter jumped 283 → 280 in one step (CI, the box without a GPU). So the net re-arms while the
+  // stream is still making progress (a beat starting, a card leaving the deck), and a hard cap keeps «the owner's
+  // flight never waits on a stream that stalled» bounded. And a net that fires CATCHES THE STREAM UP card by card
+  // (animations.md law 1): every card it has not ticked yet is owed through the pacer, the owner hears «all
+  // peeled» only after the last of them — never a release that resolves the whole count in one jump.
+  const lastPeelMs = beats.length > 0 ? beats[beats.length - 1].atMs + t.peelMs : 0;
+  const streamStart = performance.now();
+  let lastProgress = streamStart;
+  const stallMs = motionMs(t.peelMs) + motionMs(600);
+  const capMs = motionMs(lastPeelMs) * 3 + 2_000;
+  const net = () => {
+    if (released) {
+      return;
+    }
+    const now = performance.now();
+    if (peeled < beats.length && now - lastProgress < stallMs && now - streamStart < capMs) {
+      sceneScope().after(motionMs(150), 'a beat of the deck draw', net);
+      return;
+    }
+    beats.forEach((beat) => owe(beat.index));
+    peelsDone();
+  };
+  sceneScope().after(motionMs(lastPeelMs) + motionMs(400), 'a beat of the deck draw', net);
+  void nextTick(() => {
+    const slot = discardPileSlotEl();
+    const trayRect = slot !== undefined ? restingRectOf(slot) : undefined;
+    const deckAnchor = {rect: deck as RectLike, naturalH: CARD_NATURAL_H};
+    const done = () => {
+      landed++;
+      if (landed >= beats.length) {
+        endDiscardStream(req.eventId, lease);
       }
-      const deck = document.querySelector<HTMLElement>(DECK_SEL)?.getBoundingClientRect();
-      if (deck === undefined || deck.width < 2) {
-        return false;
+    };
+    beats.forEach((beat) => {
+      const proxy = proxyRefs.value[beat.index];
+      const flip = flipRefs.value[beat.index];
+      if (proxy === null || proxy === undefined || flip === null || flip === undefined) {
+        owe(beat.index);
+        peeled++;
+        if (peeled >= beats.length) {
+          peelsDone();
+        }
+        done();
+        return;
       }
-      markDiscardStreaming(true);
-      const lease = `stream:${req.eventId}`;
-      openDiscardPile(lease);
-      expectDiscardPileCount(lease, req.cards.length);
-      this.sceneCards = req.cards.map((name) => ({name, matched: false}));
-      this.sceneNonce++;
-      this.proxyRefs = [];
-      this.flipRefs = [];
-      const t = this.timings();
-      const reduced = consoleReducedMotionActive();
-      const beats = planDeckDraw(req.cards.map(() => ({matched: false})), t, false);
-      let peeled = 0;
-      let landed = 0;
-      let released = false;
-      const allPeeled = () => {
-        if (!released) {
-          released = true;
-          req.onAllPeeled();
-        }
-      };
-      ctx.stream = {lease, allPeeled};
-      // ONE CARD, ONE TICK, ITS OWN FRAME (`deckTickPacer.ts` — CI 43066263512: 283 → 280 in one step, and 283 → 281
-      // on the green retry). A card that leaves the deck OWES a tick; the pacer writes the first at once and every
-      // further one a frame later, and the owner hears «all peeled» (its flight then releases the hold to the server's
-      // number) only a frame after the last tick was written — the beats starting on one starved GSAP tick can no
-      // longer merge their ticks, nor the owner's release swallow the last one.
-      const counted = new Set<number>();
-      const pacer = createDeckTickPacer({
-        tick: () => {
-          tickDeckDisplay();
-          this.tickDeck();
-        },
-        nextFrame: (fn) => {
-          sceneScope().afterFrame('a tick of the discard stream', fn);
-        },
-      });
-      const owe = (index: number) => {
-        if (!counted.has(index)) {
-          counted.add(index);
-          pacer.owe();
-        }
-      };
-      const peelsDone = () => pacer.whenDrained(allPeeled);
-      // THE NET CATCHES A STALL, never a SLOW stream. The peels run on GSAP's frames, which lag-smooth on a starved
-      // renderer (a software-rastered 4K: a frame over 500 ms advances the timeline 33 ms), while a plain net at the
-      // plan's length runs on the wall clock — it fired before the peels, the owner's flight released the deck's
-      // hold, and the counter jumped 283 → 280 in one step (CI, the box without a GPU). So the net re-arms while the
-      // stream is still making progress (a beat starting, a card leaving the deck), and a hard cap keeps «the owner's
-      // flight never waits on a stream that stalled» bounded. And a net that fires CATCHES THE STREAM UP card by card
-      // (animations.md law 1): every card it has not ticked yet is owed through the pacer, the owner hears «all
-      // peeled» only after the last of them — never a release that resolves the whole count in one jump.
-      const lastPeelMs = beats.length > 0 ? beats[beats.length - 1].atMs + t.peelMs : 0;
-      const streamStart = performance.now();
-      let lastProgress = streamStart;
-      const stallMs = motionMs(t.peelMs) + motionMs(600);
-      const capMs = motionMs(lastPeelMs) * 3 + 2_000;
-      const net = () => {
-        if (released) {
-          return;
-        }
-        const now = performance.now();
-        if (peeled < beats.length && now - lastProgress < stallMs && now - streamStart < capMs) {
-          sceneScope().after(motionMs(150), 'a beat of the deck draw', net);
-          return;
-        }
-        beats.forEach((beat) => owe(beat.index));
-        peelsDone();
-      };
-      sceneScope().after(motionMs(lastPeelMs) + motionMs(400), 'a beat of the deck draw', net);
-      void this.$nextTick(() => {
-        const slot = discardPileSlotEl();
-        const trayRect = slot !== undefined ? restingRectOf(slot) : undefined;
-        const deckAnchor = {rect: deck as RectLike, naturalH: CARD_NATURAL_H};
-        const done = () => {
-          landed++;
-          if (landed >= beats.length) {
-            this.endDiscardStream(req.eventId, lease);
-          }
-        };
-        beats.forEach((beat) => {
-          const proxy = this.proxyRefs[beat.index];
-          const flip = this.flipRefs[beat.index];
-          if (proxy === null || proxy === undefined || flip === null || flip === undefined) {
+      sceneScope().after(motionMs(beat.atMs), 'a beat of the deck draw', () => {
+        lastProgress = performance.now();
+        const handle = runDeckDrawBeat({
+          beat,
+          els: {proxy, flip},
+          deck: deckAnchor,
+          targets: {inspect: {x: 0, y: 0, scale: 1}, tray: trayRect},
+          t,
+          reduced,
+          onDrawn: () => {
+            lastProgress = performance.now();
             owe(beat.index);
             peeled++;
             if (peeled >= beats.length) {
               peelsDone();
             }
+          },
+          onLanded: () => {
+            landOnDiscardPile();
             done();
-            return;
-          }
-          sceneScope().after(motionMs(beat.atMs), 'a beat of the deck draw', () => {
-            lastProgress = performance.now();
-            const handle = runDeckDrawBeat({
-              beat,
-              els: {proxy, flip},
-              deck: deckAnchor,
-              targets: {inspect: {x: 0, y: 0, scale: 1}, tray: trayRect},
-              t,
-              reduced,
-              onDrawn: () => {
-                lastProgress = performance.now();
-                owe(beat.index);
-                peeled++;
-                if (peeled >= beats.length) {
-                  peelsDone();
-                }
-              },
-              onLanded: () => {
-                landOnDiscardPile();
-                done();
-              },
-            });
-            ctx.beatHandles.push(handle);
-          });
+          },
         });
+        ctx.beatHandles.push(handle);
       });
-      return true;
-    },
-    /**
-     * The stream is over: its proxies go, and its lease on the pile is HANDED to the reveal that presents the batch
-     * (the pile must not slide in and out between the stream's last toss and the surface's arrival) — released once
-     * the reveal holds the pile or the batch is no longer owed, bounded by a short net.
-     */
-    endDiscardStream(eventId: number, lease: string): void {
-      if (!deckDrawState.active) {
-        this.sceneCards = [];
+    });
+  });
+  return true;
+}
+/**
+ * The stream is over: its proxies go, and its lease on the pile is HANDED to the reveal that presents the batch
+ * (the pile must not slide in and out between the stream's last toss and the surface's arrival) — released once
+ * the reveal holds the pile or the batch is no longer owed, bounded by a short net.
+ */
+function endDiscardStream(eventId: number, lease: string): void {
+  if (!deckDrawState.active) {
+    sceneCards.value = [];
+  }
+  // Every toss has LANDED (the caller's `done`) — only now may a reveal read the server's count onto the pile.
+  markDiscardStreaming(false);
+  const started = Date.now();
+  const handOver = () => {
+    const owed = pendingRevealEvents().some((e) => e.id === eventId);
+    if (discardPileHeldBy(`reveal:${eventId}`) || !owed || Date.now() - started > 4_000) {
+      settleDiscardPile(lease);
+      releaseDiscardPile(lease);
+      if (ctx.stream?.lease === lease) {
+        ctx.stream = undefined;
       }
-      // Every toss has LANDED (the caller's `done`) — only now may a reveal read the server's count onto the pile.
-      markDiscardStreaming(false);
-      const started = Date.now();
-      const handOver = () => {
-        const owed = pendingRevealEvents().some((e) => e.id === eventId);
-        if (discardPileHeldBy(`reveal:${eventId}`) || !owed || Date.now() - started > 4_000) {
-          settleDiscardPile(lease);
-          releaseDiscardPile(lease);
-          if (ctx.stream?.lease === lease) {
-            ctx.stream = undefined;
-          }
-          return;
-        }
-        sceneScope().after(100, 'a beat of the deck draw', handOver);
-      };
-      handOver();
-    },
-    /** The scene's lease on the discard pile ends with the scene. */
-    releasePile(): void {
-      if (this.sceneEventId !== undefined) {
-        settleDiscardPile(`scene:${this.sceneEventId}`);
-        releaseDiscardPile(`scene:${this.sceneEventId}`);
-        this.sceneEventId = undefined;
-      }
-    },
-    /**
-     * THE STAGE the search plays in (PL-263): the workspace that hosts the
-     * draw — the band surface around the claim's own zone, else the band
-     * surface on screen — or the board's free area when nothing hosts it;
-     * the viewport only when none of them can be measured.
-     */
-    sceneStage(): SceneStage {
-      const measure = (el: Element | null | undefined): SceneStage | undefined => {
-        if (el === null || el === undefined) {
-          return undefined;
-        }
-        const r = el.getBoundingClientRect();
-        return r.width > 200 && r.height > 200 ? {left: r.left, top: r.top, width: r.width, height: r.height} : undefined;
-      };
-      const slot = workspaceOutcomeState.embedSlot;
-      const host = slot !== '' ? document.querySelector(slot)?.closest('.con-ws') : undefined;
-      const band = Array.from(document.querySelectorAll('.con-ws')).find((el) => measure(el) !== undefined);
-      return measure(host) ?? measure(band) ?? measure(document.querySelector('.con-main')) ??
-        viewportStage(window.innerWidth, window.innerHeight);
-    },
-  },
+      return;
+    }
+    sceneScope().after(100, 'a beat of the deck draw', handOver);
+  };
+  handOver();
+}
+/** The scene's lease on the discard pile ends with the scene. */
+function releasePile(): void {
+  if (sceneEventId.value !== undefined) {
+    settleDiscardPile(`scene:${sceneEventId.value}`);
+    releaseDiscardPile(`scene:${sceneEventId.value}`);
+    sceneEventId.value = undefined;
+  }
+}
+/**
+ * THE STAGE the search plays in (PL-263): the workspace that hosts the
+ * draw — the band surface around the claim's own zone, else the band
+ * surface on screen — or the board's free area when nothing hosts it;
+ * the viewport only when none of them can be measured.
+ */
+function sceneStage(): SceneStage {
+  const measure = (el: Element | null | undefined): SceneStage | undefined => {
+    if (el === null || el === undefined) {
+      return undefined;
+    }
+    const r = el.getBoundingClientRect();
+    return r.width > 200 && r.height > 200 ? {left: r.left, top: r.top, width: r.width, height: r.height} : undefined;
+  };
+  const slot = workspaceOutcomeState.embedSlot;
+  const host = slot !== '' ? document.querySelector(slot)?.closest('.con-ws') : undefined;
+  const band = Array.from(document.querySelectorAll('.con-ws')).find((el) => measure(el) !== undefined);
+  return measure(host) ?? measure(band) ?? measure(document.querySelector('.con-main')) ??
+    viewportStage(window.innerWidth, window.innerHeight);
+}
+
+watch(() => revealVerdict.value, (r: {v: DeckDrawVerdict, e: DrawnCardEntry} | undefined): void => {
+  if (r === undefined || r.v === undefined) {
+    return;
+  }
+  if (r.v.kind === 'foreign') {
+    noteDeckDrawForeign(r.v.eventId);
+    // A SETTLEMENT TABLE's sealed card is not flown by anybody: it turns over in place, and the counter answers
+    // with the turn — the table ADOPTS the seed instead of letting it go (colony polish 1).
+    if (settlementClaimsBatch(r.e.source, r.e)) {
+      adoptSettlementDeck();
+      return;
+    }
+    // A WORKSPACE's own beat deals this batch (the card-actions composer — PL-261): it ADOPTS the seed at its
+    // entry and ticks it per card; released here, the answered count showed a beat before anything had left the
+    // deck whenever the answer beat the beat's entry (PL-281 — a fast local server, every run).
+    if (workspaceClaimOwnsArrival(r.e)) {
+      return;
+    }
+    // Somebody else flies it — the apply-block seed that kept its cards on the counter lets go (PL-088).
+    releaseDeckDrawSeed();
+    return;
+  }
+  claimScene(r.e);
+}, {flush: 'pre'});
+
+onMounted(() => {
+  registerDeckDrawHandle({abort: () => teardown()});
+  registerDiscardStreamPlayer((req) => playDiscardStream(req));
+  registerIntakeContinuation((e, fromCard, onDone) => playGuestAssembly(e, fromCard, onDone));
+  // The single-card fullscreen lifts THIS proxy (the card that just flew),
+  // rather than opening a fresh copy over it.
+  registerDeckDrawZoomOrigin(() => heldEls()[0] ?? null);
+  // A batch already on screen at mount (a reload straight into a reveal) is
+  // deliberately NOT animated: the cards are already the player's, and a
+  // cinematic replayed on refresh would be a lie.
+  if (currentRevealEvent() !== undefined) {
+    deckDrawState.stagedEventId = currentRevealEvent()?.id;
+  }
+});
+onBeforeUnmount(() => {
+  registerDeckDrawHandle(undefined);
+  registerDiscardStreamPlayer(undefined);
+  registerIntakeContinuation(undefined);
+  registerDeckDrawZoomOrigin(undefined);
+  killAll();
 });
 </script>
