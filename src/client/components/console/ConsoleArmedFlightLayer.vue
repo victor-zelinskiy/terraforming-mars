@@ -1,7 +1,4 @@
 <template>
-  <!-- THE ONE-PLAY CLASS'S FLIGHT LAYER (TR49) — mounted once by the shell (a flight stage inside a teleported surface
-       inherits its containing block). Each token is the armed effect's own badge — the waiver's struck plate, «±2»,
-       «−8» — flown by the shared transfer director (`armedEffectFlight.ts`). Empty and free when nothing flies. -->
   <div class="con-armfly" :class="{'con-armfly--idle': state.tokens.length === 0}" aria-hidden="true"
        data-armed-flight :data-armed-flight-trail="state.trail.join(' ')">
     <template v-for="t in state.tokens" :key="t.id">
@@ -22,48 +19,50 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * THE ONE-PLAY CLASS'S FLIGHT LAYER (TR49) — mounted once by the shell (a flight stage inside a teleported surface
+ * inherits its containing block). Each token is the armed effect's own badge — the waiver's struck plate, «±2»,
+ * «−8» — flown by the shared transfer director (`armedEffectFlight.ts`). Empty and free when nothing flies.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {onBeforeUnmount, onMounted} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {armedFlightState, registerArmedFlightStage} from '@/client/console/armedEffectFlight';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
-export default defineComponent({
-  name: 'ConsoleArmedFlightLayer',
-  components: {PremiumPartyRequirementGlyph},
-  data() {
-    return {
-      state: armedFlightState,
-      unregister: undefined as (() => void) | undefined,
-      chipEls: new Map<number, HTMLElement>(),
-      beatEls: new Map<number, HTMLElement>(),
-    };
-  },
-  methods: {
-    setChipRef(id: number, el: HTMLElement | null): void {
-      if (el === null) {
-        this.chipEls.delete(id);
-      } else {
-        this.chipEls.set(id, el);
-      }
+defineOptions({name: 'ConsoleArmedFlightLayer'});
+
+const state = armedFlightState;
+let unregister: (() => void) | undefined;
+const chipEls = new Map<number, HTMLElement>();
+const beatEls = new Map<number, HTMLElement>();
+
+function setChipRef(id: number, el: HTMLElement | null): void {
+  if (el === null) {
+    chipEls.delete(id);
+  } else {
+    chipEls.set(id, el);
+  }
+}
+function setBeatRef(id: number, el: HTMLElement | null): void {
+  if (el === null) {
+    beatEls.delete(id);
+  } else {
+    beatEls.set(id, el);
+  }
+}
+
+onMounted(() => {
+  unregister = registerArmedFlightStage({
+    piece: (id: number) => {
+      const chip = chipEls.get(id);
+      return chip === undefined || !chip.isConnected ? undefined : {chip, beat: beatEls.get(id)};
     },
-    setBeatRef(id: number, el: HTMLElement | null): void {
-      if (el === null) {
-        this.beatEls.delete(id);
-      } else {
-        this.beatEls.set(id, el);
-      }
-    },
-  },
-  mounted() {
-    this.unregister = registerArmedFlightStage({
-      piece: (id: number) => {
-        const chip = this.chipEls.get(id);
-        return chip === undefined || !chip.isConnected ? undefined : {chip, beat: this.beatEls.get(id)};
-      },
-    });
-  },
-  beforeUnmount() {
-    this.unregister?.();
-  },
+  });
+});
+onBeforeUnmount(() => {
+  unregister?.();
 });
 </script>
