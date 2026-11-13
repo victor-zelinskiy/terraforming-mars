@@ -10,62 +10,57 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import {BoardFact, BoardFactGroup, groupFactsByRecipient} from '@/common/boards/BoardInformationFacts';
 import {Color} from '@/common/Color';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {vI18n} from '@/client/directives/vDirectives';
 import BoardFactRow from '@/client/components/board/BoardFactRow.vue';
 
-export default defineComponent({
-  name: 'BoardFactGroups',
-  components: {BoardFactRow},
-  props: {
-    facts: {
-      type: Array as PropType<ReadonlyArray<BoardFact>>,
-      required: true,
-    },
-    viewerColor: {
-      type: String as PropType<Color | undefined>,
-      default: undefined,
-    },
-    players: {
-      type: Array as PropType<ReadonlyArray<PublicPlayerModel>>,
-      default: () => [],
-    },
+defineOptions({name: 'BoardFactGroups'});
+const props = defineProps({
+  facts: {
+    type: Array as PropType<ReadonlyArray<BoardFact>>,
+    required: true,
   },
-  computed: {
-    groups(): ReadonlyArray<BoardFactGroup> {
-      return groupFactsByRecipient(this.facts, this.viewerColor);
-    },
+  viewerColor: {
+    type: String as PropType<Color | undefined>,
+    default: undefined,
   },
-  methods: {
-    dotColor(group: BoardFactGroup): Color | undefined {
-      const r = group.recipient;
-      if (r.kind === 'current-player') {
-        return this.viewerColor;
-      }
-      if (r.kind === 'player' || r.kind === 'tile-owner') {
-        return r.color;
-      }
-      return undefined;
-    },
-    playerName(color: Color): string {
-      return displayNameForColor(this.players, color);
-    },
-    groupLabel(group: BoardFactGroup): string {
-      const r = group.recipient;
-      switch (r.kind) {
-      case 'current-player': return 'You';
-      case 'player':
-      case 'tile-owner': return this.playerName(r.color);
-      case 'neutral': return 'Field rule';
-      case 'nobody': return 'Reserved';
-      }
-    },
+  players: {
+    type: Array as PropType<ReadonlyArray<PublicPlayerModel>>,
+    default: () => [],
   },
 });
+
+const groups = computed((): ReadonlyArray<BoardFactGroup> => {
+  return groupFactsByRecipient(props.facts, props.viewerColor);
+});
+function dotColor(group: BoardFactGroup): Color | undefined {
+  const r = group.recipient;
+  if (r.kind === 'current-player') {
+    return props.viewerColor;
+  }
+  if (r.kind === 'player' || r.kind === 'tile-owner') {
+    return r.color;
+  }
+  return undefined;
+}
+function playerName(color: Color): string {
+  return displayNameForColor(props.players, color);
+}
+function groupLabel(group: BoardFactGroup): string {
+  const r = group.recipient;
+  switch (r.kind) {
+  case 'current-player': return 'You';
+  case 'player':
+  case 'tile-owner': return playerName(r.color);
+  case 'neutral': return 'Field rule';
+  case 'nobody': return 'Reserved';
+  }
+}
 </script>
 
 <style scoped lang="less">
