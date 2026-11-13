@@ -60,8 +60,8 @@
     </section>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import {seatRestricted} from '@/common/models/ParliamentModel';
 import {Color} from '@/common/Color';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
@@ -69,58 +69,51 @@ import ConsoleInfluenceMod from '@/client/components/console/parliament/ConsoleI
 import {InfluenceReading, influenceReadingOf} from '@/client/console/parliament/influenceReading';
 import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {ParliamentAgendaStepVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleParliamentCareerDossier',
-  components: {PlayerDelegate, ConsoleInfluenceMod},
-  props: {
-    view: {type: Object as PropType<ParliamentViewVm>, required: true},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-  },
-  computed: {
-    /**
-     * THE RATING RUNGS A BOUND SEAT WOULD NOT BE PAID (RX42 UNMI Veto): for every seat the enacted law binds (the
-     * server's live leaders, in the law's aspect), its NEXT rating rung on the track — struck, with the words. Read
-     * off the model; nothing counted here.
-     */
-    vetoedRungs(): ReadonlySet<number> {
-      const veto = this.view.enacted?.trVeto;
-      const out = new Set<number>();
-      if (veto === undefined) {
-        return out;
-      }
-      for (const leader of veto.leaders) {
-        const seat = this.view.players.find((p) => p.color === leader.color);
-        if (seat === undefined || !seatRestricted(seat)) {
-          continue;
-        }
-        const next = this.view.agenda.find((step) => step.index > seat.agenda && step.step.kind === 'tr');
-        if (next !== undefined) {
-          out.add(next.index);
-        }
-      }
-      return out;
-    },
-    /** Every seat that holds delegates, with its step and its influence — the ONE reading (`influenceReading.ts`). */
-    seats(): ReadonlyArray<{color: Color, name: string, agenda: number, reading: InfluenceReading}> {
-      return this.view.players.filter((p) => p.participates).map((p) => ({color: p.color, name: p.name, agenda: p.agenda, reading: influenceReadingOf(p)}));
-    },
-  },
-  methods: {
-    stepText(agenda: number): string {
-      return agenda === 0 ? translateText('Career start') : translateTextWithParams('step ${0}', [String(agenda)]);
-    },
-    /** A TR or a card rung's reward in words (an influence rung is its coin) — a struck rung says why. */
-    rewardText(step: ParliamentAgendaStepVm): string {
-      if (step.step.kind === 'tr' && this.vetoedRungs.has(step.index)) {
-        return translateText('+1 TR') + ' · ' + translateText('TR under the veto');
-      }
-      return translateText(step.step.kind === 'tr' ? '+1 TR' : '+1 card');
-    },
-    figurePx(logical: number): number {
-      return delegateFigurePx(logical);
-    },
-  },
+defineOptions({name: 'ConsoleParliamentCareerDossier'});
+const props = defineProps({
+  view: {type: Object as PropType<ParliamentViewVm>, required: true},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
 });
+
+/**
+ * THE RATING RUNGS A BOUND SEAT WOULD NOT BE PAID (RX42 UNMI Veto): for every seat the enacted law binds (the
+ * server's live leaders, in the law's aspect), its NEXT rating rung on the track — struck, with the words. Read
+ * off the model; nothing counted here.
+ */
+const vetoedRungs = computed((): ReadonlySet<number> => {
+  const veto = props.view.enacted?.trVeto;
+  const out = new Set<number>();
+  if (veto === undefined) {
+    return out;
+  }
+  for (const leader of veto.leaders) {
+    const seat = props.view.players.find((p) => p.color === leader.color);
+    if (seat === undefined || !seatRestricted(seat)) {
+      continue;
+    }
+    const next = props.view.agenda.find((step) => step.index > seat.agenda && step.step.kind === 'tr');
+    if (next !== undefined) {
+      out.add(next.index);
+    }
+  }
+  return out;
+});
+/** Every seat that holds delegates, with its step and its influence — the ONE reading (`influenceReading.ts`). */
+const seats = computed((): ReadonlyArray<{color: Color, name: string, agenda: number, reading: InfluenceReading}> => {
+  return props.view.players.filter((p) => p.participates).map((p) => ({color: p.color, name: p.name, agenda: p.agenda, reading: influenceReadingOf(p)}));
+});
+
+function stepText(agenda: number): string {
+  return agenda === 0 ? translateText('Career start') : translateTextWithParams('step ${0}', [String(agenda)]);
+}
+/** A TR or a card rung's reward in words (an influence rung is its coin) — a struck rung says why. */
+function rewardText(step: ParliamentAgendaStepVm): string {
+  if (step.step.kind === 'tr' && vetoedRungs.value.has(step.index)) {
+    return translateText('+1 TR') + ' · ' + translateText('TR under the veto');
+  }
+  return translateText(step.step.kind === 'tr' ? '+1 TR' : '+1 card');
+}
+const figurePx = delegateFigurePx;
 </script>
