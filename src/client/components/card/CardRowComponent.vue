@@ -9,9 +9,8 @@
   <div v-else>n/a</div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
 import {isIDescription} from '@/common/cards/render/ICardRenderDescription';
 import {
   ICardRenderCorpBoxAction,
@@ -35,50 +34,37 @@ import CardRenderTileComponent from '@/client/components/card/CardRenderTileComp
 import CardDescription from '@/client/components/card/CardDescription.vue';
 import CardRenderSymbolComponent from '@/client/components/card/CardRenderSymbolComponent.vue';
 
-export default defineComponent({
-  name: 'CardRowComponent',
-  props: {
-    componentData: {
-      type: Object as () => ItemType,
-      required: true,
-    },
-  },
-  components: {
-    CardRenderSymbolComponent,
-    CardRenderItemComponent,
-    CardProductionBoxComponent,
-    CardRenderEffectBoxComponent,
-    CardRenderCorpBoxComponent,
-    CardRenderTileComponent,
-    CardDescription,
-  },
-  methods: {
-    isItem: isICardRenderItem,
-    isSymbol: isICardRenderSymbol,
-    isEffect: isICardRenderEffect,
-    isDescription(componentData: ItemType): boolean {
-      return typeof componentData === 'string' || componentData instanceof String || isIDescription(this.componentData);
-    },
-    isTile: isICardRenderTile,
-    isProduction: isICardRenderProductionBox,
-    isCorpBoxEffect: isICardRenderCorpBoxEffect,
-    isCorpBoxAction: isICardRenderCorpBoxAction,
-    isCorpBoxEffectAction: isICardRenderCorpBoxEffectAction,
-    isCorpBox(item: ItemType): item is ICardRenderCorpBoxEffect | ICardRenderCorpBoxAction | ICardRenderCorpBoxEffectAction {
-      return this.isCorpBoxEffect(item) || this.isCorpBoxAction(item) || this.isCorpBoxEffectAction(item);
-    },
-    corpBoxLabel(): string {
-      if (this.isCorpBoxEffect(this.componentData)) {
-        return 'effect';
-      } else if (this.isCorpBoxAction(this.componentData)) {
-        return 'action';
-      } else if (this.isCorpBoxEffectAction(this.componentData)) {
-        return 'effect/action';
-      }
-      return 'n/a';
-    },
-
+defineOptions({name: 'CardRowComponent'});
+const props = defineProps({
+  componentData: {
+    type: Object as () => ItemType,
+    required: true,
   },
 });
+
+const isItem = isICardRenderItem;
+const isSymbol = isICardRenderSymbol;
+const isEffect = isICardRenderEffect;
+function isDescription(componentData: ItemType): boolean {
+  return typeof componentData === 'string' || componentData instanceof String || isIDescription(props.componentData);
+}
+const isTile = isICardRenderTile;
+const isProduction = isICardRenderProductionBox;
+const isCorpBoxEffect = isICardRenderCorpBoxEffect;
+const isCorpBoxAction = isICardRenderCorpBoxAction;
+const isCorpBoxEffectAction = isICardRenderCorpBoxEffectAction;
+function isCorpBox(item: ItemType): item is ICardRenderCorpBoxEffect | ICardRenderCorpBoxAction | ICardRenderCorpBoxEffectAction {
+  return isCorpBoxEffect(item) || isCorpBoxAction(item) || isCorpBoxEffectAction(item);
+}
+function corpBoxLabel(): string {
+  if (isCorpBoxEffect(props.componentData)) {
+    return 'effect';
+  } else if (isCorpBoxAction(props.componentData)) {
+    return 'action';
+  } else if (isCorpBoxEffectAction(props.componentData)) {
+    return 'effect/action';
+  }
+  return 'n/a';
+}
 
 </script>
