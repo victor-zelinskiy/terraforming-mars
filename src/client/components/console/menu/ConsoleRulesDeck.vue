@@ -144,7 +144,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * RULES deck renderer (console create) — the premium rule toggles as full-width
  * console rows with a large ON/OFF switch, plus two sub-setting rows: the
@@ -153,7 +153,8 @@
  * toggling. A conflicting rule (MarsBot compatibility) swaps its description
  * for the blocker reason and carries the red conflict rim. Pure presentation.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {
   CampaignChanceRule, RulesDeckRow, campaignChanceRule, campaignRewardModeDesc, campaignRewardModeLabel, campaignTenderOfferLabel, campaignTenderOfferReading,
 } from '@/client/console/menu/consoleCreateModel';
@@ -164,50 +165,44 @@ import {automaBlockerText} from '@/client/components/create/premium/createGameSt
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {CAMPAIGN_MODIFIER_CHANCES, CampaignModifierChance} from '@/common/campaign/missionModifiers';
 
-export default defineComponent({
-  name: 'ConsoleRulesDeck',
-  components: {GamepadGlyph},
-  props: {
-    rows: {type: Array as PropType<ReadonlyArray<RulesDeckRow>>, required: true},
-    cursor: {type: Number, required: true},
-    shakeRow: {type: Number, default: -1},
-  },
-  emits: ['activate', 'hover'],
-  computed: {
-    chances(): ReadonlyArray<number> {
-      return CAMPAIGN_MODIFIER_CHANCES;
-    },
-  },
-  methods: {
-    rowKey(row: RulesDeckRow): string {
-      if (row.kind === 'rule') {
-        return `rule:${row.rule.meta.id}`;
-      }
-      return row.kind === 'chance' ? `chance:${row.id}` : row.kind;
-    },
-    chanceRule(id: MissionModifierId): CampaignChanceRule {
-      return campaignChanceRule(id);
-    },
-    chanceIndex(chance: number): number {
-      return CAMPAIGN_MODIFIER_CHANCES.indexOf(chance as CampaignModifierChance);
-    },
-    rewardModeLabel(mode: CampaignRewardMode): string {
-      return campaignRewardModeLabel(mode);
-    },
-    rewardModeDesc(mode: CampaignRewardMode): string {
-      return campaignRewardModeDesc(mode);
-    },
-    tenderOfferLabel(offer: CampaignTenderOffer): string {
-      return campaignTenderOfferLabel(offer);
-    },
-    /** The dial's sentence with THIS table's numbers — the one renderer of a reading with params (PL-160). */
-    tenderOfferDesc(offer: CampaignTenderOffer, seats: number): string {
-      const reading = campaignTenderOfferReading(offer, seats);
-      return readingText({label: reading.key, params: [...reading.params]});
-    },
-    blockerText(key: string): string {
-      return automaBlockerText(key);
-    },
-  },
+defineOptions({name: 'ConsoleRulesDeck'});
+defineProps({
+  rows: {type: Array as PropType<ReadonlyArray<RulesDeckRow>>, required: true},
+  cursor: {type: Number, required: true},
+  shakeRow: {type: Number, default: -1},
 });
+defineEmits(['activate', 'hover']);
+
+const chances = computed((): ReadonlyArray<number> => {
+  return CAMPAIGN_MODIFIER_CHANCES;
+});
+function rowKey(row: RulesDeckRow): string {
+  if (row.kind === 'rule') {
+    return `rule:${row.rule.meta.id}`;
+  }
+  return row.kind === 'chance' ? `chance:${row.id}` : row.kind;
+}
+function chanceRule(id: MissionModifierId): CampaignChanceRule {
+  return campaignChanceRule(id);
+}
+function chanceIndex(chance: number): number {
+  return CAMPAIGN_MODIFIER_CHANCES.indexOf(chance as CampaignModifierChance);
+}
+function rewardModeLabel(mode: CampaignRewardMode): string {
+  return campaignRewardModeLabel(mode);
+}
+function rewardModeDesc(mode: CampaignRewardMode): string {
+  return campaignRewardModeDesc(mode);
+}
+function tenderOfferLabel(offer: CampaignTenderOffer): string {
+  return campaignTenderOfferLabel(offer);
+}
+/** The dial's sentence with THIS table's numbers — the one renderer of a reading with params (PL-160). */
+function tenderOfferDesc(offer: CampaignTenderOffer, seats: number): string {
+  const reading = campaignTenderOfferReading(offer, seats);
+  return readingText({label: reading.key, params: [...reading.params]});
+}
+function blockerText(key: string): string {
+  return automaBlockerText(key);
+}
 </script>
