@@ -45,8 +45,8 @@
   </Teleport>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed, onBeforeUnmount, ref, watch} from 'vue';
 import {paths} from '@/common/app/paths';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {apiUrl} from '@/client/utils/runtimeConfig';
@@ -56,6 +56,8 @@ import {EffectOverlayStat} from '@/common/events/aggregate';
 import EffectDetailsPanel from '@/client/components/effects/EffectDetailsPanel.vue';
 import {playerEffects, EffectEntry} from '@/client/components/effects/effectExtraction';
 import {effectDetailState, closeEffectDetail} from '@/client/components/notifications/effectDetailState';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
 /**
  * Per-effect DETAIL modal opened from a «сработал эффект» notification — shows
@@ -65,107 +67,98 @@ import {effectDetailState, closeEffectDetail} from '@/client/components/notifica
  * effect owner's `/api/game/effect-stats` so the panel shows real numbers; falls
  * back to the base rule + thematic note when stats are unavailable.
  */
-export default defineComponent({
-  name: 'EffectDetailOverlay',
-  components: {EffectDetailsPanel},
-  props: {
-    viewerId: {
-      type: String,
-      default: '',
-    },
-    players: {
-      type: Array as () => ReadonlyArray<PublicPlayerModel>,
-      default: () => [],
-    },
+defineOptions({name: 'EffectDetailOverlay'});
+const props = defineProps({
+  viewerId: {
+    type: String,
+    default: '',
   },
-  data() {
-    return {
-      selectedIndex: 0,
-      loading: false,
-      stats: undefined as ReadonlyArray<EffectOverlayStat> | undefined,
-    };
+  players: {
+    type: Array as () => ReadonlyArray<PublicPlayerModel>,
+    default: () => [],
   },
-  computed: {
-    open(): boolean {
-      return effectDetailState.open;
-    },
-    cardName() {
-      return effectDetailState.cardName;
-    },
-    ownerColor() {
-      return effectDetailState.ownerColor;
-    },
-    cardModel(): CardModel | undefined {
-      return this.cardName === undefined ? undefined : {name: this.cardName};
-    },
-    entries(): ReadonlyArray<EffectEntry> {
-      return this.cardModel === undefined ? [] : playerEffects([this.cardModel]);
-    },
-    entry(): EffectEntry | undefined {
-      return this.entries[this.selectedIndex] ?? this.entries[0];
-    },
-    siblingIcons(): ReadonlyArray<string> {
-      const out: Array<string> = [];
-      this.entries.forEach((e, i) => {
-        if (i !== this.selectedIndex) {
-          out.push(...e.signature.icons);
-        }
-      });
-      return out;
-    },
-    stat(): EffectOverlayStat | undefined {
-      return this.stats?.find((s) => s.card === this.cardName);
-    },
-    ownerName(): string {
-      const c = this.ownerColor;
-      if (c === undefined) {
-        return '';
-      }
-      return displayNameForColor(this.players, c);
-    },
-  },
-  watch: {
-    open(isOpen: boolean): void {
-      if (isOpen) {
-        this.selectedIndex = 0;
-        window.addEventListener('keydown', this.onKey);
-        void this.fetchStats();
-      } else {
-        window.removeEventListener('keydown', this.onKey);
-      }
-    },
-  },
-  methods: {
-    close(): void {
-      closeEffectDetail();
-    },
-    onKey(e: KeyboardEvent): void {
-      if (e.key === 'Escape') {
-        this.close();
-      }
-    },
-    async fetchStats(): Promise<void> {
-      this.stats = undefined;
-      const color = this.ownerColor;
-      if (color === undefined || this.viewerId === '' || typeof fetch !== 'function') {
-        return; // playground / no auth → base rule + thematic note only
-      }
-      this.loading = true;
-      try {
-        const url = `${apiUrl(paths.API_GAME_EFFECT_STATS)}?id=${encodeURIComponent(this.viewerId)}&color=${encodeURIComponent(color)}`;
-        const res = await fetch(url);
-        if (res.ok) {
-          this.stats = await res.json() as ReadonlyArray<EffectOverlayStat>;
-        }
-      } catch (e) {
-        // ignore — the panel degrades to the base rule + note
-      } finally {
-        this.loading = false;
-      }
-    },
-  },
-  beforeUnmount(): void {
-    window.removeEventListener('keydown', this.onKey);
-  },
+});
+
+const selectedIndex = ref(0);
+const loading = ref(false);
+const stats = ref<ReadonlyArray<EffectOverlayStat> | undefined>(undefined);
+
+const open = computed((): boolean => {
+  return effectDetailState.open;
+});
+const cardName = computed(() => {
+  return effectDetailState.cardName;
+});
+const ownerColor = computed(() => {
+  return effectDetailState.ownerColor;
+});
+const cardModel = computed((): CardModel | undefined => {
+  return cardName.value === undefined ? undefined : {name: cardName.value};
+});
+const entries = computed((): ReadonlyArray<EffectEntry> => {
+  return cardModel.value === undefined ? [] : playerEffects([cardModel.value]);
+});
+const entry = computed((): EffectEntry | undefined => {
+  return entries.value[selectedIndex.value] ?? entries.value[0];
+});
+const siblingIcons = computed((): ReadonlyArray<string> => {
+  const out: Array<string> = [];
+  entries.value.forEach((e, i) => {
+    if (i !== selectedIndex.value) {
+      out.push(...e.signature.icons);
+    }
+  });
+  return out;
+});
+const stat = computed((): EffectOverlayStat | undefined => {
+  return stats.value?.find((s) => s.card === cardName.value);
+});
+const ownerName = computed((): string => {
+  const c = ownerColor.value;
+  if (c === undefined) {
+    return '';
+  }
+  return displayNameForColor(props.players, c);
+});
+
+function close(): void {
+  closeEffectDetail();
+}
+function onKey(e: KeyboardEvent): void {
+  if (e.key === 'Escape') {
+    close();
+  }
+}
+async function fetchStats(): Promise<void> {
+  stats.value = undefined;
+  const color = ownerColor.value;
+  if (color === undefined || props.viewerId === '' || typeof fetch !== 'function') {
+    return; // playground / no auth → base rule + thematic note only
+  }
+  loading.value = true;
+  try {
+    const url = `${apiUrl(paths.API_GAME_EFFECT_STATS)}?id=${encodeURIComponent(props.viewerId)}&color=${encodeURIComponent(color)}`;
+    const res = await fetch(url);
+    if (res.ok) {
+      stats.value = await res.json() as ReadonlyArray<EffectOverlayStat>;
+    }
+  } catch (e) {
+    // ignore — the panel degrades to the base rule + note
+  } finally {
+    loading.value = false;
+  }
+}
+
+watch(() => open.value, (isOpen: boolean): void => {
+  if (isOpen) {
+    selectedIndex.value = 0;
+    window.addEventListener('keydown', onKey);
+    void fetchStats();
+  } else {
+    window.removeEventListener('keydown', onKey);
+  }
+});
+onBeforeUnmount((): void => {
+  window.removeEventListener('keydown', onKey);
 });
 </script>
