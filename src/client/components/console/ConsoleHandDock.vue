@@ -131,7 +131,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * ConsoleHandDock — the PERMANENT premium hand-of-cards presence at the
  * bottom centre of the console HUD (the footer's centre bay is carved for
@@ -170,12 +170,12 @@
  * sleeves are NOT hand bodies (derived from one integer, no flights, no
  * anchors — privacy by construction).
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType, ref, watch} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {handDockPlan, HandDockPlan, shownHandCount} from '@/client/console/consoleHandDock';
 import {DockInspectionView, InspectionFanSlot} from '@/client/console/handDock/dockInspection';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleArmedEffectsStrip from '@/client/components/console/ConsoleArmedEffectsStrip.vue';
 import ConsoleAlbumSpine from '@/client/components/console/foundation/ConsoleAlbumSpine.vue';
@@ -185,158 +185,145 @@ import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 export type {HandDockAlbum};
 
+defineOptions({name: 'ConsoleHandDock'});
+const props = defineProps({
+  /**
+   * THE ALBUM SPINE: while the hand album owns the cards, the bay centre
+   * shows the page position + the LB/RB page verbs instead of the
+   * «КАРТЫ n/m» counter (whose numbers already live in the album header).
+   * Shell-computed; undefined restores the plain status line.
+   */
+  album: {type: Object as PropType<HandDockAlbum | undefined>, default: undefined},
+  /** The viewer's hand in SERVER order (cardsInHand + SRR-hosted) — the
+   *  dock renders backs only, so append-order beats playable-sorting:
+   *  a new card joins on the right, nothing reshuffles on re-sorts. */
+  cards: {type: Array as PropType<ReadonlyArray<CardModel>>, required: true},
+  /** Server-authoritative "playable right now" count (inherently
+   *  turn-gated — derived from the live play-card action). */
+  playableCount: {type: Number, default: 0},
+  /** playerView.runId — drives the delta-chip feedback ('' disables). */
+  epoch: {type: String, default: ''},
+  /** Click-to-open affordance (hover lift + pointer) — visuals never change. */
+  interactive: {type: Boolean, default: true},
+  /** The RT wheel is open — the pack rises to answer its «КАРТЫ» slot. */
+  raised: {type: Boolean, default: false},
+  /**
+   * PLANET FOCUS is engaged — the pack tucks into its COMPACT pose so it
+   * stops competing with the planet that just took the screen. The three
+   * poses are exclusive and ordered by urgency: `raised` (the wheel is
+   * out, the hand is the next thing the player may touch) outranks
+   * `compact` (the board is the subject) outranks the default. Opening
+   * the wheel over an expanded planet is legal, so the class binding
+   * resolves the pair HERE — one pose on the element, and the CSS never
+   * has to fight its own cascade.
+   */
+  compact: {type: Boolean, default: false},
+  /**
+   * THE INTAKE ACCENT LEASE IS LIVE — cards are physically arriving or
+   * gathering. The shell already answers it by forcing the FULL pose
+   * (`handDockCompact` yields to the accent); this class is the chassis
+   * witness of that state (and the `--receiving` dockcover exception's
+   * sibling) — the card geometry itself rides the bodies layer.
+   */
+  intake: {type: Boolean, default: false},
+  /**
+   * A REVEAL EPISODE IS AIRBORNE (open/close/filter flight): the album
+   * spine's opaque instrument well holds transparent so it never covers
+   * the pack launching/landing through the bay — the chrome materializes
+   * around the SETTLED cards, the same law the section's own head and
+   * verdict rail follow. Shell-derived from the reveal phase.
+   */
+  transit: {type: Boolean, default: false},
+  /**
+   * HAND-INTAKE hold: names withheld from the shown pack while they are
+   * still on their way in (handDeliveryDirector.ts — the starting-cards
+   * delivery, an untaken reveal batch, a card mid-flight from a take).
+   * A MULTISET: a duplicated name hides only as many copies as are held.
+   * The pack still LAYS OUT at the full count (proxies land on final
+   * positions), but a held card renders hidden-with-layout and is
+   * EXCLUDED from the shown count — the counter only ever ticks up when
+   * a card PHYSICALLY lands in the dock.
+   */
+  deliveryHeld: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+  /**
+   * THE INFORMATION WORKSPACE IS OPEN — the dock is bound to the inspected
+   * seat (the `--insp` accent, recolouring through the `con-insp-<color>`
+   * root tokens the rail and the workspace seam already share). For the
+   * viewer's OWN seat this is the only change; a FOREIGN seat additionally
+   * carries `inspection`.
+   */
+  inspecting: {type: Boolean, default: false},
+  /**
+   * A FOREIGN seat's presentation (another human / the MarsBot): the
+   * closed fan + the exact public count replace the own pack and the
+   * «КАРТЫ n/m» counter; the dock is READ-ONLY for its duration (the
+   * click affordance and the `--hot` playable accent are own-hand facts
+   * and go dark). `undefined` = the ordinary own-hand dock — including
+   * while inspecting the viewer's own seat.
+   */
+  inspection: {type: Object as PropType<DockInspectionView | undefined>, default: undefined},
+  /** The viewer's ARMED one-play effects (TR49 class) — the chip beside the count; empty: nothing drawn. */
+  armed: {type: Array as PropType<ReadonlyArray<PresentedArmedEffect>>, default: () => []},
+});
+const emit = defineEmits(['open', 'page']);
 
-export default defineComponent({
-  name: 'ConsoleHandDock',
-  components: {AnimatedMetricValue, ConsoleArmedEffectsStrip, ConsoleAlbumSpine},
-  props: {
-    /**
-     * THE ALBUM SPINE: while the hand album owns the cards, the bay centre
-     * shows the page position + the LB/RB page verbs instead of the
-     * «КАРТЫ n/m» counter (whose numbers already live in the album header).
-     * Shell-computed; undefined restores the plain status line.
-     */
-    album: {type: Object as PropType<HandDockAlbum | undefined>, default: undefined},
-    /** The viewer's hand in SERVER order (cardsInHand + SRR-hosted) — the
-     *  dock renders backs only, so append-order beats playable-sorting:
-     *  a new card joins on the right, nothing reshuffles on re-sorts. */
-    cards: {type: Array as PropType<ReadonlyArray<CardModel>>, required: true},
-    /** Server-authoritative "playable right now" count (inherently
-     *  turn-gated — derived from the live play-card action). */
-    playableCount: {type: Number, default: 0},
-    /** playerView.runId — drives the delta-chip feedback ('' disables). */
-    epoch: {type: String, default: ''},
-    /** Click-to-open affordance (hover lift + pointer) — visuals never change. */
-    interactive: {type: Boolean, default: true},
-    /** The RT wheel is open — the pack rises to answer its «КАРТЫ» slot. */
-    raised: {type: Boolean, default: false},
-    /**
-     * PLANET FOCUS is engaged — the pack tucks into its COMPACT pose so it
-     * stops competing with the planet that just took the screen. The three
-     * poses are exclusive and ordered by urgency: `raised` (the wheel is
-     * out, the hand is the next thing the player may touch) outranks
-     * `compact` (the board is the subject) outranks the default. Opening
-     * the wheel over an expanded planet is legal, so the class binding
-     * resolves the pair HERE — one pose on the element, and the CSS never
-     * has to fight its own cascade.
-     */
-    compact: {type: Boolean, default: false},
-    /**
-     * THE INTAKE ACCENT LEASE IS LIVE — cards are physically arriving or
-     * gathering. The shell already answers it by forcing the FULL pose
-     * (`handDockCompact` yields to the accent); this class is the chassis
-     * witness of that state (and the `--receiving` dockcover exception's
-     * sibling) — the card geometry itself rides the bodies layer.
-     */
-    intake: {type: Boolean, default: false},
-    /**
-     * A REVEAL EPISODE IS AIRBORNE (open/close/filter flight): the album
-     * spine's opaque instrument well holds transparent so it never covers
-     * the pack launching/landing through the bay — the chrome materializes
-     * around the SETTLED cards, the same law the section's own head and
-     * verdict rail follow. Shell-derived from the reveal phase.
-     */
-    transit: {type: Boolean, default: false},
-    /**
-     * HAND-INTAKE hold: names withheld from the shown pack while they are
-     * still on their way in (handDeliveryDirector.ts — the starting-cards
-     * delivery, an untaken reveal batch, a card mid-flight from a take).
-     * A MULTISET: a duplicated name hides only as many copies as are held.
-     * The pack still LAYS OUT at the full count (proxies land on final
-     * positions), but a held card renders hidden-with-layout and is
-     * EXCLUDED from the shown count — the counter only ever ticks up when
-     * a card PHYSICALLY lands in the dock.
-     */
-    deliveryHeld: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
-    /**
-     * THE INFORMATION WORKSPACE IS OPEN — the dock is bound to the inspected
-     * seat (the `--insp` accent, recolouring through the `con-insp-<color>`
-     * root tokens the rail and the workspace seam already share). For the
-     * viewer's OWN seat this is the only change; a FOREIGN seat additionally
-     * carries `inspection`.
-     */
-    inspecting: {type: Boolean, default: false},
-    /**
-     * A FOREIGN seat's presentation (another human / the MarsBot): the
-     * closed fan + the exact public count replace the own pack and the
-     * «КАРТЫ n/m» counter; the dock is READ-ONLY for its duration (the
-     * click affordance and the `--hot` playable accent are own-hand facts
-     * and go dark). `undefined` = the ordinary own-hand dock — including
-     * while inspecting the viewer's own seat.
-     */
-    inspection: {type: Object as PropType<DockInspectionView | undefined>, default: undefined},
-    /** The viewer's ARMED one-play effects (TR49 class) — the chip beside the count; empty: nothing drawn. */
-    armed: {type: Array as PropType<ReadonlyArray<PresentedArmedEffect>>, default: () => []},
-  },
-  emits: ['open', 'page'],
-  setup() {
-    return {flow: useFlowScope('hand-dock')};
-  },
-  data() {
-    return {
-      /** A card just landed — the short "the pack accepts it" pulse. */
-      receiving: false,
-      cancelReceive: (() => {}) as () => void,
-    };
-  },
-  computed: {
-    /** The count the STATUS LINE shows — held (in-flight) copies excluded,
-     *  but only those the hand actually holds (`shownHandCount`: a take's
-     *  card is in flight from the PRESS and in the hand only from the
-     *  answer). (The pack itself is rendered by the hand BODIES layer now.) */
-    count(): number {
-      return shownHandCount(this.cards.map((c) => c.name as string), this.deliveryHeld);
-    },
-    /** Geometry plan — kept for the bay/empty computed only. */
-    plan(): HandDockPlan {
-      return handDockPlan(this.cards.length);
-    },
-    ariaLabel(): string {
-      // A foreign seat: state the INSPECTED count, never the viewer's own —
-      // a screen reader must not read a number the screen does not show.
-      const shown = this.inspection !== undefined ? this.inspection.count : this.count;
-      return `${translateText('Cards in hand')}: ${shown}`;
-    },
-  },
-  watch: {
-    /** A landing (or any growth) — the pack "accepts" the card: a short
-     *  spread-breathe + plate glow, riding the cards' own transitions. */
-    count(now: number, was: number) {
-      if (now > was) {
-        this.cancelReceive();
-        this.receiving = true;
-        this.cancelReceive = this.flow.after(motionMs(240), 'the pack\'s receive pulse reads', () => {
-          this.receiving = false;
-        });
-      }
-    },
-  },
-  methods: {
-    onClick(): void {
-      // Read-only by construction while a foreign seat stands in the dock —
-      // «open the hand» is an own-hand verb and may never fire on a guest.
-      if (this.interactive && this.inspection === undefined) {
-        this.$emit('open');
-      }
-    },
-    /**
-     * One inspection sleeve's box + placement (all rem — the profile scale
-     * rides the root font-size). The transform mirrors the compact pose's
-     * own math: pre-compacted x offsets, a uniform sink below the tray axis
-     * and the pack scale about each sleeve's bottom centre.
-     */
-    sleeveStyle(s: InspectionFanSlot, i: number): Record<string, string> {
-      const f = this.inspection?.fan;
-      if (f === undefined) {
-        return {}; // unreachable — the fan renders only under a live inspection
-      }
-      return {
-        width: `${f.cardWRem}rem`,
-        height: `${f.cardHRem}rem`,
-        zIndex: String(3 + i),
-        transform: `translateX(-50%) translate(${s.xRem}rem, ${f.sinkRem}rem) scale(${f.scale})`,
-      };
-    },
-  },
+const flow = useFlowScope('hand-dock');
+/** A card just landed — the short "the pack accepts it" pulse. */
+const receiving = ref(false);
+let cancelReceive: () => void = () => {};
+/** The count the STATUS LINE shows — held (in-flight) copies excluded,
+ *  but only those the hand actually holds (`shownHandCount`: a take's
+ *  card is in flight from the PRESS and in the hand only from the
+ *  answer). (The pack itself is rendered by the hand BODIES layer now.) */
+const count = computed((): number => {
+  return shownHandCount(props.cards.map((c) => c.name as string), props.deliveryHeld);
+});
+/** Geometry plan — kept for the bay/empty computed only. */
+const plan = computed((): HandDockPlan => {
+  return handDockPlan(props.cards.length);
+});
+const ariaLabel = computed((): string => {
+  // A foreign seat: state the INSPECTED count, never the viewer's own —
+  // a screen reader must not read a number the screen does not show.
+  const shown = props.inspection !== undefined ? props.inspection.count : count.value;
+  return `${translateText('Cards in hand')}: ${shown}`;
+});
+
+function onClick(): void {
+  // Read-only by construction while a foreign seat stands in the dock —
+  // «open the hand» is an own-hand verb and may never fire on a guest.
+  if (props.interactive && props.inspection === undefined) {
+    emit('open');
+  }
+}
+/**
+ * One inspection sleeve's box + placement (all rem — the profile scale
+ * rides the root font-size). The transform mirrors the compact pose's
+ * own math: pre-compacted x offsets, a uniform sink below the tray axis
+ * and the pack scale about each sleeve's bottom centre.
+ */
+function sleeveStyle(s: InspectionFanSlot, i: number): Record<string, string> {
+  const f = props.inspection?.fan;
+  if (f === undefined) {
+    return {}; // unreachable — the fan renders only under a live inspection
+  }
+  return {
+    width: `${f.cardWRem}rem`,
+    height: `${f.cardHRem}rem`,
+    zIndex: String(3 + i),
+    transform: `translateX(-50%) translate(${s.xRem}rem, ${f.sinkRem}rem) scale(${f.scale})`,
+  };
+}
+
+/** A landing (or any growth) — the pack "accepts" the card: a short
+ *  spread-breathe + plate glow, riding the cards' own transitions. */
+watch(() => count.value, (now: number, was: number) => {
+  if (now > was) {
+    cancelReceive();
+    receiving.value = true;
+    cancelReceive = flow.after(motionMs(240), 'the pack\'s receive pulse reads', () => {
+      receiving.value = false;
+    });
+  }
 });
 </script>
