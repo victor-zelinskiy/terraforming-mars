@@ -78,16 +78,17 @@
         </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 import {GameOptionsModel} from '@/common/models/GameOptionsModel';
 import {BoardName} from '@/common/boards/BoardName';
 import {RandomMAOptionType} from '@/common/ma/RandomMAOptionType';
 import {translateTextWithParams} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {RULEBOOK_URLS} from '@/client/utils/WikiLinks';
 
-const boardColorClass: Record<BoardName, string> = {
+const BOARD_COLOR_CLASS: Record<BoardName, string> = {
   [BoardName.THARSIS]: 'game-config board-tharsis map',
   [BoardName.HELLAS]: 'game-config board-hellas map',
   [BoardName.ELYSIUM]: 'game-config board-elysium map',
@@ -102,50 +103,42 @@ const boardColorClass: Record<BoardName, string> = {
   [BoardName.AMAZONIS_PLANITIA]: 'game-config board-amazonis_planitia map',
 };
 
-export default defineComponent({
-  name: 'game-setup-detail',
-  props: {
-    playerNumber: {
-      type: Number,
-      required: true,
-    },
-    gameOptions: {
-      type: Object as () => GameOptionsModel,
-      required: true,
-    },
-    lastSoloGeneration: {
-      type: Number,
-      required: true,
-    },
+defineOptions({name: 'game-setup-detail'});
+const props = defineProps({
+  playerNumber: {
+    type: Number,
+    required: true,
   },
-  computed: {
-    rulebookUrls(): typeof RULEBOOK_URLS {
-      return RULEBOOK_URLS;
-    },
-    isPoliticalAgendasOn(): boolean {
-      return (this.gameOptions.politicalAgendasExtension !== 'Standard');
-    },
-    boardColorClass(): string {
-      return boardColorClass[this.gameOptions.boardName];
-    },
-    escapeVelocityDescription(): string {
-      if (this.gameOptions.escapeVelocity === undefined) {
-        return '';
-      }
-      const ev = this.gameOptions.escapeVelocity;
-      return translateTextWithParams(
-        'After ${0} min, reduce ${1} VP every ${2} min. (${3} bonus sec. per action.)',
-        [
-          ev.thresholdMinutes.toString(),
-          ev.penaltyVPPerPeriod.toString(),
-          ev.penaltyPeriodMinutes.toString(),
-          ev.bonusSectionsPerAction.toString(),
-        ]);
-    },
-    RandomMAOptionType(): typeof RandomMAOptionType {
-      return RandomMAOptionType;
-    },
+  gameOptions: {
+    type: Object as () => GameOptionsModel,
+    required: true,
   },
+  lastSoloGeneration: {
+    type: Number,
+    required: true,
+  },
+});
+
+const rulebookUrls = RULEBOOK_URLS;
+const isPoliticalAgendasOn = computed((): boolean => {
+  return (props.gameOptions.politicalAgendasExtension !== 'Standard');
+});
+const boardColorClass = computed((): string => {
+  return BOARD_COLOR_CLASS[props.gameOptions.boardName];
+});
+const escapeVelocityDescription = computed((): string => {
+  if (props.gameOptions.escapeVelocity === undefined) {
+    return '';
+  }
+  const ev = props.gameOptions.escapeVelocity;
+  return translateTextWithParams(
+    'After ${0} min, reduce ${1} VP every ${2} min. (${3} bonus sec. per action.)',
+    [
+      ev.thresholdMinutes.toString(),
+      ev.penaltyVPPerPeriod.toString(),
+      ev.penaltyPeriodMinutes.toString(),
+      ev.bonusSectionsPerAction.toString(),
+    ]);
 });
 
 </script>
