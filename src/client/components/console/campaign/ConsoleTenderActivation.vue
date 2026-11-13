@@ -63,9 +63,10 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType, useTemplateRef} from 'vue';
 import {Tag} from '@/common/cards/Tag';
+import {$t} from '@/client/directives/i18n';
 import ConsoleTenderCard from './ConsoleTenderCard.vue';
 import {ActivationNote, TenderActivationPlan, tagGridCols} from '@/client/console/campaign/tenderActivation';
 import {variantOptionClasses} from '@/client/console/variantChoiceModel';
@@ -75,50 +76,47 @@ import {readingText} from '@/client/console/readingText';
 /** One medallion of «Целевой запрос»'s chooser. */
 export type ActivationTag = {tag: Tag, label: string, count: number, iconStyle: Record<string, string>};
 
-export default defineComponent({
-  name: 'ConsoleTenderActivation',
-  components: {ConsoleTenderCard},
-  props: {
-    plan: {type: Object as PropType<TenderActivationPlan>, required: true},
-    /** The hero's seat waits for the certificate's own flight (visibility only — the seat is the flight's landing). */
-    heroHeld: {type: Boolean, default: false},
-    /** The RESULT stands (the panel unfolds once the hero has landed). */
-    open: {type: Boolean, default: false},
-    /** The press landed: the certificate wears the Committee's stamp. */
-    committed: {type: Boolean, default: false},
-    /** The stamp's one-shot is running. */
-    stamping: {type: Boolean, default: false},
-    /** The sheet folds (the hand-over to the page). */
-    leaving: {type: Boolean, default: false},
-    busy: {type: Boolean, default: false},
-    tags: {type: Array as PropType<ReadonlyArray<ActivationTag>>, required: false, default: undefined},
-    tagFocus: {type: Number, default: -1},
-    tagPicked: {type: String as PropType<Tag>, required: false, default: undefined},
-  },
-  computed: {
-    nameKey(): string {
-      return tenderMeta(this.plan.id).nameKey;
-    },
-    ruleKey(): string {
-      return tenderMeta(this.plan.id).ruleKey;
-    },
-    cols(): number {
-      return tagGridCols(this.tags?.length ?? 0);
-    },
-  },
-  methods: {
-    /** A tag tile's three facts on the variant grammar's ONE mapping (cursor · answer · rules). */
-    tileClasses(t: ActivationTag, i: number): Record<string, boolean> {
-      return variantOptionClasses({focused: i === this.tagFocus, selected: t.tag === this.tagPicked, off: t.count === 0},
-        this.tagPicked !== undefined);
-    },
-    noteText(note: ActivationNote): string {
-      return readingText({label: note.key, params: [...note.params]});
-    },
-    /** The hero's seat — the certificate's flights land on it and leave from it. */
-    heroEl(): HTMLElement | undefined {
-      return (this.$refs.hero ?? undefined) as HTMLElement | undefined;
-    },
-  },
+defineOptions({name: 'ConsoleTenderActivation'});
+const props = defineProps({
+  plan: {type: Object as PropType<TenderActivationPlan>, required: true},
+  /** The hero's seat waits for the certificate's own flight (visibility only — the seat is the flight's landing). */
+  heroHeld: {type: Boolean, default: false},
+  /** The RESULT stands (the panel unfolds once the hero has landed). */
+  open: {type: Boolean, default: false},
+  /** The press landed: the certificate wears the Committee's stamp. */
+  committed: {type: Boolean, default: false},
+  /** The stamp's one-shot is running. */
+  stamping: {type: Boolean, default: false},
+  /** The sheet folds (the hand-over to the page). */
+  leaving: {type: Boolean, default: false},
+  busy: {type: Boolean, default: false},
+  tags: {type: Array as PropType<ReadonlyArray<ActivationTag>>, required: false, default: undefined},
+  tagFocus: {type: Number, default: -1},
+  tagPicked: {type: String as PropType<Tag>, required: false, default: undefined},
 });
+
+const hero = useTemplateRef<HTMLElement>('hero');
+const nameKey = computed((): string => {
+  return tenderMeta(props.plan.id).nameKey;
+});
+const ruleKey = computed((): string => {
+  return tenderMeta(props.plan.id).ruleKey;
+});
+const cols = computed((): number => {
+  return tagGridCols(props.tags?.length ?? 0);
+});
+/** A tag tile's three facts on the variant grammar's ONE mapping (cursor · answer · rules). */
+function tileClasses(t: ActivationTag, i: number): Record<string, boolean> {
+  return variantOptionClasses({focused: i === props.tagFocus, selected: t.tag === props.tagPicked, off: t.count === 0},
+    props.tagPicked !== undefined);
+}
+function noteText(note: ActivationNote): string {
+  return readingText({label: note.key, params: [...note.params]});
+}
+/** The hero's seat — the certificate's flights land on it and leave from it. */
+function heroEl(): HTMLElement | undefined {
+  return hero.value ?? undefined;
+}
+
+defineExpose({heroEl});
 </script>
