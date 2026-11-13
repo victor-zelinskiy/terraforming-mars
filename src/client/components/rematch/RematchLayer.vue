@@ -1,9 +1,4 @@
 <template>
-  <!--
-    HEADLESS in console mode: the poller keeps rematchState fresh (the console
-    post-game action list reads it), but none of these desktop-styled surfaces
-    render — the console workspace carries the offer/accept/join verbs itself.
-  -->
   <div class="rematch-layer">
     <!-- The core "accept rematch?" prompt for players who still owe a vote. -->
     <RematchPromptModal
@@ -62,8 +57,17 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * HEADLESS in console mode: the poller keeps rematchState fresh (the console
+ * post-game action list reads it), but none of these desktop-styled surfaces
+ * render — the console workspace carries the offer/accept/join verbs itself.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {RematchModel} from '@/common/models/RematchModel';
 import {Color} from '@/common/Color';
@@ -77,123 +81,112 @@ import {useFlowScope} from '@/client/console/session/useFlowScope';
 const POLL_INTERVAL_MS = 2000;
 const DECLINED_TOAST_MS = 7000;
 
-export default defineComponent({
-  name: 'RematchLayer',
-  components: {RematchPromptModal},
-  props: {
-    view: {type: Object as () => ViewModel, required: true},
-    /** Console mode: keep polling, render nothing (the workspace owns the verbs). */
-    headless: {type: Boolean, required: false, default: false},
-  },
-  setup() {
-    return {flow: useFlowScope('rematch-layer')};
-  },
-  data() {
-    return {
-      stopPoller: undefined as (() => void) | undefined,
-      /** The declined toast's pending auto-dismiss — its cancel (a beat of the layer's own scope, taken back with it). */
-      declinedTimer: undefined as (() => void) | undefined,
-      promptMinimized: false,
-      createdDismissedFor: undefined as string | undefined,
-      declinedDismissed: false,
-    };
-  },
-  computed: {
-    viewerId(): ParticipantId | undefined {
-      return this.view.id;
-    },
-    model(): RematchModel | undefined {
-      return rematchState.model;
-    },
-    submitting(): boolean {
-      return rematchState.submitting;
-    },
-    viewerIsPlayer(): boolean {
-      return this.model?.viewerIsPlayer === true;
-    },
-    showPromptPill(): boolean {
-      return this.model?.viewerMustVote === true && this.promptMinimized;
-    },
-    showCreated(): boolean {
-      return this.model?.status === 'created' && this.createdDismissedFor !== this.model?.newGameId;
-    },
-    showDeclined(): boolean {
-      return this.model?.status === 'declined' && !this.declinedDismissed;
-    },
-    joinHref(): string | undefined {
-      return rematchJoinHref(this.model);
-    },
-    declinerColor(): Color {
-      return this.model?.declinedBy ?? 'neutral';
-    },
-    declinerName(): string {
-      const vote = this.model?.votes.find((v) => v.color === this.model?.declinedBy);
-      return vote?.name ?? '';
-    },
-  },
-  watch: {
-    model(next: RematchModel | undefined, prev: RematchModel | undefined): void {
-      // A fresh offer (new offerer, or re-offered after none/declined) re-opens
-      // the prompt for a player who'd minimized a previous one.
-      if (next?.status === 'offered' && (prev?.status !== 'offered' || prev?.offeredBy !== next.offeredBy)) {
-        this.promptMinimized = false;
-      }
-      // Re-arm the declined toast whenever we (re)enter the declined state.
-      if (next?.status === 'declined' && prev?.status !== 'declined') {
-        this.declinedDismissed = false;
-        this.armDeclinedTimer();
-      }
-      if (next?.status !== 'declined') {
-        this.declinedDismissed = false;
-        this.clearDeclinedTimer();
-      }
-    },
-  },
-  methods: {
-    poll(): void {
-      if (this.viewerId !== undefined) {
-        void fetchRematch(this.viewerId);
-      }
-    },
-    accept(): void {
-      if (this.viewerId !== undefined) {
-        void submitRematch(this.viewerId, 'accept');
-      }
-    },
-    decline(): void {
-      if (this.viewerId !== undefined) {
-        void submitRematch(this.viewerId, 'decline');
-      }
-    },
-    dismissCreated(): void {
-      this.createdDismissedFor = this.model?.newGameId;
-    },
-    armDeclinedTimer(): void {
-      this.clearDeclinedTimer();
-      this.declinedTimer = this.flow.after(DECLINED_TOAST_MS, 'the declined rematch toast dismisses itself', () => {
-        this.declinedDismissed = true;
-      });
-    },
-    clearDeclinedTimer(): void {
-      if (this.declinedTimer !== undefined) {
-        this.declinedTimer();
-        this.declinedTimer = undefined;
-      }
-    },
-  },
-  mounted(): void {
-    this.poll();
-    // Rematch state lives outside the game mutation stream, so the server
-    // broadcasts a room invalidation on each rematch action (ApiGameRematch) —
-    // that wakes this poller for a real-time refetch; a lengthened fallback
-    // covers WS-down. Safe rate when WS is unhealthy.
-    this.stopPoller = startRealtimePoller(() => this.poll(), POLL_INTERVAL_MS, realtimePollIntervalMs);
-  },
-  beforeUnmount(): void {
-    if (this.stopPoller !== undefined) {
-      this.stopPoller();
-      this.stopPoller = undefined;
-    }
-  },
+defineOptions({name: 'RematchLayer'});
+const props = defineProps({
+  view: {type: Object as () => ViewModel, required: true},
+  /** Console mode: keep polling, render nothing (the workspace owns the verbs). */
+  headless: {type: Boolean, required: false, default: false},
+});
+
+const flow = useFlowScope('rematch-layer');
+let stopPoller: (() => void) | undefined;
+/** The declined toast's pending auto-dismiss — its cancel (a beat of the layer's own scope, taken back with it). */
+let declinedTimer: (() => void) | undefined;
+const promptMinimized = ref(false);
+const createdDismissedFor = ref<string | undefined>(undefined);
+const declinedDismissed = ref(false);
+
+const viewerId = computed((): ParticipantId | undefined => {
+  return props.view.id;
+});
+const model = computed((): RematchModel | undefined => {
+  return rematchState.model;
+});
+const submitting = computed((): boolean => {
+  return rematchState.submitting;
+});
+const viewerIsPlayer = computed((): boolean => {
+  return model.value?.viewerIsPlayer === true;
+});
+const showPromptPill = computed((): boolean => {
+  return model.value?.viewerMustVote === true && promptMinimized.value;
+});
+const showCreated = computed((): boolean => {
+  return model.value?.status === 'created' && createdDismissedFor.value !== model.value?.newGameId;
+});
+const showDeclined = computed((): boolean => {
+  return model.value?.status === 'declined' && !declinedDismissed.value;
+});
+const joinHref = computed((): string | undefined => {
+  return rematchJoinHref(model.value);
+});
+const declinerColor = computed((): Color => {
+  return model.value?.declinedBy ?? 'neutral';
+});
+const declinerName = computed((): string => {
+  const vote = model.value?.votes.find((v) => v.color === model.value?.declinedBy);
+  return vote?.name ?? '';
+});
+
+function poll(): void {
+  if (viewerId.value !== undefined) {
+    void fetchRematch(viewerId.value);
+  }
+}
+function accept(): void {
+  if (viewerId.value !== undefined) {
+    void submitRematch(viewerId.value, 'accept');
+  }
+}
+function decline(): void {
+  if (viewerId.value !== undefined) {
+    void submitRematch(viewerId.value, 'decline');
+  }
+}
+function dismissCreated(): void {
+  createdDismissedFor.value = model.value?.newGameId;
+}
+function armDeclinedTimer(): void {
+  clearDeclinedTimer();
+  declinedTimer = flow.after(DECLINED_TOAST_MS, 'the declined rematch toast dismisses itself', () => {
+    declinedDismissed.value = true;
+  });
+}
+function clearDeclinedTimer(): void {
+  if (declinedTimer !== undefined) {
+    declinedTimer();
+    declinedTimer = undefined;
+  }
+}
+
+watch(() => model.value, (next: RematchModel | undefined, prev: RematchModel | undefined): void => {
+  // A fresh offer (new offerer, or re-offered after none/declined) re-opens
+  // the prompt for a player who'd minimized a previous one.
+  if (next?.status === 'offered' && (prev?.status !== 'offered' || prev?.offeredBy !== next.offeredBy)) {
+    promptMinimized.value = false;
+  }
+  // Re-arm the declined toast whenever we (re)enter the declined state.
+  if (next?.status === 'declined' && prev?.status !== 'declined') {
+    declinedDismissed.value = false;
+    armDeclinedTimer();
+  }
+  if (next?.status !== 'declined') {
+    declinedDismissed.value = false;
+    clearDeclinedTimer();
+  }
+});
+onMounted((): void => {
+  poll();
+  // Rematch state lives outside the game mutation stream, so the server
+  // broadcasts a room invalidation on each rematch action (ApiGameRematch) —
+  // that wakes this poller for a real-time refetch; a lengthened fallback
+  // covers WS-down. Safe rate when WS is unhealthy.
+  stopPoller = startRealtimePoller(() => poll(), POLL_INTERVAL_MS, realtimePollIntervalMs);
+});
+onBeforeUnmount((): void => {
+  if (stopPoller !== undefined) {
+    stopPoller();
+    stopPoller = undefined;
+  }
 });
 </script>
