@@ -60,75 +60,70 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {TENDER_COMPENSATION_MC, TenderId, tenderDef} from '@/common/campaign/tenders';
 import {TENDER_GLYPH_PATH, TenderCardState, tenderChevrons, tenderMeta, tenderTierKey, tenderWindowKey} from '@/client/console/campaign/tenderMeta';
 import {tenderArtUrl} from '@/client/console/campaign/tenderArt';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 export type {TenderCardState};
 
-export default defineComponent({
-  name: 'ConsoleTenderCard',
-  props: {
-    id: {type: String as PropType<TenderId>, required: true},
-    size: {type: String as PropType<'table' | 'reader' | 'plaque'>, default: 'table'},
-    state: {type: String as PropType<TenderCardState>, default: 'open'},
-    /** The seat that holds it (the stamp). */
-    owner: {type: Object as PropType<{name: string, color: Color} | undefined>, default: undefined},
-    focused: {type: Boolean, default: false},
-    /**
-     * NOT ON THIS PAGE — the face steps back under its own scrim. A property of the FACE (never of a host's slot): a
-     * flight clones the face, so a certificate rising out of the dock or flying home is already dimmed in the air — a
-     * slot-scoped dim popped on at the touchdown (the storyboard of 2026-11-09).
-     */
-    dim: {type: Boolean, default: false},
-  },
-  computed: {
-    /**
-     * THE NAME'S TIER — a calibrated ladder, never an eyeballed shrink: the LONGEST WORD decides first (it can never
-     * wrap), the whole name second (three lines at most on the table). 1 = the base size, 2 = tighter, 3 = tightest.
-     */
-    nameTier(): 1 | 2 | 3 {
-      const name = translateText(this.meta.nameKey);
-      const longest = name.split(/\s+/).reduce((m, w) => Math.max(m, w.length), 0);
-      if (longest <= 9 && name.length <= 18) {
-        return 1;
-      }
-      return longest <= 12 && name.length <= 24 ? 2 : 3;
-    },
-    meta() {
-      return tenderMeta(this.id);
-    },
-    tier(): string {
-      return tenderDef(this.id).tier;
-    },
-    chevrons(): number {
-      return tenderChevrons(tenderDef(this.id).tier);
-    },
-    tierKey(): string {
-      return tenderTierKey(this.id);
-    },
-    windowKey(): string {
-      return tenderWindowKey(this.id);
-    },
-    glyphPath(): string {
-      return TENDER_GLYPH_PATH[this.meta.glyph];
-    },
-    /** The kind's art, once it has one — undefined keeps the engraved family glyph in the window. */
-    artUrl(): string | undefined {
-      return tenderArtUrl(this.id);
-    },
-    /** The lot tag — «№ 04» on the table and the plaque (the Register's context names the lot), «Лот № 04» in the reader. */
-    lotText(): string {
-      const num = String(this.meta.lot).padStart(2, '0');
-      return this.size === 'reader' ? translateTextWithParams('Lot ${0}', [num]) : translateTextWithParams('No. ${0}', [num]);
-    },
-    compensation(): number {
-      return TENDER_COMPENSATION_MC;
-    },
-  },
+defineOptions({name: 'ConsoleTenderCard'});
+const props = defineProps({
+  id: {type: String as PropType<TenderId>, required: true},
+  size: {type: String as PropType<'table' | 'reader' | 'plaque'>, default: 'table'},
+  state: {type: String as PropType<TenderCardState>, default: 'open'},
+  /** The seat that holds it (the stamp). */
+  owner: {type: Object as PropType<{name: string, color: Color} | undefined>, default: undefined},
+  focused: {type: Boolean, default: false},
+  /**
+   * NOT ON THIS PAGE — the face steps back under its own scrim. A property of the FACE (never of a host's slot): a
+   * flight clones the face, so a certificate rising out of the dock or flying home is already dimmed in the air — a
+   * slot-scoped dim popped on at the touchdown (the storyboard of 2026-11-09).
+   */
+  dim: {type: Boolean, default: false},
 });
+
+/**
+ * THE NAME'S TIER — a calibrated ladder, never an eyeballed shrink: the LONGEST WORD decides first (it can never
+ * wrap), the whole name second (three lines at most on the table). 1 = the base size, 2 = tighter, 3 = tightest.
+ */
+const nameTier = computed((): 1 | 2 | 3 => {
+  const name = translateText(meta.value.nameKey);
+  const longest = name.split(/\s+/).reduce((m, w) => Math.max(m, w.length), 0);
+  if (longest <= 9 && name.length <= 18) {
+    return 1;
+  }
+  return longest <= 12 && name.length <= 24 ? 2 : 3;
+});
+const meta = computed(() => {
+  return tenderMeta(props.id);
+});
+const tier = computed((): string => {
+  return tenderDef(props.id).tier;
+});
+const chevrons = computed((): number => {
+  return tenderChevrons(tenderDef(props.id).tier);
+});
+const tierKey = computed((): string => {
+  return tenderTierKey(props.id);
+});
+const windowKey = computed((): string => {
+  return tenderWindowKey(props.id);
+});
+const glyphPath = computed((): string => {
+  return TENDER_GLYPH_PATH[meta.value.glyph];
+});
+/** The kind's art, once it has one — undefined keeps the engraved family glyph in the window. */
+const artUrl = computed((): string | undefined => {
+  return tenderArtUrl(props.id);
+});
+/** The lot tag — «№ 04» on the table and the plaque (the Register's context names the lot), «Лот № 04» in the reader. */
+const lotText = computed((): string => {
+  const num = String(meta.value.lot).padStart(2, '0');
+  return props.size === 'reader' ? translateTextWithParams('Lot ${0}', [num]) : translateTextWithParams('No. ${0}', [num]);
+});
+const compensation = TENDER_COMPENSATION_MC;
 </script>
