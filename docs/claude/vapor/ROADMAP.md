@@ -232,9 +232,9 @@ new RC re-reads the table by running it.
 | THE LOCAL DIRECTIVES, imported: two that rewrite the text `v-i18n` translated (they follow the text through an observer — Vapor has no `updated`), one with a LIFETIME (`v-embed-zone` registers AND unregisters) | ✔ in a Vapor component (`VaporDirectivesProbe.vue`) and — the same import lines — in a `<script setup>` one on the virtual DOM (`SetupDirectivesProbe.vue`, which also pins what `dualDirective` leans on: a function directive's `unmounted`) | RECIPES § R17 |
 | THE SHELL'S COMPOSITION — controllers behind a late-bound port (`shell/shellPort.ts`), a surface standing in the registry through a function ref (`:ref="surfaces.bind.<name>"`), a reactions table of `watch()` rows over port members and a prop, a WRITTEN port row, `onMounted` / `onBeforeUnmount` | ✔ (fixture `VaporShellProbe.vue`, 2026-11-12) | `ConsoleShell.vue` is this shape (`useConsoleShell`): its conversion changes how the template names the members, not the mechanism |
 | `v-memo` | ignored (compiler warning) | drop at conversion |
-| `@vue/test-utils`: `mount(<a Vapor component>)` as the ROOT | ✘ throws | test-utils reads the root's vdom instance. A spec stands the component under a vdom host with an ELEMENT root (`mountVapor` in the suite; `card/CardDescription.spec.ts`). DOM finders work; `findComponent` INTO a Vapor child does not. The interop plugin is installed for every mount by `tests/client/components/bundleSetup.ts` |
-| test-utils' default `transition` stub | does not apply | a Vapor `<Transition>` is the real one in a spec and needs a frame source there — `tests/client/vapor/lendFrames.ts` |
-| test-utils' `stubs` for the CHILDREN of a Vapor component | do not apply | stubs reach components the virtual-DOM renderer resolves; a child created by a Vapor parent is the real one. A spec of a Vapor component asserts on its children's real output (`ConsoleForecastDoor.spec.ts`) |
+| `@vue/test-utils`: `mount(<a Vapor component>)` as the ROOT | ✘ throws in the package · ✔ in the suite | test-utils reads the root's vdom instance. Since 2026-11-13 the unit bundle's `mount` stands a Vapor root under a host itself and returns a wrapper that speaks for the component (§ 4b — `tests/client/testing/`). The interop plugin is installed for every mount by `tests/client/components/bundleSetup.ts` |
+| test-utils' default `transition` stub | does not apply in the package · ✔ in the suite | the suite's layer applies it to a Vapor render too (§ 4b); the REAL Vapor `<Transition>` (`stubs: {transition: false}`) needs a frame source in a spec — `tests/client/vapor/lendFrames.ts` |
+| test-utils' `stubs` / `findComponent` for the CHILDREN of a Vapor component | do not apply in the package · ✔ in the suite | a child is created by a direct call of the compiled template — no vnode stands for it. The layer wraps that call: the mount's stub rule and one tree walk over both runtimes (§ 4b; `tests/client/testing/vaporTestLayer.spec.ts`) |
 
 **The three leaves that ship as Vapor** (each a different row of the table, each with live e2e over it):
 `marsbot/BotReviewEdgeNotice.vue` (a `<Transition>` over a keyed `v-if` on module state · `$t`) ·
@@ -408,7 +408,7 @@ order it has to be done, each with its number and the tool that prints it:
 | B3 | `v-memo` — ignored by the Vapor compiler. | 11 uses in 2 components (ledger row `v-memo`) | delete at B (R23) — a Vapor update is per binding already |
 | B4 | `ConsoleTeleport` — a render function over the previous vnode. | 1 (ledger `render-function: 4` = its four `h(`) | the REWRITE on the Vapor `<Teleport>` (R18): a template, `v-if="targetStands"` + `:key="generation"` |
 | B5 | **A parent that reads a CHILD's `$el` through its ref.** A Vapor child's ref is its `defineExpose` object — no `$el`. | 25 reads in 17 files (`grep '\.\$el\b' src/client`): the viewer controller ×5, the flight layers' tile / cube proxies, the source docks, the stage geometry's hull members | the child exposes its root (R12), or the parent asks the child for what it wanted the element for; done WITH the child's step B |
-| B6 | **The unit suite.** `mount(<a Vapor component>)` as the ROOT throws; `stubs` do not reach the children of a Vapor parent; `findComponent` into a Vapor child fails; `wrapper.vm` has nothing to show. | 918 client spec files: **494 mount a component** · 254 use `stubs` · 224 `findComponent` · 208 `setProps` / `setData` · 64 `shallowMount` · 61 read `wrapper.vm` | ONE mount helper for the suite (a virtual-DOM host with an element root, reactive props — `mountVapor`, today local to the capability spec) applied by codemod; a spec that leaned on a stub asserts the child's real output or stubs the child's MODULE; this is the LARGEST item of step B and it is test work, not product work |
+| B6 | **The unit suite.** `mount(<a Vapor component>)` as the ROOT throws; `stubs` do not reach the children of a Vapor parent; `findComponent` into a Vapor child fails; `wrapper.vm` has nothing to show. | 918 client spec files: **494 mount a component** · 254 use `stubs` · 224 `findComponent` · 208 `setProps` / `setData` · 64 `shallowMount` · 61 read `wrapper.vm` | **CLOSED 2026-11-13 — by a LAYER, not a codemod: no spec was rewritten** (§ 4b). The unit bundle's `@vue/test-utils` and `vue` are the suite's own (`tests/client/testing/`): a Vapor root is mounted under a host and wrapped, the mount's stub rule reaches what a Vapor render creates, `findComponent` walks one tree over both runtimes. A converted component is compiled AS WRITTEN in the unit bundle (`scripts/vapor/unitVaporPolicy.cjs`; the valve `tests/client/vaporUnit.json` is empty) |
 | B7 | **Order-dependent watcher pairs** — two watchers of one source / one collection whose order matters are ONE `watch` before their component is Vapor (§ 2 rule 6; a Vapor effect has no «component render» to order against). | named by the wave's reviewers: `ConsoleMaScreen` (`kind` → `items`), `ConsoleHandSection` (`index` → `modeKey` → `entries`); the full list is a review of the 122 former `watch:` blocks | merged per component, in the commit before its `vapor` |
 | B8 | **`onUpdated` / «after every parent re-render» logic** and reads through `wrapper.vm` of the dev shape. | per sheet (R9 «trap at B») | a `watch` of what is measured |
 | B9 | **The flip itself** — `<script setup vapor>` on 452 components, leaves first, hosts after their children (a Vapor parent hosts a vdom child, and the reverse, through `vaporInteropPlugin` — so the waves can run in any order, but a ref's shape changes at each edge: B5). | 3 of 455 are Vapor | by wave, each on the box; the per-component sheet's `STEP B` line is clear for 452 (3 sheets carry a blocker: the two `v-memo` hosts, one `$t` without its import) |
@@ -420,8 +420,61 @@ order it has to be done, each with its number and the tool that prints it:
 (`audit.mjs` § A: 0), a deferred cast of a template ref (§ B: 0).
 
 **The honest size of it:** the PRODUCT side of step B is small and measured (B2–B5: 4 templates, 11 `v-memo`, one
-rewrite, 25 `$el` reads; B7–B8 are reviews). The TEST side (B6) is the bulk. The first move of step B is therefore
-not a flip but the suite's mount helper — with it, flipping a wave is the codemod's one attribute and a box run.
+rewrite, 25 `$el` reads; B7–B8 are reviews). The TEST side (B6) was expected to be the bulk and is closed (§ 4b):
+flipping a wave is the tool's one attribute (`node scripts/vapor/flip.mjs`), its unit specs under the true runtime,
+and a box run.
+
+## 4b. The unit suite over a Vapor tree — the layer (2026-11-13)
+
+**The measurement that set the design.** The whole client was flipped in a side worktree (448 of 455 components —
+`flip.mjs --all`; the seven of B1 stay) and the unit suite run under the true runtime with nothing else changed:
+**906 of 9859 tests red**, in three classes — a Vapor root cannot be mounted, `stubs` do not reach a Vapor parent's
+children, `findComponent` cannot enter one. All three are the TOOL's, none the specs': 494 spec files would have been
+rewritten to say the same thing in other words. So the tool was completed instead.
+
+**The layer** — `tests/client/testing/`, aliased in by `webpack.test.config.js` (a spec imports `@vue/test-utils` and
+`vue` as it always did):
+
+| File | What it is |
+| --- | --- |
+| `vueForTests.ts` | `vue` as the unit bundle sees it: the real package, with the three calls a COMPILED VAPOR TEMPLATE makes to create a component wrapped (`createComponent`, `createComponentWithFallback`, `createDynamicComponent`) — the one place a Vapor parent's children pass through |
+| `vaporTree.ts` | the registry of what a Vapor render created (under whom, standing for which component), the mount's stub rule applied to that call, ONE tree walk over both runtimes in document order, wrappers of test-utils' reading surface over a Vapor instance |
+| `vaporTestUtils.ts` | `@vue/test-utils` as the bundle sees it: `mount` / `shallowMount` (a Vapor root under a host; `props`, `slots`, `data()`, `setProps`, `unmount`), the finders of test-utils' own wrappers over the one tree, its stub hook taught not to stub the layer's stubs |
+| `vaporTestLayer.spec.ts` + `fixtures/` | every promise above as a row, on fixtures that are Vapor in every mode — red on the day a new core moves an internal the layer reads |
+
+What a spec may now rely on WITHOUT knowing its component was converted: `mount(Component, {props, slots, data,
+global: {stubs}})` · `shallowMount` · `wrapper.element / classes / attributes / text / html / find / findAll / get /
+props / emitted / setProps / trigger / unmount` · `wrapper.vm` (the `defineExpose` object, the setup bindings of a
+development build, a prop by name, `$el`, `$emit`) · `findComponent` / `findAllComponents` / `getComponent` by the
+component, by its stub, by `{name}`, from a component wrapper or a DOM wrapper · a stub by the parent script's LOCAL
+binding name (`import Card from 'CardFace.vue'` → `stubs: {Card: …}`) or the component's own · the default
+`transition` stub with its slot, `stubs: {teleport: true}` reading a teleport in place.
+
+**After the layer: 10 of 9860 red under the true runtime — and every one is a fact about the PRODUCT** (the worklist
+of the flips, not of the suite):
+
+| What | Tests | It is |
+| --- | --- | --- |
+| a parent's ref on a Vapor child answers no `$el` — `CardZoomModal`, `ConsoleResourcePanel`, `ConsoleStartPlayedDock`, `ConsoleTilePlacementLayer` ×2, `ConsoleTileProxy` ×2, `PlayerCube` | 8 | **B5**, measured from the other side: the spec that pinned «the ref still answers the root (step A)» moves with the child's step B |
+| `GlobalEvent` — a Vapor child whose SET-UP throws inside a virtual-DOM parent's patch: the guard's error is reported, then the interop fails the patch with a second one (`…reading '__vapor'`) | 1 | a gap of rc.15's interop; decided at the component's step B (a guard that reports and renders nothing, or the flip of its parents first) |
+| the capability table's «teleport target missing» row, red only in that run | 1 | order-dependent on the nine above (a throw inside Vue's warn path latches its re-entrancy flag for the rest of the bundle) — re-read once they are closed |
+
+Seven specs asserted how a runtime SERIALISES (the order of classes after an update, of attributes in `html()`, the
+anchor comment an absent root leaves) — rewritten to assert the fact (the SET of classes, the attribute by name, «no
+element»): green in both runtimes. That is the whole of the spec edits.
+
+**The policy** (`scripts/vapor/unitVaporPolicy.cjs`): the unit bundle compiles a component AS WRITTEN — a converted
+component meets its specs under the runtime that ships. The valve (`tests/client/vaporUnit.json` §
+`virtualDomInUnit`, `{file: reason}`) sends one component to the virtual DOM in the unit bundle only; it is EMPTY, its
+ceiling only falls (`tests/console/vaporUnitPolicy.spec.ts`), and V4 takes it empty. One run: `npm run
+test:client:vapor[:one]` (the valve ignored) · `npm run test:client:vdom:one -- <spec>` (nothing of `src/client` as
+Vapor — «is this red about the runtime at all?»).
+
+**What the layer does NOT hide** — and a spec still has to know: a Vapor `<Transition>` asked for by `stubs:
+{transition: false}` is the real one and needs a frame source (`tests/client/vapor/lendFrames.ts`); a slot given as a
+STRING or a component goes test-utils' own road and, forwarded by a Vapor component into a virtual-DOM child, raises
+rc.15's «invoked outside of the render function» (a FUNCTION slot does not — the layer hands it over itself; the fact
+is a row of the layer's spec); `wrapper.vm` of a Vapor component has no Options-API surface (`$data`, `$options`).
 
 ## 5. The readiness ledger
 

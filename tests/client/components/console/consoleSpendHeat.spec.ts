@@ -106,7 +106,8 @@ describe('ConsoleSpendHeat — the «pay N heat» bill', () => {
     const root = wrapper.find('.con-heat');
     const host = wrapper.element as Element;
     expect(host.firstElementChild, 'the surface is one element').to.eq(root.element);
-    expect(host.childNodes, 'no comment node stands before the root').to.have.length(1);
+    // (FIRST of the host's nodes: an anchor a runtime leaves AFTER the root is its own business.)
+    expect(host.firstChild, 'no comment node stands before the root').to.eq(root.element);
     expect(root.classes()).to.include.members(['con-lanes', 'con-heat', 'con-ws']);
     expect(root.attributes('role')).to.eq('dialog');
     expect(root.attributes('aria-label')).to.eq($t('Select how to spend 6 heat'));

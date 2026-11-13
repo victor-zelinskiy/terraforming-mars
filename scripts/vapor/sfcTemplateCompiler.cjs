@@ -30,6 +30,7 @@
 const fs = require('fs');
 const dom = require('@vue/compiler-dom');
 const vapor = require('@vue/compiler-vapor');
+const {unitCompilesAsVapor, unitPolicyActive} = require('./unitVaporPolicy.cjs');
 
 /** `<script … vapor>` / `<template vapor>` — the attribute as a whole word inside the opening tag of either block. */
 const VAPOR_BLOCK = /<(?:script|template)\b[^>]*?\svapor(?=[\s=>/])[^>]*>/;
@@ -39,6 +40,12 @@ const seen = new Map();
 
 function isVaporSfc(filename) {
   if (typeof filename !== 'string' || !filename.endsWith('.vue')) {
+    return false;
+  }
+  // The UNIT bundle compiles a Vapor component its policy sends to the virtual DOM (the valve of
+  // unitVaporPolicy.cjs, a `TM_UNIT_VAPOR=none` run) for the virtual DOM: the pre-loader took the attribute off the
+  // source vue-loader saw, and this compiler reads the file itself.
+  if (unitPolicyActive() && !unitCompilesAsVapor(filename)) {
     return false;
   }
   let stat;

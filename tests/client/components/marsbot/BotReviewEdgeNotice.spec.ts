@@ -14,7 +14,8 @@ import {lendFrames} from '../../vapor/lendFrames';
 
 function mountNotice(large: boolean) {
   const Host = defineComponent({render: () => h('div', [h(BotReviewEdgeNotice, {large})])});
-  return mount(Host, {...globalConfig, attachTo: document.body});
+  // (the REAL transition: the spec reads its classes and lends it frames — the default stub is opted out of)
+  return mount(Host, {global: {...globalConfig.global, stubs: {transition: false}}, attachTo: document.body});
 }
 
 describe('BotReviewEdgeNotice (a Vapor leaf)', () => {

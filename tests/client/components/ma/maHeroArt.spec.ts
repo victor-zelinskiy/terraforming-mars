@@ -49,7 +49,8 @@ describe('MaHeroArt — the milestone / award hero art', () => {
 
     // The kind alone is not a new asset: the emblem stays, in the new kind.
     await w.setProps({kind: 'milestone'});
-    expect(w.classes()).to.deep.eq(['ma-hero', 'ma-hero--milestone', 'ma-hero--fallback']);
+    // (the SET of classes: the order a runtime writes them in after an update is not a contract)
+    expect(w.classes()).to.have.members(['ma-hero', 'ma-hero--milestone', 'ma-hero--fallback']);
     expect(w.find('.ma-hero__glyph').text()).to.eq('🏆');
 
     await w.setProps({name: 'Banker'});

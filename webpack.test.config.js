@@ -29,6 +29,14 @@
  * 5.112.0 moved, and `mocha/lib/cli/run-helpers`, which mocha 12 dropped — it pinned both tools a version behind.
  * The runner is ours now and uses only their public APIs; neither pin is needed.)
  */
+const path = require('path');
+
+// THE UNIT BUNDLE'S VAPOR POLICY (scripts/vapor/unitVaporPolicy.cjs): a component is compiled AS WRITTEN — a Vapor one
+// meets its specs under the Vapor runtime — except an entry of the valve (tests/client/vaporUnit.json) and a
+// `TM_UNIT_VAPOR=none` run, which are compiled for the virtual DOM. Raised BEFORE the base config loads: the template
+// compiler it names reads the flag.
+process.env.TM_VAPOR_POLICY = 'unit';
+
 const base = require('./webpack.config.js');
 
 // The in-build type check is a separate gate (`npm run build:test` +
@@ -47,8 +55,28 @@ module.exports = {
   ...base,
   mode: 'development',
   plugins,
+  // `@vue/test-utils`, VAPOR-AWARE (tests/client/testing/vaporTestUtils.ts): a spec's `mount(<a Vapor component>)`
+  // stands it under a virtual-DOM host and returns a wrapper that speaks for the component. The real package keeps
+  // its CJS build (the base config's alias) under the name the shim imports it by.
+  resolve: {
+    ...base.resolve,
+    alias: {
+      // (first, and the base's own prefix alias of the package dropped: webpack takes the FIRST alias that matches)
+      '@vue/test-utils-real$': base.resolve.alias['@vue/test-utils'],
+      '@vue/test-utils$': path.resolve(__dirname, 'tests/client/testing/vaporTestUtils.ts'),
+      // `vue` itself, with the three calls a compiled Vapor template makes to create a component wrapped
+      // (tests/client/testing/vueForTests.ts): the stubs of a mount and the registry `findComponent` reads.
+      'vue-real$': base.resolve.alias['vue$'],
+      'vue$': path.resolve(__dirname, 'tests/client/testing/vueForTests.ts'),
+      ...Object.fromEntries(Object.entries(base.resolve.alias).filter(([name]) => name !== '@vue/test-utils' && name !== 'vue$')),
+    },
+  },
   module: {
     ...base.module,
+    rules: [
+      {test: /\.vue$/, enforce: 'pre', loader: path.resolve(__dirname, 'scripts/vapor/unitVaporLoader.cjs')},
+      ...base.module.rules,
+    ],
     // No `import()` chunk may exist in a test build (see the header).
     parser: {javascript: {dynamicImportMode: 'eager'}},
   },

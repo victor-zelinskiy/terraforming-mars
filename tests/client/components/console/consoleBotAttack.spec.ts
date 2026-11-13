@@ -177,7 +177,8 @@ describe('ConsoleBotAttack — the «бот атаковал вас» modal', ()
     const root = wrapper.find('.con-botattack');
     const host = wrapper.element as Element;
     expect(host.firstElementChild, 'the surface is one element').to.eq(root.element);
-    expect(host.childNodes, 'no comment node stands before the root').to.have.length(1);
+    // (FIRST of the host's nodes: an anchor a runtime leaves AFTER the root is its own business.)
+    expect(host.firstChild, 'no comment node stands before the root').to.eq(root.element);
     expect(root.classes()).to.include.members(['con-botattack', 'con-ws']);
     expect(root.classes()).to.not.include('con-botattack--committing');
     expect(root.attributes('role')).to.eq('dialog');

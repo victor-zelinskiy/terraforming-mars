@@ -61,7 +61,8 @@ describe('ConsolePatentSaleLayer — the stage of the patent sale', () => {
   it('no sale: the layer renders nothing — and stands the stage the moment a sale is armed', async () => {
     const w = layer();
     expect(w.find('.con-sale-hero').exists()).to.eq(false);
-    expect(w.html()).to.eq('<!--v-if-->');
+    // (No element at all — the anchor comment a runtime leaves in an absent root's place is its own business.)
+    expect(w.html().replace(/<!--[\s\S]*?-->/g, '').trim(), 'nothing but an anchor').to.eq('');
 
     patentSaleState.flights = [{id: 1, name: CardName.TREES}];
     patentSaleState.active = true;

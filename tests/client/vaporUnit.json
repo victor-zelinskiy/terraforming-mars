@@ -1,0 +1,4 @@
+{
+  "//": "THE VALVE of the unit bundle's Vapor policy — scripts/vapor/unitVaporPolicy.cjs. A component listed here ({\"<file>\": \"<the reason>\"}) is compiled for the virtual DOM in the UNIT bundle only. Empty is the norm; guard: tests/console/vaporUnitPolicy.spec.ts.",
+  "virtualDomInUnit": {}
+}

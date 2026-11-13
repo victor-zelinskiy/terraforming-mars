@@ -62,7 +62,9 @@ function mountVapor<P extends Record<string, unknown>>(component: Component, pro
     },
   });
   // `vaporInteropPlugin` is installed for every mount of the bundle (tests/client/components/bundleSetup.ts).
-  const wrapper = mount(Host, {global: {plugins: [i18nPlugin]}, attachTo: document.body});
+  // The suite's test-utils applies its default `transition` stubs to a Vapor render too (vaporTestUtils.ts): this
+  // table is about the REAL components, so it opts out — as a virtual-DOM spec of a transition does.
+  const wrapper = mount(Host, {global: {plugins: [i18nPlugin], stubs: {'transition': false, 'transition-group': false}}, attachTo: document.body});
   const root = (): Element => wrapper.element as Element;
   return {wrapper, root, props: live, q: (selector: string) => root().querySelector<HTMLElement>(selector)};
 }

@@ -780,12 +780,22 @@ component has none at all, so the root comes DOWN:
   `await flushPromises()` → unmount) and the mounts after it render the face at once.
 - A comment in an existing spec that describes the pre-conversion template («the template opens with a comment node…»)
   is corrected in the same commit.
-- **Step B (Vapor):** `mount(<the component>)` as the ROOT throws — stand it under a virtual-DOM host with an ELEMENT
-  root (`mountVapor` in `vaporCapability.spec.ts`; `card/CardDescription.spec.ts` is the shipped model). DOM finders
-  work; `findComponent` into a Vapor child does not; **`stubs` do not reach the children of a Vapor component** —
-  assert on their real output. The interop plugin is installed for every mount by `bundleSetup.ts`.
+- **Step B (Vapor): the spec does not change because the component became Vapor.** The unit bundle compiles it as
+  written and the suite's layer (`tests/client/testing/`, ROADMAP § 4b) keeps test-utils' whole reading surface over
+  it: `mount(<the component>)` as the root, `props` / `slots` / `data()`, `setProps`, `stubs` (by the parent script's
+  local binding name or the component's own) and `shallowMount` reaching the children a Vapor render creates,
+  `findComponent` across both runtimes, `wrapper.vm` (the exposed object, the setup bindings, a prop by name). What
+  DOES change at B is a fact the spec pinned about the virtual DOM, and it changes in the conversion's commit:
+  - **«a parent's ref answers `$el`»** — a Vapor child's ref is its `defineExpose` object. The row is rewritten with
+    the product (ROADMAP § 4a · B5): what the parent now reaches, by name;
+  - **how the runtime SERIALISES** — the order of an element's classes after an update, of its attributes in
+    `html()`, the anchor comment an absent root leaves (`<!--v-if-->` on the virtual DOM). Assert the FACT: the set
+    (`to.have.members`), the attribute by name, «no element»;
+  - **a real `<Transition>`** (`stubs: {transition: false}`) needs a frame source — `tests/client/vapor/lendFrames.ts`.
+  Run it under the true runtime before the commit: `npm run test:client:vapor:one -- <spec>`; «is this red about the
+  runtime at all?» — `npm run test:client:vdom:one -- <spec>`.
 - A component that had no spec gets one in its conversion's commit: what it renders for its props, what it emits,
-  what it exposes. At B: `setProps` goes through the host's reactive props; the root's classes are read off the DOM.
+  what it exposes.
 
 ## 4. What the tools guarantee
 

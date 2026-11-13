@@ -64,9 +64,10 @@ const teardownFailures: Array<string> = [];
  * (the Vapor child is an unknown kind of component to a plain virtual-DOM renderer). Installed here, once, for every
  * `mount()` of the bundle: a spec never has to know which of its component's descendants were converted.
  *
- * What a spec still has to know: `mount(<a Vapor component>)` itself is not possible (test-utils reads the ROOT's
- * virtual-DOM instance) — stand it under a virtual-DOM host with an element root
- * (`tests/client/vapor/vaporCapability.spec.ts` § `mountVapor`, `card/CardDescription.spec.ts`).
+ * And a spec never has to know that its OWN component was converted either: the `@vue/test-utils` and the `vue` of
+ * this bundle are the suite's layer (`tests/client/testing/vaporTestUtils.ts` · `vueForTests.ts`, aliased by
+ * `webpack.test.config.js`) — a Vapor root is mounted under a host and wrapped, the mount's stubs reach the children a
+ * Vapor render creates, `findComponent` walks one tree over both runtimes.
  */
 config.global.plugins = [...(config.global.plugins ?? []), vaporInteropPlugin];
 

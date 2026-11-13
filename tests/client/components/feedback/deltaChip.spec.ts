@@ -54,7 +54,8 @@ describe('DeltaChip — the delta beside a metric', () => {
     // The variant alone is not a change of the value: the number keeps its node.
     const third = w.find('.delta-chip__value').element;
     await w.setProps({variant: 'score'});
-    expect(w.classes()).to.deep.eq(['delta-chip', 'delta-chip--score', 'delta-chip--positive']);
+    // (the SET of classes: the order a runtime writes them in after an update is not a contract)
+    expect(w.classes()).to.have.members(['delta-chip', 'delta-chip--score', 'delta-chip--positive']);
     expect(w.find('.delta-chip__value').element).to.eq(third);
   });
 

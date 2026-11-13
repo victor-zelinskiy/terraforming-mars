@@ -130,7 +130,8 @@ describe('ConsoleTenderActivation — the activation sheet of a tender', () => {
     expect(w.findComponent(TenderCardStub).props('state'), 'the press landed: the certificate wears the stamp').to.eq('executed');
 
     await w.setProps({open: false, stamping: false, leaving: true});
-    expect(w.classes()).to.deep.eq(['con-tsheet', 'con-tsheet--leaving', 'con-tsheet--committed']);
+    // (the SET of classes: the order a runtime writes them in after an update is not a contract)
+    expect(w.classes()).to.have.members(['con-tsheet', 'con-tsheet--leaving', 'con-tsheet--committed']);
     expect(w.attributes('data-tender-sheet-open')).to.eq(undefined);
   });
 

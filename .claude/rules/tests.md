@@ -36,14 +36,21 @@ run in ONE fixed order (by path, `localeCompare`); a spec that passes only in th
 run it alone to tell.
 
 **A VAPOR component in a unit spec** (`<script setup vapor>` — the road to `createVaporApp`, `docs/claude/vapor/ROADMAP.md`
-§3.6): `mount(<the component>)` as the ROOT throws (test-utils reads the root's virtual-DOM instance) — stand it under a
-virtual-DOM host with an ELEMENT root (`defineComponent({render: () => h('div', [h(TheComponent, props)])})`; the
-suite's `mountVapor`, `card/CardDescription.spec.ts`). The interop plugin is installed for every mount by
-`bundleSetup.ts`, so a spec of a PARENT never has to know which descendants were converted. DOM finders work;
-`findComponent` into a Vapor child does not; **`stubs` do not reach the children of a Vapor component** (they are
-created by the Vapor parent, not resolved by the virtual-DOM renderer — assert on their real output); a Vapor
-`<Transition>` is the REAL one in a spec (the default `transition` stub is virtual-DOM only) and needs a frame
-source — `tests/client/vapor/lendFrames.ts`. What Vapor takes at all is `tests/client/vapor/vaporCapability.spec.ts`.
+§ 4b): **the spec is written as for any component** — `mount(TheComponent, {props, slots, global: {stubs}})`,
+`shallowMount`, `setProps`, `findComponent`, `wrapper.vm`. `@vue/test-utils` itself is a virtual-DOM tool (a Vapor
+root throws, `stubs` never reach a Vapor parent's children, `findComponent` cannot enter one); inside the unit bundle
+the names `@vue/test-utils` and `vue` resolve to the suite's LAYER (`tests/client/testing/` — aliased by
+`webpack.test.config.js`), which closes all three for every spec and is pinned row by row by
+`tests/client/testing/vaporTestLayer.spec.ts`. The unit bundle compiles a component AS WRITTEN (a converted component
+meets its specs under the runtime that ships — `scripts/vapor/unitVaporPolicy.cjs`; the valve
+`tests/client/vaporUnit.json` is empty and its ceiling only falls). What a spec must NOT do: assert how a runtime
+SERIALISES — the order of classes after an update, of attributes in `html()`, the anchor comment of an absent root
+(`<!--v-if-->`) — assert the set, the attribute by name, «no element»; read `$el` off a parent's ref on a child (a
+Vapor child's ref is its `defineExpose` object); expect an Options-API surface on `wrapper.vm` (`$data`, `$options`).
+A REAL Vapor `<Transition>` (`stubs: {transition: false}`) needs a frame source — `tests/client/vapor/lendFrames.ts`.
+One spec under the true runtime with the valve ignored: `npm run test:client:vapor:one -- <spec>`; with nothing of
+`src/client` as Vapor («is this red about the runtime at all?»): `npm run test:client:vdom:one -- <spec>`. What Vapor
+takes at all is `tests/client/vapor/vaporCapability.spec.ts`.
 
 **Both `npm run test:*` scripts go through `scripts/run-tests.mjs`**, which fails the run when fewer tests are COLLECTED than the declared floor (`--min`). Raise a floor when a batch of specs lands; never lower one to make a run pass.
 

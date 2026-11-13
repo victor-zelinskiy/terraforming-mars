@@ -160,7 +160,13 @@ describe('Medical Database — the readings of a unit of two kinds', () => {
 
   it('the unit component alone: one class is one bare icon, several are icons joined by «or» with a host\'s extra class on each', () => {
     const one = mount(ConsoleYieldUnit, {props: {classes: ['card-resource card-resource-floater'], extra: 'x'}, ...t});
-    expect(one.html().trim()).eq('<i class="con-iyield__unit card-resource card-resource-floater x" aria-hidden="true"></i>');
+    // (Read by member, not as one string: the order of an element's attributes is the runtime's own.)
+    const icon = one.element as Element;
+    expect(icon.tagName).eq('I');
+    expect(icon.className).eq('con-iyield__unit card-resource card-resource-floater x');
+    expect(icon.getAttributeNames().sort()).deep.eq(['aria-hidden', 'class']);
+    expect(icon.getAttribute('aria-hidden')).eq('true');
+    expect(icon.childNodes, 'an empty icon').has.length(0);
     expect(one.findAll('*'), 'the bare icon, no wrapper').has.length(1);
     const two = mount(ConsoleYieldUnit, {props: {classes: ['a', 'b'], extra: 'x'}, ...t});
     expect(two.findAll('.con-iyield__unit').map((u) => u.classes().join(' '))).deep.eq(['con-iyield__unit a x', 'con-iyield__unit b x']);
