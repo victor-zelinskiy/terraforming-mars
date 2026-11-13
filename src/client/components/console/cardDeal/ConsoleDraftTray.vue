@@ -1,17 +1,5 @@
 <template>
-  <!--
-    THE DRAFT TRAY — the ONE persistent "selected cards area" of the draft
-    (top-centre, ON THE TABLE, under the task modal). Picked cards fly
-    hero-style INTO its slots (consoleDraftTray.ts owns the beats); during
-    the wait it hosts the calm banner; at the draft→research transition
-    the whole pile RISES into the research row.
-
-    Pointer-inert (the pad grammar lives in the shell / task host). Slots
-    carry `data-tray-slot` — the flight directors land on them; a HELD slot
-    (proxy still flying above) hides via the shared `.con-deal-hold` rule,
-    Vue-managed (patch-proof), and reveals on the slot's own 160ms fade.
-  -->
-  <div class="con-drafttray"
+  <div ref="root" class="con-drafttray"
        :class="{'con-drafttray--table': tableView}"
        role="status">
     <!-- The PILE is the tray's anchor and renders FIRST: flight targets are
@@ -59,8 +47,23 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE DRAFT TRAY — the ONE persistent "selected cards area" of the draft
+ * (top-centre, ON THE TABLE, under the task modal). Picked cards fly
+ * hero-style INTO its slots (consoleDraftTray.ts owns the beats); during
+ * the wait it hosts the calm banner; at the draft→research transition
+ * the whole pile RISES into the research row.
+ *
+ * Pointer-inert (the pad grammar lives in the shell / task host). Slots
+ * carry `data-tray-slot` — the flight directors land on them; a HELD slot
+ * (proxy still flying above) hides via the shared `.con-deal-hold` rule,
+ * Vue-managed (patch-proof), and reveals on the slot's own 160ms fade.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -72,99 +75,88 @@ import {
 } from '@/client/console/cardDeal/consoleDraftTray';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 
-export default defineComponent({
-  name: 'ConsoleDraftTray',
-  components: {Card, GamepadGlyph},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    /** The optional-repick wait state (the shell's draftWaitActive). */
-    waiting: {type: Boolean, default: false},
-  },
-  setup() {
-    return {flow: useFlowScope('draft-tray')};
-  },
-  data() {
-    return {
-      draftTrayState,
-      pulsing: false,
-      cancelPulse: (() => {}) as () => void,
-      /** Per-slot one-shot settle accent (a landing accents ITSELF —
-       *  the whole-pile pulse is reserved for set-complete). */
-      justLanded: {} as Record<string, boolean>,
-      landCancels: {} as Record<string, () => void>,
-    };
-  },
-  computed: {
-    serverDrafted(): ReadonlyArray<CardModel> {
-      return this.playerView.draftedCards ?? [];
-    },
-    /** The rendered pile: the frozen scene snapshot, else server + optimistic.
-     *  Server models are preferred (cost badges etc.); an optimistic /
-     *  scene-frozen name degrades to a bare manifest render. */
-    entries(): Array<{name: CardName, card: CardModel | {name: CardName}}> {
-      const names = trayDisplayCards(this.serverDrafted.map((c) => c.name));
-      return names.map((name) => ({
-        name,
-        card: this.serverDrafted.find((c) => c.name === name) ?? {name},
-      }));
-    },
-    processing(): boolean {
-      return draftTrayState.processing;
-    },
-    setComplete(): boolean {
-      return draftTrayState.setComplete;
-    },
-    tableView(): boolean {
-      return draftTrayState.tableView;
-    },
-  },
-  watch: {
-    /** A touchdown settles ITS OWN slot (scale 1.05 → 1, one-shot). */
-    'draftTrayState.lastLand'(land: {n: number, name: string}) {
-      const name = land.name;
-      if (name === '') {
-        return;
-      }
-      this.landCancels[name]?.();
-      delete this.justLanded[name];
-      void this.$nextTick(() => {
-        this.justLanded[name] = true;
-        this.landCancels[name] = this.flow.after(consoleMotionMs(300), 'a tray slot\'s landing accent reads', () => {
-          delete this.justLanded[name];
-          delete this.landCancels[name];
-        });
-      });
-    },
-    /** One-shot pile pulse — the set-complete beat only. */
-    'draftTrayState.pulseNonce'() {
-      this.cancelPulse();
-      this.pulsing = false;
-      void this.$nextTick(() => {
-        this.pulsing = true;
-        this.cancelPulse = this.flow.after(consoleMotionMs(260), 'the tray\'s set-complete pulse reads', () => {
-          this.pulsing = false;
-        });
-      });
-    },
-  },
-  mounted() {
-    registerTraySlotResolver((name) => this.resolveSlot(name));
-  },
-  beforeUnmount() {
-    registerTraySlotResolver(undefined);
-  },
-  methods: {
-    isHeld(name: CardName): boolean {
-      return isTraySlotHeld(name);
-    },
-    resolveSlot(name: CardName): HTMLElement | null {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || root === null || typeof root.querySelector !== 'function') {
-        return null;
-      }
-      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name.replace(/"/g, '\\"');
-      return root.querySelector<HTMLElement>(`[data-tray-slot="${esc}"]`);
-    },
-  },
+defineOptions({name: 'ConsoleDraftTray'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  /** The optional-repick wait state (the shell's draftWaitActive). */
+  waiting: {type: Boolean, default: false},
+});
+
+const flow = useFlowScope('draft-tray');
+// The tray's root element — the slots the flight directors land on are looked up inside it.
+const root = useTemplateRef<HTMLElement>('root');
+const pulsing = ref(false);
+let cancelPulse = (() => {}) as () => void;
+/** Per-slot one-shot settle accent (a landing accents ITSELF —
+ *  the whole-pile pulse is reserved for set-complete). */
+const justLanded = ref<Record<string, boolean>>({});
+const landCancels = {} as Record<string, () => void>;
+const serverDrafted = computed((): ReadonlyArray<CardModel> => {
+  return props.playerView.draftedCards ?? [];
+});
+/** The rendered pile: the frozen scene snapshot, else server + optimistic.
+ *  Server models are preferred (cost badges etc.); an optimistic /
+ *  scene-frozen name degrades to a bare manifest render. */
+const entries = computed((): Array<{name: CardName, card: CardModel | {name: CardName}}> => {
+  const names = trayDisplayCards(serverDrafted.value.map((c) => c.name));
+  return names.map((name) => ({
+    name,
+    card: serverDrafted.value.find((c) => c.name === name) ?? {name},
+  }));
+});
+const processing = computed((): boolean => {
+  return draftTrayState.processing;
+});
+const setComplete = computed((): boolean => {
+  return draftTrayState.setComplete;
+});
+const tableView = computed((): boolean => {
+  return draftTrayState.tableView;
+});
+function isHeld(name: CardName): boolean {
+  return isTraySlotHeld(name);
+}
+function resolveSlot(name: CardName): HTMLElement | null {
+  const rootNow = root.value;
+  if (rootNow === null || typeof rootNow.querySelector !== 'function') {
+    return null;
+  }
+  const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name.replace(/"/g, '\\"');
+  return rootNow.querySelector<HTMLElement>(`[data-tray-slot="${esc}"]`);
+}
+
+/** A touchdown settles ITS OWN slot (scale 1.05 → 1, one-shot). */
+watch(() => draftTrayState.lastLand, (land: {n: number, name: string}) => {
+  const name = land.name;
+  if (name === '') {
+    return;
+  }
+  landCancels[name]?.();
+  delete justLanded.value[name];
+  void nextTick(() => {
+    justLanded.value[name] = true;
+    landCancels[name] = flow.after(consoleMotionMs(300), 'a tray slot\'s landing accent reads', () => {
+      delete justLanded.value[name];
+      delete landCancels[name];
+    });
+  });
+});
+/** One-shot pile pulse — the set-complete beat only. */
+watch(() => draftTrayState.pulseNonce, () => {
+  cancelPulse();
+  pulsing.value = false;
+  void nextTick(() => {
+    pulsing.value = true;
+    cancelPulse = flow.after(consoleMotionMs(260), 'the tray\'s set-complete pulse reads', () => {
+      pulsing.value = false;
+    });
+  });
+});
+
+onMounted(() => {
+  registerTraySlotResolver((name) => resolveSlot(name));
+});
+onBeforeUnmount(() => {
+  registerTraySlotResolver(undefined);
 });
 </script>
