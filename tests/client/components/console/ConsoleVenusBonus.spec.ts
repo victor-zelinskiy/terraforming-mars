@@ -1,4 +1,5 @@
 import {mount} from '@vue/test-utils';
+import {defineComponent, h} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
@@ -267,5 +268,62 @@ describe('ConsoleVenusBonus — the wild resource goes through the shared target
     await w.vm.$nextTick();
     expect((w.vm as any).stage).to.eq('wild');
     w.unmount();
+  });
+
+  /** The STANDARD bonus (no wild) is one unit on a radio of lanes. What the TEMPLATE reads off the script — the
+   *  chosen row's mark and its `current → resulting` go through the script's own `valueOf(lane)` — and the
+   *  component's two emits. */
+  it('the standard bonus: A marks the row under the cursor, X answers once, B sets the surface aside', async () => {
+    const view = finalView([]);
+    (view.waitingFor as any).venusBonusPrompt = {kind: 'standard', baseCount: 1};
+    const w = mountWith(view);
+    await w.vm.$nextTick();
+    expect((w.vm as any).stage).to.eq('place');
+    expect(w.findAll('.con-lanes__row'), 'the six standard resources').to.have.length(6);
+    expect(w.findAll('.con-lanes__row--active'), 'nothing placed yet').to.have.length(0);
+
+    (w.vm as any).handleIntent(B);
+    expect(w.emitted('defer'), 'B at the root sets the surface aside').to.have.length(1);
+    expect(w.emitted('submit')).to.eq(undefined);
+
+    (w.vm as any).handleIntent(A);
+    await w.vm.$nextTick();
+    const active = w.findAll('.con-lanes__row--active');
+    expect(active, 'the unit stands on one row').to.have.length(1);
+    expect(active[0].classes(), '…the one under the cursor').to.include('con-lanes__row--focused');
+    expect(active[0].find('.con-lanes__tick').exists(), 'marked as the answer').to.be.true;
+    expect(active[0].find('.con-lanes__cur').text()).to.eq('12');
+    expect(active[0].find('.con-lanes__next').text()).to.eq('13');
+
+    (w.vm as any).handleIntent(X);
+    (w.vm as any).handleIntent(X);
+    expect(w.emitted('submit'), 'one answer').to.have.length(1);
+    expect(w.emitted('submit')?.[0][0]).to.deep.eq({type: 'and', responses: [
+      {type: 'amount', amount: 1}, {type: 'amount', amount: 0}, {type: 'amount', amount: 0},
+      {type: 'amount', amount: 0}, {type: 'amount', amount: 0}, {type: 'amount', amount: 0},
+    ]});
+    w.unmount();
+  });
+
+  /** The shell's pad router reaches this surface through a ref (`surfaces.at('venusBonus')` → `handleIntent`), and
+   *  the ref of a `<script setup>` component is ONLY what it exposes — asserted through a parent's ref, because
+   *  `wrapper.vm` sees the whole setup state and would stay green with nothing exposed. */
+  it('a PARENT\'s ref reaches exactly `handleIntent`, and a press handed through it lands', async () => {
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleVenusBonus, {ref: 'surface', playerView: finalView(MANY)})]),
+    });
+    const host = mount(Host, {...globalConfig, global: {...globalConfig.global, stubs: {GamepadGlyph: true}}});
+    const reach = (host.vm.$refs.surface ?? undefined) as {handleIntent(intent: GamepadIntent): void} | undefined;
+    expect(reach, 'the host\'s ref stands').to.not.eq(undefined);
+    expect(Object.keys(reach!), 'the one member the router calls, and nothing else').to.deep.eq(['handleIntent']);
+    for (const inner of ['stage', 'wildCard', 'collect', 'onBack', 'footCommands']) {
+      expect((reach as unknown as Record<string, unknown>)[inner], `«${inner}» stays inside`).to.eq(undefined);
+    }
+
+    expect(host.find('.con-ptsel').exists(), 'the wild question first').to.be.false;
+    reach!.handleIntent(A); // the first wild option IS «Put it on a card»
+    await host.vm.$nextTick();
+    expect(host.find('.con-ptsel').exists(), 'A through the ref opened the picker').to.be.true;
+    host.unmount();
   });
 });

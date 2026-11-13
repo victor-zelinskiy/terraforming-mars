@@ -1,28 +1,4 @@
 <template>
-  <!--
-    THE VENUS TRACK BONUS — the reward for crossing a bonus step on the
-    Alternative Venus Board, console-native.
-
-    It is a GIFT, and it is presented as one: what you earned is stated as a
-    figure, and the whole surface is about placing it. Two shapes, ONE FLOW —
-    the 30 % final step first asks where its WILD resource goes, and only then
-    opens the same lanes; the frame, the kicker and the meter never move, so the
-    stage advances rather than a second screen arriving.
-
-    …and the INSTRUMENT follows the budget. Most bonuses are a single resource,
-    where a stepper is the wrong tool for a decision that is really «which one»:
-    `budgetSingleStep` turns the lanes into a RADIO — A places it / takes it
-    back, no −1 / +1 / MAX, no meter — which is the same language the wild
-    question one stage up already speaks. A real budget (2, 3, the final step's
-    wild folded in) keeps the dials.
-
-    data-motion-*: rides the shared `.con-shade` dim + the surface-motion
-    director — no own backdrop.
-  -->
-  <!-- HOST-AGNOSTIC (P89 · ledger EE — the owner's law «the bonus is a STEP of the surface where the scale step fired»):
-       `embedded` strips the band (`con-ws`, its own motion id — a kept one would claim the shared shade and dim the
-       host) and the self-titling kicker (the HOST'S crumb names the stage «БОНУС ВЕНЕРЫ»); the same instance is
-       teleported by the shell into the host's zone — logic, input path and submit untouched. -->
   <div class="con-lanes con-venus" :class="{'con-ws': !embedded, 'con-venus--embedded': embedded}"
        :role="embedded ? 'group' : 'dialog'" :aria-label="$t(headlineKey)"
        :data-motion-surface="embedded ? undefined : 'venus-bonus'" :data-venus-bonus-embedded="embedded ? '' : undefined">
@@ -173,14 +149,42 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE VENUS TRACK BONUS — the reward for crossing a bonus step on the
+ * Alternative Venus Board, console-native.
+ *
+ * It is a GIFT, and it is presented as one: what you earned is stated as a
+ * figure, and the whole surface is about placing it. Two shapes, ONE FLOW —
+ * the 30 % final step first asks where its WILD resource goes, and only then
+ * opens the same lanes; the frame, the kicker and the meter never move, so the
+ * stage advances rather than a second screen arriving.
+ *
+ * …and the INSTRUMENT follows the budget. Most bonuses are a single resource,
+ * where a stepper is the wrong tool for a decision that is really «which one»:
+ * `budgetSingleStep` turns the lanes into a RADIO — A places it / takes it
+ * back, no −1 / +1 / MAX, no meter — which is the same language the wild
+ * question one stage up already speaks. A real budget (2, 3, the final step's
+ * wild folded in) keeps the dials.
+ *
+ * data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+ * director — no own backdrop.
+ *
+ * HOST-AGNOSTIC (P89 · ledger EE — the owner's law «the bonus is a STEP of the surface where the scale step fired»):
+ *       `embedded` strips the band (`con-ws`, its own motion id — a kept one would claim the shared shade and dim the
+ *       host) and the self-titling kicker (the HOST'S crumb names the stage «БОНУС ВЕНЕРЫ»); the same instance is
+ *       teleported by the shell into the host's zone — logic, input path and submit untouched.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
 /**
  * Presentation + the pad contract. The lane arithmetic is the shared
  * `budgetLanes` engine (the same one the spend-heat surface uses) and every
  * server-shape decision — which `and` holds the amounts for the chosen branch,
  * what the response looks like — lives in the pure `compositePrompts` adapter.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, nextTick, onBeforeUnmount, PropType, ref, useTemplateRef, watch} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -190,7 +194,7 @@ import {VenusBonusPromptMeta} from '@/common/models/PlayerInputModel';
 import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
 import ConsolePromptOutcome, {PromptOutcomeItem} from '@/client/components/console/foundation/ConsolePromptOutcome.vue';
 import {promptSequenceKey} from '@/client/console/promptSequence';
@@ -229,572 +233,557 @@ interface WildOption {
   reasonKey: string;
 }
 
-export default defineComponent({
-  name: 'ConsoleVenusBonus',
-  components: {ConsolePlayedTargetStep, GamepadGlyph, ConsolePromptHead, ConsolePromptOutcome},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    /** Hosted inside a workspace's zone (P89 · EE) — see the root's note. */
-    embedded: {type: Boolean, default: false},
-  },
-  emits: ['submit', 'defer'],
-  data() {
-    return {
-      focusIdx: 0,
-      wildIdx: 0,
-      picks: {} as BudgetState,
-      wild: undefined as VenusWildChoice | undefined,
-      /** The card the player CHOSE to host the wild. It survives B (the picker
-       *  re-opens with it locked and focused), so nothing is re-decided. */
-      wildCard: undefined as CardName | undefined,
-      /** The picker is the current stage. Separate from `wildCard` on purpose:
-       *  «the choice is made» and «the player is looking at the choice» are two
-       *  facts, and collapsing them is what made B throw the pick away. */
-      wildCardOpen: false,
-      /** The selector's cursor — a real spatial focus, not a strip index.
-       *  RAW: the rendered one is the reseated `wildFocus` computed, so a model
-       *  that moved under the player can never leave the cursor pointing at a
-       *  candidate that is no longer there. */
-      wildFocusRaw: undefined as PlayedTargetFocus | undefined,
-      wildZoneW: 0,
-      wildZoneH: 0,
-      stopWildObs: undefined as (() => void) | undefined,
-      submitting: false,
-    };
-  },
-  computed: {
-    meta(): VenusBonusPromptMeta | undefined {
-      return this.playerView.waitingFor?.venusBonusPrompt;
-    },
-    /** «Шкала Венеры 16 % → 18 %» — the raise that earned the bonus (`VenusBonusPromptMeta.step`), or ''. */
-    stepReading(): string {
-      return venusStepReading(this.meta);
-    },
-    isFinal(): boolean {
-      return this.meta?.kind === 'final';
-    },
-    wildTargets(): ReadonlyArray<CardName> {
-      return this.meta === undefined ? [] : venusWildTargets(this.meta);
-    },
-    /**
-     * THE STAGE. Derived, never a set of booleans: the base bonus goes straight
-     * to the lanes, the final one asks about its wild first and only descends
-     * into the card pick when that branch is chosen.
-     */
-    stage(): Stage {
-      if (!this.isFinal || this.wild === 'asStandard') {
-        return 'place';
-      }
-      if (this.wild === undefined) {
-        return 'wild';
-      }
-      // Undecided OR re-opened — the two enter the picker the same way, and
-      // only the second one arrives with a lock already on a card.
-      return (this.wildCard === undefined || this.wildCardOpen) ? 'wildCard' : 'place';
-    },
-    /**
-     * THE AUTHORITATIVE CANDIDATES — the server's own `SelectCard`, read off
-     * the prompt by SHAPE. Its models carry the live per-card resource count,
-     * which is what the `было → стало` reading is built from.
-     */
-    wildCandidates(): ReadonlyArray<CardModel> {
-      return venusWildCandidates(this.playerView.waitingFor);
-    },
-    wildModel(): PlayedTargetModel | undefined {
-      if (this.wildCandidates.length === 0) {
-        return undefined;
-      }
-      return buildVenusWildTargetModel({
-        candidates: this.wildCandidates,
-        players: this.playerView.players.map((p) => ({name: p.name, color: p.color, tableau: p.tableau})),
-        viewerColor: this.playerView.thisPlayer.color,
-        // The panel header states the ask in full; the step must not restate it
-        // (and `hostStatesAsk` hides the line that would).
-        ask: '',
-        typeOf: (name) => getCard(name)?.type,
-        // The wild becomes the card's OWN resource — a per-candidate fact.
-        resourceOf: (name) => getCard(name)?.resourceType,
-        // The server's own per-candidate ПО reading. Nothing is re-derived here.
-        vpBox: this.meta?.wildCardVp,
-      });
-    },
-    wildLayout(): PlayedTargetLayout {
-      return planPlayedTargetLayout({
-        owners: this.wildModel?.owners ?? [],
-        availW: this.wildZoneW,
-        ui: conUiScale(),
-        handheld: consoleLayoutState.profile === 'handheld',
-      });
-    },
-    /** The focus the child renders — reseated whenever the model moves. */
-    wildFocus(): PlayedTargetFocus | undefined {
-      return reseatPlayedTargetFocus(this.wildFocusRaw, this.wildModel?.owners ?? []);
-    },
-    focusedWildCard(): CardName | undefined {
-      return playedTargetAt(this.wildFocus, this.wildModel?.owners ?? [])?.cardName;
-    },
-    /**
-     * THE CRUMB'S TAIL — one name per stage, and the tail only ever moves
-     * FORWARD: «ДОПОЛНИТЕЛЬНЫЙ РЕСУРС» → «ЦЕЛЬ» → «РАЗМЕЩЕНИЕ». The picker
-     * used to inherit the placement's name, so the line said «РАЗМЕЩЕНИЕ»
-     * over a title asking which card should receive the resource — a tail one
-     * stage ahead of the screen under it.
-     */
-    stageKey(): string {
-      switch (this.stage) {
-      case 'wild': return 'Wild resource';
-      case 'wildCard': return 'Target';
-      default: return 'Placement';
-      }
-    },
-    target(): number {
-      return this.meta === undefined ? 0 : venusBaseCount(this.meta, this.wild);
-    },
-    rule(): BudgetRule {
-      return {kind: 'exact', target: this.target};
-    },
-    lanes(): Array<BudgetLane> {
-      const stock = this.playerView.thisPlayer as unknown as Partial<Record<keyof Units, number>>;
-      return venusBonusLanes(this.target, stock);
-    },
-    /**
-     * THE COMMON CASE: one resource to place, so the decision is «which one» and
-     * the surface becomes a RADIO — A puts it here / takes it back, and the
-     * stepper verbs are not offered. Asked of the pure engine (a property of the
-     * budget, never `target === 1`), so the spend-heat surface reads the same
-     * question and the two can't drift.
-     */
-    singleStep(): boolean {
-      return budgetSingleStep(this.lanes, this.rule);
-    },
-    /** The lane under the cursor already holds the unit — A takes it back. */
-    focusedPicked(): boolean {
-      const lane = this.lanes[this.focusIdx];
-      return lane !== undefined && laneValue(this.picks, lane.key) > 0;
-    },
-    /** The decision's identity in the press's sequence (`promptSequence.ts`) — one key for both stages of one gift. */
-    sequenceKey(): string {
-      const wf = this.playerView.waitingFor;
-      return wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
-    },
-    /** The consequence footer: every lane holding part of the gift, the player's stock `current → resulting`. */
-    outcomeItems(): Array<PromptOutcomeItem> {
-      return this.lanes
-        .filter((lane) => this.valueOf(lane) > 0)
-        .map((lane) => ({
-          key: lane.key,
-          iconClass: lane.iconClass,
-          delta: this.valueOf(lane),
-          from: lane.available !== undefined ? String(lane.available) : undefined,
-          to: lane.available !== undefined ? String(lane.available + this.valueOf(lane)) : undefined,
-        }));
-    },
-    placed(): number {
-      return budgetTotal(this.lanes, this.picks);
-    },
-    ready(): boolean {
-      return budgetValid(this.lanes, this.picks, this.rule);
-    },
-    /**
-     * THE BLOCKER'S SLOT IS RESERVED, its words toggle by VISIBILITY (the owner, 2026-11-02: «размер элемента скачет из-за
-     * валидации "распределите весь бонус"»): a budget of more than one unit owns the line for the whole placement —
-     * mounted before the first unit, after the last — so the plate never grows or shrinks under the press that changes
-     * the state. A single unit has no partial state, so no slot at all.
-     */
-    blockedSlot(): boolean {
-      return this.stage === 'place' && !this.singleStep;
-    },
-    blockedShown(): boolean {
-      return this.placed > 0 && this.blockedText !== '';
-    },
-    /** The reserved line's words — the live blocker, or the same sentence held invisible so the slot keeps its height. */
-    blockedLine(): string {
-      return this.blockedText !== '' ? this.blockedText : translateText('Distribute the whole bonus');
-    },
-    blockedText(): string {
-      const key = budgetBlockedKey(this.lanes, this.picks, this.rule);
-      return key === undefined ? '' : translateText(key);
-    },
-    headlineKey(): string {
-      switch (this.stage) {
-      case 'wild': return 'Where does the wild resource go?';
-      case 'wildCard': return 'Choose the card to receive it';
-      default: return 'Place your Venus track bonus';
-      }
-    },
-    wildOptions(): ReadonlyArray<WildOption> {
-      const noCards = this.wildTargets.length === 0;
-      return [
-        {
-          value: 'onCard',
-          iconClass: 'resource_icon resource_icon--cards',
-          titleKey: 'Put it on a card',
-          descKey: 'One resource of that card\'s own type.',
-          disabled: noCards,
-          reasonKey: 'You have no card that can hold a resource',
-        },
-        {
-          value: 'asStandard',
-          iconClass: 'resource_icon resource_icon--megacredits',
-          titleKey: 'Take one more standard resource',
-          descKey: 'The wild joins the bonus you are placing.',
-          disabled: false,
-          reasonKey: '',
-        },
-      ];
-    },
-    wildRecapText(): string {
-      if (this.wild === 'onCard' && this.wildCard !== undefined) {
-        return translateText(this.wildCard);
-      }
-      return translateText('Taken as a standard resource');
-    },
-    promptKey(): string {
-      return `${this.meta?.kind ?? ''}|${this.meta?.baseCount ?? 0}|${this.wildTargets.join(',')}`;
-    },
-    /**
-     * WHAT B DOES HERE — one function, so the label can never disagree with the
-     * press. There is somewhere to go back TO exactly while the final step's
-     * wild question has been answered: from the picker back to the question,
-     * and from the placement back into the picker. Everywhere else B minimizes
-     * (the board-home card is then the one door back).
-     */
-    backVerb(): 'back' | 'minimize' {
-      if (this.stage === 'wildCard') {
-        return 'back';
-      }
-      return this.stage === 'place' && this.isFinal ? 'back' : 'minimize';
-    },
-    footCommands(): Array<ConsoleCommand> {
-      const back: ConsoleCommand = {control: 'back', label: this.backVerb === 'back' ? 'Back' : 'Minimize'};
-      if (this.stage === 'wild') {
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Select', enabled: !this.wildOptions[this.wildIdx]?.disabled},
-          back,
-        ];
-      }
-      if (this.stage === 'wildCard') {
-        // The selector's own grammar (D-pad move · A choose · X inspect · B
-        // back), stated by the ONE command bar — the same four verbs every
-        // other host of this step publishes. `dpad`, not `dpadH`: the grid the
-        // selector plans is two-dimensional the moment there are more
-        // candidates than one row holds.
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Select', enabled: this.focusedWildCard !== undefined},
-          {control: 'secondary', label: 'Inspect'},
-          back,
-        ];
-      }
-      // ONE resource to place → one verb. Offering −1 / +1 / MAX for a dial that
-      // can only read 0 or 1 is four ways to say the same thing, and it hides
-      // the confirm behind them.
-      if (this.singleStep) {
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: this.focusedPicked ? 'Remove here' : 'Add here'},
-          {control: 'secondary', label: 'Collect', enabled: this.ready, highlight: this.ready},
-          back,
-        ];
-      }
-      return [
-        {control: 'dpad', label: 'Navigate'},
-        {control: 'bumperL', label: '−1'},
-        {control: 'bumperR', label: '+1'},
-        {control: 'triggerR', label: 'MAX'},
-        {control: 'secondary', label: 'Collect', enabled: this.ready, highlight: this.ready},
-        back,
-      ];
-    },
-  },
-  watch: {
-    promptKey: {
-      immediate: true,
-      handler() {
-        this.reset();
-      },
-    },
-    /** A changed budget (the wild folded in) invalidates the placement. */
-    target() {
-      this.picks = {};
-      this.focusIdx = 0;
-    },
-    playerView() {
-      this.submitting = false;
-    },
-    footCommands: {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>) {
-        setPanelCommands('venusBonus', cmds);
-      },
-    },
-    /**
-     * The picker's zone only exists while its stage does, so its cursor is
-     * seated — and its band measured — the moment the stage opens, never at
-     * mount. `bandHeight` is measured on the STRETCHED zone before the step's
-     * first painted frame, which is what lets the step solve a card size
-     * instead of inheriting one from its own content.
-     */
-    stage: {
-      immediate: true,
-      handler(stage: Stage) {
-        if (stage !== 'wildCard') {
-          return;
-        }
-        this.seatWildFocus();
-        void this.$nextTick(() => this.measureWildZone());
-      },
-    },
-  },
-  beforeUnmount() {
-    clearPanelCommands('venusBonus');
-    this.stopWildObs?.();
-    this.stopWildObs = undefined;
-  },
-  methods: {
-    valueOf(lane: BudgetLane): number {
-      return laneValue(this.picks, lane.key);
-    },
-    reset(): void {
-      this.submitting = false;
-      this.focusIdx = 0;
-      this.wildIdx = 0;
-      this.picks = {};
-      this.wild = undefined;
-      this.wildCard = undefined;
-      this.wildCardOpen = false;
-      this.wildFocusRaw = undefined;
-    },
-    handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        this.onNav(intent.dir);
-        return;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'primary': // A
-        this.onConfirmPress();
-        return;
-      case 'prevSection':
-        if (this.stage === 'place') {
-          this.step(-1);
-        }
-        return;
-      case 'nextSection':
-        if (this.stage === 'place') {
-          this.step(1);
-        }
-        return;
-      case 'nextTab': // RT
-        if (this.stage === 'place') {
-          this.maxOnto();
-        }
-        return;
-      case 'inspect': // X
-        if (this.stage === 'wildCard') {
-          this.zoomFocusedCard();
-        } else if (this.stage === 'place') {
-          this.collect();
-        }
-        return;
-      case 'back':
-        this.onBack();
-        return;
-      default:
-        return;
-      }
-    },
-    onNav(dir: string): void {
-      if (this.stage === 'wild') {
-        if (dir === 'up' || dir === 'down') {
-          this.wildIdx = Math.min(this.wildOptions.length - 1, Math.max(0, this.wildIdx + (dir === 'down' ? 1 : -1)));
-        }
-        return;
-      }
-      if (this.stage === 'wildCard') {
-        this.wildNav(dir as PlayedTargetNavDir);
-        return;
-      }
-      if (dir === 'up' || dir === 'down') {
-        this.focusIdx = stepFocus(this.lanes, this.focusIdx, dir === 'down' ? 1 : -1);
-      }
-    },
-    /** A — advances the flow one level, or (single-step placement) puts the one
-     *  resource down / takes it back. It never submits; X does. */
-    onConfirmPress(): void {
-      if (this.stage === 'wild') {
-        const opt = this.wildOptions[this.wildIdx];
-        if (opt !== undefined && !opt.disabled) {
-          this.wild = opt.value;
-          // Descending into the picker is what «on a card» MEANS; the pick
-          // itself may already exist from an earlier pass through this stage.
-          this.wildCardOpen = opt.value === 'onCard';
-        }
-        return;
-      }
-      if (this.stage === 'wildCard') {
-        const card = this.focusedWildCard;
-        if (card !== undefined) {
-          this.wildCard = card;
-          this.wildCardOpen = false;
-        }
-        return;
-      }
-      // In the multi-lane layout A stays free (the budget is spread with LB/RB),
-      // so claiming it here costs the flow nothing.
-      if (this.singleStep) {
-        this.toggleFocused();
-      }
-    },
-    /** The single-step gesture: place the unit here, or take it back. */
-    toggleFocused(): void {
-      const lane = this.lanes[this.focusIdx];
-      if (lane !== undefined) {
-        this.picks = toggleSoleStep(this.lanes, this.picks, this.rule, lane.key);
-      }
-    },
-    /**
-     * B — ONE logical level, and the earned bonus survives it.
-     *
-     * From the PLACEMENT of a wild that went on a card, that one level is the
-     * PICKER, not the wild question two levels up: the player is undoing where
-     * the resource went, and the card they chose stays chosen (it re-opens
-     * locked and focused, exactly as this step's «Изменить выбор» does in
-     * both composers). It used to reset the whole wild decision, which threw
-     * away a pick the player had not asked to take back.
-     */
-    onBack(): void {
-      if (this.stage === 'wildCard') {
-        this.wildCardOpen = false;
-        this.wild = undefined;
-        return;
-      }
-      if (this.stage === 'place' && this.isFinal) {
-        if (this.wild === 'onCard') {
-          this.wildCardOpen = true;
-          return;
-        }
-        this.wild = undefined;
-        return;
-      }
-      this.$emit('defer');
-    },
-    step(delta: number): void {
-      const lane = this.lanes[this.focusIdx];
-      if (lane === undefined) {
-        return;
-      }
-      // SINGLE-STEP mode doesn't advertise the stepper verbs, but they still
-      // land on its one gesture: muscle memory from the multi-lane layout must
-      // never meet a dead button. LB takes the unit off this lane, RB puts it
-      // here (moving it — a plain `+1` under a full budget is refused).
-      if (this.singleStep) {
-        this.picks = delta < 0 ?
-          (this.focusedPicked ? {} : this.picks) :
-          stepLane(this.lanes, {}, this.rule, lane.key, 1);
-        return;
-      }
-      this.picks = stepLane(this.lanes, this.picks, this.rule, lane.key, delta);
-    },
-    maxOnto(): void {
-      const lane = this.lanes[this.focusIdx];
-      if (lane === undefined) {
-        return;
-      }
-      this.picks = this.singleStep ?
-        stepLane(this.lanes, {}, this.rule, lane.key, 1) :
-        maxOntoLane(this.lanes, this.picks, this.rule, lane.key);
-    },
-    collect(): void {
-      if (!this.ready || this.submitting || this.meta === undefined) {
-        return;
-      }
-      this.submitting = true;
-      // THE PROMISE of the cell beat (P89 · EE, PL-1436): what this answer pays — the rows (the wild taken as a standard
-      // resource is already folded into the picks) and the card the wild lands on; checked against the views on the
-      // response, flown off the bonus cell the step reached.
-      const units: Partial<Record<string, number>> = {};
-      for (const lane of this.lanes) {
-        const n = laneValue(this.picks, lane.key);
-        if (n > 0) {
-          units[lane.key] = n;
-        }
-      }
-      const resource = this.wild === 'onCard' && this.wildCard !== undefined ? getCard(this.wildCard)?.resourceType : undefined;
-      armVenusBonusCell({
-        units,
-        ...(resource !== undefined && this.wildCard !== undefined ?
-          {card: {name: this.wildCard, resource: cardResourceKey(String(resource))}} : {}),
-        ...(this.meta.step !== undefined ? {step: this.meta.step} : {}),
-      });
-      this.$emit('submit', venusBonusResponse(this.meta, this.picks, this.wild, this.wildCard));
-    },
-    /**
-     * THE SELECTOR'S NAVIGATION — resolved against the cards' REAL boxes, so a
-     * grid that wrapped to a second row is walked as a grid. The index cursor
-     * this replaced could only ever move along one line.
-     */
-    wildNav(dir: PlayedTargetNavDir): void {
-      const owners = this.wildModel?.owners ?? [];
-      const focus = this.wildFocus;
-      if (focus === undefined || owners.length === 0) {
-        return;
-      }
-      const step = (this.$refs.wildStep ?? undefined) as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
-      const cells = step?.cells?.() ?? [];
-      const next = cells.length > 0 ?
-        stepPlayedTargetFocusVia(step, focus, dir, cells) :
-        stepPlayedTargetFocus(focus, dir, owners, this.wildLayout);
-      if (next === undefined) {
-        return; // an edge HOLDS — never a wrap, never a silent jump
-      }
-      this.wildFocusRaw = next;
-      ((this.$refs.wildStep ?? undefined) as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
-    },
-    /** Seat the cursor: on the already-chosen card when there is one (a re-entry
-     *  must not lose the player's place), otherwise on the first candidate. */
-    seatWildFocus(): void {
-      const owners = this.wildModel?.owners ?? [];
-      if (owners.length === 0) {
-        return;
-      }
-      this.wildFocusRaw = findPlayedTargetFocus(this.wildCard ?? '', owners) ??
-        reseatPlayedTargetFocus(this.wildFocusRaw, owners);
-      void this.$nextTick(() => this.measureWildZone());
-    },
-    measureWildZone(): void {
-      const zone = (this.$refs.wildZone ?? undefined) as HTMLElement | undefined;
-      if (zone === undefined || zone === null) {
-        return;
-      }
-      this.wildZoneW = Math.max(0, zone.clientWidth);
-      this.wildZoneH = Math.max(0, zone.clientHeight);
-      if (this.stopWildObs === undefined) {
-        this.stopWildObs = useResizeObserver(zone, () => {
-          const el = (this.$refs.wildZone ?? undefined) as HTMLElement | undefined;
-          if (el !== undefined && el !== null) {
-            this.wildZoneW = Math.max(0, el.clientWidth);
-            this.wildZoneH = Math.max(0, el.clientHeight);
-          }
-        }).stop;
-      }
-    },
-    /** X on the card stage — the ordinary fullscreen viewer, read-only, rising
-     *  out of the candidate's own slot (the step's shared zoom origin). */
-    zoomFocusedCard(): void {
-      const owners = this.wildModel?.owners ?? [];
-      const focused = this.focusedWildCard;
-      if (focused === undefined) {
-        return;
-      }
-      // THE ONE DOOR — with the TARGET DOSSIER. The picker's ZONE is the root the origin resolves inside (an element
-      // ref, so the physical entrance survives a build that leaves `$el` a fragment anchor); no source card here — the
-      // bonus is paid by the VENUS TRACK, so every candidate is an ordinary slot.
-      if (this.wildModel !== undefined && owners.length > 0) {
-        openPlayedTargetZoom({model: this.wildModel, cardName: focused, getRoot: () => (this.$refs.wildZone ?? undefined) as HTMLElement | undefined});
-      }
-    },
-  },
+defineOptions({name: 'ConsoleVenusBonus'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  /** Hosted inside a workspace's zone (P89 · EE) — see the HOST-AGNOSTIC note that opens this script. */
+  embedded: {type: Boolean, default: false},
 });
+const emit = defineEmits(['submit', 'defer']);
+
+const wildStep = useTemplateRef<{cells?: () => ReadonlyArray<PlayedTargetCell>} & {ensureFocusVisible?: () => void}>('wildStep');
+const wildZone = useTemplateRef<HTMLElement>('wildZone');
+const focusIdx = ref(0);
+const wildIdx = ref(0);
+const picks = ref<BudgetState>({});
+const wild = ref<VenusWildChoice | undefined>(undefined);
+/** The card the player CHOSE to host the wild. It survives B (the picker
+ *  re-opens with it locked and focused), so nothing is re-decided. */
+const wildCard = ref<CardName | undefined>(undefined);
+/** The picker is the current stage. Separate from `wildCard` on purpose:
+ *  «the choice is made» and «the player is looking at the choice» are two
+ *  facts, and collapsing them is what made B throw the pick away. */
+const wildCardOpen = ref(false);
+/** The selector's cursor — a real spatial focus, not a strip index.
+ *  RAW: the rendered one is the reseated `wildFocus` computed, so a model
+ *  that moved under the player can never leave the cursor pointing at a
+ *  candidate that is no longer there. */
+const wildFocusRaw = ref<PlayedTargetFocus | undefined>(undefined);
+const wildZoneW = ref(0);
+const wildZoneH = ref(0);
+let stopWildObs: (() => void) | undefined;
+const submitting = ref(false);
+
+const meta = computed((): VenusBonusPromptMeta | undefined => {
+  return props.playerView.waitingFor?.venusBonusPrompt;
+});
+/** «Шкала Венеры 16 % → 18 %» — the raise that earned the bonus (`VenusBonusPromptMeta.step`), or ''. */
+const stepReading = computed((): string => {
+  return venusStepReading(meta.value);
+});
+const isFinal = computed((): boolean => {
+  return meta.value?.kind === 'final';
+});
+const wildTargets = computed((): ReadonlyArray<CardName> => {
+  return meta.value === undefined ? [] : venusWildTargets(meta.value);
+});
+/**
+ * THE STAGE. Derived, never a set of booleans: the base bonus goes straight
+ * to the lanes, the final one asks about its wild first and only descends
+ * into the card pick when that branch is chosen.
+ */
+const stage = computed((): Stage => {
+  if (!isFinal.value || wild.value === 'asStandard') {
+    return 'place';
+  }
+  if (wild.value === undefined) {
+    return 'wild';
+  }
+  // Undecided OR re-opened — the two enter the picker the same way, and
+  // only the second one arrives with a lock already on a card.
+  return (wildCard.value === undefined || wildCardOpen.value) ? 'wildCard' : 'place';
+});
+/**
+ * THE AUTHORITATIVE CANDIDATES — the server's own `SelectCard`, read off
+ * the prompt by SHAPE. Its models carry the live per-card resource count,
+ * which is what the `было → стало` reading is built from.
+ */
+const wildCandidates = computed((): ReadonlyArray<CardModel> => {
+  return venusWildCandidates(props.playerView.waitingFor);
+});
+const wildModel = computed((): PlayedTargetModel | undefined => {
+  if (wildCandidates.value.length === 0) {
+    return undefined;
+  }
+  return buildVenusWildTargetModel({
+    candidates: wildCandidates.value,
+    players: props.playerView.players.map((p) => ({name: p.name, color: p.color, tableau: p.tableau})),
+    viewerColor: props.playerView.thisPlayer.color,
+    // The panel header states the ask in full; the step must not restate it
+    // (and `hostStatesAsk` hides the line that would).
+    ask: '',
+    typeOf: (name) => getCard(name)?.type,
+    // The wild becomes the card's OWN resource — a per-candidate fact.
+    resourceOf: (name) => getCard(name)?.resourceType,
+    // The server's own per-candidate ПО reading. Nothing is re-derived here.
+    vpBox: meta.value?.wildCardVp,
+  });
+});
+const wildLayout = computed((): PlayedTargetLayout => {
+  return planPlayedTargetLayout({
+    owners: wildModel.value?.owners ?? [],
+    availW: wildZoneW.value,
+    ui: conUiScale(),
+    handheld: consoleLayoutState.profile === 'handheld',
+  });
+});
+/** The focus the child renders — reseated whenever the model moves. */
+const wildFocus = computed((): PlayedTargetFocus | undefined => {
+  return reseatPlayedTargetFocus(wildFocusRaw.value, wildModel.value?.owners ?? []);
+});
+const focusedWildCard = computed((): CardName | undefined => {
+  return playedTargetAt(wildFocus.value, wildModel.value?.owners ?? [])?.cardName;
+});
+/**
+ * THE CRUMB'S TAIL — one name per stage, and the tail only ever moves
+ * FORWARD: «ДОПОЛНИТЕЛЬНЫЙ РЕСУРС» → «ЦЕЛЬ» → «РАЗМЕЩЕНИЕ». The picker
+ * used to inherit the placement's name, so the line said «РАЗМЕЩЕНИЕ»
+ * over a title asking which card should receive the resource — a tail one
+ * stage ahead of the screen under it.
+ */
+const stageKey = computed((): string => {
+  switch (stage.value) {
+  case 'wild': return 'Wild resource';
+  case 'wildCard': return 'Target';
+  default: return 'Placement';
+  }
+});
+const target = computed((): number => {
+  return meta.value === undefined ? 0 : venusBaseCount(meta.value, wild.value);
+});
+const rule = computed((): BudgetRule => {
+  return {kind: 'exact', target: target.value};
+});
+const lanes = computed((): Array<BudgetLane> => {
+  const stock = props.playerView.thisPlayer as unknown as Partial<Record<keyof Units, number>>;
+  return venusBonusLanes(target.value, stock);
+});
+/**
+ * THE COMMON CASE: one resource to place, so the decision is «which one» and
+ * the surface becomes a RADIO — A puts it here / takes it back, and the
+ * stepper verbs are not offered. Asked of the pure engine (a property of the
+ * budget, never `target === 1`), so the spend-heat surface reads the same
+ * question and the two can't drift.
+ */
+const singleStep = computed((): boolean => {
+  return budgetSingleStep(lanes.value, rule.value);
+});
+/** The lane under the cursor already holds the unit — A takes it back. */
+const focusedPicked = computed((): boolean => {
+  const lane = lanes.value[focusIdx.value];
+  return lane !== undefined && laneValue(picks.value, lane.key) > 0;
+});
+/** The decision's identity in the press's sequence (`promptSequence.ts`) — one key for both stages of one gift. */
+const sequenceKey = computed((): string => {
+  const wf = props.playerView.waitingFor;
+  return wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
+});
+/** The consequence footer: every lane holding part of the gift, the player's stock `current → resulting`. */
+const outcomeItems = computed((): Array<PromptOutcomeItem> => {
+  return lanes.value
+    .filter((lane) => valueOf(lane) > 0)
+    .map((lane) => ({
+      key: lane.key,
+      iconClass: lane.iconClass,
+      delta: valueOf(lane),
+      from: lane.available !== undefined ? String(lane.available) : undefined,
+      to: lane.available !== undefined ? String(lane.available + valueOf(lane)) : undefined,
+    }));
+});
+const placed = computed((): number => {
+  return budgetTotal(lanes.value, picks.value);
+});
+const ready = computed((): boolean => {
+  return budgetValid(lanes.value, picks.value, rule.value);
+});
+/**
+ * THE BLOCKER'S SLOT IS RESERVED, its words toggle by VISIBILITY (the owner, 2026-11-02: «размер элемента скачет из-за
+ * валидации "распределите весь бонус"»): a budget of more than one unit owns the line for the whole placement —
+ * mounted before the first unit, after the last — so the plate never grows or shrinks under the press that changes
+ * the state. A single unit has no partial state, so no slot at all.
+ */
+const blockedSlot = computed((): boolean => {
+  return stage.value === 'place' && !singleStep.value;
+});
+const blockedShown = computed((): boolean => {
+  return placed.value > 0 && blockedText.value !== '';
+});
+/** The reserved line's words — the live blocker, or the same sentence held invisible so the slot keeps its height. */
+const blockedLine = computed((): string => {
+  return blockedText.value !== '' ? blockedText.value : translateText('Distribute the whole bonus');
+});
+const blockedText = computed((): string => {
+  const key = budgetBlockedKey(lanes.value, picks.value, rule.value);
+  return key === undefined ? '' : translateText(key);
+});
+const headlineKey = computed((): string => {
+  switch (stage.value) {
+  case 'wild': return 'Where does the wild resource go?';
+  case 'wildCard': return 'Choose the card to receive it';
+  default: return 'Place your Venus track bonus';
+  }
+});
+const wildOptions = computed((): ReadonlyArray<WildOption> => {
+  const noCards = wildTargets.value.length === 0;
+  return [
+    {
+      value: 'onCard',
+      iconClass: 'resource_icon resource_icon--cards',
+      titleKey: 'Put it on a card',
+      descKey: 'One resource of that card\'s own type.',
+      disabled: noCards,
+      reasonKey: 'You have no card that can hold a resource',
+    },
+    {
+      value: 'asStandard',
+      iconClass: 'resource_icon resource_icon--megacredits',
+      titleKey: 'Take one more standard resource',
+      descKey: 'The wild joins the bonus you are placing.',
+      disabled: false,
+      reasonKey: '',
+    },
+  ];
+});
+const wildRecapText = computed((): string => {
+  if (wild.value === 'onCard' && wildCard.value !== undefined) {
+    return translateText(wildCard.value);
+  }
+  return translateText('Taken as a standard resource');
+});
+const promptKey = computed((): string => {
+  return `${meta.value?.kind ?? ''}|${meta.value?.baseCount ?? 0}|${wildTargets.value.join(',')}`;
+});
+/**
+ * WHAT B DOES HERE — one function, so the label can never disagree with the
+ * press. There is somewhere to go back TO exactly while the final step's
+ * wild question has been answered: from the picker back to the question,
+ * and from the placement back into the picker. Everywhere else B minimizes
+ * (the board-home card is then the one door back).
+ */
+const backVerb = computed((): 'back' | 'minimize' => {
+  if (stage.value === 'wildCard') {
+    return 'back';
+  }
+  return stage.value === 'place' && isFinal.value ? 'back' : 'minimize';
+});
+const footCommands = computed((): Array<ConsoleCommand> => {
+  const back: ConsoleCommand = {control: 'back', label: backVerb.value === 'back' ? 'Back' : 'Minimize'};
+  if (stage.value === 'wild') {
+    return [
+      {control: 'dpad', label: 'Navigate'},
+      {control: 'confirm', label: 'Select', enabled: !wildOptions.value[wildIdx.value]?.disabled},
+      back,
+    ];
+  }
+  if (stage.value === 'wildCard') {
+    // The selector's own grammar (D-pad move · A choose · X inspect · B
+    // back), stated by the ONE command bar — the same four verbs every
+    // other host of this step publishes. `dpad`, not `dpadH`: the grid the
+    // selector plans is two-dimensional the moment there are more
+    // candidates than one row holds.
+    return [
+      {control: 'dpad', label: 'Navigate'},
+      {control: 'confirm', label: 'Select', enabled: focusedWildCard.value !== undefined},
+      {control: 'secondary', label: 'Inspect'},
+      back,
+    ];
+  }
+  // ONE resource to place → one verb. Offering −1 / +1 / MAX for a dial that
+  // can only read 0 or 1 is four ways to say the same thing, and it hides
+  // the confirm behind them.
+  if (singleStep.value) {
+    return [
+      {control: 'dpad', label: 'Navigate'},
+      {control: 'confirm', label: focusedPicked.value ? 'Remove here' : 'Add here'},
+      {control: 'secondary', label: 'Collect', enabled: ready.value, highlight: ready.value},
+      back,
+    ];
+  }
+  return [
+    {control: 'dpad', label: 'Navigate'},
+    {control: 'bumperL', label: '−1'},
+    {control: 'bumperR', label: '+1'},
+    {control: 'triggerR', label: 'MAX'},
+    {control: 'secondary', label: 'Collect', enabled: ready.value, highlight: ready.value},
+    back,
+  ];
+});
+
+function valueOf(lane: BudgetLane): number {
+  return laneValue(picks.value, lane.key);
+}
+function reset(): void {
+  submitting.value = false;
+  focusIdx.value = 0;
+  wildIdx.value = 0;
+  picks.value = {};
+  wild.value = undefined;
+  wildCard.value = undefined;
+  wildCardOpen.value = false;
+  wildFocusRaw.value = undefined;
+}
+function handleIntent(intent: GamepadIntent): void {
+  if (intent.kind === 'nav') {
+    onNav(intent.dir);
+    return;
+  }
+  switch (consoleActionOf(intent)) {
+  case 'primary': // A
+    onConfirmPress();
+    return;
+  case 'prevSection':
+    if (stage.value === 'place') {
+      step(-1);
+    }
+    return;
+  case 'nextSection':
+    if (stage.value === 'place') {
+      step(1);
+    }
+    return;
+  case 'nextTab': // RT
+    if (stage.value === 'place') {
+      maxOnto();
+    }
+    return;
+  case 'inspect': // X
+    if (stage.value === 'wildCard') {
+      zoomFocusedCard();
+    } else if (stage.value === 'place') {
+      collect();
+    }
+    return;
+  case 'back':
+    onBack();
+    return;
+  default:
+    return;
+  }
+}
+function onNav(dir: string): void {
+  if (stage.value === 'wild') {
+    if (dir === 'up' || dir === 'down') {
+      wildIdx.value = Math.min(wildOptions.value.length - 1, Math.max(0, wildIdx.value + (dir === 'down' ? 1 : -1)));
+    }
+    return;
+  }
+  if (stage.value === 'wildCard') {
+    wildNav(dir as PlayedTargetNavDir);
+    return;
+  }
+  if (dir === 'up' || dir === 'down') {
+    focusIdx.value = stepFocus(lanes.value, focusIdx.value, dir === 'down' ? 1 : -1);
+  }
+}
+/** A — advances the flow one level, or (single-step placement) puts the one
+ *  resource down / takes it back. It never submits; X does. */
+function onConfirmPress(): void {
+  if (stage.value === 'wild') {
+    const opt = wildOptions.value[wildIdx.value];
+    if (opt !== undefined && !opt.disabled) {
+      wild.value = opt.value;
+      // Descending into the picker is what «on a card» MEANS; the pick
+      // itself may already exist from an earlier pass through this stage.
+      wildCardOpen.value = opt.value === 'onCard';
+    }
+    return;
+  }
+  if (stage.value === 'wildCard') {
+    const card = focusedWildCard.value;
+    if (card !== undefined) {
+      wildCard.value = card;
+      wildCardOpen.value = false;
+    }
+    return;
+  }
+  // In the multi-lane layout A stays free (the budget is spread with LB/RB),
+  // so claiming it here costs the flow nothing.
+  if (singleStep.value) {
+    toggleFocused();
+  }
+}
+/** The single-step gesture: place the unit here, or take it back. */
+function toggleFocused(): void {
+  const lane = lanes.value[focusIdx.value];
+  if (lane !== undefined) {
+    picks.value = toggleSoleStep(lanes.value, picks.value, rule.value, lane.key);
+  }
+}
+/**
+ * B — ONE logical level, and the earned bonus survives it.
+ *
+ * From the PLACEMENT of a wild that went on a card, that one level is the
+ * PICKER, not the wild question two levels up: the player is undoing where
+ * the resource went, and the card they chose stays chosen (it re-opens
+ * locked and focused, exactly as this step's «Изменить выбор» does in
+ * both composers). It used to reset the whole wild decision, which threw
+ * away a pick the player had not asked to take back.
+ */
+function onBack(): void {
+  if (stage.value === 'wildCard') {
+    wildCardOpen.value = false;
+    wild.value = undefined;
+    return;
+  }
+  if (stage.value === 'place' && isFinal.value) {
+    if (wild.value === 'onCard') {
+      wildCardOpen.value = true;
+      return;
+    }
+    wild.value = undefined;
+    return;
+  }
+  emit('defer');
+}
+function step(delta: number): void {
+  const lane = lanes.value[focusIdx.value];
+  if (lane === undefined) {
+    return;
+  }
+  // SINGLE-STEP mode doesn't advertise the stepper verbs, but they still
+  // land on its one gesture: muscle memory from the multi-lane layout must
+  // never meet a dead button. LB takes the unit off this lane, RB puts it
+  // here (moving it — a plain `+1` under a full budget is refused).
+  if (singleStep.value) {
+    picks.value = delta < 0 ?
+      (focusedPicked.value ? {} : picks.value) :
+      stepLane(lanes.value, {}, rule.value, lane.key, 1);
+    return;
+  }
+  picks.value = stepLane(lanes.value, picks.value, rule.value, lane.key, delta);
+}
+function maxOnto(): void {
+  const lane = lanes.value[focusIdx.value];
+  if (lane === undefined) {
+    return;
+  }
+  picks.value = singleStep.value ?
+    stepLane(lanes.value, {}, rule.value, lane.key, 1) :
+    maxOntoLane(lanes.value, picks.value, rule.value, lane.key);
+}
+function collect(): void {
+  if (!ready.value || submitting.value || meta.value === undefined) {
+    return;
+  }
+  submitting.value = true;
+  // THE PROMISE of the cell beat (P89 · EE, PL-1436): what this answer pays — the rows (the wild taken as a standard
+  // resource is already folded into the picks) and the card the wild lands on; checked against the views on the
+  // response, flown off the bonus cell the step reached.
+  const units: Partial<Record<string, number>> = {};
+  for (const lane of lanes.value) {
+    const n = laneValue(picks.value, lane.key);
+    if (n > 0) {
+      units[lane.key] = n;
+    }
+  }
+  const resource = wild.value === 'onCard' && wildCard.value !== undefined ? getCard(wildCard.value)?.resourceType : undefined;
+  armVenusBonusCell({
+    units,
+    ...(resource !== undefined && wildCard.value !== undefined ?
+      {card: {name: wildCard.value, resource: cardResourceKey(String(resource))}} : {}),
+    ...(meta.value.step !== undefined ? {step: meta.value.step} : {}),
+  });
+  emit('submit', venusBonusResponse(meta.value, picks.value, wild.value, wildCard.value));
+}
+/**
+ * THE SELECTOR'S NAVIGATION — resolved against the cards' REAL boxes, so a
+ * grid that wrapped to a second row is walked as a grid. The index cursor
+ * this replaced could only ever move along one line.
+ */
+function wildNav(dir: PlayedTargetNavDir): void {
+  const owners = wildModel.value?.owners ?? [];
+  const focus = wildFocus.value;
+  if (focus === undefined || owners.length === 0) {
+    return;
+  }
+  const step = wildStep.value ?? undefined;
+  const cells = step?.cells?.() ?? [];
+  const next = cells.length > 0 ?
+    stepPlayedTargetFocusVia(step, focus, dir, cells) :
+    stepPlayedTargetFocus(focus, dir, owners, wildLayout.value);
+  if (next === undefined) {
+    return; // an edge HOLDS — never a wrap, never a silent jump
+  }
+  wildFocusRaw.value = next;
+  wildStep.value?.ensureFocusVisible?.();
+}
+/** Seat the cursor: on the already-chosen card when there is one (a re-entry
+ *  must not lose the player's place), otherwise on the first candidate. */
+function seatWildFocus(): void {
+  const owners = wildModel.value?.owners ?? [];
+  if (owners.length === 0) {
+    return;
+  }
+  wildFocusRaw.value = findPlayedTargetFocus(wildCard.value ?? '', owners) ??
+    reseatPlayedTargetFocus(wildFocusRaw.value, owners);
+  void nextTick(() => measureWildZone());
+}
+function measureWildZone(): void {
+  const zone = wildZone.value ?? undefined;
+  if (zone === undefined || zone === null) {
+    return;
+  }
+  wildZoneW.value = Math.max(0, zone.clientWidth);
+  wildZoneH.value = Math.max(0, zone.clientHeight);
+  if (stopWildObs === undefined) {
+    stopWildObs = useResizeObserver(zone, () => {
+      const el = wildZone.value ?? undefined;
+      if (el !== undefined && el !== null) {
+        wildZoneW.value = Math.max(0, el.clientWidth);
+        wildZoneH.value = Math.max(0, el.clientHeight);
+      }
+    }).stop;
+  }
+}
+/** X on the card stage — the ordinary fullscreen viewer, read-only, rising
+ *  out of the candidate's own slot (the step's shared zoom origin). */
+function zoomFocusedCard(): void {
+  const owners = wildModel.value?.owners ?? [];
+  const focused = focusedWildCard.value;
+  if (focused === undefined) {
+    return;
+  }
+  // THE ONE DOOR — with the TARGET DOSSIER. The picker's ZONE is the root the origin resolves inside (an element
+  // ref, so the physical entrance survives a build that leaves `$el` a fragment anchor); no source card here — the
+  // bonus is paid by the VENUS TRACK, so every candidate is an ordinary slot.
+  if (wildModel.value !== undefined && owners.length > 0) {
+    openPlayedTargetZoom({model: wildModel.value, cardName: focused, getRoot: () => wildZone.value ?? undefined});
+  }
+}
+
+watch(() => promptKey.value, () => {
+  reset();
+}, {immediate: true});
+/** A changed budget (the wild folded in) invalidates the placement. */
+watch(() => target.value, () => {
+  picks.value = {};
+  focusIdx.value = 0;
+});
+watch(() => props.playerView, () => {
+  submitting.value = false;
+});
+watch(() => footCommands.value, (cmds: ReadonlyArray<ConsoleCommand>) => {
+  setPanelCommands('venusBonus', cmds);
+}, {immediate: true, deep: true});
+/**
+ * The picker's zone only exists while its stage does, so its cursor is
+ * seated — and its band measured — the moment the stage opens, never at
+ * mount. `bandHeight` is measured on the STRETCHED zone before the step's
+ * first painted frame, which is what lets the step solve a card size
+ * instead of inheriting one from its own content.
+ */
+watch(() => stage.value, (stage: Stage) => {
+  if (stage !== 'wildCard') {
+    return;
+  }
+  seatWildFocus();
+  void nextTick(() => measureWildZone());
+}, {immediate: true});
+
+onBeforeUnmount(() => {
+  clearPanelCommands('venusBonus');
+  stopWildObs?.();
+  stopWildObs = undefined;
+});
+defineExpose({handleIntent});
 </script>
