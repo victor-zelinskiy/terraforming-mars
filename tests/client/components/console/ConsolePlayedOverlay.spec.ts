@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {defineComponent, h} from 'vue';
 import {mount, VueWrapper} from '@vue/test-utils';
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
@@ -9,6 +10,8 @@ import {CardType} from '@/common/cards/CardType';
 import {Color} from '@/common/Color';
 import {getCards, byType} from '@/client/cards/ClientCardManifest';
 import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
+import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
+import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 
 function player(color: Color, name: string, tableau: Array<CardName>): PublicPlayerModel {
@@ -28,7 +31,7 @@ const RED_TABLEAU = [
   CardName.BIG_ASTEROID, // event
 ];
 
-/** Mount the table and let its body be measured: the content renders on the tick after `mounted()` (PL-625 — in a
+/** Mount the table and let its body be measured: the content renders on the tick after `onMounted` (PL-625 — in a
  *  browser that is still before the first paint). */
 async function make(players: Array<PublicPlayerModel>): Promise<VueWrapper<InstanceType<typeof ConsolePlayedOverlay>>> {
   const wrapper = mountTable(players);
@@ -50,7 +53,7 @@ function mountTable(players: Array<PublicPlayerModel>): VueWrapper<InstanceType<
 }
 
 /** JSDOM has no layout: the table's BODY reports the overlay's old fallback box (1400 × 620) — the table renders its
- *  content only once the body is measured (PL-625), exactly as a browser does after `mounted()`. */
+ *  content only once the body is measured (PL-625), exactly as a browser does after `onMounted`. */
 const BODY_BOX = {w: 1400, h: 620};
 type OffsetKey = 'offsetWidth' | 'offsetHeight';
 const offsetDescriptors = new Map<OffsetKey, PropertyDescriptor | undefined>();
@@ -488,6 +491,63 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
       expect(wrapper.find('.con-played__total b').text()).to.eq('3');
       expect(wrapper.find('.con-played__provenance').exists(), 'no bot prose on the table (D16)').to.be.false;
       wrapper.unmount();
+    });
+  });
+
+  // ── what a parent's ref reaches (`defineExpose`), and the one getter that outlives the table ──
+  describe('the surface its parents reach, and the zoom origin it hands out', () => {
+    afterEach(() => closeConsoleCardZoom());
+
+    it('a parent\'s ref reaches exactly `handleIntent` and `stickScroll` — the pad and the right stick', async () => {
+      const closed: Array<true> = [];
+      const players = [player('red' as Color, 'Вы', RED_TABLEAU)];
+      const Host = defineComponent({
+        render: () => h('div', [h(ConsolePlayedOverlay, {
+          ref: 'table', players, thisPlayerColor: 'red' as Color, onClose: () => closed.push(true),
+        })]),
+      });
+      const host = mount(Host, {global: {stubs: {ConsolePlayedCardLite: true, ConsolePlayedCategoryView: true}}});
+      await host.vm.$nextTick();
+      expect(host.find('.con-played').exists(), 'the table stands under the host').to.be.true;
+      const table = host.vm.$refs.table as {handleIntent: (intent: GamepadIntent) => void, stickScroll: (dy: number, dx?: number) => void};
+      expect(Object.keys(table), 'the Information Workspace hands it the pad, the shell\'s router the stick').to.deep.eq(['handleIntent', 'stickScroll']);
+      // The stick at the table: one page, nothing to turn — and nothing opens.
+      table.stickScroll(1);
+      expect(playedCategoryState.phase).to.eq('closed');
+      // The pad: A opens the focused zone, B (inside a category the view's own) closes the table.
+      table.handleIntent(press('confirm'));
+      expect(playedCategoryState.phase).to.eq('opening');
+      resetPlayedCategoryView();
+      await host.vm.$nextTick();
+      table.handleIntent(press('back'));
+      expect(closed, 'the host hears `close`').to.have.length(1);
+      host.unmount();
+    });
+
+    it('the bot corporation\'s inspect lifts out of ITS slot — and finds no element once the table has left', async () => {
+      const automa = {playedPile: [], corporation: {id: MarsBotCorpId.C01_CREDICOR, resources: 0}} as unknown as MarsBotModel;
+      const bot = {color: 'green' as Color, name: 'MarsBot', isMarsBot: true, tableau: []} as unknown as PublicPlayerModel;
+      const wrapper = mount(ConsolePlayedOverlay, {
+        props: {
+          players: [player('red' as Color, 'Вы', RED_TABLEAU), bot],
+          thisPlayerColor: 'red' as Color,
+          automa, embedded: true, forcedColor: 'green' as Color,
+        },
+        global: {stubs: {ConsolePlayedCardLite: true, ConsolePlayedCategoryView: true, MarsBotCorpFace: true}},
+      });
+      await wrapper.vm.$nextTick();
+      // The bot's corporation slot is the table's first focusable object; A opens its fullscreen inspect.
+      expect(wrapper.vm.focusCategory).to.eq('botcorp');
+      wrapper.vm.handleIntent(press('confirm'));
+      expect(consoleCardZoom.card?.name).to.eq(MarsBotCorpId.C01_CREDICOR);
+      const origin = consoleCardZoom.origin;
+      const slot = wrapper.find(`[data-zoom-slot="${MarsBotCorpId.C01_CREDICOR}"]`);
+      expect(slot.exists(), 'the corporation lies in its slot on the table').to.be.true;
+      expect(origin.resolve?.(0), 'live: the viewer lifts the face out of that very slot').to.eq(slot.element);
+      // The viewer is the app's and outlives the table: its origin then answers «no element» (the root ref is null —
+      // the Options form's `$el` was a detached node there), and the viewer's own guard takes it from that.
+      wrapper.unmount();
+      expect(origin.resolve?.(0)).to.eq(null);
     });
   });
 });
