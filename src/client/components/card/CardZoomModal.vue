@@ -1,14 +1,4 @@
 <template>
-  <!--
-    `.stop` on the backdrop click: closing the fullscreen by clicking
-    outside the card must NOT bubble to document-level outside-click
-    handlers (e.g. PlayerHome's `handleOutsideOverlayClick`). Without it,
-    the backdrop click closes the dialog AND then bubbles up — and since
-    the dialog is already closed by the time it reaches document, the
-    `dialog[open]` guard there misses it and the host overlay closes too.
-    The inner `.card-zoom-container` already has `@click.stop`, so this
-    only ever fires for genuine backdrop clicks.
-  -->
   <dialog ref="dialog"
           class="card-zoom-dialog"
           :class="{'card-zoom-dialog--nav': navEnabled}"
@@ -213,8 +203,21 @@
   </dialog>
 </template>
 
-<script lang="ts">
-import {defineComponent, onUnmounted} from 'vue';
+<script setup lang="ts">
+/*
+ * `.stop` on the backdrop click: closing the fullscreen by clicking
+ * outside the card must NOT bubble to document-level outside-click
+ * handlers (e.g. PlayerHome's `handleOutsideOverlayClick`). Without it,
+ * the backdrop click closes the dialog AND then bubbles up — and since
+ * the dialog is already closed by the time it reaches document, the
+ * `dialog[open]` guard there misses it and the host overlay closes too.
+ * The inner `.card-zoom-container` already has `@click.stop`, so this
+ * only ever fires for genuine backdrop clicks.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, useSlots, useTemplateRef, watch} from 'vue';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -224,6 +227,7 @@ import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {whenPainted} from '@/client/console/session/sessionWaits';
 import {CardName} from '@/common/cards/CardName';
 import {ZoomCard, isBonusZoom, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, isTenderZoom} from './cardZoomTypes';
+import {naturalCardSizeCache} from './cardZoomModalState';
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import {LoreModel, buildCardLoreModel} from '@/client/cards/cardLore';
 import {buildPartyLoreModel} from '@/client/cards/partyLore';
@@ -233,6 +237,8 @@ import CardZoomCard from './CardZoomCard.vue';
 import CardLoreAside from './CardLoreAside.vue';
 import CardAnnotationsLayer from '@/client/components/cardAnnotations/CardAnnotationsLayer.vue';
 import dialogPolyfill from 'dialog-polyfill';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
 // The measured card element differs by entry kind: a premium face is `.pcard`,
 // a legacy card is `.card-container.filterDiv`, an Automa bonus card is
@@ -242,10 +248,6 @@ import dialogPolyfill from 'dialog-polyfill';
 const STAGE_CARD_SELECTOR = '.card-zoom-stage .card-zoom-card :is(.card-container.filterDiv, .pcard, .con-tender), .card-zoom-stage .card-zoom-card .mb-face';
 const PRELOAD_CARD_SELECTOR = '.card-zoom-preload .card-zoom-card :is(.card-container.filterDiv, .pcard), .card-zoom-preload .card-zoom-card .mb-face';
 const CARD_EL_SELECTOR = '.card-container.filterDiv, .pcard, .con-tender, .mb-face';
-
-type Refs = {
-  dialog: HTMLDialogElement;
-};
 
 type SlideDir = '' | 'next' | 'prev' | 'consume';
 
@@ -259,963 +261,948 @@ const ANIM_MS = 240;
 // resolution of the premium face on the first fullscreen open.
 const FIT_MAX_RETRIES = 30;
 
-/*
- * perf: a card's NATURAL (zoom = 1) size is deterministic per card name, so it
- * is cached module-wide and survives reopen. A cached card fits with a pure
- * calc + one style write — NO `zoom` reset and NO forced synchronous reflow on
- * the LB/RB navigation frame (the reflow was the second half of the console
- * fullscreen jank, after the per-step remount). A card is measured at most once
- * ever; every later visit — including the very common browse-back-and-forth —
- * is free.
- */
-const naturalCardSizeCache = new Map<string, {width: number, height: number}>();
-
-export default defineComponent({
-  name: 'CardZoomModal',
-  components: {
-    CardZoomCard,
-    CardLoreAside,
-    CardAnnotationsLayer,
+defineOptions({name: 'CardZoomModal'});
+const props = defineProps({
+  card: {
+    type: Object as () => ZoomCard,
+    required: true,
   },
-  props: {
-    card: {
-      type: Object as () => ZoomCard,
-      required: true,
-    },
-    actionUsed: {
-      type: Boolean,
-      default: false,
-    },
-    /*
-     * Strong "selected" presentation on the current card — see CardZoomCard.
-     * In nav mode the parent re-binds this to the CURRENT card (it re-points
-     * its zoom variable on @navigate), so the halo tracks the visible card.
-     */
-    selected: {
-      type: Boolean,
-      default: false,
-    },
-    /*
-     * OPT-IN navigation context. The ordered list of cards the player was
-     * looking at (filtered/sorted in the SOURCE order). When provided AND it
-     * has more than one card, fullscreen navigation turns on. Leave undefined
-     * for a pure single-card preview.
-     */
-    cards: {
-      type: Array as () => ReadonlyArray<ZoomCard> | undefined,
-      default: undefined,
-    },
-    /*
-     * Optional starting index into `cards`. Used only to seed the initial
-     * card on show() (handy when the list can contain duplicate card names,
-     * e.g. drawn cards). Navigation afterwards is owned internally; parents
-     * track the current card via `@navigate`, not by binding this back.
-     */
-    index: {
-      type: Number as () => number | undefined,
-      default: undefined,
-    },
-    /*
-     * CONSOLE-NATIVE browsing feel (opt-in; the console shell passes true).
-     * Two changes, both scoped to this flag so desktop stays byte-identical:
-     *  - INTERRUPTIBLE navigation: rapid LB/RB never waits for the previous
-     *    slide — the in-flight animation is cancelled and the next starts
-     *    immediately (a held bumper pages at input rate, not animation rate);
-     *  - PHYSICAL slide keyframes: the incoming card sweeps in with a slight
-     *    arc (rotation around a low pivot) + settle ease — "the next card
-     *    from the stack in hand", not a web-carousel strafe.
-     */
-    consoleMotion: {
-      type: Boolean,
-      default: false,
-    },
-    /*
-     * MANDATORY viewer (opt-in; default dismissable). When false the viewer
-     * cannot be dismissed by a backdrop tap or the native Esc — used by the
-     * single-card «Получены карты» reveal, where the ONLY completion is taking
-     * the card. The controller close paths are separately gated in the shell;
-     * this covers the DOM-native ones (mouse/touch backdrop, keyboard Esc) so
-     * they can't strand the reveal with the card untaken. Desktop leaves it
-     * true → byte-identical.
-     */
-    dismissable: {
-      type: Boolean,
-      default: true,
-    },
-    /*
-     * Suppress the floating rule callouts (console: the stable side rules
-     * panel replaces them — «one place for details»). Passing true holds the
-     * annotation layer at nonce 0 (its dismissed state). Desktop never binds
-     * it → default false → byte-identical.
-     */
-    annotationsSuppressed: {
-      type: Boolean,
-      default: false,
-    },
-    /*
-     * CONSOLE close signal (opt-in; the shell binds `:closing="zoomClosing"`).
-     * The console close plays a ~340ms flight BEFORE the dialog actually
-     * closes, so the rule-overlay's usual clear (on the dialog 'close' event)
-     * would leave the annotation panels hanging through the whole flight and
-     * vanishing at the end. Flipping this true the instant the close begins
-     * drops settleNonce to 0 → the annotation layer dismisses FIRST (a quick
-     * fade), then the card flies away clean. Desktop never binds it → default
-     * false → the annotations clear on 'close' exactly as before.
-     */
-    closing: {
-      type: Boolean,
-      default: false,
-    },
-    /*
-     * ARCHIVE ENTRY (opt-in; the console shell passes true). Shows the card's
-     * lore text in the LEFT gutter — the one place in the app it appears. It is
-     * opt-in for two reasons: (1) this component also backs plain single-card
-     * previews that are NOT a true fullscreen inspect, and (2) the DESKTOP
-     * viewer fills BOTH gutters with the floating `CardAnnotationsLayer`
-     * callouts, which a left-hand block would collide with. Desktop hosts bind
-     * nothing → default false → byte-identical.
-     */
-    lore: {
-      type: Boolean,
-      default: false,
-    },
-    /*
-     * The position COUNTER above the card in nav mode (default on). A host
-     * that states the position elsewhere (the console footer's browse hint,
-     * for a short list read as one scene) turns it off: no top band is drawn
-     * and none is reserved, so the card keeps its single-card size.
-     */
-    navCounter: {
-      type: Boolean,
-      default: true,
-    },
-    /*
-     * The FLANK columns (lore / aside / side) take part in the browse slide:
-     * their new content surfaces in the same frame the new card starts its
-     * turn, so no frame ever pairs the new card with the previous card's
-     * columns and the swap never reads as a cut. Console hosts opt in.
-     */
-    flankMotion: {
-      type: Boolean,
-      default: false,
-    },
+  actionUsed: {
+    type: Boolean,
+    default: false,
   },
-  emits: ['close', 'navigate', 'update:index'],
-  setup() {
-    // The viewer's own scope (the game session's while a game screen stands, the lobby's otherwise): its guard, its
-    // settle beat and its fit retries are taken back when it is unmounted.
-    // «Is this viewer gone?» — asked by a QUEUED dialog event that can arrive after the unmount. The component's own
-    // fact, set by its own hook: never the instance's internals (`this.$.isUnmounted`).
-    let gone = false;
-    onUnmounted(() => {
-      gone = true;
-    });
-    return {flow: useFlowScope('card-zoom-modal'), viewerGone: (): boolean => gone};
+  /*
+   * Strong "selected" presentation on the current card — see CardZoomCard.
+   * In nav mode the parent re-binds this to the CURRENT card (it re-points
+   * its zoom variable on @navigate), so the halo tracks the visible card.
+   */
+  selected: {
+    type: Boolean,
+    default: false,
   },
-  data() {
-    return {
-      currentIndex: 0,
-      slideDir: '' as SlideDir,
-      // True while a slide is mid-flight — blocks rapid arrow/key re-entry so
-      // transitions never pile up and the index never races. (In consoleMotion
-      // mode this no longer BLOCKS — the in-flight slide is cancelled instead.)
-      animating: false,
-      // The cancel of the pending guard release (undefined ⇔ none pending).
-      animTimer: undefined as (() => void) | undefined,
-      // The in-flight WAAPI slide (consoleMotion: cancelled on interrupt so
-      // rapid LB/RB restarts cleanly instead of piling up).
-      slideAnim: undefined as Animation | undefined,
-      // The flank columns' in-flight browse animations (`flankMotion`).
-      flankAnims: [] as Array<Animation>,
-      // Names of the cards rendered off-screen for preload (neighbours).
-      preloadNames: [] as ReadonlyArray<string>,
-      // The annotation layer's SETTLE signal — bumped (debounced) when the
-      // fullscreen card has landed; 0 while closed. See scheduleSettle().
-      settleNonce: 0,
-      // The cancel of the pending settle beat (undefined ⇔ none pending).
-      settleTimer: undefined as (() => void) | undefined,
-      // Bounded rAF retry for the fit engine. On the FIRST-EVER fullscreen open
-      // the premium face (`premium-card-face`, an async global registered in
-      // main.ts to break the type cycle) hasn't resolved yet when show()'s fit
-      // runs, so `.pcard` isn't in the DOM and the measure early-returns — the
-      // card then stays at its unscaled CSS size (small). We retry across the
-      // next frames until the element appears + measures, then apply the fit.
-      // (The cancel of the pending retry frame; undefined ⇔ none pending.)
-      fitRetryHandle: undefined as (() => void) | undefined,
-      fitRetries: 0,
-      // Bounded retry budget for show() when the dialog ref isn't mounted yet
-      // (heavy first-open frame) — see show().
-      showRetries: 0,
-    };
+  /*
+   * OPT-IN navigation context. The ordered list of cards the player was
+   * looking at (filtered/sorted in the SOURCE order). When provided AND it
+   * has more than one card, fullscreen navigation turns on. Leave undefined
+   * for a pure single-card preview.
+   */
+  cards: {
+    type: Array as () => ReadonlyArray<ZoomCard> | undefined,
+    default: undefined,
   },
-  computed: {
-    typedRefs(): Refs {
-      return this.$refs as unknown as Refs;
-    },
-    navList(): ReadonlyArray<ZoomCard> {
-      return this.cards ?? [];
-    },
-    navEnabled(): boolean {
-      return this.navList.length > 1;
-    },
-    /** A host-provided side panel (console rules panel) is present — render
-     *  its column and reserve its width in the fit. */
-    hasSide(): boolean {
-      return this.$slots.side !== undefined;
-    },
-    /** A host-provided LEFT-gutter panel (the resolution inspector's party
-     *  column) — render its cell and reserve its width in the fit. */
-    hasAside(): boolean {
-      return this.$slots.aside !== undefined;
-    },
-    navCount(): number {
-      return this.navList.length;
-    },
-    // The card currently on screen. In nav mode it's the list entry at
-    // currentIndex; otherwise the single `card` prop. Falls back to `card`
-    // defensively if the index is ever transiently out of range.
-    activeCard(): ZoomCard {
-      if (this.navEnabled) {
-        const c = this.navList[this.currentIndex];
-        if (c !== undefined) {
-          return c;
-        }
-      }
-      return this.card;
-    },
-    canPrev(): boolean {
-      return this.navEnabled && this.currentIndex > 0;
-    },
-    canNext(): boolean {
-      return this.navEnabled && this.currentIndex < this.navList.length - 1;
-    },
-    preloadCards(): ReadonlyArray<ZoomCard> {
-      const out: Array<ZoomCard> = [];
-      for (const name of this.preloadNames) {
-        const c = this.navList.find((card) => card.name === name);
-        if (c !== undefined) {
-          out.push(c);
-        }
-      }
-      return out;
-    },
-    /** The rule-overlay card: project cards only (a bonus / corp / tender entry has no rules model). */
-    annotationCardName(): CardName | undefined {
-      return isBonusZoom(this.activeCard) || isMarsBotCorpZoom(this.activeCard) || isTenderZoom(this.activeCard) ?
-        undefined :
-        this.activeCard.name as CardName;
-    },
-    /**
-     * THE ARCHIVE ENTRY OF THE SUBJECT ON STAGE — the viewer decides WHOSE lore
-     * the gutter holds and builds the block's model with that subject's own
-     * resolver; the block itself never branches on the subject.
-     *  - a real game card → its own entry;
-     *  - a MarsBot CORPORATION → the ORIGINAL human corporation's entry (the
-     *    official identity/art/lore link of RB-B);
-     *  - a Turmoil Redux PARTY → the faction's rulebook paragraph (`partyLore`);
-     *  - an Automa bonus entry is not a card and has no lore;
-     *  - a campaign TENDER → its contract's lore (`tenderLoreModel` — the face
-     *    prints no prose since its third pass; the rule reads in the right column);
-     *  - a RESOLUTION lends the gutter to its PARTY column (`#aside`) — the
-     *    cell is taken, so no entry is offered.
-     * Undefined ⇔ no entry: the gutter stays empty rather than printing
-     * «Архивная запись отсутствует» beside a subject that never had one.
-     */
-    loreModel(): LoreModel | undefined {
-      if (!this.lore) {
-        return undefined;
-      }
-      const card = this.activeCard;
-      if (isBonusZoom(card) || isResolutionZoom(card)) {
-        return undefined;
-      }
-      if (isTenderZoom(card)) {
-        return tenderLoreModel(card.tender, translateLore);
-      }
-      if (isPartyEffectZoom(card)) {
-        return buildPartyLoreModel(card.partyEffect, translateLore);
-      }
-      if (isMarsBotCorpZoom(card)) {
-        return buildCardLoreModel(marsBotCorpInfo(card.marsBotCorp).original, translateLore);
-      }
-      return buildCardLoreModel(card.name as CardName, translateLore);
-    },
-    /** The archive entry is on stage — the fit reserves its column. */
-    loreVisible(): boolean {
-      return this.loreModel !== undefined;
-    },
-    /*
-     * The midrow carries a flanking block (archive entry and/or rules panel).
-     * It then switches from the centred FLEX row (which centres the card+panel
-     * PAIR, pushing the card off-centre) to a symmetric grid that pins the card
-     * to the middle column — see `.card-zoom-midrow--flank` in card_lore.less.
-     * The fit engine reserves the gutters symmetrically to match.
-     */
-    hasFlank(): boolean {
-      return this.hasSide || this.hasAside || this.loreVisible;
-    },
+  /*
+   * Optional starting index into `cards`. Used only to seed the initial
+   * card on show() (handy when the list can contain duplicate card names,
+   * e.g. drawn cards). Navigation afterwards is owned internally; parents
+   * track the current card via `@navigate`, not by binding this back.
+   */
+  index: {
+    type: Number as () => number | undefined,
+    default: undefined,
   },
-  watch: {
-    /*
-     * Controlled-index escape hatch: if a parent ever drives `index` two-way,
-     * follow it. No bundled context binds it back today (they track the card
-     * via @navigate), so this stays a no-op in practice — `index` only seeds
-     * the start in show(). Pre-flush (Vue 3 default) so slideDir lands before
-     * the keyed card re-renders.
-     */
-    index(next: number | undefined) {
-      if (next === undefined || next === this.currentIndex) {
-        return;
-      }
-      this.applyIndex(next, next > this.currentIndex ? 'next' : 'prev');
-    },
-    /*
-     * The list can mutate under an open modal (drawn-cards "take" removes a
-     * card). Clamp the index; if a different card slid into the same slot
-     * (a removal shifted the next card into place) play the calmer "consume"
-     * swap and re-sync the parent + fit.
-     */
-    cards(next: ReadonlyArray<ZoomCard> | undefined, prev: ReadonlyArray<ZoomCard> | undefined) {
-      if (next === undefined || next.length === 0) {
-        return;
-      }
-      const prevName = prev?.[this.currentIndex]?.name;
-      const clamped = Math.min(this.currentIndex, next.length - 1);
-      if (clamped !== this.currentIndex) {
-        this.currentIndex = clamped;
-      }
-      const nextName = next[clamped]?.name;
-      if (nextName !== undefined && nextName !== prevName) {
-        this.slideDir = 'consume';
-        this.$emit('navigate', this.activeCard, this.currentIndex);
-        this.$nextTick(() => {
-          this.fitCardToViewport();
-          this.runSlide('consume');
-        });
-      }
-    },
-    /*
-     * The card on stage changed for ANY reason — internal navigation, a
-     * consume swap, or an EXTERNAL re-point (the console reveal's L3 swap
-     * re-points the `card` prop on the open viewer). Re-arm the annotation
-     * settle with a beat generous enough for the swap-in choreography; the
-     * debounce collapses this with the slide-finish bump into ONE reveal.
-     */
-    'activeCard.name'() {
-      this.scheduleSettle(prefersReducedMotion() ? 80 : motionMs(360));
-    },
-    /*
-     * The console close began — dismiss the rule overlay BEFORE the card's
-     * close flight (see the `closing` prop). Dropping settleNonce to 0 drives
-     * CardAnnotationsLayer's dismiss; cancelling any pending settle stops a
-     * late reveal from re-arming mid-close.
-     */
-    closing(now: boolean) {
-      if (now) {
-        this.cancelSettle();
-        this.settleNonce = 0;
-      }
-    },
+  /*
+   * CONSOLE-NATIVE browsing feel (opt-in; the console shell passes true).
+   * Two changes, both scoped to this flag so desktop stays byte-identical:
+   *  - INTERRUPTIBLE navigation: rapid LB/RB never waits for the previous
+   *    slide — the in-flight animation is cancelled and the next starts
+   *    immediately (a held bumper pages at input rate, not animation rate);
+   *  - PHYSICAL slide keyframes: the incoming card sweeps in with a slight
+   *    arc (rotation around a low pivot) + settle ease — "the next card
+   *    from the stack in hand", not a web-carousel strafe.
+   */
+  consoleMotion: {
+    type: Boolean,
+    default: false,
   },
-  methods: {
-    show() {
-      // Robustness on a heavy first-open frame: if the dialog ref hasn't
-      // mounted yet, retry on the next frame (bounded) instead of throwing
-      // inside showModal(undefined) — which aborted the open and stranded the
-      // caller's state ("first fullscreen shows nothing").
-      if (this.typedRefs.dialog === undefined) {
-        if (this.showRetries < 10) {
-          this.showRetries++;
-          this.flow.afterFrame('the viewer\'s dialog mounts', () => this.show());
-        }
-        return;
-      }
-      this.showRetries = 0;
-      this.currentIndex = this.computeStartIndex();
-      this.slideDir = '';
-      // Fresh fit-retry budget for this open (the persistent-instance reuse case).
-      this.clearFitRetry();
-      // Do NOT render the neighbour preloads synchronously on open — that
-      // mounts 2 extra full card trees in the SAME frame as the dialog,
-      // tripling the open cost. Start empty; warm them once the dialog has
-      // painted, in idle time (well before the player can press an arrow).
-      // The slide never depends on preload — the persistent stage card is just
-      // re-pointed on navigation; preload only warms the neighbours' art +
-      // primes the natural-size fit cache. (perf B13)
-      this.preloadNames = [];
-      showModal(this.typedRefs.dialog);
-      // Sync the parent to the card we actually opened on (the start index may
-      // differ from the raw `card` prop, e.g. a list with duplicate names), so
-      // the action slot + any index tracking are correct from the first frame.
-      if (this.navEnabled) {
-        this.$emit('navigate', this.activeCard, this.currentIndex);
-      }
-      // Fit card after the dialog is open so its natural size can be
-      // measured against the actual viewport. nextTick ensures the
-      // card's content has flowed before we read offsetHeight.
-      this.$nextTick(() => this.fitCardToViewport());
-      this.schedulePreloadWarm();
-      // Stage 2 of the fullscreen choreography: the rule overlay reveals
-      // after the card has landed. In consoleMotion the proxy flight lands
-      // BEFORE show() is called (consoleZoomMotion — the dialog opens vanilla
-      // at touchdown), so the card is already stationary here; the layer's
-      // own stage-stability poll then guards the exact hand-off frame.
-      this.scheduleSettle(prefersReducedMotion() ? 80 : (this.consoleMotion ? motionMs(200) : motionMs(220)));
-    },
-    /*
-     * CONSOLE OPEN CHOREOGRAPHY (consoleZoomMotion.playZoomOpenFlight):
-     * measure the LANDING geometry of the fullscreen card WITHOUT entering
-     * the top layer. The dialog is still CLOSED here; an inline
-     * `display:flex; visibility:hidden` overrides `dialog:not([open])`'s
-     * display:none, which lays the dialog out EXACTLY as the open state
-     * (the top layer never changes layout — same fixed 100vw×100vh box)
-     * while painting nothing. The fit engine then sizes the card as usual
-     * (priming the natural-size cache, so show()'s own fit is a pure cache
-     * hit) and the card's visual rect + applied zoom feed the proxy flight.
-     *
-     * This exists so `showModal()` can be DEFERRED to the flight's
-     * touchdown: the dialog's very first top-layer frame is then the final,
-     * fully-visible, untransformed content — the compositor-safe shape (see
-     * the consoleZoomMotion.ts header for why this is load-bearing).
-     *
-     * Bounded frame retries cover the async premium face on a first-ever
-     * open; undefined → the caller opens vanilla immediately (JSDOM /
-     * degenerate layout / timeout) and the in-show fit retries take over.
-     */
-    async measureLanding(): Promise<{rect: {left: number, top: number, width: number, height: number}, zoom: number} | undefined> {
-      const dialog = this.typedRefs.dialog;
-      if (dialog === undefined || dialog.open) {
-        return undefined;
-      }
-      // Seed the index so the fit measures the OPENED card, not slot 0 —
-      // show() recomputes the same value later (idempotent).
-      this.currentIndex = this.computeStartIndex();
-      const prev = {display: dialog.style.display, visibility: dialog.style.visibility, pointerEvents: dialog.style.pointerEvents};
-      dialog.style.display = 'flex';
-      dialog.style.visibility = 'hidden';
-      dialog.style.pointerEvents = 'none';
-      try {
-        for (let i = 0; i < FIT_MAX_RETRIES; i++) {
-          this.fitCardToViewport();
-          const cardEl = dialog.querySelector<HTMLElement>(STAGE_CARD_SELECTOR);
-          const r = cardEl?.getBoundingClientRect();
-          if (cardEl !== null && r !== undefined && r.width >= 10 && r.height >= 10) {
-            const zoom = Number(cardEl.style.zoom || '1');
-            return {
-              rect: {left: r.left, top: r.top, width: r.width, height: r.height},
-              zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : 1,
-            };
-          }
-          if (typeof requestAnimationFrame !== 'function') {
-            return undefined; // JSDOM — the caller opens vanilla
-          }
-          await whenPainted(1, 50, this.flow);
-          if (this.typedRefs.dialog !== dialog || dialog.open) {
-            return undefined; // unmounted / shown by someone else mid-measure
-          }
-        }
-        return undefined;
-      } finally {
-        dialog.style.display = prev.display;
-        dialog.style.visibility = prev.visibility;
-        dialog.style.pointerEvents = prev.pointerEvents;
-        // The measure loop may have burned the fit-retry budget on a card
-        // that wasn't measurable yet — show() re-arms it anyway; drop any
-        // stray pending frame so it can't double-fit.
-        this.clearFitRetry();
-      }
-    },
-    // Warm the neighbour preloads AFTER the open frame has painted, so the
-    // initial fullscreen open only renders the one visible card. Self-guards
-    // on the dialog still being open (it may close before this fires). (perf B13)
-    schedulePreloadWarm() {
-      if (!this.navEnabled) {
-        return;
-      }
-      this.flow.after(90, 'the viewer warms its neighbours', () => {
-        if (this.typedRefs.dialog?.open === true) {
-          this.refreshPreload();
-        }
-      });
-    },
-    close() {
-      // The dialog may already be gone (the viewer unmounted under an async close — the monkey's DUO walk of
-      // `two-player-finale-trigger`: «Cannot read properties of null (reading 'open')» in the shell's close beat).
-      if (this.typedRefs.dialog?.open === true) {
-        this.typedRefs.dialog.close();
-      }
-    },
-    onBackdropClick() {
-      // A mandatory viewer (single-card reveal) can't be dismissed by a
-      // backdrop tap — the card must be taken.
-      if (!this.dismissable) {
-        return;
-      }
-      this.close();
-    },
-    computeStartIndex(): number {
-      if (!this.navEnabled) {
-        return 0;
-      }
-      if (this.index !== undefined && this.index >= 0 && this.index < this.navList.length) {
-        return this.index;
-      }
-      const byName = this.navList.findIndex((c) => c.name === this.card.name);
-      return byName >= 0 ? byName : 0;
-    },
-    prev() {
-      this.go(-1);
-    },
-    next() {
-      this.go(1);
-    },
-    /*
-     * Step the viewer. Bounded (no wrap) and guarded against rapid re-entry:
-     * while a slide is animating further steps are ignored, so the transition
-     * never piles up and currentIndex (the single source of truth) never
-     * races. Holding an arrow simply paces at the animation rate.
-     */
-    go(delta: number) {
-      // consoleMotion: never block on an in-flight slide — cancel + restart
-      // (runSlide handles the cancel). Desktop keeps the classic guard.
-      if (!this.navEnabled || (this.animating && !this.consoleMotion)) {
-        return;
-      }
-      const target = this.currentIndex + delta;
-      if (target < 0 || target >= this.navList.length) {
-        return;
-      }
-      this.applyIndex(target, delta > 0 ? 'next' : 'prev');
-      this.$emit('update:index', target);
-    },
-    /*
-     * Commit a new index + slide direction. The persistent stage card is
-     * re-pointed (patched, not remounted) to `navList[target]`; `dir` only
-     * chooses the compositor slide direction in `runSlide`. Emits
-     * `navigate(card, index)` so the parent re-points its zoom variable → the
-     * action slot + selected halo follow the visible card.
-     */
-    applyIndex(target: number, dir: SlideDir) {
-      this.slideDir = dir;
-      this.currentIndex = target;
-      this.startAnimGuard();
-      this.$emit('navigate', this.activeCard, target);
-      // One flush: the persistent card is patched to the new model, then fit
-      // (cached → no reflow) and slid — all before the browser paints, so there
-      // is no intermediate frame at the old zoom / old card.
-      this.$nextTick(() => {
-        this.fitCardToViewport();
-        this.runSlide(dir);
-      });
-    },
-    startAnimGuard() {
-      this.animating = true;
-      this.clearAnimTimer();
-      const wait = (prefersReducedMotion() ? 0 : ANIM_MS) + 80;
-      this.animTimer = this.flow.after(wait, 'the viewer\'s slide guard lets go', () => {
-        this.animating = false;
-        this.animTimer = undefined;
-      });
-    },
-    clearAnimTimer() {
-      if (this.animTimer !== undefined) {
-        this.animTimer();
-        this.animTimer = undefined;
-      }
-    },
-    releaseAnimGuard() {
-      this.animating = false;
-      this.clearAnimTimer();
-    },
-    /*
-     * Debounced settle for the rule overlay: every transition path schedules
-     * its own beat and the LAST schedule wins, so open + navigation + an
-     * external re-point can never stack into a double reveal. The callback
-     * self-gates on the dialog still being open.
-     */
-    scheduleSettle(delayMs: number) {
-      this.cancelSettle();
-      this.settleTimer = this.flow.after(delayMs, 'the viewer\'s card settles', () => {
-        this.settleTimer = undefined;
-        if (this.typedRefs.dialog?.open === true) {
-          this.settleNonce++;
-        }
-      });
-    },
-    cancelSettle() {
-      if (this.settleTimer !== undefined) {
-        this.settleTimer();
-        this.settleTimer = undefined;
-      }
-    },
-    /*
-     * The directional slide of the PERSISTENT card, driven by the Web
-     * Animations API — a compositor-only transform + opacity tween on the ONE
-     * card element. It never forces layout and never needs a second (leaving)
-     * card tree, which is what the old mount/unmount `<transition>` cost per
-     * step. No-op (and immediate guard release) where `.animate` is missing
-     * (JSDOM under test), so behaviour is unchanged there.
-     */
-    runSlide(dir: SlideDir) {
-      const host = ((this.$refs.stageCard ?? undefined) as {$el?: HTMLElement} | undefined)?.$el;
-      if (host === undefined || host === null || typeof host.animate !== 'function') {
-        this.releaseAnimGuard();
-        this.refreshPreload();
-        this.scheduleSettle(0);
-        return;
-      }
-      // consoleMotion interrupt: a rapid re-step cancels the in-flight slide
-      // (the element snaps to identity for one frame, immediately covered by
-      // the new slide's from-state) — no pile-up, no stuck intermediate state.
-      this.slideAnim?.cancel();
-      this.slideAnim = undefined;
-      const reduced = prefersReducedMotion();
-      let from: Record<string, string>;
-      let easing = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
-      let duration = reduced ? 120 : ANIM_MS;
-      if (reduced || dir === '') {
-        from = {opacity: '0'};
-      } else if (dir === 'consume') {
-        // A card left the set (drawn-cards take): the next one settles in with
-        // a gentle scale-up rather than a lateral slide.
-        from = {opacity: '0', transform: 'scale(0.92)'};
-      } else if (this.consoleMotion) {
-        // Physical page-turn: the next card sweeps in from the browse side
-        // with a slight arc (rotation around a low pivot set in CSS —
-        // `.con-zoom .card-zoom-card { transform-origin: 50% 120% }`) and a
-        // damped settle — "the next card from the stack", direction obvious.
-        const sign = dir === 'next' ? 1 : -1;
-        from = {opacity: '0.1', transform: `translateX(${sign * 96}px) rotate(${sign * 3.2}deg) scale(0.94)`};
-        easing = 'cubic-bezier(0.34, 1.26, 0.44, 1)';
-        duration = 210;
-      } else {
-        const dx = dir === 'next' ? '38px' : '-38px';
-        from = {opacity: '0', transform: `translateX(${dx}) scale(0.96)`};
-      }
-      const to = {opacity: '1', transform: 'translateX(0) rotate(0deg) scale(1)'};
-      const anim = host.animate([from, to], {duration, easing});
-      this.slideAnim = anim;
-      this.runFlankSlide(dir, reduced);
-      anim.onfinish = () => {
-        if (this.slideAnim === anim) {
-          this.slideAnim = undefined;
-        }
-        this.releaseAnimGuard();
-        // Warm the next neighbours' art + prime the fit cache while idle.
-        this.refreshPreload();
-        // The landed card is stationary — reveal its rule overlay. (A
-        // cancelled slide never finishes, so rapid browsing defers the
-        // reveal to the card the player actually lands on.)
-        this.scheduleSettle(60);
-      };
-    },
-    /*
-     * The flank columns' part of a browse step (opt-in, `flankMotion`): the
-     * CONTENT that changed with the card (marked `data-zoom-flank-content` by
-     * its host) eases up from a dim state in the frame the card starts its
-     * turn — the previous card's columns were already replaced in this very
-     * flush, so nothing old stands beside the new card. The plates and their
-     * headers never fade: the card itself turns in from 10 %, and a column
-     * dipping with it read as a blank frame. Opacity only — a transform inside
-     * a scroll area is scrollable overflow and would flash its rail.
-     */
-    runFlankSlide(dir: SlideDir, reduced: boolean) {
-      for (const anim of this.flankAnims) {
-        anim.cancel();
-      }
-      this.flankAnims = [];
-      if (!this.flankMotion || dir === '' || dir === 'consume') {
-        return;
-      }
-      const dialog = this.typedRefs.dialog;
-      if (dialog === undefined || typeof dialog.querySelectorAll !== 'function') {
-        return;
-      }
-      const cells = dialog.querySelectorAll<HTMLElement>('.card-zoom-aside [data-zoom-flank-content], .card-zoom-side [data-zoom-flank-content]');
-      cells.forEach((cell) => {
-        if (typeof cell.animate !== 'function') {
-          return;
-        }
-        this.flankAnims.push(cell.animate([{opacity: reduced ? '0.6' : '0.35'}, {opacity: '1'}], {
-          duration: reduced ? 120 : motionMs(180),
-          easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)',
-          fill: 'backwards',
-        }));
-      });
-    },
-    refreshPreload() {
-      if (!this.navEnabled) {
-        this.preloadNames = [];
-        return;
-      }
-      const names: Array<string> = [];
-      const before = this.navList[this.currentIndex - 1];
-      const after = this.navList[this.currentIndex + 1];
-      if (before !== undefined) {
-        names.push(before.name);
-      }
-      if (after !== undefined) {
-        names.push(after.name);
-      }
-      this.preloadNames = names;
-      // Idle: the preload clones render at natural (zoom:1) scale off-screen, so
-      // reading their box primes the fit cache for the neighbours. The next
-      // navigation step onto a neighbour is then a cache hit → zero forced
-      // reflow on the input frame (matters when browsing FORWARD through a fresh
-      // list, where every card is a first visit).
-      this.$nextTick(() => this.primeFitCacheFromPreload());
-    },
-    /*
-     * Prime the natural-size cache from the off-screen preload clones (see the
-     * `.card-zoom-preload` CSS — position:fixed off-screen, children at zoom:1,
-     * so their offset box IS the natural size). Runs on idle only.
-     */
-    primeFitCacheFromPreload() {
-      const dialog = this.typedRefs.dialog;
-      if (dialog === undefined || !dialog.open) {
-        return;
-      }
-      const rendered = this.preloadCards; // same order as the DOM clones
-      // One matched element per clone (a project card's `.card-container` or a
-      // bonus card's `.mb-face`), so the index aligns with `rendered`.
-      const els = dialog.querySelectorAll(PRELOAD_CARD_SELECTOR);
-      els.forEach((node, i) => {
-        const model = rendered[i];
-        if (model === undefined || naturalCardSizeCache.has(model.name)) {
-          return;
-        }
-        const el = node as HTMLElement;
-        const w = el.offsetWidth;
-        const h = el.offsetHeight;
-        if (w > 0 && h > 0) {
-          naturalCardSizeCache.set(model.name, {width: w, height: h});
-        }
-      });
-    },
-    onKeydown(e: KeyboardEvent) {
-      if (!this.navEnabled) {
-        return;
-      }
-      // Only act while THIS dialog is the open one.
-      if (this.typedRefs.dialog === undefined || !this.typedRefs.dialog.open) {
-        return;
-      }
-      // Never hijack typing.
-      const t = e.target as HTMLElement | null;
-      if (t !== null && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
-        return;
-      }
-      // Arrow keys only. A/D are deliberately NOT bound: HomeMixin.navigatePage
-      // already owns KeyA/KeyD (jump to board / hand) on a window listener that
-      // doesn't check for an open dialog, so binding them here would double-fire
-      // (navigate the card AND scroll the board behind the modal). Arrow keys
-      // have no such global owner.
-      if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        this.next();
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        this.prev();
-      }
-      // Escape stays native (<dialog> 'cancel' → 'close' → @close).
-    },
-    onResize() {
-      this.fitCardToViewport();
-    },
-    /*
-     * Dynamic fit-to-viewport zoom calculator. The static media-query
-     * ladder in preferences.less worked for short cards but blew past
-     * the viewport on tall ones. Algorithm: reset zoom to 1, measure the
-     * natural size, compute the largest zoom that fits both axes inside
-     * the available viewport (minus chrome), clamp to [1.0, 2.8], apply
-     * inline. Runs on show(), on every slide (via @enter), and on resize.
-     *
-     * `cardRoot` is the entering `.card-zoom-card` passed by the transition
-     * @enter hook; without it we query the VISIBLE stage card (never the
-     * off-screen preload clones).
-     */
-    fitCardToViewport(cardRoot?: HTMLElement): void {
-      const dialog = this.typedRefs.dialog;
-      const cardEl = (cardRoot !== undefined ?
-        cardRoot.querySelector(CARD_EL_SELECTOR) :
-        dialog?.querySelector(STAGE_CARD_SELECTOR)) as HTMLElement | null;
-      if (cardEl === null || cardEl === undefined) {
-        // The card face isn't in the DOM yet — on the first fullscreen open the
-        // async premium face is still resolving. Retry on the next frame(s).
-        this.scheduleFitRetry();
-        return;
-      }
-
-      // The natural (zoom = 1) size is deterministic per card, so measure it AT
-      // MOST ONCE and cache it module-wide. On a cache HIT (every revisit, and —
-      // once the neighbours are warmed — the very next step) the fit is a pure
-      // calc plus a single style write: no `zoom` reset, no forced reflow. Only
-      // a card never seen before pays the one-time measurement.
-      const name = this.activeCard.name;
-      let natural = naturalCardSizeCache.get(name);
-      if (natural === undefined) {
-        const previousZoom = cardEl.style.zoom;
-        cardEl.style.zoom = '1';
-        // Reading offsetHeight forces the one synchronous layout pass needed to
-        // learn this card's natural size.
-        void cardEl.offsetHeight;
-        const w = cardEl.offsetWidth;
-        const h = cardEl.offsetHeight;
-        if (w === 0 || h === 0) {
-          // Card not laid out yet (e.g. display:none mid-swap, or the premium
-          // face resolved but hasn't flowed) — restore and retry next frame.
-          cardEl.style.zoom = previousZoom;
-          this.scheduleFitRetry();
-          return;
-        }
-        natural = {width: w, height: h};
-        naturalCardSizeCache.set(name, natural);
-      }
-
-      // Available space. Numbers mirror .card-zoom-container's padding
-      // (24+24=48) + gap (20) + actions-panel reservation (96) plus a small
-      // safety buffer (8). In nav mode reserve MORE so the card lands in a clean
-      // centre band: the top counter zone is its OWN in-flow row (~44px + a 20px
-      // gap) so the card never grows up under it, and each side gutter (~120px)
-      // is wide enough that the navigation controls sit fully OUTSIDE the card.
-      //
-      // TV profile (console instance only — `consoleMotion` gates it, so every
-      // desktop instance stays byte-identical): the chrome reservations are
-      // authored for the 1080 logical space and the viewer chrome is rem-based,
-      // so at conUiScale()=2 they physically double — scale them, and lift the
-      // zoom ceiling so the card is the HERO of the 4K stage (~85% of the
-      // viewport height) instead of stalling at the 1080-tuned 2.8 cap.
-      //
-      // FLANK reservation: with a gutter block present the midrow becomes a
-      // symmetric grid whose MIDDLE column holds the card, so the card stays on
-      // the viewport centre line whatever the flanks measure. That means the
-      // reservation must be symmetric too — BOTH gutters get the width of the
-      // WIDER flank (archive entry = --con-lore-w + its margin + safe inset;
-      // rules panel = --con-rules-w + gap). Reserving only one side would let
-      // the wider gutter overrun the card.
-      const s = this.consoleMotion ? conUiScale() : 1;
-      // Flank widths resolve from the SAME tokens the CSS consumes
-      // (--con-rules-w / --con-lore-w) plus their breathing margins — the
-      // TV profile widens the reading columns with the couch type, and a
-      // stale 1080-era px constant here would let the widened panel overrun
-      // the card. The root font-size already carries the TV scale, so the
-      // resolved values are DEVICE px — never multiplied by `s` again.
-      // (Desktop instances render no flanks: both stay 0, byte-identical.)
-      const rootVars = (this.hasSide || this.hasAside || this.loreVisible) ? getComputedStyle(document.documentElement) : undefined;
-      const remPx = cssLengthPx('1rem', 20);
-      // The rules panel on the right and the party column on the left ride
-      // the SAME width token, so the symmetric reservation is one number for
-      // either or both of them.
-      const sideReserve = (this.hasSide || this.hasAside) && rootVars !== undefined ?
-        cssLengthPx(rootVars.getPropertyValue('--con-rules-w'), 420 * s) + 1.6 * remPx : 0;
-      // Column + its 3rem breathing margin + 0.9rem, which is the archive
-      // entry's OUTER safe inset: the entry is the wider flank, so whatever is
-      // not reserved here is the only thing standing between it and the panel
-      // edge. ⚠️ The `520` fallback is `--con-lore-w`'s clamp CAP in px (the
-      // base profiles declare a clamp(), which cssLengthPx cannot evaluate) —
-      // it must move with that token (console.less).
-      const loreReserve = this.loreVisible && rootVars !== undefined ?
-        cssLengthPx(rootVars.getPropertyValue('--con-lore-w'), 520 * s) + 3.9 * remPx : 0;
-      const flankReserve = 2 * Math.max(sideReserve, loreReserve);
-      // The ACTIONS BAND: the console instance pins it to a FIXED height per scene (console.less —
-      // 5.2rem = the 96 + 8 below — for a plain card; the parliament scene's two-row footer stands on
-      // a taller band, `console_resolution_inspect.less`), so the reservation READS the band it has
-      // instead of restating the plain one: the card is sized for its own footer and never overlaps
-      // it (measured: the two-row footer's plate stood 32 px over the card at 1080), and the band
-      // being fixed per scene keeps the card's position rock-solid across LB/RB exactly as before.
-      // Desktop instances measure nothing (byte-identical).
-      const actionsEl = this.consoleMotion ? ((this.$refs.dialog ?? undefined) as HTMLElement | undefined)?.querySelector<HTMLElement>('.card-zoom-actions') ?? null : null;
-      const actionsReserve = actionsEl !== null && actionsEl.offsetHeight > 0 ? actionsEl.offsetHeight + 8 * s : (96 + 8) * s;
-      const chromeVertical = (48 + 20 + (this.navEnabled && this.navCounter ? 64 : 0)) * s + actionsReserve;
-      // The 200 is the two TOUCH CHEVRONS' gutters. The console instance hides
-      // them outright (`dialog.con-zoom .card-zoom-nav-slot {display: none}` —
-      // LB/RB browse instead), so reserving their width there was reserving
-      // space for nothing: a fifth of the horizontal budget at 4K, standing
-      // empty either side of the composition. Spending it on the archive
-      // entry's measure instead is exactly what the widened `--con-lore-w`
-      // does, which is why the card's fit is unchanged by that widening.
-      // Desktop still renders real chevrons and still reserves for them.
-      const navGutters = this.navEnabled && !this.consoleMotion ? 200 : 0;
-      const chromeHorizontal = (32 + 8 + navGutters) * s + flankReserve;
-      const availHeight = window.innerHeight - chromeVertical;
-      const availWidth = window.innerWidth - chromeHorizontal;
-
-      // Per-axis fit zoom, clamped to the readable / aesthetic range.
-      const fitZoom = Math.min(availHeight / natural.height, availWidth / natural.width);
-      const MIN_ZOOM = 1.0;
-      const MAX_ZOOM = 2.8 * Math.max(1, s);
-      const finalZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fitZoom));
-
-      cardEl.style.zoom = String(finalZoom);
-      // Publish the applied zoom so the viewer's OWN chrome can stay
-      // proportional to the card it decorates. The card face is px-authored
-      // and upscaled by this `zoom`; a fixed-px sibling (the "ВЫБРАНА" ribbon)
-      // would read tiny against a 2.8×-upscaled card — and on the console TV
-      // profile, where the zoom runs at the ceiling, unmistakably so.
-      // Inherits to `.card-zoom-card` (the ribbon's host); the off-screen
-      // preload clones carry no chrome, so one var on the dialog is enough.
-      dialog?.style.setProperty('--card-zoom-fit', String(finalZoom));
-      // Measured + applied — cancel any pending retry and re-arm the budget.
-      this.clearFitRetry();
-    },
-    /*
-     * Schedule a bounded animation-frame retry of the fit. Used when the card
-     * element isn't measurable yet — the first fullscreen open races the async
-     * premium face's resolution. Coalesced (one pending frame) and self-limiting
-     * (FIT_MAX_RETRIES), and only re-fires while the dialog is open.
-     */
-    scheduleFitRetry(): void {
-      if (this.fitRetryHandle !== undefined || this.fitRetries >= FIT_MAX_RETRIES) {
-        return;
-      }
-      this.fitRetryHandle = this.flow.afterFrame('the viewer\'s fit retries', () => {
-        this.fitRetryHandle = undefined;
-        this.fitRetries++;
-        if (this.typedRefs.dialog?.open === true) {
-          this.fitCardToViewport();
-        }
-      });
-    },
-    clearFitRetry(): void {
-      this.fitRetries = 0;
-      if (this.fitRetryHandle !== undefined) {
-        this.fitRetryHandle();
-        this.fitRetryHandle = undefined;
-      }
-    },
+  /*
+   * MANDATORY viewer (opt-in; default dismissable). When false the viewer
+   * cannot be dismissed by a backdrop tap or the native Esc — used by the
+   * single-card «Получены карты» reveal, where the ONLY completion is taking
+   * the card. The controller close paths are separately gated in the shell;
+   * this covers the DOM-native ones (mouse/touch backdrop, keyboard Esc) so
+   * they can't strand the reveal with the card untaken. Desktop leaves it
+   * true → byte-identical.
+   */
+  dismissable: {
+    type: Boolean,
+    default: true,
   },
-  mounted() {
-    if (!windowHasHTMLDialogElement()) {
-      dialogPolyfill.registerDialog(this.typedRefs.dialog);
-    }
-    this.typedRefs.dialog.addEventListener('close', () => {
-      // The event is a QUEUED task: a host that unwound at `close()` itself (the console shell) has unmounted this
-      // instance by now — a late 'close' from a gone viewer must not close the NEXT one.
-      if (this.viewerGone()) {
-        return;
-      }
-      // Rule overlay off: nonce 0 clears the blocks + the target marks so a
-      // reopen (the modal instance can persist across opens) starts clean.
-      this.cancelSettle();
-      this.settleNonce = 0;
-      this.$emit('close');
-    });
-    // A mandatory viewer swallows the native Esc ('cancel' fires before
-    // 'close') so a keyboard press can't strand the single-card reveal.
-    this.typedRefs.dialog.addEventListener('cancel', (e: Event) => {
-      if (!this.dismissable) {
-        e.preventDefault();
-      }
-    });
-    // Re-fit on viewport resize so cards stay within bounds when the
-    // player resizes the window with the modal open.
-    window.addEventListener('resize', this.onResize);
-    // Keyboard navigation (nav mode only; the handler self-gates).
-    window.addEventListener('keydown', this.onKeydown);
+  /*
+   * Suppress the floating rule callouts (console: the stable side rules
+   * panel replaces them — «one place for details»). Passing true holds the
+   * annotation layer at nonce 0 (its dismissed state). Desktop never binds
+   * it → default false → byte-identical.
+   */
+  annotationsSuppressed: {
+    type: Boolean,
+    default: false,
   },
-  beforeUnmount() {
-    window.removeEventListener('resize', this.onResize);
-    window.removeEventListener('keydown', this.onKeydown);
+  /*
+   * CONSOLE close signal (opt-in; the shell binds `:closing="zoomClosing"`).
+   * The console close plays a ~340ms flight BEFORE the dialog actually
+   * closes, so the rule-overlay's usual clear (on the dialog 'close' event)
+   * would leave the annotation panels hanging through the whole flight and
+   * vanishing at the end. Flipping this true the instant the close begins
+   * drops settleNonce to 0 → the annotation layer dismisses FIRST (a quick
+   * fade), then the card flies away clean. Desktop never binds it → default
+   * false → the annotations clear on 'close' exactly as before.
+   */
+  closing: {
+    type: Boolean,
+    default: false,
+  },
+  /*
+   * ARCHIVE ENTRY (opt-in; the console shell passes true). Shows the card's
+   * lore text in the LEFT gutter — the one place in the app it appears. It is
+   * opt-in for two reasons: (1) this component also backs plain single-card
+   * previews that are NOT a true fullscreen inspect, and (2) the DESKTOP
+   * viewer fills BOTH gutters with the floating `CardAnnotationsLayer`
+   * callouts, which a left-hand block would collide with. Desktop hosts bind
+   * nothing → default false → byte-identical.
+   */
+  lore: {
+    type: Boolean,
+    default: false,
+  },
+  /*
+   * The position COUNTER above the card in nav mode (default on). A host
+   * that states the position elsewhere (the console footer's browse hint,
+   * for a short list read as one scene) turns it off: no top band is drawn
+   * and none is reserved, so the card keeps its single-card size.
+   */
+  navCounter: {
+    type: Boolean,
+    default: true,
+  },
+  /*
+   * The FLANK columns (lore / aside / side) take part in the browse slide:
+   * their new content surfaces in the same frame the new card starts its
+   * turn, so no frame ever pairs the new card with the previous card's
+   * columns and the swap never reads as a cut. Console hosts opt in.
+   */
+  flankMotion: {
+    type: Boolean,
+    default: false,
   },
 });
+const emit = defineEmits(['close', 'navigate', 'update:index']);
+const slots = useSlots();
+
+// «Is this viewer gone?» — asked by a QUEUED dialog event that can arrive after the unmount. The component's own
+// fact, set by its own hook: never the instance's internals (`isUnmounted`).
+let gone = false;
+onUnmounted(() => {
+  gone = true;
+});
+// The viewer's own scope (the game session's while a game screen stands, the lobby's otherwise): its guard, its
+// settle beat and its fit retries are taken back when it is unmounted.
+const flow = useFlowScope('card-zoom-modal');
+const viewerGone = (): boolean => gone;
+const dialog = useTemplateRef<HTMLDialogElement>('dialog');
+const stageCard = useTemplateRef<{$el?: HTMLElement}>('stageCard');
+const currentIndex = ref(0);
+// True while a slide is mid-flight — blocks rapid arrow/key re-entry so
+// transitions never pile up and the index never races. (In consoleMotion
+// mode this no longer BLOCKS — the in-flight slide is cancelled instead.)
+const animating = ref(false);
+// The cancel of the pending guard release (undefined ⇔ none pending).
+let animTimer: (() => void) | undefined;
+// The in-flight WAAPI slide (consoleMotion: cancelled on interrupt so
+// rapid LB/RB restarts cleanly instead of piling up).
+let slideAnim: Animation | undefined;
+// The flank columns' in-flight browse animations (`flankMotion`).
+let flankAnims: Array<Animation> = [];
+// Names of the cards rendered off-screen for preload (neighbours).
+const preloadNames = ref<ReadonlyArray<string>>([]);
+// The annotation layer's SETTLE signal — bumped (debounced) when the
+// fullscreen card has landed; 0 while closed. See scheduleSettle().
+const settleNonce = ref(0);
+// The cancel of the pending settle beat (undefined ⇔ none pending).
+let settleTimer: (() => void) | undefined;
+// Bounded rAF retry for the fit engine. On the FIRST-EVER fullscreen open
+// the premium face (`PremiumCardFace` — the LAZY binding of
+// `components/asyncComponents.ts` that `CardZoomCard` renders, async on
+// purpose: it keeps the zoom chain's type cycle open) hasn't resolved yet
+// when show()'s fit runs, so `.pcard` isn't in the DOM and the measure
+// early-returns — the card then stays at its unscaled CSS size (small). We
+// retry across the next frames until the element appears + measures, then
+// apply the fit.
+// (The cancel of the pending retry frame; undefined ⇔ none pending.)
+let fitRetryHandle: (() => void) | undefined;
+const fitRetries = ref(0);
+// Bounded retry budget for show() when the dialog ref isn't mounted yet
+// (heavy first-open frame) — see show().
+const showRetries = ref(0);
+
+const navList = computed((): ReadonlyArray<ZoomCard> => {
+  return props.cards ?? [];
+});
+const navEnabled = computed((): boolean => {
+  return navList.value.length > 1;
+});
+/** A host-provided side panel (console rules panel) is present — render
+ *  its column and reserve its width in the fit. */
+const hasSide = computed((): boolean => {
+  return slots.side !== undefined;
+});
+/** A host-provided LEFT-gutter panel (the resolution inspector's party
+ *  column) — render its cell and reserve its width in the fit. */
+const hasAside = computed((): boolean => {
+  return slots.aside !== undefined;
+});
+const navCount = computed((): number => {
+  return navList.value.length;
+});
+// The card currently on screen. In nav mode it's the list entry at
+// currentIndex; otherwise the single `card` prop. Falls back to `card`
+// defensively if the index is ever transiently out of range.
+const activeCard = computed((): ZoomCard => {
+  if (navEnabled.value) {
+    const c = navList.value[currentIndex.value];
+    if (c !== undefined) {
+      return c;
+    }
+  }
+  return props.card;
+});
+const canPrev = computed((): boolean => {
+  return navEnabled.value && currentIndex.value > 0;
+});
+const canNext = computed((): boolean => {
+  return navEnabled.value && currentIndex.value < navList.value.length - 1;
+});
+const preloadCards = computed((): ReadonlyArray<ZoomCard> => {
+  const out: Array<ZoomCard> = [];
+  for (const name of preloadNames.value) {
+    const c = navList.value.find((card) => card.name === name);
+    if (c !== undefined) {
+      out.push(c);
+    }
+  }
+  return out;
+});
+/** The rule-overlay card: project cards only (a bonus / corp / tender entry has no rules model). */
+const annotationCardName = computed((): CardName | undefined => {
+  return isBonusZoom(activeCard.value) || isMarsBotCorpZoom(activeCard.value) || isTenderZoom(activeCard.value) ?
+    undefined :
+    activeCard.value.name as CardName;
+});
+/**
+ * THE ARCHIVE ENTRY OF THE SUBJECT ON STAGE — the viewer decides WHOSE lore
+ * the gutter holds and builds the block's model with that subject's own
+ * resolver; the block itself never branches on the subject.
+ *  - a real game card → its own entry;
+ *  - a MarsBot CORPORATION → the ORIGINAL human corporation's entry (the
+ *    official identity/art/lore link of RB-B);
+ *  - a Turmoil Redux PARTY → the faction's rulebook paragraph (`partyLore`);
+ *  - an Automa bonus entry is not a card and has no lore;
+ *  - a campaign TENDER → its contract's lore (`tenderLoreModel` — the face
+ *    prints no prose since its third pass; the rule reads in the right column);
+ *  - a RESOLUTION lends the gutter to its PARTY column (`#aside`) — the
+ *    cell is taken, so no entry is offered.
+ * Undefined ⇔ no entry: the gutter stays empty rather than printing
+ * «Архивная запись отсутствует» beside a subject that never had one.
+ */
+const loreModel = computed((): LoreModel | undefined => {
+  if (!props.lore) {
+    return undefined;
+  }
+  const card = activeCard.value;
+  if (isBonusZoom(card) || isResolutionZoom(card)) {
+    return undefined;
+  }
+  if (isTenderZoom(card)) {
+    return tenderLoreModel(card.tender, translateLore);
+  }
+  if (isPartyEffectZoom(card)) {
+    return buildPartyLoreModel(card.partyEffect, translateLore);
+  }
+  if (isMarsBotCorpZoom(card)) {
+    return buildCardLoreModel(marsBotCorpInfo(card.marsBotCorp).original, translateLore);
+  }
+  return buildCardLoreModel(card.name as CardName, translateLore);
+});
+/** The archive entry is on stage — the fit reserves its column. */
+const loreVisible = computed((): boolean => {
+  return loreModel.value !== undefined;
+});
+/*
+ * The midrow carries a flanking block (archive entry and/or rules panel).
+ * It then switches from the centred FLEX row (which centres the card+panel
+ * PAIR, pushing the card off-centre) to a symmetric grid that pins the card
+ * to the middle column — see `.card-zoom-midrow--flank` in card_lore.less.
+ * The fit engine reserves the gutters symmetrically to match.
+ */
+const hasFlank = computed((): boolean => {
+  return hasSide.value || hasAside.value || loreVisible.value;
+});
+
+function show() {
+  // Robustness on a heavy first-open frame: if the dialog ref hasn't
+  // mounted yet, retry on the next frame (bounded) instead of throwing
+  // inside showModal(undefined) — which aborted the open and stranded the
+  // caller's state ("first fullscreen shows nothing").
+  const dialogNow = dialog.value ?? undefined;
+  if (dialogNow === undefined) {
+    if (showRetries.value < 10) {
+      showRetries.value++;
+      flow.afterFrame('the viewer\'s dialog mounts', () => show());
+    }
+    return;
+  }
+  showRetries.value = 0;
+  currentIndex.value = computeStartIndex();
+  // Fresh fit-retry budget for this open (the persistent-instance reuse case).
+  clearFitRetry();
+  // Do NOT render the neighbour preloads synchronously on open — that
+  // mounts 2 extra full card trees in the SAME frame as the dialog,
+  // tripling the open cost. Start empty; warm them once the dialog has
+  // painted, in idle time (well before the player can press an arrow).
+  // The slide never depends on preload — the persistent stage card is just
+  // re-pointed on navigation; preload only warms the neighbours' art +
+  // primes the natural-size fit cache. (perf B13)
+  preloadNames.value = [];
+  showModal(dialogNow);
+  // Sync the parent to the card we actually opened on (the start index may
+  // differ from the raw `card` prop, e.g. a list with duplicate names), so
+  // the action slot + any index tracking are correct from the first frame.
+  if (navEnabled.value) {
+    emit('navigate', activeCard.value, currentIndex.value);
+  }
+  // Fit card after the dialog is open so its natural size can be
+  // measured against the actual viewport. nextTick ensures the
+  // card's content has flowed before we read offsetHeight.
+  nextTick(() => fitCardToViewport());
+  schedulePreloadWarm();
+  // Stage 2 of the fullscreen choreography: the rule overlay reveals
+  // after the card has landed. In consoleMotion the proxy flight lands
+  // BEFORE show() is called (consoleZoomMotion — the dialog opens vanilla
+  // at touchdown), so the card is already stationary here; the layer's
+  // own stage-stability poll then guards the exact hand-off frame.
+  scheduleSettle(prefersReducedMotion() ? 80 : (props.consoleMotion ? motionMs(200) : motionMs(220)));
+}
+/*
+ * CONSOLE OPEN CHOREOGRAPHY (consoleZoomMotion.playZoomOpenFlight):
+ * measure the LANDING geometry of the fullscreen card WITHOUT entering
+ * the top layer. The dialog is still CLOSED here; an inline
+ * `display:flex; visibility:hidden` overrides `dialog:not([open])`'s
+ * display:none, which lays the dialog out EXACTLY as the open state
+ * (the top layer never changes layout — same fixed 100vw×100vh box)
+ * while painting nothing. The fit engine then sizes the card as usual
+ * (priming the natural-size cache, so show()'s own fit is a pure cache
+ * hit) and the card's visual rect + applied zoom feed the proxy flight.
+ *
+ * This exists so `showModal()` can be DEFERRED to the flight's
+ * touchdown: the dialog's very first top-layer frame is then the final,
+ * fully-visible, untransformed content — the compositor-safe shape (see
+ * the consoleZoomMotion.ts header for why this is load-bearing).
+ *
+ * Bounded frame retries cover the async premium face on a first-ever
+ * open; undefined → the caller opens vanilla immediately (JSDOM /
+ * degenerate layout / timeout) and the in-show fit retries take over.
+ */
+async function measureLanding(): Promise<{rect: {left: number, top: number, width: number, height: number}, zoom: number} | undefined> {
+  const dialogNow = dialog.value ?? undefined;
+  if (dialogNow === undefined || dialogNow.open) {
+    return undefined;
+  }
+  // Seed the index so the fit measures the OPENED card, not slot 0 —
+  // show() recomputes the same value later (idempotent).
+  currentIndex.value = computeStartIndex();
+  const prev = {display: dialogNow.style.display, visibility: dialogNow.style.visibility, pointerEvents: dialogNow.style.pointerEvents};
+  dialogNow.style.display = 'flex';
+  dialogNow.style.visibility = 'hidden';
+  dialogNow.style.pointerEvents = 'none';
+  try {
+    for (let i = 0; i < FIT_MAX_RETRIES; i++) {
+      fitCardToViewport();
+      const cardEl = dialogNow.querySelector<HTMLElement>(STAGE_CARD_SELECTOR);
+      const r = cardEl?.getBoundingClientRect();
+      if (cardEl !== null && r !== undefined && r.width >= 10 && r.height >= 10) {
+        const zoom = Number(cardEl.style.zoom || '1');
+        return {
+          rect: {left: r.left, top: r.top, width: r.width, height: r.height},
+          zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : 1,
+        };
+      }
+      if (typeof requestAnimationFrame !== 'function') {
+        return undefined; // JSDOM — the caller opens vanilla
+      }
+      await whenPainted(1, 50, flow);
+      if ((dialog.value ?? undefined) !== dialogNow || dialogNow.open) {
+        return undefined; // unmounted / shown by someone else mid-measure
+      }
+    }
+    return undefined;
+  } finally {
+    dialogNow.style.display = prev.display;
+    dialogNow.style.visibility = prev.visibility;
+    dialogNow.style.pointerEvents = prev.pointerEvents;
+    // The measure loop may have burned the fit-retry budget on a card
+    // that wasn't measurable yet — show() re-arms it anyway; drop any
+    // stray pending frame so it can't double-fit.
+    clearFitRetry();
+  }
+}
+// Warm the neighbour preloads AFTER the open frame has painted, so the
+// initial fullscreen open only renders the one visible card. Self-guards
+// on the dialog still being open (it may close before this fires). (perf B13)
+function schedulePreloadWarm() {
+  if (!navEnabled.value) {
+    return;
+  }
+  flow.after(90, 'the viewer warms its neighbours', () => {
+    if (dialog.value?.open === true) {
+      refreshPreload();
+    }
+  });
+}
+function close() {
+  // The dialog may already be gone (the viewer unmounted under an async close — the monkey's DUO walk of
+  // `two-player-finale-trigger`: «Cannot read properties of null (reading 'open')» in the shell's close beat).
+  const dialogNow = dialog.value ?? undefined;
+  if (dialogNow?.open === true) {
+    dialogNow.close();
+  }
+}
+function onBackdropClick() {
+  // A mandatory viewer (single-card reveal) can't be dismissed by a
+  // backdrop tap — the card must be taken.
+  if (!props.dismissable) {
+    return;
+  }
+  close();
+}
+function computeStartIndex(): number {
+  if (!navEnabled.value) {
+    return 0;
+  }
+  if (props.index !== undefined && props.index >= 0 && props.index < navList.value.length) {
+    return props.index;
+  }
+  const byName = navList.value.findIndex((c) => c.name === props.card.name);
+  return byName >= 0 ? byName : 0;
+}
+function prev() {
+  go(-1);
+}
+function next() {
+  go(1);
+}
+/*
+ * Step the viewer. Bounded (no wrap) and guarded against rapid re-entry:
+ * while a slide is animating further steps are ignored, so the transition
+ * never piles up and currentIndex (the single source of truth) never
+ * races. Holding an arrow simply paces at the animation rate.
+ */
+function go(delta: number) {
+  // consoleMotion: never block on an in-flight slide — cancel + restart
+  // (runSlide handles the cancel). Desktop keeps the classic guard.
+  if (!navEnabled.value || (animating.value && !props.consoleMotion)) {
+    return;
+  }
+  const target = currentIndex.value + delta;
+  if (target < 0 || target >= navList.value.length) {
+    return;
+  }
+  applyIndex(target, delta > 0 ? 'next' : 'prev');
+  emit('update:index', target);
+}
+/*
+ * Commit a new index + slide direction. The persistent stage card is
+ * re-pointed (patched, not remounted) to `navList[target]`; `dir` only
+ * chooses the compositor slide direction in `runSlide`. Emits
+ * `navigate(card, index)` so the parent re-points its zoom variable → the
+ * action slot + selected halo follow the visible card.
+ */
+function applyIndex(target: number, dir: SlideDir) {
+  currentIndex.value = target;
+  startAnimGuard();
+  emit('navigate', activeCard.value, target);
+  // One flush: the persistent card is patched to the new model, then fit
+  // (cached → no reflow) and slid — all before the browser paints, so there
+  // is no intermediate frame at the old zoom / old card.
+  nextTick(() => {
+    fitCardToViewport();
+    runSlide(dir);
+  });
+}
+function startAnimGuard() {
+  animating.value = true;
+  clearAnimTimer();
+  const wait = (prefersReducedMotion() ? 0 : ANIM_MS) + 80;
+  animTimer = flow.after(wait, 'the viewer\'s slide guard lets go', () => {
+    animating.value = false;
+    animTimer = undefined;
+  });
+}
+function clearAnimTimer() {
+  if (animTimer !== undefined) {
+    animTimer();
+    animTimer = undefined;
+  }
+}
+function releaseAnimGuard() {
+  animating.value = false;
+  clearAnimTimer();
+}
+/*
+ * Debounced settle for the rule overlay: every transition path schedules
+ * its own beat and the LAST schedule wins, so open + navigation + an
+ * external re-point can never stack into a double reveal. The callback
+ * self-gates on the dialog still being open.
+ */
+function scheduleSettle(delayMs: number) {
+  cancelSettle();
+  settleTimer = flow.after(delayMs, 'the viewer\'s card settles', () => {
+    settleTimer = undefined;
+    if (dialog.value?.open === true) {
+      settleNonce.value++;
+    }
+  });
+}
+function cancelSettle() {
+  if (settleTimer !== undefined) {
+    settleTimer();
+    settleTimer = undefined;
+  }
+}
+/*
+ * The directional slide of the PERSISTENT card, driven by the Web
+ * Animations API — a compositor-only transform + opacity tween on the ONE
+ * card element. It never forces layout and never needs a second (leaving)
+ * card tree, which is what the old mount/unmount `<transition>` cost per
+ * step. No-op (and immediate guard release) where `.animate` is missing
+ * (JSDOM under test), so behaviour is unchanged there.
+ */
+function runSlide(dir: SlideDir) {
+  const host = stageCard.value?.$el;
+  if (host === undefined || host === null || typeof host.animate !== 'function') {
+    releaseAnimGuard();
+    refreshPreload();
+    scheduleSettle(0);
+    return;
+  }
+  // consoleMotion interrupt: a rapid re-step cancels the in-flight slide
+  // (the element snaps to identity for one frame, immediately covered by
+  // the new slide's from-state) — no pile-up, no stuck intermediate state.
+  slideAnim?.cancel();
+  slideAnim = undefined;
+  const reduced = prefersReducedMotion();
+  let from: Record<string, string>;
+  let easing = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
+  let duration = reduced ? 120 : ANIM_MS;
+  if (reduced || dir === '') {
+    from = {opacity: '0'};
+  } else if (dir === 'consume') {
+    // A card left the set (drawn-cards take): the next one settles in with
+    // a gentle scale-up rather than a lateral slide.
+    from = {opacity: '0', transform: 'scale(0.92)'};
+  } else if (props.consoleMotion) {
+    // Physical page-turn: the next card sweeps in from the browse side
+    // with a slight arc (rotation around a low pivot set in CSS —
+    // `.con-zoom .card-zoom-card { transform-origin: 50% 120% }`) and a
+    // damped settle — "the next card from the stack", direction obvious.
+    const sign = dir === 'next' ? 1 : -1;
+    from = {opacity: '0.1', transform: `translateX(${sign * 96}px) rotate(${sign * 3.2}deg) scale(0.94)`};
+    easing = 'cubic-bezier(0.34, 1.26, 0.44, 1)';
+    duration = 210;
+  } else {
+    const dx = dir === 'next' ? '38px' : '-38px';
+    from = {opacity: '0', transform: `translateX(${dx}) scale(0.96)`};
+  }
+  const to = {opacity: '1', transform: 'translateX(0) rotate(0deg) scale(1)'};
+  const anim = host.animate([from, to], {duration, easing});
+  slideAnim = anim;
+  runFlankSlide(dir, reduced);
+  anim.onfinish = () => {
+    if (slideAnim === anim) {
+      slideAnim = undefined;
+    }
+    releaseAnimGuard();
+    // Warm the next neighbours' art + prime the fit cache while idle.
+    refreshPreload();
+    // The landed card is stationary — reveal its rule overlay. (A
+    // cancelled slide never finishes, so rapid browsing defers the
+    // reveal to the card the player actually lands on.)
+    scheduleSettle(60);
+  };
+}
+/*
+ * The flank columns' part of a browse step (opt-in, `flankMotion`): the
+ * CONTENT that changed with the card (marked `data-zoom-flank-content` by
+ * its host) eases up from a dim state in the frame the card starts its
+ * turn — the previous card's columns were already replaced in this very
+ * flush, so nothing old stands beside the new card. The plates and their
+ * headers never fade: the card itself turns in from 10 %, and a column
+ * dipping with it read as a blank frame. Opacity only — a transform inside
+ * a scroll area is scrollable overflow and would flash its rail.
+ */
+function runFlankSlide(dir: SlideDir, reduced: boolean) {
+  for (const anim of flankAnims) {
+    anim.cancel();
+  }
+  flankAnims = [];
+  if (!props.flankMotion || dir === '' || dir === 'consume') {
+    return;
+  }
+  const dialogNow = dialog.value ?? undefined;
+  if (dialogNow === undefined || typeof dialogNow.querySelectorAll !== 'function') {
+    return;
+  }
+  const cells = dialogNow.querySelectorAll<HTMLElement>('.card-zoom-aside [data-zoom-flank-content], .card-zoom-side [data-zoom-flank-content]');
+  cells.forEach((cell) => {
+    if (typeof cell.animate !== 'function') {
+      return;
+    }
+    flankAnims.push(cell.animate([{opacity: reduced ? '0.6' : '0.35'}, {opacity: '1'}], {
+      duration: reduced ? 120 : motionMs(180),
+      easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)',
+      fill: 'backwards',
+    }));
+  });
+}
+function refreshPreload() {
+  if (!navEnabled.value) {
+    preloadNames.value = [];
+    return;
+  }
+  const names: Array<string> = [];
+  const before = navList.value[currentIndex.value - 1];
+  const after = navList.value[currentIndex.value + 1];
+  if (before !== undefined) {
+    names.push(before.name);
+  }
+  if (after !== undefined) {
+    names.push(after.name);
+  }
+  preloadNames.value = names;
+  // Idle: the preload clones render at natural (zoom:1) scale off-screen, so
+  // reading their box primes the fit cache for the neighbours. The next
+  // navigation step onto a neighbour is then a cache hit → zero forced
+  // reflow on the input frame (matters when browsing FORWARD through a fresh
+  // list, where every card is a first visit).
+  nextTick(() => primeFitCacheFromPreload());
+}
+/*
+ * Prime the natural-size cache from the off-screen preload clones (see the
+ * `.card-zoom-preload` CSS — position:fixed off-screen, children at zoom:1,
+ * so their offset box IS the natural size). Runs on idle only.
+ */
+function primeFitCacheFromPreload() {
+  const dialogNow = dialog.value ?? undefined;
+  if (dialogNow === undefined || !dialogNow.open) {
+    return;
+  }
+  const rendered = preloadCards.value; // same order as the DOM clones
+  // One matched element per clone (a project card's `.card-container` or a
+  // bonus card's `.mb-face`), so the index aligns with `rendered`.
+  const els = dialogNow.querySelectorAll(PRELOAD_CARD_SELECTOR);
+  els.forEach((node, i) => {
+    const model = rendered[i];
+    if (model === undefined || naturalCardSizeCache.has(model.name)) {
+      return;
+    }
+    const el = node as HTMLElement;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    if (w > 0 && h > 0) {
+      naturalCardSizeCache.set(model.name, {width: w, height: h});
+    }
+  });
+}
+function onKeydown(e: KeyboardEvent) {
+  if (!navEnabled.value) {
+    return;
+  }
+  // Only act while THIS dialog is the open one.
+  const dialogNow = dialog.value ?? undefined;
+  if (dialogNow === undefined || !dialogNow.open) {
+    return;
+  }
+  // Never hijack typing.
+  const t = e.target as HTMLElement | null;
+  if (t !== null && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+    return;
+  }
+  // Arrow keys only. A/D are deliberately NOT bound: HomeMixin.navigatePage
+  // already owns KeyA/KeyD (jump to board / hand) on a window listener that
+  // doesn't check for an open dialog, so binding them here would double-fire
+  // (navigate the card AND scroll the board behind the modal). Arrow keys
+  // have no such global owner.
+  if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    next();
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    prev();
+  }
+  // Escape stays native (<dialog> 'cancel' → 'close' → @close).
+}
+function onResize() {
+  fitCardToViewport();
+}
+/*
+ * Dynamic fit-to-viewport zoom calculator. The static media-query
+ * ladder in preferences.less worked for short cards but blew past
+ * the viewport on tall ones. Algorithm: reset zoom to 1, measure the
+ * natural size, compute the largest zoom that fits both axes inside
+ * the available viewport (minus chrome), clamp to [1.0, 2.8], apply
+ * inline. Runs on show(), on every slide (via @enter), and on resize.
+ *
+ * `cardRoot` is the entering `.card-zoom-card` passed by the transition
+ * @enter hook; without it we query the VISIBLE stage card (never the
+ * off-screen preload clones).
+ */
+function fitCardToViewport(cardRoot?: HTMLElement): void {
+  const dialogNow = dialog.value ?? undefined;
+  const cardEl = (cardRoot !== undefined ?
+    cardRoot.querySelector(CARD_EL_SELECTOR) :
+    dialogNow?.querySelector(STAGE_CARD_SELECTOR)) as HTMLElement | null;
+  if (cardEl === null || cardEl === undefined) {
+    // The card face isn't in the DOM yet — on the first fullscreen open the
+    // async premium face is still resolving. Retry on the next frame(s).
+    scheduleFitRetry();
+    return;
+  }
+
+  // The natural (zoom = 1) size is deterministic per card, so measure it AT
+  // MOST ONCE and cache it module-wide. On a cache HIT (every revisit, and —
+  // once the neighbours are warmed — the very next step) the fit is a pure
+  // calc plus a single style write: no `zoom` reset, no forced reflow. Only
+  // a card never seen before pays the one-time measurement.
+  const name = activeCard.value.name;
+  let natural = naturalCardSizeCache.get(name);
+  if (natural === undefined) {
+    const previousZoom = cardEl.style.zoom;
+    cardEl.style.zoom = '1';
+    // Reading offsetHeight forces the one synchronous layout pass needed to
+    // learn this card's natural size.
+    void cardEl.offsetHeight;
+    const w = cardEl.offsetWidth;
+    const h = cardEl.offsetHeight;
+    if (w === 0 || h === 0) {
+      // Card not laid out yet (e.g. display:none mid-swap, or the premium
+      // face resolved but hasn't flowed) — restore and retry next frame.
+      cardEl.style.zoom = previousZoom;
+      scheduleFitRetry();
+      return;
+    }
+    natural = {width: w, height: h};
+    naturalCardSizeCache.set(name, natural);
+  }
+
+  // Available space. Numbers mirror .card-zoom-container's padding
+  // (24+24=48) + gap (20) + actions-panel reservation (96) plus a small
+  // safety buffer (8). In nav mode reserve MORE so the card lands in a clean
+  // centre band: the top counter zone is its OWN in-flow row (~44px + a 20px
+  // gap) so the card never grows up under it, and each side gutter (~120px)
+  // is wide enough that the navigation controls sit fully OUTSIDE the card.
+  //
+  // TV profile (console instance only — `consoleMotion` gates it, so every
+  // desktop instance stays byte-identical): the chrome reservations are
+  // authored for the 1080 logical space and the viewer chrome is rem-based,
+  // so at conUiScale()=2 they physically double — scale them, and lift the
+  // zoom ceiling so the card is the HERO of the 4K stage (~85% of the
+  // viewport height) instead of stalling at the 1080-tuned 2.8 cap.
+  //
+  // FLANK reservation: with a gutter block present the midrow becomes a
+  // symmetric grid whose MIDDLE column holds the card, so the card stays on
+  // the viewport centre line whatever the flanks measure. That means the
+  // reservation must be symmetric too — BOTH gutters get the width of the
+  // WIDER flank (archive entry = --con-lore-w + its margin + safe inset;
+  // rules panel = --con-rules-w + gap). Reserving only one side would let
+  // the wider gutter overrun the card.
+  const s = props.consoleMotion ? conUiScale() : 1;
+  // Flank widths resolve from the SAME tokens the CSS consumes
+  // (--con-rules-w / --con-lore-w) plus their breathing margins — the
+  // TV profile widens the reading columns with the couch type, and a
+  // stale 1080-era px constant here would let the widened panel overrun
+  // the card. The root font-size already carries the TV scale, so the
+  // resolved values are DEVICE px — never multiplied by `s` again.
+  // (Desktop instances render no flanks: both stay 0, byte-identical.)
+  const rootVars = (hasSide.value || hasAside.value || loreVisible.value) ? getComputedStyle(document.documentElement) : undefined;
+  const remPx = cssLengthPx('1rem', 20);
+  // The rules panel on the right and the party column on the left ride
+  // the SAME width token, so the symmetric reservation is one number for
+  // either or both of them.
+  const sideReserve = (hasSide.value || hasAside.value) && rootVars !== undefined ?
+    cssLengthPx(rootVars.getPropertyValue('--con-rules-w'), 420 * s) + 1.6 * remPx : 0;
+  // Column + its 3rem breathing margin + 0.9rem, which is the archive
+  // entry's OUTER safe inset: the entry is the wider flank, so whatever is
+  // not reserved here is the only thing standing between it and the panel
+  // edge. ⚠️ The `520` fallback is `--con-lore-w`'s clamp CAP in px (the
+  // base profiles declare a clamp(), which cssLengthPx cannot evaluate) —
+  // it must move with that token (console.less).
+  const loreReserve = loreVisible.value && rootVars !== undefined ?
+    cssLengthPx(rootVars.getPropertyValue('--con-lore-w'), 520 * s) + 3.9 * remPx : 0;
+  const flankReserve = 2 * Math.max(sideReserve, loreReserve);
+  // The ACTIONS BAND: the console instance pins it to a FIXED height per scene (console.less —
+  // 5.2rem = the 96 + 8 below — for a plain card; the parliament scene's two-row footer stands on
+  // a taller band, `console_resolution_inspect.less`), so the reservation READS the band it has
+  // instead of restating the plain one: the card is sized for its own footer and never overlaps
+  // it (measured: the two-row footer's plate stood 32 px over the card at 1080), and the band
+  // being fixed per scene keeps the card's position rock-solid across LB/RB exactly as before.
+  // Desktop instances measure nothing (byte-identical).
+  const actionsEl = props.consoleMotion ? dialog.value?.querySelector<HTMLElement>('.card-zoom-actions') ?? null : null;
+  const actionsReserve = actionsEl !== null && actionsEl.offsetHeight > 0 ? actionsEl.offsetHeight + 8 * s : (96 + 8) * s;
+  const chromeVertical = (48 + 20 + (navEnabled.value && props.navCounter ? 64 : 0)) * s + actionsReserve;
+  // The 200 is the two TOUCH CHEVRONS' gutters. The console instance hides
+  // them outright (`dialog.con-zoom .card-zoom-nav-slot {display: none}` —
+  // LB/RB browse instead), so reserving their width there was reserving
+  // space for nothing: a fifth of the horizontal budget at 4K, standing
+  // empty either side of the composition. Spending it on the archive
+  // entry's measure instead is exactly what the widened `--con-lore-w`
+  // does, which is why the card's fit is unchanged by that widening.
+  // Desktop still renders real chevrons and still reserves for them.
+  const navGutters = navEnabled.value && !props.consoleMotion ? 200 : 0;
+  const chromeHorizontal = (32 + 8 + navGutters) * s + flankReserve;
+  const availHeight = window.innerHeight - chromeVertical;
+  const availWidth = window.innerWidth - chromeHorizontal;
+
+  // Per-axis fit zoom, clamped to the readable / aesthetic range.
+  const fitZoom = Math.min(availHeight / natural.height, availWidth / natural.width);
+  const MIN_ZOOM = 1.0;
+  const MAX_ZOOM = 2.8 * Math.max(1, s);
+  const finalZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fitZoom));
+
+  cardEl.style.zoom = String(finalZoom);
+  // Publish the applied zoom so the viewer's OWN chrome can stay
+  // proportional to the card it decorates. The card face is px-authored
+  // and upscaled by this `zoom`; a fixed-px sibling (the "ВЫБРАНА" ribbon)
+  // would read tiny against a 2.8×-upscaled card — and on the console TV
+  // profile, where the zoom runs at the ceiling, unmistakably so.
+  // Inherits to `.card-zoom-card` (the ribbon's host); the off-screen
+  // preload clones carry no chrome, so one var on the dialog is enough.
+  dialogNow?.style.setProperty('--card-zoom-fit', String(finalZoom));
+  // Measured + applied — cancel any pending retry and re-arm the budget.
+  clearFitRetry();
+}
+/*
+ * Schedule a bounded animation-frame retry of the fit. Used when the card
+ * element isn't measurable yet — the first fullscreen open races the async
+ * premium face's resolution. Coalesced (one pending frame) and self-limiting
+ * (FIT_MAX_RETRIES), and only re-fires while the dialog is open.
+ */
+function scheduleFitRetry(): void {
+  if (fitRetryHandle !== undefined || fitRetries.value >= FIT_MAX_RETRIES) {
+    return;
+  }
+  fitRetryHandle = flow.afterFrame('the viewer\'s fit retries', () => {
+    fitRetryHandle = undefined;
+    fitRetries.value++;
+    if (dialog.value?.open === true) {
+      fitCardToViewport();
+    }
+  });
+}
+function clearFitRetry(): void {
+  fitRetries.value = 0;
+  if (fitRetryHandle !== undefined) {
+    fitRetryHandle();
+    fitRetryHandle = undefined;
+  }
+}
+
+/*
+ * Controlled-index escape hatch: if a parent ever drives `index` two-way,
+ * follow it. No bundled context binds it back today (they track the card
+ * via @navigate), so this stays a no-op in practice — `index` only seeds
+ * the start in show().
+ */
+watch(() => props.index, (next: number | undefined) => {
+  if (next === undefined || next === currentIndex.value) {
+    return;
+  }
+  applyIndex(next, next > currentIndex.value ? 'next' : 'prev');
+});
+/*
+ * The list can mutate under an open modal (drawn-cards "take" removes a
+ * card). Clamp the index; if a different card slid into the same slot
+ * (a removal shifted the next card into place) play the calmer "consume"
+ * swap and re-sync the parent + fit.
+ */
+watch(() => props.cards, (next: ReadonlyArray<ZoomCard> | undefined, prev: ReadonlyArray<ZoomCard> | undefined) => {
+  if (next === undefined || next.length === 0) {
+    return;
+  }
+  const prevName = prev?.[currentIndex.value]?.name;
+  const clamped = Math.min(currentIndex.value, next.length - 1);
+  if (clamped !== currentIndex.value) {
+    currentIndex.value = clamped;
+  }
+  const nextName = next[clamped]?.name;
+  if (nextName !== undefined && nextName !== prevName) {
+    emit('navigate', activeCard.value, currentIndex.value);
+    nextTick(() => {
+      fitCardToViewport();
+      runSlide('consume');
+    });
+  }
+});
+/*
+ * The card on stage changed for ANY reason — internal navigation, a
+ * consume swap, or an EXTERNAL re-point (the console reveal's L3 swap
+ * re-points the `card` prop on the open viewer). Re-arm the annotation
+ * settle with a beat generous enough for the swap-in choreography; the
+ * debounce collapses this with the slide-finish bump into ONE reveal.
+ */
+watch(() => activeCard.value.name, () => {
+  scheduleSettle(prefersReducedMotion() ? 80 : motionMs(360));
+});
+/*
+ * The console close began — dismiss the rule overlay BEFORE the card's
+ * close flight (see the `closing` prop). Dropping settleNonce to 0 drives
+ * CardAnnotationsLayer's dismiss; cancelling any pending settle stops a
+ * late reveal from re-arming mid-close.
+ */
+watch(() => props.closing, (now: boolean) => {
+  if (now) {
+    cancelSettle();
+    settleNonce.value = 0;
+  }
+});
+
+onMounted(() => {
+  const dialogNow = dialog.value ?? undefined;
+  if (dialogNow === undefined) {
+    return;
+  }
+  if (!windowHasHTMLDialogElement()) {
+    dialogPolyfill.registerDialog(dialogNow);
+  }
+  dialogNow.addEventListener('close', () => {
+    // The event is a QUEUED task: a host that unwound at `close()` itself (the console shell) has unmounted this
+    // instance by now — a late 'close' from a gone viewer must not close the NEXT one.
+    if (viewerGone()) {
+      return;
+    }
+    // Rule overlay off: nonce 0 clears the blocks + the target marks so a
+    // reopen (the modal instance can persist across opens) starts clean.
+    cancelSettle();
+    settleNonce.value = 0;
+    emit('close');
+  });
+  // A mandatory viewer swallows the native Esc ('cancel' fires before
+  // 'close') so a keyboard press can't strand the single-card reveal.
+  dialogNow.addEventListener('cancel', (e: Event) => {
+    if (!props.dismissable) {
+      e.preventDefault();
+    }
+  });
+  // Re-fit on viewport resize so cards stay within bounds when the
+  // player resizes the window with the modal open.
+  window.addEventListener('resize', onResize);
+  // Keyboard navigation (nav mode only; the handler self-gates).
+  window.addEventListener('keydown', onKeydown);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize);
+  window.removeEventListener('keydown', onKeydown);
+});
+// What its hosts reach through a ref, and nothing else: `show` (every host — the card face, the journal chip, the
+// target picker, the resource overlay); the console viewer's controller and the menu's zoom host drive the rest —
+// `measureLanding` before the open flight, `prev` / `next` on LB / RB, `fitCardToViewport` after a swap, `close`.
+// (Both also read its root through `$el`, which a ref of a `<script setup>` component still answers — RECIPES § R12.)
+defineExpose({close, fitCardToViewport, measureLanding, next, prev, show});
 </script>
