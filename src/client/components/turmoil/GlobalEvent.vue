@@ -16,70 +16,50 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {computed, ref} from 'vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import CardParty from '@/client/components/card/CardParty.vue';
 import {IClientGlobalEvent} from '@/common/turmoil/IClientGlobalEvent';
 import {getGlobalEvent} from '@/client/turmoil/ClientGlobalEventManifest';
 import CardDescription from '@/client/components/card/CardDescription.vue';
 import {GlobalEventName} from '@/common/turmoil/globalEvents/GlobalEventName';
-import {ICardRenderRoot} from '@/common/cards/render/Types';
-import {PartyName} from '@/common/turmoil/PartyName';
+import {vI18n} from '@/client/directives/vDirectives';
 
 export type RenderType = 'coming' | 'current' | 'distant' | 'prior';
 
-type DataModel = {
-  renderData: ICardRenderRoot;
-  description: string;
-  revealed: PartyName;
-  current: PartyName;
-};
+defineOptions({name: 'global-event'});
+const props = defineProps({
+  globalEventName: {
+    type: String as () => GlobalEventName,
+    required: true,
+  },
+  type: {
+    type: String as () => RenderType,
+    required: true,
+  },
+  showDistance: {
+    type: Boolean,
+    default: false,
+  },
+});
 
-export default defineComponent({
-  name: 'global-event',
-  components: {
-    CardRenderData,
-    CardParty,
-    CardDescription,
-  },
-  props: {
-    globalEventName: {
-      type: String as () => GlobalEventName,
-      required: true,
-    },
-    type: {
-      type: String as () => RenderType,
-      required: true,
-    },
-    showDistance: {
-      type: Boolean,
-      default: false,
-    },
-  },
-  data(): DataModel {
-    const globalEvent: IClientGlobalEvent | undefined = getGlobalEvent(this.globalEventName);
-    if (globalEvent === undefined) {
-      throw new Error(`Can't find card ${this.globalEventName}`);
-    }
+const globalEvent: IClientGlobalEvent | undefined = getGlobalEvent(props.globalEventName);
+if (globalEvent === undefined) {
+  throw new Error(`Can't find card ${props.globalEventName}`);
+}
 
-    return {
-      renderData: globalEvent.renderData,
-      revealed: globalEvent.revealedDelegate,
-      current: globalEvent.currentDelegate,
-      description: globalEvent.description,
-    };
-  },
-  computed: {
-    klass(): string {
-      const common = 'global-event global-event--' + this.type;
-      if (this.showDistance) {
-        return common + ' global-event--show-distance';
-      }
-      return common;
-    },
-  },
+const renderData = ref(globalEvent.renderData);
+const revealed = ref(globalEvent.revealedDelegate);
+const current = ref(globalEvent.currentDelegate);
+const description = ref(globalEvent.description);
+const klass = computed((): string => {
+  const common = 'global-event global-event--' + props.type;
+  if (props.showDistance) {
+    return common + ' global-event--show-distance';
+  }
+  return common;
 });
 
 </script>
