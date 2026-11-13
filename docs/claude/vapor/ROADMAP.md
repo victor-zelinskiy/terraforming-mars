@@ -35,10 +35,10 @@ doing the dangerous half twice.
 
 | | Count (2026-11-12, after V1) | What it becomes |
 | --- | --- | --- |
-| `.vue` components | **472** (271 under `components/console/`) | — |
+| `.vue` components | **455** (472 before V3 wave 4 — the 17 reachable from no entry are deleted, `docs/DESKTOP_REMOVAL_WAVE_5.md`) | — |
 | …that are VAPOR (`<script setup vapor>`) | **3** — the pilot's leaves (§3.6) | all of them |
-| …written with `<script setup>` (virtual DOM) | **361** — one older component, the six worked examples of step A, and **WAVES 1–3: three times 118** (2026-11-13 — §4) | gain `vapor` in their wave (step B) |
-| …written with the Options API (`defineComponent({…})`) | **108** (462 before wave 1, 344 before wave 2, 226 before wave 3; 17 of them are reachable from no entry — dead code that is deleted, not converted) | `<script setup lang="ts">`, then `vapor` — by the book (`RECIPES.md`), from each component's sheet (`scripts/vapor/inventory.mjs --component`) |
+| …written with `<script setup>` (virtual DOM) | **452** — one older component, the six worked examples of step A, and **WAVES 1–4** (2026-11-13 — §4): three times 118, then the tail of 91 | gain `vapor` in their wave (step B) |
+| …written with the Options API (`defineComponent({…})`) | **0** (462 before wave 1, 344 before wave 2, 226 before wave 3, 108 before wave 4) — **STEP A IS COMPLETE**: no component of the client is an Options-API component | — (the form is closed: the readiness ledger fails a new one) |
 | …that already have a `setup()` beside their options | 94 | their `setup()` body is the seed of the script-setup block |
 | `data()` blocks · `computed:` blocks · `watch:` blocks | 223 · 388 · 122 | `ref` / `reactive` · `computed()` · `watch()` — **in the same order** (see §3.5: order between watchers of DIFFERENT sources was never creation order) |
 | `this.$emit(` | 377 in 97 files | `defineEmits` |
@@ -360,13 +360,68 @@ inside) · `card/CardDescription.vue` (`v-i18n` over an interpolation, many inst
   4. *Module state has three forms* (R25): a counter behind an accessor, a handle moved with the code that owns it,
      a container exported as itself — and a module-level `defineAsyncComponent` is state (its resolved cache).
   5. *The app root as the transport drives it* (`useTransportRoot()`), and `ConsoleBoardBinder` on it.
-  What wave 4 takes — THE TAIL, all of it: the 91 components that are left and live (the monsters among them —
-  `ConsoleStartScene`, `ConsoleActionComposer`, `ConsolePlayCardConfirm`, `ConsoleHydroSection`, `App`), each STARTED
-  by the codemod and reviewed against its Options form; the 17 reachable from no entry are deleted.
+- **WAVE 4 — DONE AT STEP A (2026-11-13): THE TAIL — the last 91 live components, and with them the Options API is
+  gone from the client** (`options-api: 0`). The monsters (`ConsoleStartScene`, `ConsoleActionComposer`,
+  `ConsolePlayCardConfirm`, `ConsoleHydroSection`, `ConsoleParliamentSection`, `ConsoleTaskHost` — 4 000–8 000 lines
+  each), the shell and the app root. Each was STARTED by the codemod and reviewed against its Options form; the 17
+  reachable from no entry were deleted (`docs/DESKTOP_REMOVAL_WAVE_5.md` — with them the client's last mixin). What
+  the tail added, each of it now a rule of the book or a check:
+  1. **The shell is `<script setup>` over ONE composition** (R8): `const {…352 names…} = useConsoleShell(props)` — the
+     names the template reads, taken off the composition's type by the codemod, kept honest by vue-tsc (a missing
+     one) and eslint (an unused one); its own four template refs go to the composition BY NAME (`useTemplateRef`
+     inside `composeShellMembers`), and it gained a unit spec that mounts the whole game screen.
+  2. **The app root is a PORT object** (R26): accessors over the root's refs, satisfying `AppRoot` AND the transport's
+     `TransportRoot`; `vueRoot.ts` is deleted, `$root` is read nowhere.
+  3. **`ConsoleTeleport` is `<script setup>`** (R18): its render lives in a functional component of its script and
+     reads the vnode it returned last instead of `this.$.subTree` — `instance-internals` is at zero.
+  4. **A spec that ran members off the Options object against a stub `this`** (eight specs of the largest surfaces)
+     moved those members behind a PORT into `<component>Logic.ts` (§ 3) — `consoleTaskHostLogic.ts` (32 members),
+     `consoleParliamentSectionLogic.ts`, `consoleDraftWorkspaceLogic.ts`.
+  5. **Two classes a mechanical conversion gets SILENTLY wrong are now a tool and a guard** (`scripts/vapor/audit.mjs`,
+     `tests/console/vaporConversionAudit.spec.ts`): a module-level table that became per-instance (four scene
+     contexts and a baseline were converted without a refusal before the tools learned a non-empty literal is state),
+     and the unguarded root cast inside a callback that outlives the component (measured: two `TypeError`s per leave
+     of the carry-over picker).
+  6. **A template ref named like a ref-typed member** keeps the member's name (§ 1 — the twin `<key>El`, pinned in
+     both template shapes by `refKeyTwin.spec.ts`); **`beforeCreate`** stands above every declaration (R9); **a guarded
+     `$el`** keeps its guard, and in a development build the root ref makes code run that a comment-led template had
+     kept dead (R12); **SOURCE GUARDS** — server-runner specs that slice a component's text — are on every sheet.
+  7. *One behaviour changed on purpose:* the right stick now pages the SYSTEM OVERLAY (`GamepadLayer` looked its host
+     up through `$el`, which under a teleport root is the teleport's placeholder — the lookup never found it).
+  **What is left of V3 is STEP B** — the `vapor` attribute, wave by wave (§ 4a).
 - **Two watchers of one collection are merged BEFORE their component is converted** (§2 rule 6) — a conversion does
   not get to discover an order dependency.
 - **Every wave is its own series of commits and its own full e2e run on CI** — «все кейсы тестируем через e2e на CI»;
   the next wave does not start on a red one.
+
+## 4a. From step A to `createVaporApp(App)` — what is LEFT, measured (2026-11-13)
+
+Step A is complete: no component is an Options-API component. `createVaporApp(App)` asks for more than that — EVERY
+component a Vapor component and nothing in the tree that needs the virtual-DOM runtime. What stands between, in the
+order it has to be done, each with its number and the tool that prints it:
+
+| # | What | Measured | How it is closed |
+| --- | --- | --- | --- |
+| B0 | **The release.** `vue@3.6.0-rc.15` is a release CANDIDATE; Vapor's interop and test story still move between RCs. | pinned exactly (§ 3.8) | re-read the capability table on every RC; V4 on a stable 3.6 is the owner's call |
+| B1 | **Does it COMPILE as Vapor?** `node scripts/vapor/vapor-check.mjs` compiles every component with the Vapor compiler (the production, inline shape). | **448 of 455 compile clean** · 4 REFUSED · 2 warn · 1 needs the virtual DOM | the seven below |
+| B2 | The four templates the Vapor compiler refuses: «`v-if`/`else` branches must use unique keys» — `ConsoleActionComposer`, `ConsoleCardActions`, `ConsoleEffectsExplorer`, `ConsoleStartScene`. | 4 | give the branches distinct keys (a template edit — each proven by its surface's e2e) |
+| B3 | `v-memo` — ignored by the Vapor compiler. | 11 uses in 2 components (ledger row `v-memo`) | delete at B (R23) — a Vapor update is per binding already |
+| B4 | `ConsoleTeleport` — a render function over the previous vnode. | 1 (ledger `render-function: 4` = its four `h(`) | the REWRITE on the Vapor `<Teleport>` (R18): a template, `v-if="targetStands"` + `:key="generation"` |
+| B5 | **A parent that reads a CHILD's `$el` through its ref.** A Vapor child's ref is its `defineExpose` object — no `$el`. | 25 reads in 17 files (`grep '\.\$el\b' src/client`): the viewer controller ×5, the flight layers' tile / cube proxies, the source docks, the stage geometry's hull members | the child exposes its root (R12), or the parent asks the child for what it wanted the element for; done WITH the child's step B |
+| B6 | **The unit suite.** `mount(<a Vapor component>)` as the ROOT throws; `stubs` do not reach the children of a Vapor parent; `findComponent` into a Vapor child fails; `wrapper.vm` has nothing to show. | 918 client spec files: **494 mount a component** · 254 use `stubs` · 224 `findComponent` · 208 `setProps` / `setData` · 64 `shallowMount` · 61 read `wrapper.vm` | ONE mount helper for the suite (a virtual-DOM host with an element root, reactive props — `mountVapor`, today local to the capability spec) applied by codemod; a spec that leaned on a stub asserts the child's real output or stubs the child's MODULE; this is the LARGEST item of step B and it is test work, not product work |
+| B7 | **Order-dependent watcher pairs** — two watchers of one source / one collection whose order matters are ONE `watch` before their component is Vapor (§ 2 rule 6; a Vapor effect has no «component render» to order against). | named by the wave's reviewers: `ConsoleMaScreen` (`kind` → `items`), `ConsoleHandSection` (`index` → `modeKey` → `entries`); the full list is a review of the 122 former `watch:` blocks | merged per component, in the commit before its `vapor` |
+| B8 | **`onUpdated` / «after every parent re-render» logic** and reads through `wrapper.vm` of the dev shape. | per sheet (R9 «trap at B») | a `watch` of what is measured |
+| B9 | **The flip itself** — `<script setup vapor>` on 452 components, leaves first, hosts after their children (a Vapor parent hosts a vdom child, and the reverse, through `vaporInteropPlugin` — so the waves can run in any order, but a ref's shape changes at each edge: B5). | 3 of 455 are Vapor | by wave, each on the box; the per-component sheet's `STEP B` line is clear for 452 (3 sheets carry a blocker: the two `v-memo` hosts, one `$t` without its import) |
+| B10 | **What the APP still registers globally** — `app.component` ×3 (the async-on-purpose tags), `app.directive`, `globalProperties.$t`: a Vapor app has no global properties. | ledger `global-registration: 6` · `global-in-setup: 2` | removed once no component reads them (every `<script setup>` component already imports its own) |
+| B11 | **V4 — the switch.** `createApp(App)` + `vaporInteropPlugin` → `createVaporApp(App)` in `main.ts`; the plugins the app installs (`i18n`), `app.config.errorHandler`, the unit runner's `bundleSetup.ts` interop install. | 1 file + the runner | after B1–B10 are zero and the whole e2e is green on the box with the interop plugin REMOVED |
+
+**What is NOT left** (closed by step A and guarded): the Options API (`options-api: 0`), `$refs` (0), `getCurrentInstance`
+(0), instance internals (0), `$parent` / `$root` / `vueRoot` (0), mixins (0), module state hidden in a component
+(`audit.mjs` § A: 0), a deferred cast of a template ref (§ B: 0).
+
+**The honest size of it:** the PRODUCT side of step B is small and measured (B2–B5: 4 templates, 11 `v-memo`, one
+rewrite, 25 `$el` reads; B7–B8 are reviews). The TEST side (B6) is the bulk. The first move of step B is therefore
+not a flip but the suite's mount helper — with it, flipping a wave is the codemod's one attribute and a box run.
 
 ## 5. The readiness ledger
 
@@ -374,12 +429,11 @@ inside) · `card/CardDescription.vue` (`v-i18n` over an interpolation, many inst
 ledgers. Per file it counts what the target has no place for — `options-api` (the component itself) ·
 `instance-access` (`getCurrentInstance`) · `parent-root` · `root-through-instance` (`vueRoot(this)` — the app root climbed to through the instance; → `useAppRoot()`, RECIPES § R26) · `mixin` · `global-registration` · `render-function` ·
 `v-memo` · `refs` · `global-in-setup` (a `<script setup>` component leaning on `$t` / a global directive / a globally
-registered component) · `instance-internals` (`this.$.…`, `$options`, `$forceUpdate`, `$data` — one left: the render
-function of `ConsoleTeleport`, a rewrite of its wave). A file may not grow, **a new file starts at zero** (so rules 1, 2 and 4 of §2 are failing
+registered component) · `instance-internals` (`this.$.…`, `$options`, `$forceUpdate`, `$data` — zero since wave 4). A file may not grow, **a new file starts at zero** (so rules 1, 2 and 4 of §2 are failing
 tests, not conventions), a component that is Vapor stays Vapor, and a Vapor component holds nothing of the list.
 `npm run ready:vapor` lowers the baseline and prints the line:
 
-`Vapor components: 3 / 472 · options-api: 108 · instance-access: 0 · instance-internals: 1 · parent-root: 1 · root-through-instance: 5 · mixin: 1 · global-registration: 6 · render-function: 4 · v-memo: 11 · refs: 571 · global-in-setup: 2` (2026-11-13, after V3 wave 3; after wave 2: `options-api` 226, `refs` 650; after wave 1: 344 / 652; at the pilot: `options-api` 468, `refs` 785, `instance-access` 1).
+`Vapor components: 3 / 455 · options-api: 0 · instance-access: 0 · instance-internals: 0 · parent-root: 0 · root-through-instance: 0 · mixin: 0 · global-registration: 6 · render-function: 4 · v-memo: 11 · refs: 0 · global-in-setup: 2` (2026-11-13, after V3 wave 4 — step A complete; after wave 3: `options-api` 108, `refs` 571; after wave 2: 226 / 650; after wave 1: 344 / 652; at the pilot: `options-api` 468, `refs` 785, `instance-access` 1).
 
 V3 is done when `options-api` is zero and every component is Vapor; V4 is one line in `main.ts` after that.
 

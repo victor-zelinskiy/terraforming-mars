@@ -65,8 +65,8 @@ export const CONSTRUCTS: Readonly<Record<string, Construct>> = {
       '`$forceUpdate`, `$data`: a `<script setup>` component has no `this`, a Vapor one no such instance',
     instead: 'the component\'s own fact, kept by its own code: an id from a module counter taken in `setup`, «am I gone» from its own ' +
       '`onUnmounted`, a watcher\'s body as a NAMED function its other callers call (never `$options.watch[name].handler`). ' +
-      'The one row left is `foundation/ConsoleTeleport.vue` — a render function over its own `subTree`, rewritten (not converted) in ' +
-      'its wave (docs/claude/vapor/RECIPES.md § R18)',
+      'ZERO since V3 wave 4: `foundation/ConsoleTeleport.vue` — the last reader of its own `subTree` — remembers the vnode its ' +
+      'render returned instead (docs/claude/vapor/RECIPES.md § R18)',
   },
   'parent-root': {
     where: 'any',

@@ -120,7 +120,7 @@ function readScript(script, uses, detail) {
       const stateful = ts.isVariableStatement(st) && ((st.declarationList.flags & ts.NodeFlags.Const) === 0 ||
         st.declarationList.declarations.some((d) => d.initializer !== undefined &&
           (/^(?:reactive\(|ref\(|shallowRef\(|defineAsyncComponent\()/.test(d.initializer.getText(sf)) ||
-            (/^(?:new (?:Map|Set|WeakMap|WeakSet)\b|\[\]|\{\})/.test(d.initializer.getText(sf)) &&
+            (/^(?:new (?:Map|Set|WeakMap|WeakSet)\b|\[|\{)/.test(d.initializer.getText(sf)) &&
               !/^Readonly/.test(d.type?.getText(sf) ?? '') && (!ts.isIdentifier(d.name) || mutatedIn(d.name.text) || /^(?:\[\]|\{\}|new (?:Map|Set|WeakMap|WeakSet)(?:<[^()]*>)?\(\))$/.test(d.initializer.getText(sf)))))));
       bump(uses, exported ? (isType ? 'script:type-export' : 'script:value-export') : stateful ? 'script:module-state' : 'script:module-code');
       if (exported && !isType) {
@@ -887,6 +887,14 @@ if (one !== undefined) {
   const naming = specTexts.filter(({file, text}) => !specs.includes(file) && new RegExp(`\\b${target.name}\\b`).test(text)).map(({file}) => file);
   if (naming.length > 0) {
     console.log(`  specs that NAME it (a parent's — they stub it or find it; re-run them too): ${naming.join(', ')}`);
+  }
+  // SOURCE GUARDS — server-runner specs that read the component's TEXT (`fs.readFileSync('…/X.vue')`, then a slice by
+  // its Options form: a member's 4-space indent, `this.x`, a `watch` key). Nothing compiles against that text: a
+  // conversion turns each one red (or — worse — blind), and the unit runner never sees them.
+  const guards = tsFiles(path.join(ROOT, 'tests')).filter((file) => file.endsWith('.ts') && !rel(file).startsWith('tests/client/') && !rel(file).startsWith('tests/e2e/'))
+    .filter((file) => new RegExp(`\\b${target.name}\\.vue\\b`).test(fs.readFileSync(file, 'utf8'))).map((file) => rel(file));
+  if (guards.length > 0) {
+    console.log(`  SOURCE GUARDS that read its text (server runner — run each, re-point the lines that read THIS component): ${guards.join(', ')}`);
   }
   if (target.isStrings.length > 0 && target.uses['tpl:component-is'] !== undefined) {
     console.log(`  \`<component :is>\` may be fed a STRING naming ${target.isStrings.join(', ')} (R21 — the string becomes the imported component)`);

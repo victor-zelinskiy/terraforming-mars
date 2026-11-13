@@ -4,24 +4,12 @@
    "src/client/components/App.vue": 1,
    "src/client/components/Board.vue": 1,
    "src/client/components/BoardSpace.vue": 1,
-   "src/client/components/GlobalParameterValue.vue": 1,
-   "src/client/components/LanguageIcon.vue": 1,
-   "src/client/components/LanguageSelectionDialog.vue": 1,
-   "src/client/components/Party.vue": 1,
-   "src/client/components/WarningsComponent.vue": 1,
-   "src/client/components/additionalResources/AdditionalResourceTooltip.vue": 1,
-   "src/client/components/additionalResources/AdditionalResourcesPanel.vue": 1,
    "src/client/components/board/AnimatedScaleMarker.vue": 1,
    "src/client/components/board/BoardSpaceTile.vue": 1,
    "src/client/components/boot/AppBootLoader.vue": 1,
-   "src/client/components/card/CardTag.vue": 1,
    "src/client/components/card/CardZoomModal.vue": 1,
    "src/client/components/cardAnnotations/CardAnnotationsLayer.vue": 1,
    "src/client/components/cardlist/CardList.vue": 1,
-   "src/client/components/colonies/ColonyDetailView.vue": 1,
-   "src/client/components/colonies/ColonyTradePaymentModal.vue": 1,
-   "src/client/components/common/DynamicTitle.vue": 1,
-   "src/client/components/common/PopupPanel.vue": 1,
    "src/client/components/console/ConsoleActionComposer.vue": 1,
    "src/client/components/console/ConsoleBoardInput.vue": 1,
    "src/client/components/console/ConsoleBoardSection.vue": 1,
@@ -31,7 +19,6 @@
    "src/client/components/console/ConsoleColoniesSection.vue": 1,
    "src/client/components/console/ConsoleColonyFocusStage.vue": 1,
    "src/client/components/console/ConsoleColonyInspect.vue": 1,
-   "src/client/components/console/ConsoleConfirmDialog.vue": 1,
    "src/client/components/console/ConsoleContextPanel.vue": 1,
    "src/client/components/console/ConsoleEffectsExplorer.vue": 1,
    "src/client/components/console/ConsoleEndgameWorkspace.vue": 1,
@@ -99,34 +86,25 @@
    "src/client/components/console/tilePlacement/ConsoleCityPayoutLayer.vue": 1,
    "src/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue": 1,
    "src/client/components/console/tilePlacement/ConsoleTileProxy.vue": 1,
-   "src/client/components/delta/DeltaProjectBoard.vue": 1,
    "src/client/components/effects/EffectDetailsPanel.vue": 1,
    "src/client/components/endgame/FinalScoringReveal.vue": 1,
    "src/client/components/gamepad/GamepadLayer.vue": 1,
    "src/client/components/notifications/NotificationCard.vue": 1,
    "src/client/components/notifications/NotificationLayer.vue": 1,
-   "src/client/components/payment/PaymentFormV2.vue": 1,
-   "src/client/components/payment/PaymentRowV2.vue": 1,
-   "src/client/components/payment/StandardProjectPaymentContent.vue": 1,
    "src/client/components/premiumCard/PremiumCard.vue": 1
   },
   "instance-access": {},
   "instance-internals": {
    "src/client/components/console/foundation/ConsoleTeleport.vue": 1
   },
-  "parent-root": {
-   "src/client/components/vueRoot.ts": 1
-  },
+  "parent-root": {},
   "root-through-instance": {
    "src/client/components/console/ConsoleActionComposer.vue": 1,
    "src/client/components/console/campaign/ConsoleCampaignMap.vue": 1,
    "src/client/components/console/menu/ConsoleCreateGame.vue": 1,
-   "src/client/components/console/menu/ConsoleMainMenu.vue": 1,
-   "src/client/components/vueRoot.ts": 1
+   "src/client/components/console/menu/ConsoleMainMenu.vue": 1
   },
-  "mixin": {
-   "src/client/components/payment/StandardProjectPaymentContent.vue": 1
-  },
+  "mixin": {},
   "global-registration": {
    "src/client/main.ts": 4,
    "src/client/plugins/i18n.plugin.ts": 2
@@ -153,7 +131,6 @@
    "src/client/components/console/ConsoleColoniesSection.vue": 15,
    "src/client/components/console/ConsoleColonyFocusStage.vue": 15,
    "src/client/components/console/ConsoleColonyInspect.vue": 1,
-   "src/client/components/console/ConsoleConfirmDialog.vue": 1,
    "src/client/components/console/ConsoleContextPanel.vue": 3,
    "src/client/components/console/ConsoleEffectsExplorer.vue": 14,
    "src/client/components/console/ConsoleEndgameWorkspace.vue": 14,

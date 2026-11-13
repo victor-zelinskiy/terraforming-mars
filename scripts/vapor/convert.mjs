@@ -167,6 +167,29 @@ function leadOf(node) {
   return textOf(start, to).replace(/[ \t]+$/, '').replace(/\n+$/, '') + '\n';
 }
 
+/** The lead of a MODULE statement: a comment standing on the previous statement's own line is that one's TRAIL, not this one's lead. */
+function moduleLeadOf(node) {
+  const from = node.getFullStart();
+  const to = node.getStart(sf);
+  const trivia = script.slice(from, to);
+  const eol = trivia.indexOf('\n');
+  const sameLine = from > 0 && eol !== -1 && /\/[/*]/.test(trivia.slice(0, eol)) ? eol + 1 : 0;
+  const rest = trivia.slice(sameLine);
+  const first = rest.search(/\/[/*]/);
+  const blank = /\n[ \t]*\r?\n/.test(`${sameLine > 0 ? '\n' : ''}${rest.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')}`) && from > 0 ? '\n' : '';
+  if (first === -1) {
+    return blank;
+  }
+  const start = from + sameLine + first;
+  dedent(start, to, columnOf(start));
+  return blank + textOf(start, to).replace(/[ \t]+$/, '').replace(/\n+$/, '') + '\n';
+}
+/** …and that trail: the comment after a statement, on its line. */
+function trailOf(node) {
+  const m = /^[ \t]*(\/\/[^\n\r]*|\/\*[^\n]*?\*\/)/.exec(script.slice(node.end));
+  return m === null ? '' : ` ${m[1].trimEnd()}`;
+}
+
 // ───────────────────────────────────────────────────────────────── the options object
 let options;
 let exportNode;
@@ -225,12 +248,14 @@ for (const st of moduleStatements) {
     refuse('a VALUE export at module level — it moves to a sibling .ts and its importers are re-pointed (R25)', st);
   }
   // module STATE is what is WRITTEN (the inventory's own test): a `const` container nothing mutates is a table and
-  // stays; a `defineAsyncComponent` wrapper carries identity (its resolved cache) and counts
+  // stays; a `defineAsyncComponent` wrapper carries identity (its resolved cache) and counts. A container is ANY
+  // object / array literal — a non-empty one with fields (`{beatHandles: []}`, a baseline per key) whose members the
+  // script writes is state exactly like an empty one that is filled
   const moduleMutated = (name) => new RegExp(`\\b${name}\\b(?:\\.[\\w$]+|\\[[^\\]\\n]*\\])*\\.(?:set|add|delete|clear|push|pop|shift|unshift|splice|sort|reverse|fill)\\(|\\b${name}\\b(?:\\.[\\w$]+|\\[[^\\]\\n]*\\])+\\s*(?:=(?!=)|\\+\\+|--|[-+*/]=)`).test(script);
   const stateful = ts.isVariableStatement(st) && ((st.declarationList.flags & ts.NodeFlags.Const) === 0 ||
     st.declarationList.declarations.some((d) => d.initializer !== undefined &&
       (/^(?:reactive\(|ref\(|shallowRef\(|defineAsyncComponent\()/.test(d.initializer.getText(sf)) ||
-        (/^(?:new (?:Map|Set|WeakMap|WeakSet)\b|\[\]|\{\})/.test(d.initializer.getText(sf)) && !/^Readonly/.test(d.type?.getText(sf) ?? '') &&
+        (/^(?:new (?:Map|Set|WeakMap|WeakSet)\b|\[|\{)/.test(d.initializer.getText(sf)) && !/^Readonly/.test(d.type?.getText(sf) ?? '') &&
           (!ts.isIdentifier(d.name) || moduleMutated(d.name.text) || /^(?:\[\]|\{\}|new (?:Map|Set|WeakMap|WeakSet)(?:<[^()]*>)?\(\))$/.test(d.initializer.getText(sf)))))));
   if (stateful) {
     refuse(`MODULE STATE (\`${st.getText(sf).split('\n')[0].slice(0, 60)}\`) — inside <script setup> it would be per instance: move it to a sibling .ts first (R25)`, st);
@@ -239,7 +264,7 @@ for (const st of moduleStatements) {
 
 const HOOK_OF = {beforeMount: 'onBeforeMount', mounted: 'onMounted', beforeUpdate: 'onBeforeUpdate', updated: 'onUpdated',
   beforeUnmount: 'onBeforeUnmount', unmounted: 'onUnmounted', errorCaptured: 'onErrorCaptured', activated: 'onActivated', deactivated: 'onDeactivated'};
-const opt = {hooks: [], created: []};
+const opt = {hooks: [], created: [], beforeCreate: []};
 for (const prop of options.properties) {
   if (ts.isSpreadAssignment(prop)) {
     refuse('a spread in the component options', prop);
@@ -248,7 +273,9 @@ for (const prop of options.properties) {
   const key = prop.name.getText(sf);
   if (Object.hasOwn(HOOK_OF, key)) {
     opt.hooks.push({key, node: prop});
-  } else if (key === 'created' || key === 'beforeCreate') {
+  } else if (key === 'beforeCreate') {
+    opt.beforeCreate.push(prop);
+  } else if (key === 'created') {
     opt.created.push(prop);
   } else if (['name', 'components', 'props', 'emits', 'data', 'computed', 'methods', 'watch', 'setup', 'provide', 'inject', 'inheritAttrs', 'directives', 'expose'].includes(key)) {
     opt[key] = prop;
@@ -332,8 +359,45 @@ let setupContext = []; // what `setup(props, {…})` took of its context
 const setupFn = opt.setup !== undefined && ts.isMethodDeclaration(opt.setup) ? opt.setup : undefined;
 const setupReturn = setupFn?.body?.statements.find(ts.isReturnStatement);
 const setupKeys = [];
-if (opt.setup !== undefined) {
-  if (setupFn === undefined || setupReturn?.expression === undefined || !ts.isObjectLiteralExpression(setupReturn.expression)) {
+// `setup(props) { return useX(props); }` — the component is a template over ONE composition (the console shell). What
+// the template reads of it becomes ONE destructure (R8); WHICH names those are is read off the composition's type.
+const setupComposition = setupFn !== undefined && setupFn.body.statements.length === 1 && setupReturn?.expression !== undefined &&
+  ts.isCallExpression(setupReturn.expression) && setupFn.parameters.length <= 1 ? setupReturn.expression : undefined;
+let compositionKeys; // every key of what the composition returns
+/** ONE TypeScript program over the script — a virtual module beside the component, the project's own configuration. */
+function realProgram() {
+  const parsed = ts.parseJsonConfigFileContent(ts.readConfigFile(path.resolve('tsconfig.json'), ts.sys.readFile).config, ts.sys, process.cwd());
+  const virtual = path.resolve(path.dirname(file), `__vapor_convert_${path.basename(file, '.vue')}.ts`);
+  const compilerOptions = {...parsed.options, noEmit: true, incremental: false, composite: false, tsBuildInfoFile: undefined, skipLibCheck: true,
+    noUnusedLocals: false, noUnusedParameters: false};
+  const host = ts.createCompilerHost(compilerOptions, true);
+  const same = (f) => path.resolve(f).toLowerCase() === virtual.toLowerCase();
+  const base = {fileExists: host.fileExists.bind(host), readFile: host.readFile.bind(host), getSourceFile: host.getSourceFile.bind(host)};
+  host.fileExists = (f) => same(f) || base.fileExists(f);
+  host.readFile = (f) => (same(f) ? script : base.readFile(f));
+  host.getSourceFile = (f, languageVersion, ...rest) => (same(f) ? ts.createSourceFile(f, script, languageVersion, true, ts.ScriptKind.TS) : base.getSourceFile(f, languageVersion, ...rest));
+  const real = ts.createProgram([virtual, path.resolve('src', 'client', 'vue-shims.d.ts')], compilerOptions, host);
+  return {realChecker: real.getTypeChecker(), vsf: real.getSourceFile(virtual)};
+}
+if (setupComposition !== undefined) {
+  try {
+    const {realChecker, vsf} = realProgram();
+    let call = ts.getTokenAtPosition(vsf, setupComposition.getStart(sf));
+    while (call !== undefined && !(ts.isCallExpression(call) && call.getStart(vsf) === setupComposition.getStart(sf) && call.end === setupComposition.end)) {
+      call = call.parent;
+    }
+    const type = call === undefined ? undefined : realChecker.getTypeAtLocation(call);
+    if (type === undefined || (type.flags & ts.TypeFlags.Any) !== 0 || type.getProperties().length === 0) {
+      refuse('`setup` returns ONE composition and its type could not be read — the keys the template takes are unknown', opt.setup);
+    } else {
+      compositionKeys = new Set(type.getProperties().map((prop) => prop.name));
+    }
+  } catch (error) {
+    refuse(`\`setup\` returns ONE composition and its type could not be read (${String(error.message).slice(0, 120)})`, opt.setup);
+  }
+} else if (opt.setup !== undefined) {
+  const returnsNothing = setupFn !== undefined && setupFn.body !== undefined && (setupReturn === undefined || setupReturn.expression === undefined);
+  if (!returnsNothing && (setupFn === undefined || setupReturn?.expression === undefined || !ts.isObjectLiteralExpression(setupReturn.expression))) {
     refuse('`setup` is not a method returning an object literal', opt.setup);
   } else {
     if (setupFn.parameters.length > 1) {
@@ -354,7 +418,7 @@ if (opt.setup !== undefined) {
     }
     const isRefInit = (text) => /^(?:ref|shallowRef|computed|toRef|customRef|useTemplateRef|refAutoReset|refDebounced|refThrottled|useVModel)\s*[<(]/.test(text);
     const PLAIN = /^(?:useFlowScope|useConsoleInput|useConsoleSession|componentSessionScope|useWorkspaceBandGeometry|useConsoleNativeSurface|useAppRoot)\s*[<(]/;
-    for (const p of setupReturn.expression.properties) {
+    for (const p of returnsNothing ? [] : setupReturn.expression.properties) {
       if (ts.isSpreadAssignment(p)) {
         refuse('a spread in what `setup()` returns', p);
         continue;
@@ -390,19 +454,7 @@ if (opt.setup !== undefined) {
 if (setupKeys.length > 0 && setupReturn !== undefined) {
   const unresolved = new Set(setupGuessed.map((g) => g.name));
   try {
-    const parsed = ts.parseJsonConfigFileContent(ts.readConfigFile(path.resolve('tsconfig.json'), ts.sys.readFile).config, ts.sys, process.cwd());
-    const virtual = path.resolve(path.dirname(file), `__vapor_convert_${path.basename(file, '.vue')}.ts`);
-    const compilerOptions = {...parsed.options, noEmit: true, incremental: false, composite: false, tsBuildInfoFile: undefined, skipLibCheck: true,
-      noUnusedLocals: false, noUnusedParameters: false};
-    const host = ts.createCompilerHost(compilerOptions, true);
-    const same = (f) => path.resolve(f).toLowerCase() === virtual.toLowerCase();
-    const base = {fileExists: host.fileExists.bind(host), readFile: host.readFile.bind(host), getSourceFile: host.getSourceFile.bind(host)};
-    host.fileExists = (f) => same(f) || base.fileExists(f);
-    host.readFile = (f) => (same(f) ? script : base.readFile(f));
-    host.getSourceFile = (f, languageVersion, ...rest) => (same(f) ? ts.createSourceFile(f, script, languageVersion, true, ts.ScriptKind.TS) : base.getSourceFile(f, languageVersion, ...rest));
-    const real = ts.createProgram([virtual, path.resolve('src', 'client', 'vue-shims.d.ts')], compilerOptions, host);
-    const realChecker = real.getTypeChecker();
-    const vsf = real.getSourceFile(virtual);
+    const {realChecker, vsf} = realProgram();
     const isRefType = (type) => (type.isUnion() ? type.types : [type]).some((t) => t.getProperties().some((prop) => String(prop.escapedName).startsWith('__@RefSymbol')));
     for (const key of setupKeys) {
       const token = ts.getTokenAtPosition(vsf, key.node.name.getStart(sf));
@@ -463,8 +515,39 @@ try {
 } catch (error) {
   refuse(`the template does not parse (${error.message})`);
 }
-const tpl = {names: new Set(), reactiveNames: new Set(), tags: new Set(), directives: new Set(), usesT: false, emits: new Set(), text: '', models: []};
+const tpl = {names: new Set(), reactiveNames: new Set(), tags: new Set(), directives: new Set(), usesT: false, emits: new Set(), text: '', models: [], refKeys: new Set()};
 if (ast !== undefined) {
+  // R21 — `<component :is>` fed a STRING that names a component: it resolved through the `components:` registration,
+  // and <script setup> registers nothing by name. The string becomes the imported component itself (the one template
+  // edit of this kind; `template-diff` shows it and the lead allows it).
+  const vueImports = sf.statements.filter((st) => ts.isImportDeclaration(st) && st.importClause?.name !== undefined && /\.vue$/.test(st.moduleSpecifier.text))
+    .map((st) => st.importClause.name.text);
+  const isEdits = [];
+  (function findIs(node) {
+    if (node.type === NodeTypes.ELEMENT && node.tag === 'component') {
+      const is = node.props.find((prop) => prop.type === NodeTypes.DIRECTIVE && prop.name === 'bind' && prop.arg?.content === 'is');
+      if (is?.exp !== undefined) {
+        let text = is.exp.content;
+        for (const name of vueImports) {
+          const kebabName = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+          text = text.replace(new RegExp(`(['"\`])(?:${name}|${kebabName})\\1`, 'g'), name);
+        }
+        if (text !== is.exp.content) {
+          isEdits.push({from: is.exp.loc.start.offset, to: is.exp.loc.end.offset, text});
+        }
+      }
+    }
+    for (const child of node.children ?? []) {
+      findIs(child);
+    }
+  })(ast);
+  for (const e of isEdits.sort((a, b) => b.from - a.from)) {
+    review(`\`<component :is>\` named a component by a STRING — the template now hands the imported component itself: \`:is="${e.text}"\` (R21; allow it in template-diff)`);
+    template = template.slice(0, e.from) + e.text + template.slice(e.to);
+  }
+  if (isEdits.length > 0) {
+    ast = parseTemplate(template, {comments: true});
+  }
   const expressions = [];
   const handlers = []; // `@event="…"` — run on an event, never read reactively
   (function walk(node) {
@@ -473,6 +556,9 @@ if (ast !== undefined) {
     } else if (node.type === NodeTypes.ELEMENT) {
       tpl.tags.add(node.tag);
       for (const prop of node.props) {
+        if (prop.type === NodeTypes.ATTRIBUTE && prop.name === 'ref' && prop.value !== undefined) {
+          tpl.refKeys.add(prop.value.content);
+        }
         if (prop.type === NodeTypes.DIRECTIVE) {
           (prop.name === 'on' ? handlers : expressions).push(prop.exp?.content ?? '');
           if (prop.name === 'model') {
@@ -584,6 +670,7 @@ for (const name of setupHandOvers) {
   }
 }
 const aliases = new Map(); // member name → the module-level name it is a plain alias of
+const droppedAliases = new Map(); // …and those that were dropped as unread: a path watcher's key may still name one
 for (const {name, node} of [...computedProps, ...methodProps]) {
   const fwd = forwardedName(node);
   const isComputed = members.get(name).kind === 'computed';
@@ -758,7 +845,7 @@ const handles = new Set();
 // …and the rule is for HANDLES — a function, a timer id, an observer, a tween, an element: a VALUE nothing reactive
 // reads today (a boolean latch, a string) stays a ref. A registry (a Map / a Set) that is filled and never replaced is
 // a plain `const`.
-const HANDLE_TYPE = /=>|Observer\b|Tween\b|Timeline\b|Timeout\b|Element\b|Animation\b|AbortController\b|ReturnType<typeof set|gsap\./;
+const HANDLE_TYPE = /=>|Observer\b|Tween\b|Timeline\b|Timeout\b|Element\b|Animation\b|AbortController\b|ReturnType<typeof set|gsap\.|Handle\b|Hold\b|Beat\b/;
 const registries = new Set();
 for (const field of dataFields) {
   const text = field.init?.getText(sf) ?? '';
@@ -767,7 +854,8 @@ for (const field of dataFields) {
   if (quiet && writes.has(field.name) && HANDLE_TYPE.test(text) && readsOf(field.name) > 0) {
     handles.add(field.name);
     members.set(field.name, {kind: 'let', ref: false});
-  } else if (quiet && !writes.has(field.name) && /^(?:markRaw\()?new (?:Map|Set|WeakMap|WeakSet)\b/.test(text)) {
+  } else if (quiet && !writes.has(field.name) && (/^(?:markRaw\()?new (?:Map|Set|WeakMap|WeakSet)\b/.test(text) ||
+    (/^(?:\{\}|\[\]) as (?:Record|Array)</.test(text) && HANDLE_TYPE.test(text)))) {
     registries.add(field.name);
     members.set(field.name, {kind: 'const', ref: false});
   }
@@ -855,6 +943,9 @@ const autoExposed = [];
     members.delete(name);
     handles.delete(name);
     constants.delete(name);
+    if (aliases.has(name)) {
+      droppedAliases.set(name, aliases.get(name));
+    }
     aliases.delete(name);
     review(`DROPPED «${name}» — nothing reads it (not the template, not the script, not a parent, not a spec): name it in the commit (§ 1)`);
   }
@@ -932,10 +1023,19 @@ function free(name, node) {
   return name;
 }
 
+/** A watcher's handler written as a function expression — `'key': function(…) {…}` / `{handler: function(…) {…}}`: Vue binds its `this`. */
+function isWatchHandler(node) {
+  const block = opt.watch !== undefined ? initOf(opt.watch) : undefined;
+  if (block === undefined || !ts.isFunctionExpression(node) || !ts.isPropertyAssignment(node.parent) || node.parent.initializer !== node) {
+    return false;
+  }
+  const holder = node.parent.parent;
+  return holder === block || (node.parent.name.getText(sf) === 'handler' && ts.isPropertyAssignment(holder.parent) && holder.parent.parent === block);
+}
 function rewriteThis(root) {
   (function walk(node) {
     // a plain `function` has a `this` of its own
-    if ((ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node)) && node !== root) {
+    if ((ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node)) && node !== root && !isWatchHandler(node)) {
       let own = false;
       (function scan(n) {
         if (n.kind === ts.SyntaxKind.ThisKeyword) {
@@ -1094,7 +1194,8 @@ function rewriteMember(access) {
     const fits = bare === decided || (decided !== undefined && isStructural(bare) && decided.split(' & ').includes(bare));
     if (!fits) {
       // this read cast the ref to ANOTHER type than the one that types it: it keeps a cast of its own
-      edit(node.getStart(sf), node.end, wrap(node, `${refName}.value${optional ? absent : ''} as ${bare === 'never' ? 'never' : `unknown as ${type}`}`));
+      const read = optional && absent !== '' ? `(${refName}.value${absent})` : `${refName}.value`;
+      edit(node.getStart(sf), node.end, wrap(node, `${read} as ${bare === 'never' ? 'never' : `unknown as ${type}`}`));
     } else if (optional) {
       edit(node.getStart(sf), node.end, chained || absent === '' ? `${refName}.value` : wrap(node, `${refName}.value${absent}`));
     } else {
@@ -1106,7 +1207,37 @@ function rewriteMember(access) {
     const {node, type} = castAround(access);
     need.rootRef = true;
     need.vue.add('useTemplateRef');
-    edit(node.getStart(sf), node.end, wrap(node, `${free(rootRefName, access)}.value as ${type !== undefined && type !== 'unknown' && type !== 'any' ? typeWithout(type, ['undefined', 'null']) : 'HTMLElement'}`));
+    const rootNow = `${free(rootRefName, access)}.value`;
+    const typed = type !== undefined && type !== 'unknown' && type !== 'any';
+    const holes = typed ? unionParts(type).filter((part) => part === 'undefined' || part === 'null') : [];
+    const bare = typed ? typeWithout(type, ['undefined', 'null']) : 'HTMLElement';
+    const up = node.parent;
+    const chained = (ts.isPropertyAccessExpression(up) || ts.isCallExpression(up) || ts.isElementAccessExpression(up)) && up.expression === node && up.questionDotToken !== undefined;
+    const tested = ts.isBinaryExpression(up) && up.left === node && up.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword;
+    if (chained || tested) {
+      // read through `?.` / asked `instanceof`: the ref's own `HTMLElement | null` is all the code needs
+      edit(node.getStart(sf), node.end, /^(?:HTML)?Element$/.test(bare) ? rootNow : wrap(node, `${rootNow} as ${bare} | null`));
+    } else if (holes.includes('undefined')) {
+      // the code declared the hole and guards it: the guard stays verbatim, the absent value keeps its spelling
+      edit(node.getStart(sf), node.end, wrap(node, /^(?:HTML)?Element$/.test(bare) ? `${rootNow} ?? undefined` : `(${rootNow} ?? undefined) as ${type}`));
+    } else if (holes.includes('null')) {
+      edit(node.getStart(sf), node.end, /^(?:HTML)?Element$/.test(bare) ? rootNow : wrap(node, `${rootNow} as ${type}`));
+    } else {
+      // An UNGUARDED read. In front of `querySelector(…)` the null-safe read says the same while the component stands
+      // and «not found» after it is gone — where `this.$el` was a detached element and a cast of the `null` ref throws
+      // (a `$nextTick`, a promise, a getter handed to another module): `root.value?.querySelector(…) ?? null`.
+      const access = ts.isPropertyAccessExpression(up) && up.expression === node && up.name.text === 'querySelector' ? up : undefined;
+      const call = access !== undefined && ts.isCallExpression(access.parent) && access.parent.expression === access ? access.parent : undefined;
+      if (call !== undefined) {
+        const whole = ts.isVariableDeclaration(call.parent) || ts.isReturnStatement(call.parent) || ts.isExpressionStatement(call.parent) ||
+          (ts.isCallExpression(call.parent) && call.parent.arguments.includes(call));
+        edit(node.getStart(sf), node.end, `${whole ? '' : '('}${rootNow}?`);
+        edit(call.end, call.end, ` ?? null${whole ? '' : ')'}`);
+      } else {
+        edit(node.getStart(sf), node.end, wrap(node, `${rootNow} as ${bare}`));
+        review('an UNGUARDED `this.$el` became the cast `(root.value as HTMLElement)` — if this read can run after the unmount (a `nextTick`, a promise, code after an `await`, an observer), write the early-return guard on `const rootNow = root.value;` instead (R12)', access ?? node);
+      }
+    }
     return;
   }
   // (a Map: a member may be named `valueOf` / `toString`, which a plain object would answer from its prototype)
@@ -1168,7 +1299,13 @@ function refConst(key) {
   if (!refConstNames.has(key)) {
     const clash = members.has(key) || moduleNames.has(key);
     refConstNames.set(key, clash ? `${key}El` : key);
-    if (members.has(key) && members.get(key).kind !== 'prop') {
+    const kind = members.get(key)?.kind;
+    if (kind === 'computed' || kind === 'data') {
+      // The member is a REF the template may read under that name: it keeps the name, the ref's const is `…El`. The
+      // runtime never writes an element into a binding whose key `useTemplateRef` holds (`isTemplateRefKey` — both the
+      // string shape of a dev build and the `ref_key` shape of an inline template; `tests/client/vapor/refKeyTwin.spec.ts`).
+      review(`the template ref «${key}» is named like the ${kind === 'data' ? 'data field' : 'computed'} «${key}» — the member keeps its name, the ref's const is «${key}El» (R11)`);
+    } else if (kind !== undefined && kind !== 'prop') {
       refuse(`the template ref «${key}» is named like a member — the ref keeps the key's name, the member takes an internal one and its public name in defineExpose (R11): by hand`);
     }
   }
@@ -1222,7 +1359,7 @@ for (const {node} of [...computedProps, ...methodProps]) {
 if (setupFn !== undefined) {
   rewriteThis(setupFn);
 }
-for (const node of [...opt.created, ...opt.hooks.map((h) => h.node), opt.watch, opt.provide].filter(Boolean)) {
+for (const node of [...opt.beforeCreate, ...opt.created, ...opt.hooks.map((h) => h.node), opt.watch, opt.provide].filter(Boolean)) {
   rewriteThis(node);
 }
 
@@ -1383,7 +1520,9 @@ if (dataFn?.type !== undefined && ts.isTypeReferenceNode(dataFn.type) && ts.isId
   }
 }
 /** A ref spells its type where the initialiser alone would not give it (R4). */
-const typeFor = (name, value, cast) => cast ?? (annotated.has(name) && (/^(?:undefined|null|\[\]|\{\})$/.test(value) || annotated.get(name).includes('|')) ? annotated.get(name) : undefined);
+const selfTyped = (type, value) => (type === 'boolean' && /^(?:true|false)$/.test(value)) || (type === 'number' && /^-?[\d.]+$/.test(value)) ||
+  (type === 'string' && /^(['"`])[^'"`]*\1$/.test(value));
+const typeFor = (name, value, cast) => cast ?? (annotated.has(name) && !selfTyped(annotated.get(name), value) ? annotated.get(name) : undefined);
 function fieldLine(field, lead, initNode, declaredType) {
   let init = initNode;
   let type = declaredType;
@@ -1508,7 +1647,7 @@ for (const {name, node} of methodProps) {
 let ownExposeLead = '';
 let ownExposeText;
 const setupLines = [];
-if (setupFn !== undefined && setupReturn !== undefined) {
+if (setupFn !== undefined && setupFn.body !== undefined) {
   const body = setupFn.body.statements.filter((st) => st !== setupReturn);
   if (setupContext.includes('emit')) {
     need.emit = true;
@@ -1563,6 +1702,33 @@ if (setupFn !== undefined && setupReturn !== undefined) {
     }
   }
 }
+if (setupComposition !== undefined && compositionKeys !== undefined) {
+  // ONE destructure of what the template reads (and of the refs it binds by name): each is a top-level binding of the
+  // script, which is the only thing a <script setup> template resolves. The composition's object is never replaced
+  // and a member is a ref, a function or a reactive object — taking it apart loses nothing.
+  const lower = (name) => name.toLowerCase();
+  const taken = [...new Set([...tpl.names, ...tpl.refKeys])].filter((name) => compositionKeys.has(name))
+    .sort((a, b) => (lower(a) < lower(b) ? -1 : lower(a) > lower(b) ? 1 : a < b ? -1 : 1));
+  for (const name of taken.filter((n) => members.has(n) || moduleNames.has(n))) {
+    review(`the composition returns «${name}» and so does ${members.has(name) ? `the component's own ${members.get(name).kind}` : 'an import'} — one of them shadows the other`, opt.setup);
+  }
+  for (const key of [...tpl.refKeys].filter((k) => !compositionKeys.has(k) && !members.has(k))) {
+    review(`the template ref «${key}» is no key of the composition — nothing in the script binds it (it only fills \`$refs\`)`, opt.setup);
+  }
+  const rows = [];
+  let row = ' ';
+  for (const name of taken) {
+    if (row.length + name.length + 2 > 118) {
+      rows.push(row);
+      row = ' ';
+    }
+    row += ` ${name},`;
+  }
+  rows.push(row);
+  need.props = need.props || /\bprops\b/.test(setupComposition.getText(sf));
+  dedent(setupComposition.getStart(sf), setupComposition.end, columnOf(setupReturn.getStart(sf)));
+  setupLines.push({text: `${leadOf(setupReturn)}const {\n${rows.join('\n')}\n} = ${nodeText(setupComposition)};`, names: []});
+}
 
 // ── provide
 const provideLines = [];
@@ -1582,19 +1748,27 @@ if (opt.provide !== undefined) {
   }
 }
 
-// ── created / beforeCreate — their bodies, at the top level
+// ── created / beforeCreate — their bodies, at the top level. `beforeCreate` ran before the options were applied (the
+// state, the computeds, the watchers — the `immediate` ones among them): its body stands ABOVE every declaration, after
+// what `setup()` did (the Options API called `setup()` first). `created` ran after the watchers were created.
 const createdLines = [];
-for (const node of opt.created) {
-  const fn = ts.isMethodDeclaration(node) ? node : initOf(node);
-  const body = fn?.body !== undefined && ts.isBlock(fn.body) ? fn.body.statements : [];
-  if (isAsync(fn)) {
-    review(`\`${nameOfProp(node)}\` is async — its body stands at the top level in an async IIFE`, node);
-  }
-  if (body.length > 0) {
-    const lead = leadOf(node) + leadOf(body[0]);
-    dedent(body[0].getStart(sf), body[body.length - 1].end, columnOf(body[0].getStart(sf)));
-    const text = textOf(body[0].getStart(sf), body[body.length - 1].end);
-    createdLines.push(isAsync(fn) ? `${lead}void (async () => {\n  ${text.replace(/\n/g, '\n  ')}\n})();` : `${lead}${text}`);
+const beforeCreateLines = [];
+for (const [nodes, lines] of [[opt.beforeCreate, beforeCreateLines], [opt.created, createdLines]]) {
+  for (const node of nodes) {
+    const fn = ts.isMethodDeclaration(node) ? node : initOf(node);
+    const body = fn?.body !== undefined && ts.isBlock(fn.body) ? fn.body.statements : [];
+    if (isAsync(fn)) {
+      review(`\`${nameOfProp(node)}\` is async — its body stands at the top level in an async IIFE`, node);
+    }
+    if (body.length > 0) {
+      const lead = leadOf(node) + leadOf(body[0]);
+      dedent(body[0].getStart(sf), body[body.length - 1].end, columnOf(body[0].getStart(sf)));
+      const text = textOf(body[0].getStart(sf), body[body.length - 1].end);
+      lines.push(isAsync(fn) ? `${lead}void (async () => {\n  ${text.replace(/\n/g, '\n  ')}\n})();` : `${lead}${text}`);
+      if (lines === beforeCreateLines) {
+        review('`beforeCreate` stands at the TOP of the script, above every declaration (R9) — a `const` it reads must be a module import, never a member', node);
+      }
+    }
   }
 }
 
@@ -1606,7 +1780,15 @@ function sourceOf(key, node) {
   const info = members.get(head);
   // the Options path getter tolerated a hole at every hop — every hop after the first is `?.`
   const tail = rest.length > 0 ? `.${rest.join('?.')}` : '';
+  if (rest.length > 1) {
+    review(`the path watcher «${key}» reads \`${head}${tail}\` — the Options getter tolerated a hole at every hop; drop each \`?.\` where the type has none (R6)`, node);
+  } else if (rest.length === 1) {
+    review(`the path watcher «${key}» reads \`${head}.${rest[0]}\` — the Options getter tolerated «${head}» being undefined: if its type allows that, the first hop is \`?.\` too (an \`immediate\` one throws in setup otherwise — R6)`, node);
+  }
   if (info === undefined) {
+    if (droppedAliases.has(head)) {
+      return `() => ${droppedAliases.get(head)}${tail}`;
+    }
     if (dropped.has(head) || moduleNames.has(head)) {
       return `() => ${head}${tail}`;
     }
@@ -1773,10 +1955,15 @@ for (const st of moduleStatements) {
   if (droppedStatements.has(st)) {
     continue;
   }
-  const lead = leadOf(st);
+  let lead = moduleLeadOf(st);
+  if (st === moduleStatements[0] && ts.isImportDeclaration(st) && st.moduleSpecifier.text !== 'vue' && lead.trim() !== '') {
+    // the file's header comment stood above its FIRST import: it stays at the top, above the rebuilt `vue` import
+    vueLead = lead + vueLead;
+    lead = '';
+  }
   if (ts.isImportDeclaration(st)) {
     const from = st.moduleSpecifier.text;
-    let text = nodeText(st);
+    let text = nodeText(st) + trailOf(st);
     if (from === 'vue') {
       vueLead += lead; // the import is rebuilt below; what stood above it (the file's header comment) stays
       continue;
@@ -1798,7 +1985,7 @@ for (const st of moduleStatements) {
     }
     importLines.push(`${lead}${text}`);
   } else {
-    moduleLines.push(`${lead}${nodeText(st)}`);
+    moduleLines.push(`${lead}${nodeText(st)}${trailOf(st)}`);
   }
 }
 // the header comment that stood above `export default`
@@ -1844,7 +2031,13 @@ push([...macroLines]);
 const afterMacros = body.length;
 function buildBody() {
   body.length = afterMacros;
-  push([...(need.appRoot ? [`const ${appRootName} = useAppRoot();`] : []), ...setupLines.map((part) => part.text), ...refLines, ...dataLines]);
+  if (beforeCreateLines.length > 0) {
+    push([...(need.appRoot ? [`const ${appRootName} = useAppRoot();`] : []), ...setupLines.map((part) => part.text)]);
+    push(beforeCreateLines);
+    push([...refLines, ...dataLines]);
+  } else {
+    push([...(need.appRoot ? [`const ${appRootName} = useAppRoot();`] : []), ...setupLines.map((part) => part.text), ...refLines, ...dataLines]);
+  }
   push(computedLines);
   push(methodLines);
   push(provideLines);
@@ -1879,7 +2072,7 @@ for (let changed = true; changed;) {
 
 // a local TYPE nothing names any more (it only annotated `data(): T`) is dropped — § 1
 for (let i = moduleLines.length - 1; i >= 0; i--) {
-  const m = /^(?:\/\/[^\n]*\n|\/\*[\s\S]*?\*\/\n)*(?:type|interface)\s+(\w+)\b/.exec(moduleLines[i]);
+  const m = /^\n?(?:\/\/[^\n]*\n|\/\*[\s\S]*?\*\/\n)*(?:type|interface)\s+(\w+)\b/.exec(moduleLines[i]);
   if (m !== null && !new RegExp(`\\b${m[1]}\\b`).test(`${bodyText}\n${moduleLines.filter((_, j) => j !== i).join('\n')}`)) {
     review(`DROPPED the type «${m[1]}» — nothing names it any more: name it in the commit (§ 1)`);
     moduleLines.splice(i, 1);
@@ -1919,26 +2112,48 @@ if (need.appRoot) {
 const tagNames = new Set([...tpl.tags].flatMap((t) => [t, t.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join('')]));
 const keptImports = importLines.map((line) => {
   // drop the specifiers nothing names (a component the template renders counts; so does a name the template reads)
-  const m = /^((?:\/\/[^\n]*\n|\/\*[\s\S]*?\*\/\n)*)import\s+(type\s+)?(?:(\w+)\s*,?\s*)?(?:\{([^}]*)\})?\s*(?:\*\s+as\s+(\w+)\s*)?from\s*('[^']+');?$/.exec(line.trim());
+  const m = /^((?:\/\/[^\n]*\n|\/\*[\s\S]*?\*\/\n)*)import\s+(type\s+)?(?:(\w+)\s*,?\s*)?(?:\{([^}]*)\})?\s*(?:\*\s+as\s+(\w+)\s*)?from\s*('[^']+');?([ \t]*(?:\/\/[^\n]*|\/\*[^\n]*\*\/))?$/.exec(line.trim());
   if (m === null) {
     return line;
   }
-  const [, lead, typeOnly, dflt, named, ns, from] = m;
+  const [, lead, typeOnly, dflt, named, ns, from, trail] = m;
+  const blankBefore = line.startsWith('\n') ? '\n' : '';
   const live = (local) => used(local) || tagNames.has(local) || (/^v[A-Z]/.test(local) && tpl.directives.has(local.slice(1).replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()));
   const keepDefault = dflt !== undefined && live(dflt) ? dflt : undefined;
   const keepNs = ns !== undefined && live(ns) ? ns : undefined;
-  const keepNamed = (named ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '' && live(s.split(/\s+as\s+/).pop().replace(/^type\s+/, '')));
+  // (a comment standing INSIDE the braces is no specifier, and must not take the name after it down with it)
+  const namedSpecs = (named ?? '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '').split(',').map((part) => part.trim()).filter((part) => part !== '');
+  const keepNamed = namedSpecs.filter((spec) => live(spec.split(/\s+as\s+/).pop().replace(/^type\s+/, '')));
   if (keepDefault === undefined && keepNs === undefined && keepNamed.length === 0) {
     return undefined;
   }
-  const clause = [keepDefault, keepNs !== undefined ? `* as ${keepNs}` : undefined, keepNamed.length > 0 ? `{${keepNamed.join(', ')}}` : undefined].filter(Boolean).join(', ');
-  return `${lead}import ${typeOnly ?? ''}${clause} from ${from};`;
+  const allNamed = namedSpecs;
+  if (keepNamed.length === allNamed.length && (dflt === undefined) === (keepDefault === undefined) && (ns === undefined) === (keepNs === undefined)) {
+    return line; // nothing left it: the statement keeps its own layout
+  }
+  // a list that stood on several lines stays on several (wrapped at the file's width)
+  let list = `{${keepNamed.join(', ')}}`;
+  if ((named ?? '').includes('\n') && list.length > 100) {
+    const rows = [];
+    let row = ' ';
+    for (const spec of keepNamed) {
+      if (row.length + spec.length + 2 > 118) {
+        rows.push(row);
+        row = ' ';
+      }
+      row += ` ${spec},`;
+    }
+    rows.push(row);
+    list = `{\n${rows.join('\n')}\n}`;
+  }
+  const clause = [keepDefault, keepNs !== undefined ? `* as ${keepNs}` : undefined, keepNamed.length > 0 ? list : undefined].filter(Boolean).join(', ');
+  return `${blankBefore}${lead}import ${typeOnly ?? ''}${clause} from ${from};${trail ?? ''}`;
 }).filter((line) => line !== undefined);
 
 const scriptOut = [
   commentBlock.trimEnd(),
-  vueLead + [...extraImports.slice(0, 1), ...keptImports, ...extraImports.slice(1)].join('\n'),
-  moduleLines.join('\n'),
+  vueLead + [...extraImports.slice(0, 1), ...keptImports, ...extraImports.slice(1)].join('\n').replace(/^\n+/, ''),
+  moduleLines.join('\n').replace(/^\n+/, ''),
   `${headComment}${bodyText}`,
 ].filter((part) => part.trim() !== '').join('\n\n');
 
