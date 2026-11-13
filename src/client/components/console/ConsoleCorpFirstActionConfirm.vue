@@ -1,7 +1,5 @@
 <template>
-  <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
-       director — no own backdrop. -->
-  <div class="con-composer con-composer--corpfirst con-ws" :class="{'con-composer--submitting': submitting}" role="dialog" :aria-label="titleText" data-motion-surface="corp-first">
+  <div ref="root" class="con-composer con-composer--corpfirst con-ws" :class="{'con-composer--submitting': submitting}" role="dialog" :aria-label="titleText" data-motion-surface="corp-first">
 
     <div class="con-composer__panel con-composer__panel--play con-composer__panel--corpfirst" data-motion-panel>
       <!-- ── Header: the MANDATORY framing leads. ─────────────────────── -->
@@ -75,7 +73,13 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+ * director — no own backdrop.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * CONSOLE CORP FIRST-ACTION CONFIRM — the dedicated modal for the corporation's
  * MANDATORY first action (`startGamePrompt.kind === 'corporationInitialAction'`).
@@ -99,7 +103,7 @@
  * B = defer to the amber chip (mandatory — never a dismissal) · Y stays the
  * global Information Mode (handled by the shell).
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType, ref, useTemplateRef, watch} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -114,11 +118,13 @@ import {apiUrl} from '@/client/utils/runtimeConfig';
 import {fetchPreview} from '@/client/utils/previewFetch';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
-import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
+import {$t, translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
+/** The «ДАЛЕЕ» row's inline tile pictogram (the same art as the card face). */
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {startFlowCorpPrompt, corpActionOptionIndexFor} from '@/client/components/startGameFlow/startGameFlowState';
@@ -131,252 +137,235 @@ function textOf(v: string | Message | undefined): string {
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
 }
 
-export default defineComponent({
-  name: 'ConsoleCorpFirstActionConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    /** The corporations whose first action is live RIGHT NOW (>1 = Merger). */
-    corpNames: {type: Array as PropType<ReadonlyArray<CardName>>, required: true},
-  },
-  emits: {
-    'confirm': (_name: CardName) => true,
-    'cancel': () => true,
-  },
-  data() {
-    return {
-      idx: 0,
-      /** Fetched previews by corp name (`name in previews` = fetch settled),
-       *  scoped to the game-state version they were fetched under — a corp's
-       *  first action is priced against live state (`canAfford`, production),
-       *  so a preview outliving its own inputs is a lie about the ask. */
-      previews: {} as Record<string, ActionPreview | undefined>,
-      previewsVersion: '',
-      submitting: false,
-    };
-  },
-  computed: {
-    currentName(): CardName | undefined {
-      return this.corpNames[Math.min(this.idx, this.corpNames.length - 1)];
-    },
-    card(): CardModel | undefined {
-      return this.playerView.thisPlayer.tableau.find((c) => c.name === this.currentName);
-    },
-    titleText(): string {
-      return this.currentName !== undefined ? translateCardName(this.currentName) : '';
-    },
-    /** The printed first-action text — the live option's buttonLabel
-     *  (`initialActionText`), resolved structurally from the prompt. */
-    actionText(): string {
-      const prompt = startFlowCorpPrompt(this.playerView);
-      const name = this.currentName;
-      if (prompt !== undefined && name !== undefined) {
-        const index = corpActionOptionIndexFor(prompt, name);
-        const label = index !== -1 ? prompt.options?.[index]?.buttonLabel : undefined;
-        if (label !== undefined && label !== '') {
-          return translateText(label);
-        }
-      }
-      return translateText('Take the first action of your corporation');
-    },
-    /** The game-state version the fetched previews belong to. */
-    previewVersion(): string {
-      return gameStateVersion(this.playerView);
-    },
-    loading(): boolean {
-      const name = this.currentName;
-      return name !== undefined && !(name in this.previews);
-    },
-    preview(): ActionPreview | undefined {
-      const name = this.currentName;
-      return name !== undefined ? this.previews[name] : undefined;
-    },
-    branch(): ActionPreviewBranch | undefined {
-      return this.preview?.branches.find((b) => b.available) ?? this.preview?.branches[0];
-    },
-    effects(): ReadonlyArray<ActionEffect> {
-      return this.branch?.effects ?? [];
-    },
-    warnings(): Array<{title: string, reason: string, effect?: ActionEffect}> {
-      const b = this.branch;
-      if (b === undefined) {
-        return [];
-      }
-      return skippedEffectViews(b.steps).map((w) => ({
-        title: w.title !== '' ? translateText(w.title) : '',
-        reason: translateText(w.reason),
-        effect: w.effect,
-      }));
-    },
-    followUpNotes(): Array<NextStepRow> {
-      const b = this.branch;
-      if (b === undefined) {
-        return [];
-      }
-      const out: Array<NextStepRow> = [];
-      for (const s of b.steps) {
-        if (s.kind === 'boardPlacement') {
-          // Same presenter as the play composer — Tharsis Republic's free city
-          // must read «разместите тайл города», not a mute "pick a location".
-          out.push(placementRow(s, consoleTranslate, textOf));
-        } else if (s.kind === 'note' && s.noteKind !== 'warning') {
-          out.push(noteRow(s.text !== undefined ? textOf(s.text) : translateText('Choose a target')));
-        } else if (s.kind === 'input') {
-          // Defensive: the first-action submit pre-collects nothing, so an
-          // interactive step reads as an honest "you will choose next" line.
-          const t = textOf(s.input.title);
-          out.push(noteRow(t !== '' ? t : translateText('Choose a target')));
-        }
-      }
-      return out;
-    },
-  },
-  watch: {
-    corpNames: {
-      immediate: true,
-      handler(names: ReadonlyArray<CardName>) {
-        if (this.idx >= names.length) {
-          this.idx = 0;
-        }
-      },
-    },
-    currentName: {
-      immediate: true,
-      handler(name: CardName | undefined) {
-        if (name !== undefined && !(name in this.previews)) {
-          this.loadPreview(name);
-        }
-      },
-    },
-    playerView() {
-      this.submitting = false;
-    },
-    /**
-     * The server state moved — every fetched preview is a spent verdict. Drop
-     * them AND re-ask for the one on screen: `currentName` has not changed, so
-     * its own watcher will not fire, and a cleared cache with nobody refilling
-     * it is a permanent «Загрузка…».
-     */
-    previewVersion: {
-      immediate: true,
-      handler(version: string) {
-        if (this.previewsVersion === version) {
-          return;
-        }
-        const seeding = this.previewsVersion === '';
-        this.previewsVersion = version;
-        this.previews = {};
-        const name = this.currentName;
-        // On the SEEDING pass the `currentName` watcher (declared above, also
-        // immediate) has already asked — refetching here would double it.
-        if (!seeding && name !== undefined) {
-          this.loadPreview(name);
-        }
-      },
-    },
-  },
-  methods: {
-    /** The «ДАЛЕЕ» row's inline tile pictogram (the same art as the card face). */
-    tileIconStyle,
-    loadPreview(name: CardName): void {
-      // The version at REQUEST time: an answer that lands after the state moved
-      // is dropped rather than stored under the new version (the prewarm cache's
-      // rule — a stale answer is never patched, it simply stops matching).
-      const version = this.previewVersion;
-      // SETTLE, don't just skip. `loading` is `!(name in previews)`, so a name
-      // we decline to ask about must still be RECORDED as answered — «no
-      // preview» is the honest verdict (the modal shows the ask + the confirm
-      // CTA), while leaving the slot empty is a permanent «Загрузка…».
-      const settle = (preview: ActionPreview | undefined) => {
-        if (this.previewsVersion === version) {
-          this.previews = {...this.previews, [name]: preview};
-        }
-      };
-      // ASK ONLY WHAT THE SERVER CAN ANSWER — the corp must still owe its first
-      // action (`pendingInitialActions`, the ledger the route resolves
-      // against). It drains at the SUBMIT, while this modal is still mounted.
-      if (!firstActionPreviewable(this.playerView, name)) {
-        settle(undefined);
-        return;
-      }
-      const url = apiUrl(paths.API_CORP_FIRST_ACTION_PREVIEW) +
-        '?id=' + encodeURIComponent(this.playerView.id) + '&corp=' + encodeURIComponent(name);
-      // Graceful on an absent preview: the modal still shows the ask + the CTA.
-      fetchPreview<ActionPreview>(url).then(settle);
-    },
-    switchCorp(step: 1 | -1): void {
-      const n = this.corpNames.length;
-      if (n < 2) {
-        return;
-      }
-      this.idx = (this.idx + step + n) % n;
-    },
-    // ── input (the shell owns the pad and delegates) ────────────────────
-    handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'scroll') {
-        this.stickScroll(intent.dy);
-        return;
-      }
-      if (intent.kind === 'nav') {
-        this.onNav(intent.dir);
-        return;
-      }
-      if (intent.kind !== 'press') {
-        return;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'primary':
-        this.confirm();
-        break;
-      case 'inspect':
-        this.inspectCard();
-        break;
-      case 'prevSection':
-        this.switchCorp(-1);
-        break;
-      case 'nextSection':
-        this.switchCorp(1);
-        break;
-      case 'back':
-        this.$emit('cancel');
-        break;
-      default:
-        break;
-      }
-    },
-    onNav(dir: NavDirection): void {
-      if (dir === 'left') {
-        this.switchCorp(-1);
-      } else if (dir === 'right') {
-        this.switchCorp(1);
-      }
-    },
-    stickScroll(dy: number): void {
-      if (Math.abs(dy) < 0.05) {
-        return;
-      }
-      ((this.$refs.scroll ?? undefined) as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(dy * 44);
-    },
-    inspectCard(): void {
-      if (this.card !== undefined) {
-        // "One physical card": the modal's corp card lifts into fullscreen
-        // and returns into the same slot on close (the composer pattern).
-        openConsoleCardZoom([this.card], 0, undefined, undefined, {
-          origin: {
-            kind: 'physical',
-            resolve: () => (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-composer__playcard') ?? null,
-          },
-        });
-      }
-    },
-    confirm(): void {
-      const name = this.currentName;
-      if (name === undefined || this.submitting) {
-        return;
-      }
-      this.submitting = true;
-      this.$emit('confirm', name);
-    },
-  },
+defineOptions({name: 'ConsoleCorpFirstActionConfirm'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  /** The corporations whose first action is live RIGHT NOW (>1 = Merger). */
+  corpNames: {type: Array as PropType<ReadonlyArray<CardName>>, required: true},
 });
+const emit = defineEmits({
+  'confirm': (_name: CardName) => true,
+  'cancel': () => true,
+});
+
+const root = useTemplateRef<HTMLElement>('root');
+const scroll = useTemplateRef<{scrollByPx?: (d: number) => void}>('scroll');
+const idx = ref(0);
+/** Fetched previews by corp name (`name in previews` = fetch settled),
+ *  scoped to the game-state version they were fetched under — a corp's
+ *  first action is priced against live state (`canAfford`, production),
+ *  so a preview outliving its own inputs is a lie about the ask. */
+const previews = ref<Record<string, ActionPreview | undefined>>({});
+const previewsVersion = ref('');
+const submitting = ref(false);
+
+const currentName = computed((): CardName | undefined => {
+  return props.corpNames[Math.min(idx.value, props.corpNames.length - 1)];
+});
+const card = computed((): CardModel | undefined => {
+  return props.playerView.thisPlayer.tableau.find((c) => c.name === currentName.value);
+});
+const titleText = computed((): string => {
+  return currentName.value !== undefined ? translateCardName(currentName.value) : '';
+});
+/** The printed first-action text — the live option's buttonLabel
+ *  (`initialActionText`), resolved structurally from the prompt. */
+const actionText = computed((): string => {
+  const prompt = startFlowCorpPrompt(props.playerView);
+  const name = currentName.value;
+  if (prompt !== undefined && name !== undefined) {
+    const index = corpActionOptionIndexFor(prompt, name);
+    const label = index !== -1 ? prompt.options?.[index]?.buttonLabel : undefined;
+    if (label !== undefined && label !== '') {
+      return translateText(label);
+    }
+  }
+  return translateText('Take the first action of your corporation');
+});
+/** The game-state version the fetched previews belong to. */
+const previewVersion = computed((): string => {
+  return gameStateVersion(props.playerView);
+});
+const loading = computed((): boolean => {
+  const name = currentName.value;
+  return name !== undefined && !(name in previews.value);
+});
+const preview = computed((): ActionPreview | undefined => {
+  const name = currentName.value;
+  return name !== undefined ? previews.value[name] : undefined;
+});
+const branch = computed((): ActionPreviewBranch | undefined => {
+  return preview.value?.branches.find((b) => b.available) ?? preview.value?.branches[0];
+});
+const effects = computed((): ReadonlyArray<ActionEffect> => {
+  return branch.value?.effects ?? [];
+});
+const warnings = computed((): Array<{title: string, reason: string, effect?: ActionEffect}> => {
+  const b = branch.value;
+  if (b === undefined) {
+    return [];
+  }
+  return skippedEffectViews(b.steps).map((w) => ({
+    title: w.title !== '' ? translateText(w.title) : '',
+    reason: translateText(w.reason),
+    effect: w.effect,
+  }));
+});
+const followUpNotes = computed((): Array<NextStepRow> => {
+  const b = branch.value;
+  if (b === undefined) {
+    return [];
+  }
+  const out: Array<NextStepRow> = [];
+  for (const s of b.steps) {
+    if (s.kind === 'boardPlacement') {
+      // Same presenter as the play composer — Tharsis Republic's free city
+      // must read «разместите тайл города», not a mute "pick a location".
+      out.push(placementRow(s, consoleTranslate, textOf));
+    } else if (s.kind === 'note' && s.noteKind !== 'warning') {
+      out.push(noteRow(s.text !== undefined ? textOf(s.text) : translateText('Choose a target')));
+    } else if (s.kind === 'input') {
+      // Defensive: the first-action submit pre-collects nothing, so an
+      // interactive step reads as an honest "you will choose next" line.
+      const t = textOf(s.input.title);
+      out.push(noteRow(t !== '' ? t : translateText('Choose a target')));
+    }
+  }
+  return out;
+});
+
+function loadPreview(name: CardName): void {
+  // The version at REQUEST time: an answer that lands after the state moved
+  // is dropped rather than stored under the new version (the prewarm cache's
+  // rule — a stale answer is never patched, it simply stops matching).
+  const version = previewVersion.value;
+  // SETTLE, don't just skip. `loading` is `!(name in previews)`, so a name
+  // we decline to ask about must still be RECORDED as answered — «no
+  // preview» is the honest verdict (the modal shows the ask + the confirm
+  // CTA), while leaving the slot empty is a permanent «Загрузка…».
+  const settle = (preview: ActionPreview | undefined) => {
+    if (previewsVersion.value === version) {
+      previews.value = {...previews.value, [name]: preview};
+    }
+  };
+  // ASK ONLY WHAT THE SERVER CAN ANSWER — the corp must still owe its first
+  // action (`pendingInitialActions`, the ledger the route resolves
+  // against). It drains at the SUBMIT, while this modal is still mounted.
+  if (!firstActionPreviewable(props.playerView, name)) {
+    settle(undefined);
+    return;
+  }
+  const url = apiUrl(paths.API_CORP_FIRST_ACTION_PREVIEW) +
+    '?id=' + encodeURIComponent(props.playerView.id) + '&corp=' + encodeURIComponent(name);
+  // Graceful on an absent preview: the modal still shows the ask + the CTA.
+  fetchPreview<ActionPreview>(url).then(settle);
+}
+function switchCorp(step: 1 | -1): void {
+  const n = props.corpNames.length;
+  if (n < 2) {
+    return;
+  }
+  idx.value = (idx.value + step + n) % n;
+}
+// ── input (the shell owns the pad and delegates) ────────────────────
+function handleIntent(intent: GamepadIntent): void {
+  if (intent.kind === 'scroll') {
+    stickScroll(intent.dy);
+    return;
+  }
+  if (intent.kind === 'nav') {
+    onNav(intent.dir);
+    return;
+  }
+  if (intent.kind !== 'press') {
+    return;
+  }
+  switch (consoleActionOf(intent)) {
+  case 'primary':
+    confirm();
+    break;
+  case 'inspect':
+    inspectCard();
+    break;
+  case 'prevSection':
+    switchCorp(-1);
+    break;
+  case 'nextSection':
+    switchCorp(1);
+    break;
+  case 'back':
+    emit('cancel');
+    break;
+  default:
+    break;
+  }
+}
+function onNav(dir: NavDirection): void {
+  if (dir === 'left') {
+    switchCorp(-1);
+  } else if (dir === 'right') {
+    switchCorp(1);
+  }
+}
+function stickScroll(dy: number): void {
+  if (Math.abs(dy) < 0.05) {
+    return;
+  }
+  scroll.value?.scrollByPx?.(dy * 44);
+}
+function inspectCard(): void {
+  if (card.value !== undefined) {
+    // "One physical card": the modal's corp card lifts into fullscreen
+    // and returns into the same slot on close (the composer pattern).
+    openConsoleCardZoom([card.value], 0, undefined, undefined, {
+      origin: {
+        kind: 'physical',
+        resolve: () => root.value?.querySelector<HTMLElement>('.con-composer__playcard') ?? null,
+      },
+    });
+  }
+}
+function confirm(): void {
+  const name = currentName.value;
+  if (name === undefined || submitting.value) {
+    return;
+  }
+  submitting.value = true;
+  emit('confirm', name);
+}
+
+watch(() => props.corpNames, (names: ReadonlyArray<CardName>) => {
+  if (idx.value >= names.length) {
+    idx.value = 0;
+  }
+}, {immediate: true});
+watch(() => currentName.value, (name: CardName | undefined) => {
+  if (name !== undefined && !(name in previews.value)) {
+    loadPreview(name);
+  }
+}, {immediate: true});
+watch(() => props.playerView, () => {
+  submitting.value = false;
+});
+/**
+ * The server state moved — every fetched preview is a spent verdict. Drop
+ * them AND re-ask for the one on screen: `currentName` has not changed, so
+ * its own watcher will not fire, and a cleared cache with nobody refilling
+ * it is a permanent «Загрузка…».
+ */
+watch(() => previewVersion.value, (version: string) => {
+  if (previewsVersion.value === version) {
+    return;
+  }
+  const seeding = previewsVersion.value === '';
+  previewsVersion.value = version;
+  previews.value = {};
+  const name = currentName.value;
+  // On the SEEDING pass the `currentName` watcher (declared above, also
+  // immediate) has already asked — refetching here would double it.
+  if (!seeding && name !== undefined) {
+    loadPreview(name);
+  }
+}, {immediate: true});
+defineExpose({handleIntent, stickScroll});
 </script>
