@@ -12,7 +12,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * THE focus ring (docs/GAMEPAD_SUPPORT_DESIGN.md §5.8) — one fixed,
  * pointer-events-none element that morphs to the focused element's rect.
@@ -22,60 +22,46 @@
  * snaps instantly (gamepad.less). The corner A-badge labels the primary
  * action at the point of attention (§6).
  */
-import {defineComponent} from 'vue';
+import {computed, nextTick, ref, watch} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {focusState} from '@/client/gamepad/focusEngine';
 import {inputModeState} from '@/client/gamepad/inputModeState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
-export default defineComponent({
-  name: 'GamepadFocusRing',
-  components: {GamepadGlyph},
-  setup() {
-    // The ring's own scope (flow kernel — PLAN §10 · C1). It stands outside any console shell (its host is the
-    // app-level `GamepadLayer`), so it is the PAGE's: a game screen that comes and goes never ends it.
-    const flow = useFlowScope('gamepad-focus-ring');
-    return {flow};
-  },
-  data() {
-    return {
-      focusState,
-      inputModeState,
-      deniedFlash: false,
-      cancelDenied: (() => {}) as () => void,
-    };
-  },
-  computed: {
-    ring() {
-      return this.focusState.ring;
-    },
-    gamepadActive(): boolean {
-      return this.inputModeState.mode === 'gamepad';
-    },
-    showConfirmBadge(): boolean {
-      return this.ring.variant !== 'illegal';
-    },
-    ringStyle(): Record<string, string> {
-      return {
-        transform: `translate3d(${this.ring.left - 4}px, ${this.ring.top - 4}px, 0)`,
-        width: `${this.ring.width + 8}px`,
-        height: `${this.ring.height + 8}px`,
-      };
-    },
-  },
-  watch: {
-    'focusState.ring.deniedEpoch'() {
-      // A refused action: short refusal shake, re-armable.
-      this.deniedFlash = false;
-      this.cancelDenied();
-      void this.$nextTick(() => {
-        this.deniedFlash = true;
-        this.cancelDenied = this.flow.after(motionMs(260), 'the ring\'s refusal shake ends', () => {
-          this.deniedFlash = false;
-        });
-      });
-    },
-  },
+defineOptions({name: 'GamepadFocusRing'});
+
+// The ring's own scope (flow kernel — PLAN §10 · C1). It stands outside any console shell (its host is the
+// app-level `GamepadLayer`), so it is the PAGE's: a game screen that comes and goes never ends it.
+const flow = useFlowScope('gamepad-focus-ring');
+const deniedFlash = ref(false);
+let cancelDenied = (() => {}) as () => void;
+const ring = computed(() => {
+  return focusState.ring;
+});
+const gamepadActive = computed((): boolean => {
+  return inputModeState.mode === 'gamepad';
+});
+const showConfirmBadge = computed((): boolean => {
+  return ring.value.variant !== 'illegal';
+});
+const ringStyle = computed((): Record<string, string> => {
+  return {
+    transform: `translate3d(${ring.value.left - 4}px, ${ring.value.top - 4}px, 0)`,
+    width: `${ring.value.width + 8}px`,
+    height: `${ring.value.height + 8}px`,
+  };
+});
+
+watch(() => focusState.ring.deniedEpoch, () => {
+  // A refused action: short refusal shake, re-armable.
+  deniedFlash.value = false;
+  cancelDenied();
+  void nextTick(() => {
+    deniedFlash.value = true;
+    cancelDenied = flow.after(motionMs(260), 'the ring\'s refusal shake ends', () => {
+      deniedFlash.value = false;
+    });
+  });
 });
 </script>
