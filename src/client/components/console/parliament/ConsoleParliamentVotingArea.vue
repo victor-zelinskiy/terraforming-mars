@@ -1,10 +1,4 @@
 <template>
-  <!-- ── THE VOTING AREA — ONE focus zone: three resolutions in the order
-       that breaks ties (the first stands closest to the government), the
-       delegates on each in placement order, the leader, the winning card
-       (ONE accent: its badge and its gold seam — never a second line).
-       Its slots are the vote mode's cards too: each is one DOM instance,
-       teleported into the vote row while the mode stands. ── -->
   <div class="con-parl__voting"
        :class="{
          'con-parl__voting--focus': flow.zone === 'voting' && flow.stage === 'browse',
@@ -164,19 +158,29 @@
     </div>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ── THE VOTING AREA — ONE focus zone: three resolutions in the order
+ * that breaks ties (the first stands closest to the government), the
+ * delegates on each in placement order, the leader, the winning card
+ * (ONE accent: its badge and its gold seam — never a second line).
+ * Its slots are the vote mode's cards too: each is one DOM instance,
+ * teleported into the vote row while the mode stands. ──
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {PremiumCardFace} from '@/client/components/asyncComponents';
 import ConsoleTeleport from '@/client/components/console/foundation/ConsoleTeleport.vue';
 import {Color} from '@/common/Color';
-import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
-import {PARLIAMENT_VOTING_SLOTS, ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {PARLIAMENT_VOTING_SLOTS} from '@/common/parliament/ParliamentTypes';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
-import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
 import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {consoleParliamentUi, parliamentFlow, parliamentSlotsCarried, parliamentVoteSelecting} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {rivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
@@ -185,12 +189,11 @@ import {parliamentArtTier} from '@/client/console/parliament/parliamentArtTier';
 import {CardArtTier} from '@/client/cards/cardArt';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {PARTY_EFFECT_PLACES, ParliamentSlotVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
+// `placeShownOn` / `winningShownOf` are this component's own members too (the template's names): the imports stand under the module's name.
 import {
-  DENSE_RIBBON, placeShownOn, RibbonGroup, ribbonGroupsOf, tallyShownOf, winningShownOf,
+  DENSE_RIBBON, placeShownOn as voteViewPlaceShownOn, RibbonGroup, ribbonGroupsOf, tallyShownOf, winningShownOf as voteViewWinningShownOf,
 } from '@/client/console/parliament/parliamentVoteView';
 import {voteDecidedAt} from '@/client/console/parliament/consoleSittingFlow';
-import {partyNameKey} from '@/client/console/parliament/partyNames';
-import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
 import {delegateExchangeArrival, delegateRemovalGhostVote} from '@/client/console/parliament/delegateRemoval';
 
 /**
@@ -198,217 +201,178 @@ import {delegateExchangeArrival, delegateRemovalGhostVote} from '@/client/consol
  * mode teleports into its row), their ribbons and tallies as SHOWN — every
  * number waits for the delegate's touchdown, every hidden cube for its flight.
  */
-export default defineComponent({
-  name: 'ConsoleParliamentVotingArea',
-  components: {PlayerDelegate, ConsoleTeleport},
-  setup() {
-    const {isHandheld, isTv} = useConsoleViewport();
-    return {isHandheld, isTv};
-  },
-  props: {
-    view: {type: Object as PropType<ParliamentViewVm>, required: true},
-    model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    viewerParticipates: {type: Boolean, default: false},
-    benchWarn: {type: Boolean, default: false},
-    /** The seat pick's candidate slots (indices). */
-    seatCandidates: {type: Array as PropType<ReadonlyArray<number>>, default: () => []},
-    /** The results scene's current focus ('' outside the scene). */
-    /** The SITTING's stage on screen ('' outside the sitting) — the renewal lights the refreshed area. */
-    sittingStage: {type: String, default: ''},
-    /**
-     * THE DELEGATE MODE's cursor on a bill (TR72): the figure under the cursor — its bill's party and the vote that
-     * would leave (the owner's latest). It takes the cursor and stands «outgoing» (faded, its trace dashed) — a
-     * forecast, never a removal. Undefined elsewhere (the cursor on an area, past the press, outside the mode).
-     */
-    delegateTarget: {type: Object as PropType<{party: string, seq: number} | undefined>, default: undefined},
-  },
-  data() {
-    return {DENSE_RIBBON, PARTY_EFFECT_PLACES};
-  },
-  computed: {
-    /**
-     * THE WINNER OF THE VOTE, as a chip AT THE CARD (v4 §2.1): while the sitting stands, the card being
-     * enacted carries its badge and, beside it, the winning player's own cube. The verdict is read on the
-     * objects — there is no panel over the row to read it from.
-     */
-    /**
-     * THE SEAT THAT CARRIED THE RESOLUTION, as a cube in the winning card's own chip — the verdict read on the
-     * OBJECT (v4 §2.1), because in table mode there is no panel to read it from. Only while the verdict IS the
-     * subject: past the enactment the table has been refreshed and its «ПРИНИМАЕТСЯ» chip belongs to the NEXT
-     * vote, so a cube from the summary of the vote just closed would be two facts under one mark.
-     */
-    sittingWinnerColor(): Color | 'neutral' | undefined {
-      return this.sittingWinnerInstance === undefined ? undefined : this.model?.phase?.summary?.winner.player;
-    },
-    /** …and the card it belongs to: the instance the SUMMARY enacted, never the table's live re-ranking. */
-    sittingWinnerInstance(): string | undefined {
-      return this.sittingStage === 'verdict' || this.sittingStage === 'enact' ?
-        this.model?.phase?.summary?.winner.instance : undefined;
-    },
-    /**
-     * ONE form per profile (P-12): the word on the 1080 label row (every party name fits beside it — the
-     * vote-fit clip probe), the winner glyph with its hint on the Deck AND the couch (measured on the TV:
-     * «ИНДУСТРИАЛИСТЫ» 311 px + the word 292 px + the emblem and gaps = 681 px on a 608 px row — the word
-     * cut the party name).
-     */
-    glyphBadge(): boolean {
-      return this.isHandheld || this.isTv;
-    },
-    flow() {
-      return parliamentFlow;
-    },
-    holds() {
-      return parliamentHolds;
-    },
-    /** A rival's delegates that arrived (the ribbon's arrival mark plays once per cube). */
-    rival() {
-      return rivalVotes;
-    },
-    /** The director's poses (the verdict's lit slot). */
-    motion() {
-      return sittingMotion;
-    },
-    /** The three slots are in the vote row (up, or folding back — the leave animates them home first). */
-    slotsCarried(): boolean {
-      return parliamentSlotsCarried();
-    },
-    /** The vote mode selects a bill — the selection paints on the slot wherever it stands (the hall keeps it on the table). */
-    voteSelecting(): boolean {
-      return parliamentVoteSelecting();
-    },
-    /** The Parliament is the hall (v8): the bills never leave the table for the vote. */
-    hall(): boolean {
-      return consoleParliamentUi.hall;
-    },
-    /**
-     * THE SLOTS AS SHOWN: the live model — or, while the sitting HOLDS the
-     * reward pose through a step that already refreshed the table, the slots
-     * as they stood (registry R-25в). The director's holds hide what the
-     * renewal beat has yet to move; this hold keeps what it has yet to
-     * take away.
-     */
-    shownSlots(): ReadonlyArray<ParliamentSlotVm> {
-      const slots = this.holds.heldSlots ?? this.view.slots;
-      // A FIGURE TAKEN OFF A BILL (TR72) still stands on its ribbon until it lifts off: the answer already removed its
-      // vote, the ribbon keeps drawing it at its place (and the count with it) until the flight takes it.
-      // …and AN EXCHANGE's arriving figure (TR74) is on the model before it is set down: the ribbon keeps its place
-      // (drawn hidden — the flight measures it) but the bill does not COUNT it until the touchdown.
-      return slots.map((slot) => {
-        const ghost = delegateRemovalGhostVote(slot.instance);
-        const arrival = delegateExchangeArrival(slot.instance);
-        let shown: ParliamentSlotVm = slot;
-        if (ghost !== undefined && !slot.votes.some((vote) => vote.seq === ghost.seq)) {
-          shown = {...shown, votes: [...shown.votes, ghost].sort((a, b) => a.seq - b.seq), totalVotes: shown.totalVotes + 1};
-        }
-        if (arrival !== undefined && slot.votes.some((vote) => vote.seq === arrival.seq)) {
-          const before = parliamentFlow.delegateSnapshot?.leader;
-          shown = {
-            ...shown,
-            totalVotes: Math.max(0, shown.totalVotes - 1),
-            viewerVotes: arrival.owner === this.viewerColor ? Math.max(0, shown.viewerVotes - 1) : shown.viewerVotes,
-            // The lead the exchange moves is the server's forecast of the press — until the figure lands it is the old one.
-            ...(before === undefined ? {} : {leader: before.current}),
-          };
-        }
-        return shown;
-      });
-    },
-    /** The surface's ONE art tier (`parliamentArtTier`) — the same from the overview to the vote row, the same as a proxy's. */
-    artTier(): CardArtTier {
-      return parliamentArtTier();
-    },
-    slotVms(): Array<PremiumCardVM | undefined> {
-      return this.shownSlots.map((slot) => resolutionPremiumVmById(slot.resolutionId));
-    },
-    /** Voting slots the refresh could not fill (distinct parties, never the ruling one's) — each shown as an EMPTY slot. */
-    emptySlotCount(): number {
-      return Math.max(0, PARLIAMENT_VOTING_SLOTS - this.shownSlots.length);
-    },
-    /** WHY a slot stands empty: the final vote deals nothing after it; otherwise nothing of another party was left to deal. */
-    emptySlotReason(): string {
-      return this.model?.phase === undefined && this.model?.lastPhase?.final === true ?
-        'No new resolution after the final vote' :
-        'The deck has no resolution of another party';
-    },
-  },
-  methods: {
-    /** The exchange's arriving vote on this bill (TR74) — drawn hidden until its figure is set down. */
-    arrivalSeqOf(slot: ParliamentSlotVm): number | undefined {
-      return delegateExchangeArrival(slot.instance)?.seq;
-    },
-    figurePx(logical: number): number {
-      return delegateFigurePx(logical);
-    },
-    /** «N delegates» with the language's own plural forms. */
-    delegatesWord(n: number): string {
-      return translateTextWithParams('${0} delegates', [String(n)]).replace(/^\d+\s*/, '');
-    },
-    emblemUrl(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-    partyAccent(party: ReduxParty): string {
-      return partyAccent(party);
-    },
-    /** A slot's tally as SHOWN: the selected card waits for the touchdown before its numbers move. */
-    tallyOf(slot: ParliamentSlotVm, index: number): {votes: number, mine: number, leader: Color | 'neutral' | undefined} {
-      return tallyShownOf(slot, index);
-    },
-    /**
-     * A slot whose card is still ON THE DECK — a waiting place. Only on the LIVE table: while the sitting still HOLDS the
-     * table as voted, a loser that will be dealt straight back is the same instance as its own fresh face, and the
-     * held slot must go on showing the card that stands there (it leaves physically, in the tact, before the deal).
-     */
-    awaitingDeal(slot: ParliamentSlotVm): boolean {
-      return this.holds.heldSlots === undefined && this.holds.freshFaces.has(slot.instance);
-    },
-    /** The card that has left its held slot: for the government (the winner), or for the discard (a loser at the renewal). */
-    homeEmptied(slot: ParliamentSlotVm): boolean {
-      return this.holds.vacated.has(slot.instance) || this.holds.departed.has(slot.instance);
-    },
-    winningShownOf(slot: ParliamentSlotVm): boolean {
-      // While the renewal still has cards on the deck or cubes in the air, no card reads «принимается» yet: the
-      // badge would name a verdict about objects that have not arrived (a caption never runs ahead of its object).
-      // A card's RALLY (TR31) hides its own cubes the same way, but its marker is HELD, not silenced: the hold
-      // says which card wins until the cube that changed it has landed (`rallyWinnerShown`).
-      const renewing = rallyWinnerShown() === undefined && (this.holds.freshFaces.size > 0 || this.holds.hiddenCubes.size > 0);
-      return winningShownOf(slot, voteDecidedAt(this.model?.phase?.step) || renewing);
-    },
-    /** The DELEGATE mode's cursor stands on this figure (TR72) — the one the press would take. */
-    outgoingOf(slot: ParliamentSlotVm, seq: number): boolean {
-      return this.delegateTarget !== undefined && this.delegateTarget.party === slot.party && this.delegateTarget.seq === seq;
-    },
-    /** The recount of a card's rally (TR31) has MARKED this neutral cube. */
-    countedOf(slot: ParliamentSlotVm, seq: number): boolean {
-      return rallyMarked(rallyVoteKey(slot.instance, seq)) || this.accessCounted(slot, seq);
-    },
-    /**
-     * THE ACCESS SCENE's COUNT (2026-10-25): the viewer's delegates on the bill whose party their vote just won are
-     * touched by the count — the recount's own mark (the trace's ring + its one-shot swell), held for the scene: «these
-     * two won the effect». The seal that travels into «ВАШИ ЭФФЕКТЫ» is born on the last of them.
-     */
-    accessCounted(slot: ParliamentSlotVm, seq: number): boolean {
-      const f = parliamentFlow;
-      if (f.accessParty === undefined || f.accessParty !== slot.party || f.accessBeat === '' || this.viewerColor === undefined) {
-        return false;
-      }
-      return slot.votes.some((vote) => vote.seq === seq && vote.owner === this.viewerColor);
-    },
-    partyNameKey(party: PartyName): string {
-      return partyNameKey(party);
-    },
-    placeShownOn(index: number): boolean {
-      return placeShownOn(index, this.benchWarn);
-    },
-    ribbonGroups(slot: ParliamentSlotVm): Array<RibbonGroup> {
-      return ribbonGroupsOf(slot);
-    },
-    /**
-     * A party name too long to share the slot's label row with the «winning»
-     * WORD on a narrow slot (calibrated on the Deck: «МАРС ВПЕРЕД», 11, fits
-     * beside it; «ИНДУСТРИАЛИСТЫ», 14, does not) — its badge says it with the
-     * vote's winner glyph instead, never by cutting the name.
-     */
-  },
+defineOptions({name: 'ConsoleParliamentVotingArea'});
+const props = defineProps({
+  view: {type: Object as PropType<ParliamentViewVm>, required: true},
+  model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  viewerParticipates: {type: Boolean, default: false},
+  benchWarn: {type: Boolean, default: false},
+  /** The seat pick's candidate slots (indices). */
+  seatCandidates: {type: Array as PropType<ReadonlyArray<number>>, default: () => []},
+  /** The results scene's current focus ('' outside the scene). */
+  /** The SITTING's stage on screen ('' outside the sitting) — the renewal lights the refreshed area. */
+  sittingStage: {type: String, default: ''},
+  /**
+   * THE DELEGATE MODE's cursor on a bill (TR72): the figure under the cursor — its bill's party and the vote that
+   * would leave (the owner's latest). It takes the cursor and stands «outgoing» (faded, its trace dashed) — a
+   * forecast, never a removal. Undefined elsewhere (the cursor on an area, past the press, outside the mode).
+   */
+  delegateTarget: {type: Object as PropType<{party: string, seq: number} | undefined>, default: undefined},
 });
+
+/**
+ * THE WINNER OF THE VOTE, as a chip AT THE CARD (v4 §2.1): while the sitting stands, the card being
+ * enacted carries its badge and, beside it, the winning player's own cube. The verdict is read on the
+ * objects — there is no panel over the row to read it from.
+ */
+/**
+ * THE SEAT THAT CARRIED THE RESOLUTION, as a cube in the winning card's own chip — the verdict read on the
+ * OBJECT (v4 §2.1), because in table mode there is no panel to read it from. Only while the verdict IS the
+ * subject: past the enactment the table has been refreshed and its «ПРИНИМАЕТСЯ» chip belongs to the NEXT
+ * vote, so a cube from the summary of the vote just closed would be two facts under one mark.
+ */
+const sittingWinnerColor = computed((): Color | 'neutral' | undefined => {
+  return sittingWinnerInstance.value === undefined ? undefined : props.model?.phase?.summary?.winner.player;
+});
+/** …and the card it belongs to: the instance the SUMMARY enacted, never the table's live re-ranking. */
+const sittingWinnerInstance = computed((): string | undefined => {
+  return props.sittingStage === 'verdict' || props.sittingStage === 'enact' ?
+    props.model?.phase?.summary?.winner.instance : undefined;
+});
+const flow = parliamentFlow;
+const holds = parliamentHolds;
+/** A rival's delegates that arrived (the ribbon's arrival mark plays once per cube). */
+const rival = rivalVotes;
+/** The director's poses (the verdict's lit slot). */
+const motion = sittingMotion;
+/** The three slots are in the vote row (up, or folding back — the leave animates them home first). */
+const slotsCarried = computed((): boolean => {
+  return parliamentSlotsCarried();
+});
+/** The vote mode selects a bill — the selection paints on the slot wherever it stands (the hall keeps it on the table). */
+const voteSelecting = computed((): boolean => {
+  return parliamentVoteSelecting();
+});
+/** The Parliament is the hall (v8): the bills never leave the table for the vote. */
+const hall = computed((): boolean => {
+  return consoleParliamentUi.hall;
+});
+/**
+ * THE SLOTS AS SHOWN: the live model — or, while the sitting HOLDS the
+ * reward pose through a step that already refreshed the table, the slots
+ * as they stood (registry R-25в). The director's holds hide what the
+ * renewal beat has yet to move; this hold keeps what it has yet to
+ * take away.
+ */
+const shownSlots = computed((): ReadonlyArray<ParliamentSlotVm> => {
+  const slots = holds.heldSlots ?? props.view.slots;
+  // A FIGURE TAKEN OFF A BILL (TR72) still stands on its ribbon until it lifts off: the answer already removed its
+  // vote, the ribbon keeps drawing it at its place (and the count with it) until the flight takes it.
+  // …and AN EXCHANGE's arriving figure (TR74) is on the model before it is set down: the ribbon keeps its place
+  // (drawn hidden — the flight measures it) but the bill does not COUNT it until the touchdown.
+  return slots.map((slot) => {
+    const ghost = delegateRemovalGhostVote(slot.instance);
+    const arrival = delegateExchangeArrival(slot.instance);
+    let shown: ParliamentSlotVm = slot;
+    if (ghost !== undefined && !slot.votes.some((vote) => vote.seq === ghost.seq)) {
+      shown = {...shown, votes: [...shown.votes, ghost].sort((a, b) => a.seq - b.seq), totalVotes: shown.totalVotes + 1};
+    }
+    if (arrival !== undefined && slot.votes.some((vote) => vote.seq === arrival.seq)) {
+      const before = parliamentFlow.delegateSnapshot?.leader;
+      shown = {
+        ...shown,
+        totalVotes: Math.max(0, shown.totalVotes - 1),
+        viewerVotes: arrival.owner === props.viewerColor ? Math.max(0, shown.viewerVotes - 1) : shown.viewerVotes,
+        // The lead the exchange moves is the server's forecast of the press — until the figure lands it is the old one.
+        ...(before === undefined ? {} : {leader: before.current}),
+      };
+    }
+    return shown;
+  });
+});
+/** The surface's ONE art tier (`parliamentArtTier`) — the same from the overview to the vote row, the same as a proxy's. */
+const artTier = computed((): CardArtTier => {
+  return parliamentArtTier();
+});
+const slotVms = computed((): Array<PremiumCardVM | undefined> => {
+  return shownSlots.value.map((slot) => resolutionPremiumVmById(slot.resolutionId));
+});
+/** Voting slots the refresh could not fill (distinct parties, never the ruling one's) — each shown as an EMPTY slot. */
+const emptySlotCount = computed((): number => {
+  return Math.max(0, PARLIAMENT_VOTING_SLOTS - shownSlots.value.length);
+});
+/** WHY a slot stands empty: the final vote deals nothing after it; otherwise nothing of another party was left to deal. */
+const emptySlotReason = computed((): string => {
+  return props.model?.phase === undefined && props.model?.lastPhase?.final === true ?
+    'No new resolution after the final vote' :
+    'The deck has no resolution of another party';
+});
+/** The exchange's arriving vote on this bill (TR74) — drawn hidden until its figure is set down. */
+function arrivalSeqOf(slot: ParliamentSlotVm): number | undefined {
+  return delegateExchangeArrival(slot.instance)?.seq;
+}
+function figurePx(logical: number): number {
+  return delegateFigurePx(logical);
+}
+/** «N delegates» with the language's own plural forms. */
+function delegatesWord(n: number): string {
+  return translateTextWithParams('${0} delegates', [String(n)]).replace(/^\d+\s*/, '');
+}
+/** A slot's tally as SHOWN: the selected card waits for the touchdown before its numbers move. */
+function tallyOf(slot: ParliamentSlotVm, index: number): {votes: number, mine: number, leader: Color | 'neutral' | undefined} {
+  return tallyShownOf(slot, index);
+}
+/**
+ * A slot whose card is still ON THE DECK — a waiting place. Only on the LIVE table: while the sitting still HOLDS the
+ * table as voted, a loser that will be dealt straight back is the same instance as its own fresh face, and the
+ * held slot must go on showing the card that stands there (it leaves physically, in the tact, before the deal).
+ */
+function awaitingDeal(slot: ParliamentSlotVm): boolean {
+  return holds.heldSlots === undefined && holds.freshFaces.has(slot.instance);
+}
+/** The card that has left its held slot: for the government (the winner), or for the discard (a loser at the renewal). */
+function homeEmptied(slot: ParliamentSlotVm): boolean {
+  return holds.vacated.has(slot.instance) || holds.departed.has(slot.instance);
+}
+function winningShownOf(slot: ParliamentSlotVm): boolean {
+  // While the renewal still has cards on the deck or cubes in the air, no card reads «принимается» yet: the
+  // badge would name a verdict about objects that have not arrived (a caption never runs ahead of its object).
+  // A card's RALLY (TR31) hides its own cubes the same way, but its marker is HELD, not silenced: the hold
+  // says which card wins until the cube that changed it has landed (`rallyWinnerShown`).
+  const renewing = rallyWinnerShown() === undefined && (holds.freshFaces.size > 0 || holds.hiddenCubes.size > 0);
+  return voteViewWinningShownOf(slot, voteDecidedAt(props.model?.phase?.step) || renewing);
+}
+/** The DELEGATE mode's cursor stands on this figure (TR72) — the one the press would take. */
+function outgoingOf(slot: ParliamentSlotVm, seq: number): boolean {
+  return props.delegateTarget !== undefined && props.delegateTarget.party === slot.party && props.delegateTarget.seq === seq;
+}
+/** The recount of a card's rally (TR31) has MARKED this neutral cube. */
+function countedOf(slot: ParliamentSlotVm, seq: number): boolean {
+  return rallyMarked(rallyVoteKey(slot.instance, seq)) || accessCounted(slot, seq);
+}
+/**
+ * THE ACCESS SCENE's COUNT (2026-10-25): the viewer's delegates on the bill whose party their vote just won are
+ * touched by the count — the recount's own mark (the trace's ring + its one-shot swell), held for the scene: «these
+ * two won the effect». The seal that travels into «ВАШИ ЭФФЕКТЫ» is born on the last of them.
+ */
+function accessCounted(slot: ParliamentSlotVm, seq: number): boolean {
+  const f = parliamentFlow;
+  if (f.accessParty === undefined || f.accessParty !== slot.party || f.accessBeat === '' || props.viewerColor === undefined) {
+    return false;
+  }
+  return slot.votes.some((vote) => vote.seq === seq && vote.owner === props.viewerColor);
+}
+function placeShownOn(index: number): boolean {
+  return voteViewPlaceShownOn(index, props.benchWarn);
+}
+function ribbonGroups(slot: ParliamentSlotVm): Array<RibbonGroup> {
+  return ribbonGroupsOf(slot);
+}
+/**
+ * A party name too long to share the slot's label row with the «winning»
+ * WORD on a narrow slot (calibrated on the Deck: «МАРС ВПЕРЕД», 11, fits
+ * beside it; «ИНДУСТРИАЛИСТЫ», 14, does not) — its badge says it with the
+ * vote's winner glyph instead, never by cutting the name.
+ */
 </script>
