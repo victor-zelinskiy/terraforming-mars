@@ -71,8 +71,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed} from 'vue';
 import {RequirementType} from '@/common/cards/RequirementType';
 import {translateText} from '@/client/directives/i18n';
 import {NormalizedRequirement} from './premiumCardViewModel';
@@ -104,120 +104,115 @@ import {tagIconStyle} from './premiumCardIcons';
  * inner kant (a STRUCTURAL cue), sharing `--pcard-any` with the fullscreen «any
  * player» rule highlight.
  */
-export default defineComponent({
-  name: 'PremiumRequirementsBar',
-  components: {PremiumRequirementOperator, PremiumModifierMarks},
-  props: {
-    requirements: {
-      type: Array as () => ReadonlyArray<NormalizedRequirement>,
-      required: true,
-    },
-    /** The print's footnote mark «*» after the plate (`PremiumCardVM.requirementFootnote`). */
-    footnote: {type: Boolean, default: false},
+defineOptions({name: 'PremiumRequirementsBar'});
+const props = defineProps({
+  requirements: {
+    type: Array as () => ReadonlyArray<NormalizedRequirement>,
+    required: true,
   },
-  computed: {
-    hasAll(): boolean {
-      return this.requirements.some((r) => r.all);
-    },
-    /** Width/density variant — the cassette stays a STABLE wide zone; the width
-     *  scales in controlled steps with the requirement count (single → multi →
-     *  dense), never auto-shrinking to the content. */
-    reqClass(): Record<string, boolean> {
-      const n = this.requirements.length;
-      return {
-        'pcard__reqs--all': this.hasAll,
-        'pcard__reqs--multi': n > 1,
-        'pcard__reqs--dense': n > 2,
-        'pcard__reqs--eased': this.requirements.some((r) => r.easing !== undefined && !r.easing.quiet),
-        'pcard__reqs--waived': this.requirements.some((r) => r.easing?.effective === 'waived'),
-        'pcard__reqs--allied': this.requirements.some((r) => r.easing?.effective === 'allied' && !r.easing.quiet),
-        'pcard__reqs--decisive': this.requirements.some((r) => r.easing?.decisive === true),
-      };
-    },
-  },
-  methods: {
-    /** The requirement's state under the viewer's modifiers — printed / eased / waived (TR49 class). */
-    /**
-     * The requirement's state under the viewer's modifiers — printed / eased / waived (TR49 class), or QUIET: met anyway
-     * under a shift, drawn exactly as printed (a standing ±2 would otherwise mark every card it does not decide).
-     */
-    stateOf(req: NormalizedRequirement): 'printed' | 'eased' | 'waived' | 'allied' | 'quiet' {
-      if (req.easing === undefined) {
-        return 'printed';
-      }
-      if (req.easing.effective === 'waived') {
-        return 'waived';
-      }
-      if (req.easing.quiet) {
-        return 'quiet';
-      }
-      // TR62: a party requirement met THROUGH the alliance's partner — the printed party stands, the seal names who.
-      return req.easing.effective === 'allied' ? 'allied' : 'eased';
-    },
-    isShifted(req: NormalizedRequirement): boolean {
-      return this.stateOf(req) === 'eased';
-    },
-    segmentClass(req: NormalizedRequirement): Record<string, boolean> {
-      const state = this.stateOf(req);
-      return {
-        'pcard-req--binary': req.isBinary,
-        'pcard-req--tally': req.tally,
-        'pcard-req--eased': state === 'eased',
-        'pcard-req--waived': state === 'waived',
-        'pcard-req--allied': state === 'allied',
-        'pcard-req--decisive': req.easing?.decisive === true,
-      };
-    },
-    effectiveText(req: NormalizedRequirement): string {
-      const effective = req.easing?.effective;
-      return typeof effective === 'number' ? this.valueText(effective) : '';
-    },
-    /** A bound as the plate prints it — a negative one with the typographic minus (wide enough to survive a stroke). */
-    valueText(value: number): string {
-      return value < 0 ? `−${Math.abs(value)}` : String(value);
-    },
-    /** The «±N» badge only where a lone requirement leaves the plate room for it. */
-    showsModBadge(req: NormalizedRequirement): boolean {
-      return this.requirements.length === 1 && (req.easing?.steps ?? 0) > 0;
-    },
-    iconStyle(req: NormalizedRequirement): Record<string, string> {
-      if (req.type === RequirementType.TAG && req.tag !== undefined) {
-        return tagIconStyle(req.tag);
-      }
-      return req.iconUrl !== undefined ? {backgroundImage: `url(${req.iconUrl})`} : {};
-    },
-    /** Oxygen / Venus icons are horizontal chips — a wider socket + icon. */
-    isWideIcon(req: NormalizedRequirement): boolean {
-      return req.type === RequirementType.VENUS || req.type === RequirementType.OXYGEN;
-    },
-    /**
-     * A PARTY's EMBLEM (Turmoil Redux — the scan prints the party's badge in
-     * the MIN plate): a round seal with its own rim, so it takes no contact
-     * shade and sits a step larger than a formula icon — it is the whole
-     * statement, there is no number beside it.
-     */
-    isEmblem(req: NormalizedRequirement): boolean {
-      return req.type === RequirementType.PARTY && req.iconUrl !== undefined;
-    },
-    socketClass(req: NormalizedRequirement): Record<string, boolean> {
-      return {'pcard-req__socket--wide': this.isWideIcon(req), 'pcard-req__socket--emblem': this.isEmblem(req)};
-    },
-    iconClass(req: NormalizedRequirement): Record<string, boolean> {
-      return {'pcard-req__icon--wide': this.isWideIcon(req), 'pcard-req__icon--emblem': this.isEmblem(req)};
-    },
-    /** A plain requirement's label is an i18n key (the scan's own word); an exotic type keeps its raw name. */
-    formulaLabel(req: NormalizedRequirement): string {
-      if (req.label === undefined) {
-        return '';
-      }
-      return req.plain ? translateText(req.label) : req.label;
-    },
-    binaryLabel(req: NormalizedRequirement): string {
-      if (req.party !== undefined) {
-        return translateText(req.party);
-      }
-      return req.label !== undefined ? translateText(req.label) : '';
-    },
-  },
+  /** The print's footnote mark «*» after the plate (`PremiumCardVM.requirementFootnote`). */
+  footnote: {type: Boolean, default: false},
 });
+
+const hasAll = computed((): boolean => {
+  return props.requirements.some((r) => r.all);
+});
+/** Width/density variant — the cassette stays a STABLE wide zone; the width
+ *  scales in controlled steps with the requirement count (single → multi →
+ *  dense), never auto-shrinking to the content. */
+const reqClass = computed((): Record<string, boolean> => {
+  const n = props.requirements.length;
+  return {
+    'pcard__reqs--all': hasAll.value,
+    'pcard__reqs--multi': n > 1,
+    'pcard__reqs--dense': n > 2,
+    'pcard__reqs--eased': props.requirements.some((r) => r.easing !== undefined && !r.easing.quiet),
+    'pcard__reqs--waived': props.requirements.some((r) => r.easing?.effective === 'waived'),
+    'pcard__reqs--allied': props.requirements.some((r) => r.easing?.effective === 'allied' && !r.easing.quiet),
+    'pcard__reqs--decisive': props.requirements.some((r) => r.easing?.decisive === true),
+  };
+});
+
+/** The requirement's state under the viewer's modifiers — printed / eased / waived (TR49 class). */
+/**
+ * The requirement's state under the viewer's modifiers — printed / eased / waived (TR49 class), or QUIET: met anyway
+ * under a shift, drawn exactly as printed (a standing ±2 would otherwise mark every card it does not decide).
+ */
+function stateOf(req: NormalizedRequirement): 'printed' | 'eased' | 'waived' | 'allied' | 'quiet' {
+  if (req.easing === undefined) {
+    return 'printed';
+  }
+  if (req.easing.effective === 'waived') {
+    return 'waived';
+  }
+  if (req.easing.quiet) {
+    return 'quiet';
+  }
+  // TR62: a party requirement met THROUGH the alliance's partner — the printed party stands, the seal names who.
+  return req.easing.effective === 'allied' ? 'allied' : 'eased';
+}
+function isShifted(req: NormalizedRequirement): boolean {
+  return stateOf(req) === 'eased';
+}
+function segmentClass(req: NormalizedRequirement): Record<string, boolean> {
+  const state = stateOf(req);
+  return {
+    'pcard-req--binary': req.isBinary,
+    'pcard-req--tally': req.tally,
+    'pcard-req--eased': state === 'eased',
+    'pcard-req--waived': state === 'waived',
+    'pcard-req--allied': state === 'allied',
+    'pcard-req--decisive': req.easing?.decisive === true,
+  };
+}
+function effectiveText(req: NormalizedRequirement): string {
+  const effective = req.easing?.effective;
+  return typeof effective === 'number' ? valueText(effective) : '';
+}
+/** A bound as the plate prints it — a negative one with the typographic minus (wide enough to survive a stroke). */
+function valueText(value: number): string {
+  return value < 0 ? `−${Math.abs(value)}` : String(value);
+}
+/** The «±N» badge only where a lone requirement leaves the plate room for it. */
+function showsModBadge(req: NormalizedRequirement): boolean {
+  return props.requirements.length === 1 && (req.easing?.steps ?? 0) > 0;
+}
+function iconStyle(req: NormalizedRequirement): Record<string, string> {
+  if (req.type === RequirementType.TAG && req.tag !== undefined) {
+    return tagIconStyle(req.tag);
+  }
+  return req.iconUrl !== undefined ? {backgroundImage: `url(${req.iconUrl})`} : {};
+}
+/** Oxygen / Venus icons are horizontal chips — a wider socket + icon. */
+function isWideIcon(req: NormalizedRequirement): boolean {
+  return req.type === RequirementType.VENUS || req.type === RequirementType.OXYGEN;
+}
+/**
+ * A PARTY's EMBLEM (Turmoil Redux — the scan prints the party's badge in
+ * the MIN plate): a round seal with its own rim, so it takes no contact
+ * shade and sits a step larger than a formula icon — it is the whole
+ * statement, there is no number beside it.
+ */
+function isEmblem(req: NormalizedRequirement): boolean {
+  return req.type === RequirementType.PARTY && req.iconUrl !== undefined;
+}
+function socketClass(req: NormalizedRequirement): Record<string, boolean> {
+  return {'pcard-req__socket--wide': isWideIcon(req), 'pcard-req__socket--emblem': isEmblem(req)};
+}
+function iconClass(req: NormalizedRequirement): Record<string, boolean> {
+  return {'pcard-req__icon--wide': isWideIcon(req), 'pcard-req__icon--emblem': isEmblem(req)};
+}
+/** A plain requirement's label is an i18n key (the scan's own word); an exotic type keeps its raw name. */
+function formulaLabel(req: NormalizedRequirement): string {
+  if (req.label === undefined) {
+    return '';
+  }
+  return req.plain ? translateText(req.label) : req.label;
+}
+function binaryLabel(req: NormalizedRequirement): string {
+  if (req.party !== undefined) {
+    return translateText(req.party);
+  }
+  return req.label !== undefined ? translateText(req.label) : '';
+}
 </script>
