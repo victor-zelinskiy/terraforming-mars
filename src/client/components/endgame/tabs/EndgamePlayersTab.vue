@@ -54,8 +54,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed} from 'vue';
 import {Color} from '@/common/Color';
 import {ViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MADetail} from '@/common/game/VictoryPointsBreakdown';
@@ -65,67 +65,64 @@ import {AwardName} from '@/common/ma/AwardName';
 import {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
 import {$t, translateTextWithParams, translateMessage} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
 type ResRow = {key: string; label: string; amount: number; prod: number};
 
-export default defineComponent({
-  name: 'EndgamePlayersTab',
-  props: {
-    model: {type: Object as () => EndgameModel, required: true},
-    view: {type: Object as () => ViewModel, required: true},
-    viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
-  },
-  computed: {
-    showColonies(): boolean {
-      return this.view.game.gameOptions.expansions.colonies === true;
-    },
-  },
-  methods: {
-    hex(color: Color): string {
-      return endgamePlayerHex(color);
-    },
-    isViewer(color: Color): boolean {
-      return this.viewerColor === color;
-    },
-    corp(p: EndgamePlayerScore): string {
-      // The MarsBot seat keeps `corporations` empty — its corp rides `botCorporation`.
-      return p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? '');
-    },
-    raw(color: Color): PublicPlayerModel | undefined {
-      return this.view.players.find((pl) => pl.color === color);
-    },
-    resources(color: Color): Array<ResRow> {
-      const r = this.raw(color);
-      if (r === undefined) {
-        return [];
-      }
-      return [
-        {key: 'megacredits', label: 'M€', amount: r.megacredits, prod: r.megacreditProduction},
-        {key: 'steel', label: 'Steel', amount: r.steel, prod: r.steelProduction},
-        {key: 'titanium', label: 'Titanium', amount: r.titanium, prod: r.titaniumProduction},
-        {key: 'plants', label: 'Plants', amount: r.plants, prod: r.plantProduction},
-        {key: 'energy', label: 'Energy', amount: r.energy, prod: r.energyProduction},
-        {key: 'heat', label: 'Heat', amount: r.heat, prod: r.heatProduction},
-      ];
-    },
-    milestoneText(d: MADetail): string {
-      const args = (d.messageArgs || []).map($t);
-      return translateTextWithParams(d.message, args);
-    },
-    awardText(d: MADetail): string {
-      if (!d.messageArgs || d.messageArgs.length < 3) {
-        return this.milestoneText(d);
-      }
-      const message: Message = {
-        message: d.message,
-        data: [
-          {type: LogMessageDataType.STRING, value: d.messageArgs[0]},
-          {type: LogMessageDataType.AWARD, value: d.messageArgs[1] as AwardName},
-          {type: LogMessageDataType.PLAYER, value: d.messageArgs[2] as Color},
-        ],
-      };
-      return translateMessage(message);
-    },
-  },
+defineOptions({name: 'EndgamePlayersTab'});
+const props = defineProps({
+  model: {type: Object as () => EndgameModel, required: true},
+  view: {type: Object as () => ViewModel, required: true},
+  viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
 });
+
+const showColonies = computed((): boolean => {
+  return props.view.game.gameOptions.expansions.colonies === true;
+});
+
+function hex(color: Color): string {
+  return endgamePlayerHex(color);
+}
+function isViewer(color: Color): boolean {
+  return props.viewerColor === color;
+}
+function corp(p: EndgamePlayerScore): string {
+  // The MarsBot seat keeps `corporations` empty — its corp rides `botCorporation`.
+  return p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? '');
+}
+function raw(color: Color): PublicPlayerModel | undefined {
+  return props.view.players.find((pl) => pl.color === color);
+}
+function resources(color: Color): Array<ResRow> {
+  const r = raw(color);
+  if (r === undefined) {
+    return [];
+  }
+  return [
+    {key: 'megacredits', label: 'M€', amount: r.megacredits, prod: r.megacreditProduction},
+    {key: 'steel', label: 'Steel', amount: r.steel, prod: r.steelProduction},
+    {key: 'titanium', label: 'Titanium', amount: r.titanium, prod: r.titaniumProduction},
+    {key: 'plants', label: 'Plants', amount: r.plants, prod: r.plantProduction},
+    {key: 'energy', label: 'Energy', amount: r.energy, prod: r.energyProduction},
+    {key: 'heat', label: 'Heat', amount: r.heat, prod: r.heatProduction},
+  ];
+}
+function milestoneText(d: MADetail): string {
+  const args = (d.messageArgs || []).map($t);
+  return translateTextWithParams(d.message, args);
+}
+function awardText(d: MADetail): string {
+  if (!d.messageArgs || d.messageArgs.length < 3) {
+    return milestoneText(d);
+  }
+  const message: Message = {
+    message: d.message,
+    data: [
+      {type: LogMessageDataType.STRING, value: d.messageArgs[0]},
+      {type: LogMessageDataType.AWARD, value: d.messageArgs[1] as AwardName},
+      {type: LogMessageDataType.PLAYER, value: d.messageArgs[2] as Color},
+    ],
+  };
+  return translateMessage(message);
+}
 </script>
