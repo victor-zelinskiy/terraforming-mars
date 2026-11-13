@@ -114,124 +114,117 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType, ref} from 'vue';
 import {Color} from '@/common/Color';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {tokenStyleVars, tokenSymbol} from '@/client/components/playerToken/playerTokenPalette';
+// The per-page id source of the gradient defs is MODULE state: it lives in the sibling module (inside
+// `<script setup>` a top-level `let` would start again in every cube).
+import {newPlayerCubeUid} from '@/client/components/playerCubeState';
 
-// Per-page unique id source for the gradient defs.
-let pcUid = 0;
-
-export default defineComponent({
-  name: 'player-cube',
-  props: {
-    // Accepts `Color | undefined` so call sites can bind a model field that is
-    // optional in its type (a milestone/award/space colour that is only present
-    // once a player owns it). The cube only renders when the owner exists, so
-    // `color` is a real Color at runtime; an undefined slips through as the
-    // neutral fallback rather than a type error at every guarded call site.
-    color: {
-      type: String as unknown as PropType<Color | undefined>,
-      required: true,
-    },
-    // Footprint in px (the projected cube fits inside a size×size box).
-    size: {
-      type: Number,
-      default: 21,
-    },
-    // Soft coloured bloom behind the cube (the premium "lit token" glow).
-    glow: {
-      type: Boolean,
-      default: true,
-    },
-    // Grounding contact shadow under the cube.
-    shadow: {
-      type: Boolean,
-      default: true,
-    },
-    // Play the placement (drop + settle) animation on mount.
-    animateIn: {
-      type: Boolean,
-      default: false,
-    },
-    // Tri-state: true → force the colour-blind glyph, false → force-hide,
-    // undefined (default) → follow the `symbol_overlay` preference. `default:
-    // undefined` is what enables the fall-back — Vue's Boolean casting only
-    // forces an absent prop to `false` when NO default is set, so an explicit
-    // `undefined` default keeps the absent value `undefined`.
-    overlaySymbol: {
-      type: Boolean as unknown as PropType<boolean | undefined>,
-      default: undefined,
-    },
-    /**
-     * A NEUTRAL DELEGATE (the Mars Parliament's neutral player): the same
-     * physical cube in a cool steel material. One visual system for every
-     * delegate on the board — a player's cube and a neutral one differ by
-     * colour and the colour-blind glyph, never by geometry or finish.
-     */
-    steel: {
-      type: Boolean,
-      default: false,
-    },
-    /**
-     * ALL SIX FACES (the flight proxy): a cube that tumbles in the air shows
-     * its bottom, back and far side. Off for every resting cube on the board.
-     */
-    solid: {
-      type: Boolean,
-      default: false,
-    },
+defineOptions({name: 'player-cube'});
+const props = defineProps({
+  // Accepts `Color | undefined` so call sites can bind a model field that is
+  // optional in its type (a milestone/award/space colour that is only present
+  // once a player owns it). The cube only renders when the owner exists, so
+  // `color` is a real Color at runtime; an undefined slips through as the
+  // neutral fallback rather than a type error at every guarded call site.
+  color: {
+    type: String as unknown as PropType<Color | undefined>,
+    required: true,
   },
-  data() {
-    return {uid: ++pcUid};
+  // Footprint in px (the projected cube fits inside a size×size box).
+  size: {
+    type: Number,
+    default: 21,
   },
-  computed: {
-    resolvedColor(): Color {
-      return this.color ?? 'neutral';
-    },
-    // The colour tones come from the ONE player-token palette — the delegate
-    // figure paints with the very same `--pt-*` set; the cube adds its size.
-    styleVars(): Record<string, string> {
-      return {
-        '--pc-size': `${this.size}px`,
-        ...tokenStyleVars(this.resolvedColor, {steel: this.steel}),
-      };
-    },
-    rootClass(): Record<string, boolean> {
-      return {
-        ['player-cube--' + this.resolvedColor]: true,
-        'player-cube--steel': this.steel,
-        'player-cube--solid': this.solid,
-        'player-cube--animate-in': this.animateIn === true,
-      };
-    },
-    depthId(): string {
-      return 'pc-depth-' + this.uid;
-    },
-    depthSideId(): string {
-      return 'pc-depth-side-' + this.uid;
-    },
-    sheenId(): string {
-      return 'pc-sheen-' + this.uid;
-    },
-    aoId(): string {
-      return 'pc-ao-' + this.uid;
-    },
-    showSymbol(): boolean {
-      if (this.overlaySymbol === undefined) {
-        return getPreferences().symbol_overlay;
-      }
-      return this.overlaySymbol === true;
-    },
-    symbolGlyph(): string {
-      return tokenSymbol(this.resolvedColor, {steel: this.steel});
-    },
+  // Soft coloured bloom behind the cube (the premium "lit token" glow).
+  glow: {
+    type: Boolean,
+    default: true,
   },
-  methods: {
-    fillUrl(id: string): string {
-      return `url(#${id})`;
-    },
+  // Grounding contact shadow under the cube.
+  shadow: {
+    type: Boolean,
+    default: true,
+  },
+  // Play the placement (drop + settle) animation on mount.
+  animateIn: {
+    type: Boolean,
+    default: false,
+  },
+  // Tri-state: true → force the colour-blind glyph, false → force-hide,
+  // undefined (default) → follow the `symbol_overlay` preference. `default:
+  // undefined` is what enables the fall-back — Vue's Boolean casting only
+  // forces an absent prop to `false` when NO default is set, so an explicit
+  // `undefined` default keeps the absent value `undefined`.
+  overlaySymbol: {
+    type: Boolean as unknown as PropType<boolean | undefined>,
+    default: undefined,
+  },
+  /**
+   * A NEUTRAL DELEGATE (the Mars Parliament's neutral player): the same
+   * physical cube in a cool steel material. One visual system for every
+   * delegate on the board — a player's cube and a neutral one differ by
+   * colour and the colour-blind glyph, never by geometry or finish.
+   */
+  steel: {
+    type: Boolean,
+    default: false,
+  },
+  /**
+   * ALL SIX FACES (the flight proxy): a cube that tumbles in the air shows
+   * its bottom, back and far side. Off for every resting cube on the board.
+   */
+  solid: {
+    type: Boolean,
+    default: false,
   },
 });
+
+const uid = ref(newPlayerCubeUid());
+const resolvedColor = computed((): Color => {
+  return props.color ?? 'neutral';
+});
+// The colour tones come from the ONE player-token palette — the delegate
+// figure paints with the very same `--pt-*` set; the cube adds its size.
+const styleVars = computed((): Record<string, string> => {
+  return {
+    '--pc-size': `${props.size}px`,
+    ...tokenStyleVars(resolvedColor.value, {steel: props.steel}),
+  };
+});
+const rootClass = computed((): Record<string, boolean> => {
+  return {
+    ['player-cube--' + resolvedColor.value]: true,
+    'player-cube--steel': props.steel,
+    'player-cube--solid': props.solid,
+    'player-cube--animate-in': props.animateIn === true,
+  };
+});
+const depthId = computed((): string => {
+  return 'pc-depth-' + uid.value;
+});
+const depthSideId = computed((): string => {
+  return 'pc-depth-side-' + uid.value;
+});
+const sheenId = computed((): string => {
+  return 'pc-sheen-' + uid.value;
+});
+const aoId = computed((): string => {
+  return 'pc-ao-' + uid.value;
+});
+const showSymbol = computed((): boolean => {
+  if (props.overlaySymbol === undefined) {
+    return getPreferences().symbol_overlay;
+  }
+  return props.overlaySymbol === true;
+});
+const symbolGlyph = computed((): string => {
+  return tokenSymbol(resolvedColor.value, {steel: props.steel});
+});
+function fillUrl(id: string): string {
+  return `url(#${id})`;
+}
 </script>
