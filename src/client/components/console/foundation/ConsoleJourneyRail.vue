@@ -1,7 +1,4 @@
 <template>
-  <!-- ONE LIVE FLOW OBJECT. Expanded, compact and terminal are three
-       superposed presentations inside one fixed-height viewport; changing
-       presentation never replaces the rail root or leaves an empty frame. -->
   <div class="con-jrail"
        :class="[
          'con-jrail--presentation-' + presentation,
@@ -129,8 +126,16 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ONE LIVE FLOW OBJECT. Expanded, compact and terminal are three
+ * superposed presentations inside one fixed-height viewport; changing
+ * presentation never replaces the rail root or leaves an empty frame.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {PropType, ref, watch} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 export type JourneyItemState = 'completed' | 'current' | 'available' | 'locked';
@@ -173,101 +178,91 @@ export type JourneyPresentation = 'expanded' | 'compact' | 'complete';
  * host may expose navigation through its existing controller contract, while
  * a progress phase remains an inert readout by construction.
  */
-export default defineComponent({
-  name: 'ConsoleJourneyRail',
-  props: {
-    phases: {type: Array as PropType<ReadonlyArray<JourneyPhase>>, required: true},
-    presentation: {type: String as PropType<JourneyPresentation>, default: 'expanded'},
-    compactContext: {
-      type: Object as PropType<JourneyCompactContext>,
-      default: () => ({ordinal: '', phaseLabel: '', itemLabel: ''}),
-    },
-    terminalLabel: {type: String, default: 'Ready'},
-    /** Final all-phase commit is running (presentation-only accent). */
-    committing: {type: Boolean, default: false},
-    /** The item the player ASKED for while its physical stage transition is
-     *  still running. Its label/state stay unchanged; only a light impulse
-     *  acknowledges direction. */
-    pendingItemId: {type: String, default: ''},
-    pulseKey: {type: Number, default: 0},
-    pulseDir: {type: Number, default: 0},
+defineOptions({name: 'ConsoleJourneyRail'});
+const props = defineProps({
+  phases: {type: Array as PropType<ReadonlyArray<JourneyPhase>>, required: true},
+  presentation: {type: String as PropType<JourneyPresentation>, default: 'expanded'},
+  compactContext: {
+    type: Object as PropType<JourneyCompactContext>,
+    default: () => ({ordinal: '', phaseLabel: '', itemLabel: ''}),
   },
-  setup() {
-    return {flow: useFlowScope('console-journey-rail')};
-  },
-  data() {
-    return {
-      /**
-       * Items that JOINED the rail after its initial composition (a merger
-       * acquiring a corp that owes its first action adds «ПЕРВОЕ ДЕЙСТВИЕ»
-       * mid-deployment). Each key gets one entrance beat (`--arrived`), then
-       * the marker drops — a later re-render must not replay it. Presentation
-       * only: topology stays the host's business.
-       */
-      arrivedKeys: new Set<string>(),
-    };
-  },
-  watch: {
-    phases(now: ReadonlyArray<JourneyPhase>, was: ReadonlyArray<JourneyPhase> | undefined) {
-      if (was === undefined) {
-        return; // the initial composition mounts silently
-      }
-      const seen = new Set(was.flatMap((p) => p.items.map((i) => `${p.id}:${i.id}`)));
-      const fresh = now
-        .flatMap((p) => p.items.map((i) => `${p.id}:${i.id}`))
-        .filter((key) => !seen.has(key));
-      if (fresh.length === 0) {
-        return;
-      }
-      fresh.forEach((key) => this.arrivedKeys.add(key));
-      // Cosmetic cleanup only — the keyframe has long finished; dropping the
-      // marker just keeps a much later re-render from replaying it. A timer
-      // of the component's own scope — taken back on unmount, so a torn-down
-      // instance's state is never written to.
-      this.flow.after(900, 'the arrived items\' marker drops', () => {
-        fresh.forEach((key) => this.arrivedKeys.delete(key));
-      });
-    },
-  },
-  methods: {
-    /** This item joined a rail that was already standing (one entrance beat). */
-    hasArrived(phase: JourneyPhase, item: JourneyItem): boolean {
-      return this.arrivedKeys.has(`${phase.id}:${item.id}`);
-    },
-    anticipated(phase: JourneyPhase, item: JourneyItem): boolean {
-      return phase.state === 'current' && item.id === this.pendingItemId;
-    },
-    itemMark(item: JourneyItem, index: number): string {
-      if (item.state === 'completed') {
-        return '\u2713';
-      }
-      return String(index + 1);
-    },
-    /** The last node of the last chapter is a terminal endpoint, not another
-     *  category. This stays generic: the presentation knows only topology,
-     *  never Start Game item ids or rules. */
-    isEndpoint(phaseIndex: number, phase: JourneyPhase, itemIndex: number): boolean {
-      return phaseIndex === this.phases.length - 1 && itemIndex === phase.items.length - 1;
-    },
-    connectorState(phase: JourneyPhase, itemIndex: number): JourneyItemState {
-      const previous = phase.items[itemIndex - 1];
-      const next = phase.items[itemIndex];
-      if (previous?.state === 'completed' && next?.state === 'completed') {
-        return 'completed';
-      }
-      if (next?.state === 'current') {
-        return 'current';
-      }
-      return next?.state ?? 'locked';
-    },
-    phaseMark(phase: JourneyPhase): string {
-      switch (phase.state) {
-      case 'completed': return '\u2713';
-      case 'current': return '';
-      case 'waiting': return '\u2026';
-      case 'locked': return '';
-      }
-    },
-  },
+  terminalLabel: {type: String, default: 'Ready'},
+  /** Final all-phase commit is running (presentation-only accent). */
+  committing: {type: Boolean, default: false},
+  /** The item the player ASKED for while its physical stage transition is
+   *  still running. Its label/state stay unchanged; only a light impulse
+   *  acknowledges direction. */
+  pendingItemId: {type: String, default: ''},
+  pulseKey: {type: Number, default: 0},
+  pulseDir: {type: Number, default: 0},
+});
+
+const flow = useFlowScope('console-journey-rail');
+/**
+ * Items that JOINED the rail after its initial composition (a merger
+ * acquiring a corp that owes its first action adds «ПЕРВОЕ ДЕЙСТВИЕ»
+ * mid-deployment). Each key gets one entrance beat (`--arrived`), then
+ * the marker drops — a later re-render must not replay it. Presentation
+ * only: topology stays the host's business.
+ */
+const arrivedKeys = ref(new Set<string>());
+/** This item joined a rail that was already standing (one entrance beat). */
+function hasArrived(phase: JourneyPhase, item: JourneyItem): boolean {
+  return arrivedKeys.value.has(`${phase.id}:${item.id}`);
+}
+function anticipated(phase: JourneyPhase, item: JourneyItem): boolean {
+  return phase.state === 'current' && item.id === props.pendingItemId;
+}
+function itemMark(item: JourneyItem, index: number): string {
+  if (item.state === 'completed') {
+    return '\u2713';
+  }
+  return String(index + 1);
+}
+/** The last node of the last chapter is a terminal endpoint, not another
+ *  category. This stays generic: the presentation knows only topology,
+ *  never Start Game item ids or rules. */
+function isEndpoint(phaseIndex: number, phase: JourneyPhase, itemIndex: number): boolean {
+  return phaseIndex === props.phases.length - 1 && itemIndex === phase.items.length - 1;
+}
+function connectorState(phase: JourneyPhase, itemIndex: number): JourneyItemState {
+  const previous = phase.items[itemIndex - 1];
+  const next = phase.items[itemIndex];
+  if (previous?.state === 'completed' && next?.state === 'completed') {
+    return 'completed';
+  }
+  if (next?.state === 'current') {
+    return 'current';
+  }
+  return next?.state ?? 'locked';
+}
+function phaseMark(phase: JourneyPhase): string {
+  switch (phase.state) {
+  case 'completed': return '\u2713';
+  case 'current': return '';
+  case 'waiting': return '\u2026';
+  case 'locked': return '';
+  }
+}
+
+watch(() => props.phases, (now: ReadonlyArray<JourneyPhase>, was: ReadonlyArray<JourneyPhase> | undefined) => {
+  if (was === undefined) {
+    return; // the initial composition mounts silently
+  }
+  const seen = new Set(was.flatMap((p) => p.items.map((i) => `${p.id}:${i.id}`)));
+  const fresh = now
+    .flatMap((p) => p.items.map((i) => `${p.id}:${i.id}`))
+    .filter((key) => !seen.has(key));
+  if (fresh.length === 0) {
+    return;
+  }
+  fresh.forEach((key) => arrivedKeys.value.add(key));
+  // Cosmetic cleanup only — the keyframe has long finished; dropping the
+  // marker just keeps a much later re-render from replaying it. A timer
+  // of the component's own scope — taken back on unmount, so a torn-down
+  // instance's state is never written to.
+  flow.after(900, 'the arrived items\' marker drops', () => {
+    fresh.forEach((key) => arrivedKeys.value.delete(key));
+  });
 });
 </script>
