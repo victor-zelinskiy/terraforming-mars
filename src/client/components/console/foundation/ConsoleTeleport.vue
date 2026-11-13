@@ -1,4 +1,8 @@
-<script lang="ts">
+<template>
+  <TeleportView />
+</template>
+
+<script setup lang="ts">
 /**
  * THE ONE TELEPORT INTO A TARGET THAT CAN BE ABSENT. Every console `<Teleport>`
  * whose target is not `body` goes through this component (guard
@@ -41,14 +45,21 @@
  *    moves them, so a teleport holding nothing (`teleportStandsContent`) waits
  *    empty and goes live as a FRESH teleport (a new key): its content mounts
  *    straight into the target — the stack's own «ownership ≠ readiness» gap.
+ *
+ * THE FORM (V3 wave 4). The four laws are decided in ONE render function — they read what the previous render put on
+ * screen (was a teleport live, was it disabled, does content stand between its anchors), which a template cannot ask.
+ * The component is `<script setup>` and its template is that render (`TeleportView`, a functional component of this
+ * script); what the Options form read off its instance (`this.$.subTree`) is the vnode this script itself returned
+ * last (`rendered`). The rewrite on the Vapor `<Teleport>` — which has no such defect to work around — is its step B
+ * (docs/claude/vapor/RECIPES.md § R18).
  */
-import {defineComponent, h, markRaw, nextTick, PropType, Teleport, VNode} from 'vue';
+import {FunctionalComponent, h, markRaw, nextTick, onBeforeUnmount, PropType, ref, Teleport, useSlots, VNode} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 type TeleportTo = string | HTMLElement;
 
 /** The live element a `to` names right now (`null` = not in the document). */
-export function resolveTeleportTarget(to: TeleportTo): Element | null {
+function resolveTeleportTarget(to: TeleportTo): Element | null {
   if (typeof to !== 'string') {
     return to;
   }
@@ -63,7 +74,7 @@ export function resolveTeleportTarget(to: TeleportTo): Element | null {
  * Does the live teleport hold content the player can SEE — any child that rendered an element (a `v-if` that is
  * off renders a comment, a `<transition>` around it renders that comment)? Only such content has a place to keep.
  */
-export function teleportStandsContent(prev: VNode): boolean {
+function teleportStandsContent(prev: VNode): boolean {
   // A DISABLED teleport keeps its content in place, between its own two anchors.
   const start = prev.el as Node | null;
   const end = prev.anchor as Node | null;
@@ -85,123 +96,124 @@ const SLOW_RETRY_MS = 250;
  */
 const STRANDED_MS = 5000;
 
-export default defineComponent({
-  name: 'ConsoleTeleport',
-  props: {
-    to: {
-      type: [String, Object] as PropType<TeleportTo>,
-      required: true,
-    },
-    disabled: {
-      type: Boolean,
-      default: false,
-    },
-    /** Passed to the native teleport on its mount (it resolves after the flush). */
-    defer: {
-      type: Boolean,
-      default: false,
-    },
+const props = defineProps({
+  to: {
+    type: [String, Object] as PropType<TeleportTo>,
+    required: true,
   },
-  setup() {
-    // The wait's bookkeeping — plain, never reactive (the render reads it).
-    return {
-      wait: markRaw({cancelFrame: (() => {}) as () => void, cancelTimer: (() => {}) as () => void, active: false, warned: false, since: 0, stranded: false, key: 0}),
-      flow: useFlowScope('console-teleport'),
-    };
+  disabled: {
+    type: Boolean,
+    default: false,
   },
-  data() {
-    return {
-      /** Bumped by a re-check that found the target — the one reactive edge of the wait. */
-      epoch: 0,
-    };
-  },
-  beforeUnmount() {
-    this.stopWaiting();
-  },
-  methods: {
-    stopWaiting(): void {
-      const wait = this.wait;
-      wait.cancelFrame();
-      wait.cancelTimer();
-      wait.active = false;
-    },
-    awaitTarget(): void {
-      const wait = this.wait;
-      if (wait.active) {
-        return;
-      }
-      wait.active = true;
-      wait.since = Date.now();
-      wait.stranded = false;
-      let frames = 0;
-      const check = (): boolean => {
-        if (!wait.active) {
-          return true;
-        }
-        if (resolveTeleportTarget(this.to) !== null) {
-          this.stopWaiting();
-          this.epoch++;
-          return true;
-        }
-        return false;
-      };
-      const loop = (): void => {
-        if (check()) {
-          return;
-        }
-        if (!wait.stranded && Date.now() - wait.since >= STRANDED_MS) {
-          wait.stranded = true;
-          console.warn(`[teleport] stranded — ${typeof this.to === 'string' ? `«${this.to}»` : 'an element target'} absent for ${STRANDED_MS / 1000} s; the content stands nowhere`);
-        }
-        if (frames++ < FAST_RETRY_FRAMES && typeof window.requestAnimationFrame === 'function') {
-          wait.cancelFrame = this.flow.afterFrame('the teleport\'s target is looked for', loop);
-        } else {
-          wait.cancelTimer = this.flow.after(SLOW_RETRY_MS, 'the teleport\'s target is looked for (the slow cadence)', loop);
-        }
-      };
-      void nextTick(() => {
-        if (check()) {
-          return;
-        }
-        if (!wait.warned) {
-          wait.warned = true;
-          console.warn(`[teleport] target ${typeof this.to === 'string' ? `«${this.to}»` : 'element'} is not in the document — the content waits (never mounted into nothing)`);
-        }
-        loop();
-      });
-    },
-  },
-  render() {
-    void this.epoch;
-    const prev = this.$.subTree as VNode | null;
-    const live = prev !== null && prev.type === Teleport;
-    const target = resolveTeleportTarget(this.to);
-    const children = this.$slots.default?.() ?? [];
-    const wasDisabled = live && (prev.props?.disabled === true || prev.props?.disabled === '');
-    // LAW 4 — a disabled teleport holding NOTHING that is asked to go live does not patch its new content in place
-    // (Vue mounts it into the teleport's own place and only then moves it): it waits empty, and goes live as a FRESH
-    // teleport — a new key — whose content mounts straight into the target.
-    const nothingStands = wasDisabled && !teleportStandsContent(prev);
-    if (target === null) {
-      if (!live && !this.disabled) {
-        // LAW 1 — the native teleport would mount nothing and crash on the next patch.
-        this.awaitTarget();
-        return null;
-      }
-      if (live && !this.disabled && wasDisabled) {
-        // LAW 3 — enabling now would insert into the target resolved at mount.
-        this.awaitTarget();
-        return h(Teleport, {key: this.wait.key, to: prev.props?.to ?? this.to, disabled: true}, nothingStands ? [] : children);
-      }
-      return h(Teleport, {key: this.wait.key, to: this.to, disabled: this.disabled, defer: live ? undefined : this.defer}, children);
-    }
-    this.stopWaiting();
-    if (!this.disabled && nothingStands) {
-      this.wait.key++;
-      return h(Teleport, {key: this.wait.key, to: target as HTMLElement, disabled: false}, children);
-    }
-    // LAW 2 — the element, so a replaced node is a changed `to`.
-    return h(Teleport, {key: this.wait.key, to: target as HTMLElement, disabled: this.disabled, defer: live ? undefined : this.defer}, children);
+  /** Passed to the native teleport on its mount (it resolves after the flush). */
+  defer: {
+    type: Boolean,
+    default: false,
   },
 });
+const slots = useSlots();
+
+// The wait's bookkeeping — plain, never reactive (the render reads it).
+const wait = markRaw({cancelFrame: (() => {}) as () => void, cancelTimer: (() => {}) as () => void, active: false, warned: false, since: 0, stranded: false, key: 0});
+const flowScope = useFlowScope('console-teleport');
+/** Bumped by a re-check that found the target — the one reactive edge of the wait. */
+const epoch = ref(0);
+/**
+ * WHAT THIS COMPONENT RENDERED LAST — the teleport's own vnode, `null` while the content renders nowhere. The render
+ * below is the component's whole subtree and Vue mounts the very object it returns: its `el` / `anchor` are the
+ * teleport's two anchors in place, its `props` what the mounted teleport was given.
+ */
+let rendered: VNode | null = null;
+
+function stopWaiting(): void {
+  wait.cancelFrame();
+  wait.cancelTimer();
+  wait.active = false;
+}
+
+function awaitTarget(): void {
+  if (wait.active) {
+    return;
+  }
+  wait.active = true;
+  wait.since = Date.now();
+  wait.stranded = false;
+  let frames = 0;
+  const check = (): boolean => {
+    if (!wait.active) {
+      return true;
+    }
+    if (resolveTeleportTarget(props.to) !== null) {
+      stopWaiting();
+      epoch.value++;
+      return true;
+    }
+    return false;
+  };
+  const loop = (): void => {
+    if (check()) {
+      return;
+    }
+    if (!wait.stranded && Date.now() - wait.since >= STRANDED_MS) {
+      wait.stranded = true;
+      console.warn(`[teleport] stranded — ${typeof props.to === 'string' ? `«${props.to}»` : 'an element target'} absent for ${STRANDED_MS / 1000} s; the content stands nowhere`);
+    }
+    if (frames++ < FAST_RETRY_FRAMES && typeof window.requestAnimationFrame === 'function') {
+      wait.cancelFrame = flowScope.afterFrame('the teleport\'s target is looked for', loop);
+    } else {
+      wait.cancelTimer = flowScope.after(SLOW_RETRY_MS, 'the teleport\'s target is looked for (the slow cadence)', loop);
+    }
+  };
+  void nextTick(() => {
+    if (check()) {
+      return;
+    }
+    if (!wait.warned) {
+      wait.warned = true;
+      console.warn(`[teleport] target ${typeof props.to === 'string' ? `«${props.to}»` : 'element'} is not in the document — the content waits (never mounted into nothing)`);
+    }
+    loop();
+  });
+}
+
+/** THE RENDER — one decision per render, remembered as `rendered` for the next one. */
+function teleportFor(): VNode | null {
+  void epoch.value;
+  const prev = rendered;
+  const live = prev !== null;
+  const target = resolveTeleportTarget(props.to);
+  const children = slots.default?.() ?? [];
+  const wasDisabled = live && (prev.props?.disabled === true || prev.props?.disabled === '');
+  // LAW 4 — a disabled teleport holding NOTHING that is asked to go live does not patch its new content in place
+  // (Vue mounts it into the teleport's own place and only then moves it): it waits empty, and goes live as a FRESH
+  // teleport — a new key — whose content mounts straight into the target.
+  const nothingStands = wasDisabled && !teleportStandsContent(prev);
+  if (target === null) {
+    if (!live && !props.disabled) {
+      // LAW 1 — the native teleport would mount nothing and crash on the next patch.
+      awaitTarget();
+      return null;
+    }
+    if (live && !props.disabled && wasDisabled) {
+      // LAW 3 — enabling now would insert into the target resolved at mount.
+      awaitTarget();
+      return h(Teleport, {key: wait.key, to: prev.props?.to ?? props.to, disabled: true}, nothingStands ? [] : children);
+    }
+    return h(Teleport, {key: wait.key, to: props.to, disabled: props.disabled, defer: live ? undefined : props.defer}, children);
+  }
+  stopWaiting();
+  if (!props.disabled && nothingStands) {
+    wait.key++;
+    return h(Teleport, {key: wait.key, to: target as HTMLElement, disabled: false}, children);
+  }
+  // LAW 2 — the element, so a replaced node is a changed `to`.
+  return h(Teleport, {key: wait.key, to: target as HTMLElement, disabled: props.disabled, defer: live ? undefined : props.defer}, children);
+}
+
+const TeleportView: FunctionalComponent = () => {
+  rendered = teleportFor();
+  return rendered;
+};
+
+onBeforeUnmount(() => stopWaiting());
 </script>
