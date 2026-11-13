@@ -34,7 +34,7 @@
          reason (in the same COMPACT counter form the status rails speak)
          beside them, and renders NOTHING at all without a view (no empty
          chip, no phantom gap in the host's flex row). -->
-    <template v-else-if="variant === 'line'">
+    <template v-else-if="variant === 'line' && view !== undefined">
       <span class="con-cardavail__status">
         <span class="con-cardavail__icon" aria-hidden="true">{{ view.icon }}</span>
         <span class="con-cardavail__title">{{ view.title }}</span>
@@ -73,7 +73,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * ConsoleCardAvailabilityPanel — the ONE presentation of "how available is
  * this card in the current game", in three densities:
@@ -107,31 +107,27 @@
  * requirements, turns or severities beyond painting the classes it is given.
  * Colour is never the only signal — every state carries its icon + text.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import {CardAvailabilityView} from '@/client/console/cardAvailability';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 
-export default defineComponent({
-  name: 'ConsoleCardAvailabilityPanel',
-  components: {ConsoleScrollArea},
-  props: {
-    /** `undefined` = nothing to say (compact: the name alone; panel: nothing). */
-    view: {type: Object as PropType<CardAvailabilityView>, default: undefined},
-    variant: {type: String as PropType<'compact' | 'line' | 'panel'>, default: 'panel'},
-    /** Compact only: the card name leading the status row. */
-    cardTitle: {type: String, default: undefined},
-    /** Panel only: the zoom close flight began — hide instantly (never lag the card). */
-    closing: {type: Boolean, default: false},
-  },
-  computed: {
-    /** The painted state — `clear` when the card has nothing to answer for. */
-    severityClass(): string {
-      return this.view?.severity ?? 'clear';
-    },
-    moreLabel(): string {
-      return translateTextWithParams('+${0} more', [String(this.view?.extraCount ?? 0)]);
-    },
-  },
+defineOptions({name: 'ConsoleCardAvailabilityPanel'});
+const props = defineProps({
+  /** `undefined` = nothing to say (compact: the name alone; panel: nothing). */
+  view: {type: Object as PropType<CardAvailabilityView>, default: undefined},
+  variant: {type: String as PropType<'compact' | 'line' | 'panel'>, default: 'panel'},
+  /** Compact only: the card name leading the status row. */
+  cardTitle: {type: String, default: undefined},
+  /** Panel only: the zoom close flight began — hide instantly (never lag the card). */
+  closing: {type: Boolean, default: false},
+});
+
+/** The painted state — `clear` when the card has nothing to answer for. */
+const severityClass = computed((): string => {
+  return props.view?.severity ?? 'clear';
+});
+const moreLabel = computed((): string => {
+  return translateTextWithParams('+${0} more', [String(props.view?.extraCount ?? 0)]);
 });
 </script>
