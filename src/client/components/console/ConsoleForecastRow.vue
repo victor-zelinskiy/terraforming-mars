@@ -1,29 +1,4 @@
 <template>
-  <!--
-    THE COMPACT «Сработает» ROW — what the TABLE answers to this play / action,
-    in chips alone: no card names, no groups, no numbers to add up (the layer
-    behind R3 explains everything). One unit of the composer's result cluster
-    (the play screen) or the fourth side of the action formula (the action
-    screen); it is NOT a focus stop — no cursor, no selection, no A — and a
-    click opens the layer the way R3 does.
-
-    Four chip forms (§5.2 of the spec), all the shared `ActionEffectChip` as
-    BARE DELTAS («+1 ⬡», never «⬡ 0 → 1», never a note — those readings live
-    in the layer):
-      · own guaranteed gain      — the ordinary mint gain chip;
-      · a gain you will be ASKED — the same chip + a «?» badge (cyan);
-      · another seat's gain/loss — steel chassis + that player's colour bar
-                                    and dot (never mint: mint means «mine»);
-                                    a LOSS wears the spend tone («▍−4 M€»);
-      · your own SKIPPED gain     — the lost magnitude, struck and muted, with
-                                    a «⚠» badge (a foreign seat's skipped
-                                    reaction never reaches the row);
-      · «⚡ ?»                    — ONE dashed steel chip for every reaction
-                                    that fires but was not calculated;
-    plus «+N» past the cap. A production step keeps its identity through the
-    production plate on its icon. Membership + merging + the cap are the pure
-    model's (`compactForecastChips`).
-  -->
   <div class="con-forecast"
        :class="{'con-forecast--bare': !caption}"
        role="note"
@@ -81,66 +56,86 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE COMPACT «Сработает» ROW — what the TABLE answers to this play / action,
+ * in chips alone: no card names, no groups, no numbers to add up (the layer
+ * behind R3 explains everything). One unit of the composer's result cluster
+ * (the play screen) or the fourth side of the action formula (the action
+ * screen); it is NOT a focus stop — no cursor, no selection, no A — and a
+ * click opens the layer the way R3 does.
+ *
+ * Four chip forms (§5.2 of the spec), all the shared `ActionEffectChip` as
+ * BARE DELTAS («+1 ⬡», never «⬡ 0 → 1», never a note — those readings live
+ * in the layer):
+ *   · own guaranteed gain      — the ordinary mint gain chip;
+ *   · a gain you will be ASKED — the same chip + a «?» badge (cyan);
+ *   · another seat's gain/loss — steel chassis + that player's colour bar
+ *                                 and dot (never mint: mint means «mine»);
+ *                                 a LOSS wears the spend tone («▍−4 M€»);
+ *   · your own SKIPPED gain     — the lost magnitude, struck and muted, with
+ *                                 a «⚠» badge (a foreign seat's skipped
+ *                                 reaction never reaches the row);
+ *   · «⚡ ?»                    — ONE dashed steel chip for every reaction
+ *                                 that fires but was not calculated;
+ * plus «+N» past the cap. A production step keeps its identity through the
+ * production plate on its icon. Membership + merging + the cap are the pure
+ * model's (`compactForecastChips`).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {EffectForecast} from '@/common/models/EffectForecastModel';
 import {ForecastChip, ForecastRow, compactForecastChips, forecastChipRailRow} from '@/client/console/effectForecastModel';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumModifierMarks from '@/client/components/premiumCard/PremiumModifierMarks.vue';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
-export default defineComponent({
-  name: 'ConsoleForecastRow',
-  components: {ActionEffectChip, GamepadGlyph, PremiumModifierMarks, PremiumPartyRequirementGlyph},
-  props: {
-    forecast: {type: Object as PropType<EffectForecast | undefined>, default: undefined},
-    /**
-     * Draw the «Сработает:» caption. The action composer's hero already names
-     * the side with its own `__hero-label`, so it passes `false` and the row
-     * shows glyph + chips + the R3 key only.
-     */
-    caption: {type: Boolean, default: true},
-  },
-  emits: ['open'],
-  computed: {
-    row(): ForecastRow {
-      return compactForecastChips(this.forecast);
-    },
-    ariaLabel(): string {
-      return `${translateText('Will trigger')}: ${this.row.total}`;
-    },
-  },
-  methods: {
-    forecastChipRailRow,
-    /** Identity + value: a changed number re-mounts the chip (the flick). The
-     *  chip is a BARE delta, so the amount is its whole value. */
-    chipKey(chip: ForecastChip): string {
-      switch (chip.kind) {
-      case 'unknown':
-        return `${chip.key}|${chip.facts}`;
-      case 'more':
-        return `${chip.key}|${chip.count}`;
-      case 'modifier':
-        return `${chip.key}|${chip.badge}|${chip.used ? 1 : 0}`;
-      default:
-        return `${chip.key}|${chip.effect.amount}`;
-      }
-    },
-    /** Whose (own / other seat), the degree («?»), the pool (a production
-     *  step wears the production plate on its icon — the one distinction a
-     *  note-less chip keeps) and the tone (another seat's LOSS reads in the
-     *  spend tone, never as a number to compare). */
-    chipClasses(chip: ForecastChip): Record<string, boolean> {
-      return {
-        ['con-forecast__chip--' + chip.kind]: true,
-        'con-forecast__chip--bot': chip.kind === 'other' && chip.bot,
-        'con-forecast__chip--loss': chip.kind === 'other' && chip.effect.direction === 'cost',
-        'con-forecast__chip--unused': chip.kind === 'modifier' && !chip.used,
-        'con-forecast__chip--production': (chip.kind === 'own' || chip.kind === 'asks' || chip.kind === 'other' || chip.kind === 'skipped') && chip.production,
-      };
-    },
-  },
+defineOptions({name: 'ConsoleForecastRow'});
+const props = defineProps({
+  forecast: {type: Object as PropType<EffectForecast | undefined>, default: undefined},
+  /**
+   * Draw the «Сработает:» caption. The action composer's hero already names
+   * the side with its own `__hero-label`, so it passes `false` and the row
+   * shows glyph + chips + the R3 key only.
+   */
+  caption: {type: Boolean, default: true},
 });
+defineEmits(['open']);
+
+const row = computed((): ForecastRow => {
+  return compactForecastChips(props.forecast);
+});
+const ariaLabel = computed((): string => {
+  return `${translateText('Will trigger')}: ${row.value.total}`;
+});
+/** Identity + value: a changed number re-mounts the chip (the flick). The
+ *  chip is a BARE delta, so the amount is its whole value. */
+function chipKey(chip: ForecastChip): string {
+  switch (chip.kind) {
+  case 'unknown':
+    return `${chip.key}|${chip.facts}`;
+  case 'more':
+    return `${chip.key}|${chip.count}`;
+  case 'modifier':
+    return `${chip.key}|${chip.badge}|${chip.used ? 1 : 0}`;
+  default:
+    return `${chip.key}|${chip.effect.amount}`;
+  }
+}
+/** Whose (own / other seat), the degree («?»), the pool (a production
+ *  step wears the production plate on its icon — the one distinction a
+ *  note-less chip keeps) and the tone (another seat's LOSS reads in the
+ *  spend tone, never as a number to compare). */
+function chipClasses(chip: ForecastChip): Record<string, boolean> {
+  return {
+    ['con-forecast__chip--' + chip.kind]: true,
+    'con-forecast__chip--bot': chip.kind === 'other' && chip.bot,
+    'con-forecast__chip--loss': chip.kind === 'other' && chip.effect.direction === 'cost',
+    'con-forecast__chip--unused': chip.kind === 'modifier' && !chip.used,
+    'con-forecast__chip--production': (chip.kind === 'own' || chip.kind === 'asks' || chip.kind === 'other' || chip.kind === 'skipped') && chip.production,
+  };
+}
 </script>
