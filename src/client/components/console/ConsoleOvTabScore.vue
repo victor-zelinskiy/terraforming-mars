@@ -1,12 +1,4 @@
 <template>
-  <!--
-    СЧЁТ — the score BOARD (TR69 «ОБЗОР В МАСШТАБЕ»): the places are COLUMNS, each led by the corporation's face, its
-    place medal, the name and the total in the score cell's language; the categories are ROWS led by their medallion
-    (the dossier's disc and name); every cell is the value with a bar on ONE shared scale, the category's leader
-    marked gold. The board fills the opening (the rows share its height — never a 40 % matrix over a dead half). The
-    d-pad walks the category rows; the BREAKDOWN of the focused one (РТ / Карты) stands in the same plate, under the
-    board, at a fixed height (no layout jump on focus travel). A opens the full per-player breakdown detail.
-  -->
   <div class="con-ovs" :style="{'--ov-n': vm.score.ranking.length}">
     <div class="con-ovs__board">
       <!-- THE HEAD ROW — the notes in the corner, the places as faces. -->
@@ -108,8 +100,19 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * СЧЁТ — the score BOARD (TR69 «ОБЗОР В МАСШТАБЕ»): the places are COLUMNS, each led by the corporation's face, its
+ * place medal, the name and the total in the score cell's language; the categories are ROWS led by their medallion
+ * (the dossier's disc and name); every cell is the value with a bar on ONE shared scale, the category's leader
+ * marked gold. The board fills the opening (the rows share its height — never a 40 % matrix over a dead half). The
+ * d-pad walks the category rows; the BREAKDOWN of the focused one (РТ / Карты) stands in the same plate, under the
+ * board, at a fixed height (no layout jump on focus travel). A opens the full per-player breakdown detail.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import type {ConsoleOverviewVm, OvScoreCategory, OvScoreSub} from '@/client/console/endgame/consoleOverviewModel';
@@ -121,72 +124,68 @@ import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 
-export default defineComponent({
-  name: 'ConsoleOvTabScore',
-  components: {ConsoleScoreDisc, ConsoleVpBadge, ConsoleCardFaceLite, MarsBotCorpFace},
-  props: {
-    vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
-  },
-  computed: {
-    ui() {
-      return consoleOverviewUi;
-    },
-    focusedCat(): OvScoreCategory | undefined {
-      return this.vm.score.categories[this.ui.scoreCat];
-    },
-    detailCat(): OvScoreCategory | undefined {
-      const d = this.ui.detail;
-      if (d === undefined || d.kind !== 'score-category') {
-        return undefined;
-      }
-      return this.vm.score.categories.find((c) => c.key === d.catKey);
-    },
-    /** Detail rows: the two-level subs, or the category itself as one row. */
-    detailSubs(): ReadonlyArray<OvScoreSub> {
-      const cat = this.detailCat;
-      if (cat === undefined) {
-        return [];
-      }
-      return cat.subs.length > 0 ? cat.subs : [{key: cat.key, label: cat.label, values: cat.values}];
-    },
-  },
-  methods: {
-    fmt(v: number): string {
-      return v < 0 ? '−' + Math.abs(v) : String(v);
-    },
-    /** The category's leader (gold) — every holder of a shared lead, never a zero. */
-    isLeader(cat: OvScoreCategory, color: Color): boolean {
-      return cat.leaders.includes(color) && (cat.values[color] ?? 0) > 0;
-    },
-    glyphOf(key: ConsoleEndgameCategoryKey): DossierGlyph {
-      return scoreCategoryGlyph(key);
-    },
-    barStyle(cat: OvScoreCategory, color: Color): Record<string, string> {
-      const v = Math.abs(cat.values[color] ?? 0);
-      return {width: `${(v / this.vm.score.maxCategoryValue) * 100}%`};
-    },
-    quietNote(cat: OvScoreCategory): string {
-      return cat.penalty ? 'Points lost to penalties' : 'A single-source category';
-    },
-    // ── pane API ──────────────────────────────────────────────────────────
-    nav(dir: NavDirection): void {
-      if (this.ui.detail !== undefined) {
-        return; // the detail is a static read — B closes it
-      }
-      if (dir === 'up' || dir === 'down') {
-        const n = this.vm.score.categories.length;
-        if (n > 0) {
-          const delta = dir === 'down' ? 1 : -1;
-          this.ui.scoreCat = (this.ui.scoreCat + delta + n) % n;
-        }
-      }
-    },
-    primary(): void {
-      const cat = this.focusedCat;
-      if (cat !== undefined && this.ui.detail === undefined) {
-        this.ui.detail = {kind: 'score-category', catKey: cat.key};
-      }
-    },
-  },
+defineOptions({name: 'ConsoleOvTabScore'});
+const props = defineProps({
+  vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
 });
+
+const ui = consoleOverviewUi;
+const focusedCat = computed((): OvScoreCategory | undefined => {
+  return props.vm.score.categories[ui.scoreCat];
+});
+const detailCat = computed((): OvScoreCategory | undefined => {
+  const d = ui.detail;
+  if (d === undefined || d.kind !== 'score-category') {
+    return undefined;
+  }
+  return props.vm.score.categories.find((c) => c.key === d.catKey);
+});
+/** Detail rows: the two-level subs, or the category itself as one row. */
+const detailSubs = computed((): ReadonlyArray<OvScoreSub> => {
+  const cat = detailCat.value;
+  if (cat === undefined) {
+    return [];
+  }
+  return cat.subs.length > 0 ? cat.subs : [{key: cat.key, label: cat.label, values: cat.values}];
+});
+function fmt(v: number): string {
+  return v < 0 ? '−' + Math.abs(v) : String(v);
+}
+/** The category's leader (gold) — every holder of a shared lead, never a zero. */
+function isLeader(cat: OvScoreCategory, color: Color): boolean {
+  return cat.leaders.includes(color) && (cat.values[color] ?? 0) > 0;
+}
+function glyphOf(key: ConsoleEndgameCategoryKey): DossierGlyph {
+  return scoreCategoryGlyph(key);
+}
+function barStyle(cat: OvScoreCategory, color: Color): Record<string, string> {
+  const v = Math.abs(cat.values[color] ?? 0);
+  return {width: `${(v / props.vm.score.maxCategoryValue) * 100}%`};
+}
+function quietNote(cat: OvScoreCategory): string {
+  return cat.penalty ? 'Points lost to penalties' : 'A single-source category';
+}
+// ── pane API ──────────────────────────────────────────────────────────
+function nav(dir: NavDirection): void {
+  if (ui.detail !== undefined) {
+    return; // the detail is a static read — B closes it
+  }
+  if (dir === 'up' || dir === 'down') {
+    const n = props.vm.score.categories.length;
+    if (n > 0) {
+      const delta = dir === 'down' ? 1 : -1;
+      ui.scoreCat = (ui.scoreCat + delta + n) % n;
+    }
+  }
+}
+function primary(): void {
+  const cat = focusedCat.value;
+  if (cat !== undefined && ui.detail === undefined) {
+    ui.detail = {kind: 'score-category', catKey: cat.key};
+  }
+}
+
+// The pane API — what `ConsoleEndgameOverview` reaches through its `ref="pane"` (`nav` on a d-pad step, `primary`
+// on A), and nothing else.
+defineExpose({nav, primary});
 </script>
