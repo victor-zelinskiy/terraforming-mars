@@ -1,8 +1,12 @@
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
+import {defineComponent, h, nextTick} from 'vue';
+import {globalConfig} from '../getLocalVue';
 import ConsolePlayedCategoryView from '@/client/components/console/played/ConsolePlayedCategoryView.vue';
+import {closeConsoleCardZoom, consoleCardZoom} from '@/client/console/consoleCardZoom';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
 import {playedCategoryState, resetPlayedCategoryView} from '@/client/console/played/playedCategoryView';
+import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
 import {CardType} from '@/common/cards/CardType';
 import {CardModel} from '@/common/models/CardModel';
 import {getCards, byType} from '@/client/cards/ClientCardManifest';
@@ -21,7 +25,8 @@ function press(button: SemanticButton): GamepadIntent {
   return {kind: 'press', button};
 }
 
-function make(cards: Array<CardModel>) {
+/** The category stands OPEN on these cards (a restore — no flight to play). */
+function seat(cards: Array<CardModel>): void {
   playedCategoryState.category = 'active';
   playedCategoryState.names = cards.map((c) => c.name);
   playedCategoryState.focusIndex = 0;
@@ -29,6 +34,10 @@ function make(cards: Array<CardModel>) {
   playedCategoryState.holdCards = false;
   playedCategoryState.frameOn = true;
   playedCategoryState.phase = 'open';
+}
+
+function make(cards: Array<CardModel>) {
+  seat(cards);
   return mount(ConsolePlayedCategoryView, {
     props: {cards},
     global: {
@@ -107,5 +116,82 @@ describe('ConsolePlayedCategoryView — the paged album', () => {
     expect(wrapper.find('[data-cat-spine]').exists()).to.be.false;
     expect(consolePlayedUi.pageCount).to.eq(1);
     wrapper.unmount();
+  });
+});
+
+/**
+ * THE VIEW AS A `<script setup>` COMPONENT (step A of docs/claude/vapor/RECIPES.md): the table reaches it through its
+ * ref, and that ref carries `handleIntent` only. Its template starts with its root, so what the view asks of its own
+ * element — the slot a card is lifted out of, where the floor folds back to — is asked of the ELEMENT in a unit mount
+ * too (under a development build the Options form's `$el` was the anchor of the comment that opened the template, and
+ * both answered «nothing»).
+ */
+describe('ConsolePlayedCategoryView — its surface as a `<script setup>` component', () => {
+  const stubs = {ConsolePlayedCardLite: true, GamepadGlyph: true};
+  let reducedWas = false;
+
+  beforeEach(() => {
+    reducedWas = reduceMotionOverrideState.enabled;
+    reduceMotionOverrideState.enabled = false;
+  });
+
+  afterEach(() => {
+    reduceMotionOverrideState.enabled = reducedWas;
+    closeConsoleCardZoom();
+    resetPlayedCategoryView();
+    resetConsolePlayedUi();
+  });
+
+  it('exposes exactly `handleIntent` — the table turns its pages through the ref; it mounts without a warning', async () => {
+    seat(ACTIVE);
+    const Host = defineComponent({render: () => h('div', [h(ConsolePlayedCategoryView, {ref: 'view', cards: ACTIVE})])});
+    // `globalConfig`'s handler promotes every Vue warning to a failure.
+    const host = mount(Host, {global: {config: globalConfig.global.config, stubs}});
+    const view = host.vm.$refs.view as {handleIntent: (intent: GamepadIntent) => void};
+    expect(Object.keys(view)).to.deep.eq(['handleIntent']);
+    view.handleIntent(press('bumperR'));
+    await nextTick();
+    expect(host.find('.con-played-cat__albumbox').attributes('data-cat-page')).to.eq('1');
+    expect(consolePlayedUi.page).to.eq(1);
+  });
+
+  it('X lifts the focused card out of ITS slot — read off the view\'s root, and «no slot» once the view has left', async () => {
+    const cards = ACTIVE.slice(0, 4);
+    const wrapper = make(cards);
+    await nextTick();
+    playedCategoryState.focusIndex = 1;
+    wrapper.vm.handleIntent(press('secondary'));
+    expect(consoleCardZoom.card?.name).to.eq(cards[1].name);
+    expect(consoleCardZoom.cards.map((c) => c.name)).to.deep.eq(cards.map((c) => c.name));
+    expect(consoleCardZoom.origin.kind).to.eq('physical');
+    const slots = wrapper.findAll('[data-zoom-slot]');
+    expect(slots.map((slot) => slot.attributes('data-zoom-slot'))).to.deep.eq(cards.map((c) => c.name));
+    expect(consoleCardZoom.origin.resolve?.(1)).to.eq(slots[1].element);
+    // Browsing in the viewer keeps the grid's cursor in lockstep — the close returns the card to the slot looked at last.
+    consoleCardZoom.origin.onBrowse?.(3);
+    expect(playedCategoryState.focusIndex).to.eq(3);
+    expect(consoleCardZoom.origin.resolve?.(3)).to.eq(slots[3].element);
+    // The viewer outlives the view: no element is «no slot» (the textual close) — never a throw.
+    wrapper.unmount();
+    expect(consoleCardZoom.origin.resolve?.(1)).to.eq(null);
+  });
+
+  it('B folds the floor back INTO its stack — its own centre line when no stack stands — and the view settles closed', async () => {
+    const wrapper = make(ACTIVE.slice(0, 4));
+    await nextTick();
+    const root = wrapper.element as HTMLElement;
+    expect(root.classList.contains('con-played-cat'), 'the template starts with its root').to.be.true;
+    expect(root.classList.contains('con-played-cat--unfolded'), 'a view that mounts open stands unfolded').to.be.true;
+    expect(root.style.getPropertyValue('--con-cat-from-t')).to.eq('');
+    wrapper.vm.handleIntent(press('back'));
+    expect(playedCategoryState.phase).to.eq('closing');
+    await nextTick();
+    expect(root.classList.contains('con-played-cat--unfolded'), 'the floor folds').to.be.false;
+    expect(['--con-cat-from-t', '--con-cat-from-b', '--con-cat-from-l', '--con-cat-from-r'].map((v) => root.style.getPropertyValue(v)))
+      .to.deep.eq(['50%', '50%', '0px', '0px']);
+    // Nothing is measurable under JSDOM, so no card flies: the episode settles at once and the table drops the mount.
+    await nextTick();
+    expect(wrapper.emitted('settled-closed')).to.have.length(1);
+    expect(playedCategoryState.phase).to.eq('closed');
   });
 });
