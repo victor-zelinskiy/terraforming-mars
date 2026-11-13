@@ -93,14 +93,14 @@ import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {cardArtUrl, cardArtUrlAtTier} from '@/client/cards/cardArt';
 import {standardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
+import {buildEventChildren, JournalChildVM} from '@/client/components/journal/journalEventChild';
+import {botReplayAvailableFor} from '@/client/components/marsbot/marsBotTurnArchive';
+import {openBotTurnReviewByCorrelation} from '@/client/components/marsbot/marsBotPresentation';
 
 /** The event's OBJECT (PL-577): the card it names — its art, or a standard project's pictogram. */
 type JournalSubject =
   | {kind: 'card', name: CardName, art: string}
   | {kind: 'project', name: CardName, icon: string};
-import {buildEventChildren, JournalChildVM} from '@/client/components/journal/journalEventChild';
-import {botReplayAvailableFor} from '@/client/components/marsbot/marsBotTurnArchive';
-import {openBotTurnReviewByCorrelation} from '@/client/components/marsbot/marsBotPresentation';
 
 /**
  * One premium cause/effect GROUP rendered as a single cohesive cluster: a

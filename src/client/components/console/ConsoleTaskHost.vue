@@ -661,6 +661,7 @@
  */
 
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {RootElHolder} from '@/client/components/rootEl';
 import {choiceSeriesOf} from '@/client/console/promptSeries';
 /**
@@ -1050,7 +1051,7 @@ const port: TaskHostPort = {
 
 const flow = useFlowScope('console-task-host');
 const cardStrip = useTemplateRef<HTMLElement>('cardStrip');
-const dealLayer = useTemplateRef<InstanceType<typeof ConsoleCardDealLayer>>('dealLayer');
+const dealLayer = useTemplateRef<ExposedOf<typeof ConsoleCardDealLayer>>('dealLayer');
 const sourceCard = useTemplateRef<RootElHolder>('sourceCard');
 const body = useTemplateRef<HTMLElement>('body');
 const focusedCardSlot = useTemplateRef<HTMLElement | Array<HTMLElement>>('focusedCardSlot');

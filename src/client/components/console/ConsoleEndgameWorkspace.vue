@@ -384,6 +384,7 @@
  * without this file.
  */
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {gsap} from 'gsap';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
@@ -539,7 +540,7 @@ const rowsEl = useTemplateRef<HTMLElement>('rowsEl');
 const captionEl = useTemplateRef<HTMLElement>('captionEl');
 const beamEl = useTemplateRef<HTMLElement>('beamEl');
 const washEl = useTemplateRef<HTMLCanvasElement>('washEl');
-const overview = useTemplateRef<InstanceType<typeof ConsoleEndgameOverview>>('overview');
+const overview = useTemplateRef<ExposedOf<typeof ConsoleEndgameOverview>>('overview');
 const campaignMap = useTemplateRef<{handleIntent?: (i: GamepadIntent) => boolean}>('campaignMap');
 const bidding = useTemplateRef<{handleIntent?: (i: GamepadIntent) => boolean}>('bidding');
 const root = useTemplateRef<HTMLElement>('root');

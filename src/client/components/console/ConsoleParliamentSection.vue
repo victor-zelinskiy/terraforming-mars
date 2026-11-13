@@ -246,6 +246,7 @@
  */
 
 import {computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {Color} from '@/common/Color';
@@ -533,17 +534,17 @@ const drawHostId = newParliamentDrawHostId();
 // as it stood.
 resetParliamentFlow();
 
-const supportMode = useTemplateRef<InstanceType<typeof ConsoleParliamentSupportMode>>('supportMode');
-const bannerMode = useTemplateRef<InstanceType<typeof ConsoleParliamentBannerMode>>('bannerMode');
-const delegateMode = useTemplateRef<InstanceType<typeof ConsoleParliamentDelegateMode>>('delegateMode');
+const supportMode = useTemplateRef<ExposedOf<typeof ConsoleParliamentSupportMode>>('supportMode');
+const bannerMode = useTemplateRef<ExposedOf<typeof ConsoleParliamentBannerMode>>('bannerMode');
+const delegateMode = useTemplateRef<ExposedOf<typeof ConsoleParliamentDelegateMode>>('delegateMode');
 const rootEl = useTemplateRef<HTMLElement>('rootEl');
-const voteMode = useTemplateRef<InstanceType<typeof ConsoleParliamentVoteMode>>('voteMode');
+const voteMode = useTemplateRef<ExposedOf<typeof ConsoleParliamentVoteMode>>('voteMode');
 const fieldEl = useTemplateRef<HTMLElement>('fieldEl');
 const midEl = useTemplateRef<HTMLElement>('midEl');
-const seatPick = useTemplateRef<InstanceType<typeof ConsoleParliamentSeatPick>>('seatPick');
+const seatPick = useTemplateRef<ExposedOf<typeof ConsoleParliamentSeatPick>>('seatPick');
 const sittingEl = useTemplateRef<{scrollDetails?: (dy: number) => void}>('sitting');
-const agenda = useTemplateRef<InstanceType<typeof ConsoleParliamentAgenda>>('agenda');
-const effectsStep = useTemplateRef<InstanceType<typeof ConsoleParliamentEffectsStep>>('effectsStep');
+const agenda = useTemplateRef<ExposedOf<typeof ConsoleParliamentAgenda>>('agenda');
+const effectsStep = useTemplateRef<ExposedOf<typeof ConsoleParliamentEffectsStep>>('effectsStep');
 const tableTierEl = useTemplateRef<HTMLElement>('tableTierEl');
 /**
  * The BOARD CELL that granted the delegate being placed (Vastitas Borealis' Viking) — latched from the live grant
@@ -1821,7 +1822,7 @@ function onAnswerKey(key: string): void {
     emit('flow-complete', f.stageBeforeSubmit);
   }
 }
-function voteModeNow(): InstanceType<typeof ConsoleParliamentVoteMode> | undefined {
+function voteModeNow(): ExposedOf<typeof ConsoleParliamentVoteMode> | undefined {
   return voteMode.value ?? undefined;
 }
 /**

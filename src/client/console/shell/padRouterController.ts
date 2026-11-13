@@ -4,6 +4,7 @@
  * THE PADROUTER CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {stickScrollBy} from '@/client/console/stickScrollTarget';
 import {computed, ref, onBeforeUnmount, onMounted} from 'vue';
@@ -667,7 +668,7 @@ export function createPadRouterController(shell: PadRouterPort) {
       // the player cannot see instead of the content in front of them.
       if (consoleState.sheet === 'cardActions' && !shell.handPickActive &&
           !shell.workspaceOutcomeEmbedded) {
-        handedTo(shell.surfaces.at<InstanceType<typeof ConsoleCardActions>>('cardActions'), 'cardActions', intent);
+        handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleCardActions>>('cardActions'), 'cardActions', intent);
         return true;
       }
       scrollActiveConsole(intent.dy, intent.dx);
@@ -696,11 +697,11 @@ export function createPadRouterController(shell: PadRouterPort) {
       // would strand the take press). The cards must be takeable — no
       // silent loss, even at the finish line.
       if (shell.consoleRevealMode !== undefined) {
-        const overlay = shell.surfaces.at<InstanceType<typeof ConsoleRevealOverlay>>('revealOverlay');
+        const overlay = shell.surfaces.at<ExposedOf<typeof ConsoleRevealOverlay>>('revealOverlay');
         handedTo(overlay, 'revealOverlay', intent);
         return true;
       }
-      handedTo(shell.surfaces.at<InstanceType<typeof ConsoleEndgameWorkspace>>('endgameWs'), 'endgameWs', intent);
+      handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleEndgameWorkspace>>('endgameWs'), 'endgameWs', intent);
       return true;
     }
     // Information Mode owns everything while open (read-only).
@@ -735,7 +736,7 @@ export function createPadRouterController(shell: PadRouterPort) {
         shell.toggleInfoMode();
         return true;
       }
-      const panel = shell.surfaces.at<InstanceType<typeof ConsoleJournalPanel>>('journalPanel');
+      const panel = shell.surfaces.at<ExposedOf<typeof ConsoleJournalPanel>>('journalPanel');
       handedTo(panel, 'journalPanel', intent);
       return true;
     }
@@ -747,7 +748,7 @@ export function createPadRouterController(shell: PadRouterPort) {
         shell.toggleInfoMode();
         return true;
       }
-      const confirm = shell.surfaces.at<InstanceType<typeof ConsoleCorpFirstActionConfirm>>('corpFirstConfirm');
+      const confirm = shell.surfaces.at<ExposedOf<typeof ConsoleCorpFirstActionConfirm>>('corpFirstConfirm');
       handedTo(confirm, 'corpFirstConfirm', intent);
       return true;
     }
@@ -761,7 +762,7 @@ export function createPadRouterController(shell: PadRouterPort) {
         shell.toggleInfoMode();
         return true;
       }
-      const overlay = shell.surfaces.at<InstanceType<typeof ConsolePlayedOverlay>>('playedOverlay');
+      const overlay = shell.surfaces.at<ExposedOf<typeof ConsolePlayedOverlay>>('playedOverlay');
       handedTo(overlay, 'playedOverlay', intent);
       return true;
     }
@@ -807,7 +808,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // CTS T6: a reveal overlay owns input while visible (drawn cards
     // must be taken; the result / viewer close on any confirm).
     if (shell.consoleRevealMode !== undefined) {
-      const overlay = shell.surfaces.at<InstanceType<typeof ConsoleRevealOverlay>>('revealOverlay');
+      const overlay = shell.surfaces.at<ExposedOf<typeof ConsoleRevealOverlay>>('revealOverlay');
       handedTo(overlay, 'revealOverlay', intent);
       return true;
     }
@@ -835,14 +836,14 @@ export function createPadRouterController(shell: PadRouterPort) {
     // deliberately swallows everything, so a committed move can never be
     // re-submitted by a stray press.
     if (shell.deckPickServing) {
-      handedTo(shell.surfaces.at<InstanceType<typeof ConsoleDeckPick>>('deckPick'), 'deckPick', intent);
+      handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleDeckPick>>('deckPick'), 'deckPick', intent);
       return true;
     }
     // THE DRAFT WORKSPACE owns the pad while it is the serving surface.
     // `hostTask === undefined` inside the predicate yields it to the
     // embedded payment / the Underworld research choice (host-served).
     if (shell.draftWorkspaceOwnsPad) {
-      handedTo(shell.surfaces.at<InstanceType<typeof ConsoleDraftWorkspace>>('draftWs'), 'draftWs', intent);
+      handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleDraftWorkspace>>('draftWs'), 'draftWs', intent);
       return true;
     }
     // THE EXTERNAL-DRAW WORKSPACE owns the pad outright while it stands —
@@ -850,11 +851,11 @@ export function createPadRouterController(shell: PadRouterPort) {
     // NOTHING below it may see a press. Its own phases absorb input during
     // the deal and the take flights.
     if (shell.externalDrawOwnsPad) {
-      handedTo(shell.surfaces.at<InstanceType<typeof ConsoleExternalDrawWorkspace>>('extDrawWs'), 'extDrawWs', intent);
+      handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleExternalDrawWorkspace>>('extDrawWs'), 'extDrawWs', intent);
       return true;
     }
     if (shell.startSceneOwnsPad) {
-      const scene = shell.surfaces.at<InstanceType<typeof ConsoleStartScene>>('startScene');
+      const scene = shell.surfaces.at<ExposedOf<typeof ConsoleStartScene>>('startScene');
       handedTo(scene, 'startScene', intent);
       return true;
     }
@@ -871,39 +872,39 @@ export function createPadRouterController(shell: PadRouterPort) {
     // Government Support (WGT) — the dedicated briefing panel owns input
     // while it serves (before the generic host branch below).
     if (shell.govSupportActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
-      const panel = shell.surfaces.at<InstanceType<typeof ConsoleGovernmentSupport>>('govSupport');
+      const panel = shell.surfaces.at<ExposedOf<typeof ConsoleGovernmentSupport>>('govSupport');
       handedTo(panel, 'govSupport', intent);
       return true;
     }
     // Production loss (Ares hazard) — the dedicated surface owns input while
     // it serves (before the generic host branch below).
     if (shell.productionLossActive && !consoleState.task.deferred && shell.taskSpacePending === undefined) {
-      const panel = shell.surfaces.at<InstanceType<typeof ConsoleProductionLoss>>('prodLoss');
+      const panel = shell.surfaces.at<ExposedOf<typeof ConsoleProductionLoss>>('prodLoss');
       handedTo(panel, 'prodLoss', intent);
       return true;
     }
     // The three dedicated COMPOSITE surfaces own the pad on the same terms.
     if (shell.spendHeatActive) {
-      handedTo(shell.surfaces.at<InstanceType<typeof ConsoleSpendHeat>>('spendHeat'), 'spendHeat', intent);
+      handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleSpendHeat>>('spendHeat'), 'spendHeat', intent);
       return true;
     }
     if (shell.venusBonusActive) {
-      handedTo(shell.surfaces.at<InstanceType<typeof ConsoleVenusBonus>>('venusBonus'), 'venusBonus', intent);
+      handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleVenusBonus>>('venusBonus'), 'venusBonus', intent);
       return true;
     }
     if (shell.aresGlobalsActive) {
-      handedTo(shell.surfaces.at<InstanceType<typeof ConsoleAresGlobals>>('aresGlobals'), 'aresGlobals', intent);
+      handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleAresGlobals>>('aresGlobals'), 'aresGlobals', intent);
       return true;
     }
     if (shell.botAttackActive) {
-      handedTo(shell.surfaces.at<InstanceType<typeof ConsoleBotAttack>>('botAttack'), 'botAttack', intent);
+      handedTo(shell.surfaces.at<ExposedOf<typeof ConsoleBotAttack>>('botAttack'), 'botAttack', intent);
       return true;
     }
     // The EFFECT DECISION screen owns input while it stands in for the host
     // (same contract, same gate — kept next to it so the two can never both
     // claim the pad).
     if (shell.effectDecisionActive) {
-      const panel = shell.surfaces.at<InstanceType<typeof ConsoleEffectDecision>>('effectDecision');
+      const panel = shell.surfaces.at<ExposedOf<typeof ConsoleEffectDecision>>('effectDecision');
       handedTo(panel, 'effectDecision', intent);
       return true;
     }
@@ -947,7 +948,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // this gate, the two command-bar gates and the template's v-if in
     // LOCK-STEP — a mismatch silently swallows the pad.
     if (shell.hostTask !== undefined && !consoleState.task.deferred && shell.taskSpacePending === undefined && !shell.handPickActive) {
-      const host = shell.surfaces.at<InstanceType<typeof ConsoleTaskHost>>('taskHost');
+      const host = shell.surfaces.at<ExposedOf<typeof ConsoleTaskHost>>('taskHost');
       handedTo(host, 'taskHost', intent);
       return true;
     }
@@ -976,7 +977,7 @@ export function createPadRouterController(shell: PadRouterPort) {
         isDeltaBlockadePickActive() || isBlockadeExecutionActive() || shell.handCoveredByHydro;
       const hydroDeeper = workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick');
       if (deltaInstrumentUp && (!shell.repeatPickActive || hydroDeeper)) {
-        const section = shell.surfaces.at<InstanceType<typeof ConsoleHydroSection>>('hydroSection');
+        const section = shell.surfaces.at<ExposedOf<typeof ConsoleHydroSection>>('hydroSection');
         handedTo(section, 'hydroSection', intent);
         return true;
       }
@@ -985,7 +986,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // surface owns the pad while it is out — the hidden source composers
     // (v-show) must not swallow input. Routed BEFORE every composer branch.
     if (shell.repeatPickActive) {
-      const panel = shell.surfaces.at<InstanceType<typeof ConsoleCardActions>>('repeatPick');
+      const panel = shell.surfaces.at<ExposedOf<typeof ConsoleCardActions>>('repeatPick');
       handedTo(panel, 'repeatPick', intent);
       return true;
     }
@@ -1005,7 +1006,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     }
     // T8: the native play-card confirm owns input while open.
     if (shell.pendingPlayCard !== undefined) {
-      const confirm = shell.surfaces.at<InstanceType<typeof ConsolePlayCardConfirm>>('playConfirm');
+      const confirm = shell.surfaces.at<ExposedOf<typeof ConsolePlayCardConfirm>>('playConfirm');
       handedTo(confirm, 'playConfirm', intent);
       return true;
     }
@@ -1018,7 +1019,7 @@ export function createPadRouterController(shell: PadRouterPort) {
         shell.inspectContextualSource();
         return true;
       }
-      const section = shell.surfaces.at<InstanceType<typeof ConsoleColoniesSection>>('coloniesSection');
+      const section = shell.surfaces.at<ExposedOf<typeof ConsoleColoniesSection>>('coloniesSection');
       section?.handleFocusIntent(intent);
       return true;
     }
@@ -1031,7 +1032,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     if (consoleState.confirm !== undefined) {
       // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 on the plate opens it (PL-394) — both resolved BEFORE
       // the semantic map, the stages' order (no default R3).
-      const confirm = shell.surfaces.at<InstanceType<typeof ConsoleActionConfirm>>('actionConfirm');
+      const confirm = shell.surfaces.at<ExposedOf<typeof ConsoleActionConfirm>>('actionConfirm');
       if (effectForecastOpen('confirm')) {
         confirm?.forecastIntent(intent);
         return true;
@@ -1058,7 +1059,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // demonstrably driving the colony grid on top of it. Depth breaks the
     // tie, the same rule presence already uses.
     if (consoleState.sheet === 'cardActions' && workspaceStackTopAxis() !== 'section') {
-      const panel = shell.surfaces.at<InstanceType<typeof ConsoleCardActions>>('cardActions');
+      const panel = shell.surfaces.at<ExposedOf<typeof ConsoleCardActions>>('cardActions');
       handedTo(panel, 'cardActions', intent);
       return true;
     }
@@ -1125,7 +1126,7 @@ export function createPadRouterController(shell: PadRouterPort) {
       return;
     }
     if (infoModeState.route === 'extras') {
-      (shell.surfaces.at<InstanceType<typeof ConsoleInfoMode>>('infoMode'))
+      (shell.surfaces.at<ExposedOf<typeof ConsoleInfoMode>>('infoMode'))
         ?.selectExtrasType(press.key, press.index);
     }
   }
@@ -1150,7 +1151,7 @@ export function createPadRouterController(shell: PadRouterPort) {
           return;
         }
       }
-      (shell.surfaces.at<InstanceType<typeof ConsoleInfoMode>>('infoMode'))?.handlePlayedIntent(intent);
+      (shell.surfaces.at<ExposedOf<typeof ConsoleInfoMode>>('infoMode'))?.handlePlayedIntent(intent);
       return;
     }
     // THE SCORE EXPLORER (vp subtree): the explorer owns nav, A (descend)
@@ -1172,14 +1173,14 @@ export function createPadRouterController(shell: PadRouterPort) {
         if (action === 'back') {
           // The MA inspection consumes B first (fold back into its entry);
           // only then does B walk the route tree.
-          const view = shell.surfaces.at<InstanceType<typeof ConsoleInfoMode>>('infoMode');
+          const view = shell.surfaces.at<ExposedOf<typeof ConsoleInfoMode>>('infoMode');
           if (view?.consumeScoreBack() !== true) {
             shell.infoBack();
           }
           return;
         }
       }
-      (shell.surfaces.at<InstanceType<typeof ConsoleInfoMode>>('infoMode'))?.handleScoreIntent(intent);
+      (shell.surfaces.at<ExposedOf<typeof ConsoleInfoMode>>('infoMode'))?.handleScoreIntent(intent);
       return;
     }
     // THE EXTRAS EXPLORER: the satellite column + gallery own nav, A
@@ -1205,7 +1206,7 @@ export function createPadRouterController(shell: PadRouterPort) {
           return;
         }
       }
-      (shell.surfaces.at<InstanceType<typeof ConsoleInfoMode>>('infoMode'))?.handleExtrasIntent(intent);
+      (shell.surfaces.at<ExposedOf<typeof ConsoleInfoMode>>('infoMode'))?.handleExtrasIntent(intent);
       return;
     }
     // THE CAMPAIGN OVERVIEW: the overview owns nav, A (open results /
@@ -1225,7 +1226,7 @@ export function createPadRouterController(shell: PadRouterPort) {
           return;
         }
       }
-      const view = shell.surfaces.at<InstanceType<typeof ConsoleInfoMode>>('infoMode');
+      const view = shell.surfaces.at<ExposedOf<typeof ConsoleInfoMode>>('infoMode');
       if (view?.handleCampaignIntent(intent) !== true &&
           intent.kind === 'press' && consoleActionOf(intent) === 'back') {
         shell.infoBack();
@@ -1252,7 +1253,7 @@ export function createPadRouterController(shell: PadRouterPort) {
           return;
         }
       }
-      (shell.surfaces.at<InstanceType<typeof ConsoleInfoMode>>('infoMode'))?.handleActionsIntent(intent);
+      (shell.surfaces.at<ExposedOf<typeof ConsoleInfoMode>>('infoMode'))?.handleActionsIntent(intent);
       return;
     }
     // THE EFFECTS EXPLORER: the grid owns nav, A (descend into the effect
@@ -1274,14 +1275,14 @@ export function createPadRouterController(shell: PadRouterPort) {
           return;
         }
         if (action === 'back') {
-          const view = shell.surfaces.at<InstanceType<typeof ConsoleInfoMode>>('infoMode');
+          const view = shell.surfaces.at<ExposedOf<typeof ConsoleInfoMode>>('infoMode');
           if (view?.consumeEffectsBack() !== true) {
             shell.infoBack();
           }
           return;
         }
       }
-      (shell.surfaces.at<InstanceType<typeof ConsoleInfoMode>>('infoMode'))?.handleEffectsIntent(intent);
+      (shell.surfaces.at<ExposedOf<typeof ConsoleInfoMode>>('infoMode'))?.handleEffectsIntent(intent);
       return;
     }
     const route = infoModeState.route;
@@ -1579,7 +1580,7 @@ export function createPadRouterController(shell: PadRouterPort) {
       }
       // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 on the browse opens it (PL-066). Both resolved
       // BEFORE the semantic map (no default R3) — the composers' and the stages' order.
-      const stdpScreen = shell.surfaces.at<InstanceType<typeof ConsoleStdProjectsScreen>>('stdpScreen');
+      const stdpScreen = shell.surfaces.at<ExposedOf<typeof ConsoleStdProjectsScreen>>('stdpScreen');
       if (effectForecastOpen('stdp')) {
         stdpScreen?.forecastIntent(intent);
         return;
@@ -1736,13 +1737,13 @@ export function createPadRouterController(shell: PadRouterPort) {
     // (stages / bonus / CTA / confirm modal / help). Y = Info Mode stays
     // global (handled before this point); the journal is board-home only.
     if (shell.padSection === 'hydro') {
-      const hydro = shell.surfaces.at<InstanceType<typeof ConsoleHydroSection>>('hydroSection');
+      const hydro = shell.surfaces.at<ExposedOf<typeof ConsoleHydroSection>>('hydroSection');
       handedTo(hydro, 'hydroSection', intent);
       return true;
     }
     // The Parliament owns its whole grammar too (zones / stages / submits).
     if (shell.padSection === 'parliament') {
-      const parliament = shell.surfaces.at<InstanceType<typeof ConsoleParliamentSection>>('parliamentSection');
+      const parliament = shell.surfaces.at<ExposedOf<typeof ConsoleParliamentSection>>('parliamentSection');
       handedTo(parliament, 'parliamentSection', intent);
       return true;
     }
@@ -1932,7 +1933,7 @@ export function createPadRouterController(shell: PadRouterPort) {
       finishInstant();
     }
     if (shell.padSection === 'board') {
-      const board = shell.surfaces.at<InstanceType<typeof ConsoleBoardSection>>('boardSection');
+      const board = shell.surfaces.at<ExposedOf<typeof ConsoleBoardSection>>('boardSection');
       // P27b: SCALE INSPECTION — the cursor walks the bonus ring
       // (left/up = counter-clockwise, right/down = clockwise, wraps).
       if (consoleState.scaleInspecting && !shell.placementActive) {
@@ -1981,7 +1982,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     }
     // Hand grid: delegate to the section — it owns the plan (cols), the
     // column-preserving up/down stepping, and keep-selected-visible.
-    const hand = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
+    const hand = shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection');
     hand?.move(dir);
   }
 
@@ -1996,7 +1997,7 @@ export function createPadRouterController(shell: PadRouterPort) {
       finishInstant();
     }
     if (shell.padSection === 'board') {
-      const board = shell.surfaces.at<InstanceType<typeof ConsoleBoardSection>>('boardSection');
+      const board = shell.surfaces.at<ExposedOf<typeof ConsoleBoardSection>>('boardSection');
       if (shell.placementActive) {
         const flow = placementFlowState;
         // A commit already on the wire absorbs every further press — a
@@ -2298,7 +2299,7 @@ export function createPadRouterController(shell: PadRouterPort) {
     // inspection modes above are steps of their own, and swallowing them
     // here would make B skip a level the player can see.
     if (shell.postGameInspection) {
-      (shell.surfaces.at<InstanceType<typeof ConsoleEndgameWorkspace>>('endgameWs'))?.expandFromBoard();
+      (shell.surfaces.at<ExposedOf<typeof ConsoleEndgameWorkspace>>('endgameWs'))?.expandFromBoard();
     }
   }
 
@@ -2314,34 +2315,34 @@ export function createPadRouterController(shell: PadRouterPort) {
     // play-confirm / task / reveal / zoom on top, which would otherwise be
     // paged through blindly).
     if (shell.handScrollActive) {
-      const hand = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
+      const hand = shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection');
       hand?.stickScroll(dy, dx);
       return;
     }
     // The EMBEDDED «Разыграно» table (Information Workspace X route) owns
     // the right stick while it is the workspace's content.
     if (infoModeState.open && infoModeState.route === 'played') {
-      (shell.surfaces.at<InstanceType<typeof ConsoleInfoMode>>('infoMode'))
+      (shell.surfaces.at<ExposedOf<typeof ConsoleInfoMode>>('infoMode'))
         ?.handlePlayedIntent({kind: 'scroll', dx: 0, dy});
       return;
     }
     // …and the EFFECTS EXPLORER (its grid, or the open dossier's reading
     // scroll — the explorer knows which layer stands).
     if (infoModeState.open && infoModeState.route === 'effects') {
-      (shell.surfaces.at<InstanceType<typeof ConsoleInfoMode>>('infoMode'))
+      (shell.surfaces.at<ExposedOf<typeof ConsoleInfoMode>>('infoMode'))
         ?.handleEffectsIntent({kind: 'scroll', dx: 0, dy});
       return;
     }
     // The corp first-action modal's briefing column scrolls first.
     if (shell.corpFirstActionOpen) {
-      const confirm = shell.surfaces.at<InstanceType<typeof ConsoleCorpFirstActionConfirm>>('corpFirstConfirm');
+      const confirm = shell.surfaces.at<ExposedOf<typeof ConsoleCorpFirstActionConfirm>>('corpFirstConfirm');
       confirm?.stickScroll(dy);
       return;
     }
     // The «Разыграно» overlay owns the right stick while open (main table
     // or the nested events list — the overlay routes internally).
     if (shell.playedTableVisible) {
-      const played = shell.surfaces.at<InstanceType<typeof ConsolePlayedOverlay>>('playedOverlay');
+      const played = shell.surfaces.at<ExposedOf<typeof ConsolePlayedOverlay>>('playedOverlay');
       played?.stickScroll(dy);
       return;
     }

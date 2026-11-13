@@ -110,6 +110,7 @@
  * (This comment opened the template; the template starts with its root now.)
  */
 import {computed, nextTick, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -185,7 +186,7 @@ const props = defineProps({
 });
 const emit = defineEmits(['change']);
 
-const zoomModal =useTemplateRef<InstanceType<typeof CardZoomModal>>('zoomModal');
+const zoomModal =useTemplateRef<ExposedOf<typeof CardZoomModal>>('zoomModal');
 const zoomCard = ref<CardModel | undefined>(undefined);
 // A stable signature of the selectable candidate names, so the watcher fires
 // when the candidate SET changes (e.g. the modal swaps to a new step's input)

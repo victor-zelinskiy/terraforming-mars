@@ -29,6 +29,7 @@
 </template>
 <script setup lang="ts">
 import {PropType, useTemplateRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {$t} from '@/client/directives/i18n';
 import {CardModel} from '@/common/models/CardModel';
 import {ConsoleActionGroup} from '@/client/console/consoleCardActions';
@@ -56,10 +57,10 @@ const noCards: ReadonlyArray<CardModel> = [];
 // namespaces there (`this.$refs.explorer` · `this.explorer()`), one here: the template ref keeps the key's name, the
 // method stands under a name of its own and is EXPOSED under the public one. (A function binding named like a string
 // template ref makes the runtime warn «Template ref "explorer" used on a non-ref value» on every mount of a dev build.)
-const explorer = useTemplateRef<InstanceType<typeof ConsoleEffectsExplorer>>('explorer');
+const explorer = useTemplateRef<ExposedOf<typeof ConsoleEffectsExplorer>>('explorer');
 
 /** The hosted explorer — the section forwards the effects zone's intents to it. */
-function hostedExplorer(): InstanceType<typeof ConsoleEffectsExplorer> | undefined {
+function hostedExplorer(): ExposedOf<typeof ConsoleEffectsExplorer> | undefined {
   return explorer.value ?? undefined;
 }
 

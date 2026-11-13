@@ -4,6 +4,7 @@
  * THE PLACEMENT CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {computed, nextTick, ref} from 'vue';
 import {scopedState} from '@/client/console/session/scopedState';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -1273,7 +1274,7 @@ export function createPlacementController(shell: PlacementPort) {
     if (target === undefined || !placementActive.value) {
       return;
     }
-    const board = shell.surfaces.at<InstanceType<typeof ConsoleBoardSection>>('boardSection');
+    const board = shell.surfaces.at<ExposedOf<typeof ConsoleBoardSection>>('boardSection');
     if (board?.focusSpace(target) !== true) {
       consoleState.boardSpaceId = target;
     }

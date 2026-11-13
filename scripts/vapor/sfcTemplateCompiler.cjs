@@ -32,8 +32,12 @@ const dom = require('@vue/compiler-dom');
 const vapor = require('@vue/compiler-vapor');
 const {unitCompilesAsVapor, unitPolicyActive} = require('./unitVaporPolicy.cjs');
 
-/** `<script … vapor>` / `<template vapor>` — the attribute as a whole word inside the opening tag of either block. */
-const VAPOR_BLOCK = /<(?:script|template)\b[^>]*?\svapor(?=[\s=>/])[^>]*>/;
+/**
+ * `<script … vapor>` / `<template vapor>` — the attribute as a whole word inside the opening tag of either BLOCK: a
+ * tag that opens its line (an SFC block does), never the same words inside a comment or a string of the file (a
+ * comment that named the tag once made three virtual-DOM components read as Vapor to every tool that asked).
+ */
+const VAPOR_BLOCK = /^<(?:script|template)\b[^>\n]*?\svapor(?=[\s=>/])[^>\n]*>/m;
 
 /** filename → {mtimeMs, vapor}: a watch build re-reads a file only when it changed. */
 const seen = new Map();

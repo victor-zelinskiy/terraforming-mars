@@ -51,6 +51,7 @@ the always-mounted board:
 
 <script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -123,7 +124,7 @@ const props = defineProps({
 });
 
 const flow = useFlowScope('board-input');
-const confirmation = useTemplateRef<InstanceType<typeof ConfirmDialog>>('confirmation');
+const confirmation = useTemplateRef<ExposedOf<typeof ConfirmDialog>>('confirmation');
 const spaces = ref<Set<SpaceId>>(new Set(props.playerinput.spaces));
 let selectedTile: HTMLElement | undefined;
 const spaceId = ref<SpaceId | undefined>(undefined);

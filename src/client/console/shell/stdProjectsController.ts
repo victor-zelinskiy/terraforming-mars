@@ -4,6 +4,7 @@
  * THE STDPROJECTS CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {computed, ref} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
@@ -371,7 +372,7 @@ export function createStdProjectsController(shell: StdProjectsPort) {
   /** Arm the std-projects DESCEND phrase from the focused row (the screen
    *  owns the rect; a stale/missing arm degrades to a plain surface). */
   function armStdpStepOrigin(): void {
-    (shell.surfaces.at<InstanceType<typeof ConsoleStdProjectsScreen>>('stdpScreen'))?.armStepOrigin();
+    (shell.surfaces.at<ExposedOf<typeof ConsoleStdProjectsScreen>>('stdpScreen'))?.armStepOrigin();
   }
 
   /** A refused/lost submit — the flow returns to its reversible browse layer. */

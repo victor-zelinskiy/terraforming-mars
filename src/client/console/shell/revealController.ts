@@ -4,6 +4,7 @@
  * THE REVEAL CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {computed, ref} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import type {CardIntakeBatchRef} from '@/common/models/CardDrawRevealModel';
@@ -609,7 +610,7 @@ export function createRevealController(shell: RevealPort) {
       // the scroll — the targets below are the settled layout. Bounded: an
       // idle compositor withholding rAF must not latch `opening` forever.
       await settledPaint();
-      const section = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
+      const section = shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection');
       const t: HandTransitionTargets = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
       const pairs: Array<RevealPair> = t.pairs.map((p) => ({
         name: p.name, target: p.rect, visible: p.visible, clip: p.clip, visual: revealVisualFor(p.name),
@@ -652,7 +653,7 @@ export function createRevealController(shell: RevealPort) {
       if (isHandRevealEpisodeRunning() || consoleState.section !== 'hand') {
         return;
       }
-      const section = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
+      const section = shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection');
       const t: HandTransitionTargets = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
       // The landing targets are ANALYTIC (the bodies layer's pose oracle):
       // no dock measure, no provisional berths, no retarget races.
@@ -832,7 +833,7 @@ export function createRevealController(shell: RevealPort) {
       let t: HandTransitionTargets = {pairs: [], scrollTop: 0};
       for (let i = 0; i < 10 && t.pairs.length === 0; i++) {
         await whenPainted(1, 50, flow);
-        const section = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
+        const section = shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection');
         if (section !== undefined) {
           t = section.transitionTargets();
         }

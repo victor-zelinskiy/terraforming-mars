@@ -257,8 +257,9 @@ describe('ConsoleStartPlayedDock (the compact «РАЗЫГРАНО · owner» de
     const shelf = wrapper.find('.con-start__played').element;
     expect(dock?.rootEl).to.eq(shelf);
     expect(dock?.rootEl?.tagName).to.eq('ASIDE');
-    expect((wrapper.element as Element).firstChild, 'the shelf is the dock\'s first and only node').to.eq(shelf);
-    expect((wrapper.element as Element).childNodes).to.have.length(1);
+    // (Its first node and its only ELEMENT: an anchor a runtime leaves after a root is its own business.)
+    expect((wrapper.element as Element).firstChild, 'the shelf is the dock\'s first node').to.eq(shelf);
+    expect((wrapper.element as Element).children).to.have.length(1);
     wrapper.unmount();
   });
 });

@@ -198,6 +198,7 @@
  * stays in ConsoleShell, like every sheet.
  */
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {gsap} from 'gsap';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
@@ -257,7 +258,7 @@ const props = defineProps({
   statsView: {type: Object as PropType<VersionedView | undefined>, default: undefined},
 });
 
-const forecastLayer = useTemplateRef<InstanceType<typeof ConsoleForecastLayer>>('forecastLayer');
+const forecastLayer = useTemplateRef<ExposedOf<typeof ConsoleForecastLayer>>('forecastLayer');
 const focusedCard = useTemplateRef<HTMLElement | Array<HTMLElement>>('focusedCard');
 const grid = useTemplateRef<{ensureVisible?: (el: Element | null | undefined) => void}>('grid');
 const root = useTemplateRef<HTMLElement>('root');

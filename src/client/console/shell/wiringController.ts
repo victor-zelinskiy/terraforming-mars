@@ -4,6 +4,7 @@
  * THE SHELL'S WIRING (architecture v2 - S-last: the shell is layout). What the game screen registers with the rest of the client while it stands - the probes, suppliers, hooks and leases other modules read (`shellMounted`), their release in the leaving order (`shellLeaving`) - and the reactions and one-line verbs that belong to no single domain (the phase anchors' word, the board's two inspection modes, the notification CTAs). It owns no decision of a domain: a body here either hands a module its supplier or asks a controller to act.
  */
 import type {UnwrapRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import type {SurfaceRegistry} from '@/client/console/shell/surfaceRegistry';
 import {installCursorArrivalInput} from '@/client/console/cursorArrivalInput';
 import {computed, ref, watch} from 'vue';
@@ -287,7 +288,7 @@ export function createWiringController(shell: WiringPort) {
     // Land on a predictable cell (the last inspected one, else re-seed).
     void shell.$nextTick(() => {
       if (consoleState.boardSpaceId === undefined) {
-        const board = shell.surfaces.at<InstanceType<typeof ConsoleBoardSection>>('boardSection');
+        const board = shell.surfaces.at<ExposedOf<typeof ConsoleBoardSection>>('boardSection');
         board?.seed(false);
       }
     });
@@ -305,7 +306,7 @@ export function createWiringController(shell: WiringPort) {
       return;
     }
     exitInspection();
-    const board = shell.surfaces.at<InstanceType<typeof ConsoleBoardSection>>('boardSection');
+    const board = shell.surfaces.at<ExposedOf<typeof ConsoleBoardSection>>('boardSection');
     if (board?.enterTrackInspect() === true) {
       consoleState.scaleInspecting = true;
     } else {
@@ -1014,7 +1015,7 @@ export function createWiringController(shell: WiringPort) {
         }
       },
       restoreScroll: (px) => {
-        (shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection'))?.restoreScroll(px);
+        (shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection'))?.restoreScroll(px);
       },
     });
     // Clear any scale-overview tooltip a stray real-mouse hover left showing

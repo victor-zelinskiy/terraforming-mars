@@ -247,6 +247,7 @@
  */
 
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {motionAfter} from '@/client/console/session/sessionWaits';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {useResizeObserver} from '@vueuse/core';
@@ -409,7 +410,7 @@ const emit = defineEmits(['confirm', 'cancel', 'inspect', 'flow-complete']);
 
 const flow = useFlowScope('fleet-dock-stage');
 const rootEl = useTemplateRef<HTMLElement>('rootEl');
-const forecastLayer = useTemplateRef<InstanceType<typeof ConsoleForecastLayer>>('forecastLayer');
+const forecastLayer = useTemplateRef<ExposedOf<typeof ConsoleForecastLayer>>('forecastLayer');
 const targetStep = useTemplateRef<TradeTargetStepHandle>('targetStep');
 const payRows = useTemplateRef<{focusedEl?: () => HTMLElement | undefined}>('payRows');
 const scroll = useTemplateRef<{ensureVisible?: (el: Element | null | undefined) => void}>('scroll');

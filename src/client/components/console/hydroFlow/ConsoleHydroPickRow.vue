@@ -112,14 +112,17 @@ import {HydroStage} from '@/client/components/hydronetwork/hydroStages';
 import {HYDRO_PICK_COPY, HydroPickKind} from '@/client/console/hydroFlow/hydroDecisionRail';
 import {vI18n, vStripActionPrefix} from '@/client/directives/vDirectives';
 
-type GroupNode = ActionGroup['nodes'][number];
 
 // The copy table and the kind union live in the PURE rail model
 // (`hydroDecisionRail.ts`) — one source for the card, the section and the
 // specs. The kind union is re-exported so existing importers keep their path
 // (the copy table is taken from the model itself: a `<script setup>` block
 // exports no value).
+// (An exported type stands with the imports, above the script's first statement: the body of a Vapor script-setup block
+// is a function body to the type checker, and an `export` below a statement is not at a module's top level there.)
 export type {HydroPickKind};
+
+type GroupNode = ActionGroup['nodes'][number];
 
 defineOptions({name: 'ConsoleHydroPickRow'});
 const props = defineProps({

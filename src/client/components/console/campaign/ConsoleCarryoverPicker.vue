@@ -231,6 +231,19 @@ import {span, whenPainted} from '@/client/console/session/sessionWaits';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {vI18n} from '@/client/directives/vDirectives';
 
+// (An exported type stands with the imports, above the script's first statement: the body of a Vapor script-setup block
+// is a function body to the type checker, and an `export` below a statement is not at a module's top level there.)
+/** The facts the host's ONE bar reads. */
+export type CarryoverBarFacts = {
+  primary: string,
+  pages: number,
+  /** The album · the door's LIST · a tender's activation SHEET · a tender standing in its MODE on the album. */
+  stage: 'album' | 'list' | 'sheet' | 'mode',
+  primaryEnabled: boolean,
+  /** The tender door (L3) stands; `ready` = how many execute here (the verb is lit then). */
+  door?: {ready: number},
+};
+
 /** The door's phrase (park / unpark) or an activation on the wire — a press now is absorbed, and SAID so (the ledger). */
 const CARRY_TENDER_ABSORBER = 'carry-tender-door';
 
@@ -247,17 +260,6 @@ type AlbumApi = {
 
 /** How long a refusal stays named on the status line. */
 const NOTICE_MS = 2400;
-
-/** The facts the host's ONE bar reads. */
-export type CarryoverBarFacts = {
-  primary: string,
-  pages: number,
-  /** The album · the door's LIST · a tender's activation SHEET · a tender standing in its MODE on the album. */
-  stage: 'album' | 'list' | 'sheet' | 'mode',
-  primaryEnabled: boolean,
-  /** The tender door (L3) stands; `ready` = how many execute here (the verb is lit then). */
-  door?: {ready: number},
-};
 
 defineOptions({name: 'ConsoleCarryoverPicker'});
 const props = defineProps({

@@ -4,6 +4,7 @@
  * THE HANDSELECT CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {computed, ref} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
@@ -706,7 +707,7 @@ export function createHandSelectController(shell: HandSelectPort) {
       // end state, then answer the new input from settled geometry.
       finishInstant();
     }
-    const section = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
+    const section = shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection');
     // During a CLIENT hand pick the staged (being-played) card is EXCLUDED
     // from the entries, so the episode is safe to run under it — that's how
     // the pick's «suitable only» toggle gets the same physical transition
@@ -764,7 +765,7 @@ export function createHandSelectController(shell: HandSelectPort) {
     // never a reset to the first page (the player keeps their place).
     consoleState.handIndex = at >= 0 ? at :
       Math.min(Math.max(0, consoleState.handIndex), Math.max(0, list.length - 1));
-    const hand = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
+    const hand = shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection');
     void shell.$nextTick(() => hand?.ensureSelectedVisible());
   }
 
@@ -1146,7 +1147,7 @@ export function createHandSelectController(shell: HandSelectPort) {
     seat();
     void shell.$nextTick(() => {
       seat();
-      void shell.$nextTick(() => (shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection'))?.ensureSelectedVisible());
+      void shell.$nextTick(() => (shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection'))?.ensureSelectedVisible());
     });
   }
 
@@ -1190,7 +1191,7 @@ export function createHandSelectController(shell: HandSelectPort) {
         }
       } else {
         void shell.$nextTick(() => {
-          (shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection'))?.ensureSelectedVisible();
+          (shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection'))?.ensureSelectedVisible();
         });
       }
       return;

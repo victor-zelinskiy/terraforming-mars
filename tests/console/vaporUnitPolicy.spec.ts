@@ -24,7 +24,7 @@ const POLICY = path.join(ROOT, 'scripts', 'vapor', 'unitVaporPolicy.cjs');
 /** Entries the valve may hold. It only FALLS: an entry leaves with the product work its reason names. */
 const CEILING = 0;
 
-const VAPOR_BLOCK = /<(?:script|template)\b[^>]*?\svapor(?=[\s=>/])[^>]*>/;
+const VAPOR_BLOCK = /^<(?:script|template)\b[^>\n]*?\svapor(?=[\s=>/])[^>\n]*>/m;
 
 type Policy = {unitCompilesAsVapor(filename: string): boolean, unitPolicyActive(): boolean, LIST_FILE: string};
 

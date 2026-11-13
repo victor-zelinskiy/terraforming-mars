@@ -4,6 +4,7 @@
  * THE HYDRO CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {computed, ref} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import type {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
@@ -1662,7 +1663,7 @@ export function createHydroController(shell: HydroPort) {
     if (isCommitted(workspaceFramePhase('hand') ?? 'browse')) {
       setWorkspaceFramePhase('hand', 'configure');
     }
-    (shell.surfaces.at<InstanceType<typeof ConsolePlayCardConfirm>>('playConfirm'))?.resetSubmitting?.();
+    (shell.surfaces.at<ExposedOf<typeof ConsolePlayCardConfirm>>('playConfirm'))?.resetSubmitting?.();
   }
 
   // THE RECOVERY NET: the SERVER phase drives the flow when the glide

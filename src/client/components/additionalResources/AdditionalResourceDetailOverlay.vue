@@ -152,6 +152,7 @@
 
 <script setup lang="ts">
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {$t} from '@/client/directives/i18n';
 import {vI18n} from '@/client/directives/vDirectives';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -189,7 +190,7 @@ const props = defineProps({
   },
 });
 
-const zoomModal = useTemplateRef<InstanceType<typeof CardZoomModal>>('zoomModal');
+const zoomModal = useTemplateRef<ExposedOf<typeof CardZoomModal>>('zoomModal');
 const zoomCard = ref<CardModel | undefined>(undefined);
 const resource = computed((): CardResource | undefined => {
   return additionalResourcesState.detailResource;

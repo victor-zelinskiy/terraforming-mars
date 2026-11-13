@@ -294,6 +294,7 @@
  */
 
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {useResizeObserver} from '@vueuse/core';
 import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -384,7 +385,7 @@ const laneRight = useTemplateRef<HTMLElement>('laneRight');
 const laneLeft = useTemplateRef<HTMLElement>('laneLeft');
 const stageWrap = useTemplateRef<HTMLElement>('stageWrap');
 const packetRow = useTemplateRef<HTMLElement>('packetRow');
-const dealLayer = useTemplateRef<InstanceType<typeof ConsoleCardDealLayer>>('dealLayer');
+const dealLayer = useTemplateRef<ExposedOf<typeof ConsoleCardDealLayer>>('dealLayer');
 const buyRow = useTemplateRef<HTMLElement>('buyRow');
 const body = useTemplateRef<HTMLElement>('body');
 const statusbar = useTemplateRef<HTMLElement>('statusbar');

@@ -491,6 +491,21 @@ root is one of a `v-if` chain's), and one that wants something DONE with the chi
 it. Guard: `tests/console/childRootEl.spec.ts` — no `.$el` under `src/client`, and an exposed `rootEl` is the ref of
 the template's first tag. ✔ both runtimes.
 
+### R12a — the TYPE of a ref on a component, and where a script's imports and exports stand
+A component's ref is typed **`ExposedOf<typeof Child>`** (`@/client/components/exposedOf`) — never
+`InstanceType<typeof Child>`: the type of a `<script setup vapor>` module is a FUNCTION (`(props, ctx, expose, …)`),
+not a constructor, and the error lands in every PARENT of a flipped child (116 of them on the whole client flipped).
+`ExposedOf` reads both forms, so nothing changes at the child's step B. And the checker sees a Vapor script's body as
+a function body: **every `import` and every `export`ed type stands above the script's first statement** (an import
+in the middle of the script, an `export type` below a `const` — «not at the top level of a module» there); a
+template expression must not lean on a `v-if`'s narrowing inside a DIRECTIVE of the same element (`v-i18n="[x.y]"`
+on the element that carries `v-if="x !== undefined"` — a computed, or `?.`). Guard `tests/console/exposedOf.spec.ts`.
+**A guard that can fail is a ROOT `v-if`, never a `throw` from the set-up**: what a throwing set-up leaves on screen
+is each runtime's own business (the virtual DOM renders nothing; a Vapor component of a development build goes on to
+render; under a virtual-DOM parent the interop fails that parent's patch with a second error) — `GlobalEvent` reports
+from its mount and renders nothing. **The branches of ONE `v-if` chain carry different key EXPRESSIONS** (the Vapor
+compiler refuses two branches with the same one): lead the key with the branch's name. ✔ both runtimes.
+
 ### R13 — slots and attrs (`$slots`, `$attrs`, `inheritAttrs`)
 `$slots.x` / `$attrs` in the TEMPLATE stay as they are (✔ both runtimes). In the script: `const slots = useSlots()`,
 `const attrs = useAttrs()`. `inheritAttrs: false` → `defineOptions({inheritAttrs: false})` and the template's own

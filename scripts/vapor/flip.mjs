@@ -45,13 +45,13 @@ let done = 0;
 let refused = 0;
 for (const file of targets) {
   const source = fs.readFileSync(file, 'utf8');
-  const isVapor = /<script setup[^>]*\svapor[\s>]/.test(source);
+  const isVapor = /^<script setup[^>\n]*\svapor[\s>]/m.test(source); // the block's own tag — it opens its line
   if (UNFLIP) {
     if (!isVapor) {
       continue;
     }
     if (WRITE) {
-      fs.writeFileSync(file, source.replace(/<script setup vapor(?=[\s>])/, '<script setup'));
+      fs.writeFileSync(file, source.replace(/^<script setup vapor(?=[\s>])/m, '<script setup'));
     }
     done++;
     continue;
@@ -70,7 +70,7 @@ for (const file of targets) {
     continue;
   }
   if (WRITE) {
-    fs.writeFileSync(file, source.replace(/<script setup(?=[\s>])/, '<script setup vapor'));
+    fs.writeFileSync(file, source.replace(/^<script setup(?=[\s>])/m, '<script setup vapor'));
   }
   done++;
 }

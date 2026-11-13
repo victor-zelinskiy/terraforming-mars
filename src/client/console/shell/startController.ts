@@ -4,6 +4,7 @@
  * THE START CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {computed, ref} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {blockingAnimationHoldCount} from '@/client/components/presentation/animationHold';
@@ -719,7 +720,7 @@ export function createStartController(shell: StartPort) {
     }
     setWorkspaceFrameStage('parliament', AGENDA_WALK_STEP_STAGE);
     setWorkspaceFramePhase('parliament', 'executing');
-    const section = shell.surfaces.at<InstanceType<typeof ConsoleParliamentSection>>('parliamentSection');
+    const section = shell.surfaces.at<ExposedOf<typeof ConsoleParliamentSection>>('parliamentSection');
     void shell.$nextTick(() => {
       if (agendaWalkFlow.owed?.host === 'start' && !agendaWalkFlow.live) {
         section?.openWalkFlow();

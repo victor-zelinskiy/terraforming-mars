@@ -828,6 +828,7 @@
  * back. The bar mirrors через consoleColoniesUi.
  */
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {useResizeObserver} from '@vueuse/core';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {buildBenefitAt, ColonyMetadata, colonyCardResources, tradeBenefitAt as tradeBenefitAtOf} from '@/common/colonies/ColonyMetadata';
@@ -1139,7 +1140,7 @@ const emit = defineEmits(['confirm', 'build-confirm', 'pick-confirm', 'cancel', 
 
 const flow = useFlowScope('colony-focus-stage');
 const rootEl = useTemplateRef<HTMLElement>('rootEl');
-const forecastLayer = useTemplateRef<InstanceType<typeof ConsoleForecastLayer>>('forecastLayer');
+const forecastLayer = useTemplateRef<ExposedOf<typeof ConsoleForecastLayer>>('forecastLayer');
 const venusStep = useTemplateRef<VenusBonusStepApi>('venusStep');
 const targetStep = useTemplateRef<TradeTargetStepHandle & {close?: (done: () => void) => void}>('targetStep');
 const focusedEl = useTemplateRef<HTMLElement | Array<HTMLElement>>('focusedEl');

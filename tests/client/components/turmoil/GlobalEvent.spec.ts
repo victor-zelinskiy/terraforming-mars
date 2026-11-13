@@ -84,7 +84,10 @@ describe('GlobalEvent', () => {
     expect(wrapper.find('.global-event-distance').exists()).to.eq(false);
   });
 
-  it('an unknown name, arriving in a parent\'s PATCH: the guard\'s error is REPORTED to the app\'s error handler, from the set-up — and the parent\'s patch goes through', async () => {
+  it('an unknown name, arriving in a parent\'s PATCH: the guard\'s error is REPORTED to the app\'s error handler, once, from the mount — the card renders nothing and the parent\'s patch goes through', async () => {
+    // (Never thrown from the set-up: what a throwing set-up leaves behind differs by runtime — the virtual DOM
+    // renders nothing, a Vapor component of a development build goes on to render, and under a virtual-DOM parent the
+    // interop fails that parent's patch with a second error. The component reports from its mount and guards its root.)
     // (Mounted as the ROOT, test-utils itself re-throws what the app's handler was handed during the mount — so the
     // event stands under a host that is already mounted, the way `Turmoil` and the log panel stand it.)
     const reported: Array<{message: string, info: string}> = [];
@@ -112,7 +115,7 @@ describe('GlobalEvent', () => {
     expect(host.find('.after-the-event').text()).to.eq('');
 
     await host.setProps({name: 'No Such Event' as GlobalEventName});
-    expect(reported).to.deep.eq([{message: 'Can\'t find card No Such Event', info: 'setup function'}]);
+    expect(reported).to.deep.eq([{message: 'Can\'t find card No Such Event', info: 'mounted hook'}]);
     expect(host.find('.after-the-event').text(), 'the sibling AFTER the event was patched').to.eq('No Such Event');
     expect(host.find('.global-event').exists(), 'nothing of the event was declared').to.eq(false);
   });

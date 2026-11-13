@@ -114,6 +114,7 @@
 
 <script setup lang="ts">
 import {ref, useTemplateRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 
 import {PreferencesManager, Preference} from '@/client/utils/PreferencesManager';
 import {$t} from '@/client/directives/i18n';
@@ -130,7 +131,7 @@ const props = defineProps({
 });
 const emit = defineEmits(['okButtonClicked']);
 
-const bugDialog = useTemplateRef<InstanceType<typeof BugReportDialog>>('bugDialog');
+const bugDialog = useTemplateRef<ExposedOf<typeof BugReportDialog>>('bugDialog');
 const prefs = ref({...props.preferencesManager.values()});
 function showBugDialog() {
   const el = bugDialog.value;

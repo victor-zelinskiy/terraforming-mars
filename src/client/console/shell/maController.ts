@@ -10,6 +10,7 @@
  * is the PORT below. The template blocks (the two workspaces) still live in the shell and read these members by name.
  */
 import {claimMaVp, dropMaVp, flyMaVp} from '@/client/console/scoreCell/maVp';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {addressed, AddressableInput, promptAddressOf} from '@/common/inputs/preselectAddress';
 import {computed} from 'vue';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -402,7 +403,7 @@ export function createMaController(shell: MaPort) {
    *  detail stage. The SCREEN arms the descend origins (the pressed card's
    *  and its emblem pedestal's rects) synchronously at the press. */
   function enterMaFocus(): void {
-    (shell.surfaces.at<InstanceType<typeof ConsoleMaScreen>>('maScreen'))?.enterFocus();
+    (shell.surfaces.at<ExposedOf<typeof ConsoleMaScreen>>('maScreen'))?.enterFocus();
   }
 
   /** Mouse/touch on an overview tile: focus it; a second click on the

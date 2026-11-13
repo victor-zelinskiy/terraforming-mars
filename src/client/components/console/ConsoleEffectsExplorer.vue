@@ -99,14 +99,14 @@
               <div class="con-efx__detail-cardwrap"
                    data-effect-flow-thumb
                    :data-zoom-slot="detailUp ? undefined : groupZoomName(focusedGroup)">
-                <div v-if="focusedGroup.cardName !== undefined" :key="focusedGroup.key" class="con-efx__detail-card">
+                <div v-if="focusedGroup.cardName !== undefined" :key="'card|' + focusedGroup.key" class="con-efx__detail-card">
                   <ConsoleCardFaceLite :name="focusedGroup.cardName" :card="liveCard(focusedGroup.cardName)" />
                 </div>
-                <div v-else-if="focusedGroup.source.kind === 'law'" :key="focusedGroup.key" class="con-efx__detail-card con-efx__detail-card--law">
+                <div v-else-if="focusedGroup.source.kind === 'law'" :key="'law|' + focusedGroup.key" class="con-efx__detail-card con-efx__detail-card--law">
                   <PremiumCard v-if="lawFaceVm(focusedGroup) !== undefined" :vmOverride="lawFaceVm(focusedGroup)" :lightweight="true" :inert="true" />
                 </div>
                 <!-- A PARTY: its CHARTER (2026-10-25) — the face the composer's hero and the inspector draw. -->
-                <div v-else :key="focusedGroup.key" class="con-efx__detail-card con-efx__detail-card--party" :style="{'--parl-accent': partyAccentOf(focusedGroup)}">
+                <div v-else :key="'party|' + focusedGroup.key" class="con-efx__detail-card con-efx__detail-card--party" :style="{'--parl-accent': partyAccentOf(focusedGroup)}">
                   <PremiumCard v-if="partyFaceVm(focusedGroup) !== undefined" :vmOverride="partyFaceVm(focusedGroup)" :lightweight="true" :inert="true" />
                 </div>
               </div>
@@ -326,10 +326,10 @@
               <ConsoleCardFaceLite :name="detailCardName" :card="forecastMode ? liveCardOf(detailCardName, detailOwner) : liveCard(detailCardName)" />
             </div>
             <!-- A PARTY / the LAW: the party's plaque, the law's face — in the hero's slot, at the hero's place. -->
-            <div v-else-if="detailPolitical !== undefined && detailPolitical.source.kind === 'law'" :key="detailPolitical.key" class="con-efx__hero-card con-efx__hero-card--law">
+            <div v-else-if="detailPolitical !== undefined && detailPolitical.source.kind === 'law'" :key="'law|' + detailPolitical.key" class="con-efx__hero-card con-efx__hero-card--law">
               <PremiumCard v-if="lawVmOf(detailPolitical.source.resolution) !== undefined" :vmOverride="lawVmOf(detailPolitical.source.resolution)" :lightweight="true" :inert="true" />
             </div>
-            <div v-else-if="detailPolitical !== undefined" :key="detailPolitical.key" class="con-efx__hero-card con-efx__hero-card--party">
+            <div v-else-if="detailPolitical !== undefined" :key="'party|' + detailPolitical.key" class="con-efx__hero-card con-efx__hero-card--party">
               <PremiumCard v-if="partyVmOf(detailPolitical.party) !== undefined" :vmOverride="partyVmOf(detailPolitical.party)" :lightweight="true" :inert="true" />
             </div>
             <!-- A cardless source (a party policy, the cardless discount
@@ -428,6 +428,7 @@
  */
 
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Tag} from '@/common/cards/Tag';
@@ -518,20 +519,22 @@ import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 import {vI18n, vStripEffectPrefix} from '@/client/directives/vDirectives';
 
-type ExplorerTile = EffectsTileVm<ExplorerEntry>;
-type ExplorerGroup = EffectsGroupVm<ExplorerEntry>;
-type ScrollAreaRef = InstanceType<typeof ConsoleScrollArea> & {
-  scrollByPx: (dy: number) => void,
-  ensureVisible: (el: Element, margin?: number) => void,
-  scrollToStart: () => void,
-};
-
+// (An exported type stands with the imports, above the script's first statement: the body of a Vapor script-setup block
+// is a function body to the type checker, and an `export` below a statement is not at a module's top level there.)
 /** A seat the forecast may name — the public player model fits structurally. */
 export type ForecastSeat = {
   color: Color | string,
   name: string,
   isMarsBot?: boolean,
   tableau: ReadonlyArray<CardModel>,
+};
+
+type ExplorerTile = EffectsTileVm<ExplorerEntry>;
+type ExplorerGroup = EffectsGroupVm<ExplorerEntry>;
+type ScrollAreaRef = ExposedOf<typeof ConsoleScrollArea> & {
+  scrollByPx: (dy: number) => void,
+  ensureVisible: (el: Element, margin?: number) => void,
+  scrollToStart: () => void,
 };
 
 /** One answered question of the dossier's «ЧТО ПРОИЗОЙДЁТ» block. */

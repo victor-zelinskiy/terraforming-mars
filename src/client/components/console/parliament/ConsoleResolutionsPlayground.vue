@@ -645,11 +645,6 @@ import {actionRowsOf} from '@/client/console/parliament/actionRows';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {ActionBillPrice, actionBillPrice} from '@/common/parliament/actionBill';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
-
-/** The synthetic hands the action's reading is scaled with on the stand. */
-const ACTION_HANDS: ReadonlyArray<number> = [0, 1, 4];
-/** The influences a PRICED action is read at: nothing off, half off, everything off (the fleet for free). */
-const BILL_INFLUENCES: ReadonlyArray<number> = [0, 3, 6];
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
@@ -697,6 +692,11 @@ import {actionUsesRule} from '@/client/console/parliament/actionUsesReading';
 import {readingText} from '@/client/console/readingText';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {stepIndex} from '@/client/console/consoleRouter';
+
+/** The synthetic hands the action's reading is scaled with on the stand. */
+const ACTION_HANDS: ReadonlyArray<number> = [0, 1, 4];
+/** The influences a PRICED action is read at: nothing off, half off, everything off (the fleet for free). */
+const BILL_INFLUENCES: ReadonlyArray<number> = [0, 3, 6];
 
 /** The contexts a surface computes a yield for, in the order Y cycles them. */
 type PgContext = 'reference' | 'proposal' | 'resolving' | 'applied';

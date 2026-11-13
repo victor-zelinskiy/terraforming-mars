@@ -47,10 +47,6 @@ import HelpStandardProjects from '@/client/components/help/HelpStandardProjects.
 const TABS = ['iconology', 'standard-projects', 'phases', 'hotkeys', 'rulebooks'] as const;
 type Tab = typeof TABS[number];
 
-export interface HelpPageModel {
-    currentPage: Tab;
-}
-
 defineOptions({name: 'Help'});
 
 const currentPage = ref<Tab>('iconology');

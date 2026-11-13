@@ -41,11 +41,11 @@ for (const file of files) {
   const rel = path.relative(process.cwd(), file).split(path.sep).join('/');
   const source = fs.readFileSync(file, 'utf8');
   report.total++;
-  const already = /<script setup[^>]*\svapor[\s>]/.test(source);
+  const already = /^<script setup[^>\n]*\svapor[\s>]/m.test(source); // the block's own tag — it opens its line
   if (already) {
     report.vaporNow++;
   }
-  const asVapor = already ? source : source.replace(/<script setup(?=[\s>])/, '<script setup vapor');
+  const asVapor = already ? source : source.replace(/^<script setup(?=[\s>])/m, '<script setup vapor');
   const warnings = [];
   let error;
   // what the SCRIPT still asks of the virtual DOM (the compiler does not look there)

@@ -167,6 +167,7 @@
  */
 
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {probeTick} from '@/client/console/probeTick';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -212,7 +213,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 defineOptions({name: 'ConsoleMenuZoomHost'});
 
 const flow = useFlowScope('console-menu-zoom-host');
-const cardZoom = useTemplateRef<InstanceType<typeof CardZoomModal>>('cardZoom');
+const cardZoom = useTemplateRef<ExposedOf<typeof CardZoomModal>>('cardZoom');
 const zoomRulesPanel = useTemplateRef<{scrollBody?: (dy: number) => boolean}>('zoomRulesPanel');
 const zoomFlightProxy = useTemplateRef<HTMLElement>('zoomFlightProxy');
 /** Chrome hidden while the open flight carries the card (mirrors the shell). */
@@ -406,7 +407,7 @@ function zoomToggleSelect(): void {
   }
 }
 /** The open sequence — a direct port of the shell's (consoleZoomMotion). */
-async function runZoomOpen(zoom: InstanceType<typeof CardZoomModal>): Promise<void> {
+async function runZoomOpen(zoom: ExposedOf<typeof CardZoomModal>): Promise<void> {
   const token = ++zoomOpenToken.value;
   zoomOpening.value = true;
   const origin: ZoomOrigin = consoleCardZoom.origin;

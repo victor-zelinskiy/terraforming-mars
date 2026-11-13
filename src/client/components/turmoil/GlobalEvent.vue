@@ -1,13 +1,13 @@
 <template>
-  <div :class="klass">
+  <div v-if="globalEvent !== undefined" :class="klass">
     <div class="card-container global-event-container">
       <div class="card-content-wrapper" v-i18n>
-        <CardParty class="card-party--revealed" :party="revealed" />
-        <CardParty class="card-party--current" :party="current" />
+        <CardParty class="card-party--revealed" :party="globalEvent.revealedDelegate" />
+        <CardParty class="card-party--current" :party="globalEvent.currentDelegate" />
         <div class="global-event-title"><span class="global-event-name">{{globalEventName}}</span></div>
         <div class="card-content global-event-card-content">
-          <CardRenderData v-if="renderData !== undefined" :renderData="renderData" />
-          <CardDescription :item='description' />
+          <CardRenderData v-if="globalEvent.renderData !== undefined" :renderData="globalEvent.renderData" />
+          <CardDescription :item='globalEvent.description' />
         </div>
       </div>
     </div>
@@ -18,7 +18,7 @@
 
 <script setup lang="ts">
 
-import {computed, ref} from 'vue';
+import {computed, onMounted} from 'vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import CardParty from '@/client/components/card/CardParty.vue';
 import {IClientGlobalEvent} from '@/common/turmoil/IClientGlobalEvent';
@@ -45,15 +45,19 @@ const props = defineProps({
   },
 });
 
+// The event is read ONCE, at set-up (a host re-keys the card to show another).
+//
+// An event the client's manifest does not know (a client older than the server's deck) is a DATA error: it is REPORTED
+// to the app's error handler — once, from the mount — and the card renders NOTHING (the root's `v-if`). It is never
+// thrown from the set-up: what a throwing set-up leaves behind is each runtime's own business — the virtual DOM
+// renders nothing, a Vapor component of a development build goes on to render its template without its bindings, and
+// under a virtual-DOM parent the interop fails that parent's patch with a second error. The guard is the component's.
 const globalEvent: IClientGlobalEvent | undefined = getGlobalEvent(props.globalEventName);
 if (globalEvent === undefined) {
-  throw new Error(`Can't find card ${props.globalEventName}`);
+  onMounted(() => {
+    throw new Error(`Can't find card ${props.globalEventName}`);
+  });
 }
-
-const renderData = ref(globalEvent.renderData);
-const revealed = ref(globalEvent.revealedDelegate);
-const current = ref(globalEvent.currentDelegate);
-const description = ref(globalEvent.description);
 const klass = computed((): string => {
   const common = 'global-event global-event--' + props.type;
   if (props.showDistance) {

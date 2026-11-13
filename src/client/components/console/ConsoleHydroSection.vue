@@ -1227,6 +1227,7 @@
  * a park); this component renders it and routes input.
  */
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {gsap} from 'gsap';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -1465,7 +1466,7 @@ const emit = defineEmits(['close', 'confirm', 'pick', 'notice', 'collapse', 'res
 const {reduced: reducedMotion} = useConsoleReducedMotion();
 // The section's own scope (`flowScope` — `flow` is the hydro flow's state here): its timers end with it.
 const flowScope = useFlowScope('hydro-section');
-const forecastLayer = useTemplateRef<InstanceType<typeof ConsoleForecastLayer>>('forecastLayer');
+const forecastLayer = useTemplateRef<ExposedOf<typeof ConsoleForecastLayer>>('forecastLayer');
 const railEl = useTemplateRef<HTMLElement>('railEl');
 const panelBody = useTemplateRef<HTMLElement>('panelBody');
 const ctxEl = useTemplateRef<HTMLElement>('ctxEl');

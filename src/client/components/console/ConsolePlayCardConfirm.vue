@@ -817,6 +817,7 @@
  * payment math).
  */
 import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {RootElHolder, rootElOf} from '@/client/components/rootEl';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {SettledColumn} from '@/client/console/settledColumn';
@@ -1175,7 +1176,7 @@ const emit = defineEmits(['confirm', 'cancel']);
 const flow = useFlowScope('console-play-card-confirm');
 const rootEl = useTemplateRef<HTMLElement>('rootEl');
 const variantsEl = useTemplateRef<RootElHolder | HTMLElement>('variantsEl');
-const forecastExplorer = useTemplateRef<InstanceType<typeof ConsoleEffectsExplorer>>('forecastExplorer');
+const forecastExplorer = useTemplateRef<ExposedOf<typeof ConsoleEffectsExplorer>>('forecastExplorer');
 const playstage = useTemplateRef<HTMLElement>('playstage');
 const venusStep = useTemplateRef<VenusBonusStepApi>('venusStep');
 const scroll = useTemplateRef<{scrollByPx?: (d: number) => void} & {rootEl?: HTMLElement | null, ensureVisible?: (el: Element | null | undefined) => void}>('scroll');

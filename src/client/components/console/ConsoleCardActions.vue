@@ -174,18 +174,18 @@
                  link the descend phrase later deepens). -->
             <!-- THE ENACTED RESOLUTION's action (Turmoil Redux): the law's own face — the same
                  VM the government's card and the composer's hero draw. -->
-            <div v-if="focusedTile.resolutionAction !== undefined" class="con-cardactions__detail-bill" :key="focusedTile.cardName">
+            <div v-if="focusedTile.resolutionAction !== undefined" class="con-cardactions__detail-bill" :key="'law|' + focusedTile.cardName">
               <premium-card-face v-if="focusedResolutionVm !== undefined" :vmOverride="focusedResolutionVm" :lightweight="true" :inert="true" />
               <span class="con-cardactions__detail-uses">{{ sourceUsesText(focusedTile) }}</span>
             </div>
-            <div v-else-if="focusedTile.party === undefined" class="con-cardactions__detail-card" :key="focusedTile.cardName">
+            <div v-else-if="focusedTile.party === undefined" class="con-cardactions__detail-card" :key="'card|' + focusedTile.cardName">
               <!-- The LIVE model, so the face's own capsule states the stored
                    count instead of a printed 0 (see ConsoleCardFaceLite). -->
               <ConsoleCardFaceLite :name="focusedTile.cardName" :card="focusedCardModel" />
             </div>
             <!-- A PARTY source (Turmoil Redux): its CHARTER — the same face the composer's hero and the inspector
                  draw (2026-10-25), standing where a card's face stands: one object from the menu to the commit. -->
-            <div v-else class="con-cardactions__detail-bill con-cardactions__detail-party" :key="focusedTile.cardName" :style="{'--parl-accent': partyAccentOf(focusedTile.party)}">
+            <div v-else class="con-cardactions__detail-bill con-cardactions__detail-party" :key="'party|' + focusedTile.cardName" :style="{'--parl-accent': partyAccentOf(focusedTile.party)}">
               <premium-card-face v-if="focusedPartyVm !== undefined" :vmOverride="focusedPartyVm" :lightweight="true" :inert="true" />
               <span class="con-cardactions__detail-uses">{{ sourceUsesText(focusedTile) }}</span>
             </div>
@@ -407,6 +407,7 @@
  *   (until the commit — after it, input is absorbed).
  */
 import {computed, nextTick, onBeforeUnmount, onMounted, onUpdated, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import type {PreselectAddress} from '@/common/inputs/preselectAddress';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
@@ -594,7 +595,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'submit-batch', 'staged-placement', 'staged-vote', 'staged-law-play', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'delta-step', 'flow-complete']);
 
 const flow = useFlowScope('card-actions');
-const composerRef = useTemplateRef<InstanceType<typeof ConsoleActionComposer>>('composerRef');
+const composerRef = useTemplateRef<ExposedOf<typeof ConsoleActionComposer>>('composerRef');
 const detailCard = useTemplateRef<HTMLElement>('detailCard');
 const rootEl = useTemplateRef<HTMLElement>('rootEl');
 const detailEl = useTemplateRef<HTMLElement>('detailEl');

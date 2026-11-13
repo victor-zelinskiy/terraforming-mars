@@ -11,6 +11,7 @@
  * template block (the `<CardZoomModal>` and its slots) still lives in the shell and reads these members by name.
  */
 import {computed, ref, onBeforeUnmount, onMounted} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {GameModel} from '@/common/models/GameModel';
@@ -593,7 +594,7 @@ export function createViewerController(shell: ViewerPort) {
    * callback is fenced by `zoomOpenToken` (a close + reopen can never be
    * touched by a stale flight/safety callback).
    */
-  async function runZoomOpen(zoom: InstanceType<typeof CardZoomModal>): Promise<void> {
+  async function runZoomOpen(zoom: ExposedOf<typeof CardZoomModal>): Promise<void> {
     const token = ++zoomOpenToken.value;
     zoomOpening.value = true;
     const origin: ZoomOrigin = consoleCardZoom.origin;
@@ -709,7 +710,7 @@ export function createViewerController(shell: ViewerPort) {
       noteInputAbsorbed(ZOOM_FLIGHT_ABSORBER);
       return true;
     }
-    const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
+    const zoom = shell.surfaces.at<ExposedOf<typeof CardZoomModal>>('cardZoom');
     // INSPECT DOSSIER: LB/RB switch the ПРАВИЛА/СТАТИСТИКА tab (never browse —
     // the inspect list is always ONE card, so prev/next are free here). A
     // repeated press just re-sets the same tab (idempotent, no overlap).
@@ -837,7 +838,7 @@ export function createViewerController(shell: ViewerPort) {
     if (swap === undefined || zoomClosing.value || zoomSwapping.value) {
       return;
     }
-    const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
+    const zoom = shell.surfaces.at<ExposedOf<typeof CardZoomModal>>('cardZoom');
     zoomSwapping.value = true;
     void playZoomSwap(zoom?.rootEl ?? undefined, () => swap.swap(), () => zoom?.fitCardToViewport())
       .then(() => {
@@ -867,7 +868,7 @@ export function createViewerController(shell: ViewerPort) {
       return;
     }
     const idx = consoleCardZoom.index;
-    const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
+    const zoom = shell.surfaces.at<ExposedOf<typeof CardZoomModal>>('cardZoom');
     if (r.departFromFullscreen === true) {
       // SINGLE-CARD reveal: the card departs from fullscreen INTO THE HAND
       // — playZoomDepart hands the flight to the hand-intake director (the
@@ -908,7 +909,7 @@ export function createViewerController(shell: ViewerPort) {
       return;
     }
     const handoffSel = action.handoffTarget?.(card.name as CardName);
-    const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
+    const zoom = shell.surfaces.at<ExposedOf<typeof CardZoomModal>>('cardZoom');
     if (handoffSel !== undefined && zoom !== undefined) {
       action.execute(card.name as CardName);
       zoomFlight.value = true;
@@ -953,7 +954,7 @@ export function createViewerController(shell: ViewerPort) {
    * self-guards on `open`).
    */
   async function closeZoomViewer(): Promise<void> {
-    const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
+    const zoom = shell.surfaces.at<ExposedOf<typeof CardZoomModal>>('cardZoom');
     if (zoom === undefined) {
       return;
     }
@@ -1019,7 +1020,7 @@ export function createViewerController(shell: ViewerPort) {
         if (consoleCardZoom.card === undefined) {
           return; // closed before it ever opened
         }
-        const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
+        const zoom = shell.surfaces.at<ExposedOf<typeof CardZoomModal>>('cardZoom');
         const el = zoom?.rootEl ?? undefined;
         if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
           if (attempt < 10) {

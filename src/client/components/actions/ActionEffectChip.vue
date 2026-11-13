@@ -123,7 +123,7 @@
          hand; this segment names how many leave the deck and how many go to the
          discard pile — the rest's fate is said before the press. -->
     <span v-if="effect.look !== undefined" class="action-effect-chip__note action-effect-chip__note--sentence action-effect-chip__look" data-chip-look
-          v-i18n="[String(effect.look.revealed), String(effect.look.revealed - effect.look.keep)]">of ${0} turned over · ${1} to the discard</span>
+          v-i18n="lookParams">of ${0} turned over · ${1} to the discard</span>
 
     <!-- Variable-amount BASIS — "why is it this much": the live count of each
          counted entity (e.g. Cities on Mars: 3). It comes LAST, behind its own
@@ -201,6 +201,11 @@ const props = defineProps({
 
 const iconClass = computed((): string => {
   return iconClassFor(props.effect.icon);
+});
+/** The «of N turned over · M to the discard» numbers of a draw that keeps fewer than it turns over (none otherwise). */
+const lookParams = computed((): Array<string> => {
+  const look = props.effect.look;
+  return look === undefined ? [] : [String(look.revealed), String(look.revealed - look.keep)];
 });
 /** The sprites of a unit of one of SEVERAL kinds (`effect.icons`), in the declared order; [] for the one-icon chip. */
 const kindIcons = computed((): ReadonlyArray<string> => {

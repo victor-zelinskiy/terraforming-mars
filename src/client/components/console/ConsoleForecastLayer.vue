@@ -35,6 +35,7 @@
  * (This comment opened the template; the template starts with its root now.)
  */
 import {computed, PropType, useTemplateRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {CardModel} from '@/common/models/CardModel';
 import {EffectForecast} from '@/common/models/EffectForecastModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
@@ -63,7 +64,7 @@ const props = defineProps({
   branches: {type: Array as PropType<ReadonlyArray<ForecastBranchInfo>>, default: () => []},
 });
 
-const explorer = useTemplateRef<InstanceType<typeof ConsoleEffectsExplorer>>('explorer');
+const explorer = useTemplateRef<ExposedOf<typeof ConsoleEffectsExplorer>>('explorer');
 const open = computed((): boolean => {
   return effectForecastOpen(props.host);
 });

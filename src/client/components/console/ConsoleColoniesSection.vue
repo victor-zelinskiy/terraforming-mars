@@ -455,6 +455,7 @@
  */
 
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {colonyTrackRaiseLive} from '@/client/console/colonyTrade/colonyTrackRaise';
 /**
  * Console-native COLONY WORKSPACE (iteration 3 — the workspace-family
@@ -676,11 +677,11 @@ const emit = defineEmits(['trade-confirm', 'build-confirm', 'pick-confirm', 'flo
 const flow = useFlowScope('colonies-section');
 const scroll = useTemplateRef<HTMLElement>('scroll');
 const selectedDock = useTemplateRef<HTMLElement | Array<HTMLElement>>('selectedDock');
-const dockStage = useTemplateRef<InstanceType<typeof ConsoleFleetDockStage>>('dockStage');
+const dockStage = useTemplateRef<ExposedOf<typeof ConsoleFleetDockStage>>('dockStage');
 const selectedSlot = useTemplateRef<HTMLElement | Array<HTMLElement>>('selectedSlot');
 const grid = useTemplateRef<HTMLElement>('grid');
-const inspectStage = useTemplateRef<InstanceType<typeof ConsoleColonyInspect>>('inspectStage');
-const focusStage = useTemplateRef<InstanceType<typeof ConsoleColonyFocusStage>>('focusStage');
+const inspectStage = useTemplateRef<ExposedOf<typeof ConsoleColonyInspect>>('inspectStage');
+const focusStage = useTemplateRef<ExposedOf<typeof ConsoleColonyFocusStage>>('focusStage');
 const root = useTemplateRef<HTMLElement>('root');
 /** The fleet berth the step last stood in while its frame lived (see `fleetBerth`). */
 const berthLatch = ref('');

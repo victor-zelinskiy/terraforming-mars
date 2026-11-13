@@ -305,6 +305,7 @@
  *    ever (the endgame's two-instance detail is exactly what this avoids).
  */
 import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {gsap} from 'gsap';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -396,7 +397,7 @@ const props = defineProps({
 
 const viewport = useConsoleViewport();
 const previewEl = useTemplateRef<HTMLElement>('previewEl');
-const rowScroll = useTemplateRef<InstanceType<typeof ConsoleScrollArea>>('rowScroll');
+const rowScroll = useTemplateRef<ExposedOf<typeof ConsoleScrollArea>>('rowScroll');
 const inspectEl = useTemplateRef<HTMLElement>('inspectEl');
 const stageEl = useTemplateRef<HTMLElement>('stageEl');
 const catEl = useTemplateRef<HTMLElement>('catEl');

@@ -4,6 +4,7 @@
  * THE PLAYED CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {computed, ref} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
@@ -287,7 +288,7 @@ export function createPlayedController(shell: PlayedPort) {
     if (phase === 'failed') {
       // A refused play walks nothing and rallies nobody: the promises are dropped with the move.
       dropHostedStepPromises();
-      const composer = shell.surfaces.at<InstanceType<typeof ConsolePlayCardConfirm>>('playConfirm');
+      const composer = shell.surfaces.at<ExposedOf<typeof ConsolePlayCardConfirm>>('playConfirm');
       composer?.resetSubmitting?.();
       // A refused move never happened: the descent goes back to configurable,
       // or B would stay dead and the crumb would keep claiming a commit.

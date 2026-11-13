@@ -98,6 +98,7 @@
  * layer — the same split as the standard projects' screen.
  */
 import {computed, onBeforeUnmount, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {$t} from '@/client/directives/i18n';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -156,7 +157,7 @@ const props = defineProps({
 
 /** The surface's own root (the template's `ref="root"`) — the element the layer's host opens on. */
 const root = useTemplateRef<HTMLElement>('root');
-const forecastLayer = useTemplateRef<InstanceType<typeof ConsoleForecastLayer>>('forecastLayer');
+const forecastLayer = useTemplateRef<ExposedOf<typeof ConsoleForecastLayer>>('forecastLayer');
 /** The one-shot COMMIT flare on the «Сработает» door and its clock (a plain handle). */
 const forecastPulse = ref(false);
 let pulseCall: {kill: () => void} | undefined;

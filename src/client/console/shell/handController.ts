@@ -4,6 +4,7 @@
  * THE HAND CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {computed, ref} from 'vue';
 import {scopedState} from '@/client/console/session/scopedState';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -961,7 +962,7 @@ export function createHandController(shell: HandPort) {
     const releaseAccent = beginDockIntakeAccent('hand-close');
     try {
       await shell.$nextTick();
-      const section = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
+      const section = shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection');
       const t: HandTransitionTargets = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
       // Landing targets are analytic (the bodies layer's pose oracle).
       const pairs: Array<RevealPair> = t.pairs.map((p) => ({
@@ -1296,7 +1297,7 @@ export function createHandController(shell: HandPort) {
    * survive by construction. The first/last page swallows the press.
    */
   function turnHandPage(dir: 1 | -1): void {
-    const hand = shell.surfaces.at<InstanceType<typeof ConsoleHandSection>>('handSection');
+    const hand = shell.surfaces.at<ExposedOf<typeof ConsoleHandSection>>('handSection');
     hand?.turnPage(dir);
   }
 

@@ -55,10 +55,10 @@
                    owner's decision Р2 — `partyPremiumVm`: the project anatomy with the party's seal) — the hero slot's
                    box, the hero's place, every phase. Its printed mechanics carry the `data-graphic-node` anchors the
                    ACTION COMMIT's impulse runs over, exactly as a card face does. -->
-              <div v-else-if="politicalEntry !== undefined && politicalEntry.source.kind === 'law'" :key="sourceKey" class="con-composer__actlaw" :data-reaction-home="politicalEntry.source.resolution">
+              <div v-else-if="politicalEntry !== undefined && politicalEntry.source.kind === 'law'" :key="'law|' + sourceKey" class="con-composer__actlaw" :data-reaction-home="politicalEntry.source.resolution">
                 <PremiumCard v-if="lawFaceVm !== undefined" :vmOverride="lawFaceVm" :inert="true" />
               </div>
-              <div v-else-if="politicalEntry !== undefined" :key="sourceKey" class="con-composer__actparty" :data-party-face="politicalEntry.party" :data-reaction-home="politicalEntry.party">
+              <div v-else-if="politicalEntry !== undefined" :key="'party|' + sourceKey" class="con-composer__actparty" :data-party-face="politicalEntry.party" :data-reaction-home="politicalEntry.party">
                 <PremiumCard v-if="partyFaceVm !== undefined" :vmOverride="partyFaceVm" :inert="true" />
               </div>
             </transition>
@@ -1063,6 +1063,7 @@
  * hands off via `repeat-pick`.
  */
 import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {RootElHolder, rootElOf} from '@/client/components/rootEl';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {setConsoleActionComposerCommands, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
@@ -1307,6 +1308,60 @@ import {gateCursorDuringEntry} from '@/client/console/cursorArrival';
 import {vEmbedZone, vI18n, vStripActionPrefix} from '@/client/directives/vDirectives';
 import {useAppRoot} from '@/client/components/appRoot';
 
+// (An exported type stands with the imports, above the script's first statement: the body of a Vapor script-setup block
+// is a function body to the type checker, and an `export` below a statement is not at a module's top level there.)
+/**
+ * WHAT THE CONFIRMED ACTION PRODUCES — the in-frame outcome stage's flavour.
+ *
+ * `deck-check` is the original: the top card is turned over and a condition is
+ * checked, so the whole outcome IS a verdict and the composer draws it itself.
+ * The other two are not the composer's to draw — a drawn batch and a card pick
+ * already have premium standalone surfaces, and duplicating them here is how a
+ * second, drifting implementation is born. They name the presenter instead and
+ * the zone hosts it EMBEDDED.
+ */
+export type ComposerOutcome =
+  /** Search For Life / Asteroid Deflection — `payload` lands with the answer. */
+  | {kind: 'deck-check', payload?: RevealResultModel}
+  /**
+   * COMMITTED, cards promised, nothing back yet. A real stage of its own, not
+   * a loading spinner: it holds the geometry (and the teleport target) that
+   * the arriving outcome drops into, so the column never jumps between the
+   * press and the cards.
+   */
+  | {kind: 'pending'}
+  /**
+   * COMMITTED, and the press owes a STEP that is not a card (P89 · ledger EE — the alternative Venus board's bonus):
+   * the zone stands for the shell's re-homed surface and shows no card beat of its own. A claim of that kind opens
+   * THIS stage, never the draw-only `pending` one — the claim and the stage that presents it are decided together
+   * (the R&D Funding freeze of 2026-10-31).
+   */
+  | {kind: 'step'}
+  /**
+   * The action produced CARDS and the zone is showing them. Deliberately one
+   * kind for both a drawn batch and a follow-up pick (buy / keep-some): from
+   * the stage's side they are the same phase — the same zone, the same name,
+   * the same input gate — and which presenter the shell re-homed into it is
+   * the shell's business, not a second state for the workspace to track.
+   */
+  | {kind: 'draw'}
+  /**
+   * «THE LEDGER PAYS» (TR23 Habitat Science — «gain all your colony bonuses»):
+   * the action is committed and its ledger pays row by row. The ONE outcome
+   * that does not replace the decision column: the configuration surface
+   * stays (its ledger is the very DOM the player read before the press) and
+   * the steps of the payout stand as layers above it.
+   */
+  | {kind: 'ledger'}
+  /**
+   * A CARD PLAYED THROUGH A LAW (RX36 Live Experiments): the card has landed in this stage (the receiving tableau,
+   * PL-726) and what it SETS OFF — its draw, its keep-some pick, a woken card's question, a repeated action's
+   * verdict — is the stage's next beat. Like the ledger it does not swap the decision column: the outcome stands as a
+   * LAYER over the tableau (`[data-embed-slot="law-outcome"]`), which dissolves the moment the outcome takes the
+   * stage — the hand composer's own handoff, read through the same play-landing facts.
+   */
+  | {kind: 'law-play'};
+
 /**
  * A `v-for` string ref → a dense element array. Vue hands back an array, a
  * single node or nothing depending on which template branch rendered, and the
@@ -1448,58 +1503,6 @@ function textOf(v: string | Message | undefined, params?: ReadonlyArray<string>)
     translateTextWithParams(v, [...params]);
 }
 
-/**
- * WHAT THE CONFIRMED ACTION PRODUCES — the in-frame outcome stage's flavour.
- *
- * `deck-check` is the original: the top card is turned over and a condition is
- * checked, so the whole outcome IS a verdict and the composer draws it itself.
- * The other two are not the composer's to draw — a drawn batch and a card pick
- * already have premium standalone surfaces, and duplicating them here is how a
- * second, drifting implementation is born. They name the presenter instead and
- * the zone hosts it EMBEDDED.
- */
-export type ComposerOutcome =
-  /** Search For Life / Asteroid Deflection — `payload` lands with the answer. */
-  | {kind: 'deck-check', payload?: RevealResultModel}
-  /**
-   * COMMITTED, cards promised, nothing back yet. A real stage of its own, not
-   * a loading spinner: it holds the geometry (and the teleport target) that
-   * the arriving outcome drops into, so the column never jumps between the
-   * press and the cards.
-   */
-  | {kind: 'pending'}
-  /**
-   * COMMITTED, and the press owes a STEP that is not a card (P89 · ledger EE — the alternative Venus board's bonus):
-   * the zone stands for the shell's re-homed surface and shows no card beat of its own. A claim of that kind opens
-   * THIS stage, never the draw-only `pending` one — the claim and the stage that presents it are decided together
-   * (the R&D Funding freeze of 2026-10-31).
-   */
-  | {kind: 'step'}
-  /**
-   * The action produced CARDS and the zone is showing them. Deliberately one
-   * kind for both a drawn batch and a follow-up pick (buy / keep-some): from
-   * the stage's side they are the same phase — the same zone, the same name,
-   * the same input gate — and which presenter the shell re-homed into it is
-   * the shell's business, not a second state for the workspace to track.
-   */
-  | {kind: 'draw'}
-  /**
-   * «THE LEDGER PAYS» (TR23 Habitat Science — «gain all your colony bonuses»):
-   * the action is committed and its ledger pays row by row. The ONE outcome
-   * that does not replace the decision column: the configuration surface
-   * stays (its ledger is the very DOM the player read before the press) and
-   * the steps of the payout stand as layers above it.
-   */
-  | {kind: 'ledger'}
-  /**
-   * A CARD PLAYED THROUGH A LAW (RX36 Live Experiments): the card has landed in this stage (the receiving tableau,
-   * PL-726) and what it SETS OFF — its draw, its keep-some pick, a woken card's question, a repeated action's
-   * verdict — is the stage's next beat. Like the ledger it does not swap the decision column: the outcome stands as a
-   * LAYER over the tableau (`[data-embed-slot="law-outcome"]`), which dissolves the moment the outcome takes the
-   * stage — the hand composer's own handoff, read through the same play-landing facts.
-   */
-  | {kind: 'law-play'};
-
 /** The law's landed tableau dissolving under its card's outcome (RX36) — the hand composer's release beat. */
 const LAW_PLAYSTAGE_RELEASE_MS = 220;
 
@@ -1585,7 +1588,7 @@ const emit = defineEmits(['confirm', 'committing', 'staged-placement', 'staged-v
 const root = useAppRoot();
 const flow = useFlowScope('action-composer');
 const rootEl = useTemplateRef<HTMLElement>('rootEl');
-const forecastExplorer = useTemplateRef<InstanceType<typeof ConsoleEffectsExplorer>>('forecastExplorer');
+const forecastExplorer = useTemplateRef<ExposedOf<typeof ConsoleEffectsExplorer>>('forecastExplorer');
 const targetStep = useTemplateRef<{rootEl?: HTMLElement | null, payloadEl?: () => HTMLElement | undefined} & {scrollBy?: (d: number) => void} & {cells?: () => ReadonlyArray<PlayedTargetCell>} & {ensureFocusVisible?: () => void}>('targetStep');
 const scroll = useTemplateRef<{scrollByPx?: (d: number) => void} & {ensureVisible?: (el: Element | null | undefined) => void}>('scroll');
 const venusStep = useTemplateRef<VenusBonusStepApi>('venusStep');

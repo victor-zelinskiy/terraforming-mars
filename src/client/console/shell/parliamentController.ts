@@ -4,6 +4,7 @@
  * THE PARLIAMENT CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {RootElHolder} from '@/client/components/rootEl';
 import {computed, ref} from 'vue';
 import {scopedState} from '@/client/console/session/scopedState';
@@ -1378,7 +1379,7 @@ export function createParliamentController(shell: ParliamentPort) {
     if (now || !was || stagedVoteModel.value === undefined) {
       return;
     }
-    const section = shell.surfaces.at<InstanceType<typeof ConsoleParliamentSection>>('parliamentSection');
+    const section = shell.surfaces.at<ExposedOf<typeof ConsoleParliamentSection>>('parliamentSection');
     section?.resetSubmitting();
     // A refused support-area pick (TR12) promised nothing that happened.
     clearSupportDiscard();

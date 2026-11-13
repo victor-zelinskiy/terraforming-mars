@@ -42,7 +42,7 @@
           <b>{{ reason.amount }}</b>
         </span>
       </div>
-      <div v-else-if="row.note !== undefined" class="con-dossier-row__note" v-i18n="row.note.params">{{ row.note.text }}</div>
+      <div v-else-if="row.note !== undefined" class="con-dossier-row__note" v-i18n="row.note?.params">{{ row.note?.text }}</div>
       <div v-if="row.source !== undefined" class="con-dossier-row__src" v-i18n>{{ row.source }}</div>
     </div>
 

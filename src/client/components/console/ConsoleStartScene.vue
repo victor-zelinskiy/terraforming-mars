@@ -1229,12 +1229,12 @@
                  picks which CONTENT stands here, never a different box). -->
             <ConsoleCardAvailabilityPanel v-if="railShowsAvailability"
                                           class="con-start__status-avail"
-                                          :key="railCard ? railCard.name : 'none'"
+                                          :key="'avail|' + (railCard ? railCard.name : 'none')"
                                           variant="compact"
                                           :view="focusedAvailability"
                                           :cardTitle="railCard ? $t(railCard.name) : undefined"/>
             <span v-else class="con-start__status-name"
-                  :key="railCard ? railCard.name : 'none'">{{ railCard ? $t(railCard.name) : '' }}</span>
+                  :key="'name|' + (railCard ? railCard.name : 'none')">{{ railCard ? $t(railCard.name) : '' }}</span>
             <span v-if="statusRailText !== ''" class="con-start__status-state"
                   :key="'st' + blockedNudge">{{ statusRailText }}</span>
             <!-- The ONE quick summary (workspace status-rail grammar): the
@@ -1358,6 +1358,7 @@
  */
 
 import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {ExposedOf} from '@/client/components/exposedOf';
 import {RootElHolder} from '@/client/components/rootEl';
 import {campaignFinalePicksCorporation} from '@/common/campaign/CampaignTypes';
 
@@ -1748,8 +1749,8 @@ const queueEl = useTemplateRef<HTMLElement>('queueEl');
 const summaryPane = useTemplateRef<HTMLElement>('summaryPane');
 const body = useTemplateRef<HTMLElement>('body');
 const frame = useTemplateRef<HTMLElement>('frame');
-const forecastLayer = useTemplateRef<InstanceType<typeof ConsoleForecastLayer>>('forecastLayer');
-const dealLayer = useTemplateRef<InstanceType<typeof ConsoleCardDealLayer>>('dealLayer');
+const forecastLayer = useTemplateRef<ExposedOf<typeof ConsoleForecastLayer>>('forecastLayer');
+const dealLayer = useTemplateRef<ExposedOf<typeof ConsoleCardDealLayer>>('dealLayer');
 const tenderDeck = useTemplateRef<HTMLElement>('tenderDeck');
 const restructPane = useTemplateRef<HTMLElement>('restructPane');
 const tenderSheetEl = useTemplateRef<{heroEl?: () => HTMLElement | undefined}>('tenderSheetEl');

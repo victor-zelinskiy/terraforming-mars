@@ -10,7 +10,8 @@
 
 const {unitCompilesAsVapor} = require('./unitVaporPolicy.cjs');
 
-const VAPOR_ATTR = /(<(?:script|template)\b[^>]*?)\svapor(?=[\s=>/])/g;
+// (A BLOCK's opening tag — one that opens its line — never the same words in a comment: sfcTemplateCompiler.cjs.)
+const VAPOR_ATTR = /^(<(?:script|template)\b[^>\n]*?)\svapor(?=[\s=>/])/gm;
 
 module.exports = function unitVaporLoader(source) {
   if (unitCompilesAsVapor(this.resourcePath)) {

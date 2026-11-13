@@ -9,6 +9,14 @@ import {Color} from '@/common/Color';
 import {translateText} from '@/client/directives/i18n';
 import {loadChart} from '@/client/components/gameend/victoryPointChartState';
 
+// (An exported type stands with the imports, above the script's first statement: the body of a Vapor script-setup block
+// is a function body to the type checker, and an `export` below a statement is not at a module's top level there.)
+export type DataSet = {
+  label: string;
+  data: ReadonlyArray<number>,
+  color: Color,
+};
+
 const COLOR_CODES: Record<Color, string> = {
   ['red']: 'rgb(153, 17, 0)',
   ['yellow']: 'rgb(170, 170, 0)',
@@ -33,12 +41,6 @@ interface ChartDataSet {
   tension: number,
   pointRadius: number,
 }
-
-export type DataSet = {
-  label: string;
-  data: ReadonlyArray<number>,
-  color: Color,
-};
 
 defineOptions({name: 'VictoryPointChart'});
 const props = defineProps({
