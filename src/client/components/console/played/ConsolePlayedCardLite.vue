@@ -1,25 +1,27 @@
 <template>
-  <!--
-    THE tableau card face of the «Разыграно» overlay — the cheapest honest
-    printed face available:
-     - EVERY card type is a premium-face type since desktop-removal wave 4
-       (project / prelude / corporation / standard project+action / CEO):
-       the REAL PremiumCard renders in name-only static mode at the THUMB
-       quality tier (`lightweight` — no texture/glow/hover work), inert by
-       construction;
-     - ConsoleCardFaceLite's legacy fallback branch is DEAD (no type routes
-       there) and goes with the wave-4 part-2 deletion.
-    Zero live state, zero interactivity — one flat manifest lookup, rendered
-    once. Nothing live is pinned over it either: stored card resources are
-    read in «Информация» → «Доп. ресурсы» and on the card's own face in the
-    fullscreen inspector, so a resource change never patches the table.
-  -->
   <PremiumCard v-if="premium" :name="name" :card="card" :inert="true" :lightweight="true" :peek="peek && !keepArt" :artTier="artTier" aria-hidden="true" />
   <ConsoleCardFaceLite v-else :name="name" />
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE tableau card face of the «Разыграно» overlay — the cheapest honest
+ * printed face available:
+ *  - EVERY card type is a premium-face type since desktop-removal wave 4
+ *    (project / prelude / corporation / standard project+action / CEO):
+ *    the REAL PremiumCard renders in name-only static mode at the THUMB
+ *    quality tier (`lightweight` — no texture/glow/hover work), inert by
+ *    construction;
+ *  - ConsoleCardFaceLite's legacy fallback branch is DEAD (no type routes
+ *    there) and goes with the wave-4 part-2 deletion.
+ * Zero live state, zero interactivity — one flat manifest lookup, rendered
+ * once. Nothing live is pinned over it either: stored card resources are
+ * read in «Информация» → «Доп. ресурсы» and on the card's own face in the
+ * fullscreen inspector, so a resource change never patches the table.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {CardArtTier} from '@/client/cards/cardArt';
@@ -28,72 +30,68 @@ import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardThem
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 
-export default defineComponent({
-  name: 'ConsolePlayedCardLite',
-  components: {PremiumCard, ConsoleCardFaceLite},
-  props: {
-    name: {
-      type: String as () => CardName,
-      required: true,
-    },
-    /**
-     * OPTIONAL live model — passed ONLY where a stored-resource reading is
-     * part of the scene (the receiving stage's effect targets: the capsule is
-     * the counter that ticks at the chip's contact). The table at rest stays
-     * name-only on purpose: nothing live re-renders a resting pile. The one
-     * thing a resting face still carries is what lies PUBLICLY on the card —
-     * the trade fleet standing on a dock — handed in as the minimal
-     * `publicFaceModel` (name + fleet), for that card alone.
-     */
-    card: {
-      type: Object as PropType<CardModel | undefined>,
-      required: false,
-      default: undefined,
-    },
-    /** COVERED in a pile: only the header band can show — the premium face
-     *  renders its peek crop (no art <img>, no mechanics subtree). The legacy
-     *  fallback face (dead since wave 4) has no peek mode and stays full. */
-    peek: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
-    /**
-     * KEEP THE ART — opt out of the peek crop while keeping every other
-     * peek behaviour of the host (the strip still CLIPS the face to its
-     * band; only the art/lower subtree stays mounted).
-     *
-     * The crop is an optimization for the FULL tableau, where a pile can be
-     * dozens of covered cards and their arts would be pure cost. A surface
-     * that holds a handful of them (the Game Start deployment shelf — one
-     * corporation, a couple of preludes) pays nothing for the arts and pays
-     * a real price for the crop: a covered card reads as a blank sliver
-     * instead of itself, and every peek ↔ full swap re-mounts the art
-     * subtree, so the picture flashes in late. Opt in ONLY there.
-     */
-    keepArt: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
-    /**
-     * ART TIER for the premium face (cardArt.ts): dense hosts (the tableau
-     * piles, big category grids, their flight proxies) pass 'thumb'; hosts
-     * that render the face large (the single-card stage) keep 'full'. The
-     * default is 'full' so every host outside the played tableau is
-     * byte-identical to before this prop existed.
-     */
-    artTier: {
-      type: String as () => CardArtTier,
-      required: false,
-      default: 'full',
-    },
+defineOptions({name: 'ConsolePlayedCardLite'});
+const props = defineProps({
+  name: {
+    type: String as () => CardName,
+    required: true,
   },
-  computed: {
-    premium(): boolean {
-      const type = getCard(this.name)?.type;
-      return type !== undefined && isPremiumFaceType(type);
-    },
+  /**
+   * OPTIONAL live model — passed ONLY where a stored-resource reading is
+   * part of the scene (the receiving stage's effect targets: the capsule is
+   * the counter that ticks at the chip's contact). The table at rest stays
+   * name-only on purpose: nothing live re-renders a resting pile. The one
+   * thing a resting face still carries is what lies PUBLICLY on the card —
+   * the trade fleet standing on a dock — handed in as the minimal
+   * `publicFaceModel` (name + fleet), for that card alone.
+   */
+  card: {
+    type: Object as PropType<CardModel | undefined>,
+    required: false,
+    default: undefined,
   },
+  /** COVERED in a pile: only the header band can show — the premium face
+   *  renders its peek crop (no art <img>, no mechanics subtree). The legacy
+   *  fallback face (dead since wave 4) has no peek mode and stays full. */
+  peek: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
+  /**
+   * KEEP THE ART — opt out of the peek crop while keeping every other
+   * peek behaviour of the host (the strip still CLIPS the face to its
+   * band; only the art/lower subtree stays mounted).
+   *
+   * The crop is an optimization for the FULL tableau, where a pile can be
+   * dozens of covered cards and their arts would be pure cost. A surface
+   * that holds a handful of them (the Game Start deployment shelf — one
+   * corporation, a couple of preludes) pays nothing for the arts and pays
+   * a real price for the crop: a covered card reads as a blank sliver
+   * instead of itself, and every peek ↔ full swap re-mounts the art
+   * subtree, so the picture flashes in late. Opt in ONLY there.
+   */
+  keepArt: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
+  /**
+   * ART TIER for the premium face (cardArt.ts): dense hosts (the tableau
+   * piles, big category grids, their flight proxies) pass 'thumb'; hosts
+   * that render the face large (the single-card stage) keep 'full'. The
+   * default is 'full' so every host outside the played tableau is
+   * byte-identical to before this prop existed.
+   */
+  artTier: {
+    type: String as () => CardArtTier,
+    required: false,
+    default: 'full',
+  },
+});
+
+const premium = computed((): boolean => {
+  const type = getCard(props.name)?.type;
+  return type !== undefined && isPremiumFaceType(type);
 });
 </script>
