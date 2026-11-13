@@ -1,16 +1,4 @@
 <template>
-  <!-- «РАСЧЁТ» OF A COUNTED PLAY (TR45, the owner's accent 2026-10-12: «how many microbes, and why, before the play»;
-       named «Почему N» until 2026-10-30 — the owner: the number repeated the result, the word read oddly)
-       — ONE strip, two hosts: the play composer's RESULT (under the chips — PL-156's block, its second reader) and the
-       board peek's HUD (L3 «Показать на поле» — the same reading standing over the counted tiles). It begins with the
-       card's own printed «per X» glyph (the SAME face item, `PremiumMechNode`), the count, «=», the census's shares by
-       kind with their board pictograms and numbers, «→» the result; what stands on the board uncounted is NAMED at
-       the strip's right edge; a zero is named. A single-term count (PL-196 — TR23's colonies, TR43's oceans) is the
-       glyph and its number alone, no «=». A count of the player's own tags names its WILD share («в т.ч. [wild] 1» —
-       the Scientists' extra wild tag under Redux) and the played card's OWN tag («в т.ч. эта карта 1» — P81, the word a set side
-       already speaks), so the number adds up against the tags on the table. A SUMMED basis (P85 — «per planet tag AND per colony») is its terms in
-       turn, each its glyphs (an OR of tags is a row of its tag icons) and its number, joined by «+». Every number is the server's basis (`countedPlay.countedWhyOf`). A
-       share the peek is reading right now is `lit` (its cells pulse on the board in the same beat). -->
   <div class="con-cwhy" :class="{'con-cwhy--zero': why.zero}"
        data-count-why :data-count-why-total="why.terms.length > 0 ? undefined : why.term.count">
     <span class="con-cwhy__kicker">{{ kicker }}</span>
@@ -109,60 +97,68 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * «РАСЧЁТ» OF A COUNTED PLAY (TR45, the owner's accent 2026-10-12: «how many microbes, and why, before the play»;
+ * named «Почему N» until 2026-10-30 — the owner: the number repeated the result, the word read oddly)
+ * — ONE strip, two hosts: the play composer's RESULT (under the chips — PL-156's block, its second reader) and the
+ * board peek's HUD (L3 «Показать на поле» — the same reading standing over the counted tiles). It begins with the
+ * card's own printed «per X» glyph (the SAME face item, `PremiumMechNode`), the count, «=», the census's shares by
+ * kind with their board pictograms and numbers, «→» the result; what stands on the board uncounted is NAMED at
+ * the strip's right edge; a zero is named. A single-term count (PL-196 — TR23's colonies, TR43's oceans) is the
+ * glyph and its number alone, no «=». A count of the player's own tags names its WILD share («в т.ч. [wild] 1» —
+ * the Scientists' extra wild tag under Redux) and the played card's OWN tag («в т.ч. эта карта 1» — P81, the word a set side
+ * already speaks), so the number adds up against the tags on the table. A SUMMED basis (P85 — «per planet tag AND per colony») is its terms in
+ * turn, each its glyphs (an OR of tags is a row of its tag icons) and its number, joined by «+». Every number is the server's basis (`countedPlay.countedWhyOf`). A
+ * share the peek is reading right now is `lit` (its cells pulse on the board in the same beat).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
 import {CountedResolution, CountedWhy, excludedTail, PART_LABEL, setsReading, signedAmount, WILD_GLYPH} from '@/client/console/countedPlay';
 import {ActionEffectBasisPartKind} from '@/common/models/ActionPreviewModel';
 import {BoardPeekBeat} from '@/client/console/boardPeek';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 
-export default defineComponent({
-  name: 'ConsoleCountedWhy',
-  components: {PremiumMechNode},
-  props: {
-    why: {type: Object as PropType<CountedWhy>, required: true},
-    /** The share the board peek is reading right now (its cells pulse in the same beat), or 'excluded'. */
-    lit: {type: String as PropType<BoardPeekBeat | undefined>, default: undefined},
-  },
-  data() {
-    return {wildGlyph: WILD_GLYPH};
-  },
-  computed: {
-    /**
-     * «РАСЧЁТ» — the strip's NAME, never a number (the owner, 2026-10-30: «ПОЧЕМУ 5 · [аэростат] 5 → +5» printed the
-     * result twice, and «почему» read oddly in Russian). The result stands at the strip's end, and once.
-     */
-    kicker(): string {
-      return translateText('Calculation');
-    },
-    result(): string {
-      // A price reads what is PAID, unsigned (the discount's own reading); a counted gain its signed amount.
-      return this.why.printed !== undefined ? String(this.why.chip.amount) : signedAmount(this.why.chip.amount);
-    },
-    resultIcon(): string {
-      return iconClassFor(this.why.chip.icon);
-    },
-    /** «2 пары» — the number of complete sets of a SET count (P69), the server's. */
-    sets(): string {
-      return setsReading(this.why.term.count, {text: translateText, params: translateTextWithParams});
-    },
-    excluded(): string | undefined {
-      return excludedTail(this.why, {text: translateText, params: translateTextWithParams});
-    },
-  },
-  methods: {
-    /** A share's word for the screen reader — «4 города» (the pictogram carries it for the eye). */
-    partLabel(kind: ActionEffectBasisPartKind, count: number): string {
-      return translateTextWithParams(PART_LABEL[kind], [String(count)]);
-    },
-    /** A resolution's words for the screen reader — «Наука: ваших делегатов 2 из 3» (+ «не считается»). */
-    resolutionLabel(r: CountedResolution): string {
-      const head = translateTextWithParams('${0}: your delegates ${1} of ${2}', [translateText(partyNameKey(r.party)), String(r.own), String(r.total)]);
-      return r.counted ? head : `${head} · ${translateText('not counted')}`;
-    },
-  },
+defineOptions({name: 'ConsoleCountedWhy'});
+const props = defineProps({
+  why: {type: Object as PropType<CountedWhy>, required: true},
+  /** The share the board peek is reading right now (its cells pulse in the same beat), or 'excluded'. */
+  lit: {type: String as PropType<BoardPeekBeat | undefined>, default: undefined},
 });
+
+const wildGlyph = WILD_GLYPH;
+/**
+ * «РАСЧЁТ» — the strip's NAME, never a number (the owner, 2026-10-30: «ПОЧЕМУ 5 · [аэростат] 5 → +5» printed the
+ * result twice, and «почему» read oddly in Russian). The result stands at the strip's end, and once.
+ */
+const kicker = computed((): string => {
+  return translateText('Calculation');
+});
+const result = computed((): string => {
+  // A price reads what is PAID, unsigned (the discount's own reading); a counted gain its signed amount.
+  return props.why.printed !== undefined ? String(props.why.chip.amount) : signedAmount(props.why.chip.amount);
+});
+const resultIcon = computed((): string => {
+  return iconClassFor(props.why.chip.icon);
+});
+/** «2 пары» — the number of complete sets of a SET count (P69), the server's. */
+const sets = computed((): string => {
+  return setsReading(props.why.term.count, {text: translateText, params: translateTextWithParams});
+});
+const excluded = computed((): string | undefined => {
+  return excludedTail(props.why, {text: translateText, params: translateTextWithParams});
+});
+/** A share's word for the screen reader — «4 города» (the pictogram carries it for the eye). */
+function partLabel(kind: ActionEffectBasisPartKind, count: number): string {
+  return translateTextWithParams(PART_LABEL[kind], [String(count)]);
+}
+/** A resolution's words for the screen reader — «Наука: ваших делегатов 2 из 3» (+ «не считается»). */
+function resolutionLabel(r: CountedResolution): string {
+  const head = translateTextWithParams('${0}: your delegates ${1} of ${2}', [translateText(partyNameKey(r.party)), String(r.own), String(r.total)]);
+  return r.counted ? head : `${head} · ${translateText('not counted')}`;
+}
 </script>
