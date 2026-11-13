@@ -492,6 +492,19 @@ function pageHarnessScript(): void {
   } catch {
     // a locked-down navigator — the console then sees whatever it sees
   }
+  // …AND NO REAL PAD ANNOUNCES ITSELF (2026-11-13: three reds of a 1402-test run, all inside the five minutes in
+  // which the owner picked the DualSense up — the bar read «R2» for «RT», the pager «L1‹1/1›R1»). The console also
+  // learns of a pad from the `gamepadconnected` EVENT and reads the pad's id right there (`gamepadCore.onConnected` →
+  // the glyph set follows it), which the empty `getGamepads` above does not stop. A TRUSTED event is the hardware
+  // speaking: it is swallowed here, before the page's own listener exists. A spec's virtual pad announces itself
+  // with an event it DISPATCHES (untrusted) and passes.
+  for (const type of ['gamepadconnected', 'gamepaddisconnected']) {
+    window.addEventListener(type, (event) => {
+      if (event.isTrusted) {
+        event.stopImmediatePropagation();
+      }
+    }, true);
+  }
   const w = window as unknown as {__tmLastMutation: number};
   w.__tmLastMutation = performance.now();
   const observe = () => {
