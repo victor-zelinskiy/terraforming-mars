@@ -1,7 +1,9 @@
 import {mount} from '@vue/test-utils';
+import {defineComponent, h, shallowRef} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
+import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleCardActionsUi, defaultCardActionsFilter} from '@/client/console/consoleCardActions';
 import {consoleActionComposerUi, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import {enterConsoleRepeatPick, resetConsoleRepeatPick} from '@/client/console/consoleRepeatPick';
@@ -44,13 +46,13 @@ function playerView(): any {
   };
 }
 
-// `premium-card-face` (the enacted resolution's own face) is an ASYNC GLOBAL registered in
-// main.ts — a static import would pull the premium face into the console chunk — so a unit
-// mount has to stub it or every render warns (the warn handler fails the spec).
+// `premium-card-face` (the enacted resolution's / a party's own face) is the LAZY binding the component imports from
+// `asyncComponents` — nothing a mount has to register. These mounts focus a CARD, whose face is `ConsoleCardFaceLite`,
+// so the lazy face never renders here and needs no stub.
 function factory() {
   return mount(ConsoleCardActions, {
     ...globalConfig,
-    global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub, 'premium-card-face': true}},
+    global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub}},
     props: {playerView: playerView()},
     attachTo: document.body,
   });
@@ -71,6 +73,53 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
   afterEach(() => {
     resetConsoleRepeatPick();
     resetConsoleRepeatPickUi();
+  });
+
+  /**
+   * WHAT A HOLDER OF ITS REF GETS. The shell's pad router reaches this surface through the surface registry
+   * (`shell.surfaces.at('cardActions')` / `'repeatPick'` → `handedTo(…)`), and a `<script setup>` component hands a
+   * ref ONLY what it exposes — so the list is the contract, asserted through a host's ref (`wrapper.vm` sees the whole
+   * setup state and would stay green with nothing exposed).
+   */
+  it('a HOLDER of its ref sees `handleIntent` and nothing else — and the pad drives the surface through it', async () => {
+    const held = shallowRef<{handleIntent(intent: GamepadIntent): void} | null>(null);
+    const view = playerView();
+    const closed: Array<true> = [];
+    const Host = defineComponent({
+      name: 'CardActionsHost',
+      setup: () => () => h('div', {'data-host': ''}, [h(ConsoleCardActions as never, {
+        playerView: view,
+        ref: held,
+        onClose: (): void => {
+          closed.push(true);
+        },
+      })]),
+    });
+    const w = mount(Host, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub}},
+      attachTo: document.body,
+    });
+    await settle(w);
+    expect(held.value, 'the holder\'s ref is set').to.not.eq(null);
+    expect(Object.keys(held.value!), 'the exposed list is the contract — nothing else of the script').to.deep.eq(['handleIntent']);
+    const pad = held.value!;
+    expect(w.find('.con-cardactions').attributes('data-flow')).to.eq('browse');
+    expect(w.find('.con-cardactions__tile--focused').exists(), 'the grid opens with its cursor on a slot').to.eq(true);
+
+    // A descends into the ACTION FOCUS stage — the same frame, the browse layer parked.
+    pad.handleIntent({kind: 'press', button: 'confirm'});
+    await settle(w);
+    expect(w.find('.con-cardactions__stagewrap .con-composer--stage').exists()).to.eq(true);
+    expect(w.find('.con-cardactions__browse').classes()).to.contain('con-cardactions__browse--parked');
+    // B is ONE logical level: out of the stage first (the workspace stays), out of the workspace second.
+    pad.handleIntent({kind: 'press', button: 'back'});
+    await settle(w);
+    expect(w.find('.con-cardactions__browse--parked').exists()).to.eq(false);
+    expect(closed, 'B in the stage folds it back — the workspace is not closed').to.have.length(0);
+    pad.handleIntent({kind: 'press', button: 'back'});
+    expect(closed, 'B in browse asks the shell to close').to.have.length(1);
+    w.unmount();
   });
 
   it('BROWSE: the inspector anchors on the card THUMBNAIL (a physical zoom slot) with the tableau resource counter, the old graphic duplicate is gone', async () => {
@@ -333,7 +382,7 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     }, () => { /* resolve unused — this is a render/focus test */ });
     const w = mount(ConsoleCardActions, {
       ...globalConfig,
-      global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub, 'premium-card-face': true}},
+      global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub}},
       props: {playerView: view, repeat: true},
       attachTo: document.body,
     });
@@ -360,7 +409,7 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
 
     const w2 = mount(ConsoleCardActions, {
       ...globalConfig,
-      global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub, 'premium-card-face': true}},
+      global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub}},
       props: {playerView: playerView(), contextPlayer: {color: 'red', name: 'Rival'} as any},
       attachTo: document.body,
     });
@@ -419,7 +468,7 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     view.waitingFor = undefined;
     const w2 = mount(ConsoleCardActions, {
       ...globalConfig,
-      global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub, 'premium-card-face': true}},
+      global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub}},
       props: {playerView: view},
       attachTo: document.body,
     });
@@ -478,7 +527,7 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
       view.players = [{color: 'blue', name: 'Me', tableau: [{name: CARD, resources: 2}]}];
       const w = mount(ConsoleCardActions, {
         ...globalConfig,
-        global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub, 'premium-card-face': true}},
+        global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub}},
         props: {playerView: view},
         attachTo: document.body,
       });

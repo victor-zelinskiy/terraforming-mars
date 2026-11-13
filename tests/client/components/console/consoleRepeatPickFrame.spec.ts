@@ -85,13 +85,13 @@ function openPick(onResolve: (r: unknown) => void = () => undefined): void {
   }, onResolve, () => undefined);
 }
 
-// `premium-card-face` (the enacted resolution's own face) is an ASYNC GLOBAL registered in
-// main.ts — a static import would pull the premium face into the console chunk — so a unit
-// mount has to stub it or every render warns (the warn handler fails the spec).
+// `premium-card-face` (the enacted resolution's / a party's own face) is the LAZY binding the component imports from
+// `asyncComponents` — nothing a mount has to register. These mounts focus a CARD, whose face is `ConsoleCardFaceLite`,
+// so the lazy face never renders here and needs no stub.
 function factory(repeat: boolean) {
   return mount(ConsoleCardActions, {
     ...globalConfig,
-    global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub, 'premium-card-face': true}},
+    global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub}},
     props: {playerView: playerView(), repeat},
     attachTo: document.body,
   });
