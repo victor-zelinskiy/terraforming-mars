@@ -1,18 +1,4 @@
 <template>
-  <!--
-    «СПОСОБ ОПЛАТЫ» — the payment paths of a trade, as ROWS. ONE component for
-    every stage that composes a trade: the colony focus stage and the
-    fleet-dock stage (a trade is paid the same way whatever it is made with —
-    `tradePayModel.ts` is the one row model behind it).
-
-    It is a FRAGMENT on purpose: the heading, the rows and the receipt are
-    siblings of the stage's own decision rows inside ONE scroll column, so a
-    wrapper would be one more box for the column's rhythm to disagree with.
-
-    The component draws; the stage owns the cursor, the selection and the
-    commit (it passes `focusedIndex` / `chosenIndex` and reads `focusedEl()`
-    to keep the cursor's row in view).
-  -->
   <div v-if="heading" class="con-colfocus__sec-title">{{ $t('Payment method') }}</div>
   <div v-for="entry in rows" :key="'p' + entry.index"
        class="con-colfocus__payrow"
@@ -59,14 +45,14 @@
     <span class="con-colfocus__payrow-title">{{ d.title }}</span>
     <span class="con-colfocus__payrow-reason">{{ d.reason }}</span>
   </div>
-  <!-- PAST THE COMMIT the server takes the options away, but the stage is
-       still resolving the move the player made ON IT — so it keeps showing
-       WHAT WAS CHOSEN. Blanking the zone here left a hole under a flying
-       reward and read as the screen forgetting the decision the moment it was
-       taken. -->
   <div v-if="held !== undefined && rows.length === 0"
        class="con-colfocus__payrow con-colfocus__payrow--chosen con-colfocus__payrow--locked"
        data-pay-receipt>
+    <!-- PAST THE COMMIT the server takes the options away, but the stage is
+         still resolving the move the player made ON IT — so it keeps showing
+         WHAT WAS CHOSEN. Blanking the zone here left a hole under a flying
+         reward and read as the screen forgetting the decision the moment it was
+         taken. -->
     <span class="con-colfocus__payrow-pick" aria-hidden="true">
       <span class="con-colfocus__payrow-dot"></span>
     </span>
@@ -88,43 +74,61 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
-import {TradePayDisabledEntry, TradePayEntry, TradePayRow} from '@/client/console/colonyTrade/tradePayModel';
+<script setup lang="ts">
+/*
+ * «СПОСОБ ОПЛАТЫ» — the payment paths of a trade, as ROWS. ONE component for
+ * every stage that composes a trade: the colony focus stage and the
+ * fleet-dock stage (a trade is paid the same way whatever it is made with —
+ * `tradePayModel.ts` is the one row model behind it).
+ *
+ * It is a FRAGMENT on purpose: the heading, the rows and the receipt are
+ * siblings of the stage's own decision rows inside ONE scroll column, so a
+ * wrapper would be one more box for the column's rhythm to disagree with.
+ *
+ * The component draws; the stage owns the cursor, the selection and the
+ * commit (it passes `focusedIndex` / `chosenIndex` and reads `focusedEl()`
+ * to keep the cursor's row in view).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 
-export default defineComponent({
-  name: 'ConsoleTradePayRows',
-  // A fragment has no single root for attributes to fall through to.
-  inheritAttrs: false,
-  props: {
-    /** Draw the «СПОСОБ ОПЛАТЫ» heading (the stage decides: it belongs to the ROWS, not to the mode). */
-    heading: {type: Boolean, default: false},
-    /** The paths the player can take (`visibleTradePayRows` — the server's index rides along). */
-    rows: {type: Array as PropType<ReadonlyArray<TradePayRow>>, default: () => []},
-    /** The refused paths, each with the server's reason. */
-    disabled: {type: Array as PropType<ReadonlyArray<TradePayDisabledEntry>>, default: () => []},
-    /** The chosen path (the server's option index). */
-    chosenIndex: {type: Number, default: -1},
-    /** The path the entry pins the fee to (`-1` = every path is the player's). */
-    lockedIndex: {type: Number, default: -1},
-    /** The path under the cursor (`-1` = the cursor is elsewhere). */
-    focusedIndex: {type: Number, default: -1},
-    /** The energy family's option index (the ⚡/🔩 pair lands there while the substitution is live). */
-    energyIndex: {type: Number, default: -1},
-    energyMixLive: {type: Boolean, default: false},
-    /** The chosen flexible family's draft — the mix the fee would be paid with right now. */
-    mix: {type: Object as PropType<{energy: number, steel: number} | undefined>, default: undefined},
-    /** Several valid mixes exist: the row names the next step. */
-    mixAdjustable: {type: Boolean, default: false},
-    /** The RECEIPT: what was chosen, shown once the list itself is gone (past the commit). */
-    held: {type: Object as PropType<TradePayEntry | undefined>, default: undefined},
-  },
-  methods: {
-    /** The row under the cursor — the stage keeps it in view. */
-    focusedEl(): HTMLElement | undefined {
-      const el = (this.$refs.focusedRow ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
-      return Array.isArray(el) ? el[0] : el;
-    },
-  },
+import {PropType, useTemplateRef} from 'vue';
+import {TradePayDisabledEntry, TradePayEntry, TradePayRow} from '@/client/console/colonyTrade/tradePayModel';
+import {$t} from '@/client/directives/i18n';
+
+// A fragment has no single root for attributes to fall through to.
+defineOptions({name: 'ConsoleTradePayRows', inheritAttrs: false});
+defineProps({
+  /** Draw the «СПОСОБ ОПЛАТЫ» heading (the stage decides: it belongs to the ROWS, not to the mode). */
+  heading: {type: Boolean, default: false},
+  /** The paths the player can take (`visibleTradePayRows` — the server's index rides along). */
+  rows: {type: Array as PropType<ReadonlyArray<TradePayRow>>, default: () => []},
+  /** The refused paths, each with the server's reason. */
+  disabled: {type: Array as PropType<ReadonlyArray<TradePayDisabledEntry>>, default: () => []},
+  /** The chosen path (the server's option index). */
+  chosenIndex: {type: Number, default: -1},
+  /** The path the entry pins the fee to (`-1` = every path is the player's). */
+  lockedIndex: {type: Number, default: -1},
+  /** The path under the cursor (`-1` = the cursor is elsewhere). */
+  focusedIndex: {type: Number, default: -1},
+  /** The energy family's option index (the ⚡/🔩 pair lands there while the substitution is live). */
+  energyIndex: {type: Number, default: -1},
+  energyMixLive: {type: Boolean, default: false},
+  /** The chosen flexible family's draft — the mix the fee would be paid with right now. */
+  mix: {type: Object as PropType<{energy: number, steel: number} | undefined>, default: undefined},
+  /** Several valid mixes exist: the row names the next step. */
+  mixAdjustable: {type: Boolean, default: false},
+  /** The RECEIPT: what was chosen, shown once the list itself is gone (past the commit). */
+  held: {type: Object as PropType<TradePayEntry | undefined>, default: undefined},
 });
+
+const focusedRow = useTemplateRef<HTMLElement | Array<HTMLElement>>('focusedRow');
+
+/** The row under the cursor — the stage keeps it in view. */
+function focusedEl(): HTMLElement | undefined {
+  const el = focusedRow.value ?? undefined;
+  return Array.isArray(el) ? el[0] : el;
+}
+
+defineExpose({focusedEl});
 </script>
