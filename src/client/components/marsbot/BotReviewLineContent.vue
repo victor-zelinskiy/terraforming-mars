@@ -1,5 +1,4 @@
 <template>
-  <!-- TRACK MOVEMENT: capsule + from→to + mini-scale (+ reached-cell action) -->
   <div v-if="line.kind === 'track'" class="mbr__move" :class="{'mbr__move--action': line.action !== undefined}">
     <div class="mbr__move-top">
       <span class="mbr__capsule" :title="line.capsule.length > 1 ? $t('Composite track') : undefined">
@@ -24,16 +23,16 @@
     </div>
   </div>
 
-  <!-- Log consequence -->
   <template v-else-if="line.kind === 'log'">
+    <!-- Log consequence -->
     <span v-if="line.labelKey !== undefined" class="mbr__cost-label" :class="{'mbr__cost-label--cost': line.tone === 'cost'}" v-i18n>{{ line.labelKey }}</span>
     <span class="mbr__tokens">
       <JournalTokenRenderer v-for="(token, ti) in tokensOf(line.message)" :key="ti" :token="token" :players="players" />
     </span>
   </template>
 
-  <!-- Attack -->
   <template v-else-if="line.kind === 'attack'">
+    <!-- Attack -->
     <!-- No `target` ⇒ nobody at the table held it: the line names the DEMAND,
          never a seat that merely happened to be first. -->
     <span v-if="line.attack.target !== undefined" class="mbr__who">
@@ -54,14 +53,19 @@
     </span>
   </template>
 
-  <!-- Note (ignored tag / skipped reward / the WHY of a political step) -->
   <template v-else-if="line.kind === 'note'">
+    <!-- Note (ignored tag / skipped reward / the WHY of a political step) -->
     <span class="mbr__notemark" :class="{'mbr__notemark--info': line.tone === 'info'}" aria-hidden="true">{{ line.tone === 'info' ? '›' : '⊘' }}</span>
     <span class="mbr__notetext" :data-note-key="line.noteKey">{{ noteText(line) }}</span>
   </template>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * TRACK MOVEMENT: capsule + from→to + mini-scale (+ reached-cell action)
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * Renders the CONTENT of ONE `BotReviewLine` (track movement / log / attack /
  * note). Extracted so the top-level chain AND a nested «Secondary card»
@@ -69,7 +73,7 @@
  * kind is handled by the parent (BotTurnReviewBody), which recurses into this
  * component for the secondary's own lines.
  */
-import {defineComponent, PropType} from 'vue';
+import {PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
@@ -79,7 +83,8 @@ import {TrackAction} from '@/common/automa/AutomaTypes';
 import {MarsBotAttack} from '@/common/automa/MarsBotTurn';
 import {BotReviewLine} from './botTurnReviewModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {participantDisplayName} from './marsBotDisplay';
 import {trackActionGlyph, trackActionLabel} from './marsBotView';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
@@ -87,76 +92,72 @@ import Tag from '@/client/components/Tag.vue';
 
 type CellGlyph = {iconClass: string, symbol: string};
 
-export default defineComponent({
-  name: 'BotReviewLineContent',
-  components: {JournalTokenRenderer, Tag},
-  props: {
-    line: {type: Object as PropType<BotReviewLine>, required: true},
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
-  },
-  methods: {
-    /** A note's text — a bare key, or a template with its params (the chooser's «N more delegates needed»). */
-    noteText(line: Extract<BotReviewLine, {kind: 'note'}>): string {
-      return line.noteParams !== undefined && line.noteParams.length > 0 ?
-        translateTextWithParams(line.noteKey, line.translateParams === true ? line.noteParams.map((p) => translateText(p)) : [...line.noteParams]) :
-        translateText(line.noteKey);
-    },
-    cellGlyph(action: TrackAction | undefined): CellGlyph {
-      if (action === undefined) {
-        return {iconClass: '', symbol: ''};
-      }
-      const g = trackActionGlyph(action);
-      switch (g.kind) {
-      case 'advance': return {iconClass: '', symbol: '↻'};
-      case 'tr': return {iconClass: 'resource_icon resource_icon--rating', symbol: ''};
-      case 'tag': return {iconClass: '', symbol: '↦'};
-      case 'param': return {iconClass: 'mb-ico mb-ico--' + g.icon, symbol: ''};
-      case 'tile': return {iconClass: 'mb-ico mb-ico--' + g.tile, symbol: ''};
-      case 'floater': return {iconClass: 'mb-ico mb-ico--floater', symbol: ''};
-      case 'colony': return {iconClass: '', symbol: '◉'};
-      case 'ma': return {iconClass: '', symbol: g.which === 'milestone' ? '🏆' : '🏅'};
-      case 'token': return {iconClass: 'mb-ico mb-ico--' + g.token, symbol: ''};
-      }
-    },
-    actionText(action: TrackAction | undefined): string {
-      if (action === undefined) {
-        return '';
-      }
-      const label = trackActionLabel(action);
-      return translateTextWithParams(label.message, label.params);
-    },
-    tokensOf(message: LogMessage | undefined): Array<string | LogMessageData> {
-      if (message === undefined) {
-        return [];
-      }
-      // The shared seam — plural groups resolve across token boundaries.
-      return [...parseLocalizedLog(message)];
-    },
-    targetName(color: Color): string {
-      const player = this.players.find((p) => p.color === color);
-      return player !== undefined ? participantDisplayName(player) : color;
-    },
-    attackIcons(attack: MarsBotAttack): Array<string> {
-      if (attack.resource === 'cube') {
-        // The composite demand draws BOTH sprites — it is genuinely "an animal
-        // OR a microbe" until one is gone. A resolved cube says which.
-        return attack.cardResource !== undefined ?
-          [iconClassFor(attack.cardResource)] :
-          ['card-resource card-resource-animal', 'card-resource card-resource-microbe'];
-      }
-      return [iconClassFor(attack.resource)];
-    },
-    attackTone(attack: MarsBotAttack): string {
-      return attack.outcome === 'hit' ? 'mbr__imp-chip--loss' : 'mbr__imp-chip--calm';
-    },
-    attackNote(attack: MarsBotAttack): string {
-      switch (attack.outcome) {
-      case 'hit': return '';
-      case 'nothing-to-lose': return 'Nothing to lose';
-      case 'protected': return 'Resources are protected';
-      case 'target-chooses': return 'Chooses what to lose';
-      }
-    },
-  },
+defineOptions({name: 'BotReviewLineContent'});
+const props = defineProps({
+  line: {type: Object as PropType<BotReviewLine>, required: true},
+  players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
 });
+
+/** A note's text — a bare key, or a template with its params (the chooser's «N more delegates needed»). */
+function noteText(line: Extract<BotReviewLine, {kind: 'note'}>): string {
+  return line.noteParams !== undefined && line.noteParams.length > 0 ?
+    translateTextWithParams(line.noteKey, line.translateParams === true ? line.noteParams.map((p) => translateText(p)) : [...line.noteParams]) :
+    translateText(line.noteKey);
+}
+function cellGlyph(action: TrackAction | undefined): CellGlyph {
+  if (action === undefined) {
+    return {iconClass: '', symbol: ''};
+  }
+  const g = trackActionGlyph(action);
+  switch (g.kind) {
+  case 'advance': return {iconClass: '', symbol: '↻'};
+  case 'tr': return {iconClass: 'resource_icon resource_icon--rating', symbol: ''};
+  case 'tag': return {iconClass: '', symbol: '↦'};
+  case 'param': return {iconClass: 'mb-ico mb-ico--' + g.icon, symbol: ''};
+  case 'tile': return {iconClass: 'mb-ico mb-ico--' + g.tile, symbol: ''};
+  case 'floater': return {iconClass: 'mb-ico mb-ico--floater', symbol: ''};
+  case 'colony': return {iconClass: '', symbol: '◉'};
+  case 'ma': return {iconClass: '', symbol: g.which === 'milestone' ? '🏆' : '🏅'};
+  case 'token': return {iconClass: 'mb-ico mb-ico--' + g.token, symbol: ''};
+  }
+}
+function actionText(action: TrackAction | undefined): string {
+  if (action === undefined) {
+    return '';
+  }
+  const label = trackActionLabel(action);
+  return translateTextWithParams(label.message, label.params);
+}
+function tokensOf(message: LogMessage | undefined): Array<string | LogMessageData> {
+  if (message === undefined) {
+    return [];
+  }
+  // The shared seam — plural groups resolve across token boundaries.
+  return [...parseLocalizedLog(message)];
+}
+function targetName(color: Color): string {
+  const player = props.players.find((p) => p.color === color);
+  return player !== undefined ? participantDisplayName(player) : color;
+}
+function attackIcons(attack: MarsBotAttack): Array<string> {
+  if (attack.resource === 'cube') {
+    // The composite demand draws BOTH sprites — it is genuinely "an animal
+    // OR a microbe" until one is gone. A resolved cube says which.
+    return attack.cardResource !== undefined ?
+      [iconClassFor(attack.cardResource)] :
+      ['card-resource card-resource-animal', 'card-resource card-resource-microbe'];
+  }
+  return [iconClassFor(attack.resource)];
+}
+function attackTone(attack: MarsBotAttack): string {
+  return attack.outcome === 'hit' ? 'mbr__imp-chip--loss' : 'mbr__imp-chip--calm';
+}
+function attackNote(attack: MarsBotAttack): string {
+  switch (attack.outcome) {
+  case 'hit': return '';
+  case 'nothing-to-lose': return 'Nothing to lose';
+  case 'protected': return 'Resources are protected';
+  case 'target-chooses': return 'Chooses what to lose';
+  }
+}
 </script>
