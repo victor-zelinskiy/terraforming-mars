@@ -46,89 +46,54 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
-import {useFlowScope} from '@/client/console/session/useFlowScope';
+<script setup lang="ts">
+import {computed, PropType, ref} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import ConsoleTenderCard from './ConsoleTenderCard.vue';
 import {
   TenderPlace, TenderPortfolioEntry, TenderReading, tenderCardStateOf, tenderReadyHere,
 } from '@/client/console/campaign/tenderPortfolio';
 import {readingText} from '@/client/console/readingText';
-import {motionMs} from '@/client/components/motion/motionTokens';
 
-/** How long the one-shot stamp class stands (the CSS keyframe's own length — never a gate). */
-const STAMP_MS = 620;
-
-export default defineComponent({
-  name: 'ConsoleTenderPortfolio',
-  components: {ConsoleTenderCard},
-  props: {
-    /** The certificates IN THE DOOR's ORDER (the host sorts — `tenderDoorList`). */
-    entries: {type: Array as PropType<ReadonlyArray<TenderPortfolioEntry>>, required: true},
-    /** The host's cursor over `entries` (−1 = none). */
-    focus: {type: Number, required: true},
-    place: {type: String as PropType<TenderPlace>, required: true},
-    /** The instance whose answer is on the wire. */
-    busy: {type: String, required: false, default: undefined},
-    /** Slots whose certificate is still in the air (the rise out of the dock) — held empty until their touchdown. */
-    heldNames: {type: Array as PropType<ReadonlyArray<string>>, required: false, default: () => []},
-    /** The layer stands fully open (a state marker specs read). */
-    live: {type: Boolean, required: false, default: false},
-    embedded: {type: Boolean, required: false, default: false},
-  },
-  setup() {
-    return {flow: useFlowScope('console-tender-portfolio')};
-  },
-  data() {
-    return {
-      slotEls: new Map<string, HTMLElement>(),
-      /** Instances whose stamp is landing right now (a one-shot class). */
-      stamping: new Set<string>(),
-      /** Each landing stamp's timer, by instance — its cancel. */
-      stampTimers: new Map<string, () => void>(),
-    };
-  },
-  computed: {
-    focused(): TenderPortfolioEntry | undefined {
-      return this.entries[this.focus];
-    },
-    readyCount(): number {
-      return tenderReadyHere(this.entries);
-    },
-  },
-  methods: {
-    tenderCardStateOf,
-    readingOf(reading: TenderReading): string {
-      return readingText({label: reading.key, params: [...reading.params]});
-    },
-    setSlotRef(instance: string, el: unknown): void {
-      if (el instanceof HTMLElement) {
-        this.slotEls.set(instance, el);
-      } else {
-        this.slotEls.delete(instance);
-      }
-    },
-    /** The certificate's element — a flight's source / the stamp's stage. */
-    slotEl(instance: string): HTMLElement | undefined {
-      return this.slotEls.get(instance);
-    },
-    /**
-     * THE STAMP LANDS — the one-shot event of an execution the player must not miss (the Committee's seal comes down on
-     * the certificate). A class the CSS keyframe reads; it ends on its own (reduced motion: the stamp simply stands).
-     */
-    playStamp(instance: string): void {
-      const prev = this.stampTimers.get(instance);
-      if (prev !== undefined) {
-        prev();
-      }
-      this.stamping.add(instance);
-      this.stamping = new Set(this.stamping);
-      this.stampTimers.set(instance, this.flow.after(motionMs(STAMP_MS), 'the certificate\'s stamp has landed', () => {
-        this.stamping.delete(instance);
-        this.stamping = new Set(this.stamping);
-        this.stampTimers.delete(instance);
-      }));
-    },
-  },
+defineOptions({name: 'ConsoleTenderPortfolio'});
+const props = defineProps({
+  /** The certificates IN THE DOOR's ORDER (the host sorts — `tenderDoorList`). */
+  entries: {type: Array as PropType<ReadonlyArray<TenderPortfolioEntry>>, required: true},
+  /** The host's cursor over `entries` (−1 = none). */
+  focus: {type: Number, required: true},
+  place: {type: String as PropType<TenderPlace>, required: true},
+  /** The instance whose answer is on the wire. */
+  busy: {type: String, required: false, default: undefined},
+  /** Slots whose certificate is still in the air (the rise out of the dock) — held empty until their touchdown. */
+  heldNames: {type: Array as PropType<ReadonlyArray<string>>, required: false, default: () => []},
+  /** The layer stands fully open (a state marker specs read). */
+  live: {type: Boolean, required: false, default: false},
+  embedded: {type: Boolean, required: false, default: false},
 });
+
+const slotEls = new Map<string, HTMLElement>();
+/** Instances whose stamp is landing right now (a one-shot class). */
+const stamping = ref(new Set<string>());
+const focused = computed((): TenderPortfolioEntry | undefined => {
+  return props.entries[props.focus];
+});
+const readyCount = computed((): number => {
+  return tenderReadyHere(props.entries);
+});
+function readingOf(reading: TenderReading): string {
+  return readingText({label: reading.key, params: [...reading.params]});
+}
+function setSlotRef(instance: string, el: unknown): void {
+  if (el instanceof HTMLElement) {
+    slotEls.set(instance, el);
+  } else {
+    slotEls.delete(instance);
+  }
+}
+/** The certificate's element — a flight's source / the stamp's stage. */
+function slotEl(instance: string): HTMLElement | undefined {
+  return slotEls.get(instance);
+}
+
+defineExpose({slotEl});
 </script>
