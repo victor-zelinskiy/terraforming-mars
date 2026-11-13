@@ -100,7 +100,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * The MarsBot board tracks — one row per track: the identity TAGS on the
  * left, the printed cell strip (action icons, the bot's cube on the current
@@ -109,7 +109,7 @@
  * the two presentations never diverge. Pure presentation over the SERVER
  * `MarsBotTrackModel` — no rules re-derived here.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {Tag as CardTag} from '@/common/cards/Tag';
 import {MarsBotCorpCubeModel, MarsBotCorpModel, MarsBotCubeType, marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
@@ -119,222 +119,216 @@ import {TrackCell, TrackActionGlyph, trackActionGlyph, trackActionLabel, trackCe
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import Tag from '@/client/components/Tag.vue';
 
-export default defineComponent({
-  name: 'MarsBotTracks',
-  components: {Tag},
-  props: {
-    tracks: {type: Array as PropType<ReadonlyArray<MarsBotTrackModel>>, required: true},
-    botColor: {type: String as PropType<Color>, required: true},
-    /** TV-readable sizing for the console info mode. */
-    large: {type: Boolean, default: false},
-    /** The bot's corporation — its seeded cubes are drawn on the tracks
-     *  (RB-B special cubes) and its legend explains them. */
-    corporation: {type: Object as PropType<MarsBotCorpModel | undefined>, default: undefined},
-    /** The game's milestone thresholds on the bot's tracks (decision R6 — `MarsBotModel.thresholds`). */
-    thresholds: {type: Array as PropType<ReadonlyArray<BotMilestoneThreshold>>, default: () => []},
-    /** The bot's tokens (decision R8 — `MarsBotModel.tokens`), present when its mat prints token cells. */
-    tokens: {type: Object as PropType<Partial<Record<BotTokenKind, number>> | undefined>, default: undefined},
-  },
-  methods: {
-    cellsFor(track: MarsBotTrackModel, trackIndex: number): Array<TrackCell> {
-      return trackCells(track, this.cubesByTrack.get(trackIndex) ?? [], this.thresholds.filter((t) => t.trackIndex === trackIndex));
-    },
-    glyphFor(cell: TrackCell): TrackActionGlyph {
-      return cell.action !== undefined ? trackActionGlyph(cell.action) : {kind: 'advance'};
-    },
-    trSteps(cell: TrackCell): number {
-      const g = this.glyphFor(cell);
-      return g.kind === 'tr' ? g.steps : 0;
-    },
-    targetTag(cell: TrackCell): CardTag | undefined {
-      const g = this.glyphFor(cell);
-      if (g.kind !== 'tag') {
-        return undefined;
-      }
-      return this.tracks[g.trackIndex]?.tags[0];
-    },
-    paramIcon(cell: TrackCell): string {
-      const g = this.glyphFor(cell);
-      return g.kind === 'param' ? g.icon : 'temperature';
-    },
-    paramCount(cell: TrackCell): number {
-      const g = this.glyphFor(cell);
-      return g.kind === 'param' ? g.count : 1;
-    },
-    tileKind(cell: TrackCell): string {
-      const g = this.glyphFor(cell);
-      return g.kind === 'tile' ? g.tile : 'greenery';
-    },
-    floaterCount(cell: TrackCell): number {
-      const g = this.glyphFor(cell);
-      return g.kind === 'floater' ? g.count : 1;
-    },
-    /** The M€ a colony cell charges once its colony is built (the fan-made Amazonis board's `colony5`). */
-    colonyPrice(cell: TrackCell): number | undefined {
-      const g = this.glyphFor(cell);
-      return g.kind === 'colony' ? g.price : undefined;
-    },
-    tokenKind(cell: TrackCell): BotTokenKind | undefined {
-      const g = this.glyphFor(cell);
-      return g.kind === 'token' ? g.token : undefined;
-    },
-    tokenCount(cell: TrackCell): number {
-      const g = this.glyphFor(cell);
-      return g.kind === 'token' ? g.count : 0;
-    },
-    maGlyph(cell: TrackCell): string {
-      const g = this.glyphFor(cell);
-      return g.kind === 'ma' && g.which === 'award' ? '🏅' : '🏆';
-    },
-    /** The printed meaning of a cube colour (the corporation's own words). */
-    legendText(cubeType: MarsBotCubeType): string | undefined {
-      const id = this.corporation?.id;
-      const key = id === undefined ? undefined : marsBotCorpInfo(id).cubeLegend?.[cubeType];
-      return key === undefined ? undefined : translateText(key);
-    },
-    cubeLabel(cubeType: MarsBotCubeType): string {
-      switch (cubeType) {
-      case 'white': return translateText('White cube');
-      case 'black': return translateText('Black cube');
-      // 'credit' is the printed SILVER resource cube (C13) — the bot takes it
-      // as M€ at its component value.
-      default: return translateText('Silver resource cube');
-      }
-    },
-    hintFor(cell: TrackCell, trackIndex: number): string {
-      if (cell.regressed) {
-        return translateText('Regressed — this action will not trigger again');
-      }
-      const parts: Array<string> = [];
-      if (cell.action !== undefined && !cell.current) {
-        const label = trackActionLabel(cell.action);
-        parts.push(translateTextWithParams(label.message, label.params));
-      }
-      if (cell.cube !== undefined) {
-        const legend = this.legendText(cell.cube.cubeType);
-        parts.push(legend !== undefined ?
-          `${this.cubeLabel(cell.cube.cubeType)} — ${legend}` :
-          this.cubeLabel(cell.cube.cubeType));
-        if (cell.cube.spent) {
-          parts.push(translateText('This cube has already been used'));
-        }
-      }
-      const marker = this.markerLegendText;
-      if (cell.current && marker !== undefined && this.whiteMarkerTracks.has(trackIndex)) {
-        parts.push(`${translateText('White tracker')} — ${marker}`);
-      }
-      const column = this.columnLegendText;
-      if (column !== undefined && this.reminderColumns.has(cell.index)) {
-        parts.push(`${translateText('Marked column')} — ${column}`);
-      }
-      for (const milestone of cell.thresholds ?? []) {
-        parts.push(translateTextWithParams('The bot meets ${0} here', [translateText(milestone)]));
-      }
-      return parts.join(' · ');
-    },
-  },
-  computed: {
-    /** The bot's token counts, one row per kind its mat prints (decision R8). */
-    tokenRows(): Array<{kind: BotTokenKind, count: number}> {
-      if (this.tokens === undefined) {
-        return [];
-      }
-      const kinds = new Set<BotTokenKind>();
-      for (const track of this.tracks) {
-        for (const action of track.layout) {
-          if (action !== undefined && action !== null && action.startsWith('token')) {
-            kinds.add(action.split('_')[1] as BotTokenKind);
-          }
-        }
-      }
-      return [...kinds].map((kind) => ({kind, count: this.tokens?.[kind] ?? 0}));
-    },
-    /** Tracks whose TRACKER the corporation's setup paints white (C04). */
-    whiteMarkerTracks(): Set<number> {
-      return new Set(this.corporation?.whiteMarkerTracks ?? []);
-    },
-    /** What those white trackers remind of, in the card's own words. */
-    markerLegendText(): string | undefined {
-      const id = this.corporation?.id;
-      const key = id === undefined ? undefined : marsBotCorpInfo(id).markerLegend;
-      return key === undefined ? undefined : translateText(key);
-    },
-    /**
-     * COLUMNS the corporation's setup marked with a reminder cube (C29). A
-     * column crosses every track, and the rows all share one grid template,
-     * so a cell index IS the column — no board resolution needed, unlike the
-     * per-track white markers above.
-     */
-    reminderColumns(): Set<number> {
-      const id = this.corporation?.id;
-      return new Set(id === undefined ? [] : marsBotCorpInfo(id).reminderColumns ?? []);
-    },
-    /** What those marked columns remind of, in the card's own words. */
-    columnLegendText(): string | undefined {
-      const id = this.corporation?.id;
-      const key = id === undefined ? undefined : marsBotCorpInfo(id).columnLegend;
-      return key === undefined ? undefined : translateText(key);
-    },
-    /** The corporation's cubes, grouped by the track they sit on. */
-    cubesByTrack(): Map<number, Array<MarsBotCorpCubeModel>> {
-      const map = new Map<number, Array<MarsBotCorpCubeModel>>();
-      for (const cube of this.corporation?.cubes ?? []) {
-        const list = map.get(cube.trackIndex);
-        if (list === undefined) {
-          map.set(cube.trackIndex, [cube]);
-        } else {
-          list.push(cube);
-        }
-      }
-      return map;
-    },
-    /**
-     * One legend row per printed MEANING — not per colour. Colours that share
-     * a legend text share a row and show ALL their swatches (C30 seeds white
-     * and black cubes for one sentence: there the colour is a component, not
-     * a rule, and two identical rows would state a difference the card does
-     * not print). Plus one row for the white TRACKERS when it paints any, and
-     * one for the marked COLUMNS.
-     */
-    legendRows(): Array<{key: string, cubeTypes?: Array<MarsBotCubeType>, marker?: boolean, text: string}> {
-      const seeded = new Set((this.corporation?.cubes ?? []).map((c) => c.cubeType));
-      const rows: Array<{key: string, cubeTypes?: Array<MarsBotCubeType>, marker?: boolean, text: string}> = [];
-      for (const cubeType of ['white', 'black', 'credit'] as const) {
-        if (!seeded.has(cubeType)) {
-          continue;
-        }
-        const text = this.legendText(cubeType);
-        if (text === undefined) {
-          continue;
-        }
-        const sameMeaning = rows.find((row) => row.cubeTypes !== undefined && row.text === text);
-        if (sameMeaning?.cubeTypes !== undefined) {
-          sameMeaning.cubeTypes.push(cubeType);
-        } else {
-          rows.push({key: cubeType, cubeTypes: [cubeType], text});
-        }
-      }
-      const marker = this.markerLegendText;
-      if (marker !== undefined && this.whiteMarkerTracks.size > 0) {
-        rows.push({key: 'marker', marker: true, text: marker});
-      }
-      // …and one for the marked COLUMNS, which seed no cubes of their own and
-      // so are never reached by the loop above (C29).
-      const column = this.columnLegendText;
-      if (column !== undefined && this.reminderColumns.size > 0) {
-        rows.push({key: 'columns', cubeTypes: ['black'], text: column});
-      }
-      return rows;
-    },
-    /**
-     * The widest track's cell count — every row renders on the SAME grid
-     * template (`--mb-cols` columns), so cell k sits in the same column in
-     * every row and a shorter track (Venus, 13 cells) simply ends early
-     * instead of stretching its cells wider.
-     */
-    maxCells(): number {
-      return Math.max(1, ...this.tracks.map((t) => t.maxPosition + 1));
-    },
-  },
+defineOptions({name: 'MarsBotTracks'});
+const props = defineProps({
+  tracks: {type: Array as PropType<ReadonlyArray<MarsBotTrackModel>>, required: true},
+  botColor: {type: String as PropType<Color>, required: true},
+  /** TV-readable sizing for the console info mode. */
+  large: {type: Boolean, default: false},
+  /** The bot's corporation — its seeded cubes are drawn on the tracks
+   *  (RB-B special cubes) and its legend explains them. */
+  corporation: {type: Object as PropType<MarsBotCorpModel | undefined>, default: undefined},
+  /** The game's milestone thresholds on the bot's tracks (decision R6 — `MarsBotModel.thresholds`). */
+  thresholds: {type: Array as PropType<ReadonlyArray<BotMilestoneThreshold>>, default: () => []},
+  /** The bot's tokens (decision R8 — `MarsBotModel.tokens`), present when its mat prints token cells. */
+  tokens: {type: Object as PropType<Partial<Record<BotTokenKind, number>> | undefined>, default: undefined},
 });
+
+/** The bot's token counts, one row per kind its mat prints (decision R8). */
+const tokenRows = computed((): Array<{kind: BotTokenKind, count: number}> => {
+  if (props.tokens === undefined) {
+    return [];
+  }
+  const kinds = new Set<BotTokenKind>();
+  for (const track of props.tracks) {
+    for (const action of track.layout) {
+      if (action !== undefined && action !== null && action.startsWith('token')) {
+        kinds.add(action.split('_')[1] as BotTokenKind);
+      }
+    }
+  }
+  return [...kinds].map((kind) => ({kind, count: props.tokens?.[kind] ?? 0}));
+});
+/** Tracks whose TRACKER the corporation's setup paints white (C04). */
+const whiteMarkerTracks = computed((): Set<number> => {
+  return new Set(props.corporation?.whiteMarkerTracks ?? []);
+});
+/** What those white trackers remind of, in the card's own words. */
+const markerLegendText = computed((): string | undefined => {
+  const id = props.corporation?.id;
+  const key = id === undefined ? undefined : marsBotCorpInfo(id).markerLegend;
+  return key === undefined ? undefined : translateText(key);
+});
+/**
+ * COLUMNS the corporation's setup marked with a reminder cube (C29). A
+ * column crosses every track, and the rows all share one grid template,
+ * so a cell index IS the column — no board resolution needed, unlike the
+ * per-track white markers above.
+ */
+const reminderColumns = computed((): Set<number> => {
+  const id = props.corporation?.id;
+  return new Set(id === undefined ? [] : marsBotCorpInfo(id).reminderColumns ?? []);
+});
+/** What those marked columns remind of, in the card's own words. */
+const columnLegendText = computed((): string | undefined => {
+  const id = props.corporation?.id;
+  const key = id === undefined ? undefined : marsBotCorpInfo(id).columnLegend;
+  return key === undefined ? undefined : translateText(key);
+});
+/** The corporation's cubes, grouped by the track they sit on. */
+const cubesByTrack = computed((): Map<number, Array<MarsBotCorpCubeModel>> => {
+  const map = new Map<number, Array<MarsBotCorpCubeModel>>();
+  for (const cube of props.corporation?.cubes ?? []) {
+    const list = map.get(cube.trackIndex);
+    if (list === undefined) {
+      map.set(cube.trackIndex, [cube]);
+    } else {
+      list.push(cube);
+    }
+  }
+  return map;
+});
+/**
+ * One legend row per printed MEANING — not per colour. Colours that share
+ * a legend text share a row and show ALL their swatches (C30 seeds white
+ * and black cubes for one sentence: there the colour is a component, not
+ * a rule, and two identical rows would state a difference the card does
+ * not print). Plus one row for the white TRACKERS when it paints any, and
+ * one for the marked COLUMNS.
+ */
+const legendRows = computed((): Array<{key: string, cubeTypes?: Array<MarsBotCubeType>, marker?: boolean, text: string}> => {
+  const seeded = new Set((props.corporation?.cubes ?? []).map((c) => c.cubeType));
+  const rows: Array<{key: string, cubeTypes?: Array<MarsBotCubeType>, marker?: boolean, text: string}> = [];
+  for (const cubeType of ['white', 'black', 'credit'] as const) {
+    if (!seeded.has(cubeType)) {
+      continue;
+    }
+    const text = legendText(cubeType);
+    if (text === undefined) {
+      continue;
+    }
+    const sameMeaning = rows.find((row) => row.cubeTypes !== undefined && row.text === text);
+    if (sameMeaning?.cubeTypes !== undefined) {
+      sameMeaning.cubeTypes.push(cubeType);
+    } else {
+      rows.push({key: cubeType, cubeTypes: [cubeType], text});
+    }
+  }
+  const marker = markerLegendText.value;
+  if (marker !== undefined && whiteMarkerTracks.value.size > 0) {
+    rows.push({key: 'marker', marker: true, text: marker});
+  }
+  // …and one for the marked COLUMNS, which seed no cubes of their own and
+  // so are never reached by the loop above (C29).
+  const column = columnLegendText.value;
+  if (column !== undefined && reminderColumns.value.size > 0) {
+    rows.push({key: 'columns', cubeTypes: ['black'], text: column});
+  }
+  return rows;
+});
+/**
+ * The widest track's cell count — every row renders on the SAME grid
+ * template (`--mb-cols` columns), so cell k sits in the same column in
+ * every row and a shorter track (Venus, 13 cells) simply ends early
+ * instead of stretching its cells wider.
+ */
+const maxCells = computed((): number => {
+  return Math.max(1, ...props.tracks.map((t) => t.maxPosition + 1));
+});
+function cellsFor(track: MarsBotTrackModel, trackIndex: number): Array<TrackCell> {
+  return trackCells(track, cubesByTrack.value.get(trackIndex) ?? [], props.thresholds.filter((t) => t.trackIndex === trackIndex));
+}
+function glyphFor(cell: TrackCell): TrackActionGlyph {
+  return cell.action !== undefined ? trackActionGlyph(cell.action) : {kind: 'advance'};
+}
+function trSteps(cell: TrackCell): number {
+  const g = glyphFor(cell);
+  return g.kind === 'tr' ? g.steps : 0;
+}
+function targetTag(cell: TrackCell): CardTag | undefined {
+  const g = glyphFor(cell);
+  if (g.kind !== 'tag') {
+    return undefined;
+  }
+  return props.tracks[g.trackIndex]?.tags[0];
+}
+function paramIcon(cell: TrackCell): string {
+  const g = glyphFor(cell);
+  return g.kind === 'param' ? g.icon : 'temperature';
+}
+function paramCount(cell: TrackCell): number {
+  const g = glyphFor(cell);
+  return g.kind === 'param' ? g.count : 1;
+}
+function tileKind(cell: TrackCell): string {
+  const g = glyphFor(cell);
+  return g.kind === 'tile' ? g.tile : 'greenery';
+}
+function floaterCount(cell: TrackCell): number {
+  const g = glyphFor(cell);
+  return g.kind === 'floater' ? g.count : 1;
+}
+/** The M€ a colony cell charges once its colony is built (the fan-made Amazonis board's `colony5`). */
+function colonyPrice(cell: TrackCell): number | undefined {
+  const g = glyphFor(cell);
+  return g.kind === 'colony' ? g.price : undefined;
+}
+function tokenKind(cell: TrackCell): BotTokenKind | undefined {
+  const g = glyphFor(cell);
+  return g.kind === 'token' ? g.token : undefined;
+}
+function tokenCount(cell: TrackCell): number {
+  const g = glyphFor(cell);
+  return g.kind === 'token' ? g.count : 0;
+}
+function maGlyph(cell: TrackCell): string {
+  const g = glyphFor(cell);
+  return g.kind === 'ma' && g.which === 'award' ? '🏅' : '🏆';
+}
+/** The printed meaning of a cube colour (the corporation's own words). */
+function legendText(cubeType: MarsBotCubeType): string | undefined {
+  const id = props.corporation?.id;
+  const key = id === undefined ? undefined : marsBotCorpInfo(id).cubeLegend?.[cubeType];
+  return key === undefined ? undefined : translateText(key);
+}
+function cubeLabel(cubeType: MarsBotCubeType): string {
+  switch (cubeType) {
+  case 'white': return translateText('White cube');
+  case 'black': return translateText('Black cube');
+  // 'credit' is the printed SILVER resource cube (C13) — the bot takes it
+  // as M€ at its component value.
+  default: return translateText('Silver resource cube');
+  }
+}
+function hintFor(cell: TrackCell, trackIndex: number): string {
+  if (cell.regressed) {
+    return translateText('Regressed — this action will not trigger again');
+  }
+  const parts: Array<string> = [];
+  if (cell.action !== undefined && !cell.current) {
+    const label = trackActionLabel(cell.action);
+    parts.push(translateTextWithParams(label.message, label.params));
+  }
+  if (cell.cube !== undefined) {
+    const legend = legendText(cell.cube.cubeType);
+    parts.push(legend !== undefined ?
+      `${cubeLabel(cell.cube.cubeType)} — ${legend}` :
+      cubeLabel(cell.cube.cubeType));
+    if (cell.cube.spent) {
+      parts.push(translateText('This cube has already been used'));
+    }
+  }
+  const marker = markerLegendText.value;
+  if (cell.current && marker !== undefined && whiteMarkerTracks.value.has(trackIndex)) {
+    parts.push(`${translateText('White tracker')} — ${marker}`);
+  }
+  const column = columnLegendText.value;
+  if (column !== undefined && reminderColumns.value.has(cell.index)) {
+    parts.push(`${translateText('Marked column')} — ${column}`);
+  }
+  for (const milestone of cell.thresholds ?? []) {
+    parts.push(translateTextWithParams('The bot meets ${0} here', [translateText(milestone)]));
+  }
+  return parts.join(' · ');
+}
 </script>
