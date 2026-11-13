@@ -24,6 +24,14 @@ function memberOf(source: string, name: string): string {
   const end = rest.search(/\n {4}},\n/);
   return rest.slice(0, end === -1 ? undefined : end);
 }
+/** The same member of a `<script setup>` component: `const name = computed(…)` / `function name(…)` — up to its closing line. */
+function setupMemberOf(source: string, name: string): string {
+  const start = source.search(new RegExp(`\\n(?:const ${name} = computed\\(|(?:async )?function ${name}\\()`));
+  expect(start, `the source still has «${name}»`).to.be.greaterThan(-1);
+  const rest = source.slice(start + 1);
+  const end = rest.search(/\n}\)?;?\n/);
+  return rest.slice(0, end === -1 ? undefined : end);
+}
 
 describe('a colony built by a card — the wiring of the door', () => {
   // The shell's code wherever it lives — the SFC and its controllers, in the monolith's dialect (`shellSource.ts`).
@@ -152,10 +160,11 @@ describe('a colony built by a card — the wiring of the door', () => {
     });
 
     it('the section never folds the stage under a staged build, and states the result as the ONE receipt reading', () => {
-      const complete = memberOf(section, 'completeFlow');
-      expect(complete).to.include('this.buildAnswered');
-      expect(memberOf(section, 'receiptOn')).to.include('this.rosterReceiptOn || this.cityReceiptOn || this.buildReceiptOn');
-      expect(memberOf(section, 'tileStatus'), 'an answered door offers and refuses nothing').to.include('this.buildAnswered');
+      // (The section is `<script setup>`: a computed is read as `x.value`.)
+      const complete = setupMemberOf(section, 'completeFlow');
+      expect(complete).to.include('buildAnswered.value');
+      expect(setupMemberOf(section, 'receiptOn')).to.include('rosterReceiptOn.value || cityReceiptOn.value || buildReceiptOn.value');
+      expect(setupMemberOf(section, 'tileStatus'), 'an answered door offers and refuses nothing').to.include('buildAnswered.value');
     });
   });
 
@@ -168,16 +177,17 @@ describe('a colony built by a card — the wiring of the door', () => {
     });
 
     it('the admission is the build transaction\'s own state — never a timer', () => {
-      const admit = memberOf(stage, 'admitCell');
-      expect(admit).to.include('b.active && b.colonyName === this.colony.name && berthIsOverLimit(b.slotIndex) ? b.slotIndex : -1');
+      const admit = setupMemberOf(stage, 'admitCell');
+      expect(admit).to.include('b.active && b.colonyName === props.colony.name && berthIsOverLimit(b.slotIndex) ? b.slotIndex : -1');
       expect(admit).to.not.match(/setTimeout|delayedCall/);
     });
 
     it('the build preview asks whether the aimed berth is empty — it never counts cubes against the limit', () => {
-      const preview = memberOf(stage, 'buildPreview');
-      expect(preview).to.include('this.colony.colonies[this.nextBuildSlot] === undefined');
+      const preview = setupMemberOf(stage, 'buildPreview');
+      expect(preview).to.include('props.colony.colonies[nextBuildSlot.value] === undefined');
       expect(preview).to.not.match(/[<>]=?\s*3\b/);
-      expect(memberOf(stage, 'nextBuildSlot')).to.include('nextBuildSlot(this.colony, this.buildSite)');
+      // The stage's computed keeps the template's name; the import it reads is `nextBuildSlotOf` (`colonyBerths.nextBuildSlot`).
+      expect(setupMemberOf(stage, 'nextBuildSlot')).to.include('nextBuildSlotOf(props.colony, props.buildSite)');
     });
 
     it('past the press EVERY colony act speaks ONE status on the bar — «Выполняется…» on the stage, «Выполнено» on the receipt grid', () => {
@@ -203,8 +213,8 @@ describe('a colony built by a card — the wiring of the door', () => {
       expect(grid.slice(gridStatus, gridStatus + 140)).to.include('label: \'Completed\', enabled: false');
       expect(section, 'the section publishes its receipt reading').to.include('consoleColoniesUi.receipt = on;');
       // A card's build receipt belongs to the HOSTED instance (a fresh «Колонии» beside a parked flow is ordinary).
-      expect(memberOf(section, 'buildReceipt')).to.include('this.embedded ? this.buildState.receipt ?? this.buildReceiptLatch : undefined');
-      expect(memberOf(section, 'buildAnswered')).to.include('this.embedded && (colonyBuildAnswered() || this.buildReceipt !== undefined)');
+      expect(setupMemberOf(section, 'buildReceipt')).to.include('props.embedded ? buildState.receipt ?? buildReceiptLatch.value : undefined');
+      expect(setupMemberOf(section, 'buildAnswered')).to.include('props.embedded && (colonyBuildAnswered() || buildReceipt.value !== undefined)');
     });
 
     it('a flight that could not be played is published by the transaction\'s own WITNESS — never by the section\'s render', () => {
@@ -219,7 +229,7 @@ describe('a colony built by a card — the wiring of the door', () => {
       const template = section.slice(0, section.indexOf('<script'));
       expect(template.length, 'the section\'s template was found').to.be.greaterThan(1000);
       expect(template).to.not.match(/buildState\.(phase|active|degraded)/);
-      expect(memberOf(stage, 'admitCell')).to.include('berthIsOverLimit(b.slotIndex)');
+      expect(setupMemberOf(stage, 'admitCell')).to.include('berthIsOverLimit(b.slotIndex)');
     });
   });
 });

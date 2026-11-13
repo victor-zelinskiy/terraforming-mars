@@ -1,51 +1,4 @@
 <template>
-  <!--
-    COLONY FOCUS STAGE (iteration 3 — the premium detail scene). The
-    workspace's DEEPER state for ONE colony; the crumb above already says
-    «КОЛОНИИ › <colony> › <этап>», so the stage never titles itself.
-
-    COMPOSITION — ONE surface, three columns, read left → right:
-
-      HERO      the colony as a physical object: the big planet with its
-                orbital berth (the fleet's live landing anchor), the active
-                state, what the colony IS, who is parked here, and the honest
-                verdict beside the identity it judges.
-
-      MAIN      the GAME OBJECT, top to bottom:
-                · the EXPANDED TRADE TRACK — one big cell per position with
-                  its reward, and a real marker SEAT on a rail underneath
-                  (the seat is what the glide proxy lands on, so the flying
-                  marker is the same size as the resting one);
-                · the RETURN BASE — the rule made visible: a bracket from
-                  position 1 to the built-colony count with the ⟲ anchor
-                  under the exact cell the track falls back to, the built
-                  cubes inline, and (in build mode) the +1 ghost one cell
-                  further right;
-                · the COLONY BERTHS — three real places, each carrying the
-                  return step it would buy («⟲ 2/3/4»), so «building raises
-                  my trade floor» is read, never deduced;
-                · the ACTION CONFIGURATION (payment paths + decisions for
-                  trade; the confirm brief for build/pick; the colony's own
-                  rules for inspect — never an empty payment skeleton).
-
-      RESULT    the outcome grouped BY SOURCE, one card per source: the trade
-                reward / the owners' bonus / extras / payment — or the build
-                grant / the new colony / the future owner bonus.
-
-      (The command verbs live ONLY in the shell's bottom bar.)
-
-    RESOLUTION HAPPENS HERE: the hero planet carries the live
-    `data-fleet-berth`, every track cell's SEAT carries
-    `data-colony-track-cell`, the tight reward values carry
-    `data-colony-trade-source` / `data-colony-bonus-source` and each berth's
-    cube seat carries `data-colony-build-slot` + `data-colony-build-seat` —
-    so the fleet, the reward chips, the marker glide and the build cube all
-    land on THIS stage at THIS stage's real geometry.
-
-    MOTION: `data-unfold-item` marks the structural groups (they surface from
-    inside the opened panel) and `data-unfold-late` the FINE PRINT — text and
-    numbers arrive only once the geometry has settled (consoleColonyFocusMotion).
-  -->
   <div class="con-colfocus"
        ref="rootEl"
        data-forecast-host
@@ -804,8 +757,57 @@
   </div>
 </template>
 
-<script lang="ts">
-import {vEmbedZone} from '@/client/console/embedZoneRegistry';
+<script setup lang="ts">
+/*
+ * COLONY FOCUS STAGE (iteration 3 — the premium detail scene). The
+ * workspace's DEEPER state for ONE colony; the crumb above already says
+ * «КОЛОНИИ › <colony> › <этап>», so the stage never titles itself.
+ *
+ * COMPOSITION — ONE surface, three columns, read left → right:
+ *
+ *   HERO      the colony as a physical object: the big planet with its
+ *             orbital berth (the fleet's live landing anchor), the active
+ *             state, what the colony IS, who is parked here, and the honest
+ *             verdict beside the identity it judges.
+ *
+ *   MAIN      the GAME OBJECT, top to bottom:
+ *             · the EXPANDED TRADE TRACK — one big cell per position with
+ *               its reward, and a real marker SEAT on a rail underneath
+ *               (the seat is what the glide proxy lands on, so the flying
+ *               marker is the same size as the resting one);
+ *             · the RETURN BASE — the rule made visible: a bracket from
+ *               position 1 to the built-colony count with the ⟲ anchor
+ *               under the exact cell the track falls back to, the built
+ *               cubes inline, and (in build mode) the +1 ghost one cell
+ *               further right;
+ *             · the COLONY BERTHS — three real places, each carrying the
+ *               return step it would buy («⟲ 2/3/4»), so «building raises
+ *               my trade floor» is read, never deduced;
+ *             · the ACTION CONFIGURATION (payment paths + decisions for
+ *               trade; the confirm brief for build/pick; the colony's own
+ *               rules for inspect — never an empty payment skeleton).
+ *
+ *   RESULT    the outcome grouped BY SOURCE, one card per source: the trade
+ *             reward / the owners' bonus / extras / payment — or the build
+ *             grant / the new colony / the future owner bonus.
+ *
+ *   (The command verbs live ONLY in the shell's bottom bar.)
+ *
+ * RESOLUTION HAPPENS HERE: the hero planet carries the live
+ * `data-fleet-berth`, every track cell's SEAT carries
+ * `data-colony-track-cell`, the tight reward values carry
+ * `data-colony-trade-source` / `data-colony-bonus-source` and each berth's
+ * cube seat carries `data-colony-build-slot` + `data-colony-build-seat` —
+ * so the fleet, the reward chips, the marker glide and the build cube all
+ * land on THIS stage at THIS stage's real geometry.
+ *
+ * MOTION: `data-unfold-item` marks the structural groups (they surface from
+ * inside the opened panel) and `data-unfold-late` the FINE PRINT — text and
+ * numbers arrive only once the geometry has settled (consoleColonyFocusMotion).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
 /**
  * The COLONY FOCUS STAGE — the ONE detail surface behind every overview verb
  * (A = act, X = inspect; intents `trade` / `build` / `pick` / `inspect`), and
@@ -825,15 +827,14 @@ import {vEmbedZone} from '@/client/console/embedZoneRegistry';
  * trade confirm, RT = max the focused lane, B = close a sub-editor / fold
  * back. The bar mirrors через consoleColoniesUi.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {buildBenefitAt, ColonyMetadata, colonyCardResources, tradeBenefitAt} from '@/common/colonies/ColonyMetadata';
+import {buildBenefitAt, ColonyMetadata, colonyCardResources, tradeBenefitAt as tradeBenefitAtOf} from '@/common/colonies/ColonyMetadata';
 import {CardResource} from '@/common/CardResource';
 import {holdsAnyOf} from '@/client/console/parliament/influenceYieldModel';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {ColonyName} from '@/common/colonies/ColonyName';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SelectOptionModel, OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
@@ -843,7 +844,7 @@ import {SpendableResource} from '@/common/inputs/Spendable';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {translateMessage, translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
+import {$t, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {consoleColoniesUi, setColonyFocusStage, ColonyFocusIntent} from '@/client/console/consoleColoniesModel';
@@ -897,7 +898,7 @@ import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDi
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {colonyBuildState} from '@/client/console/colonyBuild/consoleColonyBuild';
-import {berthBuildBenefit, BerthBenefit, colonyBerthsOf, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
+import {berthBuildBenefit, BerthBenefit, colonyBerthsOf, nextBuildSlot as nextBuildSlotOf} from '@/client/console/colonyBuild/colonyBerths';
 import {ColonyBuildSite} from '@/common/colonies/ColonyBuildSite';
 import {berthIsOverLimit} from '@/common/colonies/colonyBerths';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
@@ -939,7 +940,7 @@ import {EffectOverlayStat} from '@/common/events/aggregate';
 import {forecastLayerAvailable, reactionChipsOf, VariantReaction} from '@/client/console/effectForecastModel';
 import {closeEffectForecastLayer, effectForecastOpen} from '@/client/console/consoleEffectForecast';
 import {
-  foldForecastHost, forecastHostIntent, forecastOwnerColors, forecastStatsByColor, openForecastHost, pulseForecastDoor,
+  foldForecastHost, forecastHostIntent, forecastOwnerColors as forecastOwnerColorsOf, forecastStatsByColor as forecastStatsByColorOf, openForecastHost, pulseForecastDoor,
 } from '@/client/console/consoleForecastHost';
 import {VersionedView} from '@/client/console/gameStateVersion';
 import ConsoleVenusBonusRow from '@/client/components/console/foundation/ConsoleVenusBonusRow.vue';
@@ -954,6 +955,7 @@ import {armVenusBonusCell} from '@/client/console/scaleStepReward/venusBonusCell
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import {consoleSessionScope} from '@/client/console/session/consoleSession';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {vEmbedZone} from '@/client/directives/vDirectives';
 
 /** What the stage asks of its target step's host (`ConsoleTradeTargetStep`). */
 type TradeTargetStepHandle = {nav: (dir: NavDirection) => void, cycleOwner: (delta: number) => void, confirm: () => void, inspect: () => void};
@@ -1064,2732 +1066,2689 @@ type HeldView = {
   buildSlot: number,
 };
 
-export default defineComponent({
-  name: 'ConsoleColonyFocusStage',
-  directives: {embedZone: vEmbedZone},
-  components: {
-    BenefitGlyph, ConsoleDeclinePlate, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows,
-    ConsoleTradeTargetStep, ConsoleTradeTargetValue, ConsoleTradeReceivingCards, ConsoleColonyTrackInstrument, ConsolePlanetDisc, ConsoleFlipValue,
-    ConsoleColonyCitySeat, PremiumCountGlyph, ConsoleForecastDoor, ConsoleForecastLayer, ConsoleVenusBonusRow, ConsoleVenusBonusStep,
-  },
-  props: {
-    colony: {type: Object as PropType<ColonyModel>, required: true},
-    /** What the player came to DO (`consoleColoniesModel.ColonyFocusIntent`). */
-    intent: {type: String as PropType<ColonyFocusIntent>, default: 'inspect'},
-    /** The action is genuinely offerable HERE (server truth, per intent). */
-    actionAvailable: {type: Boolean, default: false},
-    /** Honest reason when the action is impossible ('' when available). */
-    blockReason: {type: String, default: ''},
-    /** That reason's REGISTER (`AvailabilityBlocker.tone`): 'warning' = the
-     *  trade is legal and merely out of the player's window right now. */
-    blockTone: {type: String as PropType<'warning' | 'danger'>, default: 'danger'},
-    /**
-     * THE SERVER'S PROJECTION OF A BUILD ON THIS TILE (`SelectColonyModel.buildSites` — the berth the cube takes,
-     * beyond the printed limit or not). `undefined` off a build door; past the commit the stage reads its own
-     * pinned berth.
-     */
-    buildSite: {type: Object as PropType<ColonyBuildSite | undefined>, default: undefined},
-    /** The build is a CARD's own door (TR25): the berth beyond the limit wears the cube's ghost. */
-    buildProjected: {type: Boolean, default: false},
-    /** The pick's server verb ('Build' / 'Remove colony' …, pick intent). */
-    pickLabel: {type: String, default: ''},
-    /**
-     * The workspace holds an OUTCOME CLAIM and this stage is its host: the
-     * stage gives the follow-up its own zone and steps back. The SECTION owns
-     * the publication of the slot selector (one writer), so this prop is the
-     * only thing the stage needs to know.
-     */
-    outcomeZone: {type: Boolean, default: false},
-    /**
-     * THE DISCARD STEP STANDS OVER THE STAGE — the stage RECEDES, it does not close (colony polish 1). The
-     * resolution's mandatory discard takes the whole room (the hand, iteration 4's decision), and the stage — with
-     * the settlement table parked in its zone — waits underneath, mounted and invisible, for the hand to give the
-     * room back. Closing it here (the old way) unmounted the very table whose next card the player was waiting on:
-     * the colony re-materialized from its chip, and the next card flew in AGAIN to a place that had just held it.
-     */
-    receded: {type: Boolean, default: false},
-    /** The inner "Pay trade fee" OrOptions options (server-affordable). */
-    options: {type: Array as PropType<ReadonlyArray<SelectOptionModel>>, default: () => []},
-    disabledOptions: {type: Array as PropType<NonNullable<OrOptionsModel['disabledOptions']>>, default: () => []},
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
-    preview: {type: Object as PropType<ColonyTradePreviewModel | undefined>, default: undefined},
-    thisPlayer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** The viewer's versioned view — the R3 «Эффекты» layer asks the reacting seats' effect stats with it (PL-066). */
-    statsView: {type: Object as PropType<VersionedView | undefined>, default: undefined},
-    tradeOffset: {type: Number, default: 0},
-    /** The chosen payment path's own advance the PREVIEW was fetched with (the section echoes `path-offset` back). */
-    pathOffset: {type: Number, default: 0},
-    /**
-     * THE SERVER'S PROJECTION of this tile's marker (`track` intent — TR07:
-     * `SelectColonyModel.trackMoves`): where it stands and where the pick puts
-     * it. The instrument's ghost, the «+N» and the «торговля здесь» reading
-     * are drawn from it; the stage computes none of it.
-     */
-    trackMove: {type: Object as PropType<ColonyTrackMove | undefined>, default: undefined},
-    /**
-     * THE ROSTER ACT (`intent` is then the build's or the pick's — the section maps it): this pick replaces,
-     * adds or removes a colony tile. The SERVER's reading of what confirming does (`rosterStageReading`), the
-     * tile that leaves, the verb and the crumb's stage; the stage computes none of it.
-     */
-    roster: {type: Object as PropType<ColonyRosterStageView | undefined>, default: undefined},
-    /**
-     * THE CITY ACT (`intent` is then the pick's — the section maps it): this pick lays a city on the colony tile
-     * (TR22 Nova City). The SERVER's reading off its `tileSite` marker, the verb and the crumb's stage; the stage
-     * computes none of it.
-     */
-    city: {type: Object as PropType<ColonyCityStageView | undefined>, default: undefined},
-  },
-  emits: ['confirm', 'build-confirm', 'pick-confirm', 'cancel', 'path-offset', 'inspect'],
-  setup() {
-    return {flow: useFlowScope('colony-focus-stage')};
-  },
-  data() {
-    return {
-      payIdx: 0,
-      /** The one-shot COMMIT flare on the «⚡ сработает» door (PL-066). */
-      forecastPulse: false,
-      /** The flare's clock — a plain handle, never the tween in reactive data. */
-      pulseCall: undefined as {kill: () => void} | undefined,
-      /** The dialed Delta Works steel share (clamped live in `tradeSteelMix`);
-       *  0 keeps the energy-first default — steel covers only the deficit. */
-      steelMixPreference: 0,
-      /** Re-keys the mix panel's one-shot pulse on each dial press. */
-      mixFlashNonce: 0,
-      /** Where the cursor stood when the composition substep opened — B
-       *  restores it, so the walk back lands on the family row it left. */
-      mixReturnFocusIdx: 0,
-      focusIdx: 0,
-      subIdx: 0,
-      sub: undefined as Sub,
-      captures: {} as Record<string, unknown>,
-      /** The pre-selected Venus bonus (P89 · EL) — its two parts and the spread's lane cursor; the composed answer is `captures.venus`. */
-      venusParts: {} as VenusBonusParts,
-      /** The inner step's cursor (`venusBonusInner.ts`). */
-      venusFocus: {zone: 'lane', index: 0} as VenusInnerFocus,
-      /** The MEASURED height the panel's columns want (see `measureFit`). */
-      fitNeedPx: 0,
-      /** The pending measure frame's cancel (`flow.afterFrame`) — `undefined` when none is owed. */
-      fitRaf: undefined as (() => void) | undefined,
-      stopFitObs: undefined as (() => void) | undefined,
-      /**
-       * THE PRESENTED TARGETS — the card-resource destinations of the
-       * confirmed trade (picked + auto), snapshotted at the commit boundary
-       * beside `heldView`. The resolution scene renders these as physical
-       * faces; the transfer chips land on them; both read ONE list.
-       */
-      presentedTargets: [] as ReadonlyArray<ColonyTradePresentedTarget>,
-      /** The presented scene has finished (all chips landed + a read beat, or
-       *  a card payout took the area over) and is receding. */
-      cardlandReleased: false,
-      /** The read beat's cancel (a timer of `flow`) — `undefined` when no dwell stands. */
-      cardlandDwell: undefined as (() => void) | undefined,
-      /** The departure's own timer (its cancel) — the card is unmounted when it lands. */
-      cardlandLeave: undefined as (() => void) | undefined,
-      paymentCounts: {} as Partial<Record<SpendableResource, number>>,
-      payFlashNonce: 0,
-      tradeFleetState,
-      colonyTradeState,
-      colonyBuildState,
-      /** The ONE track mechanism's wave (a chosen track's move plays here — TR07) and its flow, mirrored for tracking. */
-      colonyTrackWaveState,
-      trackMoveFlow: colonyTrackMoveFlow,
-      /** The roster ceremony's poses (the seat gone, the hero docked). */
-      rosterState: colonyRosterState,
-      /** A city's landing on this tile (TR22): the cube has touched — the count flips. */
-      cityState: colonyCityState,
-      workspaceOutcomeState,
-      /** The remote-entry context (module reactive, mirrored for tracking). */
-      bonusEntry: colonyBonusEntry,
-      /** The resolution's presentation facts — the payout LIFT-OFF cue lives
-       *  here (a module reactive must be mirrored in `data()` to be tracked). */
-      resolutionUi: colonyResolutionUi,
-      /** The transfer framework's card-resource touchdown tally (mirrored so
-       *  Vue tracks it — the presented counters tick from it). */
-      landings: cardResourceLandings,
-      /** The transfer layer's live flights (mirrored so Vue tracks them). */
-      transferState: resourceTransferState,
-      /** ONE-SHOT: the outcome handoff (config release + zone unfold) has
-       *  played for the current claim — drives the `--handing` pose too, so
-       *  the CSS dissolve can never run ahead of the phrase. */
-      outcomeHandoffPlayed: false,
-      /** The stage is coming BACK from the discard step — the return's own transition runs (see `receded`). */
-      unreceding: false,
-      /** The «working area is back» dwell (see the `workingAreaYielded` watcher) — its cancel. */
-      stageBackTimer: undefined as (() => void) | undefined,
-      /** Each rise / fall of `stageBusy` — a release waiting on the working area's transitions is THIS fall's only. */
-      stageBackToken: 0,
-      /**
-       * THIS STAGE SESSION HAS CROSSED THE COMMIT. Latched on `pastCommit`'s
-       * rising edge and never dropped (a new colony / a fresh mount resets):
-       * the resolution's final beats release `pastCommit`'s terms one at a
-       * time, and the pre-commit verdict re-deriving in that gap is the red
-       * «Здесь стоит ваш флот» flash over a payout the fleet just earned.
-       */
-      commitLatched: false,
-      /** The verdict as it read AT THE PRESS — its reserved box keeps these words (and so its height). */
-      heldVerdict: undefined as StageVerdict | undefined,
-      /** The visitor line as it read AT THE PRESS (the fleet docking under the trade adds nothing to the column). */
-      heldFleetLine: undefined as StageFleetLine | undefined,
-      /** The last non-empty resolution context — held through the close so
-       *  the hero keeps naming the SOURCE role to the final frame. */
-      heldContext: undefined as {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined,
-      /**
-       * The COMMIT-BOUNDARY freeze: at the confirm the stage pins WHAT it was
-       * showing ({mode, available}), because the server's answer flips the
-       * props (the pick is gone, the trade is spent) while the resolution is
-       * still physically playing on this stage — recomputing live re-titled
-       * the crumb «Осмотр» and swapped the verdict under a flying cube.
-       * Released by the transaction's own falling edge, never a timer.
-       */
-      heldView: undefined as HeldView | undefined,
-      /**
-       * …AND THE PART OF THAT SNAPSHOT THAT OUTLIVES IT.
-       *
-       * `heldView` is released on the transaction's FALLING edge — deliberately,
-       * because the crumb and the mode should re-derive once the resolution is
-       * over. The working area may NOT: the stage is still mounted for the
-       * conclusion's own beat, and re-deriving its options there is the same
-       * re-lit menu one frame later. What has been committed on this stage is
-       * committed for the stage's whole life (the `commitLatched` law, applied
-       * to the configuration), so this snapshot is cleared only by a new colony
-       * or a fresh mount.
-       */
-      pinnedConfig: undefined as HeldView | undefined,
-    };
-  },
-  computed: {
-    /** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
-    cardResourceKinds(): ReadonlyArray<CardResource> {
-      return colonyCardResources(this.metadata);
-    },
-    colonyName(): ColonyName {
-      return this.colony.name as ColonyName;
-    },
-    /** The flown proxy just handed off to the REAL docked ship on this
-     *  stage's orbital berth — the one-shot arrival acknowledgment ring
-     *  (the tile's `justDocked` seat glow, spoken on the stage). */
-    fleetJustDockedHere(): boolean {
-      return this.tradeFleetState.dockedColonyName === this.colony.name;
-    },
-    /** The action is RESOLVING on this stage (fleet flying / rewards landing
-     *  / marker gliding / the BUILD cube seating) — chrome inert, anchors
-     *  live, nothing folds. */
-    resolving(): boolean {
-      return (this.tradeFleetState.active && this.tradeFleetState.colonyName === this.colony.name) ||
-        (this.colonyTradeState.active && this.colonyTradeState.colonyName === this.colony.name) ||
-        (this.colonyBuildState.active && this.colonyBuildState.colonyName === this.colony.name) ||
-        // …and a CHOSEN TRACK's move playing on this very stage (TR07).
-        (this.colonyTrackWaveState.active && this.colonyTrackWaveState.anchors === 'stage' &&
-          this.colonyTrackWaveState.moves.some((move) => move.colony === this.colony.name));
-    },
-    /**
-     * THE SOURCE CONTEXT of the running resolution (the hero's chip). The
-     * role advances with the waves — trade income first, then the owner
-     * bonus (the batch's own `role` tag / the discard step both say so) —
-     * and a REMOTE entry (another player's trade) names that player from
-     * the fleet parked on the colony. `undefined` pre-commit: the verdict
-     * owns that space.
-     */
-    resolutionContext(): {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined {
-      const claimed = this.workspaceOutcomeState.host === 'colonies' &&
-        this.workspaceOutcomeState.sourceCard === this.colony.name;
-      const own = this.colonyTradeState.active && this.colonyTradeState.colonyName === this.colony.name;
-      // ⚠️ THE VIEWER'S OWN TRANSACTION OUTRANKS THE ENTRY CONTEXT. The entry is
-      // a CLIENT-armed fact about a FOREIGN trade; the transaction is proof the
-      // viewer is trading here right now. Asking the entry first is how «Бот
-      // торговал с этой колонией» stood over the player's own fleet on their
-      // own trade — the entry belonged to an earlier payout on the same colony.
-      // A trader who IS the viewer is likewise never named: «you traded here»
-      // is not context, it is the thing they just did.
-      const isEntry = !own && this.bonusEntry.colonyName === this.colony.name;
-      if (!isEntry && !claimed && !own) {
-        return undefined;
-      }
-      if (isEntry) {
-        const foreign = this.bonusEntry.traderColor !== '' && this.bonusEntry.traderColor !== this.viewerColor;
-        const line = foreign && this.bonusEntry.traderName !== '' ?
-          translateTextWithParams('${0} traded with this colony', [this.bonusEntry.traderName]) : '';
-        return {
-          roleKey: 'Owner bonus triggered', bonus: true,
-          traderColor: foreign ? this.bonusEntry.traderColor : '', traderLine: line,
-        };
-      }
-      // THE INCOME LANDS FIRST. The owner bonus's batch arrives in the SAME
-      // response as the trade income (the Redux Venus), so its presence alone
-      // named the bonus while the income's chip was still flying onto the
-      // presented card — «ИСТОЧНИК · БОНУС ВЛАДЕЛЬЦА» over a trade reward in
-      // the air. While a presented target of the INCOME stands, the chip in
-      // flight is the trade reward; the bonus takes the name once it has left.
-      const incomeLanding = this.presentedTargets.some((t) => t.role !== 'colonyBonus');
-      const bonusWave = !incomeLanding && (revealIsOwnerBonus(colonyRevealSourceOf(currentRevealEvent())) ||
-        cardDiscardColonyBonus() !== undefined);
-      if (bonusWave) {
-        return {roleKey: 'Owner bonus', bonus: true, traderColor: '', traderLine: ''};
-      }
-      // A BUILD's payout is the PLACEMENT bonus, not trade income. Keyed on the
-      // stage's own intent rather than on the build transaction, which ends at
-      // the commit while its cards are still on the table — the label would
-      // otherwise turn into «Торговая награда» halfway through a payout no
-      // trade produced. (Only readable at all since the stage now stays up
-      // through the flight, which is exactly when the player reads it.)
-      const build = this.intent === 'build';
-      return {
-        roleKey: build ? 'Colony placement bonus' : 'Trade reward',
-        bonus: false, traderColor: '', traderLine: '',
-      };
-    },
-    /**
-     * What the SOURCE chip actually shows: the live context, or — past the
-     * commit — the LAST one, held to the final frame. The live derivation's
-     * terms (transaction, claim, entry) release one signal at a time at the
-     * resolution's end, and the chip vanishing a second before the workspace
-     * closes read as the screen forgetting whose payout it just presented.
-     */
-    presentedContext(): {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined {
-      return this.resolutionContext ?? (this.commitLatched ? this.heldContext : undefined);
-    },
-    /**
-     * THE HANDOFF CUE — when the configuration may let go. ⚠️ Deliberately NOT
-     * the claim (the submit), and — iteration 4 — deliberately NOT the covers'
-     * take-off either: the fan and the departures play OVER the still-standing
-     * scene (the player must read the count and the source), and only the
-     * layer's `ascend` beat — the first cover deep into its travel, almost
-     * grown — starts the dissolve underneath. Releasing at `fly` was
-     * «интерфейс уже исчез в момент отделения карт».
-     *  · or — for a flow with no covers of its own (a build's board lift, a
-     *    served remote batch, reduced motion, a degrade) — the content
-     *    genuinely landing in the zone is the cue.
-     */
-    outcomeHandoffDue(): boolean {
-      if (!this.outcomeZone) {
-        return false;
-      }
-      // A CARD IS RECEIVING. The presented target stands until every chip has
-      // touched it, is read for one calm beat and LEAVES on its own — only then
-      // may the payout take the room. Measured without this: the owner
-      // bonus's batch teleported into the zone in the very response that
-      // paid the trade, `outcomeContentIn` called the handoff due, the card
-      // was unmounted under the reward that had not even left its source,
-      // and the chip flew onto nothing (`run:no-dest`). The cover scene waits
-      // for the same fact from its side (`waitForCause` · `cardSceneLive`).
-      if (this.presentedTargets.length > 0) {
-        return false;
-      }
-      // THE TRACK IS STILL MOVING. The payout is a CONSEQUENCE of the marker
-      // arriving at the cell it is read at, so nothing of it — least of all
-      // this dissolve — may begin while the marker is still crossing the very
-      // track it would take with it. (`outcomeContentIn` goes true as soon as
-      // the batch teleports into the zone, which is exactly mid-glide: the
-      // reveal was mounting, veiled, while the interface evaporated under a
-      // marker still in flight.)
-      if (colonyTrackAdvancing() && this.colonyTradeState.colonyName === this.colony.name) {
-        return false;
-      }
-      // THE CARDS ARE ON THE MOVE — the one fact every cover scene raises
-      // (`colonyResolutionUi.payoutLiftOff`): the trade's covers at their
-      // separation, the build's cover-lift when its proxies take over. The
-      // stage dissolves WITH them, over the whole rise-and-turn, which is what
-      // makes the departure one phrase instead of a cut. Per-scene phase
-      // reads are deliberately gone: the build path had none, so its stage
-      // could only let go once the cards had already landed.
-      if (this.resolutionUi.payoutLiftOff) {
-        return true;
-      }
-      if (this.colonyTradeState.active &&
-          this.colonyTradeState.colonyName === this.colony.name &&
-          (this.colonyTradeState.cardScene === 'ascend' ||
-            this.colonyTradeState.cardScene === 'frame' ||
-            this.colonyTradeState.cardScene === 'handoff')) {
-        return true;
-      }
-      return this.outcomeContentIn;
-    },
-    /** The availability the stage PRESENTS — pinned across the commit
-     *  boundary (see `heldView`), live everywhere else. */
-    presentAvailable(): boolean {
-      return this.heldView !== undefined ? this.heldView.available : this.actionAvailable;
-    },
-    // ── THE EFFECT FORECAST (rides inside the colony preview) — the R3 «Эффекты» layer, the composers' own (PL-066) ──
-    /** The TRADE's answer for a trade, the BUILD's for a build; a card's door (pick / track / roster / city) has its own forecast in its composer. */
-    forecast(): EffectForecast | undefined {
-      return this.intent === 'trade' ? this.preview?.forecast : this.intent === 'build' ? this.preview?.buildForecast : undefined;
-    },
-    forecastReaction(): VariantReaction {
-      return reactionChipsOf(this.forecast?.facts ?? []);
-    },
-    forecastAvailable(): boolean {
-      return forecastLayerAvailable(this.forecast);
-    },
-    /** R3 is the SETUP level's verb — silent in a sub-step, past the commit and while the resolution plays. */
-    forecastCanOpen(): boolean {
-      return this.forecastAvailable && this.sub === undefined && this.heldView === undefined && !this.resolving;
-    },
-    fxOpen(): boolean {
-      return effectForecastOpen('colony');
-    },
-    forecastOwnerColors(): ReadonlyArray<string> {
-      return forecastOwnerColors(this.forecast, this.players);
-    },
-    forecastStatsByColor(): Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>> {
-      return forecastStatsByColor(this.forecastOwnerColors);
-    },
-    forecastCards(): ReadonlyArray<CardModel> {
-      return this.thisPlayer?.tableau ?? [];
-    },
-    /** The payment path the player actually chose, pinned at the commit —
-     *  what the config zone keeps showing while the trade resolves. */
-    heldPayment(): PayEntry | undefined {
-      return this.pinnedConfig?.payment;
-    },
-    /** The presentation mode the adaptive layout keys off. */
-    presentMode(): string {
-      if (this.heldView !== undefined) {
-        return this.heldView.mode;
-      }
-      if (this.intent === 'build') {
-        return this.actionAvailable ? 'build' : 'inspect';
-      }
-      if (this.intent === 'trade') {
-        return this.actionAvailable ? 'trade' : 'inspect';
-      }
-      if (this.intent === 'pick') {
-        return 'pick';
-      }
-      if (this.intent === 'track') {
-        return 'track';
-      }
-      if (this.intent === 'bonus') {
-        return 'bonus';
-      }
-      return 'inspect';
-    },
-    /**
-     * THE BONUS COMPOSITION — somebody else's trade is paying us here.
-     *
-     * The stage keeps its identity column and its payout zone and drops
-     * EVERYTHING that describes an action: the trade track, the guard rail,
-     * the berths, the configuration and the reward package. None of it is a
-     * decision the player has in front of them (they are not trading — they
-     * are being paid), and standing it up made the actual choice look like a
-     * detail of the trading screen.
-     */
-    bonusMode(): boolean {
-      return this.intent === 'bonus';
-    },
-    /** The colour of the city this act would lay on the tile ('' outside a «city» act) — the seat draws the ghost. */
-    cityProjection(): Color | '' {
-      return this.city?.reading.color ?? '';
-    },
-    /** The counted object of the city's reading — the space city RX08's readings draw. */
-    spaceCityGlyph(): CountedObjectGlyph {
-      return {kind: 'tile', tile: 'spaceCity'};
-    },
-    /** The cube has touched down — the count has flipped and the VP line has lit (the scene's own signal). */
-    cityCounted(): boolean {
-      return this.city !== undefined && this.cityState.counted;
-    },
-    /** The player's space cities AS SHOWN: «before» until the cube lands, «after» from then on (one number that flips). */
-    cityCitiesShown(): number {
-      const cities = this.city?.reading.cities;
-      return cities === undefined ? 0 : (this.cityCounted ? cities.after : cities.before);
-    },
-    /**
-     * The VP's formula in the score's own words («2 × 2 ПО») — the card's PRINTED rate (its declaration) over the
-     * server's count; the one formatter the score explorer and the play composer speak. '' when the card prints
-     * no per-city rate.
-     */
-    cityVpFormula(): string {
-      const reading = this.city?.reading;
-      if (reading === undefined || reading.victoryPoints === undefined) {
-        return '';
-      }
-      const declared = getCard(reading.card)?.victoryPoints;
-      if (typeof declared !== 'object' || declared.cities === undefined) {
-        return '';
-      }
-      return formulaOperandsText({
-        kind: 'per', vp: reading.victoryPoints, counted: reading.cities.after,
-        each: declared.each ?? 1, per: declared.per ?? 1, unit: 'cities',
-      });
-    },
-    resultTitle(): string {
-      if (this.city !== undefined) {
-        return 'City placement';
-      }
-      // A ROSTER act states its own subject — the build's «Build outcome» would name half of it.
-      if (this.roster !== undefined) {
-        return 'Outcome';
-      }
-      if (this.intent === 'build') {
-        return 'Build outcome';
-      }
-      // Pick / inspect: the first group inside is ALREADY labelled «On the
-      // current level» — repeating it as the section title read as a stutter
-      // (the 4K removal-pick frame). The section states its subject instead.
-      if (this.intent === 'track') {
-        return 'Colony track';
-      }
-      return this.intent === 'trade' && this.presentAvailable ? 'Trade outcome' : 'Colony rewards';
-    },
-    /** The server's projected move read the way the surfaces print it (`track` intent only). */
-    trackReading(): ColonyTrackMoveReading | undefined {
-      return this.intent === 'track' && this.trackMove !== undefined ? colonyTrackMoveReading(this.metadata, this.trackMove) : undefined;
-    },
-    trackReadingEnds(): Array<{key: 'before' | 'after', end: TrackMoveEnd}> {
-      const r = this.trackReading;
-      return r === undefined ? [] : [{key: 'before', end: r.before}, {key: 'after', end: r.after}];
-    },
-    trackFixedBenefit(): TrackMoveBenefit | undefined {
-      const fixed = this.trackReading?.fixed;
-      return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
-    },
-    /** The marker's readout — the tile's own «3/7». */
-    markerDisplay(): string {
-      return `${this.markerPosition + 1}/${this.trackMax + 1}`;
-    },
-    /** The chosen track's marker has LANDED at the top (the hold released under the settled proxy). */
-    trackLanded(): boolean {
-      return this.trackReading !== undefined && this.settledCell === this.trackReading.after.position;
-    },
-    /** The furthest cell a moving marker has touched on THIS tile — −1 when nothing moves. */
-    touchedCell(): number {
-      return this.colonyTrackWaveState.active ? (this.colonyTrackWaveState.touched[this.colony.name] ?? -1) : -1;
-    },
-    metadata(): ColonyMetadata {
-      return getColony(this.colony.name);
-    },
-    presented(): ColonyModel {
-      return presentedColonyModel(this.colony);
-    },
-    trackMax(): number {
-      return this.metadata.trade.quantity.length - 1;
-    },
-    /**
-     * THE CHOSEN PATH'S OWN REACH — the Unity action's «advance 1 step first»
-     * (`OptionMetadata.tradeOffset`), read off the payment row the cursor
-     * picked. It moves the marker on this very press: the effective cell, the
-     * caption and the reward package all describe the trade THAT path makes,
-     * and the section re-asks the preview with it (`path-offset`).
-     */
-    chosenPathOffset(): number {
-      return this.presentedOptions[this.payIdx]?.metadata?.tradeOffset ?? 0;
-    },
-    /** The offset the stage PRESENTS — the standing one (Trading Colony) plus
-     *  the chosen path's; pinned past the commit, so the spent «+N» of the
-     *  move that was made is never replaced by the next one's. */
-    presentedOffset(): number {
-      return this.pinnedConfig !== undefined ? this.pinnedConfig.tradeOffset : this.tradeOffset + this.chosenPathOffset;
-    },
-    effectivePosition(): number {
-      // A CHOSEN TRACK's move: the cell is the server's projection (the top), never a trade's offset.
-      if (this.intent === 'track' && this.trackMove !== undefined) {
-        return Math.min(this.trackMove.after, this.trackMax);
-      }
-      // A CITY laid on the tile (TR22) reads no trade: the track STANDS AS IT IS — a trade's standing offset is not
-      // projected into an act that does not touch the track (no ghost cell, no «+N» caption).
-      if (this.city !== undefined) {
-        return Math.min(this.presented.trackPosition, this.trackMax);
-      }
-      const offset = this.colony.isActive ? this.presentedOffset : 0;
-      return effectiveTradePosition(this.presented, this.metadata, offset);
-    },
-    /** The marker's DISPLAYED position — the presented one, so a committed
-     *  reset stays frozen behind the transaction and only the glide moves it
-     *  (the same `presentedColonyModel` the overview tile reads). */
-    markerPosition(): number {
-      return Math.min(this.presented.trackPosition, this.trackMax);
-    },
-    /** THE CITY ACT past its commit: the verdict's box stays (unpainted) so the hero column — the seat — stands still. */
-    /** The visitor line as it reads — the press-time words past the commit (see the template). */
-    fleetLineView(): StageFleetLine {
-      if (this.verdictReserved && this.heldFleetLine !== undefined) {
-        return this.heldFleetLine;
-      }
-      return {text: this.visitorLine, color: this.colony.visitor};
-    },
-    /** Past the press the verdict's box stays, unpainted — in every act (see the template). */
-    verdictReserved(): boolean {
-      return !this.bonusMode && (this.pastCommit || this.commitLatched);
-    },
-    /** The verdict the live props state (an English key + its tone). */
-    liveVerdict(): StageVerdict {
-      if (this.presentAvailable) {
-        return {
-          tone: 'ok',
-          text: this.city !== undefined ? 'Can place the city here' : this.roster !== undefined ? this.roster.verbKey :
-            this.intent === 'build' ? 'Build here' : this.intent === 'track' ? 'Can select' :
-              this.intent === 'pick' ? (this.pickLabel || 'Can select') : 'Trade available',
-        };
-      }
-      return {tone: this.blockTone === 'warning' ? 'notnow' : 'no', text: this.blockReason !== '' ? this.blockReason : 'Trade unavailable'};
-    },
-    /** What the verdict's box holds: the press-time words past the commit (so its height cannot change), else live. */
-    verdictView(): StageVerdict {
-      return this.verdictReserved && this.heldVerdict !== undefined ? this.heldVerdict : this.liveVerdict;
-    },
-    /** How many colonies stand here — the ONE number the reset rule reads. */
-    builtCount(): number {
-      return this.colony.colonies.length;
-    },
-    /**
-     * The build preview is LIVE: the door offers this tile, and the berth the build is aimed at is still empty
-     * (the answer's cube ends the preview — the commit is held through the scene, so the berth stays the
-     * destination for the whole flight). WHO may build is the server's door; nothing here counts cubes.
-     */
-    buildPreview(): boolean {
-      return this.intent === 'build' && this.presentAvailable && this.colony.colonies[this.nextBuildSlot] === undefined;
-    },
-    /** The build lands in a berth BEYOND THE PRINTED LIMIT (a card's door lifted it — TR25). */
-    buildOverLimit(): boolean {
-      return berthIsOverLimit(this.nextBuildSlot);
-    },
-    /** «Место 4 · сверх лимита» — the «Новая колония» line of a build beyond the limit. */
-    newColonyOverLimitText(): string {
-      return translateTextWithParams('Berth ${0} · over the limit', [String(this.nextBuildSlot + 1)]);
-    },
-    /**
-     * THE ADMISSION BEAT — the berth whose limit this build has just lifted: from the press (the build
-     * transaction is armed before the POST) until the cube stands there. ONE fact from the transaction's own
-     * state, never a timer: the limit mark lets go and the dashed contour closes off this class. An ORDINARY
-     * berth admits nothing — the instrument's props stand still through an ordinary build, as they always did.
-     */
-    admitCell(): number {
-      const b = this.colonyBuildState;
-      return b.active && b.colonyName === this.colony.name && berthIsOverLimit(b.slotIndex) ? b.slotIndex : -1;
-    },
-    /**
-     * The cell/berth pair currently being LATCHED by a landing build — the
-     * one-shot beat that makes «I just protected this position» a physical
-     * event rather than a number that silently changed. Driven by the build
-     * transaction's own phase, never a timer.
-     */
-    latchCell(): number {
-      const b = this.colonyBuildState;
-      if (!b.active || b.colonyName !== this.colony.name) {
-        return -1;
-      }
-      return b.phase === 'landed' || b.phase === 'done' ? b.slotIndex : -1;
-    },
-    /**
-     * The claim GROWS the panel to the band (`--claimed`): only one that will stand something in the zone — a card
-     * payout (`draw`), or whatever is presenting there now. A `pick`-only claim (the reward's target may be re-asked)
-     * keeps the action height until the question genuinely stands.
-     */
-    claimGrows(): boolean {
-      return this.outcomeZone && (this.workspaceOutcomeState.kinds.includes('draw') || this.workspaceOutcomeState.stage === 'presenting');
-    },
-    /** This colony's marker is mid-glide — the resting marker yields to the
-     *  flying proxy (the overview tile's `--marker-gliding` contract, now
-     *  honoured on the stage the trade actually resolves on). */
-    trackGliding(): boolean {
-      return (this.colonyTradeState.phase === 'glide' && this.colonyTradeState.colonyName === this.colony.name) ||
-        // …or the ONE track mechanism moving this tile's marker (a chosen track set to its top — TR07).
-        this.colonyTrackWaveState.gliding[this.colony.name] === true;
-    },
-    /** The teleported follow-up has actually landed in our zone. */
-    outcomeContentIn(): boolean {
-      return this.outcomeZone && this.workspaceOutcomeState.stage === 'presenting';
-    },
-    /**
-     * IS THE PAYOUT STANDING ON OUR WORKING AREA RIGHT NOW?
-     *
-     * The handoff is one-shot (`outcomeHandoffPlayed` — the phrase plays once
-     * per claim), but the POSE is not: `--handing` takes
-     * `.con-colfocus__main` to `opacity: 0`, and the TRACK is drawn there. The
-     * claim outlives the batch by design (the resolution owns the workspace
-     * until the reset commits), so keeping the pose on the claim left the
-     * colony blank for the closing beat — the white marker glided across an
-     * invisible track. The pose therefore rides the payout ITSELF: while a
-     * reveal batch is on the table (or on its way), and not a frame longer.
-     */
-    workingAreaYielded(): boolean {
-      return this.outcomeZone && (this.outcomeHandoffPlayed && currentRevealEvent() !== undefined || this.settlementTableOwesArea);
-    },
-    /**
-     * …AND A SETTLEMENT TABLE WITH A PLACE STILL TO TAKE IS THE PAYOUT TOO (colony polish 1). Between two cycles there
-     * is no batch on the table — cycle N's was acknowledged at its discard, cycle N+1's is held until the room is
-     * back — so the pose dropped exactly while the stage came back from under the hand: the TRADE TRACK surfaced
-     * over the table for the return and faded out again a beat later. The table owes the area until its LAST place
-     * is taken; from then on the track is the closing glide's stage, as before.
-     */
-    settlementTableOwesArea(): boolean {
-      const t = settlementTable;
-      return t.nonce !== 0 && t.presented && t.colony === this.colony.name && t.taken.length < t.total;
-    },
-    /**
-     * THE COMMIT BOUNDARY, as this stage sees it: the move is being made or
-     * has been made. Everything that answers «can I do this?» — the verdict
-     * chip, the availability dot — belongs strictly BEFORE it; everything
-     * after describes what happened.
-     */
-    pastCommit(): boolean {
-      return this.resolving || this.outcomeZone || this.heldView !== undefined;
-    },
-    /** One-shot: the cell the reset marker just landed on (the settle glow). */
-    settledCell(): number {
-      if (this.colonyTradeState.colonyName === this.colony.name) {
-        return this.colonyTradeState.settledCell;
-      }
-      return this.colonyTrackWaveState.settled[this.colony.name] ?? -1;
-    },
-    /** THE PROJECTION POSE: the entering planet has not docked yet (dropped by the ceremony's dock, and past the commit). */
-    rosterProjected(): boolean {
-      // (NOT `pastCommit`: the pose must stand from the press THROUGH the answer — the dock is what ends it.)
-      return this.roster !== undefined && this.roster.kind !== 'remove' && !this.rosterState.docked;
-    },
-    /** The hero's state line: an ENTERING tile says how it will enter (the server's projection); any other, how it stands. */
-    heroStateKey(): string {
-      const arrives = this.roster?.reading.arrives;
-      if (arrives !== undefined && !this.rosterState.docked) {
-        return arrives.entersActive ? 'Enters active' : 'Enters inactive';
-      }
-      return this.colony.isActive ? 'Active colony' : 'Not active yet';
-    },
-    /** «войдёт активной» / «войдёт неактивной — нужна карта с [ресурс]» — the entry, in the server's projection. */
-    rosterEntryNote(): string {
-      const arrives = this.roster?.reading.arrives;
-      if (arrives === undefined) {
-        return '';
-      }
-      if (arrives.entersActive) {
-        return translateText('Enters active');
-      }
-      const needs = arrives.needs.map((resource) => translateText(resource)).join(' / ');
-      return needs === '' ? translateText('Enters inactive') : translateTextWithParams('Enters inactive — needs a card with ${0}', [needs]);
-    },
-    /** «слот 1» — the berth the colony lands in (1-based, as the berth row counts). */
-    rosterBuildSlotText(): string {
-      const build = this.roster?.reading.build;
-      return build !== undefined && build.lands ? translateTextWithParams('Berth ${0}', [String(build.slot + 1)]) : '';
-    },
-    /** The build grant the landing colony pays (the tile's own printed reward for that berth). */
-    rosterGrantQty(): number {
-      const build = this.roster?.reading.build;
-      return build !== undefined && build.lands ? buildBenefitAt(this.metadata, build.slot).quantity : 0;
-    },
-    /** The same grant, resolved for a glyph (a list of one — read with `idx: 0`). */
-    rosterGrantBenefit(): BerthBenefit {
-      const build = this.roster?.reading.build;
-      return berthBuildBenefit(this.metadata, build !== undefined && build.lands ? build.slot : 0);
-    },
-    colonyBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
-      const c = this.metadata.colony;
-      return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
-    },
-    focusedBonusQty(): number {
-      return this.metadata.colony.quantity ?? 1;
-    },
-    /**
-     * The identity line under the planet: on a bonus the colony's OWN bonus (what is being paid), otherwise its
-     * trade income — read AT THE MARKER on a trade (К-2: «Доберите 2 карты», never the tile's variable «X»).
-     */
-    idDescription(): string {
-      if (this.bonusMode) {
-        return readingText({label: this.metadata.colony.description, params: []});
-      }
-      return readingText(this.intent === 'trade' ?
-        tradeIncomeLine(this.metadata, this.rewardPosition) :
-        {label: this.metadata.trade.description, params: []});
-    },
-    /**
-     * The berth a build here lands in — the ONE reading
-     * (`colonyBerths.nextBuildSlot`), never a clamp; past the commit, the berth
-     * the build was committed into (pinned for the stage's life).
-     */
-    nextBuildSlot(): number {
-      return this.pinnedConfig?.buildSlot ?? nextBuildSlot(this.colony, this.buildSite);
-    },
-    /** The bonus that berth pays, resolved for a glyph (a list of one — read with `idx: 0`). */
-    nextBuildBenefit(): BerthBenefit {
-      return berthBuildBenefit(this.metadata, this.nextBuildSlot);
-    },
-    buildQty(): number {
-      return buildBenefitAt(this.metadata, this.nextBuildSlot).quantity;
-    },
-    buildLost(): boolean {
-      return this.benefitResourceLost(this.metadata.build.type);
-    },
-    /** The names seated in the berths (index-aligned with the berths model) — the instrument's prop. */
-    ownerNames(): Array<string> {
-      return colonyBerthsOf(this.colony).map((berth) => this.ownerNameAt(berth.index));
-    },
-    owners(): Array<{color: Color, count: number, name: string}> {
-      return colonyOwnerCounts(this.colony).map((owner) => {
-        const player = this.players.find((p) => p.color === owner.color);
-        return {...owner, name: player !== undefined ? participantDisplayName(player) : owner.color};
-      });
-    },
-    /**
-     * THE ARITHMETIC WORTH DRAWING. A single seat needs none — the rate IS the
-     * payout, and «1 ×» is noise. It appears only where the number genuinely
-     * differs from the rate, and it belongs to ONE holder: the viewer when
-     * they stand here (it is their bonus), otherwise the largest holder (the
-     * one whose stake the scene has to explain).
-     */
-    bonusMath(): {color: Color, count: number, total: number} | undefined {
-      const mine = this.viewerColor === undefined ?
-        undefined :
-        this.owners.find((o) => o.color === this.viewerColor);
-      const subject = mine ?? [...this.owners].sort((a, b) => b.count - a.count)[0];
-      if (subject === undefined || subject.count < 2 || this.focusedBonusQty <= 0) {
-        return undefined;
-      }
-      return {color: subject.color, count: subject.count, total: subject.count * this.focusedBonusQty};
-    },
-    visitorLine(): string {
-      const visitor = this.colony.visitor;
-      if (visitor === undefined) {
-        return '';
-      }
-      if (visitor === this.viewerColor) {
-        return translateText('Your trade fleet is currently here');
-      }
-      const player = this.players.find((p) => p.color === visitor);
-      if (player !== undefined) {
-        return translateTextWithParams('Trade fleet of ${0} is currently here', [participantDisplayName(player)]);
-      }
-      return translateText('Trade fleet currently here');
-    },
-    /**
-     * THE CONFIGURATION IS PINNED — this stage is past its own commit and the
-     * working area is a RECEIPT, not a form. One flag, three sources (see
-     * `HeldView`): after the boundary the options, the disabled paths and the
-     * preview all come from the snapshot, so a NEXT trade offered in the very
-     * response that answered this one can never re-light the panel.
-     */
-    configPinned(): boolean {
-      return this.pinnedConfig !== undefined;
-    },
-    /** The «Pay trade fee» options the stage PRESENTS (pinned past commit). */
-    presentedOptions(): ReadonlyArray<SelectOptionModel> {
-      return this.pinnedConfig?.options ?? this.options;
-    },
-    /** …and the refused ones. */
-    presentedDisabled(): NonNullable<OrOptionsModel['disabledOptions']> {
-      return this.pinnedConfig?.disabledOptions ?? this.disabledOptions;
-    },
-    /**
-     * The trade/build preview the stage PRESENTS. Pinned past the commit, so
-     * the reward package, the step list and every «current → resulting» keep
-     * describing the move that was made here — never the next one the server
-     * has already offered.
-     */
-    presentedPreview(): ColonyTradePreviewModel | undefined {
-      return this.pinnedConfig !== undefined ? this.pinnedConfig.preview : this.preview;
-    },
-    // THE ROW MODEL IS SHARED (`tradePayModel.ts`) — the fleet-dock stage reads
-    // the same one, so a payment path can never be drawn two ways.
-    payEntries(): Array<PayEntry> {
-      return tradePayEntries(this.presentedOptions, textOf, payIconClass);
-    },
-    disabledEntries(): Array<{title: string, iconClass: string, reason: string}> {
-      return tradePayDisabledEntries(this.presentedDisabled, textOf, payIconClass);
-    },
-    /** The pay row under the cursor (the server's option index), `-1` while the cursor is elsewhere. */
-    focusedPayIndex(): number {
-      return this.sub === undefined && this.focused?.zone === 'pay' ? this.focused.index : -1;
-    },
-    /** The chosen flexible family's draft as the row prints it («⚡2 + 🔩1»). */
-    payRowMix(): {energy: number, steel: number} | undefined {
-      const mix = this.energyMixInfo;
-      return mix === undefined ? undefined : {energy: (mix.cost ?? 0) - this.tradeSteelMix, steel: this.tradeSteelMix};
-    },
-    /**
-     * THE PATHS THE PLAYER CAN ACTUALLY TAKE.
-     *
-     * With the fee fixed by the entry there is exactly one, and the rest are
-     * not choices at all — a card action walked in through THIS path and
-     * cannot switch. A dimmed list of four would be a menu whose every other
-     * item refuses the press; the header already says where the trade came
-     * from, and that is the whole explanation the player needs.
-     *
-     * The original index rides along: `payIdx`, the focus ring and the submit
-     * all speak the SERVER's option order, and a filtered list must never
-     * renumber it.
-     */
-    visiblePayEntries(): Array<PayEntry & {index: number}> {
-      // PAST THE COMMIT there is no list at all — the chosen path alone stands
-      // as the receipt (the held row below the loop). A menu of alternatives
-      // over a move that has already been made is an offer the player cannot
-      // take, and — when the server has already re-offered the trade — one
-      // whose numbers describe a DIFFERENT transaction.
-      return visibleTradePayRows(this.payEntries, this.lockedPayIdx, this.configPinned);
-    },
-    /** …and a REFUSED path is equally irrelevant once the fee is fixed. */
-    visibleDisabledEntries(): Array<{title: string, iconClass: string, reason: string}> {
-      return [...visibleTradePayDisabled(this.disabledEntries, this.lockedPayIdx, this.configPinned)];
-    },
-    /**
-     * THE FEE IS FIXED — this trade was entered from a card's own action, so
-     * its payment path is the entry, not a decision. `-1` = the ordinary
-     * «Колонии» entry, where every path is the player's to pick.
-     *
-     * Resolved from the option's `metadata.card` (a card's door) or
-     * `metadata.party` (the Unity party action's door), never its label.
-     */
-    lockedPayIdx(): number {
-      return lockedTradePaymentIndex(this.presentedOptions, cardColonyTradeCard(), partyColonyTradeParty());
-    },
-    isMcSelected(): boolean {
-      return this.presentedOptions[this.payIdx]?.metadata?.icon === 'megacredits';
-    },
-    /** The energy payment family is the chosen path (Delta Works mix applies). */
-    isEnergySelected(): boolean {
-      return this.presentedOptions[this.payIdx]?.metadata?.icon === 'energy';
-    },
-    /** The live Delta Works mix of the energy fee, or undefined without one. */
-    energyMixInfo(): ColonyTradePreviewModel['energyMix'] {
-      const mix = this.presentedPreview?.energyMix;
-      if (mix === undefined || !this.isEnergySelected || !this.tradeConfigLive) {
-        return undefined;
-      }
-      return mix;
-    },
-    /** The substitution is live in THIS trade (server capability — present iff
-     *  Delta Works widens the family), regardless of which row is chosen:
-     *  what puts the ⚡/🔩 pair on the family row BEFORE any selection. */
-    energyMixLive(): boolean {
-      return this.tradeConfigLive && this.presentedPreview?.energyMix !== undefined;
-    },
-    /** The energy family's own option index (metadata-keyed, never a title). */
-    energyEntryIdx(): number {
-      return this.presentedOptions.findIndex((o) => o.metadata?.icon === 'energy');
-    },
-    /** The EFFECTIVE steel share — THE canonical draft value: the dialed
-     *  preference clamped by the ONE shared rule to the SERVER's own bounds
-     *  (energy-first by default — preference 0 is the bare deficit). The
-     *  family row, the composition panel, the right «ОПЛАТА» summary and the
-     *  submitted batch all read THIS number. */
-    tradeSteelMix(): number {
-      const mix = this.energyMixInfo;
-      if (mix === undefined) {
-        return 0;
-      }
-      return clampEnergyMixSteel(this.steelMixPreference, mix);
-    },
-    tradeMixAdjustable(): boolean {
-      const mix = this.energyMixInfo;
-      return mix !== undefined && mix.maxSteel > mix.minSteel;
-    },
-    /** The whole energy-family fee as the SHARED PaymentView — the same rows /
-     *  captions / verdict grammar the card-play selector renders. */
-    tradeMixView(): PaymentView {
-      const mix = this.energyMixInfo;
-      if (mix === undefined) {
-        return buildEnergyMixView({cost: 0, energyAvailable: 0, steelAvailable: 0, minSteel: 0, maxSteel: 0, steelUsed: 0});
-      }
-      return buildEnergyMixView({
-        cost: mix.cost,
-        energyAvailable: mix.energyAvailable,
-        steelAvailable: mix.steelAvailable,
-        minSteel: mix.minSteel,
-        maxSteel: mix.maxSteel,
-        steelUsed: this.tradeSteelMix,
-      });
-    },
-    tradeConfigLive(): boolean {
-      return this.intent === 'trade' && this.presentAvailable;
-    },
-    /** A BUILD whose placement bonus asks something (Titan: «положи 3
-     *  аэростата на карту») composes on this stage too — same rows, same
-     *  picker, same batch: the prompt must never arrive after the cube. */
-    buildConfigLive(): boolean {
-      return this.intent === 'build' && this.presentAvailable;
-    },
-    /** Either act is composing decisions on this stage right now. */
-    configLive(): boolean {
-      return this.tradeConfigLive || this.buildConfigLive;
-    },
-    /** This act asks the player something before it can be committed. */
-    hasDecisions(): boolean {
-      return this.stepRows.length > 0;
-    },
-    steps(): Array<TradeStep> {
-      if (this.tradeConfigLive) {
-        return tradeSteps(this.presentedPreview, this.isMcSelected, this.isEnergySelected);
-      }
-      return this.buildConfigLive ? buildSteps(this.presentedPreview) : [];
-    },
-    stepKeys(): Array<string> {
-      let target = 0;
-      return this.steps.map((step) => {
-        if (step.kind === 'payment') {
-          return 'payment';
-        }
-        if (step.kind === 'energyMix') {
-          return 'energyMix';
-        }
-        if (step.kind === 'trackChoice') {
-          return 'track';
-        }
-        if (step.kind === 'venusBonus') {
-          return 'venus';
-        }
-        return `target:${target++}`;
-      });
-    },
-    /** The Venus bonus step's own prompt (the server's — `ColonyTradeFollowUpModel` `venusBonus`), when the trade earns one. */
-    venusStepInput(): PlayerInputModel | undefined {
-      const step = this.steps.find((s) => s.kind === 'venusBonus');
-      return step?.kind === 'venusBonus' ? step.input : undefined;
-    },
-    venusStock(): Partial<Record<string, number>> {
-      return Object.fromEntries(VENUS_SPREAD_LANES.map((key) => [key, playerResourceValue(this.thisPlayer, key, 'stock') ?? 0]));
-    },
-    /** THE INNER STEP'S BAR (P89 · EM) — mirrored to the shell's trade bar while the step stands. */
-    venusBar(): ReadonlyArray<VenusInnerCommand> {
-      const meta = venusBonusMetaOf(this.venusStepInput);
-      return this.sub !== 'venus' || meta === undefined ? [] : venusInnerFootHints(venusInnerBar(meta, this.venusParts, this.venusFocus));
-    },
-    stepRows(): Array<StepRow> {
-      return this.steps.flatMap((step, i): Array<StepRow> => {
-        const key = this.stepKeys[i];
-        if (step.kind === 'payment') {
-          return [{key, kind: 'payment' as const, label: 'Payment', iconClass: ''}];
-        }
-        // The Delta Works mix is answered IN the energy pay row (its dial +
-        // summary live there) — never a second decision row, so an always-valid
-        // default costs the player no extra focus stop.
-        if (step.kind === 'energyMix') {
-          return [];
-        }
-        if (step.kind === 'trackChoice') {
-          return [{key, kind: 'trackChoice' as const, label: 'Colony track', iconClass: ''}];
-        }
-        // THE VENUS BONUS (P89 · EL / EM): ONE row — the 30 % wild, its card and the spread are answered inside it.
-        if (step.kind === 'venusBonus') {
-          return [{key, kind: 'venusBonus' as const, label: 'Venus bonus', iconClass: ''}];
-        }
-        return [{
-          key,
-          kind: 'cardTarget' as const,
-          label: step.role === 'tradeReward' ?
-            'Trade reward target' :
-            (step.role === 'buildBonus' ? 'Build bonus target' : 'Colony bonus target'),
-          iconClass: this.resourceIconClass(step.resource),
-          step,
-        }];
-      });
-    },
-    focusables(): Array<Focusable> {
-      // A RECEIPT HAS NO CURSOR STOPS. Past the commit the rows still render
-      // (the decision stays readable) but nothing on them can be pressed —
-      // the move is made, and a focus ring travelling over it would advertise
-      // an edit that does not exist.
-      if (!this.configLive || this.configPinned) {
-        return [];
-      }
-      // A BUILD has no payment paths — only its decisions are cursor stops.
-      if (this.buildConfigLive) {
-        return this.stepRows.map((_, index) => ({zone: 'step' as const, index}));
-      }
-      // A LOCKED fee is not a choice, so it is not a cursor stop: the entry
-      // came through the card that pays, and «выбрать другой способ» would be
-      // a control that refuses every press. The rows still RENDER (the player
-      // sees the whole structure of the trade) — they just cannot be reached.
-      const out: Array<Focusable> = this.lockedPayIdx >= 0 ?
-        [] : this.payEntries.map((_, i) => ({zone: 'pay' as const, index: i}));
-      this.stepRows.forEach((_, i) => out.push({zone: 'step', index: i}));
-      return out;
-    },
-    focused(): Focusable | undefined {
-      return this.focusables[this.focusIdx];
-    },
-    trackStep(): Extract<TradeStep, {kind: 'trackChoice'}> | undefined {
-      const step = this.steps.find((s) => s.kind === 'trackChoice');
-      return step?.kind === 'trackChoice' ? step : undefined;
-    },
-    trackOptions(): Array<{steps: number, position: number, quantity: number, levy: boolean, title: string}> {
-      const step = this.trackStep;
-      const current = this.presentedPreview?.track.current ?? 0;
-      if (step === undefined) {
-        return [];
-      }
-      const options: Array<{steps: number, position: number, quantity: number, levy: boolean, title: string}> = [];
-      // Down to the plan's FLOOR: below it the colony refuses this player its
-      // income (the Redux Pluto's data with no holder) — the server lists those
-      // steps disabled, and «don't increase» exists only when 0 is legal — as
-      // the list's DECLINE (RT + the plate, `trackDecline`), never a row.
-      for (let n = step.steps; n >= Math.max(step.minSteps, 1); n--) {
-        const position = Math.min(current + n, this.metadata.trade.quantity.length - 1);
-        options.push({
-          steps: n,
-          position,
-          quantity: rewardAtPosition(this.metadata, position).quantity,
-          levy: rewardAtPosition(this.metadata, position).type === ColonyBenefit.LOSE_RESOURCES,
-          title: n > 0 ?
-            translateTextWithParams('Increase colony track ${0} step(s)', [String(n)]) :
-            translateText('Don\'t increase colony track'),
-        });
-      }
-      return options;
-    },
-    /** «Don't increase» — the optional advance's refusal as a button (RT), when 0 steps is legal; '' = none. */
-    trackDecline(): string {
-      const step = this.trackStep;
-      return step !== undefined && step.minSteps === 0 ? 'Don\'t increase colony track' : '';
-    },
-    trackSummary(): string {
-      const chosen = this.captures['track'];
-      if (typeof chosen !== 'number') {
-        return '';
-      }
-      return chosen > 0 ?
-        translateTextWithParams('Advance ${0} step(s)', [String(chosen)]) :
-        translateText('Don\'t increase colony track');
-    },
-    activeTargetStep(): Extract<TradeStep, {kind: 'cardTarget'}> | undefined {
-      const focused = this.focused;
-      if (focused?.zone !== 'step') {
-        return undefined;
-      }
-      const row = this.stepRows[focused.index];
-      return row?.kind === 'cardTarget' ? row.step : undefined;
-    },
-    activeTargetKey(): string {
-      const focused = this.focused;
-      return focused?.zone === 'step' ? (this.stepRows[focused.index]?.key ?? '') : '';
-    },
-    targetSubTitle(): string {
-      const step = this.activeTargetStep;
-      if (step === undefined) {
-        return '';
-      }
-      return textOf(step.pick.title) || translateText('Choose the receiving card');
-    },
-    /**
-     * THE SHARED SELECTOR'S MODEL for the focused card-target step — the same
-     * pure model the blue-action and play composers build, translated from the
-     * trade preview's own shapes (`buildColonyTradeTargetModel`). No
-     * `sourceCardName`: the hero of this stage is the PLANET, so every
-     * candidate renders as its own physical face and the «ЭТА КАРТА» proxy
-     * never appears here.
-     */
-    targetStepModel(): PlayedTargetModel | undefined {
-      const step = this.activeTargetStep;
-      if (step === undefined || this.viewerColor === undefined) {
-        return undefined;
-      }
-      return buildColonyTradeTargetModel({
-        step,
-        ask: this.targetSubTitle,
-        players: this.players,
-        viewerColor: this.viewerColor,
-        typeOf: (name) => getCard(name)?.type,
-        resourceOf: (name) => getCard(name)?.resourceType,
-      });
-    },
-    targetLockedCard(): string {
-      const captured = this.captures[this.activeTargetKey];
-      return typeof captured === 'string' ? captured : '';
-    },
-    /**
-     * THE PRESENTED SCENE IS UP — the chosen host card(s) own the working
-     * area while the reward physically arrives. It stands from the commit
-     * (the fleet is still flying — the player reads WHERE the reward will
-     * land) and yields the moment a CARD payout takes the area over
-     * (`workingAreaYielded` — the covers' scene outranks it).
-     */
-    /**
-     * The act whose wave is in the air on THIS colony's trade — the receiving card it pays stands forward
-     * (the transaction's own beat: the income wave, then the bonus wave; '' between and after).
-     */
-    cardlandActiveRole(): ColonyTradeFollowUpRole | '' {
-      const t = this.colonyTradeState;
-      if (!t.active || t.colonyName !== this.colony.name) {
-        return '';
-      }
-      return t.beat === 'income' ? 'tradeReward' : t.beat === 'bonus' ? 'colonyBonus' : '';
-    },
-    cardlandVisible(): boolean {
-      // The snapshot IS the proof of «past the commit» (it is taken at the
-      // boundary and cleared at the release), so this must NOT re-ask
-      // `pastCommit`: that term drops when the transaction ends, which for a
-      // BUILD is several hundred ms before its floaters land — the card
-      // vanished from under its own reward.
-      return this.presentedTargets.length > 0 && !this.workingAreaYielded;
-    },
-    /**
-     * …and while it is ON STAGE AT ALL it BLOCKS the closing beat: the track is
-     * drawn under it, and a marker gliding under a standing scene is the same
-     * fault the payout pose already guards (`stageBusy`).
-     *
-     * ⚠️ THE DEPARTURE COUNTS. This used to drop on `cardlandReleased`, i.e.
-     * on the frame the card only BEGAN to leave — so the working area faded
-     * back through the departing card and the glide started inside that
-     * crossfade. The hold ends when the card is GONE (its leave clears
-     * `presentedTargets`), which is what makes the hand-back a sequence.
-     */
-    cardlandHolds(): boolean {
-      return this.cardlandVisible;
-    },
-    /**
-     * THE ONE «working area is busy» fact the conclusion waits on — the card
-     * payout standing in the outcome zone OR the presented-target scene. The
-     * closing track glide may start only once BOTH have receded (published
-     * through `setColonyStageYielded`, with the pose's own return dwell).
-     */
-    stageBusy(): boolean {
-      return this.workingAreaYielded || this.cardlandHolds;
-    },
-    /**
-     * The card-resource DESTINATIONS of this configuration — the picked
-     * targets AND the single-candidate AUTO ones the server applies without a
-     * prompt, merged per physical card.
-     *
-     * ONE derivation feeds THREE consumers (the summary rail's «На карту(ы):»
-     * list, the transfer flight's `targets`, and the presented resolution
-     * scene), so what the player is shown, what the chip flies onto and what
-     * the batch answers can never be three different answers.
-     */
-    cardDestinations(): {targets: ColonyTradeTargets, presented: ReadonlyArray<ColonyTradePresentedTarget>} {
-      return colonyTradeCardDestinations({
-        steps: this.steps,
-        stepKeys: this.stepKeys,
-        captures: this.captures,
-        notices: this.tradeConfigLive ?
-          tradeNotices(this.presentedPreview) :
-          (this.buildConfigLive ? buildNotices(this.presentedPreview) : []),
-        resourceOf: (name) => getCard(name)?.resourceType,
-        beforeOf: (name) => this.receiptBase.cardResources[name] ?? 0,
-      });
-    },
-    /** A reward chip of this payout is still in the air. */
-    chipsInFlight(): boolean {
-      return this.transferState.flights.length > 0 || this.transferState.runActive;
-    },
-    /** Every presented card has received its full landing tally. */
-    cardlandAllLanded(): boolean {
-      return this.presentedTargets.length > 0 &&
-        this.presentedTargets.every((t) => this.landedOf(t) >= t.amount);
-    },
-    paymentStep(): Extract<TradeStep, {kind: 'payment'}> | undefined {
-      const step = this.steps.find((s) => s.kind === 'payment');
-      return step?.kind === 'payment' ? step : undefined;
-    },
-    payLanes(): ReadonlyArray<PaymentLane> {
-      const step = this.paymentStep;
-      const player = this.thisPlayer;
-      return step === undefined || player === undefined ? [] : paymentLanes(step.model, player);
-    },
-    paymentView(): PaymentView | undefined {
-      const step = this.paymentStep;
-      const player = this.thisPlayer;
-      if (step === undefined || player === undefined) {
-        return undefined;
-      }
-      return buildPaymentView({
-        cost: step.model.amount,
-        lanes: this.payLanes,
-        counts: this.paymentCounts,
-        mcAvailable: megacreditsAvailable(player),
-      });
-    },
-    payFocusUnit(): string | undefined {
-      const v = this.paymentView;
-      return v === undefined || this.sub !== 'lanes' ? undefined : editableRows(v)[this.subIdx]?.unit;
-    },
-    paymentSummary(): string {
-      const view = this.paymentView;
-      if (view === undefined) {
-        return '';
-      }
-      const parts: Array<string> = [];
-      for (const row of view.rows) {
-        if (row.auto) {
-          continue;
-        }
-        if (row.used > 0) {
-          parts.push(`${row.used} ${translateText(row.labelKey)}`);
-        }
-      }
-      const mc = view.rows.find((r) => r.auto)?.used ?? 0;
-      if (mc > 0 || parts.length === 0) {
-        parts.push(`${mc} M€`);
-      }
-      return parts.join(' + ');
-    },
-    rewardPosition(): number {
-      const track = this.presentedPreview?.track;
-      const chosen = this.captures['track'];
-      if (typeof chosen === 'number') {
-        const current = track?.current ?? this.colony.trackPosition;
-        return Math.min(current + chosen, this.metadata.trade.quantity.length - 1);
-      }
-      // A preview asked for ANOTHER path's reach is not this one's: the stage's
-      // own mirror of the plan stands in until the re-ask lands.
-      if (track !== undefined && (this.pinnedConfig !== undefined || this.pathOffset === this.chosenPathOffset)) {
-        return track.effective;
-      }
-      return this.effectivePosition;
-    },
-    ownColonyCount(): number {
-      if (this.viewerColor === undefined) {
-        return 0;
-      }
-      return this.colony.colonies.filter((c) => c === this.viewerColor).length;
-    },
-    /**
-     * The ACTUAL payment parts of the chosen path — THE one place the right
-     * «ОПЛАТА» summary, its `current → resulting` pairs and the running-stock
-     * sequence read the fee from. For the energy family under Delta Works the
-     * parts come from the CANONICAL mix draft (`tradeSteelMix`), so a dial
-     * press updates the row, the composition panel and this summary in the
-     * same reactive flush — an energy-first «−3» over a dialed mix was the
-     * stale-summary bug this computed exists to kill.
-     */
-    outcomePayments(): Array<{icon: string, amount: number, resource?: {current: number, resulting: number}}> {
-      if (!this.tradeConfigLive) {
-        return [];
-      }
-      const mix = this.energyMixInfo;
-      if (mix !== undefined) {
-        const steel = this.tradeSteelMix;
-        const energy = Math.max(0, mix.cost - steel);
-        const parts: Array<{icon: string, amount: number}> = [];
-        if (energy > 0) {
-          parts.push({icon: 'energy', amount: energy});
-        }
-        if (steel > 0) {
-          parts.push({icon: 'steel', amount: steel});
-        }
-        return parts;
-      }
-      const meta = this.presentedOptions[this.payIdx]?.metadata;
-      return meta?.icon !== undefined && meta.amount !== undefined ?
-        // `resource` rides along: for a CARD-paid fee it is the ONLY source of
-        // the before → after (the viewer's rail has no floaters on it).
-        [{icon: meta.icon, amount: meta.amount, resource: meta.resource}] :
-        [];
-    },
-    /**
-     * The base every `current → resulting` of the outcome reads — the live
-     * models before the commit, the boundary snapshot after it (see
-     * `HeldView.receipt`).
-     */
-    receiptBase(): TradeReceiptBase {
-      return this.pinnedConfig?.receipt ?? tradeReceiptBaseOf(this.thisPlayer, this.players);
-    },
-    outcome(): {cost: Array<TradeOutcomeChip>, gains: Array<TradeOutcomeChip>} {
-      return tradeOutcome({
-        metadata: this.metadata,
-        rewardPosition: this.rewardPosition,
-        payments: this.outcomePayments,
-        ownColonyCount: this.ownColonyCount,
-        flatBonuses: this.presentedPreview?.flatBonuses,
-        stocks: this.receiptBase.stocks,
-        production: this.receiptBase.production,
-      });
-    },
-    /**
-     * THE REWARD PACKAGE the summary rail renders — «ВАШ ИТОГ» / «СОСТАВ
-     * НАГРАДЫ» / «ДРУГИМ ИГРОКАМ», all three from the ONE pure derivation
-     * every colony surface shares (`colonyRewardPackage`).
-     */
-    rewardPackage(): ColonyRewardPackage {
-      return colonyRewardPackage({
-        gains: this.outcome.gains,
-        metadata: this.metadata,
-        colony: this.colony,
-        viewer: this.viewerColor,
-      });
-    },
-    /** The other owners' rows with their display names resolved. */
-    otherOwnerRows(): Array<RewardOtherRow & {name: string}> {
-      return this.rewardPackage.others.map((row) => {
-        const player = this.players.find((p) => p.color === row.color);
-        return {...row, name: player !== undefined ? participantDisplayName(player) : row.color};
-      });
-    },
-    /**
-     * WHERE THE CARD-RESOURCE TOTAL LANDS — one row per PHYSICAL CARD.
-     *
-     * The SAME derivation the flight and the landing scene read
-     * (`cardDestinations`): merged per card (an income and a bonus aimed at
-     * one card add up instead of printing it twice) and including the
-     * single-candidate AUTO targets the server applies without asking. A
-     * second, step-by-step derivation here is exactly what printed «Карта
-     * ветров 0 → 1» twice under one «+2».
-     */
-    cardTargetLines(): Array<{card: string, before: number, after: number, iconClass: string}> {
-      return this.cardDestinations.presented.map((t) => ({
-        card: t.card,
-        before: t.before,
-        after: t.before + t.amount,
-        iconClass: t.icon !== '' ? this.rewardIconClass(t.icon) : '',
-      }));
-    },
-    resourceLost(): boolean {
-      // Read at the position the trade will PAY — the Redux Pluto's data
-      // positions can be lost, its card positions cannot.
-      return this.benefitResourceLost(rewardAtPosition(this.metadata, this.rewardPosition).type);
-    },
-    noticeRows(): Array<NoticeRow> {
-      if (!this.configLive) {
-        return [];
-      }
-      const rows: Array<NoticeRow> = [];
-      const notices = this.tradeConfigLive ? tradeNotices(this.presentedPreview) : buildNotices(this.presentedPreview);
-      for (const notice of notices) {
-        if (notice.kind === 'autoTarget') {
-          rows.push({
-            tone: 'info',
-            iconClass: this.resourceIconClass(notice.resource),
-            text: translateTextWithParams('+${0} to ${1} (the only eligible card)', [String(notice.amount), translateText(notice.card)]),
-          });
-        } else if (notice.kind === 'lostResource') {
-          rows.push({
-            tone: 'warn',
-            iconClass: this.resourceIconClass(notice.resource),
-            text: translateText('No eligible card — this resource is not added.'),
-          });
-        } else {
-          rows.push({tone: 'info', iconClass: '', text: translateText(notice.note)});
-        }
-      }
-      return rows;
-    },
-    canConfirm(): boolean {
-      // A COMMITTED MOVE IS NOT CONFIRMABLE. `actionAvailable` is the LIVE
-      // prop, and a door that keeps the player's action (a card-action trade)
-      // is re-offered the trade in the very response that answered it — the
-      // command bar then advertised «Подтвердить» over a marker still gliding
-      // home, for a press `handleIntent` absorbs anyway.
-      if (this.configPinned) {
-        return false;
-      }
-      if (!this.actionAvailable) {
-        return false;
-      }
-      if (this.intent === 'pick' || this.intent === 'track') {
-        return true;
-      }
-      if (this.intent === 'build') {
-        // A build with a decision (its placement bonus needs a card) is not
-        // confirmable until that decision is made — the whole point of
-        // pre-collecting it. A build with none confirms as it always did.
-        return this.steps.every((_step, i) => this.captures[this.stepKeys[i]] !== undefined);
-      }
-      if (this.intent !== 'trade') {
-        return false;
-      }
-      if (this.paymentView !== undefined && !this.paymentView.status.ok) {
-        return false;
-      }
-      return this.steps.every((step, i) => {
-        // The M€ payment answers from the live lane counts and the Delta
-        // Works mix from the canonical draft — both are captured AT SUBMIT
-        // (emitConfirm) and always hold a valid value, so neither is a
-        // missing answer. Requiring a capture for the mix kept the trade's
-        // confirm dead for as long as the composition choice existed.
-        if (step.kind === 'payment' || step.kind === 'energyMix') {
-          return true;
-        }
-        return this.captures[this.stepKeys[i]] !== undefined;
-      });
-    },
-    focusedRowEditable(): boolean {
-      const focused = this.focused;
-      if (focused === undefined) {
-        return false;
-      }
-      if (focused.zone === 'pay') {
-        return true;
-      }
-      const row = this.stepRows[focused.index];
-      if (row === undefined) {
-        return false;
-      }
-      if (row.kind === 'payment') {
-        return this.payLanes.length > 0;
-      }
-      return true;
-    },
-  },
-  watch: {
-    /**
-     * THE RETURN FROM THE DISCARD STEP is the recede played backwards, in place: the stage rises back into view
-     * under the gathering hand with the same table in its zone. The return's own (shorter) transition is a class
-     * of its own — the root's opacity belongs to the descend phrase's GSAP the rest of the time, and a standing CSS
-     * transition there would fight every tween. Cleared on the transition's own end; the bounded net only frees a
-     * class (nothing waits on it).
-     */
-    receded(now: boolean, was: boolean): void {
-      if (now || !was) {
-        this.unreceding = false;
-        return;
-      }
-      this.unreceding = true;
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-      const done = () => {
-        this.unreceding = false;
-        root?.removeEventListener('transitionend', onEnd);
-      };
-      const onEnd = (ev: TransitionEvent) => {
-        if (ev.target === root && ev.propertyName === 'opacity') {
-          done();
-        }
-      };
-      root?.addEventListener('transitionend', onEnd);
-      consoleSessionScope().guarantee(motionMs(700), 'ConsoleColonyFocusStage: a release\'s bound', done);
-    },
-    /** The «Эффекты» layer lives ONLY on the setup level — a sub-step, the commit boundary and the resolution fold it instantly. */
-    forecastCanOpen(can: boolean): void {
-      this.syncUiMirror();
-      if (!can) {
-        foldForecastHost('colony');
-      }
-    },
-    fxOpen(): void {
-      this.syncUiMirror();
-    },
-    venusBar: {
-      handler(bar: ReadonlyArray<VenusInnerCommand>): void {
-        consoleColoniesUi.composerVenusBar = bar;
-      },
-      immediate: true,
-    },
-    isMcSelected() {
-      this.seedPaymentDefault();
-    },
-    preview() {
-      this.measureFit();
-      this.seedPaymentDefault();
-      // THE GAME STATE MOVED UNDER A CAPTURE. The preview is the candidates'
-      // source of truth, so a fresh one INVALIDATES anything it no longer
-      // offers: a captured target whose card left the eligible set is dropped
-      // (the row returns to «Выберите карту…», the confirm re-locks), and a
-      // vanished track choice goes with its step. Silently submitting a stale
-      // pick — or showing it as still chosen — is the one forbidden outcome.
-      this.pruneStaleCaptures();
-      this.syncUiMirror();
-    },
-    sub() {
-      this.publishStageName();
-      this.syncUiMirror();
-      this.measureFit();
-    },
-    // Every composition change re-asks how much room the columns want.
-    stepRows() {
-      this.measureFit();
-    },
-    presentMode() {
-      this.measureFit();
-    },
-    cardTargetLines() {
-      this.measureFit();
-    },
-    canConfirm() {
-      this.syncUiMirror();
-    },
-    // The chosen family gates the confirm's gateway label — a switch to
-    // M€/titanium must drop it in the same flush (the value the mirror
-    // publishes is derived, so only this edge re-publishes it).
-    payIdx() {
-      this.syncUiMirror();
-    },
-    // The chosen path's reach is the section's to re-ask the preview with
-    // (`immediate`: a stage mounting straight onto a locked path — the Unity
-    // door — names it before the first preview is fetched).
-    chosenPathOffset: {
-      immediate: true,
-      handler(offset: number) {
-        this.$emit('path-offset', offset);
-      },
-    },
-    // The WORLD moved under the composition substep (undo, a refreshed
-    // preview, the card leaving the tableau) and the choice is gone — the
-    // step folds honestly back to Configure; a single valid allocation needs
-    // no step, and a dead one must not stand.
-    tradeMixAdjustable(adjustable: boolean) {
-      if (!adjustable && this.sub === 'mix') {
-        this.closeMixStep();
-      }
-      this.syncUiMirror();
-    },
-    // The fee options arrive with the prompt, which can land a frame after the
-    // stage mounts (and re-lands on every response) — re-pin, never re-seed.
-    lockedPayIdx: {
-      immediate: true,
-      handler() {
-        this.syncLockedPayment();
-      },
-    },
-    focusedRowEditable() {
-      this.syncUiMirror();
-    },
-    intent() {
-      this.publishStageName();
-      this.syncUiMirror();
-    },
-    /** The city act arrives / is pinned with the prompt — the crumb's stage follows it. */
-    city() {
-      this.publishStageName();
-    },
-    'colony.name'() {
-      this.captures = {};
-      this.sub = undefined;
-      this.subIdx = 0;
-      this.payIdx = 0;
-      this.focusIdx = 0;
-      this.heldView = undefined;
-      this.pinnedConfig = undefined;
-      this.commitLatched = false;
-      this.heldVerdict = undefined;
-      this.heldContext = undefined;
-      this.presentedTargets = [];
-      this.cardlandReleased = false;
-      this.clearCardlandDwell();
-      this.clearCardlandLeave();
-      this.seedPaymentDefault();
-      this.syncLockedPayment();
-      this.publishStageName();
-      this.syncUiMirror();
-    },
-    // The commit latch: once this stage session crossed the boundary, the
-    // pre-commit verdict never returns (see `commitLatched`). `immediate`:
-    // a stage that MOUNTS mid-resolution (the post-discard restore, a remote
-    // entry) is past the commit from its first frame.
-    pastCommit: {
-      immediate: true,
-      handler(now: boolean) {
-        if (now) {
-          this.commitLatched = true;
-          // ⚠️ WHOEVER NOTICES THE BOUNDARY FIRST TAKES THE SNAPSHOT. The
-          // ordinary pin runs at the shell's accept, through an OPTIONAL-CHAINED
-          // ref (`coloniesSection.$refs.focusStage?.holdPresentation()`), so a
-          // frame in which that ref is not resolved yet silently pins NOTHING —
-          // and the working area then re-derives from the live props for the
-          // whole resolution, which is the exact defect the pin exists for
-          // (measured: 62 of 273 post-commit samples showing a three-row payment
-          // menu). This is the same fact from the stage's own side, so it cannot
-          // be missed. Deliberately only the CONFIG half: the presented targets
-          // are a decision-time snapshot and re-taking them here would read the
-          // server's answer instead.
-          if (this.pinnedConfig === undefined) {
-            this.pinConfig();
-          }
-        }
-      },
-    },
-    // Hold the last SOURCE context through the close (see `presentedContext`).
-    resolutionContext: {
-      immediate: true,
-      handler(ctx: {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined) {
-        if (ctx !== undefined) {
-          this.heldContext = {...ctx};
-        }
-      },
-    },
-    actionAvailable() {
-      this.publishStageName();
-      this.syncUiMirror();
-    },
-    // THE CONFIGURATION LETS GO only when the flow's physical bridge is on
-    // stage (covers airborne / content landing) — never at the bare claim.
-    // One-shot per outcome; re-arms when the zone folds (the next cycle's
-    // batch opens its own phrase).
-    // ⚠️ IMMEDIATE, because a stage that MOUNTS mid-resolution (the
-    // post-discard restore, a remote entry, a reload) is handed over from its
-    // FIRST FRAME — there is no rising edge left to wait for. Without it the
-    // pose never armed for such a mount and the payout stood ON TOP of a fully
-    // lit track and summary rail: two surfaces in one zone (the reported
-    // «reveal отрендерился поверх интерфейса колоний»). The animation cannot
-    // fire during setup (`playOutcomeHandoff` has no `$el` yet), which is
-    // exactly right: there is nothing to release, only a pose to be in.
-    outcomeHandoffDue: {
-      immediate: true,
-      handler(due: boolean) {
-        this.armOutcomeHandoff(due);
-      },
-    },
-    outcomeZone(on: boolean) {
-      if (!on) {
-        this.outcomeHandoffPlayed = false;
-        return;
-      }
-      // …AND THE NEXT CYCLE RE-ARMS IT. The cue is RESOLUTION-scoped
-      // (`payoutLiftOff` is raised once per payout, and the content can already
-      // be in the zone), so when the zone re-opens for the second colony's
-      // bonus the watcher above has nothing to change — true→true fires
-      // nothing, and the one-shot would stay unplayed for the rest of the flow.
-      this.armOutcomeHandoff(this.outcomeHandoffDue);
-    },
-    /**
-     * THE CLOSING BEAT WAITS FOR THIS STAGE. The trade's conclusion (the track
-     * reset) may not start while the track is hidden under the payout — and
-     * not on the frame the pose drops either: the working area fades back over
-     * its own transition, and a marker launched into that fade is the same
-     * «белая точка по пустому интерфейсу», just shorter. The RISE is published
-     * at once (nothing may slip in behind it); the FALL is published after the
-     * pose has settled — the dwell is the FLOOR, and past it the working
-     * area's OWN return transitions must have run out (`workingAreaSettled`,
-     * bounded): on a starved frame a composited fade is still pending when a
-     * wall-clock dwell ends (CI 2026-11-11, `glideOverBlankStage`).
-     */
-    stageBusy: {
-      immediate: true,
-      handler(busy: boolean) {
-        if (this.stageBackTimer !== undefined) {
-          this.stageBackTimer();
-          this.stageBackTimer = undefined;
-        }
-        const back = ++this.stageBackToken;
-        if (busy) {
-          setColonyStageYielded(true);
-          return;
-        }
-        // PACING (the stage's own dwell): a stage that is gone lowers the flag itself, in `beforeUnmount`.
-        this.stageBackTimer = this.flow.after(motionMs(WORKING_AREA_BACK_MS), 'the working area is back — its dwell', () => {
-          this.stageBackTimer = undefined;
-          void workingAreaSettled((this.$refs.mainEl ?? undefined) as Element | undefined, motionMs(WORKING_AREA_BACK_CEILING_MS)).then(() => {
-            // Only THIS fall may release — a pose re-raised meanwhile (a second colony's payout) owns the stage again.
-            if (back === this.stageBackToken && !this.stageBusy) {
-              setColonyStageYielded(false);
-            }
-          });
-        });
-      },
-    },
-    /**
-     * EVERY CHIP HAS TOUCHED ITS CARD — hold the landed reading for one calm
-     * beat (the counter just ticked; the player must see the new number), then
-     * recede and give the working area back. A read beat, not a gate: nothing
-     * is being waited for.
-     */
-    /**
-     * THE DEPARTURE. `cardlandReleased` starts the leave pose; when it has
-     * played the card is UNMOUNTED, and only that drops `--carding` (the
-     * working area returns to an empty room) and `stageBusy` (the marker may
-     * finally move). One writer for the whole hand-back order.
-     */
-    cardlandReleased(released: boolean) {
-      this.clearCardlandLeave();
-      if (!released || this.presentedTargets.length === 0) {
-        return;
-      }
-      this.cardlandLeave = this.flow.after(motionMs(CARDLAND_LEAVE_MS), 'the presented card\'s departure', () => {
-        this.cardlandLeave = undefined;
-        this.presentedTargets = [];
-        this.cardlandReleased = false;
-      });
-    },
-    cardlandAllLanded(landed: boolean) {
-      if (!landed || !this.cardlandVisible || this.cardlandReleased) {
-        return;
-      }
-      this.clearCardlandDwell();
-      this.cardlandDwell = this.flow.after(motionMs(CARDLAND_READ_MS), 'the landed reward\'s read beat', () => {
-        this.cardlandDwell = undefined;
-        this.cardlandReleased = true;
-      });
-    },
-    /** A CARD payout took the working area over (Miranda: animals landed,
-     *  now the drawn card's covers own the room) — the presented scene must
-     *  not stand under it, and its counters must not stay frozen. */
-    outcomeHandoffPlayed(played: boolean) {
-      if (played && this.presentedTargets.length > 0) {
-        this.clearCardlandDwell();
-        this.cardlandReleased = true;
-      }
-    },
-    /**
-     * THE SCENE'S OWN NET. `onArrive` fires on every transfer path (flight,
-     * reduced motion, degrade, safety), so the landings normally release the
-     * scene — but a presented target whose chip the MANIFEST never produced
-     * (a plan/actual divergence) would hold the working area forever. Once
-     * the transaction's chip phase is over, whatever has not landed is not
-     * coming: release after the same read beat, honestly.
-     */
-    'colonyTradeState.phase'(phase: string) {
-      const chipsOver = phase === 'awaiting' || phase === 'glide' || phase === 'settle' || phase === 'idle';
-      if (!chipsOver || !this.cardlandVisible || this.cardlandReleased ||
-          this.cardlandAllLanded || this.cardlandDwell !== undefined) {
-        return;
-      }
-      this.cardlandDwell = this.flow.after(motionMs(CARDLAND_READ_MS), 'the presented scene\'s own net — the chip phase is over', () => {
-        this.cardlandDwell = undefined;
-        this.cardlandReleased = true;
-      });
-    },
-    outcomeContentIn(landed: boolean) {
-      if (landed) {
-        void this.$nextTick(() => playOutcomeContent(this.$el as HTMLElement));
-      }
-    },
-    resolving(now: boolean, was: boolean) {
-      if (!now && was) {
-        // The transaction ended — SUCCESS or a clean rollback. The pinned
-        // presentation lets go, UNLESS the payout is still physically
-        // arriving on a card: the panel would re-derive to `inspect` and
-        // shrink by a third under the very scene it is hosting.
-        if (this.heldView !== undefined && !this.cardlandHolds) {
-          this.heldView = undefined;
-          this.publishStageName();
-          this.syncUiMirror();
-        }
-        // …but the PRESENTED CARD does NOT: a colony BUILD's own transaction
-        // ends when the cube lands, several hundred ms before its floaters
-        // touch down, and tearing the card out here left the reward flying at
-        // a scene that no longer existed. Nothing owed → clear at once (a
-        // refusal must leave no success scene); something owed → the landing
-        // watcher releases it, with a bounded net so a chip that never
-        // arrives can never strand the card on screen.
-        if (this.presentedTargets.length === 0) {
-          return;
-        }
-        if (this.cardlandAllLanded || this.cardlandReleased) {
-          return; // the landed watcher (or the departure) owns the beat
-        }
-        if (!this.presentedTargets.some((t) => this.landedOf(t) > 0) && !this.chipsInFlight) {
-          this.clearCardlandDwell();
-          this.presentedTargets = [];
-          this.cardlandReleased = false;
-          return;
-        }
-        this.clearCardlandDwell();
-        this.cardlandDwell = this.flow.after(motionMs(CARDLAND_NET_MS), 'the presented card\'s net — a chip that never arrives', () => {
-          this.cardlandDwell = undefined;
-          this.cardlandReleased = true;
-        });
-      }
-    },
-    /** The scene's own presence, published for the SECTION's completion: the
-     *  colony may not route home while a reward is still arriving on a card. */
-    cardlandVisible: {
-      immediate: true,
-      handler(live: boolean) {
-        colonyResolutionUi.cardSceneLive = live;
-        // The scene was the last thing holding the pinned presentation (see
-        // the `resolving` falling edge) — release it now that it is done.
-        if (!live && this.heldView !== undefined && !this.resolving) {
-          this.heldView = undefined;
-          this.publishStageName();
-          this.syncUiMirror();
-        }
-      },
-    },
-  },
-  methods: {
-    cardLabel(name: string): string {
-      return translateCardName(name);
-    },
-    ownerNameAt(idx: number): string {
-      const color = this.colony.colonies[idx];
-      if (color === undefined) {
-        return '';
-      }
-      const player = this.players.find((p) => p.color === color);
-      return player !== undefined ? participantDisplayName(player) : color;
-    },
-    benefitResourceLost(type: ColonyBenefit): boolean {
-      // The holders of ANY of the tile's kinds (the WARE wildcard included) —
-      // the same reading the parliament's «no recipient» note takes.
-      const kinds = this.cardResourceKinds;
-      if (kinds.length === 0) {
-        return false;
-      }
-      if (type !== ColonyBenefit.ADD_RESOURCES_TO_CARD && type !== ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
-        return false;
-      }
-      const viewer = this.players.find((p) => p.color === this.viewerColor);
-      return !holdsAnyOf(viewer?.tableau ?? [], kinds);
-    },
-    isFocused(zone: 'pay' | 'step', index: number): boolean {
-      return this.sub === undefined && this.focused?.zone === zone && this.focused.index === index;
-    },
-    chipIconClass(chip: TradeOutcomeChip): string {
-      // `con-task__opt-res` is what SIZES the sprite. A standard-resource class
-      // carries a box of its own and happened to survive without it; a
-      // card-resource class is only a background-image, so the floater's icon
-      // was a 0×0 element — present in the DOM, invisible on screen. Every
-      // other icon on this stage goes through `resourceIconClass`; this was the
-      // one exception, and it is why the fee row lost its icon.
-      return chip.icon !== undefined ? iconClassFor(chip.icon) + ' con-task__opt-res' : '';
-    },
-    /** A reward line's sprite — the SAME sizing every icon on this stage gets
-     *  (a bare card-resource class is only a background-image: a 0×0 element
-     *  without `con-task__opt-res`, which is how the fee row lost its icon). */
-    rewardIconClass(icon: string): string {
-      return iconClassFor(icon) + ' con-task__opt-res';
-    },
-    /**
-     * WHO PAYS this part, in words: the colony's own track, the viewer's
-     * settlements (with the multiplier that makes «2 колонии × 1 карта» read
-     * as one line), or a card that pays on every trade.
-     */
-    sourceRowLabel(row: RewardSourceRow): string {
-      if (row.kind === 'card') {
-        return translateText(row.card ?? 'Card effect');
-      }
-      if (row.kind === 'ownColony') {
-        return translateTextWithParams('Your colony ×${0}', [String(row.count)]);
-      }
-      // A COMPOSITE income has two track rows — the part paid on every trade and
-      // the part the marker's position decides — and «Торговый трек» twice said
-      // nothing about which was which. The pair is named only where both exist;
-      // a plain colony keeps the one established label.
-      const composite = this.rewardPackage.sources.some((s) => s.kind === 'trackFixed');
-      if (row.kind === 'trackFixed') {
-        return translateText('Every trade');
-      }
-      return translateText(composite ? 'Under the marker' : 'Trade track');
-    },
-    resourceKey(resource: string | undefined): string | undefined {
-      return resource?.toString().toLowerCase().replace(/ /g, '-');
-    },
-    resourceIconClass(resource: string | undefined): string {
-      const key = this.resourceKey(resource);
-      return key !== undefined ? iconClassFor(key) + ' con-task__opt-res' : '';
-    },
-    tradeBenefitAt(position: number): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
-      const income = tradeBenefitAt(this.metadata, position);
-      return {type: income.type, quantity: this.metadata.trade.quantity, resource: income.resource};
-    },
-    targetImpact(row: StepRow): string {
-      const step = row.step;
-      if (step === undefined) {
-        return '';
-      }
-      const captured = this.captures[row.key];
-      const name = typeof captured === 'string' ? captured : undefined;
-      const card = step.pick.cards.find((c) => c.name === name);
-      if (card === undefined) {
-        return '';
-      }
-      const before = card.resources ?? 0;
-      return `${before} → ${before + step.amount}`;
-    },
-    /**
-     * PIN THE FEE to the entry's own path. Called wherever `payIdx` could
-     * otherwise drift (mount, a new colony, a fresh option list): the entry
-     * IS the payment, so the selection is not seeded — it is fixed.
-     */
-    syncLockedPayment(): void {
-      if (this.lockedPayIdx >= 0) {
-        this.payIdx = this.lockedPayIdx;
-      }
-    },
-    seedPaymentDefault(): void {
-      const step = this.paymentStep;
-      const player = this.thisPlayer;
-      if (step === undefined || player === undefined) {
-        this.paymentCounts = {};
-        return;
-      }
-      const lanes = paymentLanes(step.model, player);
-      this.paymentCounts = initialCounts(step.model.amount, lanes, megacreditsAvailable(player));
-    },
-    /** The stage names its crumb tail (rule 5 — never a header of its own).
-     *  Reads the PRESENTED availability, so the tail cannot re-title itself
-     *  «Осмотр» while a committed action is still resolving on the stage. */
-    publishStageName(): void {
-      // The target step is one level DEEPER in the same flow — only the tail
-      // advances («…› ТОРГОВЛЯ» → «…› ЦЕЛЬ НАГРАДЫ»), and B walks it back.
-      if (this.sub === 'targets') {
-        setColonyFocusStage('Reward target');
-        return;
-      }
-      // …and so is the Venus bonus's INNER step («…› ТОРГОВЛЯ» → «…› БОНУС ВЕНЕРЫ», P89 · EM).
-      if (this.sub === 'venus') {
-        setColonyFocusStage(venusInnerStageKey(this.venusFocus));
-        return;
-      }
-      // THE CITY ACT names its own stage («… › ЛУНА · ГОРОД»).
-      if (this.city !== undefined) {
-        setColonyFocusStage(this.city.stageKey);
-        return;
-      }
-      // THE ROSTER ACT names its own stage («ЗАМЕНА» / «ДОБАВЛЕНИЕ» / «СНЯТИЕ») — whichever composition it wears.
-      if (this.roster !== undefined) {
-        setColonyFocusStage(this.roster.stageKey);
-        return;
-      }
-      if (this.intent === 'build') {
-        setColonyFocusStage(this.presentAvailable ? 'Construction' : 'Inspection');
-        return;
-      }
-      if (this.intent === 'pick') {
-        setColonyFocusStage('Selection');
-        return;
-      }
-      // A CHOSEN TRACK's stage — «… › ЛУНА · ТРЕК» (the host folds the colony and the stage into one tail).
-      if (this.intent === 'track') {
-        setColonyFocusStage('Track');
-        return;
-      }
-      if (this.intent === 'bonus') {
-        // The stage the player is on is the BONUS itself; the payout's own
-        // surface renames the tail as it advances («ДОБОР КАРТ», «СБРОС КАРТЫ»)
-        // exactly as it does inside a trade.
-        setColonyFocusStage('Owner bonus');
-        return;
-      }
-      setColonyFocusStage(this.intent === 'trade' && this.presentAvailable ? 'Trading' : 'Inspection');
-    },
-    syncUiMirror(): void {
-      consoleColoniesUi.composerSub = this.sub === undefined ?
-        '' :
-        (this.sub === 'lanes' ? 'lanes' :
-          (this.sub === 'targets' ? 'targets' :
-            (this.sub === 'mix' ? 'mix' : (this.sub === 'venus' ? 'venus' : 'list'))));
-      consoleColoniesUi.composerDecline = this.sub === 'track' ? this.trackDecline : '';
-      consoleColoniesUi.composerReady = this.canConfirm;
-      consoleColoniesUi.composerEditable = this.configLive && this.focusedRowEditable;
-      // The BAR follows the act's real grammar: a build that composes gets the
-      // trade's two verbs (A opens the decision, X builds) instead of the bare
-      // «A Построить», which would silently commit an unanswered decision.
-      consoleColoniesUi.composerDecisions = this.hasDecisions;
-      // «X will open the composition step, not commit» — what relabels the
-      // Configure bar's confirm to «Продолжить к оплате». True exactly while
-      // the server model admits several mixes and no commit is in flight.
-      consoleColoniesUi.composerMixAdjustable =
-        this.tradeMixAdjustable && this.heldView === undefined;
-      consoleColoniesUi.forecastAvailable = this.forecastCanOpen;
-      consoleColoniesUi.forecastOpen = this.fxOpen;
-    },
-    /** The shell routes every intent here while the stage is open. */
-    handleIntent(intent: GamepadIntent): void {
-      // The resolution — or a commit still on the wire (`heldView`) — owns
-      // the moment: input is ABSORBED, so a double submit is impossible by
-      // construction (the workspace-flow 'none' verb).
-      if (this.resolving || this.heldView !== undefined) {
-        return;
-      }
-      // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 at the setup level opens it (PL-066).
-      if (this.fxOpen) {
-        this.onForecastIntent(intent);
-        return;
-      }
-      if (intent.kind === 'press' && intent.button === 'stickR') {
-        this.openForecastLayer();
-        return;
-      }
-      if (intent.kind === 'nav') {
-        this.onNav(intent.dir);
-        return;
-      }
-      const action = consoleActionOf(intent);
-      if (action !== undefined) {
-        this.onPress(action);
-      }
-    },
-    /** R3 / a click on the «⚡ сработает» door — the WORKSPACE DESCEND into the layer (PL-066). */
-    openForecastLayer(): void {
-      if (!this.forecastCanOpen || this.fxOpen) {
-        return;
-      }
-      this.pulseCall = pulseForecastDoor((on) => {
-        this.forecastPulse = on;
-      }, this.pulseCall);
-      openForecastHost('colony', (this.$refs.rootEl ?? undefined) as HTMLElement | undefined, this.forecastOwnerColors, this.statsView);
-    },
-    /** Input while the layer is open: B folds one level (the explorer's dossier first), R3 closes the whole layer. */
-    onForecastIntent(intent: GamepadIntent): void {
-      forecastHostIntent('colony', intent, (this.$refs.forecastLayer ?? undefined) as InstanceType<typeof ConsoleForecastLayer> | undefined);
-    },
-    onNav(dir: NavDirection): void {
-      if (this.sub === 'lanes') {
-        this.onLanesNav(dir);
-        return;
-      }
-      if (this.sub === 'targets') {
-        this.targetNav(dir);
-        return;
-      }
-      if (this.sub === 'venus') {
-        // THE NESTED CARD PICK walks the selector's own boxes (`ConsoleVenusBonusStep.pickNav`).
-        if (this.venusFocus.zone === 'pick') {
-          ((this.$refs.venusStep ?? undefined) as VenusBonusStepApi | undefined)?.pickNav(dir as PlayedTargetNavDir);
-          return;
-        }
-        const meta = venusBonusMetaOf(this.venusStepInput);
-        if (meta !== undefined) {
-          this.venusFocus = venusInnerNav(meta, this.venusParts, this.venusFocus, dir);
-        }
-        return;
-      }
-      if (this.sub !== undefined) {
-        if (dir === 'up' || dir === 'down') {
-          const n = this.subListLength();
-          this.subIdx = Math.min(n - 1, Math.max(0, this.subIdx + (dir === 'down' ? 1 : -1)));
-        }
-        return;
-      }
-      if (dir === 'up' || dir === 'down') {
-        this.focusIdx = Math.min(this.focusables.length - 1, Math.max(0, this.focusIdx + (dir === 'down' ? 1 : -1)));
-        this.scrollFocusedIntoView();
-      }
-    },
-    onLanesNav(dir: NavDirection): void {
-      const view = this.paymentView;
-      if (view === undefined) {
-        return;
-      }
-      if (dir === 'up' || dir === 'down') {
-        this.subIdx = Math.min(this.payLanes.length - 1, Math.max(0, this.subIdx + (dir === 'down' ? 1 : -1)));
-        return;
-      }
-      this.adjustPayLane(this.subIdx, dir === 'right' ? 1 : -1);
-    },
-    adjustPayLane(idx: number, step: number, toMax = false): void {
-      const view = this.paymentView;
-      const lane = this.payLanes[idx];
-      if (view === undefined || lane === undefined) {
-        return;
-      }
-      const before = this.paymentCounts[lane.unit] ?? 0;
-      // AGGREGATE anti-overpay limit (the pure `dialLaneCount`) — «+» and
-      // «МАКС.» both count what the other alternatives already pay.
-      const next = dialLaneCount(view.cost, lane, this.payLanes, this.paymentCounts, toMax ? 'max' : step);
-      if (next === before) {
-        return;
-      }
-      this.paymentCounts = {...this.paymentCounts, [lane.unit]: next};
-      this.payFlashNonce += 1;
-    },
-    subListLength(): number {
-      if (this.sub === 'track') {
-        return this.trackOptions.length;
-      }
-      return 0;
-    },
-    /** One bumper press = one unit of the energy fee moved between energy and
-     *  Delta Works steel. The dial lives ONLY on the composition substep —
-     *  on Configure the selector is not active, so LB/RB must be inert (a
-     *  hidden control is the forbidden shape). */
-    adjustTradeMix(delta: number): void {
-      if (this.sub !== 'mix' || !this.tradeMixAdjustable) {
-        return;
-      }
-      const mix = this.energyMixInfo;
-      if (mix === undefined) {
-        return;
-      }
-      const next = clampEnergyMixSteel(this.tradeSteelMix + delta, mix);
-      if (next === this.tradeSteelMix) {
-        return;
-      }
-      this.steelMixPreference = next;
-      // Re-keys the one-shot pulse on the steel row — the shared payment
-      // acknowledgement, so the panel and the summary move as one beat.
-      this.mixFlashNonce += 1;
-    },
-    /**
-     * CONFIGURE → PAYMENT: every obligatory decision is captured (the same
-     * `canConfirm` gate the direct confirm passes) and the server model
-     * admits at least two mixes. Nothing is submitted; the focus seat is
-     * remembered so B lands back on the family row.
-     */
-    openMixStep(): void {
-      this.mixReturnFocusIdx = this.focusIdx;
-      this.sub = 'mix';
-    },
-    /** PAYMENT → CONFIGURE: B — colony, track, targets, family and the
-     *  dialed draft all intact; the cursor returns where it left. */
-    closeMixStep(): void {
-      this.sub = undefined;
-      this.focusIdx = Math.min(this.mixReturnFocusIdx, Math.max(0, this.focusables.length - 1));
-      this.scrollFocusedIntoView();
-    },
-    // ── the Venus bonus, PRE-SELECTED (P89 · EL) ────────────────────────
-    /** One write for both parts, then the step's ONE answer (`captures.venus`) — or none, which holds the confirm. */
-    setVenusParts(parts: VenusBonusParts): void {
-      this.venusParts = parts;
-      const meta = venusBonusMetaOf(this.venusStepInput);
-      const response = meta === undefined ? undefined : venusPreselectResponse(meta, parts);
-      const next = {...this.captures};
-      if (response === undefined) {
-        delete next['venus'];
-      } else {
-        next['venus'] = response;
-      }
-      this.captures = next;
-    },
-    /** A verb inside the inner step — the pure model decides; a confirm / B come back to the decisions. */
-    venusStepPress(verb: 'primary' | 'back' | 'prevSection' | 'nextSection' | 'nextTab'): void {
-      const meta = venusBonusMetaOf(this.venusStepInput);
-      if (meta === undefined) {
-        this.sub = undefined;
-        return;
-      }
-      // THE NESTED CARD PICK: LB/RB turn its page, A answers with the selector's focused card.
-      const step = (this.$refs.venusStep ?? undefined) as VenusBonusStepApi | undefined;
-      if (this.venusFocus.zone === 'pick' && (verb === 'prevSection' || verb === 'nextSection')) {
-        step?.pickTurn(verb === 'nextSection' ? 1 : -1);
-        return;
-      }
-      const picked = this.venusFocus.zone === 'pick' && verb === 'primary' ? step?.pickFocused() : undefined;
-      const result = venusInnerPress(meta, this.venusParts, this.venusFocus, verb, picked);
-      if (result.parts !== this.venusParts) {
-        this.setVenusParts(result.parts);
-      }
-      if (result.exit !== undefined) {
-        this.sub = undefined;
-        return;
-      }
-      this.venusFocus = venusInnerClamp(meta, result.parts, result.focus);
-      this.publishStageName();
-    },
-    /** The cell beat's promise (PL-1437) for the trade's pre-selected bonus — armed at the confirm. */
-    armVenusPreselect(): void {
-      const meta = venusBonusMetaOf(this.venusStepInput);
-      if (meta !== undefined && venusPreselectResponse(meta, this.venusParts) !== undefined) {
-        armVenusBonusCell(venusPreselectArm(meta, this.venusParts));
-      }
-    },
-    onPress(action: ConsoleAction): void {
-      // THE TARGET STEP SPEAKS THE SHARED SELECTOR'S GRAMMAR — A chooses,
-      // X inspects the focused candidate fullscreen (never a second confirm
-      // verb), LB/RB the owner axis, B one level back with the previous
-      // pre-select intact. Routed before the generic sub handling: the
-      // generic branch reads X as «confirm», which is exactly the collision
-      // the console-wide «X = осмотреть» grammar forbids here.
-      if (this.sub === 'targets') {
-        switch (action) {
-        case 'primary': this.targetConfirm(); return;
-        case 'inspect': this.targetInspect(); return;
-        case 'prevSection': this.cycleTargetOwner(-1); return;
-        case 'nextSection': this.cycleTargetOwner(1); return;
-        case 'back': this.closeTargetStep(); return;
-        default: return;
-        }
-      }
-      // THE VENUS BONUS'S INNER STEP (P89 · EM): the pure model's verbs — A the zone's verb (confirm leaves), LB/RB one
-      // unit, RT the rest, B back to the decisions with the draft kept.
-      if (this.sub === 'venus') {
-        if (action === 'inspect' && this.venusFocus.zone === 'pick') {
-          ((this.$refs.venusStep ?? undefined) as VenusBonusStepApi | undefined)?.pickInspect();
-          return;
-        }
-        if (action === 'primary' || action === 'back' || action === 'prevSection' || action === 'nextSection' || action === 'nextTab') {
-          this.venusStepPress(action);
-        }
-        return;
-      }
-      // THE COMPOSITION SUBSTEP owns its own three verbs: the dial, the same
-      // final trade confirm, and B back to Configure (draft intact).
-      if (this.sub === 'mix') {
-        switch (action) {
-        case 'prevSection':
-          this.adjustTradeMix(-1);
-          return;
-        case 'nextSection':
-          this.adjustTradeMix(1);
-          return;
-        case 'inspect':
-          if (this.canConfirm) {
-            this.emitConfirm();
-          }
-          return;
-        case 'back':
-          this.closeMixStep();
-          return;
-        default:
-          return;
-        }
-      }
-      switch (action) {
-      // (No LB/RB on Configure: the dial belongs to the payment substep —
-      // a hidden control the screen never advertised is the forbidden shape.)
-      case 'primary':
-        // BUILD / PICK with nothing to choose: A IS the confirm (the
-        // destination slot and the grant are already shown). A build that DOES
-        // ask something (its placement bonus needs a card) speaks the trade's
-        // grammar instead — A opens the focused decision, X commits — so one
-        // press can never mean «выбрать» and «построить» on the same screen.
-        if (this.sub === undefined && (this.intent === 'pick' || this.intent === 'track' || (this.intent === 'build' && !this.hasDecisions))) {
-          if (this.canConfirm) {
-            this.$emit(this.intent === 'build' ? 'build-confirm' : 'pick-confirm');
-          }
-          return;
-        }
-        this.onConfirmPress();
-        return;
-      case 'inspect':
-        // A CHOSEN TRACK's stage (TR07) and a CITY's (TR22): X is the console's ordinary «Осмотреть» — the colony's
-        // dossier. The confirm here is A; there is nothing composed for X to commit.
-        if ((this.intent === 'track' || this.city !== undefined) && this.sub === undefined) {
-          if (!this.pastCommit) {
-            this.$emit('inspect');
-          }
-          return;
-        }
-        // …and a CARD's own build door (TR25) with nothing to compose: A is its confirm, so X is free to read the
-        // dossier exactly as on the other two staged acts. (A build that composes keeps X as its one commit.)
-        if (this.intent === 'build' && this.buildProjected && !this.hasDecisions && this.sub === undefined) {
-          if (!this.pastCommit) {
-            this.$emit('inspect');
-          }
-          return;
-        }
-        // X = the one final confirm of a composed act (only when every
-        // decision is in) — the trade, and a build that had decisions.
-        if (this.sub === undefined && this.canConfirm &&
-            (this.intent === 'trade' || (this.intent === 'build' && this.hasDecisions))) {
-          // CONFIGURE → PAYMENT, only while the server model admits at least
-          // two valid mixes of the chosen energy family; a single valid
-          // allocation (and every other family) goes straight to Resolve.
-          if (this.intent === 'trade' && this.tradeMixAdjustable) {
-            this.openMixStep();
-            return;
-          }
-          this.emitConfirm();
-        } else if (this.sub !== undefined) {
-          this.onConfirmPress();
-        }
-        return;
-      case 'nextTab':
-        if (this.sub === 'lanes') {
-          this.adjustPayLane(this.subIdx, 0, true);
-        } else if (this.sub === 'track' && this.trackDecline !== '') {
-          // RT — the advance's DECLINE: 0 steps, answered like any row.
-          this.captures = {...this.captures, track: 0};
-          this.sub = undefined;
-        }
-        return;
-      case 'back':
-        if (this.sub !== undefined) {
-          this.sub = undefined;
-          return;
-        }
-        this.$emit('cancel');
-        return;
-      default:
-        return;
-      }
-    },
-    onConfirmPress(): void {
-      if (this.sub === 'lanes') {
-        if (this.paymentView?.status.ok === true) {
-          this.sub = undefined;
-        }
-        return;
-      }
-      if (this.sub === 'track') {
-        const option = this.trackOptions[this.subIdx];
-        if (option !== undefined) {
-          this.captures = {...this.captures, track: option.steps};
-          this.sub = undefined;
-        }
-        return;
-      }
-      const focused = this.focused;
-      if (focused === undefined) {
-        return;
-      }
-      if (focused.zone === 'pay') {
-        if (this.lockedPayIdx < 0) {
-          this.payIdx = focused.index;
-        }
-        return;
-      }
-      const row = this.stepRows[focused.index];
-      if (row === undefined) {
-        return;
-      }
-      if (row.kind === 'payment') {
-        this.sub = 'lanes';
-        this.subIdx = 0;
-        return;
-      }
-      if (row.kind === 'trackChoice') {
-        this.sub = 'track';
-        this.subIdx = 0;
-        return;
-      }
-      if (row.kind === 'cardTarget') {
-        this.openTargetStep();
-        return;
-      }
-      if (row.kind === 'venusBonus') {
-        const meta = venusBonusMetaOf(this.venusStepInput);
-        if (meta !== undefined) {
-          this.venusFocus = venusInnerOpen(meta, this.venusParts);
-          this.sub = 'venus';
-        }
-        return;
-      }
-    },
-    // ── the embedded TARGET STEP (the shared selector — `ConsoleTradeTargetStep`) ─
-    /**
-     * DESCEND into the target step — one level deeper in the same flow. The
-     * cursor lands on the previously chosen card when there is one (a re-entry
-     * through «Изменить выбор» — already target-locked), else on the model's
-     * own first seat; with nothing to point at the step does not open. The
-     * step measures its own room once it stands and solves its cards on it.
-     */
-    openTargetStep(): void {
-      if (openTradeTargetFocus(this.targetStepModel, this.targetLockedCard) === undefined) {
-        return;
-      }
-      this.sub = 'targets';
-    },
-    /**
-     * THE PANEL TAKES THE ROOM IT NEEDS — measured, because CSS cannot see it.
-     *
-     * The configuration lives inside a `ConsoleScrollArea` whose viewport is
-     * `flex: 1` (basis 0), so its content height is invisible to every
-     * ancestor: the panel stayed at its token, drew a scroll rail, and left a
-     * third of the band empty above and below it (the report).
-     *
-     * The number published is CONTENT-DERIVED, never a delta — `panel − box +
-     * content` is a FIXPOINT (applying it makes the box exactly the content,
-     * and re-measuring yields the same number), so the panel neither
-     * oscillates nor stays inflated once the content shrinks. `max-height:
-     * 100%` still caps it: on a genuinely short host (the Deck) the scroll
-     * comes back as the honest last resort.
-     */
-    measureFit(): void {
-      if (this.fitRaf !== undefined) {
-        return;
-      }
-      this.fitRaf = this.flow.afterFrame('the colony stage\'s fit measure', () => {
-        this.fitRaf = undefined;
-        const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-        const surface = root?.querySelector<HTMLElement>('.con-colfocus__surface');
-        if (root === undefined || root === null || surface === null || surface === undefined) {
-          return;
-        }
-        const panelH = surface.clientHeight;
-        if (panelH <= 0) {
-          return;
-        }
-        let need = 0;
-        // The configuration's own scroll area (the deep one).
-        const viewport = root.querySelector<HTMLElement>('.con-colfocus__configscroll .con-scroll-area__viewport');
-        const content = viewport?.querySelector<HTMLElement>('.con-scroll-area__content');
-        if (viewport !== null && viewport !== undefined && content !== null && content !== undefined) {
-          need = Math.max(need, panelH - viewport.clientHeight + content.scrollHeight);
-        }
-        // …and the SUMMARY RAIL, which has no scroller and would simply clip.
-        const rail = root.querySelector<HTMLElement>('.con-colfocus__result');
-        if (rail !== null && rail !== undefined) {
-          need = Math.max(need, panelH - rail.clientHeight + rail.scrollHeight);
-        }
-        const rounded = Math.ceil(need);
-        // A tolerance, so sub-pixel layout noise can never re-write the token
-        // every frame (each write is a layout the next measure reads back).
-        if (Math.abs(rounded - this.fitNeedPx) > 2) {
-          this.fitNeedPx = rounded;
-        }
-      });
-    },
-    /**
-     * B — fold ONE level back. The previous pre-select is deliberately kept:
-     * closing the step is «передумал смотреть», never «передумал выбирать» —
-     * a confirmed target survives every visit that ends with B.
-     */
-    closeTargetStep(): void {
-      const drop = (): void => {
-        if (this.sub === 'targets') {
-          this.sub = undefined;
-        }
-        this.scrollFocusedIntoView();
-      };
-      const step = (this.$refs.targetStep ?? undefined) as {close?: (done: () => void) => void} | undefined;
-      if (step?.close !== undefined) {
-        step.close(drop);
-      } else {
-        drop();
-      }
-    },
-    /** The step's own grammar, reached through its host (the shared selector lives there). */
-    targetStepHost(): TradeTargetStepHandle | undefined {
-      return (this.$refs.targetStep ?? undefined) as TradeTargetStepHandle | undefined;
-    },
-    targetNav(dir: NavDirection): void {
-      this.targetStepHost()?.nav(dir);
-    },
-    /** LB/RB — the owner axis, tabbed mode only (the shared grammar; colony
-     *  targets are normally the viewer's own single group, so this is quiet). */
-    cycleTargetOwner(delta: number): void {
-      this.targetStepHost()?.cycleOwner(delta);
-    },
-    /** A — lock the focused candidate in as this step's target (the host answers with `pick`). */
-    targetConfirm(): void {
-      this.targetStepHost()?.confirm();
-    },
-    /** The host's answer: the capture is the SAME shape the batch always sent
-     *  (`{type:'card', cards:[name]}` downstream) — the selector is
-     *  presentation, never a second source of truth. */
-    targetPicked(card: string): void {
-      const key = this.activeTargetKey;
-      if (key === '') {
-        return;
-      }
-      this.captures = {...this.captures, [key]: card};
-      this.closeTargetStep();
-    },
-    /** X — the focused candidate fullscreen, lifting from its own slot (the
-     *  console-wide «X inspects the current object»). */
-    targetInspect(): void {
-      this.targetStepHost()?.inspect();
-    },
-    /**
-     * THE CONFIG HALF of the boundary snapshot — what the working area
-     * PRESENTS from here on. Two callers: the shell's accept (the ordinary
-     * path) and the stage's own commit latch (the one that cannot be missed).
-     */
-    /**
-     * The receipt's base for the snapshot. Before the server's answer the live
-     * models ARE the pre-trade state — read them and leave them with the trade
-     * transaction, which outlives this instance. Past the answer (a stage
-     * MOUNTING mid-resolution) the live models already hold the payout, so the
-     * transaction's remembered base is the truth; with nothing remembered the
-     * live read is the honest degrade.
-     */
-    boundaryReceipt(): TradeReceiptBase {
-      const remembered = colonyTradeReceiptBase(this.colony.name);
-      if (remembered !== undefined) {
-        return remembered;
-      }
-      const live = tradeReceiptBaseOf(this.thisPlayer, this.players);
-      noteColonyTradeReceiptBase(this.colony.name, live);
-      return live;
-    },
-    pinConfig(): void {
-      const held: PayEntry | undefined = this.payEntries[this.payIdx];
-      const mix = this.energyMixInfo;
-      this.heldView = {
-        mode: this.presentMode,
-        available: this.presentAvailable,
-        payment: held === undefined ? undefined : {
-          ...held,
-          ...(mix !== undefined ?
-            {mix: {energy: Math.max(0, mix.cost - this.tradeSteelMix), steel: this.tradeSteelMix}} :
-            {}),
-        },
-        // …AND THE SERVER'S OWN INPUTS. Everything the working area derives
-        // comes from these two, so pinning them is what makes the whole zone
-        // stop describing the NEXT trade the moment this one is answered
-        // (see `HeldView`).
-        options: this.options.slice(),
-        disabledOptions: this.disabledOptions.slice(),
-        preview: this.preview,
-        tradeOffset: this.tradeOffset + this.chosenPathOffset,
-        receipt: this.boundaryReceipt(),
-        buildSlot: this.nextBuildSlot,
-      };
-      this.pinnedConfig = this.heldView;
-    },
-    /** The presented-target helpers (the resolution scene). */
-    landedOf(t: ColonyTradePresentedTarget): number {
-      // ONE tally for every payout shape — the transfer framework's own
-      // contact record, so a TRADE reward and a BUILD bonus tick identically.
-      return this.landings.by[t.card] ?? 0;
-    },
-    clearCardlandDwell(): void {
-      if (this.cardlandDwell !== undefined) {
-        this.cardlandDwell();
-        this.cardlandDwell = undefined;
-      }
-    },
-    /** ⚠️ Separate from the dwell on purpose: several paths clear the dwell and
-     *  re-arm it without touching `cardlandReleased`, and killing a DEPARTURE
-     *  there would strand the card on stage with no edge left to restart it. */
-    clearCardlandLeave(): void {
-      if (this.cardlandLeave !== undefined) {
-        this.cardlandLeave();
-        this.cardlandLeave = undefined;
-      }
-    },
-    /**
-     * A fresh preview re-judges every capture (the invalidation half of the
-     * pre-select contract): a target no longer offered is dropped, a track
-     * step that vanished releases its choice, and a target sub whose step
-     * disappeared folds back to the review.
-     */
-    pruneStaleCaptures(): void {
-      const next: Record<string, unknown> = {...this.captures};
-      let changed = false;
-      const keys = this.stepKeys;
-      this.steps.forEach((step, i) => {
-        const key = keys[i];
-        if (step.kind !== 'cardTarget') {
-          return;
-        }
-        const captured = next[key];
-        if (typeof captured === 'string' && !step.pick.cards.some((c) => c.name === captured)) {
-          delete next[key];
-          changed = true;
-        }
-      });
-      // Captures whose STEP is gone entirely (a re-shaped preview).
-      const live = new Set(keys);
-      for (const key of Object.keys(next)) {
-        if ((key.startsWith('target:') || key === 'track') && !live.has(key)) {
-          delete next[key];
-          changed = true;
-        }
-      }
-      if (changed) {
-        this.captures = next;
-      }
-      if (this.sub === 'targets' && this.activeTargetStep === undefined) {
-        this.sub = undefined;
-      }
-    },
-    rowMissing(row: StepRow): boolean {
-      if (row.kind === 'trackChoice') {
-        return this.captures['track'] === undefined;
-      }
-      if (row.kind === 'cardTarget') {
-        return this.captures[row.key] === undefined;
-      }
-      if (row.kind === 'venusBonus') {
-        return this.captures['venus'] === undefined;
-      }
-      if (row.kind === 'payment') {
-        return this.paymentView !== undefined && !this.paymentView.status.ok;
-      }
-      return false;
-    },
-    scrollFocusedIntoView(): void {
-      void this.$nextTick(() => {
-        const el = (this.$refs.focusedEl ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
-        // A focused PAY row lives in the shared rows component — it hands its own element over.
-        const payRow = ((this.$refs.payRows ?? undefined) as {focusedEl?: () => HTMLElement | undefined} | undefined)?.focusedEl?.();
-        const node = payRow ?? (Array.isArray(el) ? el[0] : el);
-        ((this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
-      });
-    },
-    emitConfirm(): void {
-      const capturesByIndex: Record<number, unknown> = {};
-      this.steps.forEach((step, i) => {
-        const key = this.stepKeys[i];
-        if (step.kind === 'payment') {
-          const view = this.paymentView;
-          const player = this.thisPlayer;
-          if (view !== undefined && player !== undefined) {
-            capturesByIndex[i] = paymentFromCounts(view.cost, this.payLanes, this.paymentCounts, megacreditsAvailable(player));
-          }
-        } else if (step.kind === 'energyMix') {
-          // The linked Delta Works dial always holds a valid answer (the
-          // clamped steel share; energy is the remainder) — captured like the
-          // M€ payment, so the mix prompt never surfaces standalone.
-          capturesByIndex[i] = this.tradeSteelMix;
-        } else if (this.captures[key] !== undefined) {
-          capturesByIndex[i] = this.captures[key];
-        }
-      });
-      this.armVenusPreselect();
-      const payload = {
-        paymentIndex: this.payIdx,
-        steps: this.steps,
-        captures: capturesByIndex,
-        targets: this.cardDestinations.targets,
-      };
-      // ONE payload shape, two acts: the build's own confirm carries the very
-      // same pre-collected steps, so the shell answers both with one batch
-      // builder and both land their reward on the card the player chose.
-      this.$emit(this.intent === 'build' ? 'build-confirm' : 'confirm', payload);
-    },
-    /**
-     * The follow-up's stage handoff, in the shared grammar: the configuration
-     * lets go ON THE SPOT, the outcome zone opens FROM ITS RECT, and the
-     * teleported content surfaces from inside once it actually lands. The
-     * origin is armed at the commit, while the configuration still stands.
-     */
-    /** ARM the handoff once per zone session: the POSE (`--handing`, which is
-     *  what takes the track out from under the payout) plus — when there is a
-     *  surface to release — the release phrase. One writer, three callers (the
-     *  cue's edge, the mount, the next cycle's zone). */
-    armOutcomeHandoff(due: boolean): void {
-      if (!due || this.outcomeHandoffPlayed) {
-        return;
-      }
-      this.outcomeHandoffPlayed = true;
-      this.playOutcomeHandoff();
-    },
-    playOutcomeHandoff(): void {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || root === null) {
-        return;
-      }
-      playConfigRelease(root);
-      void this.$nextTick(() => playOutcomePhase(root, () => undefined));
-    },
-    /** THE COMMIT BOUNDARY: pin what the stage shows before the props flip
-     *  (the answer removes the pick / spends the trade while the resolution
-     *  still plays HERE). Called by the SHELL only after ITS guards accepted
-     *  the confirm (a hold with no submit behind it would gate input forever
-     *  — the transaction that releases it would never start). Released by
-     *  the transaction's falling edge. */
-    /**
-     * THE COMMIT DID NOT HOLD (a refused answer; the server re-asked the
-     * pick live): the pinned presentation lets go, so the stage is a door
-     * again — its verdict, its confirm and its configuration re-derive from
-     * the live props. Nothing of a move was shown, so nothing is undone.
-     */
-    releasePresentation(): void {
-      this.heldVerdict = undefined;
-      this.heldFleetLine = undefined;
-      this.heldView = undefined;
-      this.pinnedConfig = undefined;
-      this.commitLatched = false;
-      this.publishStageName();
-      this.syncUiMirror();
-    },
-    holdPresentation(): void {
-      // The verdict's words at the press — its box outlives the commit with exactly these (no re-wrap, no shift).
-      this.heldVerdict = this.liveVerdict;
-      this.heldFleetLine = {text: this.visitorLine, color: this.colony.visitor};
-      // Arm the outcome origin while the configuration surface still stands —
-      // its rect is what the follow-up's zone will unfold from.
-      // The WORKING AREA is what hands over — the identity column stays, so
-      // the follow-up opens from the track/config box, not from the whole
-      // panel (an origin larger than the zone clips to nothing and the unfold
-      // silently degrades into a fade).
-      armOutcomeOriginFrom((this.$refs.mainEl ?? undefined) as HTMLElement | undefined);
-      // A mix fee pins the ACTUAL dialed composition into the held row — the
-      // entry's own preview is the energy-first default and would misreport
-      // a commit that spends steel.
-      this.pinConfig();
-      // THE PRESENTED TARGETS — snapshotted AT the boundary, like everything
-      // else in the held view: the server's answer will rewrite the preview
-      // and the tableau under the resolution, and the scene must keep showing
-      // the decision as it was made («было → прилетело → стало»).
-      this.presentedTargets = this.cardDestinations.presented;
-      this.cardlandReleased = false;
-      this.clearCardlandDwell();
-      this.clearCardlandLeave();
-    },
-  },
-  mounted() {
-    this.measureFit();
-    // The RESPONSIVE path: the band itself changing (a profile switch, the
-    // rail lifting, a font settling) — never a manual window listener.
-    const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-    if (root !== undefined && root !== null) {
-      this.stopFitObs = useResizeObserver(root, () => this.measureFit()).stop;
-    }
-    this.seedPaymentDefault();
-    this.syncLockedPayment();
-    this.publishStageName();
-    this.syncUiMirror();
-  },
-  beforeUnmount() {
-    this.stopFitObs?.();
-    this.stopFitObs = undefined;
-    // (The measure frame, the stage-back dwell and the presented card's two timers are `flow`'s — taken back with it.)
-    consoleColoniesUi.composerSub = '';
-    consoleColoniesUi.composerReady = false;
-    consoleColoniesUi.composerEditable = false;
-    consoleColoniesUi.composerDecisions = false;
-    consoleColoniesUi.composerMixAdjustable = false;
-    consoleColoniesUi.forecastAvailable = false;
-    consoleColoniesUi.forecastOpen = false;
-    closeEffectForecastLayer('colony');
-    this.pulseCall?.kill();
-    this.pulseCall = undefined;
-    // A stage that is GONE hides nothing: the closing beat must never wait on
-    // a screen that no longer exists (the discard closes this stage mid-flow,
-    // and the reset then plays on the restored one — or on the overview tile).
-    this.stageBackToken++;
-    colonyResolutionUi.cardSceneLive = false;
-    setColonyStageYielded(false);
-  },
+defineOptions({name: 'ConsoleColonyFocusStage'});
+const props = defineProps({
+  colony: {type: Object as PropType<ColonyModel>, required: true},
+  /** What the player came to DO (`consoleColoniesModel.ColonyFocusIntent`). */
+  intent: {type: String as PropType<ColonyFocusIntent>, default: 'inspect'},
+  /** The action is genuinely offerable HERE (server truth, per intent). */
+  actionAvailable: {type: Boolean, default: false},
+  /** Honest reason when the action is impossible ('' when available). */
+  blockReason: {type: String, default: ''},
+  /** That reason's REGISTER (`AvailabilityBlocker.tone`): 'warning' = the
+   *  trade is legal and merely out of the player's window right now. */
+  blockTone: {type: String as PropType<'warning' | 'danger'>, default: 'danger'},
+  /**
+   * THE SERVER'S PROJECTION OF A BUILD ON THIS TILE (`SelectColonyModel.buildSites` — the berth the cube takes,
+   * beyond the printed limit or not). `undefined` off a build door; past the commit the stage reads its own
+   * pinned berth.
+   */
+  buildSite: {type: Object as PropType<ColonyBuildSite | undefined>, default: undefined},
+  /** The build is a CARD's own door (TR25): the berth beyond the limit wears the cube's ghost. */
+  buildProjected: {type: Boolean, default: false},
+  /** The pick's server verb ('Build' / 'Remove colony' …, pick intent). */
+  pickLabel: {type: String, default: ''},
+  /**
+   * The workspace holds an OUTCOME CLAIM and this stage is its host: the
+   * stage gives the follow-up its own zone and steps back. The SECTION owns
+   * the publication of the slot selector (one writer), so this prop is the
+   * only thing the stage needs to know.
+   */
+  outcomeZone: {type: Boolean, default: false},
+  /**
+   * THE DISCARD STEP STANDS OVER THE STAGE — the stage RECEDES, it does not close (colony polish 1). The
+   * resolution's mandatory discard takes the whole room (the hand, iteration 4's decision), and the stage — with
+   * the settlement table parked in its zone — waits underneath, mounted and invisible, for the hand to give the
+   * room back. Closing it here (the old way) unmounted the very table whose next card the player was waiting on:
+   * the colony re-materialized from its chip, and the next card flew in AGAIN to a place that had just held it.
+   */
+  receded: {type: Boolean, default: false},
+  /** The inner "Pay trade fee" OrOptions options (server-affordable). */
+  options: {type: Array as PropType<ReadonlyArray<SelectOptionModel>>, default: () => []},
+  disabledOptions: {type: Array as PropType<NonNullable<OrOptionsModel['disabledOptions']>>, default: () => []},
+  players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
+  preview: {type: Object as PropType<ColonyTradePreviewModel | undefined>, default: undefined},
+  thisPlayer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  /** The viewer's versioned view — the R3 «Эффекты» layer asks the reacting seats' effect stats with it (PL-066). */
+  statsView: {type: Object as PropType<VersionedView | undefined>, default: undefined},
+  tradeOffset: {type: Number, default: 0},
+  /** The chosen payment path's own advance the PREVIEW was fetched with (the section echoes `path-offset` back). */
+  pathOffset: {type: Number, default: 0},
+  /**
+   * THE SERVER'S PROJECTION of this tile's marker (`track` intent — TR07:
+   * `SelectColonyModel.trackMoves`): where it stands and where the pick puts
+   * it. The instrument's ghost, the «+N» and the «торговля здесь» reading
+   * are drawn from it; the stage computes none of it.
+   */
+  trackMove: {type: Object as PropType<ColonyTrackMove | undefined>, default: undefined},
+  /**
+   * THE ROSTER ACT (`intent` is then the build's or the pick's — the section maps it): this pick replaces,
+   * adds or removes a colony tile. The SERVER's reading of what confirming does (`rosterStageReading`), the
+   * tile that leaves, the verb and the crumb's stage; the stage computes none of it.
+   */
+  roster: {type: Object as PropType<ColonyRosterStageView | undefined>, default: undefined},
+  /**
+   * THE CITY ACT (`intent` is then the pick's — the section maps it): this pick lays a city on the colony tile
+   * (TR22 Nova City). The SERVER's reading off its `tileSite` marker, the verb and the crumb's stage; the stage
+   * computes none of it.
+   */
+  city: {type: Object as PropType<ColonyCityStageView | undefined>, default: undefined},
 });
+const emit = defineEmits(['confirm', 'build-confirm', 'pick-confirm', 'cancel', 'path-offset', 'inspect']);
+
+const flow = useFlowScope('colony-focus-stage');
+const rootEl = useTemplateRef<HTMLElement>('rootEl');
+const forecastLayer = useTemplateRef<InstanceType<typeof ConsoleForecastLayer>>('forecastLayer');
+const venusStep = useTemplateRef<VenusBonusStepApi>('venusStep');
+const targetStep = useTemplateRef<TradeTargetStepHandle & {close?: (done: () => void) => void}>('targetStep');
+const focusedEl = useTemplateRef<HTMLElement | Array<HTMLElement>>('focusedEl');
+const payRows = useTemplateRef<{focusedEl?: () => HTMLElement | undefined}>('payRows');
+const scroll = useTemplateRef<{ensureVisible?: (el: Element | null | undefined) => void}>('scroll');
+const mainEl = useTemplateRef<HTMLElement>('mainEl');
+const payIdx = ref(0);
+/** The one-shot COMMIT flare on the «⚡ сработает» door (PL-066). */
+const forecastPulse = ref(false);
+/** The flare's clock — a plain handle, never the tween in reactive data. */
+let pulseCall: {kill: () => void} | undefined;
+/** The dialed Delta Works steel share (clamped live in `tradeSteelMix`);
+ *  0 keeps the energy-first default — steel covers only the deficit. */
+const steelMixPreference = ref(0);
+/** Re-keys the mix panel's one-shot pulse on each dial press. */
+const mixFlashNonce = ref(0);
+/** Where the cursor stood when the composition substep opened — B
+ *  restores it, so the walk back lands on the family row it left. */
+const mixReturnFocusIdx = ref(0);
+const focusIdx = ref(0);
+const subIdx = ref(0);
+const sub = ref<Sub>(undefined);
+const captures = ref<Record<string, unknown>>({});
+/** The pre-selected Venus bonus (P89 · EL) — its two parts and the spread's lane cursor; the composed answer is `captures.venus`. */
+const venusParts = ref<VenusBonusParts>({});
+/** The inner step's cursor (`venusBonusInner.ts`). */
+const venusFocus = ref({zone: 'lane', index: 0} as VenusInnerFocus);
+/** The MEASURED height the panel's columns want (see `measureFit`). */
+const fitNeedPx = ref(0);
+/** The pending measure frame's cancel (`flow.afterFrame`) — `undefined` when none is owed. */
+let fitRaf: (() => void) | undefined;
+let stopFitObs: (() => void) | undefined;
+/**
+ * THE PRESENTED TARGETS — the card-resource destinations of the
+ * confirmed trade (picked + auto), snapshotted at the commit boundary
+ * beside `heldView`. The resolution scene renders these as physical
+ * faces; the transfer chips land on them; both read ONE list.
+ */
+const presentedTargets = ref<ReadonlyArray<ColonyTradePresentedTarget>>([]);
+/** The presented scene has finished (all chips landed + a read beat, or
+ *  a card payout took the area over) and is receding. */
+const cardlandReleased = ref(false);
+/** The read beat's cancel (a timer of `flow`) — `undefined` when no dwell stands. */
+let cardlandDwell: (() => void) | undefined;
+/** The departure's own timer (its cancel) — the card is unmounted when it lands. */
+let cardlandLeave: (() => void) | undefined;
+const paymentCounts = ref<Partial<Record<SpendableResource, number>>>({});
+const payFlashNonce = ref(0);
+/** The ONE track mechanism's flow (a chosen track's move plays here — TR07; its wave is `colonyTrackWaveState`, read as imported). */
+const trackMoveFlow = colonyTrackMoveFlow;
+/** The roster ceremony's poses (the seat gone, the hero docked). */
+const rosterState = colonyRosterState;
+/** A city's landing on this tile (TR22): the cube has touched — the count flips. */
+const cityState = colonyCityState;
+/** The remote-entry context (module reactive — the stage's name for it). */
+const bonusEntry = colonyBonusEntry;
+/** The resolution's presentation facts — the payout LIFT-OFF cue lives
+ *  here (module reactive — the stage's name for it). */
+const resolutionUi = colonyResolutionUi;
+/** The transfer framework's card-resource touchdown tally (module
+ *  reactive — the presented counters tick from it). */
+const landings = cardResourceLandings;
+/** The transfer layer's live flights (module reactive). */
+const transferState = resourceTransferState;
+/** ONE-SHOT: the outcome handoff (config release + zone unfold) has
+ *  played for the current claim — drives the `--handing` pose too, so
+ *  the CSS dissolve can never run ahead of the phrase. */
+const outcomeHandoffPlayed = ref(false);
+/** The stage is coming BACK from the discard step — the return's own transition runs (see `receded`). */
+const unreceding = ref(false);
+/** The «working area is back» dwell (see the `workingAreaYielded` watcher) — its cancel. */
+let stageBackTimer: (() => void) | undefined;
+/** Each rise / fall of `stageBusy` — a release waiting on the working area's transitions is THIS fall's only. */
+const stageBackToken = ref(0);
+/**
+ * THIS STAGE SESSION HAS CROSSED THE COMMIT. Latched on `pastCommit`'s
+ * rising edge and never dropped (a new colony / a fresh mount resets):
+ * the resolution's final beats release `pastCommit`'s terms one at a
+ * time, and the pre-commit verdict re-deriving in that gap is the red
+ * «Здесь стоит ваш флот» flash over a payout the fleet just earned.
+ */
+const commitLatched = ref(false);
+/** The verdict as it read AT THE PRESS — its reserved box keeps these words (and so its height). */
+const heldVerdict = ref<StageVerdict | undefined>(undefined);
+/** The visitor line as it read AT THE PRESS (the fleet docking under the trade adds nothing to the column). */
+const heldFleetLine = ref<StageFleetLine | undefined>(undefined);
+/** The last non-empty resolution context — held through the close so
+ *  the hero keeps naming the SOURCE role to the final frame. */
+const heldContext = ref<{roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined>(undefined);
+/**
+ * The COMMIT-BOUNDARY freeze: at the confirm the stage pins WHAT it was
+ * showing ({mode, available}), because the server's answer flips the
+ * props (the pick is gone, the trade is spent) while the resolution is
+ * still physically playing on this stage — recomputing live re-titled
+ * the crumb «Осмотр» and swapped the verdict under a flying cube.
+ * Released by the transaction's own falling edge, never a timer.
+ */
+const heldView = ref<HeldView | undefined>(undefined);
+/**
+ * …AND THE PART OF THAT SNAPSHOT THAT OUTLIVES IT.
+ *
+ * `heldView` is released on the transaction's FALLING edge — deliberately,
+ * because the crumb and the mode should re-derive once the resolution is
+ * over. The working area may NOT: the stage is still mounted for the
+ * conclusion's own beat, and re-deriving its options there is the same
+ * re-lit menu one frame later. What has been committed on this stage is
+ * committed for the stage's whole life (the `commitLatched` law, applied
+ * to the configuration), so this snapshot is cleared only by a new colony
+ * or a fresh mount.
+ */
+const pinnedConfig = ref<HeldView | undefined>(undefined);
+
+/** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
+const cardResourceKinds = computed((): ReadonlyArray<CardResource> => {
+  return colonyCardResources(metadata.value);
+});
+/** The flown proxy just handed off to the REAL docked ship on this
+ *  stage's orbital berth — the one-shot arrival acknowledgment ring
+ *  (the tile's `justDocked` seat glow, spoken on the stage). */
+const fleetJustDockedHere = computed((): boolean => {
+  return tradeFleetState.dockedColonyName === props.colony.name;
+});
+/** The action is RESOLVING on this stage (fleet flying / rewards landing
+ *  / marker gliding / the BUILD cube seating) — chrome inert, anchors
+ *  live, nothing folds. */
+const resolving = computed((): boolean => {
+  return (tradeFleetState.active && tradeFleetState.colonyName === props.colony.name) ||
+    (colonyTradeState.active && colonyTradeState.colonyName === props.colony.name) ||
+    (colonyBuildState.active && colonyBuildState.colonyName === props.colony.name) ||
+    // …and a CHOSEN TRACK's move playing on this very stage (TR07).
+    (colonyTrackWaveState.active && colonyTrackWaveState.anchors === 'stage' &&
+      colonyTrackWaveState.moves.some((move) => move.colony === props.colony.name));
+});
+/**
+ * THE SOURCE CONTEXT of the running resolution (the hero's chip). The
+ * role advances with the waves — trade income first, then the owner
+ * bonus (the batch's own `role` tag / the discard step both say so) —
+ * and a REMOTE entry (another player's trade) names that player from
+ * the fleet parked on the colony. `undefined` pre-commit: the verdict
+ * owns that space.
+ */
+const resolutionContext = computed((): {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined => {
+  const claimed = workspaceOutcomeState.host === 'colonies' &&
+    workspaceOutcomeState.sourceCard === props.colony.name;
+  const own = colonyTradeState.active && colonyTradeState.colonyName === props.colony.name;
+  // ⚠️ THE VIEWER'S OWN TRANSACTION OUTRANKS THE ENTRY CONTEXT. The entry is
+  // a CLIENT-armed fact about a FOREIGN trade; the transaction is proof the
+  // viewer is trading here right now. Asking the entry first is how «Бот
+  // торговал с этой колонией» stood over the player's own fleet on their
+  // own trade — the entry belonged to an earlier payout on the same colony.
+  // A trader who IS the viewer is likewise never named: «you traded here»
+  // is not context, it is the thing they just did.
+  const isEntry = !own && bonusEntry.colonyName === props.colony.name;
+  if (!isEntry && !claimed && !own) {
+    return undefined;
+  }
+  if (isEntry) {
+    const foreign = bonusEntry.traderColor !== '' && bonusEntry.traderColor !== props.viewerColor;
+    const line = foreign && bonusEntry.traderName !== '' ?
+      translateTextWithParams('${0} traded with this colony', [bonusEntry.traderName]) : '';
+    return {
+      roleKey: 'Owner bonus triggered', bonus: true,
+      traderColor: foreign ? bonusEntry.traderColor : '', traderLine: line,
+    };
+  }
+  // THE INCOME LANDS FIRST. The owner bonus's batch arrives in the SAME
+  // response as the trade income (the Redux Venus), so its presence alone
+  // named the bonus while the income's chip was still flying onto the
+  // presented card — «ИСТОЧНИК · БОНУС ВЛАДЕЛЬЦА» over a trade reward in
+  // the air. While a presented target of the INCOME stands, the chip in
+  // flight is the trade reward; the bonus takes the name once it has left.
+  const incomeLanding = presentedTargets.value.some((t) => t.role !== 'colonyBonus');
+  const bonusWave = !incomeLanding && (revealIsOwnerBonus(colonyRevealSourceOf(currentRevealEvent())) ||
+    cardDiscardColonyBonus() !== undefined);
+  if (bonusWave) {
+    return {roleKey: 'Owner bonus', bonus: true, traderColor: '', traderLine: ''};
+  }
+  // A BUILD's payout is the PLACEMENT bonus, not trade income. Keyed on the
+  // stage's own intent rather than on the build transaction, which ends at
+  // the commit while its cards are still on the table — the label would
+  // otherwise turn into «Торговая награда» halfway through a payout no
+  // trade produced. (Only readable at all since the stage now stays up
+  // through the flight, which is exactly when the player reads it.)
+  const build = props.intent === 'build';
+  return {
+    roleKey: build ? 'Colony placement bonus' : 'Trade reward',
+    bonus: false, traderColor: '', traderLine: '',
+  };
+});
+/**
+ * What the SOURCE chip actually shows: the live context, or — past the
+ * commit — the LAST one, held to the final frame. The live derivation's
+ * terms (transaction, claim, entry) release one signal at a time at the
+ * resolution's end, and the chip vanishing a second before the workspace
+ * closes read as the screen forgetting whose payout it just presented.
+ */
+const presentedContext = computed((): {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined => {
+  return resolutionContext.value ?? (commitLatched.value ? heldContext.value : undefined);
+});
+/**
+ * THE HANDOFF CUE — when the configuration may let go. ⚠️ Deliberately NOT
+ * the claim (the submit), and — iteration 4 — deliberately NOT the covers'
+ * take-off either: the fan and the departures play OVER the still-standing
+ * scene (the player must read the count and the source), and only the
+ * layer's `ascend` beat — the first cover deep into its travel, almost
+ * grown — starts the dissolve underneath. Releasing at `fly` was
+ * «интерфейс уже исчез в момент отделения карт».
+ *  · or — for a flow with no covers of its own (a build's board lift, a
+ *    served remote batch, reduced motion, a degrade) — the content
+ *    genuinely landing in the zone is the cue.
+ */
+const outcomeHandoffDue = computed((): boolean => {
+  if (!props.outcomeZone) {
+    return false;
+  }
+  // A CARD IS RECEIVING. The presented target stands until every chip has
+  // touched it, is read for one calm beat and LEAVES on its own — only then
+  // may the payout take the room. Measured without this: the owner
+  // bonus's batch teleported into the zone in the very response that
+  // paid the trade, `outcomeContentIn` called the handoff due, the card
+  // was unmounted under the reward that had not even left its source,
+  // and the chip flew onto nothing (`run:no-dest`). The cover scene waits
+  // for the same fact from its side (`waitForCause` · `cardSceneLive`).
+  if (presentedTargets.value.length > 0) {
+    return false;
+  }
+  // THE TRACK IS STILL MOVING. The payout is a CONSEQUENCE of the marker
+  // arriving at the cell it is read at, so nothing of it — least of all
+  // this dissolve — may begin while the marker is still crossing the very
+  // track it would take with it. (`outcomeContentIn` goes true as soon as
+  // the batch teleports into the zone, which is exactly mid-glide: the
+  // reveal was mounting, veiled, while the interface evaporated under a
+  // marker still in flight.)
+  if (colonyTrackAdvancing() && colonyTradeState.colonyName === props.colony.name) {
+    return false;
+  }
+  // THE CARDS ARE ON THE MOVE — the one fact every cover scene raises
+  // (`colonyResolutionUi.payoutLiftOff`): the trade's covers at their
+  // separation, the build's cover-lift when its proxies take over. The
+  // stage dissolves WITH them, over the whole rise-and-turn, which is what
+  // makes the departure one phrase instead of a cut. Per-scene phase
+  // reads are deliberately gone: the build path had none, so its stage
+  // could only let go once the cards had already landed.
+  if (resolutionUi.payoutLiftOff) {
+    return true;
+  }
+  if (colonyTradeState.active &&
+      colonyTradeState.colonyName === props.colony.name &&
+      (colonyTradeState.cardScene === 'ascend' ||
+        colonyTradeState.cardScene === 'frame' ||
+        colonyTradeState.cardScene === 'handoff')) {
+    return true;
+  }
+  return outcomeContentIn.value;
+});
+/** The availability the stage PRESENTS — pinned across the commit
+ *  boundary (see `heldView`), live everywhere else. */
+const presentAvailable = computed((): boolean => {
+  return heldView.value !== undefined ? heldView.value.available : props.actionAvailable;
+});
+// ── THE EFFECT FORECAST (rides inside the colony preview) — the R3 «Эффекты» layer, the composers' own (PL-066) ──
+/** The TRADE's answer for a trade, the BUILD's for a build; a card's door (pick / track / roster / city) has its own forecast in its composer. */
+const forecast = computed((): EffectForecast | undefined => {
+  return props.intent === 'trade' ? props.preview?.forecast : props.intent === 'build' ? props.preview?.buildForecast : undefined;
+});
+const forecastReaction = computed((): VariantReaction => {
+  return reactionChipsOf(forecast.value?.facts ?? []);
+});
+const forecastAvailable = computed((): boolean => {
+  return forecastLayerAvailable(forecast.value);
+});
+/** R3 is the SETUP level's verb — silent in a sub-step, past the commit and while the resolution plays. */
+const forecastCanOpen = computed((): boolean => {
+  return forecastAvailable.value && sub.value === undefined && heldView.value === undefined && !resolving.value;
+});
+const fxOpen = computed((): boolean => {
+  return effectForecastOpen('colony');
+});
+const forecastOwnerColors = computed((): ReadonlyArray<string> => {
+  return forecastOwnerColorsOf(forecast.value, props.players);
+});
+const forecastStatsByColor = computed((): Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>> => {
+  return forecastStatsByColorOf(forecastOwnerColors.value);
+});
+const forecastCards = computed((): ReadonlyArray<CardModel> => {
+  return props.thisPlayer?.tableau ?? [];
+});
+/** The payment path the player actually chose, pinned at the commit —
+ *  what the config zone keeps showing while the trade resolves. */
+const heldPayment = computed((): PayEntry | undefined => {
+  return pinnedConfig.value?.payment;
+});
+/** The presentation mode the adaptive layout keys off. */
+const presentMode = computed((): string => {
+  if (heldView.value !== undefined) {
+    return heldView.value.mode;
+  }
+  if (props.intent === 'build') {
+    return props.actionAvailable ? 'build' : 'inspect';
+  }
+  if (props.intent === 'trade') {
+    return props.actionAvailable ? 'trade' : 'inspect';
+  }
+  if (props.intent === 'pick') {
+    return 'pick';
+  }
+  if (props.intent === 'track') {
+    return 'track';
+  }
+  if (props.intent === 'bonus') {
+    return 'bonus';
+  }
+  return 'inspect';
+});
+/**
+ * THE BONUS COMPOSITION — somebody else's trade is paying us here.
+ *
+ * The stage keeps its identity column and its payout zone and drops
+ * EVERYTHING that describes an action: the trade track, the guard rail,
+ * the berths, the configuration and the reward package. None of it is a
+ * decision the player has in front of them (they are not trading — they
+ * are being paid), and standing it up made the actual choice look like a
+ * detail of the trading screen.
+ */
+const bonusMode = computed((): boolean => {
+  return props.intent === 'bonus';
+});
+/** The colour of the city this act would lay on the tile ('' outside a «city» act) — the seat draws the ghost. */
+const cityProjection = computed((): Color | '' => {
+  return props.city?.reading.color ?? '';
+});
+/** The counted object of the city's reading — the space city RX08's readings draw. */
+const spaceCityGlyph = computed((): CountedObjectGlyph => {
+  return {kind: 'tile', tile: 'spaceCity'};
+});
+/** The cube has touched down — the count has flipped and the VP line has lit (the scene's own signal). */
+const cityCounted = computed((): boolean => {
+  return props.city !== undefined && cityState.counted;
+});
+/** The player's space cities AS SHOWN: «before» until the cube lands, «after» from then on (one number that flips). */
+const cityCitiesShown = computed((): number => {
+  const cities = props.city?.reading.cities;
+  return cities === undefined ? 0 : (cityCounted.value ? cities.after : cities.before);
+});
+/**
+ * The VP's formula in the score's own words («2 × 2 ПО») — the card's PRINTED rate (its declaration) over the
+ * server's count; the one formatter the score explorer and the play composer speak. '' when the card prints
+ * no per-city rate.
+ */
+const cityVpFormula = computed((): string => {
+  const reading = props.city?.reading;
+  if (reading === undefined || reading.victoryPoints === undefined) {
+    return '';
+  }
+  const declared = getCard(reading.card)?.victoryPoints;
+  if (typeof declared !== 'object' || declared.cities === undefined) {
+    return '';
+  }
+  return formulaOperandsText({
+    kind: 'per', vp: reading.victoryPoints, counted: reading.cities.after,
+    each: declared.each ?? 1, per: declared.per ?? 1, unit: 'cities',
+  });
+});
+const resultTitle = computed((): string => {
+  if (props.city !== undefined) {
+    return 'City placement';
+  }
+  // A ROSTER act states its own subject — the build's «Build outcome» would name half of it.
+  if (props.roster !== undefined) {
+    return 'Outcome';
+  }
+  if (props.intent === 'build') {
+    return 'Build outcome';
+  }
+  // Pick / inspect: the first group inside is ALREADY labelled «On the
+  // current level» — repeating it as the section title read as a stutter
+  // (the 4K removal-pick frame). The section states its subject instead.
+  if (props.intent === 'track') {
+    return 'Colony track';
+  }
+  return props.intent === 'trade' && presentAvailable.value ? 'Trade outcome' : 'Colony rewards';
+});
+/** The server's projected move read the way the surfaces print it (`track` intent only). */
+const trackReading = computed((): ColonyTrackMoveReading | undefined => {
+  return props.intent === 'track' && props.trackMove !== undefined ? colonyTrackMoveReading(metadata.value, props.trackMove) : undefined;
+});
+const trackReadingEnds = computed((): Array<{key: 'before' | 'after', end: TrackMoveEnd}> => {
+  const r = trackReading.value;
+  return r === undefined ? [] : [{key: 'before', end: r.before}, {key: 'after', end: r.after}];
+});
+const trackFixedBenefit = computed((): TrackMoveBenefit | undefined => {
+  const fixed = trackReading.value?.fixed;
+  return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
+});
+/** The marker's readout — the tile's own «3/7». */
+const markerDisplay = computed((): string => {
+  return `${markerPosition.value + 1}/${trackMax.value + 1}`;
+});
+/** The chosen track's marker has LANDED at the top (the hold released under the settled proxy). */
+const trackLanded = computed((): boolean => {
+  return trackReading.value !== undefined && settledCell.value === trackReading.value.after.position;
+});
+/** The furthest cell a moving marker has touched on THIS tile — −1 when nothing moves. */
+const touchedCell = computed((): number => {
+  return colonyTrackWaveState.active ? (colonyTrackWaveState.touched[props.colony.name] ?? -1) : -1;
+});
+const metadata = computed((): ColonyMetadata => {
+  return getColony(props.colony.name);
+});
+const presented = computed((): ColonyModel => {
+  return presentedColonyModel(props.colony);
+});
+const trackMax = computed((): number => {
+  return metadata.value.trade.quantity.length - 1;
+});
+/**
+ * THE CHOSEN PATH'S OWN REACH — the Unity action's «advance 1 step first»
+ * (`OptionMetadata.tradeOffset`), read off the payment row the cursor
+ * picked. It moves the marker on this very press: the effective cell, the
+ * caption and the reward package all describe the trade THAT path makes,
+ * and the section re-asks the preview with it (`path-offset`).
+ */
+const chosenPathOffset = computed((): number => {
+  return presentedOptions.value[payIdx.value]?.metadata?.tradeOffset ?? 0;
+});
+/** The offset the stage PRESENTS — the standing one (Trading Colony) plus
+ *  the chosen path's; pinned past the commit, so the spent «+N» of the
+ *  move that was made is never replaced by the next one's. */
+const presentedOffset = computed((): number => {
+  return pinnedConfig.value !== undefined ? pinnedConfig.value.tradeOffset : props.tradeOffset + chosenPathOffset.value;
+});
+const effectivePosition = computed((): number => {
+  // A CHOSEN TRACK's move: the cell is the server's projection (the top), never a trade's offset.
+  if (props.intent === 'track' && props.trackMove !== undefined) {
+    return Math.min(props.trackMove.after, trackMax.value);
+  }
+  // A CITY laid on the tile (TR22) reads no trade: the track STANDS AS IT IS — a trade's standing offset is not
+  // projected into an act that does not touch the track (no ghost cell, no «+N» caption).
+  if (props.city !== undefined) {
+    return Math.min(presented.value.trackPosition, trackMax.value);
+  }
+  const offset = props.colony.isActive ? presentedOffset.value : 0;
+  return effectiveTradePosition(presented.value, metadata.value, offset);
+});
+/** The marker's DISPLAYED position — the presented one, so a committed
+ *  reset stays frozen behind the transaction and only the glide moves it
+ *  (the same `presentedColonyModel` the overview tile reads). */
+const markerPosition = computed((): number => {
+  return Math.min(presented.value.trackPosition, trackMax.value);
+});
+/** THE CITY ACT past its commit: the verdict's box stays (unpainted) so the hero column — the seat — stands still. */
+/** The visitor line as it reads — the press-time words past the commit (see the template). */
+const fleetLineView = computed((): StageFleetLine => {
+  if (verdictReserved.value && heldFleetLine.value !== undefined) {
+    return heldFleetLine.value;
+  }
+  return {text: visitorLine.value, color: props.colony.visitor};
+});
+/** Past the press the verdict's box stays, unpainted — in every act (see the template). */
+const verdictReserved = computed((): boolean => {
+  return !bonusMode.value && (pastCommit.value || commitLatched.value);
+});
+/** The verdict the live props state (an English key + its tone). */
+const liveVerdict = computed((): StageVerdict => {
+  if (presentAvailable.value) {
+    return {
+      tone: 'ok',
+      text: props.city !== undefined ? 'Can place the city here' : props.roster !== undefined ? props.roster.verbKey :
+        props.intent === 'build' ? 'Build here' : props.intent === 'track' ? 'Can select' :
+          props.intent === 'pick' ? (props.pickLabel || 'Can select') : 'Trade available',
+    };
+  }
+  return {tone: props.blockTone === 'warning' ? 'notnow' : 'no', text: props.blockReason !== '' ? props.blockReason : 'Trade unavailable'};
+});
+/** What the verdict's box holds: the press-time words past the commit (so its height cannot change), else live. */
+const verdictView = computed((): StageVerdict => {
+  return verdictReserved.value && heldVerdict.value !== undefined ? heldVerdict.value : liveVerdict.value;
+});
+/**
+ * The build preview is LIVE: the door offers this tile, and the berth the build is aimed at is still empty
+ * (the answer's cube ends the preview — the commit is held through the scene, so the berth stays the
+ * destination for the whole flight). WHO may build is the server's door; nothing here counts cubes.
+ */
+const buildPreview = computed((): boolean => {
+  return props.intent === 'build' && presentAvailable.value && props.colony.colonies[nextBuildSlot.value] === undefined;
+});
+/** The build lands in a berth BEYOND THE PRINTED LIMIT (a card's door lifted it — TR25). */
+const buildOverLimit = computed((): boolean => {
+  return berthIsOverLimit(nextBuildSlot.value);
+});
+/** «Место 4 · сверх лимита» — the «Новая колония» line of a build beyond the limit. */
+const newColonyOverLimitText = computed((): string => {
+  return translateTextWithParams('Berth ${0} · over the limit', [String(nextBuildSlot.value + 1)]);
+});
+/**
+ * THE ADMISSION BEAT — the berth whose limit this build has just lifted: from the press (the build
+ * transaction is armed before the POST) until the cube stands there. ONE fact from the transaction's own
+ * state, never a timer: the limit mark lets go and the dashed contour closes off this class. An ORDINARY
+ * berth admits nothing — the instrument's props stand still through an ordinary build, as they always did.
+ */
+const admitCell = computed((): number => {
+  const b = colonyBuildState;
+  return b.active && b.colonyName === props.colony.name && berthIsOverLimit(b.slotIndex) ? b.slotIndex : -1;
+});
+/**
+ * The cell/berth pair currently being LATCHED by a landing build — the
+ * one-shot beat that makes «I just protected this position» a physical
+ * event rather than a number that silently changed. Driven by the build
+ * transaction's own phase, never a timer.
+ */
+const latchCell = computed((): number => {
+  const b = colonyBuildState;
+  if (!b.active || b.colonyName !== props.colony.name) {
+    return -1;
+  }
+  return b.phase === 'landed' || b.phase === 'done' ? b.slotIndex : -1;
+});
+/**
+ * The claim GROWS the panel to the band (`--claimed`): only one that will stand something in the zone — a card
+ * payout (`draw`), or whatever is presenting there now. A `pick`-only claim (the reward's target may be re-asked)
+ * keeps the action height until the question genuinely stands.
+ */
+const claimGrows = computed((): boolean => {
+  return props.outcomeZone && (workspaceOutcomeState.kinds.includes('draw') || workspaceOutcomeState.stage === 'presenting');
+});
+/** This colony's marker is mid-glide — the resting marker yields to the
+ *  flying proxy (the overview tile's `--marker-gliding` contract, now
+ *  honoured on the stage the trade actually resolves on). */
+const trackGliding = computed((): boolean => {
+  return (colonyTradeState.phase === 'glide' && colonyTradeState.colonyName === props.colony.name) ||
+    // …or the ONE track mechanism moving this tile's marker (a chosen track set to its top — TR07).
+    colonyTrackWaveState.gliding[props.colony.name] === true;
+});
+/** The teleported follow-up has actually landed in our zone. */
+const outcomeContentIn = computed((): boolean => {
+  return props.outcomeZone && workspaceOutcomeState.stage === 'presenting';
+});
+/**
+ * IS THE PAYOUT STANDING ON OUR WORKING AREA RIGHT NOW?
+ *
+ * The handoff is one-shot (`outcomeHandoffPlayed` — the phrase plays once
+ * per claim), but the POSE is not: `--handing` takes
+ * `.con-colfocus__main` to `opacity: 0`, and the TRACK is drawn there. The
+ * claim outlives the batch by design (the resolution owns the workspace
+ * until the reset commits), so keeping the pose on the claim left the
+ * colony blank for the closing beat — the white marker glided across an
+ * invisible track. The pose therefore rides the payout ITSELF: while a
+ * reveal batch is on the table (or on its way), and not a frame longer.
+ */
+const workingAreaYielded = computed((): boolean => {
+  return props.outcomeZone && (outcomeHandoffPlayed.value && currentRevealEvent() !== undefined || settlementTableOwesArea.value);
+});
+/**
+ * …AND A SETTLEMENT TABLE WITH A PLACE STILL TO TAKE IS THE PAYOUT TOO (colony polish 1). Between two cycles there
+ * is no batch on the table — cycle N's was acknowledged at its discard, cycle N+1's is held until the room is
+ * back — so the pose dropped exactly while the stage came back from under the hand: the TRADE TRACK surfaced
+ * over the table for the return and faded out again a beat later. The table owes the area until its LAST place
+ * is taken; from then on the track is the closing glide's stage, as before.
+ */
+const settlementTableOwesArea = computed((): boolean => {
+  const t = settlementTable;
+  return t.nonce !== 0 && t.presented && t.colony === props.colony.name && t.taken.length < t.total;
+});
+/**
+ * THE COMMIT BOUNDARY, as this stage sees it: the move is being made or
+ * has been made. Everything that answers «can I do this?» — the verdict
+ * chip, the availability dot — belongs strictly BEFORE it; everything
+ * after describes what happened.
+ */
+const pastCommit = computed((): boolean => {
+  return resolving.value || props.outcomeZone || heldView.value !== undefined;
+});
+/** One-shot: the cell the reset marker just landed on (the settle glow). */
+const settledCell = computed((): number => {
+  if (colonyTradeState.colonyName === props.colony.name) {
+    return colonyTradeState.settledCell;
+  }
+  return colonyTrackWaveState.settled[props.colony.name] ?? -1;
+});
+/** THE PROJECTION POSE: the entering planet has not docked yet (dropped by the ceremony's dock, and past the commit). */
+const rosterProjected = computed((): boolean => {
+  // (NOT `pastCommit`: the pose must stand from the press THROUGH the answer — the dock is what ends it.)
+  return props.roster !== undefined && props.roster.kind !== 'remove' && !rosterState.docked;
+});
+/** The hero's state line: an ENTERING tile says how it will enter (the server's projection); any other, how it stands. */
+const heroStateKey = computed((): string => {
+  const arrives = props.roster?.reading.arrives;
+  if (arrives !== undefined && !rosterState.docked) {
+    return arrives.entersActive ? 'Enters active' : 'Enters inactive';
+  }
+  return props.colony.isActive ? 'Active colony' : 'Not active yet';
+});
+/** «войдёт активной» / «войдёт неактивной — нужна карта с [ресурс]» — the entry, in the server's projection. */
+const rosterEntryNote = computed((): string => {
+  const arrives = props.roster?.reading.arrives;
+  if (arrives === undefined) {
+    return '';
+  }
+  if (arrives.entersActive) {
+    return translateText('Enters active');
+  }
+  const needs = arrives.needs.map((resource) => translateText(resource)).join(' / ');
+  return needs === '' ? translateText('Enters inactive') : translateTextWithParams('Enters inactive — needs a card with ${0}', [needs]);
+});
+/** «слот 1» — the berth the colony lands in (1-based, as the berth row counts). */
+const rosterBuildSlotText = computed((): string => {
+  const build = props.roster?.reading.build;
+  return build !== undefined && build.lands ? translateTextWithParams('Berth ${0}', [String(build.slot + 1)]) : '';
+});
+/** The build grant the landing colony pays (the tile's own printed reward for that berth). */
+const rosterGrantQty = computed((): number => {
+  const build = props.roster?.reading.build;
+  return build !== undefined && build.lands ? buildBenefitAt(metadata.value, build.slot).quantity : 0;
+});
+/** The same grant, resolved for a glyph (a list of one — read with `idx: 0`). */
+const rosterGrantBenefit = computed((): BerthBenefit => {
+  const build = props.roster?.reading.build;
+  return berthBuildBenefit(metadata.value, build !== undefined && build.lands ? build.slot : 0);
+});
+const focusedBonusQty = computed((): number => {
+  return metadata.value.colony.quantity ?? 1;
+});
+/**
+ * The identity line under the planet: on a bonus the colony's OWN bonus (what is being paid), otherwise its
+ * trade income — read AT THE MARKER on a trade (К-2: «Доберите 2 карты», never the tile's variable «X»).
+ */
+const idDescription = computed((): string => {
+  if (bonusMode.value) {
+    return readingText({label: metadata.value.colony.description, params: []});
+  }
+  return readingText(props.intent === 'trade' ?
+    tradeIncomeLine(metadata.value, rewardPosition.value) :
+    {label: metadata.value.trade.description, params: []});
+});
+/**
+ * The berth a build here lands in — the ONE reading
+ * (`colonyBerths.nextBuildSlot`), never a clamp; past the commit, the berth
+ * the build was committed into (pinned for the stage's life).
+ */
+const nextBuildSlot = computed((): number => {
+  return pinnedConfig.value?.buildSlot ?? nextBuildSlotOf(props.colony, props.buildSite);
+});
+/** The bonus that berth pays, resolved for a glyph (a list of one — read with `idx: 0`). */
+const nextBuildBenefit = computed((): BerthBenefit => {
+  return berthBuildBenefit(metadata.value, nextBuildSlot.value);
+});
+const buildQty = computed((): number => {
+  return buildBenefitAt(metadata.value, nextBuildSlot.value).quantity;
+});
+const buildLost = computed((): boolean => {
+  return benefitResourceLost(metadata.value.build.type);
+});
+/** The names seated in the berths (index-aligned with the berths model) — the instrument's prop. */
+const ownerNames = computed((): Array<string> => {
+  return colonyBerthsOf(props.colony).map((berth) => ownerNameAt(berth.index));
+});
+const owners = computed((): Array<{color: Color, count: number, name: string}> => {
+  return colonyOwnerCounts(props.colony).map((owner) => {
+    const player = props.players.find((p) => p.color === owner.color);
+    return {...owner, name: player !== undefined ? participantDisplayName(player) : owner.color};
+  });
+});
+/**
+ * THE ARITHMETIC WORTH DRAWING. A single seat needs none — the rate IS the
+ * payout, and «1 ×» is noise. It appears only where the number genuinely
+ * differs from the rate, and it belongs to ONE holder: the viewer when
+ * they stand here (it is their bonus), otherwise the largest holder (the
+ * one whose stake the scene has to explain).
+ */
+const bonusMath = computed((): {color: Color, count: number, total: number} | undefined => {
+  const mine = props.viewerColor === undefined ?
+    undefined :
+    owners.value.find((o) => o.color === props.viewerColor);
+  const subject = mine ?? [...owners.value].sort((a, b) => b.count - a.count)[0];
+  if (subject === undefined || subject.count < 2 || focusedBonusQty.value <= 0) {
+    return undefined;
+  }
+  return {color: subject.color, count: subject.count, total: subject.count * focusedBonusQty.value};
+});
+const visitorLine = computed((): string => {
+  const visitor = props.colony.visitor;
+  if (visitor === undefined) {
+    return '';
+  }
+  if (visitor === props.viewerColor) {
+    return translateText('Your trade fleet is currently here');
+  }
+  const player = props.players.find((p) => p.color === visitor);
+  if (player !== undefined) {
+    return translateTextWithParams('Trade fleet of ${0} is currently here', [participantDisplayName(player)]);
+  }
+  return translateText('Trade fleet currently here');
+});
+/**
+ * THE CONFIGURATION IS PINNED — this stage is past its own commit and the
+ * working area is a RECEIPT, not a form. One flag, three sources (see
+ * `HeldView`): after the boundary the options, the disabled paths and the
+ * preview all come from the snapshot, so a NEXT trade offered in the very
+ * response that answered this one can never re-light the panel.
+ */
+const configPinned = computed((): boolean => {
+  return pinnedConfig.value !== undefined;
+});
+/** The «Pay trade fee» options the stage PRESENTS (pinned past commit). */
+const presentedOptions = computed((): ReadonlyArray<SelectOptionModel> => {
+  return pinnedConfig.value?.options ?? props.options;
+});
+/** …and the refused ones. */
+const presentedDisabled = computed((): NonNullable<OrOptionsModel['disabledOptions']> => {
+  return pinnedConfig.value?.disabledOptions ?? props.disabledOptions;
+});
+/**
+ * The trade/build preview the stage PRESENTS. Pinned past the commit, so
+ * the reward package, the step list and every «current → resulting» keep
+ * describing the move that was made here — never the next one the server
+ * has already offered.
+ */
+const presentedPreview = computed((): ColonyTradePreviewModel | undefined => {
+  return pinnedConfig.value !== undefined ? pinnedConfig.value.preview : props.preview;
+});
+// THE ROW MODEL IS SHARED (`tradePayModel.ts`) — the fleet-dock stage reads
+// the same one, so a payment path can never be drawn two ways.
+const payEntries = computed((): Array<PayEntry> => {
+  return tradePayEntries(presentedOptions.value, textOf, payIconClass);
+});
+const disabledEntries = computed((): Array<{title: string, iconClass: string, reason: string}> => {
+  return tradePayDisabledEntries(presentedDisabled.value, textOf, payIconClass);
+});
+/** The pay row under the cursor (the server's option index), `-1` while the cursor is elsewhere. */
+const focusedPayIndex = computed((): number => {
+  return sub.value === undefined && focused.value?.zone === 'pay' ? focused.value.index : -1;
+});
+/** The chosen flexible family's draft as the row prints it («⚡2 + 🔩1»). */
+const payRowMix = computed((): {energy: number, steel: number} | undefined => {
+  const mix = energyMixInfo.value;
+  return mix === undefined ? undefined : {energy: (mix.cost ?? 0) - tradeSteelMix.value, steel: tradeSteelMix.value};
+});
+/**
+ * THE PATHS THE PLAYER CAN ACTUALLY TAKE.
+ *
+ * With the fee fixed by the entry there is exactly one, and the rest are
+ * not choices at all — a card action walked in through THIS path and
+ * cannot switch. A dimmed list of four would be a menu whose every other
+ * item refuses the press; the header already says where the trade came
+ * from, and that is the whole explanation the player needs.
+ *
+ * The original index rides along: `payIdx`, the focus ring and the submit
+ * all speak the SERVER's option order, and a filtered list must never
+ * renumber it.
+ */
+const visiblePayEntries = computed((): Array<PayEntry & {index: number}> => {
+  // PAST THE COMMIT there is no list at all — the chosen path alone stands
+  // as the receipt (the held row below the loop). A menu of alternatives
+  // over a move that has already been made is an offer the player cannot
+  // take, and — when the server has already re-offered the trade — one
+  // whose numbers describe a DIFFERENT transaction.
+  return visibleTradePayRows(payEntries.value, lockedPayIdx.value, configPinned.value);
+});
+/** …and a REFUSED path is equally irrelevant once the fee is fixed. */
+const visibleDisabledEntries = computed((): Array<{title: string, iconClass: string, reason: string}> => {
+  return [...visibleTradePayDisabled(disabledEntries.value, lockedPayIdx.value, configPinned.value)];
+});
+/**
+ * THE FEE IS FIXED — this trade was entered from a card's own action, so
+ * its payment path is the entry, not a decision. `-1` = the ordinary
+ * «Колонии» entry, where every path is the player's to pick.
+ *
+ * Resolved from the option's `metadata.card` (a card's door) or
+ * `metadata.party` (the Unity party action's door), never its label.
+ */
+const lockedPayIdx = computed((): number => {
+  return lockedTradePaymentIndex(presentedOptions.value, cardColonyTradeCard(), partyColonyTradeParty());
+});
+const isMcSelected = computed((): boolean => {
+  return presentedOptions.value[payIdx.value]?.metadata?.icon === 'megacredits';
+});
+/** The energy payment family is the chosen path (Delta Works mix applies). */
+const isEnergySelected = computed((): boolean => {
+  return presentedOptions.value[payIdx.value]?.metadata?.icon === 'energy';
+});
+/** The live Delta Works mix of the energy fee, or undefined without one. */
+const energyMixInfo = computed((): ColonyTradePreviewModel['energyMix'] => {
+  const mix = presentedPreview.value?.energyMix;
+  if (mix === undefined || !isEnergySelected.value || !tradeConfigLive.value) {
+    return undefined;
+  }
+  return mix;
+});
+/** The substitution is live in THIS trade (server capability — present iff
+ *  Delta Works widens the family), regardless of which row is chosen:
+ *  what puts the ⚡/🔩 pair on the family row BEFORE any selection. */
+const energyMixLive = computed((): boolean => {
+  return tradeConfigLive.value && presentedPreview.value?.energyMix !== undefined;
+});
+/** The energy family's own option index (metadata-keyed, never a title). */
+const energyEntryIdx = computed((): number => {
+  return presentedOptions.value.findIndex((o) => o.metadata?.icon === 'energy');
+});
+/** The EFFECTIVE steel share — THE canonical draft value: the dialed
+ *  preference clamped by the ONE shared rule to the SERVER's own bounds
+ *  (energy-first by default — preference 0 is the bare deficit). The
+ *  family row, the composition panel, the right «ОПЛАТА» summary and the
+ *  submitted batch all read THIS number. */
+const tradeSteelMix = computed((): number => {
+  const mix = energyMixInfo.value;
+  if (mix === undefined) {
+    return 0;
+  }
+  return clampEnergyMixSteel(steelMixPreference.value, mix);
+});
+const tradeMixAdjustable = computed((): boolean => {
+  const mix = energyMixInfo.value;
+  return mix !== undefined && mix.maxSteel > mix.minSteel;
+});
+/** The whole energy-family fee as the SHARED PaymentView — the same rows /
+ *  captions / verdict grammar the card-play selector renders. */
+const tradeMixView = computed((): PaymentView => {
+  const mix = energyMixInfo.value;
+  if (mix === undefined) {
+    return buildEnergyMixView({cost: 0, energyAvailable: 0, steelAvailable: 0, minSteel: 0, maxSteel: 0, steelUsed: 0});
+  }
+  return buildEnergyMixView({
+    cost: mix.cost,
+    energyAvailable: mix.energyAvailable,
+    steelAvailable: mix.steelAvailable,
+    minSteel: mix.minSteel,
+    maxSteel: mix.maxSteel,
+    steelUsed: tradeSteelMix.value,
+  });
+});
+const tradeConfigLive = computed((): boolean => {
+  return props.intent === 'trade' && presentAvailable.value;
+});
+/** A BUILD whose placement bonus asks something (Titan: «положи 3
+ *  аэростата на карту») composes on this stage too — same rows, same
+ *  picker, same batch: the prompt must never arrive after the cube. */
+const buildConfigLive = computed((): boolean => {
+  return props.intent === 'build' && presentAvailable.value;
+});
+/** Either act is composing decisions on this stage right now. */
+const configLive = computed((): boolean => {
+  return tradeConfigLive.value || buildConfigLive.value;
+});
+/** This act asks the player something before it can be committed. */
+const hasDecisions = computed((): boolean => {
+  return stepRows.value.length > 0;
+});
+const steps = computed((): Array<TradeStep> => {
+  if (tradeConfigLive.value) {
+    return tradeSteps(presentedPreview.value, isMcSelected.value, isEnergySelected.value);
+  }
+  return buildConfigLive.value ? buildSteps(presentedPreview.value) : [];
+});
+const stepKeys = computed((): Array<string> => {
+  let target = 0;
+  return steps.value.map((step) => {
+    if (step.kind === 'payment') {
+      return 'payment';
+    }
+    if (step.kind === 'energyMix') {
+      return 'energyMix';
+    }
+    if (step.kind === 'trackChoice') {
+      return 'track';
+    }
+    if (step.kind === 'venusBonus') {
+      return 'venus';
+    }
+    return `target:${target++}`;
+  });
+});
+/** The Venus bonus step's own prompt (the server's — `ColonyTradeFollowUpModel` `venusBonus`), when the trade earns one. */
+const venusStepInput = computed((): PlayerInputModel | undefined => {
+  const step = steps.value.find((s) => s.kind === 'venusBonus');
+  return step?.kind === 'venusBonus' ? step.input : undefined;
+});
+const venusStock = computed((): Partial<Record<string, number>> => {
+  return Object.fromEntries(VENUS_SPREAD_LANES.map((key) => [key, playerResourceValue(props.thisPlayer, key, 'stock') ?? 0]));
+});
+/** THE INNER STEP'S BAR (P89 · EM) — mirrored to the shell's trade bar while the step stands. */
+const venusBar = computed((): ReadonlyArray<VenusInnerCommand> => {
+  const meta = venusBonusMetaOf(venusStepInput.value);
+  return sub.value !== 'venus' || meta === undefined ? [] : venusInnerFootHints(venusInnerBar(meta, venusParts.value, venusFocus.value));
+});
+const stepRows = computed((): Array<StepRow> => {
+  return steps.value.flatMap((step, i): Array<StepRow> => {
+    const key = stepKeys.value[i];
+    if (step.kind === 'payment') {
+      return [{key, kind: 'payment' as const, label: 'Payment', iconClass: ''}];
+    }
+    // The Delta Works mix is answered IN the energy pay row (its dial +
+    // summary live there) — never a second decision row, so an always-valid
+    // default costs the player no extra focus stop.
+    if (step.kind === 'energyMix') {
+      return [];
+    }
+    if (step.kind === 'trackChoice') {
+      return [{key, kind: 'trackChoice' as const, label: 'Colony track', iconClass: ''}];
+    }
+    // THE VENUS BONUS (P89 · EL / EM): ONE row — the 30 % wild, its card and the spread are answered inside it.
+    if (step.kind === 'venusBonus') {
+      return [{key, kind: 'venusBonus' as const, label: 'Venus bonus', iconClass: ''}];
+    }
+    return [{
+      key,
+      kind: 'cardTarget' as const,
+      label: step.role === 'tradeReward' ?
+        'Trade reward target' :
+        (step.role === 'buildBonus' ? 'Build bonus target' : 'Colony bonus target'),
+      iconClass: resourceIconClass(step.resource),
+      step,
+    }];
+  });
+});
+const focusables = computed((): Array<Focusable> => {
+  // A RECEIPT HAS NO CURSOR STOPS. Past the commit the rows still render
+  // (the decision stays readable) but nothing on them can be pressed —
+  // the move is made, and a focus ring travelling over it would advertise
+  // an edit that does not exist.
+  if (!configLive.value || configPinned.value) {
+    return [];
+  }
+  // A BUILD has no payment paths — only its decisions are cursor stops.
+  if (buildConfigLive.value) {
+    return stepRows.value.map((_, index) => ({zone: 'step' as const, index}));
+  }
+  // A LOCKED fee is not a choice, so it is not a cursor stop: the entry
+  // came through the card that pays, and «выбрать другой способ» would be
+  // a control that refuses every press. The rows still RENDER (the player
+  // sees the whole structure of the trade) — they just cannot be reached.
+  const out: Array<Focusable> = lockedPayIdx.value >= 0 ?
+    [] : payEntries.value.map((_, i) => ({zone: 'pay' as const, index: i}));
+  stepRows.value.forEach((_, i) => out.push({zone: 'step', index: i}));
+  return out;
+});
+const focused = computed((): Focusable | undefined => {
+  return focusables.value[focusIdx.value];
+});
+const trackStep = computed((): Extract<TradeStep, {kind: 'trackChoice'}> | undefined => {
+  const step = steps.value.find((s) => s.kind === 'trackChoice');
+  return step?.kind === 'trackChoice' ? step : undefined;
+});
+const trackOptions = computed((): Array<{steps: number, position: number, quantity: number, levy: boolean, title: string}> => {
+  const step = trackStep.value;
+  const current = presentedPreview.value?.track.current ?? 0;
+  if (step === undefined) {
+    return [];
+  }
+  const options: Array<{steps: number, position: number, quantity: number, levy: boolean, title: string}> = [];
+  // Down to the plan's FLOOR: below it the colony refuses this player its
+  // income (the Redux Pluto's data with no holder) — the server lists those
+  // steps disabled, and «don't increase» exists only when 0 is legal — as
+  // the list's DECLINE (RT + the plate, `trackDecline`), never a row.
+  for (let n = step.steps; n >= Math.max(step.minSteps, 1); n--) {
+    const position = Math.min(current + n, metadata.value.trade.quantity.length - 1);
+    options.push({
+      steps: n,
+      position,
+      quantity: rewardAtPosition(metadata.value, position).quantity,
+      levy: rewardAtPosition(metadata.value, position).type === ColonyBenefit.LOSE_RESOURCES,
+      title: n > 0 ?
+        translateTextWithParams('Increase colony track ${0} step(s)', [String(n)]) :
+        translateText('Don\'t increase colony track'),
+    });
+  }
+  return options;
+});
+/** «Don't increase» — the optional advance's refusal as a button (RT), when 0 steps is legal; '' = none. */
+const trackDecline = computed((): string => {
+  const step = trackStep.value;
+  return step !== undefined && step.minSteps === 0 ? 'Don\'t increase colony track' : '';
+});
+const trackSummary = computed((): string => {
+  const chosen = captures.value['track'];
+  if (typeof chosen !== 'number') {
+    return '';
+  }
+  return chosen > 0 ?
+    translateTextWithParams('Advance ${0} step(s)', [String(chosen)]) :
+    translateText('Don\'t increase colony track');
+});
+const activeTargetStep = computed((): Extract<TradeStep, {kind: 'cardTarget'}> | undefined => {
+  const focusedNow = focused.value;
+  if (focusedNow?.zone !== 'step') {
+    return undefined;
+  }
+  const row = stepRows.value[focusedNow.index];
+  return row?.kind === 'cardTarget' ? row.step : undefined;
+});
+const activeTargetKey = computed((): string => {
+  const focusedNow = focused.value;
+  return focusedNow?.zone === 'step' ? (stepRows.value[focusedNow.index]?.key ?? '') : '';
+});
+const targetSubTitle = computed((): string => {
+  const step = activeTargetStep.value;
+  if (step === undefined) {
+    return '';
+  }
+  return textOf(step.pick.title) || translateText('Choose the receiving card');
+});
+/**
+ * THE SHARED SELECTOR'S MODEL for the focused card-target step — the same
+ * pure model the blue-action and play composers build, translated from the
+ * trade preview's own shapes (`buildColonyTradeTargetModel`). No
+ * `sourceCardName`: the hero of this stage is the PLANET, so every
+ * candidate renders as its own physical face and the «ЭТА КАРТА» proxy
+ * never appears here.
+ */
+const targetStepModel = computed((): PlayedTargetModel | undefined => {
+  const step = activeTargetStep.value;
+  if (step === undefined || props.viewerColor === undefined) {
+    return undefined;
+  }
+  return buildColonyTradeTargetModel({
+    step,
+    ask: targetSubTitle.value,
+    players: props.players,
+    viewerColor: props.viewerColor,
+    typeOf: (name) => getCard(name)?.type,
+    resourceOf: (name) => getCard(name)?.resourceType,
+  });
+});
+const targetLockedCard = computed((): string => {
+  const captured = captures.value[activeTargetKey.value];
+  return typeof captured === 'string' ? captured : '';
+});
+/**
+ * THE PRESENTED SCENE IS UP — the chosen host card(s) own the working
+ * area while the reward physically arrives. It stands from the commit
+ * (the fleet is still flying — the player reads WHERE the reward will
+ * land) and yields the moment a CARD payout takes the area over
+ * (`workingAreaYielded` — the covers' scene outranks it).
+ */
+/**
+ * The act whose wave is in the air on THIS colony's trade — the receiving card it pays stands forward
+ * (the transaction's own beat: the income wave, then the bonus wave; '' between and after).
+ */
+const cardlandActiveRole = computed((): ColonyTradeFollowUpRole | '' => {
+  const t = colonyTradeState;
+  if (!t.active || t.colonyName !== props.colony.name) {
+    return '';
+  }
+  return t.beat === 'income' ? 'tradeReward' : t.beat === 'bonus' ? 'colonyBonus' : '';
+});
+const cardlandVisible = computed((): boolean => {
+  // The snapshot IS the proof of «past the commit» (it is taken at the
+  // boundary and cleared at the release), so this must NOT re-ask
+  // `pastCommit`: that term drops when the transaction ends, which for a
+  // BUILD is several hundred ms before its floaters land — the card
+  // vanished from under its own reward.
+  return presentedTargets.value.length > 0 && !workingAreaYielded.value;
+});
+/**
+ * …and while it is ON STAGE AT ALL it BLOCKS the closing beat: the track is
+ * drawn under it, and a marker gliding under a standing scene is the same
+ * fault the payout pose already guards (`stageBusy`).
+ *
+ * ⚠️ THE DEPARTURE COUNTS. This used to drop on `cardlandReleased`, i.e.
+ * on the frame the card only BEGAN to leave — so the working area faded
+ * back through the departing card and the glide started inside that
+ * crossfade. The hold ends when the card is GONE (its leave clears
+ * `presentedTargets`), which is what makes the hand-back a sequence.
+ */
+const cardlandHolds = computed((): boolean => {
+  return cardlandVisible.value;
+});
+/**
+ * THE ONE «working area is busy» fact the conclusion waits on — the card
+ * payout standing in the outcome zone OR the presented-target scene. The
+ * closing track glide may start only once BOTH have receded (published
+ * through `setColonyStageYielded`, with the pose's own return dwell).
+ */
+const stageBusy = computed((): boolean => {
+  return workingAreaYielded.value || cardlandHolds.value;
+});
+/**
+ * The card-resource DESTINATIONS of this configuration — the picked
+ * targets AND the single-candidate AUTO ones the server applies without a
+ * prompt, merged per physical card.
+ *
+ * ONE derivation feeds THREE consumers (the summary rail's «На карту(ы):»
+ * list, the transfer flight's `targets`, and the presented resolution
+ * scene), so what the player is shown, what the chip flies onto and what
+ * the batch answers can never be three different answers.
+ */
+const cardDestinations = computed((): {targets: ColonyTradeTargets, presented: ReadonlyArray<ColonyTradePresentedTarget>} => {
+  return colonyTradeCardDestinations({
+    steps: steps.value,
+    stepKeys: stepKeys.value,
+    captures: captures.value,
+    notices: tradeConfigLive.value ?
+      tradeNotices(presentedPreview.value) :
+      (buildConfigLive.value ? buildNotices(presentedPreview.value) : []),
+    resourceOf: (name) => getCard(name)?.resourceType,
+    beforeOf: (name) => receiptBase.value.cardResources[name] ?? 0,
+  });
+});
+/** A reward chip of this payout is still in the air. */
+const chipsInFlight = computed((): boolean => {
+  return transferState.flights.length > 0 || transferState.runActive;
+});
+/** Every presented card has received its full landing tally. */
+const cardlandAllLanded = computed((): boolean => {
+  return presentedTargets.value.length > 0 &&
+    presentedTargets.value.every((t) => landedOf(t) >= t.amount);
+});
+const paymentStep = computed((): Extract<TradeStep, {kind: 'payment'}> | undefined => {
+  const step = steps.value.find((s) => s.kind === 'payment');
+  return step?.kind === 'payment' ? step : undefined;
+});
+const payLanes = computed((): ReadonlyArray<PaymentLane> => {
+  const step = paymentStep.value;
+  const player = props.thisPlayer;
+  return step === undefined || player === undefined ? [] : paymentLanes(step.model, player);
+});
+const paymentView = computed((): PaymentView | undefined => {
+  const step = paymentStep.value;
+  const player = props.thisPlayer;
+  if (step === undefined || player === undefined) {
+    return undefined;
+  }
+  return buildPaymentView({
+    cost: step.model.amount,
+    lanes: payLanes.value,
+    counts: paymentCounts.value,
+    mcAvailable: megacreditsAvailable(player),
+  });
+});
+const payFocusUnit = computed((): string | undefined => {
+  const v = paymentView.value;
+  return v === undefined || sub.value !== 'lanes' ? undefined : editableRows(v)[subIdx.value]?.unit;
+});
+const paymentSummary = computed((): string => {
+  const view = paymentView.value;
+  if (view === undefined) {
+    return '';
+  }
+  const parts: Array<string> = [];
+  for (const row of view.rows) {
+    if (row.auto) {
+      continue;
+    }
+    if (row.used > 0) {
+      parts.push(`${row.used} ${translateText(row.labelKey)}`);
+    }
+  }
+  const mc = view.rows.find((r) => r.auto)?.used ?? 0;
+  if (mc > 0 || parts.length === 0) {
+    parts.push(`${mc} M€`);
+  }
+  return parts.join(' + ');
+});
+const rewardPosition = computed((): number => {
+  const track = presentedPreview.value?.track;
+  const chosen = captures.value['track'];
+  if (typeof chosen === 'number') {
+    const current = track?.current ?? props.colony.trackPosition;
+    return Math.min(current + chosen, metadata.value.trade.quantity.length - 1);
+  }
+  // A preview asked for ANOTHER path's reach is not this one's: the stage's
+  // own mirror of the plan stands in until the re-ask lands.
+  if (track !== undefined && (pinnedConfig.value !== undefined || props.pathOffset === chosenPathOffset.value)) {
+    return track.effective;
+  }
+  return effectivePosition.value;
+});
+const ownColonyCount = computed((): number => {
+  if (props.viewerColor === undefined) {
+    return 0;
+  }
+  return props.colony.colonies.filter((c) => c === props.viewerColor).length;
+});
+/**
+ * The ACTUAL payment parts of the chosen path — THE one place the right
+ * «ОПЛАТА» summary, its `current → resulting` pairs and the running-stock
+ * sequence read the fee from. For the energy family under Delta Works the
+ * parts come from the CANONICAL mix draft (`tradeSteelMix`), so a dial
+ * press updates the row, the composition panel and this summary in the
+ * same reactive flush — an energy-first «−3» over a dialed mix was the
+ * stale-summary bug this computed exists to kill.
+ */
+const outcomePayments = computed((): Array<{icon: string, amount: number, resource?: {current: number, resulting: number}}> => {
+  if (!tradeConfigLive.value) {
+    return [];
+  }
+  const mix = energyMixInfo.value;
+  if (mix !== undefined) {
+    const steel = tradeSteelMix.value;
+    const energy = Math.max(0, mix.cost - steel);
+    const parts: Array<{icon: string, amount: number}> = [];
+    if (energy > 0) {
+      parts.push({icon: 'energy', amount: energy});
+    }
+    if (steel > 0) {
+      parts.push({icon: 'steel', amount: steel});
+    }
+    return parts;
+  }
+  const meta = presentedOptions.value[payIdx.value]?.metadata;
+  return meta?.icon !== undefined && meta.amount !== undefined ?
+    // `resource` rides along: for a CARD-paid fee it is the ONLY source of
+    // the before → after (the viewer's rail has no floaters on it).
+    [{icon: meta.icon, amount: meta.amount, resource: meta.resource}] :
+    [];
+});
+/**
+ * The base every `current → resulting` of the outcome reads — the live
+ * models before the commit, the boundary snapshot after it (see
+ * `HeldView.receipt`).
+ */
+const receiptBase = computed((): TradeReceiptBase => {
+  return pinnedConfig.value?.receipt ?? tradeReceiptBaseOf(props.thisPlayer, props.players);
+});
+const outcome = computed((): {cost: Array<TradeOutcomeChip>, gains: Array<TradeOutcomeChip>} => {
+  return tradeOutcome({
+    metadata: metadata.value,
+    rewardPosition: rewardPosition.value,
+    payments: outcomePayments.value,
+    ownColonyCount: ownColonyCount.value,
+    flatBonuses: presentedPreview.value?.flatBonuses,
+    stocks: receiptBase.value.stocks,
+    production: receiptBase.value.production,
+  });
+});
+/**
+ * THE REWARD PACKAGE the summary rail renders — «ВАШ ИТОГ» / «СОСТАВ
+ * НАГРАДЫ» / «ДРУГИМ ИГРОКАМ», all three from the ONE pure derivation
+ * every colony surface shares (`colonyRewardPackage`).
+ */
+const rewardPackage = computed((): ColonyRewardPackage => {
+  return colonyRewardPackage({
+    gains: outcome.value.gains,
+    metadata: metadata.value,
+    colony: props.colony,
+    viewer: props.viewerColor,
+  });
+});
+/** The other owners' rows with their display names resolved. */
+const otherOwnerRows = computed((): Array<RewardOtherRow & {name: string}> => {
+  return rewardPackage.value.others.map((row) => {
+    const player = props.players.find((p) => p.color === row.color);
+    return {...row, name: player !== undefined ? participantDisplayName(player) : row.color};
+  });
+});
+/**
+ * WHERE THE CARD-RESOURCE TOTAL LANDS — one row per PHYSICAL CARD.
+ *
+ * The SAME derivation the flight and the landing scene read
+ * (`cardDestinations`): merged per card (an income and a bonus aimed at
+ * one card add up instead of printing it twice) and including the
+ * single-candidate AUTO targets the server applies without asking. A
+ * second, step-by-step derivation here is exactly what printed «Карта
+ * ветров 0 → 1» twice under one «+2».
+ */
+const cardTargetLines = computed((): Array<{card: string, before: number, after: number, iconClass: string}> => {
+  return cardDestinations.value.presented.map((t) => ({
+    card: t.card,
+    before: t.before,
+    after: t.before + t.amount,
+    iconClass: t.icon !== '' ? rewardIconClass(t.icon) : '',
+  }));
+});
+const resourceLost = computed((): boolean => {
+  // Read at the position the trade will PAY — the Redux Pluto's data
+  // positions can be lost, its card positions cannot.
+  return benefitResourceLost(rewardAtPosition(metadata.value, rewardPosition.value).type);
+});
+const noticeRows = computed((): Array<NoticeRow> => {
+  if (!configLive.value) {
+    return [];
+  }
+  const rows: Array<NoticeRow> = [];
+  const notices = tradeConfigLive.value ? tradeNotices(presentedPreview.value) : buildNotices(presentedPreview.value);
+  for (const notice of notices) {
+    if (notice.kind === 'autoTarget') {
+      rows.push({
+        tone: 'info',
+        iconClass: resourceIconClass(notice.resource),
+        text: translateTextWithParams('+${0} to ${1} (the only eligible card)', [String(notice.amount), translateText(notice.card)]),
+      });
+    } else if (notice.kind === 'lostResource') {
+      rows.push({
+        tone: 'warn',
+        iconClass: resourceIconClass(notice.resource),
+        text: translateText('No eligible card — this resource is not added.'),
+      });
+    } else {
+      rows.push({tone: 'info', iconClass: '', text: translateText(notice.note)});
+    }
+  }
+  return rows;
+});
+const canConfirm = computed((): boolean => {
+  // A COMMITTED MOVE IS NOT CONFIRMABLE. `actionAvailable` is the LIVE
+  // prop, and a door that keeps the player's action (a card-action trade)
+  // is re-offered the trade in the very response that answered it — the
+  // command bar then advertised «Подтвердить» over a marker still gliding
+  // home, for a press `handleIntent` absorbs anyway.
+  if (configPinned.value) {
+    return false;
+  }
+  if (!props.actionAvailable) {
+    return false;
+  }
+  if (props.intent === 'pick' || props.intent === 'track') {
+    return true;
+  }
+  if (props.intent === 'build') {
+    // A build with a decision (its placement bonus needs a card) is not
+    // confirmable until that decision is made — the whole point of
+    // pre-collecting it. A build with none confirms as it always did.
+    return steps.value.every((_step, i) => captures.value[stepKeys.value[i]] !== undefined);
+  }
+  if (props.intent !== 'trade') {
+    return false;
+  }
+  if (paymentView.value !== undefined && !paymentView.value.status.ok) {
+    return false;
+  }
+  return steps.value.every((step, i) => {
+    // The M€ payment answers from the live lane counts and the Delta
+    // Works mix from the canonical draft — both are captured AT SUBMIT
+    // (emitConfirm) and always hold a valid value, so neither is a
+    // missing answer. Requiring a capture for the mix kept the trade's
+    // confirm dead for as long as the composition choice existed.
+    if (step.kind === 'payment' || step.kind === 'energyMix') {
+      return true;
+    }
+    return captures.value[stepKeys.value[i]] !== undefined;
+  });
+});
+const focusedRowEditable = computed((): boolean => {
+  const focusedNow = focused.value;
+  if (focusedNow === undefined) {
+    return false;
+  }
+  if (focusedNow.zone === 'pay') {
+    return true;
+  }
+  const row = stepRows.value[focusedNow.index];
+  if (row === undefined) {
+    return false;
+  }
+  if (row.kind === 'payment') {
+    return payLanes.value.length > 0;
+  }
+  return true;
+});
+
+function ownerNameAt(idx: number): string {
+  const color = props.colony.colonies[idx];
+  if (color === undefined) {
+    return '';
+  }
+  const player = props.players.find((p) => p.color === color);
+  return player !== undefined ? participantDisplayName(player) : color;
+}
+function benefitResourceLost(type: ColonyBenefit): boolean {
+  // The holders of ANY of the tile's kinds (the WARE wildcard included) —
+  // the same reading the parliament's «no recipient» note takes.
+  const kinds = cardResourceKinds.value;
+  if (kinds.length === 0) {
+    return false;
+  }
+  if (type !== ColonyBenefit.ADD_RESOURCES_TO_CARD && type !== ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
+    return false;
+  }
+  const viewer = props.players.find((p) => p.color === props.viewerColor);
+  return !holdsAnyOf(viewer?.tableau ?? [], kinds);
+}
+function isFocused(zone: 'pay' | 'step', index: number): boolean {
+  return sub.value === undefined && focused.value?.zone === zone && focused.value.index === index;
+}
+function chipIconClass(chip: TradeOutcomeChip): string {
+  // `con-task__opt-res` is what SIZES the sprite. A standard-resource class
+  // carries a box of its own and happened to survive without it; a
+  // card-resource class is only a background-image, so the floater's icon
+  // was a 0×0 element — present in the DOM, invisible on screen. Every
+  // other icon on this stage goes through `resourceIconClass`; this was the
+  // one exception, and it is why the fee row lost its icon.
+  return chip.icon !== undefined ? iconClassFor(chip.icon) + ' con-task__opt-res' : '';
+}
+/** A reward line's sprite — the SAME sizing every icon on this stage gets
+ *  (a bare card-resource class is only a background-image: a 0×0 element
+ *  without `con-task__opt-res`, which is how the fee row lost its icon). */
+function rewardIconClass(icon: string): string {
+  return iconClassFor(icon) + ' con-task__opt-res';
+}
+/**
+ * WHO PAYS this part, in words: the colony's own track, the viewer's
+ * settlements (with the multiplier that makes «2 колонии × 1 карта» read
+ * as one line), or a card that pays on every trade.
+ */
+function sourceRowLabel(row: RewardSourceRow): string {
+  if (row.kind === 'card') {
+    return translateText(row.card ?? 'Card effect');
+  }
+  if (row.kind === 'ownColony') {
+    return translateTextWithParams('Your colony ×${0}', [String(row.count)]);
+  }
+  // A COMPOSITE income has two track rows — the part paid on every trade and
+  // the part the marker's position decides — and «Торговый трек» twice said
+  // nothing about which was which. The pair is named only where both exist;
+  // a plain colony keeps the one established label.
+  const composite = rewardPackage.value.sources.some((s) => s.kind === 'trackFixed');
+  if (row.kind === 'trackFixed') {
+    return translateText('Every trade');
+  }
+  return translateText(composite ? 'Under the marker' : 'Trade track');
+}
+function resourceKey(resource: string | undefined): string | undefined {
+  return resource?.toString().toLowerCase().replace(/ /g, '-');
+}
+function resourceIconClass(resource: string | undefined): string {
+  const key = resourceKey(resource);
+  return key !== undefined ? iconClassFor(key) + ' con-task__opt-res' : '';
+}
+function tradeBenefitAt(position: number): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
+  const income = tradeBenefitAtOf(metadata.value, position);
+  return {type: income.type, quantity: metadata.value.trade.quantity, resource: income.resource};
+}
+function targetImpact(row: StepRow): string {
+  const step = row.step;
+  if (step === undefined) {
+    return '';
+  }
+  const captured = captures.value[row.key];
+  const name = typeof captured === 'string' ? captured : undefined;
+  const card = step.pick.cards.find((c) => c.name === name);
+  if (card === undefined) {
+    return '';
+  }
+  const before = card.resources ?? 0;
+  return `${before} → ${before + step.amount}`;
+}
+/**
+ * PIN THE FEE to the entry's own path. Called wherever `payIdx` could
+ * otherwise drift (mount, a new colony, a fresh option list): the entry
+ * IS the payment, so the selection is not seeded — it is fixed.
+ */
+function syncLockedPayment(): void {
+  if (lockedPayIdx.value >= 0) {
+    payIdx.value = lockedPayIdx.value;
+  }
+}
+function seedPaymentDefault(): void {
+  const step = paymentStep.value;
+  const player = props.thisPlayer;
+  if (step === undefined || player === undefined) {
+    paymentCounts.value = {};
+    return;
+  }
+  const lanes = paymentLanes(step.model, player);
+  paymentCounts.value = initialCounts(step.model.amount, lanes, megacreditsAvailable(player));
+}
+/** The stage names its crumb tail (rule 5 — never a header of its own).
+ *  Reads the PRESENTED availability, so the tail cannot re-title itself
+ *  «Осмотр» while a committed action is still resolving on the stage. */
+function publishStageName(): void {
+  // The target step is one level DEEPER in the same flow — only the tail
+  // advances («…› ТОРГОВЛЯ» → «…› ЦЕЛЬ НАГРАДЫ»), and B walks it back.
+  if (sub.value === 'targets') {
+    setColonyFocusStage('Reward target');
+    return;
+  }
+  // …and so is the Venus bonus's INNER step («…› ТОРГОВЛЯ» → «…› БОНУС ВЕНЕРЫ», P89 · EM).
+  if (sub.value === 'venus') {
+    setColonyFocusStage(venusInnerStageKey(venusFocus.value));
+    return;
+  }
+  // THE CITY ACT names its own stage («… › ЛУНА · ГОРОД»).
+  if (props.city !== undefined) {
+    setColonyFocusStage(props.city.stageKey);
+    return;
+  }
+  // THE ROSTER ACT names its own stage («ЗАМЕНА» / «ДОБАВЛЕНИЕ» / «СНЯТИЕ») — whichever composition it wears.
+  if (props.roster !== undefined) {
+    setColonyFocusStage(props.roster.stageKey);
+    return;
+  }
+  if (props.intent === 'build') {
+    setColonyFocusStage(presentAvailable.value ? 'Construction' : 'Inspection');
+    return;
+  }
+  if (props.intent === 'pick') {
+    setColonyFocusStage('Selection');
+    return;
+  }
+  // A CHOSEN TRACK's stage — «… › ЛУНА · ТРЕК» (the host folds the colony and the stage into one tail).
+  if (props.intent === 'track') {
+    setColonyFocusStage('Track');
+    return;
+  }
+  if (props.intent === 'bonus') {
+    // The stage the player is on is the BONUS itself; the payout's own
+    // surface renames the tail as it advances («ДОБОР КАРТ», «СБРОС КАРТЫ»)
+    // exactly as it does inside a trade.
+    setColonyFocusStage('Owner bonus');
+    return;
+  }
+  setColonyFocusStage(props.intent === 'trade' && presentAvailable.value ? 'Trading' : 'Inspection');
+}
+function syncUiMirror(): void {
+  consoleColoniesUi.composerSub = sub.value === undefined ?
+    '' :
+    (sub.value === 'lanes' ? 'lanes' :
+      (sub.value === 'targets' ? 'targets' :
+        (sub.value === 'mix' ? 'mix' : (sub.value === 'venus' ? 'venus' : 'list'))));
+  consoleColoniesUi.composerDecline = sub.value === 'track' ? trackDecline.value : '';
+  consoleColoniesUi.composerReady = canConfirm.value;
+  consoleColoniesUi.composerEditable = configLive.value && focusedRowEditable.value;
+  // The BAR follows the act's real grammar: a build that composes gets the
+  // trade's two verbs (A opens the decision, X builds) instead of the bare
+  // «A Построить», which would silently commit an unanswered decision.
+  consoleColoniesUi.composerDecisions = hasDecisions.value;
+  // «X will open the composition step, not commit» — what relabels the
+  // Configure bar's confirm to «Продолжить к оплате». True exactly while
+  // the server model admits several mixes and no commit is in flight.
+  consoleColoniesUi.composerMixAdjustable =
+    tradeMixAdjustable.value && heldView.value === undefined;
+  consoleColoniesUi.forecastAvailable = forecastCanOpen.value;
+  consoleColoniesUi.forecastOpen = fxOpen.value;
+}
+/** The shell routes every intent here while the stage is open. */
+function handleIntent(intent: GamepadIntent): void {
+  // The resolution — or a commit still on the wire (`heldView`) — owns
+  // the moment: input is ABSORBED, so a double submit is impossible by
+  // construction (the workspace-flow 'none' verb).
+  if (resolving.value || heldView.value !== undefined) {
+    return;
+  }
+  // THE «ЭФФЕКТЫ» LAYER owns the pad while it is open; R3 at the setup level opens it (PL-066).
+  if (fxOpen.value) {
+    onForecastIntent(intent);
+    return;
+  }
+  if (intent.kind === 'press' && intent.button === 'stickR') {
+    openForecastLayer();
+    return;
+  }
+  if (intent.kind === 'nav') {
+    onNav(intent.dir);
+    return;
+  }
+  const action = consoleActionOf(intent);
+  if (action !== undefined) {
+    onPress(action);
+  }
+}
+/** R3 / a click on the «⚡ сработает» door — the WORKSPACE DESCEND into the layer (PL-066). */
+function openForecastLayer(): void {
+  if (!forecastCanOpen.value || fxOpen.value) {
+    return;
+  }
+  pulseCall = pulseForecastDoor((on) => {
+    forecastPulse.value = on;
+  }, pulseCall);
+  openForecastHost('colony', rootEl.value ?? undefined, forecastOwnerColors.value, props.statsView);
+}
+/** Input while the layer is open: B folds one level (the explorer's dossier first), R3 closes the whole layer. */
+function onForecastIntent(intent: GamepadIntent): void {
+  forecastHostIntent('colony', intent, forecastLayer.value ?? undefined);
+}
+function onNav(dir: NavDirection): void {
+  if (sub.value === 'lanes') {
+    onLanesNav(dir);
+    return;
+  }
+  if (sub.value === 'targets') {
+    targetNav(dir);
+    return;
+  }
+  if (sub.value === 'venus') {
+    // THE NESTED CARD PICK walks the selector's own boxes (`ConsoleVenusBonusStep.pickNav`).
+    if (venusFocus.value.zone === 'pick') {
+      venusStep.value?.pickNav(dir as PlayedTargetNavDir);
+      return;
+    }
+    const meta = venusBonusMetaOf(venusStepInput.value);
+    if (meta !== undefined) {
+      venusFocus.value = venusInnerNav(meta, venusParts.value, venusFocus.value, dir);
+    }
+    return;
+  }
+  if (sub.value !== undefined) {
+    if (dir === 'up' || dir === 'down') {
+      const n = subListLength();
+      subIdx.value = Math.min(n - 1, Math.max(0, subIdx.value + (dir === 'down' ? 1 : -1)));
+    }
+    return;
+  }
+  if (dir === 'up' || dir === 'down') {
+    focusIdx.value = Math.min(focusables.value.length - 1, Math.max(0, focusIdx.value + (dir === 'down' ? 1 : -1)));
+    scrollFocusedIntoView();
+  }
+}
+function onLanesNav(dir: NavDirection): void {
+  const view = paymentView.value;
+  if (view === undefined) {
+    return;
+  }
+  if (dir === 'up' || dir === 'down') {
+    subIdx.value = Math.min(payLanes.value.length - 1, Math.max(0, subIdx.value + (dir === 'down' ? 1 : -1)));
+    return;
+  }
+  adjustPayLane(subIdx.value, dir === 'right' ? 1 : -1);
+}
+function adjustPayLane(idx: number, step: number, toMax = false): void {
+  const view = paymentView.value;
+  const lane = payLanes.value[idx];
+  if (view === undefined || lane === undefined) {
+    return;
+  }
+  const before = paymentCounts.value[lane.unit] ?? 0;
+  // AGGREGATE anti-overpay limit (the pure `dialLaneCount`) — «+» and
+  // «МАКС.» both count what the other alternatives already pay.
+  const next = dialLaneCount(view.cost, lane, payLanes.value, paymentCounts.value, toMax ? 'max' : step);
+  if (next === before) {
+    return;
+  }
+  paymentCounts.value = {...paymentCounts.value, [lane.unit]: next};
+  payFlashNonce.value += 1;
+}
+function subListLength(): number {
+  if (sub.value === 'track') {
+    return trackOptions.value.length;
+  }
+  return 0;
+}
+/** One bumper press = one unit of the energy fee moved between energy and
+ *  Delta Works steel. The dial lives ONLY on the composition substep —
+ *  on Configure the selector is not active, so LB/RB must be inert (a
+ *  hidden control is the forbidden shape). */
+function adjustTradeMix(delta: number): void {
+  if (sub.value !== 'mix' || !tradeMixAdjustable.value) {
+    return;
+  }
+  const mix = energyMixInfo.value;
+  if (mix === undefined) {
+    return;
+  }
+  const next = clampEnergyMixSteel(tradeSteelMix.value + delta, mix);
+  if (next === tradeSteelMix.value) {
+    return;
+  }
+  steelMixPreference.value = next;
+  // Re-keys the one-shot pulse on the steel row — the shared payment
+  // acknowledgement, so the panel and the summary move as one beat.
+  mixFlashNonce.value += 1;
+}
+/**
+ * CONFIGURE → PAYMENT: every obligatory decision is captured (the same
+ * `canConfirm` gate the direct confirm passes) and the server model
+ * admits at least two mixes. Nothing is submitted; the focus seat is
+ * remembered so B lands back on the family row.
+ */
+function openMixStep(): void {
+  mixReturnFocusIdx.value = focusIdx.value;
+  sub.value = 'mix';
+}
+/** PAYMENT → CONFIGURE: B — colony, track, targets, family and the
+ *  dialed draft all intact; the cursor returns where it left. */
+function closeMixStep(): void {
+  sub.value = undefined;
+  focusIdx.value = Math.min(mixReturnFocusIdx.value, Math.max(0, focusables.value.length - 1));
+  scrollFocusedIntoView();
+}
+// ── the Venus bonus, PRE-SELECTED (P89 · EL) ────────────────────────
+/** One write for both parts, then the step's ONE answer (`captures.venus`) — or none, which holds the confirm. */
+function setVenusParts(parts: VenusBonusParts): void {
+  venusParts.value = parts;
+  const meta = venusBonusMetaOf(venusStepInput.value);
+  const response = meta === undefined ? undefined : venusPreselectResponse(meta, parts);
+  const next = {...captures.value};
+  if (response === undefined) {
+    delete next['venus'];
+  } else {
+    next['venus'] = response;
+  }
+  captures.value = next;
+}
+/** A verb inside the inner step — the pure model decides; a confirm / B come back to the decisions. */
+function venusStepPress(verb: 'primary' | 'back' | 'prevSection' | 'nextSection' | 'nextTab'): void {
+  const meta = venusBonusMetaOf(venusStepInput.value);
+  if (meta === undefined) {
+    sub.value = undefined;
+    return;
+  }
+  // THE NESTED CARD PICK: LB/RB turn its page, A answers with the selector's focused card.
+  const step = venusStep.value ?? undefined;
+  if (venusFocus.value.zone === 'pick' && (verb === 'prevSection' || verb === 'nextSection')) {
+    step?.pickTurn(verb === 'nextSection' ? 1 : -1);
+    return;
+  }
+  const picked = venusFocus.value.zone === 'pick' && verb === 'primary' ? step?.pickFocused() : undefined;
+  const result = venusInnerPress(meta, venusParts.value, venusFocus.value, verb, picked);
+  if (result.parts !== venusParts.value) {
+    setVenusParts(result.parts);
+  }
+  if (result.exit !== undefined) {
+    sub.value = undefined;
+    return;
+  }
+  venusFocus.value = venusInnerClamp(meta, result.parts, result.focus);
+  publishStageName();
+}
+/** The cell beat's promise (PL-1437) for the trade's pre-selected bonus — armed at the confirm. */
+function armVenusPreselect(): void {
+  const meta = venusBonusMetaOf(venusStepInput.value);
+  if (meta !== undefined && venusPreselectResponse(meta, venusParts.value) !== undefined) {
+    armVenusBonusCell(venusPreselectArm(meta, venusParts.value));
+  }
+}
+function onPress(action: ConsoleAction): void {
+  // THE TARGET STEP SPEAKS THE SHARED SELECTOR'S GRAMMAR — A chooses,
+  // X inspects the focused candidate fullscreen (never a second confirm
+  // verb), LB/RB the owner axis, B one level back with the previous
+  // pre-select intact. Routed before the generic sub handling: the
+  // generic branch reads X as «confirm», which is exactly the collision
+  // the console-wide «X = осмотреть» grammar forbids here.
+  if (sub.value === 'targets') {
+    switch (action) {
+    case 'primary': targetConfirm(); return;
+    case 'inspect': targetInspect(); return;
+    case 'prevSection': cycleTargetOwner(-1); return;
+    case 'nextSection': cycleTargetOwner(1); return;
+    case 'back': closeTargetStep(); return;
+    default: return;
+    }
+  }
+  // THE VENUS BONUS'S INNER STEP (P89 · EM): the pure model's verbs — A the zone's verb (confirm leaves), LB/RB one
+  // unit, RT the rest, B back to the decisions with the draft kept.
+  if (sub.value === 'venus') {
+    if (action === 'inspect' && venusFocus.value.zone === 'pick') {
+      venusStep.value?.pickInspect();
+      return;
+    }
+    if (action === 'primary' || action === 'back' || action === 'prevSection' || action === 'nextSection' || action === 'nextTab') {
+      venusStepPress(action);
+    }
+    return;
+  }
+  // THE COMPOSITION SUBSTEP owns its own three verbs: the dial, the same
+  // final trade confirm, and B back to Configure (draft intact).
+  if (sub.value === 'mix') {
+    switch (action) {
+    case 'prevSection':
+      adjustTradeMix(-1);
+      return;
+    case 'nextSection':
+      adjustTradeMix(1);
+      return;
+    case 'inspect':
+      if (canConfirm.value) {
+        emitConfirm();
+      }
+      return;
+    case 'back':
+      closeMixStep();
+      return;
+    default:
+      return;
+    }
+  }
+  switch (action) {
+  // (No LB/RB on Configure: the dial belongs to the payment substep —
+  // a hidden control the screen never advertised is the forbidden shape.)
+  case 'primary':
+    // BUILD / PICK with nothing to choose: A IS the confirm (the
+    // destination slot and the grant are already shown). A build that DOES
+    // ask something (its placement bonus needs a card) speaks the trade's
+    // grammar instead — A opens the focused decision, X commits — so one
+    // press can never mean «выбрать» and «построить» on the same screen.
+    if (sub.value === undefined && (props.intent === 'pick' || props.intent === 'track' || (props.intent === 'build' && !hasDecisions.value))) {
+      if (canConfirm.value) {
+        emit(props.intent === 'build' ? 'build-confirm' : 'pick-confirm');
+      }
+      return;
+    }
+    onConfirmPress();
+    return;
+  case 'inspect':
+    // A CHOSEN TRACK's stage (TR07) and a CITY's (TR22): X is the console's ordinary «Осмотреть» — the colony's
+    // dossier. The confirm here is A; there is nothing composed for X to commit.
+    if ((props.intent === 'track' || props.city !== undefined) && sub.value === undefined) {
+      if (!pastCommit.value) {
+        emit('inspect');
+      }
+      return;
+    }
+    // …and a CARD's own build door (TR25) with nothing to compose: A is its confirm, so X is free to read the
+    // dossier exactly as on the other two staged acts. (A build that composes keeps X as its one commit.)
+    if (props.intent === 'build' && props.buildProjected && !hasDecisions.value && sub.value === undefined) {
+      if (!pastCommit.value) {
+        emit('inspect');
+      }
+      return;
+    }
+    // X = the one final confirm of a composed act (only when every
+    // decision is in) — the trade, and a build that had decisions.
+    if (sub.value === undefined && canConfirm.value &&
+        (props.intent === 'trade' || (props.intent === 'build' && hasDecisions.value))) {
+      // CONFIGURE → PAYMENT, only while the server model admits at least
+      // two valid mixes of the chosen energy family; a single valid
+      // allocation (and every other family) goes straight to Resolve.
+      if (props.intent === 'trade' && tradeMixAdjustable.value) {
+        openMixStep();
+        return;
+      }
+      emitConfirm();
+    } else if (sub.value !== undefined) {
+      onConfirmPress();
+    }
+    return;
+  case 'nextTab':
+    if (sub.value === 'lanes') {
+      adjustPayLane(subIdx.value, 0, true);
+    } else if (sub.value === 'track' && trackDecline.value !== '') {
+      // RT — the advance's DECLINE: 0 steps, answered like any row.
+      captures.value = {...captures.value, track: 0};
+      sub.value = undefined;
+    }
+    return;
+  case 'back':
+    if (sub.value !== undefined) {
+      sub.value = undefined;
+      return;
+    }
+    emit('cancel');
+    return;
+  default:
+    return;
+  }
+}
+function onConfirmPress(): void {
+  if (sub.value === 'lanes') {
+    if (paymentView.value?.status.ok === true) {
+      sub.value = undefined;
+    }
+    return;
+  }
+  if (sub.value === 'track') {
+    const option = trackOptions.value[subIdx.value];
+    if (option !== undefined) {
+      captures.value = {...captures.value, track: option.steps};
+      sub.value = undefined;
+    }
+    return;
+  }
+  const focusedNow = focused.value;
+  if (focusedNow === undefined) {
+    return;
+  }
+  if (focusedNow.zone === 'pay') {
+    if (lockedPayIdx.value < 0) {
+      payIdx.value = focusedNow.index;
+    }
+    return;
+  }
+  const row = stepRows.value[focusedNow.index];
+  if (row === undefined) {
+    return;
+  }
+  if (row.kind === 'payment') {
+    sub.value = 'lanes';
+    subIdx.value = 0;
+    return;
+  }
+  if (row.kind === 'trackChoice') {
+    sub.value = 'track';
+    subIdx.value = 0;
+    return;
+  }
+  if (row.kind === 'cardTarget') {
+    openTargetStep();
+    return;
+  }
+  if (row.kind === 'venusBonus') {
+    const meta = venusBonusMetaOf(venusStepInput.value);
+    if (meta !== undefined) {
+      venusFocus.value = venusInnerOpen(meta, venusParts.value);
+      sub.value = 'venus';
+    }
+    return;
+  }
+}
+// ── the embedded TARGET STEP (the shared selector — `ConsoleTradeTargetStep`) ─
+/**
+ * DESCEND into the target step — one level deeper in the same flow. The
+ * cursor lands on the previously chosen card when there is one (a re-entry
+ * through «Изменить выбор» — already target-locked), else on the model's
+ * own first seat; with nothing to point at the step does not open. The
+ * step measures its own room once it stands and solves its cards on it.
+ */
+function openTargetStep(): void {
+  if (openTradeTargetFocus(targetStepModel.value, targetLockedCard.value) === undefined) {
+    return;
+  }
+  sub.value = 'targets';
+}
+/**
+ * THE PANEL TAKES THE ROOM IT NEEDS — measured, because CSS cannot see it.
+ *
+ * The configuration lives inside a `ConsoleScrollArea` whose viewport is
+ * `flex: 1` (basis 0), so its content height is invisible to every
+ * ancestor: the panel stayed at its token, drew a scroll rail, and left a
+ * third of the band empty above and below it (the report).
+ *
+ * The number published is CONTENT-DERIVED, never a delta — `panel − box +
+ * content` is a FIXPOINT (applying it makes the box exactly the content,
+ * and re-measuring yields the same number), so the panel neither
+ * oscillates nor stays inflated once the content shrinks. `max-height:
+ * 100%` still caps it: on a genuinely short host (the Deck) the scroll
+ * comes back as the honest last resort.
+ */
+function measureFit(): void {
+  if (fitRaf !== undefined) {
+    return;
+  }
+  fitRaf = flow.afterFrame('the colony stage\'s fit measure', () => {
+    fitRaf = undefined;
+    const root = rootEl.value ?? undefined;
+    const surface = root?.querySelector<HTMLElement>('.con-colfocus__surface');
+    if (root === undefined || root === null || surface === null || surface === undefined) {
+      return;
+    }
+    const panelH = surface.clientHeight;
+    if (panelH <= 0) {
+      return;
+    }
+    let need = 0;
+    // The configuration's own scroll area (the deep one).
+    const viewport = root.querySelector<HTMLElement>('.con-colfocus__configscroll .con-scroll-area__viewport');
+    const content = viewport?.querySelector<HTMLElement>('.con-scroll-area__content');
+    if (viewport !== null && viewport !== undefined && content !== null && content !== undefined) {
+      need = Math.max(need, panelH - viewport.clientHeight + content.scrollHeight);
+    }
+    // …and the SUMMARY RAIL, which has no scroller and would simply clip.
+    const rail = root.querySelector<HTMLElement>('.con-colfocus__result');
+    if (rail !== null && rail !== undefined) {
+      need = Math.max(need, panelH - rail.clientHeight + rail.scrollHeight);
+    }
+    const rounded = Math.ceil(need);
+    // A tolerance, so sub-pixel layout noise can never re-write the token
+    // every frame (each write is a layout the next measure reads back).
+    if (Math.abs(rounded - fitNeedPx.value) > 2) {
+      fitNeedPx.value = rounded;
+    }
+  });
+}
+/**
+ * B — fold ONE level back. The previous pre-select is deliberately kept:
+ * closing the step is «передумал смотреть», never «передумал выбирать» —
+ * a confirmed target survives every visit that ends with B.
+ */
+function closeTargetStep(): void {
+  const drop = (): void => {
+    if (sub.value === 'targets') {
+      sub.value = undefined;
+    }
+    scrollFocusedIntoView();
+  };
+  const step = targetStep.value ?? undefined;
+  if (step?.close !== undefined) {
+    step.close(drop);
+  } else {
+    drop();
+  }
+}
+/** The step's own grammar, reached through its host (the shared selector lives there). */
+function targetStepHost(): TradeTargetStepHandle | undefined {
+  return targetStep.value ?? undefined;
+}
+function targetNav(dir: NavDirection): void {
+  targetStepHost()?.nav(dir);
+}
+/** LB/RB — the owner axis, tabbed mode only (the shared grammar; colony
+ *  targets are normally the viewer's own single group, so this is quiet). */
+function cycleTargetOwner(delta: number): void {
+  targetStepHost()?.cycleOwner(delta);
+}
+/** A — lock the focused candidate in as this step's target (the host answers with `pick`). */
+function targetConfirm(): void {
+  targetStepHost()?.confirm();
+}
+/** The host's answer: the capture is the SAME shape the batch always sent
+ *  (`{type:'card', cards:[name]}` downstream) — the selector is
+ *  presentation, never a second source of truth. */
+function targetPicked(card: string): void {
+  const key = activeTargetKey.value;
+  if (key === '') {
+    return;
+  }
+  captures.value = {...captures.value, [key]: card};
+  closeTargetStep();
+}
+/** X — the focused candidate fullscreen, lifting from its own slot (the
+ *  console-wide «X inspects the current object»). */
+function targetInspect(): void {
+  targetStepHost()?.inspect();
+}
+/**
+ * THE CONFIG HALF of the boundary snapshot — what the working area
+ * PRESENTS from here on. Two callers: the shell's accept (the ordinary
+ * path) and the stage's own commit latch (the one that cannot be missed).
+ */
+/**
+ * The receipt's base for the snapshot. Before the server's answer the live
+ * models ARE the pre-trade state — read them and leave them with the trade
+ * transaction, which outlives this instance. Past the answer (a stage
+ * MOUNTING mid-resolution) the live models already hold the payout, so the
+ * transaction's remembered base is the truth; with nothing remembered the
+ * live read is the honest degrade.
+ */
+function boundaryReceipt(): TradeReceiptBase {
+  const remembered = colonyTradeReceiptBase(props.colony.name);
+  if (remembered !== undefined) {
+    return remembered;
+  }
+  const live = tradeReceiptBaseOf(props.thisPlayer, props.players);
+  noteColonyTradeReceiptBase(props.colony.name, live);
+  return live;
+}
+function pinConfig(): void {
+  const held: PayEntry | undefined = payEntries.value[payIdx.value];
+  const mix = energyMixInfo.value;
+  heldView.value = {
+    mode: presentMode.value,
+    available: presentAvailable.value,
+    payment: held === undefined ? undefined : {
+      ...held,
+      ...(mix !== undefined ?
+        {mix: {energy: Math.max(0, mix.cost - tradeSteelMix.value), steel: tradeSteelMix.value}} :
+        {}),
+    },
+    // …AND THE SERVER'S OWN INPUTS. Everything the working area derives
+    // comes from these two, so pinning them is what makes the whole zone
+    // stop describing the NEXT trade the moment this one is answered
+    // (see `HeldView`).
+    options: props.options.slice(),
+    disabledOptions: props.disabledOptions.slice(),
+    preview: props.preview,
+    tradeOffset: props.tradeOffset + chosenPathOffset.value,
+    receipt: boundaryReceipt(),
+    buildSlot: nextBuildSlot.value,
+  };
+  pinnedConfig.value = heldView.value;
+}
+/** The presented-target helpers (the resolution scene). */
+function landedOf(t: ColonyTradePresentedTarget): number {
+  // ONE tally for every payout shape — the transfer framework's own
+  // contact record, so a TRADE reward and a BUILD bonus tick identically.
+  return landings.by[t.card] ?? 0;
+}
+function clearCardlandDwell(): void {
+  if (cardlandDwell !== undefined) {
+    cardlandDwell();
+    cardlandDwell = undefined;
+  }
+}
+/** ⚠️ Separate from the dwell on purpose: several paths clear the dwell and
+ *  re-arm it without touching `cardlandReleased`, and killing a DEPARTURE
+ *  there would strand the card on stage with no edge left to restart it. */
+function clearCardlandLeave(): void {
+  if (cardlandLeave !== undefined) {
+    cardlandLeave();
+    cardlandLeave = undefined;
+  }
+}
+/**
+ * A fresh preview re-judges every capture (the invalidation half of the
+ * pre-select contract): a target no longer offered is dropped, a track
+ * step that vanished releases its choice, and a target sub whose step
+ * disappeared folds back to the review.
+ */
+function pruneStaleCaptures(): void {
+  const next: Record<string, unknown> = {...captures.value};
+  let changed = false;
+  const keys = stepKeys.value;
+  steps.value.forEach((step, i) => {
+    const key = keys[i];
+    if (step.kind !== 'cardTarget') {
+      return;
+    }
+    const captured = next[key];
+    if (typeof captured === 'string' && !step.pick.cards.some((c) => c.name === captured)) {
+      delete next[key];
+      changed = true;
+    }
+  });
+  // Captures whose STEP is gone entirely (a re-shaped preview).
+  const live = new Set(keys);
+  for (const key of Object.keys(next)) {
+    if ((key.startsWith('target:') || key === 'track') && !live.has(key)) {
+      delete next[key];
+      changed = true;
+    }
+  }
+  if (changed) {
+    captures.value = next;
+  }
+  if (sub.value === 'targets' && activeTargetStep.value === undefined) {
+    sub.value = undefined;
+  }
+}
+function rowMissing(row: StepRow): boolean {
+  if (row.kind === 'trackChoice') {
+    return captures.value['track'] === undefined;
+  }
+  if (row.kind === 'cardTarget') {
+    return captures.value[row.key] === undefined;
+  }
+  if (row.kind === 'venusBonus') {
+    return captures.value['venus'] === undefined;
+  }
+  if (row.kind === 'payment') {
+    return paymentView.value !== undefined && !paymentView.value.status.ok;
+  }
+  return false;
+}
+function scrollFocusedIntoView(): void {
+  void nextTick(() => {
+    const el = focusedEl.value ?? undefined;
+    // A focused PAY row lives in the shared rows component — it hands its own element over.
+    const payRow = payRows.value?.focusedEl?.();
+    const node = payRow ?? (Array.isArray(el) ? el[0] : el);
+    scroll.value?.ensureVisible?.(node);
+  });
+}
+function emitConfirm(): void {
+  const capturesByIndex: Record<number, unknown> = {};
+  steps.value.forEach((step, i) => {
+    const key = stepKeys.value[i];
+    if (step.kind === 'payment') {
+      const view = paymentView.value;
+      const player = props.thisPlayer;
+      if (view !== undefined && player !== undefined) {
+        capturesByIndex[i] = paymentFromCounts(view.cost, payLanes.value, paymentCounts.value, megacreditsAvailable(player));
+      }
+    } else if (step.kind === 'energyMix') {
+      // The linked Delta Works dial always holds a valid answer (the
+      // clamped steel share; energy is the remainder) — captured like the
+      // M€ payment, so the mix prompt never surfaces standalone.
+      capturesByIndex[i] = tradeSteelMix.value;
+    } else if (captures.value[key] !== undefined) {
+      capturesByIndex[i] = captures.value[key];
+    }
+  });
+  armVenusPreselect();
+  const payload = {
+    paymentIndex: payIdx.value,
+    steps: steps.value,
+    captures: capturesByIndex,
+    targets: cardDestinations.value.targets,
+  };
+  // ONE payload shape, two acts: the build's own confirm carries the very
+  // same pre-collected steps, so the shell answers both with one batch
+  // builder and both land their reward on the card the player chose.
+  emit(props.intent === 'build' ? 'build-confirm' : 'confirm', payload);
+}
+/**
+ * The follow-up's stage handoff, in the shared grammar: the configuration
+ * lets go ON THE SPOT, the outcome zone opens FROM ITS RECT, and the
+ * teleported content surfaces from inside once it actually lands. The
+ * origin is armed at the commit, while the configuration still stands.
+ */
+/** ARM the handoff once per zone session: the POSE (`--handing`, which is
+ *  what takes the track out from under the payout) plus — when there is a
+ *  surface to release — the release phrase. One writer, three callers (the
+ *  cue's edge, the mount, the next cycle's zone). */
+function armOutcomeHandoff(due: boolean): void {
+  if (!due || outcomeHandoffPlayed.value) {
+    return;
+  }
+  outcomeHandoffPlayed.value = true;
+  playOutcomeHandoff();
+}
+function playOutcomeHandoff(): void {
+  const root = rootEl.value ?? undefined;
+  if (root === undefined || root === null) {
+    return;
+  }
+  playConfigRelease(root);
+  void nextTick(() => playOutcomePhase(root, () => undefined));
+}
+/** THE COMMIT BOUNDARY: pin what the stage shows before the props flip
+ *  (the answer removes the pick / spends the trade while the resolution
+ *  still plays HERE). Called by the SHELL only after ITS guards accepted
+ *  the confirm (a hold with no submit behind it would gate input forever
+ *  — the transaction that releases it would never start). Released by
+ *  the transaction's falling edge. */
+/**
+ * THE COMMIT DID NOT HOLD (a refused answer; the server re-asked the
+ * pick live): the pinned presentation lets go, so the stage is a door
+ * again — its verdict, its confirm and its configuration re-derive from
+ * the live props. Nothing of a move was shown, so nothing is undone.
+ */
+function releasePresentation(): void {
+  heldVerdict.value = undefined;
+  heldFleetLine.value = undefined;
+  heldView.value = undefined;
+  pinnedConfig.value = undefined;
+  commitLatched.value = false;
+  publishStageName();
+  syncUiMirror();
+}
+function holdPresentation(): void {
+  // The verdict's words at the press — its box outlives the commit with exactly these (no re-wrap, no shift).
+  heldVerdict.value = liveVerdict.value;
+  heldFleetLine.value = {text: visitorLine.value, color: props.colony.visitor};
+  // Arm the outcome origin while the configuration surface still stands —
+  // its rect is what the follow-up's zone will unfold from.
+  // The WORKING AREA is what hands over — the identity column stays, so
+  // the follow-up opens from the track/config box, not from the whole
+  // panel (an origin larger than the zone clips to nothing and the unfold
+  // silently degrades into a fade).
+  armOutcomeOriginFrom(mainEl.value ?? undefined);
+  // A mix fee pins the ACTUAL dialed composition into the held row — the
+  // entry's own preview is the energy-first default and would misreport
+  // a commit that spends steel.
+  pinConfig();
+  // THE PRESENTED TARGETS — snapshotted AT the boundary, like everything
+  // else in the held view: the server's answer will rewrite the preview
+  // and the tableau under the resolution, and the scene must keep showing
+  // the decision as it was made («было → прилетело → стало»).
+  presentedTargets.value = cardDestinations.value.presented;
+  cardlandReleased.value = false;
+  clearCardlandDwell();
+  clearCardlandLeave();
+}
+
+/**
+ * THE RETURN FROM THE DISCARD STEP is the recede played backwards, in place: the stage rises back into view
+ * under the gathering hand with the same table in its zone. The return's own (shorter) transition is a class
+ * of its own — the root's opacity belongs to the descend phrase's GSAP the rest of the time, and a standing CSS
+ * transition there would fight every tween. Cleared on the transition's own end; the bounded net only frees a
+ * class (nothing waits on it).
+ */
+watch(() => props.receded, (now: boolean, was: boolean): void => {
+  if (now || !was) {
+    unreceding.value = false;
+    return;
+  }
+  unreceding.value = true;
+  const root = rootEl.value ?? undefined;
+  const done = () => {
+    unreceding.value = false;
+    root?.removeEventListener('transitionend', onEnd);
+  };
+  const onEnd = (ev: TransitionEvent) => {
+    if (ev.target === root && ev.propertyName === 'opacity') {
+      done();
+    }
+  };
+  root?.addEventListener('transitionend', onEnd);
+  consoleSessionScope().guarantee(motionMs(700), 'ConsoleColonyFocusStage: a release\'s bound', done);
+});
+/** The «Эффекты» layer lives ONLY on the setup level — a sub-step, the commit boundary and the resolution fold it instantly. */
+watch(() => forecastCanOpen.value, (can: boolean): void => {
+  syncUiMirror();
+  if (!can) {
+    foldForecastHost('colony');
+  }
+});
+watch(() => fxOpen.value, (): void => {
+  syncUiMirror();
+});
+watch(() => venusBar.value, (bar: ReadonlyArray<VenusInnerCommand>): void => {
+  consoleColoniesUi.composerVenusBar = bar;
+}, {immediate: true});
+watch(() => isMcSelected.value, () => {
+  seedPaymentDefault();
+});
+watch(() => props.preview, () => {
+  measureFit();
+  seedPaymentDefault();
+  // THE GAME STATE MOVED UNDER A CAPTURE. The preview is the candidates'
+  // source of truth, so a fresh one INVALIDATES anything it no longer
+  // offers: a captured target whose card left the eligible set is dropped
+  // (the row returns to «Выберите карту…», the confirm re-locks), and a
+  // vanished track choice goes with its step. Silently submitting a stale
+  // pick — or showing it as still chosen — is the one forbidden outcome.
+  pruneStaleCaptures();
+  syncUiMirror();
+});
+watch(() => sub.value, () => {
+  publishStageName();
+  syncUiMirror();
+  measureFit();
+});
+// Every composition change re-asks how much room the columns want.
+watch(() => stepRows.value, () => {
+  measureFit();
+});
+watch(() => presentMode.value, () => {
+  measureFit();
+});
+watch(() => cardTargetLines.value, () => {
+  measureFit();
+});
+watch(() => canConfirm.value, () => {
+  syncUiMirror();
+});
+// The chosen family gates the confirm's gateway label — a switch to
+// M€/titanium must drop it in the same flush (the value the mirror
+// publishes is derived, so only this edge re-publishes it).
+watch(() => payIdx.value, () => {
+  syncUiMirror();
+});
+// The chosen path's reach is the section's to re-ask the preview with
+// (`immediate`: a stage mounting straight onto a locked path — the Unity
+// door — names it before the first preview is fetched).
+watch(() => chosenPathOffset.value, (offset: number) => {
+  emit('path-offset', offset);
+}, {immediate: true});
+// The WORLD moved under the composition substep (undo, a refreshed
+// preview, the card leaving the tableau) and the choice is gone — the
+// step folds honestly back to Configure; a single valid allocation needs
+// no step, and a dead one must not stand.
+watch(() => tradeMixAdjustable.value, (adjustable: boolean) => {
+  if (!adjustable && sub.value === 'mix') {
+    closeMixStep();
+  }
+  syncUiMirror();
+});
+// The fee options arrive with the prompt, which can land a frame after the
+// stage mounts (and re-lands on every response) — re-pin, never re-seed.
+watch(() => lockedPayIdx.value, () => {
+  syncLockedPayment();
+}, {immediate: true});
+watch(() => focusedRowEditable.value, () => {
+  syncUiMirror();
+});
+watch(() => props.intent, () => {
+  publishStageName();
+  syncUiMirror();
+});
+/** The city act arrives / is pinned with the prompt — the crumb's stage follows it. */
+watch(() => props.city, () => {
+  publishStageName();
+});
+watch(() => props.colony.name, () => {
+  captures.value = {};
+  sub.value = undefined;
+  subIdx.value = 0;
+  payIdx.value = 0;
+  focusIdx.value = 0;
+  heldView.value = undefined;
+  pinnedConfig.value = undefined;
+  commitLatched.value = false;
+  heldVerdict.value = undefined;
+  heldContext.value = undefined;
+  presentedTargets.value = [];
+  cardlandReleased.value = false;
+  clearCardlandDwell();
+  clearCardlandLeave();
+  seedPaymentDefault();
+  syncLockedPayment();
+  publishStageName();
+  syncUiMirror();
+});
+// The commit latch: once this stage session crossed the boundary, the
+// pre-commit verdict never returns (see `commitLatched`). `immediate`:
+// a stage that MOUNTS mid-resolution (the post-discard restore, a remote
+// entry) is past the commit from its first frame.
+watch(() => pastCommit.value, (now: boolean) => {
+  if (now) {
+    commitLatched.value = true;
+    // ⚠️ WHOEVER NOTICES THE BOUNDARY FIRST TAKES THE SNAPSHOT. The
+    // ordinary pin runs at the shell's accept, through an OPTIONAL-CHAINED
+    // template ref of the section (`focusStage` → `stage?.holdPresentation()`), so a
+    // frame in which that ref is not resolved yet silently pins NOTHING —
+    // and the working area then re-derives from the live props for the
+    // whole resolution, which is the exact defect the pin exists for
+    // (measured: 62 of 273 post-commit samples showing a three-row payment
+    // menu). This is the same fact from the stage's own side, so it cannot
+    // be missed. Deliberately only the CONFIG half: the presented targets
+    // are a decision-time snapshot and re-taking them here would read the
+    // server's answer instead.
+    if (pinnedConfig.value === undefined) {
+      pinConfig();
+    }
+  }
+}, {immediate: true});
+// Hold the last SOURCE context through the close (see `presentedContext`).
+watch(() => resolutionContext.value, (ctx: {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined) => {
+  if (ctx !== undefined) {
+    heldContext.value = {...ctx};
+  }
+}, {immediate: true});
+watch(() => props.actionAvailable, () => {
+  publishStageName();
+  syncUiMirror();
+});
+// THE CONFIGURATION LETS GO only when the flow's physical bridge is on
+// stage (covers airborne / content landing) — never at the bare claim.
+// One-shot per outcome; re-arms when the zone folds (the next cycle's
+// batch opens its own phrase).
+// ⚠️ IMMEDIATE, because a stage that MOUNTS mid-resolution (the
+// post-discard restore, a remote entry, a reload) is handed over from its
+// FIRST FRAME — there is no rising edge left to wait for. Without it the
+// pose never armed for such a mount and the payout stood ON TOP of a fully
+// lit track and summary rail: two surfaces in one zone (the reported
+// «reveal отрендерился поверх интерфейса колоний»). The animation cannot
+// fire during setup (`playOutcomeHandoff` has no root element yet), which is
+// exactly right: there is nothing to release, only a pose to be in.
+watch(() => outcomeHandoffDue.value, (due: boolean) => {
+  armOutcomeHandoff(due);
+}, {immediate: true});
+watch(() => props.outcomeZone, (on: boolean) => {
+  if (!on) {
+    outcomeHandoffPlayed.value = false;
+    return;
+  }
+  // …AND THE NEXT CYCLE RE-ARMS IT. The cue is RESOLUTION-scoped
+  // (`payoutLiftOff` is raised once per payout, and the content can already
+  // be in the zone), so when the zone re-opens for the second colony's
+  // bonus the watcher above has nothing to change — true→true fires
+  // nothing, and the one-shot would stay unplayed for the rest of the flow.
+  armOutcomeHandoff(outcomeHandoffDue.value);
+});
+/**
+ * THE CLOSING BEAT WAITS FOR THIS STAGE. The trade's conclusion (the track
+ * reset) may not start while the track is hidden under the payout — and
+ * not on the frame the pose drops either: the working area fades back over
+ * its own transition, and a marker launched into that fade is the same
+ * «белая точка по пустому интерфейсу», just shorter. The RISE is published
+ * at once (nothing may slip in behind it); the FALL is published after the
+ * pose has settled — the dwell is the FLOOR, and past it the working
+ * area's OWN return transitions must have run out (`workingAreaSettled`,
+ * bounded): on a starved frame a composited fade is still pending when a
+ * wall-clock dwell ends (CI 2026-11-11, `glideOverBlankStage`).
+ */
+watch(() => stageBusy.value, (busy: boolean) => {
+  if (stageBackTimer !== undefined) {
+    stageBackTimer();
+    stageBackTimer = undefined;
+  }
+  const back = ++stageBackToken.value;
+  if (busy) {
+    setColonyStageYielded(true);
+    return;
+  }
+  // PACING (the stage's own dwell): a stage that is gone lowers the flag itself, in `onBeforeUnmount`.
+  stageBackTimer = flow.after(motionMs(WORKING_AREA_BACK_MS), 'the working area is back — its dwell', () => {
+    stageBackTimer = undefined;
+    void workingAreaSettled(mainEl.value ?? undefined, motionMs(WORKING_AREA_BACK_CEILING_MS)).then(() => {
+      // Only THIS fall may release — a pose re-raised meanwhile (a second colony's payout) owns the stage again.
+      if (back === stageBackToken.value && !stageBusy.value) {
+        setColonyStageYielded(false);
+      }
+    });
+  });
+}, {immediate: true});
+/**
+ * EVERY CHIP HAS TOUCHED ITS CARD — hold the landed reading for one calm
+ * beat (the counter just ticked; the player must see the new number), then
+ * recede and give the working area back. A read beat, not a gate: nothing
+ * is being waited for.
+ */
+/**
+ * THE DEPARTURE. `cardlandReleased` starts the leave pose; when it has
+ * played the card is UNMOUNTED, and only that drops `--carding` (the
+ * working area returns to an empty room) and `stageBusy` (the marker may
+ * finally move). One writer for the whole hand-back order.
+ */
+watch(() => cardlandReleased.value, (released: boolean) => {
+  clearCardlandLeave();
+  if (!released || presentedTargets.value.length === 0) {
+    return;
+  }
+  cardlandLeave = flow.after(motionMs(CARDLAND_LEAVE_MS), 'the presented card\'s departure', () => {
+    cardlandLeave = undefined;
+    presentedTargets.value = [];
+    cardlandReleased.value = false;
+  });
+});
+watch(() => cardlandAllLanded.value, (landed: boolean) => {
+  if (!landed || !cardlandVisible.value || cardlandReleased.value) {
+    return;
+  }
+  clearCardlandDwell();
+  cardlandDwell = flow.after(motionMs(CARDLAND_READ_MS), 'the landed reward\'s read beat', () => {
+    cardlandDwell = undefined;
+    cardlandReleased.value = true;
+  });
+});
+/** A CARD payout took the working area over (Miranda: animals landed,
+ *  now the drawn card's covers own the room) — the presented scene must
+ *  not stand under it, and its counters must not stay frozen. */
+watch(() => outcomeHandoffPlayed.value, (played: boolean) => {
+  if (played && presentedTargets.value.length > 0) {
+    clearCardlandDwell();
+    cardlandReleased.value = true;
+  }
+});
+/**
+ * THE SCENE'S OWN NET. `onArrive` fires on every transfer path (flight,
+ * reduced motion, degrade, safety), so the landings normally release the
+ * scene — but a presented target whose chip the MANIFEST never produced
+ * (a plan/actual divergence) would hold the working area forever. Once
+ * the transaction's chip phase is over, whatever has not landed is not
+ * coming: release after the same read beat, honestly.
+ */
+watch(() => colonyTradeState.phase, (phase: string) => {
+  const chipsOver = phase === 'awaiting' || phase === 'glide' || phase === 'settle' || phase === 'idle';
+  if (!chipsOver || !cardlandVisible.value || cardlandReleased.value ||
+      cardlandAllLanded.value || cardlandDwell !== undefined) {
+    return;
+  }
+  cardlandDwell = flow.after(motionMs(CARDLAND_READ_MS), 'the presented scene\'s own net — the chip phase is over', () => {
+    cardlandDwell = undefined;
+    cardlandReleased.value = true;
+  });
+});
+watch(() => outcomeContentIn.value, (landed: boolean) => {
+  if (landed) {
+    void nextTick(() => {
+      // (the tick may land after the stage left: nothing stands to play on then)
+      const rootNow = rootEl.value;
+      if (rootNow !== null) {
+        playOutcomeContent(rootNow);
+      }
+    });
+  }
+});
+watch(() => resolving.value, (now: boolean, was: boolean) => {
+  if (!now && was) {
+    // The transaction ended — SUCCESS or a clean rollback. The pinned
+    // presentation lets go, UNLESS the payout is still physically
+    // arriving on a card: the panel would re-derive to `inspect` and
+    // shrink by a third under the very scene it is hosting.
+    if (heldView.value !== undefined && !cardlandHolds.value) {
+      heldView.value = undefined;
+      publishStageName();
+      syncUiMirror();
+    }
+    // …but the PRESENTED CARD does NOT: a colony BUILD's own transaction
+    // ends when the cube lands, several hundred ms before its floaters
+    // touch down, and tearing the card out here left the reward flying at
+    // a scene that no longer existed. Nothing owed → clear at once (a
+    // refusal must leave no success scene); something owed → the landing
+    // watcher releases it, with a bounded net so a chip that never
+    // arrives can never strand the card on screen.
+    if (presentedTargets.value.length === 0) {
+      return;
+    }
+    if (cardlandAllLanded.value || cardlandReleased.value) {
+      return; // the landed watcher (or the departure) owns the beat
+    }
+    if (!presentedTargets.value.some((t) => landedOf(t) > 0) && !chipsInFlight.value) {
+      clearCardlandDwell();
+      presentedTargets.value = [];
+      cardlandReleased.value = false;
+      return;
+    }
+    clearCardlandDwell();
+    cardlandDwell = flow.after(motionMs(CARDLAND_NET_MS), 'the presented card\'s net — a chip that never arrives', () => {
+      cardlandDwell = undefined;
+      cardlandReleased.value = true;
+    });
+  }
+});
+/** The scene's own presence, published for the SECTION's completion: the
+ *  colony may not route home while a reward is still arriving on a card. */
+watch(() => cardlandVisible.value, (live: boolean) => {
+  colonyResolutionUi.cardSceneLive = live;
+  // The scene was the last thing holding the pinned presentation (see
+  // the `resolving` falling edge) — release it now that it is done.
+  if (!live && heldView.value !== undefined && !resolving.value) {
+    heldView.value = undefined;
+    publishStageName();
+    syncUiMirror();
+  }
+}, {immediate: true});
+
+onMounted(() => {
+  measureFit();
+  // The RESPONSIVE path: the band itself changing (a profile switch, the
+  // rail lifting, a font settling) — never a manual window listener.
+  const root = rootEl.value ?? undefined;
+  if (root !== undefined && root !== null) {
+    stopFitObs = useResizeObserver(root, () => measureFit()).stop;
+  }
+  seedPaymentDefault();
+  syncLockedPayment();
+  publishStageName();
+  syncUiMirror();
+});
+onBeforeUnmount(() => {
+  stopFitObs?.();
+  stopFitObs = undefined;
+  // (The measure frame, the stage-back dwell and the presented card's two timers are `flow`'s — taken back with it.)
+  consoleColoniesUi.composerSub = '';
+  consoleColoniesUi.composerReady = false;
+  consoleColoniesUi.composerEditable = false;
+  consoleColoniesUi.composerDecisions = false;
+  consoleColoniesUi.composerMixAdjustable = false;
+  consoleColoniesUi.forecastAvailable = false;
+  consoleColoniesUi.forecastOpen = false;
+  closeEffectForecastLayer('colony');
+  pulseCall?.kill();
+  pulseCall = undefined;
+  // A stage that is GONE hides nothing: the closing beat must never wait on
+  // a screen that no longer exists (the discard closes this stage mid-flow,
+  // and the reset then plays on the restored one — or on the overview tile).
+  stageBackToken.value++;
+  colonyResolutionUi.cardSceneLive = false;
+  setColonyStageYielded(false);
+});
+defineExpose({handleIntent, releasePresentation, holdPresentation});
 </script>

@@ -100,10 +100,11 @@ describe('the working area is back when its own transitions ran out', () => {
 
   it('the stage gate releases through it, after the dwell, for THIS fall only', () => {
     const src = source('components', 'console', 'ConsoleColonyFocusStage.vue');
-    const start = src.indexOf('    stageBusy: {');
-    const body = src.slice(start, src.indexOf('\n    },\n', start));
+    const start = src.indexOf('watch(() => stageBusy.value, ');
+    expect(start, 'the stage still watches `stageBusy`').to.be.greaterThan(-1);
+    const body = src.slice(start, src.indexOf('\n}, {immediate: true});\n', start));
     expect(body).to.contain('workingAreaSettled(');
     expect(body.indexOf('workingAreaSettled('), 'the settle is asked before the release').to.be.lessThan(body.lastIndexOf('setColonyStageYielded(false)'));
-    expect(body, 'a pose re-raised meanwhile owns the stage again').to.contain('back === this.stageBackToken');
+    expect(body, 'a pose re-raised meanwhile owns the stage again').to.contain('back === stageBackToken.value');
   });
 });
