@@ -1,14 +1,4 @@
 <template>
-  <!--
-    Rich, interactive explainability panel for the final-scoring reveal. Shown
-    when a category is hovered/focused: a per-player breakdown (sub-categories,
-    the cards that scored with a hover card-preview, milestone/award/penalty
-    sources) — or a cross-player comparison when a top pill is hovered.
-
-    Interactive: the cursor can move INTO the panel (it emits keep/release so the
-    host's close timer bridges the gap). Card rows reuse the journal's premium
-    `CardPreviewPopover` on hover — no bespoke card render.
-  -->
   <div class="fsr-insp" :class="'fsr-cat--' + content.accent"
        @mouseenter="$emit('keep')" @mouseleave="$emit('release')">
     <div class="fsr-insp__head">
@@ -69,59 +59,62 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * Rich, interactive explainability panel for the final-scoring reveal. Shown
+ * when a category is hovered/focused: a per-player breakdown (sub-categories,
+ * the cards that scored with a hover card-preview, milestone/award/penalty
+ * sources) — or a cross-player comparison when a top pill is hovered.
+ *
+ * Interactive: the cursor can move INTO the panel (it emits keep/release so the
+ * host's close timer bridges the gap). Card rows reuse the journal's premium
+ * `CardPreviewPopover` on hover — no bespoke card render.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {ref} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {FinalScoringInspectorContent} from '@/client/components/endgame/finalScoringRevealModel';
 import CardPreviewPopover from '@/client/components/journal/CardPreviewPopover.vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {vI18n} from '@/client/directives/vDirectives';
 
 const HOVER_DELAY = 150;
 
-export default defineComponent({
-  name: 'FinalScoringInspector',
-  components: {CardPreviewPopover},
-  props: {
-    content: {type: Object as () => FinalScoringInspectorContent, required: true},
-  },
-  emits: ['keep', 'release'],
-  setup() {
-    return {flow: useFlowScope('final-scoring-inspector')};
-  },
-  data() {
-    return {
-      previewName: undefined as CardName | undefined,
-      previewVisible: false,
-      previewAnchor: undefined as DOMRect | undefined,
-      cancelHover: (() => {}) as () => void,
-    };
-  },
-  methods: {
-    signed(v: number): string {
-      return v >= 0 ? '+' + v : String(v);
-    },
-    cardLabel(name: CardName): string {
-      return name.split(':')[0];
-    },
-    onCardEnter(name: CardName, evt: Event): void {
-      const el = evt.currentTarget as HTMLElement | null;
-      if (el === null || typeof el.getBoundingClientRect !== 'function') {
-        return;
-      }
-      this.previewName = name;
-      this.previewAnchor = el.getBoundingClientRect();
-      this.clearTimer();
-      this.cancelHover = this.flow.after(HOVER_DELAY, 'the card row\'s hover delay', () => {
-        this.previewVisible = true;
-      });
-    },
-    onCardLeave(): void {
-      this.clearTimer();
-      this.previewVisible = false;
-    },
-    clearTimer(): void {
-      this.cancelHover();
-    },
-  },
+defineOptions({name: 'FinalScoringInspector'});
+defineProps({
+  content: {type: Object as () => FinalScoringInspectorContent, required: true},
 });
+defineEmits(['keep', 'release']);
+
+const flow = useFlowScope('final-scoring-inspector');
+const previewName = ref<CardName | undefined>(undefined);
+const previewVisible = ref(false);
+const previewAnchor = ref<DOMRect | undefined>(undefined);
+let cancelHover: () => void = () => {};
+function signed(v: number): string {
+  return v >= 0 ? '+' + v : String(v);
+}
+function cardLabel(name: CardName): string {
+  return name.split(':')[0];
+}
+function onCardEnter(name: CardName, evt: Event): void {
+  const el = evt.currentTarget as HTMLElement | null;
+  if (el === null || typeof el.getBoundingClientRect !== 'function') {
+    return;
+  }
+  previewName.value = name;
+  previewAnchor.value = el.getBoundingClientRect();
+  clearTimer();
+  cancelHover = flow.after(HOVER_DELAY, 'the card row\'s hover delay', () => {
+    previewVisible.value = true;
+  });
+}
+function onCardLeave(): void {
+  clearTimer();
+  previewVisible.value = false;
+}
+function clearTimer(): void {
+  cancelHover();
+}
 </script>
