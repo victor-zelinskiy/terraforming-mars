@@ -65,9 +65,9 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 import ConsoleTenderChip from './ConsoleTenderChip.vue';
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
@@ -77,7 +77,7 @@ import {TitleName} from '@/common/campaign/CampaignTypes';
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
 /**
  * MISSION RESULTS («Итоги миссии») — the committed facts of one finished
@@ -89,44 +89,37 @@ import {translateTextWithParams} from '@/client/directives/i18n';
  * viewer's own carried cards expose `data-zoom-slot` for the host's
  * fullscreen inspect.
  */
-export default defineComponent({
-  name: 'CampaignMissionResults',
-  components: {Card, ConsoleTenderChip},
-  props: {
-    details: {type: Object as PropType<MissionDetailsVm>, required: true},
-    youSeat: {type: Number as PropType<number | undefined>, default: undefined},
-    botCorporation: {type: String as PropType<MarsBotCorpId | undefined>, default: undefined},
-  },
-  computed: {
-    generationsText(): string {
-      return translateTextWithParams('Generations: ${0}', [String(this.details.generations)]);
-    },
-    outgoingHeading(): string {
-      return translateTextWithParams('Legacy for mission ${0}', [String((this.details.outgoing?.nextSlot ?? 0) + 1)]);
-    },
-    botCorpName(): CardName | undefined {
-      return this.botCorporation === undefined ? undefined : marsBotCorpInfo(this.botCorporation).original;
-    },
-    carriedRows(): ReadonlyArray<{seat: number, color: string, count: number}> {
-      return (this.details.outgoing?.carried.bySeat ?? []).filter((s) => s.count > 0);
-    },
-    yourCarriedCards(): ReadonlyArray<CardModel> {
-      return (this.details.outgoing?.carried.yourCards ?? []).map((name) => ({name} as CardModel));
-    },
-  },
-  methods: {
-    titleArtUrl,
-    titleLabel(title: TitleName): string {
-      return TITLE_LABEL[title];
-    },
-    /** The visible participant label — the ONE name helper. */
-    rowName(row: {name: string, isBot: boolean}): string {
-      return participantDisplayName({name: row.name, isMarsBot: row.isBot});
-    },
-    carryCount(count: number): string {
-      // «карт: N» — number-form-neutral in RU (never «2 карт»).
-      return translateTextWithParams('cards: ${0}', [String(count)]);
-    },
-  },
+defineOptions({name: 'CampaignMissionResults'});
+const props = defineProps({
+  details: {type: Object as PropType<MissionDetailsVm>, required: true},
+  youSeat: {type: Number as PropType<number | undefined>, default: undefined},
+  botCorporation: {type: String as PropType<MarsBotCorpId | undefined>, default: undefined},
 });
+
+const generationsText = computed((): string => {
+  return translateTextWithParams('Generations: ${0}', [String(props.details.generations)]);
+});
+const outgoingHeading = computed((): string => {
+  return translateTextWithParams('Legacy for mission ${0}', [String((props.details.outgoing?.nextSlot ?? 0) + 1)]);
+});
+const botCorpName = computed((): CardName | undefined => {
+  return props.botCorporation === undefined ? undefined : marsBotCorpInfo(props.botCorporation).original;
+});
+const carriedRows = computed((): ReadonlyArray<{seat: number, color: string, count: number}> => {
+  return (props.details.outgoing?.carried.bySeat ?? []).filter((s) => s.count > 0);
+});
+const yourCarriedCards = computed((): ReadonlyArray<CardModel> => {
+  return (props.details.outgoing?.carried.yourCards ?? []).map((name) => ({name} as CardModel));
+});
+function titleLabel(title: TitleName): string {
+  return TITLE_LABEL[title];
+}
+/** The visible participant label — the ONE name helper. */
+function rowName(row: {name: string, isBot: boolean}): string {
+  return participantDisplayName({name: row.name, isMarsBot: row.isBot});
+}
+function carryCount(count: number): string {
+  // «карт: N» — number-form-neutral in RU (never «2 карт»).
+  return translateTextWithParams('cards: ${0}', [String(count)]);
+}
 </script>
