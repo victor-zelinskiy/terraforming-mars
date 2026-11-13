@@ -1,11 +1,11 @@
 /*
  * THE APP ROOT'S PORT — what a component may ask of the application's root.
  *
- * Nine components reached the root through their own instance (`vueRoot(this)` → `this.$root`): the busy flag of the
- * server request, the game the lobby just loaded, the screen switch, in-app navigation, the panels' visibility
- * memory. `<script setup>` has no instance to start from, and a Vapor component has none at all
- * (`getCurrentInstance()` is `null` there) — so the root comes DOWN: `App` provides this port, a component takes it
- * with `useAppRoot()` (docs/claude/vapor/RECIPES.md § R26).
+ * Nine components used to reach the root through their own instance (`this.$root`, behind a helper that took `this` —
+ * it left with its last caller): the busy flag of the server request, the game the lobby just loaded, the screen
+ * switch, in-app navigation, the panels' visibility memory. `<script setup>` has no instance to start from, and a
+ * Vapor component has none at all (`getCurrentInstance()` is `null` there) — so the root comes DOWN: `App` provides
+ * this port, a component takes it with `useAppRoot()` (docs/claude/vapor/RECIPES.md § R26).
  *
  * The port is an INTERFACE, never the App component's type. Today `App` (Options API) provides its own public
  * instance, which satisfies it structurally; when `App` itself is rewritten it provides an object composed of its refs

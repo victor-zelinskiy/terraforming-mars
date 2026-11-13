@@ -1,5 +1,5 @@
 <template>
-  <div class="cm-create">
+  <div ref="rootEl" class="cm-create">
     <div class="cm-menu__bg" aria-hidden="true"></div>
     <div class="cm-menu__vignette" aria-hidden="true"></div>
 
@@ -187,7 +187,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * CONSOLE-NATIVE CREATE GAME — the "Mission Bridge" screen.
  *
@@ -202,9 +202,8 @@
  * Data / validation / persistence / submit are the SHARED premium create
  * modules, so desktop and console can never drift.
  */
-import {computed, defineComponent, watch} from 'vue';
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
-import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {installMenuPad} from '@/client/console/menu/consoleMenuPad';
@@ -216,7 +215,6 @@ import {
   CREATE_WIDE_MIN_WIDTH,
   CreateDeckId,
   SESSION_MODE_OPTIONS,
-  SessionModeOption,
   createDecks,
   CrewRow,
   ExpansionRow,
@@ -282,672 +280,655 @@ import ConsoleDevCardPicker from '@/client/components/console/menu/ConsoleDevCar
 import {pruneGuaranteedCards} from '@/client/components/create/premium/devGuaranteedCards';
 import {$t} from '@/client/directives/i18n';
 import {trackDeckComposition} from '@/client/console/menu/deckCompositionState';
+import {vI18n} from '@/client/directives/vDirectives';
+import {useAppRoot} from '@/client/components/appRoot';
 
 const SHAKE_MS = 460;
 
-export default defineComponent({
-  name: 'ConsoleCreateGame',
-  components: {
-    ConsoleCommandBar,
-    ConsoleScrollArea,
-    GamepadGlyph,
-    ConsoleCrewDeck,
-    ConsoleRulesDeck,
-    ConsoleExpansionsDeck,
-    ConsoleMapDeck,
-    ConsoleLaunchPanel,
-    ConsoleParticipantEditor,
-    ConsoleTypePicker,
-    ConsoleLaunchConfirm,
-    ConsoleDevCardPicker,
-    PremiumMapFingerprint,
-  },
-  setup() {
-    // Foundation: page-level overflow lock while this screen owns the viewport.
-    useConsoleNativeSurface();
-    // THE WIDE CREATOR (TR68): the stylesheet's `@media (min-width: 1900px)` and the cursor's walk read ONE threshold.
-    const viewport = useConsoleViewport();
-    const creatorWide = computed(() => viewport.width.value >= CREATE_WIDE_MIN_WIDTH);
-    // The model orders a sub-setting by the grid it stands in.
-    watch(creatorWide, (wide) => setCreateLayoutWide(wide), {immediate: true});
-    return {creatorWide, flow: useFlowScope('console-create-game')};
-  },
-  data() {
-    return {
-      /** The map showcase's MEASURED columns (`ConsoleMapDeck` → `layout`) — the cursor's walk (P44 · ER). */
-      mapCols: undefined as number | undefined,
-      ui: consoleCreateUi,
-      identityState,
-      offPad: undefined as (() => void) | undefined,
-      // The deck counts the server keeps live while the creator stands (T04).
-      offDecks: undefined as (() => void) | undefined,
-      shakeDeck: undefined as CreateDeckId | undefined,
-      shakeRow: -1,
-      cancelShake: (() => {}) as () => void,
-    };
-  },
-  computed: {
-    decks() {
-      return createDecks();
-    },
-    /** The single party's illustration — the base board every player knows. */
-    modeSingleBoard(): BoardName {
-      return BoardName.THARSIS;
-    },
-    /** The campaign's illustration — a route of four boards (the last one the finale). */
-    /** The mode tile's little route — as long as the campaign the player has chosen. */
-    modeRouteBoards(): ReadonlyArray<BoardName> {
-      return [
-        BoardName.TERRA_CIMMERIA, BoardName.THARSIS, BoardName.VASTITAS_BOREALIS,
-        BoardName.ELYSIUM, BoardName.UTOPIA_PLANITIA, BoardName.HELLAS,
-      ].slice(-this.missionCount);
-    },
-    missionCount(): number {
-      return createGameState.config.campaignMissionCount;
-    },
-    /** What the finale does with the road's rewards — the briefing's note follows the reward dial. */
-    routeRewardNote(): string {
-      return createGameState.config.campaignRewardMode === 'tenders' ?
-        'The last mission is the finale: the tenders won on the way execute at its start, corporations count into its VP.' :
-        'The last mission is the finale: titles and corporations count into its VP.';
-    },
-    modeOptions(): ReadonlyArray<SessionModeOption> {
-      return SESSION_MODE_OPTIONS;
-    },
-    isCampaign(): boolean {
-      return isCampaignMode();
-    },
-    botSeated(): boolean {
-      return botSeatedInState();
-    },
-    crew(): ReadonlyArray<CrewRow> {
-      return crewRows();
-    },
-    rules(): ReadonlyArray<RulesDeckRow> {
-      return rulesDeckRows();
-    },
-    expansions(): ReadonlyArray<ExpansionRow> {
-      return expansionRows();
-    },
-    maps(): ReadonlyArray<MapRow> {
-      return mapRows();
-    },
-    typeOptions(): ReadonlyArray<ParticipantTypeOption> {
-      return participantTypeOptions();
-    },
-    identityName(): string {
-      return this.identityState.identity?.displayName ?? '';
-    },
-    identityCubeClass(): string {
-      const color = this.identityState.identity?.cubeColor;
-      return color !== undefined ? `player_bg_color_${color}` : 'cm-identity__cube--empty';
-    },
-    ready(): boolean {
-      return launchReady();
-    },
-    confirmTitle(): string {
-      const overlay = this.ui.overlay;
-      if (overlay?.kind !== 'confirm') {
-        return '';
-      }
-      switch (overlay.id) {
-      case 'seat-bot': return 'Add MarsBot?';
-      case 'remove-human': return 'Remove participant?';
-      case 'unseat-bot': return 'Remove MarsBot?';
-      case 'reset': return 'Reset settings?';
-      }
-    },
-    confirmBody(): string {
-      const overlay = this.ui.overlay;
-      if (overlay?.kind !== 'confirm') {
-        return '';
-      }
-      switch (overlay.id) {
-      case 'seat-bot':
-        return $t('MarsBot currently plays one-on-one only — the roster will shrink to just you. Removing the bot brings your roster back.');
-      case 'remove-human': {
-        const name = createGameState.config.players[overlay.index ?? -1]?.name?.trim() ?? '';
-        return name !== '' ? name : $t('Name not set');
-      }
-      case 'unseat-bot':
-        return $t('Your previous roster will be restored.');
-      case 'reset':
-        return $t('The saved setup will be cleared and the defaults restored.');
-      }
-    },
-    confirmDanger(): boolean {
-      const overlay = this.ui.overlay;
-      return overlay?.kind === 'confirm' && (overlay.id === 'remove-human' || overlay.id === 'unseat-bot' || overlay.id === 'reset');
-    },
-    commandContext(): string {
-      if (this.ui.stage === 'mode') {
-        return 'Create new game';
-      }
-      const overlay = this.ui.overlay;
-      if (overlay?.kind === 'typePicker') {
-        return 'Add participant';
-      }
-      if (overlay?.kind === 'editor') {
-        return 'Participant';
-      }
-      if (overlay?.kind === 'confirm') {
-        return this.confirmTitle;
-      }
-      if (overlay?.kind === 'launch') {
-        return 'Launch the party';
-      }
-      if (overlay?.kind === 'devCards') {
-        return 'Guaranteed cards';
-      }
-      return 'Create new game';
-    },
-    commands(): ReadonlyArray<ConsoleCommand> {
-      if (this.ui.stage === 'mode') {
-        return [
-          {control: 'dpadH', label: 'Choose'},
-          {control: 'confirm', label: 'Select'},
-          {control: 'back', label: 'Main menu'},
-        ];
-      }
-      const overlay = this.ui.overlay;
-      if (overlay?.kind === 'typePicker') {
-        return [
-          {control: 'dpadH', label: 'Choose'},
-          {control: 'confirm', label: 'Select'},
-          {control: 'back', label: 'Cancel'},
-        ];
-      }
-      if (overlay?.kind === 'editor') {
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Change'},
-          {control: 'back', label: 'Done'},
-        ];
-      }
-      if (overlay?.kind === 'confirm') {
-        return [
-          {control: 'confirm', label: 'Confirm'},
-          {control: 'back', label: 'Cancel'},
-        ];
-      }
-      if (overlay?.kind === 'launch') {
-        return [
-          {control: 'confirm', label: 'Launch'},
-          {control: 'back', label: 'Cancel'},
-        ];
-      }
-      if (overlay?.kind === 'devCards') {
-        // The picker shows precise per-view foot hints; the bar stays generic.
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Select'},
-          {control: 'back', label: 'Back'},
-        ];
-      }
-      const verb = this.deckVerb;
-      const cmds: Array<ConsoleCommand> = [
-        {control: 'bumperL', control2: 'bumperR', label: 'Section'},
-        {control: 'confirm', label: verb.label, enabled: verb.enabled},
-      ];
-      if (this.removeHintVisible) {
-        cmds.push({control: 'inspect', label: 'Remove'});
-      }
-      cmds.push({control: 'secondary', label: this.ready ? (this.isCampaign ? 'Assemble the campaign' : 'Launch the party') : 'Go to the first issue', highlight: this.ready});
-      cmds.push({control: 'back', label: 'Game mode'});
-      return cmds;
-    },
-    deckVerb(): {label: string, enabled: boolean} {
-      switch (this.ui.deck) {
-      case 'crew': {
-        const row = this.crew[this.ui.cursor.crew];
-        if (row === undefined) {
-          return {label: 'Select', enabled: false};
-        }
-        if (row.kind === 'add') {
-          return {label: 'Add participant', enabled: row.enabled};
-        }
-        return {label: 'Edit', enabled: true};
-      }
-      case 'rules': {
-        const row = this.rules[this.ui.cursor.rules];
-        if (row?.kind === 'chance') {
-          return {label: 'Change', enabled: true};
-        }
-        return {label: row?.kind === 'devCards' ? 'Open' : 'Toggle', enabled: true};
-      }
-      case 'expansions':
-        return {label: 'Toggle', enabled: true};
-      case 'map': {
-        if (this.isCampaign) {
-          return {label: 'Change', enabled: true};
-        }
-        const row = this.maps[this.ui.cursor.map];
-        return {label: 'Select map', enabled: row !== undefined && !row.selected};
-      }
-      }
-    },
-    removeHintVisible(): boolean {
-      if (this.ui.deck !== 'crew') {
-        return false;
-      }
-      const row = this.crew[this.ui.cursor.crew];
-      return row !== undefined && ((row.kind === 'human' && row.removable) || row.kind === 'bot');
-    },
-  },
-  async mounted() {
-    setDocumentTitle('Create new game');
-    ensureIdentityLoaded();
-    // Roster is the source of truth for the active identity (mirrors it into
-    // identityState + migrates a legacy identity) — in case the create screen
-    // is reached without visiting the console main menu first.
-    ensureProfilesLoaded();
-    // First launch with no saved name (Steam Deck / Steam Machine): pull the Steam display name so
-    // the creator seat isn't empty. No-op when an identity already exists or off the Steam build.
-    await prefillIdentityFromSteam();
-    const restored = restoreCreateGameState();
-    if (!restored) {
-      resetCreateGameState();
+defineOptions({name: 'ConsoleCreateGame'});
+
+// The app root's port (R26): B on the mode stage goes back to the main menu through it. `undefined` outside the
+// application — a creator with no root above it has no menu to go back to, and that press does nothing.
+const root = useAppRoot();
+// Foundation: page-level overflow lock while this screen owns the viewport.
+useConsoleNativeSurface();
+// THE WIDE CREATOR (TR68): the stylesheet's `@media (min-width: 1900px)` and the cursor's walk read ONE threshold.
+const viewport = useConsoleViewport();
+const creatorWide = computed(() => viewport.width.value >= CREATE_WIDE_MIN_WIDTH);
+// The model orders a sub-setting by the grid it stands in.
+watch(creatorWide, (wide) => setCreateLayoutWide(wide), {immediate: true});
+const flow = useFlowScope('console-create-game');
+const devCards = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('devCards');
+const editor = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('editor');
+const deckScroll = useTemplateRef<{ensureVisible?: (el: Element | null) => void}>('deckScroll');
+const rootEl = useTemplateRef<HTMLElement>('rootEl');
+/** The map showcase's MEASURED columns (`ConsoleMapDeck` → `layout`) — the cursor's walk (P44 · ER). */
+const mapCols = ref<number | undefined>(undefined);
+const ui = consoleCreateUi;
+let offPad: (() => void) | undefined;
+// The deck counts the server keeps live while the creator stands (T04).
+let offDecks: (() => void) | undefined;
+const shakeDeck = ref<CreateDeckId | undefined>(undefined);
+const shakeRow = ref(-1);
+let cancelShake = (() => {}) as () => void;
+
+const decks = computed(() => {
+  return createDecks();
+});
+/** The single party's illustration — the base board every player knows. */
+const modeSingleBoard = computed((): BoardName => {
+  return BoardName.THARSIS;
+});
+/** The campaign's illustration — a route of four boards (the last one the finale). */
+/** The mode tile's little route — as long as the campaign the player has chosen. */
+const modeRouteBoards = computed((): ReadonlyArray<BoardName> => {
+  return [
+    BoardName.TERRA_CIMMERIA, BoardName.THARSIS, BoardName.VASTITAS_BOREALIS,
+    BoardName.ELYSIUM, BoardName.UTOPIA_PLANITIA, BoardName.HELLAS,
+  ].slice(-missionCount.value);
+});
+const missionCount = computed((): number => {
+  return createGameState.config.campaignMissionCount;
+});
+/** What the finale does with the road's rewards — the briefing's note follows the reward dial. */
+const routeRewardNote = computed((): string => {
+  return createGameState.config.campaignRewardMode === 'tenders' ?
+    'The last mission is the finale: the tenders won on the way execute at its start, corporations count into its VP.' :
+    'The last mission is the finale: titles and corporations count into its VP.';
+});
+const modeOptions = SESSION_MODE_OPTIONS;
+const isCampaign = computed((): boolean => {
+  return isCampaignMode();
+});
+const botSeated = computed((): boolean => {
+  return botSeatedInState();
+});
+const crew = computed((): ReadonlyArray<CrewRow> => {
+  return crewRows();
+});
+const rules = computed((): ReadonlyArray<RulesDeckRow> => {
+  return rulesDeckRows();
+});
+const expansions = computed((): ReadonlyArray<ExpansionRow> => {
+  return expansionRows();
+});
+const maps = computed((): ReadonlyArray<MapRow> => {
+  return mapRows();
+});
+const typeOptions = computed((): ReadonlyArray<ParticipantTypeOption> => {
+  return participantTypeOptions();
+});
+const identityName = computed((): string => {
+  return identityState.identity?.displayName ?? '';
+});
+const identityCubeClass = computed((): string => {
+  const color = identityState.identity?.cubeColor;
+  return color !== undefined ? `player_bg_color_${color}` : 'cm-identity__cube--empty';
+});
+const ready = computed((): boolean => {
+  return launchReady();
+});
+const confirmTitle = computed((): string => {
+  const overlay = ui.overlay;
+  if (overlay?.kind !== 'confirm') {
+    return '';
+  }
+  switch (overlay.id) {
+  case 'seat-bot': return 'Add MarsBot?';
+  case 'remove-human': return 'Remove participant?';
+  case 'unseat-bot': return 'Remove MarsBot?';
+  case 'reset': return 'Reset settings?';
+  }
+});
+const confirmBody = computed((): string => {
+  const overlay = ui.overlay;
+  if (overlay?.kind !== 'confirm') {
+    return '';
+  }
+  switch (overlay.id) {
+  case 'seat-bot':
+    return $t('MarsBot currently plays one-on-one only — the roster will shrink to just you. Removing the bot brings your roster back.');
+  case 'remove-human': {
+    const name = createGameState.config.players[overlay.index ?? -1]?.name?.trim() ?? '';
+    return name !== '' ? name : $t('Name not set');
+  }
+  case 'unseat-bot':
+    return $t('Your previous roster will be restored.');
+  case 'reset':
+    return $t('The saved setup will be cleared and the defaults restored.');
+  }
+});
+const confirmDanger = computed((): boolean => {
+  const overlay = ui.overlay;
+  return overlay?.kind === 'confirm' && (overlay.id === 'remove-human' || overlay.id === 'unseat-bot' || overlay.id === 'reset');
+});
+const commandContext = computed((): string => {
+  if (ui.stage === 'mode') {
+    return 'Create new game';
+  }
+  const overlay = ui.overlay;
+  if (overlay?.kind === 'typePicker') {
+    return 'Add participant';
+  }
+  if (overlay?.kind === 'editor') {
+    return 'Participant';
+  }
+  if (overlay?.kind === 'confirm') {
+    return confirmTitle.value;
+  }
+  if (overlay?.kind === 'launch') {
+    return 'Launch the party';
+  }
+  if (overlay?.kind === 'devCards') {
+    return 'Guaranteed cards';
+  }
+  return 'Create new game';
+});
+const commands = computed((): ReadonlyArray<ConsoleCommand> => {
+  if (ui.stage === 'mode') {
+    return [
+      {control: 'dpadH', label: 'Choose'},
+      {control: 'confirm', label: 'Select'},
+      {control: 'back', label: 'Main menu'},
+    ];
+  }
+  const overlay = ui.overlay;
+  if (overlay?.kind === 'typePicker') {
+    return [
+      {control: 'dpadH', label: 'Choose'},
+      {control: 'confirm', label: 'Select'},
+      {control: 'back', label: 'Cancel'},
+    ];
+  }
+  if (overlay?.kind === 'editor') {
+    return [
+      {control: 'dpad', label: 'Navigate'},
+      {control: 'confirm', label: 'Change'},
+      {control: 'back', label: 'Done'},
+    ];
+  }
+  if (overlay?.kind === 'confirm') {
+    return [
+      {control: 'confirm', label: 'Confirm'},
+      {control: 'back', label: 'Cancel'},
+    ];
+  }
+  if (overlay?.kind === 'launch') {
+    return [
+      {control: 'confirm', label: 'Launch'},
+      {control: 'back', label: 'Cancel'},
+    ];
+  }
+  if (overlay?.kind === 'devCards') {
+    // The picker shows precise per-view foot hints; the bar stays generic.
+    return [
+      {control: 'dpad', label: 'Navigate'},
+      {control: 'confirm', label: 'Select'},
+      {control: 'back', label: 'Back'},
+    ];
+  }
+  const verb = deckVerb.value;
+  const cmds: Array<ConsoleCommand> = [
+    {control: 'bumperL', control2: 'bumperR', label: 'Section'},
+    {control: 'confirm', label: verb.label, enabled: verb.enabled},
+  ];
+  if (removeHintVisible.value) {
+    cmds.push({control: 'inspect', label: 'Remove'});
+  }
+  cmds.push({control: 'secondary', label: ready.value ? (isCampaign.value ? 'Assemble the campaign' : 'Launch the party') : 'Go to the first issue', highlight: ready.value});
+  cmds.push({control: 'back', label: 'Game mode'});
+  return cmds;
+});
+const deckVerb = computed((): {label: string, enabled: boolean} => {
+  switch (ui.deck) {
+  case 'crew': {
+    const row = crew.value[ui.cursor.crew];
+    if (row === undefined) {
+      return {label: 'Select', enabled: false};
     }
-    // A restored setup may name a card a later build renamed or dropped — the
-    // shared state can't check (no card manifest there), so prune it here.
-    pruneGuaranteedCards(createGameState.config.guaranteedCards);
-    const id = this.identityState.identity;
-    if (id !== undefined) {
-      applyCreatorIdentity(id.displayName, id.cubeColor);
+    if (row.kind === 'add') {
+      return {label: 'Add participant', enabled: row.enabled};
     }
-    resetConsoleCreateUi();
-    consoleCreateUi.restored = restored;
-    this.offPad = installMenuPad((intent) => this.onIntent(intent));
-    this.offDecks = trackDeckComposition();
-  },
-  beforeUnmount() {
-    this.offPad?.();
-    this.offDecks?.();
-    this.clearShake();
-  },
-  methods: {
-    // ── Input routing ──────────────────────────────────────────────────
-    onIntent(intent: GamepadIntent): boolean {
-      if (createGameState.creating) {
-        return true; // The launch is in flight — nothing may interrupt it.
+    return {label: 'Edit', enabled: true};
+  }
+  case 'rules': {
+    const row = rules.value[ui.cursor.rules];
+    if (row?.kind === 'chance') {
+      return {label: 'Change', enabled: true};
+    }
+    return {label: row?.kind === 'devCards' ? 'Open' : 'Toggle', enabled: true};
+  }
+  case 'expansions':
+    return {label: 'Toggle', enabled: true};
+  case 'map': {
+    if (isCampaign.value) {
+      return {label: 'Change', enabled: true};
+    }
+    const row = maps.value[ui.cursor.map];
+    return {label: 'Select map', enabled: row !== undefined && !row.selected};
+  }
+  }
+});
+const removeHintVisible = computed((): boolean => {
+  if (ui.deck !== 'crew') {
+    return false;
+  }
+  const row = crew.value[ui.cursor.crew];
+  return row !== undefined && ((row.kind === 'human' && row.removable) || row.kind === 'bot');
+});
+
+// ── Input routing ──────────────────────────────────────────────────
+function onIntent(intent: GamepadIntent): boolean {
+  if (createGameState.creating) {
+    return true; // The launch is in flight — nothing may interrupt it.
+  }
+  // Foundation: presses resolve to SEMANTIC actions (X = launch — the
+  // create screen's advertised verb; no raw button names).
+  const action = consoleActionOf(intent, {secondary: 'launch'});
+  // ── Stage 0: the session-mode pick ──
+  if (ui.stage === 'mode') {
+    if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
+      const max = modeOptions.length - 1;
+      ui.modeCursor = intent.dir === 'right' ?
+        Math.min(max, ui.modeCursor + 1) : Math.max(0, ui.modeCursor - 1);
+      return true;
+    }
+    if (action === 'primary') {
+      pickMode(ui.modeCursor);
+    } else if (action === 'back') {
+      root?.navigateInApp('/');
+    }
+    return true;
+  }
+  const overlay = ui.overlay;
+  if (overlay?.kind === 'devCards') {
+    // The picker owns the pad completely (X = inspect there, not launch).
+    const picker = devCards.value ?? undefined;
+    if (picker?.handleIntent?.(intent) !== true && action === 'back') {
+      closeOverlay();
+    }
+    return true;
+  }
+  if (overlay?.kind === 'editor') {
+    const editorNow = editor.value ?? undefined;
+    if (editorNow?.handleIntent?.(intent) === true) {
+      return true;
+    }
+    if (action === 'back') {
+      closeOverlay();
+    }
+    return true;
+  }
+  if (overlay?.kind === 'typePicker') {
+    if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
+      overlay.cursor = intent.dir === 'right' ? Math.min(1, overlay.cursor + 1) : Math.max(0, overlay.cursor - 1);
+      return true;
+    }
+    if (action === 'primary') {
+      pickType(overlay.cursor);
+    } else if (action === 'back') {
+      closeOverlay();
+    }
+    return true;
+  }
+  if (overlay?.kind === 'confirm') {
+    if (action === 'primary') {
+      executeConfirm();
+    } else if (action === 'back') {
+      closeOverlay();
+    }
+    return true;
+  }
+  if (overlay?.kind === 'launch') {
+    if (action === 'primary') {
+      doLaunch();
+    } else if (action === 'back') {
+      closeOverlay();
+    }
+    return true;
+  }
+  // ── Deck level ──
+  if (intent.kind === 'nav') {
+    const deck = ui.deck;
+    // The campaign's route briefing is the route's LENGTH dial: ◄ ► move it.
+    if (deck === 'map' && isCampaign.value && (intent.dir === 'left' || intent.dir === 'right')) {
+      stepCampaignMissionCount(intent.dir === 'right' ? 1 : -1, false);
+      return true;
+    }
+    // A campaign chance row is a DIAL: ◄ ► move its value (the console
+    // settings stepper idiom), not the section ring.
+    const dial = deck === 'rules' ? rules.value[ui.cursor.rules] : undefined;
+    if (dial?.kind === 'chance' && (intent.dir === 'left' || intent.dir === 'right')) {
+      stepCampaignChance(dial.id, intent.dir === 'right' ? 1 : -1, false);
+      return true;
+    }
+    if (dial?.kind === 'rewardMode' && (intent.dir === 'left' || intent.dir === 'right')) {
+      stepCampaignRewardMode(intent.dir === 'right' ? 1 : -1, false);
+      return true;
+    }
+    if (dial?.kind === 'tenderOffer' && (intent.dir === 'left' || intent.dir === 'right')) {
+      stepCampaignTenderOffer(intent.dir === 'right' ? 1 : -1, false);
+      return true;
+    }
+    const next = deckNavStep(deck, ui.cursor[deck], intent.dir, deckRowCount(deck), {wide: creatorWide.value, mapCols: mapCols.value});
+    if (next !== undefined) {
+      ui.cursor[deck] = next;
+      keepDeckCursorVisible();
+    } else if (intent.dir === 'left' || intent.dir === 'right') {
+      // Vertical decks: ◄ ► also walks the section ring (console settings idiom).
+      setDeck(cycleCreateDeck(deck, intent.dir === 'right' ? 1 : -1));
+    }
+    return true;
+  }
+  switch (action) {
+  case 'prevSection':
+    setDeck(cycleCreateDeck(ui.deck, -1));
+    return true;
+  case 'nextSection':
+    setDeck(cycleCreateDeck(ui.deck, 1));
+    return true;
+  case 'primary':
+    activateCurrent();
+    return true;
+  case 'launch':
+    onLaunchPressed();
+    return true;
+  case 'fullscreen':
+    onRemovePressed();
+    return true;
+  case 'reset':
+    ui.overlay = {kind: 'confirm', id: 'reset', cursor: 0};
+    return true;
+  case 'back':
+    // One logical level: decks → the mode stage → the main menu.
+    ui.stage = 'mode';
+    return true;
+  default:
+    return true;
+  }
+}
+/** Stage 0 pick: apply the session mode and enter the decks. */
+function pickMode(i: number): void {
+  const opt = modeOptions[i];
+  if (opt === undefined) {
+    return;
+  }
+  ui.modeCursor = i;
+  setSessionMode(opt.id);
+  clampCreateCursors();
+  ui.stage = 'decks';
+}
+// ── Deck actions ───────────────────────────────────────────────────
+function setDeck(deck: CreateDeckId): void {
+  ui.deck = deck;
+  clampCreateCursors();
+  keepDeckCursorVisible();
+}
+/** Keep the cursored deck row inside the ConsoleScrollArea viewport
+ * (decks are designed to FIT 1280×800 — this matters only on the
+ * extreme-viewport safety-valve path). */
+function keepDeckCursorVisible(): void {
+  void nextTick(() => {
+    const scroll = deckScroll.value ?? undefined;
+    scroll?.ensureVisible?.(rootEl.value?.querySelector('.cm-row--cursor, .cm-map--cursor') ?? null);
+  });
+}
+function setCursor(deck: CreateDeckId, i: number): void {
+  ui.cursor[deck] = i;
+}
+function deckFlagged(deck: CreateDeckId): boolean {
+  return launchIssues().some((issue) => issue.target.deck === deck);
+}
+function activateCurrent(): void {
+  switch (ui.deck) {
+  case 'crew':
+    activateCrew(ui.cursor.crew);
+    break;
+  case 'rules':
+    activateRules(ui.cursor.rules);
+    break;
+  case 'expansions':
+    activateExpansions(ui.cursor.expansions);
+    break;
+  case 'map':
+    activateMap(ui.cursor.map);
+    break;
+  }
+}
+function activateCrew(i: number): void {
+  setCursor('crew', i);
+  const row = crew.value[i];
+  if (row === undefined) {
+    return;
+  }
+  if (row.kind === 'human') {
+    ui.overlay = {kind: 'editor', target: {kind: 'human', index: row.index}, cursor: 0};
+  } else if (row.kind === 'bot') {
+    ui.overlay = {kind: 'editor', target: {kind: 'bot'}, cursor: 0};
+  } else if (row.enabled) {
+    ui.overlay = {kind: 'typePicker', cursor: 0};
+  } else {
+    armShake('crew', i); // Disabled ADD — the reason is on the row.
+  }
+}
+function activateRules(i: number): void {
+  setCursor('rules', i);
+  const row = rules.value[i];
+  if (row === undefined) {
+    return;
+  }
+  if (row.kind === 'devCards') {
+    ui.overlay = {kind: 'devCards'};
+    return;
+  }
+  if (row.kind === 'chance') {
+    stepCampaignChance(row.id, 1, true);
+    return;
+  }
+  if (row.kind === 'rewardMode') {
+    stepCampaignRewardMode(1, true);
+    // The mode's sub-row appears / leaves with it — the cursor must not stand on a row that is gone.
+    clampCreateCursors();
+    return;
+  }
+  if (row.kind === 'tenderOffer') {
+    stepCampaignTenderOffer(1, true);
+    return;
+  }
+  toggleRule(row.rule.meta.id);
+  // altVenus visibility — and the test-mode sub-row — change the row count.
+  clampCreateCursors();
+}
+function activateExpansions(i: number): void {
+  setCursor('expansions', i);
+  const row = expansions.value[i];
+  if (row !== undefined) {
+    toggleExpansion(row.meta.id);
+    clampCreateCursors();
+  }
+}
+function activateMap(i: number): void {
+  if (isCampaign.value) {
+    // The boards are generated at assembly — A steps the route's length (cycling).
+    stepCampaignMissionCount(1, true);
+    return;
+  }
+  setCursor('map', i);
+  const row = maps.value[i];
+  if (row !== undefined) {
+    selectMap(row.meta.id);
+  }
+}
+// ── Participants ───────────────────────────────────────────────────
+function pickType(i: number): void {
+  const opt = typeOptions.value[i];
+  if (opt === undefined || !opt.enabled) {
+    return;
+  }
+  if (opt.id === 'human') {
+    const index = addHuman();
+    if (index !== undefined) {
+      ui.overlay = {kind: 'editor', target: {kind: 'human', index}, cursor: 0};
+      ui.cursor.crew = index;
+    }
+    return;
+  }
+  // MarsBot: seating it under the current server limit may shrink the
+  // roster — that is an explicit player decision, never a silent one.
+  if (seatBotNeedsConfirm()) {
+    ui.overlay = {kind: 'confirm', id: 'seat-bot', cursor: 0};
+  } else {
+    seatBot();
+    clampCreateCursors();
+    openBotEditor();
+  }
+}
+function openBotEditor(): void {
+  const botRow = crew.value.findIndex((r) => r.kind === 'bot');
+  if (botRow >= 0) {
+    ui.cursor.crew = botRow;
+  }
+  ui.overlay = {kind: 'editor', target: {kind: 'bot'}, cursor: 0};
+}
+function onEditorRemoveRequest(): void {
+  const overlay = ui.overlay;
+  if (overlay?.kind !== 'editor') {
+    return;
+  }
+  if (overlay.target.kind === 'bot') {
+    ui.overlay = {kind: 'confirm', id: 'unseat-bot', cursor: 0};
+  } else {
+    ui.overlay = {kind: 'confirm', id: 'remove-human', index: overlay.target.index, cursor: 0};
+  }
+}
+function onRemovePressed(): void {
+  if (ui.deck !== 'crew') {
+    return;
+  }
+  const row = crew.value[ui.cursor.crew];
+  if (row === undefined) {
+    return;
+  }
+  if (row.kind === 'bot') {
+    ui.overlay = {kind: 'confirm', id: 'unseat-bot', cursor: 0};
+  } else if (row.kind === 'human' && row.removable) {
+    ui.overlay = {kind: 'confirm', id: 'remove-human', index: row.index, cursor: 0};
+  }
+}
+function executeConfirm(): void {
+  const overlay = ui.overlay;
+  if (overlay?.kind !== 'confirm') {
+    return;
+  }
+  switch (overlay.id) {
+  case 'seat-bot':
+    seatBot();
+    clampCreateCursors();
+    openBotEditor();
+    return; // The editor replaced the confirm.
+  case 'remove-human':
+    if (overlay.index !== undefined) {
+      removeHuman(overlay.index);
+    }
+    break;
+  case 'unseat-bot':
+    unseatBot();
+    break;
+  case 'reset':
+    clearSavedCreateGameState();
+    resetCreateGameState();
+    {
+      const id = identityState.identity;
+      if (id !== undefined) {
+        applyCreatorIdentity(id.displayName, id.cubeColor);
       }
-      // Foundation: presses resolve to SEMANTIC actions (X = launch — the
-      // create screen's advertised verb; no raw button names).
-      const action = consoleActionOf(intent, {secondary: 'launch'});
-      // ── Stage 0: the session-mode pick ──
-      if (this.ui.stage === 'mode') {
-        if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
-          const max = this.modeOptions.length - 1;
-          this.ui.modeCursor = intent.dir === 'right' ?
-            Math.min(max, this.ui.modeCursor + 1) : Math.max(0, this.ui.modeCursor - 1);
-          return true;
-        }
-        if (action === 'primary') {
-          this.pickMode(this.ui.modeCursor);
-        } else if (action === 'back') {
-          vueRoot(this).navigateInApp('/');
-        }
-        return true;
-      }
-      const overlay = this.ui.overlay;
-      if (overlay?.kind === 'devCards') {
-        // The picker owns the pad completely (X = inspect there, not launch).
-        const picker = (this.$refs.devCards ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-        if (picker?.handleIntent?.(intent) !== true && action === 'back') {
-          this.closeOverlay();
-        }
-        return true;
-      }
-      if (overlay?.kind === 'editor') {
-        const editor = (this.$refs.editor ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-        if (editor?.handleIntent?.(intent) === true) {
-          return true;
-        }
-        if (action === 'back') {
-          this.closeOverlay();
-        }
-        return true;
-      }
-      if (overlay?.kind === 'typePicker') {
-        if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
-          overlay.cursor = intent.dir === 'right' ? Math.min(1, overlay.cursor + 1) : Math.max(0, overlay.cursor - 1);
-          return true;
-        }
-        if (action === 'primary') {
-          this.pickType(overlay.cursor);
-        } else if (action === 'back') {
-          this.closeOverlay();
-        }
-        return true;
-      }
-      if (overlay?.kind === 'confirm') {
-        if (action === 'primary') {
-          this.executeConfirm();
-        } else if (action === 'back') {
-          this.closeOverlay();
-        }
-        return true;
-      }
-      if (overlay?.kind === 'launch') {
-        if (action === 'primary') {
-          this.doLaunch();
-        } else if (action === 'back') {
-          this.closeOverlay();
-        }
-        return true;
-      }
-      // ── Deck level ──
-      if (intent.kind === 'nav') {
-        const deck = this.ui.deck;
-        // The campaign's route briefing is the route's LENGTH dial: ◄ ► move it.
-        if (deck === 'map' && this.isCampaign && (intent.dir === 'left' || intent.dir === 'right')) {
-          stepCampaignMissionCount(intent.dir === 'right' ? 1 : -1, false);
-          return true;
-        }
-        // A campaign chance row is a DIAL: ◄ ► move its value (the console
-        // settings stepper idiom), not the section ring.
-        const dial = deck === 'rules' ? this.rules[this.ui.cursor.rules] : undefined;
-        if (dial?.kind === 'chance' && (intent.dir === 'left' || intent.dir === 'right')) {
-          stepCampaignChance(dial.id, intent.dir === 'right' ? 1 : -1, false);
-          return true;
-        }
-        if (dial?.kind === 'rewardMode' && (intent.dir === 'left' || intent.dir === 'right')) {
-          stepCampaignRewardMode(intent.dir === 'right' ? 1 : -1, false);
-          return true;
-        }
-        if (dial?.kind === 'tenderOffer' && (intent.dir === 'left' || intent.dir === 'right')) {
-          stepCampaignTenderOffer(intent.dir === 'right' ? 1 : -1, false);
-          return true;
-        }
-        const next = deckNavStep(deck, this.ui.cursor[deck], intent.dir, deckRowCount(deck), {wide: this.creatorWide, mapCols: this.mapCols});
-        if (next !== undefined) {
-          this.ui.cursor[deck] = next;
-          this.keepDeckCursorVisible();
-        } else if (intent.dir === 'left' || intent.dir === 'right') {
-          // Vertical decks: ◄ ► also walks the section ring (console settings idiom).
-          this.setDeck(cycleCreateDeck(deck, intent.dir === 'right' ? 1 : -1));
-        }
-        return true;
-      }
-      switch (action) {
-      case 'prevSection':
-        this.setDeck(cycleCreateDeck(this.ui.deck, -1));
-        return true;
-      case 'nextSection':
-        this.setDeck(cycleCreateDeck(this.ui.deck, 1));
-        return true;
-      case 'primary':
-        this.activateCurrent();
-        return true;
-      case 'launch':
-        this.onLaunchPressed();
-        return true;
-      case 'fullscreen':
-        this.onRemovePressed();
-        return true;
-      case 'reset':
-        this.ui.overlay = {kind: 'confirm', id: 'reset', cursor: 0};
-        return true;
-      case 'back':
-        // One logical level: decks → the mode stage → the main menu.
-        this.ui.stage = 'mode';
-        return true;
-      default:
-        return true;
-      }
-    },
-    /** Stage 0 pick: apply the session mode and enter the decks. */
-    pickMode(i: number): void {
-      const opt = this.modeOptions[i];
-      if (opt === undefined) {
-        return;
-      }
-      this.ui.modeCursor = i;
-      setSessionMode(opt.id);
-      clampCreateCursors();
-      this.ui.stage = 'decks';
-    },
-    // ── Deck actions ───────────────────────────────────────────────────
-    setDeck(deck: CreateDeckId): void {
-      this.ui.deck = deck;
-      clampCreateCursors();
-      this.keepDeckCursorVisible();
-    },
-    /** Keep the cursored deck row inside the ConsoleScrollArea viewport
-     * (decks are designed to FIT 1280×800 — this matters only on the
-     * extreme-viewport safety-valve path). */
-    keepDeckCursorVisible(): void {
-      void this.$nextTick(() => {
-        const scroll = (this.$refs.deckScroll ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
-        scroll?.ensureVisible?.(this.$el.querySelector('.cm-row--cursor, .cm-map--cursor'));
-      });
-    },
-    setCursor(deck: CreateDeckId, i: number): void {
-      this.ui.cursor[deck] = i;
-    },
-    deckFlagged(deck: CreateDeckId): boolean {
-      return launchIssues().some((issue) => issue.target.deck === deck);
-    },
-    activateCurrent(): void {
-      switch (this.ui.deck) {
-      case 'crew':
-        this.activateCrew(this.ui.cursor.crew);
-        break;
-      case 'rules':
-        this.activateRules(this.ui.cursor.rules);
-        break;
-      case 'expansions':
-        this.activateExpansions(this.ui.cursor.expansions);
-        break;
-      case 'map':
-        this.activateMap(this.ui.cursor.map);
-        break;
-      }
-    },
-    activateCrew(i: number): void {
-      this.setCursor('crew', i);
-      const row = this.crew[i];
-      if (row === undefined) {
-        return;
-      }
-      if (row.kind === 'human') {
-        this.ui.overlay = {kind: 'editor', target: {kind: 'human', index: row.index}, cursor: 0};
-      } else if (row.kind === 'bot') {
-        this.ui.overlay = {kind: 'editor', target: {kind: 'bot'}, cursor: 0};
-      } else if (row.enabled) {
-        this.ui.overlay = {kind: 'typePicker', cursor: 0};
-      } else {
-        this.armShake('crew', i); // Disabled ADD — the reason is on the row.
-      }
-    },
-    activateRules(i: number): void {
-      this.setCursor('rules', i);
-      const row = this.rules[i];
-      if (row === undefined) {
-        return;
-      }
-      if (row.kind === 'devCards') {
-        this.ui.overlay = {kind: 'devCards'};
-        return;
-      }
-      if (row.kind === 'chance') {
-        stepCampaignChance(row.id, 1, true);
-        return;
-      }
-      if (row.kind === 'rewardMode') {
-        stepCampaignRewardMode(1, true);
-        // The mode's sub-row appears / leaves with it — the cursor must not stand on a row that is gone.
-        clampCreateCursors();
-        return;
-      }
-      if (row.kind === 'tenderOffer') {
-        stepCampaignTenderOffer(1, true);
-        return;
-      }
-      toggleRule(row.rule.meta.id);
-      // altVenus visibility — and the test-mode sub-row — change the row count.
-      clampCreateCursors();
-    },
-    activateExpansions(i: number): void {
-      this.setCursor('expansions', i);
-      const row = this.expansions[i];
-      if (row !== undefined) {
-        toggleExpansion(row.meta.id);
-        clampCreateCursors();
-      }
-    },
-    activateMap(i: number): void {
-      if (this.isCampaign) {
-        // The boards are generated at assembly — A steps the route's length (cycling).
-        stepCampaignMissionCount(1, true);
-        return;
-      }
-      this.setCursor('map', i);
-      const row = this.maps[i];
-      if (row !== undefined) {
-        selectMap(row.meta.id);
-      }
-    },
-    // ── Participants ───────────────────────────────────────────────────
-    pickType(i: number): void {
-      const opt = this.typeOptions[i];
-      if (opt === undefined || !opt.enabled) {
-        return;
-      }
-      if (opt.id === 'human') {
-        const index = addHuman();
-        if (index !== undefined) {
-          this.ui.overlay = {kind: 'editor', target: {kind: 'human', index}, cursor: 0};
-          this.ui.cursor.crew = index;
-        }
-        return;
-      }
-      // MarsBot: seating it under the current server limit may shrink the
-      // roster — that is an explicit player decision, never a silent one.
-      if (seatBotNeedsConfirm()) {
-        this.ui.overlay = {kind: 'confirm', id: 'seat-bot', cursor: 0};
-      } else {
-        seatBot();
-        clampCreateCursors();
-        this.openBotEditor();
-      }
-    },
-    openBotEditor(): void {
-      const botRow = this.crew.findIndex((r) => r.kind === 'bot');
-      if (botRow >= 0) {
-        this.ui.cursor.crew = botRow;
-      }
-      this.ui.overlay = {kind: 'editor', target: {kind: 'bot'}, cursor: 0};
-    },
-    onEditorRemoveRequest(): void {
-      const overlay = this.ui.overlay;
-      if (overlay?.kind !== 'editor') {
-        return;
-      }
-      if (overlay.target.kind === 'bot') {
-        this.ui.overlay = {kind: 'confirm', id: 'unseat-bot', cursor: 0};
-      } else {
-        this.ui.overlay = {kind: 'confirm', id: 'remove-human', index: overlay.target.index, cursor: 0};
-      }
-    },
-    onRemovePressed(): void {
-      if (this.ui.deck !== 'crew') {
-        return;
-      }
-      const row = this.crew[this.ui.cursor.crew];
-      if (row === undefined) {
-        return;
-      }
-      if (row.kind === 'bot') {
-        this.ui.overlay = {kind: 'confirm', id: 'unseat-bot', cursor: 0};
-      } else if (row.kind === 'human' && row.removable) {
-        this.ui.overlay = {kind: 'confirm', id: 'remove-human', index: row.index, cursor: 0};
-      }
-    },
-    executeConfirm(): void {
-      const overlay = this.ui.overlay;
-      if (overlay?.kind !== 'confirm') {
-        return;
-      }
-      switch (overlay.id) {
-      case 'seat-bot':
-        seatBot();
-        clampCreateCursors();
-        this.openBotEditor();
-        return; // The editor replaced the confirm.
-      case 'remove-human':
-        if (overlay.index !== undefined) {
-          removeHuman(overlay.index);
-        }
-        break;
-      case 'unseat-bot':
-        unseatBot();
-        break;
-      case 'reset':
-        clearSavedCreateGameState();
-        resetCreateGameState();
-        {
-          const id = this.identityState.identity;
-          if (id !== undefined) {
-            applyCreatorIdentity(id.displayName, id.cubeColor);
-          }
-        }
-        consoleCreateUi.restored = false;
-        break;
-      }
-      clampCreateCursors();
-      this.ui.overlay = undefined;
-    },
-    closeOverlay(): void {
-      this.ui.overlay = undefined;
-    },
-    // ── Launch flow ────────────────────────────────────────────────────
-    onLaunchPressed(): void {
-      if (createGameState.creating) {
-        return;
-      }
-      if (this.ready) {
-        this.ui.overlay = {kind: 'launch'};
-        return;
-      }
-      if (jumpToFirstIssue()) {
-        this.armShake(this.ui.deck, this.ui.cursor[this.ui.deck]);
-      }
-    },
-    doLaunch(): void {
-      if (createGameState.creating || !this.ready) {
-        return;
-      }
-      // First-run identity capture: the launcher profile powers the join /
-      // continue lists — seed it from the creator seat when it is still empty.
-      const slot0 = createGameState.config.players[0];
-      if (this.identityState.identity === undefined && slot0 !== undefined && slot0.name.trim() !== '') {
-        setIdentity(slot0.name.trim(), slot0.color);
-      }
-      if (this.isCampaign) {
-        void submitPremiumCreateCampaign();
-      } else {
-        void submitPremiumCreateGame();
-      }
-    },
-    // ── Shake feedback ─────────────────────────────────────────────────
-    shakeRowFor(deck: CreateDeckId): number {
-      return this.shakeDeck === deck ? this.shakeRow : -1;
-    },
-    armShake(deck: CreateDeckId, row: number): void {
-      this.clearShake();
-      this.shakeDeck = deck;
-      this.shakeRow = row;
-      this.cancelShake = this.flow.after(SHAKE_MS, 'the refused row\'s shake ends', () => {
-        this.shakeDeck = undefined;
-        this.shakeRow = -1;
-      });
-    },
-    clearShake(): void {
-      this.cancelShake();
-      this.shakeDeck = undefined;
-      this.shakeRow = -1;
-    },
-  },
+    }
+    consoleCreateUi.restored = false;
+    break;
+  }
+  clampCreateCursors();
+  ui.overlay = undefined;
+}
+function closeOverlay(): void {
+  ui.overlay = undefined;
+}
+// ── Launch flow ────────────────────────────────────────────────────
+function onLaunchPressed(): void {
+  if (createGameState.creating) {
+    return;
+  }
+  if (ready.value) {
+    ui.overlay = {kind: 'launch'};
+    return;
+  }
+  if (jumpToFirstIssue()) {
+    armShake(ui.deck, ui.cursor[ui.deck]);
+  }
+}
+function doLaunch(): void {
+  if (createGameState.creating || !ready.value) {
+    return;
+  }
+  // First-run identity capture: the launcher profile powers the join /
+  // continue lists — seed it from the creator seat when it is still empty.
+  const slot0 = createGameState.config.players[0];
+  if (identityState.identity === undefined && slot0 !== undefined && slot0.name.trim() !== '') {
+    setIdentity(slot0.name.trim(), slot0.color);
+  }
+  if (isCampaign.value) {
+    void submitPremiumCreateCampaign();
+  } else {
+    void submitPremiumCreateGame();
+  }
+}
+// ── Shake feedback ─────────────────────────────────────────────────
+function shakeRowFor(deck: CreateDeckId): number {
+  return shakeDeck.value === deck ? shakeRow.value : -1;
+}
+function armShake(deck: CreateDeckId, row: number): void {
+  clearShake();
+  shakeDeck.value = deck;
+  shakeRow.value = row;
+  cancelShake = flow.after(SHAKE_MS, 'the refused row\'s shake ends', () => {
+    shakeDeck.value = undefined;
+    shakeRow.value = -1;
+  });
+}
+function clearShake(): void {
+  cancelShake();
+  shakeDeck.value = undefined;
+  shakeRow.value = -1;
+}
+
+onMounted(async () => {
+  setDocumentTitle('Create new game');
+  ensureIdentityLoaded();
+  // Roster is the source of truth for the active identity (mirrors it into
+  // identityState + migrates a legacy identity) — in case the create screen
+  // is reached without visiting the console main menu first.
+  ensureProfilesLoaded();
+  // First launch with no saved name (Steam Deck / Steam Machine): pull the Steam display name so
+  // the creator seat isn't empty. No-op when an identity already exists or off the Steam build.
+  await prefillIdentityFromSteam();
+  const restored = restoreCreateGameState();
+  if (!restored) {
+    resetCreateGameState();
+  }
+  // A restored setup may name a card a later build renamed or dropped — the
+  // shared state can't check (no card manifest there), so prune it here.
+  pruneGuaranteedCards(createGameState.config.guaranteedCards);
+  const id = identityState.identity;
+  if (id !== undefined) {
+    applyCreatorIdentity(id.displayName, id.cubeColor);
+  }
+  resetConsoleCreateUi();
+  consoleCreateUi.restored = restored;
+  offPad = installMenuPad((intent) => onIntent(intent));
+  offDecks = trackDeckComposition();
+});
+onBeforeUnmount(() => {
+  offPad?.();
+  offDecks?.();
+  clearShake();
 });
 </script>
