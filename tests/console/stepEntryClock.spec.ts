@@ -83,7 +83,12 @@ describe('stepEntryClock — the release takes the step entry\'s start time', ()
 
   it('the composer binds its setup release to the step\'s entry', () => {
     const composer = fs.readFileSync(path.resolve(__dirname, '..', '..', 'src', 'client', 'components', 'console', 'ConsoleActionComposer.vue'), 'utf8');
-    const release = composer.slice(composer.indexOf('releaseSetupForParliament(): void {'));
-    expect(release.slice(0, release.indexOf('\n    },\n'))).to.include('syncReleaseToStepEntry({');
+    // The composer is `<script setup>`: the release is a top-level function, closed by its own `}` at column 0. Both
+    // anchors are asserted — a slice that lost one would read the rest of the file and prove nothing.
+    const at = composer.indexOf('\nfunction releaseSetupForParliament(): void {');
+    expect(at, 'the composer\'s setup release exists').to.be.greaterThan(-1);
+    const end = composer.indexOf('\n}\n', at + 1);
+    expect(end, '…and its closing line is found').to.be.greaterThan(at);
+    expect(composer.slice(at, end)).to.include('syncReleaseToStepEntry({');
   });
 });
