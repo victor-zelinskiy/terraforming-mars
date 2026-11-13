@@ -24,9 +24,10 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {onMounted} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import AppButton from '@/client/components/common/AppButton.vue';
 import PurgeWarning from '@/client/components/common/PurgeWarning.vue';
@@ -40,70 +41,58 @@ import {refAutoReset, useClipboard} from '@vueuse/core';
 
 const DEFAULT_COPIED_PLAYER_ID = '-1';
 
-export default defineComponent({
-  name: 'game-home',
-  props: {
-    game: {
-      type: Object as () => SimpleGameModel,
-      required: true,
-    },
+defineOptions({name: 'game-home'});
+const props = defineProps({
+  game: {
+    type: Object as () => SimpleGameModel,
+    required: true,
   },
-  components: {
-    AppButton,
-    'game-setup-detail': GameSetupDetail,
-    PurgeWarning,
-  },
-  setup() {
-    // VueUse clipboard (navigator.clipboard with the execCommand legacy fallback
-    // for older browsers) + a self-resetting "which player id is copied" flag
-    // that returns to the default 3s after the last copy (was a leaking
-    // setInterval + a hand-rolled execCommand dance).
-    const {copy: clipboardCopy} = useClipboard({legacy: true});
-    const urlCopiedPlayerId = refAutoReset(DEFAULT_COPIED_PLAYER_ID, 3000);
-    return {clipboardCopy, urlCopiedPlayerId};
-  },
-  methods: {
-    getGameId(): string {
-      return this.game !== undefined ? this.game.id.toString() : 'n/a';
-    },
-    getTurnOrder(index: number): string {
-      if (index === 0) {
-        return '1st';
-      } else if (index === 1) {
-        return '2nd';
-      } else if (index === 2) {
-        return '3rd';
-      } else if (index > 2) {
-        return `${index + 1}th`;
-      } else {
-        return 'n/a';
-      }
-    },
-    getPlayerCubeColorClass(color: Color): string {
-      return playerColorClass(color, 'bg');
-    },
-    getHref(playerId: ParticipantId): string {
-      return `player?id=${playerId}`;
-    },
-    copyUrl(playerId: ParticipantId | undefined): void {
-      if (playerId === undefined) {
-        return;
-      }
-      // Get current location path without game?id=xxxxxxx
-      const path = window.location.href.replace(/game\?id=.*/, '');
-      void this.clipboardCopy(path + this.getHref(playerId));
-      this.urlCopiedPlayerId = playerId; // refAutoReset returns it to default after 3s
-    },
-    isPlayerUrlCopied(playerId: string): boolean {
-      return playerId === this.urlCopiedPlayerId;
-    },
-    playerSymbol(color: Color) {
-      return playerSymbol(color);
-    },
-  },
-  mounted() {
-    document.title = gameDocumentTitle(this.game);
-  },
+});
+
+// VueUse clipboard (navigator.clipboard with the execCommand legacy fallback
+// for older browsers) + a self-resetting "which player id is copied" flag
+// that returns to the default 3s after the last copy (was a leaking
+// setInterval + a hand-rolled execCommand dance).
+const {copy: clipboardCopy} = useClipboard({legacy: true});
+const urlCopiedPlayerId = refAutoReset(DEFAULT_COPIED_PLAYER_ID, 3000);
+
+function getGameId(): string {
+  return props.game !== undefined ? props.game.id.toString() : 'n/a';
+}
+function getTurnOrder(index: number): string {
+  if (index === 0) {
+    return '1st';
+  } else if (index === 1) {
+    return '2nd';
+  } else if (index === 2) {
+    return '3rd';
+  } else if (index > 2) {
+    return `${index + 1}th`;
+  } else {
+    return 'n/a';
+  }
+}
+function getPlayerCubeColorClass(color: Color): string {
+  return playerColorClass(color, 'bg');
+}
+function getHref(playerId: ParticipantId): string {
+  return `player?id=${playerId}`;
+}
+function copyUrl(playerId: ParticipantId | undefined): void {
+  if (playerId === undefined) {
+    return;
+  }
+  // Get current location path without game?id=xxxxxxx
+  const path = window.location.href.replace(/game\?id=.*/, '');
+  void clipboardCopy(path + getHref(playerId));
+  urlCopiedPlayerId.value = playerId; // refAutoReset returns it to default after 3s
+}
+function isPlayerUrlCopied(playerId: string): boolean {
+  return playerId === urlCopiedPlayerId.value;
+}
+
+onMounted(() => {
+  document.title = gameDocumentTitle(props.game);
 });
 
 </script>
