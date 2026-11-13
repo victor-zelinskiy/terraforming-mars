@@ -91,8 +91,8 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
   </Teleport>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, onBeforeUnmount, onMounted, PropType, ref, watch} from 'vue';
 import {paths} from '@/common/app/paths';
 import {ACTION_MENU_FIRST_TITLE} from '@/common/inputs/actionMenuTitles';
 import {apiUrl} from '@/client/utils/runtimeConfig';
@@ -152,21 +152,10 @@ import NotificationCard from '@/client/components/notifications/NotificationCard
 import {notificationBus} from '@/client/components/notifications/notificationBus';
 import ConsoleNotificationCard from '@/client/components/console/ConsoleNotificationCard.vue';
 import {consoleModeState} from '@/client/console/consoleModeState';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
 const POLL_INTERVAL_MS = 2200;
-
-type DataModel = {
-  logsAbort: AbortController | undefined;
-  eventsAbort: AbortController | undefined;
-  stopPoller: (() => void) | undefined;
-  fetching: boolean;
-  // A1 (docs/PERFORMANCE_AUDIT.md): the last (gameAge:undoCount) version the
-  // update()-path fetched for. The log/event streams can only grow when the
-  // game advanced, so a playerView re-commit that did NOT advance the game
-  // (structural-sharing re-swap, same-state repoll, a PoV read) must not
-  // re-run the 2 network fetches + full diff.
-  lastFetchVersion: string | undefined;
-};
 
 /**
  * NotificationLayer — the App-level NotificationCenter surface. Mounted as a
@@ -181,442 +170,431 @@ type DataModel = {
  * playerView doesn't refresh (simultaneous research / draft), mirroring the
  * journal's own live-poll.
  */
-export default defineComponent({
-  name: 'NotificationLayer',
-  components: {NotificationCard, ConsoleNotificationCard},
-  props: {
-    playerView: {
-      type: Object as PropType<PlayerViewModel>,
-      required: true,
-    },
+defineOptions({name: 'NotificationLayer'});
+const props = defineProps({
+  playerView: {
+    type: Object as PropType<PlayerViewModel>,
+    required: true,
   },
-  data(): DataModel {
-    return {
-      logsAbort: undefined,
-      eventsAbort: undefined,
-      stopPoller: undefined,
-      fetching: false,
-      lastFetchVersion: undefined,
-    };
-  },
-  computed: {
-    turn() {
-      return notificationState.turn;
-    },
-    transient() {
-      return notificationState.transient;
-    },
-    /** P16: one brain, two shells — the console posture swaps the card. */
-    consoleEnabled(): boolean {
-      return consoleModeState.enabled;
-    },
-    cardComponent() {
-      return this.consoleEnabled ? ConsoleNotificationCard : NotificationCard;
-    },
-    players(): ReadonlyArray<PublicPlayerModel> {
-      return this.playerView.players;
-    },
-    journalOpen(): boolean {
-      return journalState.open;
-    },
-    /** FL — a surface stands in the card's corner (a full-bleed inspection, the received-cards reveal's head): the
-     *  feed yields to the opening's BOTTOM-right corner — the journal-open precedent (a delivered card stays, it
-     *  only moves out of the way), and new cards wait in the queue meanwhile. */
-    cornerYield(): boolean {
-      return notificationCornerTaken();
-    },
-    pending(): PendingQueueSummary {
-      return pendingSummary();
-    },
-    viewerColor(): Color {
-      return this.playerView.thisPlayer.color;
-    },
-    generation(): number {
-      return this.playerView.game.generation;
-    },
-  },
-  watch: {
-    // Any server response replaces the playerView object — re-evaluate turn /
-    // generation / pass synchronously and refresh the event diff.
-    playerView: {
-      handler(): void {
-        this.update();
-      },
-      deep: false,
-    },
-    // Opening the journal (by hand or via the pending pill) makes every queued
-    // ordinary card redundant — the journal IS the event center. Drop them
-    // (critical items stay queued); see drainQueueToJournal.
-    journalOpen(open: boolean): void {
-      if (open) {
-        drainQueueToJournal();
-      }
-    },
-  },
-  methods: {
-    update(): void {
-      // Keep the bot-turn ack helper pointed at the current viewer (it POSTs the
-      // soft ack when a bot-turn notification finishes — see onDismiss).
-      setBotAckViewer(this.playerView.id);
-      // …and the feed-mode filter at the LOCAL viewer's colour (thisPlayer —
-      // never the active player, which differs during opponents'/bot turns).
-      setNotificationViewer(this.viewerColor);
-      // Game over: the endgame experience owns the screen — silence everything.
-      if (this.playerView.game.phase === Phase.END) {
-        setTurn(undefined);
-        return;
-      }
-      // Presentation-flow self-heal: drain the queue whenever the foreground
-      // is free. The blocked→free transition watcher is the primary driver;
-      // this covers the degenerate case of a blocker opening AND closing
-      // within one tick (invisible to the watcher). No-op while blocked.
-      promoteFromQueue();
-      // Staged bot commits liveness: a staging window whose pending cards all
-      // left the presentation (queue-dismissed, never shown) would never
-      // drain — commit the buffered authoritative state. No-op otherwise.
-      ensureBotPresentationLiveness();
-      const now = Date.now();
-      // 1) Turn signal (synchronous — the highest-priority card). "Your turn"
-      // announces ONLY at the START of a fresh turn: the action menu titled
-      // 'Take your first action' (NOT 'Take your next action', the continuation
-      // after a sub-prompt / a 2nd action), AND only when the turn was actually
-      // handed off — NOT when the viewer is the lone non-passed player repeating
-      // turns. This is a STRUCTURAL signal (title + passedPlayers), robust to the
-      // server not always emitting a waitingFor-cleared update between turns
-      // (which made the old transition-tracking show "your turn" only every other
-      // turn).
-      const waitingFor = this.playerView.waitingFor;
-      const isFirstAction = waitingFor?.type === 'or' && this.titleText(waitingFor) === ACTION_MENU_FIRST_TITLE;
-      const freshTurn = isFirstAction && !this.isLonePlayer();
-      if (notificationState.settings.showTurn) {
-        let turnModel = buildTurnNotification(waitingFor, {generation: this.generation, createdAt: now, freshTurn});
-        // Start-of-turn is now a change of interface STATE on the active
-        // player's CARD (TurnHandoffLayer), not a toast — suppress the
-        // `your-turn` card whenever that card can present it (desktop, panel
-        // on-screen, tab visible). It stays as a FALLBACK only when the player
-        // card can't be seen (panel hidden / narrow layout / inactive tab). The
-        // `action-required` card (a mandatory sub-prompt) is a different concern
-        // and always toasts.
-        if (turnModel?.kind === 'your-turn' && isPlayerPanelVisible()) {
-          turnModel = undefined;
-        }
-        setTurn(turnModel);
-      } else {
-        setTurn(undefined);
-      }
-      // 2) Generation / pass highlights (from the public game model).
-      this.handleGenerationAndPass(now);
-      // 2b) Terraforming completed (Temperature + Oxygen + Oceans first maxed).
-      // (The old standalone scale-bonus toast is GONE: a claim rides the
-      // claiming action's own correlation — the server logs it inside the live
-      // scope — so it presents as part of that action's/turn's story, never as
-      // a detached late announcement with the zone's imperative rule text.)
-      this.handleTerraformingComplete(now);
-      // 2d) Milestone/award post-confirm ceremony — fires ONLY when the fresh
-      // view proves the viewer's OWN armed claim/fund resolved (both shells
-      // watch the shared nonce; a lost race / rejection drops the arm).
-      observeMaCeremony(this.playerView, now);
-      // 2e) The chairman quest completed by ANOTHER seat — the milestone family's remote strip, in the quest's own style.
-      observeQuestCeremony(this.playerView, now);
-      // 3) Root-event feed (async). A1: gate the network fetch on a
-      // (gameAge, undoCount) change — the streams can't have grown otherwise, so
-      // a re-commit at the same version is a no-op fetch. The 2.2s poller
-      // (mounted) stays the UNCONDITIONAL fallback for simultaneous phases
-      // (research / draft) where opponents advance a gameAge the viewer's own
-      // stale playerView hasn't caught up to yet.
-      const version = `${this.playerView.game.gameAge}:${this.playerView.game.undoCount}`;
-      if (version !== this.lastFetchVersion) {
-        this.lastFetchVersion = version;
-        void this.fetchAndDiff();
-      }
-    },
+});
 
-    // The one-shot "Terraforming complete" event — detected from the
-    // AUTHORITATIVE public game state (server-computed parameters +
-    // isTerraformed), seeded silently on first load / reconnect (an
-    // already-terraformed game shows only the persistent markers, never the
-    // cinematic) and fired exactly once on the live transition. The shared
-    // celebration module drives the HUD's persistent state (the gold rail at
-    // 100 %, the final-generation marker); in CONSOLE mode the presentation is
-    // the terraformed SCENE on the real planet (TR70 — `terraformedScene.ts`,
-    // armed in the transport's apply block off the server's `isTerraformed`),
-    // so the desktop card is not pushed there.
-    handleTerraformingComplete(now: number): void {
-      const fresh = observeTerraformingProgress(this.playerView);
-      if (!fresh) {
-        return;
-      }
-      if (!this.consoleEnabled) {
-        // Deliberately NOT gated on journalOpen — like a hostile loss, the
-        // single biggest announcement of the game must not be missed.
-        pushTransient(buildTerraformingCompleteNotification(
-          terraformingCelebrationState.celebrationGeneration,
-          terraformingCelebrationState.celebrationFinal,
-          now));
-      }
-    },
-    titleText(waitingFor: PlayerInputModel): string | undefined {
-      const t = waitingFor.title;
-      return typeof t === 'string' ? t : t?.message;
-    },
-    // True when the viewer is the ONLY player who hasn't passed — their repeated
-    // turns are not a hand-off, so "your turn" should not re-announce each one.
-    isLonePlayer(): boolean {
-      const passed = this.playerView.game.passedPlayers ?? [];
-      const active = this.players.filter((p) => !passed.includes(p.color));
-      return active.length === 1 && active[0].color === this.viewerColor;
-    },
-    handleGenerationAndPass(now: number): void {
-      const gen = this.generation;
-      // Generation went backwards → a different game / a load was opened in the
-      // same session. Drop the stale seen-set so old correlationIds can't
-      // suppress the new game (and re-seed silently — no spam).
-      if (notificationState.lastGeneration !== undefined && gen < notificationState.lastGeneration) {
-        resetNotifications();
-        resetTerraformingCelebration(); // same boundary — a different game opened in-session
-        resetMaCeremony();
-        resetQuestCeremony();
-        resetStartSetupReveal(); // a new game's gen-1 setup must not collide with the old dedup key
-        resetMarsBotArchive(); // stale turn scripts belong to the previous game
-        // …and the review RENDERS from that archive: left open across the
-        // boundary it holds the foreground ('turn-theater') over a game it can
-        // no longer describe, and nothing else in the client ever closes it.
-        closeBotTurnReview();
-        resetBotStaging(); // a stale staging window must not swallow the new game's commits
-        resetScaleBonusClaimsSeen(); // the new game's scale-bonus chips seed their own baseline
-        this.lastFetchVersion = undefined; // A1: force a re-seed fetch for the new game
-        resetNotificationIngest(); // …and a full re-diff for it too
-      }
-      const canToast = notificationState.seeded && !this.journalOpen && notificationState.settings.showImportant;
-      if (notificationState.lastGeneration === undefined) {
-        notificationState.lastGeneration = gen; // seed, no toast
-      } else if (gen > notificationState.lastGeneration) {
-        notificationState.lastGeneration = gen;
-        notificationState.passedSeen = new Set<string>(); // passes reset each generation
-        // Console-native replaces the "new generation" toast with the top-HUD
-        // flip-swap of the generation value itself (ConsoleFlipValue) — the
-        // number announces its own change, no card. Desktop keeps the toast.
-        if (canToast && !this.consoleEnabled) {
-          pushTransient(buildGenerationNotification(gen, now));
-        }
-      }
-      const passed = this.playerView.game.passedPlayers ?? [];
-      for (const color of passed) {
-        const key = `${gen}:${color}`;
-        if (notificationState.passedSeen.has(key)) {
-          continue;
-        }
-        notificationState.passedSeen.add(key);
-        // Console-native has no pass CARD (TR59 decision 9): the status strip's «СПАСОВАЛ» pill already says it, the
-        // journal keeps the line — a card for it was one more toast in front of the ones that touch the player.
-        if (canToast && color !== this.viewerColor && !this.consoleEnabled) {
-          pushTransient(buildPassNotification(color, gen, now));
-        }
-      }
-    },
+let logsAbort: AbortController | undefined;
+let eventsAbort: AbortController | undefined;
+let stopPoller: (() => void) | undefined;
+// A1 (docs/PERFORMANCE_AUDIT.md): the last (gameAge:undoCount) version the
+// update()-path fetched for. The log/event streams can only grow when the
+// game advanced, so a playerView re-commit that did NOT advance the game
+// (structural-sharing re-swap, same-state repoll, a PoV read) must not
+// re-run the 2 network fetches + full diff.
+const lastFetchVersion = ref<string | undefined>(undefined);
 
-    async fetchAndDiff(): Promise<void> {
-      const id = this.playerView.id;
-      if (id === undefined) {
-        return;
-      }
-      const generation = this.generation;
-      this.logsAbort?.abort();
-      this.eventsAbort?.abort();
-      const logsAbort = new AbortController();
-      const eventsAbort = new AbortController();
-      this.logsAbort = logsAbort;
-      this.eventsAbort = eventsAbort;
-      try {
-        // meta=1: the events response carries the open-correlation set captured
-        // in the SAME server read — the coherent pair the atomic gate needs.
-        // The playerView's copy comes from a THIRD moment (the transport's last
-        // apply) and may be older than the fetched streams; it stays only as
-        // the degraded-mode fallback for a server without meta support.
-        const [messages, eventsPayload] = await Promise.all([
-          fetch(`${apiUrl(paths.API_GAME_LOGS)}?id=${id}&generation=${generation}`, {signal: logsAbort.signal})
-            .then((r) => r.json() as Promise<ReadonlyArray<LogMessage> | null>),
-          fetch(`${apiUrl(paths.API_GAME_JOURNAL_EVENTS)}?id=${id}&generation=${generation}&meta=1`, {signal: eventsAbort.signal})
-            .then((r) => r.json() as Promise<{events: ReadonlyArray<GameEvent>; openEventCorrelations: ReadonlyArray<number>; openEventCorrelationHolders?: ReadonlyArray<{id: number, holder: string}>} | ReadonlyArray<GameEvent> | null>),
-        ]);
-        let events: ReadonlyArray<GameEvent> = [];
-        let coherentOpen: ReadonlyArray<number> | undefined;
-        if (eventsPayload !== null) {
-          if ('events' in eventsPayload) {
-            events = eventsPayload.events;
-            coherentOpen = eventsPayload.openEventCorrelations;
-            noteOpenCorrelationHolders(eventsPayload.openEventCorrelationHolders);
-          } else {
-            events = eventsPayload; // an older server answered the bare array
-          }
-        }
-        this.applyDiff(messages ?? [], events, generation, coherentOpen);
-      } catch (e) {
-        // Aborted fetch (a newer one superseded it) or a transient network blip —
-        // ignore; the next update / poll will reconcile.
-      }
-    },
+const turn = computed(() => {
+  return notificationState.turn;
+});
+const transient = computed(() => {
+  return notificationState.transient;
+});
+/** P16: one brain, two shells — the console posture swaps the card. */
+const consoleEnabled = computed((): boolean => {
+  return consoleModeState.enabled;
+});
+const cardComponent = computed(() => {
+  return consoleEnabled.value ? ConsoleNotificationCard : NotificationCard;
+});
+const players = computed((): ReadonlyArray<PublicPlayerModel> => {
+  return props.playerView.players;
+});
+const journalOpen = computed((): boolean => {
+  return journalState.open;
+});
+/** FL — a surface stands in the card's corner (a full-bleed inspection, the received-cards reveal's head): the
+ *  feed yields to the opening's BOTTOM-right corner — the journal-open precedent (a delivered card stays, it
+ *  only moves out of the way), and new cards wait in the queue meanwhile. */
+const cornerYield = computed((): boolean => {
+  return notificationCornerTaken();
+});
+const pending = computed((): PendingQueueSummary => {
+  return pendingSummary();
+});
+const viewerColor = computed((): Color => {
+  return props.playerView.thisPlayer.color;
+});
+const generation = computed((): number => {
+  return props.playerView.game.generation;
+});
 
-    applyDiff(messages: ReadonlyArray<LogMessage>, events: ReadonlyArray<GameEvent>, generation: number, coherentOpen?: ReadonlyArray<number>): void {
-      // The consumer's whole decision core lives in notificationIngest.ts
-      // (extracted so the delivery orchestration is testable against a real
-      // game across real update sequences) — this component only feeds it the
-      // fetched payload + the current view signals.
-      applyNotificationDiff({
-        messages,
-        events,
-        generation,
-        undoCount: this.playerView.game.undoCount,
-        openEventCorrelations: coherentOpen ?? this.playerView.game.openEventCorrelations,
-        // …and the APPLIED view's own open-set: a chain it still lists as open is held until the view catches up.
-        viewOpenCorrelations: this.playerView.game.openEventCorrelations,
-        cardReactions: this.playerView.game.cardReactions,
-        viewerColor: this.viewerColor,
-        journalOpen: this.journalOpen,
-        now: Date.now(),
-        // The persistent delivery ledger key — what lets an app restart tell
-        // «old news» from «landed or queued while I was away».
-        ledgerKey: this.playerView.id,
-      });
-    },
-
-    onDismiss(id: string): void {
-      // A finished bot-turn notification (manual close OR TTL expiry) is one of
-      // the three "notification finished" signals — soft-ack it so the server
-      // needn't extend the next paced bot turn on this client. Look the key up
-      // BEFORE dismiss removes the card. Best-effort; deduped; never gates.
-      const notification = notificationState.transient.find((n) => n.id === id);
-      if (notification?.botTurnKey !== undefined) {
-        ackBotTurn(notification.botTurnKey);
-      }
-      dismiss(id);
-    },
-    // The transient stack's leave hooks — the feed's SETTLED signal counts a
-    // card as "still presenting" through its whole exit animation.
-    onCardLeaveStart(el: Element): void {
-      noteNotificationLeaveStart(el);
-    },
-    onCardLeaveEnd(el: Element): void {
-      noteNotificationLeaveEnd(el);
-    },
-    onToggle(id: string): void {
-      toggleExpanded(id);
-    },
-    onCta(notification: NotificationModel): void {
-      this.performCta(notification.cta?.action, notification);
-    },
-    onSecondaryCta(notification: NotificationModel): void {
-      this.performCta(notification.secondaryCta?.action, notification);
-    },
-    performCta(action: NotificationCtaAction | undefined, notification: NotificationModel): void {
-      switch (action) {
-      case 'open-journal':
-        if (notification.correlationId !== undefined) {
-          openJournalToEvent(notification.correlationId, notification.generation);
-        } else {
-          // Cards without a root event (generation / terraforming-complete):
-          // the journal itself is the destination.
-          journalState.open = true;
-        }
-        dismiss(notification.id);
-        break;
-      case 'focus-actions':
-        // Your turn acknowledged — draw the eye to the action area, then hide
-        // the card for the remainder of THIS turn (it returns when the turn
-        // changes — see notificationState.setTurn / dismissed-turn handling).
-        notificationBus.focusActions.emit();
-        dismiss(notification.id);
-        break;
-      case 'go-to-action':
-        // Best-effort: surface the pending mandatory prompt (restore a minimized
-        // modal / reveal the board). The card itself clears when the prompt
-        // resolves, so it is NOT dismissed here.
-        if (this.journalOpen) {
-          journalState.open = false;
-        }
-        notificationBus.goToAction.emit();
-        break;
-      case 'open-parliament':
-        // THE OBJECT, not the record: the Mars Parliament reads as it stands
-        // now. Nothing is replayed there — the beats belonged to the player
-        // whose quest it was.
-        if (this.journalOpen) {
-          journalState.open = false;
-        }
-        notificationBus.openParliament.emit();
-        dismiss(notification.id);
-        break;
-      case 'inspect-resolution':
-        // THE SOURCE, not the record: the enacted resolution's own inspector
-        // (party column, rules, standing) — the same viewer the Parliament's X opens.
-        if (notification.effectSource?.kind === 'resolution') {
-          notificationBus.inspectResolution.emit(notification.effectSource.resolution);
-        }
-        dismiss(notification.id);
-        break;
-      case 'view-reveal':
-        if (notification.reveal !== undefined) {
-          openRevealViewer(notification.reveal);
-        }
-        dismiss(notification.id); // the viewer is now the focus; journal keeps the record
-        break;
-      case 'expand-theater':
-        // The compact bot-turn card opens the «Разбор хода» review of the SAME
-        // archived script. The review flips open before the card is dismissed,
-        // so the next queued card can't sneak under it.
-        openBotTurnReviewByKey(notification.botTurnKey);
-        break;
-      case 'dismiss':
-      default:
-        dismiss(notification.id);
-        break;
-      }
-    },
-    // The calm "Cancel" affordance on a cancellable pending placement. The actual
-    // cancel is submitted by PlayerHome (which owns the WaitingFor ref) — the card
-    // is NOT dismissed here; it clears when the server resolves the prompt.
-    onCancel(_notification: NotificationModel): void {
-      notificationBus.cancel.emit();
-    },
-    // The pending pill: open the journal — the canonical event center. The
-    // journalOpen watcher then drops the queued ordinary cards (they are all
-    // visible in the journal); critical items stay queued and present later.
-    onPendingClick(): void {
-      journalState.open = true;
-    },
-  },
-  mounted(): void {
-    // READ-ONLY e2e/diagnostics probe (the `__conColonyDiag` idiom): why a card
-    // that the SERVER logged never reached the screen. The feed has four places
-    // a model can legitimately stop — the atomic PREPARING gate, the seed's
-    // «old news» rule, the feed-mode filter and the presentation block — and
-    // from the outside all four read as «no notification arrived».
-    (window as unknown as Record<string, unknown>).__conNotifDiag = () => ({
-      seeded: notificationState.seeded,
-      feedMode: notificationFeedModeState.mode,
-      blocked: isNotificationDeliveryBlocked(),
-      blockReason: currentBlockReason(),
-      live: notificationState.transient.map((n) => ({corr: n.correlationId, sign: n.sign, kind: n.kind})),
-      queued: notificationState.queue.map((m) => ({corr: m.correlationId, sign: m.sign, kind: m.kind})),
-      preparing: [...notificationState.preparing.entries()].map(([corr, held]) => ({corr, gen: held.generation})),
-      turn: notificationState.turn?.kind ?? null,
-      seenRoots: [...notificationState.seenRootIds].slice(-12),
-    });
-    this.update();
-    // Refetch on every realtime wake (game change) + a lengthened fallback
-    // while WS is healthy; falls back to the safe poll rate when WS is down.
-    this.stopPoller = startRealtimePoller(() => {
-      void this.fetchAndDiff();
-    }, POLL_INTERVAL_MS, realtimePollIntervalMs);
-  },
-  beforeUnmount(): void {
-    delete (window as unknown as Record<string, unknown>).__conNotifDiag;
-    if (this.stopPoller !== undefined) {
-      this.stopPoller();
-      this.stopPoller = undefined;
+function update(): void {
+  // Keep the bot-turn ack helper pointed at the current viewer (it POSTs the
+  // soft ack when a bot-turn notification finishes — see onDismiss).
+  setBotAckViewer(props.playerView.id);
+  // …and the feed-mode filter at the LOCAL viewer's colour (thisPlayer —
+  // never the active player, which differs during opponents'/bot turns).
+  setNotificationViewer(viewerColor.value);
+  // Game over: the endgame experience owns the screen — silence everything.
+  if (props.playerView.game.phase === Phase.END) {
+    setTurn(undefined);
+    return;
+  }
+  // Presentation-flow self-heal: drain the queue whenever the foreground
+  // is free. The blocked→free transition watcher is the primary driver;
+  // this covers the degenerate case of a blocker opening AND closing
+  // within one tick (invisible to the watcher). No-op while blocked.
+  promoteFromQueue();
+  // Staged bot commits liveness: a staging window whose pending cards all
+  // left the presentation (queue-dismissed, never shown) would never
+  // drain — commit the buffered authoritative state. No-op otherwise.
+  ensureBotPresentationLiveness();
+  const now = Date.now();
+  // 1) Turn signal (synchronous — the highest-priority card). "Your turn"
+  // announces ONLY at the START of a fresh turn: the action menu titled
+  // 'Take your first action' (NOT 'Take your next action', the continuation
+  // after a sub-prompt / a 2nd action), AND only when the turn was actually
+  // handed off — NOT when the viewer is the lone non-passed player repeating
+  // turns. This is a STRUCTURAL signal (title + passedPlayers), robust to the
+  // server not always emitting a waitingFor-cleared update between turns
+  // (which made the old transition-tracking show "your turn" only every other
+  // turn).
+  const waitingFor = props.playerView.waitingFor;
+  const isFirstAction = waitingFor?.type === 'or' && titleText(waitingFor) === ACTION_MENU_FIRST_TITLE;
+  const freshTurn = isFirstAction && !isLonePlayer();
+  if (notificationState.settings.showTurn) {
+    let turnModel = buildTurnNotification(waitingFor, {generation: generation.value, createdAt: now, freshTurn});
+    // Start-of-turn is now a change of interface STATE on the active
+    // player's CARD (TurnHandoffLayer), not a toast — suppress the
+    // `your-turn` card whenever that card can present it (desktop, panel
+    // on-screen, tab visible). It stays as a FALLBACK only when the player
+    // card can't be seen (panel hidden / narrow layout / inactive tab). The
+    // `action-required` card (a mandatory sub-prompt) is a different concern
+    // and always toasts.
+    if (turnModel?.kind === 'your-turn' && isPlayerPanelVisible()) {
+      turnModel = undefined;
     }
-    this.logsAbort?.abort();
-    this.eventsAbort?.abort();
-  },
+    setTurn(turnModel);
+  } else {
+    setTurn(undefined);
+  }
+  // 2) Generation / pass highlights (from the public game model).
+  handleGenerationAndPass(now);
+  // 2b) Terraforming completed (Temperature + Oxygen + Oceans first maxed).
+  // (The old standalone scale-bonus toast is GONE: a claim rides the
+  // claiming action's own correlation — the server logs it inside the live
+  // scope — so it presents as part of that action's/turn's story, never as
+  // a detached late announcement with the zone's imperative rule text.)
+  handleTerraformingComplete(now);
+  // 2d) Milestone/award post-confirm ceremony — fires ONLY when the fresh
+  // view proves the viewer's OWN armed claim/fund resolved (both shells
+  // watch the shared nonce; a lost race / rejection drops the arm).
+  observeMaCeremony(props.playerView, now);
+  // 2e) The chairman quest completed by ANOTHER seat — the milestone family's remote strip, in the quest's own style.
+  observeQuestCeremony(props.playerView, now);
+  // 3) Root-event feed (async). A1: gate the network fetch on a
+  // (gameAge, undoCount) change — the streams can't have grown otherwise, so
+  // a re-commit at the same version is a no-op fetch. The 2.2s poller
+  // (mounted) stays the UNCONDITIONAL fallback for simultaneous phases
+  // (research / draft) where opponents advance a gameAge the viewer's own
+  // stale playerView hasn't caught up to yet.
+  const version = `${props.playerView.game.gameAge}:${props.playerView.game.undoCount}`;
+  if (version !== lastFetchVersion.value) {
+    lastFetchVersion.value = version;
+    void fetchAndDiff();
+  }
+}
+// The one-shot "Terraforming complete" event — detected from the
+// AUTHORITATIVE public game state (server-computed parameters +
+// isTerraformed), seeded silently on first load / reconnect (an
+// already-terraformed game shows only the persistent markers, never the
+// cinematic) and fired exactly once on the live transition. The shared
+// celebration module drives the HUD's persistent state (the gold rail at
+// 100 %, the final-generation marker); in CONSOLE mode the presentation is
+// the terraformed SCENE on the real planet (TR70 — `terraformedScene.ts`,
+// armed in the transport's apply block off the server's `isTerraformed`),
+// so the desktop card is not pushed there.
+function handleTerraformingComplete(now: number): void {
+  const fresh = observeTerraformingProgress(props.playerView);
+  if (!fresh) {
+    return;
+  }
+  if (!consoleEnabled.value) {
+    // Deliberately NOT gated on journalOpen — like a hostile loss, the
+    // single biggest announcement of the game must not be missed.
+    pushTransient(buildTerraformingCompleteNotification(
+      terraformingCelebrationState.celebrationGeneration,
+      terraformingCelebrationState.celebrationFinal,
+      now));
+  }
+}
+function titleText(waitingFor: PlayerInputModel): string | undefined {
+  const t = waitingFor.title;
+  return typeof t === 'string' ? t : t?.message;
+}
+// True when the viewer is the ONLY player who hasn't passed — their repeated
+// turns are not a hand-off, so "your turn" should not re-announce each one.
+function isLonePlayer(): boolean {
+  const passed = props.playerView.game.passedPlayers ?? [];
+  const active = players.value.filter((p) => !passed.includes(p.color));
+  return active.length === 1 && active[0].color === viewerColor.value;
+}
+function handleGenerationAndPass(now: number): void {
+  const gen = generation.value;
+  // Generation went backwards → a different game / a load was opened in the
+  // same session. Drop the stale seen-set so old correlationIds can't
+  // suppress the new game (and re-seed silently — no spam).
+  if (notificationState.lastGeneration !== undefined && gen < notificationState.lastGeneration) {
+    resetNotifications();
+    resetTerraformingCelebration(); // same boundary — a different game opened in-session
+    resetMaCeremony();
+    resetQuestCeremony();
+    resetStartSetupReveal(); // a new game's gen-1 setup must not collide with the old dedup key
+    resetMarsBotArchive(); // stale turn scripts belong to the previous game
+    // …and the review RENDERS from that archive: left open across the
+    // boundary it holds the foreground ('turn-theater') over a game it can
+    // no longer describe, and nothing else in the client ever closes it.
+    closeBotTurnReview();
+    resetBotStaging(); // a stale staging window must not swallow the new game's commits
+    resetScaleBonusClaimsSeen(); // the new game's scale-bonus chips seed their own baseline
+    lastFetchVersion.value = undefined; // A1: force a re-seed fetch for the new game
+    resetNotificationIngest(); // …and a full re-diff for it too
+  }
+  const canToast = notificationState.seeded && !journalOpen.value && notificationState.settings.showImportant;
+  if (notificationState.lastGeneration === undefined) {
+    notificationState.lastGeneration = gen; // seed, no toast
+  } else if (gen > notificationState.lastGeneration) {
+    notificationState.lastGeneration = gen;
+    notificationState.passedSeen = new Set<string>(); // passes reset each generation
+    // Console-native replaces the "new generation" toast with the top-HUD
+    // flip-swap of the generation value itself (ConsoleFlipValue) — the
+    // number announces its own change, no card. Desktop keeps the toast.
+    if (canToast && !consoleEnabled.value) {
+      pushTransient(buildGenerationNotification(gen, now));
+    }
+  }
+  const passed = props.playerView.game.passedPlayers ?? [];
+  for (const color of passed) {
+    const key = `${gen}:${color}`;
+    if (notificationState.passedSeen.has(key)) {
+      continue;
+    }
+    notificationState.passedSeen.add(key);
+    // Console-native has no pass CARD (TR59 decision 9): the status strip's «СПАСОВАЛ» pill already says it, the
+    // journal keeps the line — a card for it was one more toast in front of the ones that touch the player.
+    if (canToast && color !== viewerColor.value && !consoleEnabled.value) {
+      pushTransient(buildPassNotification(color, gen, now));
+    }
+  }
+}
+async function fetchAndDiff(): Promise<void> {
+  const id = props.playerView.id;
+  if (id === undefined) {
+    return;
+  }
+  const generationNow = generation.value;
+  logsAbort?.abort();
+  eventsAbort?.abort();
+  const logsAbortNow = new AbortController();
+  const eventsAbortNow = new AbortController();
+  logsAbort = logsAbortNow;
+  eventsAbort = eventsAbortNow;
+  try {
+    // meta=1: the events response carries the open-correlation set captured
+    // in the SAME server read — the coherent pair the atomic gate needs.
+    // The playerView's copy comes from a THIRD moment (the transport's last
+    // apply) and may be older than the fetched streams; it stays only as
+    // the degraded-mode fallback for a server without meta support.
+    const [messages, eventsPayload] = await Promise.all([
+      fetch(`${apiUrl(paths.API_GAME_LOGS)}?id=${id}&generation=${generationNow}`, {signal: logsAbortNow.signal})
+        .then((r) => r.json() as Promise<ReadonlyArray<LogMessage> | null>),
+      fetch(`${apiUrl(paths.API_GAME_JOURNAL_EVENTS)}?id=${id}&generation=${generationNow}&meta=1`, {signal: eventsAbortNow.signal})
+        .then((r) => r.json() as Promise<{events: ReadonlyArray<GameEvent>; openEventCorrelations: ReadonlyArray<number>; openEventCorrelationHolders?: ReadonlyArray<{id: number, holder: string}>} | ReadonlyArray<GameEvent> | null>),
+    ]);
+    let events: ReadonlyArray<GameEvent> = [];
+    let coherentOpen: ReadonlyArray<number> | undefined;
+    if (eventsPayload !== null) {
+      if ('events' in eventsPayload) {
+        events = eventsPayload.events;
+        coherentOpen = eventsPayload.openEventCorrelations;
+        noteOpenCorrelationHolders(eventsPayload.openEventCorrelationHolders);
+      } else {
+        events = eventsPayload; // an older server answered the bare array
+      }
+    }
+    applyDiff(messages ?? [], events, generationNow, coherentOpen);
+  } catch (e) {
+    // Aborted fetch (a newer one superseded it) or a transient network blip —
+    // ignore; the next update / poll will reconcile.
+  }
+}
+function applyDiff(messages: ReadonlyArray<LogMessage>, events: ReadonlyArray<GameEvent>, generation: number, coherentOpen?: ReadonlyArray<number>): void {
+  // The consumer's whole decision core lives in notificationIngest.ts
+  // (extracted so the delivery orchestration is testable against a real
+  // game across real update sequences) — this component only feeds it the
+  // fetched payload + the current view signals.
+  applyNotificationDiff({
+    messages,
+    events,
+    generation,
+    undoCount: props.playerView.game.undoCount,
+    openEventCorrelations: coherentOpen ?? props.playerView.game.openEventCorrelations,
+    // …and the APPLIED view's own open-set: a chain it still lists as open is held until the view catches up.
+    viewOpenCorrelations: props.playerView.game.openEventCorrelations,
+    cardReactions: props.playerView.game.cardReactions,
+    viewerColor: viewerColor.value,
+    journalOpen: journalOpen.value,
+    now: Date.now(),
+    // The persistent delivery ledger key — what lets an app restart tell
+    // «old news» from «landed or queued while I was away».
+    ledgerKey: props.playerView.id,
+  });
+}
+function onDismiss(id: string): void {
+  // A finished bot-turn notification (manual close OR TTL expiry) is one of
+  // the three "notification finished" signals — soft-ack it so the server
+  // needn't extend the next paced bot turn on this client. Look the key up
+  // BEFORE dismiss removes the card. Best-effort; deduped; never gates.
+  const notification = notificationState.transient.find((n) => n.id === id);
+  if (notification?.botTurnKey !== undefined) {
+    ackBotTurn(notification.botTurnKey);
+  }
+  dismiss(id);
+}
+// The transient stack's leave hooks — the feed's SETTLED signal counts a
+// card as "still presenting" through its whole exit animation.
+function onCardLeaveStart(el: Element): void {
+  noteNotificationLeaveStart(el);
+}
+function onCardLeaveEnd(el: Element): void {
+  noteNotificationLeaveEnd(el);
+}
+function onToggle(id: string): void {
+  toggleExpanded(id);
+}
+function onCta(notification: NotificationModel): void {
+  performCta(notification.cta?.action, notification);
+}
+function onSecondaryCta(notification: NotificationModel): void {
+  performCta(notification.secondaryCta?.action, notification);
+}
+function performCta(action: NotificationCtaAction | undefined, notification: NotificationModel): void {
+  switch (action) {
+  case 'open-journal':
+    if (notification.correlationId !== undefined) {
+      openJournalToEvent(notification.correlationId, notification.generation);
+    } else {
+      // Cards without a root event (generation / terraforming-complete):
+      // the journal itself is the destination.
+      journalState.open = true;
+    }
+    dismiss(notification.id);
+    break;
+  case 'focus-actions':
+    // Your turn acknowledged — draw the eye to the action area, then hide
+    // the card for the remainder of THIS turn (it returns when the turn
+    // changes — see notificationState.setTurn / dismissed-turn handling).
+    notificationBus.focusActions.emit();
+    dismiss(notification.id);
+    break;
+  case 'go-to-action':
+    // Best-effort: surface the pending mandatory prompt (restore a minimized
+    // modal / reveal the board). The card itself clears when the prompt
+    // resolves, so it is NOT dismissed here.
+    if (journalOpen.value) {
+      journalState.open = false;
+    }
+    notificationBus.goToAction.emit();
+    break;
+  case 'open-parliament':
+    // THE OBJECT, not the record: the Mars Parliament reads as it stands
+    // now. Nothing is replayed there — the beats belonged to the player
+    // whose quest it was.
+    if (journalOpen.value) {
+      journalState.open = false;
+    }
+    notificationBus.openParliament.emit();
+    dismiss(notification.id);
+    break;
+  case 'inspect-resolution':
+    // THE SOURCE, not the record: the enacted resolution's own inspector
+    // (party column, rules, standing) — the same viewer the Parliament's X opens.
+    if (notification.effectSource?.kind === 'resolution') {
+      notificationBus.inspectResolution.emit(notification.effectSource.resolution);
+    }
+    dismiss(notification.id);
+    break;
+  case 'view-reveal':
+    if (notification.reveal !== undefined) {
+      openRevealViewer(notification.reveal);
+    }
+    dismiss(notification.id); // the viewer is now the focus; journal keeps the record
+    break;
+  case 'expand-theater':
+    // The compact bot-turn card opens the «Разбор хода» review of the SAME
+    // archived script. The review flips open before the card is dismissed,
+    // so the next queued card can't sneak under it.
+    openBotTurnReviewByKey(notification.botTurnKey);
+    break;
+  case 'dismiss':
+  default:
+    dismiss(notification.id);
+    break;
+  }
+}
+// The calm "Cancel" affordance on a cancellable pending placement. The actual
+// cancel is submitted by PlayerHome (which owns the WaitingFor ref) — the card
+// is NOT dismissed here; it clears when the server resolves the prompt.
+function onCancel(_notification: NotificationModel): void {
+  notificationBus.cancel.emit();
+}
+// The pending pill: open the journal — the canonical event center. The
+// journalOpen watcher then drops the queued ordinary cards (they are all
+// visible in the journal); critical items stay queued and present later.
+function onPendingClick(): void {
+  journalState.open = true;
+}
+
+// Any server response replaces the playerView object — re-evaluate turn /
+// generation / pass synchronously and refresh the event diff.
+watch(() => props.playerView, (): void => {
+  update();
+}, {deep: false});
+// Opening the journal (by hand or via the pending pill) makes every queued
+// ordinary card redundant — the journal IS the event center. Drop them
+// (critical items stay queued); see drainQueueToJournal.
+watch(() => journalOpen.value, (open: boolean): void => {
+  if (open) {
+    drainQueueToJournal();
+  }
+});
+
+onMounted((): void => {
+  // READ-ONLY e2e/diagnostics probe (the `__conColonyDiag` idiom): why a card
+  // that the SERVER logged never reached the screen. The feed has four places
+  // a model can legitimately stop — the atomic PREPARING gate, the seed's
+  // «old news» rule, the feed-mode filter and the presentation block — and
+  // from the outside all four read as «no notification arrived».
+  (window as unknown as Record<string, unknown>).__conNotifDiag = () => ({
+    seeded: notificationState.seeded,
+    feedMode: notificationFeedModeState.mode,
+    blocked: isNotificationDeliveryBlocked(),
+    blockReason: currentBlockReason(),
+    live: notificationState.transient.map((n) => ({corr: n.correlationId, sign: n.sign, kind: n.kind})),
+    queued: notificationState.queue.map((m) => ({corr: m.correlationId, sign: m.sign, kind: m.kind})),
+    preparing: [...notificationState.preparing.entries()].map(([corr, held]) => ({corr, gen: held.generation})),
+    turn: notificationState.turn?.kind ?? null,
+    seenRoots: [...notificationState.seenRootIds].slice(-12),
+  });
+  update();
+  // Refetch on every realtime wake (game change) + a lengthened fallback
+  // while WS is healthy; falls back to the safe poll rate when WS is down.
+  stopPoller = startRealtimePoller(() => {
+    void fetchAndDiff();
+  }, POLL_INTERVAL_MS, realtimePollIntervalMs);
+});
+onBeforeUnmount((): void => {
+  delete (window as unknown as Record<string, unknown>).__conNotifDiag;
+  if (stopPoller !== undefined) {
+    stopPoller();
+    stopPoller = undefined;
+  }
+  logsAbort?.abort();
+  eventsAbort?.abort();
 });
 </script>
