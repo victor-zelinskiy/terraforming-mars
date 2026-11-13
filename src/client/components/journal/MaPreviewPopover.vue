@@ -26,7 +26,7 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType} from 'vue';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';

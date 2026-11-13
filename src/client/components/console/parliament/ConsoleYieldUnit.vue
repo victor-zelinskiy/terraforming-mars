@@ -8,7 +8,7 @@
   </template>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ONE UNIT ICON of a yield — or ONE unit of SEVERAL KINDS (Medical Database's
  * «data or microbe»): the icons joined by the word «or», drawn as one unit in

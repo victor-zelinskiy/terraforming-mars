@@ -45,7 +45,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * The fullscreen card silhouette, extracted from CardZoomModal so it can be
  * reused for BOTH the visible (navigable) card AND the off-screen preload

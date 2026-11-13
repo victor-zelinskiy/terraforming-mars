@@ -52,6 +52,17 @@ export function embedZoneMounted(selector: string): boolean {
   return false;
 }
 
+/**
+ * The registry's EPOCH — a reactive read for a consumer that must re-ask the DOM whenever a declared node comes or
+ * goes. `ConsoleTeleport` reads it in its render: a teleport is created BEFORE its host's subtree is in the document
+ * (always so under a Vapor parent — a child is created, then the parent's block is inserted), finds no target, and
+ * would otherwise look again only on its own clock (a tick, then a frame). A target that wears `v-embed-zone` moves
+ * this epoch from its `mounted`, so the teleport re-resolves in that very flush — no gap a frame could paint.
+ */
+export function embedZoneEpoch(): number {
+  return registry.epoch;
+}
+
 /** A zone element stands (the directive's `mounted`, in either runtime). */
 export function registerEmbedZone(el: HTMLElement): void {
   zones.add(el);

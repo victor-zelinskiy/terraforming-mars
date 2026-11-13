@@ -68,7 +68,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * Console-native PROFILE MANAGER (reached from the player profile editor) — the
  * roster of saved players. A cursor runs over the saved profiles plus a trailing

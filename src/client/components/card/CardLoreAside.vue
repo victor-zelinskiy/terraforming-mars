@@ -51,7 +51,7 @@
   </aside>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * FULLSCREEN ARCHIVE ENTRY (the subject's lore text).
  *

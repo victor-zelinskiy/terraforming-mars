@@ -75,7 +75,7 @@
   </button>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * ONE CARD of the pregame showcase (TR68 «ПРЕДИГРОВОЕ — ЭТО ВИТРИНА»): a game or a campaign shown as an OBJECT —
  * its board miniature, its name in the hero voice (never cut while the card has room), one state chip by form and

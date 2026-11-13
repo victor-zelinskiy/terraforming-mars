@@ -46,7 +46,7 @@ the fullscreen inspector — keeps zooming / measuring / inspecting one `.pcard`
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE CHARTER (2026-10-25, the owner: «надо всё вывести под формат карточек … свой неповторимый НАСТОЛЬНЫЙ дизайн,
  * логотипу не должно быть отдано так много места»). A party is neither a project (it is played by nobody, it has no

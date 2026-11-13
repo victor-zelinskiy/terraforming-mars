@@ -132,7 +132,7 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
   </aside>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * The static RIGHT panel — PER EFFECT (not per card). For the SELECTED effect it
  * shows: a mini-context header, the effect's OWN icon graphic, the effect's OWN

@@ -75,7 +75,7 @@
   </li>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed} from 'vue';
 import {$t} from '@/client/directives/i18n';
 import {vI18n} from '@/client/directives/vDirectives';

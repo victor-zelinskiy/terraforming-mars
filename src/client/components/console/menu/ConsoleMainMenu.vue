@@ -249,7 +249,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * CONSOLE-NATIVE MAIN MENU — the pre-game "big plates" screen (Steam Deck /
  * TV posture). Navigation is pure screen state (cursor over the items),

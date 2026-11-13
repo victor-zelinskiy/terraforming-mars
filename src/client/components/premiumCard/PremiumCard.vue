@@ -124,7 +124,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, nextTick, provide, ref, useTemplateRef} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';

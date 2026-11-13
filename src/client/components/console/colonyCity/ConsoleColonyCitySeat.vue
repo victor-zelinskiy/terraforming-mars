@@ -41,7 +41,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE CITY'S SEAT on a colony tile (Turmoil Redux TR22 Nova City — «place a
  * city ON A COLONY TILE»). ONE component, three hosts: the grid tile's head,

@@ -6,7 +6,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {computed} from 'vue';
 import {ClaimedToken} from '@/common/underworld/UnderworldPlayerData';

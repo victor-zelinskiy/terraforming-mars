@@ -67,7 +67,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {CampaignSeat} from '@/common/campaign/CampaignTypes';
 import {BiddingModel} from '@/common/campaign/CampaignModel';

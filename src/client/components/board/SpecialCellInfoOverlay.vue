@@ -43,7 +43,7 @@
   </teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch} from 'vue';
 import {specialCellHoverState} from '@/client/components/board/specialCellHoverState';
 import {getSpecialCellInfoById, SpecialCellInfo, PanelPlacement} from '@/client/components/board/specialCellInfo';

@@ -103,42 +103,42 @@
 
       <section v-show="visibleProjectCards.length > 0" class="card-list-cards-list">
           <h2 v-i18n>Project Cards</h2>
-          <div class="cardbox" v-for="card in visibleProjectCards" :key="card" v-memo="[card, tallCards]">
+          <div class="cardbox" v-for="card in visibleProjectCards" :key="card">
               <Card :card="{'name': card}" :autoTall="tallCards" />
           </div>
           <br>
       </section>
       <section v-show="visibleCorporationCards.length > 0" class="card-list-cards-list">
           <h2 v-i18n>Corporations</h2>
-          <div class="cardbox" v-for="card in visibleCorporationCards" :key="card" v-memo="[card, tallCards]">
+          <div class="cardbox" v-for="card in visibleCorporationCards" :key="card">
               <Card :card="{'name': card}" :autoTall="tallCards"/>
           </div>
           <br>
       </section>
       <section v-show="visiblePreludeCards.length > 0" class="card-list-cards-list">
           <h2 v-i18n>Preludes</h2>
-          <div class="cardbox" v-for="card in visiblePreludeCards" :key="card" v-memo="[card, tallCards]">
+          <div class="cardbox" v-for="card in visiblePreludeCards" :key="card">
               <Card :card="{'name': card}" :autoTall="tallCards"/>
           </div>
           <br>
       </section>
       <section v-show="visibleCeoCards.length > 0" class="card-list-cards-list">
           <h2 v-i18n>CEOs</h2>
-          <div class="cardbox" v-for="card in visibleCeoCards" :key="card" v-memo="[card, tallCards]">
+          <div class="cardbox" v-for="card in visibleCeoCards" :key="card">
               <Card :card="{'name': card}" :autoTall="tallCards" />
           </div>
           <br>
       </section>
       <section v-show="visibleStandardProjectCards.length > 0" class="card-list-cards-list">
         <h2 v-i18n>Standard Projects</h2>
-        <div class="cardbox" v-for="card in visibleStandardProjectCards" :key="card" v-memo="[card, tallCards]">
+        <div class="cardbox" v-for="card in visibleStandardProjectCards" :key="card">
             <Card :card="{'name': card}" :autoTall="tallCards" />
         </div>
       </section>
 
       <section v-show="visibleGlobalEvents.length > 0" class="card-list-cards-list">
         <h2 v-i18n>Global Events</h2>
-        <div class="cardbox" v-for="globalEventName in visibleGlobalEvents" :key="globalEventName" v-memo="[globalEventName]">
+        <div class="cardbox" v-for="globalEventName in visibleGlobalEvents" :key="globalEventName">
           <global-event :globalEventName="globalEventName" type="distant"></global-event>
         </div>
       </section>
@@ -146,7 +146,7 @@
       <section v-show="visibleColonyNames.length > 0">
         <h2 v-i18n>Colonies</h2>
         <div class="player_home_colony_cont">
-          <div class="player_home_colony" v-for="colonyName in visibleColonyNames" :key="colonyName" v-memo="[colonyName, showMetadata]">
+          <div class="player_home_colony" v-for="colonyName in visibleColonyNames" :key="colonyName">
             <colony :colony="colonyModel(colonyName)"></colony>
           </div>
         </div>
@@ -155,7 +155,7 @@
       <section v-show="visibleMilestoneNames.length > 0">
         <h2 v-i18n>Milestones</h2>
         <div class="player_home_colony_cont">
-          <div class="player_home_colony" v-for="milestoneName in visibleMilestoneNames" :key="milestoneName" v-memo="[milestoneName]">
+          <div class="player_home_colony" v-for="milestoneName in visibleMilestoneNames" :key="milestoneName">
             <div class="milestones"> <!-- This div is necessary for the CSS. Perhaps find a way to remove that?-->
               <milestone :milestone="milestoneModel(milestoneName)" :showDescription="true"></milestone>
             </div>
@@ -166,7 +166,7 @@
       <section v-show="visibleAwardNames.length > 0">
         <h2 v-i18n>Awards</h2>
         <div class="player_home_colony_cont">
-          <div class="player_home_colony" v-for="awardName in visibleAwardNames" :key="awardName" v-memo="[awardName]">
+          <div class="player_home_colony" v-for="awardName in visibleAwardNames" :key="awardName">
             <div class="awards"> <!-- This div is necessary for the CSS. Perhaps find a way to remove that?-->
               <award :award="awardModel(awardName)" :showDescription="true"></award>
             </div>
@@ -177,7 +177,7 @@
       <section v-show="visibleAgendaIds.length > 0">
         <h2 v-i18n>Agendas</h2>
         <div class="player_home_colony_cont">
-          <div class="player_home_colony" v-for="id in visibleAgendaIds" :key="id" v-memo="[id]">
+          <div class="player_home_colony" v-for="id in visibleAgendaIds" :key="id">
             <TurmoilAgendaContainer :agendaId="id" />
           </div>
         </div>
@@ -189,7 +189,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, onMounted, reactive, toRefs, useTemplateRef} from 'vue';
 import {CardType} from '@/common/cards/CardType';
 import {CardName} from '@/common/cards/CardName';

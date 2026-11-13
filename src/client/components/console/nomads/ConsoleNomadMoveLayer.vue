@@ -15,7 +15,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * MARS NOMADS MOVE STAGE — the fixed, app-level layer of the "camp module
  * hops to the adjacent cell" scene (consoleNomadMove / nomadMoveDirector).

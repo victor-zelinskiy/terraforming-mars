@@ -16,7 +16,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, ref} from 'vue';
 import * as constants from '@/common/constants';
 import AppButton from '@/client/components/common/AppButton.vue';

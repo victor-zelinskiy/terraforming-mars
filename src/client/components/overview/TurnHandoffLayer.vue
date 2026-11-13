@@ -36,7 +36,7 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, onBeforeUnmount, onMounted, PropType, ref, watch} from 'vue';
 import {vI18n} from '@/client/directives/vDirectives';
 import {Color} from '@/common/Color';

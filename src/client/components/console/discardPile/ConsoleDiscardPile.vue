@@ -34,7 +34,7 @@
   </transition>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «СБРОШЕННЫЕ» — THE DISCARD PILE, one object of the table (discardPile.ts). Mounted ONCE by the shell; out while
  * some owner holds a lease. Its home is UNDER the HUD project deck: the plate SLIDES OUT from under the status strip

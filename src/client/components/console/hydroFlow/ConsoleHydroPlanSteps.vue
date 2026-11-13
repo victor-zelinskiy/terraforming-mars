@@ -67,7 +67,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DECISION STRIP — the reward decisions a movement plan owes, as ONE
  * surface however many there are.

@@ -8,7 +8,7 @@
     </div>
   </span>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {vI18n} from '@/client/directives/vDirectives';
 import {computed} from 'vue';

@@ -9,7 +9,7 @@
   <div v-else>n/a</div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {isIDescription} from '@/common/cards/render/ICardRenderDescription';
 import {

@@ -265,7 +265,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DRAFT WORKSPACE («ДРАФТ») — the between-generations draft and the
  * research buy as ONE console workspace flow.

@@ -113,7 +113,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * APP BOOT LOADER — premium app-launch screen + GPU shader warm-up.
  * Shown once per session (see bootWarmupState). Renders the REAL card faces

@@ -66,7 +66,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * The console SYSTEM overlay — opened by the controller Menu button from the
  * game. Replaces the alien desktop «Главное меню» corner button: system-level

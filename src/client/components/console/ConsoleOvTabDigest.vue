@@ -71,7 +71,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ОБЗОР — the landing tab. Continues the ceremony's story instead of
  * replaying it: a compact result strip (the scoring rows' quiet echo), the

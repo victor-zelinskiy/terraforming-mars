@@ -43,7 +43,7 @@
   </transition>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * state.leadIn = the HANDOFF beat: the surface that caused the conversion
  * is still playing its leave, so the visible motion (arrow + chips) waits;

@@ -42,7 +42,7 @@
     </template>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE PARTIES — every party is ONE DOM instance (the same tile chassis
  * and size): the five OPPOSITION tiles stand in this row, the RULING

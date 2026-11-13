@@ -73,7 +73,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ArcScale — the GENERIC dynamic band for a global-parameter scale (O₂ /
  * temperature / Venus). It draws the premium code band that REPLACES the arc

@@ -70,7 +70,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * Console-native PROFILE editor (name + cube colour) — the pre-game identity
  * without the desktop DOM-focus modal. Four fields under a screen-state cursor:

@@ -36,7 +36,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE CARD ALBUM — host-agnostic (P87): strict pages solved from the BOX + the profile grid by the hand's own
  *       planner (`consoleHandAlbum.ts` — never from the card count), one page in the viewport, the strip slid one stride

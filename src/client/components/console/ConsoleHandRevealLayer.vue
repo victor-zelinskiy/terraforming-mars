@@ -38,7 +38,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * HAND BODIES LAYER — the ONE OWNER of the hand's physical cards (the
  * rework of the dock ⇄ album transition; module: handDock/handBodies.ts).

@@ -149,7 +149,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * Console-native PARTICIPANT editor (create screen) — one overlay per crew
  * member: name (the sanctioned text-entry fallback), cube colour (◄ ► cycles

@@ -98,7 +98,7 @@
   </teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed} from 'vue';
 import {boardInfoState} from '@/client/components/board/boardInfoState';
 import {placementRenderState} from '@/client/components/board/placementRenderState';

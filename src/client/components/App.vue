@@ -263,7 +263,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, nextTick, onErrorCaptured, onMounted, provide, ref, useTemplateRef, watch} from 'vue';
 import * as constants from '@/common/constants';
 

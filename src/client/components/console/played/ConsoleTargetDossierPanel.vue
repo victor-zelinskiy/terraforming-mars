@@ -60,7 +60,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE TARGET DOSSIER (the owner, 2026-11-02 — X on a target reads the card AS A TARGET, «с контекстом именно по
  * ресурсам на ней»). The viewer's side column leads with it, before the card's rules: whose card, what lies on it

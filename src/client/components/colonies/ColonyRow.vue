@@ -9,7 +9,7 @@
     </colony-space>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {ColonyModel} from '@/common/models/ColonyModel';

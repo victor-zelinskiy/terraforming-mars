@@ -68,7 +68,7 @@
     </div>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ══ THE DELEGATE MODE («ИЗГНАНИЕ», Turmoil Redux TR72 Banned Delegate:redux) — the Parliament picks ONE FIGURE off
  *       the table. The objects are the figures where they stand: the three bills' ribbons (one stop per owner — the

@@ -19,16 +19,13 @@
          step starts at SIX items (not seven) — the enlarged base medal is
          sized so the standard five fill the zone's height; a sixth would
          overflow it on the TV profile.
-         `v-memo` on the zone's VIEW: the two TransitionGroups below sit in
-         a `v-for` scope, so Vue marks their slots DYNAMIC and patches them on
-         EVERY render of the rail — and each patch measures (a clone appended
-         and removed for the move class, a rect per row: forced layouts). The
-         view is a cached computed (and a latch while the rail is undrawn), so
-         an unchanged zone skips its whole subtree; what a row reads besides
-         the view (the one-shot accent lists, the viewer's colour) is tracked
-         by the group's OWN render and still updates it (PL-155). -->
+         (PL-155, on the virtual DOM: a `v-memo` on the zone's view stood
+         here — the two TransitionGroups below sat in a `v-for` scope, were
+         patched on EVERY render of the rail, and each patch measured. A Vapor
+         component has no «every render»: each binding below is its own
+         effect, so an unchanged zone does nothing by construction and the
+         memo — which the Vapor compiler ignores — went with the conversion.) -->
     <section v-for="z in zoneViews" :key="z.kind"
-             v-memo="[z, motion]"
              class="con-strat__zone"
              :class="['con-strat__zone--' + z.kind, {
                'con-strat__zone--done': z.composed,
@@ -220,7 +217,7 @@
   </aside>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * THE RIGHT STRATEGY RAIL — the console home's Milestones / Awards premium HUD.
  *

@@ -10,7 +10,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE TRADE'S TARGET STEP — «куда положить награду» as a DEEPER LEVEL of the
  * trade's own stage. ONE host for every stage a trade composes on: the colony

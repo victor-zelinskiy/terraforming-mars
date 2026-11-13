@@ -10,7 +10,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DEFER PLATE — «decide after the draw» of a table question that may wait for a draw (the owner's decision
  * 2026-10-15, «Конференция на Олимпе» × «Марсианский университет»). The decline plate's twin, standing beside it in

@@ -49,7 +49,7 @@ the always-mounted board:
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
 import {useFlowScope} from '@/client/console/session/useFlowScope';

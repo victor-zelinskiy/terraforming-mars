@@ -1342,7 +1342,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE GAME START WORKSPACE. One root, two bounds of one surface:
  *        · PREPARATION — full-bleed (the standard Top Bar and the Player Rail

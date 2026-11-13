@@ -59,7 +59,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Rich, interactive explainability panel for the final-scoring reveal. Shown
  * when a category is hovered/focused: a per-player breakdown (sub-categories,

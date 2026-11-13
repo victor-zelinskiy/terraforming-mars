@@ -31,7 +31,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed} from 'vue';
 import {ItemType} from '@/common/cards/render/Types';
 import {nodeGraphicToken} from '@/common/cards/render/cardGraphicIds';

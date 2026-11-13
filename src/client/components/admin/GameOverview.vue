@@ -30,7 +30,7 @@
   </tr>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, ref} from 'vue';
 import {SimpleGameModel} from '@/common/models/SimpleGameModel';
 import {apiUrl} from '@/client/utils/runtimeConfig';

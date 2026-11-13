@@ -13,7 +13,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE PLACEMENT RETICLE — the console's physical board cursor
  * (docs/claude/console/board-placement-flow.md).

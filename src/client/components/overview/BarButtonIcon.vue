@@ -89,7 +89,7 @@
   </svg>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Unified minimalist line-icon set for the top/bottom HUD bar buttons.
  * One shared <svg> wrapper (24×24, currentColor stroke) so every icon

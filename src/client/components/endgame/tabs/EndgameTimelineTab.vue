@@ -36,7 +36,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed} from 'vue';
 import {Color} from '@/common/Color';
 import {ViewModel} from '@/common/models/PlayerModel';

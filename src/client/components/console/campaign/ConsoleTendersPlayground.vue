@@ -90,7 +90,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * TENDERS — the playground stand («Полигон» → «Витрина тендеров», the owner 2026-11-08: «полигон тендеров для осмотра
  * в дев режиме»). One instrument for every tender of the Committee and the ones after it:

@@ -8,7 +8,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * The VALUE is keyed on a COUNTER of in-place changes, not on the number
  * itself. A coalesced change keeps this whole chip mounted

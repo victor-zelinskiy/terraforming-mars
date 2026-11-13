@@ -17,7 +17,7 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * The CONSENTED console-mode entry prompt (docs/CONSOLE_MODE_CONCEPT.md §13):
  * shown once per session on the first gamepad input while in desktop mode.

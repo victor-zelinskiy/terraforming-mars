@@ -166,7 +166,7 @@
     </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, onBeforeUnmount, onMounted, useTemplateRef} from 'vue';
 import * as constants from '@/common/constants';
 import BoardSpace from '@/client/components/BoardSpace.vue';

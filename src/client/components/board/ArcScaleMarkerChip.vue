@@ -23,7 +23,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ArcScaleMarkerChip — the UNIFIED marker chip for every global-parameter
  * scale. The single premium chassis (pointer + halo + glass frame + icon +

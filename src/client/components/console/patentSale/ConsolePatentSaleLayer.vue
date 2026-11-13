@@ -54,7 +54,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * PATENT-SALE HERO STAGE — the fixed, app-level layer of the "cards feed
  * the trade terminal, the terminal pays" scene (consolePatentSale /

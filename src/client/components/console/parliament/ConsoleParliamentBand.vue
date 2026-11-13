@@ -188,7 +188,7 @@
     </transition>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ══ ЛЕНТА ЧТЕНИЯ («Заседание v5») — the middle zone's upper strip.
  *       It EXISTS ALWAYS: in the overview, at every beat of the sitting, behind

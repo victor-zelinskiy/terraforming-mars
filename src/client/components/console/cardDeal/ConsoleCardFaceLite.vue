@@ -2,7 +2,7 @@
   <PremiumCard v-if="premiumFace" :name="name" :card="card" :lightweight="lightweight" :artTier="artTier" :inert="true" aria-hidden="true" />
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * LITE CARD FACE — the honest lightweight twin of <Card> used by the
  * console motion cinematics (deal flyers, exit/transfer proxies).

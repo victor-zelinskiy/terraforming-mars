@@ -17,7 +17,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * HAND INTAKE LAYER — the fixed stage of every "cards arrive in the hand"
  * cinematic (handDeliveryDirector.ts): the starting-cards delivery, the

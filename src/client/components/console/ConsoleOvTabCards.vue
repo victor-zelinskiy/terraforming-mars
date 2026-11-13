@@ -125,7 +125,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * КАРТЫ — the card story of the party, never a wall of thumbnails. A ranked
  * impact list (strict PAGES, the album grammar — no scroll container), a

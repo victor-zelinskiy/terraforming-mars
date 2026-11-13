@@ -50,7 +50,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE WINNER'S PART (Turmoil Redux) — ONE graphic block for a resolution's
  * winner part, wherever a surface names it: the vote surface's own-effect

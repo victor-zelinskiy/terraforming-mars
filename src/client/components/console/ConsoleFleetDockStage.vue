@@ -209,7 +209,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE FLEET-DOCK STAGE — a trade whose fleet goes to a CARD (Turmoil Redux
  * TR06 Water Hauling and its sisters). ONE MORE DIRECTION OF THE TRADE (the

@@ -17,7 +17,7 @@
   </dialog>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {onMounted, ref, useTemplateRef, watch} from 'vue';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
 import {vI18n} from '@/client/directives/vDirectives';

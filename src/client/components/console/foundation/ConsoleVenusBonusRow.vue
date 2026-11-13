@@ -32,7 +32,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE VENUS BONUS — the composer's ONE row (P89 · ledger EM — the owner, 2026-11-02: «pre-select надо доработать
  * внутренним шагом, иначе он слишком много забирает места»). The whole bonus — the 30 % wild, its card, the standard

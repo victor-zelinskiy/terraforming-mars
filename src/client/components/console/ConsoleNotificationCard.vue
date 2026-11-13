@@ -254,7 +254,7 @@
   </article>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * TR59 «ОДИН ВЗГЛЯД»: a toast lives a few seconds and answers THREE questions at a glance — what changed for
  *       YOU (the hero band, the card's largest numbers), WHY (one cause line: your tile / card / colony, or the

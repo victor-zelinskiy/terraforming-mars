@@ -93,7 +93,7 @@
     </div>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DELEGATES ZONE — the ONE ledger of every player's places: the
  * lobby's single socket (the free delegate waits there, or it is

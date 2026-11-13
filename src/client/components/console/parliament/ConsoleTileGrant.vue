@@ -57,7 +57,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * A TILE A LAW GRANTS THE SEATS (Turmoil Redux — Skyscrapers' tier by
  * threshold, Mars First Budget's city for everyone): ONE graphic block for

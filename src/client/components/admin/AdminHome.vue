@@ -8,7 +8,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, ref} from 'vue';
 // The import yields its name to the `paths` field the template reads (`<script setup>` has one scope).
 import {paths as appPaths} from '@/common/app/paths';

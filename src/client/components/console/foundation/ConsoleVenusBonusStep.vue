@@ -31,7 +31,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE VENUS BONUS — THE INNER PRE-SELECT (P89 · ledger EM), standing on the SHARED wild-resource choice since P43
  *       (ledger EO — `ConsoleWildChoiceStep`, one composition for every «a standard resource OR a resource on a card»).

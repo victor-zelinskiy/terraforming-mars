@@ -280,7 +280,9 @@ describe('vapor readiness — what the target has no place for only shrinks', fu
     // bundle dropped the `data-unfold-late` its hosts let fall through («Extraneous non-props attributes … renders
     // fragment»), while the production build — which strips template comments — inherited it. A difference between
     // what is tested and what ships is not something to live with: the comment goes into the script block.
-    const offenders = now.vapor.filter((file) => /<template\b[^>]*>\s*<!--/.test(fs.readFileSync(path.join(ROOT, file), 'utf8')));
+    // (The component's OWN template block — the tag that opens its line: a nested `<template v-if>` with a comment
+    // inside is a branch, not a root.)
+    const offenders = now.vapor.filter((file) => /^<template\b[^>\n]*>\s*<!--/m.test(fs.readFileSync(path.join(ROOT, file), 'utf8')));
     expect(offenders, 'a comment before the root of a Vapor template').to.deep.equal([]);
   });
 

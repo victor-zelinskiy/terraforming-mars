@@ -29,7 +29,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {PropType} from 'vue';
 import {vI18n} from '@/client/directives/vDirectives';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';

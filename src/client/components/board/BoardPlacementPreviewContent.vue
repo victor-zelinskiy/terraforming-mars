@@ -45,7 +45,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * Compact render of a {@link BoardPlacementPreview} — the SAME facts the player
  * saw on hover, grouped by intent: Cost / You receive / Other players receive /

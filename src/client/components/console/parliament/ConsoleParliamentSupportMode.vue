@@ -59,7 +59,7 @@
     </div>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ══ THE SUPPORT-AREA MODE («САНКЦИИ», Turmoil Redux TR12 Party Sanctions) — the Parliament picks a PARTY'S
  *       POPULAR SUPPORT AREA instead of a resolution. The objects are the six party PLAQUES where they stand (the

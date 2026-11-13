@@ -8,7 +8,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE PARTY'S PRINTED FORMULA — the board banner's own graphic (the same
  * render DSL nodes the premium face, the inspector and the action menu's

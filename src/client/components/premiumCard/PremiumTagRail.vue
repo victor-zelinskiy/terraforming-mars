@@ -8,7 +8,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * TAG CLUSTER OVERLAY — premium medallions pinned OVER the right end of
  * the title plate. Its own positioned layer (z above the plate AND the

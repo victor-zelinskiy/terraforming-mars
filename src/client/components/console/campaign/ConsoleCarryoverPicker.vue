@@ -160,7 +160,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «НАСЛЕДИЕ ПРОЕКТОВ» — the interlude's step: up to `limit` cards of the viewer's terminal hand travel into the next
  * mission. P87 (the owner, 2026-11-01): it solved the hand's task in a language of its own — its own grid engine, its

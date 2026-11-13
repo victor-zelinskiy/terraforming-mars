@@ -69,7 +69,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType, ref} from 'vue';
 import {Color} from '@/common/Color';
 import {getPreferences} from '@/client/utils/PreferencesManager';

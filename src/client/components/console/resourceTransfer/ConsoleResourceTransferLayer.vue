@@ -1,5 +1,5 @@
 <template>
-  <div v-if="resourceTransferState.flights.length > 0" class="con-transfer con-transfer--under" data-transfer-under aria-hidden="true"></div>
+  <div v-if="resourceTransferState.flights.length > 0" class="con-transfer con-transfer--under" data-transfer-under v-embed-zone aria-hidden="true"></div>
   <div v-if="resourceTransferState.flights.length > 0" class="con-transfer" data-transfer-lit aria-hidden="true">
     <template v-for="f in resourceTransferState.flights" :key="f.id">
       <ConsoleTeleport defer to="[data-transfer-under]" :disabled="layerOf(f.id, 'chip') !== 'under'">
@@ -37,7 +37,7 @@
   </ol>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * RESOURCE TRANSFER STAGE — the fixed, app-level layer of the shared
  * "receiving resources" language (consoleResourceTransfer /
@@ -67,6 +67,7 @@
  */
 
 import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
+import {vEmbedZone} from '@/client/directives/vDirectives';
 import ConsoleTeleport from '@/client/components/console/foundation/ConsoleTeleport.vue';
 import {resourceTransferState, registerResourceTransferStage, transferTrailState, transferTrailTail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';

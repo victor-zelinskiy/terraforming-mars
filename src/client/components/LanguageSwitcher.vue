@@ -11,7 +11,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {ALL_LANGUAGES, LANGUAGES} from '@/common/constants';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
 import {languageSwitcherReload} from '@/client/components/languageSwitcherReload';

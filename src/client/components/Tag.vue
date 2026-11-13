@@ -2,7 +2,7 @@
   <div :class="getClasses()" :data-tooltip="$t(tag)" />
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {Tag} from '@/common/cards/Tag';
 import {$t} from '@/client/directives/i18n';

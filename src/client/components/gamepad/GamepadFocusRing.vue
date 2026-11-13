@@ -12,7 +12,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * THE focus ring (docs/GAMEPAD_SUPPORT_DESIGN.md §5.8) — one fixed,
  * pointer-events-none element that morphs to the focused element's rect.

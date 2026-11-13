@@ -11,7 +11,7 @@
   </svg>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Trade-fleet LAUNCH PAD — the berth a fleet sits on in the console
  * colonies header. The minimalist pass: a low dark plate with ONE

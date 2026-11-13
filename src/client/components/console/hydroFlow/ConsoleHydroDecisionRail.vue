@@ -14,7 +14,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * THE DECISION RAIL — the step's pre-selects as a vertical stack of premium
  * decision cards, mounted at the TOP of the action column directly above the

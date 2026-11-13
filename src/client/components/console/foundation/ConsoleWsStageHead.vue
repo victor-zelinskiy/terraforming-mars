@@ -5,7 +5,7 @@
   </header>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, useSlots} from 'vue';
 
 /**

@@ -7,7 +7,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * CORPORATION IDENTITY ZONE — takes the art viewport's grid slot on the
  * premium corporation face. Corporations have no card art by design; the

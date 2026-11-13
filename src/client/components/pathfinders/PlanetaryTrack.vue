@@ -7,7 +7,7 @@
     </tr>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, ref} from 'vue';
 // The template's `range` is the ref below — the helper comes in under a name of its own.
 import {range as rangeOf} from '@/common/utils/utils';

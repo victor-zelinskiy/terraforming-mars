@@ -64,7 +64,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * CREW deck renderer (console create) — the participant roster as big
  * console rows: humans (cube / name / creator + TR chips / name issue),

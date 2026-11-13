@@ -145,7 +145,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * One premium cost/gain chip for an action's preview: an icon + a
  * `current → resulting` readout (or a signed amount when there's no single pool

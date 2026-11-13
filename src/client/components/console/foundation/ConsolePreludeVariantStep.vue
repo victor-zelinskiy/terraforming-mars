@@ -23,7 +23,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE PRELUDE'S «ВАРИАНТ» STEP (P44 · ledger EQ) — ONE host-agnostic surface on every host of a prelude's play: the
  * start queue's zone and the «ВЫБОР ПРОЛОГА» stage (a layer over the candidates). It never titles itself — the

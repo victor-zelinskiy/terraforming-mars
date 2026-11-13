@@ -8,7 +8,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed} from 'vue';
 import {$t} from '@/client/directives/i18n';
 import {agendaInfoById, AgendaInfo, BonusId, PolicyId} from '@/common/turmoil/Types';

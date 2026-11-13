@@ -16,7 +16,7 @@
   </transition>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «МАРС ТЕРРАФОРМИРОВАН» — THE TITLE PLATE of the terraformed scene (TR70 — `terraformedScene.ts`).
  * It stands in the BLEED ZONE UNDER THE DISC (the dock's clearance + the command bar's row, both receded

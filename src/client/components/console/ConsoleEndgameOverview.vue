@@ -48,7 +48,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ОБЗОР ПАРТИИ — the analytics SCENE of the endgame workspace.
  *

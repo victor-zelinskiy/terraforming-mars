@@ -6,7 +6,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * A CARD THAT PRINTS A TAG AND A VP ICON — the premium vocabulary's glyph for
  * «a Building card with a VP icon» (Turmoil Redux's Architecture Award, render

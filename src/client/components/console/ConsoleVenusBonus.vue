@@ -149,7 +149,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE VENUS TRACK BONUS — the reward for crossing a bonus step on the
  * Alternative Venus Board, console-native.

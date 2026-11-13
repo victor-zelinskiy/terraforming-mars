@@ -6,7 +6,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «A CARD WITH A REQUIREMENT OF ANY PARTY» — the premium vocabulary's glyph
  * for the requirement OBJECT a card prints (Turmoil Redux TR13 Political Think

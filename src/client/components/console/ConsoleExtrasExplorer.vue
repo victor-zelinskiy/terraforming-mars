@@ -136,7 +136,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE EXTRAS EXPLORER — the «Доп. ресурсы» screen of the Information
  *       workspace. The TYPE NAVIGATION is the rail satellite (`.con-res-aux`,

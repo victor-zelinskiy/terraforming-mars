@@ -71,7 +71,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed} from 'vue';
 import {RequirementType} from '@/common/cards/RequirementType';
 import {translateText} from '@/client/directives/i18n';

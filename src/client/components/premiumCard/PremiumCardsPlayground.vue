@@ -123,7 +123,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * DEV-ONLY premium card showcase (URL: ?premiumCardsPlayground).
  * The visual acceptance surface for the from-scratch card renderer:

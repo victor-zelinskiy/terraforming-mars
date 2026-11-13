@@ -24,7 +24,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * COLONY-TRADE LAYER — the app-level stage of the trade-reward cinematic
  * (mounted once in ConsoleShell, next to the trade-fleet layer).

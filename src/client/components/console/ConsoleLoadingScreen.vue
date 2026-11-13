@@ -71,7 +71,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * SCENE TRANSITION SURFACE — the full-bleed curtain of every screen boundary
  * (menu ⇄ game ⇄ campaign). Driven entirely by the scene-transition director

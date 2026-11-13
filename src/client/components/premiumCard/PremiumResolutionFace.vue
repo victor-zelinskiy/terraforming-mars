@@ -49,7 +49,7 @@ dock, the stand) gets this ONE anatomy.
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE BILL. A resolution is not a project: it has no cost and no tags, nobody
  * plays it, it is never held or tabled. It is a bill a PARTY brings in — a

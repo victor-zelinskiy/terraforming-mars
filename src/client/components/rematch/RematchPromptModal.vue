@@ -39,7 +39,7 @@
   </teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * The "you have been offered a rematch" prompt. Shown to every player who has
  * not yet voted on a live offer (the offerer never sees it — their vote is

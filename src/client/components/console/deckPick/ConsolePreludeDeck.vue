@@ -25,7 +25,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE PRELUDE DECK — an OBJECT inside the mid-game prelude pick (P91 WG Project), never a HUD stack: the prelude
  * deck has no place on the table outside this decision, so the decision stands it up where the player looks.

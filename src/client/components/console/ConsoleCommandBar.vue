@@ -68,7 +68,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * THE console command bar (docs/CONSOLE_MODE_CONCEPT.md §6) — the single most
  * important shell element: the CURRENT meaning of every face button, always

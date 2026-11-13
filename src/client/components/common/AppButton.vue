@@ -5,7 +5,7 @@
   </button>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed} from 'vue';
 import {useAppRoot} from '@/client/components/appRoot';
 import {Message} from '@/common/logs/Message';

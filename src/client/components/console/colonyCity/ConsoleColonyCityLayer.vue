@@ -17,7 +17,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * A CITY IS LAID ON A COLONY TILE — the fixed, shell-level stage of the scene
  * (consoleColonyCity / colonyCityDirector; Turmoil Redux TR22 Nova City).

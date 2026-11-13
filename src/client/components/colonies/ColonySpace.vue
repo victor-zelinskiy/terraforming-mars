@@ -7,7 +7,7 @@
     <div v-if="marker" class="colony-track-marker"></div>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import BuildBenefit from './BuildBenefit.vue';

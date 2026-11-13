@@ -84,7 +84,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE console-native payment surface — ONE component, THREE densities.
  * `line` (P81 · DJ) is the price said ONCE when there is nothing to shape: one lane (M€), chosen by itself, the

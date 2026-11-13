@@ -545,7 +545,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * data-motion-*: the surface-motion contract — the dim is the shared
  *       `.con-shade`; the card frame is the animated panel. The VARIANT gates

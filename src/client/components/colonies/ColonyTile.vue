@@ -237,7 +237,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * One colony card in the new sci-fi overlay grid. Steam-inspired layout:
  * title strip (with optional fleet badge) → 3 build-bonus slots + planet

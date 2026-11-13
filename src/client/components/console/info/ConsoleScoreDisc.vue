@@ -10,7 +10,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * A SCORE CATEGORY'S MEDALLION DISC — the category's own symbol (the TR badge, the city / greenery tile, the card, the
  * earned emblems) in a disc ringed in the category's hue (`--eg-c`, set by the host's `.con-eg-cat--*`). ONE object in

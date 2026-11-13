@@ -155,7 +155,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';

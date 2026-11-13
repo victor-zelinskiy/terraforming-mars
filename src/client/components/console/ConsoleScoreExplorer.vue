@@ -272,7 +272,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE SCORE EXPLORER — the vp subtree of the Information workspace as
  *       ONE component: the overview (level 1), a category's detail (level 2)

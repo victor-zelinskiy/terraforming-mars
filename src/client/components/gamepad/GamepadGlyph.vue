@@ -2,7 +2,7 @@
   <span class="gp-glyph" :class="['gp-glyph--' + spec.shape, {'gp-glyph--toned': spec.tone !== ''}]" :style="toneStyle" aria-hidden="true">{{ spec.label }}</span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * One controller button badge (docs/GAMEPAD_SUPPORT_DESIGN.md §6). Drawn with
  * CSS only (no image assets, mirrors BarButtonIcon's asset-free approach):

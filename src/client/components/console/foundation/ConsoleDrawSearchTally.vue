@@ -23,7 +23,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE SEARCH'S OUTCOME in one line — «ВСКРЫТО 6 · ПОЛУЧЕНО 3 · СБРОШЕНО 3 —
  * без меток [P̸][M̸][A̸]» (+ «колода вскрыта до конца» when it ran out).

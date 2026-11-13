@@ -4,7 +4,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 

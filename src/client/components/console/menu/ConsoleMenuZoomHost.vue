@@ -139,7 +139,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * PRE-GAME FULLSCREEN CARD VIEWER HOST — the App-level twin of the
  * ConsoleShell zoom host, for the console screens that live OUTSIDE a game

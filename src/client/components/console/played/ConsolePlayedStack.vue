@@ -31,7 +31,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ONE TABLE STACK of the «Разыграно» table: a zone's cards as the printed
  * game lays them — a CASCADE per lane, each covered card showing its title

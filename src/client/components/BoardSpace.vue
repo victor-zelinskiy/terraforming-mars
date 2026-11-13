@@ -89,7 +89,7 @@
     </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, ref, watch} from 'vue';
 import Bonus from '@/client/components/Bonus.vue';
 import BoardSpaceTile from '@/client/components/board/BoardSpaceTile.vue';

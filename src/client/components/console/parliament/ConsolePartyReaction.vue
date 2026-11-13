@@ -27,7 +27,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE RULING PARTY'S ANSWER (Turmoil Redux) — one graphic row for what the
  * resolution's own party pays ON TOP of the resolution's effect, wherever a

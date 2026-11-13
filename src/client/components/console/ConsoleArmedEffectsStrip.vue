@@ -35,7 +35,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «ВЗВЕДЕНО НА СЛЕДУЮЩУЮ КАРТУ» (TR49 class) — what the NEXT card this
  * player plays will spend, standing where that card is CHOSEN (the hand

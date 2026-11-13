@@ -8,7 +8,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Premium masked stand-in for the viewer's own VP on a passive surface when
  * "Private score" is on. Reads as intentional (a slashed eye + soft privacy

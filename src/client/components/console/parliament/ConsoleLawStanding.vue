@@ -57,7 +57,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * WHILE ENACTED (P77 · DH, `lawStandingModel.ts`) — what a law gives the reading's seat for as long as it stands, in
  * the vote panel's number grammar: an action's PRICE at the seat's influence and what it buys, how many times a

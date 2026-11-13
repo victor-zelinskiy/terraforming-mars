@@ -369,7 +369,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE EMBEDDED PLAYED-TARGET STEP — a level of the Card Play Workspace,
  *       not a surface over it. No band geometry, no plate, no backdrop, no

@@ -14,7 +14,7 @@
   </teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType} from 'vue';
 import {vI18n} from '@/client/directives/vDirectives';
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';

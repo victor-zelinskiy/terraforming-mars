@@ -91,7 +91,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
   </Teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, onBeforeUnmount, onMounted, PropType, ref, watch} from 'vue';
 import {paths} from '@/common/app/paths';
 import {ACTION_MENU_FIRST_TITLE} from '@/common/inputs/actionMenuTitles';

@@ -12,7 +12,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE MODIFIER SEAL (TR49 class): WHAT KIND of modifier bends a requirement, as SYMBOLS — a card silhouette for a
  * standing effect of a card on the table (several stack into a little pile), the class's bolt for a one-play

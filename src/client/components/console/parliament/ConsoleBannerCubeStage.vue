@@ -19,7 +19,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ══ THE CORPORATION RISES, THE CUBE LEAVES IT (Septem Tribus:redux — `bannerCubeStage.ts`): the card whose effect
  * puts a cube on a banner stands up in the voting table's own cell — the bills recede under it, nothing flies to or

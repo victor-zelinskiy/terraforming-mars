@@ -145,7 +145,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE PARTY PLAQUE (Turmoil Redux) — the ONE visual family of a party, in
  * four sizes. A party is not a project card: it has no cost, no art window

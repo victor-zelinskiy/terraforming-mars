@@ -114,7 +114,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ХРОНОЛОГИЯ — generations are the axis. One big VP chart (all players,
  * one shared scale), an episode strip pinned to generations, and a fixed

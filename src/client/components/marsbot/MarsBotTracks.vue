@@ -100,7 +100,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * The MarsBot board tracks — one row per track: the identity TAGS on the
  * left, the printed cell strip (action icons, the bot's cube on the current

@@ -12,7 +12,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DECLINE PLATE — the refusal of an optional choice, standing in the surface's QUESTION LINE (the owner's
  * decisions 2026-10-13). The decline is a BUTTON (RT — «finish this choice with nothing»), never a row among the

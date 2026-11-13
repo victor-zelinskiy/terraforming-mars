@@ -39,7 +39,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DOSSIER'S CAMPAIGN ZONE (the Information polish of 2026-10-19): the campaign as OBJECTS, never «label — number»
  * rows — the mission's own BOARD in miniature (the campaign map's fingerprint, the same drawing as its mission card),

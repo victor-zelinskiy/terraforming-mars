@@ -62,7 +62,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Rework §2.1 — the DUEL result block. Both players read as equal participants in a
  * head-to-head; the MARGIN is the central focal element; the winner is crowned + glows,

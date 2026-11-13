@@ -131,7 +131,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * ConsoleHandDock — the PERMANENT premium hand-of-cards presence at the
  * bottom centre of the console HUD (the footer's centre bay is carved for

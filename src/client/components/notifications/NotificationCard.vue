@@ -280,7 +280,7 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
   </article>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef} from 'vue';
 import {Message} from '@/common/logs/Message';
 import {LogMessage} from '@/common/logs/LogMessage';

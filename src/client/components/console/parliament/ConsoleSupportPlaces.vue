@@ -17,7 +17,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * POPULAR SUPPORT AS PLACES — the ONE markup of a party's support area: three
  * sockets, a steel cube per neutral delegate standing in it. Shared by the

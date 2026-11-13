@@ -43,7 +43,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * PLAYED-CARD HERO STAGE — the fixed, app-level proxy layer of the "card
  * lands on my tableau" scene (consolePlayedHero / playedHeroDirector).

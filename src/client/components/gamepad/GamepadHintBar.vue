@@ -7,7 +7,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * The contextual hint bar (docs/GAMEPAD_SUPPORT_DESIGN.md §6): bottom-center,
  * pointer-events:none, lists what the buttons do in the ACTIVE scope +

@@ -27,7 +27,7 @@ const COMPOSITION = path.join(ROOT, 'src', 'client', 'console', 'shell', 'useCon
 const PORT = path.join(ROOT, 'src', 'client', 'console', 'shell', 'shellPort.ts');
 const read = (file: string) => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
 /** The shell is `<script setup>` (V3 wave 4): its script is imports, its props and ONE composition. */
-const SCRIPT_OPEN = '<script setup lang="ts">';
+const SCRIPT_OPEN = '<script setup vapor lang="ts">';
 
 type Controller = {file: string, factory: string, members: ReadonlyArray<string>};
 
@@ -174,7 +174,7 @@ describe('the shell is a composition root — its controllers', () => {
   });
 
   it('THE SHELL IS LAYOUT: the SFC is <script setup> — imports, its props and ONE composition taken apart into what the template reads', () => {
-    expect(shell.indexOf(SCRIPT_OPEN), 'the shell is <script setup lang="ts">').to.be.greaterThan(0);
+    expect(shell.indexOf(SCRIPT_OPEN), 'the shell is <script setup vapor lang="ts">').to.be.greaterThan(0);
     const script = codeOnly(shell.slice(shell.indexOf(SCRIPT_OPEN), shell.lastIndexOf('</script>')));
     // Every top-level statement of the script that is not an import, by its first line…
     const statements = script.split('\n').slice(1).filter((line) => /^[^\s}]/.test(line) && !/^import\b/.test(line));

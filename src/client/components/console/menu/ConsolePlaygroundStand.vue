@@ -19,7 +19,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * CONSOLE-NATIVE PLAYGROUND STAND — the fullscreen chassis every dev
  * showcase renders inside. The showcase content itself stays a plain

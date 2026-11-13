@@ -12,7 +12,7 @@
       <!-- THE RULER — the party's medallion lands here (teleported by the parties tier). A focus stop of its own
            (X inspects the enacted law — or the party, before any law — and A is the party action's door). -->
       <div class="con-parl__ruler" :class="{'con-parl__ruler--focus': flow.zone === 'ruler' && flow.stage === 'browse'}" :data-zoom-slot="partyKeyOf(rulerShown)" data-parl-ruler>
-        <div class="con-parl__ruler-slot" data-parl-ruler-slot></div>
+        <div class="con-parl__ruler-slot" data-parl-ruler-slot v-embed-zone></div>
       </div>
       <!-- The enacted card is ONE instance: while the resolution pays out it is TELEPORTED onto the enactment
            stage's hero slot (and FLIPs there and back) — never a copy beside the government. -->
@@ -38,7 +38,7 @@
     </div>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ── THE GOVERNMENT'S DAIS (Парламент v8 «Пленарный зал»): the right half of the CHAMBER plate, beside the opposition's
  * benches — the ruling party's seal (teleported here by the parties tier) and the enacted law. «ВАШИ ЭФФЕКТЫ»
@@ -57,6 +57,7 @@
  * (This comment opened the template; the template starts with its root now.)
  */
 import {computed, markRaw, onBeforeUnmount, onMounted, PropType, useTemplateRef} from 'vue';
+import {vEmbedZone} from '@/client/directives/vDirectives';
 import {$t} from '@/client/directives/i18n';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';

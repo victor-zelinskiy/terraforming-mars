@@ -30,7 +30,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE FLEET DOCK — the ONE fleet presentation of the colony workspace.
  * Always the same component, always the header's RIGHT edge (spatial

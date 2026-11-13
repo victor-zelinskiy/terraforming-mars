@@ -46,7 +46,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE RECEIVING CARDS — the chosen host card(s) of a trade's reward,
  * physically ON STAGE while the reward arrives. ONE presentation for every

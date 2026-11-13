@@ -65,7 +65,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * data-motion-*: the surface-motion contract (surfaceMotionDirector) —
  * the wheel's dim is the shared `.con-shade`; entry/exit/handoff are

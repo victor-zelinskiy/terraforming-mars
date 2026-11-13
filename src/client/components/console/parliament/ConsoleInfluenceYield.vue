@@ -222,7 +222,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * INFLUENCE → RESULT (Turmoil Redux) — the ONE graphic block for an effect
  * that scales with influence, wherever a surface needs it: the vote

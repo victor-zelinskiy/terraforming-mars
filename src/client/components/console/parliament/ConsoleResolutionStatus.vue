@@ -40,7 +40,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE RESOLUTION'S STANDING in the fullscreen viewer's command bar
  * (Turmoil Redux) — two facts, told apart on purpose (one line each):

@@ -13,7 +13,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * A WAIVED MILESTONE / AWARD PRICE (PC01 · GO): the table's price STRUCK, «0 M€», the source's SEAL — the card
  * silhouette of a standing corporation effect, the same language as the requirement cassette's «under a modifier».

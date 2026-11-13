@@ -142,7 +142,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ONE CARD'S ACTIONS — the card PLATE and its action SLOTS, the «Действия карт» tile (TR60, decision 6a: one markup,
  * two hosts). The workspace that ACTS (ConsoleCardActions) drives the cursor, the shake and the descent through its

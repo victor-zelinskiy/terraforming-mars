@@ -10,7 +10,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE PLANET DISC — the ONE way a colony's planet art is rendered on every
  * console surface (the overview tile's medallion, the trade stage's hero,

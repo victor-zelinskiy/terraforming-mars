@@ -13,7 +13,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * CARD EXIT LAYER — the ONE app-level stage every exit/transfer cinematic
  * flies on (mounted once in ConsoleShell, above the console surfaces and

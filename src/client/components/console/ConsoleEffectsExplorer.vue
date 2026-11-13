@@ -398,7 +398,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE EFFECTS EXPLORER («Информация › Эффекты») — the card-actions browse
  * language re-hosted READ-ONLY: a dossier column (the focused effect's source

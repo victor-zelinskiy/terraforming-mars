@@ -28,7 +28,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DOSSIER'S ACTIONS PLATE (TR60): the seat's action cards as TILES — the card's own art, its name, and its STATE
  * as a SHAPE, never a colour alone: ▶ on a mint disc = the viewer can take it now (the server's offer); ✕ on an

@@ -18,7 +18,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * OceanArcScale — the OCEAN global parameter at the bottom of the planet.
  *

@@ -7,7 +7,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * The shared amber "X / N toward the next VP" progress bar. Style lives in
  * `src/styles/vp_progress.less` (`.vp-progress*`, built from mixins also used by

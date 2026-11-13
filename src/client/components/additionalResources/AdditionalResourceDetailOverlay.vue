@@ -150,7 +150,7 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
 import {$t} from '@/client/directives/i18n';

@@ -23,7 +23,7 @@
   </svg>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Victory-points emblem for the console score header — an award TOKEN
  * (pentagon shield: warm gold rim over a deep graphite core, the localized

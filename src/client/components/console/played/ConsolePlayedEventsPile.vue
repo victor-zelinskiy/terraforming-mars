@@ -15,7 +15,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * The FACE-DOWN events pile — per the printed rules, played events lie
  * рубашкой вверх in one stack. Shows the canonical sleeve art, a physical

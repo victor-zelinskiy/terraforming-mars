@@ -11,7 +11,7 @@
   </teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * Floating host that shows the SHARED reason popover next to a hovered
  * illegal board cell during a tile-placement prompt — the board-side twin of

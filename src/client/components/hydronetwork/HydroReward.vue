@@ -48,7 +48,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {vI18n} from '@/client/directives/vDirectives';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {HydroRewardChip, HydroSpecialReward} from './hydroStages';

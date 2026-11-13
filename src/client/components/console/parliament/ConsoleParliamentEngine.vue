@@ -84,7 +84,7 @@
     </div>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ══ THE ENGINE OF THE CAREER («Зал» v7, the owner's idea of 2026-10-18): the chairman's CHAIR with its
  * QUEST stands at the HEAD of the career track — completing the quest IS a step on that track (one server

@@ -9,7 +9,7 @@
       </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import CardRenderItemComponent from '@/client/components/card/CardRenderItemComponent.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';

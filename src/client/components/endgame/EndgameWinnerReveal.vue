@@ -64,7 +64,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Cinematic winner announcement shown the moment a game ends (and once on
  * re-entering an ended game). Premium sci-fi, NOT a party screen: the board

@@ -251,7 +251,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Premium FINAL SCORING REVEAL — the "reward" surface for hidden-VP games.
  * Shown the moment a hidden-score game ends, BEFORE the detailed results

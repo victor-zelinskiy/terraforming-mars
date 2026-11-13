@@ -55,6 +55,7 @@
  */
 import {FunctionalComponent, h, markRaw, nextTick, onBeforeUnmount, PropType, ref, Teleport, useSlots, VNode} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {embedZoneEpoch} from '@/client/console/embedZoneRegistry';
 
 type TeleportTo = string | HTMLElement;
 
@@ -179,6 +180,9 @@ function awaitTarget(): void {
 /** THE RENDER — one decision per render, remembered as `rendered` for the next one. */
 function teleportFor(): VNode | null {
   void epoch.value;
+  // …and every DECLARED node's coming and going (`v-embed-zone` — the outcome zones, the Parliament's ruler slot, vote
+  // row and sitting hero, the under-shade transfer layer): the target is re-asked in the flush that mounted it.
+  void embedZoneEpoch();
   const prev = rendered;
   const live = prev !== null;
   const target = resolveTeleportTarget(props.to);

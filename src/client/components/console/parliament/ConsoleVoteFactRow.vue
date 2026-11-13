@@ -57,7 +57,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ONE FACT OF A VOTE (Turmoil Redux) — the key, then the current value → the
  * projected one. A fact that does not change is ONE value: an arrow to the

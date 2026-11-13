@@ -532,7 +532,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * REDUX RESOLUTIONS — the playground stand («Полигон» → «Витрина резолюций
  * Redux»). One instrument for THIS resolution and every one after it: the

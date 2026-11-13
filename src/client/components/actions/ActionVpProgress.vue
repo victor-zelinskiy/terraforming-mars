@@ -24,7 +24,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * "ПРОГРЕСС ПО" — the action-relevant VP context for a card resource that scores
  * by a threshold (e.g. Tardigrades: 1 VP per 4 microbes). Shows the threshold

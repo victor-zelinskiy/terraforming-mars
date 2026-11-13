@@ -35,7 +35,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE COUNTED OBJECT of a resolution's counted term (Turmoil Redux), in ONE
  * box. Which drawing appears follows what the rule COUNTS, because the

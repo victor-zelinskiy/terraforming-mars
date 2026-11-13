@@ -4,7 +4,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import CardRowData from '@/client/components/card/CardRowData.vue';

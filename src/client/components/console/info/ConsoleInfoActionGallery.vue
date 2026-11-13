@@ -23,7 +23,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «ДЕЙСТВИЯ» IN DEPTH (TR60, decision 6a): the seat's actions as the «Действия карт» TILES themselves — the SAME
  * group component (`ConsoleActionGroupView`) the acting workspace renders, hosted READ-ONLY: the card plate and its

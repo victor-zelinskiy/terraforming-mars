@@ -145,7 +145,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE CATEGORY VIEW — the modal half of the «Разыграно» physical transition.
  * Mounted for the whole episode (opening → open → closing); the cards that

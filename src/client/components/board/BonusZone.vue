@@ -14,7 +14,7 @@
     :tooltip="tooltipContent" />
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Scale REWARD bonus (Venus / O₂ / temperature). A thin wrapper over the
  * unified ArcScaleMarkerChip — it only builds the reward + claim TOOLTIP

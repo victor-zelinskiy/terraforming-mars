@@ -225,7 +225,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE MA FOCUS STAGE — the same workspace frame, one level deeper. The
  * descend hooks unfold it from the pressed card's rect; the emblem

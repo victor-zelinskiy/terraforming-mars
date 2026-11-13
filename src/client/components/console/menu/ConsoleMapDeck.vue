@@ -64,7 +64,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE MAP SHOWCASE (P44 · ledger ER — the owner: «сетка, а не ряд»): the «Карта» deck on the grammar of «Мои
  * партии» — a GRID SOLVED FROM THE MEASURED STAGE (`mapGridPlan`: 4 × 3 for the eleven maps on the TV and FHD, strict

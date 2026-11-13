@@ -3,7 +3,7 @@
     <canvas :id="id"></canvas>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {onMounted} from 'vue';
 import {Color} from '@/common/Color';
 import {translateText} from '@/client/directives/i18n';

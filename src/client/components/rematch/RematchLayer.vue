@@ -57,7 +57,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * HEADLESS in console mode: the poller keeps rematchState fresh (the console
  * post-game action list reads it), but none of these desktop-styled surfaces

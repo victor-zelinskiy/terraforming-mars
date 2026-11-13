@@ -326,7 +326,7 @@
   </aside>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * The right CONTEXT dossier (feedback iteration 2; P27 rework; P30: the
  * strategic idle summary moved OUT into the dedicated STRATEGY RAIL, and

@@ -117,7 +117,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * CONSOLE-NATIVE DEV CARD PICKER — the «Тестовый режим» sub-setting.
  *

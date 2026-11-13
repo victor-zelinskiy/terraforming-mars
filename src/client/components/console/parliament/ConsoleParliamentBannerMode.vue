@@ -61,7 +61,7 @@
     </div>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ══ THE BANNER MODE («ЗНАМЯ», Turmoil Redux Septem Tribus:redux) — the Parliament picks the PARTY whose banner
  * takes the viewer's cube (the first action). The objects are the six party PLAQUES where they stand: the cursor

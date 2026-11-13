@@ -27,7 +27,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {$t} from '@/client/directives/i18n';
 
 defineOptions({name: 'ConsoleTenderBack'});

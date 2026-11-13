@@ -1031,7 +1031,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE ACTION FOCUS STAGE — the in-frame focus state of the Action
  *       Browser (NOT a floating modal): the browse layer yields underneath and

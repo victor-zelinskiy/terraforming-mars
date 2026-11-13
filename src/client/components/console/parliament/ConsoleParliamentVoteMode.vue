@@ -16,7 +16,7 @@
        data-parl-vote>
     <!-- THE CARD ROW — the slots stand here while the mode is up (fewer
          than three stand centred at their usual size). -->
-    <div class="con-parl__vrow" data-parl-vrow :style="{'--con-parl-slot-count': String(Math.max(1, view.slots.length))}"></div>
+    <div class="con-parl__vrow" data-parl-vrow v-embed-zone :style="{'--con-parl-slot-count': String(Math.max(1, view.slots.length))}"></div>
 
     <!-- THE INFO SURFACE — ONE NUMBER (`voteInfoModel.ts`): what the
          SELECTED card gives the viewer if enacted (left) and what THIS vote
@@ -317,7 +317,7 @@
     </div>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ══ THE VOTE MODE — the frame's PHASE DESCENT, as a layer over the body.
  * Always mounted (it is the teleport target of the three slots — a target
@@ -328,6 +328,7 @@
  */
 
 import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, onUpdated, PropType, ref, useTemplateRef, watch} from 'vue';
+import {vEmbedZone} from '@/client/directives/vDirectives';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';

@@ -40,7 +40,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE SEALED SCORE (TR60, decision 7a): another seat's score that the game's options keep hidden is a SEALED CELL at
  * the scene's scale — the award shield under its seal, the one sentence of what is sealed and WHY (the game's

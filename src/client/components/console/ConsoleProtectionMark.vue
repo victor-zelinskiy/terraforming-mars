@@ -25,7 +25,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE TEMPLATE (the comment that opened it — it starts with its root now):
  *

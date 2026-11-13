@@ -253,7 +253,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * CAMPAIGN MAP («Кампания») — the standalone campaign screen: one generated
  * route of four missions, the party's position, titles/TP/bonuses, the

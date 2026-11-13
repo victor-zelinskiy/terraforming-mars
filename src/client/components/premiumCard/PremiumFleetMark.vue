@@ -8,7 +8,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE FLEET DOCK'S MARK SLOT (premiumFleetDock.ts): mounted ONLY on the ▲ of
  * a printed trade effect, and only renders on a dock card's face —

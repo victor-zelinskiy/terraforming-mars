@@ -21,7 +21,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {vI18n} from '@/client/directives/vDirectives';
 import {RULEBOOK_URLS} from '@/client/utils/WikiLinks';
 

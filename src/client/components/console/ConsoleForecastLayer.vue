@@ -21,7 +21,7 @@
   </transition>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE «ЭФФЕКТЫ» LAYER (R3) of a STAGE — a LEVEL inside the host, the composers'
  * own: the host's work column PARKS in place (`data-forecast-browse`), the

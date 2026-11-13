@@ -144,7 +144,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * RULES deck renderer (console create) — the premium rule toggles as full-width
  * console rows with a large ON/OFF switch, plus two sub-setting rows: the

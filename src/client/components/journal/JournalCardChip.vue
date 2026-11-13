@@ -51,7 +51,7 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * — before the root `<CardPreviewPopover v-if="!isStandardProject && !isHydronetwork" …>`:
  * Hover preview: full card for project cards, compact effect card for

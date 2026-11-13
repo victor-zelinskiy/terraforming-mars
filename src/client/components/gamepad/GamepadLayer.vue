@@ -75,7 +75,7 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * App-level gamepad layer (docs/GAMEPAD_SUPPORT_DESIGN.md §5/§6) — mounts next
  * to NotificationLayer in App.vue (survives everything; the game screen

@@ -10,7 +10,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE BOARD-INPUT BINDER — the one thing the transport still renders
  * (everything else lives in console/transport/gameTransport.ts, where the

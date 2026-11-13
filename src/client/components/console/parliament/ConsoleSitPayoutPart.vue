@@ -86,7 +86,7 @@
     </template>
   </span>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ONE PART OF ONE SEAT'S PAYOUT — the ONE renderer of a payout chip (an object and an amount, or a skip with its
  * reason), shared by the results card's «ВЫПЛАТЫ» and the step under it, «ПОДРОБНОСТИ ВЫПЛАТ». Moved out of

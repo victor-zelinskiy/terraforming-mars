@@ -182,7 +182,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {BonusId, PolicyId} from '@/common/turmoil/Types';
 

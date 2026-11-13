@@ -132,7 +132,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «ПАРЛАМЕНТ» — ONE SEAT'S STANDING (Information workspace, Turmoil Redux), as OBJECTS (TR60, decision 9a). The
  * Parliament workspace shows the table; this reads the same table from one seat, and answers the questions the

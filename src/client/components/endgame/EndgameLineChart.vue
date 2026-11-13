@@ -77,7 +77,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Premium SVG line chart for the endgame timeline (VP-over-generations,
  * global-parameter progress). Custom-drawn (no Chart.js) for full control of

@@ -82,7 +82,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * PLAYGROUND HUB — the admin-only «Полигон» menu overlay. A LIST of visual
  * dev stands (today: the premium-card showcase; the registry below is where

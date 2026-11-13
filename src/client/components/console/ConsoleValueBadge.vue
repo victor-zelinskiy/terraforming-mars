@@ -20,7 +20,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * A VALUE BADGE physically pinned to a rail icon's corner — the passive
  * information layer of the left rail. TWO variants, deliberately different

@@ -158,7 +158,7 @@
     </div>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ── THE VOTING AREA — ONE focus zone: three resolutions in the order
  * that breaks ties (the first stands closest to the government), the

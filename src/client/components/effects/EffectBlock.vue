@@ -46,7 +46,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * One SOURCE group. The source (card / corporation) is named ONCE in a light
  * auxiliary label (+ a live resource badge when it holds one); EACH passive

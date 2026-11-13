@@ -22,7 +22,7 @@
   </li>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Generation boundary marker.
  *

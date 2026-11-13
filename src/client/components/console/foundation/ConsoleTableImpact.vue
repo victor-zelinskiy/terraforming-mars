@@ -16,7 +16,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «WHOM THE PLAY HITS» (P59 Recession) — a play that hits every opponent WITHOUT a choice shows them BEFORE the
  * press (invariant 3): one quiet line per seat — the seat's dot and name, the server's `current → resulting` rows

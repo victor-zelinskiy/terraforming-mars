@@ -65,7 +65,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * PLANETARY EVENT THRESHOLDS — the console-native «Butterfly Effect» prompt:
  * move each threshold up to one step up or down.

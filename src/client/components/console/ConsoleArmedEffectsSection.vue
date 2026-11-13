@@ -28,7 +28,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «ВЗВЕДЕНО НА СЛЕДУЮЩУЮ КАРТУ» in the Information mode's «ЭФФЕКТЫ»
  * (TR49 class) — the armed one-play effects of the INSPECTED seat (the

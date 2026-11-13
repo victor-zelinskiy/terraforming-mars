@@ -30,7 +30,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DOSSIER'S CARD HISTORY (TR60 · the Information polish of 2026-10-19 — «минималистично, без перегруза»): what the
  * seat has PLAYED, as a small TABLE — the corporation's face (the bot's own corporation face for MarsBot) and one neat

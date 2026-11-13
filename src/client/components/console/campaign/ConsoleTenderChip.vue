@@ -12,7 +12,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType} from 'vue';
 import {$t} from '@/client/directives/i18n';
 import {TenderId, TenderStatus, tenderDef, tenderNameKey} from '@/common/campaign/tenders';

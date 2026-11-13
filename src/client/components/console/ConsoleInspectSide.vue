@@ -39,7 +39,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * CONSOLE fullscreen-card INSPECT DOSSIER — the two-tab right panel of the
  * card viewer's inspect mode (the Action Browser's X-inspect). ONE stable

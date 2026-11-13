@@ -11,7 +11,7 @@
   <MaPreviewPopover :kind="kind" :name="name" :anchor="anchor" :visible="previewVisible" />
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {ref, useTemplateRef} from 'vue';
 import {vI18n} from '@/client/directives/vDirectives';
 import {MilestoneName} from '@/common/ma/MilestoneName';

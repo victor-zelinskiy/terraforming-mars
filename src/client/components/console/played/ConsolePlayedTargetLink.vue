@@ -27,7 +27,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE FRAME never moves: it is the coordinate space the wire is solved in,
  *       so it exists for as long as this component does (the HOST decides that —

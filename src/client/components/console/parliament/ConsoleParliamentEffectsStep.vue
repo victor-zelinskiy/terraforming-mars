@@ -27,7 +27,7 @@
     </section>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {PropType, useTemplateRef} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
 import {$t} from '@/client/directives/i18n';

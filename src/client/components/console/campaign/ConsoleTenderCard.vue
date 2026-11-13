@@ -60,7 +60,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {TENDER_COMPENSATION_MC, TenderId, tenderDef} from '@/common/campaign/tenders';

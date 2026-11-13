@@ -78,7 +78,7 @@
         </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {computed} from 'vue';
 import {GameOptionsModel} from '@/common/models/GameOptionsModel';

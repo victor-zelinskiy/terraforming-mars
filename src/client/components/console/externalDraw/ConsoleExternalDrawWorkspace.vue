@@ -81,7 +81,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «ДОБОР КАРТ» — the mandatory take of an EXTERNAL draw. A WORKSPACE
  *       SCREEN of the ordinary family (WORKSPACE_KINDS 'external-draw'): the

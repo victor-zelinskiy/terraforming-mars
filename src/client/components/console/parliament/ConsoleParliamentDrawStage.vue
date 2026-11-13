@@ -19,7 +19,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ══ «ПРИЁМКА» (the owner, 2026-11-02): a card drawn in the Parliament is RECEIVED in the Parliament — the ONE
  * reveal instance is teleported into this stage's zone (`[data-embed-slot="parliament-draw"]`, the shell's

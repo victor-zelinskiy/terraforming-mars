@@ -15,7 +15,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {computed} from 'vue';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';

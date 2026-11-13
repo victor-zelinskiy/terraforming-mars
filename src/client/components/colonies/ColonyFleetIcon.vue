@@ -43,7 +43,7 @@
   </svg>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Trade-fleet SHIP — the per-player vessel mark used by the console
  * colonies surfaces, the desktop colonies overlay / tiles / detail /

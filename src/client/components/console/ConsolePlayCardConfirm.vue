@@ -758,7 +758,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * data-motion-*: the surface-motion contract — no own backdrop (the
  *       shared `.con-shade` dims); the panel is the animated unit. The

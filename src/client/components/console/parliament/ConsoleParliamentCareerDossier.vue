@@ -60,7 +60,7 @@
     </section>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType} from 'vue';
 import {seatRestricted} from '@/common/models/ParliamentModel';
 import {Color} from '@/common/Color';

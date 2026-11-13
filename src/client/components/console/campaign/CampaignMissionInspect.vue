@@ -74,7 +74,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType} from 'vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import CampaignMissionResults from './CampaignMissionResults.vue';

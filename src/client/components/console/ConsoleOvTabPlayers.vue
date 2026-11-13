@@ -131,7 +131,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ИГРОКИ — how the strategies differed. A player ring on ←/→ (the bot is an
  * ordinary participant with its OWN honest groups), the participant's metric

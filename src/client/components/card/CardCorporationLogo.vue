@@ -644,7 +644,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * tm-has-i18n stops the v-i18n walker from descending into the stylized
  * brand-name text (SATURN / SYSTEMS / INTERPLANETARY / CINEMATICS / …).

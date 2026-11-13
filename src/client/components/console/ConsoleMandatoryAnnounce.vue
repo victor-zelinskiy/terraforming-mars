@@ -58,7 +58,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * MANDATORY PROMPT CARD — the ONE calm "you have a pending decision" surface
  * the console shows INSTEAD of popping the mandatory surface open. It serves

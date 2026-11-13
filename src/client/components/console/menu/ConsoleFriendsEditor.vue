@@ -50,7 +50,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * Console-native FRIENDS editor (reached from the player profile) — the
  * primitive local list of remembered names offered as quick picks when

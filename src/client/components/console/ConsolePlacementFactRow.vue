@@ -103,7 +103,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ONE line of the placement dossier — a STABLE two-column composition: the
  * statement reads left in the reading face, the change reads right in the

@@ -648,7 +648,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * --table-beat: the TABLE owns the screen (draft pick landing / the
  *       research rise) — the modal chrome dissolves so the drafted tray and

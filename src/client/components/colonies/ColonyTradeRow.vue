@@ -70,7 +70,7 @@
     </template>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';

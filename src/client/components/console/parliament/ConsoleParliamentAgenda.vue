@@ -106,7 +106,7 @@
     </div>
   </Teleport>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ══ THE AGENDA — a read-only graphic track: the markers, the influence
  *       LEVELS, the TR and card rewards, the viewer's next step. Never a

@@ -49,7 +49,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, ref, useTemplateRef} from 'vue';
 import type {ChipDetail} from '@/client/components/endgame/insightDetail';
 import {$t} from '@/client/directives/i18n';

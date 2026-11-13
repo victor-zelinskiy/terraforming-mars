@@ -106,7 +106,7 @@
   </aside>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, useTemplateRef} from 'vue';
 import {$t} from '@/client/directives/i18n';
 import {CardName} from '@/common/cards/CardName';

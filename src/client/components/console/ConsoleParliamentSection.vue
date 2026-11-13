@@ -222,7 +222,7 @@
     </div>
   </section>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «ПАРЛАМЕНТ» — the Mars Parliament workspace (Turmoil Redux): ONE flow,
  *       one GAME SCREEN. Three instruments under one fixed head line (the

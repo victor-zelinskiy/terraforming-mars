@@ -25,7 +25,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType} from 'vue';
 import {BoardFact} from '@/common/boards/BoardInformationFacts';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';

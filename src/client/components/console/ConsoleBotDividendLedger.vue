@@ -80,7 +80,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType} from 'vue';
 import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {BotDividendReading, BotDividendRuleLine} from '@/client/components/marsbot/botDividendReading';

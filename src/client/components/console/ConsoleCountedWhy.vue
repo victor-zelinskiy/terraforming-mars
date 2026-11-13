@@ -97,7 +97,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «РАСЧЁТ» OF A COUNTED PLAY (TR45, the owner's accent 2026-10-12: «how many microbes, and why, before the play»;
  * named «Почему N» until 2026-10-30 — the owner: the number repeated the result, the word read oddly)

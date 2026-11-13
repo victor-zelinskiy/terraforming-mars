@@ -47,7 +47,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DOSSIER'S PARLIAMENT PLATE (TR60): the seat's standing as OBJECTS in the Parliament's own vocabulary
  * (`docs/claude/parliament-glossary.md`): the INFLUENCE badge with the number the seat votes with, the CAREER as a

@@ -50,7 +50,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE ALBUM SPINE — the ONE place an album's page position renders: «LB ‹ 2 / 4 › RB» seated in a chamfered
  * instrument well, a progress hairline under the numbers. Extracted from the hand dock's bay (P87) so every album

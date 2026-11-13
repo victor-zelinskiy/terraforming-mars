@@ -114,7 +114,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * THE CONSOLE SETTINGS CONSOLE — the home of every PERSISTENT console
  * preference (CLAUDE.md: settings live here, NOT in the fixed-shape in-game

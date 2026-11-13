@@ -24,7 +24,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «ОБРАТНЫЙ ХОД» — the shell-level stage of a PARAMETER SWING (TR47
  * Ecological Experiment; the director: scaleSwing/scaleSwingDirector.ts).

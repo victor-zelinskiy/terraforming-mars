@@ -6,7 +6,7 @@
      :data-colony-build-degraded="colonyBuildState.degraded ? '' : undefined"></i>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE BUILD TRANSACTION'S WITNESS — what a probe reads off the DOM: the scene's phase while it plays, and the
  * confession of a flight that could not be played (`degraded`, sticky until the next arm).

@@ -115,7 +115,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * CONSOLE-NATIVE GAME-ROLLBACK — a main-menu plate for LOCAL games. Visible to
  * every player when the menu talks to this machine's own server (plus the

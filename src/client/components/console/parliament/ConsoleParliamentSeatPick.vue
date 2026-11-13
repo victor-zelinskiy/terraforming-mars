@@ -27,7 +27,7 @@
     <span class="con-parl__cta-label">{{ $t(flow.stage === 'submitting' ? 'Performing…' : 'Take the delegate') }}</span>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * CHAIRMAN SEAT — the mandatory pick: every delegate of the viewer's is on
  * a resolution; ◀ ▶ walk the candidate cards, A takes the delegate off the

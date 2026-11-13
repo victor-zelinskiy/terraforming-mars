@@ -17,7 +17,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * Console-native SYSTEM ALERT panel — the pad-navigable replacement for the
  * desktop native <dialog> alert (whose OK button the controller cannot

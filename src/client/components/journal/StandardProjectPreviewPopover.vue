@@ -20,7 +20,7 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';

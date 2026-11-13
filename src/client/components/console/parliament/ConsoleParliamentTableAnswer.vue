@@ -33,7 +33,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ══ «ОТВЕТ СТОЛА» (Turmoil Redux — TR78 Arwind Inc.): ONE stage for a card of the table answering a walk of the
  * Career, wherever the marker walked (the chairman quest, the sitting's winner step, a law's step, a card's own

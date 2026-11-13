@@ -63,7 +63,7 @@
     </div>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE PARLIAMENT'S FLIGHT LAYER — the SHELL-mounted stage of every proxy
  *       the Parliament flies (a delegate cube from a real place to a real place,

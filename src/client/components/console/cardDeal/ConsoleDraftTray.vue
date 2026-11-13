@@ -47,7 +47,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DRAFT TRAY — the ONE persistent "selected cards area" of the draft
  * (top-centre, ON THE TABLE, under the task modal). Picked cards fly

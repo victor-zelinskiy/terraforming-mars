@@ -100,7 +100,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * СЧЁТ — the score BOARD (TR69 «ОБЗОР В МАСШТАБЕ»): the places are COLUMNS, each led by the corporation's face, its
  * place medal, the name and the total in the score cell's language; the categories are ROWS led by their medallion

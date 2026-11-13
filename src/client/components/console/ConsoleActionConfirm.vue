@@ -74,7 +74,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE ACTION CONFIRM — the quick wheel's own second press (PL-385): «Пас» always, the heat conversion when the TABLE
  * answers it (PL-067's mini-stage — the ruling Greens' 2 M€, a bonus step the raise crosses) or the step is empty.

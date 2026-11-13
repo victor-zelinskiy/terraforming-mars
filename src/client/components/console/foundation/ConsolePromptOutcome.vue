@@ -26,7 +26,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE CONSEQUENCE FOOTER — what confirming does to the player, in the decision's own tone, at the plate's foot
  * (beside where every verb lives: the command bar under it). ONE line with a reserved height: choosing re-flows

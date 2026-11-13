@@ -56,7 +56,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * «МОИ КАМПАНИИ» — the console-native campaign list: a pregame SCREEN on the
  * showcase chassis (`ConsoleLobbyScreen` + `ConsoleLobbyCard`, TR68 —

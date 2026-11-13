@@ -202,7 +202,7 @@
   </dialog>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * `.stop` on the backdrop click: closing the fullscreen by clicking
  * outside the card must NOT bubble to document-level outside-click

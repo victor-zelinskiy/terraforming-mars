@@ -39,7 +39,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
   </template>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * vize1215 fork: legacy inline `<Milestones>` + `<Awards>` strip
  * removed entirely. The fork ships dedicated bottom-bar overlays

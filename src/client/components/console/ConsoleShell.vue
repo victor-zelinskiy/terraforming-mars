@@ -1607,7 +1607,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * ConsoleShell — the console-first TV shell (docs/CONSOLE_MODE_CONCEPT.md;
  * feedback iteration 2 = the console COMMAND MODEL):

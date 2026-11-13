@@ -18,7 +18,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * BOARD CARD-BONUS LAYER — the app-level stage the "card bonus lifts off
  * the board cell" cinematic plays on (mounted once in ConsoleShell).

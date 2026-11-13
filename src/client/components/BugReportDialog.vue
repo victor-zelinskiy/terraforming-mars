@@ -17,7 +17,7 @@
   </dialog>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {onMounted, ref, useTemplateRef} from 'vue';
 import {useClipboard} from '@vueuse/core';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';

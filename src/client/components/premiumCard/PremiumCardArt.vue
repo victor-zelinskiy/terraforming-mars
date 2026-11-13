@@ -28,7 +28,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, onMounted, ref, useTemplateRef, watch} from 'vue';
 import {CARD_ART_FALLBACK_URL, CardArtTier, cardArtUrlAtTier, PremiumCardArt} from '@/client/cards/cardArt';
 import {useFlowScope} from '@/client/console/session/useFlowScope';

@@ -47,7 +47,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «ТАЙЛ ПЛАТИТ КАРТЕ» — the shell-level stage of a card reward a PLACED TILE
  * pays (TR21 Arboretum — the cities beside it; TR30 Red Museum, Pets, Martian

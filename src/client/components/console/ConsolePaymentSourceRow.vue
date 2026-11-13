@@ -69,7 +69,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ONE payment SOURCE row — the atom shared by the compact summary and the
  * expanded editor. Both densities render THIS markup: same icon, same

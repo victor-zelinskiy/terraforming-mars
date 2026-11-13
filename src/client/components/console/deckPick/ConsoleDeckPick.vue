@@ -169,7 +169,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DRAW & SELECT SURFACE. Standalone it is an ordinary workspace-band
  *       member (`con-ws` + `.con-ws-band()`); EMBEDDED it is the same instance

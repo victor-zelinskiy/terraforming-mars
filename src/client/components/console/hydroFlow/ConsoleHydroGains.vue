@@ -51,7 +51,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «ВЫ ПОЛУЧИТЕ» — the ONE outcome block of the Hydronetwork, whatever door
  * the move came through. The player's own preview and a card's offer render

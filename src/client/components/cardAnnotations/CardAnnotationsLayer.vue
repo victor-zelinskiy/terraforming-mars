@@ -46,7 +46,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * FULLSCREEN CARD ANNOTATION LAYER — the premium rule overlay.
  *

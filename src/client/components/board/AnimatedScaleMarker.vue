@@ -29,7 +29,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Track cursor for a board global-parameter dial (temperature / oxygen /
  * venus). Mounts as a sibling of the `.global-numbers-value.val-*`

@@ -42,7 +42,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {computed, onMounted, ref} from 'vue';
 import * as constants from '@/common/constants';

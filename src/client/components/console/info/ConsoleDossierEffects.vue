@@ -20,7 +20,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DOSSIER'S EFFECTS PLATE (TR60): the seat's passive effects counted PER EFFECT in the explorer's four families
  * (and what is armed for the next card, TR49) — each family a medallion in the explorer's own rail colour with a

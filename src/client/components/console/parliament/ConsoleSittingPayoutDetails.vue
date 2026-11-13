@@ -96,7 +96,7 @@
     </ConsoleScrollArea>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «ПОДРОБНОСТИ ВЫПЛАТ» (the owner, 2026-10-24; P71 · ledger CY) — the step one level below the results card's ledger:
  * WHY every seat got exactly what it got. A BREAKDOWN PER SEAT (`payoutDetailsModel.ts`): over the columns, ONE strip

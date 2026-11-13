@@ -46,7 +46,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * VP BADGE — anchored bottom-right inside the lower section (never touching
  * the card border; the mechanics panel reserves its column via the

@@ -68,7 +68,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ПАРАМЕТРЫ — the planet's own story. A parameter list on ↑/↓ (icon +
  * name + final value, only the tracks this game actually has), ONE chart

@@ -5,7 +5,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «YOUR CUBE ON A PARTY'S BANNER» — the premium vocabulary's glyph for the
  * printed Septem Tribus:redux mark (render item `BANNER_CUBE`): the owner's

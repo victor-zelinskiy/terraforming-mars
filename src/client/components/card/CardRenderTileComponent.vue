@@ -2,7 +2,7 @@
   <div :class="tiles"><div v-if="symbols.length > 0" :class="symbols"></div></div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {computed} from 'vue';
 import {ICardRenderTile} from '@/common/cards/render/Types';

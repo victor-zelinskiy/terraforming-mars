@@ -10,7 +10,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType} from 'vue';
 import {BoardFact, BoardFactGroup, groupFactsByRecipient} from '@/common/boards/BoardInformationFacts';
 import {Color} from '@/common/Color';

@@ -16,7 +16,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {computed, onMounted} from 'vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';

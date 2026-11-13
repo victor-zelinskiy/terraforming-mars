@@ -108,7 +108,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType} from 'vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsolePlayedTargetTag from '@/client/components/console/played/ConsolePlayedTargetTag.vue';

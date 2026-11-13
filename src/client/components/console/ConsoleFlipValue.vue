@@ -14,7 +14,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * ConsoleFlipValue — the premium value SWAP for the console top HUD
  * (ConsoleStatusStrip). A calm mechanical flip-counter beat: the old value

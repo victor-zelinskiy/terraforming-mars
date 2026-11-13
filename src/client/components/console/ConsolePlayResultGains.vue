@@ -19,7 +19,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * WHAT THE PLAY ADDS BEYOND ITS RESOURCES (P81 · the owner, 2026-11-01): chips IN the result, on the result chips'
  * own chassis — «+ [знак] Эффект», «+ [знак] Действие» (the same glyphs the «Эффекты» / «Действия карт» screens

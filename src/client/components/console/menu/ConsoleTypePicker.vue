@@ -32,7 +32,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * ADD PARTICIPANT type picker (console create) — two big plates: PLAYER
  * (live player; invite flow is honestly labelled as a future feature with

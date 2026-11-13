@@ -51,7 +51,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «За партию» — the console rendering of ONE effect's whole-game summary
  * (EffectSummaryViewModel — the shared pure model the frozen desktop

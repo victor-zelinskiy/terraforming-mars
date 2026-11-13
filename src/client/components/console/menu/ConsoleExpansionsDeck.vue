@@ -62,7 +62,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * EXPANSIONS deck renderer (console create) — the in-scope modules as a 2-column grid of
  * big toggle plates (icon / name / ON-OFF state chip), under the DECK METER (T04): the

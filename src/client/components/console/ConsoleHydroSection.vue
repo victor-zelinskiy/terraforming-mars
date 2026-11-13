@@ -1187,7 +1187,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * A NESTED FULL SCREEN GETS THE SCENE (`frameSteps: 'scene'`): while a
  *       workspace stands inside this one — the colonies a repeated «Летающая

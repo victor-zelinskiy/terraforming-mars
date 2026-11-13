@@ -5,7 +5,7 @@
        @animationend="onAnimationEnd"/>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * BRD-2 (docs/PERFORMANCE_AUDIT.md): native :title dropped — it ran $t(description) for
  *       every tile on every board remount, and the fork's design bans native tooltips in

@@ -21,7 +21,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «ШАГ ШКАЛЫ ПЛАТИТ» — the shell-level stage of a card that answers each step
  * of a scale (TR24 Venusian Census, Aphrodite; the director:

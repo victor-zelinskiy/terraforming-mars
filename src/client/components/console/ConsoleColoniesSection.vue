@@ -442,7 +442,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE COLONY WORKSPACE. `con-ws` = the workspace-family marker (rail
  *       lifted + ringed while this section lives); the `__frame` plate is the

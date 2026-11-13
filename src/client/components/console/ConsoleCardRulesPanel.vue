@@ -29,7 +29,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * CONSOLE fullscreen-card RULES PANEL (docs/CONSOLE_TV_PREMIUM_PLAN.md Этап 1-R2
  * + the perfection pass) — the stable right-hand rules surface of the

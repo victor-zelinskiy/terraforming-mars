@@ -17,7 +17,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
   </PremiumCard>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * CARD FACE FACADE — the ONE routing point onto the premium card renderer.
  * EVERY card type renders premium since desktop-removal wave 4 (projects +

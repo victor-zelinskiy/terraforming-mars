@@ -74,7 +74,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * «СПОСОБ ОПЛАТЫ» — the payment paths of a trade, as ROWS. ONE component for
  * every stage that composes a trade: the colony focus stage and the

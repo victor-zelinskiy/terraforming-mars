@@ -191,7 +191,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE WILD-RESOURCE CHOICE — ONE inner step for every «a standard resource OR a resource on a card» (P43 · ledger EO,
  * extracted from the Venus bonus's inner pre-select, P89 · EM). A LEVEL of its host (the composer's `sub`), standing

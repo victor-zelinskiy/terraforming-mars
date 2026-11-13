@@ -65,7 +65,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * CONSOLE fullscreen-card HISTORY PANEL — the СТАТИСТИКА tab of the inspect
  * dossier (the console Action Browser's X-inspect). Read-only presentation of

@@ -9,7 +9,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, onBeforeUnmount, onMounted, watch} from 'vue';
 import {realtimeService, realtimeState} from './realtimeService';
 import {isRealtimeDebug, realtimeClientEnabled} from './realtimeConfig';

@@ -29,7 +29,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ══ КВИТАНЦИЯ СТОЛА (Turmoil Redux — Sponsored Projects RX40): a card payout that ASKED NOBODY, shown on the
  * seat's own cards. The sitting's screen holds none of them, and the payout has no picker whose capsules a

@@ -78,7 +78,7 @@
   </aside>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * LAUNCH BRIEFING panel (console create, right column) — the live mission
  * readout: crew chips, map, expansions, rules, then the READINESS block

@@ -35,7 +35,7 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Teleported to <body> so it escapes the host editor's stacking context
  * (.cm-overlay, z 11500) and covers EVERYTHING, including the command bar.

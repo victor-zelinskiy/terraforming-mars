@@ -23,7 +23,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Root of the premium END-OF-GAME experience. Mounted at App level (next to
  * DraftFlowOverlay) so the `:key="playerkey"` remount on every server poll

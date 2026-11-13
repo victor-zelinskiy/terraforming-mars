@@ -22,7 +22,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * CARD DISCARD LAYER — the fixed stage of the ONE "a card physically leaves
  * the hand" cinematic (consoleCardDiscard.ts / discardDirector.ts).

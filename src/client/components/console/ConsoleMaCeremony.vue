@@ -74,7 +74,7 @@
   </transition>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * CONSOLE MA CEREMONY — the announcement channel for milestone claims /
  * award fundings, for EVERY player at the table (it replaces the

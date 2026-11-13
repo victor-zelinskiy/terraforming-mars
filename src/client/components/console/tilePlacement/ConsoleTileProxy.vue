@@ -6,7 +6,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE FLYING TILE — the ONE anatomy of a tile that lands (a twin of the real
  * board tile): the thickness EDGE (the same hex art, darkened, offset down —

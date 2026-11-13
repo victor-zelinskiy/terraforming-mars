@@ -63,7 +63,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType, useTemplateRef} from 'vue';
 import {Tag} from '@/common/cards/Tag';
 import {$t} from '@/client/directives/i18n';

@@ -12,7 +12,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * A CARD THAT HOLDS RESOURCES — the premium vocabulary's glyph for «a card that
  * ALREADY has a resource» (Turmoil Redux TR53 Frontier Labs, render item

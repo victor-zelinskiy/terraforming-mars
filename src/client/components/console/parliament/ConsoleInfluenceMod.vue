@@ -1,7 +1,7 @@
 <template>
   <span v-if="reading.bonus > 0" class="con-inf-mod" :data-hint="hint" :aria-label="hint" data-inf-mod :data-inf-mod-amount="reading.bonus">+{{ reading.bonus }}</span>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE MODIFIER OF INFLUENCE (T05 Event Analysts — `influenceReading.ts`): «+N» beside an influence number that
  *       already IS the final one, saying how much of it stands beyond the Career. Drawn only when N > 0; it never

@@ -169,7 +169,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * data-motion-*: rides the shared `.con-shade` dim + the surface-motion
  *       director (wheel-handoff-aware entry) — no own backdrop/CSS entry.

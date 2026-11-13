@@ -56,7 +56,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE COMPACT «Сработает» ROW — what the TABLE answers to this play / action,
  * in chips alone: no card names, no groups, no numbers to add up (the layer

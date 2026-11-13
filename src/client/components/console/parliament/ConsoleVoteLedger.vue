@@ -27,7 +27,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE LEDGER OF OUTCOMES — the vote panel's row of chips (Turmoil Redux).
  *

@@ -4,7 +4,7 @@
         </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import CardRowComponent from '@/client/components/card/CardRowComponent.vue';
 import {ItemType} from '@/common/cards/render/Types';

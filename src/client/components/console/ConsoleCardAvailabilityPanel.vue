@@ -73,7 +73,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * ConsoleCardAvailabilityPanel — the ONE presentation of "how available is
  * this card in the current game", in three densities:

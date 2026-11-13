@@ -23,7 +23,7 @@
   </teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * The single teleported renderer for the unified scale-HUD tooltip. Reads the
  * module-level `scaleTooltipState` (written by every scale hover surface —

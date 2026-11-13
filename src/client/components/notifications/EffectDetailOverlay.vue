@@ -45,7 +45,7 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, onBeforeUnmount, ref, watch} from 'vue';
 import {paths} from '@/common/app/paths';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';

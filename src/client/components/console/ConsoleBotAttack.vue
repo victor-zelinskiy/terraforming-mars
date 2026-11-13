@@ -92,7 +92,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE BOT ATTACK — the console's compact modal for «бот атаковал вас».
  *

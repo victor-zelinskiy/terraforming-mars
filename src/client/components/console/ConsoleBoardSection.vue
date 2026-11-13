@@ -68,7 +68,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * P27: the selection spotlight paints ONLY while the board is LIVE
  *       (inspection mode / placement) — on the calm board home no cell reads

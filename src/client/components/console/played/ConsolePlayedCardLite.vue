@@ -3,7 +3,7 @@
   <ConsoleCardFaceLite v-else :name="name" />
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE tableau card face of the «Разыграно» overlay — the cheapest honest
  * printed face available:

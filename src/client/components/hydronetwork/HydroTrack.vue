@@ -45,7 +45,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Composed layout — no horizontal/vertical scroll, premium finish-zone:
  *   row 1:  0 → 1 → 2 → 3 → 4 → 5

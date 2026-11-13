@@ -43,7 +43,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {GameOptionsModel} from '@/common/models/GameOptionsModel';
 import {PathfindersModel} from '@/common/models/PathfindersModel';

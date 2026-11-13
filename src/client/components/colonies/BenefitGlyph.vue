@@ -153,7 +153,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Compact, type-aware renderer for a single colony benefit slot
  * (one position on the build / trade / colony bonus tracks). Replaces

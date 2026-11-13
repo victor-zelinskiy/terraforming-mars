@@ -13,7 +13,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {computed} from 'vue';
 import {LogMessage} from '@/common/logs/LogMessage';

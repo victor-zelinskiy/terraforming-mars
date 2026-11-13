@@ -159,7 +159,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ── «ЭКРАН БОТА» — the bot's internals HUB, as a DOSSIER (the Information polish of 2026-10-19): every rule
  * stands WITH ITS OBJECT. One plate per thing the algorithm plays with — the corporation (and the difficulty that

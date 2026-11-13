@@ -18,7 +18,7 @@
     :aria-label="ariaLabel" />
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * A compact planetary-EVENT chip pinned to a global-parameter threshold. A thin
  * wrapper over the unified ArcScaleMarkerChip (one visual language with the

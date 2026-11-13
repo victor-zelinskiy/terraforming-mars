@@ -57,7 +57,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * THE DECK METER (T04 «the deck is visible before launch») — what the party's decks will
  * hold for the creator's CURRENT settings, read off the server's own count

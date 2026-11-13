@@ -12,7 +12,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, onMounted, ref} from 'vue';
 import raw_settings from '@/genfiles/settings.json';
 import {paths} from '@/common/app/paths';

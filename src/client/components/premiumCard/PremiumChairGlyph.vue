@@ -2,7 +2,7 @@
   <svg class="pchair" viewBox="0 0 16 16" aria-hidden="true"><path :d="PATH" /></svg>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE CHAIR — the ONE mark of the chairmanship (Turmoil Redux). A resolution's
  * face prints it before its quest's condition INSTEAD of the words «задание

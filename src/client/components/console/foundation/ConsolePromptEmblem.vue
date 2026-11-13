@@ -17,7 +17,7 @@
   </svg>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE TONE EMBLEM — the decision's character as a SHAPE, so it never rests on colour alone:
  *   gain    — a circle with a plus;

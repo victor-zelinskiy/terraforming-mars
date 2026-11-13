@@ -58,7 +58,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * THE PREGAME SCREEN CHASSIS (TR68 «ПРЕДИГРОВОЕ — ЭТО ВИТРИНА», docs/claude/console/pregame-showcase.md) — the one
  * grammar of a product list before the game: head (the stable context «Главное меню», the title, the slice segment,

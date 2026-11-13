@@ -19,7 +19,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE ONE-PLAY CLASS'S FLIGHT LAYER (TR49) — mounted once by the shell (a flight stage inside a teleported surface
  * inherits its containing block). Each token is the armed effect's own badge — the waiver's struck plate, «±2»,

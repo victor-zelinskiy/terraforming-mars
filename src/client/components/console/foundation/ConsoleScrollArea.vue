@@ -11,7 +11,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * ConsoleScrollArea — THE controlled scroll primitive of the console-native
  * UI (foundation layer; docs/CONSOLE_FOUNDATION.md §3.3).

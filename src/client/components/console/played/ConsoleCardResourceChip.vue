@@ -7,7 +7,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * THE SELF-TARGET PROXY'S RESOURCE READING.
  *

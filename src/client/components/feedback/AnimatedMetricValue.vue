@@ -20,7 +20,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Headless-style host: rendered as a sibling next to the actual
  * number element (caller is expected to give the parent

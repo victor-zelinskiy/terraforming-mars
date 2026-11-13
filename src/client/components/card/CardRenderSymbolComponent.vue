@@ -5,7 +5,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 
 import {computed} from 'vue';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';

@@ -24,7 +24,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * One MarsBot bonus card, rendered as the player will EXPERIENCE it in THIS
  * game: icon-anchored effect lines already resolved for the current expansion

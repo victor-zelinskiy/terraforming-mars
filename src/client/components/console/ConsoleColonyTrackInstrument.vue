@@ -186,7 +186,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE TRADE-TRACK INSTRUMENT — the colony's game object, drawn ONCE for
  * every console surface that shows a colony at full size: the trade stage

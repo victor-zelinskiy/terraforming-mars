@@ -6,7 +6,7 @@
   <span v-if="card !== undefined && changeable" class="con-colfocus__steprow-change">{{ $t('Change selection') }}</span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE VALUE OF A TRADE'S «КУДА» ROW — one reading for every stage a trade
  * composes on (the colony focus stage, the fleet-dock stage): the resource,

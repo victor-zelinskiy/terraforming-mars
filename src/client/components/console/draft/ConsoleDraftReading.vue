@@ -24,7 +24,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE PACKET SHOWCASE'S READING ROW (T10 · CE) — ONE quiet line under the
  * packet: the card under the cursor's NAME and, only when there is

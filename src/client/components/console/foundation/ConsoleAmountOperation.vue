@@ -32,7 +32,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE AMOUNT OPERATION PREVIEW — one composition for every operation-shaped
  * SelectAmount (docs/claude/energy-heat-conversion.md § console conversion

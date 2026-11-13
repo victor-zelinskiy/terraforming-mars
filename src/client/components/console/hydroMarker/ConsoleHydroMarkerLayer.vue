@@ -7,7 +7,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * HYDRO MARKER LAYER — the app-level stage the hydronetwork marker-advance
  * glides on (mounted once in ConsoleShell). A single small token proxy in

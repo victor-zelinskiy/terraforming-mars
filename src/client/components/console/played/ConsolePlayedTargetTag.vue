@@ -39,7 +39,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {PropType} from 'vue';
 import {$t} from '@/client/directives/i18n';
 import TagGlyph from '@/client/components/Tag.vue';

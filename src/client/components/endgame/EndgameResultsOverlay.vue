@@ -105,7 +105,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Full-screen premium END-OF-GAME results overlay. Covers the entire viewport
  * (board + both side bars) — after the game ends this IS the main surface.

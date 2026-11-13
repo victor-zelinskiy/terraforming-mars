@@ -552,7 +552,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * `con-ws` — the WORKSPACE-family marker: `.con-root--ws-open` lifts
  *       and rings the player rail while this screen lives (leave transitions

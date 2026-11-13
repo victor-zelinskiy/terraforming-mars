@@ -22,7 +22,7 @@
       <div class="con-sit__reward" :class="{'con-sit__reward--field': field, 'con-sit__reward--fullstep': field && fullStep}" :data-sit-fullstep="field && fullStep ? '' : undefined">
         <div class="con-sit__hero" :class="{'con-sit__hero--field': field}">
           <!-- The carried enacted card lands here (one DOM instance, teleported by the government) while the step holds the field. -->
-          <div class="con-sit__card" data-parl-sit-hero></div>
+          <div class="con-sit__card" data-parl-sit-hero v-embed-zone></div>
         </div>
         <div class="con-sit__zone" :class="{'con-sit__zone--on': field, 'con-sit__zone--ledger': ledger !== undefined}" :data-sit-zone-step="stepOpen ? '' : undefined">
           <div class="con-sit__embed" :class="{'con-sit__embed--on': stepOpen}" data-embed-slot="parliament-stage"></div>
@@ -255,7 +255,7 @@
     </section>
   </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ══ THE SITTING (Turmoil Redux, v2) — «ПАРЛАМЕНТ › ЗАСЕДАНИЕ»: the political
  *       phase's ONE flow, four STAGES as POSES of this one always-mounted
@@ -277,6 +277,7 @@
  */
 
 import {computed, onBeforeUnmount, onMounted, onUpdated, PropType, ref, useTemplateRef} from 'vue';
+import {vEmbedZone} from '@/client/directives/vDirectives';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentModel, ParliamentPhaseSummaryModel, seatEnacts, seatRestricted} from '@/common/models/ParliamentModel';

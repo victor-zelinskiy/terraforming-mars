@@ -6,7 +6,7 @@
                      :artTier="large ? 'full' : 'thumb'" />
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * `<premium-card-face>` is the LAZY binding `PremiumCardFace` this script
  * imports from `components/asyncComponents.ts` (typed as a plain `Component`)

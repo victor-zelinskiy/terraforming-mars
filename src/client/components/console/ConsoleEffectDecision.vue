@@ -83,7 +83,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * EFFECT DECISION — the console's ONE screen for an optional game decision.
  *

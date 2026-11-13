@@ -31,7 +31,7 @@
   </Teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Teleported: a `position: fixed` overlay inside a transformed/filtered
  * ancestor is positioned against THAT ancestor; the body is the safe

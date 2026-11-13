@@ -31,7 +31,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import ConsoleTenderChip from './ConsoleTenderChip.vue';
 import {computed, PropType} from 'vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';

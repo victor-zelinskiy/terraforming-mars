@@ -39,7 +39,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * DECK-DRAW LAYER — the app-level stage the "cards physically come off the
  * top-bar project deck" cinematic plays on (mounted once in ConsoleShell).

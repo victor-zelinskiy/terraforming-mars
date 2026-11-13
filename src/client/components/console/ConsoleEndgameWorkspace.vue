@@ -336,7 +336,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * CONSOLE FINAL SCORING — the post-game workspace (`?console=1`).
  *

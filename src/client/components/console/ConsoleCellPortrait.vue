@@ -50,7 +50,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE CELL'S PORTRAIT (TR67 «КЛЕТКА — ОДНО ДОСЬЕ») — the head of the board
  * column in every mode: the square at scene scale (its tile's real art, or

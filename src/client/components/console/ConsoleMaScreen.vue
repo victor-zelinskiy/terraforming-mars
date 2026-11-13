@@ -238,7 +238,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * data-motion-*: the director animates the panel (NON_SHADE_OWNERS —
  *       the OWN dim stays by design; density lives in the panel materials).

@@ -24,7 +24,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE PARTY COLUMN of the resolution inspector (Turmoil Redux) — the
  * left gutter of the fullscreen viewer, where a project card keeps its

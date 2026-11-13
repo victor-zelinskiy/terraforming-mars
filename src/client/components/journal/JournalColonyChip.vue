@@ -10,7 +10,7 @@
   <ColonyPreviewPopover :name="name" :anchor="anchor" :visible="previewVisible" />
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {ref, useTemplateRef} from 'vue';
 import {vI18n} from '@/client/directives/vDirectives';
 import {ColonyName} from '@/common/colonies/ColonyName';

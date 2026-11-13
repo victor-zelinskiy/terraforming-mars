@@ -392,7 +392,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * Console resource + tag panel (feedback iteration: the player's key
  * numbers must NEVER be hidden). Left rail, visible in every section:

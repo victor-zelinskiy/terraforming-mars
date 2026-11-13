@@ -58,7 +58,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {vI18n} from '@/client/directives/vDirectives';
 import {HydroStageVM} from './hydroNetworkModel';
 import HydroReward from './HydroReward.vue';

@@ -35,7 +35,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * DEV-ONLY visual harness for the fullscreen ARCHIVE ENTRY (`?lorePlayground`).
  *

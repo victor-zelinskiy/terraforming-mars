@@ -89,7 +89,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Dev-only QA page (?cubePlayground) for the premium PlayerCube.
  * Lets you eyeball every colour at every size, on representative board

@@ -136,7 +136,7 @@
   </aside>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * ConsoleJournalPanel — the console-NATIVE journal surface (the flagship of
  * the right-panel/journal iteration). It REPLACES the right info panel

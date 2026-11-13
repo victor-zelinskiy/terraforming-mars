@@ -60,7 +60,7 @@
   </template>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * TRACK MOVEMENT: capsule + from→to + mini-scale (+ reached-cell action)
  *

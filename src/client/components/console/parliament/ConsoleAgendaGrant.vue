@@ -49,7 +49,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * A STEP OF THE CAREER A LAW GRANTS THE SEATS (Turmoil Redux — Reds Budget:
  * «each player advances their Agenda marker 1 step»): ONE graphic block

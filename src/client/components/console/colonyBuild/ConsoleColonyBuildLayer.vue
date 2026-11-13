@@ -15,7 +15,7 @@
   <ConsoleColonyBuildWitness />
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * COLONY-BUILD HERO STAGE — the fixed, app-level layer of the "the build
  * bonus frees the slot, then my cube takes it" scene (consoleColonyBuild /

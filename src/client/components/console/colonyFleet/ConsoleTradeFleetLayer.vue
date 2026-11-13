@@ -6,7 +6,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * TRADE FLEET LAYER — the ONE app-level stage the console colony-trade
  * launch flies on (mounted once in ConsoleShell, above the console surfaces

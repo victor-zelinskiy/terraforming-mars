@@ -17,7 +17,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed} from 'vue';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import Bonus from '@/client/components/Bonus.vue';

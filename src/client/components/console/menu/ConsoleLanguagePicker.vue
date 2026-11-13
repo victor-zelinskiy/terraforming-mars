@@ -25,7 +25,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * Console-native LANGUAGE picker — the unobtrusive replacement for the
  * desktop footer's flag-chip row. Opened by a hotkey (Y on the main menu),

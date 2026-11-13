@@ -259,7 +259,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE COLONY DOSSIER (X = «Осмотреть») — the ONE read of a colony, hosted in
  * two places (docs/claude/console/colony-inspect.md):

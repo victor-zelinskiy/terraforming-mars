@@ -757,7 +757,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * COLONY FOCUS STAGE (iteration 3 — the premium detail scene). The
  * workspace's DEEPER state for ONE colony; the crumb above already says

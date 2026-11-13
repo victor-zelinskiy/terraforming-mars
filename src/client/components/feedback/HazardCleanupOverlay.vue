@@ -33,7 +33,7 @@
   </teleport>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {hazardCleanupState} from '@/client/components/feedback/hazardCleanupTransition';

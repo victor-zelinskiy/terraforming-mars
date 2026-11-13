@@ -41,7 +41,7 @@
   </header>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE PROMPT-MODAL HEAD — one header for every decision modal (`console_prompt.less`).
  * Reading order is fixed on every surface:

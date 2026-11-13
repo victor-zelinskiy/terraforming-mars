@@ -213,7 +213,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * Console status strip (docs/CONSOLE_MODE_CONCEPT.md §6; P27 rework) — the
  * TV-scale top HUD: global parameters + generation on the left, compact

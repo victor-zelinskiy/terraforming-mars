@@ -9,7 +9,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * COST CLUSTER OVERLAY — the recognisable megacredit tile pinned over the
  * LEFT end of the title plate (own layer, above plate + frame). Shows the

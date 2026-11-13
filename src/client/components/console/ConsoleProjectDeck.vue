@@ -30,7 +30,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * ConsoleProjectDeck — the top-HUD project draw pile (ConsoleStatusStrip,
  * between the global parameters and the generation block).

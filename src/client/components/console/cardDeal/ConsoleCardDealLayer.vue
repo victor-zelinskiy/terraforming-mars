@@ -24,7 +24,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * CARD DEAL LAYER — the fixed full-viewport stage the deal cinematic
  * plays on: the dealer's deck stack (card backs, bottom-centre) + one

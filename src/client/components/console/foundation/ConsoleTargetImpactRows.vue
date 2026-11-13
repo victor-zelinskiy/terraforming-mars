@@ -10,7 +10,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE ONE RENDERER of a target's server rows (`TargetImpactChange` — `current → resulting`): a pill per row, the
  * resource icon or — for a MarsBot production hit — the TRACK's identity tag, the step count beside a production /

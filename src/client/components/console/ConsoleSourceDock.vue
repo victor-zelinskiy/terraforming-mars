@@ -64,7 +64,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE SOURCE DOCK — the console's ONE answer to «почему этот промт пришёл?».
  *

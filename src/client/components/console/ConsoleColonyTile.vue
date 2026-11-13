@@ -167,7 +167,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * CONSOLE COLONY TILE (iteration 2 — Steam-Deck-first). A compact, couch-
  * readable strategy card: name + planet medallion, the PARKED TRADE FLEET

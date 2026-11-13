@@ -17,7 +17,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * The honest STRANDED-PROMPT guard panel — CTS T0 (§CTS-7.3). Shown when
  * the leak detector finds a server prompt with NO serving surface in

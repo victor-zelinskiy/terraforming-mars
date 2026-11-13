@@ -32,7 +32,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * data-motion-*: the director animates the panel (its authored
  *       rise-from-the-bar-band entry is re-expressed in GSAP); the OWN light

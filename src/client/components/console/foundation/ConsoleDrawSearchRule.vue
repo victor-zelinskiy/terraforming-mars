@@ -15,7 +15,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE SEARCH'S RULE as one inline phrase: each clause's word, then its
  * object as the tag's own medallion art — an excluded tag struck through

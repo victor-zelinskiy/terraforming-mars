@@ -35,7 +35,7 @@
         <HelpHotkeys v-if="isOpen('hotkeys')"></HelpHotkeys>
     </div>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {onMounted, ref, watch} from 'vue';
 import {vI18n} from '@/client/directives/vDirectives';
 import HelpIconology from '@/client/components/help/HelpIconology.vue';

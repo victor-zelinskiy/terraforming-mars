@@ -94,7 +94,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * Premium CARD-TARGET picker for an action / play step (e.g. "add 2 microbes to
  * ANOTHER card", or Predators / Ants: remove a resource from any card). Candidates

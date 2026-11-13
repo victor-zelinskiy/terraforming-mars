@@ -49,7 +49,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {computed, PropType} from 'vue';
 import {BoardName} from '@/common/boards/BoardName';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';

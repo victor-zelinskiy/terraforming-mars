@@ -193,7 +193,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * TILE-PLACEMENT HERO STAGE — the fixed, app-level layer of the "tile
  * physically lands on Mars" scene (consoleTilePlacement /

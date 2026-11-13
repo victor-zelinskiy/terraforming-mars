@@ -112,7 +112,7 @@
     </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 import {ref, useTemplateRef} from 'vue';
 import {ExposedOf} from '@/client/components/exposedOf';
 

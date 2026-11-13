@@ -26,7 +26,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DOSSIER'S SECTIONS — ONE markup for every reading of the board column
  * (TR67 «КЛЕТКА — ОДНО ДОСЬЕ»): the placement's sections (`placementDossier`)

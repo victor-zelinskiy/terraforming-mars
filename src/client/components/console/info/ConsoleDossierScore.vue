@@ -26,7 +26,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE DOSSIER'S SCORE (TR60 · the Information polish of 2026-10-19 — «сдержанно и дорого»): ONE hero, then a quiet
  * ledger. The TOTAL is the zone's protagonist — the award shield and the number at the scene's largest size, nothing

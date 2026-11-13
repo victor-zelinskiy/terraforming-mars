@@ -136,7 +136,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * «Разбор хода» — the shared, static body both surfaces render. ONE premium
  * cause → effect flow: minimal identity header (the game summary lives in the

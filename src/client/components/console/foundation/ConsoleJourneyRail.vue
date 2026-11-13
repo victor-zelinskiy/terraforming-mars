@@ -126,7 +126,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * ONE LIVE FLOW OBJECT. Expanded, compact and terminal are three
  * superposed presentations inside one fixed-height viewport; changing

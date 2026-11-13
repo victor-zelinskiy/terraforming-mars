@@ -113,7 +113,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * CONSOLE «РАЗЫГРАНО» — the console-native played-cards TABLE (X from the
  * board home). ONE PAGE OF TABLE STACKS (the owner, 2026-10-19; TR65's

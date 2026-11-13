@@ -67,7 +67,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /**
  * LAUNCH CEREMONY (console create) — the final confirm overlay: the party at
  * a glance (crew / map / expansions), then ONE unambiguous context where

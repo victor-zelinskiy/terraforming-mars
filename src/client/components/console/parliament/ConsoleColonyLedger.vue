@@ -91,7 +91,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE COLONY LEDGER (Turmoil Redux — Colonial Affairs): the ONE reading of
  * «gain all your colony bonuses k times», wherever a surface needs it — the

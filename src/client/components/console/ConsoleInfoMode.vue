@@ -235,7 +235,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE INFORMATION WORKSPACE (Y) — an inspect-only OVERLAY workspace: it
  *       opens OVER whatever surface the player is on (board, any workspace, a

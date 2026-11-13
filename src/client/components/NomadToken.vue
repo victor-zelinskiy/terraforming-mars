@@ -94,7 +94,7 @@
   </span>
 </template>
 
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * THE MARS NOMADS MARKER — the one physical token of the travelling camp.
  *

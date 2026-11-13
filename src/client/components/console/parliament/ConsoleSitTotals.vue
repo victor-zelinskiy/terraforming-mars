@@ -41,7 +41,7 @@
     </span>
   </span>
 </template>
-<script setup lang="ts">
+<script setup vapor lang="ts">
 /*
  * WHAT ONE SEAT GOT — its TOTALS, one token per unit (`parliamentResultsModel.resultsTotalsOf`), never a chip per
  * record (P71 · ledger CY). The ONE renderer of a seat's total, shared by the results card's ledger and the
