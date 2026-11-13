@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {mount, VueWrapper} from '@vue/test-utils';
+import {defineComponent, h} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ColonyModel} from '@/common/models/ColonyModel';
@@ -240,5 +241,23 @@ describe('ConsoleColonyInspect', () => {
     expect(calls[3]).to.be.lessThan(0);
     expect(Math.abs(calls[0]), 'one step, whatever the stick\'s deflection').to.eq(Math.abs(calls[1]));
     expect(w.emitted('enter'), 'scrolling never enters').to.eq(undefined);
+  });
+
+  // A `<script setup>` component (step A of docs/claude/vapor/RECIPES.md): a parent's ref is ONLY what it exposes —
+  // read through a host's ref, because `wrapper.vm` sees the whole setup state and stays green with the list missing.
+  it('a PARENT\'s ref reaches exactly `handleIntent` — the one member the colonies section and the journal\'s controller call', () => {
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleColonyInspect, {ref: 'dossier', colony: luna(), players: players(), viewerColor: RED, embedded: true})]),
+    });
+    const host = mount(Host, {global: {...globalConfig.global, stubs: {GamepadGlyph: true, BarButtonIcon: true}}});
+    const dossier = (host.vm.$refs.dossier ?? undefined) as {handleIntent: (intent: GamepadIntent) => void} | undefined;
+    expect(dossier, 'the host\'s ref stands').to.not.eq(undefined);
+    expect(Object.keys(dossier ?? {}), 'the exposed list is the contract — nothing else of the script').to.deep.eq(['handleIntent']);
+
+    dossier?.handleIntent(B);
+    dossier?.handleIntent(A);
+    const inner = host.findComponent(ConsoleColonyInspect);
+    expect(inner.emitted('cancel')?.length, 'B through the ref leaves').to.eq(1);
+    expect(inner.emitted('enter')?.length, 'A through the ref goes on').to.eq(1);
   });
 });

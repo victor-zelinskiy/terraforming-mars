@@ -1,53 +1,4 @@
 <template>
-  <!--
-    THE COLONY DOSSIER (X = «Осмотреть») — the ONE read of a colony, hosted in
-    two places (docs/claude/console/colony-inspect.md):
-
-      · INSIDE the colony workspace (`embedded`): the X stage of the colonies
-        section, in the very region the trade stage opens in. The host draws
-        the crumb («КОЛОНИИ › ЛУНА › ОСМОТР»); B folds back to the grid; A
-        goes ON — «К торговле» — into the trade / build / pick stage for this
-        colony, with the planet, the track and the berths physically carried
-        over. A is NEVER gated here: the dossier reads, the stage decides.
-      · OVER the journal (standalone): a band surface with its own head
-        («ЖУРНАЛ › ЛУНА › ОСМОТР»), read-only history — B closes it.
-
-    THE JOB: the LORE, the RULES and the BIG ART — and, since the player is
-    one press from acting, WHAT THE ACT WOULD GIVE AND COST. Four zones, no
-    scroll on the TV (the composition's whole budget is «fits at 4K and 1080»):
-
-      SIDE (left)     the ARCHIVE ENTRY (the SAME block the card viewer and
-                      the party inspect use, fed by colonyLore.ts) with the
-                      ACT'S READING right under it: the server's verdict AS
-                      INFORMATION (never a gate), what the player receives at
-                      the current level and where a card resource lands. The
-                      payment paths are deliberately NOT here — they are the
-                      trade stage's own configuration (and a card can add
-                      paths without limit; a list that grows crowds the lore).
-                      The two stand as ONE group centred on the planet's axis,
-                      mirrored by the rules panel on the right.
-      PLANET (centre) the colony as a physical object: the disc at the size
-                      the room allows, the state + the fleet under it, and the
-                      TRADE-TRACK INSTRUMENT — the exact component the trade
-                      stage resolves on — pinned to the column's foot.
-      RULES (right)   the cold-cyan reading panel: the THREE printed rules of
-                      the tile (construction, trade income, owner bonus) in
-                      the reading face, the recipients under the bonus, and
-                      the track rule in one sentence. NOTHING the instrument
-                      already draws is restated here (seats, the live reading,
-                      the fleet) — two surfaces share a subject only when
-                      they answer different questions.
-
-    READ-ONLY by construction: it submits nothing and captures nothing; A only
-    re-routes into the stage the grid's A would have opened. Button hints live
-    ONLY in the shell's bottom command bar.
-
-    MOTION: the dossier publishes exactly the marks the colony descend
-    choreography reads (`data-unfold-surface` / `-edge` / `-item` / `-late`,
-    `data-colony-focus-planet` / `-track` / `-slots`), so the grid → dossier
-    unfold, the carry of the three identities, the two reveal waves and the
-    fold back are the focus stage's own hooks — no dossier-specific director.
-  -->
   <div class="con-colinspect"
        ref="rootEl"
        :class="{
@@ -308,8 +259,60 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE COLONY DOSSIER (X = «Осмотреть») — the ONE read of a colony, hosted in
+ * two places (docs/claude/console/colony-inspect.md):
+ *
+ *   · INSIDE the colony workspace (`embedded`): the X stage of the colonies
+ *     section, in the very region the trade stage opens in. The host draws
+ *     the crumb («КОЛОНИИ › ЛУНА › ОСМОТР»); B folds back to the grid; A
+ *     goes ON — «К торговле» — into the trade / build / pick stage for this
+ *     colony, with the planet, the track and the berths physically carried
+ *     over. A is NEVER gated here: the dossier reads, the stage decides.
+ *   · OVER the journal (standalone): a band surface with its own head
+ *     («ЖУРНАЛ › ЛУНА › ОСМОТР»), read-only history — B closes it.
+ *
+ * THE JOB: the LORE, the RULES and the BIG ART — and, since the player is
+ * one press from acting, WHAT THE ACT WOULD GIVE AND COST. Four zones, no
+ * scroll on the TV (the composition's whole budget is «fits at 4K and 1080»):
+ *
+ *   SIDE (left)     the ARCHIVE ENTRY (the SAME block the card viewer and
+ *                   the party inspect use, fed by colonyLore.ts) with the
+ *                   ACT'S READING right under it: the server's verdict AS
+ *                   INFORMATION (never a gate), what the player receives at
+ *                   the current level and where a card resource lands. The
+ *                   payment paths are deliberately NOT here — they are the
+ *                   trade stage's own configuration (and a card can add
+ *                   paths without limit; a list that grows crowds the lore).
+ *                   The two stand as ONE group centred on the planet's axis,
+ *                   mirrored by the rules panel on the right.
+ *   PLANET (centre) the colony as a physical object: the disc at the size
+ *                   the room allows, the state + the fleet under it, and the
+ *                   TRADE-TRACK INSTRUMENT — the exact component the trade
+ *                   stage resolves on — pinned to the column's foot.
+ *   RULES (right)   the cold-cyan reading panel: the THREE printed rules of
+ *                   the tile (construction, trade income, owner bonus) in
+ *                   the reading face, the recipients under the bonus, and
+ *                   the track rule in one sentence. NOTHING the instrument
+ *                   already draws is restated here (seats, the live reading,
+ *                   the fleet) — two surfaces share a subject only when
+ *                   they answer different questions.
+ *
+ * READ-ONLY by construction: it submits nothing and captures nothing; A only
+ * re-routes into the stage the grid's A would have opened. Button hints live
+ * ONLY in the shell's bottom command bar.
+ *
+ * MOTION: the dossier publishes exactly the marks the colony descend
+ * choreography reads (`data-unfold-surface` / `-edge` / `-item` / `-late`,
+ * `data-colony-focus-planet` / `-track` / `-slots`), so the grid → dossier
+ * unfold, the carry of the three identities, the two reveal waves and the
+ * fold back are the focus stage's own hooks — no dossier-specific director.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, nextTick, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {buildBenefitAt, ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
 import {CardResource} from '@/common/CardResource';
@@ -332,7 +335,7 @@ import {
 import {presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
-import {translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -349,7 +352,8 @@ import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph
 import {CountedObjectGlyph} from '@/client/components/premiumCard/premiumCardIcons';
 import ConsoleColonyTrackInstrument, {ColonyTrackBonusMath} from '@/client/components/console/ConsoleColonyTrackInstrument.vue';
 
-import {berthBuildBenefit, colonyBerthsOf, nextBuildSlot} from '@/client/console/colonyBuild/colonyBerths';
+import {berthBuildBenefit, colonyBerthsOf, nextBuildSlot as nextBuildSlotOf} from '@/client/console/colonyBuild/colonyBerths';
+import {vI18n} from '@/client/directives/vDirectives';
 
 type Benefit = {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown};
 type CardTargetLine = {card: string, iconClass: string, before: number, after: number};
@@ -357,379 +361,370 @@ type CardTargetLine = {card: string, iconClass: string, before: number, after: n
 /** One d-pad / stick step of the rules panel (logical px; scaled by the profile). */
 const SCROLL_STEP_PX = 140;
 
-export default defineComponent({
-  name: 'ConsoleColonyInspect',
-  components: {
-    BenefitGlyph, ColonyFleetIcon, CardLoreAside, ConsoleWsHead, ConsoleScrollArea,
-    ConsolePlanetDisc, ConsoleColonyTrackInstrument, ConsoleColonyCitySeat, PremiumCountGlyph,
-  },
-  props: {
-    colony: {type: Object as PropType<ColonyModel>, required: true},
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** The colour of the city a standing «city» door would lay on this tile ('' = no such door / not a candidate). */
-    cityProjection: {type: String as PropType<Color | ''>, default: ''},
-    /** The viewer's own player id — enables the server target preview. */
-    playerId: {type: String, default: ''},
-    tradeOffset: {type: Number, default: 0},
-    /**
-     * A STEP of a workspace (rule 1 — host-agnostic): the shell chrome (the
-     * band, the plate, the head, the `con-ws` marker, the motion id) comes
-     * off; the composition, the input path and every anchor are untouched.
-     */
-    embedded: {type: Boolean, default: false},
-    /** The crumb root of the STANDALONE host (the journal door). */
-    hostRoot: {type: String, default: 'Journal'},
-    /** READ-ONLY history (the journal door): no verdict, no target planning
-     *  — and no A. The level's income still reads. */
-    readonly: {type: Boolean, default: false},
-    /** The act A leads to (the workspace door): names the block, picks the reward. */
-    actIntent: {type: String as PropType<ColonyFocusIntent>, default: 'trade'},
-    /** That act is genuinely offerable HERE (server truth) — INFORMATION, not a gate. */
-    actionAvailable: {type: Boolean, default: false},
-    /** The honest reason when it is not ('' when available). */
-    blockReason: {type: String, default: ''},
-    /** That reason's REGISTER (`AvailabilityBlocker.tone`). */
-    blockTone: {type: String as PropType<'warning' | 'danger'>, default: 'danger'},
-    /** A pick's DISPLAY label («Build» / «Select»), for the verdict. */
-    pickLabel: {type: String, default: ''},
-  },
-  emits: ['cancel', 'enter'],
-  data() {
-    return {
-      preview: undefined as ColonyTradePreviewModel | undefined,
-      /** The archive block's settle signal: 0 until the dossier has mounted,
-       *  then 1 — the block reveals once, under the entrance's late wave. */
-      loreNonce: 0,
-    };
-  },
-  computed: {
-    /** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
-    cardResourceKinds(): ReadonlyArray<CardResource> {
-      return colonyCardResources(this.metadata);
-    },
-    metadata(): ColonyMetadata {
-      return getColony(this.colony.name);
-    },
-    loreModel(): LoreModel {
-      return buildColonyLoreModel(this.colony.name, translateLore);
-    },
-    /** The colony as PRESENTED: a running transaction keeps the committed
-     *  track reset frozen (the same helper the tile and the stage read). */
-    presented(): ColonyModel {
-      return presentedColonyModel(this.colony);
-    },
-    trackMax(): number {
-      return this.metadata.trade.quantity.length - 1;
-    },
-    markerPosition(): number {
-      return Math.min(this.presented.trackPosition, this.trackMax);
-    },
-    effectivePosition(): number {
-      const offset = this.colony.isActive ? this.tradeOffset : 0;
-      return effectiveTradePosition(this.presented, this.metadata, offset);
-    },
-    offsetSteps(): number {
-      return Math.max(0, this.effectivePosition - this.markerPosition);
-    },
-    tradeBenefitNow(): Benefit {
-      const income = tradeBenefitAt(this.metadata, this.effectivePosition);
-      return {type: income.type, quantity: this.metadata.trade.quantity, resource: income.resource};
-    },
-    /** The FIXED part of the trade income, paid on every trade before the marker's bonus (undefined for a tile without one). */
-    tradeFixedBenefit(): Benefit | undefined {
-      const fixed = tradeFixedIncome(this.metadata);
-      return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
-    },
-    /** The berth a build here lands in — the ONE reading (`colonyBerths.nextBuildSlot`), never a clamp. */
-    nextBuildSlot(): number {
-      return nextBuildSlot(this.colony);
-    },
-    /** The bonus that berth pays, resolved for a glyph (a list of one — read with `idx: 0`). */
-    nextBuildBenefit(): Benefit {
-      return berthBuildBenefit(this.metadata, this.nextBuildSlot);
-    },
-    colonyBenefit(): Benefit {
-      const c = this.metadata.colony;
-      return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
-    },
-    bonusQty(): number {
-      return this.metadata.colony.quantity ?? 1;
-    },
-    owners(): Array<{color: Color, count: number, name: string}> {
-      return colonyOwnerCounts(this.colony).map((owner) => {
-        const player = this.players.find((p) => p.color === owner.color);
-        return {...owner, name: player !== undefined ? participantDisplayName(player) : owner.color};
-      });
-    },
-    /** The names seated in the berths (index-aligned with the berths model) — the instrument's prop. */
-    ownerNames(): Array<string> {
-      return colonyBerthsOf(this.colony).map((berth) => {
-        const color = berth.owner;
-        if (color === undefined) {
-          return '';
-        }
-        const player = this.players.find((p) => p.color === color);
-        return player !== undefined ? participantDisplayName(player) : color;
-      });
-    },
-    /** The viewer's own settlements here — each pays the colony bonus. */
-    ownColonyCount(): number {
-      if (this.viewerColor === undefined) {
-        return 0;
-      }
-      return this.colony.colonies.filter((c) => c === this.viewerColor).length;
-    },
-    /** The multiplier row the instrument draws — the same rule as the stage:
-     *  the viewer's own stake when they stand here, else the largest holder;
-     *  only when the count genuinely changes the number. */
-    bonusMath(): ColonyTrackBonusMath | undefined {
-      const mine = this.viewerColor === undefined ? undefined : this.owners.find((o) => o.color === this.viewerColor);
-      const subject = mine ?? [...this.owners].sort((a, b) => b.count - a.count)[0];
-      if (subject === undefined || subject.count < 2 || this.bonusQty <= 0) {
-        return undefined;
-      }
-      return {color: subject.color, count: subject.count, total: subject.count * this.bonusQty};
-    },
-    visitorLine(): string {
-      const visitor = this.colony.visitor;
-      if (visitor === undefined) {
-        return '';
-      }
-      if (visitor === this.viewerColor) {
-        return translateText('Your trade fleet is currently here');
-      }
-      const player = this.players.find((p) => p.color === visitor);
-      if (player !== undefined) {
-        return translateTextWithParams('Trade fleet of ${0} is currently here', [participantDisplayName(player)]);
-      }
-      return translateText('Trade fleet currently here');
-    },
-    /** The act block stands on the interactive door always; the journal keeps
-     *  the level's income only when the colony is in play (a catalog tile —
-     *  not in this game — has no level to read). */
-    showAct(): boolean {
-      return !this.readonly || this.colony.isActive || this.colony.colonies.length > 0;
-    },
-    /** The counted object of the «on the tile» line — the space city RX08's readings draw. */
-    spaceCityGlyph(): CountedObjectGlyph {
-      return {kind: 'tile', tile: 'spaceCity'};
-    },
-    /**
-     * WHAT LIES ON THE TILE, by name — the city's card and its owner. Read through the seat's own presented
-     * reading, so the line appears with the SEATED piece and never before its landing.
-     */
-    tileOnTile(): {name: string, owner: string} | undefined {
-      const view = colonyCitySeatView(this.colony, undefined);
-      if (view.pose !== 'seated') {
-        return undefined;
-      }
-      const player = this.players.find((p) => p.color === view.color);
-      return {
-        name: translateText(view.card ?? 'City'),
-        owner: player !== undefined ? participantDisplayName(player) : '',
-      };
-    },
-    /**
-     * THE COLONY STANDING BEYOND THE PRINTED LIMIT, by its ordinal and its owner — read from the berths model
-     * (the first berth that is both beyond the limit and taken). `undefined` on every ordinary tile.
-     */
-    overLimitFact(): {name: string, owner: string} | undefined {
-      const berth = colonyBerthsOf(this.colony).find((b) => b.overLimit && b.owner !== undefined);
-      if (berth === undefined) {
-        return undefined;
-      }
-      const player = this.players.find((p) => p.color === berth.owner);
-      return {
-        name: translateTextWithParams('Colony no. ${0}', [String(berth.index + 1)]),
-        owner: player !== undefined ? participantDisplayName(player) : '',
-      };
-    },
-    /** The act's NAME on the block («ТОРГОВЛЯ» / «ПОСТРОЙКА» / «РАЗМЕЩЕНИЕ ГОРОДА» / the pick's verb). */
-    actTitleKey(): string {
-      if (this.actIntent === 'city') {
-        return 'City placement';
-      }
-      if (this.actIntent === 'build') {
-        return 'Construction';
-      }
-      if (this.actIntent === 'pick' && this.pickLabel !== '') {
-        return this.pickLabel;
-      }
-      return 'Trading';
-    },
-    /** The verdict's word when the act IS offerable — the act's own verb. */
-    verdictKey(): string {
-      if (this.actIntent === 'city') {
-        return 'Can place the city here';
-      }
-      if (this.actIntent === 'build') {
-        return 'Build here';
-      }
-      if (this.actIntent === 'pick') {
-        return this.pickLabel !== '' ? this.pickLabel : 'Can select';
-      }
-      return 'Trade available';
-    },
-    /**
-     * WHAT THE PLAYER RECEIVES — the ONE reward derivation every colony
-     * surface shares (`tradeOutcome` → `colonyRewardPackage`): the track's
-     * income at the level the act reads PLUS the viewer's own settlements'
-     * bonuses, merged per type and destination. No payment is chosen yet, so
-     * no `current → resulting` is claimed — the stage owns that once a path
-     * is dialed. A BUILD reads the placement grant of the next free berth.
-     */
-    rewardTotals(): ReadonlyArray<RewardTotal> {
-      if (this.actIntent === 'build') {
-        const b = this.metadata.build;
-        const resource = Array.isArray(b.resource) ? b.resource[this.nextBuildSlot] : b.resource;
-        const per = describeBenefit(b.type, buildBenefitAt(this.metadata, this.nextBuildSlot).quantity, typeof resource === 'string' ? resource : undefined, this.metadata);
-        if (per === undefined || per.amount <= 0) {
-          return [];
-        }
-        return [{
-          key: 'build',
-          icon: per.icon,
-          ...(per.icons !== undefined ? {icons: per.icons} : {}),
-          label: per.label,
-          amount: per.amount,
-          production: per.production,
-          destinationKey: rewardDestinationKey(b.type),
-          cardDestination: isCardDestination(b.type),
-        }];
-      }
-      const outcome = tradeOutcome({
-        metadata: this.metadata,
-        rewardPosition: this.effectivePosition,
-        payments: [],
-        ownColonyCount: this.ownColonyCount,
-        flatBonuses: this.preview?.flatBonuses,
-        stocks: {},
-        production: {},
-      });
-      return colonyRewardPackage({
-        gains: outcome.gains,
-        metadata: this.metadata,
-        colony: this.colony,
-        viewer: this.viewerColor,
-      }).totals;
-    },
-    /** The follow-ups of the act A leads to (the shared server preview). */
-    actFollowUps(): ReadonlyArray<ColonyTradeFollowUpModel> {
-      if (this.preview === undefined) {
-        return [];
-      }
-      return this.actIntent === 'build' ? (this.preview.buildFollowUps ?? []) : this.preview.followUps;
-    },
-    /** WHERE a card resource lands — one line per PHYSICAL card, amounts
-     *  merged (an income and a bonus aimed at the same card are one row). */
-    cardTargetLines(): Array<CardTargetLine> {
-      const lines = new Map<string, CardTargetLine>();
-      for (const followUp of this.actFollowUps) {
-        if (followUp.kind !== 'cardTarget' || followUp.lost) {
-          continue;
-        }
-        // The unit each card takes: the step's ONE kind, else — a step over
-        // several kinds (the Redux Vesta) or any — the card's OWN.
-        const namedIcon = followUp.resource?.toString().toLowerCase().replace(/ /g, '-');
-        const cards: ReadonlyArray<CardModel> = followUp.pick?.cards ??
-          (followUp.auto !== undefined ? [{name: followUp.auto, resources: this.autoTargetResources(followUp.auto)} as CardModel] : []);
-        for (const card of cards) {
-          const before = card.resources ?? 0;
-          const line = lines.get(card.name);
-          const icon = namedIcon ?? getCard(card.name)?.resourceType?.toString().toLowerCase().replace(/ /g, '-');
-          const iconClass = icon !== undefined ? iconClassFor(icon) + ' con-colinspect__gain-card-icon' : '';
-          if (line === undefined) {
-            lines.set(card.name, {card: card.name, iconClass, before, after: before + followUp.amount});
-          } else {
-            line.after += followUp.amount;
-          }
-        }
-      }
-      return [...lines.values()];
-    },
-    lostCount(): number {
-      return this.actFollowUps.filter((f) => f.kind === 'cardTarget' && f.lost).length;
-    },
-  },
-  watch: {
-    'colony.name'() {
-      this.loadPreview();
-    },
-  },
-  methods: {
-    /** Localized card name, tolerating a `Name:variant` id (drops the suffix). */
-    cardLabel(name: string): string {
-      return translateCardName(name);
-    },
-    rewardIconClass(icon: string): string {
-      return iconClassFor(icon) + ' con-colinspect__gain-icon';
-    },
-    async loadPreview(): Promise<void> {
-      this.preview = undefined;
-      if (this.readonly || this.playerId === '') {
-        return;
-      }
-      const preview = await fetchColonyTradePreview(this.playerId, this.colony.name as ColonyName);
-      if (preview !== undefined && preview.colonyName === this.colony.name) {
-        this.preview = preview;
-      }
-    },
-    autoTargetResources(cardName: string): number {
-      // The auto target is one of the viewer's own tableau cards; its live
-      // resource count rides the players model.
-      const viewer = this.players.find((p) => p.color === this.viewerColor);
-      const card = viewer?.tableau.find((c) => c.name === cardName);
-      return card?.resources ?? 0;
-    },
-    /** The rules panel's one scroll path (↑/↓ and the right stick alike). */
-    scrollRules(dy: number): void {
-      const scroll = (this.$refs.scroll ?? undefined) as {scrollByPx?: (dy: number) => void} | undefined;
-      scroll?.scrollByPx?.(Math.sign(dy) * SCROLL_STEP_PX * conUiScale());
-    },
-    /**
-     * The pad, while the dossier owns it: ↑/↓ and the right stick scroll the
-     * rules panel (a safety net — the composition fits on the TV without
-     * one), B leaves (the host decides where to — the grid, or the journal),
-     * A goes ON into the act's stage. A is never gated by the dossier: the
-     * verdict stands here as information, the stage carries the refusal.
-     */
-    handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'scroll') {
-        this.scrollRules(intent.dy);
-        return;
-      }
-      if (intent.kind === 'nav') {
-        if (intent.dir === 'up' || intent.dir === 'down') {
-          this.scrollRules(intent.dir === 'down' ? 1 : -1);
-        }
-        return;
-      }
-      if (intent.kind !== 'press') {
-        return;
-      }
-      const action = consoleActionOf(intent);
-      if (action === 'back') {
-        this.$emit('cancel');
-        return;
-      }
-      if (action === 'primary' && !this.readonly) {
-        this.$emit('enter');
-      }
-    },
-  },
-  mounted() {
-    // Hosted: the dossier hands its stage name UP (rule 5 — it never draws
-    // its own kicker): «КОЛОНИИ › ЛУНА › ОСМОТР».
-    if (this.embedded) {
-      setColonyFocusStage('Inspection');
-    }
-    this.loadPreview();
-    // The archive block reveals once the dossier stands (the entrance's late
-    // wave holds the whole lore column until the geometry has stopped).
-    void this.$nextTick(() => {
-      this.loreNonce = 1;
-    });
-  },
+defineOptions({name: 'ConsoleColonyInspect'});
+const props = defineProps({
+  colony: {type: Object as PropType<ColonyModel>, required: true},
+  players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  /** The colour of the city a standing «city» door would lay on this tile ('' = no such door / not a candidate). */
+  cityProjection: {type: String as PropType<Color | ''>, default: ''},
+  /** The viewer's own player id — enables the server target preview. */
+  playerId: {type: String, default: ''},
+  tradeOffset: {type: Number, default: 0},
+  /**
+   * A STEP of a workspace (rule 1 — host-agnostic): the shell chrome (the
+   * band, the plate, the head, the `con-ws` marker, the motion id) comes
+   * off; the composition, the input path and every anchor are untouched.
+   */
+  embedded: {type: Boolean, default: false},
+  /** The crumb root of the STANDALONE host (the journal door). */
+  hostRoot: {type: String, default: 'Journal'},
+  /** READ-ONLY history (the journal door): no verdict, no target planning
+   *  — and no A. The level's income still reads. */
+  readonly: {type: Boolean, default: false},
+  /** The act A leads to (the workspace door): names the block, picks the reward. */
+  actIntent: {type: String as PropType<ColonyFocusIntent>, default: 'trade'},
+  /** That act is genuinely offerable HERE (server truth) — INFORMATION, not a gate. */
+  actionAvailable: {type: Boolean, default: false},
+  /** The honest reason when it is not ('' when available). */
+  blockReason: {type: String, default: ''},
+  /** That reason's REGISTER (`AvailabilityBlocker.tone`). */
+  blockTone: {type: String as PropType<'warning' | 'danger'>, default: 'danger'},
+  /** A pick's DISPLAY label («Build» / «Select»), for the verdict. */
+  pickLabel: {type: String, default: ''},
 });
+const emit = defineEmits(['cancel', 'enter']);
+
+const scroll = useTemplateRef<{scrollByPx?: (dy: number) => void}>('scroll');
+const preview = ref<ColonyTradePreviewModel | undefined>(undefined);
+/** The archive block's settle signal: 0 until the dossier has mounted,
+ *  then 1 — the block reveals once, under the entrance's late wave. */
+const loreNonce = ref(0);
+
+/** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
+const cardResourceKinds = computed((): ReadonlyArray<CardResource> => {
+  return colonyCardResources(metadata.value);
+});
+const metadata = computed((): ColonyMetadata => {
+  return getColony(props.colony.name);
+});
+const loreModel = computed((): LoreModel => {
+  return buildColonyLoreModel(props.colony.name, translateLore);
+});
+/** The colony as PRESENTED: a running transaction keeps the committed
+ *  track reset frozen (the same helper the tile and the stage read). */
+const presented = computed((): ColonyModel => {
+  return presentedColonyModel(props.colony);
+});
+const trackMax = computed((): number => {
+  return metadata.value.trade.quantity.length - 1;
+});
+const markerPosition = computed((): number => {
+  return Math.min(presented.value.trackPosition, trackMax.value);
+});
+const effectivePosition = computed((): number => {
+  const offset = props.colony.isActive ? props.tradeOffset : 0;
+  return effectiveTradePosition(presented.value, metadata.value, offset);
+});
+const offsetSteps = computed((): number => {
+  return Math.max(0, effectivePosition.value - markerPosition.value);
+});
+const tradeBenefitNow = computed((): Benefit => {
+  const income = tradeBenefitAt(metadata.value, effectivePosition.value);
+  return {type: income.type, quantity: metadata.value.trade.quantity, resource: income.resource};
+});
+/** The FIXED part of the trade income, paid on every trade before the marker's bonus (undefined for a tile without one). */
+const tradeFixedBenefit = computed((): Benefit | undefined => {
+  const fixed = tradeFixedIncome(metadata.value);
+  return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
+});
+/** The berth a build here lands in — the ONE reading (`colonyBerths.nextBuildSlot`), never a clamp. */
+const nextBuildSlot = computed((): number => {
+  return nextBuildSlotOf(props.colony);
+});
+/** The bonus that berth pays, resolved for a glyph (a list of one — read with `idx: 0`). */
+const nextBuildBenefit = computed((): Benefit => {
+  return berthBuildBenefit(metadata.value, nextBuildSlot.value);
+});
+const colonyBenefit = computed((): Benefit => {
+  const c = metadata.value.colony;
+  return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
+});
+const bonusQty = computed((): number => {
+  return metadata.value.colony.quantity ?? 1;
+});
+const owners = computed((): Array<{color: Color, count: number, name: string}> => {
+  return colonyOwnerCounts(props.colony).map((owner) => {
+    const player = props.players.find((p) => p.color === owner.color);
+    return {...owner, name: player !== undefined ? participantDisplayName(player) : owner.color};
+  });
+});
+/** The names seated in the berths (index-aligned with the berths model) — the instrument's prop. */
+const ownerNames = computed((): Array<string> => {
+  return colonyBerthsOf(props.colony).map((berth) => {
+    const color = berth.owner;
+    if (color === undefined) {
+      return '';
+    }
+    const player = props.players.find((p) => p.color === color);
+    return player !== undefined ? participantDisplayName(player) : color;
+  });
+});
+/** The viewer's own settlements here — each pays the colony bonus. */
+const ownColonyCount = computed((): number => {
+  if (props.viewerColor === undefined) {
+    return 0;
+  }
+  return props.colony.colonies.filter((c) => c === props.viewerColor).length;
+});
+/** The multiplier row the instrument draws — the same rule as the stage:
+ *  the viewer's own stake when they stand here, else the largest holder;
+ *  only when the count genuinely changes the number. */
+const bonusMath = computed((): ColonyTrackBonusMath | undefined => {
+  const mine = props.viewerColor === undefined ? undefined : owners.value.find((o) => o.color === props.viewerColor);
+  const subject = mine ?? [...owners.value].sort((a, b) => b.count - a.count)[0];
+  if (subject === undefined || subject.count < 2 || bonusQty.value <= 0) {
+    return undefined;
+  }
+  return {color: subject.color, count: subject.count, total: subject.count * bonusQty.value};
+});
+const visitorLine = computed((): string => {
+  const visitor = props.colony.visitor;
+  if (visitor === undefined) {
+    return '';
+  }
+  if (visitor === props.viewerColor) {
+    return translateText('Your trade fleet is currently here');
+  }
+  const player = props.players.find((p) => p.color === visitor);
+  if (player !== undefined) {
+    return translateTextWithParams('Trade fleet of ${0} is currently here', [participantDisplayName(player)]);
+  }
+  return translateText('Trade fleet currently here');
+});
+/** The act block stands on the interactive door always; the journal keeps
+ *  the level's income only when the colony is in play (a catalog tile —
+ *  not in this game — has no level to read). */
+const showAct = computed((): boolean => {
+  return !props.readonly || props.colony.isActive || props.colony.colonies.length > 0;
+});
+/** The counted object of the «on the tile» line — the space city RX08's readings draw. */
+const spaceCityGlyph = computed((): CountedObjectGlyph => {
+  return {kind: 'tile', tile: 'spaceCity'};
+});
+/**
+ * WHAT LIES ON THE TILE, by name — the city's card and its owner. Read through the seat's own presented
+ * reading, so the line appears with the SEATED piece and never before its landing.
+ */
+const tileOnTile = computed((): {name: string, owner: string} | undefined => {
+  const view = colonyCitySeatView(props.colony, undefined);
+  if (view.pose !== 'seated') {
+    return undefined;
+  }
+  const player = props.players.find((p) => p.color === view.color);
+  return {
+    name: translateText(view.card ?? 'City'),
+    owner: player !== undefined ? participantDisplayName(player) : '',
+  };
+});
+/**
+ * THE COLONY STANDING BEYOND THE PRINTED LIMIT, by its ordinal and its owner — read from the berths model
+ * (the first berth that is both beyond the limit and taken). `undefined` on every ordinary tile.
+ */
+const overLimitFact = computed((): {name: string, owner: string} | undefined => {
+  const berth = colonyBerthsOf(props.colony).find((b) => b.overLimit && b.owner !== undefined);
+  if (berth === undefined) {
+    return undefined;
+  }
+  const player = props.players.find((p) => p.color === berth.owner);
+  return {
+    name: translateTextWithParams('Colony no. ${0}', [String(berth.index + 1)]),
+    owner: player !== undefined ? participantDisplayName(player) : '',
+  };
+});
+/** The act's NAME on the block («ТОРГОВЛЯ» / «ПОСТРОЙКА» / «РАЗМЕЩЕНИЕ ГОРОДА» / the pick's verb). */
+const actTitleKey = computed((): string => {
+  if (props.actIntent === 'city') {
+    return 'City placement';
+  }
+  if (props.actIntent === 'build') {
+    return 'Construction';
+  }
+  if (props.actIntent === 'pick' && props.pickLabel !== '') {
+    return props.pickLabel;
+  }
+  return 'Trading';
+});
+/** The verdict's word when the act IS offerable — the act's own verb. */
+const verdictKey = computed((): string => {
+  if (props.actIntent === 'city') {
+    return 'Can place the city here';
+  }
+  if (props.actIntent === 'build') {
+    return 'Build here';
+  }
+  if (props.actIntent === 'pick') {
+    return props.pickLabel !== '' ? props.pickLabel : 'Can select';
+  }
+  return 'Trade available';
+});
+/**
+ * WHAT THE PLAYER RECEIVES — the ONE reward derivation every colony
+ * surface shares (`tradeOutcome` → `colonyRewardPackage`): the track's
+ * income at the level the act reads PLUS the viewer's own settlements'
+ * bonuses, merged per type and destination. No payment is chosen yet, so
+ * no `current → resulting` is claimed — the stage owns that once a path
+ * is dialed. A BUILD reads the placement grant of the next free berth.
+ */
+const rewardTotals = computed((): ReadonlyArray<RewardTotal> => {
+  if (props.actIntent === 'build') {
+    const b = metadata.value.build;
+    const resource = Array.isArray(b.resource) ? b.resource[nextBuildSlot.value] : b.resource;
+    const per = describeBenefit(b.type, buildBenefitAt(metadata.value, nextBuildSlot.value).quantity, typeof resource === 'string' ? resource : undefined, metadata.value);
+    if (per === undefined || per.amount <= 0) {
+      return [];
+    }
+    return [{
+      key: 'build',
+      icon: per.icon,
+      ...(per.icons !== undefined ? {icons: per.icons} : {}),
+      label: per.label,
+      amount: per.amount,
+      production: per.production,
+      destinationKey: rewardDestinationKey(b.type),
+      cardDestination: isCardDestination(b.type),
+    }];
+  }
+  const outcome = tradeOutcome({
+    metadata: metadata.value,
+    rewardPosition: effectivePosition.value,
+    payments: [],
+    ownColonyCount: ownColonyCount.value,
+    flatBonuses: preview.value?.flatBonuses,
+    stocks: {},
+    production: {},
+  });
+  return colonyRewardPackage({
+    gains: outcome.gains,
+    metadata: metadata.value,
+    colony: props.colony,
+    viewer: props.viewerColor,
+  }).totals;
+});
+/** The follow-ups of the act A leads to (the shared server preview). */
+const actFollowUps = computed((): ReadonlyArray<ColonyTradeFollowUpModel> => {
+  if (preview.value === undefined) {
+    return [];
+  }
+  return props.actIntent === 'build' ? (preview.value.buildFollowUps ?? []) : preview.value.followUps;
+});
+/** WHERE a card resource lands — one line per PHYSICAL card, amounts
+ *  merged (an income and a bonus aimed at the same card are one row). */
+const cardTargetLines = computed((): Array<CardTargetLine> => {
+  const lines = new Map<string, CardTargetLine>();
+  for (const followUp of actFollowUps.value) {
+    if (followUp.kind !== 'cardTarget' || followUp.lost) {
+      continue;
+    }
+    // The unit each card takes: the step's ONE kind, else — a step over
+    // several kinds (the Redux Vesta) or any — the card's OWN.
+    const namedIcon = followUp.resource?.toString().toLowerCase().replace(/ /g, '-');
+    const cards: ReadonlyArray<CardModel> = followUp.pick?.cards ??
+      (followUp.auto !== undefined ? [{name: followUp.auto, resources: autoTargetResources(followUp.auto)} as CardModel] : []);
+    for (const card of cards) {
+      const before = card.resources ?? 0;
+      const line = lines.get(card.name);
+      const icon = namedIcon ?? getCard(card.name)?.resourceType?.toString().toLowerCase().replace(/ /g, '-');
+      const iconClass = icon !== undefined ? iconClassFor(icon) + ' con-colinspect__gain-card-icon' : '';
+      if (line === undefined) {
+        lines.set(card.name, {card: card.name, iconClass, before, after: before + followUp.amount});
+      } else {
+        line.after += followUp.amount;
+      }
+    }
+  }
+  return [...lines.values()];
+});
+const lostCount = computed((): number => {
+  return actFollowUps.value.filter((f) => f.kind === 'cardTarget' && f.lost).length;
+});
+
+/** Localized card name, tolerating a `Name:variant` id (drops the suffix). */
+function cardLabel(name: string): string {
+  return translateCardName(name);
+}
+function rewardIconClass(icon: string): string {
+  return iconClassFor(icon) + ' con-colinspect__gain-icon';
+}
+async function loadPreview(): Promise<void> {
+  preview.value = undefined;
+  if (props.readonly || props.playerId === '') {
+    return;
+  }
+  const previewNow = await fetchColonyTradePreview(props.playerId, props.colony.name as ColonyName);
+  if (previewNow !== undefined && previewNow.colonyName === props.colony.name) {
+    preview.value = previewNow;
+  }
+}
+function autoTargetResources(cardName: string): number {
+  // The auto target is one of the viewer's own tableau cards; its live
+  // resource count rides the players model.
+  const viewer = props.players.find((p) => p.color === props.viewerColor);
+  const card = viewer?.tableau.find((c) => c.name === cardName);
+  return card?.resources ?? 0;
+}
+/** The rules panel's one scroll path (↑/↓ and the right stick alike). */
+function scrollRules(dy: number): void {
+  const scrollNow = scroll.value ?? undefined;
+  scrollNow?.scrollByPx?.(Math.sign(dy) * SCROLL_STEP_PX * conUiScale());
+}
+/**
+ * The pad, while the dossier owns it: ↑/↓ and the right stick scroll the
+ * rules panel (a safety net — the composition fits on the TV without
+ * one), B leaves (the host decides where to — the grid, or the journal),
+ * A goes ON into the act's stage. A is never gated by the dossier: the
+ * verdict stands here as information, the stage carries the refusal.
+ */
+function handleIntent(intent: GamepadIntent): void {
+  if (intent.kind === 'scroll') {
+    scrollRules(intent.dy);
+    return;
+  }
+  if (intent.kind === 'nav') {
+    if (intent.dir === 'up' || intent.dir === 'down') {
+      scrollRules(intent.dir === 'down' ? 1 : -1);
+    }
+    return;
+  }
+  if (intent.kind !== 'press') {
+    return;
+  }
+  const action = consoleActionOf(intent);
+  if (action === 'back') {
+    emit('cancel');
+    return;
+  }
+  if (action === 'primary' && !props.readonly) {
+    emit('enter');
+  }
+}
+
+watch(() => props.colony.name, () => {
+  loadPreview();
+});
+
+onMounted(() => {
+  // Hosted: the dossier hands its stage name UP (rule 5 — it never draws
+  // its own kicker): «КОЛОНИИ › ЛУНА › ОСМОТР».
+  if (props.embedded) {
+    setColonyFocusStage('Inspection');
+  }
+  loadPreview();
+  // The archive block reveals once the dossier stands (the entrance's late
+  // wave holds the whole lore column until the geometry has stopped).
+  void nextTick(() => {
+    loreNonce.value = 1;
+  });
+});
+defineExpose({handleIntent});
 </script>
