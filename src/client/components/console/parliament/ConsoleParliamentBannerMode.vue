@@ -1,13 +1,4 @@
 <template>
-  <!-- ══ THE BANNER MODE («ЗНАМЯ», Turmoil Redux Septem Tribus:redux) — the Parliament picks the PARTY whose banner
-       takes the viewer's cube (the first action). The objects are the six party PLAQUES where they stand: the cursor
-       walks them as the hall lays them out (▲ ▼ the opposition's column, ▶ ◀ the dais — `supportCursorStep`) and
-       nothing moves; the plaque under the cursor wears the GHOST of the cube in its banner socket. THIS panel is the
-       reading of that plaque — what the cube opens, the party's clauses with their GRAPHIC and words, the FAQ — in the
-       voting area's own rect (the bills recede under it). A places the cube; the answer plays on this very stage: the
-       CORPORATION stands up in the table's cell and the cube leaves its printed glyph for the socket (`bannerCubeStage`),
-       then — when the cube opened the party's effect — the party's seal travels into «ВАШИ ЭФФЕКТЫ» (the access
-       scene), and the surface leaves whole. ══ -->
   <div class="con-parl__support con-parl__banner"
        :class="{
          'con-parl__support--committed': flow.bannerCommitted,
@@ -70,8 +61,21 @@
     </div>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, markRaw, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ══ THE BANNER MODE («ЗНАМЯ», Turmoil Redux Septem Tribus:redux) — the Parliament picks the PARTY whose banner
+ * takes the viewer's cube (the first action). The objects are the six party PLAQUES where they stand: the cursor
+ * walks them as the hall lays them out (▲ ▼ the opposition's column, ▶ ◀ the dais — `supportCursorStep`) and
+ * nothing moves; the plaque under the cursor wears the GHOST of the cube in its banner socket. THIS panel is the
+ * reading of that plaque — what the cube opens, the party's clauses with their GRAPHIC and words, the FAQ — in the
+ * voting area's own rect (the bills recede under it). A places the cube; the answer plays on this very stage: the
+ * CORPORATION stands up in the table's cell and the cube leaves its printed glyph for the socket (`bannerCubeStage`),
+ * then — when the cube opened the party's effect — the party's seal travels into «ВАШИ ЭФФЕКТЫ» (the access
+ * scene), and the surface leaves whole. ══
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -89,7 +93,7 @@ import {AnimationHold, beginAnimationHold} from '@/client/components/presentatio
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {setWorkspaceFramePhase} from '@/client/console/consoleWorkspaceStack';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 import {probeTick} from '@/client/console/probeTick';
 import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
@@ -114,365 +118,356 @@ const BANNER_READ_MS = 640;
  * THE BANNER MODE — the reading of the plaque under the cursor, the d-pad over the ring, the commit and the answer
  * (the cube's carry, the access scene). Nothing here decides a candidate: every fact is the server's row.
  */
-export default defineComponent({
-  name: 'ConsoleParliamentBannerMode',
-  components: {ConsolePartyFormula, GamepadGlyph, PlayerCube},
-  props: {
-    view: {type: Object as PropType<ParliamentViewVm>, required: true},
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    bridge: {type: Object as PropType<ParliamentPromptBridge>, required: true},
-  },
-  emits: ['notice', 'inspect', 'inspect-source', 'send', 'flow-complete'],
-  data() {
-    return {
-      faqKey: BANNER_CUBE_FAQ_KEY,
-      latchedCard: undefined as CardName | undefined,
-      outcomeHold: undefined as AnimationHold | undefined,
-      beat: undefined as ParliamentBeat | undefined,
-      /** The cube has touched down in the plaque's socket (the panel's socket shows it seated). */
-      landed: false,
-      /** The corporation's stage, while it still stands (the flow leaves only once the card has gone back down). */
-      stageDone: undefined as Promise<unknown> | undefined,
-      /** The mode is being torn down — a stage cut by that tear-down owes the flow nothing more. */
-      stopped: false,
-      /** The party's seal in the air (an effect this cube opened) — dropped by the ceiling's recovery. */
-      sealFlight: undefined as string | undefined,
-    };
-  },
-  computed: {
-    flow() {
-      return parliamentFlow;
-    },
-    meta(): BannerPromptMeta | undefined {
-      return this.bridge.bannerPick?.meta ?? parliamentFlow.bannerMeta;
-    },
-    ruler(): ReduxParty {
-      return parliamentHolds.rulerBefore ?? this.view.rulingParty;
-    },
-    order(): Array<ReduxParty> {
-      return supportCursorOrder(this.view.parties.map((p) => p.party), this.ruler);
-    },
-    cursor(): ReduxParty | undefined {
-      if (parliamentFlow.zone === 'ruler') {
-        return this.ruler;
-      }
-      return this.view.parties[parliamentFlow.partyIndex]?.party;
-    },
-    reading(): BannerReadingVm | undefined {
-      return bannerReadingOf(this.meta, parliamentFlow.bannerSnapshot?.party ?? this.cursor);
-    },
-    consequenceKey(): string {
-      return this.reading === undefined ? '' : bannerConsequenceKey(this.reading);
-    },
-    /**
-     * WHAT THE CUBE GIVES — the party's clauses as the Charter prints them: its standing EFFECT and its ACTION, each its
-     * own graphic (the manifest's render roots) with the party's own words for it. A clause with no GRAPHIC (an action-only
-     * party's empty passive — Unity) is not drawn: «no printed effect» under a label would be a clause that says nothing.
-     */
-    clauses(): Array<{kind: 'effect' | 'action', root?: ICardRenderRoot, text?: string}> {
-      const party = this.reading?.party;
-      const effect = party === undefined ? undefined : getPartyEffect(party);
-      if (effect === undefined) {
-        return [];
-      }
-      const graphic = (root: ICardRenderRoot | undefined): ICardRenderRoot | undefined =>
-        root !== undefined && !buildMechanics(root, PARLIAMENT_GRAPHIC).textOnly ? root : undefined;
-      const out: Array<{kind: 'effect' | 'action', root?: ICardRenderRoot, text?: string}> = [];
-      const passive = graphic(effect.passiveRenderData);
-      const passiveText = effect.text.passive ?? (effect.actionRenderData === undefined ? effect.text.rule : undefined);
-      if (passive !== undefined || passiveText !== undefined) {
-        out.push({kind: 'effect', ...(passive === undefined ? {} : {root: passive}), ...(passiveText === undefined ? {} : {text: passiveText})});
-      }
-      if (effect.actionRenderData !== undefined) {
-        const action = graphic(effect.actionRenderData);
-        out.push({kind: 'action', ...(action === undefined ? {} : {root: action}), text: effect.text.action ?? effect.text.rule});
-      }
-      return out;
-    },
-    ctaReady(): boolean {
-      return !parliamentFlow.bannerCommitted && this.reading?.available === true;
-    },
-    ctaText(): string {
-      if (parliamentFlow.bannerCommitted) {
-        return translateText(parliamentFlow.bannerBeat === 'done' || parliamentFlow.bannerBeat === 'read' ? 'Cube placed' : 'Performing…');
-      }
-      const r = this.reading;
-      if (r !== undefined && !r.available) {
-        return translateText(r.reason ?? 'Your cube already stands on this banner');
-      }
-      return translateText('Place cube');
-    },
-  },
-  mounted() {
-    // The corporation that stands up at the press paints its art from its first frame (decoded now, not at the rise).
-    const card = this.bridge.bannerPick?.card;
-    if (card !== undefined) {
-      preloadPremiumCardArt([card], ['full', 'thumb']);
-    }
-  },
-  beforeUnmount() {
-    this.stopOutcome();
-  },
-  methods: {
-    partyNameKey(party: string): string {
-      return partyNameKey(party);
-    },
-    emblemOf(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-    accentOf(party: ReduxParty): string {
-      return partyAccent(party);
-    },
-    moveTo(party: ReduxParty | undefined): void {
-      if (party === undefined) {
-        return;
-      }
-      if (party === this.ruler) {
-        parliamentFlow.zone = 'ruler';
-        return;
-      }
-      const index = this.view.parties.findIndex((p) => p.party === party);
-      if (index >= 0) {
-        parliamentFlow.zone = 'parties';
-        parliamentFlow.partyIndex = index;
-      }
-    },
-    /** The mode's own verbs: the d-pad walks the plaques, A places the cube, X inspects the plaque, L3 the corporation. */
-    handleIntent(intent: GamepadIntent): void {
-      if (parliamentFlow.bannerCommitted || parliamentFlow.stage !== 'banner') {
-        return;
-      }
-      if (intent.kind === 'nav') {
-        // The bench the cursor left keeps its place in `partyIndex` while the dais is focused — ◀ returns there.
-        this.moveTo(supportCursorStep(this.order, this.ruler, this.cursor, intent.dir, this.view.parties[parliamentFlow.partyIndex]?.party));
-        return;
-      }
-      if (intent.kind === 'press' && intent.button === 'stickL') {
-        const card = this.bridge.bannerPick?.card;
-        if (card !== undefined) {
-          this.$emit('inspect-source', card);
-        }
-        return;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'primary':
-        this.submit();
-        return;
-      case 'inspect': {
-        const request = parliamentBrowseInspectRequest(this.view, parliamentRootEl());
-        if (request !== undefined) {
-          this.$emit('inspect', request);
-        }
-        return;
-      }
-      default:
-        return;
-      }
-    },
-    /** A — the cube onto the banner under the cursor. Never auto: the player walks to the plaque and presses. */
-    submit(): void {
-      const party = this.cursor;
-      const reading = this.reading;
-      if (parliamentFlow.stage !== 'banner' || parliamentFlow.bannerCommitted || party === undefined || reading === undefined) {
-        return;
-      }
-      if (!reading.available) {
-        this.$emit('notice', translateText(reading.reason ?? 'Your cube already stands on this banner'));
-        return;
-      }
-      const response = bannerPickResponse(this.bridge, party);
-      if (response === undefined) {
-        this.$emit('notice', translateText('This option is no longer offered'));
-        return;
-      }
-      parliamentFlow.bannerMeta = this.meta;
-      parliamentFlow.bannerSnapshot = {party};
-      // A cube that OPENS the party's effect is told by the hall (the seal into «ВАШИ ЭФФЕКТЫ»), never by the feed too.
-      if (!reading.hasEffect && party !== this.view.rulingParty) {
-        armAccessToldOnStage(party);
-      }
-      this.latchedCard = this.bridge.bannerPick?.card;
-      freezeParliamentFit(true);
-      this.$emit('send', {response, from: 'banner'});
-    },
-    /**
-     * THE ANSWER IS IN (the section's answer-key watcher, post-flush). LANDED — the viewer's cube stands on the chosen
-     * banner: the carry plays on this stage. Anything else (the prompt re-asked, nothing placed) — the mode stands
-     * again in place, the cursor kept.
-     */
-    answerAfterSubmit(): void {
-      const f = parliamentFlow;
-      const party = f.bannerSnapshot?.party;
-      const viewer = this.viewerColor;
-      const placed = party !== undefined && viewer !== undefined && bannerCubesOn(this.playerView.game.parliament, party).includes(viewer);
-      if (!placed) {
-        f.stage = 'banner';
-        f.bannerCommitted = false;
-        f.bannerSnapshot = undefined;
-        freezeParliamentFit(false);
-        return;
-      }
-      this.playOutcome(party, viewer);
-    },
-    /**
-     * LANDED: the CORPORATION stands up in the table's cell and the cube leaves its printed on-play glyph for the plaque's
-     * socket (`bannerCubeStage` — the sitting's own phrase); then (an effect opened) the seal. With no card to stand
-     * up (a door with no source) the cube is carried from the viewer's seat, as before.
-     */
-    playOutcome(party: ReduxParty, viewer: Color): void {
-      const f = parliamentFlow;
-      f.stage = 'banner';
-      f.bannerCommitted = true;
-      f.bannerBeat = 'flight';
-      setWorkspaceFramePhase('parliament', 'executing');
-      this.outcomeHold?.release();
-      const hold = beginAnimationHold('parliament-banner-cube', {
-        maxHoldMs: 9000,
-        // THE CEILING ENDS THE PHRASE, not only its count: the stage of the card is cut, the held cube is shown on its banner,
-        // the seal stops, and the flow ends by its own hand (`finish` — the leave) from wherever it stood.
-        expire: () => {
-          if (this.outcomeHold !== hold || parliamentFlow.bannerBeat === 'done') {
-            return;
-          }
-          console.warn('[parliament] banner cube: outlived its ceiling — ended');
-          abortBannerCubeStage();
-          this.beat?.kill();
-          this.beat = undefined;
-          if (this.sealFlight !== undefined) {
-            dropFlight(this.sealFlight, {silent: true});
-            this.sealFlight = undefined;
-          }
-          releaseBannerCube(party, viewer);
-          this.finish();
-        },
-      });
-      this.outcomeHold = markRaw(hold);
-      void this.$nextTick(() => probeTick(() => {
-        if (!bannerCubeHeld(party, viewer)) {
-          // Nothing held (reduced motion decided earlier, a reload): the cube already stands — read and go on.
-          this.afterCube(party);
-          return;
-        }
-        const card = this.latchedCard;
-        if (card === undefined) {
-          landBannerCube(party, viewer, this.seatRect(viewer), () => {
-            this.landed = true;
-            this.afterCube(party);
-          });
-          return;
-        }
-        this.stageDone = playBannerCubeStage([{party, color: viewer, card}], {
-          origin: 'play',
-          onLanded: () => {
-            this.landed = true;
-            this.afterCube(party);
-          },
-        }).then((result) => {
-          // A stage CUT before its touchdown (a second stage, a throw) still owes this flow its end: the cube is shown
-          // where it stands, and the reading goes on from it — never a mode left standing at «flight».
-          if (result === 'aborted' && !this.stopped) {
-            this.afterCube(party);
-          }
-          return result;
-        });
-      }));
-    },
-    /** The cube's source when no card stands up: the viewer's own seat on the bench (its colour is its place). */
-    seatRect(color: Color): Rect | undefined {
-      const root = parliamentRootEl();
-      const seat = rectOf(root?.querySelector(`[data-parl-seat="${color}"]`));
-      const target = bannerCubeTargetRect(parliamentFlow.bannerSnapshot?.party ?? this.view.rulingParty);
-      if (seat === undefined) {
-        return undefined;
-      }
-      const size = target?.height ?? Math.min(seat.height, 24);
-      return {left: seat.left + size * 0.2, top: seat.top + seat.height / 2 - size / 2, width: size, height: size};
-    },
-    /** The cube is seated. An effect it OPENED is carried into «ВАШИ ЭФФЕКТЫ» (the access scene); else a read. */
-    afterCube(party: ReduxParty): void {
-      const f = parliamentFlow;
-      if (f.bannerBeat !== 'flight') {
-        return;
-      }
-      const opened = this.view.viewer?.access.some((a) => a.party === party && a.hasEffect) === true && this.view.rulingParty !== party;
-      if (!opened) {
-        this.read();
-        return;
-      }
-      f.bannerBeat = 'seal';
-      f.accessParty = party;
-      f.accessBeat = 'flight';
-      void this.$nextTick(() => {
-        const root = parliamentRootEl();
-        const from = bannerCubeTargetRect(party);
-        const to = rectOf(root?.querySelector(`.con-parl__effects-row[data-party="${party}"] .con-parl__effects-seal`));
-        this.sealFlight = flyAccessSeal({from, to, emblemUrl: partyEmblemUrl(party), onLanded: () => {
-          this.sealFlight = undefined;
-          if (f.bannerBeat !== 'seal') {
-            // The phrase already ended (the ceiling's recovery): a late seal reads nothing again.
-            return;
-          }
-          f.accessBeat = 'landed';
-          this.read();
-        }});
-      });
-    },
-    read(): void {
-      const f = parliamentFlow;
-      f.bannerBeat = 'read';
-      this.beat?.kill();
-      this.beat = scheduleParliamentBeat(BANNER_READ_MS, () => {
-        this.beat = undefined;
-        // The surface leaves whole: never under a corporation still going back down into the table.
-        void (this.stageDone ?? Promise.resolve()).then(() => this.finish());
-      });
-    },
-    finish(): void {
-      const f = parliamentFlow;
-      if (f.bannerBeat === 'done') {
-        return;
-      }
-      f.bannerBeat = 'done';
-      if (f.accessParty !== undefined) {
-        f.accessBeat = 'done';
-      }
-      this.outcomeHold?.release();
-      this.outcomeHold = undefined;
-      disarmAccessToldOnStage();
-      this.$emit('flow-complete', 'banner');
-    },
-    /**
-     * THE QUESTION DOOR folds this FINISHED mode back to the overview (wait graph R1 — the conclusion held the frame for
-     * a question the overview opens): every beat cut, the fit thawed, the latch let go; the section then closes the stage.
-     * A mode still at work is never closed here.
-     */
-    closeFinished(): void {
-      if (parliamentFlow.bannerBeat !== 'done') {
-        return;
-      }
-      this.stopOutcome();
-      this.latchedCard = undefined;
-      freezeParliamentFit(false);
-    },
-    /** Cut every beat (the section unmounts): the held cube is shown, the hold lets go. */
-    stopOutcome(): void {
-      this.stopped = true;
-      abortBannerCubeStage();
-      this.beat?.kill();
-      this.beat = undefined;
-      if (this.sealFlight !== undefined) {
-        // SILENT: its touchdown would start the read on a mode that is going.
-        dropFlight(this.sealFlight, {silent: true});
-        this.sealFlight = undefined;
-      }
-      const party = parliamentFlow.bannerSnapshot?.party;
-      if (party !== undefined && this.viewerColor !== undefined) {
-        releaseBannerCube(party, this.viewerColor);
-      }
-      this.outcomeHold?.release();
-      this.outcomeHold = undefined;
-    },
-  },
+defineOptions({name: 'ConsoleParliamentBannerMode'});
+const props = defineProps({
+  view: {type: Object as PropType<ParliamentViewVm>, required: true},
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  bridge: {type: Object as PropType<ParliamentPromptBridge>, required: true},
 });
+const emit = defineEmits(['notice', 'inspect', 'inspect-source', 'send', 'flow-complete']);
+
+const faqKey = BANNER_CUBE_FAQ_KEY;
+const latchedCard = ref<CardName | undefined>(undefined);
+let outcomeHold: AnimationHold | undefined;
+let beat: ParliamentBeat | undefined;
+/** The cube has touched down in the plaque's socket (the panel's socket shows it seated). */
+const landed = ref(false);
+/** The corporation's stage, while it still stands (the flow leaves only once the card has gone back down). */
+let stageDone: Promise<unknown> | undefined;
+/** The mode is being torn down — a stage cut by that tear-down owes the flow nothing more. */
+const stopped = ref(false);
+/** The party's seal in the air (an effect this cube opened) — dropped by the ceiling's recovery. */
+let sealFlight: string | undefined;
+const flow = parliamentFlow;
+const meta = computed((): BannerPromptMeta | undefined => {
+  return props.bridge.bannerPick?.meta ?? parliamentFlow.bannerMeta;
+});
+const ruler = computed((): ReduxParty => {
+  return parliamentHolds.rulerBefore ?? props.view.rulingParty;
+});
+const order = computed((): Array<ReduxParty> => {
+  return supportCursorOrder(props.view.parties.map((p) => p.party), ruler.value);
+});
+const cursor = computed((): ReduxParty | undefined => {
+  if (parliamentFlow.zone === 'ruler') {
+    return ruler.value;
+  }
+  return props.view.parties[parliamentFlow.partyIndex]?.party;
+});
+const reading = computed((): BannerReadingVm | undefined => {
+  return bannerReadingOf(meta.value, parliamentFlow.bannerSnapshot?.party ?? cursor.value);
+});
+const consequenceKey = computed((): string => {
+  return reading.value === undefined ? '' : bannerConsequenceKey(reading.value);
+});
+/**
+ * WHAT THE CUBE GIVES — the party's clauses as the Charter prints them: its standing EFFECT and its ACTION, each its
+ * own graphic (the manifest's render roots) with the party's own words for it. A clause with no GRAPHIC (an action-only
+ * party's empty passive — Unity) is not drawn: «no printed effect» under a label would be a clause that says nothing.
+ */
+const clauses = computed((): Array<{kind: 'effect' | 'action', root?: ICardRenderRoot, text?: string}> => {
+  const party = reading.value?.party;
+  const effect = party === undefined ? undefined : getPartyEffect(party);
+  if (effect === undefined) {
+    return [];
+  }
+  const graphic = (root: ICardRenderRoot | undefined): ICardRenderRoot | undefined =>
+    root !== undefined && !buildMechanics(root, PARLIAMENT_GRAPHIC).textOnly ? root : undefined;
+  const out: Array<{kind: 'effect' | 'action', root?: ICardRenderRoot, text?: string}> = [];
+  const passive = graphic(effect.passiveRenderData);
+  const passiveText = effect.text.passive ?? (effect.actionRenderData === undefined ? effect.text.rule : undefined);
+  if (passive !== undefined || passiveText !== undefined) {
+    out.push({kind: 'effect', ...(passive === undefined ? {} : {root: passive}), ...(passiveText === undefined ? {} : {text: passiveText})});
+  }
+  if (effect.actionRenderData !== undefined) {
+    const action = graphic(effect.actionRenderData);
+    out.push({kind: 'action', ...(action === undefined ? {} : {root: action}), text: effect.text.action ?? effect.text.rule});
+  }
+  return out;
+});
+const ctaReady = computed((): boolean => {
+  return !parliamentFlow.bannerCommitted && reading.value?.available === true;
+});
+const ctaText = computed((): string => {
+  if (parliamentFlow.bannerCommitted) {
+    return translateText(parliamentFlow.bannerBeat === 'done' || parliamentFlow.bannerBeat === 'read' ? 'Cube placed' : 'Performing…');
+  }
+  const r = reading.value;
+  if (r !== undefined && !r.available) {
+    return translateText(r.reason ?? 'Your cube already stands on this banner');
+  }
+  return translateText('Place cube');
+});
+
+function emblemOf(party: ReduxParty): string {
+  return partyEmblemUrl(party);
+}
+function accentOf(party: ReduxParty): string {
+  return partyAccent(party);
+}
+function moveTo(party: ReduxParty | undefined): void {
+  if (party === undefined) {
+    return;
+  }
+  if (party === ruler.value) {
+    parliamentFlow.zone = 'ruler';
+    return;
+  }
+  const index = props.view.parties.findIndex((p) => p.party === party);
+  if (index >= 0) {
+    parliamentFlow.zone = 'parties';
+    parliamentFlow.partyIndex = index;
+  }
+}
+/** The mode's own verbs: the d-pad walks the plaques, A places the cube, X inspects the plaque, L3 the corporation. */
+function handleIntent(intent: GamepadIntent): void {
+  if (parliamentFlow.bannerCommitted || parliamentFlow.stage !== 'banner') {
+    return;
+  }
+  if (intent.kind === 'nav') {
+    // The bench the cursor left keeps its place in `partyIndex` while the dais is focused — ◀ returns there.
+    moveTo(supportCursorStep(order.value, ruler.value, cursor.value, intent.dir, props.view.parties[parliamentFlow.partyIndex]?.party));
+    return;
+  }
+  if (intent.kind === 'press' && intent.button === 'stickL') {
+    const card = props.bridge.bannerPick?.card;
+    if (card !== undefined) {
+      emit('inspect-source', card);
+    }
+    return;
+  }
+  switch (consoleActionOf(intent)) {
+  case 'primary':
+    submit();
+    return;
+  case 'inspect': {
+    const request = parliamentBrowseInspectRequest(props.view, parliamentRootEl());
+    if (request !== undefined) {
+      emit('inspect', request);
+    }
+    return;
+  }
+  default:
+    return;
+  }
+}
+/** A — the cube onto the banner under the cursor. Never auto: the player walks to the plaque and presses. */
+function submit(): void {
+  const party = cursor.value;
+  const readingNow = reading.value;
+  if (parliamentFlow.stage !== 'banner' || parliamentFlow.bannerCommitted || party === undefined || readingNow === undefined) {
+    return;
+  }
+  if (!readingNow.available) {
+    emit('notice', translateText(readingNow.reason ?? 'Your cube already stands on this banner'));
+    return;
+  }
+  const response = bannerPickResponse(props.bridge, party);
+  if (response === undefined) {
+    emit('notice', translateText('This option is no longer offered'));
+    return;
+  }
+  parliamentFlow.bannerMeta = meta.value;
+  parliamentFlow.bannerSnapshot = {party};
+  // A cube that OPENS the party's effect is told by the hall (the seal into «ВАШИ ЭФФЕКТЫ»), never by the feed too.
+  if (!readingNow.hasEffect && party !== props.view.rulingParty) {
+    armAccessToldOnStage(party);
+  }
+  latchedCard.value = props.bridge.bannerPick?.card;
+  freezeParliamentFit(true);
+  emit('send', {response, from: 'banner'});
+}
+/**
+ * THE ANSWER IS IN (the section's answer-key watcher, post-flush). LANDED — the viewer's cube stands on the chosen
+ * banner: the carry plays on this stage. Anything else (the prompt re-asked, nothing placed) — the mode stands
+ * again in place, the cursor kept.
+ */
+function answerAfterSubmit(): void {
+  const f = parliamentFlow;
+  const party = f.bannerSnapshot?.party;
+  const viewer = props.viewerColor;
+  const placed = party !== undefined && viewer !== undefined && bannerCubesOn(props.playerView.game.parliament, party).includes(viewer);
+  if (!placed) {
+    f.stage = 'banner';
+    f.bannerCommitted = false;
+    f.bannerSnapshot = undefined;
+    freezeParliamentFit(false);
+    return;
+  }
+  playOutcome(party, viewer);
+}
+/**
+ * LANDED: the CORPORATION stands up in the table's cell and the cube leaves its printed on-play glyph for the plaque's
+ * socket (`bannerCubeStage` — the sitting's own phrase); then (an effect opened) the seal. With no card to stand
+ * up (a door with no source) the cube is carried from the viewer's seat, as before.
+ */
+function playOutcome(party: ReduxParty, viewer: Color): void {
+  const f = parliamentFlow;
+  f.stage = 'banner';
+  f.bannerCommitted = true;
+  f.bannerBeat = 'flight';
+  setWorkspaceFramePhase('parliament', 'executing');
+  outcomeHold?.release();
+  const hold = beginAnimationHold('parliament-banner-cube', {
+    maxHoldMs: 9000,
+    // THE CEILING ENDS THE PHRASE, not only its count: the stage of the card is cut, the held cube is shown on its banner,
+    // the seal stops, and the flow ends by its own hand (`finish` — the leave) from wherever it stood.
+    expire: () => {
+      if (outcomeHold !== hold || parliamentFlow.bannerBeat === 'done') {
+        return;
+      }
+      console.warn('[parliament] banner cube: outlived its ceiling — ended');
+      abortBannerCubeStage();
+      beat?.kill();
+      beat = undefined;
+      if (sealFlight !== undefined) {
+        dropFlight(sealFlight, {silent: true});
+        sealFlight = undefined;
+      }
+      releaseBannerCube(party, viewer);
+      finish();
+    },
+  });
+  outcomeHold = markRaw(hold);
+  void nextTick(() => probeTick(() => {
+    if (!bannerCubeHeld(party, viewer)) {
+      // Nothing held (reduced motion decided earlier, a reload): the cube already stands — read and go on.
+      afterCube(party);
+      return;
+    }
+    const card = latchedCard.value;
+    if (card === undefined) {
+      landBannerCube(party, viewer, seatRect(viewer), () => {
+        landed.value = true;
+        afterCube(party);
+      });
+      return;
+    }
+    stageDone = playBannerCubeStage([{party, color: viewer, card}], {
+      origin: 'play',
+      onLanded: () => {
+        landed.value = true;
+        afterCube(party);
+      },
+    }).then((result) => {
+      // A stage CUT before its touchdown (a second stage, a throw) still owes this flow its end: the cube is shown
+      // where it stands, and the reading goes on from it — never a mode left standing at «flight».
+      if (result === 'aborted' && !stopped.value) {
+        afterCube(party);
+      }
+      return result;
+    });
+  }));
+}
+/** The cube's source when no card stands up: the viewer's own seat on the bench (its colour is its place). */
+function seatRect(color: Color): Rect | undefined {
+  const root = parliamentRootEl();
+  const seat = rectOf(root?.querySelector(`[data-parl-seat="${color}"]`));
+  const target = bannerCubeTargetRect(parliamentFlow.bannerSnapshot?.party ?? props.view.rulingParty);
+  if (seat === undefined) {
+    return undefined;
+  }
+  const size = target?.height ?? Math.min(seat.height, 24);
+  return {left: seat.left + size * 0.2, top: seat.top + seat.height / 2 - size / 2, width: size, height: size};
+}
+/** The cube is seated. An effect it OPENED is carried into «ВАШИ ЭФФЕКТЫ» (the access scene); else a read. */
+function afterCube(party: ReduxParty): void {
+  const f = parliamentFlow;
+  if (f.bannerBeat !== 'flight') {
+    return;
+  }
+  const opened = props.view.viewer?.access.some((a) => a.party === party && a.hasEffect) === true && props.view.rulingParty !== party;
+  if (!opened) {
+    read();
+    return;
+  }
+  f.bannerBeat = 'seal';
+  f.accessParty = party;
+  f.accessBeat = 'flight';
+  void nextTick(() => {
+    const root = parliamentRootEl();
+    const from = bannerCubeTargetRect(party);
+    const to = rectOf(root?.querySelector(`.con-parl__effects-row[data-party="${party}"] .con-parl__effects-seal`));
+    sealFlight = flyAccessSeal({from, to, emblemUrl: partyEmblemUrl(party), onLanded: () => {
+      sealFlight = undefined;
+      if (f.bannerBeat !== 'seal') {
+        // The phrase already ended (the ceiling's recovery): a late seal reads nothing again.
+        return;
+      }
+      f.accessBeat = 'landed';
+      read();
+    }});
+  });
+}
+function read(): void {
+  const f = parliamentFlow;
+  f.bannerBeat = 'read';
+  beat?.kill();
+  beat = scheduleParliamentBeat(BANNER_READ_MS, () => {
+    beat = undefined;
+    // The surface leaves whole: never under a corporation still going back down into the table.
+    void (stageDone ?? Promise.resolve()).then(() => finish());
+  });
+}
+function finish(): void {
+  const f = parliamentFlow;
+  if (f.bannerBeat === 'done') {
+    return;
+  }
+  f.bannerBeat = 'done';
+  if (f.accessParty !== undefined) {
+    f.accessBeat = 'done';
+  }
+  outcomeHold?.release();
+  outcomeHold = undefined;
+  disarmAccessToldOnStage();
+  emit('flow-complete', 'banner');
+}
+/**
+ * THE QUESTION DOOR folds this FINISHED mode back to the overview (wait graph R1 — the conclusion held the frame for
+ * a question the overview opens): every beat cut, the fit thawed, the latch let go; the section then closes the stage.
+ * A mode still at work is never closed here.
+ */
+function closeFinished(): void {
+  if (parliamentFlow.bannerBeat !== 'done') {
+    return;
+  }
+  stopOutcome();
+  latchedCard.value = undefined;
+  freezeParliamentFit(false);
+}
+/** Cut every beat (the section unmounts): the held cube is shown, the hold lets go. */
+function stopOutcome(): void {
+  stopped.value = true;
+  abortBannerCubeStage();
+  beat?.kill();
+  beat = undefined;
+  if (sealFlight !== undefined) {
+    // SILENT: its touchdown would start the read on a mode that is going.
+    dropFlight(sealFlight, {silent: true});
+    sealFlight = undefined;
+  }
+  const party = parliamentFlow.bannerSnapshot?.party;
+  if (party !== undefined && props.viewerColor !== undefined) {
+    releaseBannerCube(party, props.viewerColor);
+  }
+  outcomeHold?.release();
+  outcomeHold = undefined;
+}
+
+onMounted(() => {
+  // The corporation that stands up at the press paints its art from its first frame (decoded now, not at the rise).
+  const card = props.bridge.bannerPick?.card;
+  if (card !== undefined) {
+    preloadPremiumCardArt([card], ['full', 'thumb']);
+  }
+});
+onBeforeUnmount(() => {
+  stopOutcome();
+});
+// What `ConsoleParliamentSection` reaches through its `ref="bannerMode"`: `answerAfterSubmit()` and `handleIntent()` by
+// name, and `closeFinished()` through the computed key of `foldFinishedStage` (`this.$refs[ref]` — 'bannerMode' is one
+// of its three values; the optional call would read `undefined` and fold a finished mode without thawing the fit).
+defineExpose({answerAfterSubmit, handleIntent, closeFinished});
 </script>
