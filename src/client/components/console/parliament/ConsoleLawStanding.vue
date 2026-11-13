@@ -1,13 +1,4 @@
 <template>
-  <!--
-    WHILE ENACTED (P77 · DH, `lawStandingModel.ts`) — what a law gives the reading's seat for as long as it stands, in
-    the vote panel's number grammar: an action's PRICE at the seat's influence and what it buys, how many times a
-    generation; a passive's number by its term (the discount and the viewer's cards it would cheapen, a unit's new
-    value and the stock it lifts, the tags it lends at the seat's influence) — or the law's rule where no number exists.
-    The win's change is ONE quiet suffix line under its number, never a second plate. Under an enactment payout the
-    part names itself («ПОКА ПРИНЯТА»); a law that pays nothing at the enactment speaks through this alone, at the
-    plate's voice size (`hero`). Nothing here computes: the model decided, this draws.
-  -->
   <div class="con-lawst" :class="{'con-lawst--hero': hero, 'con-lawst--both': both}" data-parl-vote-standing>
     <span v-if="standing.kicker !== undefined" class="con-lawst__kicker" data-parl-standing-kicker>{{ $t(standing.kicker) }}</span>
     <!-- THE PASSIVE — first: a law that both stands and acts reads under the passive's kicker -->
@@ -66,80 +57,82 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * WHILE ENACTED (P77 · DH, `lawStandingModel.ts`) — what a law gives the reading's seat for as long as it stands, in
+ * the vote panel's number grammar: an action's PRICE at the seat's influence and what it buys, how many times a
+ * generation; a passive's number by its term (the discount and the viewer's cards it would cheapen, a unit's new
+ * value and the stock it lifts, the tags it lends at the seat's influence) — or the law's rule where no number exists.
+ * The win's change is ONE quiet suffix line under its number, never a second plate. Under an enactment payout the
+ * part names itself («ПОКА ПРИНЯТА»); a law that pays nothing at the enactment speaks through this alone, at the
+ * plate's voice size (`hero`). Nothing here computes: the model decided, this draws.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {ReadingPerson} from '@/client/console/parliament/influenceYieldModel';
 import {suffixWinKey} from '@/client/console/parliament/voteInfoModel';
 import {
   ActionStanding, DISCOUNT_IN_HAND, LawStanding, ONCE_A_GENERATION, PassiveStanding, STOCK_GAIN, TAGS_WHEN_ACTING, USES_A_GENERATION,
 } from '@/client/console/parliament/lawStandingModel';
 
-export default defineComponent({
-  name: 'ConsoleLawStanding',
-  components: {PremiumCountGlyph},
-  props: {
-    standing: {type: Object as PropType<LawStanding>, required: true},
-    /** Whose reading this is — the win's words follow it («если победите» / «если победит»). */
-    person: {type: String as PropType<ReadingPerson>, default: 'you'},
-  },
-  computed: {
-    action(): ActionStanding | undefined {
-      return this.standing.action;
-    },
-    passive(): PassiveStanding | undefined {
-      return this.standing.passive;
-    },
-    /** The law that pays nothing at the enactment: this part IS the plate's voice. */
-    hero(): boolean {
-      return this.standing.kicker === undefined;
-    },
-    /** An action AND a passive — each row names itself. */
-    both(): boolean {
-      return this.action !== undefined && this.passive !== undefined;
-    },
-    usesText(): string {
-      const action = this.action;
-      if (action === undefined) {
-        return '';
-      }
-      return action.uses.declared || action.bill !== undefined ?
-        translateTextWithParams(USES_A_GENERATION, [String(action.uses.now)]) :
-        translateText(ONCE_A_GENERATION);
-    },
-    /** The win's change to the action: the price it takes off, else the count it adds. */
-    actionSuffix(): {num: string, icon?: string} | undefined {
-      const action = this.action;
-      if (action === undefined) {
-        return undefined;
-      }
-      if (action.bill?.priceIfWin !== undefined) {
-        return {num: `−${action.bill.price - action.bill.priceIfWin}`, icon: 'megacredits'};
-      }
-      if (action.uses.ifWin !== undefined) {
-        return {num: `×${action.uses.ifWin}`};
-      }
-      return undefined;
-    },
-    winWords(): string {
-      return suffixWinKey(this.person);
-    },
-    whenActing(): string {
-      return TAGS_WHEN_ACTING;
-    },
-  },
-  methods: {
-    iconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-    inHandText(n: number): string {
-      return translateTextWithParams(DISCOUNT_IN_HAND, [String(n)]);
-    },
-    stockText(n: number): string {
-      return translateTextWithParams(STOCK_GAIN, [String(n)]);
-    },
-  },
+defineOptions({name: 'ConsoleLawStanding'});
+const props = defineProps({
+  standing: {type: Object as PropType<LawStanding>, required: true},
+  /** Whose reading this is — the win's words follow it («если победите» / «если победит»). */
+  person: {type: String as PropType<ReadingPerson>, default: 'you'},
 });
+
+const action = computed((): ActionStanding | undefined => {
+  return props.standing.action;
+});
+const passive = computed((): PassiveStanding | undefined => {
+  return props.standing.passive;
+});
+/** The law that pays nothing at the enactment: this part IS the plate's voice. */
+const hero = computed((): boolean => {
+  return props.standing.kicker === undefined;
+});
+/** An action AND a passive — each row names itself. */
+const both = computed((): boolean => {
+  return action.value !== undefined && passive.value !== undefined;
+});
+const usesText = computed((): string => {
+  const standingAction = action.value;
+  if (standingAction === undefined) {
+    return '';
+  }
+  return standingAction.uses.declared || standingAction.bill !== undefined ?
+    translateTextWithParams(USES_A_GENERATION, [String(standingAction.uses.now)]) :
+    translateText(ONCE_A_GENERATION);
+});
+/** The win's change to the action: the price it takes off, else the count it adds. */
+const actionSuffix = computed((): {num: string, icon?: string} | undefined => {
+  const standingAction = action.value;
+  if (standingAction === undefined) {
+    return undefined;
+  }
+  if (standingAction.bill?.priceIfWin !== undefined) {
+    return {num: `−${standingAction.bill.price - standingAction.bill.priceIfWin}`, icon: 'megacredits'};
+  }
+  if (standingAction.uses.ifWin !== undefined) {
+    return {num: `×${standingAction.uses.ifWin}`};
+  }
+  return undefined;
+});
+const winWords = computed((): string => {
+  return suffixWinKey(props.person);
+});
+const whenActing = TAGS_WHEN_ACTING;
+
+const iconClass = iconClassFor;
+function inHandText(n: number): string {
+  return translateTextWithParams(DISCOUNT_IN_HAND, [String(n)]);
+}
+function stockText(n: number): string {
+  return translateTextWithParams(STOCK_GAIN, [String(n)]);
+}
 </script>
