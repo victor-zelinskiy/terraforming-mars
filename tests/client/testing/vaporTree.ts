@@ -238,7 +238,10 @@ function localNameOf(parent: unknown, type: unknown): string | undefined {
       continue;
     }
     for (const key of Object.keys(state)) {
-      if (state[key] === type) {
+      // An own DATA property only, as test-utils reads it: the compiler hands a binding imported from a `.ts` module
+      // (a lazy screen of `appAsync.ts`) over as a GETTER, and such a component answers to its OWN name there
+      // (`AsyncComponentWrapper`) — a spec that stubs or finds it by that name must meet the same name here.
+      if (Object.getOwnPropertyDescriptor(state, key)?.value === type) {
         return key;
       }
     }

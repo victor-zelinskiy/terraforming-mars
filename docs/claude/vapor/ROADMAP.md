@@ -470,6 +470,12 @@ ceiling only falls (`tests/console/vaporUnitPolicy.spec.ts`), and V4 takes it em
 test:client:vapor[:one]` (the valve ignored) · `npm run test:client:vdom:one -- <spec>` (nothing of `src/client` as
 Vapor — «is this red about the runtime at all?»).
 
+**What the layer does NOT hide** — and a spec still has to know: a Vapor `<Transition>` asked for by `stubs:
+{transition: false}` is the real one and needs a frame source (`tests/client/vapor/lendFrames.ts`); a slot given as a
+STRING or a component goes test-utils' own road and, forwarded by a Vapor component into a virtual-DOM child, raises
+rc.15's «invoked outside of the render function» (a FUNCTION slot does not — the layer hands it over itself; the fact
+is a row of the layer's spec); `wrapper.vm` of a Vapor component has no Options-API surface (`$data`, `$options`).
+
 ## 4c. The whole client flipped, on the box (2026-11-13) — the product worklist
 
 The same side worktree (448 of 455 components `vapor`, the product built as written, `vaporInteropPlugin` on),
@@ -486,12 +492,6 @@ first error of each failure (`tm-arch-tools/e2e_classify.py` over the run's log)
 
 One cause, read off a child's ref, took most of the product down without one type error or one red unit spec —
 which is why it is closed BEFORE the flips, by a contract with a guard, and why the next move is the same run again.
-
-**What the layer does NOT hide** — and a spec still has to know: a Vapor `<Transition>` asked for by `stubs:
-{transition: false}` is the real one and needs a frame source (`tests/client/vapor/lendFrames.ts`); a slot given as a
-STRING or a component goes test-utils' own road and, forwarded by a Vapor component into a virtual-DOM child, raises
-rc.15's «invoked outside of the render function» (a FUNCTION slot does not — the layer hands it over itself; the fact
-is a row of the layer's spec); `wrapper.vm` of a Vapor component has no Options-API surface (`$data`, `$options`).
 
 ## 5. The readiness ledger
 
