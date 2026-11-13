@@ -1,16 +1,4 @@
 <template>
-  <!--
-    PLANETARY EVENT THRESHOLDS — the console-native «Butterfly Effect» prompt:
-    move each threshold up to one step up or down.
-
-    Diegetic and expansion-neutral (the word «Ares» never appears — it is the
-    name of a box, not of anything on Mars). Each row states the CONSEQUENCE
-    next to the number, because a threshold with no consequence is trivia: the
-    player is choosing when erosions appear, not editing a variable.
-
-    data-motion-*: rides the shared `.con-shade` dim + the surface-motion
-    director — no own backdrop.
-  -->
   <div class="con-ares con-ws" role="dialog" :aria-label="$t('Shift the planetary event thresholds')"
        data-motion-surface="ares-globals">
     <!-- A plate of the PROMPT-MODAL FAMILY (`console_prompt.less`): a free choice — the NEUTRAL tone. Each row states
@@ -77,17 +65,31 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * PLANETARY EVENT THRESHOLDS — the console-native «Butterfly Effect» prompt:
+ * move each threshold up to one step up or down.
+ *
+ * Diegetic and expansion-neutral (the word «Ares» never appears — it is the
+ * name of a box, not of anything on Mars). Each row states the CONSEQUENCE
+ * next to the number, because a threshold with no consequence is trivia: the
+ * player is choosing when erosions appear, not editing a variable.
+ *
+ * data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+ * director — no own backdrop.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * Presentation + the pad contract. WHICH rows exist, what each one means and
  * how a step maps onto its parameter live in the pure `compositePrompts`
  * adapter, so the rules are unit-tested without mounting this component.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, onBeforeUnmount, PropType, ref, watch} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ShiftAresGlobalParametersModel} from '@/common/models/PlayerInputModel';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
@@ -101,134 +103,121 @@ import {promptIdentityKey} from '@/client/console/turnIntents';
 
 const OPTIONS: ReadonlyArray<AresDelta> = [-1, 0, 1];
 
-export default defineComponent({
-  name: 'ConsoleAresGlobals',
-  components: {GamepadGlyph, ConsolePromptHead},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-  },
-  emits: ['submit', 'defer'],
-  data() {
-    return {
-      focusIdx: 0,
-      deltas: {} as Partial<Record<AresDeltaKey, AresDelta>>,
-      submitting: false,
-      OPTIONS,
-    };
-  },
-  computed: {
-    model(): ShiftAresGlobalParametersModel | undefined {
-      const wf = this.playerView.waitingFor;
-      return wf?.type === 'aresGlobalParameters' ? (wf as ShiftAresGlobalParametersModel) : undefined;
-    },
-    rows(): ReadonlyArray<AresThresholdRow> {
-      return this.model === undefined ? [] : aresThresholdRows(this.model);
-    },
-    changedCount(): number {
-      return this.rows.filter((row) => this.deltaOf(row) !== 0).length;
-    },
-    shiftedText(): string {
-      return translateTextWithParams('Shifted: ${0}', [String(this.changedCount)]);
-    },
-    /** The decision's identity in the press's sequence (`promptSequence.ts`). */
-    sequenceKey(): string {
-      return this.model === undefined ? '' : promptSequenceKey(this.model, promptIdentityKey(this.model));
-    },
-    promptKey(): string {
-      return this.rows.map((r) => `${r.key}:${r.threshold}`).join('|');
-    },
-    footCommands(): Array<ConsoleCommand> {
-      return [
-        {control: 'dpad', label: 'Navigate'},
-        {control: 'bumperL', label: '−1'},
-        {control: 'bumperR', label: '+1'},
-        // ALWAYS enabled: leaving every threshold alone is a legitimate answer,
-        // and a disabled confirm would read as "you must change something".
-        {control: 'secondary', label: 'Apply'},
-        {control: 'back', label: 'Minimize'},
-      ];
-    },
-  },
-  watch: {
-    promptKey: {
-      immediate: true,
-      handler() {
-        this.reset();
-      },
-    },
-    playerView() {
-      this.submitting = false;
-    },
-    footCommands: {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>) {
-        setPanelCommands('aresGlobals', cmds);
-      },
-    },
-  },
-  beforeUnmount() {
-    clearPanelCommands('aresGlobals');
-  },
-  methods: {
-    deltaOf(row: AresThresholdRow): AresDelta {
-      return this.deltas[row.key] ?? 0;
-    },
-    resultingOf(row: AresThresholdRow): number {
-      return aresResulting(row, this.deltaOf(row));
-    },
-    segLabel(opt: AresDelta): string {
-      return opt === 0 ? '0' : opt > 0 ? '+1' : '−1';
-    },
-    reset(): void {
-      this.submitting = false;
-      this.focusIdx = 0;
-      this.deltas = {};
-    },
-    handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        if (intent.dir === 'up' || intent.dir === 'down') {
-          this.focusIdx = Math.min(this.rows.length - 1, Math.max(0, this.focusIdx + (intent.dir === 'down' ? 1 : -1)));
-        } else {
-          // Left / right nudge the focused threshold too — the segmented
-          // control looks horizontal, so the d-pad must agree with it.
-          this.step(intent.dir === 'right' ? 1 : -1);
-        }
-        return;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'prevSection':
-        this.step(-1);
-        return;
-      case 'nextSection':
-        this.step(1);
-        return;
-      case 'inspect': // X — apply
-        this.apply();
-        return;
-      case 'back':
-        this.$emit('defer');
-        return;
-      default:
-        return;
-      }
-    },
-    /** Clamped to [−1, +1]: the rules allow ONE step per threshold. */
-    step(delta: number): void {
-      const row = this.rows[this.focusIdx];
-      if (row === undefined) {
-        return;
-      }
-      const next = Math.min(1, Math.max(-1, this.deltaOf(row) + delta)) as AresDelta;
-      this.deltas = {...this.deltas, [row.key]: next};
-    },
-    apply(): void {
-      if (this.submitting) {
-        return;
-      }
-      this.submitting = true;
-      this.$emit('submit', aresResponse(this.deltas));
-    },
-  },
+defineOptions({name: 'ConsoleAresGlobals'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
 });
+const emit = defineEmits(['submit', 'defer']);
+
+const focusIdx = ref(0);
+const deltas = ref<Partial<Record<AresDeltaKey, AresDelta>>>({});
+const submitting = ref(false);
+
+const model = computed((): ShiftAresGlobalParametersModel | undefined => {
+  const wf = props.playerView.waitingFor;
+  return wf?.type === 'aresGlobalParameters' ? (wf as ShiftAresGlobalParametersModel) : undefined;
+});
+const rows = computed((): ReadonlyArray<AresThresholdRow> => {
+  return model.value === undefined ? [] : aresThresholdRows(model.value);
+});
+const changedCount = computed((): number => {
+  return rows.value.filter((row) => deltaOf(row) !== 0).length;
+});
+const shiftedText = computed((): string => {
+  return translateTextWithParams('Shifted: ${0}', [String(changedCount.value)]);
+});
+/** The decision's identity in the press's sequence (`promptSequence.ts`). */
+const sequenceKey = computed((): string => {
+  return model.value === undefined ? '' : promptSequenceKey(model.value, promptIdentityKey(model.value));
+});
+const promptKey = computed((): string => {
+  return rows.value.map((r) => `${r.key}:${r.threshold}`).join('|');
+});
+const footCommands = computed((): Array<ConsoleCommand> => {
+  return [
+    {control: 'dpad', label: 'Navigate'},
+    {control: 'bumperL', label: '−1'},
+    {control: 'bumperR', label: '+1'},
+    // ALWAYS enabled: leaving every threshold alone is a legitimate answer,
+    // and a disabled confirm would read as "you must change something".
+    {control: 'secondary', label: 'Apply'},
+    {control: 'back', label: 'Minimize'},
+  ];
+});
+
+function deltaOf(row: AresThresholdRow): AresDelta {
+  return deltas.value[row.key] ?? 0;
+}
+function resultingOf(row: AresThresholdRow): number {
+  return aresResulting(row, deltaOf(row));
+}
+function segLabel(opt: AresDelta): string {
+  return opt === 0 ? '0' : opt > 0 ? '+1' : '−1';
+}
+function reset(): void {
+  submitting.value = false;
+  focusIdx.value = 0;
+  deltas.value = {};
+}
+function handleIntent(intent: GamepadIntent): void {
+  if (intent.kind === 'nav') {
+    if (intent.dir === 'up' || intent.dir === 'down') {
+      focusIdx.value = Math.min(rows.value.length - 1, Math.max(0, focusIdx.value + (intent.dir === 'down' ? 1 : -1)));
+    } else {
+      // Left / right nudge the focused threshold too — the segmented
+      // control looks horizontal, so the d-pad must agree with it.
+      step(intent.dir === 'right' ? 1 : -1);
+    }
+    return;
+  }
+  switch (consoleActionOf(intent)) {
+  case 'prevSection':
+    step(-1);
+    return;
+  case 'nextSection':
+    step(1);
+    return;
+  case 'inspect': // X — apply
+    apply();
+    return;
+  case 'back':
+    emit('defer');
+    return;
+  default:
+    return;
+  }
+}
+/** Clamped to [−1, +1]: the rules allow ONE step per threshold. */
+function step(delta: number): void {
+  const row = rows.value[focusIdx.value];
+  if (row === undefined) {
+    return;
+  }
+  const next = Math.min(1, Math.max(-1, deltaOf(row) + delta)) as AresDelta;
+  deltas.value = {...deltas.value, [row.key]: next};
+}
+function apply(): void {
+  if (submitting.value) {
+    return;
+  }
+  submitting.value = true;
+  emit('submit', aresResponse(deltas.value));
+}
+
+watch(() => promptKey.value, () => {
+  reset();
+}, {immediate: true});
+watch(() => props.playerView, () => {
+  submitting.value = false;
+});
+watch(() => footCommands.value, (cmds: ReadonlyArray<ConsoleCommand>) => {
+  setPanelCommands('aresGlobals', cmds);
+}, {immediate: true, deep: true});
+onBeforeUnmount(() => {
+  clearPanelCommands('aresGlobals');
+});
+
+// What the shell's pad router reaches through the surface registry (`surfaces.at('aresGlobals')` → `handedTo`):
+// `handleIntent` — and nothing else.
+defineExpose({handleIntent});
 </script>
