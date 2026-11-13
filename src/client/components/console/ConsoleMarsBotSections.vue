@@ -1,11 +1,4 @@
 <template>
-  <!-- ── «ЭКРАН БОТА» — the bot's internals HUB, as a DOSSIER (the Information polish of 2026-10-19): every rule
-       stands WITH ITS OBJECT. One plate per thing the algorithm plays with — the corporation (and the difficulty that
-       bends it), the two decks, the bonus piles (a door), the printed board (a door, its miniature on the plate), the
-       scoring (the M€ → VP ladder and the clock), the shipping storage and the Hydronetwork when this game has them —
-       each plate its objects at the scene's scale and, under them, its paragraph of the SHARED teaching layer
-       (`marsBotGuide`, the desktop's own text). The plates are a grid solved to the opening: nothing scrolls, nothing
-       stands outside its plate. The two doors are the hub's focus ring — A descends, B returns here. -->
   <div v-if="mode === 'botScreen'" ref="hub" class="con-botscr" :class="{'con-botscr--wide': extraPlates > 0}" :data-botscr-extras="extraPlates" data-botscr-fit="0">
     <section v-if="automa.corporation !== undefined" class="con-botscr__plate con-botscr__plate--corp con-info__block--botcorp">
       <h3 class="con-botscr__kicker">{{ $t(holdings.length > 0 ? 'Corporations' : 'Corporation') }}</h3>
@@ -128,10 +121,10 @@
     </section>
   </div>
 
-  <!-- ── «ПЛАНШЕТ БОТА» — the printed board at the SCENE's scale (its px-authored mat rides `zoom × --con-ui-scale`,
-       the console's scale model for embedded px content) + the cube legend, and the three rules that READ this board
-       (its turn, the trackers, the failed action) beside it. A nested route of «Экран бота»: B returns to the hub. -->
   <div v-else-if="mode === 'botBoard'" class="con-botboard">
+    <!-- ── «ПЛАНШЕТ БОТА» — the printed board at the SCENE's scale (its px-authored mat rides `zoom × --con-ui-scale`,
+         the console's scale model for embedded px content) + the cube legend, and the three rules that READ this board
+         (its turn, the trackers, the failed action) beside it. A nested route of «Экран бота»: B returns to the hub. -->
     <div class="con-botboard__stage">
       <MarsBotTracks :tracks="automa.tracks" :botColor="bot.color" :corporation="automa.corporation" :thresholds="automa.thresholds ?? []" :tokens="automa.tokens" large />
     </div>
@@ -147,11 +140,11 @@
     </div>
   </div>
 
-  <!-- ── «БОНУСНЫЕ КАРТЫ» — the open bonus piles as PILES (a nested route): the recurring cards (when the corporation
-       has them), the discard, the destroyed — each a column with its rule; an empty pile is a composed object (its
-       outline and one word), never a bare line. The faces are the SHARED `BonusCardFace` (px-authored, `zoom ×
-       --con-ui-scale`). -->
   <div v-else-if="mode === 'botBonus'" class="con-botbonus" :data-bonus-piles="bonusPiles.length">
+    <!-- ── «БОНУСНЫЕ КАРТЫ» — the open bonus piles as PILES (a nested route): the recurring cards (when the corporation
+         has them), the discard, the destroyed — each a column with its rule; an empty pile is a composed object (its
+         outline and one word), never a bare line. The faces are the SHARED `BonusCardFace` (px-authored, `zoom ×
+         --con-ui-scale`). -->
     <section v-for="pile in bonusPiles" :key="pile.key" class="con-botbonus__pile" :data-bonus-pile="pile.key">
       <h4 class="con-botscr__kicker">{{ $t(pile.title) }} <b class="con-botbonus__count">{{ pile.ids.length }}</b></h4>
       <p class="con-botscr__prose">{{ $t(pile.note) }}</p>
@@ -166,9 +159,20 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * ── «ЭКРАН БОТА» — the bot's internals HUB, as a DOSSIER (the Information polish of 2026-10-19): every rule
+ * stands WITH ITS OBJECT. One plate per thing the algorithm plays with — the corporation (and the difficulty that
+ * bends it), the two decks, the bonus piles (a door), the printed board (a door, its miniature on the plate), the
+ * scoring (the M€ → VP ladder and the clock), the shipping storage and the Hydronetwork when this game has them —
+ * each plate its objects at the scene's scale and, under them, its paragraph of the SHARED teaching layer
+ * (`marsBotGuide`, the desktop's own text). The plates are a grid solved to the opening: nothing scrolls, nothing
+ * stands outside its plate. The two doors are the hub's focus ring — A descends, B returns here.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 import {Message} from '@/common/logs/Message';
-import {translateMessage} from '@/client/directives/i18n';
+import {$t, translateMessage} from '@/client/directives/i18n';
 /**
  * «ЭКРАН БОТА» + its two nested routes — the MarsBot internals of the
  * console Information workspace. The participant SUMMARY shows the bot as
@@ -182,7 +186,7 @@ import {translateMessage} from '@/client/directives/i18n';
  * bot identically. Read-only public data; input routing stays in
  * ConsoleShell and button hints stay in the one command bar.
  */
-import {defineComponent, markRaw, PropType} from 'vue';
+import {computed, markRaw, onBeforeUnmount, onMounted, onUpdated, PropType, useTemplateRef} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {BotScreenEntry} from '@/client/console/infoRoute';
@@ -192,133 +196,124 @@ import MarsBotTracks from '@/client/components/marsbot/MarsBotTracks.vue';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import {BonusCardId, MarsBotCorpId} from '@/common/automa/AutomaTypes';
+import {vI18n} from '@/client/directives/vDirectives';
 
 /** The teaching sections that read the printed board (their home is the board's own screen). */
 const BOARD_RULES: ReadonlyArray<string> = ['turn', 'tracks', 'failed'];
 /** The prose's steps down the type ladder before the hub gives up fitting (secondary → caption → floor). */
 const HUB_FIT_LEVELS = 2;
 
-export default defineComponent({
-  name: 'ConsoleMarsBotSections',
-  components: {MarsBotTracks, BonusCardFace, MarsBotCorpFace},
-  props: {
-    mode: {type: String as PropType<'botScreen' | 'botBoard' | 'botBonus'>, required: true},
-    bot: {type: Object as PropType<PublicPlayerModel>, required: true},
-    automa: {type: Object as PropType<MarsBotModel>, required: true},
-    /** The expansion context — resolves bonus-card faces + guide sections for THIS game. */
-    ctx: {type: Object as PropType<MarsBotGuideContext>, required: true},
-    /** The hub's focus ring — which deep entry the cursor stands on. */
-    focus: {type: String as PropType<BotScreenEntry>, default: 'botBoard'},
-    /** The bot seat's M€ supply (the scoring block's ladder input). */
-    megacredits: {type: Number, default: 0},
-  },
-  data() {
-    return {
-      /** The hub's own box watcher (raw — a native observer never goes through a reactive proxy). */
-      hubObserver: undefined as ResizeObserver | undefined,
-    };
-  },
-  computed: {
-    difficultyLabel(): string {
-      return DIFFICULTY_LABEL[this.automa.difficulty];
-    },
-    /** The campaign portfolio's HOLDINGS (empty in every ordinary game). */
-    holdings(): ReadonlyArray<{id: MarsBotCorpId}> {
-      return (this.automa.holdings ?? []).map((h) => ({id: h.id}));
-    },
-    storageEntries(): Array<{colony: string, count: number}> {
-      const storage = this.automa.shippingStorage;
-      if (storage === undefined) {
-        return [];
-      }
-      return Object.entries(storage)
-        .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > 0)
-        .map(([colony, count]) => ({colony, count}));
-    },
-    /** The current M€→VP ladder rate (from the live breakdown's automa
-     *  block — server truth; 0 hides the row on a pre-automa model). */
-    mcRate(): number {
-      return this.bot.victoryPointsBreakdown.automa?.mcPerVp ?? 0;
-    },
-    countsCardVp(): boolean {
-      return this.automa.difficulty === 'hard' || this.automa.difficulty === 'brutal';
-    },
-    guide(): ReadonlyArray<GuideSection> {
-      return marsBotGuide(this.automa.difficulty, this.ctx);
-    },
-    /** The rules that READ the printed board — they stand beside it on its own screen. */
-    boardGuide(): ReadonlyArray<GuideSection> {
-      return this.guide.filter((s) => BOARD_RULES.includes(s.id));
-    },
-    /** The hub's plates past the core five: the shipping storage and the Hydronetwork, when this game has them. */
-    extraPlates(): number {
-      return ['shipping', 'hydronetwork'].filter((id) => this.hasSection(id)).length;
-    },
-    /** The bonus route's piles, in the order a card travels: recurring (when any) · discard · destroyed. */
-    bonusPiles(): ReadonlyArray<{key: string, title: string, note: string, ids: ReadonlyArray<BonusCardId>}> {
-      const piles: Array<{key: string, title: string, note: string, ids: ReadonlyArray<BonusCardId>}> = [];
-      if (this.automa.recurringBonusCards.length > 0) {
-        piles.push({key: 'recurring', title: 'Recurring bonus cards', note: 'These cards never go to the discard — they are shuffled back into the action deck every generation', ids: this.automa.recurringBonusCards});
-      }
-      piles.push({key: 'discard', title: 'Bonus discard', note: 'Resolved bonus cards rest here and are shuffled back in when the bonus deck runs out', ids: this.automa.bonusDiscard});
-      piles.push({key: 'destroyed', title: 'Destroyed bonus cards', note: 'Destroyed cards are removed from the game permanently — they are never reshuffled', ids: this.automa.destroyedBonusCards});
-      return piles;
-    },
-  },
-  mounted() {
-    this.observeHub();
-  },
-  updated() {
-    this.observeHub();
-  },
-  beforeUnmount() {
-    this.hubObserver?.disconnect();
-    this.hubObserver = undefined;
-  },
-  methods: {
-    /** A briefing line — a server Message through the one translation road (a copy, never the model's object). */
-    briefingText(line: Message): string {
-      return translateMessage({message: line.message, data: line.data.map((d) => ({...d}))});
-    },
-    /**
-     * THE HUB SITS IN ITS OPENING: every plate's content must stand inside its plate. The prose is the one part that
-     * yields — measured, never guessed: the reading size steps down (`data-botscr-fit` 0 → 1 → 2, the type ladder's
-     * own tokens) until no plate overflows. A handheld lays the plates out as a flowing two-column read instead (the
-     * plates never clip there), so the walk ends at 0. Attribute writes only — no reactive state, no render loop.
-     */
-    fitHub(): void {
-      const hub = (this.$refs.hub ?? undefined) as HTMLElement | undefined;
-      if (hub === undefined) {
-        return;
-      }
-      const plates = Array.from(hub.querySelectorAll<HTMLElement>('.con-botscr__plate'));
-      for (let level = 0; level <= HUB_FIT_LEVELS; level++) {
-        hub.dataset.botscrFit = String(level);
-        if (!plates.some((plate) => plate.scrollHeight > plate.clientHeight + 1)) {
-          return;
-        }
-      }
-    },
-    observeHub(): void {
-      const hub = (this.$refs.hub ?? undefined) as HTMLElement | undefined;
-      if (hub === undefined) {
-        this.hubObserver?.disconnect();
-        this.hubObserver = undefined;
-        return;
-      }
-      if (this.hubObserver === undefined && typeof ResizeObserver !== 'undefined') {
-        this.hubObserver = markRaw(new ResizeObserver(() => this.fitHub()));
-        this.hubObserver.observe(hub);
-      }
-      this.fitHub();
-    },
-    hasSection(id: string): boolean {
-      return this.guide.some((s) => s.id === id);
-    },
-    /** A teaching section's paragraphs (English i18n keys), by its id — empty when this game has no such section. */
-    bodyOf(id: string): ReadonlyArray<string> {
-      return this.guide.find((s) => s.id === id)?.body ?? [];
-    },
-  },
+defineOptions({name: 'ConsoleMarsBotSections'});
+const props = defineProps({
+  mode: {type: String as PropType<'botScreen' | 'botBoard' | 'botBonus'>, required: true},
+  bot: {type: Object as PropType<PublicPlayerModel>, required: true},
+  automa: {type: Object as PropType<MarsBotModel>, required: true},
+  /** The expansion context — resolves bonus-card faces + guide sections for THIS game. */
+  ctx: {type: Object as PropType<MarsBotGuideContext>, required: true},
+  /** The hub's focus ring — which deep entry the cursor stands on. */
+  focus: {type: String as PropType<BotScreenEntry>, default: 'botBoard'},
+  /** The bot seat's M€ supply (the scoring block's ladder input). */
+  megacredits: {type: Number, default: 0},
+});
+
+const hub = useTemplateRef<HTMLElement>('hub');
+/** The hub's own box watcher (raw — a native observer never goes through a reactive proxy). */
+let hubObserver: ResizeObserver | undefined;
+const difficultyLabel = computed((): string => {
+  return DIFFICULTY_LABEL[props.automa.difficulty];
+});
+/** The campaign portfolio's HOLDINGS (empty in every ordinary game). */
+const holdings = computed((): ReadonlyArray<{id: MarsBotCorpId}> => {
+  return (props.automa.holdings ?? []).map((h) => ({id: h.id}));
+});
+const storageEntries = computed((): Array<{colony: string, count: number}> => {
+  const storage = props.automa.shippingStorage;
+  if (storage === undefined) {
+    return [];
+  }
+  return Object.entries(storage)
+    .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > 0)
+    .map(([colony, count]) => ({colony, count}));
+});
+/** The current M€→VP ladder rate (from the live breakdown's automa
+ *  block — server truth; 0 hides the row on a pre-automa model). */
+const mcRate = computed((): number => {
+  return props.bot.victoryPointsBreakdown.automa?.mcPerVp ?? 0;
+});
+const guide = computed((): ReadonlyArray<GuideSection> => {
+  return marsBotGuide(props.automa.difficulty, props.ctx);
+});
+/** The rules that READ the printed board — they stand beside it on its own screen. */
+const boardGuide = computed((): ReadonlyArray<GuideSection> => {
+  return guide.value.filter((s) => BOARD_RULES.includes(s.id));
+});
+/** The hub's plates past the core five: the shipping storage and the Hydronetwork, when this game has them. */
+const extraPlates = computed((): number => {
+  return ['shipping', 'hydronetwork'].filter((id) => hasSection(id)).length;
+});
+/** The bonus route's piles, in the order a card travels: recurring (when any) · discard · destroyed. */
+const bonusPiles = computed((): ReadonlyArray<{key: string, title: string, note: string, ids: ReadonlyArray<BonusCardId>}> => {
+  const piles: Array<{key: string, title: string, note: string, ids: ReadonlyArray<BonusCardId>}> = [];
+  if (props.automa.recurringBonusCards.length > 0) {
+    piles.push({key: 'recurring', title: 'Recurring bonus cards', note: 'These cards never go to the discard — they are shuffled back into the action deck every generation', ids: props.automa.recurringBonusCards});
+  }
+  piles.push({key: 'discard', title: 'Bonus discard', note: 'Resolved bonus cards rest here and are shuffled back in when the bonus deck runs out', ids: props.automa.bonusDiscard});
+  piles.push({key: 'destroyed', title: 'Destroyed bonus cards', note: 'Destroyed cards are removed from the game permanently — they are never reshuffled', ids: props.automa.destroyedBonusCards});
+  return piles;
+});
+
+/** A briefing line — a server Message through the one translation road (a copy, never the model's object). */
+function briefingText(line: Message): string {
+  return translateMessage({message: line.message, data: line.data.map((d) => ({...d}))});
+}
+/**
+ * THE HUB SITS IN ITS OPENING: every plate's content must stand inside its plate. The prose is the one part that
+ * yields — measured, never guessed: the reading size steps down (`data-botscr-fit` 0 → 1 → 2, the type ladder's
+ * own tokens) until no plate overflows. A handheld lays the plates out as a flowing two-column read instead (the
+ * plates never clip there), so the walk ends at 0. Attribute writes only — no reactive state, no render loop.
+ */
+function fitHub(): void {
+  const hubNow = hub.value;
+  if (hubNow === null) {
+    return;
+  }
+  const plates = Array.from(hubNow.querySelectorAll<HTMLElement>('.con-botscr__plate'));
+  for (let level = 0; level <= HUB_FIT_LEVELS; level++) {
+    hubNow.dataset.botscrFit = String(level);
+    if (!plates.some((plate) => plate.scrollHeight > plate.clientHeight + 1)) {
+      return;
+    }
+  }
+}
+function observeHub(): void {
+  const hubNow = hub.value;
+  if (hubNow === null) {
+    hubObserver?.disconnect();
+    hubObserver = undefined;
+    return;
+  }
+  if (hubObserver === undefined && typeof ResizeObserver !== 'undefined') {
+    hubObserver = markRaw(new ResizeObserver(() => fitHub()));
+    hubObserver.observe(hubNow);
+  }
+  fitHub();
+}
+function hasSection(id: string): boolean {
+  return guide.value.some((s) => s.id === id);
+}
+/** A teaching section's paragraphs (English i18n keys), by its id — empty when this game has no such section. */
+function bodyOf(id: string): ReadonlyArray<string> {
+  return guide.value.find((s) => s.id === id)?.body ?? [];
+}
+
+onMounted(() => {
+  observeHub();
+});
+onUpdated(() => {
+  observeHub();
+});
+onBeforeUnmount(() => {
+  hubObserver?.disconnect();
+  hubObserver = undefined;
 });
 </script>
