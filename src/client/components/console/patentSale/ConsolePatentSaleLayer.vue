@@ -1,22 +1,4 @@
 <template>
-  <!--
-    PATENT-SALE HERO STAGE — the fixed, app-level layer of the "cards feed
-    the trade terminal, the terminal pays" scene (consolePatentSale /
-    patentSaleDirector). Mounted for the WHOLE transaction (arm → done), so:
-     - the card flights survive the sale UI closing beneath them;
-     - the leak detector counts `.con-sale-hero` as the serving surface
-       while the scene briefly holds the follow-up prompt.
-
-    Anatomy:
-     - the WELL hosts the card proxies (the shared lite-face + flip chassis)
-       and carries the clip line at the terminal's slit mouth — a sinking
-       card vanishes INTO the table, never fades in mid-air;
-     - the TERMINAL is the slim trade mechanism at the table edge (kicker +
-       slit + working scanline + rim glow);
-     - the dispensed M€ CHIP flies on the SHARED resource-transfer stage
-       (ConsoleResourceTransferLayer) — the one language of receiving
-       resources — spawned from this terminal's slit.
-  -->
   <div v-if="patentSaleState.active" class="con-sale-hero" aria-hidden="true">
     <div ref="well" class="con-sale-hero__well">
       <div v-for="f in patentSaleState.flights"
@@ -72,8 +54,29 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * PATENT-SALE HERO STAGE — the fixed, app-level layer of the "cards feed
+ * the trade terminal, the terminal pays" scene (consolePatentSale /
+ * patentSaleDirector). Mounted for the WHOLE transaction (arm → done), so:
+ *  - the card flights survive the sale UI closing beneath them;
+ *  - the leak detector counts `.con-sale-hero` as the serving surface
+ *    while the scene briefly holds the follow-up prompt.
+ *
+ * Anatomy:
+ *  - the WELL hosts the card proxies (the shared lite-face + flip chassis)
+ *    and carries the clip line at the terminal's slit mouth — a sinking
+ *    card vanishes INTO the table, never fades in mid-air;
+ *  - the TERMINAL is the slim trade mechanism at the table edge (kicker +
+ *    slit + working scanline + rim glow);
+ *  - the dispensed M€ CHIP flies on the SHARED resource-transfer stage
+ *    (ConsoleResourceTransferLayer) — the one language of receiving
+ *    resources — spawned from this terminal's slit.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {onBeforeUnmount, onMounted, useTemplateRef} from 'vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 import {CardName} from '@/common/cards/CardName';
@@ -83,78 +86,77 @@ import {PatentSaleAnswer} from '@/client/console/patentSale/patentSaleAnswers';
 import {cardResourceLanded} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {SaleStageEls, SaleProxyEls} from '@/client/console/patentSale/patentSaleDirector';
+import {$t} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsolePatentSaleLayer',
-  components: {ConsoleCardFaceLite, ConsolePlayedCardLite},
-  data() {
-    return {
-      patentSaleState,
-      unregister: undefined as (() => void) | undefined,
-      // Function-ref maps (v-for order is not guaranteed across patches).
-      proxyEls: new Map<number, HTMLElement>(),
-      flipEls: new Map<number, HTMLElement>(),
-    };
-  },
-  methods: {
-    /** The receiver's capsule: its count at arm + what has LANDED of this sale (ticks at the contact, never before). */
-    capsuleOf(r: SaleReceiver): CardModel {
-      return {name: r.card, resources: r.before + cardResourceLanded(r.card)} as CardModel;
-    },
-    /** What this card brings or pays in the sale — the label under it (the chip's own amount and icon). */
-    gainsOf(card: CardName): Array<PatentSaleAnswer> {
-      return patentSaleState.answers.filter((a) => a.amount > 0 && (a.channel === 'card-resource' ? a.host === card : a.card === card));
-    },
-    iconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-    setProxyRef(id: number, el: HTMLElement | null): void {
-      if (el === null) {
-        this.proxyEls.delete(id);
-      } else {
-        this.proxyEls.set(id, el);
+defineOptions({name: 'ConsolePatentSaleLayer'});
+
+const well = useTemplateRef<HTMLElement>('well');
+const terminal = useTemplateRef<HTMLElement>('terminal');
+const slit = useTemplateRef<HTMLElement>('slit');
+const scan = useTemplateRef<HTMLElement>('scan');
+const glow = useTemplateRef<HTMLElement>('glow');
+let unregister: (() => void) | undefined;
+// Function-ref maps (v-for order is not guaranteed across patches).
+const proxyEls = new Map<number, HTMLElement>();
+const flipEls = new Map<number, HTMLElement>();
+
+/** The receiver's capsule: its count at arm + what has LANDED of this sale (ticks at the contact, never before). */
+function capsuleOf(r: SaleReceiver): CardModel {
+  return {name: r.card, resources: r.before + cardResourceLanded(r.card)} as CardModel;
+}
+/** What this card brings or pays in the sale — the label under it (the chip's own amount and icon). */
+function gainsOf(card: CardName): Array<PatentSaleAnswer> {
+  return patentSaleState.answers.filter((a) => a.amount > 0 && (a.channel === 'card-resource' ? a.host === card : a.card === card));
+}
+function iconClass(icon: string): string {
+  return iconClassFor(icon);
+}
+function setProxyRef(id: number, el: HTMLElement | null): void {
+  if (el === null) {
+    proxyEls.delete(id);
+  } else {
+    proxyEls.set(id, el);
+  }
+}
+function setFlipRef(id: number, el: HTMLElement | null): void {
+  if (el === null) {
+    flipEls.delete(id);
+  } else {
+    flipEls.set(id, el);
+  }
+}
+
+onMounted(() => {
+  // Live element getter — the orchestrator reads it after its own
+  // nextTick, so the refs are always current for the active flights.
+  unregister = registerPatentSaleStage({
+    els: (): SaleStageEls | undefined => {
+      const wellNow = well.value ?? undefined;
+      const terminalNow = terminal.value ?? undefined;
+      const slitNow = slit.value ?? undefined;
+      // `!x` also catches Vue's `null` for a removed-then-queried ref.
+      if (!wellNow || !terminalNow || !slitNow || !wellNow.isConnected) {
+        return undefined;
       }
-    },
-    setFlipRef(id: number, el: HTMLElement | null): void {
-      if (el === null) {
-        this.flipEls.delete(id);
-      } else {
-        this.flipEls.set(id, el);
+      const proxies: Array<SaleProxyEls> = [];
+      for (const f of patentSaleState.flights) {
+        const root = proxyEls.get(f.id);
+        if (root !== undefined && root.isConnected) {
+          proxies.push({id: f.id, root, flip: flipEls.get(f.id)});
+        }
       }
+      return {
+        well: wellNow,
+        terminal: terminalNow,
+        slit: slitNow,
+        scan: scan.value ?? undefined,
+        glow: glow.value ?? undefined,
+        proxies,
+      };
     },
-  },
-  mounted() {
-    // Live element getter — the orchestrator reads it after its own
-    // nextTick, so the refs are always current for the active flights.
-    this.unregister = registerPatentSaleStage({
-      els: (): SaleStageEls | undefined => {
-        const well = (this.$refs.well ?? undefined) as HTMLElement | undefined;
-        const terminal = (this.$refs.terminal ?? undefined) as HTMLElement | undefined;
-        const slit = (this.$refs.slit ?? undefined) as HTMLElement | undefined;
-        // `!x` also catches Vue's `null` for a removed-then-queried ref.
-        if (!well || !terminal || !slit || !well.isConnected) {
-          return undefined;
-        }
-        const proxies: Array<SaleProxyEls> = [];
-        for (const f of patentSaleState.flights) {
-          const root = this.proxyEls.get(f.id);
-          if (root !== undefined && root.isConnected) {
-            proxies.push({id: f.id, root, flip: this.flipEls.get(f.id)});
-          }
-        }
-        return {
-          well,
-          terminal,
-          slit,
-          scan: (this.$refs.scan ?? undefined) as HTMLElement | undefined,
-          glow: (this.$refs.glow ?? undefined) as HTMLElement | undefined,
-          proxies,
-        };
-      },
-    });
-  },
-  beforeUnmount() {
-    this.unregister?.();
-  },
+  });
+});
+onBeforeUnmount(() => {
+  unregister?.();
 });
 </script>
