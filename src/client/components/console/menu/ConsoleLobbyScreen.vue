@@ -58,7 +58,7 @@
   </section>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * THE PREGAME SCREEN CHASSIS (TR68 «ПРЕДИГРОВОЕ — ЭТО ВИТРИНА», docs/claude/console/pregame-showcase.md) — the one
  * grammar of a product list before the game: head (the stable context «Главное меню», the title, the slice segment,
@@ -69,7 +69,8 @@
  * fill the stage, a third is a page below, kept in view by the scroll area's `ensureVisible`. The host owns the
  * cursor and the verbs; the screen exposes its column count (`cols`) for the ◀ ▶ ▲ ▼ walk.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {ShowcaseGrid, showcaseGrid} from '@/client/console/menu/lobbyCardModel';
@@ -90,106 +91,100 @@ const STATE_GLYPH: Readonly<Record<Exclude<LobbyScreenState, 'list' | 'loading'>
   'empty': '⧉',
 };
 
-export default defineComponent({
-  name: 'ConsoleLobbyScreen',
-  components: {ConsoleScrollArea, GamepadGlyph},
-  props: {
-    kind: {type: String as PropType<'games' | 'campaigns'>, required: true},
-    titleKey: {type: String, required: true},
-    tabs: {type: Array as PropType<ReadonlyArray<LobbyScreenTab>>, required: true},
-    tab: {type: String, required: true},
-    state: {type: String as PropType<LobbyScreenState>, default: 'list'},
-    /** The sentence of a non-list state (the lobby's own keys). */
-    stateKey: {type: String, default: ''},
-    stateHintKey: {type: String, default: ''},
-    refreshing: {type: Boolean, default: false},
-    /** The cards on the stage — a short list takes as many columns as it has cards (and stands centred). */
-    items: {type: Number, default: 0},
-  },
-  emits: ['tab', 'grid'],
-  data() {
-    return {
-      grid: {cols: 3, cardW: 0, rowH: 0} as ShowcaseGrid,
-      observer: undefined as ResizeObserver | undefined,
-    };
-  },
-  computed: {
-    /** The columns the cards take — never more than there are cards (a short list stands centred, not left). */
-    cols(): number {
-      return Math.max(1, Math.min(this.grid.cols, this.items > 0 ? this.items : this.grid.cols));
-    },
-    gridStyle(): Record<string, string> {
-      if (this.grid.cardW <= 0) {
-        return {'--cm-lobby-cols': String(this.cols)};
-      }
-      return {
-        '--cm-lobby-cols': String(this.cols),
-        '--cm-lobby-card-w': `${this.grid.cardW}px`,
-        '--cm-lobby-row-h': `${this.grid.rowH}px`,
-      };
-    },
-    stateGlyph(): string {
-      return this.state === 'list' || this.state === 'loading' ? '' : STATE_GLYPH[this.state];
-    },
-  },
-  watch: {
-    state() {
-      void this.$nextTick(() => this.measure());
-    },
-    /** The walk's row length is the columns the cards TAKE. */
-    cols: {
-      handler(cols: number) {
-        this.$emit('grid', cols);
-      },
-      immediate: true,
-    },
-  },
-  mounted() {
-    this.measure();
-    if (typeof ResizeObserver !== 'undefined') {
-      this.observer = new ResizeObserver(() => this.measure());
-      this.observer.observe(this.$refs.stage as HTMLElement);
-    }
-  },
-  beforeUnmount() {
-    this.observer?.disconnect();
-  },
-  methods: {
-    /** The grid from the measured stage — the band above the cards (LAN) is subtracted. */
-    measure(): void {
-      const stage = (this.$refs.stage ?? undefined) as HTMLElement | undefined;
-      if (stage === undefined) {
-        return;
-      }
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 20;
-      const scroll = stage.querySelector<HTMLElement>('.cm-lobby__scroll');
-      const gridEl = stage.querySelector<HTMLElement>('.cm-lobby__grid');
-      // The grid's OWN gap and padding (a profile restates them — the Deck's are tighter) come off the room.
-      const gs = gridEl !== null ? getComputedStyle(gridEl) : undefined;
-      const gap = gs !== undefined ? parseFloat(gs.columnGap) || GAP_REM * rem : GAP_REM * rem;
-      const padX = gs !== undefined ? (parseFloat(gs.paddingLeft) || 0) + (parseFloat(gs.paddingRight) || 0) : 0;
-      const padY = gs !== undefined ? (parseFloat(gs.paddingTop) || 0) + (parseFloat(gs.paddingBottom) || 0) : 0;
-      const width = (scroll ?? stage).clientWidth - padX;
-      const height = (scroll ?? stage).clientHeight - padY;
-      if (width <= 0 || height <= 0) {
-        return;
-      }
-      const next = showcaseGrid(width, height, {
-        gap,
-        minW: CARD_MIN_W_REM * rem,
-        maxW: CARD_MAX_W_REM * rem,
-        minH: CARD_MIN_H_REM * rem,
-        maxH: CARD_MAX_H_REM * rem,
-      });
-      if (next.cols !== this.grid.cols || next.cardW !== this.grid.cardW || next.rowH !== this.grid.rowH) {
-        this.grid = next;
-      }
-    },
-    /** The cursor's card stays in view (the scroll area's own smooth follow). */
-    ensureVisible(el: Element | null): void {
-      const scroll = (this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
-      scroll?.ensureVisible?.(el);
-    },
-  },
+defineOptions({name: 'ConsoleLobbyScreen'});
+const props = defineProps({
+  kind: {type: String as PropType<'games' | 'campaigns'>, required: true},
+  titleKey: {type: String, required: true},
+  tabs: {type: Array as PropType<ReadonlyArray<LobbyScreenTab>>, required: true},
+  tab: {type: String, required: true},
+  state: {type: String as PropType<LobbyScreenState>, default: 'list'},
+  /** The sentence of a non-list state (the lobby's own keys). */
+  stateKey: {type: String, default: ''},
+  stateHintKey: {type: String, default: ''},
+  refreshing: {type: Boolean, default: false},
+  /** The cards on the stage — a short list takes as many columns as it has cards (and stands centred). */
+  items: {type: Number, default: 0},
 });
+const emit = defineEmits(['tab', 'grid']);
+
+const stage = useTemplateRef<HTMLElement>('stage');
+const scroll = useTemplateRef<{ensureVisible?: (el: Element | null) => void}>('scroll');
+const grid = ref<ShowcaseGrid>({cols: 3, cardW: 0, rowH: 0});
+let observer: ResizeObserver | undefined;
+/** The columns the cards take — never more than there are cards (a short list stands centred, not left). */
+const cols = computed((): number => {
+  return Math.max(1, Math.min(grid.value.cols, props.items > 0 ? props.items : grid.value.cols));
+});
+const gridStyle = computed((): Record<string, string> => {
+  if (grid.value.cardW <= 0) {
+    return {'--cm-lobby-cols': String(cols.value)};
+  }
+  return {
+    '--cm-lobby-cols': String(cols.value),
+    '--cm-lobby-card-w': `${grid.value.cardW}px`,
+    '--cm-lobby-row-h': `${grid.value.rowH}px`,
+  };
+});
+const stateGlyph = computed((): string => {
+  return props.state === 'list' || props.state === 'loading' ? '' : STATE_GLYPH[props.state];
+});
+
+/** The grid from the measured stage — the band above the cards (LAN) is subtracted. */
+function measure(): void {
+  const stageNow = stage.value;
+  if (stageNow === null) {
+    return;
+  }
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 20;
+  const scroll = stageNow.querySelector<HTMLElement>('.cm-lobby__scroll');
+  const gridEl = stageNow.querySelector<HTMLElement>('.cm-lobby__grid');
+  // The grid's OWN gap and padding (a profile restates them — the Deck's are tighter) come off the room.
+  const gs = gridEl !== null ? getComputedStyle(gridEl) : undefined;
+  const gap = gs !== undefined ? parseFloat(gs.columnGap) || GAP_REM * rem : GAP_REM * rem;
+  const padX = gs !== undefined ? (parseFloat(gs.paddingLeft) || 0) + (parseFloat(gs.paddingRight) || 0) : 0;
+  const padY = gs !== undefined ? (parseFloat(gs.paddingTop) || 0) + (parseFloat(gs.paddingBottom) || 0) : 0;
+  const width = (scroll ?? stageNow).clientWidth - padX;
+  const height = (scroll ?? stageNow).clientHeight - padY;
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  const next = showcaseGrid(width, height, {
+    gap,
+    minW: CARD_MIN_W_REM * rem,
+    maxW: CARD_MAX_W_REM * rem,
+    minH: CARD_MIN_H_REM * rem,
+    maxH: CARD_MAX_H_REM * rem,
+  });
+  if (next.cols !== grid.value.cols || next.cardW !== grid.value.cardW || next.rowH !== grid.value.rowH) {
+    grid.value = next;
+  }
+}
+/** The cursor's card stays in view (the scroll area's own smooth follow). */
+function ensureVisible(el: Element | null): void {
+  const scrollNow = scroll.value;
+  scrollNow?.ensureVisible?.(el);
+}
+
+watch(() => props.state, () => {
+  void nextTick(() => measure());
+});
+/** The walk's row length is the columns the cards TAKE. */
+watch(() => cols.value, (cols: number) => {
+  emit('grid', cols);
+}, {immediate: true});
+onMounted(() => {
+  measure();
+  if (typeof ResizeObserver !== 'undefined') {
+    observer = new ResizeObserver(() => measure());
+    const el = stage.value;
+    if (el === null) {
+      return;
+    }
+    observer.observe(el);
+  }
+});
+onBeforeUnmount(() => {
+  observer?.disconnect();
+});
+defineExpose({ensureVisible});
 </script>
