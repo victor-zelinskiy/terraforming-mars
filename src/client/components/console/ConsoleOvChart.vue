@@ -1,20 +1,4 @@
 <template>
-  <!--
-    CONSOLE LINE CHART — the one chart engine of the endgame overview.
-
-    Built for a 4K TV read from a couch and a D-PAD, not a pointer:
-     · 0.14rem lines, ≥0.4rem markers, 3 clean y-ticks, thinned x-ticks —
-       nothing desktop-tick sized anywhere;
-     · identity is never colour alone (the game's player palette is fixed and
-       CVD-tight in places): every series also lives in the host's legend, and
-       the CURSOR readout names series by text — this SVG carries geometry;
-     · the cursor is a PROP (the host moves it with the d-pad) — a vertical
-       guide + a ringed marker per series; no hover, no tooltip, no pointer;
-     · reveal (line draw) plays ONCE per page load (host-gated `reveal`), a
-       calm 600 ms dash release; reduced motion lands settled;
-     · perf: no rAF loops, no filters; a ResizeObserver re-measures only
-       while mounted; a hidden tab unmounts the whole chart.
-  -->
   <div ref="root" class="con-ovchart" :class="{'con-ovchart--drawn': drawn}">
     <svg v-if="width > 0" :width="width" :height="height" :viewBox="'0 0 ' + width + ' ' + height"
          class="con-ovchart__svg" role="img" aria-hidden="true">
@@ -56,8 +40,26 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * CONSOLE LINE CHART — the one chart engine of the endgame overview.
+ *
+ * Built for a 4K TV read from a couch and a D-PAD, not a pointer:
+ *  · 0.14rem lines, ≥0.4rem markers, 3 clean y-ticks, thinned x-ticks —
+ *    nothing desktop-tick sized anywhere;
+ *  · identity is never colour alone (the game's player palette is fixed and
+ *    CVD-tight in places): every series also lives in the host's legend, and
+ *    the CURSOR readout names series by text — this SVG carries geometry;
+ *  · the cursor is a PROP (the host moves it with the d-pad) — a vertical
+ *    guide + a ringed marker per series; no hover, no tooltip, no pointer;
+ *  · reveal (line draw) plays ONCE per page load (host-gated `reveal`), a
+ *    calm 600 ms dash release; reduced motion lands settled;
+ *  · perf: no rAF loops, no filters; a ResizeObserver re-measures only
+ *    while mounted; a hidden tab unmounts the whole chart.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef} from 'vue';
 import {useConsoleReducedMotion} from '@/client/console/composables/useConsoleReducedMotion';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 // The series shape lives in the pure model module — a type export from a
@@ -75,192 +77,187 @@ type Plotted = {
   length: number;
 };
 
-export default defineComponent({
-  name: 'ConsoleOvChart',
-  props: {
-    series: {type: Array as PropType<ReadonlyArray<OvChartSeries>>, required: true},
-    /** Number of generation columns (x positions 0..points-1). */
-    points: {type: Number, required: true},
-    maxY: {type: Number, required: true},
-    unit: {type: String, default: ''},
-    /** 0-based cursor column (host-driven d-pad); undefined = no cursor. */
-    cursor: {type: Number as PropType<number | undefined>, default: undefined},
-    /** Area wash under the emphasised series. */
-    fill: {type: Boolean, default: false},
-    /** Play the one-shot line draw on mount (host gates «once per load»). */
-    reveal: {type: Boolean, default: false},
-  },
-  setup() {
-    const {reduced} = useConsoleReducedMotion();
-    return {reduced, flow: useFlowScope('console-ov-chart')};
-  },
-  data() {
+defineOptions({name: 'ConsoleOvChart'});
+const props = defineProps({
+  series: {type: Array as PropType<ReadonlyArray<OvChartSeries>>, required: true},
+  /** Number of generation columns (x positions 0..points-1). */
+  points: {type: Number, required: true},
+  maxY: {type: Number, required: true},
+  unit: {type: String, default: ''},
+  /** 0-based cursor column (host-driven d-pad); undefined = no cursor. */
+  cursor: {type: Number as PropType<number | undefined>, default: undefined},
+  /** Area wash under the emphasised series. */
+  fill: {type: Boolean, default: false},
+  /** Play the one-shot line draw on mount (host gates «once per load»). */
+  reveal: {type: Boolean, default: false},
+});
+
+const {reduced} = useConsoleReducedMotion();
+const flow = useFlowScope('console-ov-chart');
+const root = useTemplateRef<HTMLElement>('root');
+const width = ref(0);
+const height = ref(0);
+/** 1rem in px, read from the cascade — all geometry rides it. */
+const remPx = ref(20);
+/** `reveal` LATCHED at mount — the host's once-per-load memory flips
+ *  the prop right after, and a mid-draw flip would snap the line. */
+const revealArmed = ref(props.reveal);
+const drawn = ref(false);
+let ro: ResizeObserver | undefined;
+const padL = computed((): number => {
+  return remPx.value * 2.4;
+});
+const padR = computed((): number => {
+  return remPx.value * 0.9;
+});
+const padT = computed((): number => {
+  return remPx.value * 0.5;
+});
+const padB = computed((): number => {
+  return remPx.value * 1.35;
+});
+const gapPx = computed((): number => {
+  return remPx.value * 0.4;
+});
+const tickNudge = computed((): number => {
+  return remPx.value * 0.22;
+});
+const xBaseline = computed((): number => {
+  return remPx.value * 0.25;
+});
+const markerR = computed((): number => {
+  return remPx.value * 0.2;
+});
+const ringPx = computed((): number => {
+  return remPx.value * 0.06;
+});
+const yMax = computed((): number => {
+  // Clean headroom: round up to a tidy step so ticks are honest integers.
+  const raw = Math.max(1, props.maxY);
+  const step = raw <= 12 ? 3 : raw <= 30 ? 5 : raw <= 60 ? 10 : 20;
+  return Math.ceil(raw / step) * step;
+});
+const yTicks = computed((): Array<{value: number; y: number}> => {
+  // THREE ticks (0 · mid · max) — a couch chart wants a calm grid, and
+  // halves stay clean numbers far more often than thirds.
+  const out: Array<{value: number; y: number}> = [];
+  for (let i = 0; i <= 2; i++) {
+    const value = Math.round((yMax.value / 2) * i);
+    out.push({value, y: yAt(value)});
+  }
+  return out;
+});
+const xTicks = computed((): Array<{idx: number; x: number}> => {
+  const n = props.points;
+  if (n <= 0) {
+    return [];
+  }
+  const stride = n <= 12 ? 1 : Math.ceil(n / 10);
+  const out: Array<{idx: number; x: number}> = [];
+  for (let i = 0; i < n; i += stride) {
+    out.push({idx: i, x: xAt(i)});
+  }
+  if (out.length === 0 || out[out.length - 1].idx !== n - 1) {
+    out.push({idx: n - 1, x: xAt(n - 1)});
+  }
+  return out;
+});
+const plotted = computed((): Array<Plotted> => {
+  const n = props.points;
+  const list = props.series.map((s) => {
+    const pts: Array<{x: number; y: number}> = [];
+    for (let i = 0; i < Math.min(n, s.data.length); i++) {
+      pts.push({x: xAt(i), y: yAt(s.data[i])});
+    }
+    const line = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+    let area = '';
+    if (props.fill && s.emphasis === true && pts.length > 1) {
+      const baseY = yAt(0);
+      area = 'M' + pts[0].x.toFixed(1) + ' ' + baseY.toFixed(1) + ' ' +
+        pts.map((p) => 'L' + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ') +
+        ' L' + pts[pts.length - 1].x.toFixed(1) + ' ' + baseY.toFixed(1) + ' Z';
+    }
+    let length = 0;
+    for (let i = 1; i < pts.length; i++) {
+      length += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    }
     return {
-      width: 0,
-      height: 0,
-      /** 1rem in px, read from the cascade — all geometry rides it. */
-      remPx: 20,
-      /** `reveal` LATCHED at mount — the host's once-per-load memory flips
-       *  the prop right after, and a mid-draw flip would snap the line. */
-      revealArmed: this.reveal,
-      drawn: false,
-      ro: undefined as ResizeObserver | undefined,
+      key: s.key,
+      hex: s.hex,
+      dim: s.dim === true,
+      emphasis: s.emphasis === true,
+      points: pts,
+      line,
+      area,
+      length: Math.ceil(length) + 4,
     };
-  },
-  computed: {
-    padL(): number {
-      return this.remPx * 2.4;
-    },
-    padR(): number {
-      return this.remPx * 0.9;
-    },
-    padT(): number {
-      return this.remPx * 0.5;
-    },
-    padB(): number {
-      return this.remPx * 1.35;
-    },
-    gapPx(): number {
-      return this.remPx * 0.4;
-    },
-    tickNudge(): number {
-      return this.remPx * 0.22;
-    },
-    xBaseline(): number {
-      return this.remPx * 0.25;
-    },
-    markerR(): number {
-      return this.remPx * 0.2;
-    },
-    ringPx(): number {
-      return this.remPx * 0.06;
-    },
-    yMax(): number {
-      // Clean headroom: round up to a tidy step so ticks are honest integers.
-      const raw = Math.max(1, this.maxY);
-      const step = raw <= 12 ? 3 : raw <= 30 ? 5 : raw <= 60 ? 10 : 20;
-      return Math.ceil(raw / step) * step;
-    },
-    yTicks(): Array<{value: number; y: number}> {
-      // THREE ticks (0 · mid · max) — a couch chart wants a calm grid, and
-      // halves stay clean numbers far more often than thirds.
-      const out: Array<{value: number; y: number}> = [];
-      for (let i = 0; i <= 2; i++) {
-        const value = Math.round((this.yMax / 2) * i);
-        out.push({value, y: this.yAt(value)});
-      }
-      return out;
-    },
-    xTicks(): Array<{idx: number; x: number}> {
-      const n = this.points;
-      if (n <= 0) {
-        return [];
-      }
-      const stride = n <= 12 ? 1 : Math.ceil(n / 10);
-      const out: Array<{idx: number; x: number}> = [];
-      for (let i = 0; i < n; i += stride) {
-        out.push({idx: i, x: this.xAt(i)});
-      }
-      if (out.length === 0 || out[out.length - 1].idx !== n - 1) {
-        out.push({idx: n - 1, x: this.xAt(n - 1)});
-      }
-      return out;
-    },
-    plotted(): Array<Plotted> {
-      const n = this.points;
-      const list = this.series.map((s) => {
-        const pts: Array<{x: number; y: number}> = [];
-        for (let i = 0; i < Math.min(n, s.data.length); i++) {
-          pts.push({x: this.xAt(i), y: this.yAt(s.data[i])});
-        }
-        const line = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
-        let area = '';
-        if (this.fill && s.emphasis === true && pts.length > 1) {
-          const baseY = this.yAt(0);
-          area = 'M' + pts[0].x.toFixed(1) + ' ' + baseY.toFixed(1) + ' ' +
-            pts.map((p) => 'L' + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ') +
-            ' L' + pts[pts.length - 1].x.toFixed(1) + ' ' + baseY.toFixed(1) + ' Z';
-        }
-        let length = 0;
-        for (let i = 1; i < pts.length; i++) {
-          length += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-        }
-        return {
-          key: s.key,
-          hex: s.hex,
-          dim: s.dim === true,
-          emphasis: s.emphasis === true,
-          points: pts,
-          line,
-          area,
-          length: Math.ceil(length) + 4,
-        };
-      });
-      // Paint order: dim context under, emphasised on top.
-      return [...list.filter((s) => s.dim), ...list.filter((s) => !s.dim)];
-    },
-    cursorX(): number | undefined {
-      if (this.cursor === undefined || this.points <= 0 || this.cursor < 0 || this.cursor >= this.points) {
-        return undefined;
-      }
-      return this.xAt(this.cursor);
-    },
-  },
-  methods: {
-    xAt(i: number): number {
-      const n = this.points;
-      const span = this.width - this.padL - this.padR;
-      if (n <= 1) {
-        return this.padL + span / 2;
-      }
-      return this.padL + (span * i) / (n - 1);
-    },
-    yAt(v: number): number {
-      const span = this.height - this.padT - this.padB;
-      const clamped = Math.max(0, Math.min(v, this.yMax));
-      return this.padT + span * (1 - clamped / this.yMax);
-    },
-    lineStyle(s: Plotted): Record<string, string> {
-      const style: Record<string, string> = {stroke: s.hex};
-      if (this.revealArmed && !this.reduced) {
-        style.strokeDasharray = `${s.length} ${s.length}`;
-        style.strokeDashoffset = this.drawn ? '0' : String(s.length);
-      }
-      return style;
-    },
-    measure(): void {
-      const el = (this.$refs.root ?? undefined) as HTMLElement | undefined;
-      if (el === undefined) {
-        return;
-      }
-      if (el.clientWidth > 0) {
-        this.width = el.clientWidth;
-      }
-      if (el.clientHeight > 0) {
-        this.height = el.clientHeight;
-      }
-      const fs = parseFloat(getComputedStyle(el).fontSize);
-      if (Number.isFinite(fs) && fs > 0) {
-        this.remPx = fs;
-      }
-    },
-  },
-  mounted(): void {
-    this.measure();
-    if (typeof ResizeObserver !== 'undefined') {
-      this.ro = new ResizeObserver(() => this.measure());
-      this.ro.observe(this.$refs.root as HTMLElement);
+  });
+  // Paint order: dim context under, emphasised on top.
+  return [...list.filter((s) => s.dim), ...list.filter((s) => !s.dim)];
+});
+const cursorX = computed((): number | undefined => {
+  if (props.cursor === undefined || props.points <= 0 || props.cursor < 0 || props.cursor >= props.points) {
+    return undefined;
+  }
+  return xAt(props.cursor);
+});
+function xAt(i: number): number {
+  const n = props.points;
+  const span = width.value - padL.value - padR.value;
+  if (n <= 1) {
+    return padL.value + span / 2;
+  }
+  return padL.value + (span * i) / (n - 1);
+}
+function yAt(v: number): number {
+  const span = height.value - padT.value - padB.value;
+  const clamped = Math.max(0, Math.min(v, yMax.value));
+  return padT.value + span * (1 - clamped / yMax.value);
+}
+function lineStyle(s: Plotted): Record<string, string> {
+  const style: Record<string, string> = {stroke: s.hex};
+  if (revealArmed.value && !reduced.value) {
+    style.strokeDasharray = `${s.length} ${s.length}`;
+    style.strokeDashoffset = drawn.value ? '0' : String(s.length);
+  }
+  return style;
+}
+function measure(): void {
+  const el = root.value;
+  if (el === null) {
+    return;
+  }
+  if (el.clientWidth > 0) {
+    width.value = el.clientWidth;
+  }
+  if (el.clientHeight > 0) {
+    height.value = el.clientHeight;
+  }
+  const fs = parseFloat(getComputedStyle(el).fontSize);
+  if (Number.isFinite(fs) && fs > 0) {
+    remPx.value = fs;
+  }
+}
+
+onMounted((): void => {
+  measure();
+  if (typeof ResizeObserver !== 'undefined') {
+    ro = new ResizeObserver(() => measure());
+    const el = root.value;
+    if (el === null) {
+      return;
     }
-    if (this.revealArmed && !this.reduced && typeof requestAnimationFrame !== 'undefined') {
-      this.flow.afterFrame('the chart\'s line draw starts', () => {
-        this.drawn = true;
-      }, 2);
-    } else {
-      this.drawn = true;
-    }
-  },
-  beforeUnmount(): void {
-    this.ro?.disconnect();
-  },
+    ro.observe(el);
+  }
+  if (revealArmed.value && !reduced.value && typeof requestAnimationFrame !== 'undefined') {
+    flow.afterFrame('the chart\'s line draw starts', () => {
+      drawn.value = true;
+    }, 2);
+  } else {
+    drawn.value = true;
+  }
+});
+onBeforeUnmount((): void => {
+  ro?.disconnect();
 });
 </script>
