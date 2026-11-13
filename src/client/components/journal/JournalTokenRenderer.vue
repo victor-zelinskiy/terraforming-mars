@@ -1,11 +1,10 @@
 <template>
-  <!-- Literal (already-translated) text between placeholders. -->
   <span v-if="typeof(token) === 'string'" class="journal-text">{{ token }}</span>
 
-  <!-- Typed token. Inside this v-else `token` is narrowed to
-       LogMessageData (mirrors the legacy LogMessageComponent structure
-       so vue-tsc narrows the discriminated union the same way). -->
   <span v-else>
+    <!-- Typed token. Inside this v-else `token` is narrowed to
+         LogMessageData (mirrors the legacy LogMessageComponent structure
+         so vue-tsc narrows the discriminated union the same way). -->
     <span v-if="token.type === undefined || token.value === undefined"></span>
 
     <!-- Player — colour-coded chip. -->
@@ -70,9 +69,16 @@
   </span>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * Literal (already-translated) text between placeholders.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 import {partyNameKey} from '@/client/console/parliament/partyNames';
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {SpaceId} from '@/common/Types';
@@ -100,77 +106,60 @@ type CardPart = {kind: 'card', name: CardName} | {kind: 'text', text: string};
  * server's structured log data into semantic, interactive chips: the
  * modern replacement for legacy `LogMessageComponent`'s inline v-html.
  */
-export default defineComponent({
-  name: 'JournalTokenRenderer',
-  components: {JournalCardChip, JournalColonyChip, JournalMaChip},
-  props: {
-    token: {
-      type: [String, Object] as PropType<string | LogMessageData>,
-      required: true,
-    },
-    players: {
-      type: Array as () => ReadonlyArray<PublicPlayerModel>,
-      required: true,
-    },
+defineOptions({name: 'JournalTokenRenderer'});
+const props = defineProps({
+  token: {
+    type: [String, Object] as PropType<string | LogMessageData>,
+    required: true,
   },
-  computed: {
-    LogMessageDataType(): typeof LogMessageDataType {
-      return LogMessageDataType;
-    },
-    tileTypeToString(): typeof tileTypeToString {
-      return tileTypeToString;
-    },
-    undergroundDescription(): typeof undergroundResourceTokenDescription {
-      return undergroundResourceTokenDescription;
-    },
-    formatter(): Intl.ListFormat {
-      return new Intl.ListFormat(
-        gameLocaleToIntlLocale(getPreferences().lang),
-        {type: 'conjunction', style: 'long'});
-    },
-    // Splits a CARDS token into an ordered mix of card chips and the
-    // locale-specific connective literals ("A, B and C") so the joining
-    // text honours the player's language — same approach the legacy
-    // renderer used, but yielding components instead of HTML strings.
-    cardParts(): ReadonlyArray<CardPart> {
-      const t = this.token;
-      if (typeof t === 'string' || t.type !== LogMessageDataType.CARDS) {
-        return [];
-      }
-      const cards = t.value;
-      const indexes = range(cards.length).map(String);
-      const parts = this.formatter.formatToParts(indexes);
-      return parts.map((part): CardPart => {
-        if (part.type === 'element') {
-          return {kind: 'card', name: cards[Number(part.value)]};
-        }
-        return {kind: 'text', text: part.value};
-      });
-    },
-  },
-  methods: {
-    partyNameKey(party: string): string {
-      return partyNameKey(party);
-    },
-    /** A Turmoil Redux resolution's printed name (the catalog's English key) — never a bare id. */
-    resolutionLabel(id: string): string {
-      return resolutionName(id);
-    },
-    playerName(color: Color): string {
-      // The Automa seat renders through the localized display name («ИИ» in
-      // the Russian UI) — the canonical server name never shows raw.
-      const player = this.players.find((p) => p.color === color);
-      return player !== undefined ? participantDisplayName(player) : color;
-    },
-    onSpaceClick(spaceId: SpaceId): void {
-      highlightBoardSpace(spaceId);
-    },
-    resourceIconClass(value: string): string {
-      return logResourceIconClass(value);
-    },
-    resourceLabelKey(value: string): string {
-      return logResourceLabelKey(value);
-    },
+  players: {
+    type: Array as () => ReadonlyArray<PublicPlayerModel>,
+    required: true,
   },
 });
+
+const undergroundDescription = undergroundResourceTokenDescription;
+const formatter = computed((): Intl.ListFormat => {
+  return new Intl.ListFormat(
+    gameLocaleToIntlLocale(getPreferences().lang),
+    {type: 'conjunction', style: 'long'});
+});
+// Splits a CARDS token into an ordered mix of card chips and the
+// locale-specific connective literals ("A, B and C") so the joining
+// text honours the player's language — same approach the legacy
+// renderer used, but yielding components instead of HTML strings.
+const cardParts = computed((): ReadonlyArray<CardPart> => {
+  const t = props.token;
+  if (typeof t === 'string' || t.type !== LogMessageDataType.CARDS) {
+    return [];
+  }
+  const cards = t.value;
+  const indexes = range(cards.length).map(String);
+  const parts = formatter.value.formatToParts(indexes);
+  return parts.map((part): CardPart => {
+    if (part.type === 'element') {
+      return {kind: 'card', name: cards[Number(part.value)]};
+    }
+    return {kind: 'text', text: part.value};
+  });
+});
+/** A Turmoil Redux resolution's printed name (the catalog's English key) — never a bare id. */
+function resolutionLabel(id: string): string {
+  return resolutionName(id);
+}
+function playerName(color: Color): string {
+  // The Automa seat renders through the localized display name («ИИ» in
+  // the Russian UI) — the canonical server name never shows raw.
+  const player = props.players.find((p) => p.color === color);
+  return player !== undefined ? participantDisplayName(player) : color;
+}
+function onSpaceClick(spaceId: SpaceId): void {
+  highlightBoardSpace(spaceId);
+}
+function resourceIconClass(value: string): string {
+  return logResourceIconClass(value);
+}
+function resourceLabelKey(value: string): string {
+  return logResourceLabelKey(value);
+}
 </script>
