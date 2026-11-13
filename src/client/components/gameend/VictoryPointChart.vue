@@ -3,29 +3,11 @@
     <canvas :id="id"></canvas>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {onMounted} from 'vue';
 import {Color} from '@/common/Color';
 import {translateText} from '@/client/directives/i18n';
-
-// BND-1 (docs/PERFORMANCE_AUDIT.md): chart.js is used ONLY by this endgame chart, so
-// load it lazily (its own async chunk — see the `chartjs` splitChunks cacheGroup)
-// instead of parsing it eagerly in vendors.js on the login / menu / board. The
-// one-time register + defaults run inside the cached loader.
-type ChartCtor = (typeof import('chart.js'))['Chart'];
-let chartCtorPromise: Promise<ChartCtor> | undefined;
-function loadChart(): Promise<ChartCtor> {
-  if (chartCtorPromise === undefined) {
-    chartCtorPromise = import(/* webpackChunkName: "chartjs" */ 'chart.js').then(({Chart, registerables}) => {
-      Chart.register(...registerables);
-      Chart.defaults.font.size = 20;
-      Chart.defaults.font.family = 'Ubuntu, Sans';
-      Chart.defaults.color = 'rgb(240, 240, 240)';
-      return Chart;
-    });
-  }
-  return chartCtorPromise;
-}
+import {loadChart} from '@/client/components/gameend/victoryPointChartState';
 
 const COLOR_CODES: Record<Color, string> = {
   ['red']: 'rgb(153, 17, 0)',
@@ -58,97 +40,95 @@ export type DataSet = {
   color: Color,
 };
 
-export default defineComponent({
-  name: 'VictoryPointChart',
-  props: {
-    datasets: {
-      type: Array as () => ReadonlyArray<DataSet>,
-      required: true,
-    },
-    generation: {
-      type: Number,
-      required: true,
-    },
-    animation: {
-      type: Boolean,
-    },
-    id: {
-      type: String,
-      required: true,
-    },
-    yAxisLabel: {
-      type: String,
-      required: false,
-      default: 'Victory Points',
-    },
+defineOptions({name: 'VictoryPointChart'});
+const props = defineProps({
+  datasets: {
+    type: Array as () => ReadonlyArray<DataSet>,
+    required: true,
   },
-  methods: {
-    getLabels: function(): Array<number> {
-      return Array.from({length: this.generation}, (_, index) => index + 1);
-    },
-    getAllPlayerDataSet: function(): Array<ChartDataSet> {
-      return this.datasets.map((dataset) => {
-        return {
-          label: dataset.label,
-          data: dataset.data,
-          fill: false,
-          backgroundColor: COLOR_CODES[dataset.color],
-          borderColor: COLOR_CODES[dataset.color],
-          tension: 0.1,
-          pointRadius: 6,
-        };
-      });
-    },
-    renderChart: async function(): Promise<void> {
-      const ctx = document.getElementById(this.id) as HTMLCanvasElement;
-      if (ctx !== null) {
-        const Chart = await loadChart();
-        new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: this.getLabels(),
-            datasets: this.getAllPlayerDataSet(),
-          },
-          options: {
-            animation: {
-              duration: this.animation ? 1000 : 0,
-              easing: 'linear',
-            },
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              y: {
-                title: {text: translateText(this.yAxisLabel), display: true},
-                grid: {
-                  color: (ctx) => {
-                    return ctx.tick.value % 10 === 0 ? 'lightgray' : 'rgb(90, 90, 90)';
-                  },
-                },
-                beginAtZero: true,
-                ticks: {
-                  autoSkip: false,
-                  stepSize: 5,
-                  callback: (value: string | number) => {
-                    // I don't know what to do when it's of string type yet, so this just ensures it's displayed.
-                    if (typeof(value) === 'string') {
-                      return value;
-                    }
-                    return value % 10 === 0 ? value : '';
-                  },
-                },
+  generation: {
+    type: Number,
+    required: true,
+  },
+  animation: {
+    type: Boolean,
+  },
+  id: {
+    type: String,
+    required: true,
+  },
+  yAxisLabel: {
+    type: String,
+    required: false,
+    default: 'Victory Points',
+  },
+});
+
+function getLabels(): Array<number> {
+  return Array.from({length: props.generation}, (_, index) => index + 1);
+}
+function getAllPlayerDataSet(): Array<ChartDataSet> {
+  return props.datasets.map((dataset) => {
+    return {
+      label: dataset.label,
+      data: dataset.data,
+      fill: false,
+      backgroundColor: COLOR_CODES[dataset.color],
+      borderColor: COLOR_CODES[dataset.color],
+      tension: 0.1,
+      pointRadius: 6,
+    };
+  });
+}
+async function renderChart(): Promise<void> {
+  const ctx = document.getElementById(props.id) as HTMLCanvasElement;
+  if (ctx !== null) {
+    const Chart = await loadChart();
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: getLabels(),
+        datasets: getAllPlayerDataSet(),
+      },
+      options: {
+        animation: {
+          duration: props.animation ? 1000 : 0,
+          easing: 'linear',
+        },
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            title: {text: translateText(props.yAxisLabel), display: true},
+            grid: {
+              color: (ctx) => {
+                return ctx.tick.value % 10 === 0 ? 'lightgray' : 'rgb(90, 90, 90)';
               },
-              x: {
-                title: {text: translateText('Generation'), display: true},
-                offset: true,
+            },
+            beginAtZero: true,
+            ticks: {
+              autoSkip: false,
+              stepSize: 5,
+              callback: (value: string | number) => {
+                // I don't know what to do when it's of string type yet, so this just ensures it's displayed.
+                if (typeof(value) === 'string') {
+                  return value;
+                }
+                return value % 10 === 0 ? value : '';
               },
             },
           },
-        });
-      }
-    },
-  },
-  mounted() {
-    void this.renderChart();
-  },
+          x: {
+            title: {text: translateText('Generation'), display: true},
+            offset: true,
+          },
+        },
+      },
+    });
+  }
+}
+
+onMounted(() => {
+  void renderChart();
 });
 </script>
