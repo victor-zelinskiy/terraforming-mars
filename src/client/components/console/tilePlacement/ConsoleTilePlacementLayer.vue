@@ -1,34 +1,4 @@
 <template>
-  <!--
-    TILE-PLACEMENT HERO STAGE — the fixed, app-level layer of the "tile
-    physically lands on Mars" scene (consoleTilePlacement /
-    tilePlacementDirector). Mounted for the WHOLE transaction, so the
-    flight survives any surface shuffling beneath it.
-
-    Anatomy:
-     - the GROUND SHADOW parks at the target hex for the whole flight
-       (wide + faint at altitude → tight contact at touchdown);
-     - the TILE proxy is a twin of the REAL board tile art (the same
-       `board-space-tile--*` sprite), carrying a thickness EDGE (the same
-       art, darkened, offset down — a real hex-shaped underside) and a
-       TOUCH overlay (the one quiet surface-acceptance beat);
-     - the BONUS icon proxies replay the cell's printed icons from their
-       exact captured positions — the reward beat lifts them through the
-       placed tile and hands each to its resource chip on the shared
-       ConsoleResourceTransferLayer.
-  -->
-  <!--
-    `con-flight-to-board` — the DESTINATION marker. This flight lands on a
-    live board hex (`.board-space[data_space_id]`), which a workspace surface
-    covers with the shared shade. So while one is docked, this layer recedes
-    BENEATH the shade (`.con-root--ws-open` in console.less) instead of
-    flying bright over the panel the player is reading — another player's
-    city used to do exactly that. Declare the marker ONLY if the flight truly
-    ends on the board: a layer that lands on the rail, the «Разыграно» table,
-    the footer dock, a reveal modal or its own tray must NOT carry it, or its
-    arrival sinks under the shade while its target stays lit. Omitting it is
-    the safe default.
-  -->
   <div v-if="tilePlacementState.active || remotePlacementState.active || oceanBeatState.coins.length > 0 || groveBeatState.chips.length > 0"
        class="con-tileplace con-flight-to-board" data-flight-lands="board" aria-hidden="true"
        :data-tile-phase="tilePlacementState.active ? tilePlacementState.phase : undefined"
@@ -223,8 +193,40 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * TILE-PLACEMENT HERO STAGE — the fixed, app-level layer of the "tile
+ * physically lands on Mars" scene (consoleTilePlacement /
+ * tilePlacementDirector). Mounted for the WHOLE transaction, so the
+ * flight survives any surface shuffling beneath it.
+ *
+ * Anatomy:
+ *  - the GROUND SHADOW parks at the target hex for the whole flight
+ *    (wide + faint at altitude → tight contact at touchdown);
+ *  - the TILE proxy is a twin of the REAL board tile art (the same
+ *    `board-space-tile--*` sprite), carrying a thickness EDGE (the same
+ *    art, darkened, offset down — a real hex-shaped underside) and a
+ *    TOUCH overlay (the one quiet surface-acceptance beat);
+ *  - the BONUS icon proxies replay the cell's printed icons from their
+ *    exact captured positions — the reward beat lifts them through the
+ *    placed tile and hands each to its resource chip on the shared
+ *    ConsoleResourceTransferLayer.
+ *
+ * `con-flight-to-board` — the DESTINATION marker. This flight lands on a
+ * live board hex (`.board-space[data_space_id]`), which a workspace surface
+ * covers with the shared shade. So while one is docked, this layer recedes
+ * BENEATH the shade (`.con-root--ws-open` in console.less) instead of
+ * flying bright over the panel the player is reading — another player's
+ * city used to do exactly that. Declare the marker ONLY if the flight truly
+ * ends on the board: a layer that lands on the rail, the «Разыграно» table,
+ * the footer dock, a reveal modal or its own tray must NOT carry it, or its
+ * arrival sinks under the shade while its target stays lit. Omitting it is
+ * the safe default.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, onBeforeUnmount, onMounted, ref, useTemplateRef} from 'vue';
 import {tilePlacementState, registerTilePlacementStage, BonusProxy, AresSourceWake} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
   oceanBeatState, registerOceanBeatStage, OceanCoinProxy, OceanStageEls,
@@ -233,9 +235,10 @@ import {
 import {remotePlacementState, abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {TileStageEls} from '@/client/console/tilePlacement/tilePlacementDirector';
 import {OCEAN_COIN_SPARKS, TIER_DUST_MOTES, tileContactKind} from '@/client/console/tilePlacement/tilePlacementModel';
-import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
+import {tileCssClassOf} from '@/client/components/board/boardSpaceTileModel';
 import PlayerCube from '@/client/components/PlayerCube.vue';
-import ConsoleTileProxy, {tileProxyEls} from '@/client/components/console/tilePlacement/ConsoleTileProxy.vue';
+import ConsoleTileProxy from '@/client/components/console/tilePlacement/ConsoleTileProxy.vue';
+import {tileProxyEls} from '@/client/components/console/tilePlacement/consoleTileProxyModel';
 
 /** Vue 3 leaves a template ref as `null` once its element has rendered and
  *  then been removed (`v-if` off) — the same guard the tile ref uses. */
@@ -243,330 +246,333 @@ function connected(el: HTMLElement | undefined): HTMLElement | undefined {
   return el && el.isConnected ? el : undefined;
 }
 
-export default defineComponent({
-  name: 'ConsoleTilePlacementLayer',
-  components: {
-    'player-cube': PlayerCube,
-    ConsoleTileProxy,
-  },
-  data() {
-    return {
-      tilePlacementState,
-      remotePlacementState,
-      oceanBeatState,
-      groveBeatState,
-      unregister: undefined as (() => void) | undefined,
-      unregisterOcean: undefined as (() => void) | undefined,
-      bonusEls: new Map<number, HTMLElement>(),
-      oceanPulseEls: new Map<number, HTMLElement>(),
-      oceanCoinEls: new Map<number, HTMLElement>(),
-      aresPulseEls: new Map<number, HTMLElement>(),
-      remoteAresPulseEls: new Map<number, HTMLElement>(),
-      /** Stable indices for the condensation particles (the director poses
-       *  them deterministically — no randomness anywhere in the scene). */
-      oceanSparks: Array.from({length: OCEAN_COIN_SPARKS}, (_, i) => i),
-      /** The dust motes of a city tier's touchdown — stable indices, deterministic angles. */
-      dustMotes: Array.from({length: TIER_DUST_MOTES}, (_, i) => i),
-      grovePulseEls: new Map<number, HTMLElement>(),
-      groveChipEls: new Map<number, HTMLElement>(),
-      unregisterGrove: undefined as (() => void) | undefined,
-    };
-  },
-  computed: {
-    artClass(): string {
-      const t = tilePlacementState.tileType;
-      if (t === undefined) {
-        return '';
+defineOptions({name: 'ConsoleTilePlacementLayer'});
+
+const tile = useTemplateRef<{$el?: HTMLElement}>('tile');
+const shadow = useTemplateRef<HTMLElement>('shadow');
+const splash = useTemplateRef<HTMLElement>('splash');
+const depart = useTemplateRef<HTMLElement>('depart');
+const departEdge = useTemplateRef<HTMLElement>('departEdge');
+const departTouch = useTemplateRef<HTMLElement>('departTouch');
+const cover = useTemplateRef<HTMLElement>('cover');
+const dust = useTemplateRef<HTMLElement>('dust');
+const remoteTile = useTemplateRef<{$el?: HTMLElement}>('remoteTile');
+const remoteShadow = useTemplateRef<HTMLElement>('remoteShadow');
+const remoteSplash = useTemplateRef<HTMLElement>('remoteSplash');
+const remoteBeacon = useTemplateRef<HTMLElement>('remoteBeacon');
+const remoteDustEl = useTemplateRef<HTMLElement>('remoteDust');
+const remoteDepart = useTemplateRef<HTMLElement>('remoteDepart');
+const remoteDepartEdge = useTemplateRef<HTMLElement>('remoteDepartEdge');
+const remoteDepartTouch = useTemplateRef<HTMLElement>('remoteDepartTouch');
+const remoteCover = useTemplateRef<HTMLElement>('remoteCover');
+let unregister: (() => void) | undefined;
+let unregisterOcean: (() => void) | undefined;
+const bonusEls = ref(new Map<number, HTMLElement>());
+const oceanPulseEls = ref(new Map<number, HTMLElement>());
+const oceanCoinEls = ref(new Map<number, HTMLElement>());
+const aresPulseEls = ref(new Map<number, HTMLElement>());
+const remoteAresPulseEls = ref(new Map<number, HTMLElement>());
+/** Stable indices for the condensation particles (the director poses
+ *  them deterministically — no randomness anywhere in the scene). */
+const oceanSparks = ref(Array.from({length: OCEAN_COIN_SPARKS}, (_, i) => i));
+/** The dust motes of a city tier's touchdown — stable indices, deterministic angles. */
+const dustMotes = ref(Array.from({length: TIER_DUST_MOTES}, (_, i) => i));
+const grovePulseEls = ref(new Map<number, HTMLElement>());
+const groveChipEls = ref(new Map<number, HTMLElement>());
+let unregisterGrove: (() => void) | undefined;
+
+const artClass = computed((): string => {
+  const t = tilePlacementState.tileType;
+  if (t === undefined) {
+    return '';
+  }
+  const suffix = tileCssClassOf(t, tilePlacementState.aresExtension);
+  return suffix === '' ? '' : 'board-space-tile--' + suffix;
+});
+/** The own landing is a CITY's (W7): it lands with the tier's dust. */
+const ownDust = computed((): boolean => {
+  return tileContactKind(tilePlacementState.tileType) === 'dust';
+});
+/** …and the remote one. */
+const remoteDust = computed((): boolean => {
+  return tileContactKind(remotePlacementState.tileType) === 'dust';
+});
+const remoteArtClass = computed((): string => {
+  const t = remotePlacementState.tileType;
+  if (t === undefined) {
+    return '';
+  }
+  const suffix = tileCssClassOf(t, remotePlacementState.aresExtension);
+  return suffix === '' ? '' : 'board-space-tile--' + suffix;
+});
+/** The tile a REMOVAL takes off the cell for everybody (the remote stage's departure — Water Export's ocean). */
+const remoteDepartArtClass = computed((): string => {
+  const t = remotePlacementState.departingTile;
+  if (t === undefined) {
+    return '';
+  }
+  const suffix = tileCssClassOf(t, remotePlacementState.aresExtension);
+  return suffix === '' ? '' : 'board-space-tile--' + suffix;
+});
+/** The tile the removal takes OFF the cell (remove-and-replace only). */
+const departArtClass = computed((): string => {
+  const t = tilePlacementState.departingTile;
+  if (t === undefined) {
+    return '';
+  }
+  const suffix = tileCssClassOf(t, tilePlacementState.aresExtension);
+  return suffix === '' ? '' : 'board-space-tile--' + suffix;
+});
+/** The owner marker's socket, re-derived for the LIVE hex — the board's
+ *  own px offsets are authored against the unscaled cell and then ride the
+ *  board's zoom, which a fixed proxy does not inherit. */
+const departCubeStyle = computed((): Record<string, string> => {
+  const c = tilePlacementState.departingCube;
+  return c === undefined ? {} : {
+    right: `${c.right}px`,
+    bottom: `${c.bottom}px`,
+  };
+});
+/** …and the same socket on the REMOTE stage's travelling proxy (a move somebody else made). */
+const remoteDepartCubeStyle = computed((): Record<string, string> => {
+  const c = remotePlacementState.departingCube;
+  return c === undefined ? {} : {
+    right: `${c.right}px`,
+    bottom: `${c.bottom}px`,
+  };
+});
+/** The cover of the piece that STAYS (TR44 — the city over the water a move takes): its art, on either stage. */
+const coverArtClass = computed((): string => {
+  const t = tilePlacementState.stayingCover?.tileType;
+  if (t === undefined) {
+    return '';
+  }
+  const suffix = tileCssClassOf(t, tilePlacementState.aresExtension);
+  return suffix === '' ? '' : 'board-space-tile--' + suffix;
+});
+const remoteCoverArtClass = computed((): string => {
+  const t = remotePlacementState.stayingCover?.tileType;
+  if (t === undefined) {
+    return '';
+  }
+  const suffix = tileCssClassOf(t, remotePlacementState.aresExtension);
+  return suffix === '' ? '' : 'board-space-tile--' + suffix;
+});
+const coverCubeStyle = computed((): Record<string, string> => {
+  const c = tilePlacementState.stayingCover?.cube;
+  return c === undefined ? {} : {right: `${c.right}px`, bottom: `${c.bottom}px`};
+});
+const remoteCoverCubeStyle = computed((): Record<string, string> => {
+  const c = remotePlacementState.stayingCover?.cube;
+  return c === undefined ? {} : {right: `${c.right}px`, bottom: `${c.bottom}px`};
+});
+
+/** The captured live rect IS the resting pose (the director only lifts). */
+function bonusStyle(b: BonusProxy): Record<string, string> {
+  return {
+    left: `${Math.round(b.rect.x)}px`,
+    top: `${Math.round(b.rect.y)}px`,
+    width: `${Math.round(b.rect.w)}px`,
+    height: `${Math.round(b.rect.h)}px`,
+  };
+}
+function setBonusRef(id: number, el: HTMLElement | null): void {
+  if (el === null) {
+    bonusEls.value.delete(id);
+  } else {
+    bonusEls.value.set(id, el);
+  }
+}
+/** The activation pulse is sized from the SOURCE HEX (never fixed px), so
+ *  it stays proportional under board zoom and every display profile.
+ *  Shared by the ocean coins and the Ares source wakes — both carry the
+ *  same `{pulseAt, pulseSize}` staging geometry. */
+function setGrovePulseRef(id: number, el: HTMLElement | null): void {
+  if (el === null) {
+    grovePulseEls.value.delete(id);
+  } else {
+    grovePulseEls.value.set(id, el);
+  }
+}
+function setGroveChipRef(id: number, el: HTMLElement | null): void {
+  if (el === null) {
+    groveChipEls.value.delete(id);
+  } else {
+    groveChipEls.value.set(id, el);
+  }
+}
+function oceanPulseStyle(c: OceanCoinProxy | AresSourceWake | GrovePayerProxy): Record<string, string> {
+  return {
+    left: `${Math.round(c.pulseAt.x - c.pulseSize / 2)}px`,
+    top: `${Math.round(c.pulseAt.y - c.pulseSize / 2)}px`,
+    width: `${c.pulseSize}px`,
+    height: `${c.pulseSize}px`,
+  };
+}
+/** The coin is CSS-sized in rem (the exact size of the framework's M€
+ *  chip) and self-centres via a negative margin — so the birth point is
+ *  the only thing JS supplies, and TV scaling is free. */
+function oceanCoinStyle(c: OceanCoinProxy | GroveChipProxy): Record<string, string> {
+  return {left: `${Math.round(c.at.x)}px`, top: `${Math.round(c.at.y)}px`};
+}
+/** Mostly gold matter, with two cold highlights that keep the visual tie
+ *  to the water the value condensed out of. */
+function sparkClass(i: number): Record<string, boolean> {
+  return {'con-tileplace__coin-spark--cool': i % 3 === 1};
+}
+function setOceanPulseRef(id: number, el: HTMLElement | null): void {
+  if (el === null) {
+    oceanPulseEls.value.delete(id);
+  } else {
+    oceanPulseEls.value.set(id, el);
+  }
+}
+function setOceanCoinRef(id: number, el: HTMLElement | null): void {
+  if (el === null) {
+    oceanCoinEls.value.delete(id);
+  } else {
+    oceanCoinEls.value.set(id, el);
+  }
+}
+function setAresPulseRef(id: number, el: HTMLElement | null): void {
+  if (el === null) {
+    aresPulseEls.value.delete(id);
+  } else {
+    aresPulseEls.value.set(id, el);
+  }
+}
+function setRemoteAresPulseRef(id: number, el: HTMLElement | null): void {
+  if (el === null) {
+    remoteAresPulseEls.value.delete(id);
+  } else {
+    remoteAresPulseEls.value.set(id, el);
+  }
+}
+
+onMounted(() => {
+  unregister = registerTilePlacementStage({
+    els: (): TileStageEls | undefined => {
+      // Vue 3 sets a template ref to `null` (not `undefined`) once its
+      // element has rendered then been removed — here when a SelectSpace has
+      // no real tile art (St. Joseph's cathedral lands on an existing city,
+      // so `artClass === ''` and the tile div is not rendered). `!tile`
+      // covers both null and undefined; a bare `=== undefined` NPE'd.
+      const proxy = tileProxyEls(tile.value?.$el);
+      if (proxy === undefined) {
+        return undefined;
       }
-      const suffix = tileCssClassOf(t, tilePlacementState.aresExtension);
-      return suffix === '' ? '' : 'board-space-tile--' + suffix;
-    },
-    /** The own landing is a CITY's (W7): it lands with the tier's dust. */
-    ownDust(): boolean {
-      return tileContactKind(tilePlacementState.tileType) === 'dust';
-    },
-    /** …and the remote one. */
-    remoteDust(): boolean {
-      return tileContactKind(remotePlacementState.tileType) === 'dust';
-    },
-    remoteArtClass(): string {
-      const t = remotePlacementState.tileType;
-      if (t === undefined) {
-        return '';
+      const tileNow = proxy.tile;
+      const bonusIcons: Array<HTMLElement> = [];
+      for (const b of tilePlacementState.bonusProxies) {
+        const el = bonusEls.value.get(b.id);
+        if (el !== undefined && el.isConnected) {
+          bonusIcons.push(el);
+        }
       }
-      const suffix = tileCssClassOf(t, remotePlacementState.aresExtension);
-      return suffix === '' ? '' : 'board-space-tile--' + suffix;
-    },
-    /** The tile a REMOVAL takes off the cell for everybody (the remote stage's departure — Water Export's ocean). */
-    remoteDepartArtClass(): string {
-      const t = remotePlacementState.departingTile;
-      if (t === undefined) {
-        return '';
+      const aresPulses: Array<HTMLElement> = [];
+      for (const w of tilePlacementState.aresSources) {
+        const pulse = aresPulseEls.value.get(w.id);
+        if (pulse !== undefined && pulse.isConnected) {
+          aresPulses.push(pulse);
+        }
       }
-      const suffix = tileCssClassOf(t, remotePlacementState.aresExtension);
-      return suffix === '' ? '' : 'board-space-tile--' + suffix;
-    },
-    /** The tile the removal takes OFF the cell (remove-and-replace only). */
-    departArtClass(): string {
-      const t = tilePlacementState.departingTile;
-      if (t === undefined) {
-        return '';
-      }
-      const suffix = tileCssClassOf(t, tilePlacementState.aresExtension);
-      return suffix === '' ? '' : 'board-space-tile--' + suffix;
-    },
-    /** The owner marker's socket, re-derived for the LIVE hex — the board's
-     *  own px offsets are authored against the unscaled cell and then ride the
-     *  board's zoom, which a fixed proxy does not inherit. */
-    departCubeStyle(): Record<string, string> {
-      const c = tilePlacementState.departingCube;
-      return c === undefined ? {} : {
-        right: `${c.right}px`,
-        bottom: `${c.bottom}px`,
-      };
-    },
-    /** …and the same socket on the REMOTE stage's travelling proxy (a move somebody else made). */
-    remoteDepartCubeStyle(): Record<string, string> {
-      const c = remotePlacementState.departingCube;
-      return c === undefined ? {} : {
-        right: `${c.right}px`,
-        bottom: `${c.bottom}px`,
-      };
-    },
-    /** The cover of the piece that STAYS (TR44 — the city over the water a move takes): its art, on either stage. */
-    coverArtClass(): string {
-      const t = tilePlacementState.stayingCover?.tileType;
-      if (t === undefined) {
-        return '';
-      }
-      const suffix = tileCssClassOf(t, tilePlacementState.aresExtension);
-      return suffix === '' ? '' : 'board-space-tile--' + suffix;
-    },
-    remoteCoverArtClass(): string {
-      const t = remotePlacementState.stayingCover?.tileType;
-      if (t === undefined) {
-        return '';
-      }
-      const suffix = tileCssClassOf(t, remotePlacementState.aresExtension);
-      return suffix === '' ? '' : 'board-space-tile--' + suffix;
-    },
-    coverCubeStyle(): Record<string, string> {
-      const c = tilePlacementState.stayingCover?.cube;
-      return c === undefined ? {} : {right: `${c.right}px`, bottom: `${c.bottom}px`};
-    },
-    remoteCoverCubeStyle(): Record<string, string> {
-      const c = remotePlacementState.stayingCover?.cube;
-      return c === undefined ? {} : {right: `${c.right}px`, bottom: `${c.bottom}px`};
-    },
-  },
-  methods: {
-    /** The captured live rect IS the resting pose (the director only lifts). */
-    bonusStyle(b: BonusProxy): Record<string, string> {
       return {
-        left: `${Math.round(b.rect.x)}px`,
-        top: `${Math.round(b.rect.y)}px`,
-        width: `${Math.round(b.rect.w)}px`,
-        height: `${Math.round(b.rect.h)}px`,
+        tile: tileNow,
+        edge: proxy.edge,
+        touch: proxy.touch,
+        shadow: shadow.value ?? undefined,
+        bonusIcons,
+        aresPulses,
+        splash: splash.value ?? undefined,
+        depart: connected(depart.value ?? undefined),
+        departEdge: connected(departEdge.value ?? undefined),
+        departTouch: connected(departTouch.value ?? undefined),
+        cover: connected(cover.value ?? undefined),
+        dust: connected(dust.value ?? undefined),
       };
     },
-    setBonusRef(id: number, el: HTMLElement | null): void {
-      if (el === null) {
-        this.bonusEls.delete(id);
-      } else {
-        this.bonusEls.set(id, el);
+    remoteEls: (): TileStageEls | undefined => {
+      const proxy = tileProxyEls(remoteTile.value?.$el);
+      if (proxy === undefined) {
+        return undefined;
       }
-    },
-    /** The activation pulse is sized from the SOURCE HEX (never fixed px), so
-     *  it stays proportional under board zoom and every display profile.
-     *  Shared by the ocean coins and the Ares source wakes — both carry the
-     *  same `{pulseAt, pulseSize}` staging geometry. */
-    setGrovePulseRef(id: number, el: HTMLElement | null): void {
-      if (el === null) {
-        this.grovePulseEls.delete(id);
-      } else {
-        this.grovePulseEls.set(id, el);
+      const tile = proxy.tile;
+      const aresPulses: Array<HTMLElement> = [];
+      for (const w of remotePlacementState.aresSources) {
+        const pulse = remoteAresPulseEls.value.get(w.id);
+        if (pulse !== undefined && pulse.isConnected) {
+          aresPulses.push(pulse);
+        }
       }
-    },
-    setGroveChipRef(id: number, el: HTMLElement | null): void {
-      if (el === null) {
-        this.groveChipEls.delete(id);
-      } else {
-        this.groveChipEls.set(id, el);
-      }
-    },
-    oceanPulseStyle(c: OceanCoinProxy | AresSourceWake | GrovePayerProxy): Record<string, string> {
       return {
-        left: `${Math.round(c.pulseAt.x - c.pulseSize / 2)}px`,
-        top: `${Math.round(c.pulseAt.y - c.pulseSize / 2)}px`,
-        width: `${c.pulseSize}px`,
-        height: `${c.pulseSize}px`,
+        tile,
+        edge: proxy.edge,
+        touch: proxy.touch,
+        shadow: remoteShadow.value ?? undefined,
+        bonusIcons: [],
+        aresPulses,
+        splash: remoteSplash.value ?? undefined,
+        beacon: connected(remoteBeacon.value ?? undefined),
+        dust: connected(remoteDustEl.value ?? undefined),
+        // A REMOVAL departs on this stage (Water Export's ocean — the shared
+        // scene, every viewer's); a placement never does.
+        depart: connected(remoteDepart.value ?? undefined),
+        departEdge: connected(remoteDepartEdge.value ?? undefined),
+        departTouch: connected(remoteDepartTouch.value ?? undefined),
+        cover: connected(remoteCover.value ?? undefined),
       };
     },
-    /** The coin is CSS-sized in rem (the exact size of the framework's M€
-     *  chip) and self-centres via a negative margin — so the birth point is
-     *  the only thing JS supplies, and TV scaling is free. */
-    oceanCoinStyle(c: OceanCoinProxy | GroveChipProxy): Record<string, string> {
-      return {left: `${Math.round(c.at.x)}px`, top: `${Math.round(c.at.y)}px`};
-    },
-    /** Mostly gold matter, with two cold highlights that keep the visual tie
-     *  to the water the value condensed out of. */
-    sparkClass(i: number): Record<string, boolean> {
-      return {'con-tileplace__coin-spark--cool': i % 3 === 1};
-    },
-    setOceanPulseRef(id: number, el: HTMLElement | null): void {
-      if (el === null) {
-        this.oceanPulseEls.delete(id);
-      } else {
-        this.oceanPulseEls.set(id, el);
+  });
+  // The SHARED ocean payout stage — its own registration, because its
+  // caller may be the tile hero OR the nomad hop (which has no tile proxy).
+  // Pieces are index-aligned with the beat's own `coins`: the beat bails
+  // unless BOTH arrays match its length, so a half-mounted stage can never
+  // desync a pulse from its coin.
+  unregisterOcean = registerOceanBeatStage({
+    els: (): OceanStageEls | undefined => {
+      const pulses: Array<HTMLElement> = [];
+      const coins: Array<HTMLElement> = [];
+      for (const c of oceanBeatState.coins) {
+        const pulse = oceanPulseEls.value.get(c.id);
+        const coin = oceanCoinEls.value.get(c.id);
+        if (pulse !== undefined && pulse.isConnected && coin !== undefined && coin.isConnected) {
+          pulses.push(pulse);
+          coins.push(coin);
+        }
       }
+      return {pulses, coins};
     },
-    setOceanCoinRef(id: number, el: HTMLElement | null): void {
-      if (el === null) {
-        this.oceanCoinEls.delete(id);
-      } else {
-        this.oceanCoinEls.set(id, el);
+  });
+  // …and the GROVE stage, registered the same way and for the same reason:
+  // the beat bails unless BOTH arrays match its own lengths, so a
+  // half-mounted stage can never desync a canopy from the chips it pays.
+  unregisterGrove = registerGroveBeatStage({
+    els: (): GroveStageEls | undefined => {
+      const pulses: Array<HTMLElement> = [];
+      const chips: Array<HTMLElement> = [];
+      for (const g of groveBeatState.groves) {
+        const pulse = grovePulseEls.value.get(g.id);
+        if (pulse !== undefined && pulse.isConnected) {
+          pulses.push(pulse);
+        }
       }
-    },
-    setAresPulseRef(id: number, el: HTMLElement | null): void {
-      if (el === null) {
-        this.aresPulseEls.delete(id);
-      } else {
-        this.aresPulseEls.set(id, el);
+      for (const c of groveBeatState.chips) {
+        const chip = groveChipEls.value.get(c.id);
+        if (chip !== undefined && chip.isConnected) {
+          chips.push(chip);
+        }
       }
+      return {pulses, chips};
     },
-    setRemoteAresPulseRef(id: number, el: HTMLElement | null): void {
-      if (el === null) {
-        this.remoteAresPulseEls.delete(id);
-      } else {
-        this.remoteAresPulseEls.set(id, el);
-      }
-    },
-  },
-  mounted() {
-    this.unregister = registerTilePlacementStage({
-      els: (): TileStageEls | undefined => {
-        // Vue 3 sets a template ref to `null` (not `undefined`) once its
-        // element has rendered then been removed — here when a SelectSpace has
-        // no real tile art (St. Joseph's cathedral lands on an existing city,
-        // so `artClass === ''` and the tile div is not rendered). `!tile`
-        // covers both null and undefined; a bare `=== undefined` NPE'd.
-        const proxy = tileProxyEls(((this.$refs.tile ?? undefined) as {$el?: HTMLElement} | null | undefined)?.$el);
-        if (proxy === undefined) {
-          return undefined;
-        }
-        const tile = proxy.tile;
-        const bonusIcons: Array<HTMLElement> = [];
-        for (const b of tilePlacementState.bonusProxies) {
-          const el = this.bonusEls.get(b.id);
-          if (el !== undefined && el.isConnected) {
-            bonusIcons.push(el);
-          }
-        }
-        const aresPulses: Array<HTMLElement> = [];
-        for (const w of tilePlacementState.aresSources) {
-          const pulse = this.aresPulseEls.get(w.id);
-          if (pulse !== undefined && pulse.isConnected) {
-            aresPulses.push(pulse);
-          }
-        }
-        return {
-          tile,
-          edge: proxy.edge,
-          touch: proxy.touch,
-          shadow: (this.$refs.shadow ?? undefined) as HTMLElement | undefined,
-          bonusIcons,
-          aresPulses,
-          splash: (this.$refs.splash ?? undefined) as HTMLElement | undefined,
-          depart: connected((this.$refs.depart ?? undefined) as HTMLElement | undefined),
-          departEdge: connected((this.$refs.departEdge ?? undefined) as HTMLElement | undefined),
-          departTouch: connected((this.$refs.departTouch ?? undefined) as HTMLElement | undefined),
-          cover: connected((this.$refs.cover ?? undefined) as HTMLElement | undefined),
-          dust: connected((this.$refs.dust ?? undefined) as HTMLElement | undefined),
-        };
-      },
-      remoteEls: (): TileStageEls | undefined => {
-        const proxy = tileProxyEls(((this.$refs.remoteTile ?? undefined) as {$el?: HTMLElement} | null | undefined)?.$el);
-        if (proxy === undefined) {
-          return undefined;
-        }
-        const tile = proxy.tile;
-        const aresPulses: Array<HTMLElement> = [];
-        for (const w of remotePlacementState.aresSources) {
-          const pulse = this.remoteAresPulseEls.get(w.id);
-          if (pulse !== undefined && pulse.isConnected) {
-            aresPulses.push(pulse);
-          }
-        }
-        return {
-          tile,
-          edge: proxy.edge,
-          touch: proxy.touch,
-          shadow: (this.$refs.remoteShadow ?? undefined) as HTMLElement | undefined,
-          bonusIcons: [],
-          aresPulses,
-          splash: (this.$refs.remoteSplash ?? undefined) as HTMLElement | undefined,
-          beacon: connected((this.$refs.remoteBeacon ?? undefined) as HTMLElement | undefined),
-          dust: connected((this.$refs.remoteDust ?? undefined) as HTMLElement | undefined),
-          // A REMOVAL departs on this stage (Water Export's ocean — the shared
-          // scene, every viewer's); a placement never does.
-          depart: connected((this.$refs.remoteDepart ?? undefined) as HTMLElement | undefined),
-          departEdge: connected((this.$refs.remoteDepartEdge ?? undefined) as HTMLElement | undefined),
-          departTouch: connected((this.$refs.remoteDepartTouch ?? undefined) as HTMLElement | undefined),
-          cover: connected((this.$refs.remoteCover ?? undefined) as HTMLElement | undefined),
-        };
-      },
-    });
-    // The SHARED ocean payout stage — its own registration, because its
-    // caller may be the tile hero OR the nomad hop (which has no tile proxy).
-    // Pieces are index-aligned with the beat's own `coins`: the beat bails
-    // unless BOTH arrays match its length, so a half-mounted stage can never
-    // desync a pulse from its coin.
-    this.unregisterOcean = registerOceanBeatStage({
-      els: (): OceanStageEls | undefined => {
-        const pulses: Array<HTMLElement> = [];
-        const coins: Array<HTMLElement> = [];
-        for (const c of oceanBeatState.coins) {
-          const pulse = this.oceanPulseEls.get(c.id);
-          const coin = this.oceanCoinEls.get(c.id);
-          if (pulse !== undefined && pulse.isConnected && coin !== undefined && coin.isConnected) {
-            pulses.push(pulse);
-            coins.push(coin);
-          }
-        }
-        return {pulses, coins};
-      },
-    });
-    // …and the GROVE stage, registered the same way and for the same reason:
-    // the beat bails unless BOTH arrays match its own lengths, so a
-    // half-mounted stage can never desync a canopy from the chips it pays.
-    this.unregisterGrove = registerGroveBeatStage({
-      els: (): GroveStageEls | undefined => {
-        const pulses: Array<HTMLElement> = [];
-        const chips: Array<HTMLElement> = [];
-        for (const g of groveBeatState.groves) {
-          const pulse = this.grovePulseEls.get(g.id);
-          if (pulse !== undefined && pulse.isConnected) {
-            pulses.push(pulse);
-          }
-        }
-        for (const c of groveBeatState.chips) {
-          const chip = this.groveChipEls.get(c.id);
-          if (chip !== undefined && chip.isConnected) {
-            chips.push(chip);
-          }
-        }
-        return {pulses, chips};
-      },
-    });
-  },
-  beforeUnmount() {
-    this.unregister?.();
-    this.unregisterOcean?.();
-    this.unregisterGrove?.();
-    // Shell teardown / game switch mid-flight: every held tile must become
-    // visible NOW (the hold set is module-level and would otherwise leak
-    // into the next mounted board).
-    abortRemotePlacements();
-  },
+  });
+});
+onBeforeUnmount(() => {
+  unregister?.();
+  unregisterOcean?.();
+  unregisterGrove?.();
+  // Shell teardown / game switch mid-flight: every held tile must become
+  // visible NOW (the hold set is module-level and would otherwise leak
+  // into the next mounted board).
+  abortRemotePlacements();
 });
 </script>
