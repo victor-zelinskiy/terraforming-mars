@@ -280,8 +280,8 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
   </article>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef} from 'vue';
 import {Message} from '@/common/logs/Message';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
@@ -298,6 +298,8 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {LiveNotification, NotificationVariant, NegativeMeta} from '@/client/components/notifications/notificationTypes';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
 // Icon-key → PublicPlayerModel field (irregular: megacredit/plant production drop
 // the plural 's'). Used to show the victim's before → after value.
@@ -323,283 +325,279 @@ const PROD_FIELD: Readonly<Record<string, string>> = {
 // should get out of the way fast (~40% shorter than the feed cards per user
 // feedback).
 const YOUR_TURN_ACTIVITY_TTL = 3000;
+
 // Tiny pointer travel is debounced so a stray 1-px jitter doesn't arm the timer.
 const ACTIVITY_MOVE_THRESHOLD = 6;
+
 // Variants that read as "what an opponent just did" — their rail is tinted in
 // the actor's player colour. Prestige / system variants keep their own accent.
 const ACTOR_RAIL_VARIANTS: ReadonlySet<NotificationVariant> = new Set<NotificationVariant>([
   'play-card', 'blue-action', 'standard-project', 'colony', 'hydronetwork', 'passive-effect', 'event', 'bot-turn',
 ]);
 
-export default defineComponent({
-  name: 'NotificationCard',
-  components: {JournalTokenRenderer, JournalChildRow, JournalCardChip, EffectPreviewPopover},
-  props: {
-    notification: {
-      type: Object as PropType<LiveNotification>,
-      required: true,
-    },
-    players: {
-      type: Array as () => ReadonlyArray<PublicPlayerModel>,
-      required: true,
-    },
-    viewerColor: {
-      type: String as () => Color,
-      default: undefined,
-    },
+defineOptions({name: 'NotificationCard'});
+const props = defineProps({
+  notification: {
+    type: Object as PropType<LiveNotification>,
+    required: true,
   },
-  emits: ['dismiss', 'toggle', 'cta', 'cta-secondary', 'cancel'],
-  data() {
-    return {
-      // Set once the player is active (only meaningful for the your-turn card).
-      activityArmed: false,
-      activityOrigin: undefined as {x: number; y: number} | undefined,
-      // Passive-effect hover popover state.
-      effectHover: false,
-      effectAnchor: undefined as DOMRect | undefined,
-    };
+  players: {
+    type: Array as () => ReadonlyArray<PublicPlayerModel>,
+    required: true,
   },
-  computed: {
-    /** The fired passive's CARD (this frozen desktop card knows no resolution source). */
-    effectCard(): CardName | undefined {
-      const source = this.notification.effectSource;
-      return source?.kind === 'card' ? source.card : undefined;
-    },
-    canExpand(): boolean {
-      return (this.notification.childVMs?.length ?? 0) > 0;
-    },
-    negative(): NegativeMeta | undefined {
-      return this.notification.negative;
-    },
-    attackerName(): string {
-      const a = this.notification.negative?.attacker;
-      if (a === undefined) {
-        return '';
-      }
-      const player = this.players.find((p) => p.color === a);
-      return player !== undefined ? participantDisplayName(player) : a;
-    },
-    scopeLabel(): string {
-      return this.notification.negative?.scope === 'production' ? 'from production' : 'from stock';
-    },
-    revealVerb(): string {
-      return this.notification.reveal?.origin === 'hand' ? 'showed from hand' : 'revealed from deck';
-    },
-    revealResultLabel(): string {
-      switch (this.notification.reveal?.result) {
-      case 'discarded': return 'discarded';
-      case 'kept': return 'kept';
-      case 'shown': return 'shown';
-      default: return 'revealed';
-      }
-    },
-    // Victim before → after for a SINGLE-resource loss (the common case), read
-    // from the viewer's CURRENT (post-attack) value + the loss amount.
-    beforeAfter(): string | undefined {
-      const neg = this.notification.negative;
-      if (neg === undefined || neg.loss.length !== 1 || this.viewerColor === undefined) {
-        return undefined;
-      }
-      const chip = neg.loss[0];
-      const field = (neg.scope === 'production' ? PROD_FIELD : STOCK_FIELD)[chip.icon];
-      if (field === undefined) {
-        return undefined;
-      }
-      const viewer = this.players.find((p) => p.color === this.viewerColor) as unknown as Record<string, number> | undefined;
-      const after = viewer?.[field];
-      if (typeof after !== 'number') {
-        return undefined;
-      }
-      const lossAbs = Math.abs(Number(chip.text.replace('−', '-')));
-      if (Number.isNaN(lossAbs)) {
-        return undefined;
-      }
-      return `${after + lossAbs} → ${after}`;
-    },
-    actorName(): string {
-      const a = this.notification.actor;
-      if (a === undefined) {
-        return '';
-      }
-      const player = this.players.find((p) => p.color === a);
-      return player !== undefined ? participantDisplayName(player) : a;
-    },
-    railColorClass(): string {
-      // Ordinary "what an opponent did" events tint the rail in the actor's
-      // colour (reusing the global `player_bg_color_*` class). Prestige / system
-      // variants (milestone / award / generation / pass / turn / warning) keep
-      // their own variant accent from CSS so the type reads at a glance.
-      const a = this.notification.actor;
-      if (a !== undefined && ACTOR_RAIL_VARIANTS.has(this.notification.variant)) {
-        return 'player_bg_color_' + a;
-      }
-      return '';
-    },
-    headerEntries(): ReadonlyArray<string | LogMessageData> {
-      const h = this.notification.header;
-      if (h === undefined) {
-        return [];
-      }
-      return Log.parse({message: this.$t(h.message), data: h.data});
-    },
-    promptEntries(): ReadonlyArray<string | LogMessageData> | undefined {
-      const p = this.notification.prompt;
-      if (p === undefined || typeof p === 'string') {
-        return undefined;
-      }
-      const msg = p as Message;
-      return Log.parse({message: this.$t(msg.message), data: msg.data});
-    },
-    promptText(): string | undefined {
-      const p = this.notification.prompt;
-      return typeof p === 'string' ? p : undefined;
-    },
-    glyph(): string {
-      switch (this.notification.variant) {
-      case 'milestone': return '🏆';
-      case 'award': return '🏅';
-      case 'terraforming-complete': return '❂';
-      case 'action-required': return '!';
-      case 'your-turn': return '▸';
-      case 'warning': return '⚠';
-      case 'bot-turn': return '⌬';
-      case 'generation': return '◆';
-      case 'pass': return '⏻';
-      case 'standard-project': return '⬡';
-      case 'colony': return '◉';
-      case 'hydronetwork': return '≈';
-      case 'planetary-event': return '◬';
-      case 'blue-action': return '⟳';
-      case 'passive-effect': return '✦';
-      case 'destroy': return '✖';
-      case 'steal': return '⇢';
-      case 'production-reduction': return '▼';
-      case 'production-transfer': return '⇄';
-      case 'vp-loss': return '★';
-      case 'threat': return '⚠';
-      case 'reveal-deck': return '◇';
-      case 'reveal-hand': return '⊙';
-      case 'play-card':
-      case 'event':
-      default: return '◈';
-      }
-    },
-    // A clear generation line (replaces the cryptic "G25" chip). Shown for the
-    // your-turn card and the new-generation highlight.
-    metaLine(): string | undefined {
-      if (this.notification.kind === 'your-turn' ||
-          (this.notification.kind === 'important' && this.notification.typeLabelKey === 'New generation') ||
-          this.notification.variant === 'terraforming-complete') {
-        return `${this.$t('Generation')} ${this.notification.generation}`;
-      }
-      return undefined;
-    },
-    // YOUR TURN is persistent UNTIL the player is active — once they move / type /
-    // click, a countdown arms (so the card fades when they start playing, but
-    // stays put if they're AFK). Other persistent cards (action-required) never
-    // auto-dismiss.
-    armsOnActivity(): boolean {
-      return this.notification.kind === 'your-turn';
-    },
-    effectivePersistent(): boolean {
-      if (this.armsOnActivity) {
-        return !this.activityArmed; // persistent until activity arms the timer
-      }
-      return this.notification.persistent;
-    },
-    showProgress(): boolean {
-      return !this.effectivePersistent;
-    },
-    effectiveTtl(): number {
-      if (this.armsOnActivity && this.activityArmed) {
-        return YOUR_TURN_ACTIVITY_TTL;
-      }
-      return this.notification.ttl;
-    },
-    timeLabel(): string {
-      const d = new Date(this.notification.createdAt);
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    },
-    ariaLabel(): string {
-      return this.$t(this.notification.typeLabelKey);
-    },
+  viewerColor: {
+    type: String as () => Color,
+    default: undefined,
   },
-  methods: {
-    iconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-    // One compact outcome line (summaryLines) → journal tokens.
-    lineEntries(line: LogMessage): ReadonlyArray<string | LogMessageData> {
-      return Log.parse({message: this.$t(line.message), data: line.data});
-    },
-    chipClass(chip: JournalImpactChip): Record<string, boolean> {
-      const plain = chip.production !== true && chip.saved !== true && chip.neutral !== true;
-      return {
-        'notification-card__chip--prod': chip.production === true,
-        'notification-card__chip--saved': chip.saved === true,
-        'notification-card__chip--neutral': chip.neutral === true,
-        'notification-card__chip--neg': plain && chip.text.startsWith('−'),
-        'notification-card__chip--pos': plain && chip.text.startsWith('+'),
-      };
-    },
-    onCardClick(): void {
-      if (this.canExpand) {
-        this.$emit('toggle', this.notification.id);
-      }
-    },
-    onEffectHover(): void {
-      const el = (this.$refs.effectChip ?? undefined) as HTMLElement | undefined;
-      this.effectAnchor = el?.getBoundingClientRect();
-      this.effectHover = true;
-    },
-    onEffectLeave(): void {
-      this.effectHover = false;
-    },
-    onEffectClick(): void {
-      if (this.effectCard !== undefined) {
-        openEffectDetail(this.effectCard, this.notification.actor);
-      }
-    },
-    // Arm the your-turn countdown on the FIRST meaningful player activity.
-    onActivity(e: Event): void {
-      if (this.activityArmed) {
-        return;
-      }
-      if (e.type === 'pointermove') {
-        const pe = e as PointerEvent;
-        if (this.activityOrigin === undefined) {
-          this.activityOrigin = {x: pe.clientX, y: pe.clientY};
-          return; // first sample — wait for real travel, not a 1-px settle
-        }
-        const dx = pe.clientX - this.activityOrigin.x;
-        const dy = pe.clientY - this.activityOrigin.y;
-        if (Math.hypot(dx, dy) < ACTIVITY_MOVE_THRESHOLD) {
-          return;
-        }
-      }
-      this.activityArmed = true;
-      this.removeActivityListeners();
-    },
-    addActivityListeners(): void {
-      window.addEventListener('pointermove', this.onActivity, {passive: true});
-      window.addEventListener('pointerdown', this.onActivity, {passive: true});
-      window.addEventListener('keydown', this.onActivity);
-      window.addEventListener('wheel', this.onActivity, {passive: true});
-    },
-    removeActivityListeners(): void {
-      window.removeEventListener('pointermove', this.onActivity);
-      window.removeEventListener('pointerdown', this.onActivity);
-      window.removeEventListener('keydown', this.onActivity);
-      window.removeEventListener('wheel', this.onActivity);
-    },
-  },
-  mounted(): void {
-    if (this.armsOnActivity) {
-      this.addActivityListeners();
+});
+const emit = defineEmits(['dismiss', 'toggle', 'cta', 'cta-secondary', 'cancel']);
+
+const effectChip = useTemplateRef<HTMLElement>('effectChip');
+// Set once the player is active (only meaningful for the your-turn card).
+const activityArmed = ref(false);
+const activityOrigin = ref<{x: number; y: number} | undefined>(undefined);
+// Passive-effect hover popover state.
+const effectHover = ref(false);
+const effectAnchor = ref<DOMRect | undefined>(undefined);
+
+/** The fired passive's CARD (this frozen desktop card knows no resolution source). */
+const effectCard = computed((): CardName | undefined => {
+  const source = props.notification.effectSource;
+  return source?.kind === 'card' ? source.card : undefined;
+});
+const canExpand = computed((): boolean => {
+  return (props.notification.childVMs?.length ?? 0) > 0;
+});
+const negative = computed((): NegativeMeta | undefined => {
+  return props.notification.negative;
+});
+const attackerName = computed((): string => {
+  const a = props.notification.negative?.attacker;
+  if (a === undefined) {
+    return '';
+  }
+  const player = props.players.find((p) => p.color === a);
+  return player !== undefined ? participantDisplayName(player) : a;
+});
+const scopeLabel = computed((): string => {
+  return props.notification.negative?.scope === 'production' ? 'from production' : 'from stock';
+});
+const revealVerb = computed((): string => {
+  return props.notification.reveal?.origin === 'hand' ? 'showed from hand' : 'revealed from deck';
+});
+const revealResultLabel = computed((): string => {
+  switch (props.notification.reveal?.result) {
+  case 'discarded': return 'discarded';
+  case 'kept': return 'kept';
+  case 'shown': return 'shown';
+  default: return 'revealed';
+  }
+});
+// Victim before → after for a SINGLE-resource loss (the common case), read
+// from the viewer's CURRENT (post-attack) value + the loss amount.
+const beforeAfter = computed((): string | undefined => {
+  const neg = props.notification.negative;
+  if (neg === undefined || neg.loss.length !== 1 || props.viewerColor === undefined) {
+    return undefined;
+  }
+  const chip = neg.loss[0];
+  const field = (neg.scope === 'production' ? PROD_FIELD : STOCK_FIELD)[chip.icon];
+  if (field === undefined) {
+    return undefined;
+  }
+  const viewer = props.players.find((p) => p.color === props.viewerColor) as unknown as Record<string, number> | undefined;
+  const after = viewer?.[field];
+  if (typeof after !== 'number') {
+    return undefined;
+  }
+  const lossAbs = Math.abs(Number(chip.text.replace('−', '-')));
+  if (Number.isNaN(lossAbs)) {
+    return undefined;
+  }
+  return `${after + lossAbs} → ${after}`;
+});
+const actorName = computed((): string => {
+  const a = props.notification.actor;
+  if (a === undefined) {
+    return '';
+  }
+  const player = props.players.find((p) => p.color === a);
+  return player !== undefined ? participantDisplayName(player) : a;
+});
+const railColorClass = computed((): string => {
+  // Ordinary "what an opponent did" events tint the rail in the actor's
+  // colour (reusing the global `player_bg_color_*` class). Prestige / system
+  // variants (milestone / award / generation / pass / turn / warning) keep
+  // their own variant accent from CSS so the type reads at a glance.
+  const a = props.notification.actor;
+  if (a !== undefined && ACTOR_RAIL_VARIANTS.has(props.notification.variant)) {
+    return 'player_bg_color_' + a;
+  }
+  return '';
+});
+const headerEntries = computed((): ReadonlyArray<string | LogMessageData> => {
+  const h = props.notification.header;
+  if (h === undefined) {
+    return [];
+  }
+  return Log.parse({message: $t(h.message), data: h.data});
+});
+const promptEntries = computed((): ReadonlyArray<string | LogMessageData> | undefined => {
+  const p = props.notification.prompt;
+  if (p === undefined || typeof p === 'string') {
+    return undefined;
+  }
+  const msg = p as Message;
+  return Log.parse({message: $t(msg.message), data: msg.data});
+});
+const promptText = computed((): string | undefined => {
+  const p = props.notification.prompt;
+  return typeof p === 'string' ? p : undefined;
+});
+const glyph = computed((): string => {
+  switch (props.notification.variant) {
+  case 'milestone': return '🏆';
+  case 'award': return '🏅';
+  case 'terraforming-complete': return '❂';
+  case 'action-required': return '!';
+  case 'your-turn': return '▸';
+  case 'warning': return '⚠';
+  case 'bot-turn': return '⌬';
+  case 'generation': return '◆';
+  case 'pass': return '⏻';
+  case 'standard-project': return '⬡';
+  case 'colony': return '◉';
+  case 'hydronetwork': return '≈';
+  case 'planetary-event': return '◬';
+  case 'blue-action': return '⟳';
+  case 'passive-effect': return '✦';
+  case 'destroy': return '✖';
+  case 'steal': return '⇢';
+  case 'production-reduction': return '▼';
+  case 'production-transfer': return '⇄';
+  case 'vp-loss': return '★';
+  case 'threat': return '⚠';
+  case 'reveal-deck': return '◇';
+  case 'reveal-hand': return '⊙';
+  case 'play-card':
+  case 'event':
+  default: return '◈';
+  }
+});
+// A clear generation line (replaces the cryptic "G25" chip). Shown for the
+// your-turn card and the new-generation highlight.
+const metaLine = computed((): string | undefined => {
+  if (props.notification.kind === 'your-turn' ||
+      (props.notification.kind === 'important' && props.notification.typeLabelKey === 'New generation') ||
+      props.notification.variant === 'terraforming-complete') {
+    return `${$t('Generation')} ${props.notification.generation}`;
+  }
+  return undefined;
+});
+// YOUR TURN is persistent UNTIL the player is active — once they move / type /
+// click, a countdown arms (so the card fades when they start playing, but
+// stays put if they're AFK). Other persistent cards (action-required) never
+// auto-dismiss.
+const armsOnActivity = computed((): boolean => {
+  return props.notification.kind === 'your-turn';
+});
+const effectivePersistent = computed((): boolean => {
+  if (armsOnActivity.value) {
+    return !activityArmed.value; // persistent until activity arms the timer
+  }
+  return props.notification.persistent;
+});
+const showProgress = computed((): boolean => {
+  return !effectivePersistent.value;
+});
+const effectiveTtl = computed((): number => {
+  if (armsOnActivity.value && activityArmed.value) {
+    return YOUR_TURN_ACTIVITY_TTL;
+  }
+  return props.notification.ttl;
+});
+const timeLabel = computed((): string => {
+  const d = new Date(props.notification.createdAt);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+});
+const ariaLabel = computed((): string => {
+  return $t(props.notification.typeLabelKey);
+});
+
+function iconClass(icon: string): string {
+  return iconClassFor(icon);
+}
+// One compact outcome line (summaryLines) → journal tokens.
+function lineEntries(line: LogMessage): ReadonlyArray<string | LogMessageData> {
+  return Log.parse({message: $t(line.message), data: line.data});
+}
+function chipClass(chip: JournalImpactChip): Record<string, boolean> {
+  const plain = chip.production !== true && chip.saved !== true && chip.neutral !== true;
+  return {
+    'notification-card__chip--prod': chip.production === true,
+    'notification-card__chip--saved': chip.saved === true,
+    'notification-card__chip--neutral': chip.neutral === true,
+    'notification-card__chip--neg': plain && chip.text.startsWith('−'),
+    'notification-card__chip--pos': plain && chip.text.startsWith('+'),
+  };
+}
+function onCardClick(): void {
+  if (canExpand.value) {
+    emit('toggle', props.notification.id);
+  }
+}
+function onEffectHover(): void {
+  const el = effectChip.value ?? undefined;
+  effectAnchor.value = el?.getBoundingClientRect();
+  effectHover.value = true;
+}
+function onEffectLeave(): void {
+  effectHover.value = false;
+}
+function onEffectClick(): void {
+  if (effectCard.value !== undefined) {
+    openEffectDetail(effectCard.value, props.notification.actor);
+  }
+}
+// Arm the your-turn countdown on the FIRST meaningful player activity.
+function onActivity(e: Event): void {
+  if (activityArmed.value) {
+    return;
+  }
+  if (e.type === 'pointermove') {
+    const pe = e as PointerEvent;
+    if (activityOrigin.value === undefined) {
+      activityOrigin.value = {x: pe.clientX, y: pe.clientY};
+      return; // first sample — wait for real travel, not a 1-px settle
     }
-  },
-  beforeUnmount(): void {
-    this.removeActivityListeners();
-  },
+    const dx = pe.clientX - activityOrigin.value.x;
+    const dy = pe.clientY - activityOrigin.value.y;
+    if (Math.hypot(dx, dy) < ACTIVITY_MOVE_THRESHOLD) {
+      return;
+    }
+  }
+  activityArmed.value = true;
+  removeActivityListeners();
+}
+function addActivityListeners(): void {
+  window.addEventListener('pointermove', onActivity, {passive: true});
+  window.addEventListener('pointerdown', onActivity, {passive: true});
+  window.addEventListener('keydown', onActivity);
+  window.addEventListener('wheel', onActivity, {passive: true});
+}
+function removeActivityListeners(): void {
+  window.removeEventListener('pointermove', onActivity);
+  window.removeEventListener('pointerdown', onActivity);
+  window.removeEventListener('keydown', onActivity);
+  window.removeEventListener('wheel', onActivity);
+}
+
+onMounted((): void => {
+  if (armsOnActivity.value) {
+    addActivityListeners();
+  }
+});
+onBeforeUnmount((): void => {
+  removeActivityListeners();
 });
 </script>
