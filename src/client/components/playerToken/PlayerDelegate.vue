@@ -69,15 +69,15 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType, ref} from 'vue';
 import {Color} from '@/common/Color';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {tokenStyleVars, tokenSymbol} from '@/client/components/playerToken/playerTokenPalette';
 import {DELEGATE_PATH} from '@/client/components/playerToken/delegateGlyph';
-
-// Per-page unique id source for the gradient defs.
-let pdUid = 0;
+// The per-page id source of the gradient defs is MODULE state: it lives in the sibling module (inside
+// `<script setup>` a top-level `let` would start again in every figure).
+import {newPlayerDelegateUid} from '@/client/components/playerToken/playerDelegateState';
 
 /**
  * THE DELEGATE PIECE — the Parliament's figure on the table (Turmoil Redux).
@@ -95,105 +95,99 @@ let pdUid = 0;
  * `filter` on the piece (the console strips them; the shadow and the glow are
  * flat siblings that carry their own softness).
  */
-export default defineComponent({
-  name: 'player-delegate',
-  props: {
-    // `Color | undefined` for the same reason as the cube: a seat binds an
-    // optional model field; an undefined owner falls back to neutral.
-    color: {
-      type: String as unknown as PropType<Color | undefined>,
-      required: true,
-    },
-    // The figure's height in px (its box is 0.8 × size wide). Absent → the
-    // HOST sizes it: the place it stands in declares `--pd-host` (a socket,
-    // a ribbon slot, a plaque's place), so the place, its footprint and the
-    // figure live in ONE stylesheet and scale with the profile's rem. The
-    // floor is 18 logical px (`.9rem`).
-    size: {
-      type: Number as PropType<number | undefined>,
-      default: undefined,
-    },
-    // A whisper of the player's colour behind the upper body.
-    glow: {
-      type: Boolean,
-      default: true,
-    },
-    // The contact shadow on the table under the base.
-    shadow: {
-      type: Boolean,
-      default: true,
-    },
-    // Play the placement (set down + settle) on mount.
-    animateIn: {
-      type: Boolean,
-      default: false,
-    },
-    // Tri-state, as the cube: true / false force the colour-blind glyph,
-    // undefined follows the `symbol_overlay` preference.
-    overlaySymbol: {
-      type: Boolean as unknown as PropType<boolean | undefined>,
-      default: undefined,
-    },
-    // The NEUTRAL delegate: the same figure in the steel alloy.
-    steel: {
-      type: Boolean,
-      default: false,
-    },
-    // The FLIGHT PROXY: a figure carried over the table (the director drives
-    // `--pd-lift` / `--pd-tilt`; the resting pose is pixel-identical).
-    solid: {
-      type: Boolean,
-      default: false,
-    },
+defineOptions({name: 'player-delegate'});
+const props = defineProps({
+  // `Color | undefined` for the same reason as the cube: a seat binds an
+  // optional model field; an undefined owner falls back to neutral.
+  color: {
+    type: String as unknown as PropType<Color | undefined>,
+    required: true,
   },
-  data() {
-    return {uid: ++pdUid, path: DELEGATE_PATH};
+  // The figure's height in px (its box is 0.8 × size wide). Absent → the
+  // HOST sizes it: the place it stands in declares `--pd-host` (a socket,
+  // a ribbon slot, a plaque's place), so the place, its footprint and the
+  // figure live in ONE stylesheet and scale with the profile's rem. The
+  // floor is 18 logical px (`.9rem`).
+  size: {
+    type: Number as PropType<number | undefined>,
+    default: undefined,
   },
-  computed: {
-    resolvedColor(): Color {
-      return this.color ?? 'neutral';
-    },
-    styleVars(): Record<string, string> {
-      const vars = tokenStyleVars(this.resolvedColor, {steel: this.steel});
-      return this.size === undefined ? vars : {'--pd-size': `${this.size}px`, ...vars};
-    },
-    rootClass(): Record<string, boolean> {
-      return {
-        ['player-delegate--' + this.resolvedColor]: true,
-        'player-delegate--steel': this.steel,
-        'player-delegate--solid': this.solid,
-        'player-delegate--animate-in': this.animateIn === true,
-      };
-    },
-    depthId(): string {
-      return 'pd-depth-' + this.uid;
-    },
-    sheenId(): string {
-      return 'pd-sheen-' + this.uid;
-    },
-    turnId(): string {
-      return 'pd-turn-' + this.uid;
-    },
-    discId(): string {
-      return 'pd-disc-' + this.uid;
-    },
-    rimId(): string {
-      return 'pd-rim-' + this.uid;
-    },
-    showSymbol(): boolean {
-      if (this.overlaySymbol === undefined) {
-        return getPreferences().symbol_overlay;
-      }
-      return this.overlaySymbol === true;
-    },
-    symbolGlyph(): string {
-      return tokenSymbol(this.resolvedColor, {steel: this.steel});
-    },
+  // A whisper of the player's colour behind the upper body.
+  glow: {
+    type: Boolean,
+    default: true,
   },
-  methods: {
-    fillUrl(id: string): string {
-      return `url(#${id})`;
-    },
+  // The contact shadow on the table under the base.
+  shadow: {
+    type: Boolean,
+    default: true,
+  },
+  // Play the placement (set down + settle) on mount.
+  animateIn: {
+    type: Boolean,
+    default: false,
+  },
+  // Tri-state, as the cube: true / false force the colour-blind glyph,
+  // undefined follows the `symbol_overlay` preference.
+  overlaySymbol: {
+    type: Boolean as unknown as PropType<boolean | undefined>,
+    default: undefined,
+  },
+  // The NEUTRAL delegate: the same figure in the steel alloy.
+  steel: {
+    type: Boolean,
+    default: false,
+  },
+  // The FLIGHT PROXY: a figure carried over the table (the director drives
+  // `--pd-lift` / `--pd-tilt`; the resting pose is pixel-identical).
+  solid: {
+    type: Boolean,
+    default: false,
   },
 });
+
+const uid = ref(newPlayerDelegateUid());
+const path = DELEGATE_PATH;
+const resolvedColor = computed((): Color => {
+  return props.color ?? 'neutral';
+});
+const styleVars = computed((): Record<string, string> => {
+  const vars = tokenStyleVars(resolvedColor.value, {steel: props.steel});
+  return props.size === undefined ? vars : {'--pd-size': `${props.size}px`, ...vars};
+});
+const rootClass = computed((): Record<string, boolean> => {
+  return {
+    ['player-delegate--' + resolvedColor.value]: true,
+    'player-delegate--steel': props.steel,
+    'player-delegate--solid': props.solid,
+    'player-delegate--animate-in': props.animateIn === true,
+  };
+});
+const depthId = computed((): string => {
+  return 'pd-depth-' + uid.value;
+});
+const sheenId = computed((): string => {
+  return 'pd-sheen-' + uid.value;
+});
+const turnId = computed((): string => {
+  return 'pd-turn-' + uid.value;
+});
+const discId = computed((): string => {
+  return 'pd-disc-' + uid.value;
+});
+const rimId = computed((): string => {
+  return 'pd-rim-' + uid.value;
+});
+const showSymbol = computed((): boolean => {
+  if (props.overlaySymbol === undefined) {
+    return getPreferences().symbol_overlay;
+  }
+  return props.overlaySymbol === true;
+});
+const symbolGlyph = computed((): string => {
+  return tokenSymbol(resolvedColor.value, {steel: props.steel});
+});
+function fillUrl(id: string): string {
+  return `url(#${id})`;
+}
 </script>
