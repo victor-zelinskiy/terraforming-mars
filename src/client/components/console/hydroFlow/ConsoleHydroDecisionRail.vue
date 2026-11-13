@@ -14,7 +14,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * THE DECISION RAIL — the step's pre-selects as a vertical stack of premium
  * decision cards, mounted at the TOP of the action column directly above the
@@ -28,7 +28,7 @@
  * (`railStep`) read the same sort, which is what makes the navigation
  * spatially self-evident.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import {ActionGroup} from '@/client/components/actions/actionExtraction';
 import ConsoleHydroPickRow from '@/client/components/console/hydroFlow/ConsoleHydroPickRow.vue';
 import {HydroRailDecision} from '@/client/console/hydroFlow/hydroDecisionRail';
@@ -37,38 +37,32 @@ import {$t} from '@/client/directives/i18n';
 
 type GroupNode = ActionGroup['nodes'][number];
 
-export default defineComponent({
-  name: 'ConsoleHydroDecisionRail',
-  components: {ConsoleHydroPickRow},
-  props: {
-    decisions: {type: Array as PropType<ReadonlyArray<HydroRailDecision>>, required: true},
-    /** The scene's current focus node (`rail:<id>` lights its card). */
-    focusNode: {type: String, required: true},
-    /** The chosen action's branch node (reuse-action summaries). */
-    repeatNode: {type: Object as PropType<GroupNode>, default: undefined},
-    /** The chosen target's live animal count (animal-target summaries). */
-    animalCurrent: {type: Number, default: undefined},
-  },
-  emits: ['open'],
-  computed: {
-    ordered(): Array<HydroRailDecision> {
-      return [...this.decisions].sort((a, b) => a.order - b.order);
-    },
-  },
-  methods: {
-    /** The resolved reward-choice summary: the chosen alternative's own
-     *  printed chips, straight off the stage definition. */
-    chosenChipsOf(d: HydroRailDecision): HydroStage['rewardOptions'][number] | undefined {
-      if (d.kind !== 'reward-choice' || d.chosenOption === undefined || d.stagePosition === undefined) {
-        return undefined;
-      }
-      return HYDRO_STAGES[d.stagePosition]?.rewardOptions[d.chosenOption];
-    },
-    /** A traversal decision names its stage; a single-question rail keeps the
-     *  bare label (the stage is the whole screen's subject there). */
-    stageLabelOf(d: HydroRailDecision): string {
-      return d.stageNameKey !== undefined ? $t(d.stageNameKey) : '';
-    },
-  },
+defineOptions({name: 'ConsoleHydroDecisionRail'});
+const props = defineProps({
+  decisions: {type: Array as PropType<ReadonlyArray<HydroRailDecision>>, required: true},
+  /** The scene's current focus node (`rail:<id>` lights its card). */
+  focusNode: {type: String, required: true},
+  /** The chosen action's branch node (reuse-action summaries). */
+  repeatNode: {type: Object as PropType<GroupNode>, default: undefined},
+  /** The chosen target's live animal count (animal-target summaries). */
+  animalCurrent: {type: Number, default: undefined},
 });
+defineEmits(['open']);
+
+const ordered = computed((): Array<HydroRailDecision> => {
+  return [...props.decisions].sort((a, b) => a.order - b.order);
+});
+/** The resolved reward-choice summary: the chosen alternative's own
+ *  printed chips, straight off the stage definition. */
+function chosenChipsOf(d: HydroRailDecision): HydroStage['rewardOptions'][number] | undefined {
+  if (d.kind !== 'reward-choice' || d.chosenOption === undefined || d.stagePosition === undefined) {
+    return undefined;
+  }
+  return HYDRO_STAGES[d.stagePosition]?.rewardOptions[d.chosenOption];
+}
+/** A traversal decision names its stage; a single-question rail keeps the
+ *  bare label (the stage is the whole screen's subject there). */
+function stageLabelOf(d: HydroRailDecision): string {
+  return d.stageNameKey !== undefined ? $t(d.stageNameKey) : '';
+}
 </script>
