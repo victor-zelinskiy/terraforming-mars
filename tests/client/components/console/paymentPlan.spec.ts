@@ -542,7 +542,7 @@ describe('paymentPlan (T3 native payment math)', () => {
     expect(autoMegacredits(10, lanes, {steel: 5}, 20)).to.eq(0); // covered (overpay remainder)
   });
 
-  it('coverage + total mirror PaymentFormV2.canSave semantics', () => {
+  it('coverage + total keep the desktop payment form\'s canSave semantics', () => {
     const lanes = paymentLanes(prompt(10, {steel: true}), player({megacredits: 3}));
     expect(paymentTotal(10, lanes, {steel: 2}, 3)).to.eq(7); // 4 + auto 3
     expect(paymentCovers(10, lanes, {steel: 2}, 3)).to.eq(false); // 7 < 10

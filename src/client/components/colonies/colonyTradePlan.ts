@@ -5,7 +5,7 @@
  */
 /*
  * COLONY TRADE PLAN — the PURE shared brain behind the colony-trade confirm
- * surfaces (the desktop ColonyTradePaymentModal and the console trade
+ * surfaces (once the desktop payment modal too; today the console trade
  * composer). It turns the server-authoritative ColonyTradePreviewModel
  * (`/api/game/colony-trade-preview`) + the colony manifest metadata into:
  *

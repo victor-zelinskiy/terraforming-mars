@@ -1,9 +1,9 @@
 /*
  * PURE payment-lane math for the console-native payment task — CTS T3
  * (docs/CONSOLE_MODE_CONCEPT.md §CTS-3). Reuses the EXACT desktop rate/available
- * sources (paymentModelUtils + PaymentDefaults + the PaymentWidgetMixin
+ * sources (paymentModelUtils + PaymentDefaults + the former payment widget's
  * ledger rules) so a console payment is always a mix the desktop
- * PaymentFormV2 could also produce — byte-parity by construction:
+ * payment form could also produce — byte-parity by construction:
  *
  *  - lane order  = GENERIC_PAYMENT_ORDER filtered by paymentOptions
  *  - available   = getSpendablePaymentAmounts (incl. Stormcraft heat)
@@ -74,7 +74,7 @@ export function rateFor(unit: SpendableResource, player: PublicPlayerModel, opti
     return player.steelValue;
   }
   if (unit === 'titanium') {
-    // The Luna Trade Federation rule (mirrors PaymentWidgetMixin):
+    // The Luna Trade Federation rule (as the desktop payment widget had it):
     // titanium usable ONLY via LTF pays 1 less.
     if (options.titanium !== true && options.lunaTradeFederationTitanium === true) {
       return player.titaniumValue - 1;
@@ -286,7 +286,7 @@ export function paymentOverpay(
   return Math.max(0, paymentTotal(cost, lanes, counts, mcAvailable) - cost);
 }
 
-/** Cost covered AND no lane exceeds ownership (mirrors PaymentFormV2.canSave). */
+/** Cost covered AND no lane exceeds ownership (the desktop payment form's `canSave`). */
 export function paymentCovers(
   cost: number,
   lanes: ReadonlyArray<PaymentLane>,

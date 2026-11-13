@@ -41,7 +41,7 @@ glyph by list index).
 
 **Outside the family, on purpose:** the composers (play / action / corp-first — the workspace grammar), every EMBEDDED stage
 (it hands its stage name up, it never titles itself — `ConsoleWsStageHead`), `ConsoleDeckPick` (a workspace stage), and
-the system surfaces (`.con-stranded`, `.con-alert`, `.con-quit`). `ConsoleConfirmDialog.vue` is imported by nothing.
+the system surfaces (`.con-stranded`, `.con-alert`, `.con-quit`). (`ConsoleConfirmDialog.vue`, imported by nothing, is deleted — desktop-removal wave 5.)
 
 ## The anatomy (top → bottom)
 

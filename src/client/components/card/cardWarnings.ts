@@ -2,9 +2,9 @@ import {Warning} from '@/common/cards/Warning';
 
 /**
  * Shared card-warning vocabulary — the single source of truth for the English
- * i18n KEY and the premium NOTICE LEVEL of every `Warning`. Used by both the
- * legacy `WarningsComponent` (text only) and the premium `PremiumCardWarnings`
- * (level-styled notice) so the two never drift.
+ * i18n KEY and the premium NOTICE LEVEL of every `Warning`. Used by the premium
+ * `PremiumCardWarnings` (level-styled notice); the legacy text-only renderer is
+ * deleted (desktop-removal wave 5).
  *
  * A warning is a NON-blocking note shown while the player is constructing a play
  * / action (the card is still playable — see UnplayableReason for the blocking

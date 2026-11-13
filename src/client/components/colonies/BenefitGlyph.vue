@@ -176,7 +176,7 @@ import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {CardResource} from '@/common/CardResource';
 
 // Minimal shape of a benefit chunk passed into this glyph renderer.
-// The parent (ColonyDetailView) constructs these on-the-fly from
+// The parent constructs these on-the-fly from
 // `metadata.build` / `metadata.trade` / `metadata.colony` so we can
 // uniformly index into a per-position quantity array.
 type BenefitInput = {

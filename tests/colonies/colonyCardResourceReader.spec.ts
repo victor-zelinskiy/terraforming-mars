@@ -41,8 +41,6 @@ const ALLOWED: ReadonlyArray<{file: string, why: string}> = [
   {file: 'src/common/colonies/ColonyMetadata.ts', why: 'the reader itself'},
   {file: 'src/server/tools/export_card_rendering.ts', why: 'the manifest export — copies both fields to genfiles/colonies.json'},
   {file: 'src/client/components/colonies/Colony.vue', why: 'frozen desktop (the /cards debug page) — scheduled for deletion'},
-  {file: 'src/client/components/colonies/ColonyDetailView.vue', why: 'frozen desktop — scheduled for deletion'},
-  {file: 'src/client/components/colonies/ColonyTradePaymentModal.vue', why: 'frozen desktop — scheduled for deletion'},
   {file: 'src/client/components/colonies/BuildBenefit.vue', why: 'frozen desktop — scheduled for deletion'},
 ];
 

@@ -131,14 +131,13 @@ describe('colonyBerths — the places of a colony tile', () => {
   /*
    * THE GUARD. The literal list of three and the clamp to the third berth are
    * how a surface forgets the fourth place; neither may return to a colony
-   * surface. The allow-list is the frozen desktop files scheduled for deletion.
+   * surface. The allow-list is EMPTY since desktop-removal wave 5 (the last frozen colony view is deleted).
    */
   describe('the guard — no literal «three berths», no clamp, in a colony surface', () => {
     const LITERAL = /\[\s*0\s*,\s*1\s*,\s*2\s*\]/;
     const CLAMP = /Math\.min\(\s*2\s*,|Math\.min\([^()]*,\s*2\s*\)/;
 
     const FROZEN: ReadonlyArray<{file: string, why: string}> = [
-      {file: 'src/client/components/colonies/ColonyDetailView.vue', why: 'frozen desktop — scheduled for deletion'},
     ];
 
     /** The colony surfaces of the console — whole files. */

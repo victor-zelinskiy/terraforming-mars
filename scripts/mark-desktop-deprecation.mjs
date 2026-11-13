@@ -32,7 +32,6 @@ const DEPRECATED = [
   `${C}/KeyboardShortcuts.vue`,
   `${C}/SortableCards.vue`,
   `${C}/StackedCards.vue`,
-  'src/client/mixins/HomeMixin.ts',
   `${C}/cardPickRouting.ts`,
   `${C}/handCards/HandCardsOverlay.vue`,
   `${C}/handCards/OpponentHandOverlay.vue`,
@@ -53,18 +52,15 @@ const DEPRECATED = [
   `${C}/overview/StandardProjectsOverlay.vue`,
   `${C}/overview/LeftPlayerPanel.vue`,
   `${C}/colonies/ColoniesOverlay.vue`,
-  `${C}/colonies/ColonyTradePaymentModal.vue`,
   `${C}/hydronetwork/HydroNetworkOverlay.vue`,
   `${C}/journal/JournalPanel.vue`,
   `${C}/journal/JournalFeed.vue`,
   `${C}/notifications/NotificationCard.vue`,
   `${C}/marsbot/MarsBotBoardOverlay.vue`,
   `${C}/marsbot/MarsBotPanel.vue`,
-  `${C}/additionalResources/AdditionalResourcesPanel.vue`,
   `${C}/initialDraft/InitialDraftFlowOverlay.vue`,
   `${C}/DraftFlowOverlay.vue`,
   `${C}/startGameFlow/StartGameFlowOverlay.vue`,
-  `${C}/payment/StandardProjectPaymentContent.vue`,
 ];
 
 // SHARED files that LOOK desktop — the traps. A reader seeing "overlay/modal/
