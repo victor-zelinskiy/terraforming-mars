@@ -1,5 +1,5 @@
 <template>
-  <div class="cm-menu" :class="{'cm-menu--dimmed': overlay !== undefined && !screenOpen, 'cm-menu--screen': screenOpen}">
+  <div ref="rootEl" class="cm-menu" :class="{'cm-menu--dimmed': overlay !== undefined && !screenOpen, 'cm-menu--screen': screenOpen}">
     <div class="cm-menu__bg" aria-hidden="true"></div>
     <div class="cm-menu__vignette" aria-hidden="true"></div>
 
@@ -249,7 +249,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * CONSOLE-NATIVE MAIN MENU — the pre-game "big plates" screen (Steam Deck /
  * TV posture). Navigation is pure screen state (cursor over the items),
@@ -269,9 +269,8 @@
  * intent handling resolves SEMANTIC actions (consoleActionOf) instead of
  * pattern-matching raw buttons.
  */
-import {defineComponent} from 'vue';
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch} from 'vue';
 import {paths} from '@/common/app/paths';
-import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
 import {JoinableGameStatus, JoinableGameSummary} from '@/common/models/JoinableGameModel';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -312,1232 +311,1199 @@ import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMe
 import {armSceneDestination, deferSceneReveal, loadingScreenState, navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {quitApp, supportsNativeQuit} from '@/client/console/runtimeMode';
-import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
-import {expansionIconUrl, expansionLabel} from '@/client/components/mainMenu/expansionMeta';
-import {Expansion} from '@/common/cards/GameModule';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {desktopBridge, startMenuUpdateWatch, stopMenuUpdateWatch} from '@/client/components/desktop/desktopUpdateState';
 import {addToSteam, dismissSteamPrompt, initSteamShortcut, steamButtonVisible, steamPromptVisible, steamShortcutState} from '@/client/components/desktop/steamShortcutState';
 import raw_settings from '@/genfiles/settings.json';
-import {$t, translateTextWithParams} from '@/client/directives/i18n';
+import {$t} from '@/client/directives/i18n';
 import {campaignsState, refreshCampaigns, takeCampaignsReturn} from '@/client/console/campaign/campaignsState';
 import {activeCampaignRowCount, campaignActionRequired, visibleCampaignSourceRows} from '@/client/console/campaign/campaignListModel';
+import {useAppRoot} from '@/client/components/appRoot';
 
 type MenuItemId = 'continue' | 'create' | 'games' | 'campaigns' | 'profile' | 'options' | 'admin' | 'playground' | 'steam' | 'quit';
 type MenuItem = {id: MenuItemId, labelKey: string, subText: string, glyph: string, badge: number};
 type MenuOverlay = 'games' | 'campaigns' | 'profile' | 'profiles' | 'friends' | 'language' | 'options' | 'admin' | 'playground' | 'quit' | 'steam' | undefined;
 
-export default defineComponent({
-  name: 'ConsoleMainMenu',
-  components: {ConsoleCommandBar, GamepadGlyph, ConsoleVirtualKeyboard, ConsoleCampaignsList, ConsoleLobbyScreen, ConsoleLobbyCard, ConsoleProfileEditor, ConsoleProfilesEditor, ConsoleFriendsEditor, ConsoleLanguagePicker, ConsoleOptionsPanel, ConsoleAdminRollback, ConsolePlaygroundHub},
-  setup() {
-    // Foundation: page-level overflow lock while this screen owns the viewport.
-    useConsoleNativeSurface();
-  },
-  data() {
-    return {
-      identityState,
-      lobbyState,
-      cursor: 0,
-      gamesCursor: 0,
-      /** Which slice of «Мои партии» the list shows (L3 toggles). */
-      gamesTab: 'active' as JoinableGameStatus,
-      overlay: undefined as MenuOverlay,
-      offPad: undefined as (() => void) | undefined,
-      desktopVersion: '',
-      steamState: steamShortcutState,
-      // Host-as-server: local-game deletion (X = one, Y = all; both confirmed).
-      // 'campaign' is the REDIRECT shape: a mission is never deleted alone —
-      // the dialog leads to the campaign's own front door instead.
-      appModeEffective: undefined as 'host' | 'remote' | undefined,
-      gamesConfirm: undefined as undefined | {kind: 'one', game: JoinableGameSummary} | {kind: 'campaign', game: JoinableGameSummary} | {kind: 'all'},
-      campaignsState,
-      gamesDeleting: false,
-      gamesError: false,
-      // Manual LAN host entry (the multicast-blocked fallback).
-      lanState,
-      lanEntry: false,
-      lanDraft: '',
-      lanIssue: '',
-      /** The showcase grid's column count (the screen measures it) — the ◀ ▶ ▲ ▼ walk's row length. */
-      gamesCols: 3,
-      /** The rect of the menu item a screen unfolds OUT of (taken at the press, before the column recedes). */
-      lobbyOrigin: undefined as LobbyRect | undefined,
-    };
-  },
-  computed: {
-    identityName(): string {
-      return this.identityState.identity?.displayName ?? '';
-    },
-    /** A pregame SCREEN stands (a list of the product), never a dialog — the column recedes for it. */
-    screenOpen(): boolean {
-      return this.overlay === 'games' || this.overlay === 'campaigns';
-    },
-    /**
-     * FOUR distinct answers, never one sentence for all of them: no name yet · still asking · asked and failed ·
-     * asked and there are none. Collapsing them is what made a party that existed read as one that did not. With the
-     * add-a-host tool present the list is never structurally empty (the statement stands beside the tool).
-     */
-    gamesScreenState(): LobbyScreenState {
-      if (this.gamesNeedName) {
-        return 'need-name';
-      }
-      if (this.gamesFirstLoad) {
-        return 'loading';
-      }
-      if (this.gamesLoadError) {
-        return 'error';
-      }
-      return this.gamesRowCount === 0 && !this.lanEntryVisible ? 'empty' : 'list';
-    },
-    gamesStateKey(): string {
-      switch (this.gamesScreenState) {
-      case 'need-name': return 'Set your player name to see your games';
-      case 'loading': return 'Loading';
-      case 'error': return 'Could not load your games';
-      case 'empty': return this.gamesEmptyKey;
-      default: return '';
-      }
-    },
-    gamesStateHintKey(): string {
-      switch (this.gamesScreenState) {
-      case 'need-name': return 'Your games are found by your player name — set it in the player profile';
-      case 'error': return 'Refresh';
-      case 'empty': return this.gamesTab === 'finished' ? '' : 'Start one with «New game» in the main menu';
-      default: return '';
-      }
-    },
-    identityCubeClass(): string {
-      const color = this.identityState.identity?.cubeColor;
-      return color !== undefined ? `player_bg_color_${color}` : 'cm-identity__cube--empty';
-    },
-    isAdmin(): boolean {
-      return isAdminName(this.identityName);
-    },
-    /**
-     * The game-rollback tool: every player when the menu talks to THIS
-     * machine's server (local mode — the server enforces the same rule as a
-     * loopback gate), plus the ADMIN_NAME dev door from anywhere.
-     */
-    rollbackAvailable(): boolean {
-      return this.isAdmin || apiEndpointIsLocal();
-    },
-    /** Unfinished games on THIS device's server. */
-    games(): ReadonlyArray<JoinableGameSummary> {
-      return this.lobbyState.localRows.map((row) => row.game);
-    },
-    /** The ARCHIVE — games of this player that have already ended. */
-    finishedGames(): ReadonlyArray<JoinableGameSummary> {
-      return this.lobbyState.archive;
-    },
-    /**
-     * The rows of the SHOWN slice that live on this server. Campaign missions
-     * sharing one campaign COLLAPSE into a single campaign row (its front
-     * door is the Campaign Map, not any one mission) — «Мои партии» must not
-     * read as four unrelated games. A host running an older build sends no
-     * `campaign` field; such rows stay ungrouped (partial-data tolerance).
-     */
-    localRows(): ReadonlyArray<JoinableGameSummary> {
-      const rows = this.gamesTab === 'finished' ? this.finishedGames : this.games;
-      const seen = new Set<string>();
-      const out: Array<JoinableGameSummary> = [];
-      for (const g of rows) {
-        const cid = g.campaign?.id;
-        if (cid === undefined) {
-          out.push(g);
-          continue;
-        }
-        if (seen.has(cid)) {
-          continue;
-        }
-        seen.add(cid);
-        // The representative is the LIVE mission when one exists, else the
-        // furthest mission (the chronicle's door).
-        const members = rows.filter((r) => r.campaign?.id === cid);
-        const live = members.find((r) => r.finished !== true);
-        const furthest = members.reduce((a, b) => ((b.campaign?.slot ?? 0) > (a.campaign?.slot ?? 0) ? b : a));
-        out.push(live ?? furthest);
-      }
-      return out;
-    },
-    /** LAN hosts publish their UNFINISHED games only — the archive is local.
-     *  Campaign missions collapse into ONE campaign row here too (same rule
-     *  as local rows): the campaign's front door is its map, never any one
-     *  mission — usually only the LIVE mission is published anyway. */
-    visibleLanRows(): ReadonlyArray<LobbyRow> {
-      if (this.gamesTab === 'finished') {
-        return [];
-      }
-      const rows = this.lobbyState.lanRows;
-      const seen = new Set<string>();
-      const out: Array<LobbyRow> = [];
-      for (const row of rows) {
-        const cid = row.game.campaign?.id;
-        if (cid === undefined) {
-          out.push(row);
-          continue;
-        }
-        if (seen.has(cid)) {
-          continue;
-        }
-        seen.add(cid);
-        const members = rows.filter((r) => r.game.campaign?.id === cid);
-        const live = members.find((r) => r.game.finished !== true);
-        const furthest = members.reduce((a, b) => ((b.game.campaign?.slot ?? 0) > (a.game.campaign?.slot ?? 0) ? b : a));
-        out.push(live ?? furthest);
-      }
-      return out;
-    },
-    /**
-     * Cursor range of the games overlay: local rows, then LAN rows, then the
-     * «add a host» affordance last — a real party is always ahead of a tool.
-     */
-    gamesCount(): number {
-      return this.gamesRowCount + (this.lanEntryVisible ? 1 : 0);
-    },
-    /**
-     * PARTIES only. The empty / loading / error states must answer «сколько у
-     * меня партий», not «сколько строк на экране» — counting the add-a-host
-     * tool as a row would silently retire «У вас пока нет незавершённых партий».
-     */
-    gamesRowCount(): number {
-      return this.localRows.length + this.visibleLanRows.length;
-    },
-    /** The two slices as a segmented control (count shown once its list loaded). */
-    gamesTabs(): ReadonlyArray<{id: JoinableGameStatus, label: string, count: number | undefined}> {
+defineOptions({name: 'ConsoleMainMenu'});
+
+// the app root's port (R26): «New game» navigates through it. `undefined` outside the application — a menu with no
+// root above it has nowhere to navigate, and that press does nothing
+const root = useAppRoot();
+// Foundation: page-level overflow lock while this screen owns the viewport.
+useConsoleNativeSurface();
+const profile = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('profile');
+const profiles = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('profiles');
+const friends = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('friends');
+const language = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('language');
+const options = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('options');
+const admin = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('admin');
+const playground = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('playground');
+const campaigns = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('campaigns');
+const lankeyboard = useTemplateRef<{handleIntent?: (i: GamepadIntent) => boolean}>('lankeyboard');
+const gamesScreen = useTemplateRef<{ensureVisible?: (el: Element | null) => void}>('gamesScreen');
+const rootEl = useTemplateRef<HTMLElement>('rootEl');
+const cursor = ref(0);
+const gamesCursor = ref(0);
+/** Which slice of «Мои партии» the list shows (L3 toggles). */
+const gamesTab = ref('active' as JoinableGameStatus);
+const overlay = ref<MenuOverlay>(undefined);
+let offPad: (() => void) | undefined;
+const desktopVersion = ref('');
+// Host-as-server: local-game deletion (X = one, Y = all; both confirmed).
+// 'campaign' is the REDIRECT shape: a mission is never deleted alone —
+// the dialog leads to the campaign's own front door instead.
+const appModeEffective = ref<'host' | 'remote' | undefined>(undefined);
+const gamesConfirm = ref<undefined | {kind: 'one', game: JoinableGameSummary} | {kind: 'campaign', game: JoinableGameSummary} | {kind: 'all'}>(undefined);
+const gamesDeleting = ref(false);
+const gamesError = ref(false);
+// Manual LAN host entry (the multicast-blocked fallback).
+const lanEntry = ref(false);
+const lanDraft = ref('');
+const lanIssue = ref('');
+/** The showcase grid's column count (the screen measures it) — the ◀ ▶ ▲ ▼ walk's row length. */
+const gamesCols = ref(3);
+/** The rect of the menu item a screen unfolds OUT of (taken at the press, before the column recedes). */
+const lobbyOrigin = ref<LobbyRect | undefined>(undefined);
+
+const identityName = computed((): string => {
+  return identityState.identity?.displayName ?? '';
+});
+/** A pregame SCREEN stands (a list of the product), never a dialog — the column recedes for it. */
+const screenOpen = computed((): boolean => {
+  return overlay.value === 'games' || overlay.value === 'campaigns';
+});
+/**
+ * FOUR distinct answers, never one sentence for all of them: no name yet · still asking · asked and failed ·
+ * asked and there are none. Collapsing them is what made a party that existed read as one that did not. With the
+ * add-a-host tool present the list is never structurally empty (the statement stands beside the tool).
+ */
+const gamesScreenState = computed((): LobbyScreenState => {
+  if (gamesNeedName.value) {
+    return 'need-name';
+  }
+  if (gamesFirstLoad.value) {
+    return 'loading';
+  }
+  if (gamesLoadError.value) {
+    return 'error';
+  }
+  return gamesRowCount.value === 0 && !lanEntryVisible.value ? 'empty' : 'list';
+});
+const gamesStateKey = computed((): string => {
+  switch (gamesScreenState.value) {
+  case 'need-name': return 'Set your player name to see your games';
+  case 'loading': return 'Loading';
+  case 'error': return 'Could not load your games';
+  case 'empty': return gamesEmptyKey.value;
+  default: return '';
+  }
+});
+const gamesStateHintKey = computed((): string => {
+  switch (gamesScreenState.value) {
+  case 'need-name': return 'Your games are found by your player name — set it in the player profile';
+  case 'error': return 'Refresh';
+  case 'empty': return gamesTab.value === 'finished' ? '' : 'Start one with «New game» in the main menu';
+  default: return '';
+  }
+});
+const identityCubeClass = computed((): string => {
+  const color = identityState.identity?.cubeColor;
+  return color !== undefined ? `player_bg_color_${color}` : 'cm-identity__cube--empty';
+});
+const isAdmin = computed((): boolean => {
+  return isAdminName(identityName.value);
+});
+/**
+ * The game-rollback tool: every player when the menu talks to THIS
+ * machine's server (local mode — the server enforces the same rule as a
+ * loopback gate), plus the ADMIN_NAME dev door from anywhere.
+ */
+const rollbackAvailable = computed((): boolean => {
+  return isAdmin.value || apiEndpointIsLocal();
+});
+/** Unfinished games on THIS device's server. */
+const games = computed((): ReadonlyArray<JoinableGameSummary> => {
+  return lobbyState.localRows.map((row) => row.game);
+});
+/** The ARCHIVE — games of this player that have already ended. */
+const finishedGames = computed((): ReadonlyArray<JoinableGameSummary> => {
+  return lobbyState.archive;
+});
+/**
+ * The rows of the SHOWN slice that live on this server. Campaign missions
+ * sharing one campaign COLLAPSE into a single campaign row (its front
+ * door is the Campaign Map, not any one mission) — «Мои партии» must not
+ * read as four unrelated games. A host running an older build sends no
+ * `campaign` field; such rows stay ungrouped (partial-data tolerance).
+ */
+const localRows = computed((): ReadonlyArray<JoinableGameSummary> => {
+  const rows = gamesTab.value === 'finished' ? finishedGames.value : games.value;
+  const seen = new Set<string>();
+  const out: Array<JoinableGameSummary> = [];
+  for (const g of rows) {
+    const cid = g.campaign?.id;
+    if (cid === undefined) {
+      out.push(g);
+      continue;
+    }
+    if (seen.has(cid)) {
+      continue;
+    }
+    seen.add(cid);
+    // The representative is the LIVE mission when one exists, else the
+    // furthest mission (the chronicle's door).
+    const members = rows.filter((r) => r.campaign?.id === cid);
+    const live = members.find((r) => r.finished !== true);
+    const furthest = members.reduce((a, b) => ((b.campaign?.slot ?? 0) > (a.campaign?.slot ?? 0) ? b : a));
+    out.push(live ?? furthest);
+  }
+  return out;
+});
+/** LAN hosts publish their UNFINISHED games only — the archive is local.
+ *  Campaign missions collapse into ONE campaign row here too (same rule
+ *  as local rows): the campaign's front door is its map, never any one
+ *  mission — usually only the LIVE mission is published anyway. */
+const visibleLanRows = computed((): ReadonlyArray<LobbyRow> => {
+  if (gamesTab.value === 'finished') {
+    return [];
+  }
+  const rows = lobbyState.lanRows;
+  const seen = new Set<string>();
+  const out: Array<LobbyRow> = [];
+  for (const row of rows) {
+    const cid = row.game.campaign?.id;
+    if (cid === undefined) {
+      out.push(row);
+      continue;
+    }
+    if (seen.has(cid)) {
+      continue;
+    }
+    seen.add(cid);
+    const members = rows.filter((r) => r.game.campaign?.id === cid);
+    const live = members.find((r) => r.game.finished !== true);
+    const furthest = members.reduce((a, b) => ((b.game.campaign?.slot ?? 0) > (a.game.campaign?.slot ?? 0) ? b : a));
+    out.push(live ?? furthest);
+  }
+  return out;
+});
+/**
+ * Cursor range of the games overlay: local rows, then LAN rows, then the
+ * «add a host» affordance last — a real party is always ahead of a tool.
+ */
+const gamesCount = computed((): number => {
+  return gamesRowCount.value + (lanEntryVisible.value ? 1 : 0);
+});
+/**
+ * PARTIES only. The empty / loading / error states must answer «сколько у
+ * меня партий», not «сколько строк на экране» — counting the add-a-host
+ * tool as a row would silently retire «У вас пока нет незавершённых партий».
+ */
+const gamesRowCount = computed((): number => {
+  return localRows.value.length + visibleLanRows.value.length;
+});
+/** The two slices as a segmented control (count shown once its list loaded). */
+const gamesTabs = computed((): ReadonlyArray<{id: JoinableGameStatus, label: string, count: number | undefined}> => {
+  return [
+    {id: 'active', label: 'Active games', count: localLobbySource()?.lastOkAt !== undefined ? games.value.length : undefined},
+    {id: 'finished', label: 'Finished games', count: lobbyState.archiveStatus === 'ok' ? finishedGames.value.length : undefined},
+  ];
+});
+/**
+ * «Загрузка…» — we have nothing to show AND are still finding out. This is
+ * deliberately NOT the same state as «нет партий»: an unanswered list and an
+ * empty library used to render the same sentence, which is how a LAN party
+ * that existed read as one that did not.
+ */
+const gamesFirstLoad = computed((): boolean => {
+  return gamesTab.value === 'finished' ?
+    lobbyState.archiveStatus === 'loading' && finishedGames.value.length === 0 :
+    lobbyFirstLoad();
+});
+/** We asked and could not find out — never rendered as «no games». */
+const gamesLoadError = computed((): boolean => {
+  return gamesTab.value === 'finished' ?
+    lobbyState.archiveStatus === 'unreachable' && finishedGames.value.length === 0 :
+    lobbyUnreachable();
+});
+/** No identity yet — the list is name-scoped, so say THAT, not «пусто». */
+const gamesNeedName = computed((): boolean => {
+  return identityName.value === '';
+});
+const gamesEmptyKey = computed((): string => {
+  return gamesTab.value === 'finished' ? 'You have no finished games yet.' : 'You have no unfinished games yet.';
+});
+/**
+ * LAN hosts that could not be asked — SHOWN with the reason, never silently
+ * absent. «Не отвечает» alone leaves the player unable to tell a slow couch
+ * from a blocked port, which is the one thing they can act on.
+ */
+const lanTrouble = computed((): ReadonlyArray<{id: string, label: string, reason: string}> => {
+  if (gamesTab.value === 'finished') {
+    return [];
+  }
+  return lobbyState.sources
+    .filter((s) => s.kind === 'lan' && s.status === 'unreachable')
+    .map((s) => ({id: s.id, label: s.label, reason: s.lastError}));
+});
+/**
+ * A LAN host that answered, but with nothing for THIS player. Also a state
+ * that must speak: name matching is what a listing is scoped by, and a
+ * silent empty section reads as «сеть не работает» when in fact the seat is
+ * simply under another name.
+ */
+const lanEmptyHosts = computed((): ReadonlyArray<{id: string, label: string}> => {
+  if (gamesTab.value === 'finished') {
+    return [];
+  }
+  const withRows = new Set(lobbyState.lanRows.map((row) => row.sourceId));
+  return lobbyState.sources
+    .filter((s) => s.kind === 'lan' && s.status === 'ok' && !withRows.has(s.id))
+    .map((s) => ({id: s.id, label: s.label}));
+});
+/** True when the LAN section has anything at all to say. */
+const lanSectionVisible = computed((): boolean => {
+  return visibleLanRows.value.length > 0 || lanTrouble.value.length > 0 || lanEmptyHosts.value.length > 0;
+});
+/**
+ * The manual-host affordance. Only in the live slice, only on a shell that
+ * has LAN at all — on the web there is nothing to type an address into.
+ */
+const lanEntryVisible = computed((): boolean => {
+  return gamesTab.value !== 'finished' && appModeEffective.value === 'host';
+});
+/** Hand-typed hosts, so X can take one back off the list. */
+const manualHosts = computed((): ReadonlyArray<{entry: string}> => {
+  return lanState.manual;
+});
+/** Deletion is offered only for games on THIS device's embedded server. */
+const canDeleteLocal = computed((): boolean => {
+  return appModeEffective.value === 'host';
+});
+/** «Удалить все» wipes the device library — either slice proves it has one. */
+const hasLocalGames = computed((): boolean => {
+  return games.value.length > 0 || finishedGames.value.length > 0;
+});
+const gamesConfirmTitle = computed((): string => {
+  const confirm = gamesConfirm.value;
+  if (confirm === undefined) {
+    return '';
+  }
+  if (confirm.kind === 'all') {
+    return 'Delete all local games?';
+  }
+  return confirm.kind === 'campaign' ? 'This game is part of a campaign' : 'Delete this game?';
+});
+/** Unfinished campaigns of the active identity (the menu plate's badge). */
+const campaignsBadge = computed((): number => {
+  return campaignsState.status === 'ok' ? activeCampaignRowCount(campaignsState.rows) : 0;
+});
+const continueItem = computed((): JoinableGameSummary | undefined => {
+  const mine = games.value.filter((g) => g.you !== undefined);
+  if (mine.length === 0) {
+    return undefined;
+  }
+  // Prefer the game the player LAST ENTERED (recorded on every game-enter),
+  // not the newest-created — otherwise a game they created but abandoned
+  // would out-rank the party they actually last sat down at. Fall back to
+  // newest-created when the recorded game is finished / no longer joinable.
+  const lastId = lastGameEntered();
+  const last = lastId !== '' ? mine.find((g) => g.id === lastId) : undefined;
+  return last ?? [...mine].sort((a, b) => b.createdTimeMs - a.createdTimeMs)[0];
+});
+const version = computed((): string => {
+  if (desktopVersion.value !== '') {
+    return desktopVersion.value;
+  }
+  const settingsVersion = (raw_settings as {version?: string}).version;
+  return settingsVersion !== undefined && settingsVersion !== '' ? settingsVersion : (raw_settings.head ?? '');
+});
+const currentLangCode = computed((): string => {
+  return String(getPreferences().lang ?? 'ru').toUpperCase();
+});
+const items = computed((): ReadonlyArray<MenuItem> => {
+  const items: Array<MenuItem> = [];
+  const cont = continueItem.value;
+  if (cont !== undefined) {
+    const turn = yourTurn(cont) ? ` · ${$t('Your turn')}` : '';
+    items.push({
+      id: 'continue',
+      labelKey: 'Continue',
+      subText: `${cont.name} · ${$t('Generation')} ${cont.generation}${turn}`,
+      glyph: '▶',
+      badge: 0,
+    });
+  }
+  items.push({id: 'create', labelKey: 'New game', subText: $t('Set up the players, map and rules of the party'), glyph: '◈', badge: 0});
+  items.push({id: 'games', labelKey: 'My games', subText: $t('Continue or join your unfinished games'), glyph: '⧉', badge: games.value.filter((g) => g.you !== undefined).length});
+  items.push({id: 'campaigns', labelKey: 'My campaigns', subText: $t('Continue a campaign or open the route map'), glyph: '⚑', badge: campaignsBadge.value});
+  items.push({id: 'profile', labelKey: 'Player profile', subText: identityName.value !== '' ? identityName.value : $t('Set your name'), glyph: '◉', badge: 0});
+  items.push({id: 'options', labelKey: 'Options', subText: $t('Interface and display settings'), glyph: '⚙', badge: 0});
+  // Rollback: every player in local mode (games on this device); the
+  // overlay carries the local-only note. Playground stays ADMIN_NAME-only.
+  if (rollbackAvailable.value) {
+    items.push({id: 'admin', labelKey: 'Game rollback', subText: $t('Roll a game back to an earlier save'), glyph: '⟲', badge: 0});
+  }
+  if (isAdmin.value) {
+    items.push({id: 'playground', labelKey: 'Playground', subText: $t('Visual dev stands of the interface'), glyph: '❏', badge: 0});
+  }
+  // Windows desktop, shortcut not yet added → an explicit "Add to Steam" plate (shared
+  // steamShortcutState; disappears once added). steamButtonVisible() reads the reactive
+  // fields, so this computed re-evaluates when they change.
+  if (steamButtonVisible()) {
+    items.push({id: 'steam', labelKey: 'Add to Steam library', subText: '', glyph: '⊕', badge: 0});
+  }
+  if (supportsNativeQuit()) {
+    items.push({id: 'quit', labelKey: 'Exit', subText: '', glyph: '⏻', badge: 0});
+  }
+  return items;
+});
+const commandContext = computed((): string => {
+  if (overlay.value === 'games') {
+    return 'My games';
+  }
+  if (overlay.value === 'campaigns') {
+    return 'My campaigns';
+  }
+  if (overlay.value === 'profile') {
+    return 'Player profile';
+  }
+  if (overlay.value === 'profiles') {
+    return 'Profiles';
+  }
+  if (overlay.value === 'friends') {
+    return 'Friends';
+  }
+  if (overlay.value === 'options') {
+    return 'Options';
+  }
+  if (overlay.value === 'admin') {
+    return 'Game rollback';
+  }
+  if (overlay.value === 'playground') {
+    return 'Playground';
+  }
+  if (overlay.value === 'quit') {
+    return 'Exit the game?';
+  }
+  if (overlay.value === 'steam') {
+    return 'Add to Steam?';
+  }
+  return 'Main menu';
+});
+const commands = computed((): ReadonlyArray<ConsoleCommand> => {
+  if (overlay.value === 'games') {
+    if (gamesConfirm.value !== undefined) {
       return [
-        {id: 'active', label: 'Active games', count: localLobbySource()?.lastOkAt !== undefined ? this.games.length : undefined},
-        {id: 'finished', label: 'Finished games', count: this.lobbyState.archiveStatus === 'ok' ? this.finishedGames.length : undefined},
+        {control: 'confirm', label: gamesConfirm.value.kind === 'campaign' ? 'Open the campaign' : 'Delete'},
+        {control: 'back', label: 'Cancel'},
       ];
-    },
-    /**
-     * «Загрузка…» — we have nothing to show AND are still finding out. This is
-     * deliberately NOT the same state as «нет партий»: an unanswered list and an
-     * empty library used to render the same sentence, which is how a LAN party
-     * that existed read as one that did not.
-     */
-    gamesFirstLoad(): boolean {
-      return this.gamesTab === 'finished' ?
-        this.lobbyState.archiveStatus === 'loading' && this.finishedGames.length === 0 :
-        lobbyFirstLoad();
-    },
-    /** We asked and could not find out — never rendered as «no games». */
-    gamesLoadError(): boolean {
-      return this.gamesTab === 'finished' ?
-        this.lobbyState.archiveStatus === 'unreachable' && this.finishedGames.length === 0 :
-        lobbyUnreachable();
-    },
-    /** No identity yet — the list is name-scoped, so say THAT, not «пусто». */
-    gamesNeedName(): boolean {
-      return this.identityName === '';
-    },
-    gamesEmptyKey(): string {
-      return this.gamesTab === 'finished' ? 'You have no finished games yet.' : 'You have no unfinished games yet.';
-    },
-    /**
-     * LAN hosts that could not be asked — SHOWN with the reason, never silently
-     * absent. «Не отвечает» alone leaves the player unable to tell a slow couch
-     * from a blocked port, which is the one thing they can act on.
-     */
-    lanTrouble(): ReadonlyArray<{id: string, label: string, reason: string}> {
-      if (this.gamesTab === 'finished') {
-        return [];
-      }
-      return this.lobbyState.sources
-        .filter((s) => s.kind === 'lan' && s.status === 'unreachable')
-        .map((s) => ({id: s.id, label: s.label, reason: s.lastError}));
-    },
-    /**
-     * A LAN host that answered, but with nothing for THIS player. Also a state
-     * that must speak: name matching is what a listing is scoped by, and a
-     * silent empty section reads as «сеть не работает» when in fact the seat is
-     * simply under another name.
-     */
-    lanEmptyHosts(): ReadonlyArray<{id: string, label: string}> {
-      if (this.gamesTab === 'finished') {
-        return [];
-      }
-      const withRows = new Set(this.lobbyState.lanRows.map((row) => row.sourceId));
-      return this.lobbyState.sources
-        .filter((s) => s.kind === 'lan' && s.status === 'ok' && !withRows.has(s.id))
-        .map((s) => ({id: s.id, label: s.label}));
-    },
-    /** True when the LAN section has anything at all to say. */
-    lanSectionVisible(): boolean {
-      return this.visibleLanRows.length > 0 || this.lanTrouble.length > 0 || this.lanEmptyHosts.length > 0;
-    },
-    /**
-     * The manual-host affordance. Only in the live slice, only on a shell that
-     * has LAN at all — on the web there is nothing to type an address into.
-     */
-    lanEntryVisible(): boolean {
-      return this.gamesTab !== 'finished' && this.appModeEffective === 'host';
-    },
-    /** Hand-typed hosts, so X can take one back off the list. */
-    manualHosts(): ReadonlyArray<{entry: string}> {
-      return this.lanState.manual;
-    },
-    /** Deletion is offered only for games on THIS device's embedded server. */
-    canDeleteLocal(): boolean {
-      return this.appModeEffective === 'host';
-    },
-    /** «Удалить все» wipes the device library — either slice proves it has one. */
-    hasLocalGames(): boolean {
-      return this.games.length > 0 || this.finishedGames.length > 0;
-    },
-    gamesConfirmTitle(): string {
-      const confirm = this.gamesConfirm;
-      if (confirm === undefined) {
-        return '';
-      }
-      if (confirm.kind === 'all') {
-        return 'Delete all local games?';
-      }
-      return confirm.kind === 'campaign' ? 'This game is part of a campaign' : 'Delete this game?';
-    },
-    /** Unfinished campaigns of the active identity (the menu plate's badge). */
-    campaignsBadge(): number {
-      return this.campaignsState.status === 'ok' ? activeCampaignRowCount(this.campaignsState.rows) : 0;
-    },
-    continueItem(): JoinableGameSummary | undefined {
-      const mine = this.games.filter((g) => g.you !== undefined);
-      if (mine.length === 0) {
-        return undefined;
-      }
-      // Prefer the game the player LAST ENTERED (recorded on every game-enter),
-      // not the newest-created — otherwise a game they created but abandoned
-      // would out-rank the party they actually last sat down at. Fall back to
-      // newest-created when the recorded game is finished / no longer joinable.
-      const lastId = lastGameEntered();
-      const last = lastId !== '' ? mine.find((g) => g.id === lastId) : undefined;
-      return last ?? [...mine].sort((a, b) => b.createdTimeMs - a.createdTimeMs)[0];
-    },
-    version(): string {
-      if (this.desktopVersion !== '') {
-        return this.desktopVersion;
-      }
-      const settingsVersion = (raw_settings as {version?: string}).version;
-      return settingsVersion !== undefined && settingsVersion !== '' ? settingsVersion : (raw_settings.head ?? '');
-    },
-    currentLangCode(): string {
-      return String(getPreferences().lang ?? 'ru').toUpperCase();
-    },
-    items(): ReadonlyArray<MenuItem> {
-      const items: Array<MenuItem> = [];
-      const cont = this.continueItem;
-      if (cont !== undefined) {
-        const turn = this.yourTurn(cont) ? ` · ${$t('Your turn')}` : '';
-        items.push({
-          id: 'continue',
-          labelKey: 'Continue',
-          subText: `${cont.name} · ${$t('Generation')} ${cont.generation}${turn}`,
-          glyph: '▶',
-          badge: 0,
-        });
-      }
-      items.push({id: 'create', labelKey: 'New game', subText: $t('Set up the players, map and rules of the party'), glyph: '◈', badge: 0});
-      items.push({id: 'games', labelKey: 'My games', subText: $t('Continue or join your unfinished games'), glyph: '⧉', badge: this.games.filter((g) => g.you !== undefined).length});
-      items.push({id: 'campaigns', labelKey: 'My campaigns', subText: $t('Continue a campaign or open the route map'), glyph: '⚑', badge: this.campaignsBadge});
-      items.push({id: 'profile', labelKey: 'Player profile', subText: this.identityName !== '' ? this.identityName : $t('Set your name'), glyph: '◉', badge: 0});
-      items.push({id: 'options', labelKey: 'Options', subText: $t('Interface and display settings'), glyph: '⚙', badge: 0});
-      // Rollback: every player in local mode (games on this device); the
-      // overlay carries the local-only note. Playground stays ADMIN_NAME-only.
-      if (this.rollbackAvailable) {
-        items.push({id: 'admin', labelKey: 'Game rollback', subText: $t('Roll a game back to an earlier save'), glyph: '⟲', badge: 0});
-      }
-      if (this.isAdmin) {
-        items.push({id: 'playground', labelKey: 'Playground', subText: $t('Visual dev stands of the interface'), glyph: '❏', badge: 0});
-      }
-      // Windows desktop, shortcut not yet added → an explicit "Add to Steam" plate (shared
-      // steamShortcutState; disappears once added). steamButtonVisible() reads the reactive
-      // fields, so this computed re-evaluates when they change.
-      if (steamButtonVisible()) {
-        items.push({id: 'steam', labelKey: 'Add to Steam library', subText: '', glyph: '⊕', badge: 0});
-      }
-      if (supportsNativeQuit()) {
-        items.push({id: 'quit', labelKey: 'Exit', subText: '', glyph: '⏻', badge: 0});
-      }
-      return items;
-    },
-    commandContext(): string {
-      if (this.overlay === 'games') {
-        return 'My games';
-      }
-      if (this.overlay === 'campaigns') {
-        return 'My campaigns';
-      }
-      if (this.overlay === 'profile') {
-        return 'Player profile';
-      }
-      if (this.overlay === 'profiles') {
-        return 'Profiles';
-      }
-      if (this.overlay === 'friends') {
-        return 'Friends';
-      }
-      if (this.overlay === 'options') {
-        return 'Options';
-      }
-      if (this.overlay === 'admin') {
-        return 'Game rollback';
-      }
-      if (this.overlay === 'playground') {
-        return 'Playground';
-      }
-      if (this.overlay === 'quit') {
-        return 'Exit the game?';
-      }
-      if (this.overlay === 'steam') {
-        return 'Add to Steam?';
-      }
-      return 'Main menu';
-    },
-    commands(): ReadonlyArray<ConsoleCommand> {
-      if (this.overlay === 'games') {
-        if (this.gamesConfirm !== undefined) {
-          return [
-            {control: 'confirm', label: this.gamesConfirm.kind === 'campaign' ? 'Open the campaign' : 'Delete'},
-            {control: 'back', label: 'Cancel'},
-          ];
-        }
-        const cursorLocal = this.gamesCursor < this.localRows.length ? this.localRows[this.gamesCursor] : undefined;
-        const lanRow = cursorLocal === undefined ? this.visibleLanRows[this.gamesCursor - this.localRows.length] : undefined;
-        const row = cursorLocal ?? lanRow?.game;
-        // A row whose host has gone quiet stays LISTED (the game exists) but the
-        // verb must not offer to enter it — the navigation would land on a
-        // curtain that never lifts.
-        const onAdd = this.onLanEntryRow();
-        const enterable = onAdd || (row !== undefined && this.joinable(row) && lanRow?.stale !== true);
-        const archive = this.gamesTab === 'finished';
-        const manualRow = lanRow !== undefined && this.manualHosts.some((h) => h.entry === lanRow.hostName);
-        const bar: Array<ConsoleCommand> = [
-          {control: 'dpad', label: 'Navigate'},
-          // A finished row is opened to READ it — the verb says so, since the
-          // press leads to the settled final scoring, not into a turn.
-          {control: 'confirm', label: onAdd ? 'Add a host' : (archive ? 'Open the results' : 'Enter game'), enabled: enterable, highlight: !onAdd && enterable && row !== undefined && this.yourTurn(row)},
-          {control: 'stickL', label: archive ? 'Active games' : 'Finished games'},
-          {control: 'triggerR', label: 'Refresh', enabled: !this.lobbyState.refreshing},
-        ];
-        if (manualRow) {
-          // The same physical button, an honest label: on someone else's couch
-          // there is no game to delete, only our own typed entry.
-          bar.push({control: 'inspect', label: 'Remove host'});
-        } else if (this.canDeleteLocal) {
-          bar.push(
-            {control: 'secondary', label: 'Delete', enabled: cursorLocal !== undefined},
-            {control: 'inspect', label: 'Delete all', enabled: this.hasLocalGames},
-          );
-        }
-        bar.push({control: 'back', label: 'Back'});
-        return bar;
-      }
-      if (this.overlay === 'campaigns') {
-        if (this.campaignsState.confirmId !== undefined) {
-          return [
-            {control: 'confirm', label: 'Delete', enabled: !this.campaignsState.deleting},
-            {control: 'back', label: 'Cancel'},
-          ];
-        }
-        const rows = visibleCampaignSourceRows(this.campaignsState.rows, this.campaignsState.tab);
-        const row = rows[this.campaignsState.cursor];
-        const archive = this.campaignsState.tab === 'completed';
-        // Deliberately NO «Y · Удалить всё» here: a bulk cascade over every
-        // campaign is not a verb this screen offers. A quiet host's row stays
-        // listed but is not enterable (the same rule as LAN game rows).
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Campaign map', enabled: row !== undefined && !row.stale, highlight: row !== undefined && !row.stale && campaignActionRequired(row.summary)},
-          {control: 'stickL', label: archive ? 'Active campaigns' : 'Completed campaigns'},
-          {control: 'triggerR', label: 'Refresh', enabled: !this.campaignsState.refreshing},
-          {control: 'secondary', label: 'Delete', enabled: row !== undefined && row.summary.isCreator && !row.stale},
-          {control: 'back', label: 'Back'},
-        ];
-      }
-      // No 'options' branch: the settings console owns its own foot bar and the
-      // menu's is hidden while it is open (see the template).
-      if (this.overlay === 'profile') {
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Change'},
-          {control: 'back', label: 'Done'},
-        ];
-      }
-      if (this.overlay === 'admin') {
-        // The panel shows precise per-view foot hints; the bar stays generic.
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Select'},
-          {control: 'back', label: 'Back'},
-        ];
-      }
-      if (this.overlay === 'playground') {
-        // A fullscreen stand covers this bar and shows its own foot hints.
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Open'},
-          {control: 'back', label: 'Back'},
-        ];
-      }
-      if (this.overlay === 'profiles') {
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Select'},
-          {control: 'inspect', label: 'Delete'},
-          {control: 'back', label: 'Back'},
-        ];
-      }
-      if (this.overlay === 'friends') {
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Add friend'},
-          {control: 'inspect', label: 'Remove'},
-          {control: 'back', label: 'Back'},
-        ];
-      }
-      if (this.overlay === 'quit') {
-        return [
-          {control: 'confirm', label: 'Exit'},
-          {control: 'back', label: 'Cancel'},
-        ];
-      }
-      if (this.overlay === 'steam') {
-        return [
-          {control: 'confirm', label: 'Add to Steam'},
-          {control: 'back', label: 'Not now'},
-        ];
-      }
-      if (this.overlay === 'language') {
-        return [
-          {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Select'},
-          {control: 'back', label: 'Close'},
-        ];
-      }
-      // No «System» here (fix): the system overlay is an IN-GAME affordance
-      // (view controls / return to menu); at the menu there is nowhere to
-      // return to. Y opens the language picker instead.
+    }
+    const cursorLocal = gamesCursor.value < localRows.value.length ? localRows.value[gamesCursor.value] : undefined;
+    const lanRow = cursorLocal === undefined ? visibleLanRows.value[gamesCursor.value - localRows.value.length] : undefined;
+    const row = cursorLocal ?? lanRow?.game;
+    // A row whose host has gone quiet stays LISTED (the game exists) but the
+    // verb must not offer to enter it — the navigation would land on a
+    // curtain that never lifts.
+    const onAdd = onLanEntryRow();
+    const enterable = onAdd || (row !== undefined && joinable(row) && lanRow?.stale !== true);
+    const archive = gamesTab.value === 'finished';
+    const manualRow = lanRow !== undefined && manualHosts.value.some((h) => h.entry === lanRow.hostName);
+    const bar: Array<ConsoleCommand> = [
+      {control: 'dpad', label: 'Navigate'},
+      // A finished row is opened to READ it — the verb says so, since the
+      // press leads to the settled final scoring, not into a turn.
+      {control: 'confirm', label: onAdd ? 'Add a host' : (archive ? 'Open the results' : 'Enter game'), enabled: enterable, highlight: !onAdd && enterable && row !== undefined && yourTurn(row)},
+      {control: 'stickL', label: archive ? 'Active games' : 'Finished games'},
+      {control: 'triggerR', label: 'Refresh', enabled: !lobbyState.refreshing},
+    ];
+    if (manualRow) {
+      // The same physical button, an honest label: on someone else's couch
+      // there is no game to delete, only our own typed entry.
+      bar.push({control: 'inspect', label: 'Remove host'});
+    } else if (canDeleteLocal.value) {
+      bar.push(
+        {control: 'secondary', label: 'Delete', enabled: cursorLocal !== undefined},
+        {control: 'inspect', label: 'Delete all', enabled: hasLocalGames.value},
+      );
+    }
+    bar.push({control: 'back', label: 'Back'});
+    return bar;
+  }
+  if (overlay.value === 'campaigns') {
+    if (campaignsState.confirmId !== undefined) {
       return [
-        {control: 'dpad', label: 'Navigate'},
-        {control: 'confirm', label: 'Select'},
-        {control: 'inspect', label: 'Language'},
+        {control: 'confirm', label: 'Delete', enabled: !campaignsState.deleting},
+        {control: 'back', label: 'Cancel'},
       ];
-    },
-  },
-  created() {
-    // Resolve the identity + hydrate the joinable list from the cross-session
-    // cache BEFORE the first render, so CONTINUE / the My-games badge are on
-    // the first painted frame instead of popping in after the fetch (the flash).
-    ensureIdentityLoaded();
-    // The profile roster is the source of truth for the active identity —
-    // hydrate it (migrating a legacy single identity + mirroring the active
-    // profile into identityState) BEFORE the first render, so the header /
-    // games reflect the active profile even before the profile editor is opened.
-    ensureProfilesLoaded();
-    hydrateLobbyCache(this.identityName);
-  },
-  watch: {
-    /**
-     * The identity may resolve AFTER the first frame (Steam prefill on a fresh
-     * install, the profile roster, a profile switch). The lobby is name-scoped,
-     * so this is the difference between a list and an empty screen — and its
-     * absence is exactly why «Мои партии» used to need an app restart.
-     */
-    identityName(name: string) {
-      setLobbyIdentity(name);
-      if (name !== '') {
-        publishLanName(name);
-      }
-      // The campaigns list is name-scoped the same way.
-      void refreshCampaigns();
-    },
-    /**
-     * Campaign realtime rides the LOBBY channel (a campaign mutation bumps the
-     * lobby revision server-side), and every lobby trigger funnels into
-     * `refreshLobby`, which stamps `lastRefreshAt` — so re-asking the campaign
-     * list here covers push, poll, focus and the manual RT alike.
-     */
-    'lobbyState.lastRefreshAt'() {
-      void refreshCampaigns();
-    },
-    // The Steam state loads async (getSteamState). When it arrives, show the first-run prompt
-    // if it's warranted (Windows first launch, not added, not dismissed) and nothing else is open.
-    'steamState.loaded'(loaded: boolean) {
-      if (loaded === true) {
-        this.maybeShowSteamPrompt();
-      }
-    },
-  },
-  mounted() {
-    setDocumentTitle('Terraforming Mars');
-    ensureIdentityLoaded();
-    // SCENE TRANSITION (the menu destination — the exit-from-game curtain
-    // lands here): hold the reveal until the menu's own backdrop texture is
-    // decoded and the fonts are settled, so the first revealed frame is the
-    // finished composition, never a bare gradient the art then pops onto.
-    // No-ops entirely when no curtain is covering (a plain SPA hop).
-    if (loadingScreenState.phase === 'covering') {
-      const releaseBg = deferSceneReveal('menu-bg', 3500);
-      const bg = new Image();
-      bg.src = 'assets/premium-main-menu-bg.png';
-      bg.decode().then(releaseBg, releaseBg);
-      const releaseFonts = deferSceneReveal('fonts', 2500);
-      const fonts = (document as Partial<Document>).fonts;
-      if (fonts !== undefined) {
-        void fonts.ready.then(() => releaseFonts());
-      } else {
-        releaseFonts();
-      }
-      armSceneDestination();
     }
-    // Return from the Campaign Map: reopen «Мои кампании» on the same tab and
-    // focus the same row (the map entry was a full navigation, so the overlay
-    // state did not survive on its own).
-    const campaignsReturn = takeCampaignsReturn();
-    if (campaignsReturn !== undefined) {
-      this.campaignsState.tab = campaignsReturn.tab;
-      this.campaignsState.pendingFocusId = campaignsReturn.id;
-      this.campaignsState.confirmId = undefined;
-      this.campaignsState.deleteError = '';
-      this.overlay = 'campaigns';
-      // The campaigns screen consumes the lobby model (LAN sources) — see
-      // the activateAt('campaigns') branch.
-      void openLobbyList();
+    const rows = visibleCampaignSourceRows(campaignsState.rows, campaignsState.tab);
+    const row = rows[campaignsState.cursor];
+    const archive = campaignsState.tab === 'completed';
+    // Deliberately NO «Y · Удалить всё» here: a bulk cascade over every
+    // campaign is not a verb this screen offers. A quiet host's row stays
+    // listed but is not enterable (the same rule as LAN game rows).
+    return [
+      {control: 'dpad', label: 'Navigate'},
+      {control: 'confirm', label: 'Campaign map', enabled: row !== undefined && !row.stale, highlight: row !== undefined && !row.stale && campaignActionRequired(row.summary)},
+      {control: 'stickL', label: archive ? 'Active campaigns' : 'Completed campaigns'},
+      {control: 'triggerR', label: 'Refresh', enabled: !campaignsState.refreshing},
+      {control: 'secondary', label: 'Delete', enabled: row !== undefined && row.summary.isCreator && !row.stale},
+      {control: 'back', label: 'Back'},
+    ];
+  }
+  // No 'options' branch: the settings console owns its own foot bar and the
+  // menu's is hidden while it is open (see the template).
+  if (overlay.value === 'profile') {
+    return [
+      {control: 'dpad', label: 'Navigate'},
+      {control: 'confirm', label: 'Change'},
+      {control: 'back', label: 'Done'},
+    ];
+  }
+  if (overlay.value === 'admin') {
+    // The panel shows precise per-view foot hints; the bar stays generic.
+    return [
+      {control: 'dpad', label: 'Navigate'},
+      {control: 'confirm', label: 'Select'},
+      {control: 'back', label: 'Back'},
+    ];
+  }
+  if (overlay.value === 'playground') {
+    // A fullscreen stand covers this bar and shows its own foot hints.
+    return [
+      {control: 'dpad', label: 'Navigate'},
+      {control: 'confirm', label: 'Open'},
+      {control: 'back', label: 'Back'},
+    ];
+  }
+  if (overlay.value === 'profiles') {
+    return [
+      {control: 'dpad', label: 'Navigate'},
+      {control: 'confirm', label: 'Select'},
+      {control: 'inspect', label: 'Delete'},
+      {control: 'back', label: 'Back'},
+    ];
+  }
+  if (overlay.value === 'friends') {
+    return [
+      {control: 'dpad', label: 'Navigate'},
+      {control: 'confirm', label: 'Add friend'},
+      {control: 'inspect', label: 'Remove'},
+      {control: 'back', label: 'Back'},
+    ];
+  }
+  if (overlay.value === 'quit') {
+    return [
+      {control: 'confirm', label: 'Exit'},
+      {control: 'back', label: 'Cancel'},
+    ];
+  }
+  if (overlay.value === 'steam') {
+    return [
+      {control: 'confirm', label: 'Add to Steam'},
+      {control: 'back', label: 'Not now'},
+    ];
+  }
+  if (overlay.value === 'language') {
+    return [
+      {control: 'dpad', label: 'Navigate'},
+      {control: 'confirm', label: 'Select'},
+      {control: 'back', label: 'Close'},
+    ];
+  }
+  // No «System» here (fix): the system overlay is an IN-GAME affordance
+  // (view controls / return to menu); at the menu there is nowhere to
+  // return to. Y opens the language picker instead.
+  return [
+    {control: 'dpad', label: 'Navigate'},
+    {control: 'confirm', label: 'Select'},
+    {control: 'inspect', label: 'Language'},
+  ];
+});
+
+function onIntent(intent: GamepadIntent): boolean {
+  // Foundation: raw press intents resolve to SEMANTIC console actions —
+  // screens compare actions ('primary'/'back'), never button names.
+  const action = consoleActionOf(intent);
+  // The profile editor hosts the text-entry fallback — route to it.
+  if (overlay.value === 'profile') {
+    const profileNow = profile.value ?? undefined;
+    if (profileNow?.handleIntent?.(intent) === true) {
+      return true;
     }
-    // The badge on the plate needs the list before the screen is ever opened.
-    void refreshCampaigns();
-    // First launch with no saved name (Steam Deck / Steam Machine): prefill from the Steam display
-    // name so the greeting + creator seat aren't empty. Reactive — the menu updates when it lands.
-    void prefillIdentityFromSteam();
-    initSteamShortcut();
-    this.maybeShowSteamPrompt();
-    this.offPad = installMenuPad((intent) => this.onIntent(intent));
-    // Host-as-server: subscribe to LAN discovery pushes + advertise under the
-    // active profile's name (both no-op on the web / remote mode). The effective
-    // app mode gates the local-game deletion verbs in the games overlay.
-    initLanDiscovery();
-    void desktopBridge()?.getAppMode?.().then((info) => {
-      if (info !== undefined) {
-        this.appModeEffective = info.effective;
-      }
-    }).catch(() => {});
-    // The lobby watch runs for the whole menu: it keeps CONTINUE and the badge
-    // live (push + a slow fallback poll) even before «Мои партии» is opened, and
-    // it starts with an EMPTY name too — the identity watcher above feeds it.
-    // The MENU SCOPE additionally keeps LAN sources + their push channels in
-    // play at the menu ROOT, so a campaign/game created on another couch
-    // announces itself immediately (badge + open lists), not on a screen open.
-    setLobbyMenuScope(true);
-    startLobbyWatch(this.identityName);
-    if (this.identityName !== '') {
-      publishLanName(this.identityName);
+    if (action === 'back') {
+      closeOverlay();
     }
-    // Version readout (desktop shell prefers the baked app version; web uses settings.json).
-    const bridge = desktopBridge();
-    if (bridge !== undefined) {
-      void bridge.getVersion().then((v) => {
-        this.desktopVersion = typeof v === 'string' ? v : '';
-        // A LAN host on another build gets a warning on its rows.
-        setLobbyOwnVersion(this.desktopVersion);
-      }).catch(() => undefined);
+    return true;
+  }
+  if (overlay.value === 'profiles') {
+    const profilesNow = profiles.value ?? undefined;
+    if (profilesNow?.handleIntent?.(intent) === true) {
+      return true;
     }
-    // Watch for a new version for as long as the menu is up. The menu is the safe place to be
-    // interrupted, so this is what makes "leave the game to the main menu" the way to update.
-    startMenuUpdateWatch();
-  },
-  beforeUnmount() {
-    this.offPad?.();
-    setLobbyMenuScope(false);
-    stopLobbyWatch();
-    stopMenuUpdateWatch();
-  },
-  methods: {
-    onIntent(intent: GamepadIntent): boolean {
-      // Foundation: raw press intents resolve to SEMANTIC console actions —
-      // screens compare actions ('primary'/'back'), never button names.
-      const action = consoleActionOf(intent);
-      // The profile editor hosts the text-entry fallback — route to it.
-      if (this.overlay === 'profile') {
-        const profile = (this.$refs.profile ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-        if (profile?.handleIntent?.(intent) === true) {
-          return true;
-        }
-        if (action === 'back') {
-          this.closeOverlay();
-        }
+    if (action === 'back') {
+      backToProfileFromProfiles();
+    }
+    return true;
+  }
+  if (overlay.value === 'friends') {
+    const friendsNow = friends.value ?? undefined;
+    if (friendsNow?.handleIntent?.(intent) === true) {
+      return true;
+    }
+    if (action === 'back') {
+      backToProfileFromFriends();
+    }
+    return true;
+  }
+  if (overlay.value === 'language') {
+    const picker = language.value ?? undefined;
+    return picker?.handleIntent?.(intent) ?? true;
+  }
+  if (overlay.value === 'options') {
+    const optionsNow = options.value ?? undefined;
+    return optionsNow?.handleIntent?.(intent) ?? true;
+  }
+  if (overlay.value === 'admin') {
+    const adminNow = admin.value ?? undefined;
+    return adminNow?.handleIntent?.(intent) ?? true;
+  }
+  if (overlay.value === 'playground') {
+    const hub = playground.value ?? undefined;
+    return hub?.handleIntent?.(intent) ?? true;
+  }
+  if (overlay.value === 'campaigns') {
+    const panel = campaigns.value ?? undefined;
+    return panel?.handleIntent?.(intent) ?? true;
+  }
+  if (overlay.value === 'games') {
+    // The on-screen keyboard owns every intent while an address is typed.
+    if (lanEntry.value) {
+      const vk = lankeyboard.value ?? undefined;
+      if (vk?.handleIntent?.(intent) === true) {
         return true;
       }
-      if (this.overlay === 'profiles') {
-        const profiles = (this.$refs.profiles ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-        if (profiles?.handleIntent?.(intent) === true) {
-          return true;
-        }
-        if (action === 'back') {
-          this.backToProfileFromProfiles();
-        }
-        return true;
+      if (action === 'back') {
+        cancelManualHost();
       }
-      if (this.overlay === 'friends') {
-        const friends = (this.$refs.friends ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-        if (friends?.handleIntent?.(intent) === true) {
-          return true;
-        }
-        if (action === 'back') {
-          this.backToProfileFromFriends();
-        }
-        return true;
-      }
-      if (this.overlay === 'language') {
-        const picker = (this.$refs.language ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-        return picker?.handleIntent?.(intent) ?? true;
-      }
-      if (this.overlay === 'options') {
-        const options = (this.$refs.options ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-        return options?.handleIntent?.(intent) ?? true;
-      }
-      if (this.overlay === 'admin') {
-        const admin = (this.$refs.admin ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-        return admin?.handleIntent?.(intent) ?? true;
-      }
-      if (this.overlay === 'playground') {
-        const hub = (this.$refs.playground ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-        return hub?.handleIntent?.(intent) ?? true;
-      }
-      if (this.overlay === 'campaigns') {
-        const panel = (this.$refs.campaigns ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-        return panel?.handleIntent?.(intent) ?? true;
-      }
-      if (this.overlay === 'games') {
-        // The on-screen keyboard owns every intent while an address is typed.
-        if (this.lanEntry) {
-          const vk = (this.$refs.lankeyboard ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
-          if (vk?.handleIntent?.(intent) === true) {
-            return true;
-          }
-          if (action === 'back') {
-            this.cancelManualHost();
-          }
-          return true;
-        }
-        // The deletion confirm swallows everything but confirm/cancel.
-        if (this.gamesConfirm !== undefined) {
-          if (action === 'primary') {
-            if (this.gamesConfirm.kind === 'campaign') {
-              this.openCampaignFromConfirm();
-            } else {
-              void this.executeGamesDelete();
-            }
-          } else if (action === 'back') {
-            this.gamesConfirm = undefined;
-            this.gamesError = false;
-          }
-          return true;
-        }
-        if (intent.kind === 'nav') {
-          // The showcase is a GRID: ◀ ▶ walk the ring, ▲ ▼ a row (`showcaseStep`).
-          this.gamesCursor = showcaseStep(this.gamesCursor, intent.dir, this.gamesCount, this.gamesCols);
-          this.keepGamesCursorVisible();
-          return true;
-        }
-        if (intent.kind === 'press' && intent.button === 'stickL') {
-          this.setGamesTab(this.gamesTab === 'finished' ? 'active' : 'finished');
-          return true;
-        }
-        if (intent.kind === 'press' && intent.button === 'triggerR') {
-          this.refreshGames();
-          return true;
-        }
-        if (action === 'primary') {
-          this.enterGameAt(this.gamesCursor);
-          return true;
-        }
-        if (action === 'inspect') {
-          // On a hand-typed LAN host X takes the ENTRY away (there is nothing
-          // else to delete on someone else's couch); on a local row it stays
-          // the game-deletion verb.
-          if (this.removeManualHostAt(this.gamesCursor)) {
-            return true;
-          }
-          this.requestDeleteAt(this.gamesCursor);
-          return true;
-        }
-        if (action === 'fullscreen') {
-          // Y — delete ALL local games.
-          this.requestDeleteAll();
-          return true;
-        }
-        if (action === 'back') {
-          this.closeOverlay();
-          return true;
-        }
-        return true;
-      }
-      if (this.overlay === 'quit') {
-        if (action === 'primary') {
-          this.onQuitConfirm();
-        } else if (action === 'back') {
-          this.closeOverlay();
-        }
-        return true;
-      }
-      if (this.overlay === 'steam') {
-        if (action === 'primary') {
-          this.onSteamAdd();
-        } else if (action === 'back') {
-          this.onSteamDismiss();
-        }
-        return true;
-      }
-      // Root list.
-      if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
-        this.cursor = stepIndex(this.cursor, intent.dir === 'down' ? 1 : -1, this.items.length);
-        return true;
-      }
+      return true;
+    }
+    // The deletion confirm swallows everything but confirm/cancel.
+    if (gamesConfirm.value !== undefined) {
       if (action === 'primary') {
-        this.activateAt(this.cursor);
-        return true;
+        if (gamesConfirm.value.kind === 'campaign') {
+          openCampaignFromConfirm();
+        } else {
+          void executeGamesDelete();
+        }
+      } else if (action === 'back') {
+        gamesConfirm.value = undefined;
+        gamesError.value = false;
       }
-      // Y (physical inspect button) opens the language picker.
-      if (intent.kind === 'press' && intent.button === 'inspect') {
-        this.overlay = 'language';
-        return true;
-      }
-      // Swallow the rest — nothing below this screen should react.
       return true;
-    },
-    /** Keep the cursored card inside the showcase's scroll area (a third row is a page below). */
-    keepGamesCursorVisible(): void {
-      void this.$nextTick(() => {
-        const screen = (this.$refs.gamesScreen ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
-        screen?.ensureVisible?.(this.$el.querySelector('.cm-game--cursor'));
-      });
-    },
-    /** One local row as a card (the pure model — the same answers the command bar reads). */
-    localCardView(g: JoinableGameSummary): LobbyCardView {
-      return gameCardView(g, {isNew: this.isNewGame(g)});
-    },
-    /** One LAN row as a card: it names its couch, a quiet host's card is shown and refuses entry. */
-    lanCardView(row: LobbyRow): LobbyCardView {
-      return gameCardView(row.game, {isNew: this.isNewGame(row.game), hostLabel: row.hostName, stale: row.stale, versionMismatch: row.versionMismatch});
-    },
-    /** The rect of a menu item AT REST (the receding column's own transform taken out). */
-    menuItemRect(id: MenuItemId): LobbyRect | undefined {
-      const el = this.$el.querySelector(`.cm-item[data-menu-item="${id}"]`) as HTMLElement | null;
-      if (el === null) {
-        return undefined;
-      }
-      const r = el.getBoundingClientRect();
-      const column = el.parentElement;
-      let dx = 0;
-      if (column !== null) {
-        const t = getComputedStyle(column).transform;
-        if (t !== '' && t !== 'none' && typeof DOMMatrixReadOnly !== 'undefined') {
-          dx = new DOMMatrixReadOnly(t).m41;
-        }
-      }
-      return {left: r.left - dx, top: r.top, width: r.width, height: r.height};
-    },
-    /** The screen's root inside a transition's element (the campaigns list wraps its screen with its confirm). */
-    screenRootOf(el: Element): HTMLElement | undefined {
-      if (el.classList.contains('cm-screen')) {
-        return el as HTMLElement;
-      }
-      return el.querySelector<HTMLElement>('.cm-screen') ?? undefined;
-    },
-    /** UNFOLD — the screen arrives out of the pressed item, its cards in a wave (`lobbyScreenMotion`). */
-    screenEnter(el: Element, done: () => void): void {
-      const origin = this.lobbyOrigin ?? this.menuItemRect(this.overlay === 'campaigns' ? 'campaigns' : 'games');
-      this.lobbyOrigin = undefined;
-      void this.$nextTick()
-        .then(() => {
-          const root = this.screenRootOf(el);
-          return root === undefined ? undefined : unfoldLobbyScreen(root, origin);
-        })
-        .finally(done);
-    },
-    /** FOLD — B plays the phrase back: the cards let go, the plate folds into the item the cursor stands on. */
-    screenLeave(el: Element, done: () => void): void {
-      const root = this.screenRootOf(el);
-      const item = this.items[this.cursor]?.id;
-      const target = item === undefined ? undefined : this.menuItemRect(item);
-      if (root === undefined) {
-        done();
-        return;
-      }
-      void foldLobbyScreen(root, target).finally(done);
-    },
-    activateAt(i: number): void {
-      this.cursor = i;
-      const item = this.items[i];
-      if (item === undefined) {
-        return;
-      }
-      switch (item.id) {
-      case 'continue': {
-        const cont = this.continueItem;
-        if (cont?.you !== undefined) {
-          recordLastGameEntered(cont.id);
-          // CONTINUE re-enters a game already underway — «возвращение», not
-          // «подготовка экспедиции».
-          navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(cont.you.id), 'sync');
-        }
-        break;
-      }
-      case 'create':
-        vueRoot(this).navigateInApp(paths.NEW_GAME_PREMIUM);
-        break;
-      case 'games':
-        this.lobbyOrigin = this.menuItemRect('games');
-        this.overlay = 'games';
-        this.gamesTab = 'active';
-        this.gamesCursor = 0;
-        this.gamesConfirm = undefined;
-        this.gamesError = false;
-        // ENTERING THE SCREEN IS A REFRESH — unconditionally, every time, for
-        // every source (this device + every LAN host). Showing something is
-        // never a reason not to check whether it is still true.
-        void openLobbyList();
-        // The archive's count belongs on the tab chip before L3 is pressed.
-        if (this.lobbyState.archiveStatus === 'idle') {
-          void loadLobbyArchive();
-        }
-        break;
-      case 'campaigns':
-        this.lobbyOrigin = this.menuItemRect('campaigns');
-        this.overlay = 'campaigns';
-        this.campaignsState.tab = 'active';
-        this.campaignsState.cursor = 0;
-        this.campaignsState.confirmId = undefined;
-        this.campaignsState.deleteError = '';
-        // The campaigns list is a LOBBY-CONSUMING screen (LAN campaigns ride
-        // the lobby's verified sources/endpoints/channels) — opening it opens
-        // the lobby model, exactly like «Мои партии» does. Its completion
-        // stamps `lastRefreshAt`, whose watcher re-asks the campaigns with
-        // the LAN endpoints resolved.
-        void openLobbyList();
-        // Entering the screen is a refresh — the panel's mounted() re-asks too,
-        // but the press must never depend on the panel being the one to ask.
-        void refreshCampaigns();
-        break;
-      case 'profile':
-        this.openProfile();
-        break;
-      case 'options':
-        this.overlay = 'options';
-        break;
-      case 'admin':
-        this.overlay = 'admin';
-        break;
-      case 'playground':
-        this.overlay = 'playground';
-        break;
-      case 'steam':
-        void addToSteam();
-        break;
-      case 'quit':
-        this.overlay = 'quit';
-        break;
-      }
-    },
-    onSteamAdd(): void {
-      this.overlay = undefined;
-      void addToSteam();
-    },
-    onSteamDismiss(): void {
-      this.overlay = undefined;
-      dismissSteamPrompt();
-    },
-    /** Show the first-run Steam prompt once, if warranted and no other overlay is open. */
-    maybeShowSteamPrompt(): void {
-      if (this.overlay === undefined && steamPromptVisible()) {
-        this.overlay = 'steam';
-      }
-    },
-    openProfile(): void {
-      this.overlay = 'profile';
-    },
-    openFriends(): void {
-      this.overlay = 'friends';
-    },
-    /** Friends is a sub-panel of the profile — B there returns to the profile. */
-    backToProfileFromFriends(): void {
-      menuPadState.textEntry = false;
-      this.overlay = 'profile';
-    },
-    /** The profiles roster is a sub-panel of the profile editor. */
-    openProfiles(): void {
-      this.overlay = 'profiles';
-    },
-    /** B in the roster returns to the profile editor. A profile switch is picked
-     * up by the identity watcher, which reloads the lobby for the new name. */
-    backToProfileFromProfiles(): void {
-      menuPadState.textEntry = false;
-      this.overlay = 'profile';
-    },
-    closeOverlay(): void {
-      this.overlay = undefined;
-      menuPadState.textEntry = false;
-      this.gamesConfirm = undefined;
-      this.gamesError = false;
-      this.campaignsState.confirmId = undefined;
-      this.campaignsState.deleteError = '';
-      this.lanEntry = false;
-      this.lanIssue = '';
-      closeLobbyList();
-      // The profile may have just set the identity — re-advertise this host
-      // under the (possibly new) name. The list itself follows the identity
-      // watcher, so there is no second refresh path here.
-      const name = this.identityName;
-      if (name !== '') {
-        publishLanName(name);
-      }
-    },
-    campaignMissionChip(g: JoinableGameSummary): string {
-      const c = g.campaign;
-      if (c === undefined) {
-        return '';
-      }
-      return translateTextWithParams('Mission ${0} of ${1}', [String(c.slot + 1), String(c.count)]);
-    },
-    joinable(g: JoinableGameSummary): boolean {
-      // A campaign row opens the Campaign Map, which resolves the seat by
-      // name itself — the row is enterable even without a per-game seat link.
-      if (g.campaign !== undefined) {
+    }
+    if (intent.kind === 'nav') {
+      // The showcase is a GRID: ◀ ▶ walk the ring, ▲ ▼ a row (`showcaseStep`).
+      gamesCursor.value = showcaseStep(gamesCursor.value, intent.dir, gamesCount.value, gamesCols.value);
+      keepGamesCursorVisible();
+      return true;
+    }
+    if (intent.kind === 'press' && intent.button === 'stickL') {
+      setGamesTab(gamesTab.value === 'finished' ? 'active' : 'finished');
+      return true;
+    }
+    if (intent.kind === 'press' && intent.button === 'triggerR') {
+      refreshGames();
+      return true;
+    }
+    if (action === 'primary') {
+      enterGameAt(gamesCursor.value);
+      return true;
+    }
+    if (action === 'inspect') {
+      // On a hand-typed LAN host X takes the ENTRY away (there is nothing
+      // else to delete on someone else's couch); on a local row it stays
+      // the game-deletion verb.
+      if (removeManualHostAt(gamesCursor.value)) {
         return true;
       }
-      return g.you !== undefined;
-    },
-    /**
-     * A row that ARRIVED while the player was on this screen — the visible
-     * proof that the push channel works. It decays on its own; nothing else
-     * depends on it.
-     */
-    isNewGame(g: JoinableGameSummary): boolean {
-      return this.lobbyState.newIds.includes(g.id);
-    },
-    /** The cursor is parked on the «add a host» affordance (always last). */
-    onLanEntryRow(): boolean {
-      return this.lanEntryVisible && this.gamesCursor === this.gamesCount - 1;
-    },
-    /** Open the on-screen keyboard for a hand-typed host address. */
-    openManualHost(): void {
-      this.lanDraft = '';
-      this.lanIssue = '';
-      this.lanEntry = true;
-      // Silence the console key bridge — the on-screen keyboard owns input.
-      menuPadState.textEntry = true;
-    },
-    commitManualHost(value: string): void {
-      // `addManualHost` validates the address itself (a bare IP, host:port, an
-      // http:// paste, a bracketed IPv6). A rejection keeps the keyboard open
-      // with the reason rather than swallowing the attempt.
-      if (!addManualHost(value)) {
-        this.lanIssue = 'That is not a usable address';
-        return;
-      }
-      this.lanEntry = false;
-      this.lanIssue = '';
-      menuPadState.textEntry = false;
-      // The new host is a SOURCE like any other — the one refresh path asks it.
-      void refreshLobby();
-    },
-    cancelManualHost(): void {
-      this.lanEntry = false;
-      this.lanIssue = '';
-      menuPadState.textEntry = false;
-    },
-    /** X on a LAN row we typed ourselves — take the entry back off the list. */
-    removeManualHostAt(i: number): boolean {
-      const row = this.visibleLanRows[i - this.localRows.length];
-      const entry = this.manualHosts.find((h) => row !== undefined && row.hostName === h.entry);
-      if (entry === undefined) {
-        return false;
-      }
-      removeManualHost(entry.entry);
-      void refreshLobby();
+      requestDeleteAt(gamesCursor.value);
       return true;
-    },
-    /**
-     * Manual re-ask (RT). The list refreshes itself on open, on push, on focus
-     * and on a poll floor — this is for the player who wants to KNOW it just
-     * did, and the way out of any source that has gone quiet.
-     */
-    refreshGames(): void {
-      void refreshLobby({archive: this.gamesTab === 'finished'});
-    },
-    yourTurn(g: JoinableGameSummary): boolean {
-      // A finished game keeps an `activePlayer` (whoever was to move when it
-      // ended) — it means nothing now, so the archive never claims a turn.
-      return g.finished !== true && g.you !== undefined && g.activePlayer === g.you.color;
-    },
-    /** Switch the shown slice — L3, or a click on the strip (mouse fallback). */
-    setGamesTab(tab: JoinableGameStatus): void {
-      if (this.gamesTab === tab) {
-        return;
-      }
-      this.gamesTab = tab;
-      this.gamesCursor = 0;
-      this.gamesConfirm = undefined;
-      this.gamesError = false;
-      this.keepGamesCursorVisible();
-      if (tab === 'finished' && this.lobbyState.archiveStatus !== 'loading') {
-        // Re-ask on every toggle: a game that has just ended belongs here
-        // without a restart. A load already in flight is left alone — the scan
-        // is not free and a second one would only rewrite the same list.
-        void loadLobbyArchive();
-      }
-    },
-    boardLabel(g: JoinableGameSummary): string {
-      return $t(mapLabelKey(g.boardName));
-    },
-    /**
-     * «12 с назад» / «7 мин назад» — how long ago this party was created, and
-     * the reason it sits where it sits. Reads the ONE shared clock in
-     * `lobbyState`, which re-arms itself at the cadence the freshest row needs,
-     * so every row on screen advances in the same tick.
-     */
-    createdAgo(g: JoinableGameSummary): string {
-      return lobbyAgeLabel(lobbyAge(g.createdTimeMs, this.lobbyState.nowMs));
-    },
-    /**
-     * Crew for the row — names visible, YOU tagged, whose-turn (active)
-     * flagged. A FINISHED game marks nobody: its stored `activePlayer` is
-     * whoever was to move when it ended, and a pulsing «его ход» dot on that
-     * seat would claim a turn that no longer exists.
-     */
-    gameCrew(g: JoinableGameSummary): ReadonlyArray<{name: string, color: string, isYou: boolean, isActive: boolean}> {
-      const live = g.finished !== true;
-      return g.players.map((p) => ({
-        name: p.name,
-        color: p.color,
-        isYou: p.isYou,
-        isActive: live && g.activePlayer === p.color,
-      }));
-    },
-    /** Enabled expansions as premium icon chips (same artwork as the create screen). */
-    gameExpansions(g: JoinableGameSummary): ReadonlyArray<{id: Expansion, url: string, label: string}> {
-      return g.expansions.map((e) => ({id: e, url: expansionIconUrl(e), label: expansionLabel(e)}));
-    },
-    /**
-     * Open a row hosted by THIS server. A FINISHED game is opened to be READ:
-     * the console lands on the settled final scoring (replay the count, open
-     * the overview), so it must not become the CONTINUE memory — that names
-     * the party still being played — and its curtain says «синхронизация»
-     * rather than «подготовка экспедиции».
-     */
-    openLocalGame(g: JoinableGameSummary): void {
-      // A CAMPAIGN row opens the Campaign Map — the campaign's front door
-      // (the active mission is one press away from there). Not recorded as
-      // the CONTINUE memory: that stays the concrete game.
-      if (g.campaign !== undefined) {
-        navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(g.campaign.id), 'sync', {kind: 'campaign-map'});
-        return;
-      }
-      const you = g.you;
-      if (you === undefined) {
-        return;
-      }
-      const href = paths.PLAYER + '?id=' + encodeURIComponent(you.id);
-      if (g.finished === true) {
-        navigateWithCurtain(href, 'sync');
-        return;
-      }
-      recordLastGameEntered(g.id);
-      // A listed live game is being RE-ENTERED, never founded.
-      navigateWithCurtain(href, 'sync');
-    },
-    enterGameAt(i: number): void {
-      this.gamesCursor = i;
-      if (this.lanEntryVisible && i === this.gamesCount - 1) {
-        this.openManualHost();
-        return;
-      }
-      if (i < this.localRows.length) {
-        const g = this.localRows[i];
-        if (g !== undefined) {
-          this.openLocalGame(g);
-        }
-        return;
-      }
-      // A LAN row: pin the session to the HOST's server first — from then on
-      // every request and the WebSocket go to that host (§6). A row whose
-      // host has stopped answering is kept on screen (it exists) but not
-      // entered: the navigation would land on a curtain that never lifts.
-      const row = this.visibleLanRows[i - this.localRows.length];
-      if (row === undefined || row.stale || row.endpoint === undefined) {
-        return;
-      }
-      // A CAMPAIGN row opens the Campaign Map on the HOST's server — the
-      // campaign id is pinned the same way a seat is, and the map's own page
-      // (`/campaign?id=c…`) resolves the pin for its model/poll/carryover.
-      if (row.game.campaign !== undefined) {
-        pinServerEndpoint(row.game.campaign.id, row.endpoint);
-        navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(row.game.campaign.id), 'sync', {kind: 'campaign-map'});
-        return;
-      }
-      if (row.game.you !== undefined) {
-        pinServerEndpoint(row.game.you.id, row.endpoint);
-        recordLastGameEntered(row.game.id);
-        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(row.game.you.id), 'sync');
-      }
-    },
-    /** X on a LOCAL row (host mode) — ask before deleting that one game.
-     *  A CAMPAIGN row never offers the single delete: the dialog redirects to
-     *  the campaign itself (the server refuses a lone mission delete anyway). */
-    requestDeleteAt(i: number): void {
-      if (!this.canDeleteLocal || i >= this.localRows.length) {
-        return;
-      }
-      const g = this.localRows[i];
-      if (g !== undefined) {
-        this.gamesCursor = i;
-        this.gamesError = false;
-        this.gamesConfirm = g.campaign !== undefined ? {kind: 'campaign', game: g} : {kind: 'one', game: g};
-      }
-    },
-    /** The campaign-mission dialog's one verb: the campaign's own front door. */
-    openCampaignFromConfirm(): void {
-      const confirm = this.gamesConfirm;
-      if (confirm === undefined || confirm.kind !== 'campaign') {
-        return;
-      }
-      this.gamesConfirm = undefined;
-      this.openLocalGame(confirm.game);
-    },
-    /** Y (host mode) — ask before wiping the whole local library. */
-    requestDeleteAll(): void {
-      if (this.canDeleteLocal && this.hasLocalGames) {
-        this.gamesError = false;
-        this.gamesConfirm = {kind: 'all'};
-      }
-    },
-    async executeGamesDelete(): Promise<void> {
-      const confirm = this.gamesConfirm;
-      if (confirm === undefined || confirm.kind === 'campaign' || this.gamesDeleting) {
-        return;
-      }
-      this.gamesDeleting = true;
-      this.gamesError = false;
-      try {
-        const query = confirm.kind === 'all' ? 'all=1' : 'id=' + encodeURIComponent(confirm.game.id);
-        const res = await fetch(apiUrl(paths.API_LOCAL_GAME_DELETE) + '?' + query, {method: 'POST'});
-        if (!res.ok) {
-          throw new Error(`delete failed (${res.status})`);
-        }
-        this.gamesConfirm = undefined;
-        // Re-ask rather than patch the list locally: the server is the one that
-        // knows what is left (and the same refresh rewrites the CONTINUE cache).
-        await refreshLobby({archive: true});
-        this.gamesCursor = Math.min(this.gamesCursor, Math.max(0, this.gamesCount - 1));
-      } catch {
-        this.gamesError = true;
-      } finally {
-        this.gamesDeleting = false;
-      }
-    },
-    onQuitConfirm(): void {
-      this.overlay = undefined;
-      quitApp();
-    },
-  },
+    }
+    if (action === 'fullscreen') {
+      // Y — delete ALL local games.
+      requestDeleteAll();
+      return true;
+    }
+    if (action === 'back') {
+      closeOverlay();
+      return true;
+    }
+    return true;
+  }
+  if (overlay.value === 'quit') {
+    if (action === 'primary') {
+      onQuitConfirm();
+    } else if (action === 'back') {
+      closeOverlay();
+    }
+    return true;
+  }
+  if (overlay.value === 'steam') {
+    if (action === 'primary') {
+      onSteamAdd();
+    } else if (action === 'back') {
+      onSteamDismiss();
+    }
+    return true;
+  }
+  // Root list.
+  if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
+    cursor.value = stepIndex(cursor.value, intent.dir === 'down' ? 1 : -1, items.value.length);
+    return true;
+  }
+  if (action === 'primary') {
+    activateAt(cursor.value);
+    return true;
+  }
+  // Y (physical inspect button) opens the language picker.
+  if (intent.kind === 'press' && intent.button === 'inspect') {
+    overlay.value = 'language';
+    return true;
+  }
+  // Swallow the rest — nothing below this screen should react.
+  return true;
+}
+/** Keep the cursored card inside the showcase's scroll area (a third row is a page below). */
+function keepGamesCursorVisible(): void {
+  void nextTick(() => {
+    const screen = gamesScreen.value ?? undefined;
+    screen?.ensureVisible?.((rootEl.value?.querySelector('.cm-game--cursor') ?? null));
+  });
+}
+/** One local row as a card (the pure model — the same answers the command bar reads). */
+function localCardView(g: JoinableGameSummary): LobbyCardView {
+  return gameCardView(g, {isNew: isNewGame(g)});
+}
+/** One LAN row as a card: it names its couch, a quiet host's card is shown and refuses entry. */
+function lanCardView(row: LobbyRow): LobbyCardView {
+  return gameCardView(row.game, {isNew: isNewGame(row.game), hostLabel: row.hostName, stale: row.stale, versionMismatch: row.versionMismatch});
+}
+/** The rect of a menu item AT REST (the receding column's own transform taken out). */
+function menuItemRect(id: MenuItemId): LobbyRect | undefined {
+  const el = (rootEl.value?.querySelector(`.cm-item[data-menu-item="${id}"]`) ?? null) as HTMLElement | null;
+  if (el === null) {
+    return undefined;
+  }
+  const r = el.getBoundingClientRect();
+  const column = el.parentElement;
+  let dx = 0;
+  if (column !== null) {
+    const t = getComputedStyle(column).transform;
+    if (t !== '' && t !== 'none' && typeof DOMMatrixReadOnly !== 'undefined') {
+      dx = new DOMMatrixReadOnly(t).m41;
+    }
+  }
+  return {left: r.left - dx, top: r.top, width: r.width, height: r.height};
+}
+/** The screen's root inside a transition's element (the campaigns list wraps its screen with its confirm). */
+function screenRootOf(el: Element): HTMLElement | undefined {
+  if (el.classList.contains('cm-screen')) {
+    return el as HTMLElement;
+  }
+  return el.querySelector<HTMLElement>('.cm-screen') ?? undefined;
+}
+/** UNFOLD — the screen arrives out of the pressed item, its cards in a wave (`lobbyScreenMotion`). */
+function screenEnter(el: Element, done: () => void): void {
+  const origin = lobbyOrigin.value ?? menuItemRect(overlay.value === 'campaigns' ? 'campaigns' : 'games');
+  lobbyOrigin.value = undefined;
+  void nextTick()
+    .then(() => {
+      const root = screenRootOf(el);
+      return root === undefined ? undefined : unfoldLobbyScreen(root, origin);
+    })
+    .finally(done);
+}
+/** FOLD — B plays the phrase back: the cards let go, the plate folds into the item the cursor stands on. */
+function screenLeave(el: Element, done: () => void): void {
+  const root = screenRootOf(el);
+  const item = items.value[cursor.value]?.id;
+  const target = item === undefined ? undefined : menuItemRect(item);
+  if (root === undefined) {
+    done();
+    return;
+  }
+  void foldLobbyScreen(root, target).finally(done);
+}
+function activateAt(i: number): void {
+  cursor.value = i;
+  const item = items.value[i];
+  if (item === undefined) {
+    return;
+  }
+  switch (item.id) {
+  case 'continue': {
+    const cont = continueItem.value;
+    if (cont?.you !== undefined) {
+      recordLastGameEntered(cont.id);
+      // CONTINUE re-enters a game already underway — «возвращение», not
+      // «подготовка экспедиции».
+      navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(cont.you.id), 'sync');
+    }
+    break;
+  }
+  case 'create':
+    root?.navigateInApp(paths.NEW_GAME_PREMIUM);
+    break;
+  case 'games':
+    lobbyOrigin.value = menuItemRect('games');
+    overlay.value = 'games';
+    gamesTab.value = 'active';
+    gamesCursor.value = 0;
+    gamesConfirm.value = undefined;
+    gamesError.value = false;
+    // ENTERING THE SCREEN IS A REFRESH — unconditionally, every time, for
+    // every source (this device + every LAN host). Showing something is
+    // never a reason not to check whether it is still true.
+    void openLobbyList();
+    // The archive's count belongs on the tab chip before L3 is pressed.
+    if (lobbyState.archiveStatus === 'idle') {
+      void loadLobbyArchive();
+    }
+    break;
+  case 'campaigns':
+    lobbyOrigin.value = menuItemRect('campaigns');
+    overlay.value = 'campaigns';
+    campaignsState.tab = 'active';
+    campaignsState.cursor = 0;
+    campaignsState.confirmId = undefined;
+    campaignsState.deleteError = '';
+    // The campaigns list is a LOBBY-CONSUMING screen (LAN campaigns ride
+    // the lobby's verified sources/endpoints/channels) — opening it opens
+    // the lobby model, exactly like «Мои партии» does. Its completion
+    // stamps `lastRefreshAt`, whose watcher re-asks the campaigns with
+    // the LAN endpoints resolved.
+    void openLobbyList();
+    // Entering the screen is a refresh — the panel re-asks on its mount too,
+    // but the press must never depend on the panel being the one to ask.
+    void refreshCampaigns();
+    break;
+  case 'profile':
+    openProfile();
+    break;
+  case 'options':
+    overlay.value = 'options';
+    break;
+  case 'admin':
+    overlay.value = 'admin';
+    break;
+  case 'playground':
+    overlay.value = 'playground';
+    break;
+  case 'steam':
+    void addToSteam();
+    break;
+  case 'quit':
+    overlay.value = 'quit';
+    break;
+  }
+}
+function onSteamAdd(): void {
+  overlay.value = undefined;
+  void addToSteam();
+}
+function onSteamDismiss(): void {
+  overlay.value = undefined;
+  dismissSteamPrompt();
+}
+/** Show the first-run Steam prompt once, if warranted and no other overlay is open. */
+function maybeShowSteamPrompt(): void {
+  if (overlay.value === undefined && steamPromptVisible()) {
+    overlay.value = 'steam';
+  }
+}
+function openProfile(): void {
+  overlay.value = 'profile';
+}
+function openFriends(): void {
+  overlay.value = 'friends';
+}
+/** Friends is a sub-panel of the profile — B there returns to the profile. */
+function backToProfileFromFriends(): void {
+  menuPadState.textEntry = false;
+  overlay.value = 'profile';
+}
+/** The profiles roster is a sub-panel of the profile editor. */
+function openProfiles(): void {
+  overlay.value = 'profiles';
+}
+/** B in the roster returns to the profile editor. A profile switch is picked
+ * up by the identity watcher, which reloads the lobby for the new name. */
+function backToProfileFromProfiles(): void {
+  menuPadState.textEntry = false;
+  overlay.value = 'profile';
+}
+function closeOverlay(): void {
+  overlay.value = undefined;
+  menuPadState.textEntry = false;
+  gamesConfirm.value = undefined;
+  gamesError.value = false;
+  campaignsState.confirmId = undefined;
+  campaignsState.deleteError = '';
+  lanEntry.value = false;
+  lanIssue.value = '';
+  closeLobbyList();
+  // The profile may have just set the identity — re-advertise this host
+  // under the (possibly new) name. The list itself follows the identity
+  // watcher, so there is no second refresh path here.
+  const name = identityName.value;
+  if (name !== '') {
+    publishLanName(name);
+  }
+}
+function joinable(g: JoinableGameSummary): boolean {
+  // A campaign row opens the Campaign Map, which resolves the seat by
+  // name itself — the row is enterable even without a per-game seat link.
+  if (g.campaign !== undefined) {
+    return true;
+  }
+  return g.you !== undefined;
+}
+/**
+ * A row that ARRIVED while the player was on this screen — the visible
+ * proof that the push channel works. It decays on its own; nothing else
+ * depends on it.
+ */
+function isNewGame(g: JoinableGameSummary): boolean {
+  return lobbyState.newIds.includes(g.id);
+}
+/** The cursor is parked on the «add a host» affordance (always last). */
+function onLanEntryRow(): boolean {
+  return lanEntryVisible.value && gamesCursor.value === gamesCount.value - 1;
+}
+/** Open the on-screen keyboard for a hand-typed host address. */
+function openManualHost(): void {
+  lanDraft.value = '';
+  lanIssue.value = '';
+  lanEntry.value = true;
+  // Silence the console key bridge — the on-screen keyboard owns input.
+  menuPadState.textEntry = true;
+}
+function commitManualHost(value: string): void {
+  // `addManualHost` validates the address itself (a bare IP, host:port, an
+  // http:// paste, a bracketed IPv6). A rejection keeps the keyboard open
+  // with the reason rather than swallowing the attempt.
+  if (!addManualHost(value)) {
+    lanIssue.value = 'That is not a usable address';
+    return;
+  }
+  lanEntry.value = false;
+  lanIssue.value = '';
+  menuPadState.textEntry = false;
+  // The new host is a SOURCE like any other — the one refresh path asks it.
+  void refreshLobby();
+}
+function cancelManualHost(): void {
+  lanEntry.value = false;
+  lanIssue.value = '';
+  menuPadState.textEntry = false;
+}
+/** X on a LAN row we typed ourselves — take the entry back off the list. */
+function removeManualHostAt(i: number): boolean {
+  const row = visibleLanRows.value[i - localRows.value.length];
+  const entry = manualHosts.value.find((h) => row !== undefined && row.hostName === h.entry);
+  if (entry === undefined) {
+    return false;
+  }
+  removeManualHost(entry.entry);
+  void refreshLobby();
+  return true;
+}
+/**
+ * Manual re-ask (RT). The list refreshes itself on open, on push, on focus
+ * and on a poll floor — this is for the player who wants to KNOW it just
+ * did, and the way out of any source that has gone quiet.
+ */
+function refreshGames(): void {
+  void refreshLobby({archive: gamesTab.value === 'finished'});
+}
+function yourTurn(g: JoinableGameSummary): boolean {
+  // A finished game keeps an `activePlayer` (whoever was to move when it
+  // ended) — it means nothing now, so the archive never claims a turn.
+  return g.finished !== true && g.you !== undefined && g.activePlayer === g.you.color;
+}
+/** Switch the shown slice — L3, or a click on the strip (mouse fallback). */
+function setGamesTab(tab: JoinableGameStatus): void {
+  if (gamesTab.value === tab) {
+    return;
+  }
+  gamesTab.value = tab;
+  gamesCursor.value = 0;
+  gamesConfirm.value = undefined;
+  gamesError.value = false;
+  keepGamesCursorVisible();
+  if (tab === 'finished' && lobbyState.archiveStatus !== 'loading') {
+    // Re-ask on every toggle: a game that has just ended belongs here
+    // without a restart. A load already in flight is left alone — the scan
+    // is not free and a second one would only rewrite the same list.
+    void loadLobbyArchive();
+  }
+}
+/**
+ * «12 с назад» / «7 мин назад» — how long ago this party was created, and
+ * the reason it sits where it sits. Reads the ONE shared clock in
+ * `lobbyState`, which re-arms itself at the cadence the freshest row needs,
+ * so every row on screen advances in the same tick.
+ */
+function createdAgo(g: JoinableGameSummary): string {
+  return lobbyAgeLabel(lobbyAge(g.createdTimeMs, lobbyState.nowMs));
+}
+/**
+ * Open a row hosted by THIS server. A FINISHED game is opened to be READ:
+ * the console lands on the settled final scoring (replay the count, open
+ * the overview), so it must not become the CONTINUE memory — that names
+ * the party still being played — and its curtain says «синхронизация»
+ * rather than «подготовка экспедиции».
+ */
+function openLocalGame(g: JoinableGameSummary): void {
+  // A CAMPAIGN row opens the Campaign Map — the campaign's front door
+  // (the active mission is one press away from there). Not recorded as
+  // the CONTINUE memory: that stays the concrete game.
+  if (g.campaign !== undefined) {
+    navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(g.campaign.id), 'sync', {kind: 'campaign-map'});
+    return;
+  }
+  const you = g.you;
+  if (you === undefined) {
+    return;
+  }
+  const href = paths.PLAYER + '?id=' + encodeURIComponent(you.id);
+  if (g.finished === true) {
+    navigateWithCurtain(href, 'sync');
+    return;
+  }
+  recordLastGameEntered(g.id);
+  // A listed live game is being RE-ENTERED, never founded.
+  navigateWithCurtain(href, 'sync');
+}
+function enterGameAt(i: number): void {
+  gamesCursor.value = i;
+  if (lanEntryVisible.value && i === gamesCount.value - 1) {
+    openManualHost();
+    return;
+  }
+  if (i < localRows.value.length) {
+    const g = localRows.value[i];
+    if (g !== undefined) {
+      openLocalGame(g);
+    }
+    return;
+  }
+  // A LAN row: pin the session to the HOST's server first — from then on
+  // every request and the WebSocket go to that host (§6). A row whose
+  // host has stopped answering is kept on screen (it exists) but not
+  // entered: the navigation would land on a curtain that never lifts.
+  const row = visibleLanRows.value[i - localRows.value.length];
+  if (row === undefined || row.stale || row.endpoint === undefined) {
+    return;
+  }
+  // A CAMPAIGN row opens the Campaign Map on the HOST's server — the
+  // campaign id is pinned the same way a seat is, and the map's own page
+  // (`/campaign?id=c…`) resolves the pin for its model/poll/carryover.
+  if (row.game.campaign !== undefined) {
+    pinServerEndpoint(row.game.campaign.id, row.endpoint);
+    navigateWithCurtain(paths.CAMPAIGN + '?id=' + encodeURIComponent(row.game.campaign.id), 'sync', {kind: 'campaign-map'});
+    return;
+  }
+  if (row.game.you !== undefined) {
+    pinServerEndpoint(row.game.you.id, row.endpoint);
+    recordLastGameEntered(row.game.id);
+    navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(row.game.you.id), 'sync');
+  }
+}
+/** X on a LOCAL row (host mode) — ask before deleting that one game.
+ *  A CAMPAIGN row never offers the single delete: the dialog redirects to
+ *  the campaign itself (the server refuses a lone mission delete anyway). */
+function requestDeleteAt(i: number): void {
+  if (!canDeleteLocal.value || i >= localRows.value.length) {
+    return;
+  }
+  const g = localRows.value[i];
+  if (g !== undefined) {
+    gamesCursor.value = i;
+    gamesError.value = false;
+    gamesConfirm.value = g.campaign !== undefined ? {kind: 'campaign', game: g} : {kind: 'one', game: g};
+  }
+}
+/** The campaign-mission dialog's one verb: the campaign's own front door. */
+function openCampaignFromConfirm(): void {
+  const confirm = gamesConfirm.value;
+  if (confirm === undefined || confirm.kind !== 'campaign') {
+    return;
+  }
+  gamesConfirm.value = undefined;
+  openLocalGame(confirm.game);
+}
+/** Y (host mode) — ask before wiping the whole local library. */
+function requestDeleteAll(): void {
+  if (canDeleteLocal.value && hasLocalGames.value) {
+    gamesError.value = false;
+    gamesConfirm.value = {kind: 'all'};
+  }
+}
+async function executeGamesDelete(): Promise<void> {
+  const confirm = gamesConfirm.value;
+  if (confirm === undefined || confirm.kind === 'campaign' || gamesDeleting.value) {
+    return;
+  }
+  gamesDeleting.value = true;
+  gamesError.value = false;
+  try {
+    const query = confirm.kind === 'all' ? 'all=1' : 'id=' + encodeURIComponent(confirm.game.id);
+    const res = await fetch(apiUrl(paths.API_LOCAL_GAME_DELETE) + '?' + query, {method: 'POST'});
+    if (!res.ok) {
+      throw new Error(`delete failed (${res.status})`);
+    }
+    gamesConfirm.value = undefined;
+    // Re-ask rather than patch the list locally: the server is the one that
+    // knows what is left (and the same refresh rewrites the CONTINUE cache).
+    await refreshLobby({archive: true});
+    gamesCursor.value = Math.min(gamesCursor.value, Math.max(0, gamesCount.value - 1));
+  } catch {
+    gamesError.value = true;
+  } finally {
+    gamesDeleting.value = false;
+  }
+}
+function onQuitConfirm(): void {
+  overlay.value = undefined;
+  quitApp();
+}
+
+/**
+ * The identity may resolve AFTER the first frame (Steam prefill on a fresh
+ * install, the profile roster, a profile switch). The lobby is name-scoped,
+ * so this is the difference between a list and an empty screen — and its
+ * absence is exactly why «Мои партии» used to need an app restart.
+ */
+watch(() => identityName.value, (name: string) => {
+  setLobbyIdentity(name);
+  if (name !== '') {
+    publishLanName(name);
+  }
+  // The campaigns list is name-scoped the same way.
+  void refreshCampaigns();
+});
+/**
+ * Campaign realtime rides the LOBBY channel (a campaign mutation bumps the
+ * lobby revision server-side), and every lobby trigger funnels into
+ * `refreshLobby`, which stamps `lastRefreshAt` — so re-asking the campaign
+ * list here covers push, poll, focus and the manual RT alike.
+ */
+watch(() => lobbyState.lastRefreshAt, () => {
+  void refreshCampaigns();
+});
+// The Steam state loads async (getSteamState). When it arrives, show the first-run prompt
+// if it's warranted (Windows first launch, not added, not dismissed) and nothing else is open.
+watch(() => steamShortcutState.loaded, (loaded: boolean) => {
+  if (loaded === true) {
+    maybeShowSteamPrompt();
+  }
+});
+
+// Resolve the identity + hydrate the joinable list from the cross-session
+// cache BEFORE the first render, so CONTINUE / the My-games badge are on
+// the first painted frame instead of popping in after the fetch (the flash).
+ensureIdentityLoaded();
+// The profile roster is the source of truth for the active identity —
+// hydrate it (migrating a legacy single identity + mirroring the active
+// profile into identityState) BEFORE the first render, so the header /
+// games reflect the active profile even before the profile editor is opened.
+ensureProfilesLoaded();
+hydrateLobbyCache(identityName.value);
+
+onMounted(() => {
+  setDocumentTitle('Terraforming Mars');
+  ensureIdentityLoaded();
+  // SCENE TRANSITION (the menu destination — the exit-from-game curtain
+  // lands here): hold the reveal until the menu's own backdrop texture is
+  // decoded and the fonts are settled, so the first revealed frame is the
+  // finished composition, never a bare gradient the art then pops onto.
+  // No-ops entirely when no curtain is covering (a plain SPA hop).
+  if (loadingScreenState.phase === 'covering') {
+    const releaseBg = deferSceneReveal('menu-bg', 3500);
+    const bg = new Image();
+    bg.src = 'assets/premium-main-menu-bg.png';
+    bg.decode().then(releaseBg, releaseBg);
+    const releaseFonts = deferSceneReveal('fonts', 2500);
+    const fonts = (document as Partial<Document>).fonts;
+    if (fonts !== undefined) {
+      void fonts.ready.then(() => releaseFonts());
+    } else {
+      releaseFonts();
+    }
+    armSceneDestination();
+  }
+  // Return from the Campaign Map: reopen «Мои кампании» on the same tab and
+  // focus the same row (the map entry was a full navigation, so the overlay
+  // state did not survive on its own).
+  const campaignsReturn = takeCampaignsReturn();
+  if (campaignsReturn !== undefined) {
+    campaignsState.tab = campaignsReturn.tab;
+    campaignsState.pendingFocusId = campaignsReturn.id;
+    campaignsState.confirmId = undefined;
+    campaignsState.deleteError = '';
+    overlay.value = 'campaigns';
+    // The campaigns screen consumes the lobby model (LAN sources) — see
+    // the activateAt('campaigns') branch.
+    void openLobbyList();
+  }
+  // The badge on the plate needs the list before the screen is ever opened.
+  void refreshCampaigns();
+  // First launch with no saved name (Steam Deck / Steam Machine): prefill from the Steam display
+  // name so the greeting + creator seat aren't empty. Reactive — the menu updates when it lands.
+  void prefillIdentityFromSteam();
+  initSteamShortcut();
+  maybeShowSteamPrompt();
+  offPad = installMenuPad((intent) => onIntent(intent));
+  // Host-as-server: subscribe to LAN discovery pushes + advertise under the
+  // active profile's name (both no-op on the web / remote mode). The effective
+  // app mode gates the local-game deletion verbs in the games overlay.
+  initLanDiscovery();
+  void desktopBridge()?.getAppMode?.().then((info) => {
+    if (info !== undefined) {
+      appModeEffective.value = info.effective;
+    }
+  }).catch(() => {});
+  // The lobby watch runs for the whole menu: it keeps CONTINUE and the badge
+  // live (push + a slow fallback poll) even before «Мои партии» is opened, and
+  // it starts with an EMPTY name too — the identity watcher above feeds it.
+  // The MENU SCOPE additionally keeps LAN sources + their push channels in
+  // play at the menu ROOT, so a campaign/game created on another couch
+  // announces itself immediately (badge + open lists), not on a screen open.
+  setLobbyMenuScope(true);
+  startLobbyWatch(identityName.value);
+  if (identityName.value !== '') {
+    publishLanName(identityName.value);
+  }
+  // Version readout (desktop shell prefers the baked app version; web uses settings.json).
+  const bridge = desktopBridge();
+  if (bridge !== undefined) {
+    void bridge.getVersion().then((v) => {
+      desktopVersion.value = typeof v === 'string' ? v : '';
+      // A LAN host on another build gets a warning on its rows.
+      setLobbyOwnVersion(desktopVersion.value);
+    }).catch(() => undefined);
+  }
+  // Watch for a new version for as long as the menu is up. The menu is the safe place to be
+  // interrupted, so this is what makes "leave the game to the main menu" the way to update.
+  startMenuUpdateWatch();
+});
+onBeforeUnmount(() => {
+  offPad?.();
+  setLobbyMenuScope(false);
+  stopLobbyWatch();
+  stopMenuUpdateWatch();
 });
 </script>
