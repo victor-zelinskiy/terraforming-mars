@@ -15,7 +15,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * @console-shared LIVE — console native stands on this file.
  *
@@ -36,22 +36,17 @@
  * Mounted ONCE by the shell; the surface only names the faces
  * (`armDeckPickFlight`) and reads the bodies back (`deckPickProxyEls`).
  */
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {deckPickFlightState, registerDeckPickProxy} from '@/client/console/deckPick/consoleDeckPick';
 
-export default defineComponent({
-  name: 'ConsoleDeckPickLayer',
-  components: {ConsoleCardFaceLite},
-  computed: {
-    cards(): Array<CardName> {
-      return deckPickFlightState.cards;
-    },
-    nonce(): number {
-      return deckPickFlightState.nonce;
-    },
-  },
-  methods: {registerDeckPickProxy},
+defineOptions({name: 'ConsoleDeckPickLayer'});
+
+const cards = computed((): Array<CardName> => {
+  return deckPickFlightState.cards;
+});
+const nonce = computed((): number => {
+  return deckPickFlightState.nonce;
 });
 </script>
