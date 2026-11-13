@@ -1,29 +1,4 @@
 <template>
-  <!--
-    THE MARS NOMADS MARKER — the one physical token of the travelling camp.
-
-    A sibling of PlayerCube.vue (the same proven orthographic-isometric
-    3-face construction, the same flat-scene animation discipline), but a
-    DIFFERENT OBJECT, not a recoloured player cube: a low-profile mobile
-    module machined from dark iridium-titanium, its panel seams inlaid with
-    warm electrum-copper light, and a wayfinder mark engraved into the lid.
-    Identity is carried by MATERIAL + SEAMS + THE ENGRAVED MARK — never by
-    hue alone — so it stays unmistakable for colour-blind players and can
-    never be read as any player's ownership cube.
-
-    ONE component serves every representation: the board cell, the premium
-    card face (PremiumMechNode), and the console flight proxies — only
-    `size` changes. The landing entrance (`landing` prop) is Flow A of the
-    Mars Nomads choreography: the module materializes over the cell,
-    descends with its contact shadow converging, seats with one micro-
-    compression and a retiring halo. It grants NOTHING — the cell's printed
-    bonuses deliberately do not react (see markerPlacementAnimation.ts).
-
-    Perf contract: transform/opacity animations only; the glow/shadow are
-    flat gradient siblings (no `filter` dependency — the console paint
-    baseline strips filters, and this token must read identically with
-    them stripped); no ambient loops — the premium sits in the material.
-  -->
   <span class="nomad-token" :class="rootClass" :style="styleVars" role="img" aria-label="Mars Nomads">
     <svg class="nomad-token__defs" width="0" height="0" aria-hidden="true" focusable="false">
       <defs>
@@ -119,74 +94,93 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * THE MARS NOMADS MARKER — the one physical token of the travelling camp.
+ *
+ * A sibling of PlayerCube.vue (the same proven orthographic-isometric
+ * 3-face construction, the same flat-scene animation discipline), but a
+ * DIFFERENT OBJECT, not a recoloured player cube: a low-profile mobile
+ * module machined from dark iridium-titanium, its panel seams inlaid with
+ * warm electrum-copper light, and a wayfinder mark engraved into the lid.
+ * Identity is carried by MATERIAL + SEAMS + THE ENGRAVED MARK — never by
+ * hue alone — so it stays unmistakable for colour-blind players and can
+ * never be read as any player's ownership cube.
+ *
+ * ONE component serves every representation: the board cell, the premium
+ * card face (PremiumMechNode), and the console flight proxies — only
+ * `size` changes. The landing entrance (`landing` prop) is Flow A of the
+ * Mars Nomads choreography: the module materializes over the cell,
+ * descends with its contact shadow converging, seats with one micro-
+ * compression and a retiring halo. It grants NOTHING — the cell's printed
+ * bonuses deliberately do not react (see markerPlacementAnimation.ts).
+ *
+ * Perf contract: transform/opacity animations only; the glow/shadow are
+ * flat gradient siblings (no `filter` dependency — the console paint
+ * baseline strips filters, and this token must read identically with
+ * them stripped); no ambient loops — the premium sits in the material.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, ref} from 'vue';
+// The per-page id source of the gradient defs is MODULE state: it lives in the sibling module (inside
+// `<script setup>` a top-level `let` would start again in every token).
+import {newNomadTokenUid} from '@/client/components/nomadTokenState';
 
-// Per-page unique id source for the gradient defs (PlayerCube's discipline —
-// many tokens on one page must not collide).
-let ntUid = 0;
-
-export default defineComponent({
-  name: 'nomad-token',
-  props: {
-    // Footprint in px (the projected module fits inside a size×size box).
-    size: {
-      type: Number,
-      default: 18,
-    },
-    // Warm copper presence bloom behind the module.
-    glow: {
-      type: Boolean,
-      default: true,
-    },
-    // Grounding contact shadow.
-    shadow: {
-      type: Boolean,
-      default: true,
-    },
-    /**
-     * Flow A — the FIRST-LANDING entrance: 'drop' plays the full descent
-     * (cell focus halo → materialize above the surface → descend with the
-     * shadow converging → micro-compression + dust at contact → settle).
-     * The host drives duration/delay via the `--nomad-landing-duration` /
-     * `--nomad-landing-delay` custom properties (a negative delay RESUMES a
-     * beat interrupted by a remount — the marker framework's contract).
-     */
-    landing: {
-      type: String as () => 'none' | 'drop',
-      default: 'none',
-    },
+defineOptions({name: 'nomad-token'});
+const props = defineProps({
+  // Footprint in px (the projected module fits inside a size×size box).
+  size: {
+    type: Number,
+    default: 18,
   },
-  data() {
-    return {uid: ++ntUid};
+  // Warm copper presence bloom behind the module.
+  glow: {
+    type: Boolean,
+    default: true,
   },
-  computed: {
-    styleVars(): Record<string, string> {
-      return {'--nt-size': `${this.size}px`};
-    },
-    isLanding(): boolean {
-      return this.landing === 'drop';
-    },
-    rootClass(): Record<string, boolean> {
-      return {'nomad-token--landing': this.isLanding};
-    },
-    lidId(): string {
-      return 'nt-lid-' + this.uid;
-    },
-    sideId(): string {
-      return 'nt-side-' + this.uid;
-    },
-    sheenId(): string {
-      return 'nt-sheen-' + this.uid;
-    },
-    seamId(): string {
-      return 'nt-seam-' + this.uid;
-    },
+  // Grounding contact shadow.
+  shadow: {
+    type: Boolean,
+    default: true,
   },
-  methods: {
-    fillUrl(id: string): string {
-      return `url(#${id})`;
-    },
+  /**
+   * Flow A — the FIRST-LANDING entrance: 'drop' plays the full descent
+   * (cell focus halo → materialize above the surface → descend with the
+   * shadow converging → micro-compression + dust at contact → settle).
+   * The host drives duration/delay via the `--nomad-landing-duration` /
+   * `--nomad-landing-delay` custom properties (a negative delay RESUMES a
+   * beat interrupted by a remount — the marker framework's contract).
+   */
+  landing: {
+    type: String as () => 'none' | 'drop',
+    default: 'none',
   },
 });
+
+const uid = ref(newNomadTokenUid());
+const styleVars = computed((): Record<string, string> => {
+  return {'--nt-size': `${props.size}px`};
+});
+const isLanding = computed((): boolean => {
+  return props.landing === 'drop';
+});
+const rootClass = computed((): Record<string, boolean> => {
+  return {'nomad-token--landing': isLanding.value};
+});
+const lidId = computed((): string => {
+  return 'nt-lid-' + uid.value;
+});
+const sideId = computed((): string => {
+  return 'nt-side-' + uid.value;
+});
+const sheenId = computed((): string => {
+  return 'nt-sheen-' + uid.value;
+});
+const seamId = computed((): string => {
+  return 'nt-seam-' + uid.value;
+});
+function fillUrl(id: string): string {
+  return `url(#${id})`;
+}
 </script>
