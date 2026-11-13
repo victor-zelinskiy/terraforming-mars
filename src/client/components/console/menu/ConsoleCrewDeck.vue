@@ -64,59 +64,55 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * CREW deck renderer (console create) — the participant roster as big
  * console rows: humans (cube / name / creator + TR chips / name issue),
  * the MarsBot seat (difficulty + "plays itself"), and the ADD PARTICIPANT
  * plate. Pure presentation: cursor + activation come from the screen root.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {CrewRow} from '@/client/console/menu/consoleCreateModel';
 import {createGameState, SlotNameIssue} from '@/client/components/create/premium/createGameState';
 import {botDifficultyMeta} from '@/client/components/create/premium/createGameMeta';
 import {DifficultyLevel} from '@/common/automa/AutomaTypes';
 
-export default defineComponent({
-  name: 'ConsoleCrewDeck',
-  props: {
-    rows: {type: Array as PropType<ReadonlyArray<CrewRow>>, required: true},
-    cursor: {type: Number, required: true},
-    shakeRow: {type: Number, default: -1},
-  },
-  emits: ['activate', 'hover'],
-  computed: {
-    trBoostEnabled(): boolean {
-      return createGameState.config.rules.trBoostEnabled;
-    },
-  },
-  methods: {
-    rowKey(row: CrewRow, i: number): string {
-      if (row.kind === 'human') {
-        return `h${row.index}`;
-      }
-      return row.kind === 'bot' ? 'bot' : `add${i}`;
-    },
-    rowClasses(row: CrewRow, i: number): Record<string, boolean> {
-      return {
-        'cm-row--cursor': i === this.cursor,
-        'cm-row--shake': i === this.shakeRow,
-        'cm-row--issue': (row.kind === 'human' && row.nameIssue !== undefined),
-        'cm-row--disabled': row.kind === 'add' && !row.enabled,
-        'cm-row--bot': row.kind === 'bot',
-        'cm-row--add': row.kind === 'add',
-      };
-    },
-    issueText(issue: SlotNameIssue): string {
-      switch (issue) {
-      case 'empty': return 'Fill in the player name';
-      case 'invalid': return 'This name cannot be used';
-      case 'duplicate': return 'Player names must be unique';
-      }
-    },
-    difficultyLabel(id: DifficultyLevel): string {
-      return botDifficultyMeta(id).labelKey;
-    },
-  },
+defineOptions({name: 'ConsoleCrewDeck'});
+const props = defineProps({
+  rows: {type: Array as PropType<ReadonlyArray<CrewRow>>, required: true},
+  cursor: {type: Number, required: true},
+  shakeRow: {type: Number, default: -1},
 });
+defineEmits(['activate', 'hover']);
+
+const trBoostEnabled = computed((): boolean => {
+  return createGameState.config.rules.trBoostEnabled;
+});
+function rowKey(row: CrewRow, i: number): string {
+  if (row.kind === 'human') {
+    return `h${row.index}`;
+  }
+  return row.kind === 'bot' ? 'bot' : `add${i}`;
+}
+function rowClasses(row: CrewRow, i: number): Record<string, boolean> {
+  return {
+    'cm-row--cursor': i === props.cursor,
+    'cm-row--shake': i === props.shakeRow,
+    'cm-row--issue': (row.kind === 'human' && row.nameIssue !== undefined),
+    'cm-row--disabled': row.kind === 'add' && !row.enabled,
+    'cm-row--bot': row.kind === 'bot',
+    'cm-row--add': row.kind === 'add',
+  };
+}
+function issueText(issue: SlotNameIssue): string {
+  switch (issue) {
+  case 'empty': return 'Fill in the player name';
+  case 'invalid': return 'This name cannot be used';
+  case 'duplicate': return 'Player names must be unique';
+  }
+}
+function difficultyLabel(id: DifficultyLevel): string {
+  return botDifficultyMeta(id).labelKey;
+}
 </script>
