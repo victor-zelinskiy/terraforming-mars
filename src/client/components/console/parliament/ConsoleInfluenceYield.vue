@@ -1,45 +1,4 @@
 <template>
-  <!--
-    INFLUENCE → RESULT (Turmoil Redux) — the ONE graphic block for an effect
-    that scales with influence, wherever a surface needs it: the vote
-    surface's own-effect block, the fullscreen inspector's footer, the
-    recipient picker's source dock, the results scene, the playground.
-
-    Two tiers, one hierarchy. THE FORMULA is the card's constant rule, drawn
-    in the card's own vocabulary («1 [animal] / [influence] · every player»),
-    small and steady. THE READING is the player's own number for the context
-    the surface is in — «[influence] 3 → +3 [animal]» — large, and captioned
-    by WHICH question it answers (current influence · if you win the vote ·
-    this payout · received). Two readings may stand side by side (the
-    estimate and the «if you win» forecast); a forecast that changes nothing
-    is never drawn. No player → the formula alone, no invented number.
-
-    ONE NUMBER (`oneNumber`) — the vote panel's law: the forecast is not a
-    second plate. Where the win raises a number (`winSuffixesOf`) the effect's
-    row gains ONE quiet line UNDER its number — what the win ADDS, «+1 [unit]
-    если победите · [нашивка] ③» (P77 · DH: the old two-column table with a
-    head of its own read as a second, louder number — the model promised a
-    suffix and the panel drew a plate). The Career node is said once, on the
-    first such line. A row the win does not change has no line at all. A block
-    whose every number is a plain ZERO prints no «0 → +0»: one calm word in
-    the number's place («при принятии ничего»), the suffix still under it. The
-    block's host supplies the caption (its kicker), so the plates print none.
-
-    THE LEVY (the Budgets — «lose 10 M€» FIRST): a card that TAKES before it
-    pays reads as ONE line, in the printed order, with the day's balance at
-    its end — «[−10 M€] → [inputs] → +7 M€ = −3 M€». The levy stands at the
-    HEAD of the plate of the payout in its own currency (`levy.payout`), the
-    net at its tail; a short seat's levy prints what would be taken «of 10».
-    A production part beside it carries its HORIZON («pays from the next
-    generation»): today's pocket and next generation's income are never one
-    sum. A FLAT part («+4 M€ production», a rate of 0 per influence) prints
-    its base alone — no inputs cluster claims the influence bought it.
-
-    Nothing here computes: the numbers arrive from `influenceYieldModel.ts`
-    (the client reading of the common `scaledAmount`), the icons are the
-    console's own sprite families, the influence badge is the same asset the
-    card face prints.
-  -->
   <div class="con-iyield" :class="['con-iyield--' + size, {'con-iyield--reference': readings.length === 0, 'con-iyield--parts': groups.length > 1, 'con-iyield--onenum': oneNumber, 'con-iyield--zero': zeroOnly}]" data-influence-yield>
     <span v-if="kicker !== undefined" class="con-iyield__kicker">{{ $t(kicker) }}</span>
     <!-- A LEVY with no payout in its currency to net against stands alone, first — the printed order. -->
@@ -263,8 +222,51 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * INFLUENCE → RESULT (Turmoil Redux) — the ONE graphic block for an effect
+ * that scales with influence, wherever a surface needs it: the vote
+ * surface's own-effect block, the fullscreen inspector's footer, the
+ * recipient picker's source dock, the results scene, the playground.
+ *
+ * Two tiers, one hierarchy. THE FORMULA is the card's constant rule, drawn
+ * in the card's own vocabulary («1 [animal] / [influence] · every player»),
+ * small and steady. THE READING is the player's own number for the context
+ * the surface is in — «[influence] 3 → +3 [animal]» — large, and captioned
+ * by WHICH question it answers (current influence · if you win the vote ·
+ * this payout · received). Two readings may stand side by side (the
+ * estimate and the «if you win» forecast); a forecast that changes nothing
+ * is never drawn. No player → the formula alone, no invented number.
+ *
+ * ONE NUMBER (`oneNumber`) — the vote panel's law: the forecast is not a
+ * second plate. Where the win raises a number (`winSuffixesOf`) the effect's
+ * row gains ONE quiet line UNDER its number — what the win ADDS, «+1 [unit]
+ * если победите · [нашивка] ③» (P77 · DH: the old two-column table with a
+ * head of its own read as a second, louder number — the model promised a
+ * suffix and the panel drew a plate). The Career node is said once, on the
+ * first such line. A row the win does not change has no line at all. A block
+ * whose every number is a plain ZERO prints no «0 → +0»: one calm word in
+ * the number's place («при принятии ничего»), the suffix still under it. The
+ * block's host supplies the caption (its kicker), so the plates print none.
+ *
+ * THE LEVY (the Budgets — «lose 10 M€» FIRST): a card that TAKES before it
+ * pays reads as ONE line, in the printed order, with the day's balance at
+ * its end — «[−10 M€] → [inputs] → +7 M€ = −3 M€». The levy stands at the
+ * HEAD of the plate of the payout in its own currency (`levy.payout`), the
+ * net at its tail; a short seat's levy prints what would be taken «of 10».
+ * A production part beside it carries its HORIZON («pays from the next
+ * generation»): today's pocket and next generation's income are never one
+ * sum. A FLAT part («+4 M€ production», a rate of 0 per influence) prints
+ * its base alone — no inputs cluster claims the influence bought it.
+ *
+ * Nothing here computes: the numbers arrive from `influenceYieldModel.ts`
+ * (the client reading of the common `scaledAmount`), the icons are the
+ * console's own sprite families, the influence badge is the same asset the
+ * card face prints.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {Resource} from '@/common/Resource';
 import {InfluenceScaledEffect, InfluenceYield, levelTakesAway as yieldTakesAway, yieldAtCap, yieldCapped} from '@/common/parliament/influenceScaling';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
@@ -277,266 +279,254 @@ import {suffixHintKey, suffixWinKey, ZERO_READING_KEY} from '@/client/console/pa
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 type Group = {effect: InfluenceScaledEffect, readings: Array<InfluenceYield>, suffix: WinSuffix | undefined};
 
-export default defineComponent({
-  name: 'ConsoleInfluenceYield',
-  components: {PremiumCountGlyph, ConsoleYieldUnit},
-  props: {
-    /** The readings to draw — one or more per scaled effect (the model groups them by effect). */
-    yields: {type: Array as PropType<ReadonlyArray<InfluenceYield>>, required: true},
-    /** `compact` under a dock / in a footer, `normal` in a block, `hero` on a stage. */
-    size: {type: String as PropType<'compact' | 'normal' | 'hero'>, default: 'normal'},
-    /** Draw the constant formula above the readings (off where the card's own graphic stands beside the block). */
-    formula: {type: Boolean, default: true},
-    /**
-     * ONE NUMBER: fold every «if you win» forecast into a suffix of its
-     * effect's estimate (the vote panel, the playground's proposal context).
-     * Off, the forecast stands as its own captioned plate (the inspector).
-     */
-    oneNumber: {type: Boolean, default: false},
-    /**
-     * The suffixes to draw in one-number mode, when the host has already
-     * separated them from the readings (`voteInfoModel`); absent, they are
-     * read off `yields` here — the same `winSuffixesOf` either way.
-     */
-    suffixes: {type: Array as PropType<ReadonlyArray<WinSuffix> | undefined>, default: undefined},
-    /** Print each reading's caption (off inside a block whose own kicker states the question). */
-    captions: {type: Boolean, default: true},
-    /** An i18n key over the block. */
-    kicker: {type: String as PropType<string | undefined>, default: undefined},
-    /** An i18n key under the block — the honest «no recipient» note, never a promise. */
-    note: {type: String as PropType<string | undefined>, default: undefined},
-    /**
-     * THE LEVY the card takes FIRST (a budget), read for the same seat and context as `yields`
-     * (`voteLevyOf` / `enactedLevyOf`): drawn at the head of the plate of the payout in its
-     * currency, with the net at the tail; alone when no such payout exists.
-     */
-    levy: {type: Object as PropType<LevyReading | undefined>, default: undefined},
-    /**
-     * WHOSE reading this is — the viewer's own («если победите», «у вас 7») or
-     * another seat's («если победит», «в запасе 7»). The SUBJECT itself is
-     * named by the host's kicker; the block never repeats it.
-     */
-    person: {type: String as PropType<ReadingPerson>, default: 'you'},
-  },
-  computed: {
-    groups(): Array<Group> {
-      const out: Array<Group> = [];
-      const shown = this.oneNumber ? oneNumberYieldsOf(this.yields) : this.yields;
-      const suffixes = this.oneNumber ? (this.suffixes ?? winSuffixesOf(this.yields)) : [];
-      for (const y of shown) {
-        let group = out.find((g) => g.effect.id === y.effect.id);
-        if (group === undefined) {
-          group = {effect: y.effect, readings: [], suffix: suffixes.find((s) => s.effectId === y.effect.id)};
-          out.push(group);
-        }
-        if (y.context !== 'reference') {
-          group.readings.push(y);
-        }
-      }
-      return out;
-    },
-    readings(): Array<InfluenceYield> {
-      return this.groups.flatMap((g) => g.readings);
-    },
-    suffixWords(): string {
-      return suffixWinKey(this.person);
-    },
-    /** The effect whose suffix line names the Career node — the first one (the node is one per seat and win). */
-    firstSuffixEffect(): string | undefined {
-      return this.groups.find((g) => g.suffix?.agendaStep !== undefined && g.readings.length > 0)?.effect.id;
-    },
-    /**
-     * A ONE-NUMBER block with nothing to say: every number a plain zero (no levy, no level, no chain, no forfeit, no
-     * multiplier) — a grant read at no influence. «0 → +0» would say «nothing» twice; the word says it once.
-     */
-    zeroOnly(): boolean {
-      const readings = this.readings;
-      return this.oneNumber && this.levy === undefined && readings.length > 0 && readings.every((y) =>
-        y.skipped === undefined && (y.amount ?? 0) === 0 && y.total === undefined && y.target === undefined && y.delivered === undefined &&
-        !yieldIsMultiplier(y.effect) && !levelYieldIsNone(y));
-    },
-    zeroKey(): string {
-      return ZERO_READING_KEY;
-    },
-    /** The levy has no payout of its currency among the groups to stand at the head of — it stands alone. */
-    levyAlone(): boolean {
-      const levy = this.levy;
-      return levy !== undefined && (levy.payout === undefined || !this.groups.some((g) => g.effect.id === levy.payout?.effectId && g.readings.length > 0));
-    },
-    /** The levy's own unit icon (a standalone plate) — the console's stock sprite of its resource. */
-    levyUnitClass(): string {
-      return this.levy === undefined ? '' : iconClassFor(this.levy.resource);
-    },
-    horizonKey(): string {
-      return PRODUCTION_HORIZON_KEY;
-    },
-    upToWord(): string {
-      return LEVEL_UP_TO_KEY;
-    },
-  },
-  methods: {
-    /** A LEVEL reading at or above its target: nothing is paid, and the result slot says so calmly. */
-    levelNone(y: InfluenceYield): boolean {
-      return levelYieldIsNone(y);
-    },
-    /** The calm phrase of a level part's zero («no draw needed» / «nothing to lose») — the level term's own word. */
-    levelNoneKey(effect: InfluenceScaledEffect): string {
-      return effect.level === undefined ? '' : levelPresentation(effect.level, this.person).noneKey;
-    },
-    /** The part TAKES instead of paying (a level term going down) — the minus and the loss tone follow the DECLARATION, never the record's sign. */
-    takesAway(effect: InfluenceScaledEffect): boolean {
-      return yieldTakesAway(effect);
-    },
-    /** The word before the TARGET — «up to» for a top-up, the card's printed «max» for a cut. */
-    levelWord(effect: InfluenceScaledEffect): string {
-      return effect.level === undefined ? LEVEL_UP_TO_KEY : levelPresentation(effect.level, this.person).wordKey;
-    },
-    /** «5 in hand» / «7 of yours» — the level the move is read against, in the term's own words. */
-    levelText(effect: InfluenceScaledEffect, level: number): string {
-      const key = effect.level === undefined ? LEVEL_IN_HAND_KEY : levelPresentation(effect.level, this.person).levelKey;
-      return translateTextWithParams(key, [String(level)]);
-    },
-    /** The levy heads THIS group's readings: the group pays the levy's currency, and the reading is a number (never the reference). */
-    levyOn(group: Group, y: InfluenceYield): boolean {
-      const levy = this.levy;
-      return levy !== undefined && levy.payout !== undefined && levy.payout.effectId === group.effect.id && y.context !== 'reference';
-    },
-    /** The day's balance of ONE reading: its payout (0 when forfeited) minus what the levy takes. */
-    netOf(y: InfluenceYield): number {
-      const paid = this.levy?.paid ?? 0;
-      const payout = y.skipped !== undefined ? 0 : (y.amount ?? 0);
-      return payout - paid;
-    },
-    signedText(n: number): string {
-      return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
-    },
-    /** «of 10» — the owed sum beside a short seat's take. */
-    ofText(owed: number): string {
-      return translateTextWithParams('of ${0}', [String(owed)]);
-    },
-    isFlat(effect: InfluenceScaledEffect): boolean {
-      return yieldIsFlat(effect);
-    },
-    /**
-     * A production part beside something paid TODAY — a levy, or a supply part of the same card (Jovian Tax
-     * Rights's titanium) — carries its horizon: it first pays in the next generation (`productionHorizonOn`, the
-     * one predicate the panel's word budget reads too). A host that prints neither captions nor the formula and
-     * folds nothing (the sitting's one-line BAND) has no room for a caption-sized note — the panel, the inspector
-     * and the stand print it.
-     */
-    horizonOn(group: Group): boolean {
-      return productionHorizonOn(this.groups.map((g) => g.effect), group.effect, this.levy !== undefined) && group.readings.length > 0 &&
-        (this.oneNumber || this.captions || this.formula);
-    },
-    /** Influence is a TERM of this part (a rate above 0 per influence) — else the formula and the reading print no influence. */
-    influenceEnters(effect: InfluenceScaledEffect): boolean {
-      return yieldInfluenceEnters(effect);
-    },
-    /** One term of a production breakdown: the resource's sprite in the production plate. */
-    productionUnitClass(resource: Resource): string {
-      return iconClassFor(resource);
-    },
-    /** The counted object's glyph (a card with a VP icon, or a printed tag), undefined for an effect without a count term. */
-    countGlyphOf(effect: InfluenceScaledEffect): YieldCountGlyph | undefined {
-      return effect.count === undefined ? undefined : yieldCountPresentation(effect.count.id).glyph;
-    },
-    /**
-     * The NOUN beside a threshold count («set» / «набора»): the plural key resolves its word forms against the
-     * number to its left, so the number is rendered into the key and stripped again — the count itself stands
-     * in its own `data-yield-in="count"` element, the way every other reading prints it.
-     */
-    setsNounOf(count: number): string {
-      const numbered = translateTextWithParams(METRIC_SETS_PLURAL_KEY, [String(count)]);
-      const digits = String(count);
-      return numbered.startsWith(digits) ? numbered.slice(digits.length).trim() : numbered;
-    },
-    /** The reading stands at the effect's maximum — the MAX mark (reached or passed; the uncapped sum rides the data attribute). */
-    atCap(y: InfluenceYield): boolean {
-      return yieldAtCap(y);
-    },
-    /**
-     * The sum before the cap is printed: the cap CUT this reading (the inputs add up to more than is paid), its inputs
-     * stand as a cluster (a count or an influence term — never a level, a sequel or a flat part) and the payout lands.
-     */
-    capSumOn(group: Group, y: InfluenceYield): boolean {
-      return yieldCapped(y) && y.skipped === undefined && y.total === undefined && y.target === undefined && !this.isFlat(group.effect) &&
-        (y.count !== undefined || (y.influence !== undefined && this.influenceEnters(group.effect)));
-    },
-    capText(effect: InfluenceScaledEffect): string {
-      return effect.cap === undefined ? '' : translateTextWithParams('max ${0}', [String(effect.cap)]);
-    },
-    /**
-     * THE UNIT'S ICON CLASSES — one per kind: one for every ordinary unit, several for a unit of several kinds
-     * (Medical Database's «data or microbe»), which `ConsoleYieldUnit` draws as ONE unit joined by «or».
-     */
-    unitClassesOf(effect: InfluenceScaledEffect): Array<string> {
-      return this.iconClasses(yieldIconOf(effect));
-    },
-    /** The icon of the TOTAL a sequential part divides (the production frame included). */
-    totalClassOf(effect: InfluenceScaledEffect): string {
-      const term = effect.sequel;
-      return term === undefined ? '' : this.iconClass(sequelTotalIcon(term));
-    },
-    /** The unit's classes — the ONE mapping (`yieldIconClasses`), shared with every other surface that draws a unit. */
-    iconClasses(icon: YieldIcon): Array<string> {
-      return yieldIconClasses(icon);
-    },
-    iconClass(icon: YieldIcon): string {
-      return yieldIconClass(icon);
-    },
-    outText(y: InfluenceYield): string {
-      const amount = y.amount ?? 0;
-      // A MULTIPLIER reads «×k» — it is not a count of anything until the ledger multiplies it.
-      if (yieldIsMultiplier(y.effect)) {
-        return (y.skipped !== undefined && amount > 0 ? '✕ ' : '') + '×' + amount;
-      }
-      if (y.skipped !== undefined && amount > 0) {
-        return '✕ ' + amount;
-      }
-      // A DRAW the deck could not fill completely names BOTH numbers — what
-      // was owed and what landed — rather than quietly printing the smaller.
-      if (y.delivered !== undefined && y.delivered < amount) {
-        return '+' + y.delivered + ' / ' + amount;
-      }
-      // A CUT reads with its MINUS: the declaration says which way it goes, so
-      // the same magnitude is «−3» here and «3 would be taken» in the sentence.
-      return (yieldTakesAway(y.effect) ? '−' : '+') + amount;
-    },
-    captionOf(y: InfluenceYield): string {
-      const caption = yieldCaptionOf(y);
-      if (caption === undefined) {
-        return '';
-      }
-      return caption.params === undefined ? translateText(caption.key) : translateTextWithParams(caption.key, [...caption.params]);
-    },
-    /**
-     * THE SUFFIX's number — what the win ADDS (never recomputed: `winSuffixesOf` already took the difference), signed
-     * the way the row's own number is: a cut takes more («−1»), a multiplier reads its new factor («×3»).
-     */
-    suffixText(group: Group): string {
-      const suffix = group.suffix;
-      const y = group.readings[0];
-      if (suffix === undefined || y === undefined) {
-        return '';
-      }
-      if (yieldIsMultiplier(group.effect)) {
-        return '×' + ((y.amount ?? 0) + suffix.delta);
-      }
-      return (yieldTakesAway(group.effect) ? '−' : '+') + suffix.delta;
-    },
-    /** The row's payout would not land (a forfeit) — neither would what the win adds: struck, as on the plate. */
-    suffixLost(group: Group): boolean {
-      const y = group.readings[0];
-      return y !== undefined && y.skipped !== undefined;
-    },
-    /** The suffix's one-phrase explanation (the premium tooltip; a step-less forecast explains nothing more than it says). */
-    suffixHint(suffix: WinSuffix): string | undefined {
-      return suffix.agendaStep === undefined ? undefined : translateTextWithParams(suffixHintKey(this.person), [String(suffix.agendaStep)]);
-    },
-  },
+defineOptions({name: 'ConsoleInfluenceYield'});
+const props = defineProps({
+  /** The readings to draw — one or more per scaled effect (the model groups them by effect). */
+  yields: {type: Array as PropType<ReadonlyArray<InfluenceYield>>, required: true},
+  /** `compact` under a dock / in a footer, `normal` in a block, `hero` on a stage. */
+  size: {type: String as PropType<'compact' | 'normal' | 'hero'>, default: 'normal'},
+  /** Draw the constant formula above the readings (off where the card's own graphic stands beside the block). */
+  formula: {type: Boolean, default: true},
+  /**
+   * ONE NUMBER: fold every «if you win» forecast into a suffix of its
+   * effect's estimate (the vote panel, the playground's proposal context).
+   * Off, the forecast stands as its own captioned plate (the inspector).
+   */
+  oneNumber: {type: Boolean, default: false},
+  /**
+   * The suffixes to draw in one-number mode, when the host has already
+   * separated them from the readings (`voteInfoModel`); absent, they are
+   * read off `yields` here — the same `winSuffixesOf` either way.
+   */
+  suffixes: {type: Array as PropType<ReadonlyArray<WinSuffix> | undefined>, default: undefined},
+  /** Print each reading's caption (off inside a block whose own kicker states the question). */
+  captions: {type: Boolean, default: true},
+  /** An i18n key over the block. */
+  kicker: {type: String as PropType<string | undefined>, default: undefined},
+  /** An i18n key under the block — the honest «no recipient» note, never a promise. */
+  note: {type: String as PropType<string | undefined>, default: undefined},
+  /**
+   * THE LEVY the card takes FIRST (a budget), read for the same seat and context as `yields`
+   * (`voteLevyOf` / `enactedLevyOf`): drawn at the head of the plate of the payout in its
+   * currency, with the net at the tail; alone when no such payout exists.
+   */
+  levy: {type: Object as PropType<LevyReading | undefined>, default: undefined},
+  /**
+   * WHOSE reading this is — the viewer's own («если победите», «у вас 7») or
+   * another seat's («если победит», «в запасе 7»). The SUBJECT itself is
+   * named by the host's kicker; the block never repeats it.
+   */
+  person: {type: String as PropType<ReadingPerson>, default: 'you'},
 });
+
+const groups = computed((): Array<Group> => {
+  const out: Array<Group> = [];
+  const shown = props.oneNumber ? oneNumberYieldsOf(props.yields) : props.yields;
+  const suffixes = props.oneNumber ? (props.suffixes ?? winSuffixesOf(props.yields)) : [];
+  for (const y of shown) {
+    let group = out.find((g) => g.effect.id === y.effect.id);
+    if (group === undefined) {
+      group = {effect: y.effect, readings: [], suffix: suffixes.find((s) => s.effectId === y.effect.id)};
+      out.push(group);
+    }
+    if (y.context !== 'reference') {
+      group.readings.push(y);
+    }
+  }
+  return out;
+});
+const readings = computed((): Array<InfluenceYield> => {
+  return groups.value.flatMap((g) => g.readings);
+});
+const suffixWords = computed((): string => {
+  return suffixWinKey(props.person);
+});
+/** The effect whose suffix line names the Career node — the first one (the node is one per seat and win). */
+const firstSuffixEffect = computed((): string | undefined => {
+  return groups.value.find((g) => g.suffix?.agendaStep !== undefined && g.readings.length > 0)?.effect.id;
+});
+/**
+ * A ONE-NUMBER block with nothing to say: every number a plain zero (no levy, no level, no chain, no forfeit, no
+ * multiplier) — a grant read at no influence. «0 → +0» would say «nothing» twice; the word says it once.
+ */
+const zeroOnly = computed((): boolean => {
+  const readingsNow = readings.value;
+  return props.oneNumber && props.levy === undefined && readingsNow.length > 0 && readingsNow.every((y) =>
+    y.skipped === undefined && (y.amount ?? 0) === 0 && y.total === undefined && y.target === undefined && y.delivered === undefined &&
+    !yieldIsMultiplier(y.effect) && !levelYieldIsNone(y));
+});
+const zeroKey = ZERO_READING_KEY;
+/** The levy has no payout of its currency among the groups to stand at the head of — it stands alone. */
+const levyAlone = computed((): boolean => {
+  const levy = props.levy;
+  return levy !== undefined && (levy.payout === undefined || !groups.value.some((g) => g.effect.id === levy.payout?.effectId && g.readings.length > 0));
+});
+/** The levy's own unit icon (a standalone plate) — the console's stock sprite of its resource. */
+const levyUnitClass = computed((): string => {
+  return props.levy === undefined ? '' : iconClassFor(props.levy.resource);
+});
+const horizonKey = PRODUCTION_HORIZON_KEY;
+
+/** A LEVEL reading at or above its target: nothing is paid, and the result slot says so calmly. */
+function levelNone(y: InfluenceYield): boolean {
+  return levelYieldIsNone(y);
+}
+/** The calm phrase of a level part's zero («no draw needed» / «nothing to lose») — the level term's own word. */
+function levelNoneKey(effect: InfluenceScaledEffect): string {
+  return effect.level === undefined ? '' : levelPresentation(effect.level, props.person).noneKey;
+}
+/** The part TAKES instead of paying (a level term going down) — the minus and the loss tone follow the DECLARATION, never the record's sign. */
+function takesAway(effect: InfluenceScaledEffect): boolean {
+  return yieldTakesAway(effect);
+}
+/** The word before the TARGET — «up to» for a top-up, the card's printed «max» for a cut. */
+function levelWord(effect: InfluenceScaledEffect): string {
+  return effect.level === undefined ? LEVEL_UP_TO_KEY : levelPresentation(effect.level, props.person).wordKey;
+}
+/** «5 in hand» / «7 of yours» — the level the move is read against, in the term's own words. */
+function levelText(effect: InfluenceScaledEffect, level: number): string {
+  const key = effect.level === undefined ? LEVEL_IN_HAND_KEY : levelPresentation(effect.level, props.person).levelKey;
+  return translateTextWithParams(key, [String(level)]);
+}
+/** The levy heads THIS group's readings: the group pays the levy's currency, and the reading is a number (never the reference). */
+function levyOn(group: Group, y: InfluenceYield): boolean {
+  const levy = props.levy;
+  return levy !== undefined && levy.payout !== undefined && levy.payout.effectId === group.effect.id && y.context !== 'reference';
+}
+/** The day's balance of ONE reading: its payout (0 when forfeited) minus what the levy takes. */
+function netOf(y: InfluenceYield): number {
+  const paid = props.levy?.paid ?? 0;
+  const payout = y.skipped !== undefined ? 0 : (y.amount ?? 0);
+  return payout - paid;
+}
+function signedText(n: number): string {
+  return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
+}
+/** «of 10» — the owed sum beside a short seat's take. */
+function ofText(owed: number): string {
+  return translateTextWithParams('of ${0}', [String(owed)]);
+}
+function isFlat(effect: InfluenceScaledEffect): boolean {
+  return yieldIsFlat(effect);
+}
+/**
+ * A production part beside something paid TODAY — a levy, or a supply part of the same card (Jovian Tax
+ * Rights's titanium) — carries its horizon: it first pays in the next generation (`productionHorizonOn`, the
+ * one predicate the panel's word budget reads too). A host that prints neither captions nor the formula and
+ * folds nothing (the sitting's one-line BAND) has no room for a caption-sized note — the panel, the inspector
+ * and the stand print it.
+ */
+function horizonOn(group: Group): boolean {
+  return productionHorizonOn(groups.value.map((g) => g.effect), group.effect, props.levy !== undefined) && group.readings.length > 0 &&
+    (props.oneNumber || props.captions || props.formula);
+}
+/** Influence is a TERM of this part (a rate above 0 per influence) — else the formula and the reading print no influence. */
+function influenceEnters(effect: InfluenceScaledEffect): boolean {
+  return yieldInfluenceEnters(effect);
+}
+/** One term of a production breakdown: the resource's sprite in the production plate. */
+function productionUnitClass(resource: Resource): string {
+  return iconClassFor(resource);
+}
+/** The counted object's glyph (a card with a VP icon, or a printed tag), undefined for an effect without a count term. */
+function countGlyphOf(effect: InfluenceScaledEffect): YieldCountGlyph | undefined {
+  return effect.count === undefined ? undefined : yieldCountPresentation(effect.count.id).glyph;
+}
+/**
+ * The NOUN beside a threshold count («set» / «набора»): the plural key resolves its word forms against the
+ * number to its left, so the number is rendered into the key and stripped again — the count itself stands
+ * in its own `data-yield-in="count"` element, the way every other reading prints it.
+ */
+function setsNounOf(count: number): string {
+  const numbered = translateTextWithParams(METRIC_SETS_PLURAL_KEY, [String(count)]);
+  const digits = String(count);
+  return numbered.startsWith(digits) ? numbered.slice(digits.length).trim() : numbered;
+}
+/** The reading stands at the effect's maximum — the MAX mark (reached or passed; the uncapped sum rides the data attribute). */
+function atCap(y: InfluenceYield): boolean {
+  return yieldAtCap(y);
+}
+/**
+ * The sum before the cap is printed: the cap CUT this reading (the inputs add up to more than is paid), its inputs
+ * stand as a cluster (a count or an influence term — never a level, a sequel or a flat part) and the payout lands.
+ */
+function capSumOn(group: Group, y: InfluenceYield): boolean {
+  return yieldCapped(y) && y.skipped === undefined && y.total === undefined && y.target === undefined && !isFlat(group.effect) &&
+    (y.count !== undefined || (y.influence !== undefined && influenceEnters(group.effect)));
+}
+function capText(effect: InfluenceScaledEffect): string {
+  return effect.cap === undefined ? '' : translateTextWithParams('max ${0}', [String(effect.cap)]);
+}
+/**
+ * THE UNIT'S ICON CLASSES — one per kind: one for every ordinary unit, several for a unit of several kinds
+ * (Medical Database's «data or microbe»), which `ConsoleYieldUnit` draws as ONE unit joined by «or».
+ */
+function unitClassesOf(effect: InfluenceScaledEffect): Array<string> {
+  return iconClasses(yieldIconOf(effect));
+}
+/** The icon of the TOTAL a sequential part divides (the production frame included). */
+function totalClassOf(effect: InfluenceScaledEffect): string {
+  const term = effect.sequel;
+  return term === undefined ? '' : iconClass(sequelTotalIcon(term));
+}
+/** The unit's classes — the ONE mapping (`yieldIconClasses`), shared with every other surface that draws a unit. */
+function iconClasses(icon: YieldIcon): Array<string> {
+  return yieldIconClasses(icon);
+}
+function iconClass(icon: YieldIcon): string {
+  return yieldIconClass(icon);
+}
+function outText(y: InfluenceYield): string {
+  const amount = y.amount ?? 0;
+  // A MULTIPLIER reads «×k» — it is not a count of anything until the ledger multiplies it.
+  if (yieldIsMultiplier(y.effect)) {
+    return (y.skipped !== undefined && amount > 0 ? '✕ ' : '') + '×' + amount;
+  }
+  if (y.skipped !== undefined && amount > 0) {
+    return '✕ ' + amount;
+  }
+  // A DRAW the deck could not fill completely names BOTH numbers — what
+  // was owed and what landed — rather than quietly printing the smaller.
+  if (y.delivered !== undefined && y.delivered < amount) {
+    return '+' + y.delivered + ' / ' + amount;
+  }
+  // A CUT reads with its MINUS: the declaration says which way it goes, so
+  // the same magnitude is «−3» here and «3 would be taken» in the sentence.
+  return (yieldTakesAway(y.effect) ? '−' : '+') + amount;
+}
+function captionOf(y: InfluenceYield): string {
+  const caption = yieldCaptionOf(y);
+  if (caption === undefined) {
+    return '';
+  }
+  return caption.params === undefined ? translateText(caption.key) : translateTextWithParams(caption.key, [...caption.params]);
+}
+/**
+ * THE SUFFIX's number — what the win ADDS (never recomputed: `winSuffixesOf` already took the difference), signed
+ * the way the row's own number is: a cut takes more («−1»), a multiplier reads its new factor («×3»).
+ */
+function suffixText(group: Group): string {
+  const suffix = group.suffix;
+  const y = group.readings[0];
+  if (suffix === undefined || y === undefined) {
+    return '';
+  }
+  if (yieldIsMultiplier(group.effect)) {
+    return '×' + ((y.amount ?? 0) + suffix.delta);
+  }
+  return (yieldTakesAway(group.effect) ? '−' : '+') + suffix.delta;
+}
+/** The row's payout would not land (a forfeit) — neither would what the win adds: struck, as on the plate. */
+function suffixLost(group: Group): boolean {
+  const y = group.readings[0];
+  return y !== undefined && y.skipped !== undefined;
+}
+/** The suffix's one-phrase explanation (the premium tooltip; a step-less forecast explains nothing more than it says). */
+function suffixHint(suffix: WinSuffix): string | undefined {
+  return suffix.agendaStep === undefined ? undefined : translateTextWithParams(suffixHintKey(props.person), [String(suffix.agendaStep)]);
+}
 </script>
