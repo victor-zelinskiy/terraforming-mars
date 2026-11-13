@@ -1,13 +1,4 @@
 <template>
-  <!-- «ПОДРОБНОСТИ ВЫПЛАТ» (the owner, 2026-10-24; P71 · ledger CY) — the step one level below the results card's ledger:
-       WHY every seat got exactly what it got. A BREAKDOWN PER SEAT (`payoutDetailsModel.ts`): over the columns, ONE strip
-       of the LAW (its formula once, its rule of WHO, the seats a winner-only part was never owed to — once); then a column
-       per seat read top-down as a derivation, its blocks aligned with the other seats' (a subgrid of rows): the head, the
-       INFLUENCE the law read with what it was MADE OF (the server's snapshot — the Career, every giver by name) and what it
-       MEANT for this law, a line per SOURCE (a colony tile, the levy, a part, the winner's reward, the party's answer)
-       with the records' own chips, and ИТОГО — the very renderer of the card's ledger (`ConsoleSitTotals`). The step titles
-       nothing: the crumb names it («ЗАСЕДАНИЕ › ИТОГИ · ВЫПЛАТЫ»). Overflow lives in the ONE scroll primitive; nothing here
-       is focusable — X stays «back to the card». -->
   <div class="con-sitpd" data-sit-payout-details>
     <header class="con-sitpd__law" data-sitpd-law>
       <!-- THE RULE in the card's own formula — the constant every column below is read against. -->
@@ -105,8 +96,21 @@
     </ConsoleScrollArea>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * «ПОДРОБНОСТИ ВЫПЛАТ» (the owner, 2026-10-24; P71 · ledger CY) — the step one level below the results card's ledger:
+ * WHY every seat got exactly what it got. A BREAKDOWN PER SEAT (`payoutDetailsModel.ts`): over the columns, ONE strip
+ * of the LAW (its formula once, its rule of WHO, the seats a winner-only part was never owed to — once); then a column
+ * per seat read top-down as a derivation, its blocks aligned with the other seats' (a subgrid of rows): the head, the
+ * INFLUENCE the law read with what it was MADE OF (the server's snapshot — the Career, every giver by name) and what it
+ * MEANT for this law, a line per SOURCE (a colony tile, the levy, a part, the winner's reward, the party's answer)
+ * with the records' own chips, and ИТОГО — the very renderer of the card's ledger (`ConsoleSitTotals`). The step titles
+ * nothing: the crumb names it («ЗАСЕДАНИЕ › ИТОГИ · ВЫПЛАТЫ»). Overflow lives in the ONE scroll primitive; nothing here
+ * is focusable — X stays «back to the card».
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType, useTemplateRef} from 'vue';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -119,65 +123,63 @@ import ConsoleSitPayoutPart from '@/client/components/console/parliament/Console
 import ConsoleSitTotals from '@/client/components/console/parliament/ConsoleSitTotals.vue';
 import {parliamentPlayerName} from '@/client/console/parliament/consoleParliamentModel';
 import {PayoutDetails, PayoutDetailsGrant} from '@/client/console/parliament/payoutDetailsModel';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleSittingPayoutDetails',
-  components: {ConsoleScrollArea, ConsoleInfluenceYield, ConsoleSitPayoutPart, ConsoleSitTotals},
-  props: {
-    details: {type: Object as PropType<PayoutDetails>, required: true},
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-  },
-  computed: {
-    /** «Победитель голосования · голосов: 3». */
-    winnerVotesText(): string {
-      return translateTextWithParams('Winner of the vote · ${0} votes', [String(this.details.winner?.votes ?? 0)]);
-    },
-  },
-  methods: {
-    nameOf(color: Color): string {
-      return parliamentPlayerName(this.players, color);
-    },
-    emblemUrl(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-    planetClass(colony: string): string {
-      return colony.replace(' ', '-') + '-background';
-    },
-    signed(n: number): string {
-      return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
-    },
-    /** «шаг 3» — the Career step the influence was read at. */
-    stepText(step: number): string {
-      return translateTextWithParams('step ${0}', [String(step)]);
-    },
-    cubesText(cubes: number): string {
-      return translateTextWithParams('cubes: ${0}', [String(cubes)]);
-    },
-    /** The rule as the card prints it — the reference reading of the effect (no seat, no number). */
-    ruleYield(effect: InfluenceScaledEffect): InfluenceYield {
-      return referenceYield(effect);
-    },
-    /** The rule of WHO a grant follows — the line the columns are read against. */
-    grantRuleText(recipients: GrantRecipients): string {
-      return recipients.kind === 'threshold' ?
-        translateTextWithParams('The winner and every seat with influence ${0}+', [String(recipients.influenceAtLeast)]) :
-        translateTextWithParams('For every player', []);
-    },
-    /** Which clause took the seat in — or passed it over — with the influence it was read at. */
-    grantRowText(grant: PayoutDetailsGrant): string {
-      switch (grant.eligibility) {
-      case 'winner': return translateTextWithParams('Winner of the vote', []);
-      case 'everyone': return translateTextWithParams('For every player', []);
-      case 'influence': return translateTextWithParams('Influence ${0} — at or over the line ${1}', [String(grant.influence ?? 0), String(grant.line ?? 0)]);
-      case 'none': return translateTextWithParams('Influence ${0} — under the line ${1}', [String(grant.influence ?? 0), String(grant.line ?? 0)]);
-      }
-    },
-    /** The right stick / ↑↓ scroll a long breakdown — the host drives it (`ConsoleScrollArea.scrollByPx`). */
-    scrollBy(dy: number): void {
-      ((this.$refs.scroll ?? undefined) as {scrollByPx?: (dy: number) => void} | undefined)?.scrollByPx?.(dy);
-    },
-  },
+defineOptions({name: 'ConsoleSittingPayoutDetails'});
+const props = defineProps({
+  details: {type: Object as PropType<PayoutDetails>, required: true},
+  players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
 });
+
+const scroll = useTemplateRef<{scrollByPx?: (dy: number) => void}>('scroll');
+/** «Победитель голосования · голосов: 3». */
+const winnerVotesText = computed((): string => {
+  return translateTextWithParams('Winner of the vote · ${0} votes', [String(props.details.winner?.votes ?? 0)]);
+});
+function nameOf(color: Color): string {
+  return parliamentPlayerName(props.players, color);
+}
+function emblemUrl(party: ReduxParty): string {
+  return partyEmblemUrl(party);
+}
+function planetClass(colony: string): string {
+  return colony.replace(' ', '-') + '-background';
+}
+function signed(n: number): string {
+  return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
+}
+/** «шаг 3» — the Career step the influence was read at. */
+function stepText(step: number): string {
+  return translateTextWithParams('step ${0}', [String(step)]);
+}
+function cubesText(cubes: number): string {
+  return translateTextWithParams('cubes: ${0}', [String(cubes)]);
+}
+/** The rule as the card prints it — the reference reading of the effect (no seat, no number). */
+function ruleYield(effect: InfluenceScaledEffect): InfluenceYield {
+  return referenceYield(effect);
+}
+/** The rule of WHO a grant follows — the line the columns are read against. */
+function grantRuleText(recipients: GrantRecipients): string {
+  return recipients.kind === 'threshold' ?
+    translateTextWithParams('The winner and every seat with influence ${0}+', [String(recipients.influenceAtLeast)]) :
+    translateTextWithParams('For every player', []);
+}
+/** Which clause took the seat in — or passed it over — with the influence it was read at. */
+function grantRowText(grant: PayoutDetailsGrant): string {
+  switch (grant.eligibility) {
+  case 'winner': return translateTextWithParams('Winner of the vote', []);
+  case 'everyone': return translateTextWithParams('For every player', []);
+  case 'influence': return translateTextWithParams('Influence ${0} — at or over the line ${1}', [String(grant.influence ?? 0), String(grant.line ?? 0)]);
+  case 'none': return translateTextWithParams('Influence ${0} — under the line ${1}', [String(grant.influence ?? 0), String(grant.line ?? 0)]);
+  }
+}
+/** The right stick / ↑↓ scroll a long breakdown — the host drives it (`ConsoleScrollArea.scrollByPx`). */
+function scrollBy(dy: number): void {
+  scroll.value?.scrollByPx?.(dy);
+}
+
+// What `ConsoleParliamentSitting` reaches through its `ref="details"`: `scrollBy` — and nothing else.
+defineExpose({scrollBy});
 </script>
