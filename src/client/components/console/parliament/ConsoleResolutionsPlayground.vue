@@ -1,57 +1,5 @@
 <template>
-  <!--
-    REDUX RESOLUTIONS — the playground stand («Полигон» → «Витрина резолюций
-    Redux»). One instrument for THIS resolution and every one after it: the
-    catalog as it ships (the client manifest — nothing hand-drawn here), the
-    face at the three sizes the game uses and in the REAL fullscreen viewer,
-    the influence-scaled payout under a chosen CONTEXT for a chosen TEST
-    PLAYER, every seat's own payout side by side, and the SHARED recipient
-    picker with a resolution source. Every number on this screen comes from
-    the same model the game uses (`influenceYieldModel` → the common
-    `scaledAmount`); every face is the same `PremiumCard`.
-
-    SCENARIOS make a reading reproducible: each one sets the whole instrument
-    (who looks, both seats' Agenda positions and card bonuses, the winner, the
-    context, «no eligible card») — influence 0 / 1 / several, the winner's
-    Agenda step counted before the enactment, influence beyond the track, a
-    forfeited payout, a recorded payout, a spectator. The pad then moves any
-    one parameter from there, and the chip says the scenario was modified.
-
-    A resolution whose effect COUNTS the tableau (Architecture Award: «+1 M€
-    production per Building card with a non-negative VP icon + influence, max
-    5») gets its own scenario family: each seat holds a synthetic tableau of
-    REAL card definitions, counted by the SHARED predicate the server uses
-    (every card shows its verdict — counted, or why not), and the family walks
-    zero / influence only / cards only / below, at and over the cap / seats
-    with different results / the winner's Agenda step / the recorded result /
-    the chairman quest at 0, 1 and 2 of 2.
-
-    A resolution that pays EVERYONE a supply resource by influence and gives
-    the WINNER a tile (Biodome Contest: 2 plants per influence + a greenery
-    that raises oxygen) gets the winner-tile family: influence 0 / 1 / 3 /
-    beyond the track, every seat's own plants, the winner's and another
-    seat's view of the same placement, a neutral winner, the Agenda step
-    counted first, oxygen below / at its maximum / at the 8 % step, no legal
-    cell, the chairman quest at 0, 1 and 2 of 2, the recorded result — the
-    winner's part read through the SAME `winnerRewardModel` the vote surface,
-    the fullscreen and the results use.
-
-    LIVE SCENARIOS (the same ring, marked «live»): an ENGINE-GENERATED fixture
-    booted as a real game (`/api/dev/playground-scenario`) — A opens it, and
-    the player goes through the real political phase: the announced
-    placement, the dossier, the cell choice, the cascade, the other seat's
-    payout, the results scene. A build without the fixtures names why.
-
-    Test data only (the live scenarios aside): a synthetic parliament model
-    for two seats, synthetic candidate cards for the picker.
-
-    Pad: ◀ ▶ the catalog cursor · X the fullscreen viewer · RT the next
-    scenario · View the test player · A influence +1 (wraps) — or, on a live
-    scenario, open the real game · Y the context · L3 the winner · LT the
-    picker's cursor · LB/RB the stand's sections · B back. Keyboard through
-    the same semantic map.
-  -->
-  <div class="con-rxpg" :class="{'con-rxpg--embedded': embedded}" data-resolutions-playground>
+  <div ref="root" class="con-rxpg" :class="{'con-rxpg--embedded': embedded}" data-resolutions-playground>
     <header class="con-rxpg__head">
       <div class="con-rxpg__hints">
         <span class="con-rxpg__hint"><GamepadGlyph control="dpad" />{{ $t('Resolution') }}</span>
@@ -584,11 +532,66 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * REDUX RESOLUTIONS — the playground stand («Полигон» → «Витрина резолюций
+ * Redux»). One instrument for THIS resolution and every one after it: the
+ * catalog as it ships (the client manifest — nothing hand-drawn here), the
+ * face at the three sizes the game uses and in the REAL fullscreen viewer,
+ * the influence-scaled payout under a chosen CONTEXT for a chosen TEST
+ * PLAYER, every seat's own payout side by side, and the SHARED recipient
+ * picker with a resolution source. Every number on this screen comes from
+ * the same model the game uses (`influenceYieldModel` → the common
+ * `scaledAmount`); every face is the same `PremiumCard`.
+ *
+ * SCENARIOS make a reading reproducible: each one sets the whole instrument
+ * (who looks, both seats' Agenda positions and card bonuses, the winner, the
+ * context, «no eligible card») — influence 0 / 1 / several, the winner's
+ * Agenda step counted before the enactment, influence beyond the track, a
+ * forfeited payout, a recorded payout, a spectator. The pad then moves any
+ * one parameter from there, and the chip says the scenario was modified.
+ *
+ * A resolution whose effect COUNTS the tableau (Architecture Award: «+1 M€
+ * production per Building card with a non-negative VP icon + influence, max
+ * 5») gets its own scenario family: each seat holds a synthetic tableau of
+ * REAL card definitions, counted by the SHARED predicate the server uses
+ * (every card shows its verdict — counted, or why not), and the family walks
+ * zero / influence only / cards only / below, at and over the cap / seats
+ * with different results / the winner's Agenda step / the recorded result /
+ * the chairman quest at 0, 1 and 2 of 2.
+ *
+ * A resolution that pays EVERYONE a supply resource by influence and gives
+ * the WINNER a tile (Biodome Contest: 2 plants per influence + a greenery
+ * that raises oxygen) gets the winner-tile family: influence 0 / 1 / 3 /
+ * beyond the track, every seat's own plants, the winner's and another
+ * seat's view of the same placement, a neutral winner, the Agenda step
+ * counted first, oxygen below / at its maximum / at the 8 % step, no legal
+ * cell, the chairman quest at 0, 1 and 2 of 2, the recorded result — the
+ * winner's part read through the SAME `winnerRewardModel` the vote surface,
+ * the fullscreen and the results use.
+ *
+ * LIVE SCENARIOS (the same ring, marked «live»): an ENGINE-GENERATED fixture
+ * booted as a real game (`/api/dev/playground-scenario`) — A opens it, and
+ * the player goes through the real political phase: the announced
+ * placement, the dossier, the cell choice, the cascade, the other seat's
+ * payout, the results scene. A build without the fixtures names why.
+ *
+ * Test data only (the live scenarios aside): a synthetic parliament model
+ * for two seats, synthetic candidate cards for the picker.
+ *
+ * Pad: ◀ ▶ the catalog cursor · X the fullscreen viewer · RT the next
+ * scenario · View the test player · A influence +1 (wraps) — or, on a live
+ * scenario, open the real game · Y the context · L3 the winner · LT the
+ * picker's cursor · LB/RB the stand's sections · B back. Keyboard through
+ * the same semantic map.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
 import {ratingVetoReadingOf, RatingVetoReading} from '@/client/console/parliament/voteInfoModel';
 import {RatingVetoModel} from '@/common/models/ParliamentModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
-import {defineComponent} from 'vue';
+import {computed, ref, useTemplateRef, watch} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
@@ -689,7 +692,7 @@ import {
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {actionUsesRule} from '@/client/console/parliament/actionUsesReading';
 import {readingText} from '@/client/console/readingText';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -2021,1564 +2024,1567 @@ function scenarioState(index: number) {
   };
 }
 
-export default defineComponent({
-  name: 'ConsoleResolutionsPlayground',
-  components: {
-    PremiumCard, GamepadGlyph, PlayerDelegate, ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
-    ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward, ConsoleTileGrant, ConsoleAgendaGrant, ConsolePartyReaction, ActionEffectChip,
-  },
-  props: {
-    /** Inside the playground stand (the stand owns the chrome and the scroll). */
-    embedded: {type: Boolean, default: false},
-  },
-  data() {
-    return {
-      SIZES,
-      SCENARIOS,
-      LAB_PROJECTS,
-      LAB_LADDER,
-      cursor: 0,
-      ...scenarioState(DEFAULT_SCENARIO),
-      pickerIndex: 0,
-      lockedCard: '',
-      liveState: 'idle' as 'idle' | 'starting' | 'error',
-      liveError: '',
-      ACTION_HANDS,
-      /** The synthetic HAND the action's reading is scaled with (the pick's «any number», at three sizes). */
-      actionHand: 1,
-      BILL_INFLUENCES,
-      /** A PRICED action's scenarios: the influence the bill is read at, titanium in the supply, the means short. */
-      billInfluence: 3,
-      billTitanium: true,
-      billShort: false,
-    };
-  },
-  computed: {
-    /** HOW MANY TIMES the selected law's action is taken (RX37) — the declaration's one reading; '' for a law taken once. */
-    actionUsesLine(): string {
-      const rule = actionUsesRule(this.selected?.actionUses);
-      return rule === undefined ? '' : readingText(rule);
-    },
-    all(): ReadonlyArray<IClientResolution> {
-      return allResolutions();
-    },
-    real(): ReadonlyArray<IClientResolution> {
-      return this.all.filter((r) => r.code !== undefined);
-    },
-    others(): ReadonlyArray<IClientResolution> {
-      return this.all.filter((r) => r.code === undefined);
-    },
-    /** The real ones first (by code), then the never-dealt development examples. */
-    catalog(): ReadonlyArray<IClientResolution> {
-      return [...[...this.real].sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '')), ...this.others];
-    },
-    selected(): IClientResolution | undefined {
-      return this.catalog[this.cursor];
-    },
-    /** The resolutions standing BETWEEN the project cards of the peripheral-vision row: the selected one first, then the other real ones. */
-    labResolutions(): ReadonlyArray<IClientResolution> {
-      const selected = this.selected;
-      return selected === undefined ? [] : [selected, ...this.real.filter((r) => r.id !== selected.id)].slice(0, LAB_PROJECTS.length);
-    },
-    selectedVm(): PremiumCardVM | undefined {
-      return this.selected === undefined ? undefined : resolutionPremiumVm(this.selected);
-    },
-    /** The ACTION's printed box alone — the ONE cut the action menu's tile makes off the face (`actionRowsOf`). */
-    actionMechanics(): MechanicsVM | undefined {
-      const r = this.selected;
-      if (r === undefined || !r.hasAction) {
-        return undefined;
-      }
-      return buildMechanics(actionRowsOf(r.renderData), PARLIAMENT_GRAPHIC);
-    },
-    /** The action's RATE — the definition's own preview with no seat asked (the manifest). */
-    actionRate(): ReadonlyArray<ActionEffect> {
-      return this.selected?.actionPreview ?? [];
-    },
-    /** The rate is PER CARD FROM HAND (Open IP Trade) — the synthetic hand belongs to it alone. */
-    actionPerCard(): boolean {
-      return this.actionRate.some((e) => e.note === 'per card');
-    },
-    /** THE BILL priced at the chosen influence — the same function the server charges by (`actionBillPrice`). */
-    billPrice(): ActionBillPrice {
-      const bill = this.selected?.actionBill ?? {amount: 0, discountPerInfluence: 0, titanium: false};
-      return actionBillPrice(bill, this.billInfluence);
-    },
-    /** What a SHORT seat can pay in the refusal's own sentence: one M€ less than the price. */
-    billShortFunds(): number {
-      return Math.max(0, this.billPrice.price - 1);
-    },
-    /** The refusal a SHORT seat meets — the server's own sentence, priced by the same function. */
-    billShortReason(): string {
-      return translateTextWithParams('Need ${0} M€ for the trade fleet, you can pay ${1}', [String(this.billPrice.price), String(this.billShortFunds)]);
-    },
-    /** The rate scaled by the synthetic hand: what the pick's running summary would print for N cards. */
-    actionSum(): ReadonlyArray<ActionEffect> {
-      const n = this.actionHand;
-      return this.actionRate.filter((e) => e.direction === 'gain').map((e) => ({...e, amount: e.note === 'per card' ? e.amount * n : e.amount, note: undefined}));
-    },
-    annotations(): ReadonlyArray<CardAnnotation> {
-      return this.selected === undefined ? [] :
-        resolutionAnnotations(this.selected.id, {table: this.winnerTable, colonies: this.standColonies, removal: {oceans: this.table.oceans}, nameOf: this.seatName});
-    },
-    /**
-     * THE STAND'S COLONY TABLE for a law that advances every track (Unity Budget): the scenario's tiles with their
-     * marker positions, as live `ColonyModel`s — the inspector reads each tile's step through the ONE shared room.
-     */
-    standColonies(): ReadonlyArray<ColonyModel> | undefined {
-      const tracks = SCENARIOS[this.scenario]?.tracks;
-      return tracks === undefined ? undefined : tracks.map((t) => ({name: t.colony, trackPosition: t.position, isActive: true, colonies: [], visitor: undefined}));
-    },
-    /** The scenario family the selected resolution reads — from its DECLARATION (`resolutionFamily.ts`), never a table by id. */
-    family(): PgFamily {
-      return this.selected === undefined ? 'influence' : familyOf(this.selected);
-    },
-    /** The table the winner's tile reads (the scenario's parameters). */
-    winnerTable(): WinnerRewardTable {
-      return {oxygenLevel: this.table.oxygen, temperature: this.table.temperature, oceans: this.table.oceans, venusScaleLevel: this.table.venus};
-    },
-    /** The winner's part of the selected resolution, read for this context by the ONE model. */
-    winnerReading(): WinnerRewardReading | undefined {
-      const r = this.selected;
-      if (r?.winnerReward === undefined) {
-        return undefined;
-      }
-      return winnerRewardReadingOf(r, this.model, this.context === 'reference' ? undefined : this.winnerTable);
-    },
-    /** A tile granted by threshold (Skyscrapers): the viewer's reading — the vote block's, the band's and the fullscreen's one model. */
-    grantReading(): TileGrantReading | undefined {
-      return this.selected?.tileGrant === undefined ? undefined : tileGrantReadingOf(this.selected, this.model, this.viewerColor);
-    },
-    /** A step of the Career for every seat (Reds Budget): the viewer's reading — the vote block's and the fullscreen's one model. */
-    careerReading(): AgendaGrantReading | undefined {
-      return this.selected?.agendaGrant === undefined ? undefined : agendaGrantReadingOf(this.selected, this.model, this.viewerColor);
-    },
-    /** The viewer's DESTINATIONS on the stand — their cities on Mars by the shared cell predicate («—» for a spectator). */
-    viewerCities(): string {
-      const i = this.viewerSeatIndex;
-      return i === undefined ? '—' : String(this.countAt(i)?.count ?? 0);
-    },
-    /** The ACTIVE scenario when it boots a real game. */
-    liveScenario(): PgScenario | undefined {
-      const s = SCENARIOS[this.scenario];
-      return s !== undefined && s.live !== undefined && s.family === this.family ? s : undefined;
-    },
-    /**
-     * The ACTIVE family's scenarios, with their global index — a parameter-limit scenario only for a law that moves
-     * that parameter; a holders scenario only for a law whose unit spans every kind its holders take.
-     */
-    scenarioList(): Array<{s: PgScenario, i: number}> {
-      // The parameters a law MOVES: its world moves, and the one its winner's part moves (a tile's own step, a
-      // direct step) — a scenario of one parameter's edges is listed only under a law that touches it.
-      const winnerMoves = this.selected?.winnerReward === undefined ? undefined : winnerRewardParameter(this.selected.winnerReward);
-      // …and a law that TAKES A TILE OFF the board (Water Export) moves the ocean count — its edges are listed for it.
-      const removes: Array<ParameterMoveId> = this.selected?.tileRemoval === undefined ? [] : ['oceans'];
-      const moved = new Set<ParameterMoveId>([...(this.selected?.worldMoves ?? []).map((move) => move.parameter), ...(winnerMoves === undefined ? [] : [winnerMoves]), ...removes]);
-      const kinds = this.spreadResources ?? [];
-      const countId = this.countEffect?.count?.id;
-      return SCENARIOS.map((s, i) => ({s, i})).filter((entry) => entry.s.family === this.family &&
-        (entry.s.vetoes === undefined || this.selected?.vetoesRating === true) &&
-        (entry.s.parameter === undefined || moved.has(entry.s.parameter)) &&
-        (entry.s.holds === undefined || entry.s.holds.every((kind) => kinds.includes(kind))) &&
-        (entry.s.counts === undefined || entry.s.counts === countId) &&
-        (entry.s.levelDirection === undefined || entry.s.levelDirection === this.levelDirection));
-    },
-    /** The veto's reading for the viewer in this scenario (RX42) — the vote panel's own function over the synthetic slot. */
-    vetoReading(): RatingVetoReading | undefined {
-      const slot = this.model?.slots[0];
-      if (slot === undefined || this.context !== 'proposal') {
-        return undefined;
-      }
-      const seatIndex = (color: Color): SeatIndex | undefined => SEATS.find((i) => TEST_PLAYERS[i].color === color);
-      const nameOf = (color: Color): string => {
-        const i = seatIndex(color);
-        return i === undefined ? color : translateText(TEST_PLAYERS[i].label);
-      };
-      const viewerIndex = this.viewerSeatIndex;
-      return ratingVetoReadingOf(slot.trVetoIfEnacted, this.viewerColor, this.model?.players ?? [], nameOf,
-        viewerIndex === undefined ? undefined : (this.seats[viewerIndex].tr ?? 20));
-    },
-    /** The first scaled part that COUNTS the tableau — what the tableau rows explain. */
-    countEffect(): InfluenceScaledEffect | undefined {
-      return this.selected?.scaled?.find((e) => e.count !== undefined);
-    },
-    /** The counted object's glyph — the card silhouette, the printed tag or the city tile, as the count's kind decides. */
-    countGlyph(): YieldCountGlyph | undefined {
-      const count = this.countEffect?.count;
-      return count === undefined ? undefined : yieldCountPresentation(count.id).glyph;
-    },
-    /** WHAT the counted term walks — cards, tags, or the CELLS of the board. */
-    countKind(): ResolutionCountKind['kind'] | undefined {
-      const count = this.countEffect?.count;
-      return count === undefined ? undefined : resolutionCountKind(count.id).kind;
-    },
-    /** HOW a board count weighs a cell — once, or its stack's height (the declaration's word, never guessed from the id). */
-    countMeasure(): BoardCountMeasure | undefined {
-      const count = this.countEffect?.count;
-      const kind = count === undefined ? undefined : resolutionCountKind(count.id);
-      return kind?.kind === 'board' ? kind.measure : undefined;
-    },
-    /** The city pictogram a counted cell draws — the mechanics' own asset (the same one the count glyph prints). */
-    cityTileUrl(): string {
-      return countedTileIconUrl('spaceCity');
-    },
-    /** The section's heading names WHAT the result is built from. */
-    resultHeading(): string {
-      switch (this.family) {
-      case 'counted': return 'Result by cards and influence';
-      // A LEVIED law of the same family (Scientists Budget) names the plate the payout lands on.
-      case 'counted-tags': return this.selected?.levy === undefined ? 'Result by tags and influence' : 'Result by tags and influence, after the levy';
-      case 'counted-board': return this.countMeasure === 'tiers' ? 'Result by cities on Mars and influence' : 'Result by space cities and influence';
-      case 'counted-metric': return 'Result by terraform rating and influence';
-      case 'counted-production': return 'Result by production steps and influence, after the levy';
-      case 'counted-colonies': return 'Result by influence and by colonies';
-      case 'distributed': return 'Result by tags and influence, laid out over your holders';
-      case 'each-card': return 'Result by your cards that already hold a resource';
-      case 'counted-holders': return 'Result by the types of resource on your cards and influence';
-      case 'sequel': return 'Result by influence, then by production';
-      case 'level': return this.levelDirection === 'down' ? 'Result by influence, cut to a limit' : 'Result by influence, up to a hand size';
-      case 'colony-bonuses': return 'Result by influence, over your colony bonuses';
-      case 'tile-grant': return 'Result by the vote and the influence line';
-      default: return 'Influence-scaled payout';
-      }
-    },
-    /** THE COLONY LEDGER of the selected resolution for the viewer and the context — the one client reading. */
-    ledger(): ColonyLedgerReading | undefined {
-      if (this.context === 'reference') {
-        return undefined;
-      }
-      return colonyLedgerOf(this.selected, this.model, this.viewerColor, {enacted: this.context !== 'proposal', live: this.context === 'resolving'});
-    },
-    /** Every seat's tableau with each card's verdict (the SHARED predicate over the client card manifest). */
-    tableauRows(): Array<TableauRow> {
-      const effect = this.countEffect;
-      if (effect?.count === undefined) {
-        return [];
-      }
-      const id = effect.count.id;
-      // A HOLDERS count reads the seat's HOLDINGS — real cards with a number on each — never `cards`, which a holders
-      // scenario does not declare: read that way «КАРТЫ В ИГРЕ» printed «0 · Карт в игре нет» under a reading of 3
-      // (PL-803, RX40 and RX41). Each card's verdict is the shared `holderCountVerdict`, the row's number the shared
-      // reader's measure (a card apiece, or a KIND apiece — two animal cards tick twice and count once).
-      if (this.countKind === 'holders') {
-        return SEATS.map((i) => {
-          const held = (this.seats[i].holdings ?? []).map((h) => ({name: h.card, resourceType: holderKindOf(h.card), resourceCount: h.count}));
-          const cards = held.map((card): TableauCardRow => {
-            const verdict = holderCountVerdict(card);
-            if (!verdict.counts) {
-              return {name: card.name, counts: false, reason: verdict.reason, units: 0, holds: false};
-            }
-            const kind = card.resourceType === undefined ? {} : {held: {resource: card.resourceType, count: card.resourceCount}};
-            return {name: card.name, counts: true, reason: '', units: 1, holds: false, ...kind};
-          });
-          return {
-            color: TEST_PLAYERS[i].color,
-            label: TEST_PLAYERS[i].label,
-            viewer: this.viewerSeatIndex === i,
-            count: countHoldersToward(id, held).count,
-            cards,
-          };
-        });
-      }
-      return SEATS.map((i) => {
-        const names = this.seats[i].cards ?? [];
-        const ctx = this.countContextOf(names);
-        const holdsResources = this.spreadResources;
-        const cards: Array<TableauCardRow> = names.map((name) => {
-          const card = getCard(name);
-          if (card === undefined) {
-            return {name, counts: false, reason: 'Unknown card', units: 0, holds: false};
-          }
-          const verdict = cardCountVerdict(id, card, ctx);
-          // A DISTRIBUTED payout lands on the cards that can HOLD it — a fact apart from the count.
-          const holds = holdsResources !== undefined && card.resourceType !== undefined && (holdsResources.includes(card.resourceType) || card.resourceType === CardResource.WARE);
-          // The units are the SHARED rule's too: one per card for a card
-          // count, every printed occurrence for a tag count.
-          return verdict.counts ?
-            {name, counts: true, reason: '', units: cardCountUnits(id, card, ctx), holds} :
-            {name, counts: false, reason: verdict.reason, units: 0, holds};
-        });
-        return {
-          color: TEST_PLAYERS[i].color,
-          label: TEST_PLAYERS[i].label,
-          viewer: this.viewerSeatIndex === i,
-          count: cards.reduce((sum, c) => sum + c.units, 0),
-          cards,
-        };
-      });
-    },
-    /**
-     * Every seat's synthetic CELLS with each one's verdict — the SHARED cell
-     * predicate (the engine's own rule, pinned to it by spec), never a typed-in
-     * number. A reserved area is named by the board's information layer; a cell
-     * that layer does not name keeps its number.
-     */
-    cellRows(): Array<CellRow> {
-      const effect = this.countEffect;
-      if (effect?.count === undefined || this.countKind !== 'board') {
-        return [];
-      }
-      const id = effect.count.id;
-      return SEATS.map((i) => {
-        const own = this.seats[i].cells ?? [];
-        const cells = own.map((cell): CellRowCell => {
-          const verdict = spaceCountVerdict(id, cell);
-          // The stand's cells are THARSIS ids: the board layer names Noctis City and the mountains only for a board.
-          const info = getSpecialCellInfo(cell.id, BoardName.THARSIS);
-          return {
-            id: cell.id,
-            name: info === undefined ? '#' + cell.id : translateText(info.title),
-            city: cell.tile !== undefined && CITY_TILES.has(cell.tile.tileType),
-            counts: verdict.counts,
-            reason: verdict.counts ? '' : verdict.reason,
-            tiers: cityTiersOf(cell),
-          };
-        });
-        return {
-          color: TEST_PLAYERS[i].color,
-          label: TEST_PLAYERS[i].label,
-          viewer: this.viewerSeatIndex === i,
-          // The number is the SHARED reader's — the ticks on the `cells` measure, the stacks summed on `tiers`.
-          count: countSpacesToward(id, own).count,
-          cells,
-        };
-      });
-    },
-    /**
-     * Every seat's synthetic RATING with the SHARED threshold rule's reading of
-     * it — the ladder of set boundaries (the threshold, then every full set up to
-     * the one the value has not reached yet) and the breakdown in words. The
-     * number is `countMetricToward`'s, never typed into the scenario.
-     */
-    /**
-     * Every seat's synthetic production TRACK with the SHARED reader's sum of it — each listed resource's steps
-     * (a zero listed, not dropped), the total the payout stands on, and the supply the levy reads. The number is
-     * `countProductionToward`'s, never typed into the scenario.
-     */
-    productionRows(): Array<ProductionRow> {
-      const term = this.countEffect?.count;
-      if (term === undefined || this.countKind !== 'production') {
-        return [];
-      }
-      return SEATS.map((i) => {
-        const count = countProductionToward(term.id, this.seats[i].productions ?? {});
-        return {
-          color: TEST_PLAYERS[i].color,
-          label: TEST_PLAYERS[i].label,
-          viewer: this.viewerSeatIndex === i,
-          count: count.count,
-          terms: count.byResource ?? [],
-          heldText: this.selected?.levy === undefined ? undefined : translateTextWithParams('M€ held: ${0}', [String(this.seats[i].megacredits ?? 20)]),
-        };
-      });
-    },
-    /**
-     * Every seat's synthetic COLONY TABLE with the SHARED reader's count of it — one chip per CUBE, by the tile's name,
-     * in the table's order (two cubes on one tile are two chips); a cube past the effect's cap is marked: counted, and
-     * paying nothing. The number is `countColoniesToward`'s, never typed into the scenario.
-     */
-    colonyRows(): Array<ColonyRow> {
-      const effect = this.countEffect;
-      const term = effect?.count;
-      if (effect === undefined || term === undefined || this.countKind !== 'colonies') {
-        return [];
-      }
-      const cap = effect.cap;
-      return SEATS.map((i) => {
-        const count = countColoniesToward(term.id, this.seats[i].colonies ?? []);
-        const cubes = (count.colonies ?? []).map((name, k): ColonyCube => ({key: `${name}#${k}`, name, pastCap: cap !== undefined && (k + 1) * term.per > cap}));
-        return {color: TEST_PLAYERS[i].color, label: TEST_PLAYERS[i].label, viewer: this.viewerSeatIndex === i, count: count.count, cubes};
-      });
-    },
-    metricRows(): Array<MetricRow> {
-      const term = this.countEffect?.count;
-      if (term === undefined || this.countKind !== 'threshold') {
-        return [];
-      }
-      const rows: Array<MetricRow> = [];
-      for (const i of SEATS) {
-        const count = countMetricToward(term.id, this.seats[i].tr ?? 20);
-        const metric = count.metric;
-        if (metric === undefined) {
-          continue;
+defineOptions({name: 'ConsoleResolutionsPlayground'});
+defineProps({
+  /** Inside the playground stand (the stand owns the chrome and the scroll). */
+  embedded: {type: Boolean, default: false},
+});
+
+const root = useTemplateRef<HTMLElement>('root');
+// The opening scenario's whole instrument — the fields `applyScenario` writes again, one by one.
+const opening = scenarioState(DEFAULT_SCENARIO);
+const cursor = ref(0);
+const scenario = ref(opening.scenario);
+const modified = ref(opening.modified);
+const viewer = ref(opening.viewer);
+const seats = ref(opening.seats);
+const winner = ref(opening.winner);
+const context = ref(opening.context);
+const noRecipient = ref(opening.noRecipient);
+const table = ref(opening.table);
+const noCell = ref(opening.noCell);
+const emptyDeck = ref(opening.emptyDeck);
+const pickerIndex = ref(0);
+const lockedCard = ref('');
+const liveState = ref('idle' as 'idle' | 'starting' | 'error');
+const liveError = ref('');
+/** The synthetic HAND the action's reading is scaled with (the pick's «any number», at three sizes). */
+const actionHand = ref(1);
+/** A PRICED action's scenarios: the influence the bill is read at, titanium in the supply, the means short. */
+const billInfluence = ref(3);
+const billTitanium = ref(true);
+const billShort = ref(false);
+
+/** HOW MANY TIMES the selected law's action is taken (RX37) — the declaration's one reading; '' for a law taken once. */
+const actionUsesLine = computed((): string => {
+  const rule = actionUsesRule(selected.value?.actionUses);
+  return rule === undefined ? '' : readingText(rule);
+});
+const all = computed((): ReadonlyArray<IClientResolution> => {
+  return allResolutions();
+});
+const real = computed((): ReadonlyArray<IClientResolution> => {
+  return all.value.filter((r) => r.code !== undefined);
+});
+const others = computed((): ReadonlyArray<IClientResolution> => {
+  return all.value.filter((r) => r.code === undefined);
+});
+/** The real ones first (by code), then the never-dealt development examples. */
+const catalog = computed((): ReadonlyArray<IClientResolution> => {
+  return [...[...real.value].sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '')), ...others.value];
+});
+const selected = computed((): IClientResolution | undefined => {
+  return catalog.value[cursor.value];
+});
+/** The resolutions standing BETWEEN the project cards of the peripheral-vision row: the selected one first, then the other real ones. */
+const labResolutions = computed((): ReadonlyArray<IClientResolution> => {
+  const selectedNow = selected.value;
+  return selectedNow === undefined ? [] : [selectedNow, ...real.value.filter((r) => r.id !== selectedNow.id)].slice(0, LAB_PROJECTS.length);
+});
+const selectedVm = computed((): PremiumCardVM | undefined => {
+  return selected.value === undefined ? undefined : resolutionPremiumVm(selected.value);
+});
+/** The ACTION's printed box alone — the ONE cut the action menu's tile makes off the face (`actionRowsOf`). */
+const actionMechanics = computed((): MechanicsVM | undefined => {
+  const r = selected.value;
+  if (r === undefined || !r.hasAction) {
+    return undefined;
+  }
+  return buildMechanics(actionRowsOf(r.renderData), PARLIAMENT_GRAPHIC);
+});
+/** The action's RATE — the definition's own preview with no seat asked (the manifest). */
+const actionRate = computed((): ReadonlyArray<ActionEffect> => {
+  return selected.value?.actionPreview ?? [];
+});
+/** The rate is PER CARD FROM HAND (Open IP Trade) — the synthetic hand belongs to it alone. */
+const actionPerCard = computed((): boolean => {
+  return actionRate.value.some((e) => e.note === 'per card');
+});
+/** THE BILL priced at the chosen influence — the same function the server charges by (`actionBillPrice`). */
+const billPrice = computed((): ActionBillPrice => {
+  const bill = selected.value?.actionBill ?? {amount: 0, discountPerInfluence: 0, titanium: false};
+  return actionBillPrice(bill, billInfluence.value);
+});
+/** What a SHORT seat can pay in the refusal's own sentence: one M€ less than the price. */
+const billShortFunds = computed((): number => {
+  return Math.max(0, billPrice.value.price - 1);
+});
+/** The refusal a SHORT seat meets — the server's own sentence, priced by the same function. */
+const billShortReason = computed((): string => {
+  return translateTextWithParams('Need ${0} M€ for the trade fleet, you can pay ${1}', [String(billPrice.value.price), String(billShortFunds.value)]);
+});
+/** The rate scaled by the synthetic hand: what the pick's running summary would print for N cards. */
+const actionSum = computed((): ReadonlyArray<ActionEffect> => {
+  const n = actionHand.value;
+  return actionRate.value.filter((e) => e.direction === 'gain').map((e) => ({...e, amount: e.note === 'per card' ? e.amount * n : e.amount, note: undefined}));
+});
+const annotations = computed((): ReadonlyArray<CardAnnotation> => {
+  return selected.value === undefined ? [] :
+    resolutionAnnotations(selected.value.id, {table: winnerTable.value, colonies: standColonies.value, removal: {oceans: table.value.oceans}, nameOf: seatName});
+});
+/**
+ * THE STAND'S COLONY TABLE for a law that advances every track (Unity Budget): the scenario's tiles with their
+ * marker positions, as live `ColonyModel`s — the inspector reads each tile's step through the ONE shared room.
+ */
+const standColonies = computed((): ReadonlyArray<ColonyModel> | undefined => {
+  const tracks = SCENARIOS[scenario.value]?.tracks;
+  return tracks === undefined ? undefined : tracks.map((t) => ({name: t.colony, trackPosition: t.position, isActive: true, colonies: [], visitor: undefined}));
+});
+/** The scenario family the selected resolution reads — from its DECLARATION (`resolutionFamily.ts`), never a table by id. */
+const family = computed((): PgFamily => {
+  return selected.value === undefined ? 'influence' : familyOf(selected.value);
+});
+/** The table the winner's tile reads (the scenario's parameters). */
+const winnerTable = computed((): WinnerRewardTable => {
+  return {oxygenLevel: table.value.oxygen, temperature: table.value.temperature, oceans: table.value.oceans, venusScaleLevel: table.value.venus};
+});
+/** The winner's part of the selected resolution, read for this context by the ONE model. */
+const winnerReading = computed((): WinnerRewardReading | undefined => {
+  const r = selected.value;
+  if (r?.winnerReward === undefined) {
+    return undefined;
+  }
+  return winnerRewardReadingOf(r, model.value, context.value === 'reference' ? undefined : winnerTable.value);
+});
+/** A tile granted by threshold (Skyscrapers): the viewer's reading — the vote block's, the band's and the fullscreen's one model. */
+const grantReading = computed((): TileGrantReading | undefined => {
+  return selected.value?.tileGrant === undefined ? undefined : tileGrantReadingOf(selected.value, model.value, viewerColor.value);
+});
+/** A step of the Career for every seat (Reds Budget): the viewer's reading — the vote block's and the fullscreen's one model. */
+const careerReading = computed((): AgendaGrantReading | undefined => {
+  return selected.value?.agendaGrant === undefined ? undefined : agendaGrantReadingOf(selected.value, model.value, viewerColor.value);
+});
+/** The viewer's DESTINATIONS on the stand — their cities on Mars by the shared cell predicate («—» for a spectator). */
+const viewerCities = computed((): string => {
+  const i = viewerSeatIndex.value;
+  return i === undefined ? '—' : String(countAt(i)?.count ?? 0);
+});
+/** The ACTIVE scenario when it boots a real game. */
+const liveScenario = computed((): PgScenario | undefined => {
+  const s = SCENARIOS[scenario.value];
+  return s !== undefined && s.live !== undefined && s.family === family.value ? s : undefined;
+});
+/**
+ * The ACTIVE family's scenarios, with their global index — a parameter-limit scenario only for a law that moves
+ * that parameter; a holders scenario only for a law whose unit spans every kind its holders take.
+ */
+const scenarioList = computed((): Array<{s: PgScenario, i: number}> => {
+  // The parameters a law MOVES: its world moves, and the one its winner's part moves (a tile's own step, a
+  // direct step) — a scenario of one parameter's edges is listed only under a law that touches it.
+  const winnerMoves = selected.value?.winnerReward === undefined ? undefined : winnerRewardParameter(selected.value.winnerReward);
+  // …and a law that TAKES A TILE OFF the board (Water Export) moves the ocean count — its edges are listed for it.
+  const removes: Array<ParameterMoveId> = selected.value?.tileRemoval === undefined ? [] : ['oceans'];
+  const moved = new Set<ParameterMoveId>([...(selected.value?.worldMoves ?? []).map((move) => move.parameter), ...(winnerMoves === undefined ? [] : [winnerMoves]), ...removes]);
+  const kinds = spreadResources.value ?? [];
+  const countId = countEffect.value?.count?.id;
+  return SCENARIOS.map((s, i) => ({s, i})).filter((entry) => entry.s.family === family.value &&
+    (entry.s.vetoes === undefined || selected.value?.vetoesRating === true) &&
+    (entry.s.parameter === undefined || moved.has(entry.s.parameter)) &&
+    (entry.s.holds === undefined || entry.s.holds.every((kind) => kinds.includes(kind))) &&
+    (entry.s.counts === undefined || entry.s.counts === countId) &&
+    (entry.s.levelDirection === undefined || entry.s.levelDirection === levelDirection.value));
+});
+/** The veto's reading for the viewer in this scenario (RX42) — the vote panel's own function over the synthetic slot. */
+const vetoReading = computed((): RatingVetoReading | undefined => {
+  const slot = model.value?.slots[0];
+  if (slot === undefined || context.value !== 'proposal') {
+    return undefined;
+  }
+  const seatIndex = (color: Color): SeatIndex | undefined => SEATS.find((i) => TEST_PLAYERS[i].color === color);
+  const nameOf = (color: Color): string => {
+    const i = seatIndex(color);
+    return i === undefined ? color : translateText(TEST_PLAYERS[i].label);
+  };
+  const viewerIndex = viewerSeatIndex.value;
+  return ratingVetoReadingOf(slot.trVetoIfEnacted, viewerColor.value, model.value?.players ?? [], nameOf,
+    viewerIndex === undefined ? undefined : (seats.value[viewerIndex].tr ?? 20));
+});
+/** The first scaled part that COUNTS the tableau — what the tableau rows explain. */
+const countEffect = computed((): InfluenceScaledEffect | undefined => {
+  return selected.value?.scaled?.find((e) => e.count !== undefined);
+});
+/** The counted object's glyph — the card silhouette, the printed tag or the city tile, as the count's kind decides. */
+const countGlyph = computed((): YieldCountGlyph | undefined => {
+  const count = countEffect.value?.count;
+  return count === undefined ? undefined : yieldCountPresentation(count.id).glyph;
+});
+/** WHAT the counted term walks — cards, tags, or the CELLS of the board. */
+const countKind = computed((): ResolutionCountKind['kind'] | undefined => {
+  const count = countEffect.value?.count;
+  return count === undefined ? undefined : resolutionCountKind(count.id).kind;
+});
+/** HOW a board count weighs a cell — once, or its stack's height (the declaration's word, never guessed from the id). */
+const countMeasure = computed((): BoardCountMeasure | undefined => {
+  const count = countEffect.value?.count;
+  const kind = count === undefined ? undefined : resolutionCountKind(count.id);
+  return kind?.kind === 'board' ? kind.measure : undefined;
+});
+/** The city pictogram a counted cell draws — the mechanics' own asset (the same one the count glyph prints). */
+const cityTileUrl = computed((): string => {
+  return countedTileIconUrl('spaceCity');
+});
+/** The section's heading names WHAT the result is built from. */
+const resultHeading = computed((): string => {
+  switch (family.value) {
+  case 'counted': return 'Result by cards and influence';
+  // A LEVIED law of the same family (Scientists Budget) names the plate the payout lands on.
+  case 'counted-tags': return selected.value?.levy === undefined ? 'Result by tags and influence' : 'Result by tags and influence, after the levy';
+  case 'counted-board': return countMeasure.value === 'tiers' ? 'Result by cities on Mars and influence' : 'Result by space cities and influence';
+  case 'counted-metric': return 'Result by terraform rating and influence';
+  case 'counted-production': return 'Result by production steps and influence, after the levy';
+  case 'counted-colonies': return 'Result by influence and by colonies';
+  case 'distributed': return 'Result by tags and influence, laid out over your holders';
+  case 'each-card': return 'Result by your cards that already hold a resource';
+  case 'counted-holders': return 'Result by the types of resource on your cards and influence';
+  case 'sequel': return 'Result by influence, then by production';
+  case 'level': return levelDirection.value === 'down' ? 'Result by influence, cut to a limit' : 'Result by influence, up to a hand size';
+  case 'colony-bonuses': return 'Result by influence, over your colony bonuses';
+  case 'tile-grant': return 'Result by the vote and the influence line';
+  default: return 'Influence-scaled payout';
+  }
+});
+/** THE COLONY LEDGER of the selected resolution for the viewer and the context — the one client reading. */
+const ledger = computed((): ColonyLedgerReading | undefined => {
+  if (context.value === 'reference') {
+    return undefined;
+  }
+  return colonyLedgerOf(selected.value, model.value, viewerColor.value, {enacted: context.value !== 'proposal', live: context.value === 'resolving'});
+});
+/** Every seat's tableau with each card's verdict (the SHARED predicate over the client card manifest). */
+const tableauRows = computed((): Array<TableauRow> => {
+  const effect = countEffect.value;
+  if (effect?.count === undefined) {
+    return [];
+  }
+  const id = effect.count.id;
+  // A HOLDERS count reads the seat's HOLDINGS — real cards with a number on each — never `cards`, which a holders
+  // scenario does not declare: read that way «КАРТЫ В ИГРЕ» printed «0 · Карт в игре нет» under a reading of 3
+  // (PL-803, RX40 and RX41). Each card's verdict is the shared `holderCountVerdict`, the row's number the shared
+  // reader's measure (a card apiece, or a KIND apiece — two animal cards tick twice and count once).
+  if (countKind.value === 'holders') {
+    return SEATS.map((i) => {
+      const held = (seats.value[i].holdings ?? []).map((h) => ({name: h.card, resourceType: holderKindOf(h.card), resourceCount: h.count}));
+      const cards = held.map((card): TableauCardRow => {
+        const verdict = holderCountVerdict(card);
+        if (!verdict.counts) {
+          return {name: card.name, counts: false, reason: verdict.reason, units: 0, holds: false};
         }
-        // The threshold itself, then each boundary a full set stands on, up to the first one NOT reached — at least
-        // three marks, so a low rating still shows where the sets begin.
-        const marks = Math.max(3, metric.sets + 2);
-        const ladder: Array<LadderMark> = [];
-        for (let n = 0; n < marks; n++) {
-          const at = metric.over + n * metric.step;
-          ladder.push({at, reached: metric.value >= at, threshold: n === 0});
-        }
-        rows.push({
-          color: TEST_PLAYERS[i].color,
-          label: TEST_PLAYERS[i].label,
-          viewer: this.viewerSeatIndex === i,
-          count: count.count,
-          metric,
-          ladder,
-          words: countedMetricParts(metric).map((part) => translateTextWithParams(part.key, [...part.params])).join(' · '),
-        });
-      }
-      return rows;
-    },
-    questMechanics(): MechanicsVM {
-      return buildMechanics(this.selected?.questRenderData, PARLIAMENT_GRAPHIC);
-    },
-    /** The chairman quest's race as the scenario sets it (the counted family). */
-    questView(): {rows: Array<{color: Color, value: number}>, completedBy: Color | undefined, completedLabel: string} | undefined {
-      const quest = SCENARIOS[this.scenario]?.quest;
-      if (quest === undefined || this.selected === undefined || this.family !== SCENARIOS[this.scenario]?.family) {
-        return undefined;
-      }
-      const completed = quest.completedBy;
+        const kind = card.resourceType === undefined ? {} : {held: {resource: card.resourceType, count: card.resourceCount}};
+        return {name: card.name, counts: true, reason: '', units: 1, holds: false, ...kind};
+      });
       return {
-        rows: SEATS.map((i) => ({color: TEST_PLAYERS[i].color, value: quest.progress[i]})),
-        completedBy: completed === undefined ? undefined : TEST_PLAYERS[completed].color,
-        completedLabel: completed === undefined ? '' : TEST_PLAYERS[completed].label,
+        color: TEST_PLAYERS[i].color,
+        label: TEST_PLAYERS[i].label,
+        viewer: viewerSeatIndex.value === i,
+        count: countHoldersToward(id, held).count,
+        cards,
       };
-    },
-    contextLabel(): string {
-      return CONTEXT_LABEL[this.context];
-    },
-    /** The SEQUENTIAL part of the selected resolution (Climate Research's draw), if any. */
-    sequelEffect(): InfluenceScaledEffect | undefined {
-      return this.selected?.scaled?.find((e) => e.sequel !== undefined);
-    },
-    /** The LEVEL part of the selected resolution (Joint Research's top-up), if any. */
-    levelEffect(): InfluenceScaledEffect | undefined {
-      return levelEffectOf(this.selected ?? {});
-    },
-    /** WHICH WAY the selected level part moves the seat (absent for every other family). */
-    levelDirection(): 'up' | 'down' | undefined {
-      return this.levelEffect?.level?.direction;
-    },
-    /** The panel's heading — WHAT the level is read of: the hand, or the supply a cut takes from. */
-    levelPanelKey(): string {
-      return this.levelEffect?.level?.total.kind === 'cards' ? 'Cards in hand' : 'In your supply';
-    },
-    /** The sprite beside a seat's level (the same class the yield block's unit wears). */
-    levelUnitClass(): string {
-      const total = this.levelEffect?.level?.total;
-      return iconClassFor(total !== undefined && total.kind === 'stock' ? total.resource : 'cards');
-    },
-    /**
-     * THE LEVELS of the level family: every seat's synthetic level (its hand, or the supply a cut
-     * reads) beside the target the formula yields for it and the amount the ONE division moves —
-     * the instrument of the family, so a scenario's numbers are never typed in.
-     */
-    handRows(): Array<{color: Color, label: string, viewer: boolean, hand: number, target: number, drawn: number}> {
-      const effect = this.levelEffect;
-      if (effect === undefined) {
-        return [];
+    });
+  }
+  return SEATS.map((i) => {
+    const names = seats.value[i].cards ?? [];
+    const ctx = countContextOf(names);
+    const holdsResources = spreadResources.value;
+    const cards: Array<TableauCardRow> = names.map((name) => {
+      const card = getCard(name);
+      if (card === undefined) {
+        return {name, counts: false, reason: 'Unknown card', units: 0, holds: false};
       }
-      return SEATS.map((i) => {
-        const hand = this.levelBefore(i);
-        const influence = this.influenceAt(i);
-        return {
-          color: TEST_PLAYERS[i].color, label: TEST_PLAYERS[i].label, viewer: this.viewerSeatIndex === i,
-          hand, target: scaledAmount(effect, influence), drawn: levelAmount(effect, influence, hand),
-        };
-      });
-    },
-    /** The ruling party's ANSWER to the viewer's readings — the second law of the same enactment. */
-    reactions(): Array<PartyReactionReading> {
-      return this.viewerSeatIndex === undefined ? [] : partyReactionsOf(this.selected, this.yields);
-    },
-    /** The first influence-scaled part paid onto a card — what the picker demonstrates. */
-    pickerEffect(): InfluenceScaledEffect | undefined {
-      return this.selected?.scaled?.find((e) => e.unit.kind === 'cardResource');
-    },
-    // ── who looks, who won ─────────────────────────────────────────────
-    viewerSeatIndex(): SeatIndex | undefined {
-      return this.viewer === SPECTATOR ? undefined : this.viewer as SeatIndex;
-    },
-    viewerColor(): Color | undefined {
-      const i = this.viewerSeatIndex;
-      return i === undefined ? undefined : TEST_PLAYERS[i].color;
-    },
-    viewerLabel(): string {
-      const i = this.viewerSeatIndex;
-      return i === undefined ? 'Spectator' : TEST_PLAYERS[i].label;
-    },
-    winnerColor(): Color | undefined {
-      return this.winner === 'neutral' ? undefined : TEST_PLAYERS[this.winner].color;
-    },
-    winnerLabel(): string {
-      return translateText(this.winner === 'neutral' ? 'Neutral' : TEST_PLAYERS[this.winner].label);
-    },
-    viewerIsWinner(): boolean {
-      return this.viewerSeatIndex !== undefined && this.winner === this.viewerSeatIndex;
-    },
-    /** The context has reached the winner's Agenda step (the phase's step 1 precedes the effect). */
-    pastWinnerStep(): boolean {
-      return this.context === 'resolving' || this.context === 'applied';
-    },
-    viewerInfluence(): number {
-      const i = this.viewerSeatIndex;
-      return i === undefined ? 0 : this.influenceAt(i);
-    },
-    agendaAdvanced(): boolean {
-      const i = this.viewerSeatIndex;
-      return i !== undefined && this.advancedAt(i);
-    },
-    /** «Повестка 4» / «Повестка 4 → 5» (+ «+1 вне трека»). */
-    agendaLine(): string {
-      const i = this.viewerSeatIndex;
-      if (i === undefined) {
-        return '';
-      }
-      const seat = this.seats[i];
-      const agenda = this.advancedAt(i) ?
-        translateTextWithParams('Agenda ${0} → ${1}', [String(seat.agenda), String(this.agendaAt(i))]) :
-        translateTextWithParams('Agenda ${0}', [String(seat.agenda)]);
-      return seat.bonus > 0 ? agenda + ' · ' + translateTextWithParams('+${0} beyond the track', [String(seat.bonus)]) : agenda;
-    },
-    // ── the synthetic table ────────────────────────────────────────────
-    /**
-     * The parliament a real surface would receive for this context: the
-     * resolution up for the vote (proposal), being enacted (the phase at its
-     * effects step, the viewer asked), or enacted with the server-shaped
-     * outcome record the applied readings draw from.
-     */
-    model(): ParliamentModel | undefined {
-      const r = this.selected;
-      if (r === undefined || this.context === 'reference') {
-        return undefined;
-      }
-      const instance = resolutionInstanceId(r.id, 0);
-      const base: ParliamentModel = {
-        slots: [], rulingParty: PartyName.GREENS, popularSupport: {}, players: SEATS.map((i) => this.seatModel(i)),
-        deckSize: 9, discardSize: 0, neutralSupply: 14, botMode: 'none',
+      const verdict = cardCountVerdict(id, card, ctx);
+      // A DISTRIBUTED payout lands on the cards that can HOLD it — a fact apart from the count.
+      const holds = holdsResources !== undefined && card.resourceType !== undefined && (holdsResources.includes(card.resourceType) || card.resourceType === CardResource.WARE);
+      // The units are the SHARED rule's too: one per card for a card
+      // count, every printed occurrence for a tag count.
+      return verdict.counts ?
+        {name, counts: true, reason: '', units: cardCountUnits(id, card, ctx), holds} :
+        {name, counts: false, reason: verdict.reason, units: 0, holds};
+    });
+    return {
+      color: TEST_PLAYERS[i].color,
+      label: TEST_PLAYERS[i].label,
+      viewer: viewerSeatIndex.value === i,
+      count: cards.reduce((sum, c) => sum + c.units, 0),
+      cards,
+    };
+  });
+});
+/**
+ * Every seat's synthetic CELLS with each one's verdict — the SHARED cell
+ * predicate (the engine's own rule, pinned to it by spec), never a typed-in
+ * number. A reserved area is named by the board's information layer; a cell
+ * that layer does not name keeps its number.
+ */
+const cellRows = computed((): Array<CellRow> => {
+  const effect = countEffect.value;
+  if (effect?.count === undefined || countKind.value !== 'board') {
+    return [];
+  }
+  const id = effect.count.id;
+  return SEATS.map((i) => {
+    const own = seats.value[i].cells ?? [];
+    const cells = own.map((cell): CellRowCell => {
+      const verdict = spaceCountVerdict(id, cell);
+      // The stand's cells are THARSIS ids: the board layer names Noctis City and the mountains only for a board.
+      const info = getSpecialCellInfo(cell.id, BoardName.THARSIS);
+      return {
+        id: cell.id,
+        name: info === undefined ? '#' + cell.id : translateText(info.title),
+        city: cell.tile !== undefined && CITY_TILES.has(cell.tile.tileType),
+        counts: verdict.counts,
+        reason: verdict.counts ? '' : verdict.reason,
+        tiers: cityTiersOf(cell),
       };
-      const owner: Color | 'neutral' = this.winnerColor ?? 'neutral';
-      if (this.context === 'proposal') {
-        const viewer = this.viewerColor;
-        return {
-          ...base,
-          slots: [{
-            instance, resolution: r.id, party: r.party, votes: [{owner, seq: 1}, {owner, seq: 2}], totalVotes: 2,
-            isWinning: true, tiePriority: 1, viewerVotes: viewer !== undefined && viewer === owner ? 2 : 0, leader: owner,
-            // A RATING-VETOING law (RX42): who it would bind «as if enacted now» — the scenario's ratings, the way the
-            // server's live reading carries them (every seat at the top, with its rating).
-            ...(r.vetoesRating === true ? {trVetoIfEnacted: this.ratingVetoOfSeats()} : {}),
-          }],
-        };
-      }
-      const enacted = {instance, resolution: r.id, party: r.party};
-      const scenarioQuest = SCENARIOS[this.scenario]?.family === this.family ? SCENARIOS[this.scenario]?.quest : undefined;
-      if (scenarioQuest !== undefined) {
-        const progress: Record<string, number> = {};
-        SEATS.forEach((i) => {
-          progress[TEST_PLAYERS[i].color] = scenarioQuest.progress[i];
-        });
-        const done = scenarioQuest.completedBy;
-        base.quest = {definition: r.quest, source: r.id, generation: 4, progress, completedBy: done === undefined ? undefined : TEST_PLAYERS[done].color};
-        if (done !== undefined) {
-          base.chairman = TEST_PLAYERS[done].color;
-        }
-      }
-      if (this.context === 'resolving') {
-        const asked = this.viewerColor;
-        if (this.family === 'tile-grant' && r.tileGrant !== undefined) {
-          // THE VIEWER'S PLACEMENT STANDS (the seats go in turn): every seat before the viewer already has its record.
-          const askedIndex = this.viewerSeatIndex;
-          return {
-            ...base, rulingParty: r.party, enacted,
-            phase: {
-              generation: 3, final: false, step: 'effects', winner: {instance, player: owner},
-              pending: asked === undefined ? undefined : {player: asked, key: tileGrantStepKey(r.tileGrant), input: 'space'},
-              outcomes: this.grantOutcomes.filter((o) => askedIndex !== undefined && SEATS.findIndex((i) => TEST_PLAYERS[i].color === o.player) < askedIndex),
-            },
-          };
-        }
-        if (this.family === 'winner-tile') {
-          // THE WINNER'S PLACEMENT STANDS: every seat up to the winner (generation order) already has its plants.
-          const winnerSeat = this.winner === 'neutral' ? undefined : this.winner;
-          // The winner's ask: a tile's cell (`space`), or the colony pick (`colony`) — the step key the driver would name.
-          // A DIRECT STEP asks nothing (it mutates): the winner's record is already in beside its own supply part.
-          const winnerAsk: {key: string, input: 'space' | 'colony'} = r.winnerReward?.kind === 'colony' ?
-            {key: 'colony', input: 'colony'} : {key: r.winnerReward?.kind === 'tile' ? r.winnerReward.tile : 'greenery', input: 'space'};
-          const step = r.winnerReward?.kind === 'parameter';
-          const seatOutcomes = this.supplyOutcomes.filter((o) => winnerSeat === undefined || SEATS.findIndex((i) => TEST_PLAYERS[i].color === o.player) <= winnerSeat);
-          const stepOutcome = step ? this.winnerOutcome : undefined;
-          return {
-            ...base, rulingParty: r.party, enacted,
-            phase: {
-              generation: 3, final: false, step: 'effects', winner: {instance, player: owner},
-              pending: winnerSeat === undefined || step ? undefined : {player: TEST_PLAYERS[winnerSeat].color, ...winnerAsk},
-              outcomes: stepOutcome === undefined ? seatOutcomes : [...seatOutcomes, stepOutcome],
-            },
-          };
-        }
-        return {
-          ...base, rulingParty: r.party, enacted,
-          phase: {
-            generation: 3, final: false, step: 'effects', winner: {instance, player: owner},
-            pending: asked === undefined ? undefined : {player: asked, key: this.pickerEffect?.id ?? 'effect', input: 'card'},
-            outcomes: [],
-          },
-        };
-      }
-      const winnerSeat = this.winner === 'neutral' ? undefined : this.winner;
+    });
+    return {
+      color: TEST_PLAYERS[i].color,
+      label: TEST_PLAYERS[i].label,
+      viewer: viewerSeatIndex.value === i,
+      // The number is the SHARED reader's — the ticks on the `cells` measure, the stacks summed on `tiers`.
+      count: countSpacesToward(id, own).count,
+      cells,
+    };
+  });
+});
+/**
+ * Every seat's synthetic RATING with the SHARED threshold rule's reading of
+ * it — the ladder of set boundaries (the threshold, then every full set up to
+ * the one the value has not reached yet) and the breakdown in words. The
+ * number is `countMetricToward`'s, never typed into the scenario.
+ */
+/**
+ * Every seat's synthetic production TRACK with the SHARED reader's sum of it — each listed resource's steps
+ * (a zero listed, not dropped), the total the payout stands on, and the supply the levy reads. The number is
+ * `countProductionToward`'s, never typed into the scenario.
+ */
+const productionRows = computed((): Array<ProductionRow> => {
+  const term = countEffect.value?.count;
+  if (term === undefined || countKind.value !== 'production') {
+    return [];
+  }
+  return SEATS.map((i) => {
+    const count = countProductionToward(term.id, seats.value[i].productions ?? {});
+    return {
+      color: TEST_PLAYERS[i].color,
+      label: TEST_PLAYERS[i].label,
+      viewer: viewerSeatIndex.value === i,
+      count: count.count,
+      terms: count.byResource ?? [],
+      heldText: selected.value?.levy === undefined ? undefined : translateTextWithParams('M€ held: ${0}', [String(seats.value[i].megacredits ?? 20)]),
+    };
+  });
+});
+/**
+ * Every seat's synthetic COLONY TABLE with the SHARED reader's count of it — one chip per CUBE, by the tile's name,
+ * in the table's order (two cubes on one tile are two chips); a cube past the effect's cap is marked: counted, and
+ * paying nothing. The number is `countColoniesToward`'s, never typed into the scenario.
+ */
+const colonyRows = computed((): Array<ColonyRow> => {
+  const effect = countEffect.value;
+  const term = effect?.count;
+  if (effect === undefined || term === undefined || countKind.value !== 'colonies') {
+    return [];
+  }
+  const cap = effect.cap;
+  return SEATS.map((i) => {
+    const count = countColoniesToward(term.id, seats.value[i].colonies ?? []);
+    const cubes = (count.colonies ?? []).map((name, k): ColonyCube => ({key: `${name}#${k}`, name, pastCap: cap !== undefined && (k + 1) * term.per > cap}));
+    return {color: TEST_PLAYERS[i].color, label: TEST_PLAYERS[i].label, viewer: viewerSeatIndex.value === i, count: count.count, cubes};
+  });
+});
+const metricRows = computed((): Array<MetricRow> => {
+  const term = countEffect.value?.count;
+  if (term === undefined || countKind.value !== 'threshold') {
+    return [];
+  }
+  const rows: Array<MetricRow> = [];
+  for (const i of SEATS) {
+    const count = countMetricToward(term.id, seats.value[i].tr ?? 20);
+    const metric = count.metric;
+    if (metric === undefined) {
+      continue;
+    }
+    // The threshold itself, then each boundary a full set stands on, up to the first one NOT reached — at least
+    // three marks, so a low rating still shows where the sets begin.
+    const marks = Math.max(3, metric.sets + 2);
+    const ladder: Array<LadderMark> = [];
+    for (let n = 0; n < marks; n++) {
+      const at = metric.over + n * metric.step;
+      ladder.push({at, reached: metric.value >= at, threshold: n === 0});
+    }
+    rows.push({
+      color: TEST_PLAYERS[i].color,
+      label: TEST_PLAYERS[i].label,
+      viewer: viewerSeatIndex.value === i,
+      count: count.count,
+      metric,
+      ladder,
+      words: countedMetricParts(metric).map((part) => translateTextWithParams(part.key, [...part.params])).join(' · '),
+    });
+  }
+  return rows;
+});
+const questMechanics = computed((): MechanicsVM => {
+  return buildMechanics(selected.value?.questRenderData, PARLIAMENT_GRAPHIC);
+});
+/** The chairman quest's race as the scenario sets it (the counted family). */
+const questView = computed((): {rows: Array<{color: Color, value: number}>, completedBy: Color | undefined, completedLabel: string} | undefined => {
+  const quest = SCENARIOS[scenario.value]?.quest;
+  if (quest === undefined || selected.value === undefined || family.value !== SCENARIOS[scenario.value]?.family) {
+    return undefined;
+  }
+  const completed = quest.completedBy;
+  return {
+    rows: SEATS.map((i) => ({color: TEST_PLAYERS[i].color, value: quest.progress[i]})),
+    completedBy: completed === undefined ? undefined : TEST_PLAYERS[completed].color,
+    completedLabel: completed === undefined ? '' : TEST_PLAYERS[completed].label,
+  };
+});
+const contextLabel = computed((): string => {
+  return CONTEXT_LABEL[context.value];
+});
+/** The SEQUENTIAL part of the selected resolution (Climate Research's draw), if any. */
+const sequelEffect = computed((): InfluenceScaledEffect | undefined => {
+  return selected.value?.scaled?.find((e) => e.sequel !== undefined);
+});
+/** The LEVEL part of the selected resolution (Joint Research's top-up), if any. */
+const levelEffect = computed((): InfluenceScaledEffect | undefined => {
+  return levelEffectOf(selected.value ?? {});
+});
+/** WHICH WAY the selected level part moves the seat (absent for every other family). */
+const levelDirection = computed((): 'up' | 'down' | undefined => {
+  return levelEffect.value?.level?.direction;
+});
+/** The panel's heading — WHAT the level is read of: the hand, or the supply a cut takes from. */
+const levelPanelKey = computed((): string => {
+  return levelEffect.value?.level?.total.kind === 'cards' ? 'Cards in hand' : 'In your supply';
+});
+/** The sprite beside a seat's level (the same class the yield block's unit wears). */
+const levelUnitClass = computed((): string => {
+  const total = levelEffect.value?.level?.total;
+  return iconClassFor(total !== undefined && total.kind === 'stock' ? total.resource : 'cards');
+});
+/**
+ * THE LEVELS of the level family: every seat's synthetic level (its hand, or the supply a cut
+ * reads) beside the target the formula yields for it and the amount the ONE division moves —
+ * the instrument of the family, so a scenario's numbers are never typed in.
+ */
+const handRows = computed((): Array<{color: Color, label: string, viewer: boolean, hand: number, target: number, drawn: number}> => {
+  const effect = levelEffect.value;
+  if (effect === undefined) {
+    return [];
+  }
+  return SEATS.map((i) => {
+    const hand = levelBefore(i);
+    const influence = influenceAt(i);
+    return {
+      color: TEST_PLAYERS[i].color, label: TEST_PLAYERS[i].label, viewer: viewerSeatIndex.value === i,
+      hand, target: scaledAmount(effect, influence), drawn: levelAmount(effect, influence, hand),
+    };
+  });
+});
+/** The ruling party's ANSWER to the viewer's readings — the second law of the same enactment. */
+const reactions = computed((): Array<PartyReactionReading> => {
+  return viewerSeatIndex.value === undefined ? [] : partyReactionsOf(selected.value, yields.value);
+});
+/** The first influence-scaled part paid onto a card — what the picker demonstrates. */
+const pickerEffect = computed((): InfluenceScaledEffect | undefined => {
+  return selected.value?.scaled?.find((e) => e.unit.kind === 'cardResource');
+});
+// ── who looks, who won ─────────────────────────────────────────────
+const viewerSeatIndex = computed((): SeatIndex | undefined => {
+  return viewer.value === SPECTATOR ? undefined : viewer.value as SeatIndex;
+});
+const viewerColor = computed((): Color | undefined => {
+  const i = viewerSeatIndex.value;
+  return i === undefined ? undefined : TEST_PLAYERS[i].color;
+});
+const viewerLabel = computed((): string => {
+  const i = viewerSeatIndex.value;
+  return i === undefined ? 'Spectator' : TEST_PLAYERS[i].label;
+});
+const winnerColor = computed((): Color | undefined => {
+  return winner.value === 'neutral' ? undefined : TEST_PLAYERS[winner.value].color;
+});
+const winnerLabel = computed((): string => {
+  return translateText(winner.value === 'neutral' ? 'Neutral' : TEST_PLAYERS[winner.value].label);
+});
+const viewerIsWinner = computed((): boolean => {
+  return viewerSeatIndex.value !== undefined && winner.value === viewerSeatIndex.value;
+});
+/** The context has reached the winner's Agenda step (the phase's step 1 precedes the effect). */
+const pastWinnerStep = computed((): boolean => {
+  return context.value === 'resolving' || context.value === 'applied';
+});
+const viewerInfluence = computed((): number => {
+  const i = viewerSeatIndex.value;
+  return i === undefined ? 0 : influenceAt(i);
+});
+const agendaAdvanced = computed((): boolean => {
+  const i = viewerSeatIndex.value;
+  return i !== undefined && advancedAt(i);
+});
+/** «Повестка 4» / «Повестка 4 → 5» (+ «+1 вне трека»). */
+const agendaLine = computed((): string => {
+  const i = viewerSeatIndex.value;
+  if (i === undefined) {
+    return '';
+  }
+  const seat = seats.value[i];
+  const agenda = advancedAt(i) ?
+    translateTextWithParams('Agenda ${0} → ${1}', [String(seat.agenda), String(agendaAt(i))]) :
+    translateTextWithParams('Agenda ${0}', [String(seat.agenda)]);
+  return seat.bonus > 0 ? agenda + ' · ' + translateTextWithParams('+${0} beyond the track', [String(seat.bonus)]) : agenda;
+});
+// ── the synthetic table ────────────────────────────────────────────
+/**
+ * The parliament a real surface would receive for this context: the
+ * resolution up for the vote (proposal), being enacted (the phase at its
+ * effects step, the viewer asked), or enacted with the server-shaped
+ * outcome record the applied readings draw from.
+ */
+const model = computed((): ParliamentModel | undefined => {
+  const r = selected.value;
+  if (r === undefined || context.value === 'reference') {
+    return undefined;
+  }
+  const instance = resolutionInstanceId(r.id, 0);
+  const base: ParliamentModel = {
+    slots: [], rulingParty: PartyName.GREENS, popularSupport: {}, players: SEATS.map((i) => seatModel(i)),
+    deckSize: 9, discardSize: 0, neutralSupply: 14, botMode: 'none',
+  };
+  const owner: Color | 'neutral' = winnerColor.value ?? 'neutral';
+  if (context.value === 'proposal') {
+    const viewer = viewerColor.value;
+    return {
+      ...base,
+      slots: [{
+        instance, resolution: r.id, party: r.party, votes: [{owner, seq: 1}, {owner, seq: 2}], totalVotes: 2,
+        isWinning: true, tiePriority: 1, viewerVotes: viewer !== undefined && viewer === owner ? 2 : 0, leader: owner,
+        // A RATING-VETOING law (RX42): who it would bind «as if enacted now» — the scenario's ratings, the way the
+        // server's live reading carries them (every seat at the top, with its rating).
+        ...(r.vetoesRating === true ? {trVetoIfEnacted: ratingVetoOfSeats()} : {}),
+      }],
+    };
+  }
+  const enacted = {instance, resolution: r.id, party: r.party};
+  const scenarioQuest = SCENARIOS[scenario.value]?.family === family.value ? SCENARIOS[scenario.value]?.quest : undefined;
+  if (scenarioQuest !== undefined) {
+    const progress: Record<string, number> = {};
+    SEATS.forEach((i) => {
+      progress[TEST_PLAYERS[i].color] = scenarioQuest.progress[i];
+    });
+    const done = scenarioQuest.completedBy;
+    base.quest = {definition: r.quest, source: r.id, generation: 4, progress, completedBy: done === undefined ? undefined : TEST_PLAYERS[done].color};
+    if (done !== undefined) {
+      base.chairman = TEST_PLAYERS[done].color;
+    }
+  }
+  if (context.value === 'resolving') {
+    const asked = viewerColor.value;
+    if (family.value === 'tile-grant' && r.tileGrant !== undefined) {
+      // THE VIEWER'S PLACEMENT STANDS (the seats go in turn): every seat before the viewer already has its record.
+      const askedIndex = viewerSeatIndex.value;
       return {
         ...base, rulingParty: r.party, enacted,
-        lastPhase: {
-          generation: 3, final: false,
-          winner: {instance, resolution: r.id, party: r.party, votes: 2, player: owner},
-          agenda: winnerSeat === undefined ? undefined : {player: TEST_PLAYERS[winnerSeat].color, from: this.seats[winnerSeat].agenda, to: this.agendaAt(winnerSeat)},
-          outcomes: this.appliedOutcomes, support: [], enacted, refreshed: [], lobbyRefilled: [],
+        phase: {
+          generation: 3, final: false, step: 'effects', winner: {instance, player: owner},
+          pending: asked === undefined ? undefined : {player: asked, key: tileGrantStepKey(r.tileGrant), input: 'space'},
+          outcomes: grantOutcomes.value.filter((o) => askedIndex !== undefined && SEATS.findIndex((i) => TEST_PLAYERS[i].color === o.player) < askedIndex),
         },
       };
-    },
-    /**
-     * THE LEVY's records (a budget): what the shared step takes FIRST from every seat — the supply bounded take
-     * as a negative `stock` amount with `owed` beside it (a short seat's reason on the record), or the named
-     * skip of a seat that held nothing. The server's order: before every payout.
-     */
-    levyOutcomes(): Array<ParliamentEnactOutcomeModel> {
-      const levy = this.selected?.levy;
-      const out: Array<ParliamentEnactOutcomeModel> = [];
-      if (levy === undefined) {
-        return out;
-      }
-      for (const i of SEATS) {
-        const held = this.seats[i].megacredits ?? 20;
-        const paid = levyPaid(levy, held);
-        const common = {player: TEST_PLAYERS[i].color, step: LEVY_STEP_KEY, part: 'effect' as const, stock: levy.resource, owed: levy.amount};
-        if (paid <= 0) {
-          out.push({...common, kind: 'skipped', amount: 0, reason: levyNothingReasonKey(levy.resource)});
-        } else if (paid < levy.amount) {
-          out.push({...common, kind: 'stock', amount: -paid, before: held, after: held - paid, reason: levyShortReasonKey(levy.resource)});
-        } else {
-          out.push({...common, kind: 'stock', amount: -paid, before: held, after: held - paid});
-        }
-      }
-      return out;
-    },
-    /** The SUPPLY payouts (a `stock` unit) the server records — every seat's amount with the supply before and after, or its named skip. */
-    supplyOutcomes(): Array<ParliamentEnactOutcomeModel> {
-      const out: Array<ParliamentEnactOutcomeModel> = [];
-      const levy = this.selected?.levy;
-      for (const effect of this.selected?.scaled ?? []) {
-        if (effect.unit.kind !== 'stock') {
-          continue;
-        }
-        const resource: Resource = effect.unit.resource;
-        for (const i of SEATS) {
-          const payout = this.payoutAt(effect, i);
-          if (payout === undefined) {
-            continue;
-          }
-          // Behind a LEVY of the same currency the payout lands on what the levy LEFT — the records chain.
-          const held = this.seats[i].megacredits ?? 20;
-          const before = levy !== undefined && levy.resource === resource ? held - levyPaid(levy, held) : 3 * (i + 1);
-          const common = {
-            player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, stock: resource, amount: payout.amount, influence: payout.influence,
-            // A supply payout with a COUNT term (Generous Funding, the budgets): the record carries the count and what explains it.
-            ...(payout.count === undefined ? {} : {
-              count: payout.count.count, counted: payout.count.cards, countedSpaces: payout.count.spaces, countedTiers: payout.count.tiers,
-              countedMetric: payout.count.metric, countedByResource: payout.count.byResource, uncapped: payout.uncapped,
-            }),
-          };
-          out.push(payout.skipped === undefined ?
-            {...common, kind: 'stock', before, after: before + payout.amount} :
-            {...common, kind: 'skipped', reason: payout.skipped});
-        }
-      }
-      return out;
-    },
-    /**
-     * The winner's part as the server records it: a TILE placed (its parameter before → after) or the named skip;
-     * a COLONY built on a tile (Colony Contest) or the empty table's skip; nothing for a neutral winner.
-     */
-    winnerOutcome(): ParliamentEnactOutcomeModel | undefined {
-      const reward = this.selected?.winnerReward;
-      if (reward === undefined || this.winner === 'neutral') {
-        return undefined;
-      }
-      const player = TEST_PLAYERS[this.winner].color;
-      if (reward.kind === 'colony') {
-        return this.noCell ?
-          {player, step: 'colony', part: 'winner', kind: 'skipped', reason: 'No colony is available'} :
-          {player, step: 'colony', part: 'winner', kind: 'colony', colony: ColonyName.LUNA};
-      }
-      if (reward.kind === 'parameter') {
-        // THE DIRECT STEP (Mohole Contest): the shared room decides the steps made — the ceiling's cut, or the
-        // named skip at the maximum — and the record carries the TR the step paid (one per step made).
-        const room = winnerParameterRoom(reward, this.winnerTable);
-        return room.applied === 0 ?
-          {player, step: reward.parameter, part: 'winner', kind: 'skipped', amount: 0, parameter: {id: reward.parameter, before: room.current, after: room.current}, reason: 'Temperature is at its maximum — it is not raised'} :
-          {player, step: reward.parameter, part: 'winner', kind: 'globalParameter', amount: room.applied, parameter: {id: reward.parameter, before: room.current, after: room.resulting}, tr: room.applied};
-      }
-      if (this.noCell) {
-        return {player, step: reward.tile, part: 'winner', kind: 'skipped', reason: reward.tile === 'greenery' ? 'No space can take a greenery' : 'No space can take an ocean'};
-      }
-      if (reward.tile === 'greenery') {
-        const before = this.table.oxygen;
-        return {player, step: 'greenery', part: 'winner', kind: 'greenery', space: '35', parameter: {id: 'oxygen', before, after: Math.min(14, before + 1)}};
-      }
-      const before = this.table.oceans;
-      return before >= 9 ?
-        {player, step: 'ocean', part: 'winner', kind: 'skipped', reason: 'No ocean tile is left'} :
-        {player, step: 'ocean', part: 'winner', kind: 'ocean', space: '35', parameter: {id: 'oceans', before, after: before + 1}};
-    },
-    /**
-     * THE GRANT's records: every seat in the walk's order — Skyscrapers' tier on one of its cities (a stack of 2),
-     * or the named skip: the rule that passed the seat over, or no city on Mars to build on; Mars First Budget's
-     * city on a cell of its own (no stack), or — the scenario's board left no legal cell — the named skip.
-     */
-    grantOutcomes(): Array<ParliamentEnactOutcomeModel> {
-      const grant = this.selected?.tileGrant;
-      const out: Array<ParliamentEnactOutcomeModel> = [];
-      if (grant === undefined) {
-        return out;
-      }
-      const step = tileGrantStepKey(grant);
-      for (const i of SEATS) {
-        const player = TEST_PLAYERS[i].color;
-        const influence = this.influenceAt(i);
-        const common = {player, step, part: 'effect' as const, influence};
-        if (tileGrantEligibility(grant, {winner: this.winner === i, influence}) === 'none') {
-          out.push({...common, kind: 'skipped', reason: TILE_GRANT_NOT_ELIGIBLE_REASON});
-          continue;
-        }
-        if (grant.placement === 'any-legal') {
-          // A city by the usual rules: a synthetic cell per seat — or the board the scenario leaves without one.
-          out.push(this.noCell ?
-            {...common, kind: 'skipped', reason: TILE_GRANT_NO_SPACE_REASON} :
-            {...common, kind: 'city', space: GRANT_CITY_CELLS[i]});
-          continue;
-        }
-        const cell = this.countAt(i)?.spaces?.[0];
-        if (cell === undefined) {
-          out.push({...common, kind: 'skipped', reason: TILE_GRANT_NO_DESTINATION_REASON});
-          continue;
-        }
-        out.push({...common, kind: 'city', space: cell, stackHeight: 2});
-      }
-      return out;
-    },
-    /**
-     * THE CAREER's records (Reds Budget): every seat's walk of the law's step(s) from where the scenario stands (the
-     * winner's own step already taken), as the shared step records it — the walk with its gifts, or the named skip at
-     * the end of the track. The printed track decides each step's gift (`agendaWalkAhead`).
-     */
-    careerOutcomes(): Array<ParliamentEnactOutcomeModel> {
-      const grant = this.selected?.agendaGrant;
-      const out: Array<ParliamentEnactOutcomeModel> = [];
-      if (grant === undefined) {
-        return out;
-      }
-      for (const i of SEATS) {
-        const from = this.agendaAt(i);
-        const common = {player: TEST_PLAYERS[i].color, step: AGENDA_GRANT_STEP_KEY, part: 'effect' as const, influence: this.influenceAt(i)};
-        const ahead = agendaWalkAhead(from, grant.steps);
-        if (ahead.length === 0) {
-          out.push({...common, kind: 'skipped', amount: 0, walk: {from, to: from, steps: []}, reason: AGENDA_GRANT_END_OF_TRACK_REASON});
-          continue;
-        }
-        const steps = ahead.map((step) => (step.step.kind === 'influence' ? {to: step.to} : {to: step.to, bonus: step.step.kind}));
-        const tr = steps.filter((step) => step.bonus === 'tr').length;
-        const drawn = steps.filter((step) => step.bonus === 'card').length;
-        out.push({
-          ...common, kind: 'agenda', amount: steps.length, walk: {from, to: steps[steps.length - 1].to, steps},
-          ...(tr > 0 ? {tr} : {}), ...(drawn > 0 ? {drawn} : {}),
-        });
-      }
-      return out;
-    },
-    /** The record the server would keep for this enactment's scaled part — every seat's payout, or its named skip. */
-    appliedOutcomes(): Array<ParliamentEnactOutcomeModel> {
-      const r = this.selected;
-      const out: Array<ParliamentEnactOutcomeModel> = [];
-      if (r === undefined) {
-        return out;
-      }
-      // THE LEVY FIRST — the printed order is the recorded order.
-      out.push(...this.levyOutcomes);
-      out.push(...this.supplyOutcomes);
-      const tile = this.winnerOutcome;
-      if (tile !== undefined) {
-        out.push(tile);
-      }
-      out.push(...this.grantOutcomes);
-      out.push(...this.careerOutcomes);
-      for (const effect of r.scaled ?? []) {
-        if (effect.sequel !== undefined) {
-          // THE DRAW's record: the amount, the total it was divided from
-          // (before -> after) and what actually left the deck.
-          for (const i of SEATS) {
-            const payout = this.payoutAt(effect, i);
-            if (payout === undefined) {
-              continue;
-            }
-            const common = {
-              player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id,
-              amount: payout.amount, influence: payout.influence, total: payout.total,
-            };
-            out.push(payout.skipped === undefined ?
-              {...common, kind: 'cards' as const, drawn: payout.amount} :
-              {...common, kind: 'skipped' as const, reason: payout.skipped});
-          }
-          continue;
-        }
-        if (effect.level !== undefined) {
-          // THE LEVEL RECORD the server keeps: the target, the level before and after, the amount
-          // moved — and, for a CUT, the NEGATIVE stock amount the address reads as a loss.
-          const cut = effect.level.direction === 'down';
-          const stock = effect.unit.kind === 'stock' ? effect.unit.resource : undefined;
-          for (const i of SEATS) {
-            const payout = this.payoutAt(effect, i);
-            if (payout === undefined) {
-              continue;
-            }
-            const common = {
-              player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id,
-              influence: payout.influence, total: payout.total, target: payout.target,
-            };
-            if (payout.skipped !== undefined) {
-              out.push({...common, amount: 0, kind: 'skipped' as const, ...(stock === undefined ? {} : {stock}), reason: payout.skipped});
-            } else if (cut && stock !== undefined) {
-              out.push({
-                ...common, kind: 'stock' as const, stock, amount: -payout.amount, owed: payout.amount,
-                before: payout.total?.before, after: payout.total?.after,
-              });
-            } else {
-              out.push({...common, kind: 'cards' as const, amount: payout.amount, drawn: payout.amount});
-            }
-          }
-          continue;
-        }
-        if (effect.unit.kind === 'production') {
-          // THE PRODUCTION RECORD the server keeps: the amount, every input
-          // (B, the counted cards, I, the sum before the cap) and before → after.
-          const resource = effect.unit.resource;
-          for (const i of SEATS) {
-            const payout = this.payoutAt(effect, i);
-            if (payout === undefined) {
-              continue;
-            }
-            const before = this.seats[i].production ?? 0;
-            const common = {
-              player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, production: resource, amount: payout.amount, influence: payout.influence,
-              count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units, countedSpaces: payout.count?.spaces,
-              countedTiers: payout.count?.tiers, countedMetric: payout.count?.metric, countedByCard: payout.count?.byCard, uncapped: payout.uncapped,
-            };
-            out.push(payout.skipped === undefined ?
-              {...common, kind: 'production', before, after: before + payout.amount} :
-              {...common, kind: 'skipped', reason: payout.skipped});
-          }
-          continue;
-        }
-        if (effect.unit.kind === 'cards') {
-          // A PLAIN DRAW (Scientists Budget's flat 2, Open IP Trade's 1 per influence — neither a level nor a
-          // sequel): what was owed, and what the deck actually delivered. An EMPTY deck is the draw's own NAMED
-          // skip, and nothing else on the card moves because of it.
-          for (const i of SEATS) {
-            const payout = this.payoutAt(effect, i);
-            if (payout === undefined) {
-              continue;
-            }
-            const common = {
-              player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id,
-              amount: payout.amount, influence: payout.influence,
-              // …and, when the DRAW is a COUNTED one (Urban Research: a card per city tag), the inputs that
-              // explain the number — the very columns a supply payout's record carries. A flat draw has no
-              // count and writes none of them.
-              count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units,
-            };
-            out.push(payout.skipped !== undefined ?
-              {...common, kind: 'skipped' as const, reason: payout.skipped} :
-              this.emptyDeck ?
-                {...common, kind: 'skipped' as const, drawn: 0, reason: DECK_EMPTY_REASON} :
-                {...common, kind: 'cards' as const, drawn: payout.amount});
-          }
-          continue;
-        }
-        if (effect.unit.kind !== 'cardResource') {
-          continue;
-        }
-        if (effect.unit.onto === 'each-counted') {
-          // EVERY COUNTED CARD RECEIVES, each of its own kind — the server's record: the counted cards with what
-          // each held, every landing with its kind and its count BEFORE, the ONE kind only when every card took it.
-          for (const i of SEATS) {
-            const payout = this.payoutAt(effect, i);
-            if (payout === undefined) {
-              continue;
-            }
-            const held = payout.count?.byCard ?? [];
-            const common = {
-              player: TEST_PLAYERS[i].color, step: effect.id, effect: effect.id, onto: 'each-counted' as const, amount: payout.amount,
-              influence: payout.influence, count: payout.count?.count, counted: payout.count?.cards, countedByCard: held,
-            };
-            if (payout.skipped !== undefined) {
-              out.push({...common, kind: 'skipped', reason: payout.skipped});
-              continue;
-            }
-            const per = effect.count?.per ?? 1;
-            const cards = held.map((entry) => ({card: entry.card, amount: per, resource: entry.resource, before: entry.count}));
-            const kinds = new Set(cards.map((entry) => entry.resource));
-            out.push({...common, kind: 'cardResource', cards, ...(kinds.size === 1 ? {resource: cards[0].resource} : {})});
-          }
-          continue;
-        }
-        for (const i of SEATS) {
-          const payout = this.payoutAt(effect, i);
-          if (payout === undefined) {
-            continue;
-          }
-          // ONE kind names itself on the record; SEVERAL ride `resources` (the skip's name, the mixed landing's).
-          const declared = declaredCardResourceKinds(effect.unit) ?? [];
-          const common = {
-            player: TEST_PLAYERS[i].color, step: effect.id, effect: effect.id, amount: payout.amount, influence: payout.influence,
-            ...(declared.length === 1 ? {resource: declared[0]} : {resources: declared}),
-          };
-          if (payout.skipped !== undefined) {
-            out.push({...common, kind: 'skipped', reason: payout.skipped});
-            continue;
-          }
-          if (effect.unit.spread === true) {
-            // THE DISTRIBUTION's record: the whole list of recipients (the stand lays the payout out evenly), each
-            // with the kind ITS card takes, the count's inputs beside it — a list of ONE names its card too, and the
-            // ONE kind only when every landed unit is of it, exactly as the server records it.
-            const laid = spreadOver(this.holdersAt(declared, i), payout.amount).map((entry) => ({...entry, resource: holderKindOf(entry.card)}));
-            const kinds = new Set(laid.map((entry) => entry.resource));
-            out.push({
-              ...common, kind: 'cardResource', cards: laid, ...(laid.length === 1 ? {card: laid[0].card} : {}),
-              ...(kinds.size === 1 ? {resource: laid[0].resource} : {resource: undefined}),
-              count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units, countedByTag: payout.count?.byTag,
-            });
-            continue;
-          }
-          out.push({...common, kind: 'cardResource', card: i === 0 ? CardName.FISH : CardName.BIRDS});
-        }
-      }
-      return out;
-    },
-    /** The viewer's readings for the chosen context — the ONE model the game reads. */
-    yields(): ReadonlyArray<InfluenceYield> {
-      const r = this.selected;
-      if (r === undefined || (r.scaled ?? []).length === 0) {
-        return [];
-      }
-      switch (this.context) {
-      case 'reference': return (r.scaled ?? []).map(referenceYield);
-      case 'proposal': return voteYieldsOf(r, this.model, this.viewerColor);
-      case 'resolving': return (r.scaled ?? []).map((e) => this.resolvingReading(e, this.viewerSeatIndex));
-      case 'applied': return enactedYieldsOf(r, this.model, this.viewerColor);
-      }
-    },
-    /** The forecast's honest note (the vote surface's) — a live or recorded reading names its own skip. */
-    yieldNote(): string | undefined {
-      const effect = this.pickerEffect;
-      return effect !== undefined && effect.unit.kind === 'cardResource' && this.noRecipient && this.context === 'proposal' && this.viewerSeatIndex !== undefined ?
-        noRecipientForecastKey(declaredCardResourceKinds(effect.unit) ?? []) : undefined;
-    },
-    status(): ResolutionStatusVm | undefined {
-      return this.selected === undefined ? undefined : resolutionStatusOf(this.selected.id, this.model, this.viewerColor);
-    },
-    seatRows(): Array<SeatRow> {
-      const r = this.selected;
-      if (r === undefined || (r.scaled ?? []).length === 0 || this.context === 'reference') {
-        return [];
-      }
-      return SEATS.map((i) => {
-        const color = TEST_PLAYERS[i].color;
-        let yields: ReadonlyArray<InfluenceYield>;
-        switch (this.context) {
-        case 'proposal': yields = voteYieldsOf(r, this.model, color); break;
-        case 'resolving': yields = (r.scaled ?? []).map((e) => this.resolvingReading(e, i)); break;
-        default: yields = enactedYieldsOf(r, this.model, color);
-        }
-        return {
-          color,
-          label: TEST_PLAYERS[i].label,
-          viewer: this.viewerSeatIndex === i,
-          winner: this.winner === i,
-          yields,
-          levy: this.levyFor(color),
-          advance: this.advancedAt(i) ? translateTextWithParams('Agenda ${0} → ${1}', [String(this.seats[i].agenda), String(this.agendaAt(i))]) : undefined,
-          winnerPart: r.hasWinnerEffect && this.winner === i && this.pastWinnerStep,
-        };
-      });
-    },
-    /** THE LEVY a budget takes from the viewer first — the ONE model the game reads, for the chosen context. */
-    levy(): LevyReading | undefined {
-      return this.levyFor(this.viewerColor);
-    },
-    // ── the picker ─────────────────────────────────────────────────────
-    /** The viewer's payout at the enactment (the winner's step counted), or undefined for a spectator. */
-    pickerPayout(): SeatPayout | undefined {
-      const effect = this.pickerEffect;
-      const i = this.viewerSeatIndex;
-      return effect === undefined || i === undefined ? undefined : this.payoutAt(effect, i);
-    },
-    pickerYieldAmount(): number {
-      return this.pickerPayout?.amount ?? 0;
-    },
-    /** Why the picker would never be asked (an English key) — the same reasons the enactment records. */
-    pickerSkip(): string | undefined {
-      if (this.viewerSeatIndex === undefined) {
-        return 'A spectator receives nothing';
-      }
-      return this.pickerPayout?.skipped;
-    },
-    pickerYield(): InfluenceYield | undefined {
-      const effect = this.pickerEffect;
-      return effect === undefined ? undefined : this.resolvingReading(effect, this.viewerSeatIndex);
-    },
-    sourceView(): PromptSourceView {
-      return choiceSourceView({kind: 'resolution', resolution: this.selected?.id}) ?? {kindKey: 'Resolution', inspectable: false};
-    },
-    /** THE KINDS of the picker effect's unit — one for the ordinary card, several for Medical Database («data or microbe»). */
-    pickerKinds(): ReadonlyArray<CardResource> {
-      const effect = this.pickerEffect;
-      return effect !== undefined && effect.unit.kind === 'cardResource' ? declaredCardResourceKinds(effect.unit) ?? [] : [CardResource.ANIMAL];
-    },
-    /** The ONE kind's icon key (the family's ordinary pick), undefined over several kinds — the marker then names each card's own. */
-    resourceIcon(): string | undefined {
-      const kinds = this.pickerKinds;
-      return kinds.length === 1 ? cardResourceIconKey(kinds[0]) : undefined;
-    },
-    /** The KINDS a DISTRIBUTED payout lands on (the picker effect's, when it is laid out), else undefined. */
-    spreadResources(): ReadonlyArray<CardResource> | undefined {
-      const effect = this.pickerEffect;
-      return effect !== undefined && effect.unit.kind === 'cardResource' && effect.unit.spread === true ? declaredCardResourceKinds(effect.unit) : undefined;
-    },
-    /**
-     * The picker's candidates: for a DISTRIBUTED payout the viewer's OWN holders from the scenario's tableau
-     * (stored counts 0, 1, 2… so the readings differ per card); for the animal families the demo holders.
-     */
-    pickerHolders(): ReadonlyArray<{name: CardName, resources: number, per?: number}> {
-      const resources = this.spreadResources;
-      const viewer = this.viewerSeatIndex;
-      if (resources === undefined || viewer === undefined) {
-        return DEMO_HOLDERS;
-      }
-      return this.holdersAt(resources, viewer).map((name, n) => ({name, resources: n}));
-    },
-    /**
-     * THE LAYOUT the shared step would ask for — N ≥ 2 over ≥ 2 holders (below that the family's ordinary pick
-     * stands, and the stand shows exactly that). The real surface is the game's own (`ConsoleTaskHost` in its
-     * layout mode); the stand states the facts and hands over to the LIVE scenario for the surface.
-     */
-    pickerLayout(): {amount: number, holders: ReadonlyArray<{name: CardName, resources: number}>} | undefined {
-      if (this.spreadResources === undefined || this.pickerSkip !== undefined) {
-        return undefined;
-      }
-      const amount = this.pickerYieldAmount;
-      const holders = this.pickerHolders;
-      return amount >= 2 && holders.length >= 2 ? {amount, holders} : undefined;
-    },
-    pickerLayoutLine(): string {
-      const layout = this.pickerLayout;
-      return layout === undefined ? '' :
-        translateTextWithParams('Lay out ${0} over ${1} cards — 0 to ${0} on each; the live scenario opens the real layout', [String(layout.amount), String(layout.holders.length)]);
-    },
-    /** The SelectCard the server would send: candidates with live counts, the amount, the per-card VP reading. */
-    selectModel(): SelectCardModel {
-      const amount = this.pickerYieldAmount;
-      const holders = this.pickerHolders;
-      const cards = holders.map((h) => ({name: h.name, resources: h.resources} as CardModel));
-      const vpBox: Partial<Record<CardName, {from: number, to: number}>> = {};
-      for (const h of holders) {
-        if (h.per !== undefined) {
-          vpBox[h.name] = {from: Math.floor(h.resources / h.per), to: Math.floor((h.resources + amount) / h.per)};
-        }
-      }
-      // The server's own ask (the family's pick title), numbered by the payout.
-      const effect = this.pickerEffect;
-      const declared = effect?.unit.kind === 'cardResource' ? declaredCardResourceKinds(effect.unit) ?? [] : [];
-      const one = declared.length === 1 ? declared[0] : undefined;
-      const title: Message | string = one === CardResource.ANIMAL ?
-        {message: 'Add ${0} animal(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
-        one === CardResource.FLOATER ?
-          {message: 'Add ${0} floater(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
-          declared.length > 1 ?
-            {message: 'Add ${0} resource(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
-            translateText('Add resource to this card');
-      // The marker as the server would stamp it: ONE kind names itself; SEVERAL name the kinds and each holder's own.
-      const kinds = this.pickerKinds;
-      const byCard: Partial<Record<CardName, string>> = {};
-      for (const h of holders) {
-        const kind = holderKindOf(h.name);
-        if (kind !== undefined) {
-          byCard[h.name] = cardResourceIconKey(kind);
-        }
-      }
+    }
+    if (family.value === 'winner-tile') {
+      // THE WINNER'S PLACEMENT STANDS: every seat up to the winner (generation order) already has its plants.
+      const winnerSeat = winner.value === 'neutral' ? undefined : winner.value;
+      // The winner's ask: a tile's cell (`space`), or the colony pick (`colony`) — the step key the driver would name.
+      // A DIRECT STEP asks nothing (it mutates): the winner's record is already in beside its own supply part.
+      const winnerAsk: {key: string, input: 'space' | 'colony'} = r.winnerReward?.kind === 'colony' ?
+        {key: 'colony', input: 'colony'} : {key: r.winnerReward?.kind === 'tile' ? r.winnerReward.tile : 'greenery', input: 'space'};
+      const step = r.winnerReward?.kind === 'parameter';
+      const seatOutcomes = supplyOutcomes.value.filter((o) => winnerSeat === undefined || SEATS.findIndex((i) => TEST_PLAYERS[i].color === o.player) <= winnerSeat);
+      const stepOutcome = step ? winnerOutcome.value : undefined;
       return {
-        type: 'card', title, buttonLabel: 'Add', cards, max: 1, min: 1,
-        showOnlyInLearnerMode: false, selectBlueCardAction: false, showOwner: false, showSelectAll: false,
-        resourceGainPrompt: {
-          amount, vpBox,
-          ...(this.resourceIcon === undefined ? {cardResources: kinds.map(cardResourceIconKey), cardResourceByCard: byCard} : {cardResource: this.resourceIcon}),
+        ...base, rulingParty: r.party, enacted,
+        phase: {
+          generation: 3, final: false, step: 'effects', winner: {instance, player: owner},
+          pending: winnerSeat === undefined || step ? undefined : {player: TEST_PLAYERS[winnerSeat].color, ...winnerAsk},
+          outcomes: stepOutcome === undefined ? seatOutcomes : [...seatOutcomes, stepOutcome],
         },
-        choiceContext: {source: {kind: 'resolution', resolution: this.selected?.id}, mode: 'reward'},
-      } as SelectCardModel;
-    },
-    targetModel(): PlayedTargetModel | undefined {
-      const color = this.viewerColor;
-      if (this.pickerEffect === undefined || color === undefined) {
-        return undefined;
-      }
-      const input = this.selectModel;
-      const amount = input.resourceGainPrompt?.amount;
-      return buildPlayedTargetModel({
-        candidates: input.cards,
-        players: [{name: translateText(this.viewerLabel), color, tableau: input.cards}],
-        viewerColor: color,
-        ask: typeof input.title === 'string' ? translateText(input.title) : translateMessage(input.title),
-        direction: 'add',
-        typeOf: (name) => getCard(name)?.type,
-        preview: (name) => playedTargetPreviewFor(undefined, input, name),
-        resourceContext: (_name, model) => playedTargetResourceFor(amount, input.resourceGainPrompt?.cardResource, model),
-      });
-    },
-    targetLayout(): PlayedTargetLayout {
-      return planPlayedTargetLayout({
-        owners: this.targetModel?.owners ?? [],
-        availW: 960 * conUiScale(),
-        ui: conUiScale(),
-        handheld: consoleLayoutState.profile === 'handheld',
-      });
-    },
-    targetFocus(): PlayedTargetFocus {
-      return {ownerId: this.viewerColor ?? '', index: this.pickerIndex};
-    },
-    pickerBandHeight(): number {
-      return Math.round(420 * conUiScale());
-    },
-  },
-  watch: {
-    /**
-     * Paging to a resolution of the OTHER family opens that family's own opening scenario — or, within the same
-     * family, the first scenario the new law reads when the standing one is not its (a floater layout under the
-     * two-kind card).
-     */
-    family(next: PgFamily): void {
-      if (SCENARIOS[this.scenario]?.family !== next) {
-        this.applyScenario(DEFAULT_SCENARIO_OF[next]);
-      }
-    },
-    scenarioList(next: Array<{s: PgScenario, i: number}>): void {
-      if (next.length > 0 && !next.some((entry) => entry.i === this.scenario)) {
-        this.applyScenario(next[0].i);
-      }
-    },
-  },
-  methods: {
-    partyNameKey(party: string): string {
-      return partyNameKey(party);
-    },
-    /** The levy's reading for `color` in the chosen context — the vote's estimate, «this payout», or the synthetic record. */
-    levyFor(color: Color | undefined): LevyReading | undefined {
-      const r = this.selected;
-      if (r === undefined || r.levy === undefined || color === undefined) {
-        return undefined;
-      }
-      switch (this.context) {
-      case 'reference': return undefined;
-      case 'proposal': return voteLevyOf(r, this.model, color);
-      case 'resolving': return resolvingLevyOf(r, this.model, color);
-      case 'applied': return enactedLevyOf(r, this.model, color);
-      }
-    },
-    /** A production term's icon — the console's own sprite family (the production plate is the term's CSS). */
-    productionUnitClass(resource: Resource): string {
-      return iconClassFor(resource);
-    },
-    /** «target 9 · 4 to draw» / «target 6 · no draw needed» — a seat's hand against its target, in words. */
-    handWords(row: {target: number, drawn: number}): string {
-      const term = this.levelEffect?.level;
-      const cut = term?.direction === 'down';
-      const target = translateTextWithParams(cut ? 'limit ${0}' : 'target ${0}', [String(row.target)]);
-      const none = term === undefined ? LEVEL_NONE_KEY : levelPresentation(term).noneKey;
-      const moved = row.drawn > 0 ?
-        translateTextWithParams(cut ? '${0} taken' : '${0} to draw', [String(row.drawn)]) :
-        translateText(none);
-      return `${target} · ${moved}`;
-    },
-    /** Seat `i`'s CURRENT level for the selected level term — its synthetic hand, or its synthetic supply. */
-    levelBefore(i: SeatIndex): number {
-      const total = this.levelEffect?.level?.total;
-      if (total?.kind === 'stock') {
-        return Math.max(0, this.seats[i].plants ?? 0);
-      }
-      return Math.max(0, this.seats[i].hand ?? 0);
-    },
-    vmOf(entry: IClientResolution): PremiumCardVM {
-      return resolutionPremiumVm(entry);
-    },
-    /** The face's key — a resolution id never collides with a CardName (the premium face's own convention). */
-    cardNameOf(entry: IClientResolution): CardName {
-      return entry.id as CardName;
-    },
-    /** A card's verdict: counted (with its own contribution where it is more than one), or why not. */
-    verdictOf(card: TableauCardRow): string {
-      if (!card.counts) {
-        return '✕ ' + translateText(card.reason);
-      }
-      if (card.held !== undefined) {
-        return '✓ ' + translateText(card.held.resource) + ' ' + card.held.count;
-      }
-      return card.units > 1 ?
-        '✓ ' + translateTextWithParams('Counted ×${0}', [String(card.units)]) :
-        '✓ ' + translateText('Counted');
-    },
-    /** A cell's verdict: counted, or why not (the shared cell predicate's own reason). */
-    cellVerdictOf(cell: CellRowCell): string {
-      return cell.counts ? '✓ ' + translateText('Counted') : '✕ ' + translateText(cell.reason);
-    },
-    emblemUrl(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-    /** A test seat's display name (the winner's recipient caption). */
-    seatName(color: Color): string {
-      const i = SEATS.find((k) => TEST_PLAYERS[k].color === color);
-      return translateText(i === undefined ? color : TEST_PLAYERS[i].label);
-    },
-    /**
-     * A LIVE scenario: boot its engine-generated fixture as a real game and
-     * open the seat it arranges as the viewer. A build without the fixtures
-     * (or a refused door) names why and stays on the stand.
-     */
-    async startLive(): Promise<void> {
-      const live = this.liveScenario;
-      if (live?.live === undefined || this.liveState === 'starting') {
-        return;
-      }
-      this.liveState = 'starting';
-      this.liveError = '';
-      try {
-        const resp = await fetch(apiUrl(paths.API_DEV_PLAYGROUND_SCENARIO + '?scenario=' + encodeURIComponent(live.live)), {method: 'POST'});
-        if (!resp.ok) {
-          this.liveState = 'error';
-          this.liveError = resp.status === 404 ? 'This scenario is not available in this build' : resp.status === 403 ? 'Live scenarios need a local server' : 'The scenario could not be started';
-          return;
-        }
-        const boot = await resp.json() as PlaygroundScenarioBoot;
-        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(boot.playerId), 'sync');
-      } catch {
-        this.liveState = 'error';
-        this.liveError = 'The scenario could not be started';
-      }
-    },
-    // ── the seats ──────────────────────────────────────────────────────
-    /** Did this seat's marker take the winner's step in this context? */
-    advancedAt(i: SeatIndex): boolean {
-      return this.winner === i && this.pastWinnerStep && this.seats[i].agenda < AGENDA_TRACK.length;
-    },
-    agendaAt(i: SeatIndex): number {
-      const agenda = this.seats[i].agenda;
-      return this.advancedAt(i) ? Math.min(AGENDA_TRACK.length, agenda + 1) : agenda;
-    },
-    /** The seat's influence as the context reads it (the track position + what it holds beyond the track). */
-    influenceAt(i: SeatIndex): number {
-      return influenceAtAgenda(this.agendaAt(i)) + this.seats[i].bonus;
-    },
-    /** The veto's sentence (RX42) — its key with its params through the one i18n helper. */
-    vetoText(veto: {key: string, params: ReadonlyArray<string>}): string {
-      return translateTextWithParams(veto.key, [...veto.params]);
-    },
-    /** The seats first by rating in this scenario (every one at the top, with its rating) — the server reading's shape. */
-    ratingVetoOfSeats(): RatingVetoModel {
-      const ratings = SEATS.map((i) => ({color: TEST_PLAYERS[i].color, tr: this.seats[i].tr ?? 20}));
-      const top = Math.max(...ratings.map((r) => r.tr));
-      return {leaders: ratings.filter((r) => r.tr === top)};
-    },
-    seatModel(i: SeatIndex): ParliamentPlayerModel {
-      const model: ParliamentPlayerModel = {
-        color: TEST_PLAYERS[i].color, participates: true, restriction: true, lobby: true, reserve: 5, onResolutions: this.winner === i ? 2 : 0, chairman: false,
-        agenda: this.agendaAt(i), influence: this.influenceAt(i), access: [], partyActionUses: {}, resolutionActionUses: 0,
       };
-      // The seat's COUNTS, the way the server model carries them — through the shared predicate.
-      const count = this.countAt(i);
-      if (count !== undefined) {
-        model.counts = [count];
-      }
-      // …and the PRODUCTION a sequential part divides, exactly as the server
-      // model carries it (only the resource some declaration names).
-      const total = this.sequelEffect?.sequel?.total;
-      if (total !== undefined && total.kind === 'production') {
-        model.production = {[total.resource]: this.seats[i].production ?? 0};
-      }
-      // …and the SUPPLY a LEVY takes from (a budget's M€), the way the server model carries it: the seat's
-      // synthetic supply under the levy's own resource — what the shortfall warning and the net line read.
-      const levy = this.selected?.levy;
-      if (levy !== undefined) {
-        model.stock = {[levy.resource]: this.seats[i].megacredits ?? 20};
-      }
-      // …and the LEVEL a level part moves the seat to, the way the server model carries it: the seat's
-      // synthetic hand (Joint Research) or its synthetic supply (Plant Ban) — what the target is read
-      // against. A supply the levy also reads is written once: the two rules share the one number.
-      const levelTotal = this.levelEffect?.level?.total;
-      if (levelTotal?.kind === 'cards') {
-        model.hand = Math.max(0, this.seats[i].hand ?? 0);
-      } else if (levelTotal?.kind === 'stock') {
-        model.stock = {...(model.stock ?? {}), [levelTotal.resource]: this.levelBefore(i)};
-      }
-      // …and the COLONY LEDGER a «colony bonuses» part multiplies — the registry the server ships, built from
-      // the colony manifest's printed bonuses (the same descriptors `IColony.colonyBonusGrant` reads).
-      if (colonyBonusesEffectOf(this.selected ?? {}) !== undefined) {
-        // A tile named TWICE in the seat's list is two cubes on it (each pays in full) — one row, `cubes: 2`.
-        const seated = this.seats[i].colonies ?? [];
-        model.colonyBonuses = [...new Set(seated)].map((name) => {
-          const colony = getColony(name).colony;
-          const grant: ColonyTradeGrantModel = {benefit: colony.type, quantity: colony.quantity};
-          if (colony.resource !== undefined) {
-            grant.resource = colony.resource;
-          }
-          const kinds = colonyCardResources(getColony(name));
-          if (colony.type === ColonyBenefit.ADD_RESOURCES_TO_CARD || colony.type === ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
-            if (kinds.length === 1) {
-              grant.cardResource = kinds[0];
-            } else if (kinds.length > 1) {
-              grant.cardResources = kinds;
-            }
-          }
-          return {colony: name, grant, description: colony.description, cubes: seated.filter((n) => n === name).length};
-        });
-      }
-      return model;
+    }
+    return {
+      ...base, rulingParty: r.party, enacted,
+      phase: {
+        generation: 3, final: false, step: 'effects', winner: {instance, player: owner},
+        pending: asked === undefined ? undefined : {player: asked, key: pickerEffect.value?.id ?? 'effect', input: 'card'},
+        outcomes: [],
+      },
+    };
+  }
+  const winnerSeat = winner.value === 'neutral' ? undefined : winner.value;
+  return {
+    ...base, rulingParty: r.party, enacted,
+    lastPhase: {
+      generation: 3, final: false,
+      winner: {instance, resolution: r.id, party: r.party, votes: 2, player: owner},
+      agenda: winnerSeat === undefined ? undefined : {player: TEST_PLAYERS[winnerSeat].color, from: seats.value[winnerSeat].agenda, to: agendaAt(winnerSeat)},
+      outcomes: appliedOutcomes.value, support: [], enacted, refreshed: [], lobbyRefilled: [],
     },
-    /** The owner's side of the tag-activity rule for a synthetic tableau (Odyssey keeps events face up). */
-    countContextOf(names: ReadonlyArray<CardName>): CardCountContext {
-      return {eventTagsInPlay: names.includes(CardName.ODYSSEY)};
-    },
-    /**
-     * Seat `i`'s cards that can HOLD any of `resources` (the layout's candidates), in tableau order — the card's own
-     * storage rule over the list, the WARE wildcard included (the server's `holdsOneOf`, on the client manifest).
-     */
-    holdersAt(resources: ReadonlyArray<CardResource>, i: SeatIndex): Array<CardName> {
-      return (this.seats[i].cards ?? []).filter((name) => {
-        const type = getCard(name)?.resourceType;
-        return type !== undefined && (resources.includes(type) || type === CardResource.WARE);
-      });
-    },
-    /** Seat `i`'s count for the selected resolution's counted term (undefined when nothing is counted). */
-    countAt(i: SeatIndex): ResolutionCountModel | undefined {
-      const effect = this.countEffect;
-      const grant = this.selected?.tileGrant;
-      // A TILE GRANTED BY THRESHOLD counts its DESTINATIONS (the seat's cities on Mars) — the same per-seat
-      // count the server model carries, through the same readers.
-      const id = effect?.count?.id ?? (grant === undefined ? undefined : tileGrantCountId(grant));
-      if (id === undefined) {
-        return undefined;
-      }
-      // A BOARD count walks the seat's CELLS through the shared cell predicate — the same rule the
-      // engine's reading is pinned to, never a number typed into the scenario.
-      const kind = resolutionCountKind(id).kind;
-      if (kind === 'board') {
-        return countSpacesToward(id, this.seats[i].cells ?? []);
-      }
-      // A THRESHOLD count divides the seat's synthetic VALUE by the ONE shared function — the number of sets is
-      // never typed into the scenario either; the scenario states the rating and the rule does the rest.
-      if (kind === 'threshold') {
-        return countMetricToward(id, this.seats[i].tr ?? 20);
-      }
-      // A PRODUCTION count adds the seat's synthetic TRACK up through the ONE shared reader — the sum and its
-      // per-resource breakdown are the reader's, never typed into the scenario.
-      if (kind === 'production') {
-        return countProductionToward(id, this.seats[i].productions ?? {});
-      }
-      // A COLONIES count reads the seat's synthetic colony TABLE — one tile name per cube — through the ONE shared
-      // reader; the list rides the model exactly as the server's does, so the reading can name the tiles.
-      if (kind === 'colonies') {
-        return countColoniesToward(id, this.seats[i].colonies ?? []);
-      }
-      // A HOLDERS count reads the seat's synthetic HOLDINGS (real cards, a number on each) through the stand's
-      // restatement of the engine's predicate — a holder at 0 and a card that holds nothing are named, never counted.
-      if (kind === 'holders') {
-        return countHoldersToward(id, (this.seats[i].holdings ?? []).map((h) => ({name: h.card, resourceType: getCard(h.card)?.resourceType, resourceCount: h.count})));
-      }
-      const names = this.seats[i].cards ?? [];
-      const cards = names.map((name) => getCard(name)).filter((card): card is NonNullable<typeof card> => card !== undefined);
-      return countCardsToward(id, cards, this.countContextOf(names));
-    },
-    /** The colony's planet disc — the colonies' own sprite classes (`Luna-background`), the ledger's rule. */
-    planetClassOf(colony: ColonyName): string {
-      return colony.replace(' ', '-') + '-background';
-    },
-    /**
-     * What `effect` pays seat `i` AT THE ENACTMENT — the winner's Agenda step
-     * already taken (whatever the context shows) — through the ONE formula,
-     * with the enactment's own skip reasons: nothing owed, or no card of the
-     * test player's that can hold the resource.
-     */
-    payoutAt(effect: InfluenceScaledEffect, i: SeatIndex): SeatPayout | undefined {
-      if (effect.recipient === 'winner' && this.winner !== i) {
-        return undefined;
-      }
-      const seat = this.seats[i];
-      const agenda = this.winner === i ? Math.min(AGENDA_TRACK.length, seat.agenda + 1) : seat.agenda;
-      const influence = influenceAtAgenda(agenda) + seat.bonus;
-      const term = effect.sequel;
-      if (term !== undefined) {
-        // A SEQUENTIAL part: the total this resolution's earlier part leaves
-        // behind, then the ONE division. Influence is already inside the total.
-        const before = seat.production ?? 0;
-        const source = sequelSourceOf(this.selected, effect);
-        const after = Math.max(0, before + (source === undefined ? 0 : scaledAmount(source, influence)));
-        const amount = sequelAmount(effect, after);
-        const total = {before, after};
-        return amount <= 0 ?
-          {amount: 0, influence, total, skipped: sequelPresentation(term).skipReasonKey} :
-          {amount, influence, total};
-      }
-      const level = effect.level;
-      if (level !== undefined) {
-        // A LEVEL part: the seat's synthetic level against the target the formula
-        // yields, through the ONE division — a seat already at the level is the
-        // rule working, named by the term's own reason, in either direction.
-        const before = this.levelBefore(i);
-        const target = scaledAmount(effect, influence);
-        const amount = levelAmount(effect, influence, before);
-        const total = {before, after: levelAfter(effect, before, amount)};
-        return amount <= 0 ?
-          {amount: 0, influence, total, target, skipped: levelPresentation(level).skipReasonKey} :
-          {amount, influence, total, target};
-      }
-      if (effect.count !== undefined) {
-        // A COUNTED term: the seat's own count through the shared predicate, then the ONE formula.
-        const count = this.countAt(i);
-        const counted = count?.count ?? 0;
-        const amount = scaledAmount(effect, influence, counted);
-        const uncapped = uncappedAmount(effect, influence, counted);
-        // The skip reason is the SERVER's own for this count id — the stand
-        // never invents a sentence the game would not record.
-        if (amount <= 0) {
-          return {amount: 0, influence, count, uncapped, skipped: yieldCountPresentation(effect.count.id).skipReasonKey};
-        }
-        // A DISTRIBUTED payout with no holder is OWED and forfeited — named with its size (the server's own reason).
-        // (A payout onto EVERY counted card has no «no holder» of its own: its count IS its recipients — zero is the count's skip above.)
-        const kinds = effect.unit.kind === 'cardResource' ? declaredCardResourceKinds(effect.unit) : undefined;
-        if (kinds !== undefined && ((this.noRecipient && this.viewerSeatIndex === i) || this.holdersAt(kinds, i).length === 0)) {
-          return {amount, influence, count, uncapped, skipped: noRecipientReasonKey(kinds)};
-        }
-        return {amount, influence, count, uncapped};
-      }
-      const amount = scaledAmount(effect, influence);
-      if (amount <= 0) {
-        return {amount: 0, influence, skipped: 'No influence'};
-      }
-      if (effect.unit.kind === 'cardResource' && this.noRecipient && this.viewerSeatIndex === i) {
-        return {amount, influence, skipped: noRecipientReasonKey(declaredCardResourceKinds(effect.unit) ?? [])};
-      }
-      return {amount, influence};
-    },
-    /** A live payout's reading for seat `i` (the server's amount, its skip named), the formula without a seat. */
-    resolvingReading(effect: InfluenceScaledEffect, i: SeatIndex | undefined): InfluenceYield {
-      const payout = i === undefined ? undefined : this.payoutAt(effect, i);
-      if (i === undefined || payout === undefined) {
-        return referenceYield(effect);
-      }
-      const reading = payout.target !== undefined && payout.total !== undefined ?
-        fixedLevelYield(effect, 'resolving', payout.amount, payout.target, payout.total, {influence: payout.influence}) :
-        payout.total !== undefined ?
-          fixedSequelYield(effect, 'resolving', payout.amount, payout.total, {influence: payout.influence}) :
-          payout.count !== undefined ?
-            fixedYield(effect, 'resolving', payout.amount, payout.influence,
-              {
-                count: payout.count.count, counted: payout.count.cards, countedUnits: payout.count.units, countedSpaces: payout.count.spaces,
-                countedTiers: payout.count.tiers, countedMetric: payout.count.metric, countedByResource: payout.count.byResource,
-                countedByCard: payout.count.byCard, uncapped: payout.uncapped,
-              }) :
-            resolvingYieldOf(effect, payout.amount, this.model, TEST_PLAYERS[i].color);
-      return payout.skipped === undefined ? reading : {...reading, skipped: payout.skipped};
-    },
-    // ── the pad ────────────────────────────────────────────────────────
-    applyScenario(index: number): void {
-      Object.assign(this, scenarioState(index));
-      this.pickerIndex = 0;
-      this.lockedCard = '';
-      this.liveState = 'idle';
-      this.liveError = '';
-    },
-    /** A: the test player's influence +1 (wraps), set by the Agenda position that reads as it. */
-    bumpInfluence(): void {
-      const i = this.viewerSeatIndex;
-      if (i === undefined) {
-        return;
-      }
-      const seat = this.seats[i];
-      const next = (influenceAtAgenda(seat.agenda) + seat.bonus + 1) % (MAX_INFLUENCE + 1);
-      // Only the influence moves: the seat keeps its tableau and its production.
-      this.seats = this.seats.map((s, k) => k === i ? {...s, agenda: AGENDA_FOR_INFLUENCE[next], bonus: 0} : s);
-      this.modified = true;
-    },
-    /** X: the REAL fullscreen viewer over the catalog, reading this stand's table and test player. */
-    openFullscreen(): void {
-      if (this.catalog.length === 0) {
-        return;
-      }
-      openConsoleCardZoom(this.catalog.map((r) => resolutionZoomEntry(r.id)), this.cursor, undefined, undefined, {
-        origin: slotZoomOrigin(
-          () => this.$el as HTMLElement | undefined,
-          (index) => 'resolution:' + (this.catalog[index]?.id ?? ''),
-          (index) => {
-            this.cursor = index;
-          }),
-        parliament: {model: () => this.model, viewer: () => this.viewerColor, table: () => this.winnerTable, nameOf: (color: Color) => this.seatName(color)},
-        // The position rides the FOOTER, as in the Parliament («LB ◀ 1/11 ▶ RB») — never a counter plate over
-        // the card plus a «ЛИСТАТЬ» pager below it (registry R-08 / R-22).
-        counterInFooter: this.catalog.length > 1,
-      });
-    },
-    /** The stand forwards every intent here first; `false` hands it back (scroll, sections, B). */
-    handleIntent(intent: GamepadIntent): boolean {
-      if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
-        this.cursor = stepIndex(this.cursor, intent.dir === 'right' ? 1 : -1, this.catalog.length);
-        this.pickerIndex = 0;
-        this.lockedCard = '';
-        return true;
-      }
-      if (intent.kind !== 'press') {
-        return false;
-      }
-      if (intent.button === 'stickL') {
-        this.winner = this.winner === 'neutral' ? 0 : this.winner === 0 ? 1 : 'neutral';
-        this.modified = true;
-        return true;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'inspect':
-        this.openFullscreen();
-        return true;
-      case 'nextTab': {
-        const list = this.scenarioList;
-        const at = list.findIndex((entry) => entry.i === this.scenario);
-        this.applyScenario(list[(at + 1) % list.length].i);
-        return true;
-      }
-      case 'reset':
-        this.viewer = ((this.viewer + 1) % 3) as ViewerIndex;
-        this.pickerIndex = 0;
-        this.lockedCard = '';
-        this.modified = true;
-        return true;
-      case 'primary':
-        if (this.liveScenario !== undefined) {
-          void this.startLive();
-          return true;
-        }
-        this.bumpInfluence();
-        return true;
-      case 'fullscreen':
-        this.context = CONTEXTS[(CONTEXTS.indexOf(this.context) + 1) % CONTEXTS.length];
-        return true;
-      case 'prevTab': {
-        const count = this.targetModel?.owners[0]?.candidates.length ?? 0;
-        if (count > 0) {
-          this.pickerIndex = (this.pickerIndex + 1) % count;
-          this.lockedCard = this.targetModel?.owners[0]?.candidates[this.pickerIndex]?.cardName ?? '';
-        }
-        return true;
-      }
-      default:
-        return false;
-      }
-    },
-  },
+  };
 });
+/**
+ * THE LEVY's records (a budget): what the shared step takes FIRST from every seat — the supply bounded take
+ * as a negative `stock` amount with `owed` beside it (a short seat's reason on the record), or the named
+ * skip of a seat that held nothing. The server's order: before every payout.
+ */
+const levyOutcomes = computed((): Array<ParliamentEnactOutcomeModel> => {
+  const levy = selected.value?.levy;
+  const out: Array<ParliamentEnactOutcomeModel> = [];
+  if (levy === undefined) {
+    return out;
+  }
+  for (const i of SEATS) {
+    const held = seats.value[i].megacredits ?? 20;
+    const paid = levyPaid(levy, held);
+    const common = {player: TEST_PLAYERS[i].color, step: LEVY_STEP_KEY, part: 'effect' as const, stock: levy.resource, owed: levy.amount};
+    if (paid <= 0) {
+      out.push({...common, kind: 'skipped', amount: 0, reason: levyNothingReasonKey(levy.resource)});
+    } else if (paid < levy.amount) {
+      out.push({...common, kind: 'stock', amount: -paid, before: held, after: held - paid, reason: levyShortReasonKey(levy.resource)});
+    } else {
+      out.push({...common, kind: 'stock', amount: -paid, before: held, after: held - paid});
+    }
+  }
+  return out;
+});
+/** The SUPPLY payouts (a `stock` unit) the server records — every seat's amount with the supply before and after, or its named skip. */
+const supplyOutcomes = computed((): Array<ParliamentEnactOutcomeModel> => {
+  const out: Array<ParliamentEnactOutcomeModel> = [];
+  const levy = selected.value?.levy;
+  for (const effect of selected.value?.scaled ?? []) {
+    if (effect.unit.kind !== 'stock') {
+      continue;
+    }
+    const resource: Resource = effect.unit.resource;
+    for (const i of SEATS) {
+      const payout = payoutAt(effect, i);
+      if (payout === undefined) {
+        continue;
+      }
+      // Behind a LEVY of the same currency the payout lands on what the levy LEFT — the records chain.
+      const held = seats.value[i].megacredits ?? 20;
+      const before = levy !== undefined && levy.resource === resource ? held - levyPaid(levy, held) : 3 * (i + 1);
+      const common = {
+        player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, stock: resource, amount: payout.amount, influence: payout.influence,
+        // A supply payout with a COUNT term (Generous Funding, the budgets): the record carries the count and what explains it.
+        ...(payout.count === undefined ? {} : {
+          count: payout.count.count, counted: payout.count.cards, countedSpaces: payout.count.spaces, countedTiers: payout.count.tiers,
+          countedMetric: payout.count.metric, countedByResource: payout.count.byResource, uncapped: payout.uncapped,
+        }),
+      };
+      out.push(payout.skipped === undefined ?
+        {...common, kind: 'stock', before, after: before + payout.amount} :
+        {...common, kind: 'skipped', reason: payout.skipped});
+    }
+  }
+  return out;
+});
+/**
+ * The winner's part as the server records it: a TILE placed (its parameter before → after) or the named skip;
+ * a COLONY built on a tile (Colony Contest) or the empty table's skip; nothing for a neutral winner.
+ */
+const winnerOutcome = computed((): ParliamentEnactOutcomeModel | undefined => {
+  const reward = selected.value?.winnerReward;
+  if (reward === undefined || winner.value === 'neutral') {
+    return undefined;
+  }
+  const player = TEST_PLAYERS[winner.value].color;
+  if (reward.kind === 'colony') {
+    return noCell.value ?
+      {player, step: 'colony', part: 'winner', kind: 'skipped', reason: 'No colony is available'} :
+      {player, step: 'colony', part: 'winner', kind: 'colony', colony: ColonyName.LUNA};
+  }
+  if (reward.kind === 'parameter') {
+    // THE DIRECT STEP (Mohole Contest): the shared room decides the steps made — the ceiling's cut, or the
+    // named skip at the maximum — and the record carries the TR the step paid (one per step made).
+    const room = winnerParameterRoom(reward, winnerTable.value);
+    return room.applied === 0 ?
+      {player, step: reward.parameter, part: 'winner', kind: 'skipped', amount: 0, parameter: {id: reward.parameter, before: room.current, after: room.current}, reason: 'Temperature is at its maximum — it is not raised'} :
+      {player, step: reward.parameter, part: 'winner', kind: 'globalParameter', amount: room.applied, parameter: {id: reward.parameter, before: room.current, after: room.resulting}, tr: room.applied};
+  }
+  if (noCell.value) {
+    return {player, step: reward.tile, part: 'winner', kind: 'skipped', reason: reward.tile === 'greenery' ? 'No space can take a greenery' : 'No space can take an ocean'};
+  }
+  if (reward.tile === 'greenery') {
+    const before = table.value.oxygen;
+    return {player, step: 'greenery', part: 'winner', kind: 'greenery', space: '35', parameter: {id: 'oxygen', before, after: Math.min(14, before + 1)}};
+  }
+  const before = table.value.oceans;
+  return before >= 9 ?
+    {player, step: 'ocean', part: 'winner', kind: 'skipped', reason: 'No ocean tile is left'} :
+    {player, step: 'ocean', part: 'winner', kind: 'ocean', space: '35', parameter: {id: 'oceans', before, after: before + 1}};
+});
+/**
+ * THE GRANT's records: every seat in the walk's order — Skyscrapers' tier on one of its cities (a stack of 2),
+ * or the named skip: the rule that passed the seat over, or no city on Mars to build on; Mars First Budget's
+ * city on a cell of its own (no stack), or — the scenario's board left no legal cell — the named skip.
+ */
+const grantOutcomes = computed((): Array<ParliamentEnactOutcomeModel> => {
+  const grant = selected.value?.tileGrant;
+  const out: Array<ParliamentEnactOutcomeModel> = [];
+  if (grant === undefined) {
+    return out;
+  }
+  const step = tileGrantStepKey(grant);
+  for (const i of SEATS) {
+    const player = TEST_PLAYERS[i].color;
+    const influence = influenceAt(i);
+    const common = {player, step, part: 'effect' as const, influence};
+    if (tileGrantEligibility(grant, {winner: winner.value === i, influence}) === 'none') {
+      out.push({...common, kind: 'skipped', reason: TILE_GRANT_NOT_ELIGIBLE_REASON});
+      continue;
+    }
+    if (grant.placement === 'any-legal') {
+      // A city by the usual rules: a synthetic cell per seat — or the board the scenario leaves without one.
+      out.push(noCell.value ?
+        {...common, kind: 'skipped', reason: TILE_GRANT_NO_SPACE_REASON} :
+        {...common, kind: 'city', space: GRANT_CITY_CELLS[i]});
+      continue;
+    }
+    const cell = countAt(i)?.spaces?.[0];
+    if (cell === undefined) {
+      out.push({...common, kind: 'skipped', reason: TILE_GRANT_NO_DESTINATION_REASON});
+      continue;
+    }
+    out.push({...common, kind: 'city', space: cell, stackHeight: 2});
+  }
+  return out;
+});
+/**
+ * THE CAREER's records (Reds Budget): every seat's walk of the law's step(s) from where the scenario stands (the
+ * winner's own step already taken), as the shared step records it — the walk with its gifts, or the named skip at
+ * the end of the track. The printed track decides each step's gift (`agendaWalkAhead`).
+ */
+const careerOutcomes = computed((): Array<ParliamentEnactOutcomeModel> => {
+  const grant = selected.value?.agendaGrant;
+  const out: Array<ParliamentEnactOutcomeModel> = [];
+  if (grant === undefined) {
+    return out;
+  }
+  for (const i of SEATS) {
+    const from = agendaAt(i);
+    const common = {player: TEST_PLAYERS[i].color, step: AGENDA_GRANT_STEP_KEY, part: 'effect' as const, influence: influenceAt(i)};
+    const ahead = agendaWalkAhead(from, grant.steps);
+    if (ahead.length === 0) {
+      out.push({...common, kind: 'skipped', amount: 0, walk: {from, to: from, steps: []}, reason: AGENDA_GRANT_END_OF_TRACK_REASON});
+      continue;
+    }
+    const steps = ahead.map((step) => (step.step.kind === 'influence' ? {to: step.to} : {to: step.to, bonus: step.step.kind}));
+    const tr = steps.filter((step) => step.bonus === 'tr').length;
+    const drawn = steps.filter((step) => step.bonus === 'card').length;
+    out.push({
+      ...common, kind: 'agenda', amount: steps.length, walk: {from, to: steps[steps.length - 1].to, steps},
+      ...(tr > 0 ? {tr} : {}), ...(drawn > 0 ? {drawn} : {}),
+    });
+  }
+  return out;
+});
+/** The record the server would keep for this enactment's scaled part — every seat's payout, or its named skip. */
+const appliedOutcomes = computed((): Array<ParliamentEnactOutcomeModel> => {
+  const r = selected.value;
+  const out: Array<ParliamentEnactOutcomeModel> = [];
+  if (r === undefined) {
+    return out;
+  }
+  // THE LEVY FIRST — the printed order is the recorded order.
+  out.push(...levyOutcomes.value);
+  out.push(...supplyOutcomes.value);
+  const tile = winnerOutcome.value;
+  if (tile !== undefined) {
+    out.push(tile);
+  }
+  out.push(...grantOutcomes.value);
+  out.push(...careerOutcomes.value);
+  for (const effect of r.scaled ?? []) {
+    if (effect.sequel !== undefined) {
+      // THE DRAW's record: the amount, the total it was divided from
+      // (before -> after) and what actually left the deck.
+      for (const i of SEATS) {
+        const payout = payoutAt(effect, i);
+        if (payout === undefined) {
+          continue;
+        }
+        const common = {
+          player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id,
+          amount: payout.amount, influence: payout.influence, total: payout.total,
+        };
+        out.push(payout.skipped === undefined ?
+          {...common, kind: 'cards' as const, drawn: payout.amount} :
+          {...common, kind: 'skipped' as const, reason: payout.skipped});
+      }
+      continue;
+    }
+    if (effect.level !== undefined) {
+      // THE LEVEL RECORD the server keeps: the target, the level before and after, the amount
+      // moved — and, for a CUT, the NEGATIVE stock amount the address reads as a loss.
+      const cut = effect.level.direction === 'down';
+      const stock = effect.unit.kind === 'stock' ? effect.unit.resource : undefined;
+      for (const i of SEATS) {
+        const payout = payoutAt(effect, i);
+        if (payout === undefined) {
+          continue;
+        }
+        const common = {
+          player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id,
+          influence: payout.influence, total: payout.total, target: payout.target,
+        };
+        if (payout.skipped !== undefined) {
+          out.push({...common, amount: 0, kind: 'skipped' as const, ...(stock === undefined ? {} : {stock}), reason: payout.skipped});
+        } else if (cut && stock !== undefined) {
+          out.push({
+            ...common, kind: 'stock' as const, stock, amount: -payout.amount, owed: payout.amount,
+            before: payout.total?.before, after: payout.total?.after,
+          });
+        } else {
+          out.push({...common, kind: 'cards' as const, amount: payout.amount, drawn: payout.amount});
+        }
+      }
+      continue;
+    }
+    if (effect.unit.kind === 'production') {
+      // THE PRODUCTION RECORD the server keeps: the amount, every input
+      // (B, the counted cards, I, the sum before the cap) and before → after.
+      const resource = effect.unit.resource;
+      for (const i of SEATS) {
+        const payout = payoutAt(effect, i);
+        if (payout === undefined) {
+          continue;
+        }
+        const before = seats.value[i].production ?? 0;
+        const common = {
+          player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, production: resource, amount: payout.amount, influence: payout.influence,
+          count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units, countedSpaces: payout.count?.spaces,
+          countedTiers: payout.count?.tiers, countedMetric: payout.count?.metric, countedByCard: payout.count?.byCard, uncapped: payout.uncapped,
+        };
+        out.push(payout.skipped === undefined ?
+          {...common, kind: 'production', before, after: before + payout.amount} :
+          {...common, kind: 'skipped', reason: payout.skipped});
+      }
+      continue;
+    }
+    if (effect.unit.kind === 'cards') {
+      // A PLAIN DRAW (Scientists Budget's flat 2, Open IP Trade's 1 per influence — neither a level nor a
+      // sequel): what was owed, and what the deck actually delivered. An EMPTY deck is the draw's own NAMED
+      // skip, and nothing else on the card moves because of it.
+      for (const i of SEATS) {
+        const payout = payoutAt(effect, i);
+        if (payout === undefined) {
+          continue;
+        }
+        const common = {
+          player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id,
+          amount: payout.amount, influence: payout.influence,
+          // …and, when the DRAW is a COUNTED one (Urban Research: a card per city tag), the inputs that
+          // explain the number — the very columns a supply payout's record carries. A flat draw has no
+          // count and writes none of them.
+          count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units,
+        };
+        out.push(payout.skipped !== undefined ?
+          {...common, kind: 'skipped' as const, reason: payout.skipped} :
+          emptyDeck.value ?
+            {...common, kind: 'skipped' as const, drawn: 0, reason: DECK_EMPTY_REASON} :
+            {...common, kind: 'cards' as const, drawn: payout.amount});
+      }
+      continue;
+    }
+    if (effect.unit.kind !== 'cardResource') {
+      continue;
+    }
+    if (effect.unit.onto === 'each-counted') {
+      // EVERY COUNTED CARD RECEIVES, each of its own kind — the server's record: the counted cards with what
+      // each held, every landing with its kind and its count BEFORE, the ONE kind only when every card took it.
+      for (const i of SEATS) {
+        const payout = payoutAt(effect, i);
+        if (payout === undefined) {
+          continue;
+        }
+        const held = payout.count?.byCard ?? [];
+        const common = {
+          player: TEST_PLAYERS[i].color, step: effect.id, effect: effect.id, onto: 'each-counted' as const, amount: payout.amount,
+          influence: payout.influence, count: payout.count?.count, counted: payout.count?.cards, countedByCard: held,
+        };
+        if (payout.skipped !== undefined) {
+          out.push({...common, kind: 'skipped', reason: payout.skipped});
+          continue;
+        }
+        const per = effect.count?.per ?? 1;
+        const cards = held.map((entry) => ({card: entry.card, amount: per, resource: entry.resource, before: entry.count}));
+        const kinds = new Set(cards.map((entry) => entry.resource));
+        out.push({...common, kind: 'cardResource', cards, ...(kinds.size === 1 ? {resource: cards[0].resource} : {})});
+      }
+      continue;
+    }
+    for (const i of SEATS) {
+      const payout = payoutAt(effect, i);
+      if (payout === undefined) {
+        continue;
+      }
+      // ONE kind names itself on the record; SEVERAL ride `resources` (the skip's name, the mixed landing's).
+      const declared = declaredCardResourceKinds(effect.unit) ?? [];
+      const common = {
+        player: TEST_PLAYERS[i].color, step: effect.id, effect: effect.id, amount: payout.amount, influence: payout.influence,
+        ...(declared.length === 1 ? {resource: declared[0]} : {resources: declared}),
+      };
+      if (payout.skipped !== undefined) {
+        out.push({...common, kind: 'skipped', reason: payout.skipped});
+        continue;
+      }
+      if (effect.unit.spread === true) {
+        // THE DISTRIBUTION's record: the whole list of recipients (the stand lays the payout out evenly), each
+        // with the kind ITS card takes, the count's inputs beside it — a list of ONE names its card too, and the
+        // ONE kind only when every landed unit is of it, exactly as the server records it.
+        const laid = spreadOver(holdersAt(declared, i), payout.amount).map((entry) => ({...entry, resource: holderKindOf(entry.card)}));
+        const kinds = new Set(laid.map((entry) => entry.resource));
+        out.push({
+          ...common, kind: 'cardResource', cards: laid, ...(laid.length === 1 ? {card: laid[0].card} : {}),
+          ...(kinds.size === 1 ? {resource: laid[0].resource} : {resource: undefined}),
+          count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units, countedByTag: payout.count?.byTag,
+        });
+        continue;
+      }
+      out.push({...common, kind: 'cardResource', card: i === 0 ? CardName.FISH : CardName.BIRDS});
+    }
+  }
+  return out;
+});
+/** The viewer's readings for the chosen context — the ONE model the game reads. */
+const yields = computed((): ReadonlyArray<InfluenceYield> => {
+  const r = selected.value;
+  if (r === undefined || (r.scaled ?? []).length === 0) {
+    return [];
+  }
+  switch (context.value) {
+  case 'reference': return (r.scaled ?? []).map(referenceYield);
+  case 'proposal': return voteYieldsOf(r, model.value, viewerColor.value);
+  case 'resolving': return (r.scaled ?? []).map((e) => resolvingReading(e, viewerSeatIndex.value));
+  case 'applied': return enactedYieldsOf(r, model.value, viewerColor.value);
+  }
+});
+/** The forecast's honest note (the vote surface's) — a live or recorded reading names its own skip. */
+const yieldNote = computed((): string | undefined => {
+  const effect = pickerEffect.value;
+  return effect !== undefined && effect.unit.kind === 'cardResource' && noRecipient.value && context.value === 'proposal' && viewerSeatIndex.value !== undefined ?
+    noRecipientForecastKey(declaredCardResourceKinds(effect.unit) ?? []) : undefined;
+});
+const status = computed((): ResolutionStatusVm | undefined => {
+  return selected.value === undefined ? undefined : resolutionStatusOf(selected.value.id, model.value, viewerColor.value);
+});
+const seatRows = computed((): Array<SeatRow> => {
+  const r = selected.value;
+  if (r === undefined || (r.scaled ?? []).length === 0 || context.value === 'reference') {
+    return [];
+  }
+  return SEATS.map((i) => {
+    const color = TEST_PLAYERS[i].color;
+    let yields: ReadonlyArray<InfluenceYield>;
+    switch (context.value) {
+    case 'proposal': yields = voteYieldsOf(r, model.value, color); break;
+    case 'resolving': yields = (r.scaled ?? []).map((e) => resolvingReading(e, i)); break;
+    default: yields = enactedYieldsOf(r, model.value, color);
+    }
+    return {
+      color,
+      label: TEST_PLAYERS[i].label,
+      viewer: viewerSeatIndex.value === i,
+      winner: winner.value === i,
+      yields,
+      levy: levyFor(color),
+      advance: advancedAt(i) ? translateTextWithParams('Agenda ${0} → ${1}', [String(seats.value[i].agenda), String(agendaAt(i))]) : undefined,
+      winnerPart: r.hasWinnerEffect && winner.value === i && pastWinnerStep.value,
+    };
+  });
+});
+/** THE LEVY a budget takes from the viewer first — the ONE model the game reads, for the chosen context. */
+const levy = computed((): LevyReading | undefined => {
+  return levyFor(viewerColor.value);
+});
+// ── the picker ─────────────────────────────────────────────────────
+/** The viewer's payout at the enactment (the winner's step counted), or undefined for a spectator. */
+const pickerPayout = computed((): SeatPayout | undefined => {
+  const effect = pickerEffect.value;
+  const i = viewerSeatIndex.value;
+  return effect === undefined || i === undefined ? undefined : payoutAt(effect, i);
+});
+const pickerYieldAmount = computed((): number => {
+  return pickerPayout.value?.amount ?? 0;
+});
+/** Why the picker would never be asked (an English key) — the same reasons the enactment records. */
+const pickerSkip = computed((): string | undefined => {
+  if (viewerSeatIndex.value === undefined) {
+    return 'A spectator receives nothing';
+  }
+  return pickerPayout.value?.skipped;
+});
+const pickerYield = computed((): InfluenceYield | undefined => {
+  const effect = pickerEffect.value;
+  return effect === undefined ? undefined : resolvingReading(effect, viewerSeatIndex.value);
+});
+const sourceView = computed((): PromptSourceView => {
+  return choiceSourceView({kind: 'resolution', resolution: selected.value?.id}) ?? {kindKey: 'Resolution', inspectable: false};
+});
+/** THE KINDS of the picker effect's unit — one for the ordinary card, several for Medical Database («data or microbe»). */
+const pickerKinds = computed((): ReadonlyArray<CardResource> => {
+  const effect = pickerEffect.value;
+  return effect !== undefined && effect.unit.kind === 'cardResource' ? declaredCardResourceKinds(effect.unit) ?? [] : [CardResource.ANIMAL];
+});
+/** The ONE kind's icon key (the family's ordinary pick), undefined over several kinds — the marker then names each card's own. */
+const resourceIcon = computed((): string | undefined => {
+  const kinds = pickerKinds.value;
+  return kinds.length === 1 ? cardResourceIconKey(kinds[0]) : undefined;
+});
+/** The KINDS a DISTRIBUTED payout lands on (the picker effect's, when it is laid out), else undefined. */
+const spreadResources = computed((): ReadonlyArray<CardResource> | undefined => {
+  const effect = pickerEffect.value;
+  return effect !== undefined && effect.unit.kind === 'cardResource' && effect.unit.spread === true ? declaredCardResourceKinds(effect.unit) : undefined;
+});
+/**
+ * The picker's candidates: for a DISTRIBUTED payout the viewer's OWN holders from the scenario's tableau
+ * (stored counts 0, 1, 2… so the readings differ per card); for the animal families the demo holders.
+ */
+const pickerHolders = computed((): ReadonlyArray<{name: CardName, resources: number, per?: number}> => {
+  const resources = spreadResources.value;
+  const viewer = viewerSeatIndex.value;
+  if (resources === undefined || viewer === undefined) {
+    return DEMO_HOLDERS;
+  }
+  return holdersAt(resources, viewer).map((name, n) => ({name, resources: n}));
+});
+/**
+ * THE LAYOUT the shared step would ask for — N ≥ 2 over ≥ 2 holders (below that the family's ordinary pick
+ * stands, and the stand shows exactly that). The real surface is the game's own (`ConsoleTaskHost` in its
+ * layout mode); the stand states the facts and hands over to the LIVE scenario for the surface.
+ */
+const pickerLayout = computed((): {amount: number, holders: ReadonlyArray<{name: CardName, resources: number}>} | undefined => {
+  if (spreadResources.value === undefined || pickerSkip.value !== undefined) {
+    return undefined;
+  }
+  const amount = pickerYieldAmount.value;
+  const holders = pickerHolders.value;
+  return amount >= 2 && holders.length >= 2 ? {amount, holders} : undefined;
+});
+const pickerLayoutLine = computed((): string => {
+  const layout = pickerLayout.value;
+  return layout === undefined ? '' :
+    translateTextWithParams('Lay out ${0} over ${1} cards — 0 to ${0} on each; the live scenario opens the real layout', [String(layout.amount), String(layout.holders.length)]);
+});
+/** The SelectCard the server would send: candidates with live counts, the amount, the per-card VP reading. */
+const selectModel = computed((): SelectCardModel => {
+  const amount = pickerYieldAmount.value;
+  const holders = pickerHolders.value;
+  const cards = holders.map((h) => ({name: h.name, resources: h.resources} as CardModel));
+  const vpBox: Partial<Record<CardName, {from: number, to: number}>> = {};
+  for (const h of holders) {
+    if (h.per !== undefined) {
+      vpBox[h.name] = {from: Math.floor(h.resources / h.per), to: Math.floor((h.resources + amount) / h.per)};
+    }
+  }
+  // The server's own ask (the family's pick title), numbered by the payout.
+  const effect = pickerEffect.value;
+  const declared = effect?.unit.kind === 'cardResource' ? declaredCardResourceKinds(effect.unit) ?? [] : [];
+  const one = declared.length === 1 ? declared[0] : undefined;
+  const title: Message | string = one === CardResource.ANIMAL ?
+    {message: 'Add ${0} animal(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
+    one === CardResource.FLOATER ?
+      {message: 'Add ${0} floater(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
+      declared.length > 1 ?
+        {message: 'Add ${0} resource(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
+        translateText('Add resource to this card');
+  // The marker as the server would stamp it: ONE kind names itself; SEVERAL name the kinds and each holder's own.
+  const kinds = pickerKinds.value;
+  const byCard: Partial<Record<CardName, string>> = {};
+  for (const h of holders) {
+    const kind = holderKindOf(h.name);
+    if (kind !== undefined) {
+      byCard[h.name] = cardResourceIconKey(kind);
+    }
+  }
+  return {
+    type: 'card', title, buttonLabel: 'Add', cards, max: 1, min: 1,
+    showOnlyInLearnerMode: false, selectBlueCardAction: false, showOwner: false, showSelectAll: false,
+    resourceGainPrompt: {
+      amount, vpBox,
+      ...(resourceIcon.value === undefined ? {cardResources: kinds.map(cardResourceIconKey), cardResourceByCard: byCard} : {cardResource: resourceIcon.value}),
+    },
+    choiceContext: {source: {kind: 'resolution', resolution: selected.value?.id}, mode: 'reward'},
+  } as SelectCardModel;
+});
+const targetModel = computed((): PlayedTargetModel | undefined => {
+  const color = viewerColor.value;
+  if (pickerEffect.value === undefined || color === undefined) {
+    return undefined;
+  }
+  const input = selectModel.value;
+  const amount = input.resourceGainPrompt?.amount;
+  return buildPlayedTargetModel({
+    candidates: input.cards,
+    players: [{name: translateText(viewerLabel.value), color, tableau: input.cards}],
+    viewerColor: color,
+    ask: typeof input.title === 'string' ? translateText(input.title) : translateMessage(input.title),
+    direction: 'add',
+    typeOf: (name) => getCard(name)?.type,
+    preview: (name) => playedTargetPreviewFor(undefined, input, name),
+    resourceContext: (_name, model) => playedTargetResourceFor(amount, input.resourceGainPrompt?.cardResource, model),
+  });
+});
+const targetLayout = computed((): PlayedTargetLayout => {
+  return planPlayedTargetLayout({
+    owners: targetModel.value?.owners ?? [],
+    availW: 960 * conUiScale(),
+    ui: conUiScale(),
+    handheld: consoleLayoutState.profile === 'handheld',
+  });
+});
+const targetFocus = computed((): PlayedTargetFocus => {
+  return {ownerId: viewerColor.value ?? '', index: pickerIndex.value};
+});
+const pickerBandHeight = computed((): number => {
+  return Math.round(420 * conUiScale());
+});
+
+/** The levy's reading for `color` in the chosen context — the vote's estimate, «this payout», or the synthetic record. */
+function levyFor(color: Color | undefined): LevyReading | undefined {
+  const r = selected.value;
+  if (r === undefined || r.levy === undefined || color === undefined) {
+    return undefined;
+  }
+  switch (context.value) {
+  case 'reference': return undefined;
+  case 'proposal': return voteLevyOf(r, model.value, color);
+  case 'resolving': return resolvingLevyOf(r, model.value, color);
+  case 'applied': return enactedLevyOf(r, model.value, color);
+  }
+}
+/** A production term's icon — the console's own sprite family (the production plate is the term's CSS). */
+function productionUnitClass(resource: Resource): string {
+  return iconClassFor(resource);
+}
+/** «target 9 · 4 to draw» / «target 6 · no draw needed» — a seat's hand against its target, in words. */
+function handWords(row: {target: number, drawn: number}): string {
+  const term = levelEffect.value?.level;
+  const cut = term?.direction === 'down';
+  const target = translateTextWithParams(cut ? 'limit ${0}' : 'target ${0}', [String(row.target)]);
+  const none = term === undefined ? LEVEL_NONE_KEY : levelPresentation(term).noneKey;
+  const moved = row.drawn > 0 ?
+    translateTextWithParams(cut ? '${0} taken' : '${0} to draw', [String(row.drawn)]) :
+    translateText(none);
+  return `${target} · ${moved}`;
+}
+/** Seat `i`'s CURRENT level for the selected level term — its synthetic hand, or its synthetic supply. */
+function levelBefore(i: SeatIndex): number {
+  const total = levelEffect.value?.level?.total;
+  if (total?.kind === 'stock') {
+    return Math.max(0, seats.value[i].plants ?? 0);
+  }
+  return Math.max(0, seats.value[i].hand ?? 0);
+}
+function vmOf(entry: IClientResolution): PremiumCardVM {
+  return resolutionPremiumVm(entry);
+}
+/** The face's key — a resolution id never collides with a CardName (the premium face's own convention). */
+function cardNameOf(entry: IClientResolution): CardName {
+  return entry.id as CardName;
+}
+/** A card's verdict: counted (with its own contribution where it is more than one), or why not. */
+function verdictOf(card: TableauCardRow): string {
+  if (!card.counts) {
+    return '✕ ' + translateText(card.reason);
+  }
+  if (card.held !== undefined) {
+    return '✓ ' + translateText(card.held.resource) + ' ' + card.held.count;
+  }
+  return card.units > 1 ?
+    '✓ ' + translateTextWithParams('Counted ×${0}', [String(card.units)]) :
+    '✓ ' + translateText('Counted');
+}
+/** A cell's verdict: counted, or why not (the shared cell predicate's own reason). */
+function cellVerdictOf(cell: CellRowCell): string {
+  return cell.counts ? '✓ ' + translateText('Counted') : '✕ ' + translateText(cell.reason);
+}
+function emblemUrl(party: ReduxParty): string {
+  return partyEmblemUrl(party);
+}
+/** A test seat's display name (the winner's recipient caption). */
+function seatName(color: Color): string {
+  const i = SEATS.find((k) => TEST_PLAYERS[k].color === color);
+  return translateText(i === undefined ? color : TEST_PLAYERS[i].label);
+}
+/**
+ * A LIVE scenario: boot its engine-generated fixture as a real game and
+ * open the seat it arranges as the viewer. A build without the fixtures
+ * (or a refused door) names why and stays on the stand.
+ */
+async function startLive(): Promise<void> {
+  const live = liveScenario.value;
+  if (live?.live === undefined || liveState.value === 'starting') {
+    return;
+  }
+  liveState.value = 'starting';
+  liveError.value = '';
+  try {
+    const resp = await fetch(apiUrl(paths.API_DEV_PLAYGROUND_SCENARIO + '?scenario=' + encodeURIComponent(live.live)), {method: 'POST'});
+    if (!resp.ok) {
+      liveState.value = 'error';
+      liveError.value = resp.status === 404 ? 'This scenario is not available in this build' : resp.status === 403 ? 'Live scenarios need a local server' : 'The scenario could not be started';
+      return;
+    }
+    const boot = await resp.json() as PlaygroundScenarioBoot;
+    navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(boot.playerId), 'sync');
+  } catch {
+    liveState.value = 'error';
+    liveError.value = 'The scenario could not be started';
+  }
+}
+// ── the seats ──────────────────────────────────────────────────────
+/** Did this seat's marker take the winner's step in this context? */
+function advancedAt(i: SeatIndex): boolean {
+  return winner.value === i && pastWinnerStep.value && seats.value[i].agenda < AGENDA_TRACK.length;
+}
+function agendaAt(i: SeatIndex): number {
+  const agenda = seats.value[i].agenda;
+  return advancedAt(i) ? Math.min(AGENDA_TRACK.length, agenda + 1) : agenda;
+}
+/** The seat's influence as the context reads it (the track position + what it holds beyond the track). */
+function influenceAt(i: SeatIndex): number {
+  return influenceAtAgenda(agendaAt(i)) + seats.value[i].bonus;
+}
+/** The veto's sentence (RX42) — its key with its params through the one i18n helper. */
+function vetoText(veto: {key: string, params: ReadonlyArray<string>}): string {
+  return translateTextWithParams(veto.key, [...veto.params]);
+}
+/** The seats first by rating in this scenario (every one at the top, with its rating) — the server reading's shape. */
+function ratingVetoOfSeats(): RatingVetoModel {
+  const ratings = SEATS.map((i) => ({color: TEST_PLAYERS[i].color, tr: seats.value[i].tr ?? 20}));
+  const top = Math.max(...ratings.map((r) => r.tr));
+  return {leaders: ratings.filter((r) => r.tr === top)};
+}
+function seatModel(i: SeatIndex): ParliamentPlayerModel {
+  const model: ParliamentPlayerModel = {
+    color: TEST_PLAYERS[i].color, participates: true, restriction: true, lobby: true, reserve: 5, onResolutions: winner.value === i ? 2 : 0, chairman: false,
+    agenda: agendaAt(i), influence: influenceAt(i), access: [], partyActionUses: {}, resolutionActionUses: 0,
+  };
+  // The seat's COUNTS, the way the server model carries them — through the shared predicate.
+  const count = countAt(i);
+  if (count !== undefined) {
+    model.counts = [count];
+  }
+  // …and the PRODUCTION a sequential part divides, exactly as the server
+  // model carries it (only the resource some declaration names).
+  const total = sequelEffect.value?.sequel?.total;
+  if (total !== undefined && total.kind === 'production') {
+    model.production = {[total.resource]: seats.value[i].production ?? 0};
+  }
+  // …and the SUPPLY a LEVY takes from (a budget's M€), the way the server model carries it: the seat's
+  // synthetic supply under the levy's own resource — what the shortfall warning and the net line read.
+  const levy = selected.value?.levy;
+  if (levy !== undefined) {
+    model.stock = {[levy.resource]: seats.value[i].megacredits ?? 20};
+  }
+  // …and the LEVEL a level part moves the seat to, the way the server model carries it: the seat's
+  // synthetic hand (Joint Research) or its synthetic supply (Plant Ban) — what the target is read
+  // against. A supply the levy also reads is written once: the two rules share the one number.
+  const levelTotal = levelEffect.value?.level?.total;
+  if (levelTotal?.kind === 'cards') {
+    model.hand = Math.max(0, seats.value[i].hand ?? 0);
+  } else if (levelTotal?.kind === 'stock') {
+    model.stock = {...(model.stock ?? {}), [levelTotal.resource]: levelBefore(i)};
+  }
+  // …and the COLONY LEDGER a «colony bonuses» part multiplies — the registry the server ships, built from
+  // the colony manifest's printed bonuses (the same descriptors `IColony.colonyBonusGrant` reads).
+  if (colonyBonusesEffectOf(selected.value ?? {}) !== undefined) {
+    // A tile named TWICE in the seat's list is two cubes on it (each pays in full) — one row, `cubes: 2`.
+    const seated = seats.value[i].colonies ?? [];
+    model.colonyBonuses = [...new Set(seated)].map((name) => {
+      const colony = getColony(name).colony;
+      const grant: ColonyTradeGrantModel = {benefit: colony.type, quantity: colony.quantity};
+      if (colony.resource !== undefined) {
+        grant.resource = colony.resource;
+      }
+      const kinds = colonyCardResources(getColony(name));
+      if (colony.type === ColonyBenefit.ADD_RESOURCES_TO_CARD || colony.type === ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
+        if (kinds.length === 1) {
+          grant.cardResource = kinds[0];
+        } else if (kinds.length > 1) {
+          grant.cardResources = kinds;
+        }
+      }
+      return {colony: name, grant, description: colony.description, cubes: seated.filter((n) => n === name).length};
+    });
+  }
+  return model;
+}
+/** The owner's side of the tag-activity rule for a synthetic tableau (Odyssey keeps events face up). */
+function countContextOf(names: ReadonlyArray<CardName>): CardCountContext {
+  return {eventTagsInPlay: names.includes(CardName.ODYSSEY)};
+}
+/**
+ * Seat `i`'s cards that can HOLD any of `resources` (the layout's candidates), in tableau order — the card's own
+ * storage rule over the list, the WARE wildcard included (the server's `holdsOneOf`, on the client manifest).
+ */
+function holdersAt(resources: ReadonlyArray<CardResource>, i: SeatIndex): Array<CardName> {
+  return (seats.value[i].cards ?? []).filter((name) => {
+    const type = getCard(name)?.resourceType;
+    return type !== undefined && (resources.includes(type) || type === CardResource.WARE);
+  });
+}
+/** Seat `i`'s count for the selected resolution's counted term (undefined when nothing is counted). */
+function countAt(i: SeatIndex): ResolutionCountModel | undefined {
+  const effect = countEffect.value;
+  const grant = selected.value?.tileGrant;
+  // A TILE GRANTED BY THRESHOLD counts its DESTINATIONS (the seat's cities on Mars) — the same per-seat
+  // count the server model carries, through the same readers.
+  const id = effect?.count?.id ?? (grant === undefined ? undefined : tileGrantCountId(grant));
+  if (id === undefined) {
+    return undefined;
+  }
+  // A BOARD count walks the seat's CELLS through the shared cell predicate — the same rule the
+  // engine's reading is pinned to, never a number typed into the scenario.
+  const kind = resolutionCountKind(id).kind;
+  if (kind === 'board') {
+    return countSpacesToward(id, seats.value[i].cells ?? []);
+  }
+  // A THRESHOLD count divides the seat's synthetic VALUE by the ONE shared function — the number of sets is
+  // never typed into the scenario either; the scenario states the rating and the rule does the rest.
+  if (kind === 'threshold') {
+    return countMetricToward(id, seats.value[i].tr ?? 20);
+  }
+  // A PRODUCTION count adds the seat's synthetic TRACK up through the ONE shared reader — the sum and its
+  // per-resource breakdown are the reader's, never typed into the scenario.
+  if (kind === 'production') {
+    return countProductionToward(id, seats.value[i].productions ?? {});
+  }
+  // A COLONIES count reads the seat's synthetic colony TABLE — one tile name per cube — through the ONE shared
+  // reader; the list rides the model exactly as the server's does, so the reading can name the tiles.
+  if (kind === 'colonies') {
+    return countColoniesToward(id, seats.value[i].colonies ?? []);
+  }
+  // A HOLDERS count reads the seat's synthetic HOLDINGS (real cards, a number on each) through the stand's
+  // restatement of the engine's predicate — a holder at 0 and a card that holds nothing are named, never counted.
+  if (kind === 'holders') {
+    return countHoldersToward(id, (seats.value[i].holdings ?? []).map((h) => ({name: h.card, resourceType: getCard(h.card)?.resourceType, resourceCount: h.count})));
+  }
+  const names = seats.value[i].cards ?? [];
+  const cards = names.map((name) => getCard(name)).filter((card): card is NonNullable<typeof card> => card !== undefined);
+  return countCardsToward(id, cards, countContextOf(names));
+}
+/** The colony's planet disc — the colonies' own sprite classes (`Luna-background`), the ledger's rule. */
+function planetClassOf(colony: ColonyName): string {
+  return colony.replace(' ', '-') + '-background';
+}
+/**
+ * What `effect` pays seat `i` AT THE ENACTMENT — the winner's Agenda step
+ * already taken (whatever the context shows) — through the ONE formula,
+ * with the enactment's own skip reasons: nothing owed, or no card of the
+ * test player's that can hold the resource.
+ */
+function payoutAt(effect: InfluenceScaledEffect, i: SeatIndex): SeatPayout | undefined {
+  if (effect.recipient === 'winner' && winner.value !== i) {
+    return undefined;
+  }
+  const seat = seats.value[i];
+  const agenda = winner.value === i ? Math.min(AGENDA_TRACK.length, seat.agenda + 1) : seat.agenda;
+  const influence = influenceAtAgenda(agenda) + seat.bonus;
+  const term = effect.sequel;
+  if (term !== undefined) {
+    // A SEQUENTIAL part: the total this resolution's earlier part leaves
+    // behind, then the ONE division. Influence is already inside the total.
+    const before = seat.production ?? 0;
+    const source = sequelSourceOf(selected.value, effect);
+    const after = Math.max(0, before + (source === undefined ? 0 : scaledAmount(source, influence)));
+    const amount = sequelAmount(effect, after);
+    const total = {before, after};
+    return amount <= 0 ?
+      {amount: 0, influence, total, skipped: sequelPresentation(term).skipReasonKey} :
+      {amount, influence, total};
+  }
+  const level = effect.level;
+  if (level !== undefined) {
+    // A LEVEL part: the seat's synthetic level against the target the formula
+    // yields, through the ONE division — a seat already at the level is the
+    // rule working, named by the term's own reason, in either direction.
+    const before = levelBefore(i);
+    const target = scaledAmount(effect, influence);
+    const amount = levelAmount(effect, influence, before);
+    const total = {before, after: levelAfter(effect, before, amount)};
+    return amount <= 0 ?
+      {amount: 0, influence, total, target, skipped: levelPresentation(level).skipReasonKey} :
+      {amount, influence, total, target};
+  }
+  if (effect.count !== undefined) {
+    // A COUNTED term: the seat's own count through the shared predicate, then the ONE formula.
+    const count = countAt(i);
+    const counted = count?.count ?? 0;
+    const amount = scaledAmount(effect, influence, counted);
+    const uncapped = uncappedAmount(effect, influence, counted);
+    // The skip reason is the SERVER's own for this count id — the stand
+    // never invents a sentence the game would not record.
+    if (amount <= 0) {
+      return {amount: 0, influence, count, uncapped, skipped: yieldCountPresentation(effect.count.id).skipReasonKey};
+    }
+    // A DISTRIBUTED payout with no holder is OWED and forfeited — named with its size (the server's own reason).
+    // (A payout onto EVERY counted card has no «no holder» of its own: its count IS its recipients — zero is the count's skip above.)
+    const kinds = effect.unit.kind === 'cardResource' ? declaredCardResourceKinds(effect.unit) : undefined;
+    if (kinds !== undefined && ((noRecipient.value && viewerSeatIndex.value === i) || holdersAt(kinds, i).length === 0)) {
+      return {amount, influence, count, uncapped, skipped: noRecipientReasonKey(kinds)};
+    }
+    return {amount, influence, count, uncapped};
+  }
+  const amount = scaledAmount(effect, influence);
+  if (amount <= 0) {
+    return {amount: 0, influence, skipped: 'No influence'};
+  }
+  if (effect.unit.kind === 'cardResource' && noRecipient.value && viewerSeatIndex.value === i) {
+    return {amount, influence, skipped: noRecipientReasonKey(declaredCardResourceKinds(effect.unit) ?? [])};
+  }
+  return {amount, influence};
+}
+/** A live payout's reading for seat `i` (the server's amount, its skip named), the formula without a seat. */
+function resolvingReading(effect: InfluenceScaledEffect, i: SeatIndex | undefined): InfluenceYield {
+  const payout = i === undefined ? undefined : payoutAt(effect, i);
+  if (i === undefined || payout === undefined) {
+    return referenceYield(effect);
+  }
+  const reading = payout.target !== undefined && payout.total !== undefined ?
+    fixedLevelYield(effect, 'resolving', payout.amount, payout.target, payout.total, {influence: payout.influence}) :
+    payout.total !== undefined ?
+      fixedSequelYield(effect, 'resolving', payout.amount, payout.total, {influence: payout.influence}) :
+      payout.count !== undefined ?
+        fixedYield(effect, 'resolving', payout.amount, payout.influence,
+          {
+            count: payout.count.count, counted: payout.count.cards, countedUnits: payout.count.units, countedSpaces: payout.count.spaces,
+            countedTiers: payout.count.tiers, countedMetric: payout.count.metric, countedByResource: payout.count.byResource,
+            countedByCard: payout.count.byCard, uncapped: payout.uncapped,
+          }) :
+        resolvingYieldOf(effect, payout.amount, model.value, TEST_PLAYERS[i].color);
+  return payout.skipped === undefined ? reading : {...reading, skipped: payout.skipped};
+}
+// ── the pad ────────────────────────────────────────────────────────
+function applyScenario(index: number): void {
+  const next = scenarioState(index);
+  scenario.value = next.scenario;
+  modified.value = next.modified;
+  viewer.value = next.viewer;
+  seats.value = next.seats;
+  winner.value = next.winner;
+  context.value = next.context;
+  noRecipient.value = next.noRecipient;
+  table.value = next.table;
+  noCell.value = next.noCell;
+  emptyDeck.value = next.emptyDeck;
+  pickerIndex.value = 0;
+  lockedCard.value = '';
+  liveState.value = 'idle';
+  liveError.value = '';
+}
+/** A: the test player's influence +1 (wraps), set by the Agenda position that reads as it. */
+function bumpInfluence(): void {
+  const i = viewerSeatIndex.value;
+  if (i === undefined) {
+    return;
+  }
+  const seat = seats.value[i];
+  const next = (influenceAtAgenda(seat.agenda) + seat.bonus + 1) % (MAX_INFLUENCE + 1);
+  // Only the influence moves: the seat keeps its tableau and its production.
+  seats.value = seats.value.map((s, k) => k === i ? {...s, agenda: AGENDA_FOR_INFLUENCE[next], bonus: 0} : s);
+  modified.value = true;
+}
+/** X: the REAL fullscreen viewer over the catalog, reading this stand's table and test player. */
+function openFullscreen(): void {
+  if (catalog.value.length === 0) {
+    return;
+  }
+  openConsoleCardZoom(catalog.value.map((r) => resolutionZoomEntry(r.id)), cursor.value, undefined, undefined, {
+    origin: slotZoomOrigin(
+      () => root.value ?? undefined,
+      (index) => 'resolution:' + (catalog.value[index]?.id ?? ''),
+      (index) => {
+        cursor.value = index;
+      }),
+    parliament: {model: () => model.value, viewer: () => viewerColor.value, table: () => winnerTable.value, nameOf: (color: Color) => seatName(color)},
+    // The position rides the FOOTER, as in the Parliament («LB ◀ 1/11 ▶ RB») — never a counter plate over
+    // the card plus a «ЛИСТАТЬ» pager below it (registry R-08 / R-22).
+    counterInFooter: catalog.value.length > 1,
+  });
+}
+/** The stand forwards every intent here first; `false` hands it back (scroll, sections, B). */
+function handleIntent(intent: GamepadIntent): boolean {
+  if (intent.kind === 'nav' && (intent.dir === 'left' || intent.dir === 'right')) {
+    cursor.value = stepIndex(cursor.value, intent.dir === 'right' ? 1 : -1, catalog.value.length);
+    pickerIndex.value = 0;
+    lockedCard.value = '';
+    return true;
+  }
+  if (intent.kind !== 'press') {
+    return false;
+  }
+  if (intent.button === 'stickL') {
+    winner.value = winner.value === 'neutral' ? 0 : winner.value === 0 ? 1 : 'neutral';
+    modified.value = true;
+    return true;
+  }
+  switch (consoleActionOf(intent)) {
+  case 'inspect':
+    openFullscreen();
+    return true;
+  case 'nextTab': {
+    const list = scenarioList.value;
+    const at = list.findIndex((entry) => entry.i === scenario.value);
+    applyScenario(list[(at + 1) % list.length].i);
+    return true;
+  }
+  case 'reset':
+    viewer.value = ((viewer.value + 1) % 3) as ViewerIndex;
+    pickerIndex.value = 0;
+    lockedCard.value = '';
+    modified.value = true;
+    return true;
+  case 'primary':
+    if (liveScenario.value !== undefined) {
+      void startLive();
+      return true;
+    }
+    bumpInfluence();
+    return true;
+  case 'fullscreen':
+    context.value = CONTEXTS[(CONTEXTS.indexOf(context.value) + 1) % CONTEXTS.length];
+    return true;
+  case 'prevTab': {
+    const count = targetModel.value?.owners[0]?.candidates.length ?? 0;
+    if (count > 0) {
+      pickerIndex.value = (pickerIndex.value + 1) % count;
+      lockedCard.value = targetModel.value?.owners[0]?.candidates[pickerIndex.value]?.cardName ?? '';
+    }
+    return true;
+  }
+  default:
+    return false;
+  }
+}
+
+/**
+ * Paging to a resolution of the OTHER family opens that family's own opening scenario — or, within the same
+ * family, the first scenario the new law reads when the standing one is not its (a floater layout under the
+ * two-kind card).
+ */
+watch(() => family.value, (next: PgFamily): void => {
+  if (SCENARIOS[scenario.value]?.family !== next) {
+    applyScenario(DEFAULT_SCENARIO_OF[next]);
+  }
+});
+watch(() => scenarioList.value, (next: Array<{s: PgScenario, i: number}>): void => {
+  if (next.length > 0 && !next.some((entry) => entry.i === scenario.value)) {
+    applyScenario(next[0].i);
+  }
+});
+
+defineExpose({handleIntent});
 </script>
