@@ -49,10 +49,11 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed, ref, useTemplateRef} from 'vue';
 import type {ChipDetail} from '@/client/components/endgame/insightDetail';
 import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 
 const CONFIDENCE_LABEL: Record<string, string> = {
@@ -63,92 +64,86 @@ const CONFIDENCE_LABEL: Record<string, string> = {
 // keyboard-focus opens it; click toggles (touch fallback); ESC closes. Teleported to body
 // and fixed-positioned at the badge, flipping above when near the viewport bottom. The
 // popover itself is pointer-events:none (pure info) so it never traps the cursor.
-export default defineComponent({
-  name: 'ExplainableBadge',
-  props: {
-    label: {type: String, required: true}, // i18n key (the visible badge text)
-    detail: {type: Object as () => ChipDetail | undefined, required: false, default: undefined},
-    badgeClass: {type: String, required: false, default: 'eg-insight__badge'},
-    // Inline narrative terms (§6) suppress the "?" marker — the underline IS the affordance,
-    // so the marker never lands inside a «…» quoted name.
-    markless: {type: Boolean, required: false, default: false},
-  },
-  setup() {
-    return {flow: useFlowScope('explainable-badge')};
-  },
-  data() {
-    return {open: false, popStyle: {} as Record<string, string>, cancelClose: (() => {}) as () => void};
-  },
-  computed: {
-    ariaLabel(): string {
-      return this.detail !== undefined ? `${$t(this.label)} — ${$t(this.detail.explanation)}` : $t(this.label);
-    },
-    confidenceLabel(): string {
-      const c = this.detail?.confidence;
-      return c !== undefined ? CONFIDENCE_LABEL[c] ?? '' : '';
-    },
-    accentClass(): string {
-      return 'eg-detail--fam-' + (this.detail?.accent ?? 'generic');
-    },
-  },
-  methods: {
-    onEnter() {
-      if (this.detail === undefined) {
-        return;
-      }
-      this.cancelClose();
-      this.position();
-      this.open = true;
-    },
-    onLeave() {
-      // Small delay so a flick of the cursor doesn't strobe the popover.
-      this.cancelClose = this.flow.after(90, 'the badge popover\'s close delay', () => {
-        this.open = false;
-      });
-    },
-    onToggle(e: MouseEvent) {
-      if (this.detail === undefined) {
-        return;
-      }
-      // Touch / click toggle (hover already covers pointer devices).
-      e.stopPropagation();
-      if (this.open) {
-        this.open = false;
-      } else {
-        this.position();
-        this.open = true;
-      }
-    },
-    close() {
-      this.open = false;
-    },
-    position() {
-      const el = (this.$refs.anchor ?? undefined) as HTMLElement | undefined;
-      if (el === undefined || typeof el.getBoundingClientRect !== 'function') {
-        return;
-      }
-      const r = el.getBoundingClientRect();
-      const W = 360;
-      const margin = 12;
-      const vw = window.innerWidth || 1280;
-      const vh = window.innerHeight || 800;
-      let left = r.left;
-      if (left + W > vw - margin) {
-        left = Math.max(margin, vw - margin - W);
-      }
-      // Flip above when there isn't room below.
-      const below = r.bottom + 8;
-      const flipAbove = below + 180 > vh;
-      const style: Record<string, string> = {
-        position: 'fixed', left: `${Math.round(left)}px`, width: `${W}px`, zIndex: '13000',
-      };
-      if (flipAbove) {
-        style.bottom = `${Math.round(vh - r.top + 8)}px`;
-      } else {
-        style.top = `${Math.round(below)}px`;
-      }
-      this.popStyle = style;
-    },
-  },
+defineOptions({name: 'ExplainableBadge'});
+const props = defineProps({
+  label: {type: String, required: true}, // i18n key (the visible badge text)
+  detail: {type: Object as () => ChipDetail | undefined, required: false, default: undefined},
+  badgeClass: {type: String, required: false, default: 'eg-insight__badge'},
+  // Inline narrative terms (§6) suppress the "?" marker — the underline IS the affordance,
+  // so the marker never lands inside a «…» quoted name.
+  markless: {type: Boolean, required: false, default: false},
 });
+
+const flow = useFlowScope('explainable-badge');
+const anchor = useTemplateRef<HTMLElement>('anchor');
+const open = ref(false);
+const popStyle = ref<Record<string, string>>({});
+let cancelClose: () => void = () => {};
+const ariaLabel = computed((): string => {
+  return props.detail !== undefined ? `${$t(props.label)} — ${$t(props.detail.explanation)}` : $t(props.label);
+});
+const confidenceLabel = computed((): string => {
+  const c = props.detail?.confidence;
+  return c !== undefined ? CONFIDENCE_LABEL[c] ?? '' : '';
+});
+const accentClass = computed((): string => {
+  return 'eg-detail--fam-' + (props.detail?.accent ?? 'generic');
+});
+function onEnter() {
+  if (props.detail === undefined) {
+    return;
+  }
+  cancelClose();
+  position();
+  open.value = true;
+}
+function onLeave() {
+  // Small delay so a flick of the cursor doesn't strobe the popover.
+  cancelClose = flow.after(90, 'the badge popover\'s close delay', () => {
+    open.value = false;
+  });
+}
+function onToggle(e: MouseEvent) {
+  if (props.detail === undefined) {
+    return;
+  }
+  // Touch / click toggle (hover already covers pointer devices).
+  e.stopPropagation();
+  if (open.value) {
+    open.value = false;
+  } else {
+    position();
+    open.value = true;
+  }
+}
+function close() {
+  open.value = false;
+}
+function position() {
+  const el = anchor.value ?? undefined;
+  if (el === undefined || typeof el.getBoundingClientRect !== 'function') {
+    return;
+  }
+  const r = el.getBoundingClientRect();
+  const W = 360;
+  const margin = 12;
+  const vw = window.innerWidth || 1280;
+  const vh = window.innerHeight || 800;
+  let left = r.left;
+  if (left + W > vw - margin) {
+    left = Math.max(margin, vw - margin - W);
+  }
+  // Flip above when there isn't room below.
+  const below = r.bottom + 8;
+  const flipAbove = below + 180 > vh;
+  const style: Record<string, string> = {
+    position: 'fixed', left: `${Math.round(left)}px`, width: `${W}px`, zIndex: '13000',
+  };
+  if (flipAbove) {
+    style.bottom = `${Math.round(vh - r.top + 8)}px`;
+  } else {
+    style.top = `${Math.round(below)}px`;
+  }
+  popStyle.value = style;
+}
 </script>
