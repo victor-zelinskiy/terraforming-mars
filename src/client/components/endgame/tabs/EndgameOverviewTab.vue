@@ -269,8 +269,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed, onMounted, ref} from 'vue';
 import {Color} from '@/common/Color';
 import {EndgameModel, EndgameCategoryKey, EndgamePlayerScore, ENDGAME_CATEGORY_LABEL} from '@/client/components/endgame/endgameModel';
 import {EndgameInsightView, InsightIcon, InsightParam} from '@/client/components/endgame/insightEngine';
@@ -287,6 +287,7 @@ import ExplainableBadge from '@/client/components/endgame/ExplainableBadge.vue';
 import ResultHeroDuel from '@/client/components/endgame/ResultHeroDuel.vue';
 import ResultHeroMultiplayer from '@/client/components/endgame/ResultHeroMultiplayer.vue';
 import {translateTextWithParams, $t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
 // Insight icons → text glyphs (deliberately NOT emoji — they stay in the
 // monochrome sci-fi palette and tint via CSS).
@@ -379,278 +380,272 @@ type ArcView = {
   };
 };
 
-export default defineComponent({
-  name: 'EndgameOverviewTab',
-  components: {ExplainableBadge, ResultHeroDuel, ResultHeroMultiplayer, EndgameRichText},
-  props: {
-    model: {type: Object as () => EndgameModel, required: true},
-    // Declared so the shell's shared <component :is> props don't fall through
-    // as DOM attributes (this tab doesn't read `view`).
-    view: {type: Object, required: false, default: undefined},
-    viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
-  },
-  data() {
-    return {debug: false};
-  },
-  mounted() {
-    // Dev-only Story DNA debug panel — calibration visibility (?egDebug).
-    try {
-      this.debug = new URLSearchParams(window.location.search).has('egDebug');
-    } catch (_e) {
-      this.debug = false;
+defineOptions({name: 'EndgameOverviewTab'});
+const props = defineProps({
+  model: {type: Object as () => EndgameModel, required: true},
+  // Declared so the shell's shared <component :is> props don't fall through
+  // as DOM attributes (this tab doesn't read `view`).
+  view: {type: Object, required: false, default: undefined},
+  viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
+});
+
+const debug = ref(false);
+const mode = computed((): string => {
+  return props.model.mode;
+});
+// §3/§8 — the story as TWO paragraphs of rich-text sentences (para 1 = conclusion,
+// para 2 = explanation). Each sentence becomes a translated template + rich params.
+const storyParagraphs = computed((): Array<Array<RichSentence>> => {
+  const p1: Array<RichSentence> = [];
+  const p2: Array<RichSentence> = [];
+  for (const s of props.model.story) {
+    const item: RichSentence = {template: $t(s.key), params: richParamsOf(s.params)};
+    (s.para === 1 ? p1 : p2).push(item);
+  }
+  return [p1, p2].filter((g) => g.length > 0);
+});
+// §9 — the chronological key-episode timeline.
+const timelineView = computed((): Array<EpisodeLine> => {
+  return timelineEpisodes(props.model.keyEpisodes).map((e) => composeEpisode(e));
+});
+// §10 — only show the timeline block when there are ≥2 source-backed beats.
+const showTimeline = computed((): boolean => {
+  return timelineView.value.length >= 2;
+});
+// §11 — the decisive drivers (why the winner won) — evidence-backed, 2–3.
+const decisiveView = computed((): Array<EpisodeLine> => {
+  return decisiveEpisodes(props.model.keyEpisodes).map((e) => composeEpisode(e));
+});
+// §10 — unusual episodes (deterministic).
+const unusualView = computed((): Array<EpisodeLine> => {
+  return unusualEpisodes(props.model.keyEpisodes).map((e) => composeEpisode(e));
+});
+// §8/§13 — the editorial "what defined this game" synopsis (terse, distinct from the
+// full episode cards — no verbatim repeat across surfaces, §7; never generic, §6).
+const whatDefinedRows = computed((): Array<DefinedRow> => {
+  return props.model.whatDefined.map((r) => ({
+    kind: r.kind,
+    label: r.labelKey,
+    template: $t(r.sentence.key),
+    params: richParamsOf(r.sentence.params),
+  }));
+});
+// §8/§21 — the deduped residual analysis (already filtered upstream to non-episode clusters).
+const additionalLines = computed((): Array<InsightLine> => {
+  return props.model.additionalInsights.map((ins) => composeInsight(ins));
+});
+// The composed insights with their raw scoring fields — for the ?egDebug table.
+const debugInsights = computed((): Array<EndgameInsightView> => {
+  return props.model.insights;
+});
+// Iteration 17 — corporation impact coverage + per-player placement (?egDebug §23).
+const corpDebug = computed((): {
+  coverage: {totalInScope: number; specific: number; generic: number};
+  byPlayer: Array<{color: Color; corporationName: string; archetype: string; tier: string; placement: string; confidence: string; ruleStatus: string; achievements: Array<{id: string; tier: string}>}>;
+  suppressed: Array<{color: Color; corporationName: string}>;
+} => {
+  const audit = buildCorporationAudit();
+  const impacts = props.model.corporationImpacts;
+  return {
+    coverage: {
+      totalInScope: audit.length,
+      specific: audit.filter((a) => a.ruleStatus === 'specific').length,
+      generic: audit.filter((a) => a.ruleStatus === 'generic').length,
+    },
+    byPlayer: impacts.map((i) => ({
+      color: i.color, corporationName: i.corporationName, archetype: i.archetype,
+      tier: i.efficiencyTier, placement: i.placement, confidence: i.confidence, ruleStatus: i.ruleStatus,
+      achievements: i.achievements.map((a) => ({id: a.id, tier: a.tier})),
+    })),
+    suppressed: impacts.filter((i) => i.placement === 'suppress').map((i) => ({color: i.color, corporationName: i.corporationName})),
+  };
+});
+// Iteration 10: per-player ARC views (duel: both; else winner + runner-up).
+const playerArcViews = computed((): Array<ArcView> => {
+  const dna = props.model.storyDna;
+  if (dna === undefined) {
+    return [];
+  }
+  const seats: Array<EndgamePlayerScore | undefined> = [props.model.winner, props.model.runnerUp];
+  const views: Array<ArcView> = [];
+  for (const p of seats) {
+    if (p === undefined) {
+      continue;
     }
-  },
-  computed: {
-    mode(): string {
-      return this.model.mode;
-    },
-    // §3/§8 — the story as TWO paragraphs of rich-text sentences (para 1 = conclusion,
-    // para 2 = explanation). Each sentence becomes a translated template + rich params.
-    storyParagraphs(): Array<Array<RichSentence>> {
-      const p1: Array<RichSentence> = [];
-      const p2: Array<RichSentence> = [];
-      for (const s of this.model.story) {
-        const item: RichSentence = {template: $t(s.key), params: this.richParamsOf(s.params)};
-        (s.para === 1 ? p1 : p2).push(item);
-      }
-      return [p1, p2].filter((g) => g.length > 0);
-    },
-    // §9 — the chronological key-episode timeline.
-    timelineView(): Array<EpisodeLine> {
-      return timelineEpisodes(this.model.keyEpisodes).map((e) => this.composeEpisode(e));
-    },
-    // §10 — only show the timeline block when there are ≥2 source-backed beats.
-    showTimeline(): boolean {
-      return this.timelineView.length >= 2;
-    },
-    // §11 — the decisive drivers (why the winner won) — evidence-backed, 2–3.
-    decisiveView(): Array<EpisodeLine> {
-      return decisiveEpisodes(this.model.keyEpisodes).map((e) => this.composeEpisode(e));
-    },
-    // §10 — unusual episodes (deterministic).
-    unusualView(): Array<EpisodeLine> {
-      return unusualEpisodes(this.model.keyEpisodes).map((e) => this.composeEpisode(e));
-    },
-    // §8/§13 — the editorial "what defined this game" synopsis (terse, distinct from the
-    // full episode cards — no verbatim repeat across surfaces, §7; never generic, §6).
-    whatDefinedRows(): Array<DefinedRow> {
-      return this.model.whatDefined.map((r) => ({
-        kind: r.kind,
-        label: r.labelKey,
-        template: $t(r.sentence.key),
-        params: this.richParamsOf(r.sentence.params),
-      }));
-    },
-    // §8/§21 — the deduped residual analysis (already filtered upstream to non-episode clusters).
-    additionalLines(): Array<InsightLine> {
-      return this.model.additionalInsights.map((ins) => this.composeInsight(ins));
-    },
-    // The composed insights with their raw scoring fields — for the ?egDebug table.
-    debugInsights(): Array<EndgameInsightView> {
-      return this.model.insights;
-    },
-    // Iteration 17 — corporation impact coverage + per-player placement (?egDebug §23).
-    corpDebug(): {
-      coverage: {totalInScope: number; specific: number; generic: number};
-      byPlayer: Array<{color: Color; corporationName: string; archetype: string; tier: string; placement: string; confidence: string; ruleStatus: string; achievements: Array<{id: string; tier: string}>}>;
-      suppressed: Array<{color: Color; corporationName: string}>;
-      } {
-      const audit = buildCorporationAudit();
-      const impacts = this.model.corporationImpacts;
-      return {
-        coverage: {
-          totalInScope: audit.length,
-          specific: audit.filter((a) => a.ruleStatus === 'specific').length,
-          generic: audit.filter((a) => a.ruleStatus === 'generic').length,
-        },
-        byPlayer: impacts.map((i) => ({
-          color: i.color, corporationName: i.corporationName, archetype: i.archetype,
-          tier: i.efficiencyTier, placement: i.placement, confidence: i.confidence, ruleStatus: i.ruleStatus,
-          achievements: i.achievements.map((a) => ({id: a.id, tier: a.tier})),
-        })),
-        suppressed: impacts.filter((i) => i.placement === 'suppress').map((i) => ({color: i.color, corporationName: i.corporationName})),
-      };
-    },
-    // Iteration 10: per-player ARC views (duel: both; else winner + runner-up).
-    playerArcViews(): Array<ArcView> {
-      const dna = this.model.storyDna;
-      if (dna === undefined) {
-        return [];
-      }
-      const seats: Array<EndgamePlayerScore | undefined> = [this.model.winner, this.model.runnerUp];
-      const views: Array<ArcView> = [];
-      for (const p of seats) {
-        if (p === undefined) {
-          continue;
-        }
-        const arc = dna.playerArcs[p.color];
-        if (arc === undefined) {
-          continue;
-        }
-        const mine = this.insightLines.filter((l) => l.color === p.color);
-        const worked = mine.find((l) =>
-          l.storyRole === 'headline' || l.storyRole === 'whyWinnerWon' || l.storyRole === 'signatureMoment' || l.storyRole === 'contrast');
-        const failed = mine.find((l) => l.storyRole === 'almost' || l.storyRole === 'whyRunnerLost');
-        // Rework §20 — supporting lines + the strongest line that actually scored points.
-        const prof = p.strategyProfile;
-        const supportLines = (prof?.secondary ?? []).map((d) => strategyLabel(d.archetype));
-        const scoringDet = prof?.all.find((d) => d.isScoring && d.vpContribution > 0);
-        views.push({
-          color: p.color, name: p.name, isWinner: p.isWinner,
-          style: arc.style, tags: [...arc.shortSummaryTags],
-          strongest: p.strongestCategory,
-          workedBadge: worked?.badge, failedBadge: failed?.badge,
-          styleDetail: arc.styleDetail,
-          supportLines,
-          scoringLine: scoringDet !== undefined ? strategyLabel(scoringDet.archetype) : undefined,
-          corporation: arc.corporation,
-        });
-      }
-      return views;
-    },
-    insightLines(): Array<InsightLine> {
-      return this.model.insights.map((ins) => this.composeInsight(ins));
-    },
-    // §16 — the margin SCALE (debug visibility only).
-    marginClassLabel(): string {
-      return marginClass(this.model.margin);
-    },
-    // §11/§14 — key episodes that lack a concrete source (must be empty after the audit).
-    episodesWithoutSource(): Array<string> {
-      return this.model.keyEpisodes
-        .filter((e) => (e.relatedPlayers?.length ?? 0) === 0 && e.evidenceChips.length === 0)
-        .map((e) => e.id);
-    },
-    // §11 — the "Money to spare" decision per player (mirrors gameStoryDna's gate).
-    moneyDebug(): Array<{color: Color; shown: boolean; spendable: number; endCash: number; finalProductionExcluded: number; median: number; threshold: number}> {
-      const spendableOf = (p: EndgamePlayerScore) => p.megacredits - Math.max(0, p.production?.megacredits ?? 0);
-      const all = this.model.players.map(spendableOf).sort((a, b) => a - b);
-      const median = all.length === 0 ? 0 : (all.length % 2 === 1 ? all[(all.length - 1) / 2] : (all[all.length / 2 - 1] + all[all.length / 2]) / 2);
-      return this.model.players.map((p) => {
-        const spendable = spendableOf(p);
-        return {
-          color: p.color, spendable, endCash: p.megacredits,
-          finalProductionExcluded: Math.max(0, p.production?.megacredits ?? 0),
-          median, threshold: 28, shown: spendable >= 28 && spendable >= median + 15,
-        };
-      });
-    },
-    // §11/§19/§20 — per-strategy evidence breakdown with sourceType + confidence (debug).
-    strategyEvidenceDebug(): Array<string> {
-      const w = this.model.winner;
-      if (w === undefined || w.strategyProfile === undefined) {
-        return [];
-      }
-      return w.strategyProfile.all.slice(0, 5).map((d) => {
-        const det = buildStrategyTermDetail(this.model.players, w.color, d.archetype);
-        const bd = (det.breakdown ?? [])
-          .map((b) => `${b.label} ${b.value} [${b.sourceType ?? '?'}/${b.confidence ?? '?'}]`).join(', ');
-        return `${d.archetype} (${det.confidence}): ${bd || '—'}`;
-      });
-    },
-  },
-  methods: {
-    hex(color: Color): string {
-      return endgamePlayerHex(color);
-    },
-    round2(v: number | undefined): string {
-      return v === undefined ? '—' : (Math.round(v * 100) / 100).toString();
-    },
-    flag(b: boolean): string {
-      return b ? '✓' : '✗';
-    },
-    // §4/§5 — translate each narrative param + carry its interactive term metadata.
-    richParamsOf(params: ReadonlyArray<InsightParam>): Array<RichParam> {
-      return params.map((p) => ({
-        text: p.t === 'raw' ? p.v : $t(p.v),
-        kind: p.term?.kind,
-        color: p.term?.color,
-        detail: p.term?.detail,
-        accent: p.term?.accent,
-      }));
-    },
-    // The dedup identity, mirroring insightEngine.evidenceKeyOf (debug visibility).
-    evKey(ins: EndgameInsightView): string {
-      return ins.evidenceKey ?? `${ins.storyCluster ?? ins.family ?? ins.group}|${[...(ins.relatedPlayers ?? [])].sort().join('+')}`;
-    },
-    isViewer(color: Color): boolean {
-      return this.viewerColor === color;
-    },
-    categoryLabel(key: EndgameCategoryKey | undefined): string {
-      return key === undefined ? '' : ENDGAME_CATEGORY_LABEL[key];
-    },
-    // Iteration 17 — corporation readout helpers.
-    corpTierLabel(tier: string): string {
-      const labels: Record<string, string> = {
-        missed: 'Untapped', minor: 'Background', solid: 'Support role',
-        strong: 'Engine', exceptional: 'Key engine', signature: 'Defining',
-      };
-      return labels[tier] ?? tier;
-    },
-    corpSummary(corp: NonNullable<ArcView['corporation']>): {template: string; params: Array<RichParam>} {
-      return {template: $t(corp.summary.key), params: this.richParamsOf(corp.summary.params)};
-    },
-    corpFacets(corp: NonNullable<ArcView['corporation']>): Array<{kind: 'good' | 'bad'; key: string}> {
-      const out: Array<{kind: 'good' | 'bad'; key: string}> = [];
-      if (corp.worked !== undefined) {
-        out.push({kind: 'good', key: corp.worked});
-      }
-      if (corp.missed !== undefined) {
-        out.push({kind: 'bad', key: corp.missed});
-      }
-      return out;
-    },
-    // Iteration 15 — turn a key episode into a render line (translate template + chips, +
-    // the phase label: a generation when pinned, else a soft phase).
-    composeEpisode(ep: KeyEpisode): EpisodeLine {
-      return {
-        id: ep.id, role: ep.role,
-        phaseLabel: ep.generation !== undefined ? `${$t('Generation')} ${ep.generation}` : $t(PHASE_LABEL[ep.phase]),
-        badge: ep.badge,
-        template: $t(ep.textKey),
-        params: this.richParamsOf(ep.params),
-        color: ep.color,
-        chips: ep.evidenceChips.map((ch) => ({
-          text: (ch.t === 'raw' ? ch.v : $t(ch.v)) + (ch.label !== undefined ? ' ' + $t(ch.label) : ''),
-          tone: ch.tone ?? 'neutral',
-        })),
-      };
-    },
-    // Turn an engine insight into a render line: translate the template and
-    // each typed param (`raw` stays, `i18n`/`card` run through the translator).
-    composeInsight(ins: EndgameInsightView): InsightLine {
-      const params = ins.params.map((p) => p.t === 'raw' ? p.v : $t(p.v));
-      return {
-        id: ins.id,
-        severity: ins.severity,
-        glyph: ICON_GLYPH[ins.icon] ?? '✦',
-        badge: ins.badge,
-        text: translateTextWithParams(ins.textKey, params),
-        color: ins.color,
-        family: ins.family,
-        uiVariant: ins.uiVariant,
-        rankSection: ins.rankSection,
-        storyRole: ins.storyRole,
-        storySection: ins.storySection,
-        chips: (ins.evidenceChips ?? []).map((ch) => ({
-          text: (ch.t === 'raw' ? ch.v : $t(ch.v)) + (ch.label !== undefined ? ' ' + $t(ch.label) : ''),
-          tone: ch.tone ?? 'neutral',
-        })),
-        detail: ins.detail,
-        relatedPlayers: ins.relatedPlayers,
-      };
-    },
-    // Premium accent class by story family (styled in endgame.less).
-    familyClass(line: InsightLine): string {
-      return 'eg-insight--fam-' + (line.family ?? 'generic');
-    },
-    insightStyle(line: InsightLine, index: number): Record<string, string> {
-      const style: Record<string, string> = {'--eg-stagger': String(index)};
-      if (line.color !== undefined) {
-        style['--eg-pc'] = endgamePlayerHex(line.color);
-      }
-      return style;
-    },
-  },
+    const arc = dna.playerArcs[p.color];
+    if (arc === undefined) {
+      continue;
+    }
+    const mine = insightLines.value.filter((l) => l.color === p.color);
+    const worked = mine.find((l) =>
+      l.storyRole === 'headline' || l.storyRole === 'whyWinnerWon' || l.storyRole === 'signatureMoment' || l.storyRole === 'contrast');
+    const failed = mine.find((l) => l.storyRole === 'almost' || l.storyRole === 'whyRunnerLost');
+    // Rework §20 — supporting lines + the strongest line that actually scored points.
+    const prof = p.strategyProfile;
+    const supportLines = (prof?.secondary ?? []).map((d) => strategyLabel(d.archetype));
+    const scoringDet = prof?.all.find((d) => d.isScoring && d.vpContribution > 0);
+    views.push({
+      color: p.color, name: p.name, isWinner: p.isWinner,
+      style: arc.style, tags: [...arc.shortSummaryTags],
+      strongest: p.strongestCategory,
+      workedBadge: worked?.badge, failedBadge: failed?.badge,
+      styleDetail: arc.styleDetail,
+      supportLines,
+      scoringLine: scoringDet !== undefined ? strategyLabel(scoringDet.archetype) : undefined,
+      corporation: arc.corporation,
+    });
+  }
+  return views;
+});
+const insightLines = computed((): Array<InsightLine> => {
+  return props.model.insights.map((ins) => composeInsight(ins));
+});
+// §16 — the margin SCALE (debug visibility only).
+const marginClassLabel = computed((): string => {
+  return marginClass(props.model.margin);
+});
+// §11/§14 — key episodes that lack a concrete source (must be empty after the audit).
+const episodesWithoutSource = computed((): Array<string> => {
+  return props.model.keyEpisodes
+    .filter((e) => (e.relatedPlayers?.length ?? 0) === 0 && e.evidenceChips.length === 0)
+    .map((e) => e.id);
+});
+// §11 — the "Money to spare" decision per player (mirrors gameStoryDna's gate).
+const moneyDebug = computed((): Array<{color: Color; shown: boolean; spendable: number; endCash: number; finalProductionExcluded: number; median: number; threshold: number}> => {
+  const spendableOf = (p: EndgamePlayerScore) => p.megacredits - Math.max(0, p.production?.megacredits ?? 0);
+  const all = props.model.players.map(spendableOf).sort((a, b) => a - b);
+  const median = all.length === 0 ? 0 : (all.length % 2 === 1 ? all[(all.length - 1) / 2] : (all[all.length / 2 - 1] + all[all.length / 2]) / 2);
+  return props.model.players.map((p) => {
+    const spendable = spendableOf(p);
+    return {
+      color: p.color, spendable, endCash: p.megacredits,
+      finalProductionExcluded: Math.max(0, p.production?.megacredits ?? 0),
+      median, threshold: 28, shown: spendable >= 28 && spendable >= median + 15,
+    };
+  });
+});
+// §11/§19/§20 — per-strategy evidence breakdown with sourceType + confidence (debug).
+const strategyEvidenceDebug = computed((): Array<string> => {
+  const w = props.model.winner;
+  if (w === undefined || w.strategyProfile === undefined) {
+    return [];
+  }
+  return w.strategyProfile.all.slice(0, 5).map((d) => {
+    const det = buildStrategyTermDetail(props.model.players, w.color, d.archetype);
+    const bd = (det.breakdown ?? [])
+      .map((b) => `${b.label} ${b.value} [${b.sourceType ?? '?'}/${b.confidence ?? '?'}]`).join(', ');
+    return `${d.archetype} (${det.confidence}): ${bd || '—'}`;
+  });
+});
+
+function hex(color: Color): string {
+  return endgamePlayerHex(color);
+}
+function round2(v: number | undefined): string {
+  return v === undefined ? '—' : (Math.round(v * 100) / 100).toString();
+}
+function flag(b: boolean): string {
+  return b ? '✓' : '✗';
+}
+// §4/§5 — translate each narrative param + carry its interactive term metadata.
+function richParamsOf(params: ReadonlyArray<InsightParam>): Array<RichParam> {
+  return params.map((p) => ({
+    text: p.t === 'raw' ? p.v : $t(p.v),
+    kind: p.term?.kind,
+    color: p.term?.color,
+    detail: p.term?.detail,
+    accent: p.term?.accent,
+  }));
+}
+// The dedup identity, mirroring insightEngine.evidenceKeyOf (debug visibility).
+function evKey(ins: EndgameInsightView): string {
+  return ins.evidenceKey ?? `${ins.storyCluster ?? ins.family ?? ins.group}|${[...(ins.relatedPlayers ?? [])].sort().join('+')}`;
+}
+function isViewer(color: Color): boolean {
+  return props.viewerColor === color;
+}
+function categoryLabel(key: EndgameCategoryKey | undefined): string {
+  return key === undefined ? '' : ENDGAME_CATEGORY_LABEL[key];
+}
+// Iteration 17 — corporation readout helpers.
+function corpTierLabel(tier: string): string {
+  const labels: Record<string, string> = {
+    missed: 'Untapped', minor: 'Background', solid: 'Support role',
+    strong: 'Engine', exceptional: 'Key engine', signature: 'Defining',
+  };
+  return labels[tier] ?? tier;
+}
+function corpSummary(corp: NonNullable<ArcView['corporation']>): {template: string; params: Array<RichParam>} {
+  return {template: $t(corp.summary.key), params: richParamsOf(corp.summary.params)};
+}
+function corpFacets(corp: NonNullable<ArcView['corporation']>): Array<{kind: 'good' | 'bad'; key: string}> {
+  const out: Array<{kind: 'good' | 'bad'; key: string}> = [];
+  if (corp.worked !== undefined) {
+    out.push({kind: 'good', key: corp.worked});
+  }
+  if (corp.missed !== undefined) {
+    out.push({kind: 'bad', key: corp.missed});
+  }
+  return out;
+}
+// Iteration 15 — turn a key episode into a render line (translate template + chips, +
+// the phase label: a generation when pinned, else a soft phase).
+function composeEpisode(ep: KeyEpisode): EpisodeLine {
+  return {
+    id: ep.id, role: ep.role,
+    phaseLabel: ep.generation !== undefined ? `${$t('Generation')} ${ep.generation}` : $t(PHASE_LABEL[ep.phase]),
+    badge: ep.badge,
+    template: $t(ep.textKey),
+    params: richParamsOf(ep.params),
+    color: ep.color,
+    chips: ep.evidenceChips.map((ch) => ({
+      text: (ch.t === 'raw' ? ch.v : $t(ch.v)) + (ch.label !== undefined ? ' ' + $t(ch.label) : ''),
+      tone: ch.tone ?? 'neutral',
+    })),
+  };
+}
+// Turn an engine insight into a render line: translate the template and
+// each typed param (`raw` stays, `i18n`/`card` run through the translator).
+function composeInsight(ins: EndgameInsightView): InsightLine {
+  const params = ins.params.map((p) => p.t === 'raw' ? p.v : $t(p.v));
+  return {
+    id: ins.id,
+    severity: ins.severity,
+    glyph: ICON_GLYPH[ins.icon] ?? '✦',
+    badge: ins.badge,
+    text: translateTextWithParams(ins.textKey, params),
+    color: ins.color,
+    family: ins.family,
+    uiVariant: ins.uiVariant,
+    rankSection: ins.rankSection,
+    storyRole: ins.storyRole,
+    storySection: ins.storySection,
+    chips: (ins.evidenceChips ?? []).map((ch) => ({
+      text: (ch.t === 'raw' ? ch.v : $t(ch.v)) + (ch.label !== undefined ? ' ' + $t(ch.label) : ''),
+      tone: ch.tone ?? 'neutral',
+    })),
+    detail: ins.detail,
+    relatedPlayers: ins.relatedPlayers,
+  };
+}
+// Premium accent class by story family (styled in endgame.less).
+function familyClass(line: InsightLine): string {
+  return 'eg-insight--fam-' + (line.family ?? 'generic');
+}
+function insightStyle(line: InsightLine, index: number): Record<string, string> {
+  const style: Record<string, string> = {'--eg-stagger': String(index)};
+  if (line.color !== undefined) {
+    style['--eg-pc'] = endgamePlayerHex(line.color);
+  }
+  return style;
+}
+
+onMounted(() => {
+  // Dev-only Story DNA debug panel — calibration visibility (?egDebug).
+  try {
+    debug.value = new URLSearchParams(window.location.search).has('egDebug');
+  } catch (_e) {
+    debug.value = false;
+  }
 });
 </script>
