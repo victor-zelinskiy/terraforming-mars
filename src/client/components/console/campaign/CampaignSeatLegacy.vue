@@ -88,8 +88,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import {CardModel} from '@/common/models/CardModel';
 import {OverviewTitle, SeatLegacyVm, tpStatusLabel} from '@/client/console/campaign/campaignOverviewModel';
@@ -98,7 +98,7 @@ import ConsoleTenderCard from './ConsoleTenderCard.vue';
 import {tenderCardStateOf} from '@/client/console/campaign/tenderPortfolio';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
 import {TitleName} from '@/common/campaign/CampaignTypes';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 /**
  * SEAT LEGACY («Наследие участника») — the full campaign legacy of ONE
@@ -110,83 +110,75 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
  * surfaces; the host owns the cursor ring (`cursorIndex` over
  * corps → carried → tenders) and the fullscreen inspect.
  */
-export default defineComponent({
-  name: 'CampaignSeatLegacy',
-  components: {Card, ConsoleTenderCard},
-  props: {
-    legacy: {type: Object as PropType<SeatLegacyVm>, required: true},
-    /**
-     * Live CardModels of the viewer's own carried cards (richer than bare
-     * names when the host has them — discount chips etc.). Names from the
-     * legacy vm are the fallback.
-     */
-    carriedModels: {type: Array as PropType<ReadonlyArray<CardModel>>, default: undefined},
-    cursorIndex: {type: Number as PropType<number | undefined>, default: undefined},
-  },
-  computed: {
-    corpCards(): ReadonlyArray<{card: CardModel, origin: string | undefined}> {
-      return this.legacy.corps.map((c) => ({
-        card: {name: c.name} as CardModel,
-        origin: c.missionSlot === undefined ? undefined :
-          translateTextWithParams('Mission ${0}', [String(c.missionSlot + 1)]),
-      }));
-    },
-    carriedCards(): ReadonlyArray<{card: CardModel}> {
-      if (this.carriedModels !== undefined && this.carriedModels.length > 0) {
-        return this.carriedModels.map((card) => ({card}));
-      }
-      return (this.legacy.carried.names ?? []).map((name) => ({card: {name} as CardModel}));
-    },
-    /** The cards before the tenders in the ring — the index a certificate's cursor is counted from. */
-    cardCount(): number {
-      return this.corpCards.length + this.carriedCards.length;
-    },
-    carriedNote(): string {
-      if (!this.legacy.carried.known) {
-        return translateText('No record in this save');
-      }
-      if (this.legacy.carried.count === 0) {
-        return translateText('Nothing was carried over');
-      }
-      // Known count, names private (another participant's row).
-      return translateTextWithParams('${0} cards · hidden', [String(this.legacy.carried.count)]);
-    },
-    bonusStatusLabel(): string {
-      switch (this.legacy.bonus?.status) {
-      case 'granted': return 'Received';
-      case 'settled': return 'Received';
-      case 'pending': return 'Awaits the deployment press';
-      default: return '';
-      }
-    },
-    tpText(): string {
-      return translateTextWithParams('${0} TP', [String(this.legacy.titlePoints)]);
-    },
-    tpNote(): string {
-      return tpStatusLabel(this.legacy.tpStatus);
-    },
-    tenderNote(): string {
-      return 'Tenders execute at the finale\'s start; an unexecuted one pays 3 M€';
-    },
-  },
-  methods: {
-    tenderCardStateOf,
-    tenderLine(t: TenderHoldingView): string {
-      return translateTextWithParams('won at mission ${0}', [String(t.wonAtSlot + 1)]);
-    },
-    titleArtUrl,
-    titleLabel(title: TitleName): string {
-      return TITLE_LABEL[title];
-    },
-    titleLine(t: OverviewTitle): string {
-      // The exact existing i18n keys of the campaign map rail.
-      const keys: Record<TitleName, string> = {
-        governor: 'Governor (mission ${0})',
-        administrator: 'Administrator (mission ${0})',
-        prefect: 'Prefect (mission ${0})',
-      };
-      return translateTextWithParams(keys[t.title], [String(t.missionSlot + 1)]);
-    },
-  },
+defineOptions({name: 'CampaignSeatLegacy'});
+const props = defineProps({
+  legacy: {type: Object as PropType<SeatLegacyVm>, required: true},
+  /**
+   * Live CardModels of the viewer's own carried cards (richer than bare
+   * names when the host has them — discount chips etc.). Names from the
+   * legacy vm are the fallback.
+   */
+  carriedModels: {type: Array as PropType<ReadonlyArray<CardModel>>, default: undefined},
+  cursorIndex: {type: Number as PropType<number | undefined>, default: undefined},
 });
+
+const corpCards = computed((): ReadonlyArray<{card: CardModel, origin: string | undefined}> => {
+  return props.legacy.corps.map((c) => ({
+    card: {name: c.name} as CardModel,
+    origin: c.missionSlot === undefined ? undefined :
+      translateTextWithParams('Mission ${0}', [String(c.missionSlot + 1)]),
+  }));
+});
+const carriedCards = computed((): ReadonlyArray<{card: CardModel}> => {
+  if (props.carriedModels !== undefined && props.carriedModels.length > 0) {
+    return props.carriedModels.map((card) => ({card}));
+  }
+  return (props.legacy.carried.names ?? []).map((name) => ({card: {name} as CardModel}));
+});
+/** The cards before the tenders in the ring — the index a certificate's cursor is counted from. */
+const cardCount = computed((): number => {
+  return corpCards.value.length + carriedCards.value.length;
+});
+const carriedNote = computed((): string => {
+  if (!props.legacy.carried.known) {
+    return translateText('No record in this save');
+  }
+  if (props.legacy.carried.count === 0) {
+    return translateText('Nothing was carried over');
+  }
+  // Known count, names private (another participant's row).
+  return translateTextWithParams('${0} cards · hidden', [String(props.legacy.carried.count)]);
+});
+const bonusStatusLabel = computed((): string => {
+  switch (props.legacy.bonus?.status) {
+  case 'granted': return 'Received';
+  case 'settled': return 'Received';
+  case 'pending': return 'Awaits the deployment press';
+  default: return '';
+  }
+});
+const tpText = computed((): string => {
+  return translateTextWithParams('${0} TP', [String(props.legacy.titlePoints)]);
+});
+const tpNote = computed((): string => {
+  return tpStatusLabel(props.legacy.tpStatus);
+});
+const tenderNote = computed((): string => {
+  return 'Tenders execute at the finale\'s start; an unexecuted one pays 3 M€';
+});
+function tenderLine(t: TenderHoldingView): string {
+  return translateTextWithParams('won at mission ${0}', [String(t.wonAtSlot + 1)]);
+}
+function titleLabel(title: TitleName): string {
+  return TITLE_LABEL[title];
+}
+function titleLine(t: OverviewTitle): string {
+  // The exact existing i18n keys of the campaign map rail.
+  const keys: Record<TitleName, string> = {
+    governor: 'Governor (mission ${0})',
+    administrator: 'Administrator (mission ${0})',
+    prefect: 'Prefect (mission ${0})',
+  };
+  return translateTextWithParams(keys[t.title], [String(t.missionSlot + 1)]);
+}
 </script>
