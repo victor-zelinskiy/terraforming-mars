@@ -1,12 +1,4 @@
 <template>
-  <!--
-    ИГРОКИ — how the strategies differed. A player ring on ←/→ (the bot is an
-    ordinary participant with its OWN honest groups), the participant's metric
-    groups on ↑/↓. A bar encodes a real comparison: it renders only when ≥2
-    participants carry the metric; a lone value shows as a plain cell (a
-    full-width bar against nobody was the tab's shipped lie). A opens the
-    cross-player grid for comparable groups.
-  -->
   <div class="con-ovpl">
     <!-- The player ring. -->
     <div class="con-ovpl__ring">
@@ -139,8 +131,18 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ИГРОКИ — how the strategies differed. A player ring on ←/→ (the bot is an
+ * ordinary participant with its OWN honest groups), the participant's metric
+ * groups on ↑/↓. A bar encodes a real comparison: it renders only when ≥2
+ * participants carry the metric; a lone value shows as a plain cell (a
+ * full-width bar against nobody was the tab's shipped lie). A opens the
+ * cross-player grid for comparable groups.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
@@ -167,150 +169,146 @@ const RES_ICON: Record<string, string> = {
   'heat': 'resource_icon--heat',
 };
 
-export default defineComponent({
-  name: 'ConsoleOvTabPlayers',
-  components: {ConsoleScoreDisc, ConsoleVpBadge, ConsoleCardFaceLite, MarsBotCorpFace},
-  props: {
-    vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
-  },
-  computed: {
-    ui() {
-      return consoleOverviewUi;
-    },
-    playerIdx(): number {
-      return Math.min(Math.max(this.ui.playerIdx, 0), Math.max(0, this.vm.players.players.length - 1));
-    },
-    player(): OvPlayerCard | undefined {
-      return this.vm.players.players[this.playerIdx];
-    },
-    groups(): ReadonlyArray<PlayerMetricGroup> {
-      return this.player?.groups ?? [];
-    },
-    groupIdx(): number {
-      return Math.min(Math.max(this.ui.playerGroup, 0), Math.max(0, this.groups.length - 1));
-    },
-    botEconomyLines(): Array<{label: string; value: string}> {
-      const eco = this.player?.botEconomy;
-      if (eco === undefined) {
-        return [];
-      }
-      return [
-        {label: 'M€ left at scoring', value: String(eco.stock)},
-        {label: 'Conversion rate', value: `${eco.rate} M€ → 1 ${$t('VP')}`},
-        {label: 'M€ converted to VP', value: `${eco.vp} ${$t('VP')}`},
-        {label: 'Cards in the played pile', value: String(eco.playedCount)},
-      ];
-    },
-    detailGroup(): PlayerMetricGroup | undefined {
-      const d = this.ui.detail;
-      if (d === undefined || d.kind !== 'players-metric') {
-        return undefined;
-      }
-      return this.groups.find((g) => g.key === d.group);
-    },
-    /** Only the participants that actually CARRY the focused group's metrics. */
-    detailPlayers(): Array<OvPlayerCard> {
-      const g = this.detailGroup;
-      if (g === undefined) {
-        return [];
-      }
-      return this.vm.players.players.filter((p) => this.metricsOfPlayer(p, g.key).length > 0);
-    },
-    detailMetricKeys(): Array<string> {
-      const g = this.detailGroup;
-      if (g === undefined || this.player === undefined) {
-        return [];
-      }
-      return this.metricsOfPlayer(this.player, g.key).map((m) => m.key);
-    },
-  },
-  methods: {
-    hex(color: Color): string {
-      return endgamePlayerHex(color);
-    },
-    maArt(slug: string): string {
-      return maArtPath(slug, getPreferences().lang);
-    },
-    resIcon(metricKey: string): string | undefined {
-      const raw = metricKey.replace(/^(prod|stock):/, '');
-      return RES_ICON[raw];
-    },
-    isComparable(metricKey: string): boolean {
-      return (this.vm.players.comparable[metricKey] ?? 0) >= 2;
-    },
-    metricsOfPlayer(p: OvPlayerCard, key: string): ReadonlyArray<OvMetric> {
-      switch (key) {
-      case 'production': return p.production;
-      case 'stock': return p.stock;
-      case 'stats': return p.stats;
-      default: return [];
-      }
-    },
-    metricsOf(key: string): ReadonlyArray<OvMetric> {
-      return this.player !== undefined ? this.metricsOfPlayer(this.player, key) : [];
-    },
-    metricPct(m: OvMetric): number {
-      const max = this.vm.players.maxima[m.key] ?? 1;
-      return max > 0 ? Math.min(100, (Math.max(0, m.value) / max) * 100) : 0;
-    },
-    labelOfMetric(mkey: string): string {
-      for (const p of this.vm.players.players) {
-        for (const list of [p.production, p.stock, p.stats]) {
-          const m = list.find((x) => x.key === mkey);
-          if (m !== undefined) {
-            return m.label;
-          }
-        }
-      }
-      return mkey;
-    },
-    cmpValue(p: OvPlayerCard, mkey: string): number {
-      for (const list of [p.production, p.stock, p.stats]) {
-        const m = list.find((x) => x.key === mkey);
-        if (m !== undefined) {
-          return m.value;
-        }
-      }
-      return 0;
-    },
-    cmpPct(p: OvPlayerCard, mkey: string): number {
-      const max = this.vm.players.maxima[mkey] ?? 1;
-      return max > 0 ? Math.min(100, (Math.max(0, this.cmpValue(p, mkey)) / max) * 100) : 0;
-    },
-    glyphOf(key: ConsoleEndgameCategoryKey): DossierGlyph {
-      return scoreCategoryGlyph(key);
-    },
-    /** The ceremony's SHORT name of a category (its rail legend — «РТ», «Награды») — what a medallion prints. */
-    legendOf(key: ConsoleEndgameCategoryKey): string {
-      return SCORE_CATEGORY_TABLE.find((m) => m.key === key)?.legend ?? key;
-    },
-    // ── pane API ──────────────────────────────────────────────────────────
-    nav(dir: NavDirection): void {
-      if (this.ui.detail !== undefined) {
-        return;
-      }
-      if (dir === 'left' || dir === 'right') {
-        const n = this.vm.players.players.length;
-        if (n > 0) {
-          const delta = dir === 'right' ? 1 : -1;
-          this.ui.playerIdx = (this.playerIdx + delta + n) % n;
-          // A different participant may carry a different group list.
-          this.ui.playerGroup = Math.min(this.groupIdx, Math.max(0, (this.vm.players.players[this.ui.playerIdx]?.groups.length ?? 1) - 1));
-        }
-        return;
-      }
-      const n = this.groups.length;
-      if (n > 0) {
-        const delta = dir === 'down' ? 1 : -1;
-        this.ui.playerGroup = (this.groupIdx + delta + n) % n;
-      }
-    },
-    primary(): void {
-      const g = this.groups[this.groupIdx];
-      if (g !== undefined && g.comparable && this.ui.detail === undefined) {
-        this.ui.detail = {kind: 'players-metric', group: g.key};
-      }
-    },
-  },
+defineOptions({name: 'ConsoleOvTabPlayers'});
+const props = defineProps({
+  vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
 });
+
+const ui = consoleOverviewUi;
+const playerIdx = computed((): number => {
+  return Math.min(Math.max(ui.playerIdx, 0), Math.max(0, props.vm.players.players.length - 1));
+});
+const player = computed((): OvPlayerCard | undefined => {
+  return props.vm.players.players[playerIdx.value];
+});
+const groups = computed((): ReadonlyArray<PlayerMetricGroup> => {
+  return player.value?.groups ?? [];
+});
+const groupIdx = computed((): number => {
+  return Math.min(Math.max(ui.playerGroup, 0), Math.max(0, groups.value.length - 1));
+});
+const botEconomyLines = computed((): Array<{label: string; value: string}> => {
+  const eco = player.value?.botEconomy;
+  if (eco === undefined) {
+    return [];
+  }
+  return [
+    {label: 'M€ left at scoring', value: String(eco.stock)},
+    {label: 'Conversion rate', value: `${eco.rate} M€ → 1 ${$t('VP')}`},
+    {label: 'M€ converted to VP', value: `${eco.vp} ${$t('VP')}`},
+    {label: 'Cards in the played pile', value: String(eco.playedCount)},
+  ];
+});
+const detailGroup = computed((): PlayerMetricGroup | undefined => {
+  const d = ui.detail;
+  if (d === undefined || d.kind !== 'players-metric') {
+    return undefined;
+  }
+  return groups.value.find((g) => g.key === d.group);
+});
+/** Only the participants that actually CARRY the focused group's metrics. */
+const detailPlayers = computed((): Array<OvPlayerCard> => {
+  const g = detailGroup.value;
+  if (g === undefined) {
+    return [];
+  }
+  return props.vm.players.players.filter((p) => metricsOfPlayer(p, g.key).length > 0);
+});
+const detailMetricKeys = computed((): Array<string> => {
+  const g = detailGroup.value;
+  if (g === undefined || player.value === undefined) {
+    return [];
+  }
+  return metricsOfPlayer(player.value, g.key).map((m) => m.key);
+});
+function hex(color: Color): string {
+  return endgamePlayerHex(color);
+}
+function maArt(slug: string): string {
+  return maArtPath(slug, getPreferences().lang);
+}
+function resIcon(metricKey: string): string | undefined {
+  const raw = metricKey.replace(/^(prod|stock):/, '');
+  return RES_ICON[raw];
+}
+function isComparable(metricKey: string): boolean {
+  return (props.vm.players.comparable[metricKey] ?? 0) >= 2;
+}
+function metricsOfPlayer(p: OvPlayerCard, key: string): ReadonlyArray<OvMetric> {
+  switch (key) {
+  case 'production': return p.production;
+  case 'stock': return p.stock;
+  case 'stats': return p.stats;
+  default: return [];
+  }
+}
+function metricsOf(key: string): ReadonlyArray<OvMetric> {
+  return player.value !== undefined ? metricsOfPlayer(player.value, key) : [];
+}
+function metricPct(m: OvMetric): number {
+  const max = props.vm.players.maxima[m.key] ?? 1;
+  return max > 0 ? Math.min(100, (Math.max(0, m.value) / max) * 100) : 0;
+}
+function labelOfMetric(mkey: string): string {
+  for (const p of props.vm.players.players) {
+    for (const list of [p.production, p.stock, p.stats]) {
+      const m = list.find((x) => x.key === mkey);
+      if (m !== undefined) {
+        return m.label;
+      }
+    }
+  }
+  return mkey;
+}
+function cmpValue(p: OvPlayerCard, mkey: string): number {
+  for (const list of [p.production, p.stock, p.stats]) {
+    const m = list.find((x) => x.key === mkey);
+    if (m !== undefined) {
+      return m.value;
+    }
+  }
+  return 0;
+}
+function cmpPct(p: OvPlayerCard, mkey: string): number {
+  const max = props.vm.players.maxima[mkey] ?? 1;
+  return max > 0 ? Math.min(100, (Math.max(0, cmpValue(p, mkey)) / max) * 100) : 0;
+}
+function glyphOf(key: ConsoleEndgameCategoryKey): DossierGlyph {
+  return scoreCategoryGlyph(key);
+}
+/** The ceremony's SHORT name of a category (its rail legend — «РТ», «Награды») — what a medallion prints. */
+function legendOf(key: ConsoleEndgameCategoryKey): string {
+  return SCORE_CATEGORY_TABLE.find((m) => m.key === key)?.legend ?? key;
+}
+// ── pane API ──────────────────────────────────────────────────────────
+function nav(dir: NavDirection): void {
+  if (ui.detail !== undefined) {
+    return;
+  }
+  if (dir === 'left' || dir === 'right') {
+    const n = props.vm.players.players.length;
+    if (n > 0) {
+      const delta = dir === 'right' ? 1 : -1;
+      ui.playerIdx = (playerIdx.value + delta + n) % n;
+      // A different participant may carry a different group list.
+      ui.playerGroup = Math.min(groupIdx.value, Math.max(0, (props.vm.players.players[ui.playerIdx]?.groups.length ?? 1) - 1));
+    }
+    return;
+  }
+  const n = groups.value.length;
+  if (n > 0) {
+    const delta = dir === 'down' ? 1 : -1;
+    ui.playerGroup = (groupIdx.value + delta + n) % n;
+  }
+}
+function primary(): void {
+  const g = groups.value[groupIdx.value];
+  if (g !== undefined && g.comparable && ui.detail === undefined) {
+    ui.detail = {kind: 'players-metric', group: g.key};
+  }
+}
+
+// The pane API — what `ConsoleEndgameOverview` reaches through its `ref="pane"` (`nav` on a d-pad step, `primary`
+// on A), and nothing else.
+defineExpose({nav, primary});
 </script>
