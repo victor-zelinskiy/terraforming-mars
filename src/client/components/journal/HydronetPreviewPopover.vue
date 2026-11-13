@@ -22,8 +22,9 @@
   </Teleport>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {HYDRO_PREVIEW} from '@/client/components/hydronetwork/hydroPreview';
 
@@ -42,62 +43,58 @@ const PREVIEW_HEIGHT = 104;
 const GAP = 14;
 const VIEWPORT_MARGIN = 8;
 
-export default defineComponent({
-  name: 'HydronetPreviewPopover',
-  components: {BarButtonIcon},
-  props: {
-    visible: {
-      type: Boolean,
-      default: false,
-    },
-    anchor: {
-      type: Object as () => DOMRect | undefined,
-      default: undefined,
-    },
-    prefer: {
-      type: String as () => 'left' | 'right',
-      default: 'left',
-    },
+defineOptions({name: 'HydronetPreviewPopover'});
+const props = defineProps({
+  visible: {
+    type: Boolean,
+    default: false,
   },
-  computed: {
-    titleKey(): string {
-      return HYDRO_PREVIEW.titleKey;
-    },
-    descriptionKey(): string {
-      return HYDRO_PREVIEW.descriptionKey;
-    },
-    positionStyle(): Record<string, string> {
-      const a = this.anchor;
-      if (a === undefined) {
-        return {display: 'none'};
-      }
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-
-      const leftSide = a.left - GAP - PREVIEW_WIDTH;
-      const rightSide = a.right + GAP;
-      let left;
-      if (this.prefer === 'right') {
-        left = rightSide;
-        if (left + PREVIEW_WIDTH > vw - VIEWPORT_MARGIN) {
-          left = leftSide;
-        }
-      } else {
-        left = leftSide;
-        if (left < VIEWPORT_MARGIN) {
-          left = rightSide;
-        }
-      }
-      left = Math.max(VIEWPORT_MARGIN, Math.min(left, vw - PREVIEW_WIDTH - VIEWPORT_MARGIN));
-
-      let top = a.top + a.height / 2 - PREVIEW_HEIGHT / 2;
-      top = Math.max(VIEWPORT_MARGIN, Math.min(top, vh - PREVIEW_HEIGHT - VIEWPORT_MARGIN));
-
-      return {
-        left: `${Math.round(left)}px`,
-        top: `${Math.round(top)}px`,
-      };
-    },
+  anchor: {
+    type: Object as () => DOMRect | undefined,
+    default: undefined,
   },
+  prefer: {
+    type: String as () => 'left' | 'right',
+    default: 'left',
+  },
+});
+
+const titleKey = computed((): string => {
+  return HYDRO_PREVIEW.titleKey;
+});
+const descriptionKey = computed((): string => {
+  return HYDRO_PREVIEW.descriptionKey;
+});
+const positionStyle = computed((): Record<string, string> => {
+  const a = props.anchor;
+  if (a === undefined) {
+    return {display: 'none'};
+  }
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  const leftSide = a.left - GAP - PREVIEW_WIDTH;
+  const rightSide = a.right + GAP;
+  let left;
+  if (props.prefer === 'right') {
+    left = rightSide;
+    if (left + PREVIEW_WIDTH > vw - VIEWPORT_MARGIN) {
+      left = leftSide;
+    }
+  } else {
+    left = leftSide;
+    if (left < VIEWPORT_MARGIN) {
+      left = rightSide;
+    }
+  }
+  left = Math.max(VIEWPORT_MARGIN, Math.min(left, vw - PREVIEW_WIDTH - VIEWPORT_MARGIN));
+
+  let top = a.top + a.height / 2 - PREVIEW_HEIGHT / 2;
+  top = Math.max(VIEWPORT_MARGIN, Math.min(top, vh - PREVIEW_HEIGHT - VIEWPORT_MARGIN));
+
+  return {
+    left: `${Math.round(left)}px`,
+    top: `${Math.round(top)}px`,
+  };
 });
 </script>
