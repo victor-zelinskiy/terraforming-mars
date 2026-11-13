@@ -1,19 +1,4 @@
 <template>
-  <!-- THE WILD-RESOURCE CHOICE — ONE inner step for every «a standard resource OR a resource on a card» (P43 · ledger EO,
-       extracted from the Venus bonus's inner pre-select, P89 · EM). A LEVEL of its host (the composer's `sub`), standing
-       in the review's place: the card, the head, the bars and the rail never move; B goes back one level with the draft
-       kept. ONE composition read off a SPECIFICATION (`wildChoiceInner.ts` · `WildChoiceSpec`), three zones top to
-       bottom — the cursor's grid rows:
-         · THE OR (only where the wild is a question here) — the shared variant grammar (`ConsoleVariantChoice`): «на
-           карту» wears the printed «?» and the holders' faces, «стандартный ресурс» the six it may become; the chosen one
-           the grammar's own seal and kant, a refused plate shown with its reason (never hidden);
-         · ITS CONSEQUENCE — ONE SLOT that never changes height: the candidates on «a card»; on «a standard resource» a
-           quiet line (Venus — the +1 joins the grid below) or, when the choice is EXCLUSIVE (P43), the grid itself, in
-           the SAME cell — the two faces cross by opacity, never a reflow, never both at once;
-         · THE STANDARD RESOURCES (Venus: always) — a FIXED grid of 2 rows × 3 (M€ · steel · titanium / plants · energy ·
-           heat), a DIAL (LB/RB one unit, RT the rest, «Осталось / Разложено») or a RADIO at budget 1 (A chooses, no dial).
-       Every state is a kant / a fill / a word (invariant 15); nothing reflows under the cursor. The Venus host keeps its
-       historical hooks (`data-venus-*`) beside the shared ones (`data-wild-*`) — its stands read them. -->
   <div class="con-wildstep" :class="{'con-wildstep--exclusive': spec.exclusive}"
        data-wild-inner :data-wild-focus-zone="focus.zone" :data-wild-focus-index="focus.index"
        :data-wild-complete="complete ? '' : undefined" :data-wild-choice="wildChoice"
@@ -206,8 +191,27 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE WILD-RESOURCE CHOICE — ONE inner step for every «a standard resource OR a resource on a card» (P43 · ledger EO,
+ * extracted from the Venus bonus's inner pre-select, P89 · EM). A LEVEL of its host (the composer's `sub`), standing
+ * in the review's place: the card, the head, the bars and the rail never move; B goes back one level with the draft
+ * kept. ONE composition read off a SPECIFICATION (`wildChoiceInner.ts` · `WildChoiceSpec`), three zones top to
+ * bottom — the cursor's grid rows:
+ *   · THE OR (only where the wild is a question here) — the shared variant grammar (`ConsoleVariantChoice`): «на
+ *     карту» wears the printed «?» and the holders' faces, «стандартный ресурс» the six it may become; the chosen one
+ *     the grammar's own seal and kant, a refused plate shown with its reason (never hidden);
+ *   · ITS CONSEQUENCE — ONE SLOT that never changes height: the candidates on «a card»; on «a standard resource» a
+ *     quiet line (Venus — the +1 joins the grid below) or, when the choice is EXCLUSIVE (P43), the grid itself, in
+ *     the SAME cell — the two faces cross by opacity, never a reflow, never both at once;
+ *   · THE STANDARD RESOURCES (Venus: always) — a FIXED grid of 2 rows × 3 (M€ · steel · titanium / plants · energy ·
+ *     heat), a DIAL (LB/RB one unit, RT the rest, «Осталось / Разложено») or a RADIO at budget 1 (A chooses, no dial).
+ * Every state is a kant / a fill / a word (invariant 15); nothing reflows under the cursor. The Venus host keeps its
+ * historical hooks (`data-venus-*`) beside the shared ones (`data-wild-*`) — its stands read them.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -220,7 +224,7 @@ import {spreadOn} from '@/client/console/cardResourceDistribution';
 import {layoutTopWithin} from '@/client/console/layoutTop';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {VariantChoiceOption} from '@/client/console/variantChoiceModel';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {
   WILD_LANES, WILD_OPTIONS, WildChoiceSpec, WildFocus, WildKind, WildParts, wildAmount, wildComplete, wildLaneOff, wildLeft, wildOptionLive,
   wildShown,
@@ -228,212 +232,204 @@ import {
 
 type CardView = {name: CardName, model: CardModel | undefined, count: number, icon: string, vp?: {from: number, to: number}};
 
-export default defineComponent({
-  name: 'ConsoleWildChoiceStep',
-  components: {ConsoleCardFaceLite, ConsoleVariantChoice, GamepadGlyph},
-  props: {
-    spec: {type: Object as PropType<WildChoiceSpec>, required: true},
-    parts: {type: Object as PropType<WildParts>, required: true},
-    focus: {type: Object as PropType<WildFocus>, required: true},
-    /** The step's head: its title (an i18n key) and its reading (already a string). */
-    head: {type: Object as PropType<{title: string, reading: string}>, required: true},
-    /** The OR's zone title (an i18n key) — empty: the plates speak alone. */
-    orTitle: {type: String, default: ''},
-    /** The plates' second lines per option (i18n keys) — the host's own words. */
-    descs: {type: Object as PropType<Partial<Record<WildKind, string>>>, default: () => ({})},
-    /** The plates' titles per option (i18n keys) — the host's own words. */
-    titles: {type: Object as PropType<Partial<Record<WildKind, string>>>, default: () => ({})},
-    /** The candidates' live models (the server's), for their faces and «current → resulting». */
-    candidates: {type: Array as PropType<ReadonlyArray<CardModel>>, default: () => []},
-    /** The VP a +1 moves per candidate (the server's `vpBox`) — «ПО a → b» under a scoring card. */
-    vpBox: {type: Object as PropType<Partial<Record<string, {from: number, to: number}>>>, default: () => ({})},
-    /** The kind each candidate takes (the server's `cardResourceByCard`), else the manifest's. */
-    resourceByCard: {type: Object as PropType<Partial<Record<string, string>>>, default: () => ({})},
-    /** The player's stock per standard resource — «current → resulting». */
-    stock: {type: Object as PropType<Partial<Record<string, number>>>, default: () => ({})},
-    /** The Venus host: its historical hooks ride beside the shared ones. */
-    venus: {type: Boolean, default: false},
-  },
-  data() {
+defineOptions({name: 'ConsoleWildChoiceStep'});
+const props = defineProps({
+  spec: {type: Object as PropType<WildChoiceSpec>, required: true},
+  parts: {type: Object as PropType<WildParts>, required: true},
+  focus: {type: Object as PropType<WildFocus>, required: true},
+  /** The step's head: its title (an i18n key) and its reading (already a string). */
+  head: {type: Object as PropType<{title: string, reading: string}>, required: true},
+  /** The OR's zone title (an i18n key) — empty: the plates speak alone. */
+  orTitle: {type: String, default: ''},
+  /** The plates' second lines per option (i18n keys) — the host's own words. */
+  descs: {type: Object as PropType<Partial<Record<WildKind, string>>>, default: () => ({})},
+  /** The plates' titles per option (i18n keys) — the host's own words. */
+  titles: {type: Object as PropType<Partial<Record<WildKind, string>>>, default: () => ({})},
+  /** The candidates' live models (the server's), for their faces and «current → resulting». */
+  candidates: {type: Array as PropType<ReadonlyArray<CardModel>>, default: () => []},
+  /** The VP a +1 moves per candidate (the server's `vpBox`) — «ПО a → b» under a scoring card. */
+  vpBox: {type: Object as PropType<Partial<Record<string, {from: number, to: number}>>>, default: () => ({})},
+  /** The kind each candidate takes (the server's `cardResourceByCard`), else the manifest's. */
+  resourceByCard: {type: Object as PropType<Partial<Record<string, string>>>, default: () => ({})},
+  /** The player's stock per standard resource — «current → resulting». */
+  stock: {type: Object as PropType<Partial<Record<string, number>>>, default: () => ({})},
+  /** The Venus host: its historical hooks ride beside the shared ones. */
+  venus: {type: Boolean, default: false},
+});
+
+const slot = useTemplateRef<HTMLElement>('slot');
+/** The slot's measured box — the exclusive slot grows to the column's foot (no scroll), the host's step solves its rows off it. */
+const slotW = ref(0);
+const slotH = ref(0);
+let stopObs: (() => void) | undefined;
+
+const orShown = computed((): boolean => {
+  return wildShown(props.spec);
+});
+/**
+ * The slot stands with the OR (Venus) — P43's slot is the whole answer under its OR; an exclusive step with no OR
+ * (P49's dial-bound resource) IS its slot — the radio grid alone.
+ */
+const slotShown = computed((): boolean => {
+  return orShown.value || props.spec.exclusive;
+});
+const wildChoice = computed((): WildKind | undefined => {
+  return props.parts.wild?.wild;
+});
+const chosenCard = computed((): CardName | undefined => {
+  return props.parts.wild?.wild === 'onCard' ? props.parts.wild.card : undefined;
+});
+const askKey = computed((): string => {
+  return props.spec.exclusive ? 'Choose: on a card or a standard resource' : 'Choose where the 30 % bonus goes';
+});
+const slotTitle = computed((): string => {
+  if (!props.spec.exclusive) {
+    return 'Put it on a card';
+  }
+  return wildChoice.value === 'asStandard' ? 'Standard resource' : 'Put it on a card';
+});
+const orOptions = computed((): Array<VariantChoiceOption> => {
+  return WILD_OPTIONS.map((opt, i) => {
+    const live = wildOptionLive(props.spec, opt.key);
+    const selected = wildChoice.value === opt.key;
+    const reason = !live && opt.key === 'onCard' ? props.spec.or?.onCardOff : undefined;
     return {
-      /** The slot's measured box — the exclusive slot grows to the column's foot (no scroll), the host's step solves its rows off it. */
-      slotW: 0,
-      slotH: 0,
-      stopObs: undefined as (() => void) | undefined,
+      key: opt.key,
+      state: {focused: props.focus.zone === 'wild' && props.focus.index === i, selected, off: !live},
+      title: translateText(props.titles[opt.key] ?? opt.title),
+      ...(reason !== undefined ? {reason: translateText(reason)} : {}),
+      attrs: {
+        'data-wild-option': opt.key,
+        'data-chosen': selected ? '' : undefined,
+        ...(props.venus ? {'data-venus-wild-option': opt.key} : {}),
+      },
     };
-  },
-  mounted() {
-    this.measureSlot();
-    // The band is the box the slot's room is read off (see `measureSlot`); the slot itself for its width.
-    const host = ((this.$refs.slot ?? undefined) as HTMLElement | undefined)?.closest<HTMLElement>('[data-ws-band]') ?? undefined;
-    const slot = (this.$refs.slot ?? undefined) as HTMLElement | undefined;
-    const targets = [host, slot].filter((el): el is HTMLElement => el !== undefined && el !== null);
-    if (targets.length > 0 && typeof ResizeObserver !== 'undefined') {
-      const obs = new ResizeObserver(() => this.measureSlot());
-      targets.forEach((el) => obs.observe(el));
-      this.stopObs = () => obs.disconnect();
+  });
+});
+/** The candidates — kept on screen (faded) when the wild goes elsewhere, so the slot never re-lays. */
+const cards = computed((): ReadonlyArray<CardView> => {
+  return props.spec.holders.map((name) => {
+    const model = props.candidates.find((c) => c.name === name);
+    const fromServer = props.resourceByCard[name];
+    const resource = getCard(name)?.resourceType;
+    const iconKey = fromServer ?? (resource === undefined ? undefined : cardResourceKey(String(resource)));
+    const vp = props.vpBox[name];
+    return {
+      name, model, count: model?.resources ?? 0, icon: iconKey === undefined ? '' : iconClassFor(iconKey),
+      ...(vp !== undefined && vp.from !== vp.to ? {vp: {from: vp.from, to: vp.to}} : {}),
+    };
+  });
+});
+/** The door's card (a nested pick): the chosen holder, or none yet. */
+const doorCard = computed((): CardView | undefined => {
+  const chosen = chosenCard.value;
+  return chosen === undefined ? undefined : cards.value.find((c) => c.name === chosen);
+});
+/** «Карт на выбор: 13» — how many holders answer the door. */
+const doorCountText = computed((): string => {
+  return translateTextWithParams('Cards to choose from: ${0}', [String(cards.value.length)]);
+});
+/** «On a card» is the WILD resource — the card faces' printed «?» (`wild`), whatever kind the chosen card keeps. */
+const wildIcon = computed((): string => {
+  return iconClassFor('wild');
+});
+const lanes = WILD_LANES;
+const amount = computed((): number => {
+  return wildAmount(props.spec, props.parts);
+});
+/** What a chosen radio lane gains — the exclusive grid's «+N» on every lane (the reading of the choice to come). */
+const radioGain = computed((): number => {
+  return props.spec.amount('asStandard');
+});
+/** A SPEND step (P50 · FC): the lanes read what LEAVES. */
+const spend = computed((): boolean => {
+  return props.spec.mode === 'spend';
+});
+const left = computed((): number => {
+  return wildLeft(props.spec, props.parts);
+});
+const complete = computed((): boolean => {
+  return wildComplete(props.spec, props.parts);
+});
+const focusedLaneKey = computed((): string | undefined => {
+  return props.focus.zone === 'lane' ? WILD_LANES[props.focus.index] : undefined;
+});
+const canDecrease = computed((): boolean => {
+  const key = focusedLaneKey.value;
+  return key !== undefined && on(key) > 0;
+});
+const canIncrease = computed((): boolean => {
+  return focusedLaneKey.value !== undefined && left.value > 0;
+});
+
+/**
+ * THE SLOT'S BOX. Exclusive (P43): the slot takes the column down to the BAND's foot — the candidates get every row
+ * the column has, the grid face stands at its top, and nothing scrolls. Measured the way the target selector measures
+ * itself: the band's bottom minus every bottom padding / border between the slot and the band — never the scroll
+ * viewport's height (content-sized, it reports back whatever the slot last came out as: the slot collapsed to its
+ * floor and the selector, sized off the band, was cut in half). Venus keeps its natural slot (its grid follows).
+ */
+function measureSlot(): void {
+  const slotNow = slot.value;
+  if (slotNow === null) {
+    return;
+  }
+  if (props.spec.exclusive) {
+    const band = slotNow.closest<HTMLElement>('[data-ws-band]');
+    if (band !== null) {
+      let inset = 0;
+      for (let el = slotNow.parentElement; el !== null && el !== band; el = el.parentElement) {
+        const cs = getComputedStyle(el);
+        inset += (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+      }
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      // In LAYOUT, never a client rect: measured during the rows' entrance the slot read lower than it stands and
+      // kept a stale, short height once the motion ended (the selector's second row did not stand — P43 at 4K).
+      const room = band.offsetHeight - layoutTopWithin(slotNow, band) - inset - 0.4 * rem;
+      const next = Math.max(9 * rem, Math.floor(room));
+      if (Math.abs(next - slotH.value) > 1) {
+        slotH.value = next;
+      }
     }
-  },
-  beforeUnmount() {
-    this.stopObs?.();
-  },
-  computed: {
-    orShown(): boolean {
-      return wildShown(this.spec);
-    },
-    /**
-     * The slot stands with the OR (Venus) — P43's slot is the whole answer under its OR; an exclusive step with no OR
-     * (P49's dial-bound resource) IS its slot — the radio grid alone.
-     */
-    slotShown(): boolean {
-      return this.orShown || this.spec.exclusive;
-    },
-    wildChoice(): WildKind | undefined {
-      return this.parts.wild?.wild;
-    },
-    chosenCard(): CardName | undefined {
-      return this.parts.wild?.wild === 'onCard' ? this.parts.wild.card : undefined;
-    },
-    askKey(): string {
-      return this.spec.exclusive ? 'Choose: on a card or a standard resource' : 'Choose where the 30 % bonus goes';
-    },
-    slotTitle(): string {
-      if (!this.spec.exclusive) {
-        return 'Put it on a card';
-      }
-      return this.wildChoice === 'asStandard' ? 'Standard resource' : 'Put it on a card';
-    },
-    orOptions(): Array<VariantChoiceOption> {
-      return WILD_OPTIONS.map((opt, i) => {
-        const live = wildOptionLive(this.spec, opt.key);
-        const selected = this.wildChoice === opt.key;
-        const reason = !live && opt.key === 'onCard' ? this.spec.or?.onCardOff : undefined;
-        return {
-          key: opt.key,
-          state: {focused: this.focus.zone === 'wild' && this.focus.index === i, selected, off: !live},
-          title: translateText(this.titles[opt.key] ?? opt.title),
-          ...(reason !== undefined ? {reason: translateText(reason)} : {}),
-          attrs: {
-            'data-wild-option': opt.key,
-            'data-chosen': selected ? '' : undefined,
-            ...(this.venus ? {'data-venus-wild-option': opt.key} : {}),
-          },
-        };
-      });
-    },
-    /** The candidates — kept on screen (faded) when the wild goes elsewhere, so the slot never re-lays. */
-    cards(): ReadonlyArray<CardView> {
-      return this.spec.holders.map((name) => {
-        const model = this.candidates.find((c) => c.name === name);
-        const fromServer = this.resourceByCard[name];
-        const resource = getCard(name)?.resourceType;
-        const iconKey = fromServer ?? (resource === undefined ? undefined : cardResourceKey(String(resource)));
-        const vp = this.vpBox[name];
-        return {
-          name, model, count: model?.resources ?? 0, icon: iconKey === undefined ? '' : iconClassFor(iconKey),
-          ...(vp !== undefined && vp.from !== vp.to ? {vp: {from: vp.from, to: vp.to}} : {}),
-        };
-      });
-    },
-    /** The door's card (a nested pick): the chosen holder, or none yet. */
-    doorCard(): CardView | undefined {
-      const chosen = this.chosenCard;
-      return chosen === undefined ? undefined : this.cards.find((c) => c.name === chosen);
-    },
-    /** «Карт на выбор: 13» — how many holders answer the door. */
-    doorCountText(): string {
-      return translateTextWithParams('Cards to choose from: ${0}', [String(this.cards.length)]);
-    },
-    /** «On a card» is the WILD resource — the card faces' printed «?» (`wild`), whatever kind the chosen card keeps. */
-    wildIcon(): string {
-      return iconClassFor('wild');
-    },
-    lanes(): ReadonlyArray<string> {
-      return WILD_LANES;
-    },
-    amount(): number {
-      return wildAmount(this.spec, this.parts);
-    },
-    /** What a chosen radio lane gains — the exclusive grid's «+N» on every lane (the reading of the choice to come). */
-    radioGain(): number {
-      return this.spec.amount('asStandard');
-    },
-    /** A SPEND step (P50 · FC): the lanes read what LEAVES. */
-    spend(): boolean {
-      return this.spec.mode === 'spend';
-    },
-    left(): number {
-      return wildLeft(this.spec, this.parts);
-    },
-    complete(): boolean {
-      return wildComplete(this.spec, this.parts);
-    },
-    focusedLaneKey(): string | undefined {
-      return this.focus.zone === 'lane' ? WILD_LANES[this.focus.index] : undefined;
-    },
-    canDecrease(): boolean {
-      const key = this.focusedLaneKey;
-      return key !== undefined && this.on(key) > 0;
-    },
-    canIncrease(): boolean {
-      return this.focusedLaneKey !== undefined && this.left > 0;
-    },
-  },
-  methods: {
-    /**
-     * THE SLOT'S BOX. Exclusive (P43): the slot takes the column down to the BAND's foot — the candidates get every row
-     * the column has, the grid face stands at its top, and nothing scrolls. Measured the way the target selector measures
-     * itself: the band's bottom minus every bottom padding / border between the slot and the band — never the scroll
-     * viewport's height (content-sized, it reports back whatever the slot last came out as: the slot collapsed to its
-     * floor and the selector, sized off the band, was cut in half). Venus keeps its natural slot (its grid follows).
-     */
-    measureSlot(): void {
-      const slot = (this.$refs.slot ?? undefined) as HTMLElement | undefined;
-      if (slot === undefined || slot === null) {
-        return;
-      }
-      if (this.spec.exclusive) {
-        const band = slot.closest<HTMLElement>('[data-ws-band]');
-        if (band !== null) {
-          let inset = 0;
-          for (let el = slot.parentElement; el !== null && el !== band; el = el.parentElement) {
-            const cs = getComputedStyle(el);
-            inset += (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
-          }
-          const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-          // In LAYOUT, never a client rect: measured during the rows' entrance the slot read lower than it stands and
-          // kept a stale, short height once the motion ended (the selector's second row did not stand — P43 at 4K).
-          const room = band.offsetHeight - layoutTopWithin(slot, band) - inset - 0.4 * rem;
-          const next = Math.max(9 * rem, Math.floor(room));
-          if (Math.abs(next - this.slotH) > 1) {
-            this.slotH = next;
-          }
-        }
-      }
-      this.slotW = Math.max(0, Math.floor(slot.clientWidth));
-    },
-    venusAttrs(attrs: Record<string, string | undefined>): Record<string, string | undefined> {
-      return this.venus ? attrs : {};
-    },
-    optionDesc(key: string): string {
-      return this.descs[key as WildKind] ?? WILD_OPTIONS.find((o) => o.key === key)?.desc ?? '';
-    },
-    /** Why a lane is refused (an i18n key), or undefined. */
-    laneOff(key: string): string | undefined {
-      return wildLaneOff(this.spec, key);
-    },
-    on(key: string): number {
-      return spreadOn(this.parts.spread ?? {}, key);
-    },
-    stockOf(key: string): number {
-      return this.stock[key] ?? 0;
-    },
-    label(key: string): string {
-      return LANE_LABELS[key] ?? key;
-    },
-    iconClass(key: string): string {
-      return iconClassFor(key);
-    },
-  },
+  }
+  slotW.value = Math.max(0, Math.floor(slotNow.clientWidth));
+}
+function venusAttrs(attrs: Record<string, string | undefined>): Record<string, string | undefined> {
+  return props.venus ? attrs : {};
+}
+function optionDesc(key: string): string {
+  return props.descs[key as WildKind] ?? WILD_OPTIONS.find((o) => o.key === key)?.desc ?? '';
+}
+/** Why a lane is refused (an i18n key), or undefined. */
+function laneOff(key: string): string | undefined {
+  return wildLaneOff(props.spec, key);
+}
+function on(key: string): number {
+  return spreadOn(props.parts.spread ?? {}, key);
+}
+function stockOf(key: string): number {
+  return props.stock[key] ?? 0;
+}
+function label(key: string): string {
+  return LANE_LABELS[key] ?? key;
+}
+function iconClass(key: string): string {
+  return iconClassFor(key);
+}
+
+onMounted(() => {
+  measureSlot();
+  // The band is the box the slot's room is read off (see `measureSlot`); the slot itself for its width.
+  const host = slot.value?.closest<HTMLElement>('[data-ws-band]') ?? undefined;
+  const slotNow = slot.value;
+  const targets = [host, slotNow].filter((el): el is HTMLElement => el !== undefined && el !== null);
+  if (targets.length > 0 && typeof ResizeObserver !== 'undefined') {
+    const obs = new ResizeObserver(() => measureSlot());
+    targets.forEach((el) => obs.observe(el));
+    stopObs = () => obs.disconnect();
+  }
+});
+onBeforeUnmount(() => {
+  stopObs?.();
 });
 </script>
