@@ -12,7 +12,7 @@ import {CardResource} from '@/common/CardResource';
  * parliament's yield unit speaks — never one sprite standing for three, and
  * never three separate glyphs.
  */
-/** The component's template opens with a comment, so the wrapper root is a FRAGMENT — the glyph is found, never `w.classes()`. */
+/** The component's template starts with its root (the comment that opened it is in the script now), so the wrapper IS the glyph — the tests still find it by its class. */
 function glyph(props: Record<string, unknown>) {
   return mount(BenefitGlyph, {
     ...globalConfig,

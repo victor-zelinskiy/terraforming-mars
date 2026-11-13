@@ -1,17 +1,4 @@
 <template>
-  <!--
-    Compact, type-aware renderer for a single colony benefit slot
-    (one position on the build / trade / colony bonus tracks). Replaces
-    legacy `BuildBenefit`'s absolute-positioned mess with a clean,
-    flex-centered glyph + quantity overlay.
-
-    Covers every ColonyBenefit shape in the codebase. For simple
-    resource gains and card-resource gains, renders `<resource icon>` +
-    `×N` overlay. For VP / TR / cards / specials, renders a recognisable
-    glyph and lets the quantity float as an overlay. Falls back to a
-    generic placeholder for unrecognised types (so future colonies don't
-    crash the component).
-  -->
   <div class="benefit-glyph" :class="{'benefit-glyph--multi': isMultiKind, 'benefit-glyph--compact': compact}" :data-bg-type="benefit.type">
     <!-- GAIN_RESOURCES — most common: a resource icon, optionally
          multiple of them stacked on top of each other. We render ONE
@@ -166,8 +153,25 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * Compact, type-aware renderer for a single colony benefit slot
+ * (one position on the build / trade / colony bonus tracks). Replaces
+ * legacy `BuildBenefit`'s absolute-positioned mess with a clean,
+ * flex-centered glyph + quantity overlay.
+ *
+ * Covers every ColonyBenefit shape in the codebase. For simple
+ * resource gains and card-resource gains, renders `<resource icon>` +
+ * `×N` overlay. For VP / TR / cards / specials, renders a recognisable
+ * glyph and lets the quantity float as an overlay. Falls back to a
+ * generic placeholder for unrecognised types (so future colonies don't
+ * crash the component).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {CardResource} from '@/common/CardResource';
 
@@ -184,92 +188,87 @@ type BenefitInput = {
   resource?: unknown;
 };
 
-export default defineComponent({
-  name: 'BenefitGlyph',
-  props: {
-    benefit: {
-      type: Object as () => BenefitInput,
-      required: true,
-    },
-    // Which index of the quantity array to render. For single-quantity
-    // shapes (colony owner bonus) the parent passes `idx: 0`.
-    idx: {
-      type: Number,
-      default: 0,
-    },
-    // The card-resource of the parent colony, used for
-    // ADD_RESOURCES_TO_CARD benefits (the ONE-kind form; the frozen desktop
-    // hosts still pass it).
-    cardResource: {
-      type: String as () => CardResource | undefined,
-      default: undefined,
-    },
-    /**
-     * THE KINDS as a list — `colonyCardResources(metadata)`: one entry for
-     * every ordinary tile, several for the Redux Vesta. The console hosts
-     * pass this one; when both props are given the list wins.
-     */
-    cardResources: {
-      type: Array as PropType<ReadonlyArray<CardResource>>,
-      default: () => [],
-    },
-    /**
-     * THE COMPACT REGISTER of a several-kinds unit — for a host whose box is
-     * a single sprite's (a track cell, the tile's trade cell): the joint
-     * between the icons is a drawn HYPHEN instead of the word «или», so the
-     * width the word took goes to the ICONS (the host sizes them — the track
-     * cell lets them fill its width up to a single sprite's footprint). The
-     * word at 7 px beside 14 px icons read as noise (owner, 2026-09-29).
-     * A one-kind glyph ignores it.
-     */
-    compact: {
-      type: Boolean,
-      default: false,
-    },
+defineOptions({name: 'BenefitGlyph'});
+const props = defineProps({
+  benefit: {
+    type: Object as () => BenefitInput,
+    required: true,
   },
-  computed: {
-    // Exposed for the template's v-if chain.
-    BG(): typeof ColonyBenefit {
-      return ColonyBenefit;
-    },
-    quantity(): number {
-      const q = this.benefit.quantity[this.idx];
-      return typeof q === 'number' ? q : 0;
-    },
-    // Resource icon class for GAIN_RESOURCES — handles the OneOrArray<>
-    // shape by collapsing to the first entry. Single-resource cases
-    // (Io→heat, Ceres→steel, Luna→megacredits, etc.) hit this path.
-    resourceClassFromBenefit(): string {
-      const r = this.benefit.resource;
-      if (typeof r === 'string') {
-        return r.toLowerCase();
-      }
-      if (Array.isArray(r) && r.length > 0) {
-        return String(r[0]).toLowerCase();
-      }
-      return 'colony-tile__row-reward-icon--abstract';
-    },
-    /** The kinds this glyph draws — the list prop, else the one-kind prop as a list of one. */
-    cardResourceKinds(): ReadonlyArray<CardResource> {
-      if (this.cardResources.length > 0) {
-        return this.cardResources;
-      }
-      return this.cardResource !== undefined ? [this.cardResource] : [];
-    },
-    isMultiKind(): boolean {
-      return this.benefit.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && this.cardResourceKinds.length > 1;
-    },
-    /** One bare icon class per kind (`fighter`, `asteroid`, `mech` — the guard pins their definitions). */
-    cardResourceClasses(): Array<string> {
-      return this.cardResourceKinds.map((kind) => kind.toString().toLowerCase().replace(/\s+/g, '-'));
-    },
-    cardResourceClass(): string {
-      const kind = this.cardResourceKinds[0];
-      if (kind !== undefined) {
-        return kind.toString().toLowerCase().replace(/\s+/g, '-');
-      }
-      return 'colony-tile__row-reward-icon--abstract';
-    },
+  // Which index of the quantity array to render. For single-quantity
+  // shapes (colony owner bonus) the parent passes `idx: 0`.
+  idx: {
+    type: Number,
+    default: 0,
   },
+  // The card-resource of the parent colony, used for
+  // ADD_RESOURCES_TO_CARD benefits (the ONE-kind form; the frozen desktop
+  // hosts still pass it).
+  cardResource: {
+    type: String as () => CardResource | undefined,
+    default: undefined,
+  },
+  /**
+   * THE KINDS as a list — `colonyCardResources(metadata)`: one entry for
+   * every ordinary tile, several for the Redux Vesta. The console hosts
+   * pass this one; when both props are given the list wins.
+   */
+  cardResources: {
+    type: Array as PropType<ReadonlyArray<CardResource>>,
+    default: () => [],
+  },
+  /**
+   * THE COMPACT REGISTER of a several-kinds unit — for a host whose box is
+   * a single sprite's (a track cell, the tile's trade cell): the joint
+   * between the icons is a drawn HYPHEN instead of the word «или», so the
+   * width the word took goes to the ICONS (the host sizes them — the track
+   * cell lets them fill its width up to a single sprite's footprint). The
+   * word at 7 px beside 14 px icons read as noise (owner, 2026-09-29).
+   * A one-kind glyph ignores it.
+   */
+  compact: {
+    type: Boolean,
+    default: false,
+  },
+});
+
+// Exposed for the template's v-if chain.
+const BG = ColonyBenefit;
+const quantity = computed((): number => {
+  const q = props.benefit.quantity[props.idx];
+  return typeof q === 'number' ? q : 0;
+});
+// Resource icon class for GAIN_RESOURCES — handles the OneOrArray<>
+// shape by collapsing to the first entry. Single-resource cases
+// (Io→heat, Ceres→steel, Luna→megacredits, etc.) hit this path.
+const resourceClassFromBenefit = computed((): string => {
+  const r = props.benefit.resource;
+  if (typeof r === 'string') {
+    return r.toLowerCase();
+  }
+  if (Array.isArray(r) && r.length > 0) {
+    return String(r[0]).toLowerCase();
+  }
+  return 'colony-tile__row-reward-icon--abstract';
+});
+/** The kinds this glyph draws — the list prop, else the one-kind prop as a list of one. */
+const cardResourceKinds = computed((): ReadonlyArray<CardResource> => {
+  if (props.cardResources.length > 0) {
+    return props.cardResources;
+  }
+  return props.cardResource !== undefined ? [props.cardResource] : [];
+});
+const isMultiKind = computed((): boolean => {
+  return props.benefit.type === ColonyBenefit.ADD_RESOURCES_TO_CARD && cardResourceKinds.value.length > 1;
+});
+/** One bare icon class per kind (`fighter`, `asteroid`, `mech` — the guard pins their definitions). */
+const cardResourceClasses = computed((): Array<string> => {
+  return cardResourceKinds.value.map((kind) => kind.toString().toLowerCase().replace(/\s+/g, '-'));
+});
+const cardResourceClass = computed((): string => {
+  const kind = cardResourceKinds.value[0];
+  if (kind !== undefined) {
+    return kind.toString().toLowerCase().replace(/\s+/g, '-');
+  }
+  return 'colony-tile__row-reward-icon--abstract';
 });
 </script>
