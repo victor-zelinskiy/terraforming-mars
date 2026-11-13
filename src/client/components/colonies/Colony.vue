@@ -1,6 +1,4 @@
 <template>
-    <!-- <div :class="recedeIfInactive"> -->
-    <!-- Show the background, tooltip, and other setup -->
     <div class="filterDiv colony-card colonies tooltip tooltip-bottom" :class="backgroundClass" :data-tooltip="tooltip" v-i18n>
 
     <!-- Show colony ship if somebody is visiting -->
@@ -118,9 +116,16 @@
 
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * <div :class="recedeIfInactive">
+ *
+ * Show the background, tooltip, and other setup
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyName} from '@/common/colonies/ColonyName';
@@ -132,61 +137,42 @@ import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Resource} from '@/common/Resource';
 import {translateText} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
-export default defineComponent({
-  name: 'colony',
-  props: {
-    colony: {
-      type: Object as () => ColonyModel,
-      required: true,
-    },
-    active: {
-      type: Boolean,
-      default: true,
-    },
+defineOptions({name: 'colony'});
+const props = defineProps({
+  colony: {
+    type: Object as () => ColonyModel,
+    required: true,
   },
-  components: {
-    ColonyRow,
-    ColonyTradeRow,
-    ColonyFleetIcon,
+  active: {
+    type: Boolean,
+    default: true,
   },
-  computed: {
-    metadata(): ColonyMetadata {
-      return getColony(this.colony.name);
-    },
-    colonyResourceClass(): string {
-      const resource = this.metadata.cardResource;
-      return resource?.toString()?.toLowerCase() ?? '';
-    },
-    /** The income's KIND at the marker's position (per-position on the Redux Pluto). */
-    tradeType(): ColonyBenefit {
-      return tradeBenefitAt(this.metadata, this.colony.trackPosition).type;
-    },
-    recedeIfInactive(): string {
-      return this.active === false ? 'inactiveColony' : '';
-    },
-    backgroundClass(): string {
-      return this.colony.name.replace(' ', '-') + '-background';
-    },
-    tooltip(): string {
-      const descriptions = [this.metadata.build, this.metadata.trade, this.metadata.colony].map((b) => b.description);
-      // Wrapped, not point-free: `translateText` takes an options argument, and
-      // `map` would hand it the array index.
-      const titles = ['Build Colony bonus', 'Trade bonus', 'Colony bonus'].map((t) => translateText(t));
+});
 
-      return `${titles[0]}: ${translateText(descriptions[0])}
+const metadata = computed((): ColonyMetadata => {
+  return getColony(props.colony.name);
+});
+const colonyResourceClass = computed((): string => {
+  const resource = metadata.value.cardResource;
+  return resource?.toString()?.toLowerCase() ?? '';
+});
+/** The income's KIND at the marker's position (per-position on the Redux Pluto). */
+const tradeType = computed((): ColonyBenefit => {
+  return tradeBenefitAt(metadata.value, props.colony.trackPosition).type;
+});
+const backgroundClass = computed((): string => {
+  return props.colony.name.replace(' ', '-') + '-background';
+});
+const tooltip = computed((): string => {
+  const descriptions = [metadata.value.build, metadata.value.trade, metadata.value.colony].map((b) => b.description);
+  // Wrapped, not point-free: `translateText` takes an options argument, and
+  // `map` would hand it the array index.
+  const titles = ['Build Colony bonus', 'Trade bonus', 'Colony bonus'].map((t) => translateText(t));
+
+  return `${titles[0]}: ${translateText(descriptions[0])}
 ${titles[1]}: ${translateText(descriptions[1])}
 ${titles[2]}: ${translateText(descriptions[2])}`;
-    },
-    ColonyName(): typeof ColonyName {
-      return ColonyName;
-    },
-    ColonyBenefit(): typeof ColonyBenefit {
-      return ColonyBenefit;
-    },
-    Resource(): typeof Resource {
-      return Resource;
-    },
-  },
 });
 </script>
