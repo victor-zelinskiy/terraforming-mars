@@ -1,12 +1,4 @@
 <template>
-  <!-- THE PROMPT-MODAL HEAD — one header for every decision modal (`console_prompt.less`).
-       Reading order is fixed on every surface:
-         [crest]                                   the tone's band across the plate's top edge
-         [emblem] CATEGORY · extra …  [РЕШЕНИЕ 2] [▲ ВЫГОДА | ▼ УБЫТОК]
-         The ask (the server's sentence)            [decline plate]
-         Why it appeared (the trigger)
-       The crest is positioned against the PANEL (this header is deliberately not a positioned box), so it spans the
-       plate edge to edge whatever padding the host uses. -->
   <header class="con-prompt-head"
           :class="[
             'con-prompt-head--' + tone,
@@ -49,12 +41,24 @@
   </header>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE PROMPT-MODAL HEAD — one header for every decision modal (`console_prompt.less`).
+ * Reading order is fixed on every surface:
+ *   [crest]                                   the tone's band across the plate's top edge
+ *   [emblem] CATEGORY · extra …  [РЕШЕНИЕ 2] [▲ ВЫГОДА | ▼ УБЫТОК]
+ *   The ask (the server's sentence)            [decline plate]
+ *   Why it appeared (the trigger)
+ * The crest is positioned against the PANEL (this header is deliberately not a positioned box), so it spans the
+ * plate edge to edge whatever padding the host uses.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, onBeforeUnmount, onMounted, PropType, ref, watch} from 'vue';
 import ConsolePromptEmblem from '@/client/components/console/foundation/ConsolePromptEmblem.vue';
 import {PromptTone, promptToneTagKey} from '@/client/console/promptTone';
 import {PromptPresentation, presentPrompt, promptSequenceState, SETTLE_FOLLOW_MS, withdrawPrompt} from '@/client/console/promptSequence';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {promptHandoffDelayNow} from '@/client/console/surfaceMotion/promptHandoffModel';
 import {GrantSeries} from '@/common/models/PlayerInputModel';
 import {choiceSeriesCount} from '@/client/console/promptSeries';
@@ -69,103 +73,89 @@ import {choiceSeriesCount} from '@/client/console/promptSeries';
  * (`promptSequenceKey(...)`); an empty key opts out (a non-decision surface
  * borrowing the head's look).
  */
-export default defineComponent({
-  name: 'ConsolePromptHead',
-  components: {ConsolePromptEmblem},
-  props: {
-    tone: {type: String as PropType<PromptTone>, required: true},
-    /** The CATEGORY (already translated) — `consoleTaskSummary`'s kicker, the surface's own eyebrow. */
-    kicker: {type: String, required: true},
-    /** The ask — the server's sentence, already translated. */
-    title: {type: String, required: true},
-    /** Why the decision appeared (the `choiceContext` trigger), already translated. */
-    trigger: {type: String, default: ''},
-    /** The decision's identity in the sequence ('' = not a decision — no ordinal, no settle). */
-    promptKey: {type: String, default: ''},
-    titleTag: {type: String, default: 'h2'},
-    /** The question's place in a SERIES (`choiceContext.series` — PC04), when it is one; read by `choiceSeriesOf`. */
-    series: {type: Object as PropType<GrantSeries | undefined>, default: undefined},
-  },
-  data() {
-    return {
-      presentation: undefined as PromptPresentation | undefined,
-      /** 0 = idle; 1 / 2 alternate so the one-shot pulse replays on every absorbed press. */
-      nudgePhase: 0,
-      /** The nudge counter at presentation — only presses absorbed AFTER it pulse this head. */
-      nudgeBase: 0,
-      /** How long this plate WAITS before it arrives (a handoff from the decision before it — PL-384): the tone
-       *  flip's beat starts once the plate is there, never under a plate still letting the last one go. Read at
-       *  render, so the CSS delay is in place before the first style pass. */
-      beatAt: promptHandoffDelayNow() ?? 0,
-    };
-  },
-  computed: {
-    tagKey(): string | undefined {
-      return promptToneTagKey(this.tone);
-    },
-    ordinal(): number {
-      return this.presentation?.ordinal ?? 1;
-    },
-    seqText(): string {
-      return translateTextWithParams('Decision ${0}', [String(this.ordinal)]);
-    },
-    seriesText(): string {
-      if (this.series === undefined) {
-        return '';
-      }
-      const count = choiceSeriesCount(this.series);
-      return translateTextWithParams(count.key, [...count.params]);
-    },
-    /** The character FLIPPED since the last decision of this chain — the one-shot beat plays. */
-    shiftBeat(): boolean {
-      return this.presentation?.toneShift === true;
-    },
-    /** THIS head's decision is still settling (the shell swallows its deciding presses). */
-    settling(): boolean {
-      return promptSequenceState.settling && this.presentation !== undefined &&
-        promptSequenceState.current?.key === this.presentation.key;
-    },
-    /** The settle METER runs only for a follow-up — the double-tap guard of a first decision is too short to show. */
-    meterMs(): number {
-      const p = this.presentation;
-      return p !== undefined && p.ordinal > 1 && p.settleMs >= SETTLE_FOLLOW_MS ? p.settleMs : 0;
-    },
-  },
-  watch: {
-    promptKey() {
-      this.present();
-    },
-    tone() {
-      this.present();
-    },
-    'promptSequenceState.nudge'(n: number) {
-      if (this.settling && n > this.nudgeBase) {
-        this.nudgePhase = this.nudgePhase === 1 ? 2 : 1;
-      }
-    },
-  },
-  setup() {
-    return {promptSequenceState};
-  },
-  mounted() {
-    this.present();
-  },
-  beforeUnmount() {
-    if (this.presentation !== undefined) {
-      withdrawPrompt(this.presentation.key);
-    }
-  },
-  methods: {
-    present(): void {
-      if (this.promptKey === '') {
-        this.presentation = undefined;
-        return;
-      }
-      this.presentation = presentPrompt(this.promptKey, this.tone);
-      this.beatAt = promptHandoffDelayNow() ?? 0;
-      this.nudgeBase = promptSequenceState.nudge;
-      this.nudgePhase = 0;
-    },
-  },
+defineOptions({name: 'ConsolePromptHead'});
+const props = defineProps({
+  tone: {type: String as PropType<PromptTone>, required: true},
+  /** The CATEGORY (already translated) — `consoleTaskSummary`'s kicker, the surface's own eyebrow. */
+  kicker: {type: String, required: true},
+  /** The ask — the server's sentence, already translated. */
+  title: {type: String, required: true},
+  /** Why the decision appeared (the `choiceContext` trigger), already translated. */
+  trigger: {type: String, default: ''},
+  /** The decision's identity in the sequence ('' = not a decision — no ordinal, no settle). */
+  promptKey: {type: String, default: ''},
+  titleTag: {type: String, default: 'h2'},
+  /** The question's place in a SERIES (`choiceContext.series` — PC04), when it is one; read by `choiceSeriesOf`. */
+  series: {type: Object as PropType<GrantSeries | undefined>, default: undefined},
+});
+
+const presentation = ref<PromptPresentation | undefined>(undefined);
+/** 0 = idle; 1 / 2 alternate so the one-shot pulse replays on every absorbed press. */
+const nudgePhase = ref(0);
+/** The nudge counter at presentation — only presses absorbed AFTER it pulse this head. */
+const nudgeBase = ref(0);
+/** How long this plate WAITS before it arrives (a handoff from the decision before it — PL-384): the tone
+ *  flip's beat starts once the plate is there, never under a plate still letting the last one go. Read at
+ *  render, so the CSS delay is in place before the first style pass. */
+const beatAt = ref(promptHandoffDelayNow() ?? 0);
+const tagKey = computed((): string | undefined => {
+  return promptToneTagKey(props.tone);
+});
+const ordinal = computed((): number => {
+  return presentation.value?.ordinal ?? 1;
+});
+const seqText = computed((): string => {
+  return translateTextWithParams('Decision ${0}', [String(ordinal.value)]);
+});
+const seriesText = computed((): string => {
+  if (props.series === undefined) {
+    return '';
+  }
+  const count = choiceSeriesCount(props.series);
+  return translateTextWithParams(count.key, [...count.params]);
+});
+/** The character FLIPPED since the last decision of this chain — the one-shot beat plays. */
+const shiftBeat = computed((): boolean => {
+  return presentation.value?.toneShift === true;
+});
+/** THIS head's decision is still settling (the shell swallows its deciding presses). */
+const settling = computed((): boolean => {
+  return promptSequenceState.settling && presentation.value !== undefined &&
+    promptSequenceState.current?.key === presentation.value.key;
+});
+/** The settle METER runs only for a follow-up — the double-tap guard of a first decision is too short to show. */
+const meterMs = computed((): number => {
+  const p = presentation.value;
+  return p !== undefined && p.ordinal > 1 && p.settleMs >= SETTLE_FOLLOW_MS ? p.settleMs : 0;
+});
+function present(): void {
+  if (props.promptKey === '') {
+    presentation.value = undefined;
+    return;
+  }
+  presentation.value = presentPrompt(props.promptKey, props.tone);
+  beatAt.value = promptHandoffDelayNow() ?? 0;
+  nudgeBase.value = promptSequenceState.nudge;
+  nudgePhase.value = 0;
+}
+
+watch(() => props.promptKey, () => {
+  present();
+});
+watch(() => props.tone, () => {
+  present();
+});
+watch(() => promptSequenceState.nudge, (n: number) => {
+  if (settling.value && n > nudgeBase.value) {
+    nudgePhase.value = nudgePhase.value === 1 ? 2 : 1;
+  }
+});
+onMounted(() => {
+  present();
+});
+onBeforeUnmount(() => {
+  if (presentation.value !== undefined) {
+    withdrawPrompt(presentation.value.key);
+  }
 });
 </script>
