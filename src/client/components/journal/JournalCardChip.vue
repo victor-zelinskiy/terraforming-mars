@@ -27,10 +27,6 @@
     </span>
   </span>
 
-  <!-- Hover preview: full card for project cards, compact effect card for
-       standard projects, the compact HYDRO card for the Delta Project
-       (P29 — it has NO user-facing card, so fullscreen stays suppressed
-       but the hover now explains what the Hydronetwork is). -->
   <CardPreviewPopover
     v-if="!isStandardProject && !isHydronetwork"
     :name="name"
@@ -46,7 +42,6 @@
     :visible="previewVisible"
     :anchor="anchor" />
 
-  <!-- Fullscreen (project cards only — standard projects never zoom). -->
   <Teleport to="body">
     <CardZoomModal
       v-if="showZoom"
@@ -56,8 +51,22 @@
   </Teleport>
 </template>
 
-<script lang="ts">
-import {defineComponent, nextTick} from 'vue';
+<script setup lang="ts">
+/*
+ * — before the root `<CardPreviewPopover v-if="!isStandardProject && !isHydronetwork" …>`:
+ * Hover preview: full card for project cards, compact effect card for
+ * standard projects, the compact HYDRO card for the Delta Project
+ * (P29 — it has NO user-facing card, so fullscreen stays suppressed
+ * but the hover now explains what the Hydronetwork is).
+ *
+ * — before the root `<Teleport to="body">`:
+ * Fullscreen (project cards only — standard projects never zoom).
+ *
+ * (These comments stood between the template's roots; each names the root it stood before.)
+ */
+import {computed, nextTick, ref, useTemplateRef} from 'vue';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {LogMessageDataAttrs} from '@/common/logs/LogMessageData';
@@ -98,153 +107,135 @@ const cardTypeModifier: Record<CardType, string | undefined> = {
 // across the feed (spec: "не мгновенно агрессивно").
 const HOVER_DELAY = 170;
 
-type DataModel = {
-  previewVisible: boolean;
-  anchor: DOMRect | undefined;
-  cancelHover: () => void;
-  showZoom: boolean;
-  // Suppresses hover-preview re-show while fullscreen is open AND for a
-  // short window after it closes. When a <dialog> closes over a stationary
-  // cursor the browser fires a phantom `mouseenter` on the chip (hover is
-  // re-evaluated on top-layer change, no pointer move) — without this the
-  // preview would pop back up after the player closes the fullscreen card.
-  blockHover: boolean;
-  cancelBlock: () => void;
-};
-
-export default defineComponent({
-  name: 'JournalCardChip',
-  components: {CardZoomModal, CardPreviewPopover, HydronetPreviewPopover, StandardProjectPreviewPopover},
-  props: {
-    name: {
-      type: String as () => CardName,
-      required: true,
-    },
-    attrs: {
-      type: Object as () => LogMessageDataAttrs | undefined,
-      default: undefined,
-    },
+defineOptions({name: 'JournalCardChip'});
+const props = defineProps({
+  name: {
+    type: String as () => CardName,
+    required: true,
   },
-  setup() {
-    return {flow: useFlowScope('journal-card-chip')};
-  },
-  data(): DataModel {
-    return {
-      previewVisible: false,
-      anchor: undefined,
-      cancelHover: () => {},
-      showZoom: false,
-      blockHover: false,
-      cancelBlock: () => {},
-    };
-  },
-  computed: {
-    cardType(): CardType | undefined {
-      return getCard(this.name)?.type;
-    },
-    isStandardProject(): boolean {
-      return this.cardType === CardType.STANDARD_PROJECT || this.cardType === CardType.STANDARD_ACTION;
-    },
-    // The Delta Project is presented as the global "Гидросеть" subsystem — the
-    // technical card must never leak into the UI (name / hover / fullscreen).
-    isHydronetwork(): boolean {
-      return this.name === CardName.DELTA_PROJECT;
-    },
-    label(): string {
-      if (this.isHydronetwork) {
-        return 'Hydronetwork';
-      }
-      // Strip ":" suffix (e.g. "Self-Replicating Robots: Foo") like the
-      // rest of the log UI.
-      return this.name.split(':')[0];
-    },
-    chipClasses(): Array<string> {
-      const classes: Array<string> = [];
-      const type = this.cardType;
-      const mod = type !== undefined ? cardTypeModifier[type] : undefined;
-      if (mod !== undefined) {
-        classes.push(mod);
-      }
-      if (!this.isStandardProject && !this.isHydronetwork) {
-        classes.push('journal-chip--zoomable');
-      }
-      if (this.isHydronetwork) {
-        classes.push('journal-chip--system');
-      }
-      return classes;
-    },
-    tags(): ReadonlyArray<string> {
-      return getCard(this.name)?.tags ?? [];
-    },
-    showTags(): boolean {
-      return this.attrs?.tags === true && this.tags.length > 0;
-    },
-    cost(): number | undefined {
-      return getCard(this.name)?.cost;
-    },
-    showCost(): boolean {
-      return this.attrs?.cost === true && this.cost !== undefined;
-    },
-  },
-  methods: {
-    onEnter(): void {
-      // Ignore the phantom mouseenter the browser fires while fullscreen
-      // is open / just closed (see blockHover). Real hovers are unaffected.
-      if (this.blockHover) {
-        return;
-      }
-      // NOTE: this is a multi-root component (chip + teleported popovers),
-      // so `this.$el` is the fragment's text anchor, not the span — read
-      // the rect from the explicit ref instead.
-      const chip = (this.$refs.chip ?? undefined) as HTMLElement | undefined;
-      if (chip === undefined) {
-        return;
-      }
-      this.anchor = chip.getBoundingClientRect();
-      this.clearHoverTimer();
-      this.cancelHover = this.flow.after(HOVER_DELAY, 'the chip\'s hover delay', () => {
-        // Guard again at fire time — fullscreen may have opened during the
-        // delay.
-        if (this.showZoom || this.blockHover) {
-          return;
-        }
-        // Re-read the rect in case the feed scrolled during the delay.
-        this.anchor = chip.getBoundingClientRect();
-        this.previewVisible = true;
-      });
-    },
-    onLeave(): void {
-      this.clearHoverTimer();
-      this.previewVisible = false;
-    },
-    clearHoverTimer(): void {
-      this.cancelHover();
-    },
-    onClick(): void {
-      // Standard projects + the Гидросеть system chip never open fullscreen.
-      if (this.isStandardProject || this.isHydronetwork) {
-        return;
-      }
-      // Opening fullscreen — drop the hover preview so they don't stack,
-      // and block hover until shortly after the modal closes.
-      this.onLeave();
-      this.blockHover = true;
-      this.showZoom = true;
-      nextTick(() => {
-        (this.$refs as {zoomModal?: {show: () => void}}).zoomModal?.show();
-      });
-    },
-    onZoomClose(): void {
-      this.showZoom = false;
-      // Kill any pending preview + keep hover blocked briefly so the
-      // phantom mouseenter fired as the dialog leaves the top layer can't
-      // re-open the popover. A genuine re-hover after this window works.
-      this.onLeave();
-      this.cancelBlock();
-      this.cancelBlock = this.flow.after(250, 'the chip\'s hover block lifts', () => {
-        this.blockHover = false;
-      });
-    },
+  attrs: {
+    type: Object as () => LogMessageDataAttrs | undefined,
+    default: undefined,
   },
 });
+
+const flow = useFlowScope('journal-card-chip');
+const chip = useTemplateRef<HTMLElement>('chip');
+const zoomModal = useTemplateRef<{show: () => void}>('zoomModal');
+const previewVisible = ref(false);
+const anchor = ref<DOMRect | undefined>(undefined);
+let cancelHover = () => {};
+const showZoom = ref(false);
+// Suppresses hover-preview re-show while fullscreen is open AND for a
+// short window after it closes. When a <dialog> closes over a stationary
+// cursor the browser fires a phantom `mouseenter` on the chip (hover is
+// re-evaluated on top-layer change, no pointer move) — without this the
+// preview would pop back up after the player closes the fullscreen card.
+const blockHover = ref(false);
+let cancelBlock = () => {};
+const cardType = computed((): CardType | undefined => {
+  return getCard(props.name)?.type;
+});
+const isStandardProject = computed((): boolean => {
+  return cardType.value === CardType.STANDARD_PROJECT || cardType.value === CardType.STANDARD_ACTION;
+});
+// The Delta Project is presented as the global "Гидросеть" subsystem — the
+// technical card must never leak into the UI (name / hover / fullscreen).
+const isHydronetwork = computed((): boolean => {
+  return props.name === CardName.DELTA_PROJECT;
+});
+const label = computed((): string => {
+  if (isHydronetwork.value) {
+    return 'Hydronetwork';
+  }
+  // Strip ":" suffix (e.g. "Self-Replicating Robots: Foo") like the
+  // rest of the log UI.
+  return props.name.split(':')[0];
+});
+const chipClasses = computed((): Array<string> => {
+  const classes: Array<string> = [];
+  const type = cardType.value;
+  const mod = type !== undefined ? cardTypeModifier[type] : undefined;
+  if (mod !== undefined) {
+    classes.push(mod);
+  }
+  if (!isStandardProject.value && !isHydronetwork.value) {
+    classes.push('journal-chip--zoomable');
+  }
+  if (isHydronetwork.value) {
+    classes.push('journal-chip--system');
+  }
+  return classes;
+});
+const tags = computed((): ReadonlyArray<string> => {
+  return getCard(props.name)?.tags ?? [];
+});
+const showTags = computed((): boolean => {
+  return props.attrs?.tags === true && tags.value.length > 0;
+});
+const cost = computed((): number | undefined => {
+  return getCard(props.name)?.cost;
+});
+const showCost = computed((): boolean => {
+  return props.attrs?.cost === true && cost.value !== undefined;
+});
+
+function onEnter(): void {
+  // Ignore the phantom mouseenter the browser fires while fullscreen
+  // is open / just closed (see blockHover). Real hovers are unaffected.
+  if (blockHover.value) {
+    return;
+  }
+  // NOTE: this is a multi-root component (chip + teleported popovers),
+  // so it has no root element of its own (a fragment's text anchor, not
+  // the span) — read the rect from the explicit ref instead.
+  const chipNow = chip.value ?? undefined;
+  if (chipNow === undefined) {
+    return;
+  }
+  anchor.value = chipNow.getBoundingClientRect();
+  clearHoverTimer();
+  cancelHover = flow.after(HOVER_DELAY, 'the chip\'s hover delay', () => {
+    // Guard again at fire time — fullscreen may have opened during the
+    // delay.
+    if (showZoom.value || blockHover.value) {
+      return;
+    }
+    // Re-read the rect in case the feed scrolled during the delay.
+    anchor.value = chipNow.getBoundingClientRect();
+    previewVisible.value = true;
+  });
+}
+function onLeave(): void {
+  clearHoverTimer();
+  previewVisible.value = false;
+}
+function clearHoverTimer(): void {
+  cancelHover();
+}
+function onClick(): void {
+  // Standard projects + the Гидросеть system chip never open fullscreen.
+  if (isStandardProject.value || isHydronetwork.value) {
+    return;
+  }
+  // Opening fullscreen — drop the hover preview so they don't stack,
+  // and block hover until shortly after the modal closes.
+  onLeave();
+  blockHover.value = true;
+  showZoom.value = true;
+  nextTick(() => {
+    zoomModal.value?.show();
+  });
+}
+function onZoomClose(): void {
+  showZoom.value = false;
+  // Kill any pending preview + keep hover blocked briefly so the
+  // phantom mouseenter fired as the dialog leaves the top layer can't
+  // re-open the popover. A genuine re-hover after this window works.
+  onLeave();
+  cancelBlock();
+  cancelBlock = flow.after(250, 'the chip\'s hover block lifts', () => {
+    blockHover.value = false;
+  });
+}
 </script>
