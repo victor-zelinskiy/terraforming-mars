@@ -75,7 +75,7 @@
   </button>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * ONE CARD of the pregame showcase (TR68 «ПРЕДИГРОВОЕ — ЭТО ВИТРИНА»): a game or a campaign shown as an OBJECT —
  * its board miniature, its name in the hero voice (never cut while the card has room), one state chip by form and
@@ -83,7 +83,7 @@
  * `lobbyCardModel`; the host owns the cursor and every verb (the card renders zero controller hints). The legacy
  * `.cm-game__*` hooks ride the same nodes, so the lobby's e2e contracts read the card as they read the row.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import {LobbyCardView, LobbyText} from '@/client/console/menu/lobbyCardModel';
 import {mapLabelKey, mapMeta} from '@/client/components/create/premium/createGameMeta';
@@ -91,55 +91,49 @@ import {expansionIconUrl, expansionLabel} from '@/client/components/mainMenu/exp
 import {Expansion} from '@/common/cards/GameModule';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleLobbyCard',
-  components: {PremiumMapFingerprint},
-  props: {
-    view: {type: Object as PropType<LobbyCardView>, required: true},
-    cursor: {type: Boolean, default: false},
-    /** The age label — the screen's ONE clock (`lobbyState.nowMs`), never a per-card timer. */
-    age: {type: String, default: ''},
-    reveal: {type: Boolean, default: false},
-    revealDelayMs: {type: Number, default: 0},
-  },
-  emits: ['activate', 'hover'],
-  computed: {
-    rootClasses(): Record<string, boolean> {
-      return {
-        'cm-lcard--cursor': this.cursor,
-        'cm-game--cursor': this.cursor,
-        'cm-lcard--campaign': this.view.kind === 'campaign',
-        'cm-camp': this.view.kind === 'campaign',
-        'cm-camp--archived': this.view.kind === 'campaign' && this.view.archived,
-        'cm-lcard--archived': this.view.archived,
-        'cm-lcard--refused': !this.view.enterable,
-        'cm-game--disabled': !this.view.enterable,
-        'cm-game--lan': this.view.hostLabel !== undefined,
-      };
-    },
-    accent(): string {
-      return mapMeta(this.view.board).accent;
-    },
-    boardLabel(): string {
-      return $t(mapLabelKey(this.view.board));
-    },
-    kickerText(): string {
-      return this.view.kicker === undefined ? '' : this.view.kicker.map((part) => this.textOf(part)).join(' · ');
-    },
-    stateText(): string {
-      return this.textOf(this.view.state);
-    },
-    titlePointsText(): string {
-      return translateTextWithParams('Title Points: ${0}', [String(this.view.titlePoints ?? 0)]);
-    },
-    expansions(): ReadonlyArray<{id: Expansion, url: string, label: string}> {
-      return this.view.expansions.map((e) => ({id: e, url: expansionIconUrl(e), label: expansionLabel(e)}));
-    },
-  },
-  methods: {
-    textOf(text: LobbyText): string {
-      return text.params !== undefined && text.params.length > 0 ? translateTextWithParams(text.key, [...text.params]) : $t(text.key);
-    },
-  },
+defineOptions({name: 'ConsoleLobbyCard'});
+const props = defineProps({
+  view: {type: Object as PropType<LobbyCardView>, required: true},
+  cursor: {type: Boolean, default: false},
+  /** The age label — the screen's ONE clock (`lobbyState.nowMs`), never a per-card timer. */
+  age: {type: String, default: ''},
+  reveal: {type: Boolean, default: false},
+  revealDelayMs: {type: Number, default: 0},
 });
+defineEmits(['activate', 'hover']);
+
+const rootClasses = computed((): Record<string, boolean> => {
+  return {
+    'cm-lcard--cursor': props.cursor,
+    'cm-game--cursor': props.cursor,
+    'cm-lcard--campaign': props.view.kind === 'campaign',
+    'cm-camp': props.view.kind === 'campaign',
+    'cm-camp--archived': props.view.kind === 'campaign' && props.view.archived,
+    'cm-lcard--archived': props.view.archived,
+    'cm-lcard--refused': !props.view.enterable,
+    'cm-game--disabled': !props.view.enterable,
+    'cm-game--lan': props.view.hostLabel !== undefined,
+  };
+});
+const accent = computed((): string => {
+  return mapMeta(props.view.board).accent;
+});
+const boardLabel = computed((): string => {
+  return $t(mapLabelKey(props.view.board));
+});
+const kickerText = computed((): string => {
+  return props.view.kicker === undefined ? '' : props.view.kicker.map((part) => textOf(part)).join(' · ');
+});
+const stateText = computed((): string => {
+  return textOf(props.view.state);
+});
+const titlePointsText = computed((): string => {
+  return translateTextWithParams('Title Points: ${0}', [String(props.view.titlePoints ?? 0)]);
+});
+const expansions = computed((): ReadonlyArray<{id: Expansion, url: string, label: string}> => {
+  return props.view.expansions.map((e) => ({id: e, url: expansionIconUrl(e), label: expansionLabel(e)}));
+});
+function textOf(text: LobbyText): string {
+  return text.params !== undefined && text.params.length > 0 ? translateTextWithParams(text.key, [...text.params]) : $t(text.key);
+}
 </script>
