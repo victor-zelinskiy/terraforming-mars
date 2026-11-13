@@ -1,19 +1,4 @@
 <template>
-  <!-- ══ THE SITTING (Turmoil Redux, v2) — «ПАРЛАМЕНТ › ЗАСЕДАНИЕ»: the political
-       phase's ONE flow, four STAGES as POSES of this one always-mounted
-       surface (verdict · enactment · reward · results). A stage change swaps a
-       modifier, never a subtree — the director animates between the poses and
-       turns the middle two by itself; here they are static and honest. Every
-       object on every panel is the SERVER's own record (the phase summary, the
-       recorded outcomes, the awaited seats), never a recomputation.
-
-       HOST-AGNOSTIC (the embed contract): the surface titles NOTHING of its
-       own — its stage name goes UP to the host's crumb («ЗАСЕДАНИЕ › ВЕРДИКТ»),
-       its verbs live on the ONE command bar (the host publishes them), and its
-       reward zone `[data-embed-slot="parliament-stage"]` is where the shell
-       teleports the enacted resolution's own asks (the payout pick, the take).
-       `mode: 'review'` reads a finished phase's summary the same way (the
-       protocol's re-inspection, later); today only `live` is used. ══ -->
   <div class="con-sit"
        :class="{'con-sit--field': field, 'con-sit--embedded': embedded}"
        :data-sit-stage="stage"
@@ -270,8 +255,28 @@
     </section>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ══ THE SITTING (Turmoil Redux, v2) — «ПАРЛАМЕНТ › ЗАСЕДАНИЕ»: the political
+ *       phase's ONE flow, four STAGES as POSES of this one always-mounted
+ *       surface (verdict · enactment · reward · results). A stage change swaps a
+ *       modifier, never a subtree — the director animates between the poses and
+ *       turns the middle two by itself; here they are static and honest. Every
+ *       object on every panel is the SERVER's own record (the phase summary, the
+ *       recorded outcomes, the awaited seats), never a recomputation.
+ *
+ *       HOST-AGNOSTIC (the embed contract): the surface titles NOTHING of its
+ *       own — its stage name goes UP to the host's crumb («ЗАСЕДАНИЕ › ВЕРДИКТ»),
+ *       its verbs live on the ONE command bar (the host publishes them), and its
+ *       reward zone `[data-embed-slot="parliament-stage"]` is where the shell
+ *       teleports the enacted resolution's own asks (the payout pick, the take).
+ *       `mode: 'review'` reads a finished phase's summary the same way (the
+ *       protocol's re-inspection, later); today only `live` is used. ══
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, onBeforeUnmount, onMounted, onUpdated, PropType, ref, useTemplateRef} from 'vue';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentModel, ParliamentPhaseSummaryModel, seatEnacts, seatRestricted} from '@/common/models/ParliamentModel';
@@ -303,347 +308,341 @@ import {ResultsReading, resultsReadingOf} from '@/client/console/parliament/parl
 import {FACE_PX, ResultsBox, ResultsLayout, resultsLayoutOf, ResultsProfile} from '@/client/console/parliament/resultsLayout';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import ConsoleSitTotals from '@/client/components/console/parliament/ConsoleSitTotals.vue';
-
-/** The card's observer per instance — never reactive state (a measuring device, not a fact the view reads). */
-const resultsObservers = new WeakMap<object, {el: HTMLElement, observer: ResizeObserver}>();
 import {worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
+import {$t} from '@/client/directives/i18n';
+import {PremiumCardFace} from '@/client/components/asyncComponents';
 
-export default defineComponent({
-  name: 'ConsoleParliamentSitting',
-  components: {PlayerDelegate, ConsoleColonyLedger, ConsoleTableReceipt, ConsoleSitTotals, ConsoleSittingPayoutDetails, ConsoleParliamentTableAnswer, ConsoleParliamentDrawStage},
-  props: {
-    /** Where the sitting stands on the server (`consoleSittingFlow.sittingPositionOf`). */
-    position: {type: Object as PropType<SittingPosition>, required: true},
-    /** The stage on screen — the host's page cursor over the position's pages. */
-    stage: {type: String as PropType<SittingStage>, required: true},
-    /** The phase's summary — the live sitting's `phase.summary`, a review's finished summary. */
-    summary: {type: Object as PropType<ParliamentPhaseSummaryModel | undefined>, default: undefined},
-    view: {type: Object as PropType<ParliamentViewVm>, required: true},
-    model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** The step holds the FIELD (a hosted step stands in its zone, or the colony ledger reads there). */
-    field: {type: Boolean, default: false},
-    /** The field's step is a WHOLE workspace (the colonies): it takes the stage, no hero column beside it. */
-    fullStep: {type: Boolean, default: false},
-    /** A hosted step may teleport INTO the zone right now (`consoleSittingFlow.sittingFieldOf`): the ledger layer yields to it. */
-    stepOpen: {type: Boolean, default: false},
-    /** THE COLONY LEDGER the enacted resolution pays (Colonial Affairs) — undefined for every other resolution. */
-    ledger: {type: Object as PropType<ColonyLedgerReading | undefined>, default: undefined},
-    /** THE RECEIPT OF THE TABLE standing in the zone (Sponsored Projects) — the director stands it and takes it down. */
-    receipt: {type: Object as PropType<TableReceipt | undefined>, default: undefined},
-    /** The results panel waits for the renewal's beats (the director reveals it). */
-    resultsHidden: {type: Boolean, default: false},
-    /** «ОТВЕТ СТОЛА» (TR78 Arwind Inc.): the receipt on the answer stage (the units landed) — undefined while a question stands. */
-    answer: {type: Object as PropType<TableAnswer | undefined>, default: undefined},
-    /** …the QUESTION standing on it (the pick / the layout teleported into its zone). */
-    asking: {type: Object as PropType<TableAnswerAsk | undefined>, default: undefined},
-    /** …the asker's live model (its face, its count). */
-    askerModel: {type: Object as PropType<CardModel | undefined>, default: undefined},
-    /** …and whether the stage STANDS as a layer of this chassis right now (the section decides by page and beat). */
-    answerUp: {type: Boolean, default: false},
-    /** «ПРИЁМКА»: a batch the sitting drew is received on this chassis (the section decides — `parliamentDraw.ts`). */
-    drawUp: {type: Boolean, default: false},
-    /** …the batch's root source (the hero names the card that drew, if a card did). */
-    drawSource: {type: Object as PropType<CardDrawRevealSource | undefined>, default: undefined},
-    /** …and that card's live model. */
-    drawHero: {type: Object as PropType<CardModel | undefined>, default: undefined},
-    /** Hosted inside another surface's zone (nothing of the chassis to strip — the sitting never titles itself). */
-    embedded: {type: Boolean, default: false},
-    /** `live` — the phase in progress; `review` — a finished sitting re-read (the protocol, later). */
-    mode: {type: String as PropType<'live' | 'review'>, default: 'live'},
-  },
-  data() {
-    return {
-      /** THE RESULTS CARD'S BOX in rem, measured once per pose (a ResizeObserver on the card — the stage, never the viewport). */
-      resultsBox: undefined as ResultsBox | undefined,
-      resultsProfile: 'fhd' as ResultsProfile,
-    };
-  },
-  mounted() {
-    // THE ZONE IS PUBLISHED BY ITS OWN HOST (v4) — see `consoleParliamentUi.stageZone`. The live surface only:
-    // a review / gallery copy owns no teleport target.
-    if (this.mode === 'live') {
-      consoleParliamentUi.stageZone = true;
-    }
-    this.observeResults();
-  },
-  updated() {
-    this.observeResults();
-  },
-  beforeUnmount() {
-    if (this.mode === 'live') {
-      consoleParliamentUi.stageZone = false;
-    }
-    resultsObservers.get(this)?.observer.disconnect();
-    resultsObservers.delete(this);
-  },
-  computed: {
-    /** «СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ» has something to say: fresh faces, the support stock, the no-delegate exception. */
-    hasNextVote(): boolean {
-      const table = this.results?.table;
-      return table !== undefined && (table.fresh.length > 0 || table.support.length > 0 || table.noDelegate.length > 0);
-    },
-    /**
-     * THE CARD, SOLVED (`resultsLayout.ts`): the zones' widths, the faces' sizes and the ledger's tier, from what the
-     * card has to say and the box it has — never a constant zoom, never a squeeze in the browser.
-     */
-    layout(): ResultsLayout | undefined {
-      const results = this.results;
-      const box = this.resultsBox;
-      if (results === undefined || box === undefined) {
-        return undefined;
-      }
-      const winner = this.shownSummary?.winner.player;
-      return resultsLayoutOf({
-        seats: results.payouts.map((row) => ({
-          numbers: row.totals.filter((t) => t.kind === 'unit' || t.kind === 'discard').map((t) => t.amount ?? 0),
-          objects: row.totals.filter((t) => t.kind === 'object').length,
-          skips: row.totals.filter((t) => t.kind === 'skipped').length + (row.parts.length === 0 ? 1 : 0),
-          marks: row.marks.length > 0,
-          name: this.nameOfColor(row.player),
-          winner: winner === row.player,
-        })),
-        fresh: results.table.fresh.length,
-        support: results.table.support.length > 0,
-        noDelegate: results.table.noDelegate.length > 0,
-        worldLines: (results.planet !== undefined ? 1 : 0) + (results.tracks !== undefined ? 1 : 0) + (results.veto !== undefined ? 1 : 0) +
-          (results.quiet !== undefined ? 1 : 0),
-        inSitting: this.othersInSitting.length > 0,
-      }, box, this.resultsProfile);
-    },
-    /** The solver's numbers as the card's CSS variables — one source for the type, the faces and the columns. */
-    resultsStyle(): Record<string, string> {
-      const layout = this.layout;
-      if (layout === undefined) {
-        return {};
-      }
-      return {
-        '--sit-total-size': `${layout.totalSize}rem`,
-        '--sit-row-pad': `${layout.rowPad}rem`,
-        '--sit-enacted-zoom': String(layout.enactedZoom),
-        '--sit-fresh-zoom': String(layout.freshZoom),
-        '--sit-enacted-w': `${layout.enactedWidth}rem`,
-        '--sit-next-w': `${layout.nextWidth}rem`,
-      };
-    },
-    /** The OTHER seats that have not closed this sitting yet — the record's fact for the quiet line (never the viewer). */
-    othersInSitting(): ReadonlyArray<Color> {
-      if (this.mode !== 'live') {
-        return [];
-      }
-      return (this.model?.sitting?.pending ?? []).filter((color) => color !== this.viewerColor);
-    },
-    /** Any of the planet's moves was made with nobody credited — the line says so ONCE, not per move. */
-    planetUnrewarded(): boolean {
-      return (this.results?.planet ?? []).some((move) => move.unrewarded && move.skipped === undefined && move.steps !== 0);
-    },
-    /** The enacted resolution's FACE for the results card's first column (v8 `e1`) — the catalog's own view-model. */
-    enactedVm(): PremiumCardVM | undefined {
-      const id = this.shownSummary?.enacted.resolution;
-      return id === undefined ? undefined : resolutionPremiumVmById(id);
-    },
-    resolution(): IClientResolution | undefined {
-      const id = this.shownSummary?.enacted.resolution;
-      return id === undefined ? undefined : getResolution(id);
-    },
-    shownSummary(): ParliamentPhaseSummaryModel | undefined {
-      return this.mode === 'review' ? this.summary : this.model?.phase?.summary ?? this.summary;
-    },
-    /**
-     * ПАНЕЛЬ ИТОГОВ — the pure reading (`parliamentResultsModel.ts`): a payout row per seat, and the
-     * table. The SEAT ORDER is the parliament model's own — the same one the seats zone in the head line
-     * already shows, so the panel has one visible ordering key and no other. The SUPPORT is the LIVE
-     * stock (`view.parties`), read after the deal — never the summary's own total, which the deal has
-     * since turned into votes on the fresh cards.
-     */
-    results(): ResultsReading | undefined {
-      const summary = this.shownSummary;
-      if (summary === undefined) {
-        return undefined;
-      }
-      const quiet = quietRewardPoseOf(this.resolution);
-      // The seats a RATING-VETOING law binds as the sitting closes (RX42) — the server's live leaders, in its aspect.
-      const trVeto = this.model?.enacted?.resolution === summary.winner.resolution ? this.model?.enacted?.trVeto : undefined;
-      const veto = trVeto?.leaders.filter((l) => {
-        const seat = this.model?.players.find((p) => p.color === l.color);
-        return seat === undefined || seatRestricted(seat);
-      });
-      return resultsReadingOf(
-        summary,
-        // The LIVE participating seats, after the lobby step: the payout order AND what each of them will
-        // have to vote with when the next generation opens.
-        (this.model?.players ?? []).filter((p) => p.participates)
-          .map((p) => ({player: p.color, lobby: p.lobby, reserve: p.reserve, enacts: seatEnacts(p)})),
-        this.view.parties.map((party) => ({party: party.party, support: party.support})),
-        {
-          ...(quiet === undefined ? {} : {quiet: {kicker: quiet.kicker, kind: quiet.kind}}),
-          ...(veto === undefined || veto.length === 0 ? {} : {veto}),
-        },
-      );
-    },
-    /** «ПОДРОБНОСТИ ВЫПЛАТ» stands. */
-    detailsOpen(): boolean {
-      return this.mode === 'live' && this.stage === 'results' && sittingPayoutDetails.open;
-    },
-    /** The step's table — built only while it stands (a computed is read lazily). */
-    payoutDetails(): PayoutDetails | undefined {
-      return this.detailsOpen ? sittingPayoutDetailsOf(this.model, this.shownSummary) : undefined;
-    },
-    /** The places one party's support row reserves — the plaques' own count, so the two read as one vocabulary. */
-    supportPlaces(): number {
-      return PARLIAMENT_MAX_POPULAR_SUPPORT;
-    },
-    /** The receipt's phase (`tableReceiptBeat`) — the pose of its faces (the lift while they receive). */
-    receiptPhase(): TableReceiptPhase {
-      return tableReceiptState.phase;
-    },
-    /** THE ROW NOW PAYING — the director marks the tile whose chips are in the air (one row, never a blink). */
-    activeColony(): string | undefined {
-      return sittingMotion.colonyRow === '' ? undefined : sittingMotion.colonyRow;
-    },
-    /**
-     * THE TILES WHOSE PAYOUT HAS LANDED — a row reads «получено» on its chips' TOUCHDOWN, never on the
-     * record's arrival (the counter and the row turn together). A record without a rail wave (a card
-     * resource laid out in the hosted step, a Pluto pair) counts as landed once it is recorded.
-     */
-    landedColonies(): ReadonlySet<string> {
-      void parliamentRewardState.landed.length;
-      void parliamentRewardState.owed.length;
-      void parliamentRewardState.flying.length;
-      const out = new Set<string>();
-      for (const outcome of this.model?.phase?.outcomes ?? []) {
-        if (outcome.player === this.viewerColor && outcome.colony !== undefined && outcome.kind !== 'reaction' && rewardLanded(outcome)) {
-          out.add(outcome.colony);
-        }
-      }
-      return out;
-    },
-  },
-  methods: {
-    /** The right stick / ↑↓ inside «ПОДРОБНОСТИ ВЫПЛАТ» — the host's input path drives the step's one scroll area. */
-    scrollDetails(dy: number): void {
-      ((this.$refs.details ?? undefined) as {scrollBy?: (dy: number) => void} | undefined)?.scrollBy?.(dy);
-    },
-    partyNameKey(party: ReduxParty): string {
-      return partyNameKey(party);
-    },
-    /** The ledger layer comes back under a step that has left — the drawer phrase, on the zone's own layer. */
-    onLedgerEnter(el: Element, done: () => void): void {
-      playZoneLayerEnter(el as HTMLElement, done);
-    },
-    /** …and yields to a step that is opening: pushed shut downward while the step's surface paints beside it. */
-    onLedgerLeave(el: Element, done: () => void): void {
-      playBodyFold(el as HTMLElement, undefined, done);
-    },
-    /** The answer stage enters as a layer over the chassis — the zone's phrase; its end lets the flight measure its faces
-     *  and the shell teleport the picker in (`noteTableAnswerPaneIn`). */
-    onAnswerEnter(el: Element, done: () => void): void {
-      playZoneLayerEnter(el as HTMLElement, () => {
-        noteTableAnswerPaneIn();
-        done();
-      });
-    },
-    /** «ПРИЁМКА» enters as a layer over the chassis — the same phrase; its end lets the shell teleport the reveal in. */
-    onDrawEnter(el: Element, done: () => void): void {
-      playZoneLayerEnter(el as HTMLElement, () => {
-        noteParliamentDrawPaneIn();
-        done();
-      });
-    },
-    /** …and folds down when its work is over. */
-    onAnswerLeave(el: Element, done: () => void): void {
-      playBodyFold(el as HTMLElement, undefined, done);
-    },
-    /** The receipt unfolds in the zone — the same layer phrase; its end lets the wave measure the capsules. */
-    onReceiptEnter(el: Element, done: () => void): void {
-      playZoneLayerEnter(el as HTMLElement, () => {
-        tableReceiptState.paneIn = true;
-        done();
-      });
-    },
-    /** …and folds down when the director takes it away — the field folds back after it. */
-    onReceiptLeave(el: Element, done: () => void): void {
-      playBodyFold(el as HTMLElement, undefined, done);
-    },
-    onLedgerCancelled(el: Element): void {
-      (el as HTMLElement).style.opacity = '';
-      (el as HTMLElement).style.transform = '';
-    },
-    emblemUrl(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-    resolutionTitle(id: string): string {
-      return resolutionTitleOf(this.view, id);
-    },
-    nameOfColor(color: Color): string {
-      return parliamentPlayerName(this.playerView.players, color);
-    },
-    /** A fresh resolution's FACE for «СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ» — the catalog's own view-model (the slot draws the same). */
-    freshVm(id: string): PremiumCardVM | undefined {
-      return resolutionPremiumVmById(id);
-    },
-    /** The seat won the vote (the crown on its own line under the name). */
-    isWinner(color: Color): boolean {
-      return this.shownSummary !== undefined && this.shownSummary.winner.player === color;
-    },
-    /**
-     * Measure the card once per pose: a ResizeObserver on the card itself (it exists only while a summary stands —
-     * re-attached when the node changes). The box is read in REM, so one budget holds on every profile.
-     */
-    observeResults(): void {
-      const el = (this.$refs.results ?? undefined) as HTMLElement | undefined;
-      const current = resultsObservers.get(this);
-      if (current?.el === el) {
-        return;
-      }
-      current?.observer.disconnect();
-      resultsObservers.delete(this);
-      if (el === undefined || typeof ResizeObserver === 'undefined') {
-        return;
-      }
-      const measure = () => {
-        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-        const width = el.clientWidth / rem;
-        const height = el.clientHeight / rem;
-        if (width <= 0 || height <= 0) {
-          return;
-        }
-        const classes = document.documentElement.classList;
-        this.resultsProfile = classes.contains('con-profile-handheld') ? 'deck' : classes.contains('con-profile-tv') ? 'tv' : 'fhd';
-        const before = this.resultsBox;
-        // A sub-pixel jitter is not a new pose (the solver must not flip a tier on a rounding).
-        const scale = consoleLayoutState.uiScale > 0 ? consoleLayoutState.uiScale : 1;
-        const face = {width: FACE_PX.width * scale / rem, height: FACE_PX.height * scale / rem};
-        if (before === undefined || Math.abs(before.width - width) > .25 || Math.abs(before.height - height) > .25 ||
-          Math.abs((before.face?.height ?? 0) - face.height) > .1) {
-          this.resultsBox = {width, height, face};
-        }
-      };
-      const observer = new ResizeObserver(measure);
-      observer.observe(el);
-      resultsObservers.set(this, {el, observer});
-      measure();
-    },
-    /** The parameter's own icon — the game's vocabulary, the same sprite the status strip prints. */
-    worldUnitClass(parameter: ParameterMoveId): string {
-      switch (parameter) {
-      case 'oxygen': return 'wgt-icon wgt-icon--oxygen';
-      case 'oceans': return 'wgt-icon wgt-icon--ocean';
-      case 'venus': return 'wgt-icon wgt-icon--venus';
-      case 'temperature': return 'wgt-icon wgt-icon--temperature';
-      }
-    },
-    worldSuffix(parameter: ParameterMoveId): string {
-      return worldParameterUnit(parameter);
-    },
-    planetClass(colony: string): string {
-      return colony.replace(' ', '-') + '-background';
-    },
-  },
+defineOptions({name: 'ConsoleParliamentSitting'});
+const props = defineProps({
+  /** Where the sitting stands on the server (`consoleSittingFlow.sittingPositionOf`). */
+  position: {type: Object as PropType<SittingPosition>, required: true},
+  /** The stage on screen — the host's page cursor over the position's pages. */
+  stage: {type: String as PropType<SittingStage>, required: true},
+  /** The phase's summary — the live sitting's `phase.summary`, a review's finished summary. */
+  summary: {type: Object as PropType<ParliamentPhaseSummaryModel | undefined>, default: undefined},
+  view: {type: Object as PropType<ParliamentViewVm>, required: true},
+  model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  /** The step holds the FIELD (a hosted step stands in its zone, or the colony ledger reads there). */
+  field: {type: Boolean, default: false},
+  /** The field's step is a WHOLE workspace (the colonies): it takes the stage, no hero column beside it. */
+  fullStep: {type: Boolean, default: false},
+  /** A hosted step may teleport INTO the zone right now (`consoleSittingFlow.sittingFieldOf`): the ledger layer yields to it. */
+  stepOpen: {type: Boolean, default: false},
+  /** THE COLONY LEDGER the enacted resolution pays (Colonial Affairs) — undefined for every other resolution. */
+  ledger: {type: Object as PropType<ColonyLedgerReading | undefined>, default: undefined},
+  /** THE RECEIPT OF THE TABLE standing in the zone (Sponsored Projects) — the director stands it and takes it down. */
+  receipt: {type: Object as PropType<TableReceipt | undefined>, default: undefined},
+  /** The results panel waits for the renewal's beats (the director reveals it). */
+  resultsHidden: {type: Boolean, default: false},
+  /** «ОТВЕТ СТОЛА» (TR78 Arwind Inc.): the receipt on the answer stage (the units landed) — undefined while a question stands. */
+  answer: {type: Object as PropType<TableAnswer | undefined>, default: undefined},
+  /** …the QUESTION standing on it (the pick / the layout teleported into its zone). */
+  asking: {type: Object as PropType<TableAnswerAsk | undefined>, default: undefined},
+  /** …the asker's live model (its face, its count). */
+  askerModel: {type: Object as PropType<CardModel | undefined>, default: undefined},
+  /** …and whether the stage STANDS as a layer of this chassis right now (the section decides by page and beat). */
+  answerUp: {type: Boolean, default: false},
+  /** «ПРИЁМКА»: a batch the sitting drew is received on this chassis (the section decides — `parliamentDraw.ts`). */
+  drawUp: {type: Boolean, default: false},
+  /** …the batch's root source (the hero names the card that drew, if a card did). */
+  drawSource: {type: Object as PropType<CardDrawRevealSource | undefined>, default: undefined},
+  /** …and that card's live model. */
+  drawHero: {type: Object as PropType<CardModel | undefined>, default: undefined},
+  /** Hosted inside another surface's zone (nothing of the chassis to strip — the sitting never titles itself). */
+  embedded: {type: Boolean, default: false},
+  /** `live` — the phase in progress; `review` — a finished sitting re-read (the protocol, later). */
+  mode: {type: String as PropType<'live' | 'review'>, default: 'live'},
 });
+
+const details = useTemplateRef<{scrollBy?: (dy: number) => void}>('details');
+const resultsEl = useTemplateRef<HTMLElement>('results');
+/** THE RESULTS CARD'S BOX in rem, measured once per pose (a ResizeObserver on the card — the stage, never the viewport). */
+const resultsBox = ref<ResultsBox | undefined>(undefined);
+const resultsProfile = ref('fhd' as ResultsProfile);
+/** The card's observer — a handle, never reactive state (a measuring device, not a fact the view reads). */
+let resultsObserver: {el: HTMLElement, observer: ResizeObserver} | undefined;
+
+/** «СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ» has something to say: fresh faces, the support stock, the no-delegate exception. */
+const hasNextVote = computed((): boolean => {
+  const table = results.value?.table;
+  return table !== undefined && (table.fresh.length > 0 || table.support.length > 0 || table.noDelegate.length > 0);
+});
+/**
+ * THE CARD, SOLVED (`resultsLayout.ts`): the zones' widths, the faces' sizes and the ledger's tier, from what the
+ * card has to say and the box it has — never a constant zoom, never a squeeze in the browser.
+ */
+const layout = computed((): ResultsLayout | undefined => {
+  const resultsNow = results.value;
+  const box = resultsBox.value;
+  if (resultsNow === undefined || box === undefined) {
+    return undefined;
+  }
+  const winner = shownSummary.value?.winner.player;
+  return resultsLayoutOf({
+    seats: resultsNow.payouts.map((row) => ({
+      numbers: row.totals.filter((t) => t.kind === 'unit' || t.kind === 'discard').map((t) => t.amount ?? 0),
+      objects: row.totals.filter((t) => t.kind === 'object').length,
+      skips: row.totals.filter((t) => t.kind === 'skipped').length + (row.parts.length === 0 ? 1 : 0),
+      marks: row.marks.length > 0,
+      name: nameOfColor(row.player),
+      winner: winner === row.player,
+    })),
+    fresh: resultsNow.table.fresh.length,
+    support: resultsNow.table.support.length > 0,
+    noDelegate: resultsNow.table.noDelegate.length > 0,
+    worldLines: (resultsNow.planet !== undefined ? 1 : 0) + (resultsNow.tracks !== undefined ? 1 : 0) + (resultsNow.veto !== undefined ? 1 : 0) +
+      (resultsNow.quiet !== undefined ? 1 : 0),
+    inSitting: othersInSitting.value.length > 0,
+  }, box, resultsProfile.value);
+});
+/** The solver's numbers as the card's CSS variables — one source for the type, the faces and the columns. */
+const resultsStyle = computed((): Record<string, string> => {
+  const layoutNow = layout.value;
+  if (layoutNow === undefined) {
+    return {};
+  }
+  return {
+    '--sit-total-size': `${layoutNow.totalSize}rem`,
+    '--sit-row-pad': `${layoutNow.rowPad}rem`,
+    '--sit-enacted-zoom': String(layoutNow.enactedZoom),
+    '--sit-fresh-zoom': String(layoutNow.freshZoom),
+    '--sit-enacted-w': `${layoutNow.enactedWidth}rem`,
+    '--sit-next-w': `${layoutNow.nextWidth}rem`,
+  };
+});
+/** The OTHER seats that have not closed this sitting yet — the record's fact for the quiet line (never the viewer). */
+const othersInSitting = computed((): ReadonlyArray<Color> => {
+  if (props.mode !== 'live') {
+    return [];
+  }
+  return (props.model?.sitting?.pending ?? []).filter((color) => color !== props.viewerColor);
+});
+/** Any of the planet's moves was made with nobody credited — the line says so ONCE, not per move. */
+const planetUnrewarded = computed((): boolean => {
+  return (results.value?.planet ?? []).some((move) => move.unrewarded && move.skipped === undefined && move.steps !== 0);
+});
+/** The enacted resolution's FACE for the results card's first column (v8 `e1`) — the catalog's own view-model. */
+const enactedVm = computed((): PremiumCardVM | undefined => {
+  const id = shownSummary.value?.enacted.resolution;
+  return id === undefined ? undefined : resolutionPremiumVmById(id);
+});
+const resolution = computed((): IClientResolution | undefined => {
+  const id = shownSummary.value?.enacted.resolution;
+  return id === undefined ? undefined : getResolution(id);
+});
+const shownSummary = computed((): ParliamentPhaseSummaryModel | undefined => {
+  return props.mode === 'review' ? props.summary : props.model?.phase?.summary ?? props.summary;
+});
+/**
+ * ПАНЕЛЬ ИТОГОВ — the pure reading (`parliamentResultsModel.ts`): a payout row per seat, and the
+ * table. The SEAT ORDER is the parliament model's own — the same one the seats zone in the head line
+ * already shows, so the panel has one visible ordering key and no other. The SUPPORT is the LIVE
+ * stock (`view.parties`), read after the deal — never the summary's own total, which the deal has
+ * since turned into votes on the fresh cards.
+ */
+const results = computed((): ResultsReading | undefined => {
+  const summary = shownSummary.value;
+  if (summary === undefined) {
+    return undefined;
+  }
+  const quiet = quietRewardPoseOf(resolution.value);
+  // The seats a RATING-VETOING law binds as the sitting closes (RX42) — the server's live leaders, in its aspect.
+  const trVeto = props.model?.enacted?.resolution === summary.winner.resolution ? props.model?.enacted?.trVeto : undefined;
+  const veto = trVeto?.leaders.filter((l) => {
+    const seat = props.model?.players.find((p) => p.color === l.color);
+    return seat === undefined || seatRestricted(seat);
+  });
+  return resultsReadingOf(
+    summary,
+    // The LIVE participating seats, after the lobby step: the payout order AND what each of them will
+    // have to vote with when the next generation opens.
+    (props.model?.players ?? []).filter((p) => p.participates)
+      .map((p) => ({player: p.color, lobby: p.lobby, reserve: p.reserve, enacts: seatEnacts(p)})),
+    props.view.parties.map((party) => ({party: party.party, support: party.support})),
+    {
+      ...(quiet === undefined ? {} : {quiet: {kicker: quiet.kicker, kind: quiet.kind}}),
+      ...(veto === undefined || veto.length === 0 ? {} : {veto}),
+    },
+  );
+});
+/** «ПОДРОБНОСТИ ВЫПЛАТ» stands. */
+const detailsOpen = computed((): boolean => {
+  return props.mode === 'live' && props.stage === 'results' && sittingPayoutDetails.open;
+});
+/** The step's table — built only while it stands (a computed is read lazily). */
+const payoutDetails = computed((): PayoutDetails | undefined => {
+  return detailsOpen.value ? sittingPayoutDetailsOf(props.model, shownSummary.value) : undefined;
+});
+/** The places one party's support row reserves — the plaques' own count, so the two read as one vocabulary. */
+const supportPlaces = PARLIAMENT_MAX_POPULAR_SUPPORT;
+/** The receipt's phase (`tableReceiptBeat`) — the pose of its faces (the lift while they receive). */
+const receiptPhase = computed((): TableReceiptPhase => {
+  return tableReceiptState.phase;
+});
+/** THE ROW NOW PAYING — the director marks the tile whose chips are in the air (one row, never a blink). */
+const activeColony = computed((): string | undefined => {
+  return sittingMotion.colonyRow === '' ? undefined : sittingMotion.colonyRow;
+});
+/**
+ * THE TILES WHOSE PAYOUT HAS LANDED — a row reads «получено» on its chips' TOUCHDOWN, never on the
+ * record's arrival (the counter and the row turn together). A record without a rail wave (a card
+ * resource laid out in the hosted step, a Pluto pair) counts as landed once it is recorded.
+ */
+const landedColonies = computed((): ReadonlySet<string> => {
+  void parliamentRewardState.landed.length;
+  void parliamentRewardState.owed.length;
+  void parliamentRewardState.flying.length;
+  const out = new Set<string>();
+  for (const outcome of props.model?.phase?.outcomes ?? []) {
+    if (outcome.player === props.viewerColor && outcome.colony !== undefined && outcome.kind !== 'reaction' && rewardLanded(outcome)) {
+      out.add(outcome.colony);
+    }
+  }
+  return out;
+});
+
+/** The right stick / ↑↓ inside «ПОДРОБНОСТИ ВЫПЛАТ» — the host's input path drives the step's one scroll area. */
+function scrollDetails(dy: number): void {
+  details.value?.scrollBy?.(dy);
+}
+/** The ledger layer comes back under a step that has left — the drawer phrase, on the zone's own layer. */
+function onLedgerEnter(el: Element, done: () => void): void {
+  playZoneLayerEnter(el as HTMLElement, done);
+}
+/** …and yields to a step that is opening: pushed shut downward while the step's surface paints beside it. */
+function onLedgerLeave(el: Element, done: () => void): void {
+  playBodyFold(el as HTMLElement, undefined, done);
+}
+/** The answer stage enters as a layer over the chassis — the zone's phrase; its end lets the flight measure its faces
+ *  and the shell teleport the picker in (`noteTableAnswerPaneIn`). */
+function onAnswerEnter(el: Element, done: () => void): void {
+  playZoneLayerEnter(el as HTMLElement, () => {
+    noteTableAnswerPaneIn();
+    done();
+  });
+}
+/** «ПРИЁМКА» enters as a layer over the chassis — the same phrase; its end lets the shell teleport the reveal in. */
+function onDrawEnter(el: Element, done: () => void): void {
+  playZoneLayerEnter(el as HTMLElement, () => {
+    noteParliamentDrawPaneIn();
+    done();
+  });
+}
+/** …and folds down when its work is over. */
+function onAnswerLeave(el: Element, done: () => void): void {
+  playBodyFold(el as HTMLElement, undefined, done);
+}
+/** The receipt unfolds in the zone — the same layer phrase; its end lets the wave measure the capsules. */
+function onReceiptEnter(el: Element, done: () => void): void {
+  playZoneLayerEnter(el as HTMLElement, () => {
+    tableReceiptState.paneIn = true;
+    done();
+  });
+}
+/** …and folds down when the director takes it away — the field folds back after it. */
+function onReceiptLeave(el: Element, done: () => void): void {
+  playBodyFold(el as HTMLElement, undefined, done);
+}
+function onLedgerCancelled(el: Element): void {
+  (el as HTMLElement).style.opacity = '';
+  (el as HTMLElement).style.transform = '';
+}
+function emblemUrl(party: ReduxParty): string {
+  return partyEmblemUrl(party);
+}
+function resolutionTitle(id: string): string {
+  return resolutionTitleOf(props.view, id);
+}
+function nameOfColor(color: Color): string {
+  return parliamentPlayerName(props.playerView.players, color);
+}
+/** A fresh resolution's FACE for «СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ» — the catalog's own view-model (the slot draws the same). */
+function freshVm(id: string): PremiumCardVM | undefined {
+  return resolutionPremiumVmById(id);
+}
+/** The seat won the vote (the crown on its own line under the name). */
+function isWinner(color: Color): boolean {
+  return shownSummary.value !== undefined && shownSummary.value.winner.player === color;
+}
+/**
+ * Measure the card once per pose: a ResizeObserver on the card itself (it exists only while a summary stands —
+ * re-attached when the node changes). The box is read in REM, so one budget holds on every profile.
+ */
+function observeResults(): void {
+  const el = resultsEl.value ?? undefined;
+  const current = resultsObserver;
+  if (current?.el === el) {
+    return;
+  }
+  current?.observer.disconnect();
+  resultsObserver = undefined;
+  if (el === undefined || typeof ResizeObserver === 'undefined') {
+    return;
+  }
+  const measure = () => {
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const width = el.clientWidth / rem;
+    const height = el.clientHeight / rem;
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    const classes = document.documentElement.classList;
+    resultsProfile.value = classes.contains('con-profile-handheld') ? 'deck' : classes.contains('con-profile-tv') ? 'tv' : 'fhd';
+    const before = resultsBox.value;
+    // A sub-pixel jitter is not a new pose (the solver must not flip a tier on a rounding).
+    const scale = consoleLayoutState.uiScale > 0 ? consoleLayoutState.uiScale : 1;
+    const face = {width: FACE_PX.width * scale / rem, height: FACE_PX.height * scale / rem};
+    if (before === undefined || Math.abs(before.width - width) > .25 || Math.abs(before.height - height) > .25 ||
+      Math.abs((before.face?.height ?? 0) - face.height) > .1) {
+      resultsBox.value = {width, height, face};
+    }
+  };
+  const observer = new ResizeObserver(measure);
+  observer.observe(el);
+  resultsObserver = {el, observer};
+  measure();
+}
+/** The parameter's own icon — the game's vocabulary, the same sprite the status strip prints. */
+function worldUnitClass(parameter: ParameterMoveId): string {
+  switch (parameter) {
+  case 'oxygen': return 'wgt-icon wgt-icon--oxygen';
+  case 'oceans': return 'wgt-icon wgt-icon--ocean';
+  case 'venus': return 'wgt-icon wgt-icon--venus';
+  case 'temperature': return 'wgt-icon wgt-icon--temperature';
+  }
+}
+function worldSuffix(parameter: ParameterMoveId): string {
+  return worldParameterUnit(parameter);
+}
+function planetClass(colony: string): string {
+  return colony.replace(' ', '-') + '-background';
+}
+
+onMounted(() => {
+  // THE ZONE IS PUBLISHED BY ITS OWN HOST (v4) — see `consoleParliamentUi.stageZone`. The live surface only:
+  // a review / gallery copy owns no teleport target.
+  if (props.mode === 'live') {
+    consoleParliamentUi.stageZone = true;
+  }
+  observeResults();
+});
+onUpdated(() => {
+  observeResults();
+});
+onBeforeUnmount(() => {
+  if (props.mode === 'live') {
+    consoleParliamentUi.stageZone = false;
+  }
+  resultsObserver?.observer.disconnect();
+  resultsObserver = undefined;
+});
+// What `ConsoleParliamentSection` reaches through its `ref="sitting"`: `scrollDetails()` alone (the stick and ↑↓ inside
+// «ПОДРОБНОСТИ ВЫПЛАТ» — its `sittingEl`).
+defineExpose({scrollDetails});
 </script>

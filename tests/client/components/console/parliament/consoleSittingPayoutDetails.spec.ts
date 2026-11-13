@@ -202,7 +202,7 @@ describe('ConsoleSittingPayoutDetails — «ПОДРОБНОСТИ ВЫПЛАТ�
       render: () => h('div', [h(ConsoleSittingPayoutDetails, {ref: 'details', details: DETAILS, players: PLAYERS})]),
     });
     const host = mount(Host, {global: {...globalConfig.global, stubs}});
-    /** Exactly the sitting's read: `(this.$refs.details ?? undefined) as {scrollBy?: …} | undefined`. */
+    /** The sitting's own reach, `useTemplateRef<{scrollBy?: …}>('details')` → `details.value?.scrollBy?.(dy)` — the same optional member, read here off a host's ref. */
     const details = (host.vm.$refs.details ?? undefined) as DetailsReach | undefined;
     expect(details, 'the host\'s ref stands').to.not.eq(undefined);
     expect(Object.keys(details ?? {}), 'the exposed list is the contract — nothing else of the script').to.deep.eq(['scrollBy']);
