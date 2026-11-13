@@ -66,7 +66,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * The console SYSTEM overlay — opened by the controller Menu button from the
  * game. Replaces the alien desktop «Главное меню» corner button: system-level
@@ -94,82 +94,55 @@
  * Input is routed by GamepadLayer; this component is presentation over its
  * props (mouse clicks emit the same intents the pad produces).
  */
-import {defineComponent} from 'vue';
+import {computed, onMounted, ref} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import raw_settings from '@/genfiles/settings.json';
 import {desktopBridge} from '@/client/components/desktop/desktopUpdateState';
+import {SYSTEM_MENU_ITEMS, SystemMenuItem} from '@/client/components/console/consoleSystemMenuModel';
+import {$t} from '@/client/directives/i18n';
 
-export type SystemMenuItem = {
-  id: 'settings' | 'controls' | 'diagnostics' | 'exit' | 'return',
-  /** English i18n key. */
-  label: string,
-  /** English i18n key — what the plate leads to. Static: never a value. */
-  sub: string,
-  glyph: string,
-};
+defineOptions({name: 'ConsoleSystemMenu'});
+const props = defineProps({
+  index: {type: Number, required: true},
+  confirmExit: {type: Boolean, default: false},
+  /** 'Return to game' reads oddly outside the game — swap the label. */
+  inGame: {type: Boolean, default: true},
+});
+defineEmits({
+  /** A mouse click on a plate — the host runs the same branch A would. */
+  activate: (_index: number) => true,
+  /** Hover moves the host's cursor, exactly as on every console surface. */
+  cursor: (_index: number) => true,
+});
 
 /**
- * Fixed shape (see the class comment): every plate is a constant-height pair
- * of STATIC labels, so d-pad navigation never moves the plates. «Настройки»
- * and «Диагностика» both open the settings console (the latter on its
- * diagnostics category) — neither relabels anything here.
+ * Baked Electron app version, fetched once on mount. The head tag mirrors
+ * the main menu's footer so «what am I running» is answerable without
+ * opening the diagnostics readout.
  */
-export const SYSTEM_MENU_ITEMS: ReadonlyArray<SystemMenuItem> = [
-  {id: 'settings', label: 'Settings', sub: 'Interface, controls, graphics', glyph: '⚙'},
-  {id: 'controls', label: 'Controls', sub: 'Gamepad button map', glyph: '◎'},
-  {id: 'diagnostics', label: 'Diagnostics', sub: 'Connection, versions, display', glyph: '⊙'},
-  {id: 'exit', label: 'To main menu', sub: 'The game will be saved', glyph: '⌂'},
-  {id: 'return', label: 'Return to game', sub: 'Close this menu', glyph: '↩'},
-];
+const desktopVersion = ref('');
 
-export default defineComponent({
-  name: 'ConsoleSystemMenu',
-  components: {GamepadGlyph},
-  props: {
-    index: {type: Number, required: true},
-    confirmExit: {type: Boolean, default: false},
-    /** 'Return to game' reads oddly outside the game — swap the label. */
-    inGame: {type: Boolean, default: true},
-  },
-  emits: {
-    /** A mouse click on a plate — the host runs the same branch A would. */
-    activate: (_index: number) => true,
-    /** Hover moves the host's cursor, exactly as on every console surface. */
-    cursor: (_index: number) => true,
-  },
-  data() {
-    return {
-      /**
-       * Baked Electron app version, fetched once on mount. The head tag mirrors
-       * the main menu's footer so «what am I running» is answerable without
-       * opening the diagnostics readout.
-       */
-      desktopVersion: '',
-    };
-  },
-  mounted() {
-    const bridge = desktopBridge();
-    if (bridge !== undefined) {
-      void bridge.getVersion().then((v) => {
-        this.desktopVersion = typeof v === 'string' ? v : '';
-      }).catch(() => undefined);
-    }
-  },
-  computed: {
-    items(): ReadonlyArray<SystemMenuItem> {
-      if (this.inGame) {
-        return SYSTEM_MENU_ITEMS;
-      }
-      return SYSTEM_MENU_ITEMS.map((i) => (i.id === 'return' ? {...i, label: 'Close', sub: 'Close this menu'} : i));
-    },
-    /** Desktop shell app version → settings.json `version` → git head. */
-    version(): string {
-      if (this.desktopVersion !== '') {
-        return this.desktopVersion;
-      }
-      const settingsVersion = (raw_settings as {version?: string}).version;
-      return settingsVersion !== undefined && settingsVersion !== '' ? settingsVersion : (raw_settings.head ?? '');
-    },
-  },
+const items = computed((): ReadonlyArray<SystemMenuItem> => {
+  if (props.inGame) {
+    return SYSTEM_MENU_ITEMS;
+  }
+  return SYSTEM_MENU_ITEMS.map((i) => (i.id === 'return' ? {...i, label: 'Close', sub: 'Close this menu'} : i));
+});
+/** Desktop shell app version → settings.json `version` → git head. */
+const version = computed((): string => {
+  if (desktopVersion.value !== '') {
+    return desktopVersion.value;
+  }
+  const settingsVersion = (raw_settings as {version?: string}).version;
+  return settingsVersion !== undefined && settingsVersion !== '' ? settingsVersion : (raw_settings.head ?? '');
+});
+
+onMounted(() => {
+  const bridge = desktopBridge();
+  if (bridge !== undefined) {
+    void bridge.getVersion().then((v) => {
+      desktopVersion.value = typeof v === 'string' ? v : '';
+    }).catch(() => undefined);
+  }
 });
 </script>
