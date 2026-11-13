@@ -1,22 +1,4 @@
 <template>
-  <!--
-    A STEP OF THE CAREER A LAW GRANTS THE SEATS (Turmoil Redux — Reds Budget:
-    «each player advances their Agenda marker 1 step»): ONE graphic block
-    wherever a surface names it — the vote panel's own-effect block, the
-    inspector, the results, the playground. The twin of `ConsoleTileGrant`.
-
-    THE BODY is the step as the track prints it: the career INSIGNIA (the one
-    picture of a step — glossary § 4a), then for every step the law walks the
-    marker to the step's NODE with its number (the track's own disc — a bare
-    numeral reads as a count, never as a place) and what that step PAYS —
-    «+1 [TR]», «+1 [card]» (MarsBot: «+1 [M€] вместо карты»), or the
-    influence level it sets (the glyph with the level, law 14). Before the vote
-    a win's forecast follows in its own quiet segment: the winner's step of the
-    sitting comes FIRST, so «если победите: +2 шага» with both nodes. At the end
-    of the track the caption says so — never a silent nothing.
-
-    Nothing here computes: the reading arrives from `agendaGrantModel.ts`.
-  -->
   <div class="con-agrant"
        :class="['con-agrant--' + size, 'con-agrant--' + variant, 'con-agrant--' + reading.context, {
          'con-agrant--end': atEnd,
@@ -67,8 +49,28 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * A STEP OF THE CAREER A LAW GRANTS THE SEATS (Turmoil Redux — Reds Budget:
+ * «each player advances their Agenda marker 1 step»): ONE graphic block
+ * wherever a surface names it — the vote panel's own-effect block, the
+ * inspector, the results, the playground. The twin of `ConsoleTileGrant`.
+ *
+ * THE BODY is the step as the track prints it: the career INSIGNIA (the one
+ * picture of a step — glossary § 4a), then for every step the law walks the
+ * marker to the step's NODE with its number (the track's own disc — a bare
+ * numeral reads as a count, never as a place) and what that step PAYS —
+ * «+1 [TR]», «+1 [card]» (MarsBot: «+1 [M€] вместо карты»), or the
+ * influence level it sets (the glyph with the level, law 14). Before the vote
+ * a win's forecast follows in its own quiet segment: the winner's step of the
+ * sitting comes FIRST, so «если победите: +2 шага» with both nodes. At the end
+ * of the track the caption says so — never a silent nothing.
+ *
+ * Nothing here computes: the reading arrives from `agendaGrantModel.ts`.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {
   AgendaGrantReading, agendaGrantCaptionOf, agendaGrantLabelKey, agendaGrantWinKey, AgendaStepGift, agendaStepGiftOf,
 } from '@/client/console/parliament/agendaGrantModel';
@@ -78,69 +80,64 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 type ShownStep = {to: number, gift: AgendaStepGift};
 
-export default defineComponent({
-  name: 'ConsoleAgendaGrant',
-  props: {
-    reading: {type: Object as PropType<AgendaGrantReading>, required: true},
-    /** `compact` in a footer / a vote block, `normal` in a panel, `hero` on a stage. */
-    size: {type: String as PropType<'compact' | 'normal' | 'hero'>, default: 'normal'},
-    /** WHOSE reading this is — the viewer's own, or another seat's (the caption follows). */
-    person: {type: String as PropType<ReadingPerson>, default: 'you'},
-    /** `block` — the head and the body; `inline` — the body and the caption on ONE line (a host's own row). */
-    variant: {type: String as PropType<'block' | 'inline'>, default: 'block'},
-    /** Print the win's forecast (the vote panel and the inspector do; a results row has no «if»). */
-    withWin: {type: Boolean, default: true},
-  },
-  computed: {
-    label(): string {
-      const head = agendaGrantLabelKey(this.reading.grant);
-      return translateTextWithParams(head.key, [...head.params]);
-    },
-    /** The steps the body draws: the record's walk once applied, else what the law's step(s) give from here. */
-    steps(): Array<ShownStep> {
-      const reading = this.reading;
-      if (reading.walked !== undefined) {
-        return reading.walked.steps.map((step) => ({to: step.to, gift: agendaStepGiftOf(step)}));
-      }
-      return (reading.ahead ?? []).map((step) => ({to: step.to, gift: agendaStepGiftOf(step)}));
-    },
-    firstStep(): ShownStep | undefined {
-      return this.steps[0];
-    },
-    firstGift(): AgendaStepGift | undefined {
-      return this.firstStep?.gift;
-    },
-    /** The win's extra steps — what the forecast ADDS beyond `ahead` is the whole forecast (both steps are drawn). */
-    winSteps(): Array<ShownStep> {
-      if (!this.withWin || this.reading.ifWin === undefined) {
-        return [];
-      }
-      return this.reading.ifWin.map((step) => ({to: step.to, gift: agendaStepGiftOf(step)}));
-    },
-    winLabel(): string {
-      const key = agendaGrantWinKey(this.reading, this.person);
-      return key === undefined ? '' : translateTextWithParams(key.key, [...key.params]);
-    },
-    atEnd(): boolean {
-      return this.reading.context !== 'reference' && this.reading.context !== 'applied' && (this.reading.ahead ?? []).length === 0;
-    },
-    caption(): string {
-      const caption = agendaGrantCaptionOf(this.reading, this.person);
-      if (caption === undefined) {
-        return '';
-      }
-      const text = caption.params === undefined ? translateText(caption.key) : translateTextWithParams(caption.key, [...caption.params]);
-      return this.reading.generation === undefined ? text : `${translateTextWithParams('Generation ${0}', [String(this.reading.generation)])} · ${text}`;
-    },
-  },
-  methods: {
-    giftClass(gift: AgendaStepGift): string {
-      switch (gift.kind) {
-      case 'tr': return iconClassFor('tr');
-      case 'card': return iconClassFor('cards');
-      case 'influence': return '';
-      }
-    },
-  },
+defineOptions({name: 'ConsoleAgendaGrant'});
+const props = defineProps({
+  reading: {type: Object as PropType<AgendaGrantReading>, required: true},
+  /** `compact` in a footer / a vote block, `normal` in a panel, `hero` on a stage. */
+  size: {type: String as PropType<'compact' | 'normal' | 'hero'>, default: 'normal'},
+  /** WHOSE reading this is — the viewer's own, or another seat's (the caption follows). */
+  person: {type: String as PropType<ReadingPerson>, default: 'you'},
+  /** `block` — the head and the body; `inline` — the body and the caption on ONE line (a host's own row). */
+  variant: {type: String as PropType<'block' | 'inline'>, default: 'block'},
+  /** Print the win's forecast (the vote panel and the inspector do; a results row has no «if»). */
+  withWin: {type: Boolean, default: true},
 });
+
+const label = computed((): string => {
+  const head = agendaGrantLabelKey(props.reading.grant);
+  return translateTextWithParams(head.key, [...head.params]);
+});
+/** The steps the body draws: the record's walk once applied, else what the law's step(s) give from here. */
+const steps = computed((): Array<ShownStep> => {
+  const reading = props.reading;
+  if (reading.walked !== undefined) {
+    return reading.walked.steps.map((step) => ({to: step.to, gift: agendaStepGiftOf(step)}));
+  }
+  return (reading.ahead ?? []).map((step) => ({to: step.to, gift: agendaStepGiftOf(step)}));
+});
+const firstStep = computed((): ShownStep | undefined => {
+  return steps.value[0];
+});
+const firstGift = computed((): AgendaStepGift | undefined => {
+  return firstStep.value?.gift;
+});
+/** The win's extra steps — what the forecast ADDS beyond `ahead` is the whole forecast (both steps are drawn). */
+const winSteps = computed((): Array<ShownStep> => {
+  if (!props.withWin || props.reading.ifWin === undefined) {
+    return [];
+  }
+  return props.reading.ifWin.map((step) => ({to: step.to, gift: agendaStepGiftOf(step)}));
+});
+const winLabel = computed((): string => {
+  const key = agendaGrantWinKey(props.reading, props.person);
+  return key === undefined ? '' : translateTextWithParams(key.key, [...key.params]);
+});
+const atEnd = computed((): boolean => {
+  return props.reading.context !== 'reference' && props.reading.context !== 'applied' && (props.reading.ahead ?? []).length === 0;
+});
+const caption = computed((): string => {
+  const caption = agendaGrantCaptionOf(props.reading, props.person);
+  if (caption === undefined) {
+    return '';
+  }
+  const text = caption.params === undefined ? translateText(caption.key) : translateTextWithParams(caption.key, [...caption.params]);
+  return props.reading.generation === undefined ? text : `${translateTextWithParams('Generation ${0}', [String(props.reading.generation)])} · ${text}`;
+});
+function giftClass(gift: AgendaStepGift): string {
+  switch (gift.kind) {
+  case 'tr': return iconClassFor('tr');
+  case 'card': return iconClassFor('cards');
+  case 'influence': return '';
+  }
+}
 </script>
