@@ -1,4 +1,5 @@
 import {mount} from '@vue/test-utils';
+import {defineComponent, h} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleCarryoverPicker from '@/client/components/console/campaign/ConsoleCarryoverPicker.vue';
@@ -271,6 +272,41 @@ describe('ConsoleCarryoverPicker — the album chassis (P87)', () => {
     expect((w.vm as unknown as {zone: string}).zone, 'the cursor goes where the choice is').to.eq('preludes');
   }).timeout(15_000);
 
+  it('«Тендеры»: a certificate\'s flight that OUTLIVES the picker asks a surface that has left — it is answered «no target», never a throw', async () => {
+    // B on the sheet carries the hero back into its list slot. The flight measures that slot frame by frame, and those
+    // frames are the SESSION's: they go on after the host has taken the picker down. The root's template ref is `null`
+    // by then (the Options form's `$el` was still the detached node), so an unguarded read of it rejected the phrase.
+    const leaked: Array<unknown> = [];
+    const watch = (reason: unknown): void => void leaked.push(reason);
+    process.on('unhandledRejection', watch);
+    try {
+      const w = mountPicker({tenders: [{instance: 'c1', id: 'extendedLegacy', status: 'held', window: 'legacy'}]});
+      const vm = w.vm as unknown as {handleIntent(i: GamepadIntent): boolean, stage: string, stageMoving: boolean, sheet?: {phase: string}};
+      const beat = (ms: number) => new Promise((r) => setTimeout(r, ms));
+      /** A STATE the motion's own clocks reach — polled, never a guessed duration. */
+      const until = async (reached: () => boolean): Promise<void> => {
+        for (let i = 0; i < 200 && !reached(); i++) {
+          await beat(50);
+        }
+      };
+      vm.handleIntent(press('stickL'));
+      await until(() => vm.stage === 'list' && !vm.stageMoving);
+      expect(vm.stage).to.eq('list');
+      vm.handleIntent(press('confirm'));
+      await until(() => vm.sheet?.phase === 'open');
+      expect(vm.sheet?.phase, 'the sheet stands').to.eq('open');
+      vm.handleIntent(press('back'));
+      // Past the flight's own bounded settle (400 ms) it is MEASURING its target — and nothing paints here, so it goes
+      // on asking for forty frames: the picker leaves in the middle of them.
+      await beat(450);
+      w.unmount();
+      await beat(300);
+    } finally {
+      process.off('unhandledRejection', watch);
+    }
+    expect(leaked.map((reason) => String(reason))).to.deep.eq([]);
+  }).timeout(15_000);
+
   it('no prelude allowance (a titles campaign): no band, ↑ on the top row stays in the album', () => {
     const wrapper = mountPicker();
     const vm = wrapper.vm as unknown as PickerApi & {zone: string};
@@ -287,5 +323,37 @@ describe('ConsoleCarryoverPicker — the album chassis (P87)', () => {
     (w.vm as unknown as PickerApi).handleIntent(nav('right'));
     await w.vm.$nextTick();
     expect(bars()[bars().length - 1][0].primary).to.eq('Keep for the next mission');
+  });
+
+  it('a PARENT\'s ref sees the pad and the host\'s two phrases — `handleIntent`, `dealIn`, `keptFaces` — and nothing else', () => {
+    // The Campaign Map reaches the picker through its `carryPicker` ref: under `<script setup>` that ref is ONLY what
+    // the picker exposes (`wrapper.vm` sees the whole setup state and would stay green with the list missing).
+    type PickerReach = {
+      handleIntent(intent: GamepadIntent): boolean,
+      dealIn(from: DOMRect | undefined): void,
+      keptFaces(): Map<CardName, {el: HTMLElement, rect: DOMRect}>,
+    };
+    // (A render function, not a template string: the runtime compiler is not in this build.)
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleCarryoverPicker, {ref: 'picker', eligible: HAND, selected: [CardName.ALGAE], limit: 2, nextMission: 2})]),
+    });
+    const w = mount(Host, {...globalConfig});
+    const reach = w.vm.$refs.picker as PickerReach;
+    expect(reach, 'the parent\'s ref is set').to.not.eq(null);
+    expect(Object.keys(reach), 'exactly what the picker exposes').to.have.members(['handleIntent', 'dealIn', 'keptFaces']);
+    expect(Object.keys(reach)).to.have.length(3);
+    const leaked = ['cursor', 'armed', 'stage', 'zone', 'sheet', 'tenderMode', 'albumApi', 'toggleAt', 'openTenderList', 'flow']
+      .filter((key) => (reach as unknown as Record<string, unknown>)[key] !== undefined);
+    expect(leaked).to.deep.eq([]);
+
+    // The pad: A on the kept card under the cursor returns it — consumed, heard by the host as the same toggle.
+    expect(reach.handleIntent(press('confirm'))).is.true;
+    expect(w.findComponent(ConsoleCarryoverPicker).emitted('toggle')).to.deep.eq([[CardName.ALGAE]]);
+    // The entry deal with no measurable source: the album simply stands (nothing is withheld, nothing throws).
+    expect(() => reach.dealIn(undefined)).to.not.throw();
+    // The confirm flight's sources: only a face ON SCREEN counts — nothing paints here, so the kept card has none.
+    const faces = reach.keptFaces();
+    expect(faces).to.be.instanceOf(Map);
+    expect(faces.size).to.eq(0);
   });
 });
