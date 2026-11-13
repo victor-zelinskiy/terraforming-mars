@@ -1,6 +1,8 @@
 import {mount} from '@vue/test-utils';
 import {expect} from 'chai';
-import {nextTick} from 'vue';
+import {defineComponent, h, nextTick, PropType} from 'vue';
+import {globalConfig} from '../getLocalVue';
+import {getPreferences, PreferencesManager} from '@/client/utils/PreferencesManager';
 import {CardName} from '@/common/cards/CardName';
 import {setCardNumberDisplay} from '@/client/components/premiumCard/cardNumberDisplay';
 import {CardModel} from '@/common/models/CardModel';
@@ -513,5 +515,137 @@ describe('PremiumCard art tiers + printed-face VM cache', () => {
     expect(vmA).to.eq(vmB); // one build per card name per session
     const live = mount(PremiumCard, {props: {card: model(CardName.COMET)}});
     expect((live.vm as unknown as {vm: object}).vm).to.not.eq(vmA);
+  });
+});
+
+/*
+ * ── THE FACE AS A `<script setup>` COMPONENT (step A of docs/claude/vapor/RECIPES.md) ──
+ * What the conversion moved and no test above reads: the click into the fullscreen viewer (the face's one reach into
+ * a child — a template ref on a component that mounts in the same tick, inside a real teleport), the owner's cube (a
+ * component the template names in kebab case and the script only imports), the fleet dock it PROVIDES to its
+ * mechanics plate (a computed — the mark follows the live model) and what a parent's ref on it reaches (nothing: it
+ * emits nothing and exposes nothing). The printed-face VM cache is the PAGE's (`premiumCardState.ts`) — pinned above
+ * by «printed (name-only) faces SHARE one cached VM». Every mount here fails on a Vue warning.
+ */
+describe('PremiumCard — a `<script setup>` component', () => {
+  /** How many times the face asked the viewer to show itself. */
+  let shows = 0;
+  // (A render function, not a template string: the runtime compiler is not in this build.)
+  const ZoomStub = defineComponent({
+    name: 'CardZoomModal',
+    props: {
+      card: {type: Object as PropType<CardModel>, required: true},
+      actionUsed: {type: Boolean, default: false},
+    },
+    emits: ['close'],
+    methods: {
+      show(): void {
+        shows++;
+      },
+    },
+    render: () => h('i', {class: 'zoom-stub'}),
+  });
+  const strict = {config: globalConfig.global.config};
+  const viewerStubbed = {...strict, stubs: {CardZoomModal: ZoomStub}};
+
+  beforeEach(() => {
+    shows = 0;
+  });
+
+  it('a click on a live face mounts the fullscreen viewer in the body and asks it to show itself — once; its `close` takes it away', async () => {
+    const card = model(CardName.COMET);
+    const wrapper = mount(PremiumCard, {props: {card, actionUsed: true}, global: viewerStubbed});
+    expect(wrapper.findComponent(ZoomStub).exists(), 'no viewer before the click').to.eq(false);
+
+    await wrapper.trigger('click');
+    await nextTick();
+    const viewer = wrapper.findComponent(ZoomStub);
+    expect(viewer.exists()).to.eq(true);
+    expect(Array.from(document.body.children).some((el) => el.classList.contains('zoom-stub')), 'teleported to the body').to.eq(true);
+    expect(viewer.props('card'), 'the face\'s own live model').to.deep.eq(card);
+    expect(viewer.props('actionUsed')).to.eq(true);
+    expect(shows, 'the viewer mounted by this very click is the one asked').to.eq(1);
+
+    viewer.vm.$emit('close');
+    await nextTick();
+    expect(wrapper.findComponent(ZoomStub).exists(), 'the viewer closed').to.eq(false);
+
+    // The next click opens it again — a new viewer, shown again.
+    await wrapper.trigger('click');
+    await nextTick();
+    expect(wrapper.findComponent(ZoomStub).exists()).to.eq(true);
+    expect(shows).to.eq(2);
+  });
+
+  it('an inert face, a printed (name-only) face and a face behind the switched-off preference open nothing', async () => {
+    const inert = mount(PremiumCard, {props: {card: model(CardName.COMET), inert: true}, global: viewerStubbed});
+    await inert.trigger('click');
+    await nextTick();
+    expect(inert.findComponent(ZoomStub).exists(), 'inert').to.eq(false);
+
+    const printed = mount(PremiumCard, {props: {name: CardName.COMET}, global: viewerStubbed});
+    await printed.trigger('click');
+    await nextTick();
+    expect(printed.findComponent(ZoomStub).exists(), 'no live model').to.eq(false);
+
+    const before = getPreferences().fullscreen_cards_on_dblclick;
+    PreferencesManager.INSTANCE.set('fullscreen_cards_on_dblclick', false);
+    try {
+      const live = mount(PremiumCard, {props: {card: model(CardName.COMET)}, global: viewerStubbed});
+      await live.trigger('click');
+      await nextTick();
+      expect(live.findComponent(ZoomStub).exists(), 'the preference is off').to.eq(false);
+    } finally {
+      PreferencesManager.INSTANCE.set('fullscreen_cards_on_dblclick', before);
+    }
+    expect(shows).to.eq(0);
+  });
+
+  it('a used action reads as unavailable — and under the experimental UI wears its owner\'s cube instead', () => {
+    const props = {card: model(CardName.PREDATORS), actionUsed: true, cubeColor: 'red' as const};
+    const veiled = mount(PremiumCard, {props, global: strict});
+    expect(veiled.classes()).to.include('pcard--unavailable');
+    expect(veiled.find('.player-cube').exists()).to.eq(false);
+
+    const before = getPreferences().experimental_ui;
+    PreferencesManager.INSTANCE.set('experimental_ui', true);
+    try {
+      const cubed = mount(PremiumCard, {props, global: strict});
+      expect(cubed.classes()).to.not.include('pcard--unavailable');
+      expect(cubed.find('.pcard > .player-cube').attributes('data-player-token')).to.eq('red');
+    } finally {
+      PreferencesManager.INSTANCE.set('experimental_ui', before);
+    }
+  });
+
+  it('the fleet dock it provides FOLLOWS the live model: the mark gains and loses its ship on the mounted face', async () => {
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.WATER_HAULING)}, global: strict});
+    expect(wrapper.find('.pcard-fleet').exists(), 'a dock: the slot stands').to.eq(true);
+    expect(wrapper.find('.pcard-fleet .colony-fleet-icon').exists(), 'the dock is free').to.eq(false);
+
+    await wrapper.setProps({card: model(CardName.WATER_HAULING, {fleetDocked: 'red'})});
+    expect(wrapper.find('.pcard-fleet--docked .colony-fleet-icon').classes()).to.include('fleet-hue--red');
+
+    await wrapper.setProps({card: model(CardName.WATER_HAULING, {fleetDocked: 'green'})});
+    expect(wrapper.find('.pcard-fleet--docked .colony-fleet-icon').classes(), 'another owner\'s livery').to.include('fleet-hue--green');
+
+    await wrapper.setProps({card: model(CardName.WATER_HAULING)});
+    expect(wrapper.find('.pcard-fleet').classes()).to.not.include('pcard-fleet--docked');
+    expect(wrapper.find('.pcard-fleet .colony-fleet-icon').exists(), 'the fleet left').to.eq(false);
+
+    // A keyless re-pointed face is another card's face: no dock, no slot.
+    await wrapper.setProps({card: model(CardName.BIRDS)});
+    expect(wrapper.find('.pcard-fleet').exists()).to.eq(false);
+  });
+
+  it('a host\'s default slot renders inside the face\'s root, and a parent\'s ref on the face reaches nothing', () => {
+    const Host = defineComponent({
+      render() {
+        return h(PremiumCard, {ref: 'face', name: CardName.COMET, inert: true}, {default: () => h('b', {class: 'host-badge'})});
+      },
+    });
+    const host = mount(Host, {global: strict});
+    expect(host.find('.pcard > .host-badge').exists()).to.eq(true);
+    expect(Object.keys((host.vm.$refs.face ?? {}) as object), 'no `defineExpose`: no host stands a ref on the face').to.deep.eq([]);
   });
 });
