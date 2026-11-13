@@ -24,7 +24,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * One MarsBot bonus card, rendered as the player will EXPERIENCE it in THIS
  * game: icon-anchored effect lines already resolved for the current expansion
@@ -34,11 +34,12 @@
  * Shared by the desktop bot-board overlay, the console bonus detail and the
  * turn-theater reveal step — one face everywhere.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType} from 'vue';
 import {BonusCardId} from '@/common/automa/AutomaTypes';
 import {BonusCardContext, BonusCardEffectLine, BonusCardView, buildBonusCardView} from '@/common/automa/BonusCardData';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
 /** MarsBot-specific icon keys the shared vocabulary doesn't cover. */
 const OWN_ICONS: Record<string, string> = {
@@ -78,59 +79,54 @@ const FATE_GLYPH: Record<BonusCardView['fate']['kind'], string> = {
   'conditional': '◈',
 };
 
-export default defineComponent({
-  name: 'BonusCardFace',
-  props: {
-    id: {type: String as PropType<BonusCardId>, required: true},
-    ctx: {type: Object as PropType<BonusCardContext>, required: true},
-    /** TV-readable sizing (console). */
-    large: {type: Boolean, default: false},
-    /** Render the "removed from the game" treatment (the destroyed pile). */
-    destroyed: {type: Boolean, default: false},
-  },
-  computed: {
-    view(): BonusCardView {
-      return buildBonusCardView(this.id, this.ctx);
-    },
-    fateLabel(): string {
-      return FATE_LABEL[this.view.fate.kind];
-    },
-    fateGlyph(): string {
-      return FATE_GLYPH[this.view.fate.kind];
-    },
-    fateText(): string {
-      return translateTextWithParams(this.view.fate.text, [...(this.view.fate.params ?? [])]);
-    },
-    fateHint(): string {
-      return this.fateText;
-    },
-  },
-  methods: {
-    iconClass(key: string | undefined): string {
-      if (key === undefined) {
-        return '';
-      }
-      if (OWN_ICONS[key] !== undefined) {
-        return OWN_ICONS[key];
-      }
-      if (GLYPHS[key] !== undefined) {
-        return '';
-      }
-      return iconClassFor(key);
-    },
-    glyph(key: string | undefined): string {
-      return key !== undefined ? (GLYPHS[key] ?? '') : '';
-    },
-    lineText(line: BonusCardEffectLine): string {
-      // A ready Message (the server's generated helper sentence) — its label params translate through the one road.
-      if (line.message !== undefined) {
-        return translateMessage({message: line.message.message, data: line.message.data.map((d) => ({...d}))});
-      }
-      if (line.params !== undefined && line.params.length > 0) {
-        return translateTextWithParams(line.text, [...line.params]);
-      }
-      return translateText(line.text);
-    },
-  },
+defineOptions({name: 'BonusCardFace'});
+const props = defineProps({
+  id: {type: String as PropType<BonusCardId>, required: true},
+  ctx: {type: Object as PropType<BonusCardContext>, required: true},
+  /** TV-readable sizing (console). */
+  large: {type: Boolean, default: false},
+  /** Render the "removed from the game" treatment (the destroyed pile). */
+  destroyed: {type: Boolean, default: false},
 });
+
+const view = computed((): BonusCardView => {
+  return buildBonusCardView(props.id, props.ctx);
+});
+const fateLabel = computed((): string => {
+  return FATE_LABEL[view.value.fate.kind];
+});
+const fateGlyph = computed((): string => {
+  return FATE_GLYPH[view.value.fate.kind];
+});
+const fateText = computed((): string => {
+  return translateTextWithParams(view.value.fate.text, [...(view.value.fate.params ?? [])]);
+});
+const fateHint = computed((): string => {
+  return fateText.value;
+});
+function iconClass(key: string | undefined): string {
+  if (key === undefined) {
+    return '';
+  }
+  if (OWN_ICONS[key] !== undefined) {
+    return OWN_ICONS[key];
+  }
+  if (GLYPHS[key] !== undefined) {
+    return '';
+  }
+  return iconClassFor(key);
+}
+function glyph(key: string | undefined): string {
+  return key !== undefined ? (GLYPHS[key] ?? '') : '';
+}
+function lineText(line: BonusCardEffectLine): string {
+  // A ready Message (the server's generated helper sentence) — its label params translate through the one road.
+  if (line.message !== undefined) {
+    return translateMessage({message: line.message.message, data: line.message.data.map((d) => ({...d}))});
+  }
+  if (line.params !== undefined && line.params.length > 0) {
+    return translateTextWithParams(line.text, [...line.params]);
+  }
+  return translateText(line.text);
+}
 </script>
