@@ -1,15 +1,4 @@
 <template>
-  <!-- THE INFORMATION WORKSPACE (Y) — an inspect-only OVERLAY workspace: it
-       opens OVER whatever surface the player is on (board, any workspace, a
-       minimized prompt), never touches the workspace stack, and closing
-       restores the exact captured context (infoModeState.snapshot). The root
-       is an ABSOLUTE child of `.con-main` filling everything RIGHT of the
-       left resource rail; the rail is the mode's SUMMARY half (ConsoleShell
-       overrides its player context to the inspected participant).
-       data-motion-*: the surface-motion director materializes the frame from
-       the rail seam (open) and returns it there (dismiss); the OWN full dim
-       STAYS — the workspace opens OVER arbitrary band surfaces (z 11560,
-       above the shade; the rail rides at 11561, crisp above the dim). -->
   <div class="con-info" role="dialog" :aria-label="$t('Information')" data-motion-surface="info-mode">
     <div class="con-info__backdrop" aria-hidden="true"></div>
     <div class="con-info__frame" data-motion-panel>
@@ -246,7 +235,23 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE INFORMATION WORKSPACE (Y) — an inspect-only OVERLAY workspace: it
+ *       opens OVER whatever surface the player is on (board, any workspace, a
+ *       minimized prompt), never touches the workspace stack, and closing
+ *       restores the exact captured context (infoModeState.snapshot). The root
+ *       is an ABSOLUTE child of `.con-main` filling everything RIGHT of the
+ *       left resource rail; the rail is the mode's SUMMARY half (ConsoleShell
+ *       overrides its player context to the inspected participant).
+ *       data-motion-*: the surface-motion director materializes the frame from
+ *       the rail seam (open) and returns it there (dismiss); the OWN full dim
+ *       STAYS — the workspace opens OVER arbitrary band surfaces (z 11560,
+ *       above the shade; the rail rides at 11561, crisp above the dim).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
 /**
  * THE INFORMATION WORKSPACE (Y) — the console-native read-only participant
  * dossier: «информация не скрыта — Y, посмотрел, вернулся ровно туда же».
@@ -270,7 +275,7 @@
  * is routed by ConsoleShell; this component is presentation over
  * infoModeState + the pure models. NEVER submits anything.
  */
-import {defineComponent, markRaw, PropType} from 'vue';
+import {computed, markRaw, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {gsap} from 'gsap';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
@@ -308,7 +313,7 @@ import {
 import {buildScoreOverview, maArtSlug, scoreStagePath} from '@/client/console/scoreExplorerModel';
 import {
   DossierActionTile, dossierActionTiles, withPoliticalActionTiles, DossierCardHistory, dossierCardHistory, DossierEffectFamily, dossierEffectFamilies,
-  DossierMedallion, dossierMedallions, DossierSealedFacts, dossierSealedFacts,
+  DossierMedallion, dossierMedallions as dossierMedallionsOf, DossierSealedFacts, dossierSealedFacts,
 } from '@/client/console/infoDossierModel';
 import ConsoleDossierScore from '@/client/components/console/info/ConsoleDossierScore.vue';
 import ConsoleDossierSealed from '@/client/components/console/info/ConsoleDossierSealed.vue';
@@ -334,7 +339,7 @@ import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsEx
 import {seatRestricted} from '@/common/models/ParliamentModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import ConsoleArmedEffectsSection from '@/client/components/console/ConsoleArmedEffectsSection.vue';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {seatParliamentReadingOf, SeatParliamentReadingVm} from '@/client/console/parliament/seatParliamentReading';
 import ConsoleInfoParliament from '@/client/components/console/ConsoleInfoParliament.vue';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
@@ -364,853 +369,836 @@ import {tpStatusLabel} from '@/client/console/campaign/campaignOverviewModel';
 /** How many faces a dossier pile shows — ONE, the newest, on top of the paper edges of the rest. */
 const DOSSIER_FACES_PER_STACK = 1;
 
-export default defineComponent({
-  name: 'ConsoleInfoMode',
-  components: {
-    ConsoleCampaignOverview, ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleEffectsExplorer,
-    ConsoleInfoParliament, ConsoleArmedEffectsSection, ConsoleWsHead, GamepadGlyph,
-    ConsoleDossierScore, ConsoleDossierSealed, ConsoleDossierCards, ConsoleDossierActions, ConsoleDossierEffects, ConsoleDossierParliament,
-    ConsoleInfoActionGallery, ConsoleDossierCampaign,
-  },
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    myTurn: {type: Boolean, default: false},
-  },
-  setup() {
-    return {flow: useFlowScope('info-mode')};
-  },
-  data() {
-    return {
-      infoModeState,
-      /** The previous route's depth — signs the zone-swap direction
-       *  (descend rises from below, B sinks back). */
-      lastDepth: 0,
-      /**
-       * EVERY dossier zone's rect, captured while the summary is still in the DOM (the out-in enter hook runs
-       * after it left) — the detail a zone opens UNFOLDS out of its zone's box, and B FOLDS back into it (TR60:
-       * «зона раскрывается из плитки», every zone, never a rise from below). Plain (markRaw), never reactive.
-       */
-      zoneRects: markRaw(new Map<string, {left: number, top: number, width: number, height: number}>()),
-      /** The zone a B is folding back into — the summary's entry keeps it standing while the rest compose. */
-      returningZone: undefined as string | undefined,
-    };
-  },
-  computed: {
-    viewed(): PublicPlayerModel {
-      const color = this.infoModeState.playerColor;
-      return this.playerView.players.find((p) => p.color === color) ?? this.playerView.thisPlayer;
-    },
-    isSelf(): boolean {
-      return this.viewed.color === this.playerView.thisPlayer.color;
-    },
-    /** The viewed participant is the MarsBot seat. */
-    viewedIsBot(): boolean {
-      return this.viewed.isMarsBot === true;
-    },
-    viewedKind(): 'human' | 'bot' {
-      return this.viewedIsBot && this.botAutoma !== undefined ? 'bot' : 'human';
-    },
-    viewedDisplayName(): string {
-      return participantDisplayName(this.viewed);
-    },
-    botAutoma(): MarsBotModel | undefined {
-      return this.playerView.game.automa;
-    },
-    botDifficultyLabel(): string {
-      const automa = this.botAutoma;
-      return automa !== undefined ? DIFFICULTY_LABEL[automa.difficulty] : '';
-    },
-    /** The expansion context — resolves bonus-card faces + guide sections for THIS game. */
-    botCardContext(): MarsBotGuideContext {
-      const expansions = this.playerView.game.gameOptions.expansions;
-      // A random-set game's B14 face lists THIS game's awards (`MarsBotModel.competition` — the server's lines).
-      const competition = this.playerView.game.automa?.competition;
-      return {venus: expansions.venus === true, colonies: expansions.colonies === true, deltaProject: expansions.deltaProject === true,
-        ...(competition !== undefined ? {competition} : {})};
-    },
-    /** What the current route presents for the current participant —
-     *  'summary' | 'content' | 'fallback' (the capability contract). */
-    presentation(): 'summary' | 'content' | 'fallback' {
-      if (this.infoModeState.route === 'summary') {
-        return 'summary';
-      }
-      return infoRoutePresentation(this.infoModeState.route, this.viewedKind);
-    },
-    /** The whole vp subtree renders in ONE zone (key 'vp') — a level change
-     *  is the explorer's own phrase, never an out-in swap. */
-    isVpRouteUp(): boolean {
-      return isVpRoute(this.infoModeState.route);
-    },
-    /** The crumb's stage phrase — depth 1 is one word, deeper the hosted-
-     *  step phrase («ЭКРАН БОТА · ПЛАНШЕТ»). The vp subtree names its tail
-     *  DYNAMICALLY (the selected category / family — `scoreStagePath`).
-     *  Already translated (stageRaw). */
-    stagePhrase(): string {
-      if (this.infoModeState.route === 'campaign') {
-        // The campaign overview names its own tail (its nested layers).
-        return campaignStagePath().join(' · ');
-      }
-      if (this.infoModeState.route === 'effects') {
-        // The effects explorer names its tail dynamically (its detail layer
-        // adds the card name — «ЭФФЕКТЫ · <КАРТА>», the tail only advances).
-        return effectsStagePath().join(' · ');
-      }
-      const path = this.isVpRouteUp ?
-        scoreStagePath(this.infoModeState.route, this.infoModeState.vpCategoryKey, this.infoModeState.vpCardsGroup) :
-        infoRouteStagePath(this.infoModeState.route);
-      // The embedded table's open CATEGORY is the route's own tail («РАЗЫГРАНО · АКТИВНЫЕ») — the category view
-      // never titles itself (the host's crumb is the one place a stage is named).
-      if (this.infoModeState.route === 'played' && consolePlayedUi.categoryOpen && consolePlayedUi.categoryLabel !== '') {
-        return [...path, consolePlayedUi.categoryLabel].map((key) => translateText(key)).join(' · ');
-      }
-      return path.map((key) => translateText(key)).join(' · ');
-    },
-    // ── the «КАМПАНИЯ» zone (campaign missions only) ────────────────────
-    campaignContract(): CampaignGameContract | undefined {
-      return this.playerView.game.gameOptions.campaign;
-    },
-    /** The viewed participant's campaign seat (grants carry seat + color). */
-    campaignViewedSeat(): number | undefined {
-      return this.campaignContract?.grants.find((g) => g.color === this.viewed.color)?.seat;
-    },
-    campaignMissionText(): string {
-      const contract = this.campaignContract;
-      if (contract === undefined) {
-        return '';
-      }
-      const frame = translateTextWithParams('${0} of ${1}', [String(contract.missionSlot + 1), String(contract.missionCount)]);
-      // The mission's BOARD belongs in the frame line — «2 из 4 · Элизий».
-      const board = campaignState.model?.missions[contract.missionSlot]?.board;
-      return board !== undefined ? `${frame} · ${translateText(mapLabelKey(board))}` : frame;
-    },
-    /** The mission's board — its miniature in the zone (absent while the campaign model loads). */
-    campaignBoard(): BoardName | undefined {
-      const contract = this.campaignContract;
-      return contract === undefined ? undefined : campaignState.model?.missions[contract.missionSlot]?.board;
-    },
-    campaignViewedTitles(): ReadonlyArray<{title: TitleName}> {
-      const seat = this.campaignViewedSeat;
-      const model = campaignState.model;
-      if (seat === undefined || model === undefined) {
-        return [];
-      }
-      return model.progression.titles.filter((t) => t.seat === seat).map((t) => ({title: t.title}));
-    },
-    campaignTpText(): string {
-      const seat = this.campaignViewedSeat;
-      const model = campaignState.model;
-      if (seat === undefined || model === undefined) {
-        return '…';
-      }
-      return translateTextWithParams('${0} TP', [String(model.progression.titlePoints[seat] ?? 0)]);
-    },
-    campaignTpNote(): string {
-      if (this.campaignViewedTenders !== undefined) {
-        return 'Tenders execute at the finale\'s start; an unexecuted one pays 3 M€';
-      }
-      return this.campaignContract?.final === true ?
-        tpStatusLabel('included-now') : tpStatusLabel('accrues-final');
-    },
-    /** The «Тендеры» mode: the viewed seat's holdings off the campaign document; `undefined` on a titles campaign. */
-    campaignViewedTenders(): ReadonlyArray<TenderHoldingView> | undefined {
-      const seat = this.campaignViewedSeat;
-      const model = campaignState.model;
-      if (seat === undefined || model === undefined || campaignRewardModeOf(model) !== 'tenders') {
-        return undefined;
-      }
-      return seatTenderHoldings(model, seat);
-    },
-    campaignCorpCount(): string {
-      const seat = this.campaignViewedSeat;
-      const contract = this.campaignContract;
-      if (seat === undefined || contract === undefined) {
-        return '—';
-      }
-      if (this.viewedIsBot) {
-        return '1';
-      }
-      // The lineage entering this mission + the mission's own pick, read
-      // from the LIVE tableau (public) — the same derivation the overview
-      // uses.
-      let count = 0;
-      for (const c of this.viewed.tableau) {
-        try {
-          if (getCard(c.name)?.type === CardType.CORPORATION) {
-            count++;
-          }
-        } catch (err) {
-          // manifest gap — skip
-        }
-      }
-      const lineage = contract.grants.find((g) => g.seat === seat)?.corporations.length ?? 0;
-      return String(Math.max(count, lineage));
-    },
-    fallbackBody(): string {
-      return this.viewedKind === 'bot' ?
-        'Nothing here for this player' :
-        'This section exists only for the bot';
-    },
-    isBotRoute(): boolean {
-      const r = this.infoModeState.route;
-      return r === 'botScreen' || r === 'botBoard' || r === 'botBonus';
-    },
-    botSectionMode(): 'botScreen' | 'botBoard' | 'botBonus' {
-      const r = this.infoModeState.route;
-      return r === 'botBoard' ? 'botBoard' : r === 'botBonus' ? 'botBonus' : 'botScreen';
-    },
-    isPassed(): boolean {
-      return this.playerView.game.passedPlayers.includes(this.viewed.color);
-    },
-    /** EVERY corporation in the viewed tableau, in tableau order — a
-     *  campaign lineage routinely holds several. */
-    corpNames(): ReadonlyArray<string> {
-      // The bot's tableau is empty — its corporation rides `automa.corporation`
-      // (absent on legacy corpless saves) and resolves through the ONE resolver.
-      if (this.viewedIsBot) {
-        const corp = this.botAutoma?.corporation;
-        // …and its campaign holdings are further corporations, counted like a player's lineage.
-        return corp !== undefined ? [marsBotCorpDisplayName(corp.id), ...(this.botAutoma?.holdings ?? []).map((h) => marsBotCorpDisplayName(h.id))] : [];
-      }
-      const names: Array<string> = [];
-      for (const c of this.viewed.tableau) {
-        try {
-          if (getCard(c.name)?.type === CardType.CORPORATION) {
-            names.push(c.name);
-          }
-        } catch (err) {
-          // manifest gap — skip
-        }
-      }
-      return names;
-    },
-    corpName(): string {
-      return this.corpNames[0] ?? '';
-    },
-    corpExtraCount(): number {
-      return Math.max(0, this.corpNames.length - 1);
-    },
-    corpExtraText(): string {
-      return translateTextWithParams('and ${0} more', [String(this.corpExtraCount)]);
-    },
-    // ── the LIVE SCORE (shared with the endgame's category system) ────────
-    /** VP visibility: self always; the bot always (its state is open
-     *  information — the server ships its real breakdown); opponents only
-     *  when the game options allow. */
-    vpVisible(): boolean {
-      return this.isSelf || this.viewedIsBot ||
-        this.playerView.game.gameOptions.showOtherPlayersVP === true;
-    },
-    liveScore(): LiveScoreModel {
-      const game = this.playerView.game;
-      return buildLiveScoreModel(this.viewed.victoryPointsBreakdown, {
-        isBot: this.viewedIsBot,
-        hasMoon: game.moon !== undefined,
-        hasPathfinders: game.pathfinders !== undefined,
-        hasDelta: game.gameOptions.expansions.deltaProject === true,
-        hasTitles: game.gameOptions.campaign?.final === true,
-        hasParliament: game.parliament !== undefined,
-      });
-    },
-    /** The summary bar's positive segments (a penalty subtracts — it is
-     *  stated in the legend, never drawn as a stripe). */
-    vpBarSegments(): Array<{key: string, accent: string, widthPct: number}> {
-      const positive = this.liveScore.positiveTotal;
-      if (positive <= 0) {
-        return [];
-      }
-      return this.liveScore.categories
-        .filter((cat) => cat.value > 0)
-        .map((cat) => ({
-          key: cat.key,
-          accent: cat.accent,
-          widthPct: (cat.value / positive) * 100,
-        }));
-    },
-    // ── THE DOSSIER (TR60) — every object of the summary, from the models (`infoDossierModel`) ──────────────────
-    /** The score's medallions — the overview's tiles (the ceremony's order) with each category's own symbol. */
-    dossierMedallions(): ReadonlyArray<DossierMedallion> {
-      return dossierMedallions(buildScoreOverview(this.liveScore, this.viewed.victoryPointsBreakdown, {isBot: this.viewedIsBot}));
-    },
-    /** A hidden score's SEALED cell: only what is public on the table — never a VP number (`vpVisible` said no). */
-    sealedFacts(): DossierSealedFacts {
-      const game = this.playerView.game;
-      return dossierSealedFacts(this.viewed.terraformRating, this.viewed.color,
-        (game.milestones ?? []).map((m) => ({name: m.name, color: m.color})),
-        (game.awards ?? []).map((a) => ({name: a.name, color: a.color})),
-        maArtSlug, this.viewedRatingVeto);
-    },
-    /** The VIEWED seat is under the rating veto (RX42) — the law's name; read off the server's live leaders. */
-    viewedRatingVeto(): {law: string} | undefined {
-      const enacted = this.playerView.game.parliament?.enacted;
-      const veto = enacted?.trVeto;
-      if (enacted === undefined || veto === undefined || !veto.leaders.some((l) => l.color === this.viewed.color)) {
-        return undefined;
-      }
-      const seat = this.playerView.game.parliament?.players.find((p) => p.color === this.viewed.color);
-      return seat !== undefined && !seatRestricted(seat) ? undefined : {law: getResolution(enacted.resolution)?.text.name ?? enacted.resolution};
-    },
-    /** Display names by colour — for the surfaces that name a seat in words. */
-    playerNamesByColor(): Readonly<Record<string, string>> {
-      const out: Record<string, string> = {};
-      for (const p of this.playerView.players) {
-        out[p.color] = p.name;
-      }
-      return out;
-    },
-    /** The card story — the played table's own grouping (the bot's pile + its corporation, the parity). */
-    cardHistory(): DossierCardHistory {
-      const automa = this.viewedIsBot ? this.botAutoma : undefined;
-      const tableau = automa !== undefined ? botTableauCards(automa) : this.viewed.tableau;
-      return dossierCardHistory(buildPlayedZones(tableau), DOSSIER_FACES_PER_STACK, automa?.corporation !== undefined ? 1 : 0);
-    },
-    /** The action cards as tiles — the viewer's own with the server's reasons, another seat's by the public «used». */
-    dossierActions(): ReadonlyArray<DossierActionTile> {
-      const hasAction = (name: CardName) => {
-        try {
-          return cardHasAction(name);
-        } catch (err) {
-          return false;
-        }
-      };
-      const cards = dossierActionTiles(this.viewed.tableau, hasAction, new Set(this.viewed.actionsThisGeneration ?? []), this.isSelf);
-      // The Parliament's actions stand among the seat's actions like cards (the gallery behind the zone lists them too).
-      const political = parliamentActionSources({
-        parliament: this.playerView.game.parliament,
-        color: this.viewed.color,
-        viewerColor: this.playerView.thisPlayer?.color,
-        waitingFor: this.isSelf ? this.playerView.waitingFor : undefined,
-      });
-      return withPoliticalActionTiles(cards, dossierPoliticalActions(political));
-    },
-    dossierEffects(): ReadonlyArray<DossierEffectFamily> {
-      return dossierEffectFamilies(this.effectsZone, this.armedCount);
-    },
-    /** The bot door's piles — the public counts of the decks the algorithm plays from (its room explains them). */
-    /** The bot door's medallions — the decks the algorithm plays from, each with a symbol that reads without colour. */
-    botPiles(): ReadonlyArray<{key: string, label: string, count: number, glyph: string}> {
-      const automa = this.botAutoma;
-      if (automa === undefined) {
-        return [];
-      }
-      return [
-        {key: 'action', label: 'Action deck', count: automa.actionDeckSize, glyph: '▤'},
-        {key: 'bonus', label: 'Bonus deck', count: automa.bonusDeckSize, glyph: '◈'},
-        {key: 'discard', label: 'Bonus discard', count: automa.bonusDiscard.length, glyph: '↺'},
-        {key: 'destroyed', label: 'Destroyed cards', count: automa.destroyedBonusCards.length, glyph: '✕'},
-      ];
-    },
-    /** The cards that carry the seat's passive effects (tableau order, each once) — the effects plate's coins. */
-    effectCardNames(): ReadonlyArray<CardName> {
-      return Array.from(new Set(playerEffects(this.viewed.tableau).map((e) => e.cardName)));
-    },
-    // ── the summary zones ─────────────────────────────────────────────────
-    /* («КАРТЫ» — the old shared card-potential readout — is GONE: the HAND
-       DOCK is the one physical representation of the inspected seat's hand.
-       «ДОП. РЕСУРСЫ» is GONE from the panel too — the RAIL SATELLITE beside
-       the left rail is the zone's one physical body: the summary's leftmost
-       ring stop and the extras screen's type navigation, pixel-anchored
-       across the whole flow.) */
-    /** The inspected seat's effect stats (undefined while on the wire — the
-     *  zone line and the explorer's metas honestly claim nothing). */
-    effectsStats(): ReadonlyArray<EffectOverlayStat> | undefined {
-      return this.viewedIsBot ? undefined : effectStatsFor(this.viewed.color);
-    },
-    /** The stats cache's OWN key — the watcher below re-ensures on it, so
-     *  the surface refetches on exactly the set the cache invalidates on. */
-    effectsStatsKey(): string {
-      return effectStatsVersion(this.playerView, this.viewed.color);
-    },
-    /** Per-EFFECT family counts for the zone (the old per-card «Активные /
-     *  Скидки» pair — whose discount predicate was always true — is gone). */
-    /** The inspected seat's armed one-play effects (TR49 class — public). */
-    armedCount(): number {
-      return this.viewed.armedPlayEffects?.length ?? 0;
-    },
-    /** The Parliament's standing effects the inspected seat holds — groups of the explorer's grid, counted in the zone. */
-    effectsPolitical(): ReadonlyArray<PoliticalEffectEntry> {
-      const parliament = this.playerView.game.parliament;
-      return politicalEffectEntries(politicalSources(parliament, this.viewed.color), {
-        parliament,
-        viewerColor: this.playerView.thisPlayer?.color,
-        playerNames: this.playerNamesByColor,
-      });
-    },
-    effectsZone(): EffectsZoneCounts {
-      // ONE count with the grid: a party's / the law's effect is an effect of this seat like a card's (the zone never lies).
-      return effectsZoneCounts([...this.effectsPolitical, ...playerEffects(this.viewed.tableau)], this.viewed.tableau);
-    },
-    /** The zone's quiet whole-game line («Срабатываний: N · Сэкономлено: M»). */
-    effectsZoneNote(): string {
-      const line = effectsZoneStatsLine(this.effectsStats);
-      if (line === undefined || line.triggers === 0) {
-        return '';
-      }
-      const parts = [`${translateText('Times triggered')}: ${line.triggers}`];
-      if (line.savedMc > 0) {
-        parts.push(`${translateText('Saved')}: ${line.savedMc} ${translateText('Megacredits')}`);
-      }
-      return parts.join(' · ');
-    },
-    /** The live command contract — published to the shell's ONE bottom
-     *  command bar through consolePanelUi (the footCommands watch below). */
-    footCommands(): Array<ConsoleCommand> {
-      const route = this.infoModeState.route;
-      // The embedded «Разыграно» grammar — honest to the table's live
-      // mirrors (consolePlayedUi), same verbs as the board-home overlay.
-      if (route === 'played' && this.presentation === 'content') {
-        if (consolePlayedUi.categoryBusy) {
-          return [{control: 'back', label: 'Back'}];
-        }
-        if (consolePlayedUi.categoryOpen) {
-          return [
-            {control: 'secondary', label: 'Inspect'},
-            ...(consolePlayedUi.pageCount > 1 ? [{control: 'bumperL', control2: 'bumperR', label: 'Browse', priority: 1} as ConsoleCommand] : []),
-            {control: 'back', label: 'Back'},
-            {control: 'inspect', label: 'Close', priority: 0},
-          ];
-        }
-        return [
-          {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
-          {control: 'confirm', label: 'Open', enabled: consolePlayedUi.focusCategory !== ''},
-          {control: 'back', label: 'To overview'},
-          {control: 'inspect', label: 'Close', priority: 0},
-        ];
-      }
-      // The SCORE EXPLORER owns its own command contract (focus-honest
-      // hints — «X Осмотреть» only over a previewable row). One publisher
-      // stays: this computed returns the explorer's list verbatim.
-      if (isVpRoute(route) && scoreExplorerUi.barCommands !== undefined) {
-        return [...scoreExplorerUi.barCommands];
-      }
-      // …and so does the EXTRAS EXPLORER (the satellite + gallery screen).
-      if (route === 'extras' && extrasExplorerUi.barCommands !== undefined) {
-        return [...extrasExplorerUi.barCommands];
-      }
-      // …and the «ДЕЙСТВИЯ» gallery (TR60 — its cursor and X; honest to an empty table).
-      if (route === 'actions' && this.presentation === 'content' && infoActionsUi.barCommands !== undefined) {
-        return [...infoActionsUi.barCommands];
-      }
-      // …and the EFFECTS EXPLORER (browse ⇄ detail change the verbs).
-      if (route === 'effects' && effectsExplorerUi.barCommands !== undefined) {
-        return [...effectsExplorerUi.barCommands];
-      }
-      // …and the CAMPAIGN OVERVIEW (its nested layers change the verbs).
-      if (route === 'campaign' && campaignOverviewUi.barCommands !== undefined) {
-        return [
-          {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
-          ...campaignOverviewUi.barCommands,
-          {control: 'inspect', label: 'Close', priority: 0},
-        ];
-      }
-      const cmds: Array<ConsoleCommand> = [
-        {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
-      ];
-      if (route === 'summary') {
-        // ONE navigation model: the ring focuses, A opens. The hint names
-        // the FOCUSED zone (the dedicated per-block buttons are gone — this
-        // is the one place the press's meaning is spelled out). On the
-        // satellite the hint names the FOCUSED CHIP's resource type —
-        // «Открыть: астероиды», never a generic group word.
-        const focusedChip = this.focusedExtrasChip;
-        if (this.infoModeState.summaryFocus === 'extras' && focusedChip !== undefined) {
-          cmds.push({control: 'confirm', label: 'Open: ${0}', labelParams: [translateText(focusedChip.label)]});
-        } else if (this.summaryFocusEnterable && this.summaryFocusTitle !== '') {
-          cmds.push({control: 'confirm', label: 'Open: ${0}', labelParams: [translateText(this.summaryFocusTitle)]});
-        } else {
-          cmds.push({control: 'confirm', label: 'Open', enabled: false});
-        }
-      } else if (route === 'botScreen' && this.presentation === 'content') {
-        cmds.push({control: 'confirm', label: 'Open'});
-        cmds.push({control: 'back', label: 'To overview'});
-      } else if (infoRouteDepth(route) >= 2) {
-        cmds.push({control: 'back', label: 'Back'});
-      } else {
-        cmds.push({control: 'back', label: 'To overview'});
-      }
-      cmds.push({control: 'inspect', label: 'Close', priority: 0});
-      return cmds;
-    },
-    /** The focused summary zone's display title — the contextual half of
-     *  the bar's «A Открыть: …» hint. */
-    summaryFocusTitle(): string {
-      switch (this.infoModeState.summaryFocus) {
-      case 'extras': return 'Extra resources';
-      case 'vp': return 'Victory Points';
-      case 'played': return 'Played cards';
-      case 'actions': return 'Actions';
-      case 'effects': return 'Effects';
-      case 'parliament': return 'Parliament';
-      case 'campaign': return 'Campaign';
-      case 'botdoor': return 'MarsBot screen';
-      default: return '';
-      }
-    },
-    /** May A enter the currently focused summary zone? */
-    summaryFocusEnterable(): boolean {
-      return infoZoneFocusable(this.infoModeState.summaryFocus, this.viewedKind, this.zoneCtx);
-    },
-    /** The inspected seat's satellite chips (same derivation as the rail). */
-    extrasChips(): ReadonlyArray<InfoExtrasChip> {
-      return infoExtrasChips(this.viewed, this.viewedIsBot ? this.botAutoma : undefined,
-        marsBotExtrasContext(this.playerView.game));
-    },
-    /** The zone-table context: game shape + the seat's satellite presence
-     *  (an empty extras column is no ring stop — same rule as the shell).
-     *  ⚠️ Its GAME terms must match `ConsoleShell.infoZoneCtx`, which navigates
-     *  the very ring this draws — see the warning there. */
-    zoneCtx(): {campaign: boolean, extras: boolean, parliament: boolean} {
-      return {
-        campaign: this.campaignContract !== undefined,
-        extras: this.extrasChips.length > 0,
-        // A fact of the GAME, exactly like the campaign — not of the inspected seat.
-        parliament: this.playerView.game.parliament !== undefined,
-      };
-    },
-    /**
-     * THE INSPECTED SEAT'S STANDING in the parliament — the zone's summary and
-     * its whole detail, from ONE model (`seatParliamentReadingOf`), read in the
-     * person of whoever is looking. Undefined outside a parliament game.
-     */
-    parliamentReading(): SeatParliamentReadingVm | undefined {
-      const model = this.playerView.game.parliament;
-      if (model === undefined) {
-        return undefined;
-      }
-      return seatParliamentReadingOf(model, this.viewed.color, this.viewed.tableau, {viewer: this.playerView.thisPlayer.color});
-    },
-    /** The chip the summary ring stands on (clamped — the composition can
-     *  shrink under the cursor on a seat switch). */
-    focusedExtrasChip(): InfoExtrasChip | undefined {
-      const chips = this.extrasChips;
-      if (chips.length === 0) {
-        return undefined;
-      }
-      return chips[Math.min(this.infoModeState.extrasCursor, chips.length - 1)];
-    },
-  },
-  watch: {
-    /** Warm the extras gallery's art for the NEW seat — the biggest webp
-     *  decode on the panel, and the one surface where a late-arriving face
-     *  is a visible defect (the 4K faces decode in hundreds of ms). */
-    'infoModeState.playerColor'(): void {
-      this.warmExtrasArt();
-    },
-    /** Keep the inspected seat's effect stats warm — the ONE recipe: the
-     *  store's own version stamp (gameStateVersion + seat), the same pair
-     *  the server memoizes the route on. Feeds both the zone's whole-game
-     *  line and the explorer's tile metas / «За партию» panel. */
-    effectsStatsKey: {
-      immediate: true,
-      handler(): void {
-        if (!this.viewedIsBot) {
-          ensureEffectStats(this.playerView, this.viewed.color);
-        }
-      },
-    },
-    /** Publish the CONTEXTUAL command contract to the shell's ONE bottom
-     *  command bar (consolePanelUi) — hints live only there, never in a
-     *  panel-local footer (CONSOLE_TV_PREMIUM_PLAN §3.2). */
-    footCommands: {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>) {
-        setPanelCommands('infoMode', cmds);
-      },
-    },
-  },
-  mounted() {
-    this.warmExtrasArt();
-    // Campaign missions: prefetch the campaign document at panel open, so
-    // the «Кампания» zone fills its personal half and the full overview
-    // opens with its data already standing (no intermediate empty page).
-    const contract = this.campaignContract;
-    if (contract !== undefined) {
-      setCampaignViewerName(this.playerView.thisPlayer.name);
-      void openCampaign(contract.campaignId);
-    }
-  },
-  beforeUnmount() {
-    clearPanelCommands('infoMode');
-    disposeScoreHandoff();
-  },
-  methods: {
-    /** Pre-decode the resource HOLDERS' premium art at panel open — the
-     *  extras gallery then enters with its faces already warm. */
-    warmExtrasArt(): void {
-      const holders = this.viewed.tableau
-        .filter((c) => {
-          try {
-            return getCard(c.name)?.resourceType !== undefined;
-          } catch (err) {
-            return false;
-          }
-        })
-        .map((c) => c.name);
-      if (holders.length > 0) {
-        preloadPremiumCardArt(holders);
-      }
-    },
-    /** The focus-ring state of a summary zone (ring only where A can go). */
-    zoneStateClass(zone: string): Record<string, boolean> {
-      const focusable = infoZoneFocusable(zone as never, this.viewedKind, this.zoneCtx);
-      return {
-        'con-info__zone--focusable': focusable,
-        'con-info__zone--focused': focusable && this.infoModeState.summaryFocus === zone,
-      };
-    },
-    titleArtUrl,
-    titleLabel(title: TitleName): string {
-      return TITLE_LABEL[title];
-    },
-    /** The embedded table's own close event (B at table level). */
-    closePlayedRoute(): void {
-      this.infoModeState.route = 'summary';
-      this.infoModeState.summaryFocus = 'played';
-    },
-    /** The shell forwards the pad to the embedded «Разыграно» table while
-     *  the played route is up (LB/RB and Y are handled globally first). */
-    handlePlayedIntent(intent: GamepadIntent): void {
-      ((this.$refs.playedView ?? undefined) as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
-    },
-    /** …and to the score explorer while a vp route is up (same contract). */
-    handleScoreIntent(intent: GamepadIntent): void {
-      ((this.$refs.scoreView ?? undefined) as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
-    },
-    /** …and to the extras explorer while the extras route is up. */
-    handleExtrasIntent(intent: GamepadIntent): void {
-      ((this.$refs.extrasView ?? undefined) as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
-    },
-    /** …and to the «Действия» gallery while the actions route is up (TR60). */
-    handleActionsIntent(intent: GamepadIntent): void {
-      ((this.$refs.actionsView ?? undefined) as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
-    },
-    /** …and to the effects explorer while the effects route is up. */
-    handleEffectsIntent(intent: GamepadIntent): void {
-      ((this.$refs.effectsView ?? undefined) as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.(intent);
-    },
-    /** B consumes the effects explorer's open detail before walking the tree. */
-    consumeEffectsBack(): boolean {
-      return ((this.$refs.effectsView ?? undefined) as {consumeEffectsBack?: () => boolean} | undefined)?.consumeEffectsBack?.() === true;
-    },
-    /** …and to the campaign overview while the campaign route is up.
-     *  Returns false when the overview did not consume it (B at its base
-     *  layer — the shell then walks the route tree back to the summary). */
-    handleCampaignIntent(intent: GamepadIntent): boolean {
-      return ((this.$refs.campaignView ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined)?.handleIntent?.(intent) === true;
-    },
-    /** A satellite cell press routed by the shell (mouse/touch): select
-     *  the type inside the live explorer. */
-    selectExtrasType(key: string, index: number): void {
-      ((this.$refs.extrasView ?? undefined) as {selectType?: (k: string, i: number) => void} | undefined)?.selectType?.(key, index);
-    },
-    /** B consumes the explorer's MA inspection before walking the tree. */
-    consumeScoreBack(): boolean {
-      return ((this.$refs.scoreView ?? undefined) as {consumeScoreBack?: () => boolean} | undefined)?.consumeScoreBack?.() === true;
-    },
-    // ── the content-zone swap beat (route changes) ──────────────────────
-    // TR60 — «ЗОНА РАСКРЫВАЕТСЯ ИЗ ПЛИТКИ»: every zone of the dossier is the
-    // DOOR of its detail, and the transition is ONE phrase, both ways (the
-    // workspace law: RELEASE on the spot → UNFOLD from the rect the old
-    // object occupied → REVEAL from inside — never a `mode="out-in"` gap with
-    // nothing in it):
-    //   A — the pressed zone's CONTENT lets go where it stands while the
-    //       other zones fade; its glass plate stays. At the swap the detail
-    //       arrives as THAT plate (`con-info__unfolding` — the same glass, the
-    //       same rect), unfolds to the whole room, its rows rise inside it,
-    //       and the plate dissolves under them;
-    //   B — the rows let go, the plate comes back, the detail folds INTO the
-    //       zone's rect; the summary arrives with that zone standing (its
-    //       content surfacing in place) while the rest compose around it.
-    // The score keeps its shared-element handoff (the total and the bar fly)
-    // and the extras keep the satellite column as their continuity. A seat
-    // switch keeps the key (routes are semantic) → no beat here at all.
-    detailZoneEnter(el: Element, done: () => void): void {
-      if (consoleReducedMotionActive()) {
-        gsap.set(el, {clearProps: 'transform,opacity'});
-        this.returningZone = undefined;
-        // A SYNCHRONOUS done inside an out-in hook wedges the swap: Vue is
-        // still inside the leave/enter patch when the callback fires, and
-        // the deferred insertion of the incoming zone never runs (measured:
-        // the explorer stayed mounted at the summary route). One microtask
-        // of distance is the whole fix — never rAF (headless starves it).
-        void Promise.resolve().then(done);
-        return;
-      }
-      // The SCORE HANDOFF: when the leaving zone armed the shared elements
-      // (summary → explorer, or explorer → summary on B), the total and the
-      // bar FLY between the zones while the categories unfold/cascade —
-      // this replaces the plain fade for exactly this pair of zones.
-      const host = el as HTMLElement;
-      const depth = infoRouteDepth(this.infoModeState.route);
-      const cascade = Array.from(host.querySelectorAll<HTMLElement>('.con-vpx__tile, .con-infovp__cat'));
-      if (playScoreHandoff(host, cascade, done)) {
-        this.lastDepth = depth;
-        this.returningZone = undefined;
-        return;
-      }
-      // THE EXTRAS ENTRY: the content UNFOLDS OUT OF the satellite column —
-      // the very object the player pressed (which itself never moves: it is
-      // shell chrome, the pixel-anchored half of this screen). The satellite
-      // is alive on both sides of the swap, so no proxy handoff is needed —
-      // the continuity IS the column.
-      if (host.classList.contains('con-info__exrhost')) {
-        this.lastDepth = depth;
-        const satRect = descendRectOf(document.querySelector<HTMLElement>('.con-res-aux'));
-        const tl = gsap.timeline({onComplete: done});
-        if (!descendUnfold(tl, host, satRect, motionMs(280) / 1000, 0)) {
-          tl.fromTo(host, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
-        }
-        descendCascade(tl, this.extrasRows(host), motionMs(175) / 1000, motionMs(140) / 1000, 0.03);
-        return;
-      }
-      // THE SUMMARY AFTER A B: the zone the detail folded into is STANDING
-      // (its plate at once, its content surfacing in place); the rest of the
-      // dossier composes around it.
-      if (host.classList.contains('con-info__layout') && this.returningZone !== undefined) {
-        const zone = host.querySelector<HTMLElement>(`[data-zone="${this.returningZone}"]`);
-        this.returningZone = undefined;
-        this.lastDepth = depth;
-        const others = Array.from(host.querySelectorAll<HTMLElement>('.con-dossier__zone')).filter((z) => z !== zone);
-        const tl = gsap.timeline({onComplete: done});
-        if (zone !== null) {
-          tl.fromTo(Array.from(zone.children), {opacity: 0}, {opacity: 1, duration: motionMs(150) / 1000, ease: 'power2.out', clearProps: 'opacity'}, 0);
-        }
-        tl.fromTo(others, {opacity: 0}, {opacity: 1, duration: motionMs(190) / 1000, ease: 'power2.out', stagger: 0.03, clearProps: 'opacity'}, motionMs(40) / 1000);
-        return;
-      }
-      // A ZONE'S DETAIL: it arrives as the zone's plate and unfolds out of
-      // the rect the zone stood in (captured in the summary's leave hook —
-      // the enter runs after the summary detached).
-      const zoneKey = host.dataset.infoZone;
-      const from = zoneKey === undefined ? undefined : this.zoneRects.get(zoneKey);
-      if (from !== undefined) {
-        this.lastDepth = depth;
-        host.classList.add('con-info__unfolding');
-        host.style.setProperty('--con-unfold-plate', '1');
-        const tl = gsap.timeline({onComplete: () => {
-          // The plate dissolves UNDER the revealed rows (a CSS opacity transition), then lets go of the host.
-          host.style.setProperty('--con-unfold-plate', '0');
-          motionAfter(motionMs(280), 'the unfold plate dissolves, then lets go of its host', () => {
-            host.classList.remove('con-info__unfolding');
-            host.style.removeProperty('--con-unfold-plate');
-          }, this.flow);
-          done();
-        }});
-        // The door gives from its FIRST frame (power3.out): the plate is the continuity, a slow start reads as a stall.
-        descendUnfold(tl, host, from, motionMs(320) / 1000, 0, this.zoneRadiusPx(), 'power3.out');
-        descendCascade(tl, this.detailRows(host), motionMs(170) / 1000, motionMs(160) / 1000, 0.03);
-        return;
-      }
-      const rising = depth >= this.lastDepth;
-      this.lastDepth = depth;
-      gsap.fromTo(el,
-        {opacity: 0, y: (rising ? 10 : -8) * conUiScale()},
-        {opacity: 1, y: 0, duration: motionMs(180) / 1000, ease: 'power2.out', clearProps: 'transform,opacity', onComplete: done});
-    },
-    detailZoneLeave(el: Element, done: () => void): void {
-      const to = this.infoModeState.route;
-      const host = el as HTMLElement;
-      // Every zone's box, measured while the summary still stands — the door
-      // geometry both ways (the enter hook runs after this node detached).
-      if (host.classList.contains('con-info__layout')) {
-        this.zoneRects.clear();
-        for (const zone of Array.from(host.querySelectorAll<HTMLElement>('[data-zone]'))) {
-          const rect = descendRectOf(zone);
-          if (zone.dataset.zone !== undefined && rect !== undefined) {
-            this.zoneRects.set(zone.dataset.zone, rect);
-          }
-        }
-      }
-      if (consoleReducedMotionActive()) {
-        void Promise.resolve().then(done); // see detailZoneEnter — never sync
-        return;
-      }
-      // Arm the shared-element handoff on the two zones that exchange the
-      // total + bar: the summary leaving FOR the explorer, and the explorer
-      // leaving BACK to the summary. The proxies bridge the out-in gap, so
-      // the total never misses a frame.
-      const summaryToVp = host.classList.contains('con-info__layout') && isVpRoute(to);
-      const vpToSummary = host.classList.contains('con-info__vpxhost') && to === 'summary';
-      if (summaryToVp || vpToSummary) {
-        armScoreHandoff(host);
-      }
-      // A: THE PRESSED ZONE RELEASES ON THE SPOT — its content lets go where
-      // it stands, its plate stays for the detail to unfold out of; every
-      // other zone fades around it.
-      const pressed = infoZoneForRoute(to);
-      if (host.classList.contains('con-info__layout') && pressed !== undefined && pressed !== 'vp' && pressed !== 'extras' &&
-          this.zoneRects.has(pressed)) {
-        const zone = host.querySelector<HTMLElement>(`[data-zone="${pressed}"]`);
-        const others = Array.from(host.querySelectorAll<HTMLElement>('.con-dossier__zone')).filter((z) => z !== zone);
-        const tl = gsap.timeline({onComplete: done});
-        tl.to(others, {opacity: 0, duration: motionMs(110) / 1000, ease: 'power1.in'}, 0);
-        if (zone !== null) {
-          tl.to(Array.from(zone.children), {opacity: 0, duration: motionMs(100) / 1000, ease: 'power1.in'}, 0);
-        }
-        return;
-      }
-      // B FROM A ZONE'S DETAIL: the rows let go, the plate comes back, and
-      // the detail folds INTO the zone's rect (stable geometry — the captured
-      // box is honest); the summary's entry keeps that zone standing.
-      const zoneKey = host.dataset.infoZone;
-      const into = zoneKey === undefined ? undefined : this.zoneRects.get(zoneKey);
-      if (to === 'summary' && zoneKey !== undefined && into !== undefined) {
-        this.returningZone = zoneKey;
-        host.classList.add('con-info__unfolding');
-        host.style.setProperty('--con-unfold-plate', '0');
-        void host.offsetWidth;
-        host.style.setProperty('--con-unfold-plate', '1');
-        const tl = gsap.timeline({onComplete: done});
-        descendCascadeOut(tl, this.detailRows(host), motionMs(90) / 1000, 0);
-        if (!descendFold(tl, host, into, motionMs(240) / 1000, motionMs(40) / 1000, this.zoneRadiusPx())) {
-          tl.to(host, {autoAlpha: 0, duration: motionMs(120) / 1000}, 0);
-        }
-        return;
-      }
-      // THE EXTRAS EXIT (B): the content FOLDS BACK INTO the satellite
-      // column it grew out of — the reverse of the entry phrase, same
-      // anchor, while the summary rises behind it.
-      if (host.classList.contains('con-info__exrhost')) {
-        const satRect = descendRectOf(document.querySelector<HTMLElement>('.con-res-aux'));
-        const tl = gsap.timeline({onComplete: done});
-        descendCascadeOut(tl, this.extrasRows(host), motionMs(90) / 1000, 0);
-        if (!descendFold(tl, host, satRect, motionMs(230) / 1000, motionMs(30) / 1000)) {
-          tl.to(host, {autoAlpha: 0, duration: motionMs(120) / 1000}, 0);
-        }
-        return;
-      }
-      const depth = infoRouteDepth(to);
-      const rising = depth >= this.lastDepth;
-      gsap.to(el, {opacity: 0, y: (rising ? -6 : 5) * conUiScale(), duration: motionMs(95) / 1000, ease: 'power1.in', onComplete: done});
-    },
-    detailZoneCancelled(el: Element): void {
-      gsap.killTweensOf(el);
-      gsap.set(el, {clearProps: 'transform,opacity,clipPath,visibility'});
-      const host = el as HTMLElement;
-      host.classList.remove('con-info__unfolding');
-      host.style.removeProperty('--con-unfold-plate');
-      for (const child of Array.from(host.querySelectorAll<HTMLElement>('.con-dossier__zone, .con-dossier__zone > *'))) {
-        gsap.killTweensOf(child);
-        gsap.set(child, {clearProps: 'opacity'});
-      }
-      disposeScoreHandoff();
-    },
-    /** The dossier plate's corner radius in px (the clip's rounded inset matches the glass it grows out of). */
-    zoneRadiusPx(): number {
-      return 0.75 * 20 * conUiScale();
-    },
-    /** A detail's cascade rows: the known blocks of each detail, else the host's own children (entry / exit choreography). */
-    detailRows(host: HTMLElement): Array<HTMLElement> {
-      const known = Array.from(host.querySelectorAll<HTMLElement>(
-        '.con-efx__filters, .con-efx__detail, .con-efx__group, .con-efx__empty, .con-armsec, ' +
-        '.con-info__parl-sec, .con-info__empty--big, .con-dgal__tile, .con-dgal__void, .con-dgal__legend'));
-      return known.length > 0 ? known : Array.from(host.children) as Array<HTMLElement>;
-    },
-    /** The extras screen's cascade rows (entry/exit choreography). */
-    extrasRows(host: HTMLElement): Array<HTMLElement> {
-      return Array.from(host.querySelectorAll<HTMLElement>(
-        '.con-exr__hero, .con-exr__slot, .con-exr__detail, .con-exr__botpool, .con-exr__botnote, .con-exr__void'));
-    },
-  },
+defineOptions({name: 'ConsoleInfoMode'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  myTurn: {type: Boolean, default: false},
 });
+
+const flow = useFlowScope('info-mode');
+const playedView = useTemplateRef<{handleIntent?: (i: GamepadIntent) => void}>('playedView');
+const scoreView = useTemplateRef<{handleIntent?: (i: GamepadIntent) => void} & {consumeScoreBack?: () => boolean}>('scoreView');
+const extrasView = useTemplateRef<{handleIntent?: (i: GamepadIntent) => void} & {selectType?: (k: string, i: number) => void}>('extrasView');
+const actionsView = useTemplateRef<{handleIntent?: (i: GamepadIntent) => void}>('actionsView');
+const effectsView = useTemplateRef<{handleIntent?: (i: GamepadIntent) => void} & {consumeEffectsBack?: () => boolean}>('effectsView');
+const campaignView = useTemplateRef<{handleIntent?: (i: GamepadIntent) => boolean}>('campaignView');
+/** The previous route's depth — signs the zone-swap direction
+ *  (descend rises from below, B sinks back). */
+const lastDepth = ref(0);
+/**
+ * EVERY dossier zone's rect, captured while the summary is still in the DOM (the out-in enter hook runs
+ * after it left) — the detail a zone opens UNFOLDS out of its zone's box, and B FOLDS back into it (TR60:
+ * «зона раскрывается из плитки», every zone, never a rise from below). Plain (markRaw), never reactive.
+ */
+const zoneRects = markRaw(new Map<string, {left: number, top: number, width: number, height: number}>());
+/** The zone a B is folding back into — the summary's entry keeps it standing while the rest compose. */
+const returningZone = ref<string | undefined>(undefined);
+
+const viewed = computed((): PublicPlayerModel => {
+  const color = infoModeState.playerColor;
+  return props.playerView.players.find((p) => p.color === color) ?? props.playerView.thisPlayer;
+});
+const isSelf = computed((): boolean => {
+  return viewed.value.color === props.playerView.thisPlayer.color;
+});
+/** The viewed participant is the MarsBot seat. */
+const viewedIsBot = computed((): boolean => {
+  return viewed.value.isMarsBot === true;
+});
+const viewedKind = computed((): 'human' | 'bot' => {
+  return viewedIsBot.value && botAutoma.value !== undefined ? 'bot' : 'human';
+});
+const viewedDisplayName = computed((): string => {
+  return participantDisplayName(viewed.value);
+});
+const botAutoma = computed((): MarsBotModel | undefined => {
+  return props.playerView.game.automa;
+});
+const botDifficultyLabel = computed((): string => {
+  const automa = botAutoma.value;
+  return automa !== undefined ? DIFFICULTY_LABEL[automa.difficulty] : '';
+});
+/** The expansion context — resolves bonus-card faces + guide sections for THIS game. */
+const botCardContext = computed((): MarsBotGuideContext => {
+  const expansions = props.playerView.game.gameOptions.expansions;
+  // A random-set game's B14 face lists THIS game's awards (`MarsBotModel.competition` — the server's lines).
+  const competition = props.playerView.game.automa?.competition;
+  return {venus: expansions.venus === true, colonies: expansions.colonies === true, deltaProject: expansions.deltaProject === true,
+    ...(competition !== undefined ? {competition} : {})};
+});
+/** What the current route presents for the current participant —
+ *  'summary' | 'content' | 'fallback' (the capability contract). */
+const presentation = computed((): 'summary' | 'content' | 'fallback' => {
+  if (infoModeState.route === 'summary') {
+    return 'summary';
+  }
+  return infoRoutePresentation(infoModeState.route, viewedKind.value);
+});
+/** The whole vp subtree renders in ONE zone (key 'vp') — a level change
+ *  is the explorer's own phrase, never an out-in swap. */
+const isVpRouteUp = computed((): boolean => {
+  return isVpRoute(infoModeState.route);
+});
+/** The crumb's stage phrase — depth 1 is one word, deeper the hosted-
+ *  step phrase («ЭКРАН БОТА · ПЛАНШЕТ»). The vp subtree names its tail
+ *  DYNAMICALLY (the selected category / family — `scoreStagePath`).
+ *  Already translated (stageRaw). */
+const stagePhrase = computed((): string => {
+  if (infoModeState.route === 'campaign') {
+    // The campaign overview names its own tail (its nested layers).
+    return campaignStagePath().join(' · ');
+  }
+  if (infoModeState.route === 'effects') {
+    // The effects explorer names its tail dynamically (its detail layer
+    // adds the card name — «ЭФФЕКТЫ · <КАРТА>», the tail only advances).
+    return effectsStagePath().join(' · ');
+  }
+  const path = isVpRouteUp.value ?
+    scoreStagePath(infoModeState.route, infoModeState.vpCategoryKey, infoModeState.vpCardsGroup) :
+    infoRouteStagePath(infoModeState.route);
+  // The embedded table's open CATEGORY is the route's own tail («РАЗЫГРАНО · АКТИВНЫЕ») — the category view
+  // never titles itself (the host's crumb is the one place a stage is named).
+  if (infoModeState.route === 'played' && consolePlayedUi.categoryOpen && consolePlayedUi.categoryLabel !== '') {
+    return [...path, consolePlayedUi.categoryLabel].map((key) => translateText(key)).join(' · ');
+  }
+  return path.map((key) => translateText(key)).join(' · ');
+});
+// ── the «КАМПАНИЯ» zone (campaign missions only) ────────────────────
+const campaignContract = computed((): CampaignGameContract | undefined => {
+  return props.playerView.game.gameOptions.campaign;
+});
+/** The viewed participant's campaign seat (grants carry seat + color). */
+const campaignViewedSeat = computed((): number | undefined => {
+  return campaignContract.value?.grants.find((g) => g.color === viewed.value.color)?.seat;
+});
+const campaignMissionText = computed((): string => {
+  const contract = campaignContract.value;
+  if (contract === undefined) {
+    return '';
+  }
+  const frame = translateTextWithParams('${0} of ${1}', [String(contract.missionSlot + 1), String(contract.missionCount)]);
+  // The mission's BOARD belongs in the frame line — «2 из 4 · Элизий».
+  const board = campaignState.model?.missions[contract.missionSlot]?.board;
+  return board !== undefined ? `${frame} · ${translateText(mapLabelKey(board))}` : frame;
+});
+/** The mission's board — its miniature in the zone (absent while the campaign model loads). */
+const campaignBoard = computed((): BoardName | undefined => {
+  const contract = campaignContract.value;
+  return contract === undefined ? undefined : campaignState.model?.missions[contract.missionSlot]?.board;
+});
+const campaignViewedTitles = computed((): ReadonlyArray<{title: TitleName}> => {
+  const seat = campaignViewedSeat.value;
+  const model = campaignState.model;
+  if (seat === undefined || model === undefined) {
+    return [];
+  }
+  return model.progression.titles.filter((t) => t.seat === seat).map((t) => ({title: t.title}));
+});
+const campaignTpText = computed((): string => {
+  const seat = campaignViewedSeat.value;
+  const model = campaignState.model;
+  if (seat === undefined || model === undefined) {
+    return '…';
+  }
+  return translateTextWithParams('${0} TP', [String(model.progression.titlePoints[seat] ?? 0)]);
+});
+const campaignTpNote = computed((): string => {
+  if (campaignViewedTenders.value !== undefined) {
+    return 'Tenders execute at the finale\'s start; an unexecuted one pays 3 M€';
+  }
+  return campaignContract.value?.final === true ?
+    tpStatusLabel('included-now') : tpStatusLabel('accrues-final');
+});
+/** The «Тендеры» mode: the viewed seat's holdings off the campaign document; `undefined` on a titles campaign. */
+const campaignViewedTenders = computed((): ReadonlyArray<TenderHoldingView> | undefined => {
+  const seat = campaignViewedSeat.value;
+  const model = campaignState.model;
+  if (seat === undefined || model === undefined || campaignRewardModeOf(model) !== 'tenders') {
+    return undefined;
+  }
+  return seatTenderHoldings(model, seat);
+});
+const campaignCorpCount = computed((): string => {
+  const seat = campaignViewedSeat.value;
+  const contract = campaignContract.value;
+  if (seat === undefined || contract === undefined) {
+    return '—';
+  }
+  if (viewedIsBot.value) {
+    return '1';
+  }
+  // The lineage entering this mission + the mission's own pick, read
+  // from the LIVE tableau (public) — the same derivation the overview
+  // uses.
+  let count = 0;
+  for (const c of viewed.value.tableau) {
+    try {
+      if (getCard(c.name)?.type === CardType.CORPORATION) {
+        count++;
+      }
+    } catch (err) {
+      // manifest gap — skip
+    }
+  }
+  const lineage = contract.grants.find((g) => g.seat === seat)?.corporations.length ?? 0;
+  return String(Math.max(count, lineage));
+});
+const fallbackBody = computed((): string => {
+  return viewedKind.value === 'bot' ?
+    'Nothing here for this player' :
+    'This section exists only for the bot';
+});
+const isBotRoute = computed((): boolean => {
+  const r = infoModeState.route;
+  return r === 'botScreen' || r === 'botBoard' || r === 'botBonus';
+});
+const botSectionMode = computed((): 'botScreen' | 'botBoard' | 'botBonus' => {
+  const r = infoModeState.route;
+  return r === 'botBoard' ? 'botBoard' : r === 'botBonus' ? 'botBonus' : 'botScreen';
+});
+const isPassed = computed((): boolean => {
+  return props.playerView.game.passedPlayers.includes(viewed.value.color);
+});
+/** EVERY corporation in the viewed tableau, in tableau order — a
+ *  campaign lineage routinely holds several. */
+const corpNames = computed((): ReadonlyArray<string> => {
+  // The bot's tableau is empty — its corporation rides `automa.corporation`
+  // (absent on legacy corpless saves) and resolves through the ONE resolver.
+  if (viewedIsBot.value) {
+    const corp = botAutoma.value?.corporation;
+    // …and its campaign holdings are further corporations, counted like a player's lineage.
+    return corp !== undefined ? [marsBotCorpDisplayName(corp.id), ...(botAutoma.value?.holdings ?? []).map((h) => marsBotCorpDisplayName(h.id))] : [];
+  }
+  const names: Array<string> = [];
+  for (const c of viewed.value.tableau) {
+    try {
+      if (getCard(c.name)?.type === CardType.CORPORATION) {
+        names.push(c.name);
+      }
+    } catch (err) {
+      // manifest gap — skip
+    }
+  }
+  return names;
+});
+const corpName = computed((): string => {
+  return corpNames.value[0] ?? '';
+});
+const corpExtraCount = computed((): number => {
+  return Math.max(0, corpNames.value.length - 1);
+});
+const corpExtraText = computed((): string => {
+  return translateTextWithParams('and ${0} more', [String(corpExtraCount.value)]);
+});
+// ── the LIVE SCORE (shared with the endgame's category system) ────────
+/** VP visibility: self always; the bot always (its state is open
+ *  information — the server ships its real breakdown); opponents only
+ *  when the game options allow. */
+const vpVisible = computed((): boolean => {
+  return isSelf.value || viewedIsBot.value ||
+    props.playerView.game.gameOptions.showOtherPlayersVP === true;
+});
+const liveScore = computed((): LiveScoreModel => {
+  const game = props.playerView.game;
+  return buildLiveScoreModel(viewed.value.victoryPointsBreakdown, {
+    isBot: viewedIsBot.value,
+    hasMoon: game.moon !== undefined,
+    hasPathfinders: game.pathfinders !== undefined,
+    hasDelta: game.gameOptions.expansions.deltaProject === true,
+    hasTitles: game.gameOptions.campaign?.final === true,
+    hasParliament: game.parliament !== undefined,
+  });
+});
+/** The summary bar's positive segments (a penalty subtracts — it is
+ *  stated in the legend, never drawn as a stripe). */
+const vpBarSegments = computed((): Array<{key: string, accent: string, widthPct: number}> => {
+  const positive = liveScore.value.positiveTotal;
+  if (positive <= 0) {
+    return [];
+  }
+  return liveScore.value.categories
+    .filter((cat) => cat.value > 0)
+    .map((cat) => ({
+      key: cat.key,
+      accent: cat.accent,
+      widthPct: (cat.value / positive) * 100,
+    }));
+});
+// ── THE DOSSIER (TR60) — every object of the summary, from the models (`infoDossierModel`) ──────────────────
+/** The score's medallions — the overview's tiles (the ceremony's order) with each category's own symbol. */
+const dossierMedallions = computed((): ReadonlyArray<DossierMedallion> => {
+  return dossierMedallionsOf(buildScoreOverview(liveScore.value, viewed.value.victoryPointsBreakdown, {isBot: viewedIsBot.value}));
+});
+/** A hidden score's SEALED cell: only what is public on the table — never a VP number (`vpVisible` said no). */
+const sealedFacts = computed((): DossierSealedFacts => {
+  const game = props.playerView.game;
+  return dossierSealedFacts(viewed.value.terraformRating, viewed.value.color,
+    (game.milestones ?? []).map((m) => ({name: m.name, color: m.color})),
+    (game.awards ?? []).map((a) => ({name: a.name, color: a.color})),
+    maArtSlug, viewedRatingVeto.value);
+});
+/** The VIEWED seat is under the rating veto (RX42) — the law's name; read off the server's live leaders. */
+const viewedRatingVeto = computed((): {law: string} | undefined => {
+  const enacted = props.playerView.game.parliament?.enacted;
+  const veto = enacted?.trVeto;
+  if (enacted === undefined || veto === undefined || !veto.leaders.some((l) => l.color === viewed.value.color)) {
+    return undefined;
+  }
+  const seat = props.playerView.game.parliament?.players.find((p) => p.color === viewed.value.color);
+  return seat !== undefined && !seatRestricted(seat) ? undefined : {law: getResolution(enacted.resolution)?.text.name ?? enacted.resolution};
+});
+/** Display names by colour — for the surfaces that name a seat in words. */
+const playerNamesByColor = computed((): Readonly<Record<string, string>> => {
+  const out: Record<string, string> = {};
+  for (const p of props.playerView.players) {
+    out[p.color] = p.name;
+  }
+  return out;
+});
+/** The card story — the played table's own grouping (the bot's pile + its corporation, the parity). */
+const cardHistory = computed((): DossierCardHistory => {
+  const automa = viewedIsBot.value ? botAutoma.value : undefined;
+  const tableau = automa !== undefined ? botTableauCards(automa) : viewed.value.tableau;
+  return dossierCardHistory(buildPlayedZones(tableau), DOSSIER_FACES_PER_STACK, automa?.corporation !== undefined ? 1 : 0);
+});
+/** The action cards as tiles — the viewer's own with the server's reasons, another seat's by the public «used». */
+const dossierActions = computed((): ReadonlyArray<DossierActionTile> => {
+  const hasAction = (name: CardName) => {
+    try {
+      return cardHasAction(name);
+    } catch (err) {
+      return false;
+    }
+  };
+  const cards = dossierActionTiles(viewed.value.tableau, hasAction, new Set(viewed.value.actionsThisGeneration ?? []), isSelf.value);
+  // The Parliament's actions stand among the seat's actions like cards (the gallery behind the zone lists them too).
+  const political = parliamentActionSources({
+    parliament: props.playerView.game.parliament,
+    color: viewed.value.color,
+    viewerColor: props.playerView.thisPlayer?.color,
+    waitingFor: isSelf.value ? props.playerView.waitingFor : undefined,
+  });
+  return withPoliticalActionTiles(cards, dossierPoliticalActions(political));
+});
+const dossierEffects = computed((): ReadonlyArray<DossierEffectFamily> => {
+  return dossierEffectFamilies(effectsZone.value, armedCount.value);
+});
+/** The bot door's piles — the public counts of the decks the algorithm plays from (its room explains them). */
+/** The bot door's medallions — the decks the algorithm plays from, each with a symbol that reads without colour. */
+const botPiles = computed((): ReadonlyArray<{key: string, label: string, count: number, glyph: string}> => {
+  const automa = botAutoma.value;
+  if (automa === undefined) {
+    return [];
+  }
+  return [
+    {key: 'action', label: 'Action deck', count: automa.actionDeckSize, glyph: '▤'},
+    {key: 'bonus', label: 'Bonus deck', count: automa.bonusDeckSize, glyph: '◈'},
+    {key: 'discard', label: 'Bonus discard', count: automa.bonusDiscard.length, glyph: '↺'},
+    {key: 'destroyed', label: 'Destroyed cards', count: automa.destroyedBonusCards.length, glyph: '✕'},
+  ];
+});
+/** The cards that carry the seat's passive effects (tableau order, each once) — the effects plate's coins. */
+const effectCardNames = computed((): ReadonlyArray<CardName> => {
+  return Array.from(new Set(playerEffects(viewed.value.tableau).map((e) => e.cardName)));
+});
+// ── the summary zones ─────────────────────────────────────────────────
+/* («КАРТЫ» — the old shared card-potential readout — is GONE: the HAND
+   DOCK is the one physical representation of the inspected seat's hand.
+   «ДОП. РЕСУРСЫ» is GONE from the panel too — the RAIL SATELLITE beside
+   the left rail is the zone's one physical body: the summary's leftmost
+   ring stop and the extras screen's type navigation, pixel-anchored
+   across the whole flow.) */
+/** The inspected seat's effect stats (undefined while on the wire — the
+ *  zone line and the explorer's metas honestly claim nothing). */
+const effectsStats = computed((): ReadonlyArray<EffectOverlayStat> | undefined => {
+  return viewedIsBot.value ? undefined : effectStatsFor(viewed.value.color);
+});
+/** The stats cache's OWN key — the watcher below re-ensures on it, so
+ *  the surface refetches on exactly the set the cache invalidates on. */
+const effectsStatsKey = computed((): string => {
+  return effectStatsVersion(props.playerView, viewed.value.color);
+});
+/** Per-EFFECT family counts for the zone (the old per-card «Активные /
+ *  Скидки» pair — whose discount predicate was always true — is gone). */
+/** The inspected seat's armed one-play effects (TR49 class — public). */
+const armedCount = computed((): number => {
+  return viewed.value.armedPlayEffects?.length ?? 0;
+});
+/** The Parliament's standing effects the inspected seat holds — groups of the explorer's grid, counted in the zone. */
+const effectsPolitical = computed((): ReadonlyArray<PoliticalEffectEntry> => {
+  const parliament = props.playerView.game.parliament;
+  return politicalEffectEntries(politicalSources(parliament, viewed.value.color), {
+    parliament,
+    viewerColor: props.playerView.thisPlayer?.color,
+    playerNames: playerNamesByColor.value,
+  });
+});
+const effectsZone = computed((): EffectsZoneCounts => {
+  // ONE count with the grid: a party's / the law's effect is an effect of this seat like a card's (the zone never lies).
+  return effectsZoneCounts([...effectsPolitical.value, ...playerEffects(viewed.value.tableau)], viewed.value.tableau);
+});
+/** The zone's quiet whole-game line («Срабатываний: N · Сэкономлено: M»). */
+const effectsZoneNote = computed((): string => {
+  const line = effectsZoneStatsLine(effectsStats.value);
+  if (line === undefined || line.triggers === 0) {
+    return '';
+  }
+  const parts = [`${translateText('Times triggered')}: ${line.triggers}`];
+  if (line.savedMc > 0) {
+    parts.push(`${translateText('Saved')}: ${line.savedMc} ${translateText('Megacredits')}`);
+  }
+  return parts.join(' · ');
+});
+/** The live command contract — published to the shell's ONE bottom
+ *  command bar through consolePanelUi (the footCommands watch below). */
+const footCommands = computed((): Array<ConsoleCommand> => {
+  const route = infoModeState.route;
+  // The embedded «Разыграно» grammar — honest to the table's live
+  // mirrors (consolePlayedUi), same verbs as the board-home overlay.
+  if (route === 'played' && presentation.value === 'content') {
+    if (consolePlayedUi.categoryBusy) {
+      return [{control: 'back', label: 'Back'}];
+    }
+    if (consolePlayedUi.categoryOpen) {
+      return [
+        {control: 'secondary', label: 'Inspect'},
+        ...(consolePlayedUi.pageCount > 1 ? [{control: 'bumperL', control2: 'bumperR', label: 'Browse', priority: 1} as ConsoleCommand] : []),
+        {control: 'back', label: 'Back'},
+        {control: 'inspect', label: 'Close', priority: 0},
+      ];
+    }
+    return [
+      {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
+      {control: 'confirm', label: 'Open', enabled: consolePlayedUi.focusCategory !== ''},
+      {control: 'back', label: 'To overview'},
+      {control: 'inspect', label: 'Close', priority: 0},
+    ];
+  }
+  // The SCORE EXPLORER owns its own command contract (focus-honest
+  // hints — «X Осмотреть» only over a previewable row). One publisher
+  // stays: this computed returns the explorer's list verbatim.
+  if (isVpRoute(route) && scoreExplorerUi.barCommands !== undefined) {
+    return [...scoreExplorerUi.barCommands];
+  }
+  // …and so does the EXTRAS EXPLORER (the satellite + gallery screen).
+  if (route === 'extras' && extrasExplorerUi.barCommands !== undefined) {
+    return [...extrasExplorerUi.barCommands];
+  }
+  // …and the «ДЕЙСТВИЯ» gallery (TR60 — its cursor and X; honest to an empty table).
+  if (route === 'actions' && presentation.value === 'content' && infoActionsUi.barCommands !== undefined) {
+    return [...infoActionsUi.barCommands];
+  }
+  // …and the EFFECTS EXPLORER (browse ⇄ detail change the verbs).
+  if (route === 'effects' && effectsExplorerUi.barCommands !== undefined) {
+    return [...effectsExplorerUi.barCommands];
+  }
+  // …and the CAMPAIGN OVERVIEW (its nested layers change the verbs).
+  if (route === 'campaign' && campaignOverviewUi.barCommands !== undefined) {
+    return [
+      {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
+      ...campaignOverviewUi.barCommands,
+      {control: 'inspect', label: 'Close', priority: 0},
+    ];
+  }
+  const cmds: Array<ConsoleCommand> = [
+    {control: 'bumperL', control2: 'bumperR', label: 'Players', priority: 1},
+  ];
+  if (route === 'summary') {
+    // ONE navigation model: the ring focuses, A opens. The hint names
+    // the FOCUSED zone (the dedicated per-block buttons are gone — this
+    // is the one place the press's meaning is spelled out). On the
+    // satellite the hint names the FOCUSED CHIP's resource type —
+    // «Открыть: астероиды», never a generic group word.
+    const focusedChip = focusedExtrasChip.value;
+    if (infoModeState.summaryFocus === 'extras' && focusedChip !== undefined) {
+      cmds.push({control: 'confirm', label: 'Open: ${0}', labelParams: [translateText(focusedChip.label)]});
+    } else if (summaryFocusEnterable.value && summaryFocusTitle.value !== '') {
+      cmds.push({control: 'confirm', label: 'Open: ${0}', labelParams: [translateText(summaryFocusTitle.value)]});
+    } else {
+      cmds.push({control: 'confirm', label: 'Open', enabled: false});
+    }
+  } else if (route === 'botScreen' && presentation.value === 'content') {
+    cmds.push({control: 'confirm', label: 'Open'});
+    cmds.push({control: 'back', label: 'To overview'});
+  } else if (infoRouteDepth(route) >= 2) {
+    cmds.push({control: 'back', label: 'Back'});
+  } else {
+    cmds.push({control: 'back', label: 'To overview'});
+  }
+  cmds.push({control: 'inspect', label: 'Close', priority: 0});
+  return cmds;
+});
+/** The focused summary zone's display title — the contextual half of
+ *  the bar's «A Открыть: …» hint. */
+const summaryFocusTitle = computed((): string => {
+  switch (infoModeState.summaryFocus) {
+  case 'extras': return 'Extra resources';
+  case 'vp': return 'Victory Points';
+  case 'played': return 'Played cards';
+  case 'actions': return 'Actions';
+  case 'effects': return 'Effects';
+  case 'parliament': return 'Parliament';
+  case 'campaign': return 'Campaign';
+  case 'botdoor': return 'MarsBot screen';
+  default: return '';
+  }
+});
+/** May A enter the currently focused summary zone? */
+const summaryFocusEnterable = computed((): boolean => {
+  return infoZoneFocusable(infoModeState.summaryFocus, viewedKind.value, zoneCtx.value);
+});
+/** The inspected seat's satellite chips (same derivation as the rail). */
+const extrasChips = computed((): ReadonlyArray<InfoExtrasChip> => {
+  return infoExtrasChips(viewed.value, viewedIsBot.value ? botAutoma.value : undefined,
+    marsBotExtrasContext(props.playerView.game));
+});
+/** The zone-table context: game shape + the seat's satellite presence
+ *  (an empty extras column is no ring stop — same rule as the shell).
+ *  ⚠️ Its GAME terms must match `ConsoleShell.infoZoneCtx`, which navigates
+ *  the very ring this draws — see the warning there. */
+const zoneCtx = computed((): {campaign: boolean, extras: boolean, parliament: boolean} => {
+  return {
+    campaign: campaignContract.value !== undefined,
+    extras: extrasChips.value.length > 0,
+    // A fact of the GAME, exactly like the campaign — not of the inspected seat.
+    parliament: props.playerView.game.parliament !== undefined,
+  };
+});
+/**
+ * THE INSPECTED SEAT'S STANDING in the parliament — the zone's summary and
+ * its whole detail, from ONE model (`seatParliamentReadingOf`), read in the
+ * person of whoever is looking. Undefined outside a parliament game.
+ */
+const parliamentReading = computed((): SeatParliamentReadingVm | undefined => {
+  const model = props.playerView.game.parliament;
+  if (model === undefined) {
+    return undefined;
+  }
+  return seatParliamentReadingOf(model, viewed.value.color, viewed.value.tableau, {viewer: props.playerView.thisPlayer.color});
+});
+/** The chip the summary ring stands on (clamped — the composition can
+ *  shrink under the cursor on a seat switch). */
+const focusedExtrasChip = computed((): InfoExtrasChip | undefined => {
+  const chips = extrasChips.value;
+  if (chips.length === 0) {
+    return undefined;
+  }
+  return chips[Math.min(infoModeState.extrasCursor, chips.length - 1)];
+});
+
+/** Pre-decode the resource HOLDERS' premium art at panel open — the
+ *  extras gallery then enters with its faces already warm. */
+function warmExtrasArt(): void {
+  const holders = viewed.value.tableau
+    .filter((c) => {
+      try {
+        return getCard(c.name)?.resourceType !== undefined;
+      } catch (err) {
+        return false;
+      }
+    })
+    .map((c) => c.name);
+  if (holders.length > 0) {
+    preloadPremiumCardArt(holders);
+  }
+}
+/** The focus-ring state of a summary zone (ring only where A can go). */
+function zoneStateClass(zone: string): Record<string, boolean> {
+  const focusable = infoZoneFocusable(zone as never, viewedKind.value, zoneCtx.value);
+  return {
+    'con-info__zone--focusable': focusable,
+    'con-info__zone--focused': focusable && infoModeState.summaryFocus === zone,
+  };
+}
+function titleLabel(title: TitleName): string {
+  return TITLE_LABEL[title];
+}
+/** The embedded table's own close event (B at table level). */
+function closePlayedRoute(): void {
+  infoModeState.route = 'summary';
+  infoModeState.summaryFocus = 'played';
+}
+/** The shell forwards the pad to the embedded «Разыграно» table while
+ *  the played route is up (LB/RB and Y are handled globally first). */
+function handlePlayedIntent(intent: GamepadIntent): void {
+  playedView.value?.handleIntent?.(intent);
+}
+/** …and to the score explorer while a vp route is up (same contract). */
+function handleScoreIntent(intent: GamepadIntent): void {
+  scoreView.value?.handleIntent?.(intent);
+}
+/** …and to the extras explorer while the extras route is up. */
+function handleExtrasIntent(intent: GamepadIntent): void {
+  extrasView.value?.handleIntent?.(intent);
+}
+/** …and to the «Действия» gallery while the actions route is up (TR60). */
+function handleActionsIntent(intent: GamepadIntent): void {
+  actionsView.value?.handleIntent?.(intent);
+}
+/** …and to the effects explorer while the effects route is up. */
+function handleEffectsIntent(intent: GamepadIntent): void {
+  effectsView.value?.handleIntent?.(intent);
+}
+/** B consumes the effects explorer's open detail before walking the tree. */
+function consumeEffectsBack(): boolean {
+  return effectsView.value?.consumeEffectsBack?.() === true;
+}
+/** …and to the campaign overview while the campaign route is up.
+ *  Returns false when the overview did not consume it (B at its base
+ *  layer — the shell then walks the route tree back to the summary). */
+function handleCampaignIntent(intent: GamepadIntent): boolean {
+  return campaignView.value?.handleIntent?.(intent) === true;
+}
+/** A satellite cell press routed by the shell (mouse/touch): select
+ *  the type inside the live explorer. */
+function selectExtrasType(key: string, index: number): void {
+  extrasView.value?.selectType?.(key, index);
+}
+/** B consumes the explorer's MA inspection before walking the tree. */
+function consumeScoreBack(): boolean {
+  return scoreView.value?.consumeScoreBack?.() === true;
+}
+// ── the content-zone swap beat (route changes) ──────────────────────
+// TR60 — «ЗОНА РАСКРЫВАЕТСЯ ИЗ ПЛИТКИ»: every zone of the dossier is the
+// DOOR of its detail, and the transition is ONE phrase, both ways (the
+// workspace law: RELEASE on the spot → UNFOLD from the rect the old
+// object occupied → REVEAL from inside — never a `mode="out-in"` gap with
+// nothing in it):
+//   A — the pressed zone's CONTENT lets go where it stands while the
+//       other zones fade; its glass plate stays. At the swap the detail
+//       arrives as THAT plate (`con-info__unfolding` — the same glass, the
+//       same rect), unfolds to the whole room, its rows rise inside it,
+//       and the plate dissolves under them;
+//   B — the rows let go, the plate comes back, the detail folds INTO the
+//       zone's rect; the summary arrives with that zone standing (its
+//       content surfacing in place) while the rest compose around it.
+// The score keeps its shared-element handoff (the total and the bar fly)
+// and the extras keep the satellite column as their continuity. A seat
+// switch keeps the key (routes are semantic) → no beat here at all.
+function detailZoneEnter(el: Element, done: () => void): void {
+  if (consoleReducedMotionActive()) {
+    gsap.set(el, {clearProps: 'transform,opacity'});
+    returningZone.value = undefined;
+    // A SYNCHRONOUS done inside an out-in hook wedges the swap: Vue is
+    // still inside the leave/enter patch when the callback fires, and
+    // the deferred insertion of the incoming zone never runs (measured:
+    // the explorer stayed mounted at the summary route). One microtask
+    // of distance is the whole fix — never rAF (headless starves it).
+    void Promise.resolve().then(done);
+    return;
+  }
+  // The SCORE HANDOFF: when the leaving zone armed the shared elements
+  // (summary → explorer, or explorer → summary on B), the total and the
+  // bar FLY between the zones while the categories unfold/cascade —
+  // this replaces the plain fade for exactly this pair of zones.
+  const host = el as HTMLElement;
+  const depth = infoRouteDepth(infoModeState.route);
+  const cascade = Array.from(host.querySelectorAll<HTMLElement>('.con-vpx__tile, .con-infovp__cat'));
+  if (playScoreHandoff(host, cascade, done)) {
+    lastDepth.value = depth;
+    returningZone.value = undefined;
+    return;
+  }
+  // THE EXTRAS ENTRY: the content UNFOLDS OUT OF the satellite column —
+  // the very object the player pressed (which itself never moves: it is
+  // shell chrome, the pixel-anchored half of this screen). The satellite
+  // is alive on both sides of the swap, so no proxy handoff is needed —
+  // the continuity IS the column.
+  if (host.classList.contains('con-info__exrhost')) {
+    lastDepth.value = depth;
+    const satRect = descendRectOf(document.querySelector<HTMLElement>('.con-res-aux'));
+    const tl = gsap.timeline({onComplete: done});
+    if (!descendUnfold(tl, host, satRect, motionMs(280) / 1000, 0)) {
+      tl.fromTo(host, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(160) / 1000, clearProps: 'opacity,visibility'}, 0);
+    }
+    descendCascade(tl, extrasRows(host), motionMs(175) / 1000, motionMs(140) / 1000, 0.03);
+    return;
+  }
+  // THE SUMMARY AFTER A B: the zone the detail folded into is STANDING
+  // (its plate at once, its content surfacing in place); the rest of the
+  // dossier composes around it.
+  if (host.classList.contains('con-info__layout') && returningZone.value !== undefined) {
+    const zone = host.querySelector<HTMLElement>(`[data-zone="${returningZone.value}"]`);
+    returningZone.value = undefined;
+    lastDepth.value = depth;
+    const others = Array.from(host.querySelectorAll<HTMLElement>('.con-dossier__zone')).filter((z) => z !== zone);
+    const tl = gsap.timeline({onComplete: done});
+    if (zone !== null) {
+      tl.fromTo(Array.from(zone.children), {opacity: 0}, {opacity: 1, duration: motionMs(150) / 1000, ease: 'power2.out', clearProps: 'opacity'}, 0);
+    }
+    tl.fromTo(others, {opacity: 0}, {opacity: 1, duration: motionMs(190) / 1000, ease: 'power2.out', stagger: 0.03, clearProps: 'opacity'}, motionMs(40) / 1000);
+    return;
+  }
+  // A ZONE'S DETAIL: it arrives as the zone's plate and unfolds out of
+  // the rect the zone stood in (captured in the summary's leave hook —
+  // the enter runs after the summary detached).
+  const zoneKey = host.dataset.infoZone;
+  const from = zoneKey === undefined ? undefined : zoneRects.get(zoneKey);
+  if (from !== undefined) {
+    lastDepth.value = depth;
+    host.classList.add('con-info__unfolding');
+    host.style.setProperty('--con-unfold-plate', '1');
+    const tl = gsap.timeline({onComplete: () => {
+      // The plate dissolves UNDER the revealed rows (a CSS opacity transition), then lets go of the host.
+      host.style.setProperty('--con-unfold-plate', '0');
+      motionAfter(motionMs(280), 'the unfold plate dissolves, then lets go of its host', () => {
+        host.classList.remove('con-info__unfolding');
+        host.style.removeProperty('--con-unfold-plate');
+      }, flow);
+      done();
+    }});
+    // The door gives from its FIRST frame (power3.out): the plate is the continuity, a slow start reads as a stall.
+    descendUnfold(tl, host, from, motionMs(320) / 1000, 0, zoneRadiusPx(), 'power3.out');
+    descendCascade(tl, detailRows(host), motionMs(170) / 1000, motionMs(160) / 1000, 0.03);
+    return;
+  }
+  const rising = depth >= lastDepth.value;
+  lastDepth.value = depth;
+  gsap.fromTo(el,
+    {opacity: 0, y: (rising ? 10 : -8) * conUiScale()},
+    {opacity: 1, y: 0, duration: motionMs(180) / 1000, ease: 'power2.out', clearProps: 'transform,opacity', onComplete: done});
+}
+function detailZoneLeave(el: Element, done: () => void): void {
+  const to = infoModeState.route;
+  const host = el as HTMLElement;
+  // Every zone's box, measured while the summary still stands — the door
+  // geometry both ways (the enter hook runs after this node detached).
+  if (host.classList.contains('con-info__layout')) {
+    zoneRects.clear();
+    for (const zone of Array.from(host.querySelectorAll<HTMLElement>('[data-zone]'))) {
+      const rect = descendRectOf(zone);
+      if (zone.dataset.zone !== undefined && rect !== undefined) {
+        zoneRects.set(zone.dataset.zone, rect);
+      }
+    }
+  }
+  if (consoleReducedMotionActive()) {
+    void Promise.resolve().then(done); // see detailZoneEnter — never sync
+    return;
+  }
+  // Arm the shared-element handoff on the two zones that exchange the
+  // total + bar: the summary leaving FOR the explorer, and the explorer
+  // leaving BACK to the summary. The proxies bridge the out-in gap, so
+  // the total never misses a frame.
+  const summaryToVp = host.classList.contains('con-info__layout') && isVpRoute(to);
+  const vpToSummary = host.classList.contains('con-info__vpxhost') && to === 'summary';
+  if (summaryToVp || vpToSummary) {
+    armScoreHandoff(host);
+  }
+  // A: THE PRESSED ZONE RELEASES ON THE SPOT — its content lets go where
+  // it stands, its plate stays for the detail to unfold out of; every
+  // other zone fades around it.
+  const pressed = infoZoneForRoute(to);
+  if (host.classList.contains('con-info__layout') && pressed !== undefined && pressed !== 'vp' && pressed !== 'extras' &&
+      zoneRects.has(pressed)) {
+    const zone = host.querySelector<HTMLElement>(`[data-zone="${pressed}"]`);
+    const others = Array.from(host.querySelectorAll<HTMLElement>('.con-dossier__zone')).filter((z) => z !== zone);
+    const tl = gsap.timeline({onComplete: done});
+    tl.to(others, {opacity: 0, duration: motionMs(110) / 1000, ease: 'power1.in'}, 0);
+    if (zone !== null) {
+      tl.to(Array.from(zone.children), {opacity: 0, duration: motionMs(100) / 1000, ease: 'power1.in'}, 0);
+    }
+    return;
+  }
+  // B FROM A ZONE'S DETAIL: the rows let go, the plate comes back, and
+  // the detail folds INTO the zone's rect (stable geometry — the captured
+  // box is honest); the summary's entry keeps that zone standing.
+  const zoneKey = host.dataset.infoZone;
+  const into = zoneKey === undefined ? undefined : zoneRects.get(zoneKey);
+  if (to === 'summary' && zoneKey !== undefined && into !== undefined) {
+    returningZone.value = zoneKey;
+    host.classList.add('con-info__unfolding');
+    host.style.setProperty('--con-unfold-plate', '0');
+    void host.offsetWidth;
+    host.style.setProperty('--con-unfold-plate', '1');
+    const tl = gsap.timeline({onComplete: done});
+    descendCascadeOut(tl, detailRows(host), motionMs(90) / 1000, 0);
+    if (!descendFold(tl, host, into, motionMs(240) / 1000, motionMs(40) / 1000, zoneRadiusPx())) {
+      tl.to(host, {autoAlpha: 0, duration: motionMs(120) / 1000}, 0);
+    }
+    return;
+  }
+  // THE EXTRAS EXIT (B): the content FOLDS BACK INTO the satellite
+  // column it grew out of — the reverse of the entry phrase, same
+  // anchor, while the summary rises behind it.
+  if (host.classList.contains('con-info__exrhost')) {
+    const satRect = descendRectOf(document.querySelector<HTMLElement>('.con-res-aux'));
+    const tl = gsap.timeline({onComplete: done});
+    descendCascadeOut(tl, extrasRows(host), motionMs(90) / 1000, 0);
+    if (!descendFold(tl, host, satRect, motionMs(230) / 1000, motionMs(30) / 1000)) {
+      tl.to(host, {autoAlpha: 0, duration: motionMs(120) / 1000}, 0);
+    }
+    return;
+  }
+  const depth = infoRouteDepth(to);
+  const rising = depth >= lastDepth.value;
+  gsap.to(el, {opacity: 0, y: (rising ? -6 : 5) * conUiScale(), duration: motionMs(95) / 1000, ease: 'power1.in', onComplete: done});
+}
+function detailZoneCancelled(el: Element): void {
+  gsap.killTweensOf(el);
+  gsap.set(el, {clearProps: 'transform,opacity,clipPath,visibility'});
+  const host = el as HTMLElement;
+  host.classList.remove('con-info__unfolding');
+  host.style.removeProperty('--con-unfold-plate');
+  for (const child of Array.from(host.querySelectorAll<HTMLElement>('.con-dossier__zone, .con-dossier__zone > *'))) {
+    gsap.killTweensOf(child);
+    gsap.set(child, {clearProps: 'opacity'});
+  }
+  disposeScoreHandoff();
+}
+/** The dossier plate's corner radius in px (the clip's rounded inset matches the glass it grows out of). */
+function zoneRadiusPx(): number {
+  return 0.75 * 20 * conUiScale();
+}
+/** A detail's cascade rows: the known blocks of each detail, else the host's own children (entry / exit choreography). */
+function detailRows(host: HTMLElement): Array<HTMLElement> {
+  const known = Array.from(host.querySelectorAll<HTMLElement>(
+    '.con-efx__filters, .con-efx__detail, .con-efx__group, .con-efx__empty, .con-armsec, ' +
+    '.con-info__parl-sec, .con-info__empty--big, .con-dgal__tile, .con-dgal__void, .con-dgal__legend'));
+  return known.length > 0 ? known : Array.from(host.children) as Array<HTMLElement>;
+}
+/** The extras screen's cascade rows (entry/exit choreography). */
+function extrasRows(host: HTMLElement): Array<HTMLElement> {
+  return Array.from(host.querySelectorAll<HTMLElement>(
+    '.con-exr__hero, .con-exr__slot, .con-exr__detail, .con-exr__botpool, .con-exr__botnote, .con-exr__void'));
+}
+
+/** Warm the extras gallery's art for the NEW seat — the biggest webp
+ *  decode on the panel, and the one surface where a late-arriving face
+ *  is a visible defect (the 4K faces decode in hundreds of ms). */
+watch(() => infoModeState.playerColor, (): void => {
+  warmExtrasArt();
+});
+/** Keep the inspected seat's effect stats warm — the ONE recipe: the
+ *  store's own version stamp (gameStateVersion + seat), the same pair
+ *  the server memoizes the route on. Feeds both the zone's whole-game
+ *  line and the explorer's tile metas / «За партию» panel. */
+watch(() => effectsStatsKey.value, (): void => {
+  if (!viewedIsBot.value) {
+    ensureEffectStats(props.playerView, viewed.value.color);
+  }
+}, {immediate: true});
+/** Publish the CONTEXTUAL command contract to the shell's ONE bottom
+ *  command bar (consolePanelUi) — hints live only there, never in a
+ *  panel-local footer (CONSOLE_TV_PREMIUM_PLAN §3.2). */
+watch(() => footCommands.value, (cmds: ReadonlyArray<ConsoleCommand>) => {
+  setPanelCommands('infoMode', cmds);
+}, {immediate: true, deep: true});
+
+onMounted(() => {
+  warmExtrasArt();
+  // Campaign missions: prefetch the campaign document at panel open, so
+  // the «Кампания» zone fills its personal half and the full overview
+  // opens with its data already standing (no intermediate empty page).
+  const contract = campaignContract.value;
+  if (contract !== undefined) {
+    setCampaignViewerName(props.playerView.thisPlayer.name);
+    void openCampaign(contract.campaignId);
+  }
+});
+onBeforeUnmount(() => {
+  clearPanelCommands('infoMode');
+  disposeScoreHandoff();
+});
+defineExpose({consumeEffectsBack, consumeScoreBack, handleActionsIntent, handleCampaignIntent, handleEffectsIntent, handleExtrasIntent, handlePlayedIntent, handleScoreIntent, selectExtrasType});
 </script>
