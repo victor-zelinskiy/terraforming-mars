@@ -1,19 +1,4 @@
 <template>
-  <!--
-    PLAYED-CARD HERO STAGE — the fixed, app-level proxy layer of the "card
-    lands on my tableau" scene (consolePlayedHero / playedHeroDirector).
-    Mounted for the WHOLE transaction (arm → done), so:
-     - the flight survives the composer unmounting beneath it;
-     - the leak detector counts `.con-played-hero` as the serving surface
-       while the scene briefly holds a fresh follow-up prompt.
-    The proxy is the SAME lite face pipeline every console flight uses
-    (ConsoleCardFaceLite + the shared flip chassis classes), spawned from the
-    real card's measured rect — one physical object, never a lookalike.
-    `data-hero-phase` / `data-hero-wait` are the scene's witnesses: written in
-    the director's own task (a Vue patch, no frame needed), so a probe tells
-    «the lifted card waits for its target» (`data-hero-wait="target"`) from
-    «no frame was painted» during the lift or the arc (PL-625).
-  -->
   <div v-if="playedHeroState.active || playedReturnState.active" class="con-played-hero" aria-hidden="true"
        :data-hero-phase="playedHeroState.phase"
        :data-hero-wait="playedHeroState.awaitingTarget ? 'target' : undefined"
@@ -58,66 +43,80 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * PLAYED-CARD HERO STAGE — the fixed, app-level proxy layer of the "card
+ * lands on my tableau" scene (consolePlayedHero / playedHeroDirector).
+ * Mounted for the WHOLE transaction (arm → done), so:
+ *  - the flight survives the composer unmounting beneath it;
+ *  - the leak detector counts `.con-played-hero` as the serving surface
+ *    while the scene briefly holds a fresh follow-up prompt.
+ * The proxy is the SAME lite face pipeline every console flight uses
+ * (ConsoleCardFaceLite + the shared flip chassis classes), spawned from the
+ * real card's measured rect — one physical object, never a lookalike.
+ * `data-hero-phase` / `data-hero-wait` are the scene's witnesses: written in
+ * the director's own task (a Vue patch, no frame needed), so a probe tells
+ * «the lifted card waits for its target» (`data-hero-wait="target"`) from
+ * «no frame was painted» during the lift or the arc (PL-625).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {onBeforeUnmount, onMounted, ref, useTemplateRef} from 'vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {playedHeroState, registerPlayedHeroStage} from '@/client/console/played/consolePlayedHero';
 import {playedReturnState, registerReturnFlightEls} from '@/client/console/played/playedCardReturn';
 import {HeroStageEls} from '@/client/console/played/playedHeroDirector';
 
-export default defineComponent({
-  name: 'ConsolePlayedHeroLayer',
-  components: {ConsoleCardFaceLite},
-  data() {
-    return {
-      playedHeroState,
-      playedReturnState,
-      /** Half-registered chassis per return flight (both refs land in one
-       *  patch; the director only ever reads a complete pair). */
-      returnEls: new Map<number, {proxy: HTMLElement | null, flip: HTMLElement | null}>(),
-      unregister: undefined as (() => void) | undefined,
-    };
-  },
-  mounted() {
-    // Live element getter — the orchestrator reads it after its own
-    // nextTick, so the refs are always current for the active proxy.
-    this.unregister = registerPlayedHeroStage({
-      els: (): HeroStageEls | undefined => {
-        const proxy = (this.$refs.proxy ?? undefined) as HTMLElement | undefined;
-        // `!proxy` also catches Vue's `null` for a removed-then-queried ref.
-        if (!proxy || !proxy.isConnected) {
-          return undefined;
-        }
-        return {
-          proxy,
-          flip: (this.$refs.flip ?? undefined) as HTMLElement | undefined,
-          shade: (this.$refs.shade ?? undefined) as HTMLElement | undefined,
-          sweep: (this.$refs.sweep ?? undefined) as HTMLElement | undefined,
-        };
-      },
-    });
-  },
-  beforeUnmount() {
-    this.unregister?.();
-  },
-  methods: {
-    setReturnProxy(id: number, el: unknown): void {
-      this.trackReturnEl(id, 'proxy', el);
-    },
-    setReturnFlip(id: number, el: unknown): void {
-      this.trackReturnEl(id, 'flip', el);
-    },
-    trackReturnEl(id: number, key: 'proxy' | 'flip', el: unknown): void {
-      const node = el instanceof HTMLElement ? el : null;
-      const cur = this.returnEls.get(id) ?? {proxy: null, flip: null};
-      cur[key] = node;
-      if (cur.proxy === null && cur.flip === null) {
-        this.returnEls.delete(id);
-      } else {
-        this.returnEls.set(id, cur);
+defineOptions({name: 'ConsolePlayedHeroLayer'});
+
+const proxy = useTemplateRef<HTMLElement>('proxy');
+const flip = useTemplateRef<HTMLElement>('flip');
+const shade = useTemplateRef<HTMLElement>('shade');
+const sweep = useTemplateRef<HTMLElement>('sweep');
+/** Half-registered chassis per return flight (both refs land in one
+ *  patch; the director only ever reads a complete pair). */
+const returnEls = ref(new Map<number, {proxy: HTMLElement | null, flip: HTMLElement | null}>());
+let unregister: (() => void) | undefined;
+
+function setReturnProxy(id: number, el: unknown): void {
+  trackReturnEl(id, 'proxy', el);
+}
+function setReturnFlip(id: number, el: unknown): void {
+  trackReturnEl(id, 'flip', el);
+}
+function trackReturnEl(id: number, key: 'proxy' | 'flip', el: unknown): void {
+  const node = el instanceof HTMLElement ? el : null;
+  const cur = returnEls.value.get(id) ?? {proxy: null, flip: null};
+  cur[key] = node;
+  if (cur.proxy === null && cur.flip === null) {
+    returnEls.value.delete(id);
+  } else {
+    returnEls.value.set(id, cur);
+  }
+  registerReturnFlightEls(id, cur.proxy, cur.flip);
+}
+
+onMounted(() => {
+  // Live element getter — the orchestrator reads it after its own
+  // nextTick, so the refs are always current for the active proxy.
+  unregister = registerPlayedHeroStage({
+    els: (): HeroStageEls | undefined => {
+      const proxyNow = proxy.value ?? undefined;
+      // The ref is `null` while the `v-if` keeps the proxy out (read as `undefined` above).
+      if (!proxyNow || !proxyNow.isConnected) {
+        return undefined;
       }
-      registerReturnFlightEls(id, cur.proxy, cur.flip);
+      return {
+        proxy: proxyNow,
+        flip: flip.value ?? undefined,
+        shade: shade.value ?? undefined,
+        sweep: sweep.value ?? undefined,
+      };
     },
-  },
+  });
+});
+onBeforeUnmount(() => {
+  unregister?.();
 });
 </script>
