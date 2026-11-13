@@ -1,13 +1,4 @@
 <template>
-  <!--
-    CONSOLE COLONY TILE (iteration 2 — Steam-Deck-first). A compact, couch-
-    readable strategy card: name + planet medallion, the PARKED TRADE FLEET
-    badge (whose ship is here), the three build slots with owner cubes, the
-    7-cell live track strip, what a trade READS right now (offset applied) +
-    the fixed owner bonus, and an honest availability status line. The tile
-    is the decision surface — no button hints (the bottom bar owns controls),
-    no side panel needed for the common questions.
-  -->
   <div class="con-coltile"
        :class="[{
          'con-coltile--focused': focused,
@@ -176,8 +167,20 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * CONSOLE COLONY TILE (iteration 2 — Steam-Deck-first). A compact, couch-
+ * readable strategy card: name + planet medallion, the PARKED TRADE FLEET
+ * badge (whose ship is here), the three build slots with owner cubes, the
+ * 7-cell live track strip, what a trade READS right now (offset applied) +
+ * the fixed owner bonus, and an honest availability status line. The tile
+ * is the decision surface — no button hints (the bottom bar owns controls),
+ * no side panel needed for the common questions.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType, ref, watch} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyMetadata, colonyCardResources, tradeBenefitAt, tradeFixedIncome} from '@/common/colonies/ColonyMetadata';
 import {CardResource} from '@/common/CardResource';
@@ -203,197 +206,186 @@ export type ConsoleColonyTileStatus = {
 
 type TrackCell = {index: number, marker: boolean, effective: boolean, passed: boolean};
 
-export default defineComponent({
-  name: 'ConsoleColonyTile',
-  components: {BenefitGlyph, ColonyFleetIcon, ConsoleFlipValue, PlayerCube, ConsolePlanetDisc, ConsoleColonyCitySeat},
-  props: {
-    colony: {type: Object as PropType<ColonyModel>, required: true},
-    /** The viewer's standing trade offset (Trading Colony etc.). */
-    tradeOffset: {type: Number, default: 0},
-    /**
-     * THE PROJECTED POSITION — where a pick would put this tile's marker, by
-     * the SERVER's projection (TR07: `SelectColonyModel.trackMoves`, the top).
-     * When set it IS the cell the tile reads (the ghost marker, «+N», the
-     * reward at that cell); absent (−1), the tile projects the trade exactly
-     * as before (the standing offset through `effectiveTradePosition`).
-     */
-    projectedPosition: {type: Number, default: -1},
-    focused: {type: Boolean, default: false},
-    /** Brief post-launch settle: the fleet just docked here (owner-hue seat). */
-    justDocked: {type: Boolean, default: false},
-    status: {
-      type: Object as PropType<ConsoleColonyTileStatus>,
-      default: (): ConsoleColonyTileStatus => ({kind: 'none', text: ''}),
-    },
-    /**
-     * THE FREE ORBIT (the roster ceremony): this slot's planet has not docked yet — the tile is its own box with
-     * a dashed ring where the disc will stand. The slot exists before its object.
-     */
-    orbit: {type: Boolean, default: false},
-    /**
-     * THE PROJECTED CITY (a «city» pick — the server's `tileSite` marker): the colour of the city the pick would
-     * lay on this tile ('' = no such door, or the tile is not a candidate). The seat draws the ghost.
-     */
-    cityProjection: {type: String as PropType<Color | ''>, default: ''},
-    /** THE PROJECTED CUBE: the colour of the colony a roster pick would build on this tile ('' = none), and its berth. */
-    projectedCube: {type: String, default: ''},
-    projectedCubeSlot: {type: Number, default: 0},
+defineOptions({name: 'ConsoleColonyTile'});
+const props = defineProps({
+  colony: {type: Object as PropType<ColonyModel>, required: true},
+  /** The viewer's standing trade offset (Trading Colony etc.). */
+  tradeOffset: {type: Number, default: 0},
+  /**
+   * THE PROJECTED POSITION — where a pick would put this tile's marker, by
+   * the SERVER's projection (TR07: `SelectColonyModel.trackMoves`, the top).
+   * When set it IS the cell the tile reads (the ghost marker, «+N», the
+   * reward at that cell); absent (−1), the tile projects the trade exactly
+   * as before (the standing offset through `effectiveTradePosition`).
+   */
+  projectedPosition: {type: Number, default: -1},
+  focused: {type: Boolean, default: false},
+  /** Brief post-launch settle: the fleet just docked here (owner-hue seat). */
+  justDocked: {type: Boolean, default: false},
+  status: {
+    type: Object as PropType<ConsoleColonyTileStatus>,
+    default: (): ConsoleColonyTileStatus => ({kind: 'none', text: ''}),
   },
-  data() {
-    return {
-      /**
-       * A WATCHER'S MOMENT: a colony was built beyond the limit while this tile stood (the viewer's own door
-       * mounts the grid with the berth already projected — nothing changes under it). The slot is revealed by ONE
-       * transition and the cube surfaces after it; the class goes with the animation.
-       */
-      berthRevealing: false,
-    };
-  },
-  watch: {
-    overLimit(now: boolean, was: boolean): void {
-      if (now && !was && this.berths.some((berth) => berth.overLimit && berth.state === 'taken')) {
-        this.berthRevealing = true;
-      }
-    },
-  },
-  methods: {
-    /** The build bonus the berth `slot` pays — resolved through the ONE reading (`buildBenefitAt`). */
-    berthBenefit(slot: number): BerthBenefit {
-      return berthBuildBenefit(this.metadata, slot);
-    },
-    /** The reveal's last beat (the cube surfacing) has played — the one-shot class goes. */
-    onBerthRevealEnd(event: AnimationEvent): void {
-      if (event.animationName === 'con-berth-reveal-cube') {
-        this.berthRevealing = false;
-      }
-    },
-  },
-  computed: {
-    /**
-     * THE BERTHS — the one model every colony surface draws (`colonyBerths.ts`):
-     * the printed three, every cube that stands, and the berth a door projects
-     * its cube into (never a berth a cube already took).
-     */
-    berths(): Array<ColonyBerth> {
-      const projects = this.projectedCube !== '' && this.colony.colonies[this.projectedCubeSlot] === undefined;
-      return colonyBerthsOf(this.colony, projects ? {slot: this.projectedCubeSlot} : undefined);
-    },
-    /** The tile has a berth beyond the printed ones — the row's compact metric and the limit mark. */
-    overLimit(): boolean {
-      return this.berths.some((berth) => berth.overLimit);
-    },
-    /** How many berths the tile PRINTS — where the limit mark stands (the stylesheet's token). */
-    printedCount(): number {
-      return printedBerths();
-    },
-    /** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
-    cardResourceKinds(): ReadonlyArray<CardResource> {
-      return colonyCardResources(this.metadata);
-    },
-    metadata(): ColonyMetadata {
-      return getColony(this.colony.name);
-    },
-    /** The seated owner cube's footprint (logical px vs the 2.3rem cell; the
-     *  `--con-ui-scale` zoom channel in console.less carries the TV scale). */
-    cubeSize(): number {
-      return CUBE_STATIC_SIZE;
-    },
-    /**
-     * The colony as PRESENTED: while this colony's trade transaction is still
-     * granting rewards, the committed track reset stays frozen at the
-     * pre-trade position (the ONE shared helper — the tile, the focused
-     * summary and the inspect can never disagree). Everything below reads
-     * the track through this, so the reset only ever shows via the glide.
-     */
-    presented(): ColonyModel {
-      return presentedColonyModel(this.colony);
-    },
-    /** The traded colony's marker proxy is mid-glide (the static dot yields) — or this tile's, in a law's WAVE over the whole table. */
-    markerGliding(): boolean {
-      return (colonyTradeState.phase === 'glide' && colonyTradeState.colonyName === this.colony.name) ||
-        colonyTrackWaveState.gliding[this.colony.name] === true;
-    },
-    /** One-shot: the cell the reset marker just landed on (settle glow) — the trade's, or the wave's for this tile. */
-    settledCell(): number {
-      if (colonyTradeState.colonyName === this.colony.name) {
-        return colonyTradeState.settledCell;
-      }
-      return colonyTrackWaveState.settled[this.colony.name] ?? -1;
-    },
-    /** One-shot: the «ТОРГОВАТЬ» readout settles WITH the landed marker. */
-    rewardSettled(): boolean {
-      return this.settledCell >= 0;
-    },
-    // BenefitGlyph expects a quantity ARRAY; the colony bonus is a scalar.
-    /** The income at the position a trade READS — kind and resource resolved there (the Redux Pluto: data low, cards high). */
-    tradeBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
-      const income = tradeBenefitAt(this.metadata, this.effectivePosition);
-      return {type: income.type, quantity: this.metadata.trade.quantity, resource: income.resource};
-    },
-    /** The FIXED part every trade here pays before the marker's bonus (the Redux Venus's step) — undefined for a tile without one. */
-    /** The marker's income is a LEVY (the Redux Venus's 1st cell): the number is a cost. */
-    rewardIsLevy(): boolean {
-      return this.reward.type === ColonyBenefit.LOSE_RESOURCES;
-    },
-    tradeFixedBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} | undefined {
-      const fixed = tradeFixedIncome(this.metadata);
-      return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
-    },
-    colonyBenefit(): {type: ColonyMetadata['colony']['type'], quantity: ReadonlyArray<number>, resource?: unknown} {
-      const c = this.metadata.colony;
-      return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
-    },
-    bonusQuantity(): number {
-      return this.metadata.colony.quantity ?? 1;
-    },
-    effectivePosition(): number {
-      if (this.projectedPosition >= 0) {
-        return Math.min(this.projectedPosition, this.trackMax);
-      }
-      // Only an ACTIVE colony can be traded with — the offset ghost is noise otherwise.
-      const offset = this.colony.isActive ? this.tradeOffset : 0;
-      return effectiveTradePosition(this.presented, this.metadata, offset);
-    },
-    /** The furthest cell a moving marker has TOUCHED (a track move in flight) — −1 when none. */
-    touchedCell(): number {
-      return colonyTrackWaveState.active ? (colonyTrackWaveState.touched[this.colony.name] ?? -1) : -1;
-    },
-    offsetSteps(): number {
-      return Math.max(0, this.effectivePosition - this.displayedTrackPosition);
-    },
-    reward(): TradeRewardAt {
-      return rewardAtPosition(this.metadata, this.effectivePosition);
-    },
-    trackMax(): number {
-      return this.metadata.trade.quantity.length - 1;
-    },
-    /** The marker position actually SHOWN (presented — frozen mid-trade). */
-    displayedTrackPosition(): number {
-      return Math.min(this.presented.trackPosition, this.trackMax);
-    },
-    trackCells(): Array<TrackCell> {
-      const marker = this.displayedTrackPosition;
-      const effective = this.effectivePosition;
-      const cells: Array<TrackCell> = [];
-      for (let i = 0; i <= this.trackMax; i++) {
-        cells.push({
-          index: i,
-          marker: i === marker,
-          effective: i === effective && effective !== marker,
-          // …and the cells a moving marker has already crossed light up on the touch, before the hold releases.
-          passed: i < marker || (i > marker && i <= this.touchedCell),
-        });
-      }
-      return cells;
-    },
-    /** The marker's cell, 1-based — the readout's voice. */
-    trackPositionDisplay(): string {
-      return String(this.displayedTrackPosition + 1);
-    },
-    /** The track's length, dim after the position («4 / 7» — a place on the track, not a fraction). */
-    trackLengthDisplay(): string {
-      return ` / ${this.trackMax + 1}`;
-    },
-  },
+  /**
+   * THE FREE ORBIT (the roster ceremony): this slot's planet has not docked yet — the tile is its own box with
+   * a dashed ring where the disc will stand. The slot exists before its object.
+   */
+  orbit: {type: Boolean, default: false},
+  /**
+   * THE PROJECTED CITY (a «city» pick — the server's `tileSite` marker): the colour of the city the pick would
+   * lay on this tile ('' = no such door, or the tile is not a candidate). The seat draws the ghost.
+   */
+  cityProjection: {type: String as PropType<Color | ''>, default: ''},
+  /** THE PROJECTED CUBE: the colour of the colony a roster pick would build on this tile ('' = none), and its berth. */
+  projectedCube: {type: String, default: ''},
+  projectedCubeSlot: {type: Number, default: 0},
+});
+
+/**
+ * A WATCHER'S MOMENT: a colony was built beyond the limit while this tile stood (the viewer's own door
+ * mounts the grid with the berth already projected — nothing changes under it). The slot is revealed by ONE
+ * transition and the cube surfaces after it; the class goes with the animation.
+ */
+const berthRevealing = ref(false);
+
+/**
+ * THE BERTHS — the one model every colony surface draws (`colonyBerths.ts`):
+ * the printed three, every cube that stands, and the berth a door projects
+ * its cube into (never a berth a cube already took).
+ */
+const berths = computed((): Array<ColonyBerth> => {
+  const projects = props.projectedCube !== '' && props.colony.colonies[props.projectedCubeSlot] === undefined;
+  return colonyBerthsOf(props.colony, projects ? {slot: props.projectedCubeSlot} : undefined);
+});
+/** The tile has a berth beyond the printed ones — the row's compact metric and the limit mark. */
+const overLimit = computed((): boolean => {
+  return berths.value.some((berth) => berth.overLimit);
+});
+/** How many berths the tile PRINTS — where the limit mark stands (the stylesheet's token). */
+const printedCount = computed((): number => {
+  return printedBerths();
+});
+/** The card resource(s) the tile's card benefits add — the ONE list every glyph on this surface draws (several for the Redux Vesta). */
+const cardResourceKinds = computed((): ReadonlyArray<CardResource> => {
+  return colonyCardResources(metadata.value);
+});
+const metadata = computed((): ColonyMetadata => {
+  return getColony(props.colony.name);
+});
+/** The seated owner cube's footprint (logical px vs the 2.3rem cell; the
+ *  `--con-ui-scale` zoom channel in console.less carries the TV scale). */
+const cubeSize = CUBE_STATIC_SIZE;
+/**
+ * The colony as PRESENTED: while this colony's trade transaction is still
+ * granting rewards, the committed track reset stays frozen at the
+ * pre-trade position (the ONE shared helper — the tile, the focused
+ * summary and the inspect can never disagree). Everything below reads
+ * the track through this, so the reset only ever shows via the glide.
+ */
+const presented = computed((): ColonyModel => {
+  return presentedColonyModel(props.colony);
+});
+/** The traded colony's marker proxy is mid-glide (the static dot yields) — or this tile's, in a law's WAVE over the whole table. */
+const markerGliding = computed((): boolean => {
+  return (colonyTradeState.phase === 'glide' && colonyTradeState.colonyName === props.colony.name) ||
+    colonyTrackWaveState.gliding[props.colony.name] === true;
+});
+/** One-shot: the cell the reset marker just landed on (settle glow) — the trade's, or the wave's for this tile. */
+const settledCell = computed((): number => {
+  if (colonyTradeState.colonyName === props.colony.name) {
+    return colonyTradeState.settledCell;
+  }
+  return colonyTrackWaveState.settled[props.colony.name] ?? -1;
+});
+/** One-shot: the «ТОРГОВАТЬ» readout settles WITH the landed marker. */
+const rewardSettled = computed((): boolean => {
+  return settledCell.value >= 0;
+});
+// BenefitGlyph expects a quantity ARRAY; the colony bonus is a scalar.
+/** The income at the position a trade READS — kind and resource resolved there (the Redux Pluto: data low, cards high). */
+const tradeBenefit = computed((): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} => {
+  const income = tradeBenefitAt(metadata.value, effectivePosition.value);
+  return {type: income.type, quantity: metadata.value.trade.quantity, resource: income.resource};
+});
+/** The FIXED part every trade here pays before the marker's bonus (the Redux Venus's step) — undefined for a tile without one. */
+/** The marker's income is a LEVY (the Redux Venus's 1st cell): the number is a cost. */
+const rewardIsLevy = computed((): boolean => {
+  return reward.value.type === ColonyBenefit.LOSE_RESOURCES;
+});
+const tradeFixedBenefit = computed((): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} | undefined => {
+  const fixed = tradeFixedIncome(metadata.value);
+  return fixed === undefined ? undefined : {type: fixed.type, quantity: [fixed.quantity], resource: fixed.resource};
+});
+const colonyBenefit = computed((): {type: ColonyMetadata['colony']['type'], quantity: ReadonlyArray<number>, resource?: unknown} => {
+  const c = metadata.value.colony;
+  return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
+});
+const bonusQuantity = computed((): number => {
+  return metadata.value.colony.quantity ?? 1;
+});
+const effectivePosition = computed((): number => {
+  if (props.projectedPosition >= 0) {
+    return Math.min(props.projectedPosition, trackMax.value);
+  }
+  // Only an ACTIVE colony can be traded with — the offset ghost is noise otherwise.
+  const offset = props.colony.isActive ? props.tradeOffset : 0;
+  return effectiveTradePosition(presented.value, metadata.value, offset);
+});
+/** The furthest cell a moving marker has TOUCHED (a track move in flight) — −1 when none. */
+const touchedCell = computed((): number => {
+  return colonyTrackWaveState.active ? (colonyTrackWaveState.touched[props.colony.name] ?? -1) : -1;
+});
+const offsetSteps = computed((): number => {
+  return Math.max(0, effectivePosition.value - displayedTrackPosition.value);
+});
+const reward = computed((): TradeRewardAt => {
+  return rewardAtPosition(metadata.value, effectivePosition.value);
+});
+const trackMax = computed((): number => {
+  return metadata.value.trade.quantity.length - 1;
+});
+/** The marker position actually SHOWN (presented — frozen mid-trade). */
+const displayedTrackPosition = computed((): number => {
+  return Math.min(presented.value.trackPosition, trackMax.value);
+});
+const trackCells = computed((): Array<TrackCell> => {
+  const marker = displayedTrackPosition.value;
+  const effective = effectivePosition.value;
+  const cells: Array<TrackCell> = [];
+  for (let i = 0; i <= trackMax.value; i++) {
+    cells.push({
+      index: i,
+      marker: i === marker,
+      effective: i === effective && effective !== marker,
+      // …and the cells a moving marker has already crossed light up on the touch, before the hold releases.
+      passed: i < marker || (i > marker && i <= touchedCell.value),
+    });
+  }
+  return cells;
+});
+/** The marker's cell, 1-based — the readout's voice. */
+const trackPositionDisplay = computed((): string => {
+  return String(displayedTrackPosition.value + 1);
+});
+/** The track's length, dim after the position («4 / 7» — a place on the track, not a fraction). */
+const trackLengthDisplay = computed((): string => {
+  return ` / ${trackMax.value + 1}`;
+});
+
+/** The build bonus the berth `slot` pays — resolved through the ONE reading (`buildBenefitAt`). */
+function berthBenefit(slot: number): BerthBenefit {
+  return berthBuildBenefit(metadata.value, slot);
+}
+/** The reveal's last beat (the cube surfacing) has played — the one-shot class goes. */
+function onBerthRevealEnd(event: AnimationEvent): void {
+  if (event.animationName === 'con-berth-reveal-cube') {
+    berthRevealing.value = false;
+  }
+}
+
+watch(() => overLimit.value, (now: boolean, was: boolean): void => {
+  if (now && !was && berths.value.some((berth) => berth.overLimit && berth.state === 'taken')) {
+    berthRevealing.value = true;
+  }
 });
 </script>
