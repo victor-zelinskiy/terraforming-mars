@@ -17,61 +17,55 @@
   </dialog>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {onMounted, ref, useTemplateRef, watch} from 'vue';
 import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDialogElementCompatibility';
+import {vI18n} from '@/client/directives/vDirectives';
 
 import dialogPolyfill from 'dialog-polyfill';
 
 
-type Refs = {
-  dialog: HTMLDialogElement;
-};
-
-export default defineComponent({
-  name: 'ConfirmDialog',
-  props: {
-    message: {
-      type: String,
-      required: true,
-    },
-    enableDontShowAgainCheckbox: {
-      type: Boolean,
-      default: false,
-    },
+defineOptions({name: 'ConfirmDialog'});
+defineProps({
+  message: {
+    type: String,
+    required: true,
   },
-  data() {
-    return {
-      hide: false,
-      shown: false,
-    };
-  },
-  watch: {
-    hide() {
-      this.$emit('hide', this.hide);
-    },
-  },
-  computed: {
-    typedRefs(): Refs {
-      return this.$refs as unknown as Refs;
-    },
-  },
-  methods: {
-    accept() {
-      this.$emit('accept');
-    },
-    dismiss() {
-      this.$emit('dismiss');
-    },
-    show() {
-      this.shown = true;
-      showModal(this.typedRefs.dialog);
-    },
-  },
-  mounted() {
-    if (!windowHasHTMLDialogElement()) {
-      dialogPolyfill.registerDialog(this.typedRefs.dialog);
-    }
+  enableDontShowAgainCheckbox: {
+    type: Boolean,
+    default: false,
   },
 });
+const emit = defineEmits(['hide', 'accept', 'dismiss']);
+
+const dialog = useTemplateRef<HTMLDialogElement>('dialog');
+const hide = ref(false);
+function accept() {
+  emit('accept');
+}
+function dismiss() {
+  emit('dismiss');
+}
+function show() {
+  const el = dialog.value;
+  if (el === null) {
+    return;
+  }
+  showModal(el);
+}
+
+watch(() => hide.value, () => {
+  emit('hide', hide.value);
+});
+onMounted(() => {
+  if (!windowHasHTMLDialogElement()) {
+    const el = dialog.value;
+    if (el === null) {
+      return;
+    }
+    dialogPolyfill.registerDialog(el);
+  }
+});
+// What `ConsoleBoardInput` reaches through its `ref="confirmation"` — `show()` — and nothing else.
+defineExpose({show});
 </script>
