@@ -6,102 +6,93 @@
 </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 import {GameOptionsModel} from '@/common/models/GameOptionsModel';
 import {Reward} from '@/common/pathfinders/Reward';
 
-export default defineComponent({
-  name: 'PlanetaryTrackReward',
-  props: {
-    reward: {
-      type: String as () => Reward,
-      required: true,
-    },
-    gameOptions: {
-      type: Object as () => GameOptionsModel,
-      required: true,
-    },
+defineOptions({name: 'PlanetaryTrackReward'});
+const props = defineProps({
+  reward: {
+    type: String as () => Reward,
+    required: true,
   },
-  computed: {
-    getClass(): string {
-      switch (this.reward) {
-      case '3mc':
-        return 'reward-3mc';
-      case '6mc':
-        return 'reward-6mc';
-      case 'any_resource':
-        return 'std-wild-resource';
-      case 'card':
-        return 'card';
-      case 'city':
-        return 'tag-city-count tag-size-big';
-      case 'delegate':
-        return this.gameOptions.expansions.turmoil ? 'delegate' : 'reward-3mc';
-      case 'energy':
-      case 'energy_production':
-        return 'resource_icon resource_icon--energy';
-      case 'floater':
-        return 'floater';
-      case 'greenery':
-        return 'greenery';
-      case 'heat':
-      case 'heat_production':
-        return 'resource_icon resource_icon--heat';
-      case 'moon_mine':
-        return 'card-play-moon-mine--S';
-      case 'moon_road':
-        return 'card-play-moon-road--S';
-      case 'ocean':
-        return 'ocean';
-      case 'plant':
-      case 'plant_production':
-        return 'resource_icon resource_icon--plants';
-      case 'resource':
-        return 'std-wild-resource';
-      case 'steel':
-      case 'steel_production':
-        return 'resource_icon resource_icon--steel';
-      case 'titanium':
-      case 'titanium_production':
-        return 'resource_icon resource_icon--titanium';
-      case 'tr':
-        return 'tag-tr tag-size-big tag-type-main';
-      case 'venus_scale':
-        return 'venus-scale';
-      }
-      return '';
-    },
-    outerClass(): string {
-      switch (this.reward) {
-      case '1vp':
-        return 'card-points vp1';
-      case '2vp':
-        return 'card-points vp2';
-      case '3mc':
-        return 'reward-3mc';
-      case '6mc':
-        return 'reward-6mc';
-      case 'delegate':
-        return this.gameOptions.expansions.turmoil ? '' : 'reward-3mc';
-      case 'energy_production':
-      case 'heat_production':
-      case 'plant_production':
-      case 'steel_production':
-      case 'titanium_production':
-        return 'card-production-box';
-      default:
-        return '';
-      }
-    },
+  gameOptions: {
+    type: Object as () => GameOptionsModel,
+    required: true,
   },
-  components: {
-  },
-  data() {
-    return {
-    };
-  },
+});
+
+const getClass = computed((): string => {
+  switch (props.reward) {
+  case '3mc':
+    return 'reward-3mc';
+  case '6mc':
+    return 'reward-6mc';
+  case 'any_resource':
+    return 'std-wild-resource';
+  case 'card':
+    return 'card';
+  case 'city':
+    return 'tag-city-count tag-size-big';
+  case 'delegate':
+    return props.gameOptions.expansions.turmoil ? 'delegate' : 'reward-3mc';
+  case 'energy':
+  case 'energy_production':
+    return 'resource_icon resource_icon--energy';
+  case 'floater':
+    return 'floater';
+  case 'greenery':
+    return 'greenery';
+  case 'heat':
+  case 'heat_production':
+    return 'resource_icon resource_icon--heat';
+  case 'moon_mine':
+    return 'card-play-moon-mine--S';
+  case 'moon_road':
+    return 'card-play-moon-road--S';
+  case 'ocean':
+    return 'ocean';
+  case 'plant':
+  case 'plant_production':
+    return 'resource_icon resource_icon--plants';
+  case 'resource':
+    return 'std-wild-resource';
+  case 'steel':
+  case 'steel_production':
+    return 'resource_icon resource_icon--steel';
+  case 'titanium':
+  case 'titanium_production':
+    return 'resource_icon resource_icon--titanium';
+  case 'tr':
+    return 'tag-tr tag-size-big tag-type-main';
+  case 'venus_scale':
+    return 'venus-scale';
+  }
+  return '';
+});
+const outerClass = computed((): string => {
+  switch (props.reward) {
+  case '1vp':
+    return 'card-points vp1';
+  case '2vp':
+    return 'card-points vp2';
+  case '3mc':
+    return 'reward-3mc';
+  case '6mc':
+    return 'reward-6mc';
+  case 'delegate':
+    return props.gameOptions.expansions.turmoil ? '' : 'reward-3mc';
+  case 'energy_production':
+  case 'heat_production':
+  case 'plant_production':
+  case 'steel_production':
+  case 'titanium_production':
+    return 'card-production-box';
+  default:
+    return '';
+  }
 });
 
 </script>
