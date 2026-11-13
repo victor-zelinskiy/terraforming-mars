@@ -112,8 +112,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType, useSlots} from 'vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {
@@ -122,81 +122,76 @@ import {
 } from '@/client/console/variantChoiceModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
-import {translateCardName, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateCardName, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {wildIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 
-export default defineComponent({
-  name: 'ConsoleVariantChoice',
-  components: {PremiumMechNode, ConsoleCardFaceLite},
-  props: {
-    options: {type: Array as PropType<ReadonlyArray<VariantChoiceOption>>, required: true},
-    /**
-     * `compare` — tiles side by side (a column when the cluster is narrow; the host measures the axis off
-     * `.con-vchoice__opt` and walks ←→ in a row); `column` — the same tiles always stacked, each a row with the print
-     * leading (a host whose cursor walks rows with ↑↓); `list` — one row per option (a pick list); `palette` — N
-     * equal tiles of ONE kind in one row, each led by its hero (`VariantChoiceOption.hero`), no medallions (TR54).
-     */
-    layout: {type: String as PropType<'compare' | 'column' | 'list' | 'palette'>, default: 'compare'},
-    /** The palette's own line above its tiles (already translated) — what is asked; empty = none. */
-    kicker: {type: String, default: ''},
-    /** The printed glyph at the kicker's start — `wild`: the face's «?» (`wild.png`), «any one standard resource». */
-    emblem: {type: String as PropType<'wild' | 'none'>, default: 'none'},
-    /** Mutually exclusive results — the «ИЛИ» medallion between the options. */
-    exclusive: {type: Boolean, default: true},
-    /** The radiogroup's accessible name (already translated). */
-    label: {type: String, default: ''},
-    /** The ONE result every option buys (TR58 — the options are prices), printed once after them with its addresses. */
-    shared: {type: Object as PropType<VariantSharedResult | undefined>, default: undefined},
-  },
-  emits: ['pick'],
-  computed: {
-    decided(): boolean {
-      return groupDecided(this.options);
-    },
-    wildUrl(): string {
-      return wildIconUrl();
-    },
-    sharedFaces(): ReadonlyArray<CardModel> {
-      return (this.shared?.destinations?.cards ?? []).slice(0, VARIANT_DESTINATION_FACES);
-    },
-  },
-  methods: {
-    optionClasses(opt: VariantChoiceOption): Record<string, boolean> {
-      return {...variantOptionClasses(opt.state, this.decided), 'con-vchoice__opt--quiet': variantQuiet(opt)};
-    },
-    quiet(opt: VariantChoiceOption): boolean {
-      return variantQuiet(opt);
-    },
-    heroIconClass(icon: string): string {
-      return iconClassFor(icon);
-    },
-    figure(hero: VariantHero): string {
-      return heroFigure(hero);
-    },
-    figureTone(hero: VariantHero): string {
-      return hero.amount === 0 ? 'zero' : hero.direction;
-    },
-    /** The holder faces a tile fans out — the server's first ones, capped (the count says the rest). */
-    faces(opt: VariantChoiceOption): ReadonlyArray<CardModel> {
-      return (opt.destinations?.cards ?? []).slice(0, VARIANT_DESTINATION_FACES);
-    },
-    /** One holder names itself; several are a count «N карты на выбор». */
-    destinationLabel(opt: VariantChoiceOption): string {
-      return this.destinationsLabel(opt.destinations);
-    },
-    destinationsLabel(d: VariantDestinations | undefined): string {
-      if (d === undefined) {
-        return '';
-      }
-      return d.count === 1 ? translateCardName(d.cards[0].name as CardName) :
-        translateTextWithParams('${0} card(s) to choose from', [String(d.count)]);
-    },
-    /** Anything beside the print — words, the host's body, a refusal. */
-    hasText(opt: VariantChoiceOption): boolean {
-      return opt.title !== '' || opt.color !== undefined || opt.door === true || this.$slots.body !== undefined ||
-        (opt.state.off && opt.reason !== undefined && opt.reason !== '') || variantQuiet(opt);
-    },
-  },
+defineOptions({name: 'ConsoleVariantChoice'});
+const props = defineProps({
+  options: {type: Array as PropType<ReadonlyArray<VariantChoiceOption>>, required: true},
+  /**
+   * `compare` — tiles side by side (a column when the cluster is narrow; the host measures the axis off
+   * `.con-vchoice__opt` and walks ←→ in a row); `column` — the same tiles always stacked, each a row with the print
+   * leading (a host whose cursor walks rows with ↑↓); `list` — one row per option (a pick list); `palette` — N
+   * equal tiles of ONE kind in one row, each led by its hero (`VariantChoiceOption.hero`), no medallions (TR54).
+   */
+  layout: {type: String as PropType<'compare' | 'column' | 'list' | 'palette'>, default: 'compare'},
+  /** The palette's own line above its tiles (already translated) — what is asked; empty = none. */
+  kicker: {type: String, default: ''},
+  /** The printed glyph at the kicker's start — `wild`: the face's «?» (`wild.png`), «any one standard resource». */
+  emblem: {type: String as PropType<'wild' | 'none'>, default: 'none'},
+  /** Mutually exclusive results — the «ИЛИ» medallion between the options. */
+  exclusive: {type: Boolean, default: true},
+  /** The radiogroup's accessible name (already translated). */
+  label: {type: String, default: ''},
+  /** The ONE result every option buys (TR58 — the options are prices), printed once after them with its addresses. */
+  shared: {type: Object as PropType<VariantSharedResult | undefined>, default: undefined},
 });
+defineEmits(['pick']);
+const slots = useSlots();
+
+const decided = computed((): boolean => {
+  return groupDecided(props.options);
+});
+const wildUrl = computed((): string => {
+  return wildIconUrl();
+});
+const sharedFaces = computed((): ReadonlyArray<CardModel> => {
+  return (props.shared?.destinations?.cards ?? []).slice(0, VARIANT_DESTINATION_FACES);
+});
+function optionClasses(opt: VariantChoiceOption): Record<string, boolean> {
+  return {...variantOptionClasses(opt.state, decided.value), 'con-vchoice__opt--quiet': variantQuiet(opt)};
+}
+function quiet(opt: VariantChoiceOption): boolean {
+  return variantQuiet(opt);
+}
+function heroIconClass(icon: string): string {
+  return iconClassFor(icon);
+}
+function figure(hero: VariantHero): string {
+  return heroFigure(hero);
+}
+function figureTone(hero: VariantHero): string {
+  return hero.amount === 0 ? 'zero' : hero.direction;
+}
+/** The holder faces a tile fans out — the server's first ones, capped (the count says the rest). */
+function faces(opt: VariantChoiceOption): ReadonlyArray<CardModel> {
+  return (opt.destinations?.cards ?? []).slice(0, VARIANT_DESTINATION_FACES);
+}
+/** One holder names itself; several are a count «N карты на выбор». */
+function destinationLabel(opt: VariantChoiceOption): string {
+  return destinationsLabel(opt.destinations);
+}
+function destinationsLabel(d: VariantDestinations | undefined): string {
+  if (d === undefined) {
+    return '';
+  }
+  return d.count === 1 ? translateCardName(d.cards[0].name as CardName) :
+    translateTextWithParams('${0} card(s) to choose from', [String(d.count)]);
+}
+/** Anything beside the print — words, the host's body, a refusal. */
+function hasText(opt: VariantChoiceOption): boolean {
+  return opt.title !== '' || opt.color !== undefined || opt.door === true || slots.body !== undefined ||
+    (opt.state.off && opt.reason !== undefined && opt.reason !== '') || variantQuiet(opt);
+}
 </script>
