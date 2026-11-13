@@ -78,7 +78,7 @@
   </aside>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * LAUNCH BRIEFING panel (console create, right column) — the live mission
  * readout: crew chips, map, expansions, rules, then the READINESS block
@@ -88,7 +88,7 @@
  * duplicated the bar and cost the column its no-scroll fit). Reads the shared
  * create model directly; the root screen owns the launch flow.
  */
-import {defineComponent} from 'vue';
+import {computed} from 'vue';
 import {Color} from '@/common/Color';
 import {createGameState, isCampaignMode, visiblePremiumRules} from '@/client/components/create/premium/createGameState';
 import {
@@ -106,74 +106,68 @@ import {
   mapMeta,
 } from '@/client/components/create/premium/createGameMeta';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleDeckMeter from '@/client/components/console/menu/ConsoleDeckMeter.vue';
 import {BoardName} from '@/common/boards/BoardName';
 import {Expansion} from '@/common/cards/GameModule';
 
-export default defineComponent({
-  name: 'ConsoleLaunchPanel',
-  components: {ConsoleDeckMeter, ConsoleScrollArea, GamepadGlyph, PremiumMapFingerprint},
-  computed: {
-    campaign(): boolean {
-      return isCampaignMode();
-    },
-    /** The campaign's route in one line — its length (the creator's dial) and how the boards come. */
-    routeLine(): string {
-      return translateTextWithParams('Missions: ${0} · unique boards, generated at assembly', [String(createGameState.config.campaignMissionCount)]) +
-        ' · ' + translateText(createGameState.config.campaignRewardMode === 'tenders' ? 'Tenders' : 'Titles');
-    },
-    humanChips(): ReadonlyArray<{index: number, name: string, color: Color}> {
-      return createGameState.config.players.map((p, index) => ({index, name: p.name.trim(), color: p.color}));
-    },
-    bot(): boolean {
-      return botSeated();
-    },
-    botDifficultyLabel(): string {
-      return botDifficultyMeta(createGameState.config.botDifficulty).labelKey;
-    },
-    participantCount(): number {
-      return createGameState.config.players.length + (this.bot ? 1 : 0);
-    },
-    mapLabel(): string {
-      return mapMeta(selectedMapKey()).labelKey;
-    },
-    mapAccent(): string {
-      return mapMeta(selectedMapKey()).accent;
-    },
-    mapRandom(): boolean {
-      return mapMeta(selectedMapKey()).random;
-    },
-    mapBoardId(): BoardName | undefined {
-      const meta = mapMeta(selectedMapKey());
-      return meta.random ? undefined : meta.id as BoardName;
-    },
-    enabledExpansions(): ReadonlyArray<PremiumExpansionMeta> {
-      const selected = createGameState.config.selectedExpansions;
-      return PREMIUM_EXPANSIONS.filter((e) => selected[e.id] === true);
-    },
-    activeRules(): ReadonlyArray<{id: string, labelKey: string}> {
-      const config = createGameState.config;
-      return visiblePremiumRules(config)
-        .filter((meta) => config.rules[meta.id])
-        .map((meta) => ({id: meta.id, labelKey: meta.labelKey}));
-    },
-    issues(): ReadonlyArray<LaunchIssue> {
-      return launchIssues();
-    },
-    error(): string {
-      return createGameState.error;
-    },
-    restored(): boolean {
-      return consoleCreateUi.restored;
-    },
-  },
-  methods: {
-    icon(id: Expansion): string {
-      return expansionIcon(id);
-    },
-  },
+defineOptions({name: 'ConsoleLaunchPanel'});
+
+const campaign = computed((): boolean => {
+  return isCampaignMode();
 });
+/** The campaign's route in one line — its length (the creator's dial) and how the boards come. */
+const routeLine = computed((): string => {
+  return translateTextWithParams('Missions: ${0} · unique boards, generated at assembly', [String(createGameState.config.campaignMissionCount)]) +
+    ' · ' + translateText(createGameState.config.campaignRewardMode === 'tenders' ? 'Tenders' : 'Titles');
+});
+const humanChips = computed((): ReadonlyArray<{index: number, name: string, color: Color}> => {
+  return createGameState.config.players.map((p, index) => ({index, name: p.name.trim(), color: p.color}));
+});
+const bot = computed((): boolean => {
+  return botSeated();
+});
+const botDifficultyLabel = computed((): string => {
+  return botDifficultyMeta(createGameState.config.botDifficulty).labelKey;
+});
+const participantCount = computed((): number => {
+  return createGameState.config.players.length + (bot.value ? 1 : 0);
+});
+const mapLabel = computed((): string => {
+  return mapMeta(selectedMapKey()).labelKey;
+});
+const mapAccent = computed((): string => {
+  return mapMeta(selectedMapKey()).accent;
+});
+const mapRandom = computed((): boolean => {
+  return mapMeta(selectedMapKey()).random;
+});
+const mapBoardId = computed((): BoardName | undefined => {
+  const meta = mapMeta(selectedMapKey());
+  return meta.random ? undefined : meta.id as BoardName;
+});
+const enabledExpansions = computed((): ReadonlyArray<PremiumExpansionMeta> => {
+  const selected = createGameState.config.selectedExpansions;
+  return PREMIUM_EXPANSIONS.filter((e) => selected[e.id] === true);
+});
+const activeRules = computed((): ReadonlyArray<{id: string, labelKey: string}> => {
+  const config = createGameState.config;
+  return visiblePremiumRules(config)
+    .filter((meta) => config.rules[meta.id])
+    .map((meta) => ({id: meta.id, labelKey: meta.labelKey}));
+});
+const issues = computed((): ReadonlyArray<LaunchIssue> => {
+  return launchIssues();
+});
+const error = computed((): string => {
+  return createGameState.error;
+});
+const restored = computed((): boolean => {
+  return consoleCreateUi.restored;
+});
+function icon(id: Expansion): string {
+  return expansionIcon(id);
+}
 </script>
