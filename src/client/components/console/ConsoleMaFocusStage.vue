@@ -1,10 +1,5 @@
 <template>
-  <!-- THE MA FOCUS STAGE — the same workspace frame, one level deeper. The
-       descend hooks unfold it from the pressed card's rect; the emblem
-       pedestal is the carried subject. It is BOTH the full detail dossier and
-       the safe confirmation context (the second A commits); past the commit
-       it becomes the ceremony's scene — the hero emblem never leaves it. -->
-  <div class="con-mafocus"
+  <div ref="root" class="con-mafocus"
        :class="['con-mafocus--' + kind, {
          'con-mafocus--committing': phase === 'committing',
          'con-mafocus--cere': ceremonyUp,
@@ -230,7 +225,16 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE MA FOCUS STAGE — the same workspace frame, one level deeper. The
+ * descend hooks unfold it from the pressed card's rect; the emblem
+ * pedestal is the carried subject. It is BOTH the full detail dossier and
+ * the safe confirmation context (the second A commits); past the commit
+ * it becomes the ceremony's scene — the hero emblem never leaves it.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * CONSOLE MA FOCUS STAGE — the detail state of the Milestones/Awards
  * workspace (the North-Star rework of the old `ConsoleMaConfirm` modal).
@@ -249,7 +253,7 @@
  * `runMaCeremonyStage` and emits `ceremony-done` on its completion — the
  * shell's ONE signal to close the workspace.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, nextTick, onBeforeUnmount, PropType, ref, useTemplateRef, watch} from 'vue';
 import MaHeroArt from '@/client/components/ma/MaHeroArt.vue';
 import ConsoleMaRail from '@/client/components/console/ConsoleMaRail.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
@@ -267,266 +271,261 @@ import {translateMessage, translateText, translateTextWithParams} from '@/client
 import {Message} from '@/common/logs/Message';
 import {runMaCeremonyStage, stopMaCeremonyStage} from '@/client/console/consoleMaFocusMotion';
 import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
-export default defineComponent({
-  name: 'ConsoleMaFocusStage',
-  components: {MaHeroArt, ConsoleMaRail, ConsolePaymentPanel, ConsoleMaWaivedPrice},
-  props: {
-    item: {type: Object as PropType<ConsoleMaItem>, required: true},
-    view: {type: Object as PropType<MaConfirmView>, required: true},
-    inspect: {type: Object as PropType<MaInspectView>, required: true},
-    /** LIVE availability (the waitingFor tree is the source of truth). */
-    available: {type: Boolean, required: true},
-    /** The concrete reason when not available — the model's ONE ladder (`ConsoleMaItem.blocker`); '' when offered. */
-    blockReason: {type: String, default: ''},
-    /** The server WILL ask this claim's bill (PL-1622) — the rail names the payment step instead of an M€-only projection. */
-    billAsks: {type: Boolean, default: false},
-    /** «› ОПЛАТА» (PL-1622): the payment panel's view (undefined while the stage is closed) and its cursor's source. */
-    payView: {type: Object as PropType<PaymentView | undefined>, default: undefined},
-    payFocusUnit: {type: String, default: undefined},
-    /** The awards' funded slots in FUNDING order — each sponsor's seat and the price it went for (the ladder's past). */
-    sponsors: {type: Array as PropType<ReadonlyArray<MaSponsorSlot>>, default: () => []},
-  },
-  emits: ['ceremony-done'],
-  data() {
+defineOptions({name: 'ConsoleMaFocusStage'});
+const props = defineProps({
+  item: {type: Object as PropType<ConsoleMaItem>, required: true},
+  view: {type: Object as PropType<MaConfirmView>, required: true},
+  inspect: {type: Object as PropType<MaInspectView>, required: true},
+  /** LIVE availability (the waitingFor tree is the source of truth). */
+  available: {type: Boolean, required: true},
+  /** The concrete reason when not available — the model's ONE ladder (`ConsoleMaItem.blocker`); '' when offered. */
+  blockReason: {type: String, default: ''},
+  /** The server WILL ask this claim's bill (PL-1622) — the rail names the payment step instead of an M€-only projection. */
+  billAsks: {type: Boolean, default: false},
+  /** «› ОПЛАТА» (PL-1622): the payment panel's view (undefined while the stage is closed) and its cursor's source. */
+  payView: {type: Object as PropType<PaymentView | undefined>, default: undefined},
+  payFocusUnit: {type: String, default: undefined},
+  /** The awards' funded slots in FUNDING order — each sponsor's seat and the price it went for (the ladder's past). */
+  sponsors: {type: Array as PropType<ReadonlyArray<MaSponsorSlot>>, default: () => []},
+});
+const emit = defineEmits(['ceremony-done']);
+
+const root = useTemplateRef<HTMLElement>('root');
+/**
+ * THE COMMIT FREEZE (the colony stage's `heldView` idiom): the instant
+ * the commit leaves for the wire the stage pins what it shows — the
+ * live rebuild would otherwise repaint the paid price / before-after /
+ * standings mid-beat (the free flag drops with the consumed task, the
+ * NEXT award price replaces the paid one). The ceremony then states
+ * the EXACT paid economy. A refusal releases the pin — the restored
+ * detail must be live again.
+ */
+const heldView = ref<MaConfirmView | undefined>(undefined);
+const heldInspect = ref<MaInspectView | undefined>(undefined);
+/**
+ * …AND THE ITEM IS PINNED WITH THEM (PL-604, the TR61 walk): the status
+ * rail reads the item for its first branch — «Получено игроком …» the
+ * instant the answer lands — so for the detail's fade-out under the
+ * ceremony two voices said one thing («ДОСТИЖЕНИЕ ПОЛУЧЕНО» on the scene,
+ * «Claimed by player1» on the rail under the hero). Past the press the
+ * rail states the transaction AS PRESSED, and nothing else.
+ */
+const heldItem = ref<ConsoleMaItem | undefined>(undefined);
+const kind = computed((): 'milestone' | 'award' => {
+  return props.item.kind;
+});
+const phase = computed((): MaFocusPhase => {
+  return maFocusState.phase;
+});
+const error = computed((): string => {
+  return maFocusState.error;
+});
+const ceremonyUp = computed((): boolean => {
+  return phase.value === 'ceremony' || phase.value === 'closing';
+});
+/**
+ * THE ACTIVATION MATERIAL of the stage (milestone only — the P29/P33
+ * decision keeps the loud «offered» state a milestone semantic): the
+ * warm lit ground/pedestal/shelf the browse tile's `--go` carries,
+ * continued one level deeper so the descend never changes the object's
+ * temperature. LATCHED past the commit press (`phase !== 'detail'`) —
+ * the ceremony is this light consummated, and a surface that cooled the
+ * instant A landed read as a scene swap; a refusal returns to `detail`
+ * and the layers FADE with the live `available` (opacity-driven CSS).
+ */
+const warmGo = computed((): boolean => {
+  return kind.value === 'milestone' && (props.available || phase.value !== 'detail');
+});
+/** What the stage renders: LIVE pre-commit, PINNED past the commit. */
+const displayView = computed((): MaConfirmView => {
+  return heldView.value ?? props.view;
+});
+const displayInspect = computed((): MaInspectView => {
+  return heldInspect.value ?? props.inspect;
+});
+/** The payment face stands — only in the reversible detail (the commit brings the plates back for the price). */
+const payShown = computed((): boolean => {
+  return props.payView !== undefined && maFocusState.pay !== undefined && phase.value === 'detail';
+});
+const payFlash = computed((): number => {
+  return maFocusState.pay?.flash ?? 0;
+});
+/** A milestone with no numeric threshold — met / not met, never a progress number. */
+const conditionMilestone = computed((): boolean => {
+  return kind.value === 'milestone' && displayView.value.threshold === undefined;
+});
+/** The press charges the rail (the PL-1621 flight arms its target) — never for a free / waived price. */
+const charged = computed((): boolean => {
+  return maPriceCharged(displayView.value.price);
+});
+/**
+ * THE SPONSORSHIP LADDER (awards) — the truth about THREE TIMES (PC01 · GO): one step per slot.
+ *  · PAST — a funded slot wears its sponsor's seat and what it WENT for: the server's `paid` (a waived slot reads
+ *    «0» with its source's seal, for every seat); a save without the fact prints the rules' price of the slot.
+ *  · PRESENT — the next step: the live price with its cause (the engine's own; the waiver's struck table price).
+ *  · FUTURE — the steps after it print the TABLE's rule (14 · 20 — true for whoever funds them); under a standing
+ *    waiver each is struck to 0 with the same seal: the seat reads the table's rule AND its own price.
+ */
+const ladder = computed((): Array<{reading: MaPriceReading, sponsor?: string, next: boolean, charged: boolean}> => {
+  const taken = displayView.value.takenCount;
+  const rule = (i: number) => AWARD_COSTS[i] ?? AWARD_COSTS[AWARD_COSTS.length - 1];
+  const nextWaiver = displayView.value.price.kind === 'waived' ? displayView.value.price.waivedBy : undefined;
+  return Array.from({length: displayView.value.maxSlots}, (_, i) => {
+    const sponsor = props.sponsors[i];
+    const next = i === taken;
+    let reading: MaPriceReading;
+    if (sponsor !== undefined && i < taken) {
+      reading = maFundedSlotReading(sponsor, rule(i));
+    } else if (next) {
+      reading = displayView.value.price;
+    } else {
+      reading = maPriceReading({price: nextWaiver !== undefined ? 0 : rule(i), printed: rule(i), waivedBy: nextWaiver});
+    }
     return {
-      /**
-       * THE COMMIT FREEZE (the colony stage's `heldView` idiom): the instant
-       * the commit leaves for the wire the stage pins what it shows — the
-       * live rebuild would otherwise repaint the paid price / before-after /
-       * standings mid-beat (the free flag drops with the consumed task, the
-       * NEXT award price replaces the paid one). The ceremony then states
-       * the EXACT paid economy. A refusal releases the pin — the restored
-       * detail must be live again.
-       */
-      heldView: undefined as MaConfirmView | undefined,
-      heldInspect: undefined as MaInspectView | undefined,
-      /**
-       * …AND THE ITEM IS PINNED WITH THEM (PL-604, the TR61 walk): the status
-       * rail reads the item for its first branch — «Получено игроком …» the
-       * instant the answer lands — so for the detail's fade-out under the
-       * ceremony two voices said one thing («ДОСТИЖЕНИЕ ПОЛУЧЕНО» on the scene,
-       * «Claimed by player1» on the rail under the hero). Past the press the
-       * rail states the transaction AS PRESSED, and nothing else.
-       */
-      heldItem: undefined as ConsoleMaItem | undefined,
+      reading,
+      ...(sponsor !== undefined ? {sponsor: sponsor.color} : {}),
+      next,
+      charged: maPriceCharged(reading),
     };
-  },
-  computed: {
-    kind(): 'milestone' | 'award' {
-      return this.item.kind;
-    },
-    phase(): MaFocusPhase {
-      return maFocusState.phase;
-    },
-    error(): string {
-      return maFocusState.error;
-    },
-    ceremonyUp(): boolean {
-      return this.phase === 'ceremony' || this.phase === 'closing';
-    },
-    /**
-     * THE ACTIVATION MATERIAL of the stage (milestone only — the P29/P33
-     * decision keeps the loud «offered» state a milestone semantic): the
-     * warm lit ground/pedestal/shelf the browse tile's `--go` carries,
-     * continued one level deeper so the descend never changes the object's
-     * temperature. LATCHED past the commit press (`phase !== 'detail'`) —
-     * the ceremony is this light consummated, and a surface that cooled the
-     * instant A landed read as a scene swap; a refusal returns to `detail`
-     * and the layers FADE with the live `available` (opacity-driven CSS).
-     */
-    warmGo(): boolean {
-      return this.kind === 'milestone' && (this.available || this.phase !== 'detail');
-    },
-    /** What the stage renders: LIVE pre-commit, PINNED past the commit. */
-    displayView(): MaConfirmView {
-      return this.heldView ?? this.view;
-    },
-    displayInspect(): MaInspectView {
-      return this.heldInspect ?? this.inspect;
-    },
-    /** The payment face stands — only in the reversible detail (the commit brings the plates back for the price). */
-    payShown(): boolean {
-      return this.payView !== undefined && maFocusState.pay !== undefined && this.phase === 'detail';
-    },
-    payFlash(): number {
-      return maFocusState.pay?.flash ?? 0;
-    },
-    /** A milestone with no numeric threshold — met / not met, never a progress number. */
-    conditionMilestone(): boolean {
-      return this.kind === 'milestone' && this.displayView.threshold === undefined;
-    },
-    /** The press charges the rail (the PL-1621 flight arms its target) — never for a free / waived price. */
-    charged(): boolean {
-      return maPriceCharged(this.displayView.price);
-    },
-    /**
-     * THE SPONSORSHIP LADDER (awards) — the truth about THREE TIMES (PC01 · GO): one step per slot.
-     *  · PAST — a funded slot wears its sponsor's seat and what it WENT for: the server's `paid` (a waived slot reads
-     *    «0» with its source's seal, for every seat); a save without the fact prints the rules' price of the slot.
-     *  · PRESENT — the next step: the live price with its cause (the engine's own; the waiver's struck table price).
-     *  · FUTURE — the steps after it print the TABLE's rule (14 · 20 — true for whoever funds them); under a standing
-     *    waiver each is struck to 0 with the same seal: the seat reads the table's rule AND its own price.
-     */
-    ladder(): Array<{reading: MaPriceReading, sponsor?: string, next: boolean, charged: boolean}> {
-      const taken = this.displayView.takenCount;
-      const rule = (i: number) => AWARD_COSTS[i] ?? AWARD_COSTS[AWARD_COSTS.length - 1];
-      const nextWaiver = this.displayView.price.kind === 'waived' ? this.displayView.price.waivedBy : undefined;
-      return Array.from({length: this.displayView.maxSlots}, (_, i) => {
-        const sponsor = this.sponsors[i];
-        const next = i === taken;
-        let reading: MaPriceReading;
-        if (sponsor !== undefined && i < taken) {
-          reading = maFundedSlotReading(sponsor, rule(i));
-        } else if (next) {
-          reading = this.displayView.price;
-        } else {
-          reading = maPriceReading({price: nextWaiver !== undefined ? 0 : rule(i), printed: rule(i), waivedBy: nextWaiver});
-        }
-        return {
-          reading,
-          ...(sponsor !== undefined ? {sponsor: sponsor.color} : {}),
-          next,
-          charged: maPriceCharged(reading),
-        };
-      });
-    },
-    /** The card that waived THIS seat's price — named once, in words, under the exchange / the ladder. */
-    waiverSource(): CardName | undefined {
-      return this.displayView.price.kind === 'waived' ? this.displayView.price.waivedBy : undefined;
-    },
-    waiverLine(): string {
-      const source = this.waiverSource;
-      return source === undefined ? '' : translateTextWithParams('${0} — free for you', [translateText(source)]);
-    },
-    takenByMe(): boolean {
-      return this.item.takenBy !== undefined && this.item.takenBy.color === this.item.myColor;
-    },
-    /** The state BADGE — one short label, one tone. Which state, nothing more:
-     *  the quantity is the progress block's, the consequence is the rail's. */
-    stateTone(): 'taken' | 'mine' | 'go' | 'idle' {
-      if (this.displayView.takenByOther !== undefined) {
-        return 'taken';
+  });
+});
+/** The card that waived THIS seat's price — named once, in words, under the exchange / the ladder. */
+const waiverSource = computed((): CardName | undefined => {
+  return displayView.value.price.kind === 'waived' ? displayView.value.price.waivedBy : undefined;
+});
+const waiverLine = computed((): string => {
+  const source = waiverSource.value;
+  return source === undefined ? '' : translateTextWithParams('${0} — free for you', [translateText(source)]);
+});
+const takenByMe = computed((): boolean => {
+  return props.item.takenBy !== undefined && props.item.takenBy.color === props.item.myColor;
+});
+/** The state BADGE — one short label, one tone. Which state, nothing more:
+ *  the quantity is the progress block's, the consequence is the rail's. */
+const stateTone = computed((): 'taken' | 'mine' | 'go' | 'idle' => {
+  if (displayView.value.takenByOther !== undefined) {
+    return 'taken';
+  }
+  if (takenByMe.value) {
+    return 'mine';
+  }
+  return props.available ? 'go' : 'idle';
+});
+const stateLabel = computed((): string => {
+  switch (stateTone.value) {
+  case 'taken':
+  case 'mine':
+    return kind.value === 'milestone' ? 'Claimed' : 'Funded';
+  case 'go':
+    return kind.value === 'milestone' ? 'Can be claimed' : 'Can be sponsored';
+  default:
+    // ONE word for the state; the reason is the rail's, named (FB — never «Сейчас недоступно»).
+    return kind.value === 'milestone' && !props.item.myReady ? 'Not met yet' : 'Not now';
+  }
+});
+/** The claimant's colour dot rides the badge when someone ELSE owns it. */
+const ownerColor = computed((): string => {
+  return displayView.value.takenByOther?.color ?? '';
+});
+/**
+ * The one line UNDER the viewer's own number: where they stand in the
+ * race. An award's whole point is the comparison, so it names the leader
+ * (or says the viewer IS one); a milestone's number already carries its
+ * own target («20/29»), so it says nothing rather than something twice.
+ */
+const standingNote = computed((): string => {
+  if (kind.value === 'milestone') {
+    return '';
+  }
+  switch (displayView.value.raceTone) {
+  case 'lead': return $t('You lead');
+  case 'tie': return $t('Tied for the lead');
+  case 'behind': return `${$t('Leader')}: ${displayView.value.leaderScore}`;
+  default: return '';
+  }
+});
+const meterWidth = computed((): string => {
+  const t = displayView.value.threshold ?? 0;
+  if (t <= 0) {
+    return '0%';
+  }
+  return `${Math.min(100, Math.round((displayView.value.myScore / t) * 100))}%`;
+});
+/**
+ * THE STATUS RAIL of this item — the same pure model, the same component
+ * the list state renders. It uses the PINNED view past the commit, so the
+ * ceremony states the economy that was actually paid.
+ */
+const railView = computed((): MaRailView => {
+  return buildMaRail({
+    item: heldItem.value ?? props.item,
+    kind: kind.value === 'milestone' ? 'milestones' : 'awards',
+    cost: displayView.value.cost,
+    free: displayView.value.free,
+    myMegacredits: displayView.value.mcBefore,
+    takenCount: displayView.value.takenCount,
+    maxSlots: displayView.value.maxSlots,
+    // ON the payment step the panel states every row's «остаётся» — the rail names no step it already is.
+    billAsks: props.billAsks && !payShown.value,
+  });
+});
+/**
+ * The COMMIT's own line, which REPLACES the rail while it speaks: the
+ * pending beat, or a refusal's inline reason. A blocked-by-state item is
+ * NOT one of these — the rail already names that blocker, and printing it
+ * twice is the duplication this iteration removed.
+ */
+const commitStatus = computed((): string => {
+  if (phase.value === 'committing') {
+    return 'Confirming…';
+  }
+  return error.value;
+});
+const statusClass = computed((): string => {
+  return phase.value === 'committing' ?
+    'con-mafocus__status--wait' : 'con-mafocus__status--blocked';
+});
+const ceremonyKicker = computed((): string => {
+  if (kind.value === 'milestone') {
+    return 'Milestone claimed';
+  }
+  return displayView.value.free ? 'Award sponsored' : 'Award funded';
+});
+
+/** A server Message (the bot's registry line) through the one translation road — a copy, never the model's object. */
+function ruleText(message: Message): string {
+  return translateMessage({message: message.message, data: message.data.map((d) => ({...d}))});
+}
+
+/** The commit resolved — the ceremony owns the stage from here. One-shot
+ *  by construction (the phase machine never re-enters 'ceremony'). */
+watch(() => phase.value, (next: MaFocusPhase, prev: MaFocusPhase) => {
+  if (next === 'committing') {
+    // Pin the presentation across the commit (see `heldView`).
+    heldView.value = props.view;
+    heldInspect.value = props.inspect;
+    heldItem.value = props.item;
+  } else if (next === 'detail') {
+    // A refusal restored the reversible detail — live values again.
+    heldView.value = undefined;
+    heldInspect.value = undefined;
+    heldItem.value = undefined;
+  }
+  if (next === 'ceremony' && prev === 'committing') {
+    // (PRICE, THEN CROWN — PL-1621: the shell enters the ceremony only once the price has been absorbed.)
+    void nextTick(() => {
+      const el = root.value;
+      if (el === null) {
+        return;
       }
-      if (this.takenByMe) {
-        return 'mine';
-      }
-      return this.available ? 'go' : 'idle';
-    },
-    stateLabel(): string {
-      switch (this.stateTone) {
-      case 'taken':
-      case 'mine':
-        return this.kind === 'milestone' ? 'Claimed' : 'Funded';
-      case 'go':
-        return this.kind === 'milestone' ? 'Can be claimed' : 'Can be sponsored';
-      default:
-        // ONE word for the state; the reason is the rail's, named (FB — never «Сейчас недоступно»).
-        return this.kind === 'milestone' && !this.item.myReady ? 'Not met yet' : 'Not now';
-      }
-    },
-    /** The claimant's colour dot rides the badge when someone ELSE owns it. */
-    ownerColor(): string {
-      return this.displayView.takenByOther?.color ?? '';
-    },
-    /**
-     * The one line UNDER the viewer's own number: where they stand in the
-     * race. An award's whole point is the comparison, so it names the leader
-     * (or says the viewer IS one); a milestone's number already carries its
-     * own target («20/29»), so it says nothing rather than something twice.
-     */
-    standingNote(): string {
-      if (this.kind === 'milestone') {
-        return '';
-      }
-      switch (this.displayView.raceTone) {
-      case 'lead': return $t('You lead');
-      case 'tie': return $t('Tied for the lead');
-      case 'behind': return `${$t('Leader')}: ${this.displayView.leaderScore}`;
-      default: return '';
-      }
-    },
-    meterWidth(): string {
-      const t = this.displayView.threshold ?? 0;
-      if (t <= 0) {
-        return '0%';
-      }
-      return `${Math.min(100, Math.round((this.displayView.myScore / t) * 100))}%`;
-    },
-    /**
-     * THE STATUS RAIL of this item — the same pure model, the same component
-     * the list state renders. It uses the PINNED view past the commit, so the
-     * ceremony states the economy that was actually paid.
-     */
-    railView(): MaRailView {
-      return buildMaRail({
-        item: this.heldItem ?? this.item,
-        kind: this.kind === 'milestone' ? 'milestones' : 'awards',
-        cost: this.displayView.cost,
-        free: this.displayView.free,
-        myMegacredits: this.displayView.mcBefore,
-        takenCount: this.displayView.takenCount,
-        maxSlots: this.displayView.maxSlots,
-        // ON the payment step the panel states every row's «остаётся» — the rail names no step it already is.
-        billAsks: this.billAsks && !this.payShown,
-      });
-    },
-    /**
-     * The COMMIT's own line, which REPLACES the rail while it speaks: the
-     * pending beat, or a refusal's inline reason. A blocked-by-state item is
-     * NOT one of these — the rail already names that blocker, and printing it
-     * twice is the duplication this iteration removed.
-     */
-    commitStatus(): string {
-      if (this.phase === 'committing') {
-        return 'Confirming…';
-      }
-      return this.error;
-    },
-    statusClass(): string {
-      return this.phase === 'committing' ?
-        'con-mafocus__status--wait' : 'con-mafocus__status--blocked';
-    },
-    ceremonyKicker(): string {
-      if (this.kind === 'milestone') {
-        return 'Milestone claimed';
-      }
-      return this.displayView.free ? 'Award sponsored' : 'Award funded';
-    },
-  },
-  watch: {
-    /** The commit resolved — the ceremony owns the stage from here. One-shot
-     *  by construction (the phase machine never re-enters 'ceremony'). */
-    phase(next: MaFocusPhase, prev: MaFocusPhase) {
-      if (next === 'committing') {
-        // Pin the presentation across the commit (see `heldView`).
-        this.heldView = this.view;
-        this.heldInspect = this.inspect;
-        this.heldItem = this.item;
-      } else if (next === 'detail') {
-        // A refusal restored the reversible detail — live values again.
-        this.heldView = undefined;
-        this.heldInspect = undefined;
-        this.heldItem = undefined;
-      }
-      if (next === 'ceremony' && prev === 'committing') {
-        // (PRICE, THEN CROWN — PL-1621: the shell enters the ceremony only once the price has been absorbed.)
-        void this.$nextTick(() => {
-          runMaCeremonyStage(this.$el as Element, {kind: this.kind}, () => this.$emit('ceremony-done'));
-        });
-      }
-    },
-  },
-  beforeUnmount() {
-    // A torn-down stage must never fire a late completion into the shell.
-    stopMaCeremonyStage();
-  },
-  methods: {
-    $t,
-    /** A server Message (the bot's registry line) through the one translation road — a copy, never the model's object. */
-    ruleText(message: Message): string {
-      return translateMessage({message: message.message, data: message.data.map((d) => ({...d}))});
-    },
-  },
+      runMaCeremonyStage(el, {kind: kind.value}, () => emit('ceremony-done'));
+    });
+  }
+});
+onBeforeUnmount(() => {
+  // A torn-down stage must never fire a late completion into the shell.
+  stopMaCeremonyStage();
 });
 </script>
