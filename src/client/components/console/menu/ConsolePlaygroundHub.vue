@@ -1,15 +1,4 @@
 <template>
-  <!--
-    PLAYGROUND HUB — the admin-only «Полигон» menu overlay. A LIST of visual
-    dev stands (today: the premium-card showcase; the registry below is where
-    the next stand becomes one row). Picking a row opens the stand FULLSCREEN
-    over the menu in the shared ConsolePlaygroundStand chassis; B returns to
-    this list, B again returns to the menu.
-
-    Pad ownership mirrors ConsoleAdminRollback: the menu forwards every intent
-    to `handleIntent` while this overlay is up; a fullscreen stand gets them
-    forwarded one level deeper.
-  -->
   <div class="cm-overlay" role="dialog" :aria-label="$t('Playground')">
     <div class="cm-overlay__card">
       <div class="cm-overlay__head">
@@ -93,108 +82,121 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, defineAsyncComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * PLAYGROUND HUB — the admin-only «Полигон» menu overlay. A LIST of visual
+ * dev stands (today: the premium-card showcase; the registry below is where
+ * the next stand becomes one row). Picking a row opens the stand FULLSCREEN
+ * over the menu in the shared ConsolePlaygroundStand chassis; B returns to
+ * this list, B again returns to the menu.
+ *
+ * Pad ownership mirrors ConsoleAdminRollback: the menu forwards every intent
+ * to `handleIntent` while this overlay is up; a fullscreen stand gets them
+ * forwarded one level deeper.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, ref, useTemplateRef} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {stepIndex} from '@/client/console/consoleRouter';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsolePlaygroundStand from '@/client/components/console/menu/ConsolePlaygroundStand.vue';
-
 // Async: every showcase pulls its own catalog machinery — the menu must not
-// pay that weight until an admin actually opens the stand.
-const PremiumCardsPlayground = defineAsyncComponent(() => import('@/client/components/premiumCard/PremiumCardsPlayground.vue'));
-const PlayerCubePlayground = defineAsyncComponent(() => import('@/client/components/PlayerCubePlayground.vue'));
-const CardLorePlayground = defineAsyncComponent(() => import('@/client/components/card/CardLorePlayground.vue'));
-const ConsoleResolutionsPlayground = defineAsyncComponent(() => import('@/client/components/console/parliament/ConsoleResolutionsPlayground.vue'));
-const ConsoleTendersPlayground = defineAsyncComponent(() => import('@/client/components/console/campaign/ConsoleTendersPlayground.vue'));
+// pay that weight until an admin actually opens the stand. The five lazy bindings live in a MODULE (a wrapper keeps
+// the component it resolved — declared here it would be created anew with every mount of the hub): see the note in
+// consolePlaygroundHubAsync.ts.
+import {
+  PremiumCardsPlayground,
+  PlayerCubePlayground,
+  CardLorePlayground,
+  ConsoleResolutionsPlayground,
+  ConsoleTendersPlayground,
+} from '@/client/components/console/menu/consolePlaygroundHubAsync';
 
 type StandId = 'premium-cards' | 'player-cubes' | 'card-lore' | 'redux-resolutions' | 'campaign-tenders';
 type StandRow = {id: StandId, labelKey: string, subKey: string, glyph: string};
 
-export default defineComponent({
-  name: 'ConsolePlaygroundHub',
-  components: {GamepadGlyph, ConsolePlaygroundStand, PremiumCardsPlayground, PlayerCubePlayground, CardLorePlayground, ConsoleResolutionsPlayground, ConsoleTendersPlayground},
-  emits: ['close'],
-  data() {
-    return {
-      cursor: 0,
-      open: undefined as StandId | undefined,
-    };
-  },
-  computed: {
-    stands(): ReadonlyArray<StandRow> {
-      return [
-        {
-          id: 'premium-cards',
-          labelKey: 'Premium cards showcase',
-          subKey: 'The visual acceptance surface of the premium card renderer',
-          glyph: '❏',
-        },
-        {
-          id: 'player-cubes',
-          labelKey: 'Player cubes showcase',
-          subKey: 'Every colour and size of the premium player cube',
-          glyph: '⬢',
-        },
-        {
-          id: 'card-lore',
-          labelKey: 'Card lore showcase',
-          subKey: 'Archive-entry text states of the fullscreen viewer',
-          glyph: '✎',
-        },
-        {
-          id: 'redux-resolutions',
-          labelKey: 'Redux resolutions showcase',
-          subKey: 'Every catalogued resolution: the face, the inspector, the influence-scaled payout and the shared recipient picker',
-          glyph: '⚖',
-        },
-        {
-          id: 'campaign-tenders',
-          labelKey: 'Tenders showcase',
-          subKey: 'Every tender of the Committee: the certificate at its sizes and states, the fullscreen viewer, a simulated Register deal and the real bidding scene',
-          glyph: '§',
-        },
-      ];
+defineOptions({name: 'ConsolePlaygroundHub'});
+const emit = defineEmits(['close']);
+
+const stand = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('stand');
+const reduxPg = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('reduxPg');
+const tendersPg = useTemplateRef<{handleIntent?: (intent: GamepadIntent) => boolean}>('tendersPg');
+const cursor = ref(0);
+const open = ref<StandId | undefined>(undefined);
+const stands = computed((): ReadonlyArray<StandRow> => {
+  return [
+    {
+      id: 'premium-cards',
+      labelKey: 'Premium cards showcase',
+      subKey: 'The visual acceptance surface of the premium card renderer',
+      glyph: '❏',
     },
-  },
-  methods: {
-    /** The resolutions stand's pad target — the slotted showcase (resolved late: it mounts async). */
-    reduxStandTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
-      return (this.$refs.reduxPg ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+    {
+      id: 'player-cubes',
+      labelKey: 'Player cubes showcase',
+      subKey: 'Every colour and size of the premium player cube',
+      glyph: '⬢',
     },
-    /** The tenders stand's pad target — the same late resolution. */
-    tendersStandTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
-      return (this.$refs.tendersPg ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+    {
+      id: 'card-lore',
+      labelKey: 'Card lore showcase',
+      subKey: 'Archive-entry text states of the fullscreen viewer',
+      glyph: '✎',
     },
-    openAt(i: number): void {
-      this.cursor = i;
-      const stand = this.stands[i];
-      if (stand !== undefined) {
-        this.open = stand.id;
-      }
+    {
+      id: 'redux-resolutions',
+      labelKey: 'Redux resolutions showcase',
+      subKey: 'Every catalogued resolution: the face, the inspector, the influence-scaled payout and the shared recipient picker',
+      glyph: '⚖',
     },
-    handleIntent(intent: GamepadIntent): boolean {
-      // A fullscreen stand owns the pad while it is up.
-      if (this.open !== undefined) {
-        const stand = (this.$refs.stand ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
-        return stand?.handleIntent?.(intent) ?? true;
-      }
-      const action = consoleActionOf(intent);
-      if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
-        this.cursor = stepIndex(this.cursor, intent.dir === 'down' ? 1 : -1, this.stands.length);
-        return true;
-      }
-      if (action === 'primary') {
-        this.openAt(this.cursor);
-        return true;
-      }
-      if (action === 'back') {
-        this.$emit('close');
-        return true;
-      }
-      return true;
+    {
+      id: 'campaign-tenders',
+      labelKey: 'Tenders showcase',
+      subKey: 'Every tender of the Committee: the certificate at its sizes and states, the fullscreen viewer, a simulated Register deal and the real bidding scene',
+      glyph: '§',
     },
-  },
+  ];
 });
+
+/** The resolutions stand's pad target — the slotted showcase (resolved late: it mounts async). */
+function reduxStandTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
+  return reduxPg.value ?? undefined;
+}
+/** The tenders stand's pad target — the same late resolution. */
+function tendersStandTarget(): {handleIntent?: (intent: GamepadIntent) => boolean} | undefined {
+  return tendersPg.value ?? undefined;
+}
+function openAt(i: number): void {
+  cursor.value = i;
+  const stand = stands.value[i];
+  if (stand !== undefined) {
+    open.value = stand.id;
+  }
+}
+function handleIntent(intent: GamepadIntent): boolean {
+  // A fullscreen stand owns the pad while it is up.
+  if (open.value !== undefined) {
+    const standNow = stand.value;
+    return standNow?.handleIntent?.(intent) ?? true;
+  }
+  const action = consoleActionOf(intent);
+  if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
+    cursor.value = stepIndex(cursor.value, intent.dir === 'down' ? 1 : -1, stands.value.length);
+    return true;
+  }
+  if (action === 'primary') {
+    openAt(cursor.value);
+    return true;
+  }
+  if (action === 'back') {
+    emit('close');
+    return true;
+  }
+  return true;
+}
+
+defineExpose({handleIntent});
 </script>
