@@ -1,11 +1,4 @@
 <template>
-  <!--
-    КАРТЫ — the card story of the party, never a wall of thumbnails. A ranked
-    impact list (strict PAGES, the album grammar — no scroll container), a
-    player filter on ←/→, and ONE premium card face for the focused row in
-    the context column (the live tableau CardModel, so stored resources are
-    honest). A enlarges the focused card into the nested detail.
-  -->
   <div class="con-ovc">
     <!-- Per-player card-VP summary strip + the active filter. -->
     <div class="con-ovc__top">
@@ -132,8 +125,17 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * КАРТЫ — the card story of the party, never a wall of thumbnails. A ranked
+ * impact list (strict PAGES, the album grammar — no scroll container), a
+ * player filter on ←/→, and ONE premium card face for the focused row in
+ * the context column (the live tableau CardModel, so stored resources are
+ * honest). A enlarges the focused card into the nested detail.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {CardVictoryPointsKind} from '@/common/game/VictoryPointsBreakdown';
@@ -162,158 +164,151 @@ const KIND_LABEL: Record<CardVictoryPointsKind, string> = {
   penalty: 'Penalties',
 };
 
-export default defineComponent({
-  name: 'ConsoleOvTabCards',
-  components: {Card, ConsoleBotDividendLedger},
-  props: {
-    vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
-    playerView: {type: Object as PropType<ViewModel>, required: true},
-  },
-  setup() {
-    const {isHandheld} = useConsoleViewport();
-    return {isHandheld};
-  },
-  computed: {
-    ui() {
-      return consoleOverviewUi;
-    },
-    pageSize(): number {
-      return this.isHandheld ? 6 : 9;
-    },
-    filteredRows(): Array<OvCardRow> {
-      const f = this.ui.cardsFilter;
-      if (f < 0 || f >= this.vm.cards.byPlayer.length) {
-        return [...this.vm.cards.rows];
-      }
-      const color = this.vm.cards.byPlayer[f].color;
-      return this.vm.cards.rows.filter((r) => r.owner === color);
-    },
-    focusIdx(): number {
-      return Math.min(Math.max(this.ui.cardsIdx, 0), Math.max(0, this.filteredRows.length - 1));
-    },
-    page(): number {
-      return this.pageSize > 0 ? Math.floor(this.focusIdx / this.pageSize) : 0;
-    },
-    pageCount(): number {
-      return Math.max(1, Math.ceil(this.filteredRows.length / this.pageSize));
-    },
-    pageRows(): Array<OvCardRow> {
-      return this.filteredRows.slice(this.page * this.pageSize, (this.page + 1) * this.pageSize);
-    },
-    focusedRow(): OvCardRow | undefined {
-      return this.filteredRows[this.focusIdx];
-    },
-    focusedCardModel(): CardModel | undefined {
-      const row = this.focusedRow;
-      return row !== undefined && row.bot === undefined ? this.modelFor(row) : undefined;
-    },
-    /** The focused row's HOLDING source — a further corporation of the bot, read through the dividend ledger. */
-    focusedHolding(): Extract<OvBotCardSource, {kind: 'holding'}> | undefined {
-      const bot = this.focusedRow?.bot;
-      return bot?.kind === 'holding' ? bot : undefined;
-    },
-    /** The server's own dividend row read out (undefined on a save whose row carries no goal terms — the parts line stands). */
-    focusedHoldingReading(): BotDividendReading | undefined {
-      return botDividendReading(this.focusedHolding?.detail);
-    },
-    detailHoldingReading(): BotDividendReading | undefined {
-      const bot = this.detailRow?.bot;
-      return bot?.kind === 'holding' ? botDividendReading(bot.detail) : undefined;
-    },
-    cardKey(): string {
-      return this.focusedRow !== undefined ? this.focusedRow.id : 'none';
-    },
-    detailRow(): OvCardRow | undefined {
-      const d = this.ui.detail;
-      if (d === undefined || d.kind !== 'card') {
-        return undefined;
-      }
-      return this.vm.cards.rows.find((r) => r.id === d.rowId);
-    },
-    detailCardModel(): CardModel | undefined {
-      const row = this.detailRow;
-      return row !== undefined && row.bot === undefined ? this.modelFor(row) : undefined;
-    },
-  },
-  methods: {
-    hex(color: Color): string {
-      return endgamePlayerHex(color);
-    },
-    kindAccent(kind: CardVictoryPointsKind): string {
-      return KIND_ACCENT[kind];
-    },
-    kindLabel(kind: CardVictoryPointsKind): string {
-      return KIND_LABEL[kind];
-    },
-    rankOf(row: OvCardRow): number {
-      return this.filteredRows.indexOf(row) + 1;
-    },
-    /** The bot source's REAL mechanic, line by line — labels are i18n keys,
-     *  values are the server's own numbers (AutomaVictoryPoints). */
-    botFormula(src: OvBotCardSource): Array<{label: string; value: string}> {
-      switch (src.kind) {
-      case 'mc':
-        return [
-          {label: 'M€ left at scoring', value: String(src.stock)},
-          {label: 'Conversion rate', value: `${src.rate} M€ → 1 ${$t('VP')}`},
-          {label: 'Result', value: `${Math.floor(src.stock / src.rate)} ${$t('VP')}`},
-        ];
-      case 'neural':
-        return [
-          {label: '+1 VP per adjacent space without a human tile', value: ''},
-          {label: 'Qualifying neighbours', value: String(src.count)},
-        ];
-      case 'icons':
-        return [
-          {label: '+1 VP per played card with a non-negative VP icon', value: ''},
-          {label: 'Qualifying cards in the pile', value: String(src.count)},
-          {label: 'Difficulty', value: $t(src.difficulty)},
-        ];
-      case 'corp':
-        return [
-          {label: 'Scored by the bot\'s own corporation', value: src.corporation},
-          {label: 'Result', value: `${src.count} ${$t('VP')}`},
-        ];
-      case 'holding':
-        // A save whose dividend row carries no goal terms: the two parts, as numbers.
-        return [
-          {label: 'Dividend formula', value: `${src.formulaVp} ${$t('VP')}`},
-          {label: 'Dividend goals', value: `${src.goalsVp} ${$t('VP')}`},
-        ];
-      }
-    },
-    /** The LIVE tableau model when the card is on the owner's board (stored
-     *  resources stay honest); a name-only face otherwise (awards etc.). */
-    modelFor(row: OvCardRow): CardModel {
-      const owner = this.playerView.players.find((p) => p.color === row.owner);
-      const live = owner?.tableau.find((c) => c.name === row.cardName);
-      return live ?? {name: row.cardName as CardName};
-    },
-    // ── pane API ──────────────────────────────────────────────────────────
-    nav(dir: NavDirection): void {
-      if (this.ui.detail !== undefined) {
-        return;
-      }
-      if (dir === 'up' || dir === 'down') {
-        const n = this.filteredRows.length;
-        if (n > 0) {
-          const delta = dir === 'down' ? 1 : -1;
-          this.ui.cardsIdx = Math.min(Math.max(this.focusIdx + delta, 0), n - 1);
-        }
-        return;
-      }
-      // ←/→ — the player filter ring (ВСЕ → each player, wrapping).
-      const total = this.vm.cards.byPlayer.length + 1;
-      const cur = this.ui.cardsFilter + 1; // 0 = all
-      const delta = dir === 'right' ? 1 : -1;
-      this.ui.cardsFilter = ((cur + delta + total) % total) - 1;
-      this.ui.cardsIdx = 0;
-    },
-    primary(): void {
-      if (this.focusedRow !== undefined && this.ui.detail === undefined) {
-        this.ui.detail = {kind: 'card', rowId: this.focusedRow.id};
-      }
-    },
-  },
+defineOptions({name: 'ConsoleOvTabCards'});
+const props = defineProps({
+  vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
+  playerView: {type: Object as PropType<ViewModel>, required: true},
 });
+
+const {isHandheld} = useConsoleViewport();
+const ui = consoleOverviewUi;
+const pageSize = computed((): number => {
+  return isHandheld.value ? 6 : 9;
+});
+const filteredRows = computed((): Array<OvCardRow> => {
+  const f = ui.cardsFilter;
+  if (f < 0 || f >= props.vm.cards.byPlayer.length) {
+    return [...props.vm.cards.rows];
+  }
+  const color = props.vm.cards.byPlayer[f].color;
+  return props.vm.cards.rows.filter((r) => r.owner === color);
+});
+const focusIdx = computed((): number => {
+  return Math.min(Math.max(ui.cardsIdx, 0), Math.max(0, filteredRows.value.length - 1));
+});
+const page = computed((): number => {
+  return pageSize.value > 0 ? Math.floor(focusIdx.value / pageSize.value) : 0;
+});
+const pageCount = computed((): number => {
+  return Math.max(1, Math.ceil(filteredRows.value.length / pageSize.value));
+});
+const pageRows = computed((): Array<OvCardRow> => {
+  return filteredRows.value.slice(page.value * pageSize.value, (page.value + 1) * pageSize.value);
+});
+const focusedRow = computed((): OvCardRow | undefined => {
+  return filteredRows.value[focusIdx.value];
+});
+const focusedCardModel = computed((): CardModel | undefined => {
+  const row = focusedRow.value;
+  return row !== undefined && row.bot === undefined ? modelFor(row) : undefined;
+});
+/** The focused row's HOLDING source — a further corporation of the bot, read through the dividend ledger. */
+const focusedHolding = computed((): Extract<OvBotCardSource, {kind: 'holding'}> | undefined => {
+  const bot = focusedRow.value?.bot;
+  return bot?.kind === 'holding' ? bot : undefined;
+});
+/** The server's own dividend row read out (undefined on a save whose row carries no goal terms — the parts line stands). */
+const focusedHoldingReading = computed((): BotDividendReading | undefined => {
+  return botDividendReading(focusedHolding.value?.detail);
+});
+const detailHoldingReading = computed((): BotDividendReading | undefined => {
+  const bot = detailRow.value?.bot;
+  return bot?.kind === 'holding' ? botDividendReading(bot.detail) : undefined;
+});
+const cardKey = computed((): string => {
+  return focusedRow.value !== undefined ? focusedRow.value.id : 'none';
+});
+const detailRow = computed((): OvCardRow | undefined => {
+  const d = ui.detail;
+  if (d === undefined || d.kind !== 'card') {
+    return undefined;
+  }
+  return props.vm.cards.rows.find((r) => r.id === d.rowId);
+});
+const detailCardModel = computed((): CardModel | undefined => {
+  const row = detailRow.value;
+  return row !== undefined && row.bot === undefined ? modelFor(row) : undefined;
+});
+function hex(color: Color): string {
+  return endgamePlayerHex(color);
+}
+function kindAccent(kind: CardVictoryPointsKind): string {
+  return KIND_ACCENT[kind];
+}
+function kindLabel(kind: CardVictoryPointsKind): string {
+  return KIND_LABEL[kind];
+}
+function rankOf(row: OvCardRow): number {
+  return filteredRows.value.indexOf(row) + 1;
+}
+/** The bot source's REAL mechanic, line by line — labels are i18n keys,
+ *  values are the server's own numbers (AutomaVictoryPoints). */
+function botFormula(src: OvBotCardSource): Array<{label: string; value: string}> {
+  switch (src.kind) {
+  case 'mc':
+    return [
+      {label: 'M€ left at scoring', value: String(src.stock)},
+      {label: 'Conversion rate', value: `${src.rate} M€ → 1 ${$t('VP')}`},
+      {label: 'Result', value: `${Math.floor(src.stock / src.rate)} ${$t('VP')}`},
+    ];
+  case 'neural':
+    return [
+      {label: '+1 VP per adjacent space without a human tile', value: ''},
+      {label: 'Qualifying neighbours', value: String(src.count)},
+    ];
+  case 'icons':
+    return [
+      {label: '+1 VP per played card with a non-negative VP icon', value: ''},
+      {label: 'Qualifying cards in the pile', value: String(src.count)},
+      {label: 'Difficulty', value: $t(src.difficulty)},
+    ];
+  case 'corp':
+    return [
+      {label: 'Scored by the bot\'s own corporation', value: src.corporation},
+      {label: 'Result', value: `${src.count} ${$t('VP')}`},
+    ];
+  case 'holding':
+    // A save whose dividend row carries no goal terms: the two parts, as numbers.
+    return [
+      {label: 'Dividend formula', value: `${src.formulaVp} ${$t('VP')}`},
+      {label: 'Dividend goals', value: `${src.goalsVp} ${$t('VP')}`},
+    ];
+  }
+}
+/** The LIVE tableau model when the card is on the owner's board (stored
+ *  resources stay honest); a name-only face otherwise (awards etc.). */
+function modelFor(row: OvCardRow): CardModel {
+  const owner = props.playerView.players.find((p) => p.color === row.owner);
+  const live = owner?.tableau.find((c) => c.name === row.cardName);
+  return live ?? {name: row.cardName as CardName};
+}
+// ── pane API ──────────────────────────────────────────────────────────
+function nav(dir: NavDirection): void {
+  if (ui.detail !== undefined) {
+    return;
+  }
+  if (dir === 'up' || dir === 'down') {
+    const n = filteredRows.value.length;
+    if (n > 0) {
+      const delta = dir === 'down' ? 1 : -1;
+      ui.cardsIdx = Math.min(Math.max(focusIdx.value + delta, 0), n - 1);
+    }
+    return;
+  }
+  // ←/→ — the player filter ring (ВСЕ → each player, wrapping).
+  const total = props.vm.cards.byPlayer.length + 1;
+  const cur = ui.cardsFilter + 1; // 0 = all
+  const delta = dir === 'right' ? 1 : -1;
+  ui.cardsFilter = ((cur + delta + total) % total) - 1;
+  ui.cardsIdx = 0;
+}
+function primary(): void {
+  if (focusedRow.value !== undefined && ui.detail === undefined) {
+    ui.detail = {kind: 'card', rowId: focusedRow.value.id};
+  }
+}
+
+// The pane API — what `ConsoleEndgameOverview` reaches through its `ref="pane"` (`nav` on a d-pad step, `primary`
+// on A), and nothing else.
+defineExpose({nav, primary});
 </script>
