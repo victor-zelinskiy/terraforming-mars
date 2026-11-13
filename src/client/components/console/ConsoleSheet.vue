@@ -1,7 +1,4 @@
 <template>
-  <!-- data-motion-*: the director animates the panel (its authored
-       rise-from-the-bar-band entry is re-expressed in GSAP); the OWN light
-       0.6 dim stays by design (NON_SHADE_OWNERS). -->
   <div class="con-sheet con-ws" role="dialog" :aria-label="$t(title)" data-motion-surface="sheet">
     <div class="con-sheet__backdrop" aria-hidden="true"></div>
     <div class="con-sheet__panel" data-motion-panel>
@@ -35,7 +32,14 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * data-motion-*: the director animates the panel (its authored
+ *       rise-from-the-bar-band entry is re-expressed in GSAP); the OWN light
+ *       0.6 dim stays by design (NON_SHADE_OWNERS).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * Generic console bottom sheet (docs/CONSOLE_MODE_CONCEPT.md §9) — big TV rows
  * for the bounded lists (basic actions / standard projects / card actions /
@@ -45,36 +49,36 @@
  * P26: milestones/awards moved OFF this sheet to the dedicated premium
  * `ConsoleMaScreen` — this component is a plain list again.
  */
-import {defineComponent, PropType} from 'vue';
+import {nextTick, PropType, useTemplateRef, watch} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import type {ConsoleSheetRow} from '@/client/components/console/consoleSheetTypes';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
 export type {ConsoleSheetRow};
 
+defineOptions({name: 'ConsoleSheet'});
+const props = defineProps({
+  title: {type: String, required: true},
+  rows: {type: Array as PropType<ReadonlyArray<ConsoleSheetRow>>, required: true},
+  index: {type: Number, required: true},
+});
 
-export default defineComponent({
-  name: 'ConsoleSheet',
-  components: {ConsoleScrollArea, GamepadGlyph},
-  props: {
-    title: {type: String, required: true},
-    rows: {type: Array as PropType<ReadonlyArray<ConsoleSheetRow>>, required: true},
-    index: {type: Number, required: true},
-  },
-  watch: {
-    /** D-pad navigation keeps the selected row visible (auto-scroll). */
-    index() {
-      void this.$nextTick(() => {
-        const slot = (this.$refs.selectedRow ?? undefined) as HTMLElement | Array<HTMLElement> | undefined;
-        const el = Array.isArray(slot) ? slot[0] : slot;
-        // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
-        ((this.$refs.rows ?? undefined) as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(el);
-      });
-    },
-    /** A tab/sheet switch resets the list to the top. */
-    title() {
-      ((this.$refs.rows ?? undefined) as {scrollToStart?: () => void} | undefined)?.scrollToStart?.();
-    },
-  },
+const selectedRow = useTemplateRef<HTMLElement | Array<HTMLElement>>('selectedRow');
+const rowsEl = useTemplateRef<{ensureVisible?: (el: Element | null | undefined) => void} & {scrollToStart?: () => void}>('rows');
+
+/** D-pad navigation keeps the selected row visible (auto-scroll). */
+watch(() => props.index, () => {
+  void nextTick(() => {
+    const slot = selectedRow.value ?? undefined;
+    const el = Array.isArray(slot) ? slot[0] : slot;
+    // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
+    rowsEl.value?.ensureVisible?.(el);
+  });
+});
+/** A tab/sheet switch resets the list to the top. */
+watch(() => props.title, () => {
+  rowsEl.value?.scrollToStart?.();
 });
 </script>
