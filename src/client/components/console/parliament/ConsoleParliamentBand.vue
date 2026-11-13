@@ -1,12 +1,4 @@
 <template>
-  <!-- ══ ЛЕНТА ЧТЕНИЯ («Заседание v5») — the middle zone's upper strip.
-       It EXISTS ALWAYS: in the overview, at every beat of the sitting, behind
-       the vote layer. Its height and its position never change on any profile;
-       only its CONTENT crossfades, in one shared grid cell (`mode="out-in"`
-       would empty the cell and blink — the crumb's tail grammar).
-       It says WHY what is on the table is happening, and never repeats what an
-       object already says itself. The model is pure (`parliamentBand.ts`);
-       this file binds it and owns the reward's own reading. ══ -->
   <div class="con-band"
        :class="{'con-band--committed': line.committed}"
        :data-parl-band="line.key"
@@ -196,8 +188,21 @@
     </transition>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ══ ЛЕНТА ЧТЕНИЯ («Заседание v5») — the middle zone's upper strip.
+ *       It EXISTS ALWAYS: in the overview, at every beat of the sitting, behind
+ *       the vote layer. Its height and its position never change on any profile;
+ *       only its CONTENT crossfades, in one shared grid cell (`mode="out-in"`
+ *       would empty the cell and blink — the crumb's tail grammar).
+ *       It says WHY what is on the table is happening, and never repeats what an
+ *       object already says itself. The model is pure (`parliamentBand.ts`);
+ *       this file binds it and owns the reward's own reading. ══
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
@@ -240,497 +245,489 @@ import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/
 import {worldMoveReadingOf, worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
 import {COLONY_TRACK_SUMMARY_KEY, ColonyTrackMoveChip, colonyTrackChipsOf, colonyTrackReadingOf} from '@/client/console/parliament/colonyTrackModel';
 import {tileRemovalChipOf, tileRemovalReadingOf, tileRemovalTableOf} from '@/client/console/parliament/tileRemovalModel';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 
-export default defineComponent({
-  name: 'ConsoleParliamentBand',
-  components: {PlayerDelegate, ConsoleInfluenceYield, ConsolePartyReaction, ConsoleWinnerReward, ConsoleTileGrant, ConsoleYieldUnit, ConsoleInfluenceMod},
-  props: {
-    view: {type: Object as PropType<ParliamentViewVm>, required: true},
-    model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** Where the sitting stands — absent outside a live political phase this seat takes part in. */
-    position: {type: Object as PropType<SittingPosition | undefined>, default: undefined},
-    /** The sitting is the zone's subject right now (the section's own flow state). */
-    sittingUp: {type: Boolean, default: false},
-    stage: {type: String as PropType<SittingStage>, default: 'verdict'},
-    /** «САНКЦИИ»'s own context — the support-area mode's cursor and its press (undefined outside the mode). */
-    support: {type: Object as PropType<BandSupport | undefined>, default: undefined},
-    /** «ИЗГНАНИЕ»'s own context — the delegate mode's cursor and its press (undefined outside the mode, TR72). */
-    delegate: {type: Object as PropType<BandDelegate | undefined>, default: undefined},
-    /** «ЗНАМЯ»'s own context — the banner mode's stage word and, past the press, the chosen party (undefined outside it). */
-    banner: {type: Object as PropType<BandBanner | undefined>, default: undefined},
-    /** «ДЕЛЕГАТЫ»'s own context — a card's rally of neutral delegates, live in this section (undefined outside it). */
-    rally: {type: Object as PropType<BandRally | undefined>, default: undefined},
-    /** «Зал» v7: the object under the browse cursor — the overview's line reads IT (undefined outside the browse layer). */
-    focus: {type: Object as PropType<BandFocus | undefined>, default: undefined},
-  },
-  computed: {
-    line(): BandLine {
-      return parliamentBandLine({sitting: this.sitting, quest: this.quest, walk: this.walk, rally: this.rally, support: this.support, delegate: this.delegate, banner: this.banner, standing: this.standing});
-    },
-    /**
-     * «КАРЬЕРА»'s own context — a card's walk, live in this section: the seat and the steps LANDED so far.
-     * An influence step carries the level it set (the track's own arithmetic), a paying step its bonus.
-     */
-    walk(): BandWalk | undefined {
-      const flow = agendaWalkFlow;
-      if (!flow.live || flow.owed === undefined) {
-        return undefined;
-      }
-      const player = flow.owed.player;
-      const seat = flow.owed.seat;
-      return {
-        player,
-        ...(seat === undefined ? {} : {seat: {from: seat.from, beat: flow.beat === 'seat' ? 'seat' as const : 'walk' as const}}),
-        landed: flow.landed.map((step) => step.bonus === undefined ?
-          {to: step.to, level: influenceAtAgenda(step.to), ...this.influenceOn(player, step.to)} : {to: step.to, bonus: step.bonus}),
-      };
-    },
-    /**
-     * «ПРЕДСЕДАТЕЛЬСТВО»'s own context — the flow is never live during a
-     * sitting (its gate is answered inside the player's own action phase), so
-     * the two can never disagree about the zone.
-     */
-    quest(): BandQuest | undefined {
-      if (!chairmanQuestFlow.live) {
-        return undefined;
-      }
-      const move = chairmanQuestFlow.move;
-      return {
-        beat: chairmanQuestFlow.beat,
-        ...(chairmanQuestFlow.player === undefined ? {} : {player: chairmanQuestFlow.player}),
-        ...(chairmanQuestFlow.seatWas === undefined ? {} : {seatWas: chairmanQuestFlow.seatWas}),
-        ...(move === undefined ? {} : {move: {from: move.from, to: move.to, ...(chairmanQuestFlow.bonus === undefined ? {} : {bonus: chairmanQuestFlow.bonus})}}),
-      };
-    },
-    /** The sitting's own context, or `undefined` for the overview's line. */
-    sitting(): BandSitting | undefined {
-      const position = this.position;
-      if (!this.sittingUp || position === undefined) {
-        return undefined;
-      }
-      return {
-        stage: this.stage,
-        rewardStep: position.rewardStep,
-        beat: sittingMotion.beat,
-        supportWave: sittingMotion.supportWave,
-        ...(sittingMotion.renewal === undefined ? {} : {renewal: sittingMotion.renewal}),
-        ...(this.career === undefined ? {} : {career: this.career}),
-        ...(rulingChangeDrawState.presenting === undefined ? {} : {rulingDraw: rulingChangeDrawState.presenting}),
-        ...(this.careerWait === undefined ? {} : {careerWait: this.careerWait}),
-        generation: position.generation,
-        summary: this.summary,
-        reward: this.reward,
-      };
-    },
-    summary(): ParliamentPhaseSummaryModel | undefined {
-      return this.model?.phase?.summary;
-    },
-    /**
-     * «ИСТРЕБИТЕЛЬ» (TR78): the chain waits on a table's answer to the winner's step of the Career — WHO answers (the
-     * server's `pending`, published for every seat) and whether it is this seat.
-     */
-    careerWait(): BandSitting['careerWait'] {
-      const position = this.position;
-      if (position?.career !== true) {
-        return undefined;
-      }
-      const pending = this.model?.phase?.pending;
-      if (pending === undefined) {
-        return undefined;
-      }
-      return {player: pending.player, ...(pending.input === undefined ? {} : {input: pending.input}), self: pending.player === this.viewerColor};
-    },
-    /** КАРЬЕРА's own context — the law's walk playing now (Reds Budget): the seat, the step it reaches and its gift. */
-    career(): BandSitting['career'] {
-      const walk = careerGrantState.current;
-      if (walk === undefined) {
-        return undefined;
-      }
-      const last = walk.steps[walk.steps.length - 1];
-      return {
-        player: walk.player,
-        to: walk.to,
-        ...(last?.bonus === undefined ? {level: influenceAtAgenda(walk.to), ...this.influenceOn(walk.player, walk.to)} : {bonus: last.bonus}),
-        ...(last?.vetoed === true ? {vetoed: true as const} : {}),
-      };
-    },
-    /**
-     * THE VIEWER'S OWN STEP OF THE CAREER (Reds Budget), once recorded AND no longer owed to the track (the sitting's
-     * КАРЬЕРА beat has walked it): the step reached and what it paid. A skip reads as its own skip chip.
-     */
-    careerRecorded(): BandRewardReading['career'] {
-      const record = this.mine.find((o) => o.kind === 'agenda' && o.walk !== undefined && o.walk.steps.length > 0);
-      const walk = record?.walk;
-      if (record === undefined || walk === undefined || careerGrantState.owed.some((owed) => owed.player === this.viewerColor) ||
-          careerGrantState.current?.player === this.viewerColor) {
-        return undefined;
-      }
-      const last = walk.steps[walk.steps.length - 1];
-      return {
-        to: walk.to,
-        ...(last.bonus === undefined ? {level: influenceAtAgenda(walk.to), ...(this.viewerColor === undefined ? {} : this.influenceOn(this.viewerColor, walk.to))} : {bonus: last.bonus}),
-        ...(last.vetoed === true ? {vetoed: true as const} : {}),
-      };
-    },
-    /** The law's walk now playing — its phase (`impulse` · `walk` · `landed`), the e2e probe's witness of «the marker leaves only after the impulse». */
-    careerPhase(): string | undefined {
-      return careerGrantState.current?.phase;
-    },
-    /** The table AS IT STANDS: the resolution that would be enacted now and who would win it. */
-    standing(): BandStanding {
-      const focus = this.focus === undefined ? {} : {focus: this.focus};
-      const slot = this.view.slots.find((s) => s.isWinning);
-      if (slot === undefined) {
-        return {votes: 0, ...focus};
-      }
-      return {
-        resolution: {resolution: slot.resolutionId, party: slot.party},
-        ...(slot.leader === undefined ? {} : {player: slot.leader}),
-        votes: slot.totalVotes,
-        ...focus,
-      };
-    },
-    // ── the reward's reading (moved here from the sitting surface: the band is where it is read) ──
-    resolution(): IClientResolution | undefined {
-      const id = this.summary?.enacted.resolution;
-      return id === undefined ? undefined : getResolution(id);
-    },
-    /** The viewer's OWN records among the phase's outcomes (the effects so far). */
-    mine(): Array<ParliamentEnactOutcomeModel> {
-      const outcomes = this.model?.phase?.outcomes;
-      return this.viewerColor === undefined ? [] : (outcomes ?? []).filter((o) => o.player === this.viewerColor);
-    },
-    /**
-     * THE READING: once the seat's record is in, the server's own amounts
-     * (`resolving` while the phase pays, `applied` after); before that, the
-     * declaration read at the seat's final influence — never a payout
-     * recomputed on the client.
-     */
-    yields(): Array<InfluenceYield> {
-      const resolution = this.resolution;
-      const position = this.position;
-      if (resolution === undefined || position === undefined) {
-        return [];
-      }
-      const recorded = this.mine.length > 0 || position.step === 'adjourn' || position.step === 'done';
-      if (!recorded) {
-        return resolvingYieldsOf(resolution, this.model, this.viewerColor);
-      }
-      return enactedYieldsOf(resolution, this.model, this.viewerColor, {live: this.rewardResolving});
-    },
-    /** THE LEVY a budget takes first — the same moments as `yields`: the estimate as «this payout», then the seat's record. */
-    levy(): LevyReading | undefined {
-      const resolution = this.resolution;
-      const position = this.position;
-      if (resolution === undefined || position === undefined || resolution.levy === undefined) {
-        return undefined;
-      }
-      const recorded = this.mine.length > 0 || position.step === 'adjourn' || position.step === 'done';
-      if (!recorded) {
-        return resolvingLevyOf(resolution, this.model, this.viewerColor);
-      }
-      return enactedLevyOf(resolution, this.model, this.viewerColor, {live: this.rewardResolving});
-    },
-    /** A chip owed or in the air, or the seat's own step still standing: the reading then says «this payout». */
-    rewardResolving(): boolean {
-      void parliamentRewardState.owed.length;
-      void parliamentRewardState.flying.length;
-      void parliamentRewardState.landed.length;
-      const position = this.position;
-      if (position === undefined) {
-        return false;
-      }
-      const step = position.rewardStep;
-      if (position.step === 'effects' && (step === 'reading' || step === 'choice' || step === 'distribution' || step === 'intake' || step === 'placement')) {
-        return true;
-      }
-      return this.mine.some((o) => !rewardLanded(o));
-    },
-    reactions(): Array<PartyReactionReading> {
-      return viewerHasSeat(this.model, this.viewerColor) ? partyReactionsOf(this.resolution, this.yields) : [];
-    },
-    winnerReading(): WinnerRewardReading | undefined {
-      return winnerRewardReadingOf(this.resolution, this.model, winnerRewardTableOf(this.playerView.game));
-    },
-    /**
-     * The band's grant chip carries its caption where the caption IS the reading: a threshold's standing (yours by
-     * the vote / the line) and any record. A grant to EVERYONE still owed says nothing a caption must add — the
-     * crumb names the placement and the door's verb the move — and beside a budget's whole plate the line has no
-     * room for it on any profile (RX38: the kicker was cut to «ВА…» at 4K).
-     */
-    grantCaptioned(): boolean {
-      const reading = this.grantReading;
-      return reading === undefined || reading.grant.recipients.kind === 'threshold' || reading.context === 'applied';
-    },
-    /** A tile granted by threshold (Skyscrapers): the viewer's own reading — the same model the vote block and the inspector read. */
-    grantReading(): TileGrantReading | undefined {
-      const reading = tileGrantReadingOf(this.resolution, this.model, this.viewerColor);
-      return reading === undefined || reading.context === 'reference' ? undefined : reading;
-    },
-    /**
-     * DOES THIS SEAT HAVE A PART OF ITS OWN on the reward line — a reading that pays or takes (a SKIP is
-     * not a part: it names what did not happen), a levy, a party's answer, a granted tier, the quiet
-     * standing effect, or the winner's part when this seat IS the winner. Without one the line is the
-     * WINNER'S (docs/TURMOIL_REDUX_MARSBOT.md §8.6 — a bot's win draws the spectator no «Ваша награда»),
-     * and no state word («получено») is said about a reward nobody here received.
-     */
-    ownPartOnLine(): boolean {
-      if (this.yields.some((y) => y.skipped === undefined) || this.levy !== undefined || this.reactions.length > 0) {
-        return true;
-      }
-      if (this.grantReading !== undefined && this.grantReading.skipped === undefined) {
-        return true;
-      }
-      if (this.yields.length === 0 && quietRewardPoseOf(this.resolution) !== undefined) {
-        return true;
-      }
-      const winner = this.model?.phase?.summary?.winner.player;
-      return this.winnerReading !== undefined && winner !== undefined && winner === this.viewerColor;
-    },
-    /** The reward's reading as the band's own data (the model orders it, this builds it). */
-    reward(): BandRewardReading {
-      const position = this.position;
-      const quiet = quietRewardPoseOf(this.resolution);
-      const yields = this.yields;
-      const out: BandRewardReading = {
-        yields,
-        reactions: this.reactions.map((r) => ({party: r.party, amount: r.amount})),
-        skips: this.skips,
-      };
-      const levy = this.levy;
-      if (levy !== undefined) {
-        out.levy = levy;
-      }
-      if (this.winnerReading !== undefined) {
-        out.tile = winnerRewardGlyph(this.winnerReading.reward);
-        if (!this.ownPartOnLine) {
-          out.winnerElsewhere = true;
-        }
-      }
-      // A SKIPPED grant reads as its skip chip (the record's reason) — the grant chip is for a tier owed or placed.
-      if (this.grantReading !== undefined && this.grantReading.skipped === undefined) {
-        out.grant = this.grantReading.grant.tile;
-      }
-      const career = this.careerRecorded;
-      if (career !== undefined) {
-        out.career = career;
-      }
-      const world = this.worldMoves;
-      if (world.length > 0) {
-        out.world = world;
-      }
-      const tracks = this.trackMoves;
-      if (tracks !== undefined) {
-        out.tracks = tracks;
-      }
-      if (yields.length === 0 && quiet !== undefined) {
-        out.quiet = {kicker: quiet.kicker, kind: quiet.kind};
-      }
-      if (this.payoutState !== undefined) {
-        out.state = this.payoutState;
-      }
-      if (position?.waitingFor !== undefined) {
-        out.waitingFor = position.waitingFor.player;
-        if (position.waitingFor.input !== undefined) {
-          out.waitingInput = position.waitingFor.input;
-        }
-        out.waitingViewer = position.askedLater === true ? 'ahead' : 'done';
-        if (parliamentRewardState.receiptShowing || parliamentWorldBeatState.receiptShowing) {
-          out.receiptRead = true;
-        }
-      }
-      return out;
-    },
-    /**
-     * THE WORLD'S OWN MOVES, from the phase's records — the ones that name no
-     * seat. Read by every viewer alike; a move that could not happen carries
-     * its reason instead of an arrow (no silent loss).
-     */
-    worldMoves(): Array<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}> {
-      const outcomes = this.model?.phase?.outcomes ?? [];
-      const out: Array<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}> = [];
-      for (const reading of worldMoveReadingOf(this.resolution, winnerRewardTableOf(this.playerView.game), {enacted: true, outcomes})) {
-        const applied = reading.applied;
-        if (applied === undefined && reading.room === undefined) {
-          continue;
-        }
-        out.push({
-          parameter: reading.parameter,
-          before: applied?.before ?? reading.room?.current ?? 0,
-          after: applied?.after ?? reading.room?.resulting ?? 0,
-          steps: applied?.steps ?? reading.room?.applied ?? 0,
-          unrewarded: reading.unrewarded,
-          ...(reading.skipped === undefined ? {} : {skipped: reading.skipped}),
-        });
-      }
-      // …and a TILE TAKEN OFF THE BOARD (Water Export): the ocean count as the planet's own chip — the
-      // record's before → after once the first player has chosen, the live room while the question stands,
-      // or the named edge (the maximum, nothing to remove).
-      const removal = tileRemovalReadingOf(this.resolution, tileRemovalTableOf(this.playerView.game.spaces, this.playerView.game.gameOptions.boardName), {enacted: true, outcomes});
-      const chip = removal === undefined ? undefined : tileRemovalChipOf(removal);
-      if (chip !== undefined) {
-        out.push(chip);
-      }
-      return out;
-    },
-    /**
-     * THE COLONY TABLE'S OWN MOVE (Unity Budget), from the phase's record — the
-     * one that names no seat. Read by every viewer alike, once the server has
-     * recorded it: before that the line has nothing honest to print (the
-     * table is still to move), and the declaration reads on the card itself.
-     */
-    trackMoves(): {steps: number, tiles: ReadonlyArray<ColonyTrackMoveChip>, skipped?: string} | undefined {
-      const outcomes = this.model?.phase?.outcomes ?? [];
-      const reading = colonyTrackReadingOf(this.resolution, undefined, {enacted: true, outcomes});
-      if (reading === undefined || reading.context !== 'applied') {
-        return undefined;
-      }
-      return {steps: reading.advance.steps, tiles: colonyTrackChipsOf(reading), ...(reading.skipped === undefined ? {} : {skipped: reading.skipped})};
-    },
-    /**
-     * THE SKIPS — every record of the viewer's that paid nothing, named: a
-     * `skipped` record by its own part and reason, a paying kind that paid zero
-     * by its address's title. A scaled effect's skip is already read in the
-     * yields block, so it is not repeated.
-     */
-    skips(): Array<{id: string, title: string, reason: string, amount?: number, unit?: string, units?: Array<string>}> {
-      const scaledIds = new Set((this.resolution?.scaled ?? []).map((e) => e.id));
-      const out: Array<{id: string, title: string, reason: string, amount?: number, unit?: string, units?: Array<string>}> = [];
-      for (const outcome of this.mine) {
-        const delivery = rewardAddressOf(outcome, this.viewerColor);
-        if (delivery.skipped === undefined || (outcome.effect !== undefined && scaledIds.has(outcome.effect))) {
-          continue;
-        }
-        const title = outcome.kind === 'skipped' ?
-          (outcome.part === 'winner' ? 'Reward for the winner of the vote' : 'Resolution effect') :
-          REWARD_ADDRESS[outcome.kind].skipTitle;
-        const amount = delivery.payload.amount;
-        // A card-resource skip over SEVERAL kinds («data or microbe») names its unit by both icons, joined by «or».
-        const units = outcome.resource === undefined && outcome.resources !== undefined && outcome.resources.length > 1 ?
-          outcome.resources.map((r) => iconClassFor(cardResourceKey(String(r)))) : undefined;
-        out.push({
-          id: `${outcome.step}:${outcome.part ?? ''}`, title, reason: delivery.skipped,
-          ...(amount !== undefined && amount > 0 ? {amount, unit: this.skipUnitClass(outcome), ...(units === undefined ? {} : {units})} : {}),
-        });
-      }
-      return out;
-    },
-    /**
-     * ONE WORD OF STATE beside the kicker, on the reward beat only: «эта
-     * выплата» while the numbers are what the law is about to pay, «получено»
-     * once every chip has landed. Absent everywhere else — and once THE WAIT HAS TAKEN THE LINE (the payout landed, the
-     * law asks another seat): «получено» beside «ОЖИДАНИЕ» would name a reward the line no longer shows (the rail reads
-     * it). Read off the line, which is built from `payoutState` — never from this word, or the two chase each other.
-     */
-    stateKey(): BandRewardState | undefined {
-      if (this.line.chips.some((chip) => chip.kind === 'asking' && chip.lead === true)) {
-        return undefined;
-      }
-      return this.payoutState;
-    },
-    /** The payout's own two moments («эта выплата» → «получено», a cut's pair) — an INPUT of the line. */
-    payoutState(): BandRewardState | undefined {
-      const position = this.position;
-      if (position === undefined || !this.sittingUp || this.stage !== 'reward') {
-        return undefined;
-      }
-      // КАРЬЕРА names its own walk (the seat, the step, its gift): the payout's «получено» beside it read as the STEP
-      // received while the marker was still on its old node — and of the bot's walk, as the bot's.
-      if (careerGrantState.current !== undefined) {
-        return undefined;
-      }
-      if (this.yields.length === 0 && this.mine.length === 0 && this.winnerReading === undefined && this.grantReading === undefined) {
-        return undefined;
-      }
-      // Nothing of this seat's own on the line (the winner's part is another seat's, its own part a skip at
-      // most): no «эта выплата» / «получено» about a reward nobody here received.
-      if (!this.ownPartOnLine) {
-        return undefined;
-      }
-      const recorded = this.mine.length > 0 || position.step === 'adjourn' || position.step === 'done';
-      const live = !recorded || this.rewardResolving;
-      // A CUT keeps the same two moments and names them its own way — «эта потеря» while the
-      // chips are still leaving, «отнято» once they are gone: never «получено».
-      if (bandRewardTakes(this.yields)) {
-        return live ? 'This loss' : 'Taken';
-      }
-      return live ? 'This payout' : 'Received';
-    },
-  },
-  methods: {
-    /**
-     * THE SEAT'S FINAL INFLUENCE ON A STEP (T05): spread into a step's chip only for a seat holding influence beyond
-     * the Career — the chip then reads «уровень N · влияние M +k» (`influenceReadingAtStep`; the level is the cell's).
-     */
-    influenceOn(color: Color, step: number): {influence?: InfluenceReading} {
-      const reading = influenceReadingAtStep(this.model?.players.find((p) => p.color === color && p.participates), step);
-      return reading === undefined ? {} : {influence: reading};
-    },
-    partyNameKey(party: string): string {
-      return partyNameKey(party);
-    },
-    reactionOf(party: ReduxParty): PartyReactionReading | undefined {
-      return this.reactions.find((r) => r.party === party);
-    },
-    figurePx(logical: number): number {
-      return delegateFigurePx(logical);
-    },
-    emblemUrl(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-    resolutionTitle(id: string): string {
-      return resolutionTitleOf(this.view, id);
-    },
-    nameOf(color: Color | 'neutral'): string {
-      return parliamentPlayerName(this.playerView.players, color);
-    },
-    nameOfColor(color: Color): string {
-      return parliamentPlayerName(this.playerView.players, color);
-    },
-    bonusClass(bonus: 'tr' | 'card'): string {
-      return iconClassFor(bonus === 'tr' ? 'tr' : 'cards');
-    },
-    /** The icon of what a skipped record would have paid — the console's own sprite families. */
-    /** The parameter's own icon — the game's vocabulary, the same asset the HUD's status strip prints. */
-    worldUnitClass(parameter: ParameterMoveId): string {
-      switch (parameter) {
-      case 'oxygen': return 'wgt-icon wgt-icon--oxygen';
-      case 'oceans': return 'wgt-icon wgt-icon--ocean';
-      case 'venus': return 'wgt-icon wgt-icon--venus';
-      case 'temperature': return 'wgt-icon wgt-icon--temperature';
-      }
-    },
-    /** …and its unit suffix («5 %», «−30 °C», a bare count of oceans). */
-    worldSuffix(parameter: ParameterMoveId): string {
-      return worldParameterUnit(parameter);
-    },
-    /** «Все треки колоний +2» — the ONE sentence of the colony table's part. */
-    tracksLabel(steps: number): string {
-      return translateTextWithParams(COLONY_TRACK_SUMMARY_KEY, [String(steps)]);
-    },
-    /** A tile's planet medallion — the colonies' own background class (the results panel prints the same). */
-    planetClass(colony: string): string {
-      return colony.replace(' ', '-') + '-background';
-    },
-    skipUnitClass(outcome: ParliamentEnactOutcomeModel): string {
-      if (outcome.kind === 'skipped' || outcome.kind === 'production' || outcome.kind === 'stock' || outcome.kind === 'reaction') {
-        const production = outcome.production;
-        if (production !== undefined) {
-          return iconClassFor(String(production)) + ' con-iyield__unit--prod';
-        }
-        if (outcome.stock !== undefined) {
-          return iconClassFor(String(outcome.stock));
-        }
-      }
-      if (outcome.resource !== undefined) {
-        return iconClassFor(cardResourceKey(String(outcome.resource)));
-      }
-      return outcome.kind === 'cards' ? iconClassFor('cards') : '';
-    },
-  },
+defineOptions({name: 'ConsoleParliamentBand'});
+const props = defineProps({
+  view: {type: Object as PropType<ParliamentViewVm>, required: true},
+  model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  /** Where the sitting stands — absent outside a live political phase this seat takes part in. */
+  position: {type: Object as PropType<SittingPosition | undefined>, default: undefined},
+  /** The sitting is the zone's subject right now (the section's own flow state). */
+  sittingUp: {type: Boolean, default: false},
+  stage: {type: String as PropType<SittingStage>, default: 'verdict'},
+  /** «САНКЦИИ»'s own context — the support-area mode's cursor and its press (undefined outside the mode). */
+  support: {type: Object as PropType<BandSupport | undefined>, default: undefined},
+  /** «ИЗГНАНИЕ»'s own context — the delegate mode's cursor and its press (undefined outside the mode, TR72). */
+  delegate: {type: Object as PropType<BandDelegate | undefined>, default: undefined},
+  /** «ЗНАМЯ»'s own context — the banner mode's stage word and, past the press, the chosen party (undefined outside it). */
+  banner: {type: Object as PropType<BandBanner | undefined>, default: undefined},
+  /** «ДЕЛЕГАТЫ»'s own context — a card's rally of neutral delegates, live in this section (undefined outside it). */
+  rally: {type: Object as PropType<BandRally | undefined>, default: undefined},
+  /** «Зал» v7: the object under the browse cursor — the overview's line reads IT (undefined outside the browse layer). */
+  focus: {type: Object as PropType<BandFocus | undefined>, default: undefined},
 });
+
+const line = computed((): BandLine => {
+  return parliamentBandLine({sitting: sitting.value, quest: quest.value, walk: walk.value, rally: props.rally, support: props.support, delegate: props.delegate, banner: props.banner, standing: standing.value});
+});
+/**
+ * «КАРЬЕРА»'s own context — a card's walk, live in this section: the seat and the steps LANDED so far.
+ * An influence step carries the level it set (the track's own arithmetic), a paying step its bonus.
+ */
+const walk = computed((): BandWalk | undefined => {
+  const flow = agendaWalkFlow;
+  if (!flow.live || flow.owed === undefined) {
+    return undefined;
+  }
+  const player = flow.owed.player;
+  const seat = flow.owed.seat;
+  return {
+    player,
+    ...(seat === undefined ? {} : {seat: {from: seat.from, beat: flow.beat === 'seat' ? 'seat' as const : 'walk' as const}}),
+    landed: flow.landed.map((step) => step.bonus === undefined ?
+      {to: step.to, level: influenceAtAgenda(step.to), ...influenceOn(player, step.to)} : {to: step.to, bonus: step.bonus}),
+  };
+});
+/**
+ * «ПРЕДСЕДАТЕЛЬСТВО»'s own context — the flow is never live during a
+ * sitting (its gate is answered inside the player's own action phase), so
+ * the two can never disagree about the zone.
+ */
+const quest = computed((): BandQuest | undefined => {
+  if (!chairmanQuestFlow.live) {
+    return undefined;
+  }
+  const move = chairmanQuestFlow.move;
+  return {
+    beat: chairmanQuestFlow.beat,
+    ...(chairmanQuestFlow.player === undefined ? {} : {player: chairmanQuestFlow.player}),
+    ...(chairmanQuestFlow.seatWas === undefined ? {} : {seatWas: chairmanQuestFlow.seatWas}),
+    ...(move === undefined ? {} : {move: {from: move.from, to: move.to, ...(chairmanQuestFlow.bonus === undefined ? {} : {bonus: chairmanQuestFlow.bonus})}}),
+  };
+});
+/** The sitting's own context, or `undefined` for the overview's line. */
+const sitting = computed((): BandSitting | undefined => {
+  const position = props.position;
+  if (!props.sittingUp || position === undefined) {
+    return undefined;
+  }
+  return {
+    stage: props.stage,
+    rewardStep: position.rewardStep,
+    beat: sittingMotion.beat,
+    supportWave: sittingMotion.supportWave,
+    ...(sittingMotion.renewal === undefined ? {} : {renewal: sittingMotion.renewal}),
+    ...(career.value === undefined ? {} : {career: career.value}),
+    ...(rulingChangeDrawState.presenting === undefined ? {} : {rulingDraw: rulingChangeDrawState.presenting}),
+    ...(careerWait.value === undefined ? {} : {careerWait: careerWait.value}),
+    generation: position.generation,
+    summary: summary.value,
+    reward: reward.value,
+  };
+});
+const summary = computed((): ParliamentPhaseSummaryModel | undefined => {
+  return props.model?.phase?.summary;
+});
+/**
+ * «ИСТРЕБИТЕЛЬ» (TR78): the chain waits on a table's answer to the winner's step of the Career — WHO answers (the
+ * server's `pending`, published for every seat) and whether it is this seat.
+ */
+const careerWait = computed((): BandSitting['careerWait'] => {
+  const position = props.position;
+  if (position?.career !== true) {
+    return undefined;
+  }
+  const pending = props.model?.phase?.pending;
+  if (pending === undefined) {
+    return undefined;
+  }
+  return {player: pending.player, ...(pending.input === undefined ? {} : {input: pending.input}), self: pending.player === props.viewerColor};
+});
+/** КАРЬЕРА's own context — the law's walk playing now (Reds Budget): the seat, the step it reaches and its gift. */
+const career = computed((): BandSitting['career'] => {
+  const walk = careerGrantState.current;
+  if (walk === undefined) {
+    return undefined;
+  }
+  const last = walk.steps[walk.steps.length - 1];
+  return {
+    player: walk.player,
+    to: walk.to,
+    ...(last?.bonus === undefined ? {level: influenceAtAgenda(walk.to), ...influenceOn(walk.player, walk.to)} : {bonus: last.bonus}),
+    ...(last?.vetoed === true ? {vetoed: true as const} : {}),
+  };
+});
+/**
+ * THE VIEWER'S OWN STEP OF THE CAREER (Reds Budget), once recorded AND no longer owed to the track (the sitting's
+ * КАРЬЕРА beat has walked it): the step reached and what it paid. A skip reads as its own skip chip.
+ */
+const careerRecorded = computed((): BandRewardReading['career'] => {
+  const record = mine.value.find((o) => o.kind === 'agenda' && o.walk !== undefined && o.walk.steps.length > 0);
+  const walk = record?.walk;
+  if (record === undefined || walk === undefined || careerGrantState.owed.some((owed) => owed.player === props.viewerColor) ||
+      careerGrantState.current?.player === props.viewerColor) {
+    return undefined;
+  }
+  const last = walk.steps[walk.steps.length - 1];
+  return {
+    to: walk.to,
+    ...(last.bonus === undefined ? {level: influenceAtAgenda(walk.to), ...(props.viewerColor === undefined ? {} : influenceOn(props.viewerColor, walk.to))} : {bonus: last.bonus}),
+    ...(last.vetoed === true ? {vetoed: true as const} : {}),
+  };
+});
+/** The law's walk now playing — its phase (`impulse` · `walk` · `landed`), the e2e probe's witness of «the marker leaves only after the impulse». */
+const careerPhase = computed((): string | undefined => {
+  return careerGrantState.current?.phase;
+});
+/** The table AS IT STANDS: the resolution that would be enacted now and who would win it. */
+const standing = computed((): BandStanding => {
+  const focus = props.focus === undefined ? {} : {focus: props.focus};
+  const slot = props.view.slots.find((s) => s.isWinning);
+  if (slot === undefined) {
+    return {votes: 0, ...focus};
+  }
+  return {
+    resolution: {resolution: slot.resolutionId, party: slot.party},
+    ...(slot.leader === undefined ? {} : {player: slot.leader}),
+    votes: slot.totalVotes,
+    ...focus,
+  };
+});
+// ── the reward's reading (moved here from the sitting surface: the band is where it is read) ──
+const resolution = computed((): IClientResolution | undefined => {
+  const id = summary.value?.enacted.resolution;
+  return id === undefined ? undefined : getResolution(id);
+});
+/** The viewer's OWN records among the phase's outcomes (the effects so far). */
+const mine = computed((): Array<ParliamentEnactOutcomeModel> => {
+  const outcomes = props.model?.phase?.outcomes;
+  return props.viewerColor === undefined ? [] : (outcomes ?? []).filter((o) => o.player === props.viewerColor);
+});
+/**
+ * THE READING: once the seat's record is in, the server's own amounts
+ * (`resolving` while the phase pays, `applied` after); before that, the
+ * declaration read at the seat's final influence — never a payout
+ * recomputed on the client.
+ */
+const yields = computed((): Array<InfluenceYield> => {
+  const resolutionNow = resolution.value;
+  const position = props.position;
+  if (resolutionNow === undefined || position === undefined) {
+    return [];
+  }
+  const recorded = mine.value.length > 0 || position.step === 'adjourn' || position.step === 'done';
+  if (!recorded) {
+    return resolvingYieldsOf(resolutionNow, props.model, props.viewerColor);
+  }
+  return enactedYieldsOf(resolutionNow, props.model, props.viewerColor, {live: rewardResolving.value});
+});
+/** THE LEVY a budget takes first — the same moments as `yields`: the estimate as «this payout», then the seat's record. */
+const levy = computed((): LevyReading | undefined => {
+  const resolutionNow = resolution.value;
+  const position = props.position;
+  if (resolutionNow === undefined || position === undefined || resolutionNow.levy === undefined) {
+    return undefined;
+  }
+  const recorded = mine.value.length > 0 || position.step === 'adjourn' || position.step === 'done';
+  if (!recorded) {
+    return resolvingLevyOf(resolutionNow, props.model, props.viewerColor);
+  }
+  return enactedLevyOf(resolutionNow, props.model, props.viewerColor, {live: rewardResolving.value});
+});
+/** A chip owed or in the air, or the seat's own step still standing: the reading then says «this payout». */
+const rewardResolving = computed((): boolean => {
+  void parliamentRewardState.owed.length;
+  void parliamentRewardState.flying.length;
+  void parliamentRewardState.landed.length;
+  const position = props.position;
+  if (position === undefined) {
+    return false;
+  }
+  const step = position.rewardStep;
+  if (position.step === 'effects' && (step === 'reading' || step === 'choice' || step === 'distribution' || step === 'intake' || step === 'placement')) {
+    return true;
+  }
+  return mine.value.some((o) => !rewardLanded(o));
+});
+const reactions = computed((): Array<PartyReactionReading> => {
+  return viewerHasSeat(props.model, props.viewerColor) ? partyReactionsOf(resolution.value, yields.value) : [];
+});
+const winnerReading = computed((): WinnerRewardReading | undefined => {
+  return winnerRewardReadingOf(resolution.value, props.model, winnerRewardTableOf(props.playerView.game));
+});
+/**
+ * The band's grant chip carries its caption where the caption IS the reading: a threshold's standing (yours by
+ * the vote / the line) and any record. A grant to EVERYONE still owed says nothing a caption must add — the
+ * crumb names the placement and the door's verb the move — and beside a budget's whole plate the line has no
+ * room for it on any profile (RX38: the kicker was cut to «ВА…» at 4K).
+ */
+const grantCaptioned = computed((): boolean => {
+  const reading = grantReading.value;
+  return reading === undefined || reading.grant.recipients.kind === 'threshold' || reading.context === 'applied';
+});
+/** A tile granted by threshold (Skyscrapers): the viewer's own reading — the same model the vote block and the inspector read. */
+const grantReading = computed((): TileGrantReading | undefined => {
+  const reading = tileGrantReadingOf(resolution.value, props.model, props.viewerColor);
+  return reading === undefined || reading.context === 'reference' ? undefined : reading;
+});
+/**
+ * DOES THIS SEAT HAVE A PART OF ITS OWN on the reward line — a reading that pays or takes (a SKIP is
+ * not a part: it names what did not happen), a levy, a party's answer, a granted tier, the quiet
+ * standing effect, or the winner's part when this seat IS the winner. Without one the line is the
+ * WINNER'S (docs/TURMOIL_REDUX_MARSBOT.md §8.6 — a bot's win draws the spectator no «Ваша награда»),
+ * and no state word («получено») is said about a reward nobody here received.
+ */
+const ownPartOnLine = computed((): boolean => {
+  if (yields.value.some((y) => y.skipped === undefined) || levy.value !== undefined || reactions.value.length > 0) {
+    return true;
+  }
+  if (grantReading.value !== undefined && grantReading.value.skipped === undefined) {
+    return true;
+  }
+  if (yields.value.length === 0 && quietRewardPoseOf(resolution.value) !== undefined) {
+    return true;
+  }
+  const winner = props.model?.phase?.summary?.winner.player;
+  return winnerReading.value !== undefined && winner !== undefined && winner === props.viewerColor;
+});
+/** The reward's reading as the band's own data (the model orders it, this builds it). */
+const reward = computed((): BandRewardReading => {
+  const position = props.position;
+  const quiet = quietRewardPoseOf(resolution.value);
+  const yieldsNow = yields.value;
+  const out: BandRewardReading = {
+    yields: yieldsNow,
+    reactions: reactions.value.map((r) => ({party: r.party, amount: r.amount})),
+    skips: skips.value,
+  };
+  const levyNow = levy.value;
+  if (levyNow !== undefined) {
+    out.levy = levyNow;
+  }
+  if (winnerReading.value !== undefined) {
+    out.tile = winnerRewardGlyph(winnerReading.value.reward);
+    if (!ownPartOnLine.value) {
+      out.winnerElsewhere = true;
+    }
+  }
+  // A SKIPPED grant reads as its skip chip (the record's reason) — the grant chip is for a tier owed or placed.
+  if (grantReading.value !== undefined && grantReading.value.skipped === undefined) {
+    out.grant = grantReading.value.grant.tile;
+  }
+  const career = careerRecorded.value;
+  if (career !== undefined) {
+    out.career = career;
+  }
+  const world = worldMoves.value;
+  if (world.length > 0) {
+    out.world = world;
+  }
+  const tracks = trackMoves.value;
+  if (tracks !== undefined) {
+    out.tracks = tracks;
+  }
+  if (yieldsNow.length === 0 && quiet !== undefined) {
+    out.quiet = {kicker: quiet.kicker, kind: quiet.kind};
+  }
+  if (payoutState.value !== undefined) {
+    out.state = payoutState.value;
+  }
+  if (position?.waitingFor !== undefined) {
+    out.waitingFor = position.waitingFor.player;
+    if (position.waitingFor.input !== undefined) {
+      out.waitingInput = position.waitingFor.input;
+    }
+    out.waitingViewer = position.askedLater === true ? 'ahead' : 'done';
+    if (parliamentRewardState.receiptShowing || parliamentWorldBeatState.receiptShowing) {
+      out.receiptRead = true;
+    }
+  }
+  return out;
+});
+/**
+ * THE WORLD'S OWN MOVES, from the phase's records — the ones that name no
+ * seat. Read by every viewer alike; a move that could not happen carries
+ * its reason instead of an arrow (no silent loss).
+ */
+const worldMoves = computed((): Array<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}> => {
+  const outcomes = props.model?.phase?.outcomes ?? [];
+  const out: Array<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}> = [];
+  for (const reading of worldMoveReadingOf(resolution.value, winnerRewardTableOf(props.playerView.game), {enacted: true, outcomes})) {
+    const applied = reading.applied;
+    if (applied === undefined && reading.room === undefined) {
+      continue;
+    }
+    out.push({
+      parameter: reading.parameter,
+      before: applied?.before ?? reading.room?.current ?? 0,
+      after: applied?.after ?? reading.room?.resulting ?? 0,
+      steps: applied?.steps ?? reading.room?.applied ?? 0,
+      unrewarded: reading.unrewarded,
+      ...(reading.skipped === undefined ? {} : {skipped: reading.skipped}),
+    });
+  }
+  // …and a TILE TAKEN OFF THE BOARD (Water Export): the ocean count as the planet's own chip — the
+  // record's before → after once the first player has chosen, the live room while the question stands,
+  // or the named edge (the maximum, nothing to remove).
+  const removal = tileRemovalReadingOf(resolution.value, tileRemovalTableOf(props.playerView.game.spaces, props.playerView.game.gameOptions.boardName), {enacted: true, outcomes});
+  const chip = removal === undefined ? undefined : tileRemovalChipOf(removal);
+  if (chip !== undefined) {
+    out.push(chip);
+  }
+  return out;
+});
+/**
+ * THE COLONY TABLE'S OWN MOVE (Unity Budget), from the phase's record — the
+ * one that names no seat. Read by every viewer alike, once the server has
+ * recorded it: before that the line has nothing honest to print (the
+ * table is still to move), and the declaration reads on the card itself.
+ */
+const trackMoves = computed((): {steps: number, tiles: ReadonlyArray<ColonyTrackMoveChip>, skipped?: string} | undefined => {
+  const outcomes = props.model?.phase?.outcomes ?? [];
+  const reading = colonyTrackReadingOf(resolution.value, undefined, {enacted: true, outcomes});
+  if (reading === undefined || reading.context !== 'applied') {
+    return undefined;
+  }
+  return {steps: reading.advance.steps, tiles: colonyTrackChipsOf(reading), ...(reading.skipped === undefined ? {} : {skipped: reading.skipped})};
+});
+/**
+ * THE SKIPS — every record of the viewer's that paid nothing, named: a
+ * `skipped` record by its own part and reason, a paying kind that paid zero
+ * by its address's title. A scaled effect's skip is already read in the
+ * yields block, so it is not repeated.
+ */
+const skips = computed((): Array<{id: string, title: string, reason: string, amount?: number, unit?: string, units?: Array<string>}> => {
+  const scaledIds = new Set((resolution.value?.scaled ?? []).map((e) => e.id));
+  const out: Array<{id: string, title: string, reason: string, amount?: number, unit?: string, units?: Array<string>}> = [];
+  for (const outcome of mine.value) {
+    const delivery = rewardAddressOf(outcome, props.viewerColor);
+    if (delivery.skipped === undefined || (outcome.effect !== undefined && scaledIds.has(outcome.effect))) {
+      continue;
+    }
+    const title = outcome.kind === 'skipped' ?
+      (outcome.part === 'winner' ? 'Reward for the winner of the vote' : 'Resolution effect') :
+      REWARD_ADDRESS[outcome.kind].skipTitle;
+    const amount = delivery.payload.amount;
+    // A card-resource skip over SEVERAL kinds («data or microbe») names its unit by both icons, joined by «or».
+    const units = outcome.resource === undefined && outcome.resources !== undefined && outcome.resources.length > 1 ?
+      outcome.resources.map((r) => iconClassFor(cardResourceKey(String(r)))) : undefined;
+    out.push({
+      id: `${outcome.step}:${outcome.part ?? ''}`, title, reason: delivery.skipped,
+      ...(amount !== undefined && amount > 0 ? {amount, unit: skipUnitClass(outcome), ...(units === undefined ? {} : {units})} : {}),
+    });
+  }
+  return out;
+});
+/**
+ * ONE WORD OF STATE beside the kicker, on the reward beat only: «эта
+ * выплата» while the numbers are what the law is about to pay, «получено»
+ * once every chip has landed. Absent everywhere else — and once THE WAIT HAS TAKEN THE LINE (the payout landed, the
+ * law asks another seat): «получено» beside «ОЖИДАНИЕ» would name a reward the line no longer shows (the rail reads
+ * it). Read off the line, which is built from `payoutState` — never from this word, or the two chase each other.
+ */
+const stateKey = computed((): BandRewardState | undefined => {
+  if (line.value.chips.some((chip) => chip.kind === 'asking' && chip.lead === true)) {
+    return undefined;
+  }
+  return payoutState.value;
+});
+/** The payout's own two moments («эта выплата» → «получено», a cut's pair) — an INPUT of the line. */
+const payoutState = computed((): BandRewardState | undefined => {
+  const position = props.position;
+  if (position === undefined || !props.sittingUp || props.stage !== 'reward') {
+    return undefined;
+  }
+  // КАРЬЕРА names its own walk (the seat, the step, its gift): the payout's «получено» beside it read as the STEP
+  // received while the marker was still on its old node — and of the bot's walk, as the bot's.
+  if (careerGrantState.current !== undefined) {
+    return undefined;
+  }
+  if (yields.value.length === 0 && mine.value.length === 0 && winnerReading.value === undefined && grantReading.value === undefined) {
+    return undefined;
+  }
+  // Nothing of this seat's own on the line (the winner's part is another seat's, its own part a skip at
+  // most): no «эта выплата» / «получено» about a reward nobody here received.
+  if (!ownPartOnLine.value) {
+    return undefined;
+  }
+  const recorded = mine.value.length > 0 || position.step === 'adjourn' || position.step === 'done';
+  const live = !recorded || rewardResolving.value;
+  // A CUT keeps the same two moments and names them its own way — «эта потеря» while the
+  // chips are still leaving, «отнято» once they are gone: never «получено».
+  if (bandRewardTakes(yields.value)) {
+    return live ? 'This loss' : 'Taken';
+  }
+  return live ? 'This payout' : 'Received';
+});
+
+/**
+ * THE SEAT'S FINAL INFLUENCE ON A STEP (T05): spread into a step's chip only for a seat holding influence beyond
+ * the Career — the chip then reads «уровень N · влияние M +k» (`influenceReadingAtStep`; the level is the cell's).
+ */
+function influenceOn(color: Color, step: number): {influence?: InfluenceReading} {
+  const reading = influenceReadingAtStep(props.model?.players.find((p) => p.color === color && p.participates), step);
+  return reading === undefined ? {} : {influence: reading};
+}
+function reactionOf(party: ReduxParty): PartyReactionReading | undefined {
+  return reactions.value.find((r) => r.party === party);
+}
+function figurePx(logical: number): number {
+  return delegateFigurePx(logical);
+}
+function emblemUrl(party: ReduxParty): string {
+  return partyEmblemUrl(party);
+}
+function resolutionTitle(id: string): string {
+  return resolutionTitleOf(props.view, id);
+}
+function nameOf(color: Color | 'neutral'): string {
+  return parliamentPlayerName(props.playerView.players, color);
+}
+function nameOfColor(color: Color): string {
+  return parliamentPlayerName(props.playerView.players, color);
+}
+function bonusClass(bonus: 'tr' | 'card'): string {
+  return iconClassFor(bonus === 'tr' ? 'tr' : 'cards');
+}
+/** The icon of what a skipped record would have paid — the console's own sprite families. */
+/** The parameter's own icon — the game's vocabulary, the same asset the HUD's status strip prints. */
+function worldUnitClass(parameter: ParameterMoveId): string {
+  switch (parameter) {
+  case 'oxygen': return 'wgt-icon wgt-icon--oxygen';
+  case 'oceans': return 'wgt-icon wgt-icon--ocean';
+  case 'venus': return 'wgt-icon wgt-icon--venus';
+  case 'temperature': return 'wgt-icon wgt-icon--temperature';
+  }
+}
+/** …and its unit suffix («5 %», «−30 °C», a bare count of oceans). */
+function worldSuffix(parameter: ParameterMoveId): string {
+  return worldParameterUnit(parameter);
+}
+/** «Все треки колоний +2» — the ONE sentence of the colony table's part. */
+function tracksLabel(steps: number): string {
+  return translateTextWithParams(COLONY_TRACK_SUMMARY_KEY, [String(steps)]);
+}
+/** A tile's planet medallion — the colonies' own background class (the results panel prints the same). */
+function planetClass(colony: string): string {
+  return colony.replace(' ', '-') + '-background';
+}
+function skipUnitClass(outcome: ParliamentEnactOutcomeModel): string {
+  if (outcome.kind === 'skipped' || outcome.kind === 'production' || outcome.kind === 'stock' || outcome.kind === 'reaction') {
+    const production = outcome.production;
+    if (production !== undefined) {
+      return iconClassFor(String(production)) + ' con-iyield__unit--prod';
+    }
+    if (outcome.stock !== undefined) {
+      return iconClassFor(String(outcome.stock));
+    }
+  }
+  if (outcome.resource !== undefined) {
+    return iconClassFor(cardResourceKey(String(outcome.resource)));
+  }
+  return outcome.kind === 'cards' ? iconClassFor('cards') : '';
+}
 </script>
