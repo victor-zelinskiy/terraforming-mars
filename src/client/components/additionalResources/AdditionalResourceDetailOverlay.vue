@@ -150,8 +150,10 @@
   </Teleport>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType, nextTick} from 'vue';
+<script setup lang="ts">
+import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef} from 'vue';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
@@ -179,176 +181,169 @@ interface CardResourceLine {
   readonly progress?: {readonly filled: number; readonly per: number; readonly pct: number};
 }
 
-export default defineComponent({
-  name: 'AdditionalResourceDetailOverlay',
-  components: {Card, CardZoomModal, AnimatedMetricValue},
-  props: {
-    playerView: {
-      type: Object as PropType<PlayerViewModel>,
-      required: true,
-    },
+defineOptions({name: 'AdditionalResourceDetailOverlay'});
+const props = defineProps({
+  playerView: {
+    type: Object as PropType<PlayerViewModel>,
+    required: true,
   },
-  data() {
-    return {
-      zoomCard: undefined as CardModel | undefined,
-    };
-  },
-  computed: {
-    resource(): CardResource | undefined {
-      return additionalResourcesState.detailResource;
-    },
-    player(): PublicPlayerModel | undefined {
-      const color = additionalResourcesState.detailPlayerColor;
-      if (color === undefined) {
-        return undefined;
+});
+
+const zoomModal = useTemplateRef<InstanceType<typeof CardZoomModal>>('zoomModal');
+const zoomCard = ref<CardModel | undefined>(undefined);
+const resource = computed((): CardResource | undefined => {
+  return additionalResourcesState.detailResource;
+});
+const player = computed((): PublicPlayerModel | undefined => {
+  const color = additionalResourcesState.detailPlayerColor;
+  if (color === undefined) {
+    return undefined;
+  }
+  return props.playerView.players.find((p) => p.color === color);
+});
+/** The participant's VISIBLE label — the Automa seat localizes («Бот»). */
+const playerLabel = computed((): string => {
+  return player.value !== undefined ? participantDisplayName(player.value) : '';
+});
+const group = computed((): AdditionalResourceGroup | undefined => {
+  if (resource.value === undefined || player.value === undefined) {
+    return undefined;
+  }
+  return additionalResourceGroup(player.value.tableau, resource.value);
+});
+const visible = computed((): boolean => {
+  return group.value !== undefined && player.value !== undefined;
+});
+const isViewer = computed((): boolean => {
+  return player.value?.color === props.playerView.thisPlayer.color;
+});
+const iconClass = computed((): string => {
+  return resource.value === undefined ? '' : cardResourceCSS[resource.value];
+});
+const resourceName = computed((): string => {
+  return resource.value === undefined ? '' : $t(resource.value);
+});
+const epoch = computed((): string => {
+  return props.playerView.runId;
+});
+const detailScope = computed((): string => {
+  return `${player.value?.color ?? ''}-aux-detail`;
+});
+const totalMetricKey = computed((): string => {
+  return `card-resource.${resource.value}.detail-total`;
+});
+const zoomCards = computed((): ReadonlyArray<CardModel> => {
+  if (group.value === undefined) {
+    return [];
+  }
+  return group.value.cards.map((entry) => cardModelFor(entry.name));
+});
+const cardCount = computed((): number => {
+  return group.value?.cards.length ?? 0;
+});
+const nonZeroCount = computed((): number => {
+  return group.value?.cards.filter((c) => c.amount > 0).length ?? 0;
+});
+// True when this resource yields VP anywhere — via generic scoring OR a
+// special-case status (e.g. Search for Life's "life found" 3 VP). Gates
+// the header's aggregate-VP stat (hidden entirely when nothing scores).
+const hasScoring = computed((): boolean => {
+  return summaries.value.some((s) => s.scoring !== undefined || (s.special?.vp ?? 0) > 0);
+});
+// Total VP this resource currently yields across all cards: each card's
+// exact accrued scoring VP, or its special-case VP — correct even when
+// cards mix threshold rates or special triggers.
+const totalAccumulatedVp = computed((): number => {
+  return summaries.value.reduce((sum, s) => sum + (s.scoring?.accumulated ?? s.special?.vp ?? 0), 0);
+});
+// Precomputed per-card info-plate descriptors. Bespoke special cards
+// (registry) win the secondary line; otherwise the generic VP scoring +
+// (for threshold cards) progress toward the next VP.
+const summaries = computed((): ReadonlyArray<CardResourceLine> => {
+  return (group.value?.cards ?? []).map((entry): CardResourceLine => {
+    const special = specialResourceState(entry.name, entry.amount);
+    const s = special === undefined ? resourceScoring(entry.name) : undefined;
+    let scoring: CardResourceLine['scoring'];
+    let progress: CardResourceLine['progress'];
+    if (s !== undefined) {
+      scoring = {per: s.per, each: s.each, accumulated: calcAccumulatedVp(entry.name, entry.amount)};
+      if (s.per > 1) {
+        const filled = entry.amount % s.per;
+        progress = {filled, per: s.per, pct: Math.round((filled / s.per) * 100)};
       }
-      return this.playerView.players.find((p) => p.color === color);
-    },
-    /** The participant's VISIBLE label — the Automa seat localizes («Бот»). */
-    playerLabel(): string {
-      return this.player !== undefined ? participantDisplayName(this.player) : '';
-    },
-    group(): AdditionalResourceGroup | undefined {
-      if (this.resource === undefined || this.player === undefined) {
-        return undefined;
-      }
-      return additionalResourceGroup(this.player.tableau, this.resource);
-    },
-    visible(): boolean {
-      return this.group !== undefined && this.player !== undefined;
-    },
-    isViewer(): boolean {
-      return this.player?.color === this.playerView.thisPlayer.color;
-    },
-    iconClass(): string {
-      return this.resource === undefined ? '' : cardResourceCSS[this.resource];
-    },
-    resourceName(): string {
-      return this.resource === undefined ? '' : this.$t(this.resource);
-    },
-    epoch(): string {
-      return this.playerView.runId;
-    },
-    detailScope(): string {
-      return `${this.player?.color ?? ''}-aux-detail`;
-    },
-    totalMetricKey(): string {
-      return `card-resource.${this.resource}.detail-total`;
-    },
-    zoomCards(): ReadonlyArray<CardModel> {
-      if (this.group === undefined) {
-        return [];
-      }
-      return this.group.cards.map((entry) => this.cardModelFor(entry.name));
-    },
-    cardCount(): number {
-      return this.group?.cards.length ?? 0;
-    },
-    nonZeroCount(): number {
-      return this.group?.cards.filter((c) => c.amount > 0).length ?? 0;
-    },
-    // True when this resource yields VP anywhere — via generic scoring OR a
-    // special-case status (e.g. Search for Life's "life found" 3 VP). Gates
-    // the header's aggregate-VP stat (hidden entirely when nothing scores).
-    hasScoring(): boolean {
-      return this.summaries.some((s) => s.scoring !== undefined || (s.special?.vp ?? 0) > 0);
-    },
-    // Total VP this resource currently yields across all cards: each card's
-    // exact accrued scoring VP, or its special-case VP — correct even when
-    // cards mix threshold rates or special triggers.
-    totalAccumulatedVp(): number {
-      return this.summaries.reduce((sum, s) => sum + (s.scoring?.accumulated ?? s.special?.vp ?? 0), 0);
-    },
-    // Precomputed per-card info-plate descriptors. Bespoke special cards
-    // (registry) win the secondary line; otherwise the generic VP scoring +
-    // (for threshold cards) progress toward the next VP.
-    summaries(): ReadonlyArray<CardResourceLine> {
-      return (this.group?.cards ?? []).map((entry): CardResourceLine => {
-        const special = specialResourceState(entry.name, entry.amount);
-        const s = special === undefined ? resourceScoring(entry.name) : undefined;
-        let scoring: CardResourceLine['scoring'];
-        let progress: CardResourceLine['progress'];
-        if (s !== undefined) {
-          scoring = {per: s.per, each: s.each, accumulated: calcAccumulatedVp(entry.name, entry.amount)};
-          if (s.per > 1) {
-            const filled = entry.amount % s.per;
-            progress = {filled, per: s.per, pct: Math.round((filled / s.per) * 100)};
-          }
-        }
-        return {entry, card: this.cardModelFor(entry.name), special, scoring, progress};
-      });
-    },
-    // Layout mode = number of source cards. Drives the modal's per-mode
-    // max-width cap + card zoom (see additional_resources.less). The modal is
-    // width:fit-content, so it hugs the real card row in every mode.
-    layoutMode(): 'single' | 'double' | 'grid' | 'many' {
-      const n = this.cardCount;
-      if (n <= 1) {
-        return 'single';
-      }
-      if (n === 2) {
-        return 'double';
-      }
-      if (n <= 4) {
-        return 'grid';
-      }
-      return 'many';
-    },
-    modeClass(): string {
-      return `additional-resource-detail--${this.layoutMode}`;
-    },
-  },
-  methods: {
-    cardModelFor(name: CardName): CardModel {
-      return this.player?.tableau.find((c) => c.name === name) ?? ({name} as CardModel);
-    },
-    cardMetricKey(name: CardName): string {
-      return `card-resource.${this.resource}.card.${name}`;
-    },
-    // Glyph for a special-state marker by tone (success ✓ / warning ⚠ / pending ◦).
-    statusGlyph(tone: string): string {
-      if (tone === 'success') {
-        return '✓';
-      }
-      if (tone === 'warning') {
-        return '⚠';
-      }
-      return '◦';
-    },
-    // Activation-bar fill %, clamped to 100 once the threshold is reached/exceeded.
-    thresholdPct(t: {current: number, required: number}): number {
-      if (t.required <= 0) {
-        return 0;
-      }
-      return Math.min(100, Math.round((t.current / t.required) * 100));
-    },
-    openZoom(name: CardName): void {
-      this.zoomCard = this.cardModelFor(name);
-      nextTick(() => {
-        ((this.$refs.zoomModal ?? undefined) as {show?: () => void} | undefined)?.show?.();
-      });
-    },
-    close(): void {
-      closeAdditionalResourceDetail();
-    },
-    onKeydown(e: KeyboardEvent): void {
-      if (e.key !== 'Escape') {
-        return;
-      }
-      // Let an open fullscreen card (native <dialog>) consume Escape first.
-      if (document.querySelector('dialog[open]') !== null) {
-        return;
-      }
-      if (this.visible) {
-        this.close();
-      }
-    },
-  },
-  mounted() {
-    window.addEventListener('keydown', this.onKeydown);
-  },
-  beforeUnmount() {
-    window.removeEventListener('keydown', this.onKeydown);
-  },
+    }
+    return {entry, card: cardModelFor(entry.name), special, scoring, progress};
+  });
+});
+// Layout mode = number of source cards. Drives the modal's per-mode
+// max-width cap + card zoom (see additional_resources.less). The modal is
+// width:fit-content, so it hugs the real card row in every mode.
+const layoutMode = computed((): 'single' | 'double' | 'grid' | 'many' => {
+  const n = cardCount.value;
+  if (n <= 1) {
+    return 'single';
+  }
+  if (n === 2) {
+    return 'double';
+  }
+  if (n <= 4) {
+    return 'grid';
+  }
+  return 'many';
+});
+const modeClass = computed((): string => {
+  return `additional-resource-detail--${layoutMode.value}`;
+});
+
+function cardModelFor(name: CardName): CardModel {
+  return player.value?.tableau.find((c) => c.name === name) ?? ({name} as CardModel);
+}
+function cardMetricKey(name: CardName): string {
+  return `card-resource.${resource.value}.card.${name}`;
+}
+// Glyph for a special-state marker by tone (success ✓ / warning ⚠ / pending ◦).
+function statusGlyph(tone: string): string {
+  if (tone === 'success') {
+    return '✓';
+  }
+  if (tone === 'warning') {
+    return '⚠';
+  }
+  return '◦';
+}
+// Activation-bar fill %, clamped to 100 once the threshold is reached/exceeded.
+function thresholdPct(t: {current: number, required: number}): number {
+  if (t.required <= 0) {
+    return 0;
+  }
+  return Math.min(100, Math.round((t.current / t.required) * 100));
+}
+function openZoom(name: CardName): void {
+  zoomCard.value = cardModelFor(name);
+  nextTick(() => {
+    zoomModal.value?.show();
+  });
+}
+function close(): void {
+  closeAdditionalResourceDetail();
+}
+function onKeydown(e: KeyboardEvent): void {
+  if (e.key !== 'Escape') {
+    return;
+  }
+  // Let an open fullscreen card (native <dialog>) consume Escape first.
+  if (document.querySelector('dialog[open]') !== null) {
+    return;
+  }
+  if (visible.value) {
+    close();
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown);
 });
 </script>
