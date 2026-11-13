@@ -70,7 +70,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * Console-native PROFILE editor (name + cube colour) — the pre-game identity
  * without the desktop DOM-focus modal. Four fields under a screen-state cursor:
@@ -89,7 +89,8 @@
  * the active profile into the shared identity every other screen reads) — B
  * just closes. The host routes pad intents here via `handleIntent`.
  */
-import {defineComponent} from 'vue';
+import {computed, onBeforeUnmount, ref, useTemplateRef} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {Color, PLAYER_COLORS} from '@/common/Color';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -109,140 +110,130 @@ import {validatePlayerName} from '@/common/utils/playerName';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleVirtualKeyboard from '@/client/components/console/menu/ConsoleVirtualKeyboard.vue';
 
-export default defineComponent({
-  name: 'ConsoleProfileEditor',
-  components: {GamepadGlyph, ConsoleVirtualKeyboard},
-  emits: ['close', 'manage-friends', 'manage-profiles'],
-  data() {
-    return {
-      cursor: 0,
-      entering: false,
-      entryDraft: '',
-      nameIssue: '',
-    };
-  },
-  computed: {
-    colors(): ReadonlyArray<Color> {
-      return PLAYER_COLORS;
-    },
-    activeName(): string {
-      return activeProfile()?.displayName ?? '';
-    },
-    activeColor(): Color {
-      return activeProfile()?.cubeColor ?? DEFAULT_IDENTITY_COLOR;
-    },
-    profileCount(): number {
-      return profilesState.profiles.length;
-    },
-    friendCount(): number {
-      return friendsState.friends.length;
-    },
-  },
-  created() {
-    ensureProfilesLoaded();
-    ensureFriendsLoaded();
-  },
-  beforeUnmount() {
-    menuPadState.textEntry = false;
-  },
-  methods: {
-    /** Host-routed pad intents. Returns true when consumed. */
-    handleIntent(intent: GamepadIntent): boolean {
-      if (this.entering) {
-        // The on-screen keyboard owns every intent while name entry is active.
-        const vk = (this.$refs.vkeyboard ?? undefined) as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
-        return vk?.handleIntent?.(intent) ?? true;
-      }
-      if (intent.kind === 'nav') {
-        if (intent.dir === 'up' || intent.dir === 'down') {
-          this.cursor = Math.min(3, Math.max(0, this.cursor + (intent.dir === 'down' ? 1 : -1)));
-          return true;
-        }
-        if (intent.dir === 'left' || intent.dir === 'right') {
-          const step = intent.dir === 'right' ? 1 : -1;
-          if (this.cursor === 0) {
-            this.cycleActive(step);
-          } else if (this.cursor === 2) {
-            this.cycleColor(step);
-          }
-          return true;
-        }
-        return true;
-      }
-      if (consoleActionOf(intent) === 'primary') {
-        if (this.cursor === 0) {
-          this.$emit('manage-profiles');
-        } else if (this.cursor === 1) {
-          this.startNameEntry();
-        } else if (this.cursor === 2) {
-          this.cycleColor(1);
-        } else {
-          this.$emit('manage-friends');
-        }
-        return true;
-      }
-      return false; // B falls through to the host (close).
-    },
-    /** Switch the active profile among the saved roster (◄ ► on the Profiles field). */
-    cycleActive(step: 1 | -1): void {
-      const list = profilesState.profiles;
-      if (list.length < 2) {
-        return;
-      }
-      let idx = list.findIndex((p) => p.id === profilesState.activeId);
-      if (idx < 0) {
-        idx = 0;
-      }
-      const next = list[(idx + step + list.length) % list.length];
-      setActiveProfile(next.id);
-    },
-    startNameEntry(): void {
-      this.entryDraft = this.activeName;
-      this.nameIssue = '';
-      // Silence the console key bridge — the on-screen keyboard owns input.
-      menuPadState.textEntry = true;
-      this.entering = true;
-    },
-    commitNameEntry(value: string): void {
-      const validation = validatePlayerName(value);
-      if (!validation.ok) {
-        this.nameIssue = validation.reason === 'empty' ? 'Fill in the player name' : 'This name cannot be used';
-        return;
-      }
-      const active = activeProfile();
-      // Editing the active profile → rename; no profile yet → create the first one.
-      const result = active !== undefined ?
-        renameProfile(active.id, validation.displayName) :
-        addProfile(validation.displayName, {activate: true});
-      if (!result.ok) {
-        this.nameIssue = result.reason === 'duplicate' ? 'This name is already used by another profile' : 'This name cannot be used';
-        return;
-      }
-      this.entering = false;
-      this.nameIssue = '';
-      menuPadState.textEntry = false;
-    },
-    cancelNameEntry(): void {
-      this.entering = false;
-      this.nameIssue = '';
-      menuPadState.textEntry = false;
-    },
-    cycleColor(step: 1 | -1): void {
-      const active = activeProfile();
-      if (active === undefined) {
-        return; // no profile to colour yet — set a name first
-      }
-      const ring: ReadonlyArray<Color> = PLAYER_COLORS;
-      const idx = ring.indexOf(active.cubeColor);
-      const next = ring[(idx + step + ring.length) % ring.length];
-      setProfileColor(active.id, next);
-    },
-    pickColor(c: Color): void {
-      const active = activeProfile();
-      if (active !== undefined) {
-        setProfileColor(active.id, c);
-      }
-    },
-  },
+defineOptions({name: 'ConsoleProfileEditor'});
+const emit = defineEmits(['close', 'manage-friends', 'manage-profiles']);
+
+const vkeyboard = useTemplateRef<{handleIntent?: (i: GamepadIntent) => boolean}>('vkeyboard');
+const cursor = ref(0);
+const entering = ref(false);
+const entryDraft = ref('');
+const nameIssue = ref('');
+const colors = PLAYER_COLORS;
+const activeName = computed((): string => {
+  return activeProfile()?.displayName ?? '';
 });
+const activeColor = computed((): Color => {
+  return activeProfile()?.cubeColor ?? DEFAULT_IDENTITY_COLOR;
+});
+const profileCount = computed((): number => {
+  return profilesState.profiles.length;
+});
+const friendCount = computed((): number => {
+  return friendsState.friends.length;
+});
+
+/** Host-routed pad intents. Returns true when consumed. */
+function handleIntent(intent: GamepadIntent): boolean {
+  if (entering.value) {
+    // The on-screen keyboard owns every intent while name entry is active.
+    const vk = vkeyboard.value;
+    return vk?.handleIntent?.(intent) ?? true;
+  }
+  if (intent.kind === 'nav') {
+    if (intent.dir === 'up' || intent.dir === 'down') {
+      cursor.value = Math.min(3, Math.max(0, cursor.value + (intent.dir === 'down' ? 1 : -1)));
+      return true;
+    }
+    if (intent.dir === 'left' || intent.dir === 'right') {
+      const step = intent.dir === 'right' ? 1 : -1;
+      if (cursor.value === 0) {
+        cycleActive(step);
+      } else if (cursor.value === 2) {
+        cycleColor(step);
+      }
+      return true;
+    }
+    return true;
+  }
+  if (consoleActionOf(intent) === 'primary') {
+    if (cursor.value === 0) {
+      emit('manage-profiles');
+    } else if (cursor.value === 1) {
+      startNameEntry();
+    } else if (cursor.value === 2) {
+      cycleColor(1);
+    } else {
+      emit('manage-friends');
+    }
+    return true;
+  }
+  return false; // B falls through to the host (close).
+}
+/** Switch the active profile among the saved roster (◄ ► on the Profiles field). */
+function cycleActive(step: 1 | -1): void {
+  const list = profilesState.profiles;
+  if (list.length < 2) {
+    return;
+  }
+  let idx = list.findIndex((p) => p.id === profilesState.activeId);
+  if (idx < 0) {
+    idx = 0;
+  }
+  const next = list[(idx + step + list.length) % list.length];
+  setActiveProfile(next.id);
+}
+function startNameEntry(): void {
+  entryDraft.value = activeName.value;
+  nameIssue.value = '';
+  // Silence the console key bridge — the on-screen keyboard owns input.
+  menuPadState.textEntry = true;
+  entering.value = true;
+}
+function commitNameEntry(value: string): void {
+  const validation = validatePlayerName(value);
+  if (!validation.ok) {
+    nameIssue.value = validation.reason === 'empty' ? 'Fill in the player name' : 'This name cannot be used';
+    return;
+  }
+  const active = activeProfile();
+  // Editing the active profile → rename; no profile yet → create the first one.
+  const result = active !== undefined ?
+    renameProfile(active.id, validation.displayName) :
+    addProfile(validation.displayName, {activate: true});
+  if (!result.ok) {
+    nameIssue.value = result.reason === 'duplicate' ? 'This name is already used by another profile' : 'This name cannot be used';
+    return;
+  }
+  entering.value = false;
+  nameIssue.value = '';
+  menuPadState.textEntry = false;
+}
+function cancelNameEntry(): void {
+  entering.value = false;
+  nameIssue.value = '';
+  menuPadState.textEntry = false;
+}
+function cycleColor(step: 1 | -1): void {
+  const active = activeProfile();
+  if (active === undefined) {
+    return; // no profile to colour yet — set a name first
+  }
+  const ring: ReadonlyArray<Color> = PLAYER_COLORS;
+  const idx = ring.indexOf(active.cubeColor);
+  const next = ring[(idx + step + ring.length) % ring.length];
+  setProfileColor(active.id, next);
+}
+function pickColor(c: Color): void {
+  const active = activeProfile();
+  if (active !== undefined) {
+    setProfileColor(active.id, c);
+  }
+}
+
+ensureProfilesLoaded();
+ensureFriendsLoaded();
+onBeforeUnmount(() => {
+  menuPadState.textEntry = false;
+});
+defineExpose({handleIntent});
 </script>
