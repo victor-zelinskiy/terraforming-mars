@@ -1,12 +1,4 @@
 <template>
-  <!--
-    «СБРОШЕННЫЕ» — THE DISCARD PILE, one object of the table (discardPile.ts). Mounted ONCE by the shell; out while
-    some owner holds a lease. Its home is UNDER the HUD project deck: the plate SLIDES OUT from under the status strip
-    (the root clips at the strip's bottom edge), past the strip's chip lane — where the deck's own «−N» pops — and
-    rests a lane lower, its stack under the deck's stack; the thrown-away cards land on it face down, the count flips
-    on each contact, and the last lease released slides it back under the strip. Pointer-inert; the stack is the R3
-    viewer's physical origin.
-  -->
   <transition name="con-dpile" :duration="duration" @after-leave="onAfterLeave">
     <div v-if="state.visible" ref="root" class="con-dpile" :style="rootStyle" aria-hidden="true"
          data-discard-pile
@@ -42,8 +34,19 @@
   </transition>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * «СБРОШЕННЫЕ» — THE DISCARD PILE, one object of the table (discardPile.ts). Mounted ONCE by the shell; out while
+ * some owner holds a lease. Its home is UNDER the HUD project deck: the plate SLIDES OUT from under the status strip
+ * (the root clips at the strip's bottom edge), past the strip's chip lane — where the deck's own «−N» pops — and
+ * rests a lane lower, its stack under the deck's stack; the thrown-away cards land on it face down, the count flips
+ * on each contact, and the last lease released slides it back under the strip. Pointer-inert; the stack is the R3
+ * viewer's physical origin.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {discardPileState, noteDiscardPileClosed, registerDiscardPileEls} from '@/client/console/discardPile/discardPile';
@@ -54,66 +57,52 @@ import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/comp
 const ENTER_MS = 260;
 const LEAVE_MS = 240;
 
-export default defineComponent({
-  name: 'ConsoleDiscardPile',
-  components: {ConsoleFlipValue, GamepadGlyph},
-  data() {
-    return {
-      state: discardPileState,
-      pulsing: false,
-    };
-  },
-  computed: {
-    rootStyle(): Record<string, string> {
-      const a = this.state.anchor;
-      return a === undefined ? {} : {left: `${a.left}px`, top: `${a.top}px`};
-    },
-    duration(): {enter: number, leave: number} {
-      return {enter: consoleMotionMs(ENTER_MS), leave: consoleMotionMs(LEAVE_MS)};
-    },
-    /** The pile WAITS for a card the hand is about to throw (the receiver lights up before the carry). */
-    armed(): boolean {
-      return cardDiscardState.trayArmed;
-    },
-    /** A reveal presents the batch these cards were thrown out of — R3 opens them (ConsoleRevealOverlay.openDiscards). */
-    inspectable(): boolean {
-      return this.state.holders.some((h) => h.startsWith('reveal:'));
-    },
-  },
-  watch: {
-    'state.visible': {
-      flush: 'post',
-      handler(): void {
-        this.register();
-      },
-    },
-    'state.pulseNonce'(nonce: number): void {
-      if (nonce === 0) {
-        return;
-      }
-      // A one-shot that ends on its own `animationend` (no timer); restarted by a frame with the class off.
-      this.pulsing = false;
-      void this.$nextTick(() => {
-        this.pulsing = !consoleReducedMotionActive();
-      });
-    },
-  },
-  mounted() {
-    this.register();
-  },
-  beforeUnmount() {
-    registerDiscardPileEls(undefined, undefined);
-  },
-  methods: {
-    register(): void {
-      registerDiscardPileEls(
-        (this.$refs.slot as HTMLElement | undefined) ?? undefined,
-        (this.$refs.stack as HTMLElement | undefined) ?? undefined);
-    },
-    onAfterLeave(): void {
-      this.register();
-      noteDiscardPileClosed();
-    },
-  },
+defineOptions({name: 'ConsoleDiscardPile'});
+
+const slot = useTemplateRef<HTMLElement>('slot');
+const stack = useTemplateRef<HTMLElement>('stack');
+const state = discardPileState;
+const pulsing = ref(false);
+const rootStyle = computed((): Record<string, string> => {
+  const a = state.anchor;
+  return a === undefined ? {} : {left: `${a.left}px`, top: `${a.top}px`};
+});
+const duration = computed((): {enter: number, leave: number} => {
+  return {enter: consoleMotionMs(ENTER_MS), leave: consoleMotionMs(LEAVE_MS)};
+});
+/** The pile WAITS for a card the hand is about to throw (the receiver lights up before the carry). */
+const armed = computed((): boolean => {
+  return cardDiscardState.trayArmed;
+});
+/** A reveal presents the batch these cards were thrown out of — R3 opens them (ConsoleRevealOverlay.openDiscards). */
+const inspectable = computed((): boolean => {
+  return state.holders.some((h) => h.startsWith('reveal:'));
+});
+function register(): void {
+  registerDiscardPileEls(slot.value ?? undefined, stack.value ?? undefined);
+}
+function onAfterLeave(): void {
+  register();
+  noteDiscardPileClosed();
+}
+
+watch(() => state.visible, (): void => {
+  register();
+}, {flush: 'post'});
+watch(() => state.pulseNonce, (nonce: number): void => {
+  if (nonce === 0) {
+    return;
+  }
+  // A one-shot that ends on its own `animationend` (no timer); restarted by a frame with the class off.
+  pulsing.value = false;
+  void nextTick(() => {
+    pulsing.value = !consoleReducedMotionActive();
+  });
+});
+onMounted(() => {
+  register();
+});
+onBeforeUnmount(() => {
+  registerDiscardPileEls(undefined, undefined);
 });
 </script>
