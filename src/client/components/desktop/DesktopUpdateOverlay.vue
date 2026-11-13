@@ -119,8 +119,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed} from 'vue';
 import {
   desktopUpdateState,
   desktopBridge,
@@ -129,72 +129,65 @@ import {
 } from '@/client/components/desktop/desktopUpdateState';
 import {consoleModeState} from '@/client/console/consoleModeState';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import {vI18n} from '@/client/directives/vDirectives';
 
-export default defineComponent({
-  name: 'desktop-update-overlay',
-  components: {GamepadGlyph},
-  computed: {
-    state() {
-      return desktopUpdateState;
-    },
-    /** P15: console posture — show the pad glyph row on the blocking panel. */
-    consoleEnabled(): boolean {
-      return consoleModeState.enabled && this.blocking;
-    },
-    /** P19: more than one button on screen → navigation is meaningful. */
-    multiAction(): boolean {
-      const m = this.state.mode;
-      return m === 'offlineBlocked' || m === 'manualDownloadRequired' || m === 'error';
-    },
-    isDesktop(): boolean {
-      return isDesktop();
-    },
-    canRestart(): boolean {
-      return this.state.restartSupported === true;
-    },
-    /** Holding for a version that exists but isn't downloadable yet — not a failure, and not
-     *  something the player can act on. Reframes the panel's title/lead/versions. */
-    waiting(): boolean {
-      return this.state.mode === 'pending';
-    },
-    visible(): boolean {
-      if (!this.isDesktop) {
-        return false;
-      }
-      // Surface ONLY the blocking mandatory-update gate. The non-blocking
-      // 'checking' state (the corner pill) is intentionally silent.
-      return updateOverlayBlocking(this.state.mode);
-    },
-    blocking(): boolean {
-      return updateOverlayBlocking(this.state.mode);
-    },
-    notes(): Array<string> {
-      return this.state.releaseNotes ?? [];
-    },
-    percent(): number {
-      return Math.min(100, Math.max(0, Math.round(this.state.progress?.percent ?? 0)));
-    },
-    speed(): string {
-      const bps = this.state.progress?.bytesPerSecond;
-      if (bps === undefined || bps <= 0) {
-        return '';
-      }
-      const mbps = bps / (1024 * 1024);
-      return mbps >= 1 ? `${mbps.toFixed(1)} MB/s` : `${(bps / 1024).toFixed(0)} KB/s`;
-    },
-  },
-  methods: {
-    install(): void {
-      void desktopBridge()?.quitAndInstall();
-    },
-    retry(): void {
-      void desktopBridge()?.recheck();
-    },
-    download(): void {
-      void desktopBridge()?.openDownload();
-    },
-  },
+defineOptions({name: 'desktop-update-overlay'});
+
+const state = desktopUpdateState;
+/** P15: console posture — show the pad glyph row on the blocking panel. */
+const consoleEnabled = computed((): boolean => {
+  return consoleModeState.enabled && blocking.value;
 });
+/** P19: more than one button on screen → navigation is meaningful. */
+const multiAction = computed((): boolean => {
+  const m = state.mode;
+  return m === 'offlineBlocked' || m === 'manualDownloadRequired' || m === 'error';
+});
+const onDesktop = computed((): boolean => {
+  return isDesktop();
+});
+const canRestart = computed((): boolean => {
+  return state.restartSupported === true;
+});
+/** Holding for a version that exists but isn't downloadable yet — not a failure, and not
+ *  something the player can act on. Reframes the panel's title/lead/versions. */
+const waiting = computed((): boolean => {
+  return state.mode === 'pending';
+});
+const visible = computed((): boolean => {
+  if (!onDesktop.value) {
+    return false;
+  }
+  // Surface ONLY the blocking mandatory-update gate. The non-blocking
+  // 'checking' state (the corner pill) is intentionally silent.
+  return updateOverlayBlocking(state.mode);
+});
+const blocking = computed((): boolean => {
+  return updateOverlayBlocking(state.mode);
+});
+const notes = computed((): Array<string> => {
+  return state.releaseNotes ?? [];
+});
+const percent = computed((): number => {
+  return Math.min(100, Math.max(0, Math.round(state.progress?.percent ?? 0)));
+});
+const speed = computed((): string => {
+  const bps = state.progress?.bytesPerSecond;
+  if (bps === undefined || bps <= 0) {
+    return '';
+  }
+  const mbps = bps / (1024 * 1024);
+  return mbps >= 1 ? `${mbps.toFixed(1)} MB/s` : `${(bps / 1024).toFixed(0)} KB/s`;
+});
+function install(): void {
+  void desktopBridge()?.quitAndInstall();
+}
+function retry(): void {
+  void desktopBridge()?.recheck();
+}
+function download(): void {
+  void desktopBridge()?.openDownload();
+}
 </script>
 
 <style scoped>
