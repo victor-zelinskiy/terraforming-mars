@@ -2,6 +2,7 @@ import {shallowMount} from '@vue/test-utils';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import AppButton from '@/client/components/common/AppButton.vue';
+import {APP_ROOT} from '@/client/components/appRoot';
 
 describe('AppButton', () => {
   it('emits click event on click', async () => {
@@ -66,14 +67,14 @@ describe('AppButton', () => {
     expect(wrapper.attributes('disabled')).to.eq(undefined);
   });
 
-  // A component mounted on its own is its own $root, so vueRoot() reads
-  // isServerSideRequestInProgress from the global mocks.
+  // The busy flag comes DOWN from the app root's port (`appRoot.ts`): the spec provides the port's one member the
+  // button reads. (A button mounted with no root above it is simply not busy — the tests above.)
   function mountWithServerBusy(isServerSideRequestInProgress: boolean, disableOnServerBusy: boolean) {
     return shallowMount(AppButton, {
       ...globalConfig,
       global: {
         ...globalConfig.global,
-        mocks: {isServerSideRequestInProgress},
+        provide: {[APP_ROOT as symbol]: {isServerSideRequestInProgress}},
       },
       props: {disableOnServerBusy},
     });
