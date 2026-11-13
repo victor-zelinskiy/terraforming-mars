@@ -11,7 +11,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * ConsoleScrollArea — THE controlled scroll primitive of the console-native
  * UI (foundation layer; docs/CONSOLE_FOUNDATION.md §3.3).
@@ -32,7 +32,7 @@
  * changes) without manual listeners; scroll position rides the passive
  * scroll event. All measurement work is rAF-coalesced.
  */
-import {defineComponent, ref, computed, CSSProperties, onBeforeUnmount} from 'vue';
+import {computed, CSSProperties, onBeforeUnmount, ref} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -61,173 +61,168 @@ function railMinTravelPx(): number {
   return RAIL_MIN_TRAVEL_PX * conUiScale();
 }
 
-export default defineComponent({
-  name: 'ConsoleScrollArea',
-  props: {
-    /** Scroll axis. The cross axis is always clipped (overflow bugs stay visible in dev via the guard). */
-    axis: {type: String as () => 'y' | 'x', default: 'y'},
-    /** Show the custom progress rail while overflowing. */
-    indicator: {type: Boolean, default: true},
-    /**
-     * Class(es) for the CONTENT wrapper — lets the host's existing layout
-     * class (flex column / grid) apply to the element that actually holds
-     * the slot, so migrating a legacy `overflow-y: auto` container is a
-     * markup-only change.
-     */
-    contentClass: {type: String, default: ''},
-    /**
-     * Stretch the content wrapper to at least the viewport height (`fill`)
-     * — needed by layouts that pin a block to the bottom via
-     * `margin-top: auto` when the content is SHORTER than the viewport.
-     */
-    fill: {type: Boolean, default: false},
-  },
-  emits: {
-    /** Fires when content starts/stops overflowing the viewport. */
-    'overflow-change': (_overflowing: boolean) => true,
-  },
-  setup(props, {emit, expose}) {
-    const viewport = ref<HTMLElement>();
-    const content = ref<HTMLElement>();
-    const overflowing = ref(false);
-    /** 0..1 scroll progress + viewport/content ratio for the thumb. */
-    const progress = ref(0);
-    const ratio = ref(1);
-    const flow = useFlowScope('console-scroll-area');
-
-    let measurePending = false;
-    const measure = (): void => {
-      if (measurePending) {
-        return;
-      }
-      measurePending = true;
-      flow.afterFrame('the scroll area measures', () => {
-        measurePending = false;
-        const vp = viewport.value;
-        const body = content.value;
-        // Vue nulls a template ref on unmount, so a pending rAF/ResizeObserver
-        // callback can land here with `null` (not `undefined`) — `== null`
-        // catches both (else `null.clientHeight` throws).
-        if (vp === undefined || vp === null) {
-          return;
-        }
-        const size = props.axis === 'y' ? vp.clientHeight : vp.clientWidth;
-        // THE CONTENT'S LAYOUT SIZE, NEVER `scrollHeight`. Scrollable overflow
-        // counts a TRANSFORM in flight, and every console surface enters by
-        // tweening its groups in from `y: 9 * uiScale` — so for the length of
-        // the cascade the viewport reports ~9-15px of travel it does not have.
-        // That alone would be harmless, except a transform fires NO
-        // ResizeObserver: the flag latched true mid-animation and nothing ever
-        // ran `measure` again to clear it, leaving a permanent rail down the
-        // right edge of a screen that fits (the play composer shipped that way).
-        // The layout height is immune to the tween AND is exactly what the
-        // observers below watch — so the measured quantity and the observed
-        // quantity are now the same thing, and the state cannot go stale.
-        const total = body === undefined || body === null ?
-          (props.axis === 'y' ? vp.scrollHeight : vp.scrollWidth) :
-          (props.axis === 'y' ? body.offsetHeight : body.offsetWidth);
-        const pos = props.axis === 'y' ? vp.scrollTop : vp.scrollLeft;
-        const max = Math.max(0, total - size);
-        const was = overflowing.value;
-        overflowing.value = max > railMinTravelPx();
-        ratio.value = total > 0 ? Math.max(0.1, Math.min(1, size / total)) : 1;
-        progress.value = max > 0 ? Math.min(1, Math.max(0, pos / max)) : 0;
-        if (was !== overflowing.value) {
-          emit('overflow-change', overflowing.value);
-        }
-      });
-    };
-
-    useResizeObserver(viewport, measure);
-    useResizeObserver(content, measure);
-
-    const onScroll = (): void => measure();
-
-    /* THE CURSOR'S SCROLL (TR58 — `console/cursorScroll.ts`): a cursor-driven move rides the cursor's own clock
-       (`CURSOR_MS` on `CURSOR_EASE`), keeps the RESTING box in view (the cursor's own lift never asks for a scroll) and
-       is retargetable; the right stick and an unmount stop it. */
-    const axis = (): 'x' | 'y' => props.axis === 'y' ? 'y' : 'x';
-    const stopScroll = (): void => {
-      const vp = viewport.value;
-      if (vp !== undefined && vp !== null) {
-        stopCursorScroll(vp);
-      }
-    };
-    onBeforeUnmount(stopScroll);
-
-    const thumbStyle = computed<CSSProperties>(() => {
-      const len = ratio.value * 100;
-      const offset = progress.value * (100 - len);
-      return props.axis === 'y' ?
-        {height: `${len}%`, top: `${offset}%`} :
-        {width: `${len}%`, left: `${offset}%`};
-    });
-
-    const rootClasses = computed(() => ({
-      'con-scroll-area--x': props.axis === 'x',
-      'con-scroll-area--fill': props.fill,
-      'con-scroll-area--overflowing': overflowing.value,
-    }));
-
-    /** Scroll by a pixel delta (right-stick / trigger paging). */
-    const scrollByPx = (delta: number): void => {
-      const vp = viewport.value;
-      if (vp === undefined) {
-        return;
-      }
-      // The right stick drives the list directly — a cursor scroll in flight lets go.
-      stopScroll();
-      if (props.axis === 'y') {
-        vp.scrollTop += delta;
-      } else {
-        vp.scrollLeft += delta;
-      }
-      measure();
-    };
-
-    /** Back to the start — on the cursor's clock (the cursor walked back to the first row), instantly when asked. */
-    const scrollToStart = (opts: {instant?: boolean} = {}): void => {
-      const vp = viewport.value;
-      if (vp === undefined || vp === null) {
-        return;
-      }
-      cursorScrollTo(vp, axis(), 0, {instant: opts.instant, onSettled: measure});
-    };
-
-    /** Jump to the end (follow-latest feeds — e.g. the journal). */
-    const scrollToEnd = (): void => {
-      const vp = viewport.value;
-      if (vp === undefined) {
-        return;
-      }
-      if (props.axis === 'y') {
-        vp.scrollTop = vp.scrollHeight;
-      } else {
-        vp.scrollLeft = vp.scrollWidth;
-      }
-      measure();
-    };
-
-    /**
-     * Keep an element (the cursored row) inside the viewport with a margin.
-     * Manual math on THIS viewport only — never scrollIntoView, which may
-     * walk into outer containers. The RESTING box is kept in view and the move
-     * rides the cursor's clock, unless the caller needs it settled NOW
-     * (`instant` — a measure about to read the scrolled layout).
-     */
-    const ensureVisible = (el: Element | null | undefined, margin: number = 12, opts: {instant?: boolean} = {}): void => {
-      const vp = viewport.value;
-      if (vp === undefined || vp === null || el === null || el === undefined) {
-        return;
-      }
-      if (!cursorEnsureVisible(vp, el, {axis: axis(), margin, instant: opts.instant, onSettled: measure})) {
-        measure();
-      }
-    };
-
-    expose({scrollByPx, scrollToStart, scrollToEnd, ensureVisible, measure});
-
-    return {viewport, content, overflowing, thumbStyle, rootClasses, onScroll};
-  },
+defineOptions({name: 'ConsoleScrollArea'});
+const props = defineProps({
+  /** Scroll axis. The cross axis is always clipped (overflow bugs stay visible in dev via the guard). */
+  axis: {type: String as () => 'y' | 'x', default: 'y'},
+  /** Show the custom progress rail while overflowing. */
+  indicator: {type: Boolean, default: true},
+  /**
+   * Class(es) for the CONTENT wrapper — lets the host's existing layout
+   * class (flex column / grid) apply to the element that actually holds
+   * the slot, so migrating a legacy `overflow-y: auto` container is a
+   * markup-only change.
+   */
+  contentClass: {type: String, default: ''},
+  /**
+   * Stretch the content wrapper to at least the viewport height (`fill`)
+   * — needed by layouts that pin a block to the bottom via
+   * `margin-top: auto` when the content is SHORTER than the viewport.
+   */
+  fill: {type: Boolean, default: false},
 });
+const emit = defineEmits({
+  /** Fires when content starts/stops overflowing the viewport. */
+  'overflow-change': (_overflowing: boolean) => true,
+});
+
+const viewport = ref<HTMLElement>();
+const content = ref<HTMLElement>();
+const overflowing = ref(false);
+/** 0..1 scroll progress + viewport/content ratio for the thumb. */
+const progress = ref(0);
+const ratio = ref(1);
+const flow = useFlowScope('console-scroll-area');
+
+let measurePending = false;
+const measure = (): void => {
+  if (measurePending) {
+    return;
+  }
+  measurePending = true;
+  flow.afterFrame('the scroll area measures', () => {
+    measurePending = false;
+    const vp = viewport.value;
+    const body = content.value;
+    // Vue nulls a template ref on unmount, so a pending rAF/ResizeObserver
+    // callback can land here with `null` (not `undefined`) — `== null`
+    // catches both (else `null.clientHeight` throws).
+    if (vp === undefined || vp === null) {
+      return;
+    }
+    const size = props.axis === 'y' ? vp.clientHeight : vp.clientWidth;
+    // THE CONTENT'S LAYOUT SIZE, NEVER `scrollHeight`. Scrollable overflow
+    // counts a TRANSFORM in flight, and every console surface enters by
+    // tweening its groups in from `y: 9 * uiScale` — so for the length of
+    // the cascade the viewport reports ~9-15px of travel it does not have.
+    // That alone would be harmless, except a transform fires NO
+    // ResizeObserver: the flag latched true mid-animation and nothing ever
+    // ran `measure` again to clear it, leaving a permanent rail down the
+    // right edge of a screen that fits (the play composer shipped that way).
+    // The layout height is immune to the tween AND is exactly what the
+    // observers below watch — so the measured quantity and the observed
+    // quantity are now the same thing, and the state cannot go stale.
+    const total = body === undefined || body === null ?
+      (props.axis === 'y' ? vp.scrollHeight : vp.scrollWidth) :
+      (props.axis === 'y' ? body.offsetHeight : body.offsetWidth);
+    const pos = props.axis === 'y' ? vp.scrollTop : vp.scrollLeft;
+    const max = Math.max(0, total - size);
+    const was = overflowing.value;
+    overflowing.value = max > railMinTravelPx();
+    ratio.value = total > 0 ? Math.max(0.1, Math.min(1, size / total)) : 1;
+    progress.value = max > 0 ? Math.min(1, Math.max(0, pos / max)) : 0;
+    if (was !== overflowing.value) {
+      emit('overflow-change', overflowing.value);
+    }
+  });
+};
+
+useResizeObserver(viewport, measure);
+useResizeObserver(content, measure);
+
+const onScroll = (): void => measure();
+
+/* THE CURSOR'S SCROLL (TR58 — `console/cursorScroll.ts`): a cursor-driven move rides the cursor's own clock
+   (`CURSOR_MS` on `CURSOR_EASE`), keeps the RESTING box in view (the cursor's own lift never asks for a scroll) and
+   is retargetable; the right stick and an unmount stop it. */
+const axisNow = (): 'x' | 'y' => props.axis === 'y' ? 'y' : 'x';
+const stopScroll = (): void => {
+  const vp = viewport.value;
+  if (vp !== undefined && vp !== null) {
+    stopCursorScroll(vp);
+  }
+};
+onBeforeUnmount(stopScroll);
+
+const thumbStyle = computed<CSSProperties>(() => {
+  const len = ratio.value * 100;
+  const offset = progress.value * (100 - len);
+  return props.axis === 'y' ?
+    {height: `${len}%`, top: `${offset}%`} :
+    {width: `${len}%`, left: `${offset}%`};
+});
+
+const rootClasses = computed(() => ({
+  'con-scroll-area--x': props.axis === 'x',
+  'con-scroll-area--fill': props.fill,
+  'con-scroll-area--overflowing': overflowing.value,
+}));
+
+/** Scroll by a pixel delta (right-stick / trigger paging). */
+const scrollByPx = (delta: number): void => {
+  const vp = viewport.value;
+  if (vp === undefined) {
+    return;
+  }
+  // The right stick drives the list directly — a cursor scroll in flight lets go.
+  stopScroll();
+  if (props.axis === 'y') {
+    vp.scrollTop += delta;
+  } else {
+    vp.scrollLeft += delta;
+  }
+  measure();
+};
+
+/** Back to the start — on the cursor's clock (the cursor walked back to the first row), instantly when asked. */
+const scrollToStart = (opts: {instant?: boolean} = {}): void => {
+  const vp = viewport.value;
+  if (vp === undefined || vp === null) {
+    return;
+  }
+  cursorScrollTo(vp, axisNow(), 0, {instant: opts.instant, onSettled: measure});
+};
+
+/** Jump to the end (follow-latest feeds — e.g. the journal). */
+const scrollToEnd = (): void => {
+  const vp = viewport.value;
+  if (vp === undefined) {
+    return;
+  }
+  if (props.axis === 'y') {
+    vp.scrollTop = vp.scrollHeight;
+  } else {
+    vp.scrollLeft = vp.scrollWidth;
+  }
+  measure();
+};
+
+/**
+ * Keep an element (the cursored row) inside the viewport with a margin.
+ * Manual math on THIS viewport only — never scrollIntoView, which may
+ * walk into outer containers. The RESTING box is kept in view and the move
+ * rides the cursor's clock, unless the caller needs it settled NOW
+ * (`instant` — a measure about to read the scrolled layout).
+ */
+const ensureVisible = (el: Element | null | undefined, margin: number = 12, opts: {instant?: boolean} = {}): void => {
+  const vp = viewport.value;
+  if (vp === undefined || vp === null || el === null || el === undefined) {
+    return;
+  }
+  if (!cursorEnsureVisible(vp, el, {axis: axisNow(), margin, instant: opts.instant, onSettled: measure})) {
+    measure();
+  }
+};
+
+defineExpose({scrollByPx, scrollToStart, scrollToEnd, ensureVisible, measure});
 </script>
