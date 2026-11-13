@@ -1,19 +1,4 @@
 <template>
-  <!--
-    The VALUE is keyed on a COUNTER of in-place changes, not on the number
-    itself. A coalesced change keeps this whole chip mounted
-    (AnimatedMetricValue holds the chip key steady) and re-keys only the
-    number, which replaces that one span and replays its
-    `delta-chip-accumulate` tick from zero — the accumulator is SEEN
-    counting up rather than silently swapping digits.
-
-    The counter starts at 0 and the tick class is withheld there ON
-    PURPOSE: the chip's own enter transition already carries the arrival,
-    and stacking a second scale on top of it would put extra motion on
-    every chip in the game to serve a case that only happens on the
-    SECOND value. The sign is deliberately never keyed — coalescing
-    cannot cross polarity, so it cannot change under a mounted chip.
-  -->
   <span class="delta-chip"
         :class="chipClasses"
         aria-hidden="true">
@@ -23,9 +8,26 @@
   </span>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * The VALUE is keyed on a COUNTER of in-place changes, not on the number
+ * itself. A coalesced change keeps this whole chip mounted
+ * (AnimatedMetricValue holds the chip key steady) and re-keys only the
+ * number, which replaces that one span and replays its
+ * `delta-chip-accumulate` tick from zero — the accumulator is SEEN
+ * counting up rather than silently swapping digits.
+ *
+ * The counter starts at 0 and the tick class is withheld there ON
+ * PURPOSE: the chip's own enter transition already carries the arrival,
+ * and stacking a second scale on top of it would put extra motion on
+ * every chip in the game to serve a case that only happens on the
+ * SECOND value. The sign is deliberately never keyed — coalescing
+ * cannot cross polarity, so it cannot change under a mounted chip.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 
-import {defineComponent, PropType} from 'vue';
+import {computed, PropType, ref, watch} from 'vue';
 
 /*
  * Visual variants. Drives the chip's size + tone tier AND the
@@ -58,57 +60,49 @@ export type DeltaChipVariant =
   | 'score'
   | 'global-parameter';
 
-export default defineComponent({
-  name: 'DeltaChip',
-  props: {
-    amount: {
-      type: Number,
-      required: true,
-    },
-    variant: {
-      type: String as PropType<DeltaChipVariant>,
-      required: true,
-    },
+defineOptions({name: 'DeltaChip'});
+const props = defineProps({
+  amount: {
+    type: Number,
+    required: true,
   },
-  data() {
-    return {
-      /** In-place value changes since this chip mounted (0 = the arrival). */
-      ticks: 0,
-    };
+  variant: {
+    type: String as PropType<DeltaChipVariant>,
+    required: true,
   },
-  watch: {
-    amount() {
-      this.ticks++;
-    },
-  },
-  computed: {
-    polarity(): 'positive' | 'negative' | 'neutral' {
-      if (this.amount > 0) {
-        return 'positive';
-      }
-      if (this.amount < 0) {
-        return 'negative';
-      }
-      return 'neutral';
-    },
-    sign(): string {
-      if (this.amount > 0) {
-        return '+';
-      }
-      if (this.amount < 0) {
-        return '−';
-      }
-      return '';
-    },
-    magnitude(): string {
-      return String(Math.abs(this.amount));
-    },
-    chipClasses(): Array<string> {
-      return [
-        `delta-chip--${this.variant}`,
-        `delta-chip--${this.polarity}`,
-      ];
-    },
-  },
+});
+
+/** In-place value changes since this chip mounted (0 = the arrival). */
+const ticks = ref(0);
+const polarity = computed((): 'positive' | 'negative' | 'neutral' => {
+  if (props.amount > 0) {
+    return 'positive';
+  }
+  if (props.amount < 0) {
+    return 'negative';
+  }
+  return 'neutral';
+});
+const sign = computed((): string => {
+  if (props.amount > 0) {
+    return '+';
+  }
+  if (props.amount < 0) {
+    return '−';
+  }
+  return '';
+});
+const magnitude = computed((): string => {
+  return String(Math.abs(props.amount));
+});
+const chipClasses = computed((): Array<string> => {
+  return [
+    `delta-chip--${props.variant}`,
+    `delta-chip--${polarity.value}`,
+  ];
+});
+
+watch(() => props.amount, () => {
+  ticks.value++;
 });
 </script>
