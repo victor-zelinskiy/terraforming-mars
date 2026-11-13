@@ -1,22 +1,4 @@
 <template>
-  <!--
-    «ПАРЛАМЕНТ» — ONE SEAT'S STANDING (Information workspace, Turmoil Redux), as OBJECTS (TR60, decision 9a). The
-    Parliament workspace shows the table; this reads the same table from one seat, and answers the questions the
-    table never does — in the Parliament's own vocabulary (`docs/claude/parliament-glossary.md`):
-
-      ВЛИЯНИЕ   — the influence badge with the number the seat votes with, and what it is MADE of as a sum
-                  («Карьера 2 + бонусы 1 = 3» — every giver by name where the server knows it);
-      КАРЬЕРА   — the track as its twelve printed steps (influence level · TR · card), the marker on the seat's
-                  step, the NEXT step lit with what it pays;
-      ДЕЛЕГАТЫ  — tokens: the lobby's socket, the reserve, the chair; every resolution the seat's cubes stand on as
-                  its party's emblem with the cubes on it (the lead marked);
-      НА СТОЛЕ  — each resolution up for the vote as a TILE: its party's emblem, its name, «принимается» when it
-                  would be, and what it would pay THIS seat in the vote panel's own grammar; then what the last
-                  enactment paid it.
-
-    It never restates what another zone already says: the party effects and the enacted law's action are «Эффекты»;
-    ACCESS is a COUNT here and nothing more. Nothing here computes — the reading is `seatParliamentReadingOf`.
-  -->
   <div class="con-info__parl con-iparl" data-info-parliament>
     <div v-if="!reading.participates" class="con-info__empty con-info__empty--big" data-parl-info-absent>{{ $t(botNote) }}</div>
     <template v-else>
@@ -150,8 +132,28 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * «ПАРЛАМЕНТ» — ONE SEAT'S STANDING (Information workspace, Turmoil Redux), as OBJECTS (TR60, decision 9a). The
+ * Parliament workspace shows the table; this reads the same table from one seat, and answers the questions the
+ * table never does — in the Parliament's own vocabulary (`docs/claude/parliament-glossary.md`):
+ *
+ *   ВЛИЯНИЕ   — the influence badge with the number the seat votes with, and what it is MADE of as a sum
+ *               («Карьера 2 + бонусы 1 = 3» — every giver by name where the server knows it);
+ *   КАРЬЕРА   — the track as its twelve printed steps (influence level · TR · card), the marker on the seat's
+ *               step, the NEXT step lit with what it pays;
+ *   ДЕЛЕГАТЫ  — tokens: the lobby's socket, the reserve, the chair; every resolution the seat's cubes stand on as
+ *               its party's emblem with the cubes on it (the lead marked);
+ *   НА СТОЛЕ  — each resolution up for the vote as a TILE: its party's emblem, its name, «принимается» when it
+ *               would be, and what it would pay THIS seat in the vote panel's own grammar; then what the last
+ *               enactment paid it.
+ *
+ * It never restates what another zone already says: the party effects and the enacted law's action are «Эффекты»;
+ * ACCESS is a COUNT here and nothing more. Nothing here computes — the reading is `seatParliamentReadingOf`.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {AGENDA_TRACK, AgendaStep, PARLIAMENT_AGENDA_STEPS, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
@@ -162,59 +164,47 @@ import ConsoleInfluenceYield from '@/client/components/console/parliament/Consol
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import ConsoleInfluenceMod from '@/client/components/console/parliament/ConsoleInfluenceMod.vue';
 import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
 /** An influence entry whose giver the server does not name (an older save). */
 const OTHER_SOURCE = 'other';
 
-export default defineComponent({
-  name: 'ConsoleInfoParliament',
-  components: {ConsoleInfluenceYield, PlayerDelegate, PremiumChairGlyph, ConsoleInfluenceMod},
-  props: {
-    reading: {type: Object as PropType<SeatParliamentReadingVm>, required: true},
-  },
-  computed: {
-    botNote(): string {
-      return BOT_PARLIAMENT_NOTE;
-    },
-    otherSource(): string {
-      return OTHER_SOURCE;
-    },
-    /** «5 / 12» — where the marker stands on the track. */
-    stepText(): string {
-      return translateTextWithParams('${0} of ${1}', [String(this.reading.agenda.position), String(PARLIAMENT_AGENDA_STEPS)]);
-    },
-    /** The printed track — the steps' own rewards (the Parliament's symbols). */
-    track(): ReadonlyArray<AgendaStep> {
-      return AGENDA_TRACK;
-    },
-    /** WHAT the next step pays, in the track's own vocabulary (never a bare numeral — that reads as an ordinal). */
-    nextStepKey(): string {
-      const step: AgendaStep | undefined = this.reading.agenda.next;
-      if (step === undefined) {
-        return '';
-      }
-      switch (step.kind) {
-      case 'influence': return 'Influence';
-      case 'tr': return 'TR';
-      case 'card': return 'Card';
-      }
-    },
-    /** The figure's height — the Information's size (28 logical). */
-    figurePx(): number {
-      return delegateFigurePx(28);
-    },
-  },
-  methods: {
-    nameOf(resolution: string): string {
-      return resolutionName(resolution as never);
-    },
-    emblemUrl(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-    rungState(step: number): string {
-      return dossierLadder(this.reading.agenda.position, PARLIAMENT_AGENDA_STEPS)[step - 1]?.state ?? 'ahead';
-    },
-  },
+defineOptions({name: 'ConsoleInfoParliament'});
+const props = defineProps({
+  reading: {type: Object as PropType<SeatParliamentReadingVm>, required: true},
 });
+
+const botNote = BOT_PARLIAMENT_NOTE;
+const otherSource = OTHER_SOURCE;
+/** «5 / 12» — where the marker stands on the track. */
+const stepText = computed((): string => {
+  return translateTextWithParams('${0} of ${1}', [String(props.reading.agenda.position), String(PARLIAMENT_AGENDA_STEPS)]);
+});
+/** The printed track — the steps' own rewards (the Parliament's symbols). */
+const track = AGENDA_TRACK;
+/** WHAT the next step pays, in the track's own vocabulary (never a bare numeral — that reads as an ordinal). */
+const nextStepKey = computed((): string => {
+  const step: AgendaStep | undefined = props.reading.agenda.next;
+  if (step === undefined) {
+    return '';
+  }
+  switch (step.kind) {
+  case 'influence': return 'Influence';
+  case 'tr': return 'TR';
+  case 'card': return 'Card';
+  }
+});
+/** The figure's height — the Information's size (28 logical). */
+const figurePx = computed((): number => {
+  return delegateFigurePx(28);
+});
+function nameOf(resolution: string): string {
+  return resolutionName(resolution as never);
+}
+function emblemUrl(party: ReduxParty): string {
+  return partyEmblemUrl(party);
+}
+function rungState(step: number): string {
+  return dossierLadder(props.reading.agenda.position, PARLIAMENT_AGENDA_STEPS)[step - 1]?.state ?? 'ahead';
+}
 </script>
