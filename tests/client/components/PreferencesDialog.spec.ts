@@ -52,4 +52,24 @@ describe('PreferencesDialog', () => {
 
     expect(preferencesManager.values().hide_awards_and_milestones).is.true;
   });
+
+  // The panel is `<script setup>` (step A of docs/claude/vapor/RECIPES.md): its one emit is declared, and the bug
+  // dialog it holds by `ref="bugDialog"` answers with what that dialog EXPOSES — `show()`.
+  it('«Ok» emits okButtonClicked, and «Report a bug» opens the bug dialog it holds by ref', async () => {
+    const wrapper = mount(PreferencesDialog, {
+      ...globalConfig,
+      props: {preferencesManager},
+    });
+    const [ok, reportABug] = wrapper.findAll('.preferences_panel_actions > button');
+
+    await ok.trigger('click');
+    expect(wrapper.emitted('okButtonClicked')).to.deep.eq([[]]);
+
+    let opened = 0;
+    wrapper.find<HTMLDialogElement>('dialog.bug-dialog').element.showModal = () => {
+      opened++;
+    };
+    await reportABug.trigger('click');
+    expect(opened).to.eq(1);
+  });
 });

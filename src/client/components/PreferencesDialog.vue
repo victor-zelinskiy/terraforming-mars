@@ -112,89 +112,74 @@
     </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {ref, useTemplateRef} from 'vue';
 
-import {getPreferences, PreferencesManager, Preference} from '@/client/utils/PreferencesManager';
+import {PreferencesManager, Preference} from '@/client/utils/PreferencesManager';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import BugReportDialog from '@/client/components/BugReportDialog.vue';
 
 
-type Refs = {
-  bugDialog: InstanceType<typeof BugReportDialog>;
-};
-
-export default defineComponent({
-  name: 'PreferencesDialog',
-  props: {
-    preferencesManager: {
-      type: Object as () => PreferencesManager,
-      required: true,
-    },
-  },
-  components: {
-    'bug-report-dialog': BugReportDialog,
-  },
-  data() {
-    return {
-      prefs: {...this.preferencesManager.values()},
-    };
-  },
-  methods: {
-    showBugDialog() {
-      this.typedRefs.bugDialog.show();
-    },
-    setBoolPreferencesCSS(
-      target: HTMLElement,
-      val: boolean,
-      name: Preference,
-    ): void {
-      const cssClassSuffix = name;
-      if (val) {
-        target.classList.add('preferences_' + cssClassSuffix);
-      } else {
-        target.classList.remove('preferences_' + cssClassSuffix);
-      }
-    },
-    updatePreferences(): void {
-      for (const k of Object.keys(this.preferencesManager.values()) as Array<Preference>) {
-        const val = this.prefs[k];
-        this.preferencesManager.set(k, val, /* setOnChange */ true);
-      }
-    },
-    syncPreferences(): void {
-      const target = document.getElementById('ts-preferences-target');
-      if (!target) {
-        return;
-      }
-
-      for (const k of Object.keys(this.prefs) as Array<Preference>) {
-        if (k === 'lang') {
-          continue;
-        }
-        this.setBoolPreferencesCSS(target, this.prefs[k], k);
-      }
-
-      if (!target.classList.contains('language-' + this.prefs.lang)) {
-        target.classList.add('language-' + this.prefs.lang);
-      }
-      // Also stamp the language on <html> so language-scoped CSS that must reach
-      // body-TELEPORTED overlays (e.g. the selected-card "ВЫБРАНА" ribbon, whose
-      // text comes from the `--cab-selected-label` custom property) resolves
-      // there too — `#ts-preferences-target` does not contain those teleports.
-      document.documentElement.setAttribute('data-lang', this.prefs.lang);
-    },
-    okClicked(): void {
-      this.$emit('okButtonClicked');
-    },
-  },
-  computed: {
-    typedRefs(): Refs {
-      return this.$refs as unknown as Refs;
-    },
-    getPreferences(): typeof getPreferences {
-      return getPreferences;
-    },
-
+defineOptions({name: 'PreferencesDialog'});
+const props = defineProps({
+  preferencesManager: {
+    type: Object as () => PreferencesManager,
+    required: true,
   },
 });
+const emit = defineEmits(['okButtonClicked']);
+
+const bugDialog = useTemplateRef<InstanceType<typeof BugReportDialog>>('bugDialog');
+const prefs = ref({...props.preferencesManager.values()});
+function showBugDialog() {
+  const el = bugDialog.value;
+  if (el === null) {
+    return;
+  }
+  el.show();
+}
+function setBoolPreferencesCSS(
+  target: HTMLElement,
+  val: boolean,
+  name: Preference,
+): void {
+  const cssClassSuffix = name;
+  if (val) {
+    target.classList.add('preferences_' + cssClassSuffix);
+  } else {
+    target.classList.remove('preferences_' + cssClassSuffix);
+  }
+}
+function updatePreferences(): void {
+  for (const k of Object.keys(props.preferencesManager.values()) as Array<Preference>) {
+    const val = prefs.value[k];
+    props.preferencesManager.set(k, val, /* setOnChange */ true);
+  }
+}
+function syncPreferences(): void {
+  const target = document.getElementById('ts-preferences-target');
+  if (!target) {
+    return;
+  }
+
+  for (const k of Object.keys(prefs.value) as Array<Preference>) {
+    if (k === 'lang') {
+      continue;
+    }
+    setBoolPreferencesCSS(target, prefs.value[k], k);
+  }
+
+  if (!target.classList.contains('language-' + prefs.value.lang)) {
+    target.classList.add('language-' + prefs.value.lang);
+  }
+  // Also stamp the language on <html> so language-scoped CSS that must reach
+  // body-TELEPORTED overlays (e.g. the selected-card "ВЫБРАНА" ribbon, whose
+  // text comes from the `--cab-selected-label` custom property) resolves
+  // there too — `#ts-preferences-target` does not contain those teleports.
+  document.documentElement.setAttribute('data-lang', prefs.value.lang);
+}
+function okClicked(): void {
+  emit('okButtonClicked');
+}
 </script>
