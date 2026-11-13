@@ -1,4 +1,5 @@
 import {mount} from '@vue/test-utils';
+import {defineComponent, h, nextTick} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleOptionsPanel from '@/client/components/console/menu/ConsoleOptionsPanel.vue';
@@ -227,5 +228,32 @@ describe('ConsoleOptionsPanel (the settings console)', () => {
     const w = mountWith('game');
     (w.vm as unknown as PanelVm).handleIntent(B);
     expect(w.emitted('close')).to.have.length(1);
+  });
+
+  it('a PARENT\'s ref sees `handleIntent` and nothing else — the road both hosts route the pad by', async () => {
+    // The panel is a `<script setup>` component: its ref carries only what it exposes. Mounted the way the main
+    // menu and the system overlay mount it — under an Options host with a string ref.
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsoleOptionsPanel, {ref: 'options', context: 'game'})]),
+    });
+    const host = mount(Host, {global: {...globalConfig.global, stubs: {GamepadGlyph: true}}});
+    // Exactly the hosts' read: `(this.$refs.options ?? undefined) as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined`.
+    const panel = (host.vm.$refs.options ?? undefined) as {handleIntent(intent: GamepadIntent): boolean} | undefined;
+    if (panel === undefined) {
+      throw new Error('the host holds no ref to the panel');
+    }
+    expect(Object.keys(panel), 'exactly what the panel exposes').to.deep.eq(['handleIntent']);
+    const leaked = ['categories', 'current', 'categoryIndex', 'cursor', 'detail', 'revision', 'step', 'stepAt', 'selectCategory']
+      .filter((key) => (panel as unknown as Record<string, unknown>)[key] !== undefined);
+    expect(leaked).to.deep.eq([]);
+
+    const cursorAt = () => host.findAll('.con-set__row').map((row) => row.classes().includes('con-set__row--cursor')).indexOf(true);
+    expect(cursorAt()).to.eq(0);
+    expect(panel.handleIntent(DOWN)).to.eq(true);
+    await nextTick();
+    expect(cursorAt(), 'the pad through the ref moves the cursor on screen').to.eq(1);
+    expect(panel.handleIntent(RB)).to.eq(true);
+    await nextTick();
+    expect(host.findAll('.con-set__tab').map((tab) => tab.classes().includes('con-set__tab--current')).indexOf(true), '…and the category').to.eq(1);
   });
 });

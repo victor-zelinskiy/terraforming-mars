@@ -1,5 +1,5 @@
 <template>
-  <div class="con-sys con-sys--settings" role="dialog" :aria-label="$t('Settings')">
+  <div ref="root" class="con-sys con-sys--settings" role="dialog" :aria-label="$t('Settings')">
     <div class="con-sys__backdrop" aria-hidden="true"></div>
 
     <div class="con-sys__card">
@@ -114,7 +114,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * THE CONSOLE SETTINGS CONSOLE — the home of every PERSISTENT console
  * preference (CLAUDE.md: settings live here, NOT in the fixed-shape in-game
@@ -153,7 +153,7 @@
  * makes a stepped value re-render: the motion prefs are module-CACHED, not
  * reactive, so the rebuild has to be forced rather than tracked.
  */
-import {defineComponent} from 'vue';
+import {computed, nextTick, onMounted, ref, useTemplateRef} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -166,195 +166,194 @@ import {
   buildConsoleSettings,
 } from '@/client/console/settings/consoleSettingsModel';
 import {desktopBridge, DesktopAppModeInfo, DesktopLanState} from '@/client/components/desktop/desktopUpdateState';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 
 /** An empty category can never be selected, but the template must be total. */
 const EMPTY_CATEGORY: ConsoleSettingsCategory = {
   id: 'interface', label: 'Settings', glyph: '⚙', minor: false, rows: [], readout: [],
 };
 
-export default defineComponent({
-  name: 'ConsoleOptionsPanel',
-  components: {GamepadGlyph, ConsoleScrollArea},
-  props: {
-    /**
-     * Where the panel is hosted. 'game' (the in-game system menu) hides the
-     * shell switch + the launch-time network rows and adds ЭТА ПАРТИЯ.
-     */
-    context: {type: String as () => ConsoleSettingsContext, default: 'menu'},
-    /**
-     * Open straight onto a category — the System menu's «Диагностика» plate
-     * rides this, so the readout has exactly ONE home (it used to be a second
-     * hand-built panel inside the system menu).
-     */
-    initialCategory: {type: String as () => ConsoleSettingsCategoryId | undefined, default: undefined},
-  },
-  emits: ['close'],
-  data() {
+defineOptions({name: 'ConsoleOptionsPanel'});
+const props = defineProps({
+  /**
+   * Where the panel is hosted. 'game' (the in-game system menu) hides the
+   * shell switch + the launch-time network rows and adds ЭТА ПАРТИЯ.
+   */
+  context: {type: String as () => ConsoleSettingsContext, default: 'menu'},
+  /**
+   * Open straight onto a category — the System menu's «Диагностика» plate
+   * rides this, so the readout has exactly ONE home (it used to be a second
+   * hand-built panel inside the system menu).
+   */
+  initialCategory: {type: String as () => ConsoleSettingsCategoryId | undefined, default: undefined},
+});
+const emit = defineEmits(['close']);
+
+const root = useTemplateRef<HTMLElement>('root');
+const scroll = useTemplateRef<{scrollByPx?: (dy: number) => void, ensureVisible?: (el: Element | null) => void}>('scroll');
+const categoryIndex = ref(0);
+const cursor = ref(0);
+/**
+ * Bumped after every applied step. The settings live in module state,
+ * and the motion prefs are module-CACHED rather than reactive — so the
+ * rebuild is forced, not tracked. (Reactive states the model touches
+ * re-render on their own; this covers the rest.)
+ */
+const revision = ref(0);
+// Host-as-server (desktop shell only; undefined on the web hides the
+// whole network category). Loaded async on mount.
+const serverInfo = ref<DesktopAppModeInfo | undefined>(undefined);
+const lanInfo = ref<DesktopLanState | undefined>(undefined);
+/** Baked Electron app version for the diagnostics readout. */
+const desktopVersion = ref('');
+const categories = computed((): ReadonlyArray<ConsoleSettingsCategory> => {
+  // `revision` is read for its dependency, not its value.
+  void revision.value;
+  return buildConsoleSettings({
+    context: props.context,
+    server: serverInfo.value,
+    lan: lanInfo.value,
+    desktopVersion: desktopVersion.value,
+  });
+});
+const current = computed((): ConsoleSettingsCategory => {
+  return categories.value[categoryIndex.value] ?? categories.value[0] ?? EMPTY_CATEGORY;
+});
+/**
+ * The detail strip's content. A read-only category has no cursored row, so
+ * it describes the CATEGORY instead — the strip is never empty and never
+ * changes height.
+ */
+const detail = computed((): {title: string, value: string, desc: string, note: string, notePending: boolean} => {
+  const row = current.value.rows[cursor.value];
+  if (row === undefined) {
     return {
-      categoryIndex: 0,
-      cursor: 0,
-      /**
-       * Bumped after every applied step. The settings live in module state,
-       * and the motion prefs are module-CACHED rather than reactive — so the
-       * rebuild is forced, not tracked. (Reactive states the model touches
-       * re-render on their own; this covers the rest.)
-       */
-      revision: 0,
-      // Host-as-server (desktop shell only; undefined on the web hides the
-      // whole network category). Loaded async on mount.
-      serverInfo: undefined as DesktopAppModeInfo | undefined,
-      lanInfo: undefined as DesktopLanState | undefined,
-      /** Baked Electron app version for the diagnostics readout. */
-      desktopVersion: '',
+      title: translateText(current.value.label),
+      value: '',
+      desc: translateText('Read-only status of this device and its connection'),
+      note: '',
+      notePending: false,
     };
-  },
-  computed: {
-    categories(): ReadonlyArray<ConsoleSettingsCategory> {
-      // `revision` is read for its dependency, not its value.
-      void this.revision;
-      return buildConsoleSettings({
-        context: this.context,
-        server: this.serverInfo,
-        lan: this.lanInfo,
-        desktopVersion: this.desktopVersion,
-      });
-    },
-    current(): ConsoleSettingsCategory {
-      return this.categories[this.categoryIndex] ?? this.categories[0] ?? EMPTY_CATEGORY;
-    },
-    /**
-     * The detail strip's content. A read-only category has no cursored row, so
-     * it describes the CATEGORY instead — the strip is never empty and never
-     * changes height.
-     */
-    detail(): {title: string, value: string, desc: string, note: string, notePending: boolean} {
-      const row = this.current.rows[this.cursor];
-      if (row === undefined) {
-        return {
-          title: translateText(this.current.label),
-          value: '',
-          desc: translateText('Read-only status of this device and its connection'),
-          note: '',
-          notePending: false,
-        };
-      }
-      return {
-        title: translateText(row.label),
-        value: row.value,
-        desc: translateText(row.desc),
-        note: row.note,
-        notePending: row.noteTone === 'pending',
-      };
-    },
-  },
-  mounted() {
-    // Open on the requested category when it exists in this context.
-    if (this.initialCategory !== undefined) {
-      const at = this.categories.findIndex((c) => c.id === this.initialCategory);
-      if (at >= 0) {
-        this.categoryIndex = at;
-      }
+  }
+  return {
+    title: translateText(row.label),
+    value: row.value,
+    desc: translateText(row.desc),
+    note: row.note,
+    notePending: row.noteTone === 'pending',
+  };
+});
+
+/** Host-routed pad intents. Returns true when consumed (always). */
+function handleIntent(intent: GamepadIntent): boolean {
+  const action = consoleActionOf(intent);
+  if (intent.kind === 'nav') {
+    if (intent.dir === 'up' || intent.dir === 'down') {
+      moveCursor(intent.dir === 'down' ? 1 : -1);
+    } else if (intent.dir === 'left') {
+      step(-1);
+    } else if (intent.dir === 'right') {
+      step(1);
     }
-    // The network category + the diagnostics client version come from the
-    // desktop bridge; an absent bridge (web build / older shell) simply
-    // leaves the category out and falls back to settings.json for the version.
-    const bridge = desktopBridge();
-    if (bridge === undefined) {
+    return true;
+  }
+  // LB/RB — the category ladder (the established «section ring» control).
+  // It CLAMPS at the ends like every other console list (stepIndex); only
+  // a VALUE wraps, which is what makes the ‹ arrow useful.
+  if (action === 'prevSection' || action === 'nextSection') {
+    stepCategory(action === 'nextSection' ? 1 : -1);
+    return true;
+  }
+  if (action === 'primary') {
+    step(1);
+    return true;
+  }
+  if (action === 'back') {
+    emit('close');
+    return true;
+  }
+  return true;
+}
+/**
+ * Up/down. A read-only category has no rows to walk — the same press
+ * scrolls the readout instead, so the stick/d-pad is never dead.
+ */
+function moveCursor(delta: 1 | -1): void {
+  const rows = current.value.rows.length;
+  if (rows === 0) {
+    scroll.value?.scrollByPx?.(delta * 60);
+    return;
+  }
+  cursor.value = stepIndex(cursor.value, delta, rows);
+  keepCursorVisible();
+}
+function stepCategory(delta: 1 | -1): void {
+  if (categories.value.length === 0) {
+    return;
+  }
+  categoryIndex.value = stepIndex(categoryIndex.value, delta, categories.value.length);
+  cursor.value = 0;
+}
+function selectCategory(i: number): void {
+  categoryIndex.value = i;
+  cursor.value = 0;
+}
+/** Apply the option `dir` steps away from the cursored row's current one. */
+function step(dir: 1 | -1): void {
+  stepAt(cursor.value, dir);
+}
+function stepAt(i: number, dir: 1 | -1): void {
+  cursor.value = i;
+  const row = current.value.rows[i];
+  if (row === undefined) {
+    return;
+  }
+  row.step(dir);
+  // Force the rebuild — see `revision`.
+  revision.value++;
+}
+/** Keep the cursored row inside the ConsoleScrollArea viewport. */
+function keepCursorVisible(): void {
+  void nextTick(() => {
+    const scrollNow = scroll.value;
+    const rootNow = root.value;
+    if (rootNow === null) {
       return;
     }
-    void bridge.getVersion().then((v) => {
-      this.desktopVersion = typeof v === 'string' ? v : '';
-    }).catch(() => {});
-    if (this.context !== 'game' && bridge.getAppMode !== undefined) {
-      void bridge.getAppMode().then((info) => {
-        if (info !== undefined) {
-          this.serverInfo = info;
-        }
-      }).catch(() => {});
-      void bridge.getLanState?.().then((lan) => {
-        if (lan !== undefined) {
-          this.lanInfo = lan;
-        }
-      }).catch(() => {});
+    scrollNow?.ensureVisible?.(rootNow.querySelector('.con-set__row--cursor'));
+  });
+}
+
+onMounted(() => {
+  // Open on the requested category when it exists in this context.
+  if (props.initialCategory !== undefined) {
+    const at = categories.value.findIndex((c) => c.id === props.initialCategory);
+    if (at >= 0) {
+      categoryIndex.value = at;
     }
-  },
-  methods: {
-    /** Host-routed pad intents. Returns true when consumed (always). */
-    handleIntent(intent: GamepadIntent): boolean {
-      const action = consoleActionOf(intent);
-      if (intent.kind === 'nav') {
-        if (intent.dir === 'up' || intent.dir === 'down') {
-          this.moveCursor(intent.dir === 'down' ? 1 : -1);
-        } else if (intent.dir === 'left') {
-          this.step(-1);
-        } else if (intent.dir === 'right') {
-          this.step(1);
-        }
-        return true;
+  }
+  // The network category + the diagnostics client version come from the
+  // desktop bridge; an absent bridge (web build / older shell) simply
+  // leaves the category out and falls back to settings.json for the version.
+  const bridge = desktopBridge();
+  if (bridge === undefined) {
+    return;
+  }
+  void bridge.getVersion().then((v) => {
+    desktopVersion.value = typeof v === 'string' ? v : '';
+  }).catch(() => {});
+  if (props.context !== 'game' && bridge.getAppMode !== undefined) {
+    void bridge.getAppMode().then((info) => {
+      if (info !== undefined) {
+        serverInfo.value = info;
       }
-      // LB/RB — the category ladder (the established «section ring» control).
-      // It CLAMPS at the ends like every other console list (stepIndex); only
-      // a VALUE wraps, which is what makes the ‹ arrow useful.
-      if (action === 'prevSection' || action === 'nextSection') {
-        this.stepCategory(action === 'nextSection' ? 1 : -1);
-        return true;
+    }).catch(() => {});
+    void bridge.getLanState?.().then((lan) => {
+      if (lan !== undefined) {
+        lanInfo.value = lan;
       }
-      if (action === 'primary') {
-        this.step(1);
-        return true;
-      }
-      if (action === 'back') {
-        this.$emit('close');
-        return true;
-      }
-      return true;
-    },
-    /**
-     * Up/down. A read-only category has no rows to walk — the same press
-     * scrolls the readout instead, so the stick/d-pad is never dead.
-     */
-    moveCursor(delta: 1 | -1): void {
-      const rows = this.current.rows.length;
-      if (rows === 0) {
-        ((this.$refs.scroll ?? undefined) as {scrollByPx?: (dy: number) => void} | undefined)?.scrollByPx?.(delta * 60);
-        return;
-      }
-      this.cursor = stepIndex(this.cursor, delta, rows);
-      this.keepCursorVisible();
-    },
-    stepCategory(delta: 1 | -1): void {
-      if (this.categories.length === 0) {
-        return;
-      }
-      this.categoryIndex = stepIndex(this.categoryIndex, delta, this.categories.length);
-      this.cursor = 0;
-    },
-    selectCategory(i: number): void {
-      this.categoryIndex = i;
-      this.cursor = 0;
-    },
-    /** Apply the option `dir` steps away from the cursored row's current one. */
-    step(dir: 1 | -1): void {
-      this.stepAt(this.cursor, dir);
-    },
-    stepAt(i: number, dir: 1 | -1): void {
-      this.cursor = i;
-      const row = this.current.rows[i];
-      if (row === undefined) {
-        return;
-      }
-      row.step(dir);
-      // Force the rebuild — see `revision`.
-      this.revision++;
-    },
-    /** Keep the cursored row inside the ConsoleScrollArea viewport. */
-    keepCursorVisible(): void {
-      void this.$nextTick(() => {
-        const scroll = (this.$refs.scroll ?? undefined) as {ensureVisible?: (el: Element | null) => void} | undefined;
-        scroll?.ensureVisible?.(this.$el.querySelector('.con-set__row--cursor'));
-      });
-    },
-  },
+    }).catch(() => {});
+  }
 });
+defineExpose({handleIntent});
 </script>
