@@ -48,7 +48,13 @@ describe('intakeAssembly — the guest hovers until the host hands off', () => {
     const handoff = host.indexOf('setBoardCardBonusPhase(\'handoff\');');
     expect(handoff).greaterThan(0);
     expect(host.slice(handoff, handoff + 400), 'released in the handoff frame').contains('releaseIntakeGuest();');
-    const clear = host.slice(host.indexOf('clearSceneDom(): void'), host.indexOf('teardownVisuals(): void'));
+    // The end-of-scene funnel, by its declaration in the `<script setup>` form — and both anchors must STAND: a
+    // missing end would widen the slice to the rest of the file and find the release somewhere else.
+    const clearFrom = host.indexOf('function clearSceneDom(): void');
+    const clearTo = host.indexOf('function teardownVisuals(): void');
+    expect(clearFrom, '`clearSceneDom` is declared').greaterThan(0);
+    expect(clearTo, '`teardownVisuals` is declared after it').greaterThan(clearFrom);
+    const clear = host.slice(clearFrom, clearTo);
     expect(clear, 'and at every end of the host scene').contains('releaseIntakeGuest();');
   });
 });

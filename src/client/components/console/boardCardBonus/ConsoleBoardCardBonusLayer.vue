@@ -1,16 +1,4 @@
 <template>
-  <!--
-    BOARD CARD-BONUS LAYER — the app-level stage the "card bonus lifts off
-    the board cell" cinematic plays on (mounted once in ConsoleShell).
-
-    The hero COVER takes over the board icon's exact rect (the SAME
-    card.webp art — a pixel-perfect separation, never a new object), rises
-    off the cell before the tile covers it, hovers while the server
-    resolves, then the reveal PROXIES (one per received card — the deal
-    flip plumbing + FaceLite faces) take over at its rect and travel into
-    the reveal space. Pointer-inert, clipped; the controller owns the
-    beats, the director the GSAP.
-  -->
   <div class="con-bonusfly-layer" aria-hidden="true">
     <div ref="cover" class="con-bonusfly-cover">
       <div class="con-card-back"></div>
@@ -30,8 +18,23 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * BOARD CARD-BONUS LAYER — the app-level stage the "card bonus lifts off
+ * the board cell" cinematic plays on (mounted once in ConsoleShell).
+ *
+ * The hero COVER takes over the board icon's exact rect (the SAME
+ * card.webp art — a pixel-perfect separation, never a new object), rises
+ * off the cell before the tile covers it, hovers while the server
+ * resolves, then the reveal PROXIES (one per received card — the deal
+ * flip plumbing + FaceLite faces) take over at its rect and travel into
+ * the reveal space. Pointer-inert, clipped; the controller owns the
+ * beats, the director the GSAP.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, nextTick, onBeforeUnmount, PropType, ref, useTemplateRef, watch} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -61,8 +64,10 @@ import {beginCeilingWait, CeilingWait} from '@/client/console/waitGraph/ceilingW
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {
   runBonusAbortVisual, runBonusCoverLift, runBonusFanOut, runBonusHandoff,
-  runBonusSingleFlight, BonusCoverHandle, BonusSceneHandle,
+  runBonusSingleFlight,
 } from '@/client/console/boardCardBonus/boardCardBonusDirector';
+// The scene's handles — module state, one per page (`consoleBoardCardBonusLayerState.ts`).
+import {ctx} from '@/client/components/console/boardCardBonus/consoleBoardCardBonusLayerState';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
 import {intakeAssemblyOwnsBatch} from '@/client/console/cardIntake/intakeAssemblyPlan';
@@ -129,730 +134,703 @@ function cssEscape(value: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(value) : value.replace(/"/g, '\\"');
 }
 
-/*
- * Non-reactive scene context (module scope — the layer is a singleton,
- * and GSAP handles must never be wrapped in Vue reactivity).
- */
-type SceneCtx = {
-  coverHandle?: BonusCoverHandle,
-  sceneHandle?: BonusSceneHandle,
-  abortHandle?: BonusSceneHandle,
-  cellRect?: RectLike,
-  liftedEls: Array<HTMLElement>,
-  /** The scene's pending beats — each is its cancel / disarm in the layer's scope. */
-  timers: Array<() => void>,
-  /** The «no cards came» recall's cancel. */
-  noRevealTimer?: () => void,
-};
-const ctx: SceneCtx = {liftedEls: [], timers: []};
+defineOptions({name: 'ConsoleBoardCardBonusLayer'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+});
 
-export default defineComponent({
-  name: 'ConsoleBoardCardBonusLayer',
-  components: {ConsoleCardFaceLite},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-  },
-  setup() {
-    return {flow: useFlowScope('board-card-bonus-layer')};
-  },
-  data() {
-    return {
-      boardCardBonusState,
-      sceneCards: [] as Array<CardName>,
-      sceneNonce: 0,
-      proxyRefs: [] as Array<HTMLElement | null>,
-      flipRefs: [] as Array<HTMLElement | null>,
-    };
-  },
-  computed: {
-    /**
-     * The reveal batch this layer should drive NOW (the current one — the
-     * batch the overlay is about to show). TWO paths, both watched pre-flush
-     * so the staging lands BEFORE the overlay's first render (no flash of
-     * the finished modal):
-     *   · an ACTIVE scene (board, armed at submit) → the reveal matching its
-     *     source (`tile`), while still at the source (lift/hover), unstaged;
-     *   · NO scene yet → a VENUS-scale reveal SELF-ARMS a scene (no tile
-     *     race → reactive is safe; the layer is console-only, so desktop is
-     *     never touched).
-     */
-    revealToProcess(): DrawnCardEntry | undefined {
-      const e = currentRevealEvent();
-      if (e === undefined) {
-        return undefined;
-      }
-      const s = this.boardCardBonusState;
-      if (s.active) {
-        if (s.stagedEventId !== undefined || (s.phase !== 'lift' && s.phase !== 'hover')) {
-          return undefined;
-        }
-        return revealMatchesSource(e.source, s.source) ? e : undefined;
-      }
-      // No scene → a reveal that NAMES its physical source SELF-ARMS.
-      // CRUCIAL: never re-arm the batch this scene ALREADY handled
-      // (`stagedEventId` persists after the scene ends). Without this, the
-      // reveal — untaken while the fullscreen is open — would re-match every
-      // time the scene ends and re-arm in an endless loop, keeping the input
-      // gate locked so the take never fires.
-      if (e.id === s.stagedEventId) {
-        return undefined;
-      }
-      // A MERGED batch («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» — several causes) with no scene armed is the ASSEMBLY scene's:
-      // every run starts from its own place there (a visible cell's included). Only a scene armed at the submit
-      // (the cover already lifted) keeps a merged batch, and then it flies the cell's run and hands the rest over.
-      if (intakeAssemblyOwnsBatch(e)) {
-        return undefined;
-      }
-      // An AGENDA card reward (Turmoil Redux) lifts its cover off the step
-      // the marker reached — only while the Parliament's track is ON SCREEN
-      // (the workspace open, not handed over to a nested scene). Anywhere
-      // else the standard draw presents it: the deck answers, the card
-      // reaches the hand.
-      if (isAgendaReveal(e.source)) {
-        // …and never while the political phase's ledger PARKS the batch: the
-        // sitting director releases it once the enactment's glide has settled
-        // on the step, so the cover lifts off a step the marker has reached.
-        // ⚠ The REACTIVE term goes FIRST: the DOM query is not a dependency,
-        // and a short-circuit before the park's read left this computed with
-        // nothing to re-evaluate on — the release changed nothing it watched,
-        // the scene never armed, and the viewer opened with a textual entrance.
-        return !parliamentParksReveal(e.source) && agendaTrackOnScreen() ? e : undefined;
-      }
-      if (isVenusScaleReveal(e.source)) {
-        // …and NEVER against a board the player cannot see. While the batch
-        // is parked behind the board-beat drain (a workspace covered the
-        // board when the Venus bonus landed), the 8% marker is inside a
-        // `display: none` section: the arm would measure a 0×0 anchor, burn
-        // its probe budget, abort — and the abort's `zoomEntryReady` would
-        // release the fullscreen viewer OVER the open workspace with a
-        // textual entrance. The drain un-parks the batch in the same
-        // reactive flush that re-admits `rawDrawnRevealPending`, so the arm
-        // lands here against a measurable marker — the tile branch below
-        // rides its own holds by the same law.
-        return boardBeatParksReveal(e.source) ? undefined : e;
-      }
-      // A tile-sourced reveal WITH a paying cell (an Ares adjacency draw —
-      // Restricted Area:ares — or a cell draw whose submit-time arm never
-      // fired) lifts its cover off that hex. It WAITS for the tile-placement
-      // hero AND the nomad-move hop: the cause (the landing + its reward
-      // beats) finishes before the cell's card answer rises. Deliberately
-      // the OVERLAY PARK's own terms and no more (never a transfers term):
-      // the arm must land in the SAME reactive flush that releases the
-      // reveal park, or the un-parked overlay auto-opens the batch before
-      // any scene claims it. Residual chip absorb tails overlap only the
-      // cover's LIFT at the cell — the covering surfaces themselves are
-      // sequenced by the scene's own payout-quiet waits.
-      if (e.source?.type === 'tile' && e.source.spaceId !== undefined &&
-          !tilePlacementHolding() && !nomadMoveHolding()) {
-        return e;
-      }
+const flow = useFlowScope('board-card-bonus-layer');
+const cover = useTemplateRef<HTMLElement>('cover');
+const sceneCards = ref<Array<CardName>>([]);
+const sceneNonce = ref(0);
+const proxyRefs = ref<Array<HTMLElement | null>>([]);
+const flipRefs = ref<Array<HTMLElement | null>>([]);
+
+/**
+ * The reveal batch this layer should drive NOW (the current one — the
+ * batch the overlay is about to show). TWO paths, both watched pre-flush
+ * so the staging lands BEFORE the overlay's first render (no flash of
+ * the finished modal):
+ *   · an ACTIVE scene (board, armed at submit) → the reveal matching its
+ *     source (`tile`), while still at the source (lift/hover), unstaged;
+ *   · NO scene yet → a VENUS-scale reveal SELF-ARMS a scene (no tile
+ *     race → reactive is safe; the layer is console-only, so desktop is
+ *     never touched).
+ */
+const revealToProcess = computed((): DrawnCardEntry | undefined => {
+  const e = currentRevealEvent();
+  if (e === undefined) {
+    return undefined;
+  }
+  const s = boardCardBonusState;
+  if (s.active) {
+    if (s.stagedEventId !== undefined || (s.phase !== 'lift' && s.phase !== 'hover')) {
       return undefined;
-    },
-    /** Commit heartbeat — drives the honest "no cards came" recall (board). */
-    commitAge(): number {
-      return this.playerView.game.gameAge;
-    },
-  },
-  watch: {
-    /** A fresh arm (the shell / self-arm bumped the nonce): begin the scene. */
-    'boardCardBonusState.nonce'() {
-      void this.beginScene();
-    },
-    revealToProcess(e: DrawnCardEntry | undefined) {
-      if (e === undefined) {
-        return;
-      }
-      // A reveal with no scene yet SELF-ARMS (atomic: arm + the stage below
-      // land in this one tick, so the overlay veils on first render): a
-      // venus-scale reveal off its marker, a tile-sourced reveal off the
-      // PAYING hex (the Ares adjacency draw). A board scene armed at submit
-      // goes straight to staging.
-      if (!boardCardBonusState.active) {
-        if (e.source?.type === 'tile' && e.source.spaceId !== undefined) {
-          // The cover's PHYSICAL SOURCE depends on what stands on the cell:
-          // a tile → the cover plate over the tile ('board-tile'); a cell
-          // with NO tile (the nomad camp collected a card bonus and its
-          // pre-lift arm never fired — icon missing / degraded) → the
-          // printed icon itself ('board-cell'), which is what is actually
-          // on screen there.
-          const spaceId = e.source.spaceId;
-          const sp = this.playerView.game.spaces.find((s) => s.id === spaceId);
-          armBoardCardBonus(sp?.tileType === undefined ?
-            {kind: 'board-cell', spaceId} : {kind: 'board-tile', spaceId});
-        } else if (isAgendaReveal(e.source)) {
-          // The step the card came from — the batch names it (a walk of several steps may cross two card steps); a legacy
-          // batch falls back to the walk's first card step.
-          const advance = this.playerView.game.parliament?.lastAdvance;
-          const named = e.source?.type === 'agenda' ? e.source.step : undefined;
-          armBoardCardBonus({kind: 'agenda-step', step: named ?? advance?.steps.find((s) => s.bonus === 'card')?.to ?? advance?.to ?? 0});
+    }
+    return revealMatchesSource(e.source, s.source) ? e : undefined;
+  }
+  // No scene → a reveal that NAMES its physical source SELF-ARMS.
+  // CRUCIAL: never re-arm the batch this scene ALREADY handled
+  // (`stagedEventId` persists after the scene ends). Without this, the
+  // reveal — untaken while the fullscreen is open — would re-match every
+  // time the scene ends and re-arm in an endless loop, keeping the input
+  // gate locked so the take never fires.
+  if (e.id === s.stagedEventId) {
+    return undefined;
+  }
+  // A MERGED batch («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» — several causes) with no scene armed is the ASSEMBLY scene's:
+  // every run starts from its own place there (a visible cell's included). Only a scene armed at the submit
+  // (the cover already lifted) keeps a merged batch, and then it flies the cell's run and hands the rest over.
+  if (intakeAssemblyOwnsBatch(e)) {
+    return undefined;
+  }
+  // An AGENDA card reward (Turmoil Redux) lifts its cover off the step
+  // the marker reached — only while the Parliament's track is ON SCREEN
+  // (the workspace open, not handed over to a nested scene). Anywhere
+  // else the standard draw presents it: the deck answers, the card
+  // reaches the hand.
+  if (isAgendaReveal(e.source)) {
+    // …and never while the political phase's ledger PARKS the batch: the
+    // sitting director releases it once the enactment's glide has settled
+    // on the step, so the cover lifts off a step the marker has reached.
+    // ⚠ The REACTIVE term goes FIRST: the DOM query is not a dependency,
+    // and a short-circuit before the park's read left this computed with
+    // nothing to re-evaluate on — the release changed nothing it watched,
+    // the scene never armed, and the viewer opened with a textual entrance.
+    return !parliamentParksReveal(e.source) && agendaTrackOnScreen() ? e : undefined;
+  }
+  if (isVenusScaleReveal(e.source)) {
+    // …and NEVER against a board the player cannot see. While the batch
+    // is parked behind the board-beat drain (a workspace covered the
+    // board when the Venus bonus landed), the 8% marker is inside a
+    // `display: none` section: the arm would measure a 0×0 anchor, burn
+    // its probe budget, abort — and the abort's `zoomEntryReady` would
+    // release the fullscreen viewer OVER the open workspace with a
+    // textual entrance. The drain un-parks the batch in the same
+    // reactive flush that re-admits `rawDrawnRevealPending`, so the arm
+    // lands here against a measurable marker — the tile branch below
+    // rides its own holds by the same law.
+    return boardBeatParksReveal(e.source) ? undefined : e;
+  }
+  // A tile-sourced reveal WITH a paying cell (an Ares adjacency draw —
+  // Restricted Area:ares — or a cell draw whose submit-time arm never
+  // fired) lifts its cover off that hex. It WAITS for the tile-placement
+  // hero AND the nomad-move hop: the cause (the landing + its reward
+  // beats) finishes before the cell's card answer rises. Deliberately
+  // the OVERLAY PARK's own terms and no more (never a transfers term):
+  // the arm must land in the SAME reactive flush that releases the
+  // reveal park, or the un-parked overlay auto-opens the batch before
+  // any scene claims it. Residual chip absorb tails overlap only the
+  // cover's LIFT at the cell — the covering surfaces themselves are
+  // sequenced by the scene's own payout-quiet waits.
+  if (e.source?.type === 'tile' && e.source.spaceId !== undefined &&
+      !tilePlacementHolding() && !nomadMoveHolding()) {
+    return e;
+  }
+  return undefined;
+});
+/** Commit heartbeat — drives the honest "no cards came" recall (board). */
+const commitAge = computed((): number => {
+  return props.playerView.game.gameAge;
+});
+
+function setProxyRef(el: unknown, i: number): void {
+  proxyRefs.value[i] = (el as HTMLElement | null);
+}
+function setFlipRef(el: unknown, i: number): void {
+  flipRefs.value[i] = (el as HTMLElement | null);
+}
+function timings(): BonusSceneTimings {
+  return consoleReducedMotionActive() ? reducedBonusSceneTimings() : bonusSceneTimings();
+}
+/** The single-card fullscreen's physical zoom origin (the cover proxy). */
+function proxyCardEl(): HTMLElement | null {
+  return proxyRefs.value[0] ?? null;
+}
+function proxyEls(): Array<HTMLElement> {
+  return sceneCards.value.map((_, i) => proxyRefs.value[i]).filter((el): el is HTMLElement => el !== null && el !== undefined);
+}
+function flipEls(): Array<HTMLElement> {
+  return sceneCards.value.map((_, i) => flipRefs.value[i]).filter((el): el is HTMLElement => el !== null && el !== undefined);
+}
+/**
+ * The real source-icon element(s) the cover lifts off — the SAME
+ * card.webp art in both cases, so the takeover is pixel-perfect:
+ *   · board-cell → the placed cell's `.board-space-bonus--card`;
+ *   · venus-scale → the fixed Venus 8% marker pictogram.
+ */
+function resolveSourceIcons(): Array<HTMLElement> {
+  const source = boardCardBonusState.source;
+  let sel: string;
+  if (source.kind === 'board-cell' || source.kind === 'board-tile') {
+    // A `board-tile` cell is covered by its tile, so its printed icons
+    // are not rendered — this legitimately resolves EMPTY there and the
+    // scene anchors on the hex instead (`tileCoverRect`).
+    sel = `.board-space[data_space_id="${cssEscape(source.spaceId)}"] .board-space-bonus--card`;
+  } else if (source.kind === 'colony-cell') {
+    // The build slot's card ICON (`.benefit-glyph__card` = the SAME
+    // card.webp art as the cover, card aspect 24×32) — NOT the square
+    // `.benefit-glyph` container, which would squash the cover. The
+    // FOCUS STAGE's big slot leads while the stage is up (the build
+    // resolves there — iteration 2); the overview slot is the fallback.
+    const key = cssEscape(source.colonyName + '#' + source.slotIndex);
+    const staged = Array.from(document.querySelectorAll<HTMLElement>(
+      `.con-colfocus [data-colony-build-slot="${key}"] .benefit-glyph__card`));
+    if (staged.length > 0) {
+      return staged;
+    }
+    sel = `[data-colony-build-slot="${key}"] .benefit-glyph__card`;
+  } else if (source.kind === 'agenda-step') {
+    // The Agenda step's printed card glyph (the Parliament's track).
+    sel = `.con-parl [data-parl-agenda] .con-parl__step[data-step="${source.step}"] .con-parl__step-res`;
+  } else if (source.kind === 'venus-scale' && source.parameter === 'oxygen') {
+    // Amazonis Planitia's oxygen card — the step the MAP prints it at (`getGlobalParameterTracks`).
+    const step = getGlobalParameterTracks(props.playerView.game.gameOptions.boardName).oxygen.find((t) => t.bonus === 'drawcard')?.value;
+    sel = `[data-arc-marker="oxygen-${step ?? 7}"] .bonus-zone__icon`;
+  } else {
+    sel = VENUS_MARKER_SEL;
+  }
+  return Array.from(document.querySelectorAll<HTMLElement>(sel));
+}
+// ── The scene ────────────────────────────────────────────────────────
+async function beginScene(): Promise<void> {
+  if (!boardCardBonusState.active || typeof document === 'undefined' || typeof requestAnimationFrame !== 'function') {
+    return;
+  }
+  teardownVisuals();
+  registerBoardCardBonusHandle({abort: (mode) => onAbort(mode)});
+  registerBonusZoomOrigin(() => proxyCardEl());
+  const source = boardCardBonusState.source;
+  if (agendaCoverWaitsForSettle(source)) {
+    // The reward FOLLOWS the marker: a cover the REVEAL armed lifts once the
+    // marker has settled on the step (bounded — a stalled glide never holds
+    // the scene). A cover the WALK armed at the marker's lock (`landed`)
+    // lifts at once — the marker is standing on the very node.
+    await waitAgendaSettled();
+    if (!boardCardBonusState.active) {
+      return;
+    }
+  }
+  const icons = resolveSourceIcons();
+  if (icons.length === 0 && source.kind !== 'board-tile') {
+    abortBoardCardBonus('instant', 'no-source-icon');
+    return;
+  }
+  // The paying TILE has no printed icon (its cell is covered by its own
+  // art) — the cover rises out of the tile itself, anchored on a
+  // card-proportioned patch at the hex's centre.
+  const from = icons.length > 0 ?
+    await stableRect(() => icons[0]) :
+    await tileCoverRect((source as {spaceId: string}).spaceId);
+  if (from === undefined || !boardCardBonusState.active) {
+    if (boardCardBonusState.active) {
+      abortBoardCardBonus('instant', 'no-stable-rect');
+    }
+    return;
+  }
+  const coverNow = cover.value ?? undefined;
+  if (coverNow === undefined || coverNow === null) {
+    abortBoardCardBonus('instant', 'no-cover-el');
+    return;
+  }
+  ctx.cellRect = from;
+  // One-object rule: the real icons hide the same frame the cover
+  // appears over them (same art, same rect — a seamless takeover).
+  ctx.liftedEls = icons;
+  icons.forEach((el) => el.classList.add(SOURCE_LIFTED_CLASS));
+  ctx.coverHandle = runBonusCoverLift({
+    cover: coverNow,
+    from,
+    t: timings(),
+    reduced: consoleReducedMotionActive(),
+    onLifted: () => setBoardCardBonusPhase('hover'),
+  });
+  if (source.kind === 'agenda-step') {
+    // THE COVER IS OFF THE NODE: the Parliament's park lets the batch go (this scene owns it from here) and
+    // the ledger's hold stands down — what follows is the player's take, never a beat on a clock.
+    markAgendaCardLifted(source.step);
+  }
+}
+/**
+ * A card-proportioned anchor at the paying TILE's centre (the
+ * `board-tile` source has no printed icon to lift off): sized from the
+ * live hex, same aspect as the board's card icon (16×20), so the cover
+ * separates from the tile at a familiar scale.
+ */
+async function tileCoverRect(spaceId: string): Promise<RectLike | undefined> {
+  const hex = await stableRect(() => document.querySelector<HTMLElement>(
+    `.board-space[data_space_id="${cssEscape(spaceId)}"]`));
+  if (hex === undefined) {
+    return undefined;
+  }
+  const w = Math.max(12, Math.round(hex.width * 0.3));
+  const h = Math.round(w * 1.25);
+  return {
+    left: hex.left + hex.width / 2 - w / 2,
+    top: hex.top + hex.height / 2 - h / 2,
+    width: w,
+    height: h,
+  };
+}
+function onRevealArrived(e: DrawnCardEntry): void {
+  if (!stageBoardCardBonusReveal(e.id, e.cards.length)) {
+    return;
+  }
+  if (ctx.noRevealTimer !== undefined) {
+    ctx.noRevealTimer();
+    ctx.noRevealTimer = undefined;
+  }
+  void startTransfer(e);
+}
+/** The Parliament's marker glide has settled (or its bounded window passed). */
+function waitAgendaSettled(): Promise<void> {
+  const started = Date.now();
+  let wait: CeilingWait | undefined;
+  return new Promise((done) => {
+    const poll = () => {
+      if (!consoleParliamentUi.agendaSettling || Date.now() - started >= 3000 || !boardCardBonusState.active) {
+        if (!consoleParliamentUi.agendaSettling) {
+          wait?.met();
+        } else if (!boardCardBonusState.active) {
+          wait?.end();
         } else {
-          // The scale that printed the card (Venus 8 %; Amazonis Planitia's oxygen 7 %).
-          armBoardCardBonus({kind: 'venus-scale', parameter: e.source?.type === 'globalParameter' && e.source.parameter === 'oxygen' ? 'oxygen' : 'venus'});
+          wait?.ceiling();
         }
-      }
-      this.onRevealArrived(e);
-    },
-    commitAge() {
-      // BOARD + COLONY: the commit landed but no reveal followed → the bonus
-      // produced nothing (deck empty / a non-placement pick). Recall the
-      // cover instead of hovering forever. (Venus and the adjacency
-      // `board-tile` self-arm FROM their reveal, so those scenes always have
-      // their batch — this path never applies to them.)
-      const source = boardCardBonusState.source;
-      if (!boardCardBonusState.active || source.kind === 'venus-scale' || source.kind === 'board-tile' || source.kind === 'agenda-step') {
+        done();
         return;
       }
-      if (boardCardBonusState.stagedEventId !== undefined) {
-        return;
-      }
-      if (boardCardBonusState.phase !== 'lift' && boardCardBonusState.phase !== 'hover') {
-        return;
-      }
-      if (ctx.noRevealTimer !== undefined) {
-        return;
-      }
-      // An ABORT-style safety, PACING of the layer: it recalls a cover nobody answered — never after the layer left.
-      ctx.noRevealTimer = this.flow.after(motionMs(NO_REVEAL_GRACE_MS), 'the cell bonus\'s reveal (the «no cards came» recall)', () => {
-        ctx.noRevealTimer = undefined;
-        if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== undefined) {
-          return;
-        }
-        // Board: the cover sinks into the placed tile if one landed, else
-        // flies back. Colony: no tile — the cover always flies back to the cell.
-        let mode: BoardCardBonusAbortMode = 'return';
-        if (source.kind === 'board-cell') {
-          const space = this.playerView.game.spaces.find((sp) => sp.id === source.spaceId);
-          mode = space?.tileType !== undefined ? 'absorb' : 'return';
-        }
-        abortBoardCardBonus(mode);
-      });
-    },
-  },
-  methods: {
-    setProxyRef(el: unknown, i: number): void {
-      this.proxyRefs[i] = (el as HTMLElement | null);
-    },
-    setFlipRef(el: unknown, i: number): void {
-      this.flipRefs[i] = (el as HTMLElement | null);
-    },
-    timings(): BonusSceneTimings {
-      return consoleReducedMotionActive() ? reducedBonusSceneTimings() : bonusSceneTimings();
-    },
-    /** The single-card fullscreen's physical zoom origin (the cover proxy). */
-    proxyCardEl(): HTMLElement | null {
-      return this.proxyRefs[0] ?? null;
-    },
-    proxyEls(): Array<HTMLElement> {
-      return this.sceneCards.map((_, i) => this.proxyRefs[i]).filter((el): el is HTMLElement => el !== null && el !== undefined);
-    },
-    flipEls(): Array<HTMLElement> {
-      return this.sceneCards.map((_, i) => this.flipRefs[i]).filter((el): el is HTMLElement => el !== null && el !== undefined);
-    },
-    /**
-     * The real source-icon element(s) the cover lifts off — the SAME
-     * card.webp art in both cases, so the takeover is pixel-perfect:
-     *   · board-cell → the placed cell's `.board-space-bonus--card`;
-     *   · venus-scale → the fixed Venus 8% marker pictogram.
-     */
-    resolveSourceIcons(): Array<HTMLElement> {
-      const source = boardCardBonusState.source;
-      let sel: string;
-      if (source.kind === 'board-cell' || source.kind === 'board-tile') {
-        // A `board-tile` cell is covered by its tile, so its printed icons
-        // are not rendered — this legitimately resolves EMPTY there and the
-        // scene anchors on the hex instead (`tileCoverRect`).
-        sel = `.board-space[data_space_id="${cssEscape(source.spaceId)}"] .board-space-bonus--card`;
-      } else if (source.kind === 'colony-cell') {
-        // The build slot's card ICON (`.benefit-glyph__card` = the SAME
-        // card.webp art as the cover, card aspect 24×32) — NOT the square
-        // `.benefit-glyph` container, which would squash the cover. The
-        // FOCUS STAGE's big slot leads while the stage is up (the build
-        // resolves there — iteration 2); the overview slot is the fallback.
-        const key = cssEscape(source.colonyName + '#' + source.slotIndex);
-        const staged = Array.from(document.querySelectorAll<HTMLElement>(
-          `.con-colfocus [data-colony-build-slot="${key}"] .benefit-glyph__card`));
-        if (staged.length > 0) {
-          return staged;
-        }
-        sel = `[data-colony-build-slot="${key}"] .benefit-glyph__card`;
-      } else if (source.kind === 'agenda-step') {
-        // The Agenda step's printed card glyph (the Parliament's track).
-        sel = `.con-parl [data-parl-agenda] .con-parl__step[data-step="${source.step}"] .con-parl__step-res`;
-      } else if (source.kind === 'venus-scale' && source.parameter === 'oxygen') {
-        // Amazonis Planitia's oxygen card — the step the MAP prints it at (`getGlobalParameterTracks`).
-        const step = getGlobalParameterTracks(this.playerView.game.gameOptions.boardName).oxygen.find((t) => t.bonus === 'drawcard')?.value;
-        sel = `[data-arc-marker="oxygen-${step ?? 7}"] .bonus-zone__icon`;
-      } else {
-        sel = VENUS_MARKER_SEL;
-      }
-      return Array.from(document.querySelectorAll<HTMLElement>(sel));
-    },
-    // ── The scene ────────────────────────────────────────────────────────
-    async beginScene(): Promise<void> {
-      if (!boardCardBonusState.active || typeof document === 'undefined' || typeof requestAnimationFrame !== 'function') {
-        return;
-      }
-      this.teardownVisuals();
-      registerBoardCardBonusHandle({abort: (mode) => this.onAbort(mode)});
-      registerBonusZoomOrigin(() => this.proxyCardEl());
-      const source = boardCardBonusState.source;
-      if (agendaCoverWaitsForSettle(source)) {
-        // The reward FOLLOWS the marker: a cover the REVEAL armed lifts once the
-        // marker has settled on the step (bounded — a stalled glide never holds
-        // the scene). A cover the WALK armed at the marker's lock (`landed`)
-        // lifts at once — the marker is standing on the very node.
-        await this.waitAgendaSettled();
+      // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
+      wait ??= beginCeilingWait({id: 'board-card-bonus:agenda-settled', owner: 'ConsoleBoardCardBonusLayer', what: 'the settle of the Parliament marker glide', maxMs: 3000});
+      probeTick(poll);
+    };
+    poll();
+  });
+}
+/** The lift must finish its rise before the transfer takes over. */
+function waitForHover(): Promise<void> {
+  return new Promise((done) => {
+    let tries = 0;
+    let wait: CeilingWait | undefined;
+    const poll = () => {
+      if (!boardCardBonusState.active || boardCardBonusState.phase !== 'lift' || tries > 60) {
         if (!boardCardBonusState.active) {
+          wait?.end();
+        } else if (boardCardBonusState.phase !== 'lift') {
+          wait?.met();
+        } else {
+          wait?.ceiling();
+        }
+        done();
+        return;
+      }
+      // A wait that has to wait is a node of the wait graph; its frame ceiling ending it is said (`ceilingWait.ts`).
+      wait ??= beginCeilingWait({
+        id: 'board-card-bonus:hover', owner: 'ConsoleBoardCardBonusLayer', what: 'the end of the lift rise', maxMs: 61 * 16,
+        detail: '61 frames, estimated at 16 ms each',
+      });
+      tries++;
+      probeTick(poll);
+    };
+    poll();
+  });
+}
+async function startTransfer(e: DrawnCardEntry): Promise<void> {
+  await waitForHover();
+  if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
+    return;
+  }
+  // ONE SCENE FOR ANY COUNT (TR57, decision 4): a lone card fans into its own slot like two do — the
+  // presentation point and the fullscreen hand-over are the retired headless path, asked through the overlay's
+  // own decision so the scene can never fly a card to a viewer nobody will open.
+  if (!intakeAssemblyOwnsBatch(e) && drawnBatchGoesFullscreen(e.cards.length, false)) {
+    await startSingle(e);
+  } else {
+    await startMulti(e);
+  }
+}
+/** The cover's live rect at takeover; the hero hides as proxies appear. */
+function takeOverCover(): RectLike | undefined {
+  const rect = ctx.coverHandle?.rect();
+  ctx.coverHandle?.kill();
+  ctx.coverHandle = undefined;
+  const coverNow = cover.value ?? undefined;
+  if (coverNow !== undefined && coverNow !== null) {
+    gsap.set(coverNow, {autoAlpha: 0});
+  }
+  return rect ?? ctx.cellRect;
+}
+async function startSingle(e: DrawnCardEntry): Promise<void> {
+  setBoardCardBonusPhase('gather');
+  sceneCards.value = [e.cards[0].name];
+  sceneNonce.value++;
+  await nextTick();
+  const proxy = proxyEls()[0];
+  const flip = flipEls()[0];
+  const from = takeOverCover();
+  if (proxy === undefined || flip === undefined || from === undefined) {
+    degradeToInstant();
+    return;
+  }
+  noticeColonyLiftOff();
+  // A CONCURRENT payout (the same placement's printed / ocean / Ares
+  // chips are flying or still owed): the cover takes the calmer,
+  // slightly longer flight — the chips (paced quicker on their side)
+  // stay ahead and land first. A card flying alone keeps the standard
+  // tempo. Same arc, same easing, same flip either way.
+  const t = concurrentResourcePayout() ?
+    concurrentBonusSceneTimings(timings()) : timings();
+  const reduced = consoleReducedMotionActive();
+  ctx.sceneHandle = runBonusSingleFlight({
+    proxy,
+    flip,
+    from,
+    to: presentationTarget(window.innerWidth, window.innerHeight, CARD_NATURAL_W, CARD_NATURAL_H),
+    naturalW: CARD_NATURAL_W,
+    naturalH: CARD_NATURAL_H,
+    t,
+    reduced,
+    onArrived: () => {
+      setBoardCardBonusPhase('frame');
+      void releaseSingleTakeover(e.id, proxy, reduced);
+    },
+  });
+}
+/**
+ * The ARRIVED single cover's HANDOFF, sequenced on real signals — never
+ * a bare post-arrival timer (which destroyed the standing card while the
+ * reveal was still parked behind the placement's resource payout, and
+ * the viewer then rose from nothing with a textual entrance):
+ *  1. the payout QUIETS (reward beats done, every chip landed and
+ *     absorbed) — the fullscreen may not open over money in the air;
+ *  2. the held auto-open is released — the viewer opens off the standing
+ *     cover (a PHYSICAL origin: `openSingleCardFullscreen` resolves it
+ *     only while the scene is still ACTIVE, so the scene must outlive
+ *     this moment);
+ *  3. the scene ends a short beat AFTER the viewer's FLIP has captured
+ *     the proxy — the TAKE belongs to the viewer, so the input gate must
+ *     not stay locked through it (that swallowed the «A Взять» press).
+ * Every wait is bounded; each exits the moment the scene dies (abort /
+ * a superseding arm), whose own visual then owns the cleanup.
+ */
+async function releaseSingleTakeover(eventId: number, proxy: HTMLElement, reduced: boolean): Promise<void> {
+  const alive = () =>
+    boardCardBonusState.active && boardCardBonusState.stagedEventId === eventId;
+  await waitRewardPayoutQuiet({alive, who: 'board-card-bonus'});
+  if (!alive()) {
+    return;
+  }
+  // Release the held fullscreen auto-open: the viewer opens with a
+  // PHYSICAL origin resolving to this proxy — the existing zoom FLIP
+  // lifts the real card out of the scene (and `con-zoom-hold` hides
+  // the proxy the frame the flight starts).
+  markBonusZoomEntryReady();
+  if (reduced) {
+    // The reduced zoom open is a bare fade (no slot hold) — fade the
+    // proxy ourselves so the card never doubles.
+    gsap.to(proxy, {autoAlpha: 0, duration: motionMs(140) / 1000, ease: 'power1.out'});
+    // A RELEASE: the scene ends (its gate with it) at the beat, or when the layer leaves first; a teardown disarms it.
+    ctx.timers.push(flow.guarantee(motionMs(120), 'the single cover handed to the viewer — the scene ends (reduced motion)', () => finishScene()));
+    return;
+  }
+  await waitZoomTakeover(alive);
+  if (!alive()) {
+    return;
+  }
+  ctx.timers.push(flow.guarantee(motionMs(300), 'the single cover handed to the viewer — the scene ends', () => finishScene()));
+}
+/** The fullscreen viewer has TAKEN OVER (it is open — its FLIP resolved
+ *  the standing proxy at that instant). Bounded: a viewer that never
+ *  opens (an edge claim, a still-parked overlay) frees the scene anyway. */
+function waitZoomTakeover(alive: () => boolean): Promise<void> {
+  const started = Date.now();
+  return new Promise((done) => {
+    const poll = () => {
+      if (!alive() || consoleCardZoom.card !== undefined ||
+          Date.now() - started >= ZOOM_TAKEOVER_MAX_MS) {
+        done();
+        return;
+      }
+      probeTick(poll);
+    };
+    poll();
+  });
+}
+async function startMulti(e: DrawnCardEntry): Promise<void> {
+  // A MERGED batch: this scene flies the CELL's run only (the cards the cell's printed bonus paid — the first
+  // segment); the runs behind it (the trigger cards surfacing and dealing) are the deck layer's, asked for once
+  // the cell's cards stand in their slots. One row, one frame, one handoff at the end.
+  const ownCount = intakeAssemblyOwnsBatch(e) ? Math.max(1, Math.min(e.cards.length, e.segments[0]?.count ?? e.cards.length)) : e.cards.length;
+  sceneCards.value = e.cards.slice(0, ownCount).map((c) => c.name);
+  sceneNonce.value++;
+  await nextTick();
+  // The reveal space cannot exist while the placement's payout still
+  // owns the screen (the overlay is PARKED behind the hero's holds, so
+  // its slots are unmeasurable — the old 40-frame poll expired into
+  // `degradeToInstant`, vanishing the covers mid-scene). The cover keeps
+  // its honest HOVER over the cell while the chips fly — phase stays
+  // 'hover', so Planet Focus holds the field stage and the overlay stays
+  // veiled — and the gather/fan take over the moment the payout settles.
+  // Bounded; exits with the scene, whose abort visual owns the cleanup.
+  await waitRewardPayoutQuiet({
+    who: 'board-card-bonus:cover',
+    alive: () => boardCardBonusState.active && boardCardBonusState.stagedEventId === e.id,
+  });
+  if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
+    return;
+  }
+  // «ПРИЁМКА»: a Career card step received in the Parliament flies into the draw stage's slots — they exist only
+  // once the stage has entered (the cover keeps its hover over the step until then; bounded by the stage's net).
+  await parliamentDrawReady(e);
+  if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
+    return;
+  }
+  setBoardCardBonusPhase('gather');
+  const keys = e.cards.slice(0, ownCount).map((c, i) => `${c.name}#${i}`);
+  const targets = await Promise.all(keys.map((key) => stableRect(() => document.querySelector<HTMLElement>(
+    `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`,
+  ))));
+  if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
+    return;
+  }
+  const proxies = proxyEls();
+  const flips = flipEls();
+  const resolved = targets.filter((r): r is DOMRect => r !== undefined);
+  if (resolved.length !== keys.length || proxies.length !== keys.length || flips.length !== keys.length) {
+    // The overlay never produced stable slots (a different batch is on
+    // screen / edge layout) — honest degrade: no flight, instant reveal.
+    noteTransferTrail('cell-bonus:degrade', {why: 'slots', resolved: resolved.length, keys: keys.length, proxies: proxies.length});
+    degradeToInstant();
+    return;
+  }
+  const from = takeOverCover();
+  if (from === undefined) {
+    noteTransferTrail('cell-bonus:degrade', {why: 'cover'});
+    degradeToInstant();
+    return;
+  }
+  // A COLONY payout lets its stage know the cards are on the move (the
+  // trade's covers raise the same one fact): the colony interface
+  // evaporates WITH the rising, turning cards instead of waiting for them
+  // to land somewhere else.
+  noticeColonyLiftOff();
+  const t = timings();
+  ctx.sceneHandle = runBonusFanOut({
+    proxies,
+    flips,
+    from,
+    targets: resolved,
+    gather: gatherPoint(from, resolved),
+    t,
+    reduced: consoleReducedMotionActive(),
+    // THE SCENE ASSEMBLES WITH ITS CARDS (TR57): the head, the status line and the floor come in at the FIRST
+    // touchdown, while the rest are still landing — never a frame that grows round cards already standing.
+    onFirstLanded: () => setBoardCardBonusPhase('frame'),
+    onAllLanded: () => {
+      setBoardCardBonusPhase('frame');
+      const handoff = () => {
+        if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
           return;
         }
-      }
-      const icons = this.resolveSourceIcons();
-      if (icons.length === 0 && source.kind !== 'board-tile') {
-        abortBoardCardBonus('instant', 'no-source-icon');
-        return;
-      }
-      // The paying TILE has no printed icon (its cell is covered by its own
-      // art) — the cover rises out of the tile itself, anchored on a
-      // card-proportioned patch at the hex's centre.
-      const from = icons.length > 0 ?
-        await stableRect(() => icons[0]) :
-        await this.tileCoverRect((source as {spaceId: string}).spaceId);
-      if (from === undefined || !boardCardBonusState.active) {
-        if (boardCardBonusState.active) {
-          abortBoardCardBonus('instant', 'no-stable-rect');
-        }
-        return;
-      }
-      const cover = (this.$refs.cover ?? undefined) as HTMLElement | undefined;
-      if (cover === undefined || cover === null) {
-        abortBoardCardBonus('instant', 'no-cover-el');
-        return;
-      }
-      ctx.cellRect = from;
-      // One-object rule: the real icons hide the same frame the cover
-      // appears over them (same art, same rect — a seamless takeover).
-      ctx.liftedEls = icons;
-      icons.forEach((el) => el.classList.add(SOURCE_LIFTED_CLASS));
-      ctx.coverHandle = runBonusCoverLift({
-        cover,
-        from,
-        t: this.timings(),
-        reduced: consoleReducedMotionActive(),
-        onLifted: () => setBoardCardBonusPhase('hover'),
-      });
-      if (source.kind === 'agenda-step') {
-        // THE COVER IS OFF THE NODE: the Parliament's park lets the batch go (this scene owns it from here) and
-        // the ledger's hold stands down — what follows is the player's take, never a beat on a clock.
-        markAgendaCardLifted(source.step);
-      }
-    },
-    /**
-     * A card-proportioned anchor at the paying TILE's centre (the
-     * `board-tile` source has no printed icon to lift off): sized from the
-     * live hex, same aspect as the board's card icon (16×20), so the cover
-     * separates from the tile at a familiar scale.
-     */
-    async tileCoverRect(spaceId: string): Promise<RectLike | undefined> {
-      const hex = await stableRect(() => document.querySelector<HTMLElement>(
-        `.board-space[data_space_id="${cssEscape(spaceId)}"]`));
-      if (hex === undefined) {
-        return undefined;
-      }
-      const w = Math.max(12, Math.round(hex.width * 0.3));
-      const h = Math.round(w * 1.25);
-      return {
-        left: hex.left + hex.width / 2 - w / 2,
-        top: hex.top + hex.height / 2 - h / 2,
-        width: w,
-        height: h,
+        // Handoff: the overlay releases its held static cards (they
+        // fade in UNDER the proxies), the proxies dissolve above them.
+        setBoardCardBonusPhase('handoff');
+        // The trigger runs' flyers (the deck layer's guest) hovered in their slots beside ours — they dissolve
+        // in THIS frame too, over the real cards the phase just released: one handoff for the whole row.
+        releaseIntakeGuest();
+        ctx.sceneHandle = runBonusHandoff({
+          proxies: proxyEls(),
+          t,
+          onDone: () => finishScene(),
+        });
       };
-    },
-    onRevealArrived(e: DrawnCardEntry): void {
-      if (!stageBoardCardBonusReveal(e.id, e.cards.length)) {
+      if (ownCount < e.cards.length) {
+        // The cell's cards HOVER in their slots while the trigger cards deal the rest («карты с поля
+        // зависают, рядом всплывает карта-триггер»); the handoff waits for the last run.
+        continueIntakeAssembly(e, ownCount, () => ctx.timers.push(flow.after(motionMs(t.frameMs), 'the frame around the landed row — then the handoff (after the trigger runs)', handoff)));
         return;
       }
-      if (ctx.noRevealTimer !== undefined) {
-        ctx.noRevealTimer();
-        ctx.noRevealTimer = undefined;
-      }
-      void this.startTransfer(e);
+      ctx.timers.push(flow.after(motionMs(t.frameMs), 'the frame around the landed row — then the handoff', handoff));
     },
-    /** The Parliament's marker glide has settled (or its bounded window passed). */
-    waitAgendaSettled(): Promise<void> {
-      const started = Date.now();
-      let wait: CeilingWait | undefined;
-      return new Promise((done) => {
-        const poll = () => {
-          if (!consoleParliamentUi.agendaSettling || Date.now() - started >= 3000 || !boardCardBonusState.active) {
-            if (!consoleParliamentUi.agendaSettling) {
-              wait?.met();
-            } else if (!boardCardBonusState.active) {
-              wait?.end();
-            } else {
-              wait?.ceiling();
-            }
-            done();
-            return;
-          }
-          // A wait that has to wait is a node of the wait graph; its ceiling ending it is said (`ceilingWait.ts`).
-          wait ??= beginCeilingWait({id: 'board-card-bonus:agenda-settled', owner: 'ConsoleBoardCardBonusLayer', what: 'the settle of the Parliament marker glide', maxMs: 3000});
-          probeTick(poll);
-        };
-        poll();
-      });
-    },
-    /** The lift must finish its rise before the transfer takes over. */
-    waitForHover(): Promise<void> {
-      return new Promise((done) => {
-        let tries = 0;
-        let wait: CeilingWait | undefined;
-        const poll = () => {
-          if (!boardCardBonusState.active || boardCardBonusState.phase !== 'lift' || tries > 60) {
-            if (!boardCardBonusState.active) {
-              wait?.end();
-            } else if (boardCardBonusState.phase !== 'lift') {
-              wait?.met();
-            } else {
-              wait?.ceiling();
-            }
-            done();
-            return;
-          }
-          // A wait that has to wait is a node of the wait graph; its frame ceiling ending it is said (`ceilingWait.ts`).
-          wait ??= beginCeilingWait({
-            id: 'board-card-bonus:hover', owner: 'ConsoleBoardCardBonusLayer', what: 'the end of the lift rise', maxMs: 61 * 16,
-            detail: '61 frames, estimated at 16 ms each',
-          });
-          tries++;
-          probeTick(poll);
-        };
-        poll();
-      });
-    },
-    async startTransfer(e: DrawnCardEntry): Promise<void> {
-      await this.waitForHover();
-      if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
-        return;
-      }
-      // ONE SCENE FOR ANY COUNT (TR57, decision 4): a lone card fans into its own slot like two do — the
-      // presentation point and the fullscreen hand-over are the retired headless path, asked through the overlay's
-      // own decision so the scene can never fly a card to a viewer nobody will open.
-      if (!intakeAssemblyOwnsBatch(e) && drawnBatchGoesFullscreen(e.cards.length, false)) {
-        await this.startSingle(e);
-      } else {
-        await this.startMulti(e);
-      }
-    },
-    /** The cover's live rect at takeover; the hero hides as proxies appear. */
-    takeOverCover(): RectLike | undefined {
-      const rect = ctx.coverHandle?.rect();
-      ctx.coverHandle?.kill();
-      ctx.coverHandle = undefined;
-      const cover = (this.$refs.cover ?? undefined) as HTMLElement | undefined;
-      if (cover !== undefined && cover !== null) {
-        gsap.set(cover, {autoAlpha: 0});
-      }
-      return rect ?? ctx.cellRect;
-    },
-    async startSingle(e: DrawnCardEntry): Promise<void> {
-      setBoardCardBonusPhase('gather');
-      this.sceneCards = [e.cards[0].name];
-      this.sceneNonce++;
-      await this.$nextTick();
-      const proxy = this.proxyEls()[0];
-      const flip = this.flipEls()[0];
-      const from = this.takeOverCover();
-      if (proxy === undefined || flip === undefined || from === undefined) {
-        this.degradeToInstant();
-        return;
-      }
-      this.noticeColonyLiftOff();
-      // A CONCURRENT payout (the same placement's printed / ocean / Ares
-      // chips are flying or still owed): the cover takes the calmer,
-      // slightly longer flight — the chips (paced quicker on their side)
-      // stay ahead and land first. A card flying alone keeps the standard
-      // tempo. Same arc, same easing, same flip either way.
-      const t = concurrentResourcePayout() ?
-        concurrentBonusSceneTimings(this.timings()) : this.timings();
-      const reduced = consoleReducedMotionActive();
-      ctx.sceneHandle = runBonusSingleFlight({
-        proxy,
-        flip,
-        from,
-        to: presentationTarget(window.innerWidth, window.innerHeight, CARD_NATURAL_W, CARD_NATURAL_H),
-        naturalW: CARD_NATURAL_W,
-        naturalH: CARD_NATURAL_H,
-        t,
-        reduced,
-        onArrived: () => {
-          setBoardCardBonusPhase('frame');
-          void this.releaseSingleTakeover(e.id, proxy, reduced);
-        },
-      });
-    },
-    /**
-     * The ARRIVED single cover's HANDOFF, sequenced on real signals — never
-     * a bare post-arrival timer (which destroyed the standing card while the
-     * reveal was still parked behind the placement's resource payout, and
-     * the viewer then rose from nothing with a textual entrance):
-     *  1. the payout QUIETS (reward beats done, every chip landed and
-     *     absorbed) — the fullscreen may not open over money in the air;
-     *  2. the held auto-open is released — the viewer opens off the standing
-     *     cover (a PHYSICAL origin: `openSingleCardFullscreen` resolves it
-     *     only while the scene is still ACTIVE, so the scene must outlive
-     *     this moment);
-     *  3. the scene ends a short beat AFTER the viewer's FLIP has captured
-     *     the proxy — the TAKE belongs to the viewer, so the input gate must
-     *     not stay locked through it (that swallowed the «A Взять» press).
-     * Every wait is bounded; each exits the moment the scene dies (abort /
-     * a superseding arm), whose own visual then owns the cleanup.
-     */
-    async releaseSingleTakeover(eventId: number, proxy: HTMLElement, reduced: boolean): Promise<void> {
-      const alive = () =>
-        boardCardBonusState.active && boardCardBonusState.stagedEventId === eventId;
-      await waitRewardPayoutQuiet({alive, who: 'board-card-bonus'});
-      if (!alive()) {
-        return;
-      }
-      // Release the held fullscreen auto-open: the viewer opens with a
-      // PHYSICAL origin resolving to this proxy — the existing zoom FLIP
-      // lifts the real card out of the scene (and `con-zoom-hold` hides
-      // the proxy the frame the flight starts).
-      markBonusZoomEntryReady();
-      if (reduced) {
-        // The reduced zoom open is a bare fade (no slot hold) — fade the
-        // proxy ourselves so the card never doubles.
-        gsap.to(proxy, {autoAlpha: 0, duration: motionMs(140) / 1000, ease: 'power1.out'});
-        // A RELEASE: the scene ends (its gate with it) at the beat, or when the layer leaves first; a teardown disarms it.
-        ctx.timers.push(this.flow.guarantee(motionMs(120), 'the single cover handed to the viewer — the scene ends (reduced motion)', () => this.finishScene()));
-        return;
-      }
-      await this.waitZoomTakeover(alive);
-      if (!alive()) {
-        return;
-      }
-      ctx.timers.push(this.flow.guarantee(motionMs(300), 'the single cover handed to the viewer — the scene ends', () => this.finishScene()));
-    },
-    /** The fullscreen viewer has TAKEN OVER (it is open — its FLIP resolved
-     *  the standing proxy at that instant). Bounded: a viewer that never
-     *  opens (an edge claim, a still-parked overlay) frees the scene anyway. */
-    waitZoomTakeover(alive: () => boolean): Promise<void> {
-      const started = Date.now();
-      return new Promise((done) => {
-        const poll = () => {
-          if (!alive() || consoleCardZoom.card !== undefined ||
-              Date.now() - started >= ZOOM_TAKEOVER_MAX_MS) {
-            done();
-            return;
-          }
-          probeTick(poll);
-        };
-        poll();
-      });
-    },
-    async startMulti(e: DrawnCardEntry): Promise<void> {
-      // A MERGED batch: this scene flies the CELL's run only (the cards the cell's printed bonus paid — the first
-      // segment); the runs behind it (the trigger cards surfacing and dealing) are the deck layer's, asked for once
-      // the cell's cards stand in their slots. One row, one frame, one handoff at the end.
-      const ownCount = intakeAssemblyOwnsBatch(e) ? Math.max(1, Math.min(e.cards.length, e.segments[0]?.count ?? e.cards.length)) : e.cards.length;
-      this.sceneCards = e.cards.slice(0, ownCount).map((c) => c.name);
-      this.sceneNonce++;
-      await this.$nextTick();
-      // The reveal space cannot exist while the placement's payout still
-      // owns the screen (the overlay is PARKED behind the hero's holds, so
-      // its slots are unmeasurable — the old 40-frame poll expired into
-      // `degradeToInstant`, vanishing the covers mid-scene). The cover keeps
-      // its honest HOVER over the cell while the chips fly — phase stays
-      // 'hover', so Planet Focus holds the field stage and the overlay stays
-      // veiled — and the gather/fan take over the moment the payout settles.
-      // Bounded; exits with the scene, whose abort visual owns the cleanup.
-      await waitRewardPayoutQuiet({
-        who: 'board-card-bonus:cover',
-        alive: () => boardCardBonusState.active && boardCardBonusState.stagedEventId === e.id,
-      });
-      if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
-        return;
-      }
-      // «ПРИЁМКА»: a Career card step received in the Parliament flies into the draw stage's slots — they exist only
-      // once the stage has entered (the cover keeps its hover over the step until then; bounded by the stage's net).
-      await parliamentDrawReady(e);
-      if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
-        return;
-      }
-      setBoardCardBonusPhase('gather');
-      const keys = e.cards.slice(0, ownCount).map((c, i) => `${c.name}#${i}`);
-      const targets = await Promise.all(keys.map((key) => stableRect(() => document.querySelector<HTMLElement>(
-        `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`,
-      ))));
-      if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
-        return;
-      }
-      const proxies = this.proxyEls();
-      const flips = this.flipEls();
-      const resolved = targets.filter((r): r is DOMRect => r !== undefined);
-      if (resolved.length !== keys.length || proxies.length !== keys.length || flips.length !== keys.length) {
-        // The overlay never produced stable slots (a different batch is on
-        // screen / edge layout) — honest degrade: no flight, instant reveal.
-        noteTransferTrail('cell-bonus:degrade', {why: 'slots', resolved: resolved.length, keys: keys.length, proxies: proxies.length});
-        this.degradeToInstant();
-        return;
-      }
-      const from = this.takeOverCover();
-      if (from === undefined) {
-        noteTransferTrail('cell-bonus:degrade', {why: 'cover'});
-        this.degradeToInstant();
-        return;
-      }
-      // A COLONY payout lets its stage know the cards are on the move (the
-      // trade's covers raise the same one fact): the colony interface
-      // evaporates WITH the rising, turning cards instead of waiting for them
-      // to land somewhere else.
-      this.noticeColonyLiftOff();
-      const t = this.timings();
-      ctx.sceneHandle = runBonusFanOut({
-        proxies,
-        flips,
-        from,
-        targets: resolved,
-        gather: gatherPoint(from, resolved),
-        t,
-        reduced: consoleReducedMotionActive(),
-        // THE SCENE ASSEMBLES WITH ITS CARDS (TR57): the head, the status line and the floor come in at the FIRST
-        // touchdown, while the rest are still landing — never a frame that grows round cards already standing.
-        onFirstLanded: () => setBoardCardBonusPhase('frame'),
-        onAllLanded: () => {
-          setBoardCardBonusPhase('frame');
-          const handoff = () => {
-            if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
-              return;
-            }
-            // Handoff: the overlay releases its held static cards (they
-            // fade in UNDER the proxies), the proxies dissolve above them.
-            setBoardCardBonusPhase('handoff');
-            // The trigger runs' flyers (the deck layer's guest) hovered in their slots beside ours — they dissolve
-            // in THIS frame too, over the real cards the phase just released: one handoff for the whole row.
-            releaseIntakeGuest();
-            ctx.sceneHandle = runBonusHandoff({
-              proxies: this.proxyEls(),
-              t,
-              onDone: () => this.finishScene(),
-            });
-          };
-          if (ownCount < e.cards.length) {
-            // The cell's cards HOVER in their slots while the trigger cards deal the rest («карты с поля
-            // зависают, рядом всплывает карта-триггер»); the handoff waits for the last run.
-            continueIntakeAssembly(e, ownCount, () => ctx.timers.push(this.flow.after(motionMs(t.frameMs), 'the frame around the landed row — then the handoff (after the trigger runs)', handoff)));
-            return;
-          }
-          ctx.timers.push(this.flow.after(motionMs(t.frameMs), 'the frame around the landed row — then the handoff', handoff));
-        },
-      });
-    },
-    /**
-     * The scene can't play (no anchors / a different batch on screen):
-     * release everything so the standard reveal shows instantly — an
-     * honest degrade, never a stranded invisible UI.
-     */
-    degradeToInstant(): void {
-      const cover = (this.$refs.cover ?? undefined) as HTMLElement | undefined;
-      const els = [...(cover !== undefined && cover !== null ? [cover] : []), ...this.proxyEls()];
-      ctx.abortHandle = runBonusAbortVisual({
-        els,
-        mode: 'instant',
-        cell: ctx.cellRect,
-        t: this.timings(),
-        onDone: () => this.clearSceneDom(),
-      });
-      this.restoreLifted();
-      endBoardCardBonus();
-    },
-    /** THE PAYOUT LIFTED OFF — for a COLONY source only (a board cell / the
-     *  Venus scale have no colony stage to dissolve). */
-    noticeColonyLiftOff(): void {
-      if (boardCardBonusState.source.kind === 'colony-cell') {
-        markColonyPayoutLiftOff();
-      }
-    },
-    finishScene(): void {
-      this.restoreLifted();
-      endBoardCardBonus();
-      this.clearSceneDom();
-    },
-    /**
-     * The controller's abort handle — kill the live beats, play the honest
-     * recall visual, restore the board icon. The controller has already
-     * cleared its state (gates open, overlay unveiled/released).
-     */
-    onAbort(mode: BoardCardBonusAbortMode): void {
-      this.clearTimers();
-      ctx.coverHandle?.kill();
-      ctx.coverHandle = undefined;
-      ctx.sceneHandle?.kill();
-      ctx.sceneHandle = undefined;
-      ctx.abortHandle?.kill();
-      ctx.abortHandle = undefined;
-      this.restoreLifted();
-      const cover = (this.$refs.cover ?? undefined) as HTMLElement | undefined;
-      const els = [...(cover !== undefined && cover !== null ? [cover] : []), ...this.proxyEls()];
-      ctx.abortHandle = runBonusAbortVisual({
-        els,
-        mode,
-        cell: ctx.cellRect,
-        t: this.timings(),
-        onDone: () => this.clearSceneDom(),
-      });
-    },
-    // ── Cleanup ─────────────────────────────────────────────────────────
-    restoreLifted(): void {
-      // Deterministic restore — harmless when the tile unmounted the icon,
-      // load-bearing when nothing covered the cell (abort / no-tile picks).
-      ctx.liftedEls.forEach((el) => el.classList.remove(SOURCE_LIFTED_CLASS));
-      ctx.liftedEls = [];
-    },
-    clearTimers(): void {
-      ctx.timers.forEach((cancel) => cancel());
-      ctx.timers = [];
-      if (ctx.noRevealTimer !== undefined) {
-        ctx.noRevealTimer();
-        ctx.noRevealTimer = undefined;
-      }
-    },
-    clearSceneDom(): void {
-      const cover = (this.$refs.cover ?? undefined) as HTMLElement | undefined;
-      if (cover !== undefined && cover !== null) {
-        gsap.set(cover, {autoAlpha: 0});
-      }
-      this.proxyEls().forEach((el) => gsap.set(el, {autoAlpha: 0}));
-      // A guest still hovering in the row (an abort before our handoff) never outlives the scene it stood in.
-      releaseIntakeGuest();
-      this.sceneCards = [];
-      this.proxyRefs = [];
-      this.flipRefs = [];
-      // THE SINGLE END-OF-SCENE FUNNEL (finish / degrade / abort / teardown):
-      // this payout's lift-off cue is spent, and the next one raises its own.
-      // A cue left standing dissolves the NEXT stage at its claim — before a
-      // card of it has moved. (The pose itself rides the payout, not the cue,
-      // so clearing it here never brings the working area back early.)
-      clearColonyPayoutLiftOff();
-    },
-    teardownVisuals(): void {
-      this.clearTimers();
-      ctx.coverHandle?.kill();
-      ctx.coverHandle = undefined;
-      ctx.sceneHandle?.kill();
-      ctx.sceneHandle = undefined;
-      ctx.abortHandle?.kill();
-      ctx.abortHandle = undefined;
-      this.restoreLifted();
-      this.clearSceneDom();
-      // The next payout raises its own cue (mirrors the trade layer).
-      clearColonyPayoutLiftOff();
-    },
-  },
-  beforeUnmount() {
-    this.teardownVisuals();
-    registerBoardCardBonusHandle(undefined);
-    registerBonusZoomOrigin(undefined);
-  },
+  });
+}
+/**
+ * The scene can't play (no anchors / a different batch on screen):
+ * release everything so the standard reveal shows instantly — an
+ * honest degrade, never a stranded invisible UI.
+ */
+function degradeToInstant(): void {
+  const coverNow = cover.value ?? undefined;
+  const els = [...(coverNow !== undefined && coverNow !== null ? [coverNow] : []), ...proxyEls()];
+  ctx.abortHandle = runBonusAbortVisual({
+    els,
+    mode: 'instant',
+    cell: ctx.cellRect,
+    t: timings(),
+    onDone: () => clearSceneDom(),
+  });
+  restoreLifted();
+  endBoardCardBonus();
+}
+/** THE PAYOUT LIFTED OFF — for a COLONY source only (a board cell / the
+ *  Venus scale have no colony stage to dissolve). */
+function noticeColonyLiftOff(): void {
+  if (boardCardBonusState.source.kind === 'colony-cell') {
+    markColonyPayoutLiftOff();
+  }
+}
+function finishScene(): void {
+  restoreLifted();
+  endBoardCardBonus();
+  clearSceneDom();
+}
+/**
+ * The controller's abort handle — kill the live beats, play the honest
+ * recall visual, restore the board icon. The controller has already
+ * cleared its state (gates open, overlay unveiled/released).
+ */
+function onAbort(mode: BoardCardBonusAbortMode): void {
+  clearTimers();
+  ctx.coverHandle?.kill();
+  ctx.coverHandle = undefined;
+  ctx.sceneHandle?.kill();
+  ctx.sceneHandle = undefined;
+  ctx.abortHandle?.kill();
+  ctx.abortHandle = undefined;
+  restoreLifted();
+  const coverNow = cover.value ?? undefined;
+  const els = [...(coverNow !== undefined && coverNow !== null ? [coverNow] : []), ...proxyEls()];
+  ctx.abortHandle = runBonusAbortVisual({
+    els,
+    mode,
+    cell: ctx.cellRect,
+    t: timings(),
+    onDone: () => clearSceneDom(),
+  });
+}
+// ── Cleanup ─────────────────────────────────────────────────────────
+function restoreLifted(): void {
+  // Deterministic restore — harmless when the tile unmounted the icon,
+  // load-bearing when nothing covered the cell (abort / no-tile picks).
+  ctx.liftedEls.forEach((el) => el.classList.remove(SOURCE_LIFTED_CLASS));
+  ctx.liftedEls = [];
+}
+function clearTimers(): void {
+  ctx.timers.forEach((cancel) => cancel());
+  ctx.timers = [];
+  if (ctx.noRevealTimer !== undefined) {
+    ctx.noRevealTimer();
+    ctx.noRevealTimer = undefined;
+  }
+}
+function clearSceneDom(): void {
+  const coverNow = cover.value ?? undefined;
+  if (coverNow !== undefined && coverNow !== null) {
+    gsap.set(coverNow, {autoAlpha: 0});
+  }
+  proxyEls().forEach((el) => gsap.set(el, {autoAlpha: 0}));
+  // A guest still hovering in the row (an abort before our handoff) never outlives the scene it stood in.
+  releaseIntakeGuest();
+  sceneCards.value = [];
+  proxyRefs.value = [];
+  flipRefs.value = [];
+  // THE SINGLE END-OF-SCENE FUNNEL (finish / degrade / abort / teardown):
+  // this payout's lift-off cue is spent, and the next one raises its own.
+  // A cue left standing dissolves the NEXT stage at its claim — before a
+  // card of it has moved. (The pose itself rides the payout, not the cue,
+  // so clearing it here never brings the working area back early.)
+  clearColonyPayoutLiftOff();
+}
+function teardownVisuals(): void {
+  clearTimers();
+  ctx.coverHandle?.kill();
+  ctx.coverHandle = undefined;
+  ctx.sceneHandle?.kill();
+  ctx.sceneHandle = undefined;
+  ctx.abortHandle?.kill();
+  ctx.abortHandle = undefined;
+  restoreLifted();
+  clearSceneDom();
+  // The next payout raises its own cue (mirrors the trade layer).
+  clearColonyPayoutLiftOff();
+}
+
+/** A fresh arm (the shell / self-arm bumped the nonce): begin the scene. */
+watch(() => boardCardBonusState.nonce, () => {
+  void beginScene();
+});
+watch(() => revealToProcess.value, (e: DrawnCardEntry | undefined) => {
+  if (e === undefined) {
+    return;
+  }
+  // A reveal with no scene yet SELF-ARMS (atomic: arm + the stage below
+  // land in this one tick, so the overlay veils on first render): a
+  // venus-scale reveal off its marker, a tile-sourced reveal off the
+  // PAYING hex (the Ares adjacency draw). A board scene armed at submit
+  // goes straight to staging.
+  if (!boardCardBonusState.active) {
+    if (e.source?.type === 'tile' && e.source.spaceId !== undefined) {
+      // The cover's PHYSICAL SOURCE depends on what stands on the cell:
+      // a tile → the cover plate over the tile ('board-tile'); a cell
+      // with NO tile (the nomad camp collected a card bonus and its
+      // pre-lift arm never fired — icon missing / degraded) → the
+      // printed icon itself ('board-cell'), which is what is actually
+      // on screen there.
+      const spaceId = e.source.spaceId;
+      const sp = props.playerView.game.spaces.find((s) => s.id === spaceId);
+      armBoardCardBonus(sp?.tileType === undefined ?
+        {kind: 'board-cell', spaceId} : {kind: 'board-tile', spaceId});
+    } else if (isAgendaReveal(e.source)) {
+      // The step the card came from — the batch names it (a walk of several steps may cross two card steps); a legacy
+      // batch falls back to the walk's first card step.
+      const advance = props.playerView.game.parliament?.lastAdvance;
+      const named = e.source?.type === 'agenda' ? e.source.step : undefined;
+      armBoardCardBonus({kind: 'agenda-step', step: named ?? advance?.steps.find((s) => s.bonus === 'card')?.to ?? advance?.to ?? 0});
+    } else {
+      // The scale that printed the card (Venus 8 %; Amazonis Planitia's oxygen 7 %).
+      armBoardCardBonus({kind: 'venus-scale', parameter: e.source?.type === 'globalParameter' && e.source.parameter === 'oxygen' ? 'oxygen' : 'venus'});
+    }
+  }
+  onRevealArrived(e);
+});
+watch(() => commitAge.value, () => {
+  // BOARD + COLONY: the commit landed but no reveal followed → the bonus
+  // produced nothing (deck empty / a non-placement pick). Recall the
+  // cover instead of hovering forever. (Venus and the adjacency
+  // `board-tile` self-arm FROM their reveal, so those scenes always have
+  // their batch — this path never applies to them.)
+  const source = boardCardBonusState.source;
+  if (!boardCardBonusState.active || source.kind === 'venus-scale' || source.kind === 'board-tile' || source.kind === 'agenda-step') {
+    return;
+  }
+  if (boardCardBonusState.stagedEventId !== undefined) {
+    return;
+  }
+  if (boardCardBonusState.phase !== 'lift' && boardCardBonusState.phase !== 'hover') {
+    return;
+  }
+  if (ctx.noRevealTimer !== undefined) {
+    return;
+  }
+  // An ABORT-style safety, PACING of the layer: it recalls a cover nobody answered — never after the layer left.
+  ctx.noRevealTimer = flow.after(motionMs(NO_REVEAL_GRACE_MS), 'the cell bonus\'s reveal (the «no cards came» recall)', () => {
+    ctx.noRevealTimer = undefined;
+    if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== undefined) {
+      return;
+    }
+    // Board: the cover sinks into the placed tile if one landed, else
+    // flies back. Colony: no tile — the cover always flies back to the cell.
+    let mode: BoardCardBonusAbortMode = 'return';
+    if (source.kind === 'board-cell') {
+      const space = props.playerView.game.spaces.find((sp) => sp.id === source.spaceId);
+      mode = space?.tileType !== undefined ? 'absorb' : 'return';
+    }
+    abortBoardCardBonus(mode);
+  });
+});
+
+onBeforeUnmount(() => {
+  teardownVisuals();
+  registerBoardCardBonusHandle(undefined);
+  registerBonusZoomOrigin(undefined);
 });
 </script>

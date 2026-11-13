@@ -35,9 +35,9 @@ describe('the Agenda card step — the cover scene lifts on the marker\'s lock, 
 
   it('the layer waits for the settle ONLY through `agendaCoverWaitsForSettle(source)`', () => {
     const src = stripComments(fs.readFileSync(LAYER, 'utf8'));
-    const waits = src.match(/await this\.waitAgendaSettled\(\)/g) ?? [];
+    const waits = src.match(/await waitAgendaSettled\(\)/g) ?? [];
     expect(waits, 'one wait, in `beginScene`').to.have.lengthOf(1);
-    const guarded = /if \(agendaCoverWaitsForSettle\(source\)\) \{[^}]*await this\.waitAgendaSettled\(\)/s.test(src);
+    const guarded = /if \(agendaCoverWaitsForSettle\(source\)\) \{[^}]*await waitAgendaSettled\(\)/s.test(src);
     expect(guarded, 'the wait stands inside `if (agendaCoverWaitsForSettle(source))` — a walk-armed cover lifts at once').to.be.true;
     expect(src, 'a lifted agenda cover releases the park (`markAgendaCardLifted`)').to.include('markAgendaCardLifted(source.step)');
   });
