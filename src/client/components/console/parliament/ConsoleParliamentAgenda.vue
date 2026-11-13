@@ -1,9 +1,4 @@
 <template>
-  <!-- ══ THE AGENDA — a read-only graphic track: the markers, the influence
-       LEVELS, the TR and card rewards, the viewer's next step. Never a
-       focus stop; it moves when a marker moves. During the sitting the
-       marker STAYS on its old step until the enactment's first beat glides
-       it (`holds.agendaAwaits`) — the influence reads the old level too. ══ -->
   <div class="con-parl__agenda" :class="{'con-parl__agenda--focus': flow.zone === 'agenda' && flow.stage === 'browse'}" data-parl-agenda data-parl-recede>
     <!-- THE QUEST AT THE HEAD OF THE CAREER (Парламент v8): the chairman's chair with its quest is its own PLATE (its own
          focus stop — X reads the quest's dossier); completing it IS a step on this track (`walkAgenda`). The seats still
@@ -105,17 +100,31 @@
       </div>
     </div>
   </div>
-  <!-- THE AGENDA MARKER in motion — THE TRACK MARKER (console_track_marker.less): the Hydronetwork's disc and its
-       director on the Parliament's track, the director's phases written onto the disc — from the step it left to the
-       step it reached. -->
   <Teleport to="body">
     <div v-if="agendaFlight !== undefined" class="con-parl__flight con-parl__flight--agenda" ref="agendaFlightEl" aria-hidden="true">
       <i class="con-parl__agenda-dot con-parl__agenda-dot--proxy" :class="['player_bg_color_' + agendaFlight.color, 'con-parl__agenda-dot--' + agendaPhase]"></i>
     </div>
   </Teleport>
 </template>
-<script lang="ts">
-import {defineComponent, markRaw, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ══ THE AGENDA — a read-only graphic track: the markers, the influence
+ *       LEVELS, the TR and card rewards, the viewer's next step. Never a
+ *       focus stop; it moves when a marker moves. During the sitting the
+ *       marker STAYS on its old step until the enactment's first beat glides
+ *       it (`holds.agendaAwaits`) — the influence reads the old level too. ══
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ *
+ * — before the root `<Teleport to="body">`:
+ * THE AGENDA MARKER in motion — THE TRACK MARKER (console_track_marker.less): the Hydronetwork's disc and its
+ *       director on the Parliament's track, the director's phases written onto the disc — from the step it left to the
+ *       step it reached.
+ *
+ * (These comments stood between the template's roots; each names the root it stood before.)
+ */
+
+import {computed, markRaw, onBeforeUnmount, PropType, ref, useTemplateRef, watch} from 'vue';
 import {Color} from '@/common/Color';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
@@ -133,6 +142,7 @@ import {
   AgendaWalkBeatScheduler, AgendaWalkHandle, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, agendaWalkMotion, agendaWalkPlan, deliverAgendaStepReward, runAgendaWalk,
 } from '@/client/console/parliament/agendaWalkDirector';
 import {agendaWalkFlow, releaseAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
+import {$t} from '@/client/directives/i18n';
 
 /**
  * The AGENDA tier: the read-only track and the ONE marker in motion on it
@@ -141,501 +151,495 @@ import {agendaWalkFlow, releaseAgendaWalkHolds} from '@/client/console/parliamen
  * screen, for the sitting's ПОВЕСТКА beat, for «ПРЕДСЕДАТЕЛЬСТВО»'s step and
  * for a card's walk of N (TR04).
  */
-export default defineComponent({
-  name: 'ConsoleParliamentAgenda',
-  components: {ConsoleParliamentEngine, ConsoleInfluenceMod},
-  props: {
-    view: {type: Object as PropType<ParliamentViewVm>, required: true},
-    /** The seats (the engine's race names them) and the viewer — the engine's own props, threaded through. */
-    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /** The SITTING's stage on screen ('' outside the sitting) — the engine reads its quest closed from the verdict. */
-    sittingStage: {type: String, default: ''},
-    model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
-    agendaVm: {type: Object as PropType<AgendaVm>, required: true},
-    viewerParticipates: {type: Boolean, default: false},
-    /** The Agenda step the SITTING's enactment lights (the winner's new position, once the marker has reached it), if any. */
-    sittingStep: {type: Number as PropType<number | undefined>, default: undefined},
-    /** A nested frame (the action workspace) took the scene — a live advance is not replayed under it. */
-    handedOver: {type: Boolean, default: false},
-  },
-  data() {
+defineOptions({name: 'ConsoleParliamentAgenda'});
+const props = defineProps({
+  view: {type: Object as PropType<ParliamentViewVm>, required: true},
+  /** The seats (the engine's race names them) and the viewer — the engine's own props, threaded through. */
+  players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  /** The SITTING's stage on screen ('' outside the sitting) — the engine reads its quest closed from the verdict. */
+  sittingStage: {type: String, default: ''},
+  model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
+  agendaVm: {type: Object as PropType<AgendaVm>, required: true},
+  viewerParticipates: {type: Boolean, default: false},
+  /** The Agenda step the SITTING's enactment lights (the winner's new position, once the marker has reached it), if any. */
+  sittingStep: {type: Number as PropType<number | undefined>, default: undefined},
+  /** A nested frame (the action workspace) took the scene — a live advance is not replayed under it. */
+  handedOver: {type: Boolean, default: false},
+});
+
+const agendaFlightEl = useTemplateRef<HTMLElement>('agendaFlightEl');
+const agendaPulseStep = ref<number | undefined>(undefined);
+/** The marker in motion along the Agenda track (a body-level proxy). */
+const agendaFlight = ref<{color: Color} | undefined>(undefined);
+/** The director's phase of the gliding disc (charge · glide · arrive · lock · pulse) — the proxy's paint. */
+const agendaPhase = ref('charge' as MarkerPhaseName);
+/** The real disc that has just been locked in — its one-shot settle (cleared by the animation's own end). */
+const agendaSettle = ref<{color: Color, step: number} | undefined>(undefined);
+/** The real cube the gliding proxy stands in for at its DESTINATION — hidden until the lock. */
+const agendaHidden = ref<{color: Color, step: number} | undefined>(undefined);
+/** The real cube the proxy LIFTED OFF (the held marker on its old step) — hidden from the launch. */
+const agendaLifted = ref<{color: Color, step: number} | undefined>(undefined);
+let agendaGlide: HydroMarkerDirectorHandle | undefined;
+/** The phrase over the legs (the order and the waits) — one per walk. */
+let agendaWalk: AgendaWalkHandle | undefined;
+let agendaGlideHold: AnimationHold | undefined;
+/** The running walk's hold budget (re-armed after a card step's take, which the hold stands down for). */
+const agendaGlideHoldMs = ref(0);
+/** The running walk's LAST step — where the ceiling's recovery (`finishAgendaGlide`) sets the marker down. */
+const agendaGlideStep = ref(0);
+/** The caller's «the marker has settled» callback of the running glide (fired once, on every ending). */
+let onGlideLanded: (() => void) | undefined;
+
+const flow = parliamentFlow;
+/** A card step's take is in the PLAYER's hands (the viewer waits for «Взять») — the walk's animation holds stand down. */
+const walkAwaitingCard = computed((): boolean => {
+  return agendaWalkMotion.awaitingCard !== undefined;
+});
+/** The server's record of the LAST Agenda advance (its serial) — a live change plays the marker's move. */
+const lastAdvanceSeq = computed((): number => {
+  return props.model?.lastAdvance?.seq ?? 0;
+});
+/**
+ * THE TRACK AS SHOWN: the live reading — or, while a hold stands, every held
+ * marker on its OLD step and (for the viewer) the OLD influence and level;
+ * the glide is what moves them. The holds COMPOSE, in the order the server
+ * walked them backwards: the steps of the Career a LAW granted the seats
+ * first (`agendaGrantAwaits` — several seats at once, Reds Budget), then the
+ * ONE walk in hand (`agendaAwaits` — the winner's step, a quest's, a card's,
+ * or the law's walk the sitting is playing now): the winner's law step starts
+ * where its winner's step ends, so the cube is carried back over both.
+ */
+/**
+ * THE SEATS' NESTS (P70 · K1): every seat that stands on the track, in the table's seat order — a constant list, so a
+ * seat's marker always takes the same nest inside a place (the support areas' slots are the same idea). A colour
+ * the seat list does not name (never expected) is appended, so no marker is ever dropped.
+ */
+const seatOrder = computed((): ReadonlyArray<Color> => {
+  const on = new Set<Color>([...shown.value.start, ...shown.value.steps.flatMap((step) => step.cubes)]);
+  const ordered = props.players.map((p) => p.color).filter((color) => on.has(color));
+  return [...ordered, ...[...on].filter((color) => !ordered.includes(color))];
+});
+const shown = computed((): AgendaVm => {
+  const holds = [...parliamentHolds.agendaGrantAwaits.values()];
+  if (parliamentHolds.agendaAwaits !== undefined) {
+    holds.push(parliamentHolds.agendaAwaits);
+  }
+  return holds.reduce((vm, hold) => heldAgendaVm(vm, hold), props.agendaVm);
+});
+/**
+ * THE INFLUENCE BAND (Парламент v8): the track's influence steps cut it into five spans — a span runs from its
+ * ★ step to the step before the next ★ — and the span the viewer's marker stands in is ringed. Derived from
+ * `AGENDA_TRACK` alone, so a reworked track re-draws its band by itself.
+ */
+/**
+ * THE BONUS THE VIEWER KEEPS BEYOND THE CAREER (Event Analysts and its kin — `influenceReading.ts`): the same at
+ * every step, so the track's coins and spans print the FINAL influence the viewer votes with there. 0 for a seat that
+ * is not on the track (the track then reads its own levels).
+ */
+const influenceBuff = computed((): number => {
+  return props.viewerParticipates ? Math.max(0, shown.value.viewerReading.bonus) : 0;
+});
+const influenceBands = computed((): ReadonlyArray<{level: number, from: number, to: number, mine: boolean}> => {
+  const marks: Array<{level: number, at: number}> = [];
+  AGENDA_TRACK.forEach((step, i) => {
+    if (step.kind === 'influence') {
+      marks.push({level: step.influence, at: i + 1});
+    }
+  });
+  const level = props.viewerParticipates ? shown.value.viewerLevel : -1;
+  // The START cell's span (level 0 — no ★ reached yet): the band covers the whole instrument.
+  return [{level: 0, from: 0, to: 0, mine: level === 0}, ...marks.map((mark, i) => ({
+    level: mark.level,
+    from: mark.at,
+    to: i + 1 < marks.length ? marks[i + 1].at - 1 : AGENDA_TRACK.length,
+    mine: level === mark.level,
+  }))];
+});
+
+/** The influence the viewer votes with inside a span: their own span the server's total, any other its level + the bonus. */
+function bandInfluence(band: {level: number, mine: boolean}): number {
+  return band.mine ? shown.value.viewerInfluence : band.level + influenceBuff.value;
+}
+/** A disc's paint: the owner's colour, the viewer's accent glow, the settle of a disc just locked in. */
+function dotClass(color: Color, step: number): Array<string | Record<string, boolean>> {
+  return ['player_bg_color_' + color, {
+    'con-parl__agenda-dot--viewer': color === props.viewerColor,
+    'con-parl__agenda-dot--settle': agendaSettle.value !== undefined && agendaSettle.value.color === color && agendaSettle.value.step === step,
+  }];
+}
+function onDotSettleEnd(event: AnimationEvent, color: Color, step: number): void {
+  if (event.animationName === 'con-track-marker-settle' && agendaSettle.value?.color === color && agendaSettle.value.step === step) {
+    agendaSettle.value = undefined;
+  }
+}
+/** ONE held walk applied to a reading: the seat's cube carried back to `from`, the viewer's own influence and level with it. */
+function heldAgendaVm(vm: AgendaVm, hold: AgendaAwaits): AgendaVm {
+  const viewer = props.view.viewer;
+  const mine = viewer !== undefined && viewer.participates && viewer.color === hold.player;
+  const position = mine ? hold.from : vm.viewerPosition;
+  const next = mine ? (hold.from < AGENDA_TRACK.length ? hold.from + 1 : undefined) : undefined;
+  const levelDelta = mine ? influenceAtAgenda(hold.to) - influenceAtAgenda(hold.from) : 0;
+  const steps = vm.steps.map((step) => {
+    let cubes = step.cubes;
+    if (step.index === hold.to) {
+      cubes = cubes.filter((color) => color !== hold.player);
+    }
+    if (step.index === hold.from && !cubes.includes(hold.player)) {
+      cubes = [...cubes, hold.player];
+    }
     return {
-      agendaPulseStep: undefined as number | undefined,
-      /** The marker in motion along the Agenda track (a body-level proxy). */
-      agendaFlight: undefined as {color: Color} | undefined,
-      /** The director's phase of the gliding disc (charge · glide · arrive · lock · pulse) — the proxy's paint. */
-      agendaPhase: 'charge' as MarkerPhaseName,
-      /** The real disc that has just been locked in — its one-shot settle (cleared by the animation's own end). */
-      agendaSettle: undefined as {color: Color, step: number} | undefined,
-      /** The real cube the gliding proxy stands in for at its DESTINATION — hidden until the lock. */
-      agendaHidden: undefined as {color: Color, step: number} | undefined,
-      /** The real cube the proxy LIFTED OFF (the held marker on its old step) — hidden from the launch. */
-      agendaLifted: undefined as {color: Color, step: number} | undefined,
-      agendaGlide: undefined as HydroMarkerDirectorHandle | undefined,
-      /** The phrase over the legs (the order and the waits) — one per walk. */
-      agendaWalk: undefined as AgendaWalkHandle | undefined,
-      agendaGlideHold: undefined as AnimationHold | undefined,
-      /** The running walk's hold budget (re-armed after a card step's take, which the hold stands down for). */
-      agendaGlideHoldMs: 0,
-      /** The running walk's LAST step — where the ceiling's recovery (`finishAgendaGlide`) sets the marker down. */
-      agendaGlideStep: 0,
-      /** The caller's «the marker has settled» callback of the running glide (fired once, on every ending). */
-      onGlideLanded: undefined as (() => void) | undefined,
+      ...step,
+      cubes,
+      viewerHere: mine ? step.index === position : step.viewerHere,
+      viewerNext: mine ? step.index === next : step.viewerNext,
     };
-  },
-  computed: {
-    flow() {
-      return parliamentFlow;
-    },
-    /** A card step's take is in the PLAYER's hands (the viewer waits for «Взять») — the walk's animation holds stand down. */
-    walkAwaitingCard(): boolean {
-      return agendaWalkMotion.awaitingCard !== undefined;
-    },
-    /** The server's record of the LAST Agenda advance (its serial) — a live change plays the marker's move. */
-    lastAdvanceSeq(): number {
-      return this.model?.lastAdvance?.seq ?? 0;
-    },
-    /**
-     * THE TRACK AS SHOWN: the live reading — or, while a hold stands, every held
-     * marker on its OLD step and (for the viewer) the OLD influence and level;
-     * the glide is what moves them. The holds COMPOSE, in the order the server
-     * walked them backwards: the steps of the Career a LAW granted the seats
-     * first (`agendaGrantAwaits` — several seats at once, Reds Budget), then the
-     * ONE walk in hand (`agendaAwaits` — the winner's step, a quest's, a card's,
-     * or the law's walk the sitting is playing now): the winner's law step starts
-     * where its winner's step ends, so the cube is carried back over both.
-     */
-    /**
-     * THE SEATS' NESTS (P70 · K1): every seat that stands on the track, in the table's seat order — a constant list, so a
-     * seat's marker always takes the same nest inside a place (the support areas' slots are the same idea). A colour
-     * the seat list does not name (never expected) is appended, so no marker is ever dropped.
-     */
-    seatOrder(): ReadonlyArray<Color> {
-      const on = new Set<Color>([...this.shown.start, ...this.shown.steps.flatMap((step) => step.cubes)]);
-      const ordered = this.players.map((p) => p.color).filter((color) => on.has(color));
-      return [...ordered, ...[...on].filter((color) => !ordered.includes(color))];
-    },
-    shown(): AgendaVm {
-      const holds = [...parliamentHolds.agendaGrantAwaits.values()];
-      if (parliamentHolds.agendaAwaits !== undefined) {
-        holds.push(parliamentHolds.agendaAwaits);
+  });
+  const start = hold.from === 0 && !vm.start.includes(hold.player) ? [...vm.start, hold.player] : vm.start;
+  return {
+    ...vm,
+    steps,
+    start,
+    viewerPosition: position,
+    viewerInfluence: mine ? Math.max(0, vm.viewerInfluence - levelDelta) : vm.viewerInfluence,
+    viewerLevel: mine ? influenceAtAgenda(hold.from) : vm.viewerLevel,
+    // The bonus beyond the Career is not a step: a held walk carries the level and the total back, never the bonus.
+    viewerReading: mine ? {...vm.viewerReading, total: Math.max(0, vm.viewerInfluence - levelDelta), track: influenceAtAgenda(hold.from)} : vm.viewerReading,
+    nextStep: mine ? (next === undefined ? undefined : AGENDA_TRACK[next - 1]) : vm.nextStep,
+  };
+}
+/** A real cube is hidden while a proxy stands for it — lifted off its old step, or not yet locked onto its new one. */
+function cubeHidden(color: Color, step: number): boolean {
+  const hidden = agendaHidden.value;
+  const lifted = agendaLifted.value;
+  return (hidden !== undefined && hidden.step === step && hidden.color === color) ||
+    (lifted !== undefined && lifted.step === step && lifted.color === color);
+}
+/** The steps the marker is CROSSING light as a segment (the sitting's ПОВЕСТКА beat). */
+function segmentLit(step: number): boolean {
+  const seg = sittingMotion.agendaSegment;
+  return seg !== undefined && step > seg.from && step <= seg.to;
+}
+/**
+ * THE WALK — the marker takes the record's steps ONE AT A TIME along the
+ * track, the ONE phrase of the track's three engines (`agendaWalkDirector`
+ * owns the order and the waits). This component owns the DOM half: the
+ * proxy cube (body-level, one for the whole walk), the rows' rects, the
+ * real cubes hidden under the proxy, the HOLD moved step by step — so
+ * `shown` draws the marker on the step it has reached and the influence
+ * at that step's level, and the tick on the last landing is the hold's
+ * own release — and the node's bloom at every landing.
+ *
+ * With a HOLD on the walk (`agendaAwaits` — seeded by the sitting, the
+ * quest or a card's play) the real cube still stands on the old step: the
+ * proxy is born exactly over it and the cube hides under it. Without a
+ * hold (a rival's walk seen live) the old cube is gone already and its
+ * rect is rebuilt from the old step's marker row. The marker CHARGES on
+ * the first leg only — after that it is in hand: lift → glide → lock →
+ * pulse, per leg. An intermediate step's reward is the caller's
+ * (`rewardStep`; the tier's own watcher delivers the ledger's default) and
+ * the next leg waits for it to LAND; the LAST step's reward follows
+ * `onLanded`, after the proxy has crossfaded onto the real cube. While it
+ * moves, the card-bonus scene of an Agenda card reward waits
+ * (`agendaSettling`). Bounded by the director's own safeties and an
+ * animation hold sized to the walk.
+ */
+function playAgendaWalk(record: AgendaWalkRecordLike, opts?: {
+  rewardStep?: (leg: AgendaWalkLeg, done: () => void) => void,
+  onStep?: (leg: AgendaWalkLeg) => void,
+  onLanded?: () => void,
+  /** The clock of the phrase's waits — a director's «дожать»-able one, or the motion clock. */
+  beat?: AgendaWalkBeatScheduler,
+}): void {
+  const root = parliamentRootEl();
+  const legs = agendaWalkPlan(record);
+  if (root === undefined || typeof window === 'undefined' || legs.length === 0) {
+    parliamentHolds.agendaAwaits = undefined;
+    pulseAgendaStep(record.to);
+    opts?.onLanded?.();
+    return;
+  }
+  // A WALK DISPLACED BY THIS ONE STILL LANDS FOR ITS OWNER: `stopAgendaGlide` kills its director, whose `skip`
+  // calls no hook — and the flow waiting on it (the chairmanship's ПОВЕСТКА, a card's walk) stood on its beat for
+  // good while a rival's advance, arriving over the socket in the window after its hold let go, glided another
+  // marker. Its marker now reads the model (the hold is gone); its owner continues from the landing.
+  const displaced = onGlideLanded;
+  onGlideLanded = undefined;
+  stopAgendaGlide();
+  displaced?.();
+  let landedFired = false;
+  const landed = () => {
+    if (!landedFired) {
+      landedFired = true;
+      opts?.onLanded?.();
+    }
+  };
+  onGlideLanded = landed;
+  const color = record.player;
+  const hold = parliamentHolds.agendaAwaits;
+  const held = hold !== undefined && hold.player === color && hold.from === record.from && hold.to === record.to;
+  agendaHidden.value = {color, step: record.to};
+  agendaFlight.value = {color};
+  agendaPhase.value = 'charge';
+  consoleParliamentUi.agendaSettling = true;
+  agendaGlideHoldMs.value = agendaWalkHoldMs(record);
+  agendaGlideStep.value = record.to;
+  raiseAgendaGlideHold();
+  const reduced = consoleReducedMotionActive();
+  const rewardStep = opts?.rewardStep ?? ((leg: AgendaWalkLeg, done: () => void) => deliverAgendaStepReward(root, undefined, leg.to, done));
+  const cubeRect = (step: number): DOMRect | undefined => {
+    const r = root.querySelector<HTMLElement>(`[data-agenda-markers="${step}"] [data-agenda-cube="${color}"]`)?.getBoundingClientRect();
+    return r !== undefined && r.width >= 2 ? r : undefined;
+  };
+  // THE STAGE'S GEOMETRY is read when the first leg LEAVES — after the lead, by which time the proxy and the
+  // hidden cube have been flushed. The lead's clock starts NOW, in parallel with that render, exactly as the
+  // sitting's lead ran on its master while the tier flushed: waiting for the flush FIRST serialized the two
+  // and cost the ПОВЕСТКА beat ~60 ms against the v4 window (measured, `console-parliament-sitting-v4`).
+  let geometry: {proxy: HTMLElement, size: DOMRect} | undefined;
+  const stageGeometry = (): {proxy: HTMLElement, size: DOMRect} | undefined => {
+    if (geometry === undefined) {
+      const proxy = agendaFlightEl.value ?? undefined;
+      // The cube's own size: the held cube on the old step, the drawn cube on the new one, else any cube on the track.
+      const anyCube = root.querySelector<HTMLElement>('[data-agenda-cube]')?.getBoundingClientRect();
+      const size = cubeRect(record.from) ?? cubeRect(record.to) ?? (anyCube !== undefined && anyCube.width >= 2 ? anyCube : undefined);
+      if (proxy !== undefined && size !== undefined) {
+        geometry = {proxy, size};
       }
-      return holds.reduce((vm, hold) => this.heldAgendaVm(vm, hold), this.agendaVm);
+    }
+    return geometry;
+  };
+  // A step's marker ROW centre at the cube's own size (the held marker is not drawn there yet).
+  const rowRect = (step: number, size: DOMRect): DOMRect | undefined => {
+    const row = root.querySelector<HTMLElement>(`[data-agenda-markers="${step}"]`)?.getBoundingClientRect();
+    return row === undefined ? undefined :
+      new DOMRect(row.left + row.width / 2 - size.width / 2, row.top + row.height / 2 - size.height / 2, size.width, size.height);
+  };
+  const walk = runAgendaWalk(record, {
+    onLead: (leg) => {
+      sittingMotion.agendaSegment = {player: color, from: leg.from, to: leg.to};
     },
-    /**
-     * THE INFLUENCE BAND (Парламент v8): the track's influence steps cut it into five spans — a span runs from its
-     * ★ step to the step before the next ★ — and the span the viewer's marker stands in is ringed. Derived from
-     * `AGENDA_TRACK` alone, so a reworked track re-draws its band by itself.
-     */
-    /**
-     * THE BONUS THE VIEWER KEEPS BEYOND THE CAREER (Event Analysts and its kin — `influenceReading.ts`): the same at
-     * every step, so the track's coins and spans print the FINAL influence the viewer votes with there. 0 for a seat that
-     * is not on the track (the track then reads its own levels).
-     */
-    influenceBuff(): number {
-      return this.viewerParticipates ? Math.max(0, this.shown.viewerReading.bonus) : 0;
-    },
-    influenceBands(): ReadonlyArray<{level: number, from: number, to: number, mine: boolean}> {
-      const marks: Array<{level: number, at: number}> = [];
-      AGENDA_TRACK.forEach((step, i) => {
-        if (step.kind === 'influence') {
-          marks.push({level: step.influence, at: i + 1});
+    glide: (leg, onLocked) => {
+      const stage = stageGeometry();
+      if (stage === undefined) {
+        finishAgendaGlide(record.to);
+        return;
+      }
+      const {proxy, size} = stage;
+      const from = (leg.index === 0 && held ? cubeRect(leg.from) : undefined) ?? rowRect(leg.from, size);
+      const to = cubeRect(leg.to) ?? rowRect(leg.to, size);
+      if (from === undefined || to === undefined || to.width < 2) {
+        finishAgendaGlide(record.to);
+        return;
+      }
+      if (leg.index === 0) {
+        if (held) {
+          // The real cube on the old step hides under the proxy born over it — the director places the proxy
+          // on the same tick, so the cube is never seen twice and never gone.
+          agendaLifted.value = {color, step: record.from};
         }
+      } else {
+        // The cube drawn on the step just reached hides under the leaving proxy.
+        agendaLifted.value = {color, step: leg.from};
+      }
+      const handle = runHydroMarkerGlide({
+        marker: proxy,
+        from,
+        to,
+        reduced,
+        skipCharge: !leg.charge,
+        onPhase: (phase) => {
+          agendaPhase.value = phase;
+        },
       });
-      const level = this.viewerParticipates ? this.shown.viewerLevel : -1;
-      // The START cell's span (level 0 — no ★ reached yet): the band covers the whole instrument.
-      return [{level: 0, from: 0, to: 0, mine: level === 0}, ...marks.map((mark, i) => ({
-        level: mark.level,
-        from: mark.at,
-        to: i + 1 < marks.length ? marks[i + 1].at - 1 : AGENDA_TRACK.length,
-        mine: level === mark.level,
-      }))];
-    },
-  },
-  watch: {
-    /**
-     * A CARD STEP'S TAKE (TR37): the cover is off the node and the card is the
-     * player's to take — nothing the walk owns is moving, so its glide hold
-     * stands DOWN for the length of the take (a ceiling over a player's reading
-     * would fire as a «leaked hold») and stands UP again, with the walk's own
-     * budget, the moment the card has landed and the next leg is due.
-     */
-    walkAwaitingCard(waiting: boolean): void {
-      if (this.agendaWalk === undefined || !this.agendaWalk.active()) {
-        return;
-      }
-      if (waiting) {
-        this.agendaGlideHold?.release();
-        this.agendaGlideHold = undefined;
-      } else if (this.agendaGlideHold === undefined) {
-        this.raiseAgendaGlideHold();
-      }
-    },
-    /**
-     * AN AGENDA ADVANCE, LIVE: the marker walks from the step it left to the
-     * step it reached — one leg per recorded step (a rival's card walks it
-     * two, TR04) — each step pulses, the reward follows (the influence tick,
-     * the TR chip, a card cover lifting off the step — the board card-bonus
-     * scene, which waits for the marker to settle). A mount or a reload never
-     * replays it: only a change seen while on screen moves. The sitting's own
-     * move is the director's (its beat calls `playAgendaWalk` over the held
-     * marker), «ПРЕДСЕДАТЕЛЬСТВО»'s and a card's walk HOSTED by the hand are
-     * their flows' — never played twice: a standing hold means a flow owns
-     * the move. The one exception is the viewer's own card walk while the
-     * Parliament stands ON ITS OWN (no hand to host the pose): the hold was
-     * seeded for THIS tier, so the tier plays it, rewards and all.
-     */
-    lastAdvanceSeq(now: number, was: number): void {
-      const advance = this.model?.lastAdvance;
-      if (now <= was || advance === undefined || this.handedOver) {
-        return;
-      }
-      // A LAW's walks (`resolution` — Reds Budget) are the sitting's records, seat by seat: `lastAdvance` is only the last
-      // of them, and playing it here would walk ONE marker a second time (the sitting's КАРЬЕРА beat plays them all).
-      if (parliamentFlow.stage === 'sitting' || advance.reason === 'phase' || advance.reason === 'resolution') {
-        return;
-      }
-      // «САНКЦИИ» (TR12): the support-area mode plays the card's step ITSELF, after the area's cubes have left — the
-      // printed order (the discard, then the step) on one pose; a walk started here would race the discard.
-      if (parliamentSupportUp()) {
-        return;
-      }
-      const record: AgendaWalkRecordLike = {player: advance.player, from: advance.from, to: advance.to, steps: advance.steps};
-      const owed = agendaWalkFlow.owed;
-      if (parliamentHolds.agendaAwaits !== undefined) {
-        if (advance.reason !== 'card' || owed === undefined || owed.host !== 'parliament' || owed.seq !== advance.seq || agendaWalkFlow.live) {
+      // The director's callbacks compare identities (`agendaGlide === handle`): the handle is a plain variable, never a
+      // reactive proxy (`markRaw` is inert on it and stays as written).
+      agendaGlide = markRaw(handle);
+      handle.lock(() => {
+        if (agendaGlide !== handle) {
           return;
         }
-        agendaWalkFlow.live = true;
-        agendaWalkFlow.beat = 'walk';
-        void this.playAgendaWalk(record, {
-          onStep: (leg) => agendaWalkFlow.landed.push(leg.step),
-          onLanded: () => {
-            const root = parliamentRootEl();
-            const finish = () => releaseAgendaWalkHolds('landed');
-            if (root === undefined) {
-              finish();
-            } else {
-              deliverAgendaStepReward(root, owed.generation, record.to, finish);
-            }
-          },
-        });
+        sittingMotion.agendaSegment = undefined;
+        if (leg.last) {
+          // The marker has arrived: the hold lets go (the real cube renders on the new step, under the proxy).
+          parliamentHolds.agendaAwaits = undefined;
+          agendaLifted.value = undefined;
+          agendaHidden.value = undefined;
+          if (!reduced) {
+            agendaSettle.value = {color, step: leg.to};
+          }
+        } else {
+          // The marker STANDS on this step now: the hold moves with it — the tier draws the cube here and reads
+          // the influence at this step's level — while the proxy still covers it until the next leg lifts.
+          parliamentHolds.agendaAwaits = held ? {player: color, from: leg.to, to: record.to} : undefined;
+          agendaLifted.value = undefined;
+        }
+        pulseAgendaStep(leg.to);
+        onLocked();
+      });
+    },
+    release: (onGone) => {
+      const handle = agendaGlide;
+      if (handle === undefined) {
+        finishAgendaGlide(record.to);
+        onGone();
         return;
       }
-      void this.playAgendaWalk(record);
-    },
-  },
-  beforeUnmount() {
-    this.stopAgendaGlide();
-  },
-  methods: {
-    /** The influence the viewer votes with inside a span: their own span the server's total, any other its level + the bonus. */
-    bandInfluence(band: {level: number, mine: boolean}): number {
-      return band.mine ? this.shown.viewerInfluence : band.level + this.influenceBuff;
-    },
-    /** A disc's paint: the owner's colour, the viewer's accent glow, the settle of a disc just locked in. */
-    dotClass(color: Color, step: number): Array<string | Record<string, boolean>> {
-      return ['player_bg_color_' + color, {
-        'con-parl__agenda-dot--viewer': color === this.viewerColor,
-        'con-parl__agenda-dot--settle': this.agendaSettle !== undefined && this.agendaSettle.color === color && this.agendaSettle.step === step,
-      }];
-    },
-    onDotSettleEnd(event: AnimationEvent, color: Color, step: number): void {
-      if (event.animationName === 'con-track-marker-settle' && this.agendaSettle?.color === color && this.agendaSettle.step === step) {
-        this.agendaSettle = undefined;
-      }
-    },
-    /** ONE held walk applied to a reading: the seat's cube carried back to `from`, the viewer's own influence and level with it. */
-    heldAgendaVm(vm: AgendaVm, hold: AgendaAwaits): AgendaVm {
-      const viewer = this.view.viewer;
-      const mine = viewer !== undefined && viewer.participates && viewer.color === hold.player;
-      const position = mine ? hold.from : vm.viewerPosition;
-      const next = mine ? (hold.from < AGENDA_TRACK.length ? hold.from + 1 : undefined) : undefined;
-      const levelDelta = mine ? influenceAtAgenda(hold.to) - influenceAtAgenda(hold.from) : 0;
-      const steps = vm.steps.map((step) => {
-        let cubes = step.cubes;
-        if (step.index === hold.to) {
-          cubes = cubes.filter((color) => color !== hold.player);
+      handle.release(() => {
+        if (agendaGlide === handle) {
+          finishAgendaGlide(record.to);
         }
-        if (step.index === hold.from && !cubes.includes(hold.player)) {
-          cubes = [...cubes, hold.player];
-        }
-        return {
-          ...step,
-          cubes,
-          viewerHere: mine ? step.index === position : step.viewerHere,
-          viewerNext: mine ? step.index === next : step.viewerNext,
-        };
+        onGone();
       });
-      const start = hold.from === 0 && !vm.start.includes(hold.player) ? [...vm.start, hold.player] : vm.start;
-      return {
-        ...vm,
-        steps,
-        start,
-        viewerPosition: position,
-        viewerInfluence: mine ? Math.max(0, vm.viewerInfluence - levelDelta) : vm.viewerInfluence,
-        viewerLevel: mine ? influenceAtAgenda(hold.from) : vm.viewerLevel,
-        // The bonus beyond the Career is not a step: a held walk carries the level and the total back, never the bonus.
-        viewerReading: mine ? {...vm.viewerReading, total: Math.max(0, vm.viewerInfluence - levelDelta), track: influenceAtAgenda(hold.from)} : vm.viewerReading,
-        nextStep: mine ? (next === undefined ? undefined : AGENDA_TRACK[next - 1]) : vm.nextStep,
-      };
     },
-    /** A real cube is hidden while a proxy stands for it — lifted off its old step, or not yet locked onto its new one. */
-    cubeHidden(color: Color, step: number): boolean {
-      const hidden = this.agendaHidden;
-      const lifted = this.agendaLifted;
-      return (hidden !== undefined && hidden.step === step && hidden.color === color) ||
-        (lifted !== undefined && lifted.step === step && lifted.color === color);
-    },
-    /** The steps the marker is CROSSING light as a segment (the sitting's ПОВЕСТКА beat). */
-    segmentLit(step: number): boolean {
-      const seg = sittingMotion.agendaSegment;
-      return seg !== undefined && step > seg.from && step <= seg.to;
-    },
-    /**
-     * THE WALK — the marker takes the record's steps ONE AT A TIME along the
-     * track, the ONE phrase of the track's three engines (`agendaWalkDirector`
-     * owns the order and the waits). This component owns the DOM half: the
-     * proxy cube (body-level, one for the whole walk), the rows' rects, the
-     * real cubes hidden under the proxy, the HOLD moved step by step — so
-     * `shown` draws the marker on the step it has reached and the influence
-     * at that step's level, and the tick on the last landing is the hold's
-     * own release — and the node's bloom at every landing.
-     *
-     * With a HOLD on the walk (`agendaAwaits` — seeded by the sitting, the
-     * quest or a card's play) the real cube still stands on the old step: the
-     * proxy is born exactly over it and the cube hides under it. Without a
-     * hold (a rival's walk seen live) the old cube is gone already and its
-     * rect is rebuilt from the old step's marker row. The marker CHARGES on
-     * the first leg only — after that it is in hand: lift → glide → lock →
-     * pulse, per leg. An intermediate step's reward is the caller's
-     * (`rewardStep`; the tier's own watcher delivers the ledger's default) and
-     * the next leg waits for it to LAND; the LAST step's reward follows
-     * `onLanded`, after the proxy has crossfaded onto the real cube. While it
-     * moves, the card-bonus scene of an Agenda card reward waits
-     * (`agendaSettling`). Bounded by the director's own safeties and an
-     * animation hold sized to the walk.
-     */
-    playAgendaWalk(record: AgendaWalkRecordLike, opts?: {
-      rewardStep?: (leg: AgendaWalkLeg, done: () => void) => void,
-      onStep?: (leg: AgendaWalkLeg) => void,
-      onLanded?: () => void,
-      /** The clock of the phrase's waits — a director's «дожать»-able one, or the motion clock. */
-      beat?: AgendaWalkBeatScheduler,
-    }): void {
-      const root = parliamentRootEl();
-      const legs = agendaWalkPlan(record);
-      if (root === undefined || typeof window === 'undefined' || legs.length === 0) {
-        parliamentHolds.agendaAwaits = undefined;
-        this.pulseAgendaStep(record.to);
-        opts?.onLanded?.();
+    rewardStep,
+    onStep: opts?.onStep,
+    onLanded: () => landed(),
+    beat: opts?.beat,
+  });
+  agendaWalk = markRaw(walk);
+}
+/**
+ * The walk's hold, sized to the walk. ITS CEILING ENDS THE WALK, not only its count: the marker is set down on the
+ * walk's last step and its owner's continuation runs (`finishAgendaGlide` — the same ending an unmeasurable leg
+ * takes), so a flow waiting on the landing (the chairmanship's ПОВЕСТКА, a card's step) never stands on its beat.
+ */
+function raiseAgendaGlideHold(): void {
+  const hold = beginAnimationHold('parliament-agenda-glide', {
+    maxHoldMs: agendaGlideHoldMs.value,
+    expire: () => {
+      // Only the hold of THIS walk: a newer walk (or the take of a card step, which stood it down and up) owns its own.
+      if (agendaGlideHold !== hold) {
         return;
       }
-      // A WALK DISPLACED BY THIS ONE STILL LANDS FOR ITS OWNER: `stopAgendaGlide` kills its director, whose `skip`
-      // calls no hook — and the flow waiting on it (the chairmanship's ПОВЕСТКА, a card's walk) stood on its beat for
-      // good while a rival's advance, arriving over the socket in the window after its hold let go, glided another
-      // marker. Its marker now reads the model (the hold is gone); its owner continues from the landing.
-      const displaced = this.onGlideLanded;
-      this.onGlideLanded = undefined;
-      this.stopAgendaGlide();
-      displaced?.();
-      let landedFired = false;
-      const landed = () => {
-        if (!landedFired) {
-          landedFired = true;
-          opts?.onLanded?.();
-        }
-      };
-      this.onGlideLanded = landed;
-      const color = record.player;
-      const hold = parliamentHolds.agendaAwaits;
-      const held = hold !== undefined && hold.player === color && hold.from === record.from && hold.to === record.to;
-      this.agendaHidden = {color, step: record.to};
-      this.agendaFlight = {color};
-      this.agendaPhase = 'charge';
-      consoleParliamentUi.agendaSettling = true;
-      this.agendaGlideHoldMs = agendaWalkHoldMs(record);
-      this.agendaGlideStep = record.to;
-      this.raiseAgendaGlideHold();
-      const reduced = consoleReducedMotionActive();
-      const rewardStep = opts?.rewardStep ?? ((leg: AgendaWalkLeg, done: () => void) => deliverAgendaStepReward(root, undefined, leg.to, done));
-      const cubeRect = (step: number): DOMRect | undefined => {
-        const r = root.querySelector<HTMLElement>(`[data-agenda-markers="${step}"] [data-agenda-cube="${color}"]`)?.getBoundingClientRect();
-        return r !== undefined && r.width >= 2 ? r : undefined;
-      };
-      // THE STAGE'S GEOMETRY is read when the first leg LEAVES — after the lead, by which time the proxy and the
-      // hidden cube have been flushed. The lead's clock starts NOW, in parallel with that render, exactly as the
-      // sitting's lead ran on its master while the tier flushed: waiting for the flush FIRST serialized the two
-      // and cost the ПОВЕСТКА beat ~60 ms against the v4 window (measured, `console-parliament-sitting-v4`).
-      let geometry: {proxy: HTMLElement, size: DOMRect} | undefined;
-      const stageGeometry = (): {proxy: HTMLElement, size: DOMRect} | undefined => {
-        if (geometry === undefined) {
-          const proxy = (this.$refs.agendaFlightEl ?? undefined) as HTMLElement | undefined;
-          // The cube's own size: the held cube on the old step, the drawn cube on the new one, else any cube on the track.
-          const anyCube = root.querySelector<HTMLElement>('[data-agenda-cube]')?.getBoundingClientRect();
-          const size = cubeRect(record.from) ?? cubeRect(record.to) ?? (anyCube !== undefined && anyCube.width >= 2 ? anyCube : undefined);
-          if (proxy !== undefined && size !== undefined) {
-            geometry = {proxy, size};
-          }
-        }
-        return geometry;
-      };
-      // A step's marker ROW centre at the cube's own size (the held marker is not drawn there yet).
-      const rowRect = (step: number, size: DOMRect): DOMRect | undefined => {
-        const row = root.querySelector<HTMLElement>(`[data-agenda-markers="${step}"]`)?.getBoundingClientRect();
-        return row === undefined ? undefined :
-          new DOMRect(row.left + row.width / 2 - size.width / 2, row.top + row.height / 2 - size.height / 2, size.width, size.height);
-      };
-      const walk = runAgendaWalk(record, {
-        onLead: (leg) => {
-          sittingMotion.agendaSegment = {player: color, from: leg.from, to: leg.to};
-        },
-        glide: (leg, onLocked) => {
-          const stage = stageGeometry();
-          if (stage === undefined) {
-            this.finishAgendaGlide(record.to);
-            return;
-          }
-          const {proxy, size} = stage;
-          const from = (leg.index === 0 && held ? cubeRect(leg.from) : undefined) ?? rowRect(leg.from, size);
-          const to = cubeRect(leg.to) ?? rowRect(leg.to, size);
-          if (from === undefined || to === undefined || to.width < 2) {
-            this.finishAgendaGlide(record.to);
-            return;
-          }
-          if (leg.index === 0) {
-            if (held) {
-              // The real cube on the old step hides under the proxy born over it — the director places the proxy
-              // on the same tick, so the cube is never seen twice and never gone.
-              this.agendaLifted = {color, step: record.from};
-            }
-          } else {
-            // The cube drawn on the step just reached hides under the leaving proxy.
-            this.agendaLifted = {color, step: leg.from};
-          }
-          const handle = runHydroMarkerGlide({
-            marker: proxy,
-            from,
-            to,
-            reduced,
-            skipCharge: !leg.charge,
-            onPhase: (phase) => {
-              this.agendaPhase = phase;
-            },
-          });
-          // RAW on purpose: the director's callbacks compare identities (`this.agendaGlide === handle`) — a reactive proxy never equals its raw object.
-          this.agendaGlide = markRaw(handle);
-          handle.lock(() => {
-            if (this.agendaGlide !== handle) {
-              return;
-            }
-            sittingMotion.agendaSegment = undefined;
-            if (leg.last) {
-              // The marker has arrived: the hold lets go (the real cube renders on the new step, under the proxy).
-              parliamentHolds.agendaAwaits = undefined;
-              this.agendaLifted = undefined;
-              this.agendaHidden = undefined;
-              if (!reduced) {
-                this.agendaSettle = {color, step: leg.to};
-              }
-            } else {
-              // The marker STANDS on this step now: the hold moves with it — the tier draws the cube here and reads
-              // the influence at this step's level — while the proxy still covers it until the next leg lifts.
-              parliamentHolds.agendaAwaits = held ? {player: color, from: leg.to, to: record.to} : undefined;
-              this.agendaLifted = undefined;
-            }
-            this.pulseAgendaStep(leg.to);
-            onLocked();
-          });
-        },
-        release: (onGone) => {
-          const handle = this.agendaGlide;
-          if (handle === undefined) {
-            this.finishAgendaGlide(record.to);
-            onGone();
-            return;
-          }
-          handle.release(() => {
-            if (this.agendaGlide === handle) {
-              this.finishAgendaGlide(record.to);
-            }
-            onGone();
-          });
-        },
-        rewardStep,
-        onStep: opts?.onStep,
-        onLanded: () => landed(),
-        beat: opts?.beat,
-      });
-      this.agendaWalk = markRaw(walk);
+      console.warn(`[parliament] agenda glide to step ${agendaGlideStep.value}: outlived its ceiling — ended`);
+      // The leg in the air is torn down (its lock would answer a walk that is over), then the walk ends by its hand.
+      const glide = agendaGlide;
+      agendaGlide = undefined;
+      glide?.skip();
+      finishAgendaGlide(agendaGlideStep.value);
     },
-    /**
-     * The walk's hold, sized to the walk. ITS CEILING ENDS THE WALK, not only its count: the marker is set down on the
-     * walk's last step and its owner's continuation runs (`finishAgendaGlide` — the same ending an unmeasurable leg
-     * takes), so a flow waiting on the landing (the chairmanship's ПОВЕСТКА, a card's step) never stands on its beat.
-     */
-    raiseAgendaGlideHold(): void {
-      const hold = beginAnimationHold('parliament-agenda-glide', {
-        maxHoldMs: this.agendaGlideHoldMs,
-        expire: () => {
-          // Only the hold of THIS walk: a newer walk (or the take of a card step, which stood it down and up) owns its own.
-          if (this.agendaGlideHold !== hold) {
-            return;
-          }
-          console.warn(`[parliament] agenda glide to step ${this.agendaGlideStep}: outlived its ceiling — ended`);
-          // The leg in the air is torn down (its lock would answer a walk that is over), then the walk ends by its hand.
-          const glide = this.agendaGlide;
-          this.agendaGlide = undefined;
-          glide?.skip();
-          this.finishAgendaGlide(this.agendaGlideStep);
-        },
-      });
-      // RAW on purpose: the expire compares identities — a reactive proxy never equals its raw object.
-      this.agendaGlideHold = markRaw(hold);
-    },
-    finishAgendaGlide(step: number): void {
-      this.agendaWalk?.skip();
-      this.agendaWalk = undefined;
-      this.agendaGlide = undefined;
-      this.agendaFlight = undefined;
-      parliamentHolds.agendaAwaits = undefined;
-      sittingMotion.agendaSegment = undefined;
-      this.agendaLifted = undefined;
-      if (this.agendaHidden !== undefined) {
-        this.agendaHidden = undefined;
-        this.pulseAgendaStep(step);
-      }
-      this.agendaGlideHold?.release();
-      this.agendaGlideHold = undefined;
-      consoleParliamentUi.agendaSettling = false;
-      const landed = this.onGlideLanded;
-      this.onGlideLanded = undefined;
-      landed?.();
-    },
-    stopAgendaGlide(): void {
-      this.agendaWalk?.skip();
-      this.agendaWalk = undefined;
-      const handle = this.agendaGlide;
-      this.agendaGlide = undefined;
-      handle?.skip();
-      sittingMotion.agendaSegment = undefined;
-      this.agendaFlight = undefined;
-      this.agendaHidden = undefined;
-      this.agendaLifted = undefined;
-      this.agendaGlideHold?.release();
-      this.agendaGlideHold = undefined;
-      consoleParliamentUi.agendaSettling = false;
-    },
-    /** The step's node blooms once (a CSS one-shot); the flag is cleared by the animation's own end. */
-    pulseAgendaStep(step: number): void {
-      this.agendaPulseStep = step;
-    },
-    onStepPulseEnd(event: AnimationEvent, step: number): void {
-      if (event.animationName === 'con-parl-node-bloom' && this.agendaPulseStep === step) {
-        this.agendaPulseStep = undefined;
-      }
-    },
-  },
+  });
+  // The expire compares identities: the hold is a plain variable, never a reactive proxy (`markRaw` is inert on it and
+  // stays as written).
+  agendaGlideHold = markRaw(hold);
+}
+function finishAgendaGlide(step: number): void {
+  agendaWalk?.skip();
+  agendaWalk = undefined;
+  agendaGlide = undefined;
+  agendaFlight.value = undefined;
+  parliamentHolds.agendaAwaits = undefined;
+  sittingMotion.agendaSegment = undefined;
+  agendaLifted.value = undefined;
+  if (agendaHidden.value !== undefined) {
+    agendaHidden.value = undefined;
+    pulseAgendaStep(step);
+  }
+  agendaGlideHold?.release();
+  agendaGlideHold = undefined;
+  consoleParliamentUi.agendaSettling = false;
+  const landed = onGlideLanded;
+  onGlideLanded = undefined;
+  landed?.();
+}
+function stopAgendaGlide(): void {
+  agendaWalk?.skip();
+  agendaWalk = undefined;
+  const handle = agendaGlide;
+  agendaGlide = undefined;
+  handle?.skip();
+  sittingMotion.agendaSegment = undefined;
+  agendaFlight.value = undefined;
+  agendaHidden.value = undefined;
+  agendaLifted.value = undefined;
+  agendaGlideHold?.release();
+  agendaGlideHold = undefined;
+  consoleParliamentUi.agendaSettling = false;
+}
+/** The step's node blooms once (a CSS one-shot); the flag is cleared by the animation's own end. */
+function pulseAgendaStep(step: number): void {
+  agendaPulseStep.value = step;
+}
+function onStepPulseEnd(event: AnimationEvent, step: number): void {
+  if (event.animationName === 'con-parl-node-bloom' && agendaPulseStep.value === step) {
+    agendaPulseStep.value = undefined;
+  }
+}
+
+/**
+ * A CARD STEP'S TAKE (TR37): the cover is off the node and the card is the
+ * player's to take — nothing the walk owns is moving, so its glide hold
+ * stands DOWN for the length of the take (a ceiling over a player's reading
+ * would fire as a «leaked hold») and stands UP again, with the walk's own
+ * budget, the moment the card has landed and the next leg is due.
+ */
+watch(() => walkAwaitingCard.value, (waiting: boolean): void => {
+  if (agendaWalk === undefined || !agendaWalk.active()) {
+    return;
+  }
+  if (waiting) {
+    agendaGlideHold?.release();
+    agendaGlideHold = undefined;
+  } else if (agendaGlideHold === undefined) {
+    raiseAgendaGlideHold();
+  }
 });
+/**
+ * AN AGENDA ADVANCE, LIVE: the marker walks from the step it left to the
+ * step it reached — one leg per recorded step (a rival's card walks it
+ * two, TR04) — each step pulses, the reward follows (the influence tick,
+ * the TR chip, a card cover lifting off the step — the board card-bonus
+ * scene, which waits for the marker to settle). A mount or a reload never
+ * replays it: only a change seen while on screen moves. The sitting's own
+ * move is the director's (its beat calls `playAgendaWalk` over the held
+ * marker), «ПРЕДСЕДАТЕЛЬСТВО»'s and a card's walk HOSTED by the hand are
+ * their flows' — never played twice: a standing hold means a flow owns
+ * the move. The one exception is the viewer's own card walk while the
+ * Parliament stands ON ITS OWN (no hand to host the pose): the hold was
+ * seeded for THIS tier, so the tier plays it, rewards and all.
+ */
+watch(() => lastAdvanceSeq.value, (now: number, was: number): void => {
+  const advance = props.model?.lastAdvance;
+  if (now <= was || advance === undefined || props.handedOver) {
+    return;
+  }
+  // A LAW's walks (`resolution` — Reds Budget) are the sitting's records, seat by seat: `lastAdvance` is only the last
+  // of them, and playing it here would walk ONE marker a second time (the sitting's КАРЬЕРА beat plays them all).
+  if (parliamentFlow.stage === 'sitting' || advance.reason === 'phase' || advance.reason === 'resolution') {
+    return;
+  }
+  // «САНКЦИИ» (TR12): the support-area mode plays the card's step ITSELF, after the area's cubes have left — the
+  // printed order (the discard, then the step) on one pose; a walk started here would race the discard.
+  if (parliamentSupportUp()) {
+    return;
+  }
+  const record: AgendaWalkRecordLike = {player: advance.player, from: advance.from, to: advance.to, steps: advance.steps};
+  const owed = agendaWalkFlow.owed;
+  if (parliamentHolds.agendaAwaits !== undefined) {
+    if (advance.reason !== 'card' || owed === undefined || owed.host !== 'parliament' || owed.seq !== advance.seq || agendaWalkFlow.live) {
+      return;
+    }
+    agendaWalkFlow.live = true;
+    agendaWalkFlow.beat = 'walk';
+    void playAgendaWalk(record, {
+      onStep: (leg) => agendaWalkFlow.landed.push(leg.step),
+      onLanded: () => {
+        const root = parliamentRootEl();
+        const finish = () => releaseAgendaWalkHolds('landed');
+        if (root === undefined) {
+          finish();
+        } else {
+          deliverAgendaStepReward(root, owed.generation, record.to, finish);
+        }
+      },
+    });
+    return;
+  }
+  void playAgendaWalk(record);
+});
+
+onBeforeUnmount(() => {
+  stopAgendaGlide();
+});
+defineExpose({playAgendaWalk, stopAgendaGlide});
 </script>
