@@ -1,20 +1,5 @@
 <template>
-  <!-- THE RESOLUTION'S STANDING in the fullscreen viewer's command bar
-       (Turmoil Redux) — two facts, told apart on purpose (one line each):
-         · WHERE THE CARD STANDS: up for the vote (and whether it is winning
-           right now) or enacted;
-         · THE VIEWER'S ACCESS TO ITS PARTY'S EFFECT: a compact indicator of
-           the viewer's OWN delegates toward the threshold (two places, the
-           player's cubes), and one word — held / not held / everyone's.
-       Two delegates grant the PARTY effect; the resolution's own effect
-       needs the enactment, which is why the chip names the party effect and
-       never a bare «effect». Read-only: no focus stop, no verb.
-
-       Each line is ONE grid cell: the live line and, invisible under it, the
-       same line of every other card the viewer pages through (`reserve`). The
-       chip therefore takes the widest REAL variant of this context — paging
-       never resizes it and never moves the verbs beside it. -->
-  <span class="con-rstatus" :data-lifecycle="status.lifecycle" :data-access="accessKindOf(status)" :data-mine="status.access?.mine ?? ''" :data-vote-access="status.access?.unlocksWithVote ? 'unlocks' : undefined">
+  <span class="con-rstatus":data-lifecycle="status.lifecycle" :data-access="accessKindOf(status)" :data-mine="status.access?.mine ?? ''" :data-vote-access="status.access?.unlocksWithVote ? 'unlocks' : undefined">
     <span class="con-rstatus__cell">
       <span v-for="(entry, i) in entries" :key="'life-' + i"
             class="con-rstatus__life"
@@ -55,63 +40,76 @@
   </span>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE RESOLUTION'S STANDING in the fullscreen viewer's command bar
+ * (Turmoil Redux) — two facts, told apart on purpose (one line each):
+ *   · WHERE THE CARD STANDS: up for the vote (and whether it is winning
+ *     right now) or enacted;
+ *   · THE VIEWER'S ACCESS TO ITS PARTY'S EFFECT: a compact indicator of
+ *     the viewer's OWN delegates toward the threshold (two places, the
+ *     player's cubes), and one word — held / not held / everyone's.
+ * Two delegates grant the PARTY effect; the resolution's own effect
+ * needs the enactment, which is why the chip names the party effect and
+ * never a bare «effect». Read-only: no focus stop, no verb.
+ *
+ * Each line is ONE grid cell: the live line and, invisible under it, the
+ * same line of every other card the viewer pages through (`reserve`). The
+ * chip therefore takes the widest REAL variant of this context — paging
+ * never resizes it and never moves the verbs beside it.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleResolutionStatus',
-  components: {PlayerDelegate},
-  props: {
-    status: {type: Object as PropType<ResolutionStatusVm>, required: true},
-    /** The viewer's colour — their own cubes in the places. */
-    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
-    /**
-     * The standing of every OTHER card the viewer pages through — laid out
-     * invisibly under the live lines, so the chip is sized once for the whole
-     * context (never for a variant that cannot occur here).
-     */
-    reserve: {type: Array as PropType<ResolutionStatusVm[]>, default: () => []},
-    /** Print «· Принимается» on the lifecycle line — off while the vote chip beside the status carries the winning state as a fact. */
-    winningTail: {type: Boolean, default: true},
-  },
-  computed: {
-    /** The live standing first, then the reserve. */
-    entries(): ReadonlyArray<ResolutionStatusVm> {
-      return [this.status, ...this.reserve];
-    },
-    figurePx(): number {
-      return delegateFigurePx(18);
-    },
-  },
-  methods: {
-    accessKindOf(status: ResolutionStatusVm): string {
-      return status.access?.kind ?? 'none';
-    },
-    accessTextOf(status: ResolutionStatusVm): string {
-      switch (status.access?.kind) {
-      case 'everyone': return translateText('for every player');
-      case 'held': return translateText('available to you');
-      default: return translateText('not available to you');
-      }
-    },
-    /** The live basis of a held effect — one short tail, only where it is not the places themselves. */
-    basisTextOf(status: ResolutionStatusVm): string | undefined {
-      const access = status.access;
-      if (access === undefined || access.kind !== 'held') {
-        return undefined;
-      }
-      switch (access.basis) {
-      case 'ruling': return translateText('the party rules');
-      case 'granted': return translateText('granted by a card');
-      case 'alliance': return translateText('by the alliance');
-      default: return undefined;
-      }
-    },
-  },
+defineOptions({name: 'ConsoleResolutionStatus'});
+const props = defineProps({
+  status: {type: Object as PropType<ResolutionStatusVm>, required: true},
+  /** The viewer's colour — their own cubes in the places. */
+  viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+  /**
+   * The standing of every OTHER card the viewer pages through — laid out
+   * invisibly under the live lines, so the chip is sized once for the whole
+   * context (never for a variant that cannot occur here).
+   */
+  reserve: {type: Array as PropType<ResolutionStatusVm[]>, default: () => []},
+  /** Print «· Принимается» on the lifecycle line — off while the vote chip beside the status carries the winning state as a fact. */
+  winningTail: {type: Boolean, default: true},
 });
+
+/** The live standing first, then the reserve. */
+const entries = computed((): ReadonlyArray<ResolutionStatusVm> => {
+  return [props.status, ...props.reserve];
+});
+const figurePx = computed((): number => {
+  return delegateFigurePx(18);
+});
+function accessKindOf(status: ResolutionStatusVm): string {
+  return status.access?.kind ?? 'none';
+}
+function accessTextOf(status: ResolutionStatusVm): string {
+  switch (status.access?.kind) {
+  case 'everyone': return translateText('for every player');
+  case 'held': return translateText('available to you');
+  default: return translateText('not available to you');
+  }
+}
+/** The live basis of a held effect — one short tail, only where it is not the places themselves. */
+function basisTextOf(status: ResolutionStatusVm): string | undefined {
+  const access = status.access;
+  if (access === undefined || access.kind !== 'held') {
+    return undefined;
+  }
+  switch (access.basis) {
+  case 'ruling': return translateText('the party rules');
+  case 'granted': return translateText('granted by a card');
+  case 'alliance': return translateText('by the alliance');
+  default: return undefined;
+  }
+}
 </script>
