@@ -43,7 +43,8 @@ import {Color} from '@/common/Color';
 import {colonyCityState, registerColonyCityStage} from '@/client/console/colonyCity/consoleColonyCity';
 import {ColonyCityStageEls} from '@/client/console/colonyCity/colonyCityDirector';
 import {ColonyBuildStageEls} from '@/client/console/colonyBuild/colonyBuildDirector';
-import ConsoleTileProxy, {tileProxyEls} from '@/client/components/console/tilePlacement/ConsoleTileProxy.vue';
+import ConsoleTileProxy from '@/client/components/console/tilePlacement/ConsoleTileProxy.vue';
+import {tileProxyEls} from '@/client/components/console/tilePlacement/consoleTileProxyModel';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 
 defineOptions({name: 'ConsoleColonyCityLayer'});
