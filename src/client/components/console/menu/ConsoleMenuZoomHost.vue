@@ -1,27 +1,4 @@
 <template>
-  <!--
-    PRE-GAME FULLSCREEN CARD VIEWER HOST — the App-level twin of the
-    ConsoleShell zoom host, for the console screens that live OUTSIDE a game
-    (main menu, create game, the campaign map). ONE module state drives both:
-    a pre-game surface calls `openConsoleCardZoom(...)` exactly like an
-    in-game one, and whichever host is mounted serves it — the shell in-game,
-    this component everywhere else (never both: App mounts this only off the
-    player screen). Presentation, choreography and input are the shell's,
-    subsetted to what pre-game contexts attach: the select bridge, browsing,
-    the rules side panel, the context caption. The receive/swap/inspect/
-    availability bridges are in-game-only and are never attached here.
-
-    The OPEN is PROXY-FIRST (consoleZoomMotion): the landing is measured on
-    the still-closed dialog, the premium lift flies the proxy from the source
-    slot (ZoomOrigin), and `showModal()` fires only at touchdown — the same
-    compositor-safe shape as in-game. The source slot is HELD empty while its
-    card is "in the player's hands" (one visual owner), and the close flies
-    the card back into the slot of the card currently on screen.
-
-    Input arrives via consoleMenuZoomBridge — installMenuPad consults it
-    BEFORE any screen handler, so the viewer owns the pad completely while
-    open (the same carve-out the shell runs first in handleIntent).
-  -->
   <div v-if="!consoleState.shellMounted" class="con-menu-zoom-host">
     <transition name="con-zoom-veil">
       <div v-if="consoleCardZoom.card !== undefined"
@@ -162,8 +139,34 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * PRE-GAME FULLSCREEN CARD VIEWER HOST — the App-level twin of the
+ * ConsoleShell zoom host, for the console screens that live OUTSIDE a game
+ * (main menu, create game, the campaign map). ONE module state drives both:
+ * a pre-game surface calls `openConsoleCardZoom(...)` exactly like an
+ * in-game one, and whichever host is mounted serves it — the shell in-game,
+ * this component everywhere else (never both: App mounts this only off the
+ * player screen). Presentation, choreography and input are the shell's,
+ * subsetted to what pre-game contexts attach: the select bridge, browsing,
+ * the rules side panel, the context caption. The receive/swap/inspect/
+ * availability bridges are in-game-only and are never attached here.
+ *
+ * The OPEN is PROXY-FIRST (consoleZoomMotion): the landing is measured on
+ * the still-closed dialog, the premium lift flies the proxy from the source
+ * slot (ZoomOrigin), and `showModal()` fires only at touchdown — the same
+ * compositor-safe shape as in-game. The source slot is HELD empty while its
+ * card is "in the player's hands" (one visual owner), and the close flies
+ * the card back into the slot of the card currently on screen.
+ *
+ * Input arrives via consoleMenuZoomBridge — installMenuPad consults it
+ * BEFORE any screen handler, so the viewer owns the pad completely while
+ * open (the same carve-out the shell runs first in handleIntent).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {probeTick} from '@/client/console/probeTick';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -185,7 +188,7 @@ import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleW
 import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
 import ConsoleAgendaGrant from '@/client/components/console/parliament/ConsoleAgendaGrant.vue';
 import {AgendaGrantReading, agendaGrantReadingOf} from '@/client/console/parliament/agendaGrantModel';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 import {WinnerRewardReading, winnerRewardReadingOf} from '@/client/console/parliament/winnerRewardModel';
 import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
@@ -206,351 +209,339 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {cardHasRules, denserRulesTier, RulesLengthTier, rulesLengthTier} from '@/client/components/console/consoleCardRules';
 import {motionMs} from '@/client/components/motion/motionTokens';
 
-export default defineComponent({
-  name: 'ConsoleMenuZoomHost',
-  components: {
-    CardZoomModal, CardZoomCard, GamepadGlyph, ConsoleCardRulesPanel, ConsoleResolutionAside, ConsoleResolutionStatus,
-    ConsoleInfluenceYield, ConsoleWinnerReward, ConsoleTileGrant, ConsoleAgendaGrant, ConsolePartyReaction,
-  },
-  setup() {
-    return {flow: useFlowScope('console-menu-zoom-host')};
-  },
-  data() {
-    return {
-      consoleState,
-      consoleCardZoom,
-      /** Chrome hidden while the open flight carries the card (mirrors the shell). */
-      zoomFlight: false,
-      zoomClosing: false,
-      zoomOpening: false,
-      zoomOpenProxy: undefined as {card: ZoomCard, zoom: number} | undefined,
-      zoomOpenToken: 0,
-      cancelZoomOpenClear: (() => {}) as () => void,
-      offZoomIntent: undefined as (() => void) | undefined,
-    };
-  },
-  computed: {
-    zoomSelectable(): boolean {
-      return this.consoleCardZoom.select !== undefined && this.consoleCardZoom.card !== undefined;
-    },
-    zoomSelected(): boolean {
-      const z = this.consoleCardZoom;
-      return z.select !== undefined && z.card !== undefined && z.select.isSelected(z.card.name as CardName);
-    },
-    zoomSelectLabel(): string {
-      return this.consoleCardZoom.select?.selectLabel ?? 'Select';
-    },
-    zoomDeselectLabel(): string {
-      return this.consoleCardZoom.select?.deselectLabel ?? 'Deselect';
-    },
-    zoomHasRules(): boolean {
-      const name = this.zoomRulesCardName;
-      return name !== undefined && this.zoomResolutionId === undefined && cardHasRules(name);
-    },
-    // ── A RESOLUTION on the stage (Turmoil Redux) — the shell's scene readers,
-    //    over the table the opener passed instead of a live game. ──────────
-    zoomResolutionId(): string | undefined {
-      const card = this.consoleCardZoom.card;
-      return card !== undefined && isResolutionZoom(card) ? card.resolution : undefined;
-    },
-    zoomResolutionParty(): ReduxParty | undefined {
-      const id = this.zoomResolutionId;
-      return id === undefined ? undefined : getResolution(id)?.party;
-    },
-    zoomParliament(): ParliamentModel | undefined {
-      return this.consoleCardZoom.parliament?.model();
-    },
-    zoomViewer(): Color | undefined {
-      return this.consoleCardZoom.parliament?.viewer();
-    },
-    zoomResolutionStatus(): ResolutionStatusVm | undefined {
-      const id = this.zoomResolutionId;
-      return id === undefined ? undefined : resolutionStatusOf(id, this.zoomParliament, this.zoomViewer);
-    },
-    zoomResolutionContextKey(): string | undefined {
-      return resolutionPartyContextKey(this.zoomResolutionStatus);
-    },
-    zoomResolutionYields(): ReadonlyArray<InfluenceYield> {
-      const id = this.zoomResolutionId;
-      const resolution = id === undefined ? undefined : getResolution(id);
-      if (resolution === undefined || (resolution.scaled ?? []).length === 0) {
-        return [];
+defineOptions({name: 'ConsoleMenuZoomHost'});
+
+const flow = useFlowScope('console-menu-zoom-host');
+const cardZoom = useTemplateRef<InstanceType<typeof CardZoomModal>>('cardZoom');
+const zoomRulesPanel = useTemplateRef<{scrollBody?: (dy: number) => boolean}>('zoomRulesPanel');
+const zoomFlightProxy = useTemplateRef<HTMLElement>('zoomFlightProxy');
+/** Chrome hidden while the open flight carries the card (mirrors the shell). */
+const zoomFlight = ref(false);
+const zoomClosing = ref(false);
+const zoomOpening = ref(false);
+const zoomOpenProxy = ref<{card: ZoomCard, zoom: number} | undefined>(undefined);
+const zoomOpenToken = ref(0);
+let cancelZoomOpenClear = (() => {}) as () => void;
+let offZoomIntent: (() => void) | undefined;
+
+const zoomSelectable = computed((): boolean => {
+  return consoleCardZoom.select !== undefined && consoleCardZoom.card !== undefined;
+});
+const zoomSelected = computed((): boolean => {
+  const z = consoleCardZoom;
+  return z.select !== undefined && z.card !== undefined && z.select.isSelected(z.card.name as CardName);
+});
+const zoomSelectLabel = computed((): string => {
+  return consoleCardZoom.select?.selectLabel ?? 'Select';
+});
+const zoomDeselectLabel = computed((): string => {
+  return consoleCardZoom.select?.deselectLabel ?? 'Deselect';
+});
+const zoomHasRules = computed((): boolean => {
+  const name = zoomRulesCardName.value;
+  return name !== undefined && zoomResolutionId.value === undefined && cardHasRules(name);
+});
+// ── A RESOLUTION on the stage (Turmoil Redux) — the shell's scene readers,
+//    over the table the opener passed instead of a live game. ──────────
+const zoomResolutionId = computed((): string | undefined => {
+  const card = consoleCardZoom.card;
+  return card !== undefined && isResolutionZoom(card) ? card.resolution : undefined;
+});
+const zoomResolutionParty = computed((): ReduxParty | undefined => {
+  const id = zoomResolutionId.value;
+  return id === undefined ? undefined : getResolution(id)?.party;
+});
+const zoomParliament = computed((): ParliamentModel | undefined => {
+  return consoleCardZoom.parliament?.model();
+});
+const zoomViewer = computed((): Color | undefined => {
+  return consoleCardZoom.parliament?.viewer();
+});
+const zoomResolutionStatus = computed((): ResolutionStatusVm | undefined => {
+  const id = zoomResolutionId.value;
+  return id === undefined ? undefined : resolutionStatusOf(id, zoomParliament.value, zoomViewer.value);
+});
+const zoomResolutionContextKey = computed((): string | undefined => {
+  return resolutionPartyContextKey(zoomResolutionStatus.value);
+});
+const zoomResolutionYields = computed((): ReadonlyArray<InfluenceYield> => {
+  const id = zoomResolutionId.value;
+  const resolution = id === undefined ? undefined : getResolution(id);
+  if (resolution === undefined || (resolution.scaled ?? []).length === 0) {
+    return [];
+  }
+  const model = zoomParliament.value;
+  return model?.enacted?.resolution === id ? enactedYieldsOf(resolution, model, zoomViewer.value) : voteYieldsOf(resolution, model, zoomViewer.value);
+});
+/** THE LEVY of the resolution on the stage (a budget) — read at the same moments as the yields. */
+const zoomResolutionLevy = computed((): LevyReading | undefined => {
+  const id = zoomResolutionId.value;
+  const resolution = id === undefined ? undefined : getResolution(id);
+  if (resolution === undefined || resolution.levy === undefined) {
+    return undefined;
+  }
+  const model = zoomParliament.value;
+  return model?.enacted?.resolution === id ? enactedLevyOf(resolution, model, zoomViewer.value) : voteLevyOf(resolution, model, zoomViewer.value);
+});
+/** The RULING PARTY's answer to those readings — the viewer's seat only. */
+const zoomResolutionReactions = computed((): Array<PartyReactionReading> => {
+  const id = zoomResolutionId.value;
+  if (id === undefined || !viewerHasSeat(zoomParliament.value, zoomViewer.value)) {
+    return [];
+  }
+  return partyReactionsOf(getResolution(id), zoomResolutionYields.value);
+});
+/** The WINNER's tile of the resolution on the stage, read over the opener's table (none outside a table). */
+const zoomResolutionWinner = computed((): WinnerRewardReading | undefined => {
+  const id = zoomResolutionId.value;
+  return id === undefined ? undefined : winnerRewardReadingOf(getResolution(id), zoomParliament.value, consoleCardZoom.parliament?.table?.());
+});
+const zoomNameOf = computed((): (color: Color) => string => {
+  return consoleCardZoom.parliament?.nameOf ?? ((color: Color) => translateText(color));
+});
+/** A TILE GRANTED BY THRESHOLD on the stage (Skyscrapers): the opener's own reading over its table. */
+const zoomResolutionGrant = computed((): TileGrantReading | undefined => {
+  const id = zoomResolutionId.value;
+  return id === undefined ? undefined : tileGrantReadingOf(getResolution(id), zoomParliament.value, zoomViewer.value);
+});
+/** A STEP OF THE CAREER FOR EVERY SEAT on the stage (Reds Budget): the opener's own next node and the win's two. */
+const zoomResolutionCareer = computed((): AgendaGrantReading | undefined => {
+  const id = zoomResolutionId.value;
+  return id === undefined ? undefined : agendaGrantReadingOf(getResolution(id), zoomParliament.value, zoomViewer.value);
+});
+/** A campaign TENDER on the stage — its contract read in the rules column. */
+const zoomTenderAnnotations = computed((): ReadonlyArray<CardAnnotation> | undefined => {
+  const card = consoleCardZoom.card;
+  return card !== undefined && isTenderZoom(card) ? tenderAnnotations(card.tender) : undefined;
+});
+const zoomResolutionAnnotations = computed((): ReadonlyArray<CardAnnotation> => {
+  const id = zoomResolutionId.value;
+  return id === undefined ? [] : resolutionAnnotations(id, {table: consoleCardZoom.parliament?.table?.()});
+});
+const zoomResolutionTier = computed((): RulesLengthTier | undefined => {
+  const id = zoomResolutionId.value;
+  const party = zoomResolutionParty.value;
+  return id === undefined || party === undefined ? undefined :
+    denserRulesTier(rulesLengthTier(zoomResolutionAnnotations.value), rulesLengthTier(resolutionPartyAnnotations(party)));
+});
+const zoomRulesCardName = computed((): CardName | undefined => {
+  const name = consoleCardZoom.card?.name;
+  return name === undefined ? undefined : (name as CardName);
+});
+
+/** The pre-game zoom carve-out (consoleMenuZoomBridge): true ⇔ consumed. */
+function onIntent(intent: GamepadIntent): boolean {
+  if (consoleCardZoom.card === undefined || consoleState.shellMounted) {
+    return false;
+  }
+  // A close flight is in progress: the card is mid-air — swallow all.
+  if (zoomClosing.value) {
+    return true;
+  }
+  // Mid open-flight: only closing is meaningful; B/X aborts cleanly.
+  if (zoomOpening.value) {
+    if (intent.kind === 'press' && !consoleCardZoom.mandatory) {
+      const action = consoleActionOf(intent);
+      if (action === 'back' || action === 'inspect') {
+        void closeViewer();
       }
-      const model = this.zoomParliament;
-      return model?.enacted?.resolution === id ? enactedYieldsOf(resolution, model, this.zoomViewer) : voteYieldsOf(resolution, model, this.zoomViewer);
-    },
-    /** THE LEVY of the resolution on the stage (a budget) — read at the same moments as the yields. */
-    zoomResolutionLevy(): LevyReading | undefined {
-      const id = this.zoomResolutionId;
-      const resolution = id === undefined ? undefined : getResolution(id);
-      if (resolution === undefined || resolution.levy === undefined) {
-        return undefined;
-      }
-      const model = this.zoomParliament;
-      return model?.enacted?.resolution === id ? enactedLevyOf(resolution, model, this.zoomViewer) : voteLevyOf(resolution, model, this.zoomViewer);
-    },
-    /** The RULING PARTY's answer to those readings — the viewer's seat only. */
-    zoomResolutionReactions(): Array<PartyReactionReading> {
-      const id = this.zoomResolutionId;
-      if (id === undefined || !viewerHasSeat(this.zoomParliament, this.zoomViewer)) {
-        return [];
-      }
-      return partyReactionsOf(getResolution(id), this.zoomResolutionYields);
-    },
-    /** The WINNER's tile of the resolution on the stage, read over the opener's table (none outside a table). */
-    zoomResolutionWinner(): WinnerRewardReading | undefined {
-      const id = this.zoomResolutionId;
-      return id === undefined ? undefined : winnerRewardReadingOf(getResolution(id), this.zoomParliament, this.consoleCardZoom.parliament?.table?.());
-    },
-    zoomNameOf(): (color: Color) => string {
-      return this.consoleCardZoom.parliament?.nameOf ?? ((color: Color) => translateText(color));
-    },
-    /** A TILE GRANTED BY THRESHOLD on the stage (Skyscrapers): the opener's own reading over its table. */
-    zoomResolutionGrant(): TileGrantReading | undefined {
-      const id = this.zoomResolutionId;
-      return id === undefined ? undefined : tileGrantReadingOf(getResolution(id), this.zoomParliament, this.zoomViewer);
-    },
-    /** A STEP OF THE CAREER FOR EVERY SEAT on the stage (Reds Budget): the opener's own next node and the win's two. */
-    zoomResolutionCareer(): AgendaGrantReading | undefined {
-      const id = this.zoomResolutionId;
-      return id === undefined ? undefined : agendaGrantReadingOf(getResolution(id), this.zoomParliament, this.zoomViewer);
-    },
-    /** A campaign TENDER on the stage — its contract read in the rules column. */
-    zoomTenderAnnotations(): ReadonlyArray<CardAnnotation> | undefined {
-      const card = this.consoleCardZoom.card;
-      return card !== undefined && isTenderZoom(card) ? tenderAnnotations(card.tender) : undefined;
-    },
-    zoomResolutionAnnotations(): ReadonlyArray<CardAnnotation> {
-      const id = this.zoomResolutionId;
-      return id === undefined ? [] : resolutionAnnotations(id, {table: this.consoleCardZoom.parliament?.table?.()});
-    },
-    zoomResolutionTier(): RulesLengthTier | undefined {
-      const id = this.zoomResolutionId;
-      const party = this.zoomResolutionParty;
-      return id === undefined || party === undefined ? undefined :
-        denserRulesTier(rulesLengthTier(this.zoomResolutionAnnotations), rulesLengthTier(resolutionPartyAnnotations(party)));
-    },
-    zoomRulesCardName(): CardName | undefined {
-      const name = this.consoleCardZoom.card?.name;
-      return name === undefined ? undefined : (name as CardName);
-    },
-  },
-  watch: {
-    // The open rides the undefined→defined transition only (navigation keeps
-    // the dialog open) — a direct port of the shell's open watcher, including
-    // the synchronous `zoomOpening` mark (a B pressed while the landing is
-    // being measured must hit the cancel branch, never the normal close).
-    'consoleCardZoom.card'(card: ZoomCard | undefined, prev: ZoomCard | undefined) {
-      if (this.consoleState.shellMounted) {
-        return; // the shell's host serves the module in-game
-      }
-      if (card === undefined && prev !== undefined) {
-        // EXTERNAL clear (an opener closed the module directly, e.g. its own
-        // unmount): unwind idempotently — the normal close path already ran
-        // these in onCardZoomClosed, so a double run is harmless.
-        releaseZoomMotion();
-        this.zoomOpenToken++;
-        this.zoomFlight = false;
-        this.zoomClosing = false;
-        this.zoomOpening = false;
-        this.clearZoomOpenFlight();
-        document.body.classList.remove('con-zoom-open');
-        return;
-      }
-      if (card !== undefined && prev === undefined) {
-        this.zoomFlight = true;
-        this.zoomClosing = false;
-        this.zoomOpening = true;
-        document.body.classList.add('con-zoom-open');
-        const tryOpen = (attempt: number) => {
-          if (this.consoleCardZoom.card === undefined) {
-            return; // closed before it ever opened
-          }
-          const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
-          const el = zoom?.$el as HTMLElement | undefined;
-          if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
-            if (attempt < 10) {
-              probeTick(() => tryOpen(attempt + 1));
-            } else {
-              this.onCardZoomClosed(); // never strand an open-but-empty zoom state
-            }
-            return;
-          }
-          void this.runZoomOpen(zoom);
-        };
-        void this.$nextTick(() => tryOpen(0));
-      }
-    },
-  },
-  mounted() {
-    this.offZoomIntent = setMenuZoomIntentHandler((intent) => this.onIntent(intent));
-  },
-  beforeUnmount() {
-    this.offZoomIntent?.();
-    // Screen switch mid-fullscreen (e.g. a mission launch navigates away):
-    // never leave the module state / held slots / body class behind.
-    if (this.consoleCardZoom.card !== undefined && !this.consoleState.shellMounted) {
-      this.onCardZoomClosed();
     }
-  },
-  methods: {
-    /** The pre-game zoom carve-out (consoleMenuZoomBridge): true ⇔ consumed. */
-    onIntent(intent: GamepadIntent): boolean {
-      if (this.consoleCardZoom.card === undefined || this.consoleState.shellMounted) {
-        return false;
+    return true;
+  }
+  const zoom = cardZoom.value ?? undefined;
+  const rules = zoomRulesPanel.value ?? undefined;
+  if (intent.kind === 'nav') {
+    if (intent.dir === 'left') {
+      zoom?.prev();
+    } else if (intent.dir === 'right') {
+      zoom?.next();
+    } else {
+      // ↑/↓ read the rules column — the same body the right stick pages.
+      rules?.scrollBody?.((intent.dir === 'down' ? 1 : -1) * 90 * conUiScale());
+    }
+    return true;
+  }
+  if (intent.kind === 'scroll') {
+    // The stick's dy is a per-frame deflection (−1…1): scaled to pixels, or
+    // the rules crawled under a pixel a frame.
+    if (Math.abs(intent.dy) >= 0.05) {
+      rules?.scrollBody?.(intent.dy * 24 * conUiScale());
+    }
+    return true;
+  }
+  if (intent.kind !== 'press') {
+    return true;
+  }
+  switch (consoleActionOf(intent)) {
+  case 'prevSection':
+    zoom?.prev();
+    return true;
+  case 'nextSection':
+    zoom?.next();
+    return true;
+  case 'primary':
+    zoomToggleSelect();
+    return true;
+  case 'back':
+  case 'inspect':
+    if (!consoleCardZoom.mandatory) {
+      void closeViewer();
+    }
+    return true;
+  default:
+    return true;
+  }
+}
+function onCardZoomNavigate(card: ZoomCard, pos: number): void {
+  navigateConsoleCardZoom(card, pos);
+  // The card "in hand" changed: the table hold moves to ITS slot, and the
+  // opener keeps the underlying cursor in lockstep.
+  retargetZoomHold(pos);
+  consoleCardZoom.origin.onBrowse?.(pos);
+}
+function zoomToggleSelect(): void {
+  const z = consoleCardZoom;
+  if (z.select !== undefined && z.card !== undefined) {
+    z.select.toggle(z.card.name as CardName);
+  }
+}
+/** The open sequence — a direct port of the shell's (consoleZoomMotion). */
+async function runZoomOpen(zoom: InstanceType<typeof CardZoomModal>): Promise<void> {
+  const token = ++zoomOpenToken.value;
+  zoomOpening.value = true;
+  const origin: ZoomOrigin = consoleCardZoom.origin;
+  beginZoomOpen(origin);
+  const landing = await zoom.measureLanding();
+  if (token !== zoomOpenToken.value || consoleCardZoom.card === undefined) {
+    return; // closed / reopened while measuring — that sequence owns state
+  }
+  const index = consoleCardZoom.index;
+  if (landing === undefined || consoleReducedMotionActive()) {
+    zoom.show();
+    zoomOpening.value = false;
+    flow.after(motionMs(140), 'the zoom\'s chrome returns', () => {
+      if (token === zoomOpenToken.value) {
+        zoomFlight.value = false;
       }
-      // A close flight is in progress: the card is mid-air — swallow all.
-      if (this.zoomClosing) {
-        return true;
-      }
-      // Mid open-flight: only closing is meaningful; B/X aborts cleanly.
-      if (this.zoomOpening) {
-        if (intent.kind === 'press' && !this.consoleCardZoom.mandatory) {
-          const action = consoleActionOf(intent);
-          if (action === 'back' || action === 'inspect') {
-            void this.closeViewer();
-          }
-        }
-        return true;
-      }
-      const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
-      const rules = (this.$refs.zoomRulesPanel ?? undefined) as {scrollBody?: (dy: number) => boolean} | undefined;
-      if (intent.kind === 'nav') {
-        if (intent.dir === 'left') {
-          zoom?.prev();
-        } else if (intent.dir === 'right') {
-          zoom?.next();
-        } else {
-          // ↑/↓ read the rules column — the same body the right stick pages.
-          rules?.scrollBody?.((intent.dir === 'down' ? 1 : -1) * 90 * conUiScale());
-        }
-        return true;
-      }
-      if (intent.kind === 'scroll') {
-        // The stick's dy is a per-frame deflection (−1…1): scaled to pixels, or
-        // the rules crawled under a pixel a frame.
-        if (Math.abs(intent.dy) >= 0.05) {
-          rules?.scrollBody?.(intent.dy * 24 * conUiScale());
-        }
-        return true;
-      }
-      if (intent.kind !== 'press') {
-        return true;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'prevSection':
-        zoom?.prev();
-        return true;
-      case 'nextSection':
-        zoom?.next();
-        return true;
-      case 'primary':
-        this.zoomToggleSelect();
-        return true;
-      case 'back':
-      case 'inspect':
-        if (!this.consoleCardZoom.mandatory) {
-          void this.closeViewer();
-        }
-        return true;
-      default:
-        return true;
-      }
-    },
-    onCardZoomNavigate(card: ZoomCard, pos: number): void {
-      navigateConsoleCardZoom(card, pos);
-      // The card "in hand" changed: the table hold moves to ITS slot, and the
-      // opener keeps the underlying cursor in lockstep.
-      retargetZoomHold(pos);
-      this.consoleCardZoom.origin.onBrowse?.(pos);
-    },
-    zoomToggleSelect(): void {
-      const z = this.consoleCardZoom;
-      if (z.select !== undefined && z.card !== undefined) {
-        z.select.toggle(z.card.name as CardName);
-      }
-    },
-    /** The open sequence — a direct port of the shell's (consoleZoomMotion). */
-    async runZoomOpen(zoom: InstanceType<typeof CardZoomModal>): Promise<void> {
-      const token = ++this.zoomOpenToken;
-      this.zoomOpening = true;
-      const origin: ZoomOrigin = this.consoleCardZoom.origin;
-      beginZoomOpen(origin);
-      const landing = await zoom.measureLanding();
-      if (token !== this.zoomOpenToken || this.consoleCardZoom.card === undefined) {
-        return; // closed / reopened while measuring — that sequence owns state
-      }
-      const index = this.consoleCardZoom.index;
-      if (landing === undefined || consoleReducedMotionActive()) {
+    });
+    return;
+  }
+  const source = zoomOpenSourceRect(index);
+  zoomOpenProxy.value = {card: consoleCardZoom.card, zoom: landing.zoom};
+  await nextTick();
+  if (token !== zoomOpenToken.value) {
+    return;
+  }
+  const proxyEl = zoomFlightProxy.value ?? undefined;
+  playZoomOpenFlight(proxyEl, index, source, landing.rect, {
+    onShow: () => {
+      if (token === zoomOpenToken.value && consoleCardZoom.card !== undefined) {
         zoom.show();
-        this.zoomOpening = false;
-        this.flow.after(motionMs(140), 'the zoom\'s chrome returns', () => {
-          if (token === this.zoomOpenToken) {
-            this.zoomFlight = false;
-          }
-        });
+      }
+    },
+    onDone: () => {
+      if (token !== zoomOpenToken.value) {
         return;
       }
-      const source = zoomOpenSourceRect(index);
-      this.zoomOpenProxy = {card: this.consoleCardZoom.card, zoom: landing.zoom};
-      await this.$nextTick();
-      if (token !== this.zoomOpenToken) {
+      zoomOpening.value = false;
+      zoomFlight.value = false;
+      cancelZoomOpenClear = flow.after(motionMs(160), 'the open flight\'s proxy is cleared', () => clearZoomOpenFlight());
+    },
+  });
+}
+function clearZoomOpenFlight(): void {
+  cancelZoomOpenClear();
+  zoomOpenProxy.value = undefined;
+}
+/** Choreographed close: chrome hides, the card flies back into the CURRENT
+ *  card's slot (physical origin) or dives away, THEN the dialog closes. */
+async function closeViewer(): Promise<void> {
+  const zoom = cardZoom.value ?? undefined;
+  if (zoom === undefined) {
+    return;
+  }
+  const dialogEl = zoom.$el as HTMLDialogElement | undefined;
+  // Closed during the OPEN flight (dialog never shown): abort the flight
+  // and unwind directly — dialog.close() would no-op and the 'close'
+  // event (the normal state unwinder) would never fire.
+  if (zoomOpening.value && dialogEl?.open !== true) {
+    cancelZoomOpen();
+    onCardZoomClosed();
+    return;
+  }
+  zoomFlight.value = true;
+  zoomClosing.value = true;
+  await playZoomClose(dialogEl as HTMLElement | undefined, consoleCardZoom.index);
+  zoom.close();
+}
+function onCardZoomClosed(): void {
+  // Any close path (choreographed B, native Esc, backdrop tap): restore
+  // every held slot + kill the flight, then clear the module state.
+  releaseZoomMotion();
+  zoomOpenToken.value++; // fence out any stale open-sequence callback
+  zoomFlight.value = false;
+  zoomClosing.value = false;
+  zoomOpening.value = false;
+  clearZoomOpenFlight();
+  document.body.classList.remove('con-zoom-open');
+  closeConsoleCardZoom();
+}
+
+// The open rides the undefined→defined transition only (navigation keeps
+// the dialog open) — a direct port of the shell's open watcher, including
+// the synchronous `zoomOpening` mark (a B pressed while the landing is
+// being measured must hit the cancel branch, never the normal close).
+watch(() => consoleCardZoom.card, (card: ZoomCard | undefined, prev: ZoomCard | undefined) => {
+  if (consoleState.shellMounted) {
+    return; // the shell's host serves the module in-game
+  }
+  if (card === undefined && prev !== undefined) {
+    // EXTERNAL clear (an opener closed the module directly, e.g. its own
+    // unmount): unwind idempotently — the normal close path already ran
+    // these in onCardZoomClosed, so a double run is harmless.
+    releaseZoomMotion();
+    zoomOpenToken.value++;
+    zoomFlight.value = false;
+    zoomClosing.value = false;
+    zoomOpening.value = false;
+    clearZoomOpenFlight();
+    document.body.classList.remove('con-zoom-open');
+    return;
+  }
+  if (card !== undefined && prev === undefined) {
+    zoomFlight.value = true;
+    zoomClosing.value = false;
+    zoomOpening.value = true;
+    document.body.classList.add('con-zoom-open');
+    const tryOpen = (attempt: number) => {
+      if (consoleCardZoom.card === undefined) {
+        return; // closed before it ever opened
+      }
+      const zoom = cardZoom.value ?? undefined;
+      const el = zoom?.$el as HTMLElement | undefined;
+      if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
+        if (attempt < 10) {
+          probeTick(() => tryOpen(attempt + 1));
+        } else {
+          onCardZoomClosed(); // never strand an open-but-empty zoom state
+        }
         return;
       }
-      const proxyEl = (this.$refs.zoomFlightProxy ?? undefined) as HTMLElement | undefined;
-      playZoomOpenFlight(proxyEl, index, source, landing.rect, {
-        onShow: () => {
-          if (token === this.zoomOpenToken && this.consoleCardZoom.card !== undefined) {
-            zoom.show();
-          }
-        },
-        onDone: () => {
-          if (token !== this.zoomOpenToken) {
-            return;
-          }
-          this.zoomOpening = false;
-          this.zoomFlight = false;
-          this.cancelZoomOpenClear = this.flow.after(motionMs(160), 'the open flight\'s proxy is cleared', () => this.clearZoomOpenFlight());
-        },
-      });
-    },
-    clearZoomOpenFlight(): void {
-      this.cancelZoomOpenClear();
-      this.zoomOpenProxy = undefined;
-    },
-    /** Choreographed close: chrome hides, the card flies back into the CURRENT
-     *  card's slot (physical origin) or dives away, THEN the dialog closes. */
-    async closeViewer(): Promise<void> {
-      const zoom = (this.$refs.cardZoom ?? undefined) as InstanceType<typeof CardZoomModal> | undefined;
-      if (zoom === undefined) {
-        return;
-      }
-      const dialogEl = zoom.$el as HTMLDialogElement | undefined;
-      // Closed during the OPEN flight (dialog never shown): abort the flight
-      // and unwind directly — dialog.close() would no-op and the 'close'
-      // event (the normal state unwinder) would never fire.
-      if (this.zoomOpening && dialogEl?.open !== true) {
-        cancelZoomOpen();
-        this.onCardZoomClosed();
-        return;
-      }
-      this.zoomFlight = true;
-      this.zoomClosing = true;
-      await playZoomClose(dialogEl as HTMLElement | undefined, this.consoleCardZoom.index);
-      zoom.close();
-    },
-    onCardZoomClosed(): void {
-      // Any close path (choreographed B, native Esc, backdrop tap): restore
-      // every held slot + kill the flight, then clear the module state.
-      releaseZoomMotion();
-      this.zoomOpenToken++; // fence out any stale open-sequence callback
-      this.zoomFlight = false;
-      this.zoomClosing = false;
-      this.zoomOpening = false;
-      this.clearZoomOpenFlight();
-      document.body.classList.remove('con-zoom-open');
-      closeConsoleCardZoom();
-    },
-  },
+      void runZoomOpen(zoom);
+    };
+    void nextTick(() => tryOpen(0));
+  }
+});
+
+onMounted(() => {
+  offZoomIntent = setMenuZoomIntentHandler((intent) => onIntent(intent));
+});
+onBeforeUnmount(() => {
+  offZoomIntent?.();
+  // Screen switch mid-fullscreen (e.g. a mission launch navigates away):
+  // never leave the module state / held slots / body class behind.
+  if (consoleCardZoom.card !== undefined && !consoleState.shellMounted) {
+    onCardZoomClosed();
+  }
 });
 </script>
