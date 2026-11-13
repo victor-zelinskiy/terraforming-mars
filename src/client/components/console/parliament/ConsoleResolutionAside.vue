@@ -1,14 +1,4 @@
 <template>
-  <!-- THE PARTY COLUMN of the resolution inspector (Turmoil Redux) — the
-       left gutter of the fullscreen viewer, where a project card keeps its
-       archive entry. A resolution has no lore; what it has is a PARTY, and
-       the party is what the vote is about: one glass column in the rules
-       panel's own chrome, with the party's PLAQUE (seal · name · the action's
-       badge · one context line · the printed mechanic — the one graphic of
-       the scene the resolution card does not print) and, under it, the
-       mechanics' SENTENCES through the shared rules panel. The words explain
-       the plaque's graphic; the action's state is the plaque's badge; the
-       personal access is the footer's — neither is repeated in the text. -->
   <div class="con-zoom-rules-host con-rinspect-aside" :class="{'con-zoom-rules-host--closing': closing}">
     <aside class="con-zoom-rules con-rinspect-aside__box" :aria-label="$t('Party of the resolution')" :data-party="party">
       <div class="con-zoom-rules__head">
@@ -34,8 +24,22 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * THE PARTY COLUMN of the resolution inspector (Turmoil Redux) — the
+ * left gutter of the fullscreen viewer, where a project card keeps its
+ * archive entry. A resolution has no lore; what it has is a PARTY, and
+ * the party is what the vote is about: one glass column in the rules
+ * panel's own chrome, with the party's PLAQUE (seal · name · the action's
+ * badge · one context line · the printed mechanic — the one graphic of
+ * the scene the resolution card does not print) and, under it, the
+ * mechanics' SENTENCES through the shared rules panel. The words explain
+ * the plaque's graphic; the action's state is the plaque's badge; the
+ * personal access is the footer's — neither is repeated in the text.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType, useTemplateRef} from 'vue';
 import {Color} from '@/common/Color';
 import {ParliamentModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {partyActionOf, ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -47,78 +51,76 @@ import {resolutionPartyAnnotations} from '@/client/console/parliament/parliament
 import {PartyActionStateVm, partyActionStateOf, ParliamentPartyVm} from '@/client/console/parliament/consoleParliamentModel';
 import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
 import {SupportReadingVm} from '@/client/console/parliament/voteInfoModel';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 
-export default defineComponent({
-  name: 'ConsoleResolutionAside',
-  components: {ConsoleCardRulesPanel, ConsolePartyPlaque},
-  props: {
-    party: {type: String as PropType<ReduxParty>, required: true},
-    /** The live parliament (undefined outside a game — the plate then states nothing about the table). */
-    parliament: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
-    /** The player the inspector is opened AS (never the player whose turn it is). */
-    viewer: {type: String as PropType<Color | undefined>, default: undefined},
-    /** The viewer's own action window is open right now (an execution gate, never a reason). */
-    canActNow: {type: Boolean, default: false},
-    /** The context line's i18n key (from `resolutionPartyContextKey`), undefined without a table. */
-    contextKey: {type: String as PropType<string | undefined>, default: undefined},
-    /** The scene's ONE reading tier (the denser of this column and the rules column). */
-    tier: {type: String as PropType<RulesLengthTier | undefined>, default: undefined},
-    /** The viewer's settle signal (forwarded to the rules panel's measure). */
-    nonce: {type: Number, default: 0},
-    /** The close flight began — hide instantly (never lag the card). */
-    closing: {type: Boolean, default: false},
-    /**
-     * THE PARTY'S SUPPORT under the door the inspector was opened from (a delegate grant that also pays the
-     * party — TR03): the vote panel's own reading, and the rule in words under it. Undefined elsewhere.
-     */
-    support: {type: Object as PropType<SupportReadingVm | undefined>, default: undefined},
-  },
-  computed: {
-    annotations(): ReadonlyArray<CardAnnotation> {
-      return resolutionPartyAnnotations(this.party, this.support);
-    },
-    contextText(): string | undefined {
-      return this.contextKey === undefined ? undefined : translateText(this.contextKey);
-    },
-    /**
-     * The action badge beside the name — the SAME object the Parliament's
-     * plaques wear (lit / stamped ✓ / outlined), read off the server's own
-     * action model for the viewer. No badge without a table or for a party
-     * with no action.
-     */
-    actionState(): PartyActionStateVm | undefined {
-      const model = this.parliament;
-      const actionId = partyActionOf(this.party);
-      if (model === undefined || actionId === undefined || this.viewer === undefined) {
-        return undefined;
-      }
-      const seat = model.players.find((p) => p.color === this.viewer);
-      if (seat === undefined || !seatEnacts(seat)) {
-        return undefined;
-      }
-      const vm: ParliamentPartyVm = {
-        party: this.party,
-        effect: getPartyEffect(this.party),
-        rule: undefined,
-        support: model.popularSupport[this.party] ?? 0,
-        inArea: model.slots.some((slot) => slot.party === this.party),
-        ruling: model.rulingParty === this.party,
-        access: seat.access.find((a) => a.party === this.party),
-        actionId,
-        action: model.viewer?.partyActions.find((a) => a.party === this.party),
-        bannerCubes: [],
-      };
-      const state = partyActionStateOf(vm, this.canActNow);
-      return state.kind === 'none' ? undefined : state;
-    },
-  },
-  methods: {
-    /** Right-stick paging of the text block (routed by the shell when the right panel has nothing to scroll). */
-    scrollBody(delta: number): boolean {
-      const rules = (this.$refs.rules ?? undefined) as {scrollBody?: (dy: number) => boolean} | undefined;
-      return rules?.scrollBody?.(delta) ?? false;
-    },
-  },
+defineOptions({name: 'ConsoleResolutionAside'});
+const props = defineProps({
+  party: {type: String as PropType<ReduxParty>, required: true},
+  /** The live parliament (undefined outside a game — the plate then states nothing about the table). */
+  parliament: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
+  /** The player the inspector is opened AS (never the player whose turn it is). */
+  viewer: {type: String as PropType<Color | undefined>, default: undefined},
+  /** The viewer's own action window is open right now (an execution gate, never a reason). */
+  canActNow: {type: Boolean, default: false},
+  /** The context line's i18n key (from `resolutionPartyContextKey`), undefined without a table. */
+  contextKey: {type: String as PropType<string | undefined>, default: undefined},
+  /** The scene's ONE reading tier (the denser of this column and the rules column). */
+  tier: {type: String as PropType<RulesLengthTier | undefined>, default: undefined},
+  /** The viewer's settle signal (forwarded to the rules panel's measure). */
+  nonce: {type: Number, default: 0},
+  /** The close flight began — hide instantly (never lag the card). */
+  closing: {type: Boolean, default: false},
+  /**
+   * THE PARTY'S SUPPORT under the door the inspector was opened from (a delegate grant that also pays the
+   * party — TR03): the vote panel's own reading, and the rule in words under it. Undefined elsewhere.
+   */
+  support: {type: Object as PropType<SupportReadingVm | undefined>, default: undefined},
 });
+
+const rules = useTemplateRef<{scrollBody?: (dy: number) => boolean}>('rules');
+const annotations = computed((): ReadonlyArray<CardAnnotation> => {
+  return resolutionPartyAnnotations(props.party, props.support);
+});
+const contextText = computed((): string | undefined => {
+  return props.contextKey === undefined ? undefined : translateText(props.contextKey);
+});
+/**
+ * The action badge beside the name — the SAME object the Parliament's
+ * plaques wear (lit / stamped ✓ / outlined), read off the server's own
+ * action model for the viewer. No badge without a table or for a party
+ * with no action.
+ */
+const actionState = computed((): PartyActionStateVm | undefined => {
+  const model = props.parliament;
+  const actionId = partyActionOf(props.party);
+  if (model === undefined || actionId === undefined || props.viewer === undefined) {
+    return undefined;
+  }
+  const seat = model.players.find((p) => p.color === props.viewer);
+  if (seat === undefined || !seatEnacts(seat)) {
+    return undefined;
+  }
+  const vm: ParliamentPartyVm = {
+    party: props.party,
+    effect: getPartyEffect(props.party),
+    rule: undefined,
+    support: model.popularSupport[props.party] ?? 0,
+    inArea: model.slots.some((slot) => slot.party === props.party),
+    ruling: model.rulingParty === props.party,
+    access: seat.access.find((a) => a.party === props.party),
+    actionId,
+    action: model.viewer?.partyActions.find((a) => a.party === props.party),
+    bannerCubes: [],
+  };
+  const state = partyActionStateOf(vm, props.canActNow);
+  return state.kind === 'none' ? undefined : state;
+});
+/** Right-stick paging of the text block (routed by the shell when the right panel has nothing to scroll). */
+function scrollBody(delta: number): boolean {
+  const rulesNow = rules.value;
+  return rulesNow?.scrollBody?.(delta) ?? false;
+}
+
+// What the shell's viewer controller reaches through the surface registry (`zoomAsidePanel`): `scrollBody` — and nothing else.
+defineExpose({scrollBody});
 </script>
