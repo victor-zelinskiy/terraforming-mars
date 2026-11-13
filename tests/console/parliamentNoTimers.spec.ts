@@ -21,6 +21,8 @@ const TREES = [
 ];
 const FILES = [
   path.join('src', 'client', 'components', 'console', 'ConsoleParliamentSection.vue'),
+  // …and the section's sibling module: the question door's bodies moved there with its conversion (RECIPES § 3).
+  path.join('src', 'client', 'components', 'console', 'consoleParliamentSectionLogic.ts'),
 ];
 
 /**

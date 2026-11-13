@@ -1,21 +1,4 @@
 <template>
-  <!-- «ПАРЛАМЕНТ» — the Mars Parliament workspace (Turmoil Redux): ONE flow,
-       one GAME SCREEN. Three instruments under one fixed head line (the
-       GOVERNMENT with the RULING PARTY's tile · the VOTING AREA · the five
-       OPPOSITION parties), the read-only AGENDA track, the DELEGATES ZONE at
-       fixed coordinates in every mode; the VOTE MODE is a phase descent of
-       this frame, a PARTY ACTION nests the action workspace
-       (`parliament ⊃ card-actions`), and the SITTING — the political phase's
-       own flow («ЗАСЕДАНИЕ») — stands on the middle tier's stage chassis, its
-       stage the SERVER's step and its pages a WALK the director turns
-       (v2: docs/TURMOIL_REDUX_PARLIAMENT_SITTING_V2.md). THIS ROOT owns the
-       stage machine (the shared flow record), the browse layer's grammar, the
-       submit funnel and the crumb; every tier is its own component reading
-       the same record. Nothing here re-derives a rule: availability is the
-       PRESENCE of the server's option (its structural marker), the numbers
-       are the server's projections, a submit is the byte-identical response.
-       Anatomy and history: docs/TURMOIL_REDUX_PARLIAMENT_V6.md; the sitting:
-       docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md, the v2 rework above. -->
   <section class="con-parl"
            :class="{
              'con-ws': !embedded,
@@ -239,9 +222,31 @@
     </div>
   </section>
 </template>
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * «ПАРЛАМЕНТ» — the Mars Parliament workspace (Turmoil Redux): ONE flow,
+ *       one GAME SCREEN. Three instruments under one fixed head line (the
+ *       GOVERNMENT with the RULING PARTY's tile · the VOTING AREA · the five
+ *       OPPOSITION parties), the read-only AGENDA track, the DELEGATES ZONE at
+ *       fixed coordinates in every mode; the VOTE MODE is a phase descent of
+ *       this frame, a PARTY ACTION nests the action workspace
+ *       (`parliament ⊃ card-actions`), and the SITTING — the political phase's
+ *       own flow («ЗАСЕДАНИЕ») — stands on the middle tier's stage chassis, its
+ *       stage the SERVER's step and its pages a WALK the director turns
+ *       (v2: docs/TURMOIL_REDUX_PARLIAMENT_SITTING_V2.md). THIS ROOT owns the
+ *       stage machine (the shared flow record), the browse layer's grammar, the
+ *       submit funnel and the crumb; every tier is its own component reading
+ *       the same record. Nothing here re-derives a rule: availability is the
+ *       PRESENCE of the server's option (its structural marker), the numbers
+ *       are the server's projections, a submit is the byte-identical response.
+ *       Anatomy and history: docs/TURMOIL_REDUX_PARLIAMENT_V6.md; the sitting:
+ *       docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md, the v2 rework above.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {beginCeilingWait} from '@/client/console/waitGraph/ceilingWait';
-import {defineComponent, PropType} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
@@ -300,7 +305,7 @@ import {influenceReadingOf} from '@/client/console/parliament/influenceReading';
 import {sittingRiseStood} from '@/client/console/parliament/sittingRise';
 import {
   armDelegatePickFlow, armGrantVoteFlow, rememberGrantCursor, rememberedGrantCursor, armSupportPickFlow, armBannerPickFlow, parliamentBannerUp, parliamentDelegateUp, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, WALK_SEAT_STAGE_KEY, ParliamentStage,
-  parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentStageUp, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
+  parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
   setParliamentRootEl, sittingSessionKnown, sittingStagePlayed,
 } from '@/client/console/parliament/consoleParliamentFlow';
 import {
@@ -321,7 +326,7 @@ import {
 } from '@/client/console/parliament/parliamentWorldBeat';
 import {
   sittingPageAuto, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardSettled, SittingStage, sittingStageAt, sittingStageKey,
-  sittingBodyOf, SittingBody, sittingStartPage, sittingWorkspacePhase, verdictStandsAt, sittingStepTakesStage, sittingCloseKey, sittingCloseLeadsTo,
+  sittingBodyOf, SittingBody, sittingStartPage, sittingWorkspacePhase, verdictStandsAt, sittingStepTakesStage, sittingCloseKey, sittingCloseLeadsTo as sittingCloseLeadsToOf,
   parliamentSittingLive, SITTING_HOSTED_STEPS, sittingFieldOf,
 } from '@/client/console/parliament/consoleSittingFlow';
 import {colonyLedgerOf, ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
@@ -330,7 +335,7 @@ import {
 } from '@/client/console/parliament/agendaReaction';
 import {
   askTableAnswer, endTableAnswerAsk, noteTableAnswerPaneIn, playTableAnswer, releaseTableAnswers, TABLE_ANSWER_BUDGET_MS, tableAnswerAskOf, tableAnswerOwedTo,
-  tableAnswerState, takeTableAnswer, TableAnswer, TableAnswerAsk,
+  tableAnswerState, TableAnswer, TableAnswerAsk,
 } from '@/client/console/parliament/tableAnswerBeat';
 import {CardModel} from '@/common/models/CardModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
@@ -383,7 +388,7 @@ import {
 } from '@/client/console/consoleWorkspaceStack';
 import {AGENDA_WALK_STEP_STAGE, DELEGATE_GRANT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import {grantSeriesCountText, grantSeriesShown} from '@/client/console/parliament/grantSeries';
-import {translateText} from '@/client/directives/i18n';
+import {$t, translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
 import {useResizeObserver} from '@vueuse/core';
 import {playBodyFold, playBodyUnfold, playZoneLayerEnter, pulseCarrier, settleRow} from '@/client/console/parliament/parliamentStageMotion';
@@ -391,6 +396,15 @@ import {killParliamentVoteMotion, Rect} from '@/client/console/parliament/consol
 import {
   enactCarryRect, killParliamentEnactMotion, parkParliamentForEnact, playParliamentEnactEnter, playParliamentEnactFold,
 } from '@/client/console/parliament/consoleParliamentEnactMotion';
+// What this section DECIDES at its question door, the folds that door closes a finished stage by and a walk run's own
+// identity live in the sibling module (the unit spec runs those bodies against a stub): each member below named like
+// one of these is its one-line delegate over `port`.
+import {
+  closeStage as closeStageOf, foldFinishedStage as foldFinishedStageOf, overviewServesQuestion as overviewServesQuestionOf, ParliamentSectionPort,
+  playWalkAnswer as playWalkAnswerOf, retireFinishedFlows as retireFinishedFlowsOf, retireQuestFlow as retireQuestFlowOf,
+  serveStandingQuestion as serveStandingQuestionOf, standingDoorOwed as standingDoorOwedOf, standingQuestionServed as standingQuestionServedOf,
+  walkRunAlive as walkRunAliveOf,
+} from '@/client/components/console/consoleParliamentSectionLogic';
 
 /** How long a submit may stay unanswered before the stage gives the player back their hands (a net over a silent server — the tree's one wall-clock timer). */
 const SUBMIT_SAFETY_MS = 6000;
@@ -411,3779 +425,3552 @@ const STAGE_ZONE_SELECTOR = '.con-parl [data-embed-slot="parliament-stage"]';
 /** One press of ↑/↓ (or a flick of the right stick) inside «ПОДРОБНОСТИ ВЫПЛАТ» — about one table row (logical px). */
 const PAYOUT_DETAILS_SCROLL_PX = 120;
 
-export default defineComponent({
-  name: 'ConsoleParliamentSection',
-  components: {
-    ConsoleWsHead, ConsoleParliamentSeats, ConsoleParliamentGovernment, ConsoleParliamentVotingArea, ConsoleParliamentBand,
-    ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentTableAnswer, ConsoleParliamentDrawStage, ConsoleParliamentEffects, ConsoleParliamentEffectsStep, ConsoleParliamentQuestDossier, ConsoleParliamentCareerDossier,
-    ConsoleParliamentSupportMode,
-    ConsoleParliamentBannerMode,
-    ConsoleBannerCubeStage,
-    ConsoleParliamentDelegateMode,
-    ConsoleSourceDock,
+defineOptions({name: 'ConsoleParliamentSection'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  /** The shell plays this section's LEAVE (v3 В1): the surface is latched on the last coherent view until the unmount. */
+  leaving: {type: Boolean, default: false},
+  myTurn: {type: Boolean, default: false},
+  awaitingInput: {type: Boolean, default: false},
+  /**
+   * HOSTED AS A STEP of another workspace (the embed contract, rule 1): the
+   * shell strips the frame, the header and the `con-ws` marker; the crumb is
+   * the host's (this surface hands its stage UP — «КОЛОНИИ › ВЕНЕРА ›
+   * ГОЛОСОВАНИЕ»); logic, state and the submit path are untouched.
+   */
+  embedded: {type: Boolean, default: false},
+  /**
+   * WARMED (PL-127): mounted by the shell ahead of its frame — invisible in the hand's zone while a play's
+   * landing ritual plays, so the hosted step's rise is one class flip and its CSS entry, never a mount. While
+   * warm the surface is laid out and fitted but shows nothing, publishes no stage, opens no pose and plays no
+   * beat (the owed record is read only once the frame stands — `walkOwedSeq` / `rallyOwedSeq`).
+   */
+  warm: {type: Boolean, default: false},
+  /**
+   * A STAGED VOTE (a card that places a delegate by being played — Turmoil Redux TR03): the play
+   * preview's staged grant, held by the shell's staged-play store while the resolution is chosen HERE.
+   * It is the bridge's SECOND source of a grant — the vote mode then serves it through its one code
+   * path; nothing has been sent, and the confirm is the play's one submit (the shell's funnel).
+   */
+  stagedVote: {type: Object as PropType<StagedVoteModel | undefined>, default: undefined},
+  /** …and what the commit charges for the card, as the composer settled it — the mode's locked receipt. */
+  stagedReceipt: {type: Object as PropType<StagedReceipt | undefined>, default: undefined},
+  /** …and the FLOW the staged door commits: a card's play (TR03) or a blue card's action (TR15 — A «Подтвердить»). */
+  stagedFlow: {type: String as PropType<'play' | 'action'>, default: 'play'},
+});
+const emit = defineEmits(['close', 'submit', 'notice', 'inspect', 'inspect-source', 'open-action', 'open-resolution-action', 'flow-complete', 'collapse', 'staged-back', 'to-board']);
+
+/**
+ * THE PORT of `consoleParliamentSectionLogic.ts` — what its bodies read, write and call of this section. Accessors
+ * and arrows, never values: it is read lazily (inside a function), so it stands above the declarations it names.
+ */
+const port: ParliamentSectionPort = {
+  // ── props
+  get warm() {
+    return props.warm;
   },
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    /** The shell plays this section's LEAVE (v3 В1): the surface is latched on the last coherent view until the unmount. */
-    leaving: {type: Boolean, default: false},
-    myTurn: {type: Boolean, default: false},
-    awaitingInput: {type: Boolean, default: false},
-    /**
-     * HOSTED AS A STEP of another workspace (the embed contract, rule 1): the
-     * shell strips the frame, the header and the `con-ws` marker; the crumb is
-     * the host's (this surface hands its stage UP — «КОЛОНИИ › ВЕНЕРА ›
-     * ГОЛОСОВАНИЕ»); logic, state and the submit path are untouched.
-     */
-    embedded: {type: Boolean, default: false},
-    /**
-     * WARMED (PL-127): mounted by the shell ahead of its frame — invisible in the hand's zone while a play's
-     * landing ritual plays, so the hosted step's rise is one class flip and its CSS entry, never a mount. While
-     * warm the surface is laid out and fitted but shows nothing, publishes no stage, opens no pose and plays no
-     * beat (the owed record is read only once the frame stands — `walkOwedSeq` / `rallyOwedSeq`).
-     */
-    warm: {type: Boolean, default: false},
-    /**
-     * A STAGED VOTE (a card that places a delegate by being played — Turmoil Redux TR03): the play
-     * preview's staged grant, held by the shell's staged-play store while the resolution is chosen HERE.
-     * It is the bridge's SECOND source of a grant — the vote mode then serves it through its one code
-     * path; nothing has been sent, and the confirm is the play's one submit (the shell's funnel).
-     */
-    stagedVote: {type: Object as PropType<StagedVoteModel | undefined>, default: undefined},
-    /** …and what the commit charges for the card, as the composer settled it — the mode's locked receipt. */
-    stagedReceipt: {type: Object as PropType<StagedReceipt | undefined>, default: undefined},
-    /** …and the FLOW the staged door commits: a card's play (TR03) or a blue card's action (TR15 — A «Подтвердить»). */
-    stagedFlow: {type: String as PropType<'play' | 'action'>, default: 'play'},
+  get leaving() {
+    return props.leaving;
   },
-  emits: ['close', 'submit', 'notice', 'inspect', 'inspect-source', 'open-action', 'open-resolution-action', 'flow-complete', 'collapse', 'staged-back', 'to-board'],
-  setup() {
-    // The section's own scope (architecture v2 — PLAN §10 · C1): its two nets are timers of it, taken back with it.
-    // …and its id as a draw host (`parliamentDraw.ts` — the answer of one section never erases another's).
-    return {flowScope: useFlowScope('console-parliament-section'), drawHostId: newParliamentDrawHostId()};
+  get embedded() {
+    return props.embedded;
   },
-  data() {
+  // ── computeds the bodies read
+  get sittingUp() {
+    return sittingUp.value;
+  },
+  get questGate() {
+    return questGate.value;
+  },
+  get bridge() {
+    return bridge.value;
+  },
+  // ── state the bodies WRITE
+  get reconciledKey() {
+    return reconciledKey.value;
+  },
+  set reconciledKey(now) {
+    reconciledKey.value = now;
+  },
+  get walkOwed() {
+    return walkOwed.value;
+  },
+  set walkOwed(now) {
+    walkOwed.value = now;
+  },
+  // ── the mode stages standing on their template refs, by their ref keys — what the module asks of each is
+  //    `closeFinished()` (`foldFinishedStage`): a mode's `defineExpose` owes it to this line
+  get refs() {
+    return {supportMode: supportMode.value ?? undefined, bannerMode: bannerMode.value ?? undefined, delegateMode: delegateMode.value ?? undefined}; // → `.closeFinished()`
+  },
+  // ── the delegated members, called through the port
+  standingDoorOwed: () => standingDoorOwed(),
+  standingQuestionServed: () => standingQuestionServed(),
+  overviewServesQuestion: () => overviewServesQuestion(),
+  foldFinishedStage: () => foldFinishedStage(),
+  retireFinishedFlows: () => retireFinishedFlows(),
+  retireQuestFlow: () => retireQuestFlow(),
+  closeStage: () => closeStage(),
+  walkRunAlive: (seq) => walkRunAlive(seq),
+  // ── the section's other members
+  voteModeNow: () => voteModeNow(),
+  reconcileStandingPrompts: () => reconcileStandingPrompts(),
+  playHostedAnswer: (answer, alive, done) => playHostedAnswer(answer, alive, done),
+  $nextTick: (fn) => nextTick(fn),
+};
+
+// The section's own scope (architecture v2 — PLAN §10 · C1): its two nets are timers of it, taken back with it.
+const flowScope = useFlowScope('console-parliament-section');
+// …and its id as a draw host (`parliamentDraw.ts` — the answer of one section never erases another's).
+const drawHostId = newParliamentDrawHostId();
+
+// The flow record is the section's own: a fresh Parliament starts on its
+// browse layer. ABOVE every declaration, so BEFORE the watchers: an
+// `immediate` one (the sitting, a standing chairman-seat pick) opens its
+// stage at setup — a reset standing after them wiped the stage they had
+// just opened. The DISPLAY HOLDS are NOT reset here (v2): they outlive the
+// section — a collapsed or yielded sitting resumes its walk over the table
+// as it stood.
+resetParliamentFlow();
+
+const supportMode = useTemplateRef<InstanceType<typeof ConsoleParliamentSupportMode>>('supportMode');
+const bannerMode = useTemplateRef<InstanceType<typeof ConsoleParliamentBannerMode>>('bannerMode');
+const delegateMode = useTemplateRef<InstanceType<typeof ConsoleParliamentDelegateMode>>('delegateMode');
+const rootEl = useTemplateRef<HTMLElement>('rootEl');
+const voteMode = useTemplateRef<InstanceType<typeof ConsoleParliamentVoteMode>>('voteMode');
+const fieldEl = useTemplateRef<HTMLElement>('fieldEl');
+const midEl = useTemplateRef<HTMLElement>('midEl');
+const seatPick = useTemplateRef<InstanceType<typeof ConsoleParliamentSeatPick>>('seatPick');
+const sittingEl = useTemplateRef<{scrollDetails?: (dy: number) => void}>('sitting');
+const agenda = useTemplateRef<InstanceType<typeof ConsoleParliamentAgenda>>('agenda');
+const effectsStep = useTemplateRef<InstanceType<typeof ConsoleParliamentEffectsStep>>('effectsStep');
+const tableTierEl = useTemplateRef<HTMLElement>('tableTierEl');
+/**
+ * The BOARD CELL that granted the delegate being placed (Vastitas Borealis' Viking) — latched from the live grant
+ * so the head keeps naming it while the cube lands (the prompt is gone by then), let go when the vote ends.
+ */
+const cellGiverLatch = ref<ChoiceContextSource | undefined>(undefined);
+/** «ПРИЁМКА»'s readiness net: armed while a hosted batch waits for a stage that has not entered. */
+let cancelDrawNet: (() => void) | undefined;
+/** The chairman quest's DOSSIER stands over the hall (X on the quest — Парламент v8 § 7). */
+const questDossierOpen = ref(false);
+/** …and the career's (X on the career). */
+const careerDossierOpen = ref(false);
+/** The seat / sitting stage is folding back — its DOM stays for the leave beat. */
+const stageLeaving = ref(false);
+/** THE HEAD'S LEAVE LATCH (TRP1): «this surface was the start's scene step» and the stack crumb it last drew —
+ *  kept through the dissolve after the frame has left the stack, so the head leaves whole (never re-read). */
+const sceneStepLatch = ref(false);
+const headLatch = ref<ReturnType<typeof workspaceStackCrumb>>(undefined);
+/** The series count the head showed last while the frame stood — the leave keeps it (the head leaves whole). */
+const seriesLatch = ref<GrantSeries | undefined>(undefined);
+/**
+ * THE LEAVE LATCH (v3 В1): the last COHERENT player view, frozen when the surface starts leaving —
+ * the phase's end (the sitting's data gone in the same response that closes the frame), the flow's
+ * conclusion, B's «свернуть», the yield to the board. Every computed reads `pv` (this or the live
+ * prop), so no tier re-computes on its way out: the surface leaves WHOLE, as one motion.
+ */
+const frozenView = ref<PlayerViewModel | undefined>(undefined);
+/** The submit safety's cancel — `undefined` while no safety stands. */
+let cancelSubmitSafety: (() => void) | undefined;
+/** When the safety was first armed for the submit standing now (its re-arms are bounded — P4). */
+const submitSafetySince = ref(0);
+/** The server's answer key at the submit — the answer is whatever changes it. */
+const submittedKey = ref('');
+/**
+ * A SUBMIT PARKED BEHIND A BUSY FUNNEL: the transport REFUSES a second submit while the previous one is still
+ * being presented (`isServerSideRequestInProgress` stands through every cinematic gate) — and refuses it
+ * SILENTLY. A Parliament door that opens in the very flush that applied the previous answer (the chairmanship
+ * gate raised by the card that completed the quest) used to lose its answer there: the stage stood
+ * «submitting» with nothing on the wire, and the flow froze until a reload. The response waits here instead and
+ * goes out the moment the funnel is free (`transportBusy` watcher).
+ */
+const parkedSubmit = ref<InputResponse | undefined>(undefined);
+/** The answer key a prompt-reconcile last ran for — one pass per server position, never a loop. */
+const reconciledKey = ref('');
+let stopFitObs: (() => void) | undefined;
+/** The shell's question door for this section (`frameQuestionDoor.ts`) — retracted with the section. */
+let stopQuestionDoor: (() => void) | undefined;
+/** The running walk's ONE end (`playOwedWalk`) — what its hold's ceiling calls (ledger HC). */
+let walkExpire: (() => void) | undefined;
+/** The chairman-seat pick: the cube's rect on the card at the submit (the flight's source). */
+const seatFrom = ref<Rect | undefined>(undefined);
+/** The parties tier's rect at the press — the seat / sitting stage unfolds from it. */
+const stageFromRect = ref<Rect | undefined>(undefined);
+/** The stage is unfolding — a walk queued meanwhile starts on the unfold's end. */
+const stageEntering = ref(false);
+/**
+ * The reward stage is TAKING THE FIELD (the overview recedes, the enacted card FLIPs onto its hero
+ * slot): a wave that would leave the ledger's rows waits for the card to land — the cause before the
+ * effect. Cleared by the entrance's own end, which re-queues the walk.
+ */
+const fieldSettling = ref(false);
+/**
+ * THE LEDGER CAME BACK after a hosted step (Colonial Affairs): its rows now read what the step paid, and
+ * that reading is OWED a beat before the walk may leave the page — a ledger that flashes «получено» for one
+ * frame and turns into the renewal has not been read. Cleared by the read beat the walk plays for it.
+ */
+const ledgerReadOwed = ref(false);
+/** The step door as last PUBLISHED (post-flush) — what a pre-flush watcher may still read as «a step was open». */
+const stepOpenMirror = ref(false);
+/** «КАРЬЕРА»: the walk's animation hold (sized to the walk) and the read beat after the last landing. */
+let walkHold: AnimationHold | undefined;
+let walkReadBeat: ParliamentBeat | undefined;
+/** «КРЕСЛО» (TR76): the seat beat's own waits — killed with the walk, fired at once by «дожать». */
+const walkSeatBeats: Array<ParliamentBeat> = [];
+/** «ДЕЛЕГАТЫ»: the rally's animation hold (sized to its cubes and marks) and the phrase in flight. */
+let rallyHold: AnimationHold | undefined;
+let rallyHandle: NeutralRallyHandle | undefined;
+/** THE WALK is running (the director turning the sitting's pages) — a step that arrives meanwhile is picked up by its loop. */
+const walking = ref(false);
+/** A walk is queued for the next probe tick (idempotent). */
+const walkQueued = ref(false);
+/** Something asked for a walk WHILE one ran — re-run once it ends. */
+const walkOwed = ref(false);
+
+/** The Parliament's scene is off the screen (collapsed / parked / aside for the board, or its task set aside). */
+const sceneHidden = computed((): boolean => {
+  return workspaceSceneHidden('parliament');
+});
+const flow = parliamentFlow;
+const flightsAirborne = computed((): boolean => {
+  return parliamentFlightsAirborne();
+});
+/** Rival delegates queued to fly in (the watcher above flies them once the table has rendered). */
+const rivalQueue = computed((): number => {
+  return rivalVotes.queue.length;
+});
+/** THE VIEW THIS SURFACE READS: the leave latch while leaving, the live prop otherwise (v3 В1). */
+const pv = computed((): PlayerViewModel => {
+  return frozenView.value ?? props.playerView;
+});
+const model = computed((): ParliamentModel | undefined => {
+  return pv.value.game.parliament;
+});
+const viewerColor = computed((): Color | undefined => {
+  return pv.value.thisPlayer?.color;
+});
+const viewerParticipates = computed((): boolean => {
+  return view.value.viewer?.participates === true;
+});
+const view = computed((): ParliamentViewVm => {
+  const modelNow = model.value;
+  return modelNow === undefined ? emptyParliamentView() : buildParliamentView(modelNow, viewerColor.value, pv.value.players);
+});
+const bridge = computed((): ParliamentPromptBridge => {
+  return parliamentPromptBridge(pv.value.waitingFor, props.stagedVote);
+});
+/** A delegate GRANT whose giver is a BOARD CELL (the live prompt's `choiceContext.source`), else undefined. */
+const liveCellGiver = computed((): ChoiceContextSource | undefined => {
+  const source = bridge.value.grant?.model.choiceContext?.source;
+  return source?.kind === 'space' ? source : undefined;
+});
+/**
+ * WHO ASKED, when it is a board cell: the ONE source plate (`ConsoleSourceDock`) the payment, the task host and
+ * the colony pick wear — «ИСТОЧНИК · Место посадки «Викинга-1» [делегат]» — at the head's right edge, standalone
+ * only (hosted, the host's crumb carries the flow).
+ */
+const cellGiverView = computed((): PromptSourceView | undefined => {
+  const source = liveCellGiver.value ?? cellGiverLatch.value;
+  return source === undefined || props.embedded || parliamentFlow.stage !== 'vote' ? undefined : choiceSourceView(source);
+});
+/**
+ * THE NEUTRAL SUPPLY IS A SOURCE TOO — while the vote mode stands behind a door that also pays the
+ * selected card's party and at least one neutral delegate would land: two sources (the viewer's
+ * reserve, the common supply), two addressees, both marked on the bench before the press.
+ */
+const neutralSource = computed((): boolean => {
+  if (parliamentFlow.stage !== 'vote') {
+    return false;
+  }
+  const slot = focusedSlot.value;
+  return slot !== undefined && (grantSupportOf(bridge.value.grant, slot.party)?.gained ?? 0) > 0;
+});
+/**
+ * A nested frame (the action workspace) took the SCENE — this screen yields and waits. A frame this
+ * one hosts as an EMBEDDED step (the hand in its discard mode, inside the sitting's zone — the
+ * registry's `frameSteps`) is not a hand-over: the screen stays, the step stands inside it.
+ */
+const sceneHandedOver = computed((): boolean => {
+  return workspaceHostYieldsScene('parliament');
+});
+/**
+ * ТЕЛО СРЕДНЕЙ ЗОНЫ (v5): the row of parties by default, an embedded STEP while the seat works, the
+ * RESULTS panel at the end. Derived once (`sittingBodyOf`) — never decided per case.
+ */
+const sittingBody = computed((): SittingBody => {
+  return sittingBodyOf(sittingStage.value, sittingField.value);
+});
+/**
+ * THE ROW'S RESTING POSE. Parked means SHUT — invisible and untouchable — and it is applied only when
+ * the drawer is not moving: during the swap the tiles are the director's, and a tier faded by CSS on
+ * top of them would swallow the motion whole.
+ */
+const rowParked = computed((): boolean => {
+  return stagePanelUp.value && !stageLeaving.value && !stageEntering.value;
+});
+/** The body has left the row: a step or the results panel stands in its place. */
+const sittingReading = computed((): boolean => {
+  return sittingUp.value && sittingBody.value !== 'parties';
+});
+/** The body is NOT the row: the chairman seat pick (a decision), or the sitting in a step / the results. */
+const stagePanelUp = computed((): boolean => {
+  const kind = parliamentStageKind();
+  return kind === 'seat' || (kind === 'sitting' && sittingReading.value) || answerStageUp.value || drawStageUp.value;
+});
+/**
+ * THE HALL'S VOTE (Парламент v8 § 5) — on EVERY door (the owner, 2026-10-19: «голосование должно быть идентично
+ * независимо от того, откуда оно открыто»): the viewer's own Parliament, the staged card doors hosted in the hand /
+ * the action composer, the Redux Venus's grant in the colonies. Only a WARMING mount (invisible, no vote) is not.
+ */
+const hall = computed((): boolean => {
+  return !props.warm;
+});
+const voteUp = computed((): boolean => {
+  return parliamentVoteUp();
+});
+const stageKind = computed((): ParliamentStage => {
+  return parliamentStageKind();
+});
+const sittingUp = computed((): boolean => {
+  return parliamentSittingUp();
+});
+/** The director's live state (the peek, the playing stage). */
+const motion = sittingMotion;
+/** THE SITTING'S BEATS — pure over the phase's summary (`sittingBeats.ts`). */
+const sittingBeatList = computed((): Array<SittingBeat> => {
+  const summary = model.value?.phase?.summary;
+  return summary === undefined ? [] : sittingBeats(summary, viewerColor.value, 'live');
+});
+// ── the SITTING (the political phase's own flow) ───────────────────
+/**
+ * WHERE THE SITTING STANDS — the server's step, the viewer's own gate
+ * prompt, the seats still awaited, the seat's own ask (a pick / a take /
+ * a tile) or the wait for another's; undefined outside a live political
+ * phase the viewer takes part in. Every stage below derives from it.
+ */
+const sitting = computed((): SittingPosition | undefined => {
+  return sittingPositionOf(model.value, pv.value.waitingFor, viewerColor.value);
+});
+/** The sitting's server step — its change re-seats the walk. */
+const sittingStepKey = computed((): string => {
+  const p = sitting.value;
+  return p === undefined ? '' : `${p.generation}:${p.step}`;
+});
+/** The stage on screen: the position's pages under the local cursor. */
+const sittingStage = computed((): SittingStage => {
+  const p = sitting.value;
+  return p === undefined ? 'verdict' : sittingStageAt(p, parliamentFlow.sittingPage);
+});
+/**
+ * THE COLONY LEDGER the enacted resolution pays this seat (Colonial Affairs) — undefined for every
+ * other resolution and for a seat outside the parliament. Read LIVE: the rows' states follow the
+ * viewer's own records as they arrive (`colonyLedgerOf`, the one reading every surface shares).
+ */
+const sittingLedger = computed((): ColonyLedgerReading | undefined => {
+  const id = model.value?.phase?.summary?.enacted.resolution;
+  const resolution = id === undefined ? undefined : getResolution(id);
+  return colonyLedgerOf(resolution, model.value, viewerColor.value, {enacted: true, live: true});
+});
+/**
+ * THE FIELD AND THE STEP'S DOOR (`sittingFieldOf`): the reward stage HOLDS THE FIELD while a hosted
+ * step (the pick, the take, the discard) stands in its zone — but not before the reward that arrived
+ * WITH the ask has played: the payout's wave first, then the take deals (one press, several effects —
+ * the surfaces go in turn) — and for the whole reward page when the resolution reads a LEDGER, whose
+ * rows are the wave's own sources.
+ */
+const sittingFieldState = computed((): {pose: boolean, stepOpen: boolean} => {
+  const p = sitting.value;
+  if (!sittingUp.value || p === undefined) {
+    return {pose: false, stepOpen: false};
+  }
+  const field = sittingFieldOf(sittingStage.value, p.rewardStep, rewardPending.value, sittingLedger.value !== undefined, stepFrameNested.value, tableReceiptOwed.value,
+    sittingAnswerUp.value);
+  // «ПРИЁМКА»: the draw layer stands on the reward chassis — the field takes the stage for it (the door stays the
+  // hosted steps' own: a draw is the reveal's, never a step teleported through the frame's slot).
+  return sittingDrawUp.value ? {pose: true, stepOpen: field.stepOpen} : field;
+});
+/** «ОТВЕТ СТОЛА» (TR78): the receipt on the answer stage / the question standing on it — the ONE stage's state (`tableAnswerBeat`). */
+const tableAnswerShowing = computed((): TableAnswer | undefined => {
+  return tableAnswerState.showing;
+});
+const tableAnswerAsking = computed((): TableAnswerAsk | undefined => {
+  return tableAnswerState.asking;
+});
+/** The asker's LIVE model — the viewer's own tableau entry (its face, its count). */
+const answerAskerModel = computed((): CardModel | undefined => {
+  const asker = tableAnswerShowing.value?.asker ?? tableAnswerAsking.value?.asker;
+  return asker === undefined ? undefined : pv.value.thisPlayer?.tableau?.find((c) => c.name === asker);
+});
+/** The section's own stage layers stand only where neither the seat pick nor the sitting holds the stage. */
+const ownStageLayersFree = computed((): boolean => {
+  return !(stageKind.value === 'seat' && focusedSlot.value !== undefined) && !(stageKind.value === 'sitting' && sitting.value !== undefined);
+});
+/** The section's OWN answer stage kind (the quest's step, a card's walk): no sitting stands to host it as a layer. */
+const answerStageUp = computed((): boolean => {
+  return (tableAnswerShowing.value !== undefined || tableAnswerAsking.value !== undefined) && !sittingUp.value;
+});
+/**
+ * THE SITTING HOSTS THE ANSWER AS A LAYER of its reward chassis: a receipt the director stands (whichever page), a
+ * question on the reward page (a law's step — the hosted step's own door), or on the enactment page once its
+ * ПОВЕСТКА has played (the winner's step — the chain's pause).
+ */
+const sittingAnswerUp = computed((): boolean => {
+  if (!sittingUp.value) {
+    return false;
+  }
+  if (tableAnswerShowing.value !== undefined) {
+    return true;
+  }
+  if (tableAnswerAsking.value === undefined) {
+    return false;
+  }
+  return sittingStage.value === 'reward' || (sittingStage.value === 'enact' && careerAgendaTold(sittingKey.value));
+});
+/** The stage panel's KIND class — the section's own answer stage wears its own paint. */
+const stagePanelKind = computed((): string => {
+  return answerStageUp.value ? 'answer' : drawStageUp.value ? 'draw' : stageKind.value;
+});
+/**
+ * «ПРИЁМКА» — MAY THIS SECTION HOST A DRAW right now (`parliamentDraw.ts` ownership): a Parliament on screen —
+ * the viewer's own, or the one a card's walk stands in the hand / the start (`embedded` — the walk's card step is
+ * received where the marker walked, never in a band over the hand) — never a nested scene's yield or a warming
+ * mount; and, inside a sitting, a page with a reward chassis to stand the layer on (the enactment's tail, the
+ * Career's walks). Anywhere else the ordinary reveal presents the batch at once (never held for a stage that
+ * cannot come).
+ */
+const drawHostable = computed((): boolean => {
+  if (props.warm || sceneHandedOver.value) {
+    return false;
+  }
+  return !sittingUp.value || sittingStage.value === 'enact' || sittingStage.value === 'reward';
+});
+/** The batch the Parliament hosts now — the reveal queue's head, when it is the Parliament's own family. */
+const drawBatch = computed((): DrawnCardEntry | undefined => {
+  const ev = currentRevealEvent();
+  return parliamentOwnsRevealBatch(ev) ? ev : undefined;
+});
+const drawSource = computed((): CardDrawRevealSource | undefined => {
+  return drawBatch.value?.source;
+});
+/** The card that drew (a card's answer to a change of power) as the viewer holds it — the hero's live face. */
+const drawHeroModel = computed((): CardModel | undefined => {
+  const source = drawSource.value;
+  return source?.type === 'ruling-change' ? pv.value.thisPlayer?.tableau?.find((c) => c.name === source.cardName) : undefined;
+});
+/** The section's OWN draw stage kind (the quest, a card's walk): no sitting stands to host it as a layer. */
+const drawStageUp = computed((): boolean => {
+  return drawBatch.value !== undefined && !sittingUp.value;
+});
+/** …and the sitting's LAYER (the enactment's tail, the Career's walks on the reward page). */
+const sittingDrawUp = computed((): boolean => {
+  return drawBatch.value !== undefined && sittingUp.value;
+});
+/** A hosted batch waits for a stage that has not entered yet — the readiness net watches this. */
+const drawAwaitingZone = computed((): number | undefined => {
+  const batch = drawBatch.value;
+  return batch !== undefined && parliamentDrawZone() === '' ? batch.id : undefined;
+});
+/**
+ * THE QUESTION THE TABLE ASKS, with its host, as a stable KEY (a watcher's edge, never an object's identity): the
+ * quest's once its flow holds for it (`beat === 'reaction'`), the sitting's winner step once its ПОВЕСТКА has
+ * played, a law's step while the sitting stands. '' = nothing to stand on the stage.
+ */
+const hostedAnswerAskKey = computed((): string => {
+  const ask = hostedAnswerAsk();
+  return ask === undefined ? '' : `${ask.host}|${ask.cause}|${ask.asker}|${ask.resource}|${ask.amount}`;
+});
+/**
+ * A RECEIPT OF THE TABLE is owed or standing (Sponsored Projects — a card payout that asked nobody): the reward
+ * stage holds its field and its page for it, and the walk plays its beat (`sittingDirector.beatReceipt`).
+ */
+const tableReceiptOwed = computed((): boolean => {
+  void tableReceiptState.owed.length;
+  void tableReceiptState.showing;
+  return tableReceiptsOwed();
+});
+/** The receipt standing in the zone now (the director stands it, the director takes it down). */
+const tableReceiptShown = computed((): TableReceipt | undefined => {
+  return tableReceiptState.showing;
+});
+/**
+ * A hosted step that is a workspace FRAME still stands INSIDE the Parliament (the colonies of the winner's
+ * free colony — Colony Contest — after its pick was answered: the build's cube in flight, the tile's own
+ * bonus asking). The stack is the one witness (`workspaceFrameHasNested`), and it is reactive: the field
+ * and the door stay open for as long as the frame stands, and the walk holds the reward page (`mayLeave`).
+ */
+const stepFrameNested = computed((): boolean => {
+  return workspaceFrameHasNested('parliament');
+});
+/**
+ * THE REWARD PAGE MAY BE LEFT NOW — the walk's own stop condition (`mayLeave`), as a reactive fact. The walk
+ * STOPS on the reward page while any term holds it (a wave owed or in the air, a receipt, the ledger's read, a
+ * hosted frame, the world's move) and resumes only when queued; a term whose falling edge has no watcher of its
+ * own (a wave's last flight landing after the beat resolved) left the sitting on «Награда» for good (CI-like
+ * box run, `console-parliament-colonial`: the stage never reached the results). The rising edge re-queues.
+ */
+const rewardPageLeavable = computed((): boolean => {
+  const position = sitting.value;
+  return sittingUp.value && position !== undefined && sittingStage.value === 'reward' && mayLeave('reward', position);
+});
+/** The stage's FIELD pose stands (the overview receded, the card on the hero slot, the zone open). */
+const sittingField = computed((): boolean => {
+  return sittingFieldState.value.pose;
+});
+/** …and its step is a whole workspace (the colonies): the zone takes the stage, the card stays home. */
+const sittingFullStep = computed((): boolean => {
+  return sittingStepTakesStage(sittingField.value, sitting.value?.rewardStep ?? 'reading', workspaceFrameHost('colonies') === 'parliament');
+});
+/** A hosted step may teleport INTO the zone right now (the ledger, if any, yields to it). */
+const sittingStepOpen = computed((): boolean => {
+  return sittingFieldState.value.stepOpen;
+});
+/** A reward wave is owed or in the air for this seat (the ledger's reactive fact). */
+const rewardPending = computed((): boolean => {
+  void parliamentRewardState.owed.length;
+  void parliamentRewardState.flying.length;
+  return parliamentRewardPending();
+});
+/** The records the ledger still owes — the watcher below queues the walk on the rising edge. */
+const rewardsOwed = computed((): number => {
+  return parliamentRewardState.owed.length;
+});
+/**
+ * The results card's ROWS are hidden until the director's cascade reveals them — the panel itself stands
+ * from the page turn (the body swapped to it), and its rows come in by the results beat. The physical part
+ * of the sitting is the RENEWAL page's, so nothing flies under this panel any more. A RELOAD onto a
+ * finished sitting marks every stage played with nothing playing, so the card simply stands.
+ */
+const resultsHidden = computed((): boolean => {
+  return sittingStage.value === 'results' && !sittingMotion.resultsRevealed;
+});
+/**
+ * The crumb's tail for the sitting's stage (`sittingStageKey`). The tail
+ * names the hosted step only once its field has opened: while the wave
+ * that arrived with the ask still plays, the page IS the reward — one
+ * animation of the tail, forward, when the take deals.
+ */
+const sittingTail = computed((): string => {
+  const p = sitting.value;
+  if (p === undefined) {
+    return '';
+  }
+  // A hosted step that is a workspace FRAME (the hand's discard, the colonies of the winner's free colony)
+  // names the tail for as long as it stands — its own stage, which only ever advances («КОЛОНИИ» → the
+  // colony picked up → its build), and which outlives the server's answer: the position reads «received»
+  // the moment the pick is answered, while the cube is still flying inside the frame.
+  if (stepFrameNested.value) {
+    const nested = workspaceStackCrumb()?.stage;
+    if (nested !== undefined && nested !== '') {
+      return nested;
+    }
+  }
+  if (payoutDetailsDoor.value && sittingPayoutDetails.open) {
+    return 'Results · payouts';
+  }
+  // «ОТВЕТ СТОЛА» (TR78): the answer stage stands as a layer of the sitting — the tail names WHAT is put down
+  // («ИСТРЕБИТЕЛЬ»), one step past the page's own word, and goes back to it once the stage has folded.
+  if (sittingAnswerUp.value) {
+    const showing = tableAnswerShowing.value;
+    return showing !== undefined ? agendaReactionResourceKey(showing.resource) : agendaReactionStageKey(pv.value.waitingFor);
+  }
+  const step = SITTING_HOSTED_STEPS.has(p.rewardStep) && !sittingStepOpen.value ? 'received' : p.rewardStep;
+  const wf = pv.value.waitingFor;
+  return sittingStageKey(sittingStage.value, step, wf?.type === 'space' && wf.placementEffect === 'remove');
+});
+/** The sitting's identity for the session's memory of played stages (`generation:seq`). */
+const sittingKey = computed((): string => {
+  const phase = model.value?.phase;
+  return phase === undefined ? '' : `${phase.generation}:${phase.summary?.seq ?? phase.generation}`;
+});
+/** The Agenda step the enactment lights — the winner's new position, once the marker has reached it. */
+const sittingStep = computed((): number | undefined => {
+  const summary = model.value?.phase?.summary;
+  return sittingUp.value && sittingStage.value !== 'verdict' && parliamentHolds.agendaAwaits === undefined ? summary?.agenda?.to : undefined;
+});
+/**
+ * «ПОДРОБНОСТИ ВЫПЛАТ»'s DOOR stands: the results page, its card revealed, and a law that paid some seat
+ * (a quiet law has nothing to explain — no door, no cursor).
+ */
+const payoutDetailsDoor = computed((): boolean => {
+  return sittingStage.value === 'results' && !resultsHidden.value &&
+    payoutDetailsAvailable(sittingPayoutDetailsOf(model.value, model.value?.phase?.summary));
+});
+/** The sitting's A verb (undefined = A does nothing here). */
+const sittingPrimary = computed((): string | undefined => {
+  const p = sitting.value;
+  if (p === undefined || sittingStepOpen.value) {
+    return undefined;
+  }
+  const key = sittingPrimaryKey(p, parliamentFlow.sittingPage);
+  // The door to the board opens only once the wave that arrived with the tile has landed (the surfaces go in turn).
+  if (key === 'Onto the board' && (rewardPending.value || walking.value)) {
+    return undefined;
+  }
+  // The close names WHERE it leads when the next workspace is known («К драфту» — one press, the screen goes there).
+  if (key === 'Close the sitting' && sittingStage.value === 'results') {
+    return sittingCloseKey(sittingCloseLeadsTo.value);
+  }
+  return key;
+});
+/** Where the results page's close leads (the draft / the research buy), or undefined for the plain close. */
+const sittingCloseLeadsTo = computed((): 'draft' | 'research' | undefined => {
+  return sittingCloseLeadsToOf(pv.value, sitting.value);
+});
+/** The sitting's B verb label — from the workspace phase, so B can never say one thing and do another. */
+const sittingBack = computed((): string | undefined => {
+  // One logical level inside the results page: the step folds back onto the card.
+  if (payoutDetailsDoor.value && sittingPayoutDetails.open) {
+    return 'Back';
+  }
+  return backLabelForVerb(backVerbFor(sittingWorkspacePhase(sittingStage.value, false)));
+});
+const winningSlot = computed((): ParliamentSlotVm | undefined => {
+  return view.value.slots.find((s) => s.isWinning);
+});
+const focusedSlot = computed((): ParliamentSlotVm | undefined => {
+  return view.value.slots[parliamentFlow.slotIndex];
+});
+/** The resolution a LIVE grant's cursor stands on — remembered per prompt as it moves (PL-023: any park keeps it). */
+const grantCursorInstance = computed((): string | undefined => {
+  return parliamentFlow.stage === 'vote' && bridge.value.grant !== undefined && bridge.value.grant.staged !== true ?
+    focusedSlot.value?.instance : undefined;
+});
+/** «ВАШИ ЭФФЕКТЫ»'s sources as SHOWN (the sitting's holds keep the previous government until its beat) — the block's and the step's one input. */
+const effectsInput = computed((): EffectItemsInput => {
+  return {
+    view: view.value,
+    ruler: parliamentHolds.rulerBefore ?? view.value.rulingParty,
+    enacted: parliamentHolds.govBefore !== undefined ? parliamentHolds.govBefore.enacted : view.value.enacted,
+    partyActionStates: partyActionStates.value,
+    resolutionActionState: resolutionActionState.value,
+  };
+});
+const effectsCount = computed((): number => {
+  return parliamentEffectItems(effectsInput.value).length;
+});
+/** The step's module state (ONE FRAMEWORK С6) — the zone, the actions cursor; the explorer keeps its own. */
+const effectsHost = parliamentEffectsHost;
+const effectsExplorerUi = parliamentEffectsExplorerUi;
+/**
+ * «ВАШИ ЭФФЕКТЫ» — the seat's Parliament ACTIONS as the «Действия карт» groups: the same sources and builder as the
+ * live workspace and Information's «Действия» (the server's verdicts on each tile), read-only here.
+ */
+const effectsHostGroups = computed((): ReadonlyArray<ConsoleActionGroup> => {
+  const sources = parliamentActionSources({
+    parliament: pv.value.game.parliament,
+    color: viewerColor.value,
+    viewerColor: viewerColor.value,
+    waitingFor: pv.value.waitingFor,
+  });
+  return buildConsoleActionsModel([], actionPreviewMap(), new Map(), {availability: 'all', activation: 'all'}, undefined, 2, sources).groups;
+});
+/** …and its STANDING EFFECTS as the explorer's political entries (the third host of the effects explorer). */
+const effectsHostEntries = computed((): ReadonlyArray<PoliticalEffectEntry> => {
+  const parliament = pv.value.game.parliament;
+  const names: Record<string, string> = {};
+  for (const p of pv.value.players) {
+    names[p.color] = p.name;
+  }
+  return politicalEffectEntries(politicalSources(parliament, viewerColor.value), {parliament, viewerColor: viewerColor.value, playerNames: names});
+});
+/** The action group under the step's cursor (undefined outside the actions zone). */
+const effectsFocusedGroup = computed((): ConsoleActionGroup | undefined => {
+  if (parliamentFlow.stage !== 'effects' || parliamentEffectsHost.zone !== 'actions') {
+    return undefined;
+  }
+  return effectsHostGroups.value[parliamentEffectsHost.actionCursor];
+});
+const focusedParty = computed((): ParliamentPartyVm | undefined => {
+  return parliamentFlow.zone === 'ruler' ?
+    view.value.parties.find((p) => p.party === view.value.rulingParty) :
+    view.value.parties[parliamentFlow.partyIndex];
+});
+/**
+ * The vote's tile (the server's option as the workspace projects it) — or,
+ * while a DELEGATE GRANT stands (the Redux Venus's «add 2 delegates to a
+ * resolution»), the grant's own reading: available (the prompt IS the
+ * availability), from the reserve, free. Never the action menu's vote, which
+ * is a different question the server answers separately.
+ */
+const voteTile = computed((): ParliamentTileVm | undefined => {
+  if (bridge.value.grant !== undefined) {
     return {
-      /**
-       * The BOARD CELL that granted the delegate being placed (Vastitas Borealis' Viking) — latched from the live grant
-       * so the head keeps naming it while the cube lands (the prompt is gone by then), let go when the vote ends.
-       */
-      cellGiverLatch: undefined as ChoiceContextSource | undefined,
-      /** «ПРИЁМКА»'s readiness net: armed while a hosted batch waits for a stage that has not entered. */
-      cancelDrawNet: undefined as (() => void) | undefined,
-      /** The chairman quest's DOSSIER stands over the hall (X on the quest — Парламент v8 § 7). */
-      questDossierOpen: false,
-      /** …and the career's (X on the career). */
-      careerDossierOpen: false,
-      /** The seat / sitting stage is folding back — its DOM stays for the leave beat. */
-      stageLeaving: false,
-      /** THE HEAD'S LEAVE LATCH (TRP1): «this surface was the start's scene step» and the stack crumb it last drew —
-       *  kept through the dissolve after the frame has left the stack, so the head leaves whole (never re-read). */
-      sceneStepLatch: false,
-      headLatch: undefined as ReturnType<typeof workspaceStackCrumb>,
-      /** The series count the head showed last while the frame stood — the leave keeps it (the head leaves whole). */
-      seriesLatch: undefined as GrantSeries | undefined,
-      /**
-       * THE LEAVE LATCH (v3 В1): the last COHERENT player view, frozen when the surface starts leaving —
-       * the phase's end (the sitting's data gone in the same response that closes the frame), the flow's
-       * conclusion, B's «свернуть», the yield to the board. Every computed reads `pv` (this or the live
-       * prop), so no tier re-computes on its way out: the surface leaves WHOLE, as one motion.
-       */
-      frozenView: undefined as PlayerViewModel | undefined,
-      /** The submit safety's cancel — `undefined` while no safety stands. */
-      cancelSubmitSafety: undefined as (() => void) | undefined,
-      /** When the safety was first armed for the submit standing now (its re-arms are bounded — P4). */
-      submitSafetySince: 0,
-      /** The server's answer key at the submit — the answer is whatever changes it. */
-      submittedKey: '',
-      /**
-       * A SUBMIT PARKED BEHIND A BUSY FUNNEL: the transport REFUSES a second submit while the previous one is still
-       * being presented (`isServerSideRequestInProgress` stands through every cinematic gate) — and refuses it
-       * SILENTLY. A Parliament door that opens in the very flush that applied the previous answer (the chairmanship
-       * gate raised by the card that completed the quest) used to lose its answer there: the stage stood
-       * «submitting» with nothing on the wire, and the flow froze until a reload. The response waits here instead and
-       * goes out the moment the funnel is free (`transportBusy` watcher).
-       */
-      parkedSubmit: undefined as InputResponse | undefined,
-      /** The answer key a prompt-reconcile last ran for — one pass per server position, never a loop. */
-      reconciledKey: '',
-      stopFitObs: undefined as (() => void) | undefined,
-      /** The shell's question door for this section (`frameQuestionDoor.ts`) — retracted with the section. */
-      stopQuestionDoor: undefined as (() => void) | undefined,
-      /** The running walk's ONE end (`playOwedWalk`) — what its hold's ceiling calls (ledger HC). */
-      walkExpire: undefined as (() => void) | undefined,
-      /** The chairman-seat pick: the cube's rect on the card at the submit (the flight's source). */
-      seatFrom: undefined as Rect | undefined,
-      /** The parties tier's rect at the press — the seat / sitting stage unfolds from it. */
-      stageFromRect: undefined as Rect | undefined,
-      /** The stage is unfolding — a walk queued meanwhile starts on the unfold's end. */
-      stageEntering: false,
-      /**
-       * The reward stage is TAKING THE FIELD (the overview recedes, the enacted card FLIPs onto its hero
-       * slot): a wave that would leave the ledger's rows waits for the card to land — the cause before the
-       * effect. Cleared by the entrance's own end, which re-queues the walk.
-       */
-      fieldSettling: false,
-      /**
-       * THE LEDGER CAME BACK after a hosted step (Colonial Affairs): its rows now read what the step paid, and
-       * that reading is OWED a beat before the walk may leave the page — a ledger that flashes «получено» for one
-       * frame and turns into the renewal has not been read. Cleared by the read beat the walk plays for it.
-       */
-      ledgerReadOwed: false,
-      /** The step door as last PUBLISHED (post-flush) — what a pre-flush watcher may still read as «a step was open». */
-      stepOpenMirror: false,
-      /** «КАРЬЕРА»: the walk's animation hold (sized to the walk) and the read beat after the last landing. */
-      walkHold: undefined as AnimationHold | undefined,
-      walkReadBeat: undefined as ParliamentBeat | undefined,
-      /** «КРЕСЛО» (TR76): the seat beat's own waits — killed with the walk, fired at once by «дожать». */
-      walkSeatBeats: [] as Array<ParliamentBeat>,
-      /** «ДЕЛЕГАТЫ»: the rally's animation hold (sized to its cubes and marks) and the phrase in flight. */
-      rallyHold: undefined as AnimationHold | undefined,
-      rallyHandle: undefined as NeutralRallyHandle | undefined,
-      /** THE WALK is running (the director turning the sitting's pages) — a step that arrives meanwhile is picked up by its loop. */
-      walking: false,
-      /** A walk is queued for the next probe tick (idempotent). */
-      walkQueued: false,
-      /** Something asked for a walk WHILE one ran — re-run once it ends. */
-      walkOwed: false,
+      id: 'vote', party: undefined, label: 'Vote', available: true, reason: '',
+      usesLeft: undefined, usesPerGeneration: undefined, preview: [], source: 'reserve', cost: 0,
     };
-  },
-  computed: {
-    /** The Parliament's scene is off the screen (collapsed / parked / aside for the board, or its task set aside). */
-    sceneHidden(): boolean {
-      return workspaceSceneHidden('parliament');
-    },
-    flow() {
-      return parliamentFlow;
-    },
-    flightsAirborne(): boolean {
-      return parliamentFlightsAirborne();
-    },
-    /** Rival delegates queued to fly in (the watcher above flies them once the table has rendered). */
-    rivalQueue(): number {
-      return rivalVotes.queue.length;
-    },
-    /** THE VIEW THIS SURFACE READS: the leave latch while leaving, the live prop otherwise (v3 В1). */
-    pv(): PlayerViewModel {
-      return this.frozenView ?? this.playerView;
-    },
-    model(): ParliamentModel | undefined {
-      return this.pv.game.parliament;
-    },
-    viewerColor(): Color | undefined {
-      return this.pv.thisPlayer?.color;
-    },
-    viewerParticipates(): boolean {
-      return this.view.viewer?.participates === true;
-    },
-    view(): ParliamentViewVm {
-      const model = this.model;
-      return model === undefined ? emptyParliamentView() : buildParliamentView(model, this.viewerColor, this.pv.players);
-    },
-    bridge(): ParliamentPromptBridge {
-      return parliamentPromptBridge(this.pv.waitingFor, this.stagedVote);
-    },
-    /** A delegate GRANT whose giver is a BOARD CELL (the live prompt's `choiceContext.source`), else undefined. */
-    liveCellGiver(): ChoiceContextSource | undefined {
-      const source = this.bridge.grant?.model.choiceContext?.source;
-      return source?.kind === 'space' ? source : undefined;
-    },
-    /**
-     * WHO ASKED, when it is a board cell: the ONE source plate (`ConsoleSourceDock`) the payment, the task host and
-     * the colony pick wear — «ИСТОЧНИК · Место посадки «Викинга-1» [делегат]» — at the head's right edge, standalone
-     * only (hosted, the host's crumb carries the flow).
-     */
-    cellGiverView(): PromptSourceView | undefined {
-      const source = this.liveCellGiver ?? this.cellGiverLatch;
-      return source === undefined || this.embedded || parliamentFlow.stage !== 'vote' ? undefined : choiceSourceView(source);
-    },
-    /**
-     * THE NEUTRAL SUPPLY IS A SOURCE TOO — while the vote mode stands behind a door that also pays the
-     * selected card's party and at least one neutral delegate would land: two sources (the viewer's
-     * reserve, the common supply), two addressees, both marked on the bench before the press.
-     */
-    neutralSource(): boolean {
-      if (parliamentFlow.stage !== 'vote') {
-        return false;
-      }
-      const slot = this.focusedSlot;
-      return slot !== undefined && (grantSupportOf(this.bridge.grant, slot.party)?.gained ?? 0) > 0;
-    },
-    /**
-     * A nested frame (the action workspace) took the SCENE — this screen yields and waits. A frame this
-     * one hosts as an EMBEDDED step (the hand in its discard mode, inside the sitting's zone — the
-     * registry's `frameSteps`) is not a hand-over: the screen stays, the step stands inside it.
-     */
-    sceneHandedOver(): boolean {
-      return workspaceHostYieldsScene('parliament');
-    },
-    stageUp(): boolean {
-      return parliamentStageUp();
-    },
-    /**
-     * ТЕЛО СРЕДНЕЙ ЗОНЫ (v5): the row of parties by default, an embedded STEP while the seat works, the
-     * RESULTS panel at the end. Derived once (`sittingBodyOf`) — never decided per case.
-     */
-    sittingBody(): SittingBody {
-      return sittingBodyOf(this.sittingStage, this.sittingField);
-    },
-    /**
-     * THE ROW'S RESTING POSE. Parked means SHUT — invisible and untouchable — and it is applied only when
-     * the drawer is not moving: during the swap the tiles are the director's, and a tier faded by CSS on
-     * top of them would swallow the motion whole.
-     */
-    rowParked(): boolean {
-      return this.stagePanelUp && !this.stageLeaving && !this.stageEntering;
-    },
-    /** The body has left the row: a step or the results panel stands in its place. */
-    sittingReading(): boolean {
-      return this.sittingUp && this.sittingBody !== 'parties';
-    },
-    /** The body is NOT the row: the chairman seat pick (a decision), or the sitting in a step / the results. */
-    stagePanelUp(): boolean {
-      const kind = parliamentStageKind();
-      return kind === 'seat' || (kind === 'sitting' && this.sittingReading) || this.answerStageUp || this.drawStageUp;
-    },
-    /**
-     * THE HALL'S VOTE (Парламент v8 § 5) — on EVERY door (the owner, 2026-10-19: «голосование должно быть идентично
-     * независимо от того, откуда оно открыто»): the viewer's own Parliament, the staged card doors hosted in the hand /
-     * the action composer, the Redux Venus's grant in the colonies. Only a WARMING mount (invisible, no vote) is not.
-     */
-    hall(): boolean {
-      return !this.warm;
-    },
-    voteUp(): boolean {
-      return parliamentVoteUp();
-    },
-    stageKind(): ParliamentStage {
-      return parliamentStageKind();
-    },
-    sittingUp(): boolean {
-      return parliamentSittingUp();
-    },
-    /** The director's live state (the peek, the playing stage). */
-    motion() {
-      return sittingMotion;
-    },
-    /** THE SITTING'S BEATS — pure over the phase's summary (`sittingBeats.ts`). */
-    sittingBeatList(): Array<SittingBeat> {
-      const summary = this.model?.phase?.summary;
-      return summary === undefined ? [] : sittingBeats(summary, this.viewerColor, 'live');
-    },
-    // ── the SITTING (the political phase's own flow) ───────────────────
-    /**
-     * WHERE THE SITTING STANDS — the server's step, the viewer's own gate
-     * prompt, the seats still awaited, the seat's own ask (a pick / a take /
-     * a tile) or the wait for another's; undefined outside a live political
-     * phase the viewer takes part in. Every stage below derives from it.
-     */
-    sitting(): SittingPosition | undefined {
-      return sittingPositionOf(this.model, this.pv.waitingFor, this.viewerColor);
-    },
-    /** The sitting's server step — its change re-seats the walk. */
-    sittingStepKey(): string {
-      const p = this.sitting;
-      return p === undefined ? '' : `${p.generation}:${p.step}`;
-    },
-    /** The stage on screen: the position's pages under the local cursor. */
-    sittingStage(): SittingStage {
-      const p = this.sitting;
-      return p === undefined ? 'verdict' : sittingStageAt(p, parliamentFlow.sittingPage);
-    },
-    /**
-     * THE COLONY LEDGER the enacted resolution pays this seat (Colonial Affairs) — undefined for every
-     * other resolution and for a seat outside the parliament. Read LIVE: the rows' states follow the
-     * viewer's own records as they arrive (`colonyLedgerOf`, the one reading every surface shares).
-     */
-    sittingLedger(): ColonyLedgerReading | undefined {
-      const id = this.model?.phase?.summary?.enacted.resolution;
-      const resolution = id === undefined ? undefined : getResolution(id);
-      return colonyLedgerOf(resolution, this.model, this.viewerColor, {enacted: true, live: true});
-    },
-    /**
-     * THE FIELD AND THE STEP'S DOOR (`sittingFieldOf`): the reward stage HOLDS THE FIELD while a hosted
-     * step (the pick, the take, the discard) stands in its zone — but not before the reward that arrived
-     * WITH the ask has played: the payout's wave first, then the take deals (one press, several effects —
-     * the surfaces go in turn) — and for the whole reward page when the resolution reads a LEDGER, whose
-     * rows are the wave's own sources.
-     */
-    sittingFieldState(): {pose: boolean, stepOpen: boolean} {
-      const p = this.sitting;
-      if (!this.sittingUp || p === undefined) {
-        return {pose: false, stepOpen: false};
-      }
-      const field = sittingFieldOf(this.sittingStage, p.rewardStep, this.rewardPending, this.sittingLedger !== undefined, this.stepFrameNested, this.tableReceiptOwed,
-        this.sittingAnswerUp);
-      // «ПРИЁМКА»: the draw layer stands on the reward chassis — the field takes the stage for it (the door stays the
-      // hosted steps' own: a draw is the reveal's, never a step teleported through the frame's slot).
-      return this.sittingDrawUp ? {pose: true, stepOpen: field.stepOpen} : field;
-    },
-    /** «ОТВЕТ СТОЛА» (TR78): the receipt on the answer stage / the question standing on it — the ONE stage's state (`tableAnswerBeat`). */
-    tableAnswerShowing(): TableAnswer | undefined {
-      return tableAnswerState.showing;
-    },
-    tableAnswerAsking(): TableAnswerAsk | undefined {
-      return tableAnswerState.asking;
-    },
-    /** The asker's LIVE model — the viewer's own tableau entry (its face, its count). */
-    answerAskerModel(): CardModel | undefined {
-      const asker = this.tableAnswerShowing?.asker ?? this.tableAnswerAsking?.asker;
-      return asker === undefined ? undefined : this.pv.thisPlayer?.tableau?.find((c) => c.name === asker);
-    },
-    /** The section's own stage layers stand only where neither the seat pick nor the sitting holds the stage. */
-    ownStageLayersFree(): boolean {
-      return !(this.stageKind === 'seat' && this.focusedSlot !== undefined) && !(this.stageKind === 'sitting' && this.sitting !== undefined);
-    },
-    /** The section's OWN answer stage kind (the quest's step, a card's walk): no sitting stands to host it as a layer. */
-    answerStageUp(): boolean {
-      return (this.tableAnswerShowing !== undefined || this.tableAnswerAsking !== undefined) && !this.sittingUp;
-    },
-    /**
-     * THE SITTING HOSTS THE ANSWER AS A LAYER of its reward chassis: a receipt the director stands (whichever page), a
-     * question on the reward page (a law's step — the hosted step's own door), or on the enactment page once its
-     * ПОВЕСТКА has played (the winner's step — the chain's pause).
-     */
-    sittingAnswerUp(): boolean {
-      if (!this.sittingUp) {
-        return false;
-      }
-      if (this.tableAnswerShowing !== undefined) {
-        return true;
-      }
-      if (this.tableAnswerAsking === undefined) {
-        return false;
-      }
-      return this.sittingStage === 'reward' || (this.sittingStage === 'enact' && careerAgendaTold(this.sittingKey));
-    },
-    /** The stage panel's KIND class — the section's own answer stage wears its own paint. */
-    stagePanelKind(): string {
-      return this.answerStageUp ? 'answer' : this.drawStageUp ? 'draw' : this.stageKind;
-    },
-    /**
-     * «ПРИЁМКА» — MAY THIS SECTION HOST A DRAW right now (`parliamentDraw.ts` ownership): a Parliament on screen —
-     * the viewer's own, or the one a card's walk stands in the hand / the start (`embedded` — the walk's card step is
-     * received where the marker walked, never in a band over the hand) — never a nested scene's yield or a warming
-     * mount; and, inside a sitting, a page with a reward chassis to stand the layer on (the enactment's tail, the
-     * Career's walks). Anywhere else the ordinary reveal presents the batch at once (never held for a stage that
-     * cannot come).
-     */
-    drawHostable(): boolean {
-      if (this.warm || this.sceneHandedOver) {
-        return false;
-      }
-      return !this.sittingUp || this.sittingStage === 'enact' || this.sittingStage === 'reward';
-    },
-    /** The batch the Parliament hosts now — the reveal queue's head, when it is the Parliament's own family. */
-    drawBatch(): DrawnCardEntry | undefined {
-      const ev = currentRevealEvent();
-      return parliamentOwnsRevealBatch(ev) ? ev : undefined;
-    },
-    drawSource(): CardDrawRevealSource | undefined {
-      return this.drawBatch?.source;
-    },
-    /** The card that drew (a card's answer to a change of power) as the viewer holds it — the hero's live face. */
-    drawHeroModel(): CardModel | undefined {
-      const source = this.drawSource;
-      return source?.type === 'ruling-change' ? this.pv.thisPlayer?.tableau?.find((c) => c.name === source.cardName) : undefined;
-    },
-    /** The section's OWN draw stage kind (the quest, a card's walk): no sitting stands to host it as a layer. */
-    drawStageUp(): boolean {
-      return this.drawBatch !== undefined && !this.sittingUp;
-    },
-    /** …and the sitting's LAYER (the enactment's tail, the Career's walks on the reward page). */
-    sittingDrawUp(): boolean {
-      return this.drawBatch !== undefined && this.sittingUp;
-    },
-    /** A hosted batch waits for a stage that has not entered yet — the readiness net watches this. */
-    drawAwaitingZone(): number | undefined {
-      const batch = this.drawBatch;
-      return batch !== undefined && parliamentDrawZone() === '' ? batch.id : undefined;
-    },
-    /**
-     * THE QUESTION THE TABLE ASKS, with its host, as a stable KEY (a watcher's edge, never an object's identity): the
-     * quest's once its flow holds for it (`beat === 'reaction'`), the sitting's winner step once its ПОВЕСТКА has
-     * played, a law's step while the sitting stands. '' = nothing to stand on the stage.
-     */
-    hostedAnswerAskKey(): string {
-      const ask = this.hostedAnswerAsk();
-      return ask === undefined ? '' : `${ask.host}|${ask.cause}|${ask.asker}|${ask.resource}|${ask.amount}`;
-    },
-    /**
-     * A RECEIPT OF THE TABLE is owed or standing (Sponsored Projects — a card payout that asked nobody): the reward
-     * stage holds its field and its page for it, and the walk plays its beat (`sittingDirector.beatReceipt`).
-     */
-    tableReceiptOwed(): boolean {
-      void tableReceiptState.owed.length;
-      void tableReceiptState.showing;
-      return tableReceiptsOwed();
-    },
-    /** The receipt standing in the zone now (the director stands it, the director takes it down). */
-    tableReceiptShown(): TableReceipt | undefined {
-      return tableReceiptState.showing;
-    },
-    /**
-     * A hosted step that is a workspace FRAME still stands INSIDE the Parliament (the colonies of the winner's
-     * free colony — Colony Contest — after its pick was answered: the build's cube in flight, the tile's own
-     * bonus asking). The stack is the one witness (`workspaceFrameHasNested`), and it is reactive: the field
-     * and the door stay open for as long as the frame stands, and the walk holds the reward page (`mayLeave`).
-     */
-    stepFrameNested(): boolean {
-      return workspaceFrameHasNested('parliament');
-    },
-    /**
-     * THE REWARD PAGE MAY BE LEFT NOW — the walk's own stop condition (`mayLeave`), as a reactive fact. The walk
-     * STOPS on the reward page while any term holds it (a wave owed or in the air, a receipt, the ledger's read, a
-     * hosted frame, the world's move) and resumes only when queued; a term whose falling edge has no watcher of its
-     * own (a wave's last flight landing after the beat resolved) left the sitting on «Награда» for good (CI-like
-     * box run, `console-parliament-colonial`: the stage never reached the results). The rising edge re-queues.
-     */
-    rewardPageLeavable(): boolean {
-      const position = this.sitting;
-      return this.sittingUp && position !== undefined && this.sittingStage === 'reward' && this.mayLeave('reward', position);
-    },
-    /** The stage's FIELD pose stands (the overview receded, the card on the hero slot, the zone open). */
-    sittingField(): boolean {
-      return this.sittingFieldState.pose;
-    },
-    /** …and its step is a whole workspace (the colonies): the zone takes the stage, the card stays home. */
-    sittingFullStep(): boolean {
-      return sittingStepTakesStage(this.sittingField, this.sitting?.rewardStep ?? 'reading', workspaceFrameHost('colonies') === 'parliament');
-    },
-    /** A hosted step may teleport INTO the zone right now (the ledger, if any, yields to it). */
-    sittingStepOpen(): boolean {
-      return this.sittingFieldState.stepOpen;
-    },
-    /** A reward wave is owed or in the air for this seat (the ledger's reactive fact). */
-    rewardPending(): boolean {
-      void parliamentRewardState.owed.length;
-      void parliamentRewardState.flying.length;
-      return parliamentRewardPending();
-    },
-    /** The records the ledger still owes — the watcher below queues the walk on the rising edge. */
-    rewardsOwed(): number {
-      return parliamentRewardState.owed.length;
-    },
-    /**
-     * The results card's ROWS are hidden until the director's cascade reveals them — the panel itself stands
-     * from the page turn (the body swapped to it), and its rows come in by the results beat. The physical part
-     * of the sitting is the RENEWAL page's, so nothing flies under this panel any more. A RELOAD onto a
-     * finished sitting marks every stage played with nothing playing, so the card simply stands.
-     */
-    resultsHidden(): boolean {
-      return this.sittingStage === 'results' && !sittingMotion.resultsRevealed;
-    },
-    /**
-     * The crumb's tail for the sitting's stage (`sittingStageKey`). The tail
-     * names the hosted step only once its field has opened: while the wave
-     * that arrived with the ask still plays, the page IS the reward — one
-     * animation of the tail, forward, when the take deals.
-     */
-    sittingTail(): string {
-      const p = this.sitting;
-      if (p === undefined) {
-        return '';
-      }
-      // A hosted step that is a workspace FRAME (the hand's discard, the colonies of the winner's free colony)
-      // names the tail for as long as it stands — its own stage, which only ever advances («КОЛОНИИ» → the
-      // colony picked up → its build), and which outlives the server's answer: the position reads «received»
-      // the moment the pick is answered, while the cube is still flying inside the frame.
-      if (this.stepFrameNested) {
-        const nested = workspaceStackCrumb()?.stage;
-        if (nested !== undefined && nested !== '') {
-          return nested;
-        }
-      }
-      if (this.payoutDetailsDoor && sittingPayoutDetails.open) {
-        return 'Results · payouts';
-      }
-      // «ОТВЕТ СТОЛА» (TR78): the answer stage stands as a layer of the sitting — the tail names WHAT is put down
-      // («ИСТРЕБИТЕЛЬ»), one step past the page's own word, and goes back to it once the stage has folded.
-      if (this.sittingAnswerUp) {
-        const showing = this.tableAnswerShowing;
-        return showing !== undefined ? agendaReactionResourceKey(showing.resource) : agendaReactionStageKey(this.pv.waitingFor);
-      }
-      const step = SITTING_HOSTED_STEPS.has(p.rewardStep) && !this.sittingStepOpen ? 'received' : p.rewardStep;
-      const wf = this.pv.waitingFor;
-      return sittingStageKey(this.sittingStage, step, wf?.type === 'space' && wf.placementEffect === 'remove');
-    },
-    /** The sitting's identity for the session's memory of played stages (`generation:seq`). */
-    sittingKey(): string {
-      const phase = this.model?.phase;
-      return phase === undefined ? '' : `${phase.generation}:${phase.summary?.seq ?? phase.generation}`;
-    },
-    /** The Agenda step the enactment lights — the winner's new position, once the marker has reached it. */
-    sittingStep(): number | undefined {
-      const summary = this.model?.phase?.summary;
-      return this.sittingUp && this.sittingStage !== 'verdict' && parliamentHolds.agendaAwaits === undefined ? summary?.agenda?.to : undefined;
-    },
-    /**
-     * «ПОДРОБНОСТИ ВЫПЛАТ»'s DOOR stands: the results page, its card revealed, and a law that paid some seat
-     * (a quiet law has nothing to explain — no door, no cursor).
-     */
-    payoutDetailsDoor(): boolean {
-      return this.sittingStage === 'results' && !this.resultsHidden &&
-        payoutDetailsAvailable(sittingPayoutDetailsOf(this.model, this.model?.phase?.summary));
-    },
-    /** The sitting's A verb (undefined = A does nothing here). */
-    sittingPrimary(): string | undefined {
-      const p = this.sitting;
-      if (p === undefined || this.sittingStepOpen) {
-        return undefined;
-      }
-      const key = sittingPrimaryKey(p, parliamentFlow.sittingPage);
-      // The door to the board opens only once the wave that arrived with the tile has landed (the surfaces go in turn).
-      if (key === 'Onto the board' && (this.rewardPending || this.walking)) {
-        return undefined;
-      }
-      // The close names WHERE it leads when the next workspace is known («К драфту» — one press, the screen goes there).
-      if (key === 'Close the sitting' && this.sittingStage === 'results') {
-        return sittingCloseKey(this.sittingCloseLeadsTo);
-      }
-      return key;
-    },
-    /** Where the results page's close leads (the draft / the research buy), or undefined for the plain close. */
-    sittingCloseLeadsTo(): 'draft' | 'research' | undefined {
-      return sittingCloseLeadsTo(this.pv, this.sitting);
-    },
-    /** The sitting's B verb label — from the workspace phase, so B can never say one thing and do another. */
-    sittingBack(): string | undefined {
-      // One logical level inside the results page: the step folds back onto the card.
-      if (this.payoutDetailsDoor && sittingPayoutDetails.open) {
-        return 'Back';
-      }
-      return backLabelForVerb(backVerbFor(sittingWorkspacePhase(this.sittingStage, false)));
-    },
-    winningSlot(): ParliamentSlotVm | undefined {
-      return this.view.slots.find((s) => s.isWinning);
-    },
-    focusedSlot(): ParliamentSlotVm | undefined {
-      return this.view.slots[parliamentFlow.slotIndex];
-    },
-    /** The resolution a LIVE grant's cursor stands on — remembered per prompt as it moves (PL-023: any park keeps it). */
-    grantCursorInstance(): string | undefined {
-      return parliamentFlow.stage === 'vote' && this.bridge.grant !== undefined && this.bridge.grant.staged !== true ?
-        this.focusedSlot?.instance : undefined;
-    },
-    /** «ВАШИ ЭФФЕКТЫ»'s sources as SHOWN (the sitting's holds keep the previous government until its beat) — the block's and the step's one input. */
-    effectsInput(): EffectItemsInput {
-      return {
-        view: this.view,
-        ruler: parliamentHolds.rulerBefore ?? this.view.rulingParty,
-        enacted: parliamentHolds.govBefore !== undefined ? parliamentHolds.govBefore.enacted : this.view.enacted,
-        partyActionStates: this.partyActionStates,
-        resolutionActionState: this.resolutionActionState,
-      };
-    },
-    effectsCount(): number {
-      return parliamentEffectItems(this.effectsInput).length;
-    },
-    /** The step's module state (ONE FRAMEWORK С6) — the zone, the actions cursor; the explorer keeps its own. */
-    effectsHost(): typeof parliamentEffectsHost {
-      return parliamentEffectsHost;
-    },
-    effectsExplorerUi(): typeof parliamentEffectsExplorerUi {
-      return parliamentEffectsExplorerUi;
-    },
-    /**
-     * «ВАШИ ЭФФЕКТЫ» — the seat's Parliament ACTIONS as the «Действия карт» groups: the same sources and builder as the
-     * live workspace and Information's «Действия» (the server's verdicts on each tile), read-only here.
-     */
-    effectsHostGroups(): ReadonlyArray<ConsoleActionGroup> {
-      const sources = parliamentActionSources({
-        parliament: this.pv.game.parliament,
-        color: this.viewerColor,
-        viewerColor: this.viewerColor,
-        waitingFor: this.pv.waitingFor,
-      });
-      return buildConsoleActionsModel([], actionPreviewMap(), new Map(), {availability: 'all', activation: 'all'}, undefined, 2, sources).groups;
-    },
-    /** …and its STANDING EFFECTS as the explorer's political entries (the third host of the effects explorer). */
-    effectsHostEntries(): ReadonlyArray<PoliticalEffectEntry> {
-      const parliament = this.pv.game.parliament;
-      const names: Record<string, string> = {};
-      for (const p of this.pv.players) {
-        names[p.color] = p.name;
-      }
-      return politicalEffectEntries(politicalSources(parliament, this.viewerColor), {parliament, viewerColor: this.viewerColor, playerNames: names});
-    },
-    /** The action group under the step's cursor (undefined outside the actions zone). */
-    effectsFocusedGroup(): ConsoleActionGroup | undefined {
-      if (parliamentFlow.stage !== 'effects' || parliamentEffectsHost.zone !== 'actions') {
-        return undefined;
-      }
-      return this.effectsHostGroups[parliamentEffectsHost.actionCursor];
-    },
-    focusedParty(): ParliamentPartyVm | undefined {
-      return parliamentFlow.zone === 'ruler' ?
-        this.view.parties.find((p) => p.party === this.view.rulingParty) :
-        this.view.parties[parliamentFlow.partyIndex];
-    },
-    /**
-     * The vote's tile (the server's option as the workspace projects it) — or,
-     * while a DELEGATE GRANT stands (the Redux Venus's «add 2 delegates to a
-     * resolution»), the grant's own reading: available (the prompt IS the
-     * availability), from the reserve, free. Never the action menu's vote, which
-     * is a different question the server answers separately.
-     */
-    voteTile(): ParliamentTileVm | undefined {
-      if (this.bridge.grant !== undefined) {
-        return {
-          id: 'vote', party: undefined, label: 'Vote', available: true, reason: '',
-          usesLeft: undefined, usesPerGeneration: undefined, preview: [], source: 'reserve', cost: 0,
-        };
-      }
-      return this.view.tiles.find((t) => t.id === 'vote');
-    },
-    /**
-     * The bench's marked source: the place the next delegate leaves, or none
-     * when there is nothing to send. A GRANT's cubes leave the RESERVE (the
-     * lobby's cube is the generation's free vote and is never a bonus's to
-     * spend), whatever the vote's own source would be.
-     */
-    benchSource(): BenchSource {
-      if (this.bridge.grant !== undefined && parliamentFlow.voteSnapshot === undefined) {
-        return (this.view.viewer?.reserve ?? 0) > 0 ? 'reserve' : 'none';
-      }
-      return benchSourceOf(this.view, parliamentFlow.voteSnapshot);
-    },
-    benchWarn(): boolean {
-      return benchWarnOf(this.benchSource, this.voteTile, this.pv.thisPlayer?.megacredits ?? 0);
-    },
-    /** The execution gate — the viewer's own action window (never a reason of its own). */
-    canActNow(): boolean {
-      return this.myTurn && this.awaitingInput;
-    },
-    canVoteNow(): boolean {
-      // A DELEGATE GRANT is the very decision the server is waiting on: the
-      // «finish your current action first» gate (`canActNow`) describes THIS
-      // prompt, so it can never be the reason the prompt cannot be answered.
-      if (this.bridge.grant !== undefined) {
-        return true;
-      }
-      return this.bridge.vote !== undefined && this.canActNow;
-    },
-    partyStates(): Array<PartyStateVm> {
-      const enactedEmpty = this.view.enacted === undefined;
-      return this.view.parties.map((p) => partyStateOf(p, enactedEmpty));
-    },
-    partyActionStates(): Array<PartyActionStateVm> {
-      return this.view.parties.map((p) => partyActionStateOf(p, this.canActNow));
-    },
-    /** THE ENACTED RESOLUTION'S ACTION for the viewer (Open IP Trade) — the server's own verdict, the party state's twin. */
-    resolutionActionState(): PartyActionStateVm {
-      return resolutionActionStateOf(this.pv.game.parliament?.viewer?.resolutionAction, this.canActNow);
-    },
-    agendaVm(): AgendaVm {
-      return agendaViewOf(this.view);
-    },
-    seatCandidates(): Array<number> {
-      const parties = (this.bridge.seat as {parties?: Array<PartyName>} | undefined)?.parties ?? [];
-      return this.view.slots.map((slot, i) => ({slot, i})).filter(({slot}) => parties.includes(slot.party)).map(({i}) => i);
-    },
-    /**
-     * THE CHAIRMAN-QUEST GATE stands for this seat — the server's own marker,
-     * never a title. While it stands NOTHING of the quest is applied: the
-     * marker is on its old step, the office untouched, the rating unchanged.
-     */
-    questGate(): {generation: number} | undefined {
-      return chairmanQuestGateOf(this.pv.waitingFor);
-    },
-    /** The chairmanship flow's crumb tail — one word per stage («ЗАДАНИЕ» → «ПОВЕСТКА»). */
-    questTail(): string {
-      return chairmanQuestStageKey(chairmanQuestFlow.stage);
-    },
-    /** The chairmanship flow's own beat, published on the root — read by the e2e probe, never by the product. */
-    questBeat(): string {
-      return chairmanQuestFlow.live ? chairmanQuestFlow.beat : '';
-    },
-    /** «КАРЬЕРА» — a card's walk is the section's subject (the walk pose stands). */
-    walkUp(): boolean {
-      return parliamentFlow.stage === 'walk';
-    },
-    /** «САНКЦИИ» — the SUPPORT-AREA mode stands (its pick, its press in flight, or its answer playing — TR12). */
-    supportUp(): boolean {
-      return parliamentSupportUp();
-    },
-    /** The support-area pick's projection — the bridge's (live or staged), or the mode's latch past the press. */
-    supportMeta(): SupportPromptMeta | undefined {
-      return this.bridge.supportPick?.meta ?? parliamentFlow.supportMeta;
-    },
-    /** A discard's flight that could not be measured — CONFESSED on the root (the probe demands its absence). */
-    supportDegraded(): string {
-      return supportDiscardFlow.degraded;
-    },
-    /** «САНКЦИИ»'s band line: the stage, the plaque under the cursor (the chosen one past the press), what leaves it. */
-    supportBand(): BandSupport | undefined {
-      if (!this.supportUp) {
-        return undefined;
-      }
-      const f = parliamentFlow;
-      const party = f.supportSnapshot?.party ?? (f.zone === 'ruler' ? (parliamentHolds.rulerBefore ?? this.view.rulingParty) : this.view.parties[f.partyIndex]?.party);
-      const area = supportAreaOf(this.supportMeta, party);
-      return {
-        stage: f.supportStage,
-        party,
-        leaving: area === undefined ? 0 : Math.max(0, area.current - area.resulting),
-        available: area?.available === true,
-        ...(area?.reason === undefined ? {} : {reason: area.reason}),
-        committed: f.supportCommitted || f.supportLive || f.stage === 'submitting',
-      };
-    },
-    /** The corporation stands in the table's cell, its cube leaving it (Septem Tribus:redux) — the bills recede under it. */
-    bannerStageUp(): boolean {
-      return bannerCubeStageUp();
-    },
-    /** «ЗНАМЯ»'s band line: the stage word, the instruction while the pick is open, the chosen party past the press. */
-    bannerBand(): BandBanner | undefined {
-      if (!this.bannerUp) {
-        return undefined;
-      }
-      const f = parliamentFlow;
-      return {stage: bannerStepStageOf(this.bannerMeta) || 'Banner', party: f.bannerSnapshot?.party, committed: f.bannerCommitted};
-    },
-    /** «ЗНАМЯ» — the BANNER mode stands (its pick, its press in flight, or its answer playing — Septem Tribus:redux). */
-    bannerUp(): boolean {
-      return parliamentBannerUp();
-    },
-    /** The banner pick's projection — the bridge's, or the mode's latch past the press. */
-    bannerMeta(): BannerPromptMeta | undefined {
-      return this.bridge.bannerPick?.meta ?? parliamentFlow.bannerMeta;
-    },
-    /**
-     * THE GHOST OF THE VIEWER'S CUBE on the plaque under the banner mode's cursor — the cube as it will stand, before
-     * the press (a dashed contour + a pale cube, the arriving-place grammar); nothing on a refused banner, nothing past A.
-     */
-    bannerGhost(): {party: ReduxParty, color: Color} | undefined {
-      const f = parliamentFlow;
-      if (!this.bannerUp || f.bannerCommitted || f.stage !== 'banner' || this.viewerColor === undefined) {
-        return undefined;
-      }
-      const party = f.zone === 'ruler' ? (parliamentHolds.rulerBefore ?? this.view.rulingParty) : this.view.parties[f.partyIndex]?.party;
-      return bannerReadingOf(this.bannerMeta, party)?.available === true && party !== undefined ? {party, color: this.viewerColor} : undefined;
-    },
-    /** «ИЗГНАНИЕ» — the DELEGATE mode stands (its pick, its press in flight, or its answer playing — TR72). */
-    delegateUp(): boolean {
-      return parliamentDelegateUp();
-    },
-    /** The delegate pick's projection — the bridge's (live or staged), or the mode's latch past the press. */
-    delegateMeta(): DelegatePromptMeta | undefined {
-      return this.bridge.delegatePick?.meta ?? parliamentFlow.delegateMeta;
-    },
-    /** The mode's ring over the table as it stands — the bills' figures, then the plaques' areas. */
-    delegateRingNow(): Array<DelegateStop> {
-      if (!this.delegateUp) {
-        return [];
-      }
-      const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
-      return delegateRing(this.delegateMeta, {
-        slots: this.view.slots.map((slot) => ({party: slot.party, votes: slot.votes})),
-        areaOrder: supportCursorOrder(this.view.parties.map((p) => p.party), ruler),
-      });
-    },
-    /**
-     * THE FIGURE THE PRESS WOULD TAKE — the cursor's stop while the pick is open, the chosen one while the press is on
-     * the wire; nothing once the answer plays (the flight then owns the figure: it stands on its place until it lifts).
-     */
-    delegateMarked(): DelegateStop | undefined {
-      const f = parliamentFlow;
-      if (!this.delegateUp || f.delegateCommitted) {
-        return undefined;
-      }
-      const snap = f.delegateSnapshot;
-      if (snap !== undefined) {
-        return this.delegateRingNow.find((stop) => stop.target.place === snap.place && stop.target.party === snap.party && stop.target.owner === snap.owner);
-      }
-      return this.delegateRingNow[f.delegateCursor] ?? this.delegateRingNow[0];
-    },
-    delegateTarget(): {party: string, seq: number} | undefined {
-      const stop = this.delegateMarked;
-      return stop?.zone === 'table' && stop.seq !== undefined ? {party: stop.target.party, seq: stop.seq} : undefined;
-    },
-    delegateArea(): ReduxParty | undefined {
-      const stop = this.delegateMarked;
-      return stop?.zone === 'areas' ? stop.target.party as ReduxParty : undefined;
-    },
-    /** A removal's flight that could not be measured — CONFESSED on the root (the probe demands its absence). */
-    delegateDegraded(): string {
-      return delegateRemovalFlow.degraded;
-    },
-    /** «ИЗГНАНИЕ»'s band line: the stage, whose figure, and the place it stands in. */
-    delegateBand(): BandDelegate | undefined {
-      if (!this.delegateUp) {
-        return undefined;
-      }
-      const f = parliamentFlow;
-      const target = f.delegateSnapshot ?? this.delegateMarked?.target;
-      if (target === undefined) {
-        return undefined;
-      }
-      const party = target.party as ReduxParty;
-      const slot = this.view.slots.find((s) => s.party === party);
-      return {
-        stage: f.delegateStage,
-        owner: target.owner,
-        ...(target.arrives === undefined ? {} : {arrives: target.arrives.owner}),
-        place: target.place,
-        party,
-        ...(target.place === 'resolution' && slot !== undefined ? {resolution: slot.resolutionId} : {}),
-        committed: f.delegateCommitted || f.delegateLive || f.stage === 'submitting',
-      };
-    },
-    /** The walk's own beat, published on the root — read by the e2e probe, never by the product. */
-    walkBeat(): string {
-      return agendaWalkFlow.live ? agendaWalkFlow.beat : '';
-    },
-    /** A card step's take is in the PLAYER's hands (TR37) — the walk's hold stands down for it. */
-    walkAwaitingCard(): boolean {
-      return agendaWalkMotion.awaitingCard !== undefined;
-    },
-    /** The walk the answer carried for THIS section to play (its serial; 0 = none) — the pose opens on it. */
-    walkOwedSeq(): number {
-      const owed = agendaWalkFlow.owed;
-      return owed !== undefined && this.playsHostedStepOf(owed.host, AGENDA_WALK_STEP_STAGE) ? owed.seq : 0;
-    },
-    /** «ДЕЛЕГАТЫ» — a card's rally of neutral delegates is the section's subject (the rally pose stands, TR31). */
-    rallyUp(): boolean {
-      return parliamentFlow.stage === 'rally';
-    },
-    /** The rally's own beat, published on the root — read by the e2e probe, never by the product. */
-    rallyBeat(): string {
-      return neutralRallyFlow.live ? neutralRallyFlow.beat : '';
-    },
-    /** A rally's flight that could not be measured — CONFESSED on the root (the probe demands its absence). */
-    rallyDegraded(): string {
-      return neutralRallyFlow.degraded;
-    },
-    /** The rally the answer carried for THIS section to play (its serial; 0 = none) — the pose opens on it. */
-    rallyOwedSeq(): number {
-      const owed = neutralRallyFlow.owed;
-      return owed !== undefined && this.playsHostedStepOf(owed.host, NEUTRAL_RALLY_STEP_STAGE) ? owed.seq : 0;
-    },
-    /** «ДЕЛЕГАТЫ»'s band line: the votes landed, the areas read, the recount's number once it has begun. */
-    rallyBand(): BandRally | undefined {
-      const flow = neutralRallyFlow;
-      if (!flow.live || flow.owed === undefined) {
-        return undefined;
-      }
-      // A rally that pays no recount (the Prelude campaigns) shows no «в игре» count at all — not even a 0 at its read.
-      const counting = flow.owed.recount && (flow.beat === 'count' || flow.beat === 'coin' || flow.beat === 'read' || flow.beat === 'done');
-      return {
-        votes: flow.landedVotes.map((v) => ({resolution: v.resolution, party: v.party})),
-        support: flow.readSupport.map((s) => ({party: s.party, gained: s.gained, ...(s.limit === undefined ? {} : {limit: s.limit})})),
-        counted: counting ? flow.counted : undefined,
-      };
-    },
-    /** The flow is holding at its seat beat with the server's own pick standing — the picker takes the stage. */
-    questSeatStep(): boolean {
-      return chairmanQuestFlow.live && chairmanQuestFlow.beat === 'seat' && this.bridge.seat !== undefined;
-    },
-    /** Its A verb: nothing while a beat is in flight (A «дожать» is unadvertised), «Закрыть» once everything has landed. */
-    questCommands(): {done: boolean, resend?: boolean} | undefined {
-      if (!chairmanQuestFlow.live) {
-        return undefined;
-      }
-      // A stalled flow reads as finished: A (and B) close it — the honest end, never a dead stage.
-      const done = chairmanQuestFlow.beat === 'done' || chairmanQuestStalled();
-      const resend = !done && !chairmanQuestFlow.answered && !chairmanQuestFlow.sent && this.questGate !== undefined && parliamentFlow.stage === 'quest';
-      return {done, ...(resend ? {resend: true} : {})};
-    },
-    /**
-     * THE TABLE'S HEAD SHOWS THE READING LINE (v8) — every pose but the overview's browse: the sitting, a vote, a card's
-     * walk / rally, the sanctions. On the overview the objects speak for themselves and the head is the kicker.
-     */
-    bandShown(): boolean {
-      // The VOTE MODE is read on its own panel (v8 § 5): the table's head stays its calm kicker — the overview's
-      // reading line («ОБЗОР · принимается …») under a vote would name the browse layer the player has left.
-      // …and the ACCESS SCENE is read on the chamber itself (the seal travelling into «ВАШИ ЭФФЕКТЫ»): no reading line either.
-      if (this.voteUp || parliamentFlow.stage === 'access') {
-        return false;
-      }
-      return parliamentFlow.stage !== 'browse' || this.sittingUp || this.supportUp || this.bannerUp || this.delegateUp || this.rallyUp || this.walkUp;
-    },
-    /**
-     * THE READING LINE'S SUBJECT («Зал» v7): the object under the browse cursor — a bill, the ruler, a row of the
-     * opposition, the engine, the track — as DATA for the band (`BandFocus`); undefined outside the browse layer.
-     */
-    bandFocus(): BandFocus | undefined {
-      if (parliamentFlow.stage !== 'browse') {
-        return undefined;
-      }
-      const view = this.view;
-      switch (parliamentFlow.zone) {
-      case 'voting': {
-        const slot = view.slots[parliamentFlow.slotIndex];
-        if (slot === undefined) {
-          return undefined;
-        }
-        return {
-          kind: 'slot', resolution: slot.resolutionId, party: slot.party, winning: slot.isWinning, votes: slot.totalVotes,
-          ...(slot.leader === undefined ? {} : {leader: slot.leader}),
-          ...(this.viewerParticipates ? {mine: slot.viewerVotes, threshold: slot.viewerEffectDelegates} : {}),
-        };
-      }
-      case 'government':
-      case 'ruler':
-        return {kind: 'ruler', party: view.rulingParty, ...(view.enacted === undefined ? {} : {resolution: view.enacted.resolutionId})};
-      case 'parties': {
-        const index = parliamentFlow.partyIndex;
-        const p = view.parties[index];
-        if (p === undefined) {
-          return undefined;
-        }
-        const state = this.partyStates[index];
-        const action = this.partyActionStates[index];
-        return {
-          kind: 'party', party: p.party, inArea: p.inArea, mine: state?.delegates ?? 0, threshold: state?.effectDelegates ?? PARTY_EFFECT_PLACES,
-          held: state?.held === true, support: p.support, action: action?.kind ?? 'none', participates: this.viewerParticipates,
-        };
-      }
-      case 'engine': {
-        const quest = view.quest;
-        const mine = quest?.progress.find((row) => row.color === this.viewerColor)?.value;
-        return {
-          kind: 'engine',
-          ...(quest === undefined ? {} : {text: quest.text, count: quest.definition.count, ...(quest.completedBy === undefined ? {} : {completedBy: quest.completedBy})}),
-          ...(mine === undefined ? {} : {mine}),
-          ...(view.chairman === undefined ? {} : {chairman: view.chairman}),
-        };
-      }
-      case 'agenda': {
-        const stop = this.view.agenda[parliamentFlow.agendaIndex - 1];
-        const me = view.viewer;
-        const next = this.agendaVm.nextStep;
-        return {
-          kind: 'agenda', position: me?.agenda ?? 0, influence: influenceReadingOf(me), participates: this.viewerParticipates,
-          ...(next === undefined ? {} : {next: {kind: next.kind, ...(next.kind === 'influence' ? {influence: next.influence} : {})}}),
-          ...(stop === undefined ? {} : {stop: {index: stop.index, kind: stop.step.kind, ...(stop.step.kind === 'influence' ? {influence: stop.step.influence} : {})}}),
-        };
-      }
-      default:
-        return undefined;
-      }
-    },
-    crumbSubject(): string {
-      return parliamentCrumbSubject(chairmanQuestFlow.live);
-    },
-    /**
-     * A SCENE STEP OF THE START (Septem Tribus:redux's first action — the start row hands the Parliament the whole
-     * scene): the head is the STACK's crumb («СТАРТ ПАРТИИ › SEPTEM TRIBUS › ЗНАМЯ», the ConsoleMaScreen precedent),
-     * and the frame publishes only its stage — the corporation stays the subject.
-     */
-    sceneStepOfStart(): boolean {
-      // …and it STAYS one while the surface LEAVES (TRP1 — the start's walk step popped): the frame is gone from
-      // the stack in the very flush the dissolve starts, and a head that re-read the stack then flashed the
-      // standalone words («ПАРЛАМЕНТ › ОБЗОР › КАРЬЕРА») over a surface the player saw as the start's own step.
-      return this.sceneStepOfStartLive || (this.leaving && this.sceneStepLatch);
-    },
-    sceneStepOfStartLive(): boolean {
-      return workspaceFrameHost('parliament') === 'start';
-    },
-    stackCrumbLive(): ReturnType<typeof workspaceStackCrumb> {
-      return this.sceneStepOfStartLive ? workspaceStackCrumb() : undefined;
-    },
-    /** The stack's crumb while the frame stands; the LATCHED one while the surface leaves (the head leaves whole). */
-    stackCrumb(): ReturnType<typeof workspaceStackCrumb> {
-      if (!this.sceneStepOfStart) {
-        return undefined;
-      }
-      return this.stackCrumbLive ?? this.headLatch;
-    },
-    headRoot(): string {
-      return this.stackCrumb?.root ?? 'Parliament';
-    },
-    headSubject(): string {
-      return this.stackCrumb !== undefined ? (this.stackCrumb.subject?.text ?? '') : this.crumbSubject;
-    },
-    headStage(): string {
-      const series = this.headSeries;
-      if (series !== undefined) {
-        return `${translateText(DELEGATE_GRANT_STEP_STAGE)} · ${grantSeriesCountText(series)}`;
-      }
-      return this.stackCrumb !== undefined ? (this.stackCrumb.stage ?? '') : this.crumbStage;
-    },
-    /**
-     * P60 · FW — A SERIES OF GRANTS ASKED FROM THE START (Rise to Power: three delegates, each its own decision): the
-     * start's scene step counts its decision the way the hand's tail does (`grantSeries.ts` — the decision on its way
-     * while its cube flies, the standing one once the mode is back in its selection) — «СТАРТ ПАРТИИ › ВОСХОЖДЕНИЕ К
-     * ВЛАСТИ › ГОЛОСОВАНИЕ · 2 / 3». Only the vote stage counts; a later stage of the step (a walk) counts nothing.
-     */
-    headSeries(): GrantSeries | undefined {
-      if (this.stackCrumb === undefined || this.stackCrumb.stage !== DELEGATE_GRANT_STEP_STAGE) {
-        return undefined;
-      }
-      return this.stackCrumbLive !== undefined ? this.headSeriesLive : this.seriesLatch;
-    },
-    headSeriesLive(): GrantSeries | undefined {
-      return this.stackCrumbLive?.stage !== DELEGATE_GRANT_STEP_STAGE ? undefined :
-        grantSeriesShown(parliamentFlow.voteSnapshot?.series, this.playerView.waitingFor);
-    },
-    headCommitted(): boolean {
-      return this.stackCrumb?.committed ?? this.crumbCommitted;
-    },
-    crumbStage(): string {
-      // A card walk that took the chair first (TR76) names that beat «КРЕСЛО» before «КАРЬЕРА» — the quest's own words.
-      // A card's walk: «КРЕСЛО» while the chair changes hands (TR76), the unit's word while the table answers (TR78).
-      const walkTail = !agendaWalkFlow.live ? '' :
-        agendaWalkFlow.beat === 'seat' ? WALK_SEAT_STAGE_KEY :
-          agendaWalkFlow.beat === 'answer' && this.tableAnswerShowing !== undefined ? agendaReactionResourceKey(this.tableAnswerShowing.resource) : '';
-      return parliamentCrumbStage(this.sittingTail, this.questTail, walkTail);
-    },
-    /**
-     * WHAT THIS FRAME PUBLISHES TO THE STACK'S CRUMB. Standalone, the mode is
-     * the SUBJECT («ПАРЛАМЕНТ › ГОЛОСОВАНИЕ») and a stage is its tail. HOSTED,
-     * the subject belongs to the host's carried object (the colony that paid
-     * the delegates) and this surface is only ever a STAGE of that flow: it
-     * publishes no subject and hands its name up as the tail — «КОЛОНИИ ›
-     * ВЕНЕРА › ГОЛОСОВАНИЕ», the root and the card never restarting.
-     */
-    frameCrumb(): {subject: string, stage: string} {
-      if (this.embedded || this.sceneStepOfStart) {
-        return {subject: '', stage: this.crumbStage !== '' ? this.crumbStage : this.crumbSubject};
-      }
-      return {subject: this.crumbSubject, stage: this.crumbStage};
-    },
-    crumbCommitted(): boolean {
-      return parliamentCrumbCommitted(chairmanQuestFlow.live);
-    },
-    /** THE ONE COMMAND CONTRACT — published to the shell's bar. */
-    commands(): Array<ConsoleCommand> {
-      return parliamentCommandsOf({
-        view: this.view,
-        canVoteNow: this.canVoteNow,
-        partyActionStates: this.partyActionStates,
-        resolutionAction: this.resolutionActionState,
-        sitting: {
-          primary: this.sittingPrimary, inspect: this.sittingInspectable, back: this.sittingBack,
-          payouts: !this.payoutDetailsDoor ? undefined : sittingPayoutDetails.open ? 'open' : 'door',
-        },
-        quest: this.questCommands,
-        voteSubjects: this.voteSubjectCount,
-        dossier: this.questDossierOpen || this.careerDossierOpen,
-        effects: {
-          count: this.effectsCount,
-          use: this.effectsFocusedGroup === undefined ? undefined : this.effectsFocusedGroup.status === 'available',
-          zone: parliamentFlow.stage === 'effects' ? parliamentEffectsHost.zone : undefined,
-          detail: parliamentEffectsExplorerUi.detail !== undefined,
-        },
-        support: this.bridge.supportPick === undefined && !this.supportUp ? undefined : {
-          staged: this.bridge.supportPick?.staged === true && !parliamentFlow.supportCommitted,
-          stagedFlow: this.stagedFlow,
-          source: this.bridge.supportPick?.card !== undefined,
-          available: supportAreaOf(this.supportMeta, parliamentFlow.zone === 'ruler' ? this.view.rulingParty : this.view.parties[parliamentFlow.partyIndex]?.party)?.available === true,
-        },
-        banner: this.bridge.bannerPick === undefined && !this.bannerUp ? undefined : {
-          committed: parliamentFlow.bannerCommitted,
-          source: this.bridge.bannerPick?.card !== undefined,
-          available: this.bannerGhost !== undefined,
-        },
-        delegate: this.bridge.delegatePick === undefined && !this.delegateUp ? undefined : {
-          staged: this.bridge.delegatePick?.staged === true && !parliamentFlow.delegateCommitted,
-          stagedFlow: this.stagedFlow,
-          source: this.bridge.delegatePick?.card !== undefined,
-          available: this.delegateMarked !== undefined,
-          exchange: this.delegateMeta?.source === 'exchange',
-        },
-        grant: this.bridge.grant === undefined ? undefined : {
-          count: this.bridge.grant.count,
-          // Staged only BEFORE the press: past it the door is committed like any other.
-          staged: this.bridge.grant.staged === true && parliamentFlow.voteSnapshot === undefined,
-          stagedFlow: this.stagedFlow,
-          source: this.bridge.grant.card !== undefined,
-        },
-      });
-    },
-    /**
-     * HOW MANY SEATS the vote mode's row of outcomes carries — what makes LB/RB
-     * («ИГРОКИ») a real verb. The bot never counts: it takes no part in the
-     * parliament, so there is no reading of it to move to.
-     */
-    voteSubjectCount(): number {
-      return (this.model?.players ?? []).filter((p) => p.participates).length;
-    },
-    /** X on the sitting inspects the enacted resolution — the object every stage is about. */
-    sittingInspectable(): boolean {
-      return this.model?.phase?.summary?.enacted !== undefined && !this.sittingStepOpen;
-    },
-    /**
-     * THE SERVER'S ANSWER KEY. A submit is answered by a state change (the
-     * game age moves) OR by a new prompt with the state untouched — a paid
-     * vote's bill is raised before anything is paid, so the age alone would
-     * miss it. The identity is structural (`promptIdentityKey`), never a raw title.
-     */
-    answerKey(): string {
-      return `${this.pv.game.gameAge}|${promptIdentityKey(this.pv.waitingFor)}`;
-    },
-    /** The submit funnel is busy (reactive) — a parked answer goes out on its falling edge. */
-    transportBusy(): boolean {
-      return transportRequestInProgress();
-    },
-  },
-  watch: {
-    /**
-     * A BEAT NEVER WAITS ON A SCENE THE PLAYER CANNOT SEE (inventory R16 — the monkey's DUO walk of
-     * `arwind-chairman-quest`: B collapsed the Parliament mid-quest, the office / the step's flights could not land on a
-     * hidden section, and the quest's BLOCKING hold kept every prompt waiting to its 20 s ceiling). The scene leaving the
-     * screen DRIVES the quest's beats to their end — «ДОЖАТЬ», the A path: every flight lands, every step is taken — and a
-     * run that still cannot end is settled honestly. The counters the holds kept tick now; the return shows the outcome.
-     */
-    sceneHidden(hidden: boolean): void {
-      if (!hidden) {
-        return;
-      }
-      // Every figure in the air lands where it is going (a vote's landing hold expired at its 4 s ceiling behind a
-      // collapse — the monkey's DUO shard 2): the hidden section never keeps a flight waiting for frames it cannot see.
-      if (parliamentFlightsAirborne()) {
-        finishParliamentFlights();
-      }
-      if (!chairmanQuestFlow.live) {
-        return;
-      }
-      if (chairmanQuestBeatActive()) {
-        finishChairmanQuestBeats();
-      }
-      if (chairmanQuestBeatActive() || chairmanQuestStalled()) {
-        settleChairmanQuestBeats('the scene left the screen mid-beat');
-      }
-    },
-    /** «ПРИЁМКА»: the section publishes whether it may host a draw (the ownership half — `parliamentDraw.ts`). */
-    'drawHostable': {
-      immediate: true,
-      handler(on: boolean): void {
-        setParliamentDrawHost(this.drawHostId, on);
-      },
-    },
-    /**
-     * …the section's own stage that was ALREADY standing (another kind folded into it, no body swap played) has entered
-     * by construction — read a tick later, after the transition hooks of this very patch have run.
-     */
-    'drawStageUp': {
-      flush: 'post',
-      handler(on: boolean): void {
-        if (on) {
-          void this.$nextTick(() => {
-            if (this.drawStageUp && !this.stageEntering) {
-              noteParliamentDrawPaneIn();
-            }
-          });
-        }
-      },
-    },
-    /**
-     * THE READINESS NET: a batch the Parliament claimed waits NOWHERE for a stage that has not entered — bounded. A
-     * stage that never comes (a pose nobody foresaw) lets the batch go to the ordinary reveal, named; never a card
-     * lost behind a zone that does not exist.
-     */
-    'drawAwaitingZone': {
-      immediate: true,
-      handler(id: number | undefined): void {
-        if (this.cancelDrawNet !== undefined) {
-          this.cancelDrawNet();
-          this.cancelDrawNet = undefined;
-        }
-        if (id !== undefined && typeof window !== 'undefined') {
-          this.cancelDrawNet = this.flowScope.after(PARLIAMENT_DRAW_READY_NET_MS, 'the draw stage\'s readiness net', () => this.onDrawNet(id));
-        }
-      },
-    },
-    'liveCellGiver': {
-      handler(source: ChoiceContextSource | undefined): void {
-        if (source !== undefined) {
-          this.cellGiverLatch = source;
-        }
-      },
-      immediate: true,
-    },
-    /**
-     * A read-only dossier never outlives the browse layer it was opened from (a sitting, a vote, a step take the hall).
-     * …and BACK ON THE BROWSE LAYER WITH A MANDATORY PROMPT STANDING: the doors below open their stage only from
-     * browse, and a value that did not change never fires again — so a gate that arrived DURING another stage (the vote
-     * that completed the chairman quest — the gate rides the vote's own answer; a grant raised by a party action taken
-     * from «ВАШИ ЭФФЕКТЫ») stood unanswered over an overview nothing on screen served. One pass per server position.
-     */
-    'flow.stage'(stage: ParliamentStage): void {
-      if (stage !== 'vote') {
-        this.cellGiverLatch = undefined; // the cell's grant is over — the head stops naming it
-      }
-      if (stage !== 'browse') {
-        this.questDossierOpen = false;
-        this.careerDossierOpen = false;
-        return;
-      }
-      void this.$nextTick(() => this.reconcileStandingPrompts());
-    },
-    /**
-     * ANOTHER SEAT'S DELEGATE ARRIVED (a rival's vote, MarsBot's Party Politics / Lobbying): the seed hid its
-     * ribbon cube in the apply block; now that the table has rendered, its flight is flown from the seat's
-     * real place — one cube after another (`parliamentRivalVotes`).
-     */
-    'rivalQueue'(count: number): void {
-      if (count > 0) {
-        void this.$nextTick(() => runRivalVotes());
-      }
-    },
-    /**
-     * THE PHASE'S END IS THE SURFACE'S END (v3 В1): the response that carries the sitting's data away is
-     * the one that closes the frame (the shell's `parliamentSittingFrameLive` watcher) — the surface must
-     * never render THAT view. Pre-flush, before this very render: latch the view the sitting stood with.
-     * Declared first: the `leaving` watcher below keeps whatever this one froze.
-     */
-    'playerView'(now: PlayerViewModel, was: PlayerViewModel | undefined): void {
-      if (this.frozenView === undefined && was !== undefined && parliamentSittingLive(was) && !parliamentSittingLive(now) && this.rootIsClosing()) {
-        this.frozenView = was;
-      }
-    },
-    /**
-     * СТОЛ → ЧТЕНИЕ (v4 §1): the panel unfolds FROM THE ROW'S OWN RECT, so that rect is read at the
-     * handoff and not at `openStage` — the sitting's panel goes up stages later (the reward, the results
-     * card), by which time the row has been re-fitted at least once (the tile token, a profile change).
-     * A `pre`-flush watcher runs BEFORE this render, so the row is still standing when it is measured.
-     */
-    'stagePanelUp'(up: boolean): void {
-      if (!up) {
-        return;
-      }
-      const tier = (this.$refs.tableTierEl ?? undefined) as HTMLElement | undefined;
-      const rect = tier?.getBoundingClientRect();
-      if (rect !== undefined && rect.width > 0) {
-        this.stageFromRect = {left: rect.left, top: rect.top, width: rect.width, height: rect.height};
-      }
-    },
-    /** The shell plays the leave: freeze on the live view (a flow's conclusion, «свернуть», the yield); a cancelled leave lets go. */
-    'leaving'(on: boolean): void {
-      if (on) {
-        this.frozenView ??= this.playerView;
-      } else {
-        this.frozenView = undefined;
-        // A leave that is over (or cancelled) with the frame gone: the head latch has served; a frame still standing
-        // (the leave was cancelled — a restore) keeps reading the live stack and re-latches on its next change.
-        if (!this.sceneStepOfStartLive) {
-          this.sceneStepLatch = false;
-          this.headLatch = undefined;
-          this.seriesLatch = undefined;
-        }
-      }
-    },
-    /**
-     * THE HEAD'S LEAVE LATCH, taken SYNCHRONOUSLY while the frame stands (TRP1): the pop that starts the leave and
-     * the `leaving` prop land in one flush, and a latch taken by an ordinary (post-flush) watcher would read the
-     * stack AFTER the frame has left it — the standalone words, exactly what the latch exists to keep out.
-     */
-    'sceneStepOfStartLive': {
-      immediate: true,
-      flush: 'sync',
-      handler(on: boolean): void {
-        if (on) {
-          this.sceneStepLatch = true;
-        }
-      },
-    },
-    'headSeriesLive': {
-      immediate: true,
-      flush: 'sync',
-      handler(series: GrantSeries | undefined): void {
-        if (series !== undefined) {
-          this.seriesLatch = series;
-        } else if (this.stackCrumbLive !== undefined) {
-          // The frame stands and counts nothing (a lone grant, a later stage): no count to keep for its leave.
-          this.seriesLatch = undefined;
-        }
-      },
-    },
-    'stackCrumbLive': {
-      immediate: true,
-      flush: 'sync',
-      handler(crumb: ReturnType<typeof workspaceStackCrumb>): void {
-        if (crumb !== undefined) {
-          this.headLatch = crumb;
-        }
-      },
-    },
-    'commands': {
-      immediate: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>): void {
-        consoleParliamentUi.commands = [...cmds];
-      },
-    },
-    /** THE HALL (v8 § 5): a Parliament that is its own screen keeps the bills on the table for the vote. */
-    'hall': {
-      immediate: true,
-      handler(on: boolean): void {
-        consoleParliamentUi.hall = on;
-      },
-    },
-    /** The vote mode's PAYMENT zone — published once the mode's DOM stands (post-flush: a teleport into a zone not yet rendered drops its content). */
-    'voteUp': {
-      immediate: true,
-      flush: 'post',
-      handler(on: boolean): void {
-        consoleParliamentUi.voteStanding = on;
-      },
-    },
-    /** The SITTING's stage zone — published on the same terms (the picker / the take teleport into it only once it is in the DOM). */
-    'sittingUp': {
-      immediate: true,
-      flush: 'post',
-      handler(on: boolean): void {
-        consoleParliamentUi.stageStanding = on;
-        // The sitting STANDS: one on its way up no longer covers the board or holds the door — the stage does now (the soft
-        // gates). The same edge as the stage's own, so no frame lies between the two holders.
-        if (on && !this.warm) {
-          sittingRiseStood();
-        }
-        // The stage STANDS again: the door the world trip held shut is the stage's again (PL-764). Only on the rising
-        // edge — a section re-mounting after the trip reads «not up» for a flush first, and an open door there admitted
-        // the seat's own placement under the returning sitting.
-        if (on) {
-          consoleParliamentUi.worldTripHoldsDoor = false;
-        }
-      },
-    },
-    /**
-     * A REWARD ARRIVED while the sitting stands (the ledger seeded its hold in
-     * the transport's own commit block): the walk plays its wave on the reward
-     * page. The door is the STANDING of the sitting (its stage, or its gate
-     * answer in flight — `parliamentSittingUp`), never the section's transient
-     * flow stage: the viewer's own answer comes back while the stage is still
-     * `submitting`, the other seat's through the poll while it is `sitting`,
-     * and both must reach the same walk.
-     */
-    'rewardsOwed'(n: number, was: number): void {
-      if (n > 0 && n > was && parliamentSittingUp()) {
-        this.queueWalk();
-      }
-    },
-    /** A receipt of the table became owed (the response to the seat's take, a poll): the walk plays it on the reward page. */
-    'tableReceiptOwed'(on: boolean, was: boolean): void {
-      if (on && !was && parliamentSittingUp()) {
-        this.queueWalk();
-      }
-    },
-    /**
-     * THE SITTING OPENS WITH THE PHASE and closes with it. The position's
-     * rising edge unfolds the stage from the parties tier (from the browse
-     * layer only — a vote in flight finishes its own phrase first, then the
-     * answer-key watcher lands here); the falling edge (the phase is over) is
-     * the flow's ending: the shell's ONE guarded conclusion decides whether
-     * the workspace leaves. Never a title, never a client memory — the
-     * server's phase record is the only witness.
-     */
-    'sitting': {
-      immediate: true,
-      handler(position: SittingPosition | undefined): void {
-        if (position !== undefined) {
-          if (parliamentFlow.stage === 'browse') {
-            parliamentFlow.zone = 'government';
-            this.planOpening(position);
-            this.openStage('sitting');
-          }
-          if (parliamentFlow.stage === 'sitting') {
-            setWorkspaceFramePhase('parliament', sittingWorkspacePhase(this.sittingStage, false));
-          }
-        } else if (parliamentFlow.stage === 'sitting') {
-          this.endSitting();
-        }
-      },
-    },
-    /** A new server step re-seats the walk: from its first unplayed page (a gate this seat already answered: its wait pose). */
-    'sittingStepKey'(_now: string, was: string): void {
-      if (was === '' || !parliamentSittingUp()) {
-        return;
-      }
-      if (this.walking) {
-        // The walk's own loop re-reads the position after every beat; a step that arrives mid-beat is picked up there.
-        this.walkOwed = true;
-        return;
-      }
-      this.enterServerStep();
-    },
-    'sittingStage'(stage: SittingStage): void {
-      if (parliamentFlow.stage === 'sitting') {
-        setWorkspaceFramePhase('parliament', sittingWorkspacePhase(stage, false));
-      }
-      // «ПОДРОБНОСТИ ВЫПЛАТ» belong to the results page alone — leaving it leaves them (never a stale «open»).
-      if (stage !== 'results') {
-        resetSittingPayoutDetails();
-      }
-    },
-    payoutDetailsDoor(on: boolean): void {
-      if (!on) {
-        resetSittingPayoutDetails();
-      }
-    },
-    /**
-     * THE REWARD STAGE TAKES THE FIELD for a hosted step — the overview recedes
-     * and the enacted card FLIPs onto the stage's hero slot (its government
-     * rect is read BEFORE the teleport moves it); when the step is answered
-     * the card FLIPs home and the overview breathes back. The flow record
-     * mirrors it synchronously for the tiers (the carry) and the stylesheet
-     * (the pose); the motion follows on the next tick, after the layout.
-     */
-    /** Mirrored SYNCHRONOUSLY beside the field (pre-flush): the government reads it to keep the card home, in the same render. */
-    'sittingFullStep': {
-      immediate: true,
-      handler(on: boolean): void {
-        parliamentFlow.sittingFullStep = on;
-      },
-    },
-    'sittingField'(on: boolean): void {
-      parliamentFlow.sittingField = on;
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-      const cardFrom = enactCarryRect(root);
-      this.publishMidOffsets();
-      void this.$nextTick(() => {
-        if (root === undefined) {
-          return;
-        }
-        fitParliamentCards();
-        if (on) {
-          // A wave that leaves the ledger waits for the card to LAND on its hero slot (the cause before the effect).
-          this.fieldSettling = true;
-          playParliamentEnactEnter({root, cardFrom, onDone: () => {
-            this.fieldSettling = false;
-            if (parliamentFlow.stage === 'sitting') {
-              this.queueWalk();
-            }
-          }});
-        } else {
-          this.fieldSettling = false;
-          playParliamentEnactFold({root, cardFrom});
-        }
-      });
-    },
-    /**
-     * THE STEP'S DOOR (Colonial Affairs, block C): a hosted step may teleport into the zone — published
-     * POST-FLUSH (the zone node is in the DOM) as `fieldStanding` for the shell's teleports (the picker, the
-     * take) and as the Parliament FRAME's slot for a step that is a workspace FRAME (the hand in its
-     * discard mode). For every step but the ledger's the door flips WITH the pose; with a ledger body the
-     * field stands from the page's start and the door opens only once the wave has landed.
-     */
-    'sittingStepOpen': {
-      flush: 'post',
-      handler(on: boolean, was: boolean): void {
-        this.publishStepDoor(on);
-        this.stepOpenMirror = on;
-        // The step left and the LEDGER returns under it: its updated rows are read for a beat before the walk goes on.
-        if (!on && was && this.sittingStage === 'reward' && this.sittingLedger !== undefined) {
-          this.ledgerReadOwed = true;
-          this.queueWalk();
-        }
-      },
-    },
-    /**
-     * THE HOSTED FRAME LEFT (Colony Contest): the shell popped the colonies once the build chain finished. The
-     * position moved on long ago (the response after the build), so nothing else re-queues the walk — the
-     * stage's door closes with the frame (`sittingStepOpen` falls), the hero card folds home, and the walk
-     * goes on from the reward page: «получено», the renewal, the results. The sitting is never concluded here.
-     */
-    /** The reward page's stop lifted (every term the walk waited on has let go): the walk goes on from it. */
-    rewardPageLeavable(on: boolean, was: boolean): void {
-      if (on && !was && parliamentFlow.stage === 'sitting') {
-        this.queueWalk();
-      }
-    },
-    stepFrameNested(on: boolean, was: boolean): void {
-      if (!on && was && parliamentFlow.stage === 'sitting') {
-        this.queueWalk();
-      }
-    },
-    sceneHandedOver(on: boolean): void {
-      if (!on && parliamentFlow.stage === 'browse') {
-        // (the falling edge of a SCENE hand-over — the browse layer republishes its own crumb)
-        setWorkspaceFrameSubject('parliament', this.crumbSubject);
-        setWorkspaceFrameStage('parliament', this.crumbStage);
-        setWorkspaceFramePhase('parliament', 'browse');
-        void this.$nextTick(() => fitParliamentCards());
-      }
-    },
-    'view'(): void {
-      void this.$nextTick(() => fitParliamentCards());
-    },
-    /**
-     * The server answered: the stage it committed is over — a vote LANDS first, a paid vote PAYS first, a gate answer stays on its stage.
-     * POST-flush on purpose: the answer is read by the vote-mode CHILD off its `playerView` PROP, and a parent's pre-flush
-     * watcher runs one patch BEFORE that prop is updated — the child then read the OLD prompt, saw no bill, closed the vote
-     * and reported the flow complete, and the shell concluded the workspace out from under the payment (the stranded
-     * «Выберите, как оплатить …» over the board). The Э0 split moved `paymentStands` from this component into the child;
-     * this is the seam it crossed.
-     */
-    'answerKey': {
-      flush: 'post',
-      handler(key: string): void {
-        this.onAnswerKey(key);
-      },
-    },
-    /** The funnel is free: an answer parked behind it goes out now (post — after the applied view's own flush). */
-    'transportBusy': {
-      flush: 'post',
-      handler(busy: boolean): void {
-        const parked = this.parkedSubmit;
-        if (!busy && parked !== undefined && parliamentFlow.stage === 'submitting') {
-          this.emitSubmit(parked);
-        }
-      },
-    },
-    /**
-     * THE CHAIRMAN-QUEST GATE takes the stage the moment it stands. The
-     * player has ALREADY pressed A — on the mandatory announce plate, which is
-     * what mounted this section — so the flow opens, starts its reading beat
-     * and sends the answer under it: the reading is the minimum beat a fast
-     * server never cuts, and everything past it waits for the response.
-     */
-    'questGate': {
-      immediate: true,
-      handler(gate: {generation: number} | undefined): void {
-        this.whenQuestGateChanges(gate);
-      },
-    },
-    /**
-     * «КАРЬЕРА» (TR04): the section was pushed INTO the hand's zone with a walk
-     * owed to it — the pose opens on the record, at SETUP (so the first name
-     * this surface publishes is the walk's stage, never «Обзор» for a render),
-     * and its beats start on the mounted DOM.
-     */
-    'walkOwedSeq': {
-      immediate: true,
-      handler(seq: number): void {
-        if (seq > 0 && parliamentFlow.stage === 'browse' && !agendaWalkFlow.live) {
-          this.openWalkFlow();
-        }
-      },
-    },
-    /**
-     * A CARD STEP'S TAKE (TR37): the walk's hold stands DOWN while the card is
-     * the player's to take (the cover scene and the viewer own that moment —
-     * a ceiling over a player's reading would fire as a «leaked hold») and
-     * stands UP again, with the walk's own budget, once the card has landed.
-     */
-    'walkAwaitingCard'(waiting: boolean): void {
-      const owed = agendaWalkFlow.owed;
-      if (!agendaWalkFlow.live || owed === undefined || agendaWalkFlow.beat !== 'walk') {
-        return;
-      }
-      if (waiting) {
-        this.walkHold?.release();
-        this.walkHold = undefined;
-      } else if (this.walkHold === undefined) {
-        this.raiseWalkHold(agendaWalkHoldMs(owed));
-      }
-    },
-    /**
-     * «ДЕЛЕГАТЫ» (TR31): the section was pushed INTO the hand's zone with a rally owed to it — the pose opens
-     * on the record at SETUP (declared before `frameCrumb`, so the first name this surface publishes is the
-     * rally's stage, never «Обзор» for a render), and its beats start on the mounted DOM.
-     */
-    'rallyOwedSeq': {
-      immediate: true,
-      handler(seq: number): void {
-        if (seq > 0 && parliamentFlow.stage === 'browse' && !neutralRallyFlow.live) {
-          this.openRallyFlow();
-        }
-      },
-    },
-    /**
-     * «ОТВЕТ СТОЛА» (TR78): the table's QUESTION stands with its host ready → the answer stage asks it (the shell
-     * teleports the pick / the layout in once the stage has entered); the prompt falls (the receive scene played with
-     * the commit held, so it falls only once the units are on their cards) → the stage folds, and the quest's flow —
-     * which held for it — goes on.
-     */
-    'hostedAnswerAskKey': {
-      // IMMEDIATE: the section's unmount ends the ask (`endTableAnswerAsk`) while the question still stands, and a
-      // remount that found the key already set never asked it again — the pick then rendered nowhere (the shell
-      // holds a prompt a workspace stage owns) and the sitting stood on its Career with no way to answer.
-      immediate: true,
-      handler(key: string, was: string | undefined): void {
-        if (key !== '') {
-          const ask = this.hostedAnswerAsk();
-          if (ask !== undefined) {
-            askTableAnswer(ask);
-          }
-          return;
-        }
-        if (was !== undefined && was !== '') {
-          endTableAnswerAsk();
-          if (was.startsWith('quest|') && chairmanQuestAwaitsReaction()) {
-            noteChairmanQuestReactionAnswered();
-          }
-        }
-      },
-    },
-    /**
-     * THE CHAIRMANSHIP FLOW HOLDS FOR THE DELEGATE PICK (the corner case: every
-     * delegate of this seat stands on a resolution). The DIRECTOR decides that
-     * — not the prompt's arrival — so the picker opens on its own beat, and the
-     * crumb keeps «ПРЕДСЕДАТЕЛЬСТВО» with only the tail advancing.
-     */
-    'questSeatStep'(open: boolean): void {
-      if (!open || parliamentStageKind() !== 'quest') {
-        return;
-      }
-      const seat = this.bridge.seat;
-      const parties = seat === undefined ? [] : (seat as {parties: Array<PartyName>}).parties;
-      const idx = this.view.slots.findIndex((slot) => parties.includes(slot.party));
-      parliamentFlow.slotIndex = idx >= 0 ? idx : 0;
-      parliamentFlow.zone = 'voting';
-      this.openStage('seat');
-    },
-    /** A stand-alone chairman-seat pick is MANDATORY: it takes the stage as soon as it stands. */
-    'bridge.seat': {
-      immediate: true,
-      handler(seat: PlayerInputModel | undefined): void {
-        this.whenBridgeSeatChanges(seat);
-      },
-    },
-    /**
-     * A DELEGATE GRANT is MANDATORY too (Turmoil Redux — the Venus tile): the
-     * vote mode opens on it as soon as it stands. At SETUP (the section
-     * mounting FOR the grant — hosted inside the colonies, or re-entered after
-     * a reload) the mode is ARMED before the first render, so the surface is
-     * born in its vote pose and the overview never shows (`armGrantVoteFlow` →
-     * the mode's own `mounted` plays the fresh entrance). Arriving LATER, over
-     * a standing overview, it opens with the ordinary phrase — the cards FLIP
-     * out of the table into the row. The mode opens on the card the viewer's
-     * own delegates already stand on (the likeliest address), else the first.
-     */
-    grantCursorInstance(instance: string | undefined): void {
-      if (instance !== undefined) {
-        rememberGrantCursor(this.pv.waitingFor?.promptId, instance);
-      }
-    },
-    'bridge.grant': {
-      immediate: true,
-      handler(grant: ParliamentPromptBridge['grant']): void {
-        this.whenBridgeGrantChanges(grant);
-      },
-    },
-    /**
-     * THE WARM MOUNT UNVEILED (P72 · CZ): the play's live grant was asked while this surface was still warming under the
-     * landing (invisible, inert) — the step rises NOW, born in its vote pose like a section mounted for the grant, the
-     * mode playing its fresh entrance (never the overview's cards flipping into the row: the overview was never seen).
-     */
-    warm(now: boolean, was: boolean): void {
-      const grant = this.bridge.grant;
-      if (was && !now && grant !== undefined && grant.staged !== true && parliamentFlow.stage === 'browse') {
-        this.openGrant(grant, true);
-      }
-    },
-    /**
-     * A SUPPORT-AREA PICK (TR12 Party Sanctions) — staged (the card's door, hosted in the hand) or live (re-asked,
-     * a reload): the mode opens on it. At SETUP the flow is ARMED before the first render, so the surface is born
-     * in its pose and the overview never shows; arriving over a standing overview it opens there. The cursor
-     * starts on the ring's first area on offer — a cursor, never a selection.
-     */
-    'bridge.supportPick': {
-      immediate: true,
-      handler(pick: ParliamentPromptBridge['supportPick']): void {
-        this.whenBridgeSupportPickChanges(pick);
-      },
-    },
-    /**
-     * A BANNER PICK (Septem Tribus:redux — the first action's cube): the mode opens on it, ARMED before the first
-     * render like the support pick; the cursor starts on the ring's first banner on offer — a cursor, never a selection.
-     * Mandatory and LIVE: the frame stands past its commit (B «Свернуть»).
-     */
-    'bridge.bannerPick': {
-      immediate: true,
-      handler(pick: ParliamentPromptBridge['bannerPick']): void {
-        this.whenBridgeBannerPickChanges(pick);
-      },
-    },
-    /**
-     * A DELEGATE PICK (TR72 Banned Delegate:redux) — staged (the card's door, hosted in the hand) or live (re-asked, a
-     * reload): the mode opens on it, ARMED before the first render like the support pick. The cursor starts on the
-     * ring's first figure — a cursor, never a selection.
-     */
-    'bridge.delegatePick': {
-      immediate: true,
-      handler(pick: ParliamentPromptBridge['delegatePick']): void {
-        this.whenBridgeDelegatePickChanges(pick);
-      },
-    },
-    /**
-     * THE CRUMB, handed UP. Declared LAST on purpose: every `immediate` watcher
-     * above that opens a stage at SETUP (the sitting, a seat pick, a delegate
-     * grant's vote) has already done so, and the first name this surface
-     * publishes is the stage it is BORN on. Published earlier, a step mounting
-     * for a grant named itself «Обзор» for one render before «Голосование» —
-     * the host's crumb animated its tail twice, through a stage nobody entered.
-     */
-    'frameCrumb': {
-      immediate: true,
-      deep: true,
-      handler(crumb: {subject: string, stage: string}): void {
-        // A scene step of the START carries the corporation as its subject (pushed by the shell) — never overwritten.
-        if (!this.sceneStepOfStart) {
-          setWorkspaceFrameSubject('parliament', crumb.subject);
-        }
-        setWorkspaceFrameStage('parliament', crumb.stage);
-      },
-    },
-  },
-  beforeCreate() {
-    // The flow record is the section's own: a fresh Parliament starts on its
-    // browse layer. BEFORE the watchers: an `immediate` one (the sitting, a
-    // standing chairman-seat pick) opens its stage at setup, exactly as it did
-    // over the old `data()` — a reset in `created()` ran after them and wiped
-    // the stage they had just opened. The DISPLAY HOLDS are NOT reset here
-    // (v2): they outlive the section — a collapsed or yielded sitting resumes
-    // its walk over the table as it stood.
-    resetParliamentFlow();
-  },
-  mounted() {
-    setParliamentRootEl((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
-    // «САНКЦИИ» (TR12): the apply block seeds a discard's holds only while this section's support-area mode
-    // stands to fly them.
-    registerSupportDiscardHost(() => parliamentSupportUp());
-    // «ИЗГНАНИЕ» (TR72): the apply block owes a removal's flight only while the delegate mode stands to fly it.
-    registerDelegateRemovalHost(() => parliamentDelegateUp());
-    // A finished flow held for a question THIS screen serves hands the screen to it in place (ledger HC).
-    this.stopQuestionDoor = registerFrameQuestionDoor('parliament', () => this.serveStandingQuestion());
-    // A sitting already holding the field at mount (a reload, a restore) has
-    // no entrance to play — the overview is parked at once.
-    parliamentFlow.sittingField = this.sittingField;
-    // A step's door already open at mount is published from the mounted DOM
-    // (the watcher above cannot fire for a value that never changed).
-    this.publishStepDoor(this.sittingStepOpen);
-    this.stepOpenMirror = this.sittingStepOpen;
-    this.publishMidOffsets();
-    if (this.sittingField) {
-      parkParliamentForEnact((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
+  }
+  return view.value.tiles.find((t) => t.id === 'vote');
+});
+/**
+ * The bench's marked source: the place the next delegate leaves, or none
+ * when there is nothing to send. A GRANT's cubes leave the RESERVE (the
+ * lobby's cube is the generation's free vote and is never a bonus's to
+ * spend), whatever the vote's own source would be.
+ */
+const benchSource = computed((): BenchSource => {
+  if (bridge.value.grant !== undefined && parliamentFlow.voteSnapshot === undefined) {
+    return (view.value.viewer?.reserve ?? 0) > 0 ? 'reserve' : 'none';
+  }
+  return benchSourceOf(view.value, parliamentFlow.voteSnapshot);
+});
+const benchWarn = computed((): boolean => {
+  return benchWarnOf(benchSource.value, voteTile.value, pv.value.thisPlayer?.megacredits ?? 0);
+});
+/** The execution gate — the viewer's own action window (never a reason of its own). */
+const canActNow = computed((): boolean => {
+  return props.myTurn && props.awaitingInput;
+});
+const canVoteNow = computed((): boolean => {
+  // A DELEGATE GRANT is the very decision the server is waiting on: the
+  // «finish your current action first» gate (`canActNow`) describes THIS
+  // prompt, so it can never be the reason the prompt cannot be answered.
+  if (bridge.value.grant !== undefined) {
+    return true;
+  }
+  return bridge.value.vote !== undefined && canActNow.value;
+});
+const partyStates = computed((): Array<PartyStateVm> => {
+  const enactedEmpty = view.value.enacted === undefined;
+  return view.value.parties.map((p) => partyStateOf(p, enactedEmpty));
+});
+const partyActionStates = computed((): Array<PartyActionStateVm> => {
+  return view.value.parties.map((p) => partyActionStateOf(p, canActNow.value));
+});
+/** THE ENACTED RESOLUTION'S ACTION for the viewer (Open IP Trade) — the server's own verdict, the party state's twin. */
+const resolutionActionState = computed((): PartyActionStateVm => {
+  return resolutionActionStateOf(pv.value.game.parliament?.viewer?.resolutionAction, canActNow.value);
+});
+const agendaVm = computed((): AgendaVm => {
+  return agendaViewOf(view.value);
+});
+const seatCandidates = computed((): Array<number> => {
+  const parties = (bridge.value.seat as {parties?: Array<PartyName>} | undefined)?.parties ?? [];
+  return view.value.slots.map((slot, i) => ({slot, i})).filter(({slot}) => parties.includes(slot.party)).map(({i}) => i);
+});
+/**
+ * THE CHAIRMAN-QUEST GATE stands for this seat — the server's own marker,
+ * never a title. While it stands NOTHING of the quest is applied: the
+ * marker is on its old step, the office untouched, the rating unchanged.
+ */
+const questGate = computed((): {generation: number} | undefined => {
+  return chairmanQuestGateOf(pv.value.waitingFor);
+});
+/** The chairmanship flow's crumb tail — one word per stage («ЗАДАНИЕ» → «ПОВЕСТКА»). */
+const questTail = computed((): string => {
+  return chairmanQuestStageKey(chairmanQuestFlow.stage);
+});
+/** The chairmanship flow's own beat, published on the root — read by the e2e probe, never by the product. */
+const questBeat = computed((): string => {
+  return chairmanQuestFlow.live ? chairmanQuestFlow.beat : '';
+});
+/** «КАРЬЕРА» — a card's walk is the section's subject (the walk pose stands). */
+const walkUp = computed((): boolean => {
+  return parliamentFlow.stage === 'walk';
+});
+/** «САНКЦИИ» — the SUPPORT-AREA mode stands (its pick, its press in flight, or its answer playing — TR12). */
+const supportUp = computed((): boolean => {
+  return parliamentSupportUp();
+});
+/** The support-area pick's projection — the bridge's (live or staged), or the mode's latch past the press. */
+const supportMeta = computed((): SupportPromptMeta | undefined => {
+  return bridge.value.supportPick?.meta ?? parliamentFlow.supportMeta;
+});
+/** A discard's flight that could not be measured — CONFESSED on the root (the probe demands its absence). */
+const supportDegraded = computed((): string => {
+  return supportDiscardFlow.degraded;
+});
+/** «САНКЦИИ»'s band line: the stage, the plaque under the cursor (the chosen one past the press), what leaves it. */
+const supportBand = computed((): BandSupport | undefined => {
+  if (!supportUp.value) {
+    return undefined;
+  }
+  const f = parliamentFlow;
+  const party = f.supportSnapshot?.party ?? (f.zone === 'ruler' ? (parliamentHolds.rulerBefore ?? view.value.rulingParty) : view.value.parties[f.partyIndex]?.party);
+  const area = supportAreaOf(supportMeta.value, party);
+  return {
+    stage: f.supportStage,
+    party,
+    leaving: area === undefined ? 0 : Math.max(0, area.current - area.resulting),
+    available: area?.available === true,
+    ...(area?.reason === undefined ? {} : {reason: area.reason}),
+    committed: f.supportCommitted || f.supportLive || f.stage === 'submitting',
+  };
+});
+/** The corporation stands in the table's cell, its cube leaving it (Septem Tribus:redux) — the bills recede under it. */
+const bannerStageUp = computed((): boolean => {
+  return bannerCubeStageUp();
+});
+/** «ЗНАМЯ»'s band line: the stage word, the instruction while the pick is open, the chosen party past the press. */
+const bannerBand = computed((): BandBanner | undefined => {
+  if (!bannerUp.value) {
+    return undefined;
+  }
+  const f = parliamentFlow;
+  return {stage: bannerStepStageOf(bannerMeta.value) || 'Banner', party: f.bannerSnapshot?.party, committed: f.bannerCommitted};
+});
+/** «ЗНАМЯ» — the BANNER mode stands (its pick, its press in flight, or its answer playing — Septem Tribus:redux). */
+const bannerUp = computed((): boolean => {
+  return parliamentBannerUp();
+});
+/** The banner pick's projection — the bridge's, or the mode's latch past the press. */
+const bannerMeta = computed((): BannerPromptMeta | undefined => {
+  return bridge.value.bannerPick?.meta ?? parliamentFlow.bannerMeta;
+});
+/**
+ * THE GHOST OF THE VIEWER'S CUBE on the plaque under the banner mode's cursor — the cube as it will stand, before
+ * the press (a dashed contour + a pale cube, the arriving-place grammar); nothing on a refused banner, nothing past A.
+ */
+const bannerGhost = computed((): {party: ReduxParty, color: Color} | undefined => {
+  const f = parliamentFlow;
+  if (!bannerUp.value || f.bannerCommitted || f.stage !== 'banner' || viewerColor.value === undefined) {
+    return undefined;
+  }
+  const party = f.zone === 'ruler' ? (parliamentHolds.rulerBefore ?? view.value.rulingParty) : view.value.parties[f.partyIndex]?.party;
+  return bannerReadingOf(bannerMeta.value, party)?.available === true && party !== undefined ? {party, color: viewerColor.value} : undefined;
+});
+/** «ИЗГНАНИЕ» — the DELEGATE mode stands (its pick, its press in flight, or its answer playing — TR72). */
+const delegateUp = computed((): boolean => {
+  return parliamentDelegateUp();
+});
+/** The delegate pick's projection — the bridge's (live or staged), or the mode's latch past the press. */
+const delegateMeta = computed((): DelegatePromptMeta | undefined => {
+  return bridge.value.delegatePick?.meta ?? parliamentFlow.delegateMeta;
+});
+/** The mode's ring over the table as it stands — the bills' figures, then the plaques' areas. */
+const delegateRingNow = computed((): Array<DelegateStop> => {
+  if (!delegateUp.value) {
+    return [];
+  }
+  const ruler = parliamentHolds.rulerBefore ?? view.value.rulingParty;
+  return delegateRing(delegateMeta.value, {
+    slots: view.value.slots.map((slot) => ({party: slot.party, votes: slot.votes})),
+    areaOrder: supportCursorOrder(view.value.parties.map((p) => p.party), ruler),
+  });
+});
+/**
+ * THE FIGURE THE PRESS WOULD TAKE — the cursor's stop while the pick is open, the chosen one while the press is on
+ * the wire; nothing once the answer plays (the flight then owns the figure: it stands on its place until it lifts).
+ */
+const delegateMarked = computed((): DelegateStop | undefined => {
+  const f = parliamentFlow;
+  if (!delegateUp.value || f.delegateCommitted) {
+    return undefined;
+  }
+  const snap = f.delegateSnapshot;
+  if (snap !== undefined) {
+    return delegateRingNow.value.find((stop) => stop.target.place === snap.place && stop.target.party === snap.party && stop.target.owner === snap.owner);
+  }
+  return delegateRingNow.value[f.delegateCursor] ?? delegateRingNow.value[0];
+});
+const delegateTarget = computed((): {party: string, seq: number} | undefined => {
+  const stop = delegateMarked.value;
+  return stop?.zone === 'table' && stop.seq !== undefined ? {party: stop.target.party, seq: stop.seq} : undefined;
+});
+const delegateArea = computed((): ReduxParty | undefined => {
+  const stop = delegateMarked.value;
+  return stop?.zone === 'areas' ? stop.target.party as ReduxParty : undefined;
+});
+/** A removal's flight that could not be measured — CONFESSED on the root (the probe demands its absence). */
+const delegateDegraded = computed((): string => {
+  return delegateRemovalFlow.degraded;
+});
+/** «ИЗГНАНИЕ»'s band line: the stage, whose figure, and the place it stands in. */
+const delegateBand = computed((): BandDelegate | undefined => {
+  if (!delegateUp.value) {
+    return undefined;
+  }
+  const f = parliamentFlow;
+  const target = f.delegateSnapshot ?? delegateMarked.value?.target;
+  if (target === undefined) {
+    return undefined;
+  }
+  const party = target.party as ReduxParty;
+  const slot = view.value.slots.find((s) => s.party === party);
+  return {
+    stage: f.delegateStage,
+    owner: target.owner,
+    ...(target.arrives === undefined ? {} : {arrives: target.arrives.owner}),
+    place: target.place,
+    party,
+    ...(target.place === 'resolution' && slot !== undefined ? {resolution: slot.resolutionId} : {}),
+    committed: f.delegateCommitted || f.delegateLive || f.stage === 'submitting',
+  };
+});
+/** The walk's own beat, published on the root — read by the e2e probe, never by the product. */
+const walkBeat = computed((): string => {
+  return agendaWalkFlow.live ? agendaWalkFlow.beat : '';
+});
+/** A card step's take is in the PLAYER's hands (TR37) — the walk's hold stands down for it. */
+const walkAwaitingCard = computed((): boolean => {
+  return agendaWalkMotion.awaitingCard !== undefined;
+});
+/** The walk the answer carried for THIS section to play (its serial; 0 = none) — the pose opens on it. */
+const walkOwedSeq = computed((): number => {
+  const owed = agendaWalkFlow.owed;
+  return owed !== undefined && playsHostedStepOf(owed.host, AGENDA_WALK_STEP_STAGE) ? owed.seq : 0;
+});
+/** «ДЕЛЕГАТЫ» — a card's rally of neutral delegates is the section's subject (the rally pose stands, TR31). */
+const rallyUp = computed((): boolean => {
+  return parliamentFlow.stage === 'rally';
+});
+/** The rally's own beat, published on the root — read by the e2e probe, never by the product. */
+const rallyBeat = computed((): string => {
+  return neutralRallyFlow.live ? neutralRallyFlow.beat : '';
+});
+/** A rally's flight that could not be measured — CONFESSED on the root (the probe demands its absence). */
+const rallyDegraded = computed((): string => {
+  return neutralRallyFlow.degraded;
+});
+/** The rally the answer carried for THIS section to play (its serial; 0 = none) — the pose opens on it. */
+const rallyOwedSeq = computed((): number => {
+  const owed = neutralRallyFlow.owed;
+  return owed !== undefined && playsHostedStepOf(owed.host, NEUTRAL_RALLY_STEP_STAGE) ? owed.seq : 0;
+});
+/** «ДЕЛЕГАТЫ»'s band line: the votes landed, the areas read, the recount's number once it has begun. */
+const rallyBand = computed((): BandRally | undefined => {
+  const flow = neutralRallyFlow;
+  if (!flow.live || flow.owed === undefined) {
+    return undefined;
+  }
+  // A rally that pays no recount (the Prelude campaigns) shows no «в игре» count at all — not even a 0 at its read.
+  const counting = flow.owed.recount && (flow.beat === 'count' || flow.beat === 'coin' || flow.beat === 'read' || flow.beat === 'done');
+  return {
+    votes: flow.landedVotes.map((v) => ({resolution: v.resolution, party: v.party})),
+    support: flow.readSupport.map((s) => ({party: s.party, gained: s.gained, ...(s.limit === undefined ? {} : {limit: s.limit})})),
+    counted: counting ? flow.counted : undefined,
+  };
+});
+/** The flow is holding at its seat beat with the server's own pick standing — the picker takes the stage. */
+const questSeatStep = computed((): boolean => {
+  return chairmanQuestFlow.live && chairmanQuestFlow.beat === 'seat' && bridge.value.seat !== undefined;
+});
+/** Its A verb: nothing while a beat is in flight (A «дожать» is unadvertised), «Закрыть» once everything has landed. */
+const questCommands = computed((): {done: boolean, resend?: boolean} | undefined => {
+  if (!chairmanQuestFlow.live) {
+    return undefined;
+  }
+  // A stalled flow reads as finished: A (and B) close it — the honest end, never a dead stage.
+  const done = chairmanQuestFlow.beat === 'done' || chairmanQuestStalled();
+  const resend = !done && !chairmanQuestFlow.answered && !chairmanQuestFlow.sent && questGate.value !== undefined && parliamentFlow.stage === 'quest';
+  return {done, ...(resend ? {resend: true} : {})};
+});
+/**
+ * THE TABLE'S HEAD SHOWS THE READING LINE (v8) — every pose but the overview's browse: the sitting, a vote, a card's
+ * walk / rally, the sanctions. On the overview the objects speak for themselves and the head is the kicker.
+ */
+const bandShown = computed((): boolean => {
+  // The VOTE MODE is read on its own panel (v8 § 5): the table's head stays its calm kicker — the overview's
+  // reading line («ОБЗОР · принимается …») under a vote would name the browse layer the player has left.
+  // …and the ACCESS SCENE is read on the chamber itself (the seal travelling into «ВАШИ ЭФФЕКТЫ»): no reading line either.
+  if (voteUp.value || parliamentFlow.stage === 'access') {
+    return false;
+  }
+  return parliamentFlow.stage !== 'browse' || sittingUp.value || supportUp.value || bannerUp.value || delegateUp.value || rallyUp.value || walkUp.value;
+});
+/**
+ * THE READING LINE'S SUBJECT («Зал» v7): the object under the browse cursor — a bill, the ruler, a row of the
+ * opposition, the engine, the track — as DATA for the band (`BandFocus`); undefined outside the browse layer.
+ */
+const bandFocus = computed((): BandFocus | undefined => {
+  if (parliamentFlow.stage !== 'browse') {
+    return undefined;
+  }
+  const viewNow = view.value;
+  switch (parliamentFlow.zone) {
+  case 'voting': {
+    const slot = viewNow.slots[parliamentFlow.slotIndex];
+    if (slot === undefined) {
+      return undefined;
     }
-    fitParliamentCards();
-    const field = (this.$refs.fieldEl ?? undefined) as HTMLElement | undefined;
-    if (field !== undefined) {
-      this.stopFitObs = useResizeObserver(field, () => {
-        this.publishMidOffsets();
-        fitParliamentCards();
-      }).stop;
+    return {
+      kind: 'slot', resolution: slot.resolutionId, party: slot.party, winning: slot.isWinning, votes: slot.totalVotes,
+      ...(slot.leader === undefined ? {} : {leader: slot.leader}),
+      ...(viewerParticipates.value ? {mine: slot.viewerVotes, threshold: slot.viewerEffectDelegates} : {}),
+    };
+  }
+  case 'government':
+  case 'ruler':
+    return {kind: 'ruler', party: viewNow.rulingParty, ...(viewNow.enacted === undefined ? {} : {resolution: viewNow.enacted.resolutionId})};
+  case 'parties': {
+    const index = parliamentFlow.partyIndex;
+    const p = viewNow.parties[index];
+    if (p === undefined) {
+      return undefined;
     }
-    // A SITTING STANDING AT MOUNT (the usual door — the plate's A mounts the
-    // section with the stage already in its first render): the stage's
-    // `<transition>` never plays an enter for an element present at the
-    // initial render, so the walk starts here, on the mounted DOM.
-    if (parliamentFlow.stage === 'sitting' && !this.stageEntering) {
-      this.queueWalk();
+    const state = partyStates.value[index];
+    const action = partyActionStates.value[index];
+    return {
+      kind: 'party', party: p.party, inArea: p.inArea, mine: state?.delegates ?? 0, threshold: state?.effectDelegates ?? PARTY_EFFECT_PLACES,
+      held: state?.held === true, support: p.support, action: action?.kind ?? 'none', participates: viewerParticipates.value,
+    };
+  }
+  case 'engine': {
+    const quest = viewNow.quest;
+    const mine = quest?.progress.find((row) => row.color === viewerColor.value)?.value;
+    return {
+      kind: 'engine',
+      ...(quest === undefined ? {} : {text: quest.text, count: quest.definition.count, ...(quest.completedBy === undefined ? {} : {completedBy: quest.completedBy})}),
+      ...(mine === undefined ? {} : {mine}),
+      ...(viewNow.chairman === undefined ? {} : {chairman: viewNow.chairman}),
+    };
+  }
+  case 'agenda': {
+    const stop = view.value.agenda[parliamentFlow.agendaIndex - 1];
+    const me = viewNow.viewer;
+    const next = agendaVm.value.nextStep;
+    return {
+      kind: 'agenda', position: me?.agenda ?? 0, influence: influenceReadingOf(me), participates: viewerParticipates.value,
+      ...(next === undefined ? {} : {next: {kind: next.kind, ...(next.kind === 'influence' ? {influence: next.influence} : {})}}),
+      ...(stop === undefined ? {} : {stop: {index: stop.index, kind: stop.step.kind, ...(stop.step.kind === 'influence' ? {influence: stop.step.influence} : {})}}),
+    };
+  }
+  default:
+    return undefined;
+  }
+});
+const crumbSubject = computed((): string => {
+  return parliamentCrumbSubject(chairmanQuestFlow.live);
+});
+/**
+ * A SCENE STEP OF THE START (Septem Tribus:redux's first action — the start row hands the Parliament the whole
+ * scene): the head is the STACK's crumb («СТАРТ ПАРТИИ › SEPTEM TRIBUS › ЗНАМЯ», the ConsoleMaScreen precedent),
+ * and the frame publishes only its stage — the corporation stays the subject.
+ */
+const sceneStepOfStart = computed((): boolean => {
+  // …and it STAYS one while the surface LEAVES (TRP1 — the start's walk step popped): the frame is gone from
+  // the stack in the very flush the dissolve starts, and a head that re-read the stack then flashed the
+  // standalone words («ПАРЛАМЕНТ › ОБЗОР › КАРЬЕРА») over a surface the player saw as the start's own step.
+  return sceneStepOfStartLive.value || (props.leaving && sceneStepLatch.value);
+});
+const sceneStepOfStartLive = computed((): boolean => {
+  return workspaceFrameHost('parliament') === 'start';
+});
+const stackCrumbLive = computed((): ReturnType<typeof workspaceStackCrumb> => {
+  return sceneStepOfStartLive.value ? workspaceStackCrumb() : undefined;
+});
+/** The stack's crumb while the frame stands; the LATCHED one while the surface leaves (the head leaves whole). */
+const stackCrumb = computed((): ReturnType<typeof workspaceStackCrumb> => {
+  if (!sceneStepOfStart.value) {
+    return undefined;
+  }
+  return stackCrumbLive.value ?? headLatch.value;
+});
+const headRoot = computed((): string => {
+  return stackCrumb.value?.root ?? 'Parliament';
+});
+const headSubject = computed((): string => {
+  return stackCrumb.value !== undefined ? (stackCrumb.value.subject?.text ?? '') : crumbSubject.value;
+});
+const headStage = computed((): string => {
+  const series = headSeries.value;
+  if (series !== undefined) {
+    return `${translateText(DELEGATE_GRANT_STEP_STAGE)} · ${grantSeriesCountText(series)}`;
+  }
+  return stackCrumb.value !== undefined ? (stackCrumb.value.stage ?? '') : crumbStage.value;
+});
+/**
+ * P60 · FW — A SERIES OF GRANTS ASKED FROM THE START (Rise to Power: three delegates, each its own decision): the
+ * start's scene step counts its decision the way the hand's tail does (`grantSeries.ts` — the decision on its way
+ * while its cube flies, the standing one once the mode is back in its selection) — «СТАРТ ПАРТИИ › ВОСХОЖДЕНИЕ К
+ * ВЛАСТИ › ГОЛОСОВАНИЕ · 2 / 3». Only the vote stage counts; a later stage of the step (a walk) counts nothing.
+ */
+const headSeries = computed((): GrantSeries | undefined => {
+  if (stackCrumb.value === undefined || stackCrumb.value.stage !== DELEGATE_GRANT_STEP_STAGE) {
+    return undefined;
+  }
+  return stackCrumbLive.value !== undefined ? headSeriesLive.value : seriesLatch.value;
+});
+const headSeriesLive = computed((): GrantSeries | undefined => {
+  return stackCrumbLive.value?.stage !== DELEGATE_GRANT_STEP_STAGE ? undefined :
+    grantSeriesShown(parliamentFlow.voteSnapshot?.series, props.playerView.waitingFor);
+});
+const headCommitted = computed((): boolean => {
+  return stackCrumb.value?.committed ?? crumbCommitted.value;
+});
+const crumbStage = computed((): string => {
+  // A card walk that took the chair first (TR76) names that beat «КРЕСЛО» before «КАРЬЕРА» — the quest's own words.
+  // A card's walk: «КРЕСЛО» while the chair changes hands (TR76), the unit's word while the table answers (TR78).
+  const walkTail = !agendaWalkFlow.live ? '' :
+    agendaWalkFlow.beat === 'seat' ? WALK_SEAT_STAGE_KEY :
+      agendaWalkFlow.beat === 'answer' && tableAnswerShowing.value !== undefined ? agendaReactionResourceKey(tableAnswerShowing.value.resource) : '';
+  return parliamentCrumbStage(sittingTail.value, questTail.value, walkTail);
+});
+/**
+ * WHAT THIS FRAME PUBLISHES TO THE STACK'S CRUMB. Standalone, the mode is
+ * the SUBJECT («ПАРЛАМЕНТ › ГОЛОСОВАНИЕ») and a stage is its tail. HOSTED,
+ * the subject belongs to the host's carried object (the colony that paid
+ * the delegates) and this surface is only ever a STAGE of that flow: it
+ * publishes no subject and hands its name up as the tail — «КОЛОНИИ ›
+ * ВЕНЕРА › ГОЛОСОВАНИЕ», the root and the card never restarting.
+ */
+const frameCrumb = computed((): {subject: string, stage: string} => {
+  if (props.embedded || sceneStepOfStart.value) {
+    return {subject: '', stage: crumbStage.value !== '' ? crumbStage.value : crumbSubject.value};
+  }
+  return {subject: crumbSubject.value, stage: crumbStage.value};
+});
+const crumbCommitted = computed((): boolean => {
+  return parliamentCrumbCommitted(chairmanQuestFlow.live);
+});
+/** THE ONE COMMAND CONTRACT — published to the shell's bar. */
+const commands = computed((): Array<ConsoleCommand> => {
+  return parliamentCommandsOf({
+    view: view.value,
+    canVoteNow: canVoteNow.value,
+    partyActionStates: partyActionStates.value,
+    resolutionAction: resolutionActionState.value,
+    sitting: {
+      primary: sittingPrimary.value, inspect: sittingInspectable.value, back: sittingBack.value,
+      payouts: !payoutDetailsDoor.value ? undefined : sittingPayoutDetails.open ? 'open' : 'door',
+    },
+    quest: questCommands.value,
+    voteSubjects: voteSubjectCount.value,
+    dossier: questDossierOpen.value || careerDossierOpen.value,
+    effects: {
+      count: effectsCount.value,
+      use: effectsFocusedGroup.value === undefined ? undefined : effectsFocusedGroup.value.status === 'available',
+      zone: parliamentFlow.stage === 'effects' ? parliamentEffectsHost.zone : undefined,
+      detail: parliamentEffectsExplorerUi.detail !== undefined,
+    },
+    support: bridge.value.supportPick === undefined && !supportUp.value ? undefined : {
+      staged: bridge.value.supportPick?.staged === true && !parliamentFlow.supportCommitted,
+      stagedFlow: props.stagedFlow,
+      source: bridge.value.supportPick?.card !== undefined,
+      available: supportAreaOf(supportMeta.value, parliamentFlow.zone === 'ruler' ? view.value.rulingParty : view.value.parties[parliamentFlow.partyIndex]?.party)?.available === true,
+    },
+    banner: bridge.value.bannerPick === undefined && !bannerUp.value ? undefined : {
+      committed: parliamentFlow.bannerCommitted,
+      source: bridge.value.bannerPick?.card !== undefined,
+      available: bannerGhost.value !== undefined,
+    },
+    delegate: bridge.value.delegatePick === undefined && !delegateUp.value ? undefined : {
+      staged: bridge.value.delegatePick?.staged === true && !parliamentFlow.delegateCommitted,
+      stagedFlow: props.stagedFlow,
+      source: bridge.value.delegatePick?.card !== undefined,
+      available: delegateMarked.value !== undefined,
+      exchange: delegateMeta.value?.source === 'exchange',
+    },
+    grant: bridge.value.grant === undefined ? undefined : {
+      count: bridge.value.grant.count,
+      // Staged only BEFORE the press: past it the door is committed like any other.
+      staged: bridge.value.grant.staged === true && parliamentFlow.voteSnapshot === undefined,
+      stagedFlow: props.stagedFlow,
+      source: bridge.value.grant.card !== undefined,
+    },
+  });
+});
+/**
+ * HOW MANY SEATS the vote mode's row of outcomes carries — what makes LB/RB
+ * («ИГРОКИ») a real verb. The bot never counts: it takes no part in the
+ * parliament, so there is no reading of it to move to.
+ */
+const voteSubjectCount = computed((): number => {
+  return (model.value?.players ?? []).filter((p) => p.participates).length;
+});
+/** X on the sitting inspects the enacted resolution — the object every stage is about. */
+const sittingInspectable = computed((): boolean => {
+  return model.value?.phase?.summary?.enacted !== undefined && !sittingStepOpen.value;
+});
+/**
+ * THE SERVER'S ANSWER KEY. A submit is answered by a state change (the
+ * game age moves) OR by a new prompt with the state untouched — a paid
+ * vote's bill is raised before anything is paid, so the age alone would
+ * miss it. The identity is structural (`promptIdentityKey`), never a raw title.
+ */
+const answerKey = computed((): string => {
+  return `${pv.value.game.gameAge}|${promptIdentityKey(pv.value.waitingFor)}`;
+});
+/** The submit funnel is busy (reactive) — a parked answer goes out on its falling edge. */
+const transportBusy = computed((): boolean => {
+  return transportRequestInProgress();
+});
+
+/**
+ * Does THIS section play a record owed to `host` as the step `stage`? The hand's step is the EMBEDDED section
+ * (the hand's own zone); the start's is the scene step the start PUSHED for that record — an OVERLAY frame, never
+ * embedded (`workspaceFrameTarget` has no zone for it), read off the stack: hosted by the start AND standing at
+ * the record's own stage (`ConsoleShell.enterStartHostedStep`). A vote step of the start (TRP1's grant) is not
+ * one: its walk CONTINUES in place by the shell's hand (`continueStartWalkInPlace`), after the cubes land.
+ * Never the warm mount.
+ */
+function playsHostedStepOf(host: string, stage: string): boolean {
+  if (props.warm) {
+    return false;
+  }
+  if (host === 'hand') {
+    return props.embedded;
+  }
+  return host === 'start' && sceneStepOfStartLive.value && workspaceFrameStage('parliament') === stage;
+}
+function standingDoorOwed(): boolean {
+  return standingDoorOwedOf(port);
+}
+function serveStandingQuestion(): boolean {
+  return serveStandingQuestionOf(port);
+}
+function standingQuestionServed(): boolean {
+  return standingQuestionServedOf(port);
+}
+function overviewServesQuestion(): boolean {
+  return overviewServesQuestionOf(port);
+}
+function foldFinishedStage(): boolean {
+  return foldFinishedStageOf(port);
+}
+function retireFinishedFlows(): void {
+  retireFinishedFlowsOf();
+}
+/** WATCH `questGate` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
+function whenQuestGateChanges(gate: {generation: number} | undefined): void {
+  // The gate opens its flow only in a Parliament the PLAYER walked into by the plate's A: a section pushed
+  // INTO another workspace as a step («КАРЬЕРА» — a card's walk hosted by the hand, TR04) is not that door.
+  // The plate keeps announcing the gate; it is answered after the walk, in the Parliament the player opens.
+  if (gate !== undefined && parliamentFlow.stage === 'browse' && !chairmanQuestFlow.live && !props.embedded && agendaWalkFlow.owed === undefined) {
+    openQuestFlow();
+  }
+}
+/** WATCH `bridge.seat` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
+function whenBridgeSeatChanges(seat: PlayerInputModel | undefined): void {
+  if (seat !== undefined && parliamentFlow.stage === 'browse') {
+    const parties = (seat as {parties: Array<PartyName>}).parties;
+    const idx = view.value.slots.findIndex((slot) => parties.includes(slot.party));
+    parliamentFlow.slotIndex = idx >= 0 ? idx : 0;
+    parliamentFlow.zone = 'voting';
+    openStage('seat');
+  }
+}
+/** WATCH `bridge.grant` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
+function whenBridgeGrantChanges(grant: ParliamentPromptBridge['grant']): void {
+  // A WARMING mount (PL-127 — the play's live grant, P72 · CZ) is inert: it opens the vote on its UNVEIL (`warm`).
+  if (grant === undefined || parliamentFlow.stage !== 'browse' || props.warm) {
+    return;
+  }
+  openGrant(grant, false);
+}
+/** WATCH `bridge.supportPick` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
+function whenBridgeSupportPickChanges(pick: ParliamentPromptBridge['supportPick']): void {
+  if (pick === undefined || parliamentFlow.stage !== 'browse') {
+    return;
+  }
+  const ruler = parliamentHolds.rulerBefore ?? view.value.rulingParty;
+  const order = supportCursorOrder(view.value.parties.map((p) => p.party), ruler);
+  const start = supportStartParty(pick.meta, order);
+  const index = start === undefined ? 0 : view.value.parties.findIndex((p) => p.party === start);
+  armSupportPickFlow({zone: start !== undefined && start === ruler ? 'ruler' : 'parties', partyIndex: Math.max(0, index)},
+    supportStepStageOf(pick.meta), pick.staged !== true, pick.meta);
+  setWorkspaceFramePhase('parliament', pick.staged === true ? 'configure' : 'committed');
+}
+/** WATCH `bridge.bannerPick` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
+function whenBridgeBannerPickChanges(pick: ParliamentPromptBridge['bannerPick']): void {
+  if (pick === undefined || parliamentFlow.stage !== 'browse') {
+    return;
+  }
+  const ruler = parliamentHolds.rulerBefore ?? view.value.rulingParty;
+  const order = supportCursorOrder(view.value.parties.map((p) => p.party), ruler);
+  const start = bannerStartParty(pick.meta, order);
+  const index = start === undefined ? 0 : view.value.parties.findIndex((p) => p.party === start);
+  armBannerPickFlow({zone: start !== undefined && start === ruler ? 'ruler' : 'parties', partyIndex: Math.max(0, index)},
+    bannerStepStageOf(pick.meta), pick.meta);
+  setWorkspaceFramePhase('parliament', 'committed');
+}
+/** WATCH `bridge.delegatePick` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
+function whenBridgeDelegatePickChanges(pick: ParliamentPromptBridge['delegatePick']): void {
+  if (pick === undefined || parliamentFlow.stage !== 'browse') {
+    return;
+  }
+  const ruler = parliamentHolds.rulerBefore ?? view.value.rulingParty;
+  const ring = delegateRing(pick.meta, {
+    slots: view.value.slots.map((slot) => ({party: slot.party, votes: slot.votes})),
+    areaOrder: supportCursorOrder(view.value.parties.map((p) => p.party), ruler),
+  });
+  armDelegatePickFlow(Math.max(0, delegateStartIndex(ring)), delegateStepStageOf(pick.meta), pick.staged !== true, pick.meta);
+  setWorkspaceFramePhase('parliament', pick.staged === true ? 'configure' : 'committed');
+}
+/**
+ * THE OVERVIEW IS BACK — does a MANDATORY prompt stand that nothing opened? Each door opens its stage from browse,
+ * on its own watcher; a prompt that arrived while another stage stood (the gate riding the vote's answer, a grant
+ * a party action raised) did not change again when the stage returned here, so it stood unserved. The SAME
+ * handlers are asked once more — live doors only (a staged door the player just walked back out of is theirs to
+ * reopen), once per server position.
+ */
+function reconcileStandingPrompts(): void {
+  if (parliamentFlow.stage !== 'browse' || props.warm || props.leaving || reconciledKey.value === answerKey.value) {
+    return;
+  }
+  reconciledKey.value = answerKey.value;
+  // Each door's own reaction, asked once more — in the watchers' order, and only while the overview still stands.
+  const ask = <T>(value: T | undefined, door: (value: T) => void): void => {
+    if (parliamentFlow.stage === 'browse' && value !== undefined) {
+      door(value);
     }
-  },
-  beforeUnmount() {
-    this.stopFitObs?.();
-    this.stopQuestionDoor?.();
-    this.parkedSubmit = undefined;
-    resetSittingDirector();
-    // «ПРЕДСЕДАТЕЛЬСТВО» ends with its section: a beat has nowhere to play and
-    // a hold nobody would consume would freeze the track for the rest of the
-    // game (its counters tick with this block instead — honestly late).
-    if (chairmanQuestFlow.live) {
-      killChairmanQuestBeats();
-      releaseChairmanQuestHolds('unmount');
-      resetChairmanQuestFlow();
+  };
+  ask(questGate.value, (gate) => whenQuestGateChanges(gate));
+  ask(bridge.value.seat, (seat) => whenBridgeSeatChanges(seat));
+  ask(bridge.value.grant?.staged === true ? undefined : bridge.value.grant, (grant) => whenBridgeGrantChanges(grant));
+  ask(bridge.value.supportPick?.staged === true ? undefined : bridge.value.supportPick, (pick) => whenBridgeSupportPickChanges(pick));
+  ask(bridge.value.bannerPick, (pick) => whenBridgeBannerPickChanges(pick));
+  ask(bridge.value.delegatePick?.staged === true ? undefined : bridge.value.delegatePick, (pick) => whenBridgeDelegatePickChanges(pick));
+}
+/**
+ * OPEN THE GRANT'S VOTE on the card the viewer's own delegates already stand on (the likeliest address), else the
+ * first. At SETUP — or on a warm mount's UNVEIL (`fresh`) — the mode is ARMED and born in its pose; over a
+ * standing overview it opens with the ordinary phrase.
+ */
+function openGrant(grant: NonNullable<ParliamentPromptBridge['grant']>, fresh: boolean): void {
+  const parties = grant.model.parties;
+  const candidates = view.value.slots.map((slot, i) => ({slot, i})).filter(({slot}) => parties.includes(slot.party));
+  const own = candidates.filter(({slot}) => slot.viewerVotes > 0).sort((a, b) => b.slot.viewerVotes - a.slot.viewerVotes)[0];
+  // Back from «Свернуть» on the SAME prompt: the cursor returns to the resolution the player stood on (PL-023).
+  const remembered = grant.staged === true ? undefined : rememberedGrantCursor(pv.value.waitingFor?.promptId);
+  const back = remembered === undefined ? undefined : candidates.find(({slot}) => slot.instance === remembered);
+  const idx = back?.i ?? own?.i ?? candidates[0]?.i ?? 0;
+  const mode = voteModeNow();
+  if (mode === undefined || fresh) {
+    armGrantVoteFlow(idx);
+    if (mode !== undefined) {
+      void nextTick(() => mode.enterArmedVote());
     }
-    // «КАРЬЕРА» ends with its section too: the beats are cut, the poses go to their end, every hold the walk
-    // seeded is released (the rail ticks with this block — honestly late, never lost).
-    if (agendaWalkFlow.owed !== undefined || agendaWalkFlow.live) {
-      this.walkReadBeat?.kill();
-      this.walkReadBeat = undefined;
-      this.walkHold?.release();
-      this.walkHold = undefined;
-      ((this.$refs.agenda ?? undefined) as InstanceType<typeof ConsoleParliamentAgenda> | undefined)?.stopAgendaGlide();
-      releaseAgendaWalkHolds('unmount');
+  } else {
+    mode.openVote({index: idx});
+  }
+}
+/** The answer's stage handling (see the `answerKey` watcher). */
+function onAnswerKey(key: string): void {
+  const f = parliamentFlow;
+  // THE CHAIRMANSHIP'S ANSWER, WHENEVER IT COMES: its gate is gone from the view while the flow still waits for it
+  // (a slow answer whose stage the safety already handed back, a submit parked through a busy funnel). The gate's
+  // ABSENCE is the server's word — the office and the step are applied — and the beats may run.
+  if (chairmanQuestFlow.live && !chairmanQuestFlow.answered && f.stage !== 'submitting' && questGate.value === undefined &&
+    (chairmanQuestFlow.sent || f.stage === 'quest')) {
+    f.stage = 'quest';
+    setWorkspaceFramePhase('parliament', 'committed');
+    noteChairmanQuestAnswer();
+    return;
+  }
+  if (f.stage === 'paying') {
+    voteModeNow()?.answerWhilePaying();
+    return;
+  }
+  if (f.stage === 'submitting' && key !== submittedKey.value) {
+    clearSubmitTimer();
+    // A mode that decides «this key is not my answer — keep waiting» returns with the stage still submitting: the
+    // safety must stand again, or nothing but the shell's refusal watcher could ever hand the stage back.
+    void nextTick(() => {
+      // A PARKED answer keeps its bound too (P4): the funnel that holds it may never free.
+      if (parliamentFlow.stage === 'submitting' && cancelSubmitSafety === undefined) {
+        armSubmitSafety();
+      }
+    });
+    if (f.stageBeforeSubmit === 'vote') {
+      voteModeNow()?.answerAfterSubmit();
+      return;
     }
-    // «ДЕЛЕГАТЫ» ends with its section too (TR31): the beats are cut, every hold the rally seeded is released (the
-    // cubes show, the plaques and the pool read the server, the rail ticks with this block — honestly late, never lost).
-    if (neutralRallyFlow.owed !== undefined || neutralRallyFlow.live) {
-      this.rallyHandle?.skip();
-      this.rallyHandle = undefined;
-      this.rallyHold?.release();
-      this.rallyHold = undefined;
-      releaseNeutralRallyHolds('unmount');
+    if (f.stageBeforeSubmit === 'support') {
+      supportMode.value?.answerAfterSubmit();
+      return;
     }
-    // The phase is over (the section unmounts after its latched leave — v3 В1): the sitting's display
-    // holds end here, never in the apply block that carried the phase away (the surface still needed
-    // them for its leave). A park / a yield keeps them: the walk resumes over them.
-    if (!parliamentSittingLive(this.playerView)) {
-      resetParliamentHolds();
+    if (f.stageBeforeSubmit === 'banner') {
+      bannerMode.value?.answerAfterSubmit();
+      return;
     }
-    // A reward whose wave has not left with the sitting leaving (a park, the
-    // board taking the screen, the phase's end) is announced by its counter
-    // now — never held for a stage that is gone. The DISPLAY holds stay: the
-    // walk resumes over them when the section comes back.
-    releaseParliamentRewards('unmount');
-    // A rival's cube still queued or in the air settles where the model says: the table is leaving.
-    settleRivalVotes();
-    killParliamentFlights();
-    killParliamentVoteMotion((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
-    killParliamentEnactMotion((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
-    freezeParliamentFit(false);
-    consoleParliamentUi.commands = [];
-    consoleParliamentUi.hall = false;
-    consoleParliamentUi.voteStanding = false;
-    consoleParliamentUi.stageStanding = false;
-    consoleParliamentUi.fieldStanding = false;
-    consoleParliamentUi.answerZone = false;
-    // «ПРИЁМКА»: no stage stands any more — a batch still owed takes the ordinary reveal (the ownership falls with it).
-    setParliamentDrawHost(this.drawHostId, false);
-    noteParliamentDrawPaneOut();
-    // «ОТВЕТ СТОЛА» (TR78): a receipt no stage will play ticks now, honestly late; a question's stage is gone with the section.
-    releaseTableAnswers();
-    endTableAnswerAsk();
-    // …and a rating owed to the enactment's tail (TR63), under the same law as the rewards above: never held for a
-    // stage that is gone (a delivery in flight finishes its own touchdowns).
-    releaseOrphanRulingRatings('unmount');
-    // The zone's host retracts its frame slot unconditionally (the embed contract): a nested frame
-    // pointed at a destroyed node would mount outside the document.
-    setWorkspaceFrameSlot('parliament', '');
-    setWorkspaceFrameSubject('parliament', '');
-    setWorkspaceFrameStage('parliament', '');
-  },
-  unmounted() {
-    registerSupportDiscardHost(undefined);
-    registerDelegateRemovalHost(undefined);
-    setParliamentRootEl(undefined);
-    resetParliamentFlow();
-  },
-  methods: {
-    /**
-     * Does THIS section play a record owed to `host` as the step `stage`? The hand's step is the EMBEDDED section
-     * (the hand's own zone); the start's is the scene step the start PUSHED for that record — an OVERLAY frame, never
-     * embedded (`workspaceFrameTarget` has no zone for it), read off the stack: hosted by the start AND standing at
-     * the record's own stage (`ConsoleShell.enterStartHostedStep`). A vote step of the start (TRP1's grant) is not
-     * one: its walk CONTINUES in place by the shell's hand (`continueStartWalkInPlace`), after the cubes land.
-     * Never the warm mount.
-     */
-    playsHostedStepOf(host: string, stage: string): boolean {
-      if (this.warm) {
-        return false;
-      }
-      if (host === 'hand') {
-        return this.embedded;
-      }
-      return host === 'start' && this.sceneStepOfStartLive && workspaceFrameStage('parliament') === stage;
-    },
-    /**
-     * A STANDING PROMPT ONE OF THE OVERVIEW'S DOORS OPENS — the same set `reconcileStandingPrompts` asks (a staged
-     * door the player walked back out of is theirs to reopen, never a debt).
-     */
-    standingDoorOwed(): boolean {
-      const b = this.bridge;
-      return this.questGate !== undefined || b.seat !== undefined || (b.grant !== undefined && b.grant.staged !== true) ||
-        (b.supportPick !== undefined && b.supportPick.staged !== true) || b.bannerPick !== undefined ||
-        (b.delegatePick !== undefined && b.delegatePick.staged !== true);
-    },
-    /**
-     * THE QUESTION DOOR (`frameQuestionDoor.ts`, ledger HC — the field lock of 2026-11-07): the shell's guarded
-     * conclusion HELD this Parliament for a question it serves. The vote that completed the chairman's quest reported
-     * its flow finished from `landed` — and the quest's stage opens only from the OVERVIEW, which the finished vote
-     * never folded back to: the conclusion waited for the answer, the door waited for the conclusion. So the flow does
-     * not leave, it goes on IN PLACE: a finished stage folds back (the vote's own leave, a mode's own close), the
-     * overview's doors open the question's stage.
-     *
-     * «SERVED» MUST BE TRUE (wait graph W2 / R1): the shell DROPS its owe on `true` — the question's own flow is trusted
-     * to report its ending. So `true` only when, after this door's action, a stage of this section really serves the
-     * question (`standingQuestionServed` — the quest stage for the gate, the seat / grant / pick mode for those), or
-     * will by its own pending fold (a finished stage folding to the overview whose door opens the question on the next
-     * tick). A door that cannot serve — embedded, warm, leaving, a stage at work for something else, an overview whose
-     * door stays shut (a walk owed in front of the quest gate) — does NOTHING and answers `false`: the conclusion stays
-     * owed, never an orphan the owe no longer tracks.
-     */
-    serveStandingQuestion(): boolean {
-      if (this.warm || this.leaving || this.embedded || !this.standingDoorOwed()) {
-        return false;
-      }
-      // A stage at work FOR this very question serves it already — nothing to do.
-      if (this.standingQuestionServed()) {
-        return true;
-      }
-      // Everything below folds back to the overview and asks its doors: worth doing only when a door there OPENS it.
-      if (!this.overviewServesQuestion()) {
-        return false;
-      }
-      const stage = parliamentFlow.stage;
-      if (stage === 'landed' || stage === 'access') {
-        // The vote is over and read: its own leave brings the overview back, and the overview's doors are asked at once
-        // (never only through the stage watcher — a pass already spent on this server position would skip it).
-        this.voteMode()?.closeVote();
-        if (parliamentFlow.stage !== 'browse') {
-          this.closeStage();
-        }
-        this.retireFinishedFlows();
-        this.reconciledKey = '';
-        void this.$nextTick(() => this.reconcileStandingPrompts());
-        return true;
-      }
-      if (stage !== 'browse') {
-        // A FINISHED stage folds back by its own close (the mode unmounts before the overview's door re-arms it); a
-        // stage still at work for something else is not this door's to cut.
-        if (!this.foldFinishedStage()) {
-          return false;
-        }
-        this.retireFinishedFlows();
-        this.reconciledKey = '';
-        void this.$nextTick(() => this.reconcileStandingPrompts());
-        return true;
-      }
-      this.retireFinishedFlows();
-      this.reconciledKey = '';
-      this.reconcileStandingPrompts();
-      return this.standingQuestionServed();
-    },
-    /**
-     * DOES A STAGE OF THIS SECTION SERVE THE STANDING QUESTION NOW? Per door, the stage that answers it: the quest's own
-     * flow (its stage, its seat pick, its submit) for the gate; the seat pick for a stand-alone seat; the vote mode (its
-     * pick, its payment, its submit) for a live grant; the support / banner / delegate mode — not yet `done` — for its
-     * live pick. A SITTING standing serves every door: the phase's asks are hosted in its own field, and its end folds
-     * back to the overview by its own hand (`endSitting` → `closeStage`, the overview's doors asked on the way back).
-     */
-    standingQuestionServed(): boolean {
-      const f = parliamentFlow;
-      const b = this.bridge;
-      const kind = parliamentStageKind();
-      if (this.sittingUp && kind === 'sitting') {
-        return true;
-      }
-      const questUp = chairmanQuestFlow.live && chairmanQuestFlow.beat !== 'done';
-      if (this.questGate !== undefined && questUp && (kind === 'quest' || kind === 'seat')) {
-        return true;
-      }
-      if (b.seat !== undefined && kind === 'seat') {
-        return true;
-      }
-      if (b.grant !== undefined && b.grant.staged !== true && (kind === 'vote' || f.stage === 'paying')) {
-        return true;
-      }
-      if (b.supportPick !== undefined && b.supportPick.staged !== true && kind === 'support' && f.supportBeat !== 'done') {
-        return true;
-      }
-      if (b.bannerPick !== undefined && kind === 'banner' && f.bannerBeat !== 'done') {
-        return true;
-      }
-      return b.delegatePick !== undefined && b.delegatePick.staged !== true && kind === 'delegate' && f.delegateBeat !== 'done';
-    },
-    /**
-     * WOULD THE OVERVIEW'S DOOR OPEN THE STANDING QUESTION? The same conditions its watchers read, with a FINISHED walk
-     * or quest counted as gone (the fold retires them — `retireFinishedFlows`): the quest gate opens only in a
-     * Parliament the player walked into, with no walk owed in front of it and no quest flow still running; the seat, a
-     * live grant and a live pick always open.
-     */
-    overviewServesQuestion(): boolean {
-      const b = this.bridge;
-      const walkInFront = agendaWalkFlow.owed !== undefined && agendaWalkFlow.beat !== 'done';
-      const questRunning = chairmanQuestFlow.live && chairmanQuestFlow.beat !== 'done';
-      if (this.questGate !== undefined && !this.embedded && !walkInFront && !questRunning) {
-        return true;
-      }
-      return b.seat !== undefined || (b.grant !== undefined && b.grant.staged !== true) ||
-        (b.supportPick !== undefined && b.supportPick.staged !== true) || b.bannerPick !== undefined ||
-        (b.delegatePick !== undefined && b.delegatePick.staged !== true);
-    },
-    /**
-     * FOLD A FINISHED STAGE back to the overview through its own close: a support / banner / delegate mode whose beat
-     * reads `done` (its `flow-complete` was reported, the conclusion held), the chairmanship flow that has played every
-     * beat, a card's walk or rally that has ended. `false` — the stage is still at work: nothing is touched.
-     */
-    foldFinishedStage(): boolean {
-      const f = parliamentFlow;
-      type ModeRef = {closeFinished?: () => void} | undefined;
-      switch (f.stage) {
-      case 'support':
-      case 'banner':
-      case 'delegate': {
-        const beat = f.stage === 'support' ? f.supportBeat : f.stage === 'banner' ? f.bannerBeat : f.delegateBeat;
-        if (beat !== 'done') {
-          return false;
-        }
-        const ref = f.stage === 'support' ? 'supportMode' : f.stage === 'banner' ? 'bannerMode' : 'delegateMode';
-        ((this.$refs[ref] ?? undefined) as ModeRef)?.closeFinished?.();
-        this.closeStage();
-        return true;
-      }
-      case 'quest':
-        if (!chairmanQuestFlow.live || chairmanQuestFlow.beat === 'done') {
-          this.retireQuestFlow();
-          return true;
-        }
-        return false;
-      case 'walk':
-        if (!agendaWalkFlow.live || agendaWalkFlow.beat === 'done') {
-          this.closeStage();
-          return true;
-        }
-        return false;
-      case 'rally':
-        if (!neutralRallyFlow.live || neutralRallyFlow.beat === 'done') {
-          this.closeStage();
-          return true;
-        }
-        return false;
-      default:
-        return false;
-      }
-    },
-    /**
-     * A FINISHED walk's record (its beat `done` — the support mode's step, a walk pose that ended) and a finished
-     * chairmanship flow still standing as records would keep the quest gate's door shut for good: they are retired
-     * here, their holds already consumed (released again — honestly idempotent).
-     */
-    retireFinishedFlows(): void {
-      if (agendaWalkFlow.owed !== undefined && agendaWalkFlow.beat === 'done') {
-        releaseAgendaWalkHolds('walk-retired');
-      }
-      if (chairmanQuestFlow.live && chairmanQuestFlow.beat === 'done' && parliamentFlow.stage !== 'quest') {
-        killChairmanQuestBeats();
-        releaseChairmanQuestHolds('quest-retired');
-        resetChairmanQuestFlow();
-      }
-    },
-    /** WATCH `questGate` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
-    whenQuestGateChanges(gate: {generation: number} | undefined): void {
-      // The gate opens its flow only in a Parliament the PLAYER walked into by the plate's A: a section pushed
-      // INTO another workspace as a step («КАРЬЕРА» — a card's walk hosted by the hand, TR04) is not that door.
-      // The plate keeps announcing the gate; it is answered after the walk, in the Parliament the player opens.
-      if (gate !== undefined && parliamentFlow.stage === 'browse' && !chairmanQuestFlow.live && !this.embedded && agendaWalkFlow.owed === undefined) {
-        this.openQuestFlow();
-      }
-    },
-    /** WATCH `bridge.seat` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
-    whenBridgeSeatChanges(seat: PlayerInputModel | undefined): void {
-      if (seat !== undefined && parliamentFlow.stage === 'browse') {
-        const parties = (seat as {parties: Array<PartyName>}).parties;
-        const idx = this.view.slots.findIndex((slot) => parties.includes(slot.party));
-        parliamentFlow.slotIndex = idx >= 0 ? idx : 0;
-        parliamentFlow.zone = 'voting';
-        this.openStage('seat');
-      }
-    },
-    /** WATCH `bridge.grant` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
-    whenBridgeGrantChanges(grant: ParliamentPromptBridge['grant']): void {
-      // A WARMING mount (PL-127 — the play's live grant, P72 · CZ) is inert: it opens the vote on its UNVEIL (`warm`).
-      if (grant === undefined || parliamentFlow.stage !== 'browse' || this.warm) {
-        return;
-      }
-      this.openGrant(grant, false);
-    },
-    /** WATCH `bridge.supportPick` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
-    whenBridgeSupportPickChanges(pick: ParliamentPromptBridge['supportPick']): void {
-      if (pick === undefined || parliamentFlow.stage !== 'browse') {
-        return;
-      }
-      const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
-      const order = supportCursorOrder(this.view.parties.map((p) => p.party), ruler);
-      const start = supportStartParty(pick.meta, order);
-      const index = start === undefined ? 0 : this.view.parties.findIndex((p) => p.party === start);
-      armSupportPickFlow({zone: start !== undefined && start === ruler ? 'ruler' : 'parties', partyIndex: Math.max(0, index)},
-        supportStepStageOf(pick.meta), pick.staged !== true, pick.meta);
-      setWorkspaceFramePhase('parliament', pick.staged === true ? 'configure' : 'committed');
-    },
-    /** WATCH `bridge.bannerPick` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
-    whenBridgeBannerPickChanges(pick: ParliamentPromptBridge['bannerPick']): void {
-      if (pick === undefined || parliamentFlow.stage !== 'browse') {
-        return;
-      }
-      const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
-      const order = supportCursorOrder(this.view.parties.map((p) => p.party), ruler);
-      const start = bannerStartParty(pick.meta, order);
-      const index = start === undefined ? 0 : this.view.parties.findIndex((p) => p.party === start);
-      armBannerPickFlow({zone: start !== undefined && start === ruler ? 'ruler' : 'parties', partyIndex: Math.max(0, index)},
-        bannerStepStageOf(pick.meta), pick.meta);
+    if (f.stageBeforeSubmit === 'delegate') {
+      delegateMode.value?.answerAfterSubmit();
+      return;
+    }
+    if (f.stageBeforeSubmit === 'quest') {
+      // THE GATE IS ANSWERED — the flow STAYS: its beats play the office
+      // and the Agenda step the answer produced. The holds were seeded in
+      // the response's own commit block; the director consumes them.
+      f.stage = 'quest';
       setWorkspaceFramePhase('parliament', 'committed');
-    },
-    /** WATCH `bridge.delegatePick` — the reaction's body (also re-asked by `reconcileStandingPrompts`). */
-    whenBridgeDelegatePickChanges(pick: ParliamentPromptBridge['delegatePick']): void {
-      if (pick === undefined || parliamentFlow.stage !== 'browse') {
-        return;
-      }
-      const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
-      const ring = delegateRing(pick.meta, {
-        slots: this.view.slots.map((slot) => ({party: slot.party, votes: slot.votes})),
-        areaOrder: supportCursorOrder(this.view.parties.map((p) => p.party), ruler),
-      });
-      armDelegatePickFlow(Math.max(0, delegateStartIndex(ring)), delegateStepStageOf(pick.meta), pick.staged !== true, pick.meta);
-      setWorkspaceFramePhase('parliament', pick.staged === true ? 'configure' : 'committed');
-    },
-    /**
-     * THE OVERVIEW IS BACK — does a MANDATORY prompt stand that nothing opened? Each door opens its stage from browse,
-     * on its own watcher; a prompt that arrived while another stage stood (the gate riding the vote's answer, a grant
-     * a party action raised) did not change again when the stage returned here, so it stood unserved. The SAME
-     * handlers are asked once more — live doors only (a staged door the player just walked back out of is theirs to
-     * reopen), once per server position.
-     */
-    reconcileStandingPrompts(): void {
-      if (parliamentFlow.stage !== 'browse' || this.warm || this.leaving || this.reconciledKey === this.answerKey) {
-        return;
-      }
-      this.reconciledKey = this.answerKey;
-      // Each door's own reaction, asked once more — in the watchers' order, and only while the overview still stands.
-      const ask = <T>(value: T | undefined, door: (value: T) => void): void => {
-        if (parliamentFlow.stage === 'browse' && value !== undefined) {
-          door(value);
-        }
-      };
-      ask(this.questGate, (gate) => this.whenQuestGateChanges(gate));
-      ask(this.bridge.seat, (seat) => this.whenBridgeSeatChanges(seat));
-      ask(this.bridge.grant?.staged === true ? undefined : this.bridge.grant, (grant) => this.whenBridgeGrantChanges(grant));
-      ask(this.bridge.supportPick?.staged === true ? undefined : this.bridge.supportPick, (pick) => this.whenBridgeSupportPickChanges(pick));
-      ask(this.bridge.bannerPick, (pick) => this.whenBridgeBannerPickChanges(pick));
-      ask(this.bridge.delegatePick?.staged === true ? undefined : this.bridge.delegatePick, (pick) => this.whenBridgeDelegatePickChanges(pick));
-    },
-    /**
-     * OPEN THE GRANT'S VOTE on the card the viewer's own delegates already stand on (the likeliest address), else the
-     * first. At SETUP — or on a warm mount's UNVEIL (`fresh`) — the mode is ARMED and born in its pose; over a
-     * standing overview it opens with the ordinary phrase.
-     */
-    openGrant(grant: NonNullable<ParliamentPromptBridge['grant']>, fresh: boolean): void {
-      const parties = grant.model.parties;
-      const candidates = this.view.slots.map((slot, i) => ({slot, i})).filter(({slot}) => parties.includes(slot.party));
-      const own = candidates.filter(({slot}) => slot.viewerVotes > 0).sort((a, b) => b.slot.viewerVotes - a.slot.viewerVotes)[0];
-      // Back from «Свернуть» on the SAME prompt: the cursor returns to the resolution the player stood on (PL-023).
-      const remembered = grant.staged === true ? undefined : rememberedGrantCursor(this.pv.waitingFor?.promptId);
-      const back = remembered === undefined ? undefined : candidates.find(({slot}) => slot.instance === remembered);
-      const idx = back?.i ?? own?.i ?? candidates[0]?.i ?? 0;
-      const mode = this.voteMode();
-      if (mode === undefined || fresh) {
-        armGrantVoteFlow(idx);
-        if (mode !== undefined) {
-          void this.$nextTick(() => mode.enterArmedVote());
-        }
-      } else {
-        mode.openVote({index: idx});
-      }
-    },
-    /** The answer's stage handling (see the `answerKey` watcher). */
-    onAnswerKey(key: string): void {
-      const f = parliamentFlow;
-      // THE CHAIRMANSHIP'S ANSWER, WHENEVER IT COMES: its gate is gone from the view while the flow still waits for it
-      // (a slow answer whose stage the safety already handed back, a submit parked through a busy funnel). The gate's
-      // ABSENCE is the server's word — the office and the step are applied — and the beats may run.
-      if (chairmanQuestFlow.live && !chairmanQuestFlow.answered && f.stage !== 'submitting' && this.questGate === undefined &&
-        (chairmanQuestFlow.sent || f.stage === 'quest')) {
-        f.stage = 'quest';
-        setWorkspaceFramePhase('parliament', 'committed');
-        noteChairmanQuestAnswer();
-        return;
-      }
-      if (f.stage === 'paying') {
-        this.voteMode()?.answerWhilePaying();
-        return;
-      }
-      if (f.stage === 'submitting' && key !== this.submittedKey) {
-        this.clearSubmitTimer();
-        // A mode that decides «this key is not my answer — keep waiting» returns with the stage still submitting: the
-        // safety must stand again, or nothing but the shell's refusal watcher could ever hand the stage back.
-        void this.$nextTick(() => {
-          // A PARKED answer keeps its bound too (P4): the funnel that holds it may never free.
-          if (parliamentFlow.stage === 'submitting' && this.cancelSubmitSafety === undefined) {
-            this.armSubmitSafety();
-          }
-        });
-        if (f.stageBeforeSubmit === 'vote') {
-          this.voteMode()?.answerAfterSubmit();
-          return;
-        }
-        if (f.stageBeforeSubmit === 'support') {
-          ((this.$refs.supportMode ?? undefined) as InstanceType<typeof ConsoleParliamentSupportMode> | undefined)?.answerAfterSubmit();
-          return;
-        }
-        if (f.stageBeforeSubmit === 'banner') {
-          ((this.$refs.bannerMode ?? undefined) as InstanceType<typeof ConsoleParliamentBannerMode> | undefined)?.answerAfterSubmit();
-          return;
-        }
-        if (f.stageBeforeSubmit === 'delegate') {
-          ((this.$refs.delegateMode ?? undefined) as InstanceType<typeof ConsoleParliamentDelegateMode> | undefined)?.answerAfterSubmit();
-          return;
-        }
-        if (f.stageBeforeSubmit === 'quest') {
-          // THE GATE IS ANSWERED — the flow STAYS: its beats play the office
-          // and the Agenda step the answer produced. The holds were seeded in
-          // the response's own commit block; the director consumes them.
-          f.stage = 'quest';
-          setWorkspaceFramePhase('parliament', 'committed');
-          noteChairmanQuestAnswer();
-          return;
-        }
-        if (f.stageBeforeSubmit === 'sitting') {
-          // THE GATE IS ANSWERED — the sitting stays on its stage: the position
-          // re-derives (the wait pose, the chain's beats, the results) and the
-          // `sitting` watcher ends the flow only when the phase itself is over.
-          f.stage = this.sitting === undefined ? 'browse' : 'sitting';
-          setWorkspaceFramePhase('parliament', f.stage === 'sitting' ? sittingWorkspacePhase(this.sittingStage, false) : 'browse');
-          if (f.stage === 'browse') {
-            this.$emit('flow-complete', 'sitting');
-          }
-          return;
-        }
-        // The chairman's delegate leaves the card for the seat.
-        const wasSeat = f.stageBeforeSubmit === 'seat';
-        if (wasSeat && chairmanQuestFlow.live) {
-          // …and inside the chairmanship flow it goes back to it: the office
-          // beat plays the cube onto the chair, then the Agenda step.
-          f.stage = 'quest';
-          setWorkspaceFramePhase('parliament', 'committed');
-          this.seatFrom = undefined;
-          noteChairmanQuestAnswer();
-          return;
-        }
-        f.stage = 'browse';
-        setWorkspaceFramePhase('parliament', 'browse');
-        if (wasSeat) {
-          void this.$nextTick(() => {
-            const from = this.seatFrom;
-            this.seatFrom = undefined;
-            flySeatDelegate((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, this.viewerColor, from, () => pulseParliamentChair());
-          });
-        }
-        this.$emit('flow-complete', f.stageBeforeSubmit);
-      }
-    },
-    voteMode(): InstanceType<typeof ConsoleParliamentVoteMode> | undefined {
-      return (this.$refs.voteMode ?? undefined) as InstanceType<typeof ConsoleParliamentVoteMode> | undefined;
-    },
-    /**
-     * THE STEP'S DOOR, published (see the `sittingStepOpen` watcher): the shell's teleports read
-     * `fieldStanding`; a step that is a workspace FRAME (the hand) reads the Parliament frame's slot.
-     * Both retract together — a door left open names a zone the pose has already closed.
-     */
-    publishStepDoor(on: boolean): void {
-      const open = on && parliamentFlow.stage === 'sitting';
-      consoleParliamentUi.fieldStanding = open;
-      setWorkspaceFrameSlot('parliament', open ? STAGE_ZONE_SELECTOR : '');
-    },
-    /**
-     * THE MIDDLE TIER'S OFFSETS inside the field, as px tokens on the field —
-     * what the stage's FIELD pose grows by (`.con-parl__stage--field`, one
-     * element, two poses). Measured, never assumed: the top tier's height is
-     * the grid's own answer.
-     */
-    publishMidOffsets(): void {
-      const field = (this.$refs.fieldEl ?? undefined) as HTMLElement | undefined;
-      const mid = (this.$refs.midEl ?? undefined) as HTMLElement | undefined;
-      const zone = mid?.querySelector<HTMLElement>('.con-parl__bodyzone') ?? undefined;
-      if (field === undefined || zone === undefined) {
-        return;
-      }
-      // Парламент v8: the stage stands in the TABLE's body zone, and the field pose grows it over the whole floor —
-      // left over the (receded) chamber, down over the career — never up over the table's head (the reading line
-      // stands there). Rects, never `offsetTop`: the chamber row is a positioned box now, so an offset would be
-      // relative to it, not to the field. Layout boxes (no FLIP is on these elements).
-      const f = field.getBoundingClientRect();
-      const z = zone.getBoundingClientRect();
-      field.style.setProperty('--con-parl-mid-top', `${Math.max(0, Math.round(z.top - f.top))}px`);
-      field.style.setProperty('--con-parl-mid-bottom', `${Math.max(0, Math.round(f.bottom - z.bottom))}px`);
-      field.style.setProperty('--con-parl-mid-left', `${Math.max(0, Math.round(z.left - f.left))}px`);
-      // THE CHAMBER'S RECT (v8 § 5): the hall's vote panel unfolds exactly on it. LAYOUT offsets up the offsetParent
-      // chain, never a painted rect — the vote mode RECEDES this very plate (a transform), and a re-publish while it
-      // stands receded (a resize mid-vote) must still name the place it recedes FROM.
-      const pal = field.querySelector<HTMLElement>('[data-parl-palata]');
-      if (pal !== null) {
-        let x = 0;
-        let y = 0;
-        let el: HTMLElement | null = pal;
-        while (el !== null && el !== field) {
-          x += el.offsetLeft;
-          y += el.offsetTop;
-          el = el.offsetParent as HTMLElement | null;
-        }
-        if (el === field) {
-          field.style.setProperty('--con-parl-pal-l', `${Math.round(x)}px`);
-          field.style.setProperty('--con-parl-pal-t', `${Math.round(y)}px`);
-          field.style.setProperty('--con-parl-pal-w', `${Math.round(pal.offsetWidth)}px`);
-          field.style.setProperty('--con-parl-pal-h', `${Math.round(pal.offsetHeight)}px`);
-        }
-      }
-    },
-    // ── input ──────────────────────────────────────────────────────────
-    handleIntent(intent: GamepadIntent): void {
-      const f = parliamentFlow;
-      // THE QUEST'S DOSSIER is a read-only layer: B or X closes it, nothing else reaches the hall under it.
-      if (this.questDossierOpen || this.careerDossierOpen) {
-        const action = consoleActionOf(intent);
-        if (action === 'back' || action === 'inspect') {
-          this.questDossierOpen = false;
-          this.careerDossierOpen = false;
-        }
-        return;
-      }
-      // A beat in flight absorbs input by phase; a hosted step owns the pad
-      // while it stands in the sitting's zone (the shell routes to it first).
-      if (f.stage === 'submitting' || f.stage === 'landed' || f.stage === 'paying' || f.stage === 'access' || (f.stage === 'sitting' && this.sittingStepOpen)) {
-        return;
-      }
+      noteChairmanQuestAnswer();
+      return;
+    }
+    if (f.stageBeforeSubmit === 'sitting') {
+      // THE GATE IS ANSWERED — the sitting stays on its stage: the position
+      // re-derives (the wait pose, the chain's beats, the results) and the
+      // `sitting` watcher ends the flow only when the phase itself is over.
+      f.stage = sitting.value === undefined ? 'browse' : 'sitting';
+      setWorkspaceFramePhase('parliament', f.stage === 'sitting' ? sittingWorkspacePhase(sittingStage.value, false) : 'browse');
       if (f.stage === 'browse') {
-        this.handleBrowseIntent(intent);
-        return;
+        emit('flow-complete', 'sitting');
       }
-      this.handleStageIntent(intent);
-    },
-    handleBrowseIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        navigateParliamentZones(intent.dir, this.view);
-        return;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'primary':
-        this.primary();
-        return;
-      case 'inspect': {
-        // X on the QUEST opens the quest's own dossier (Парламент v8 § 7 — the owner's point 5), never its law's.
-        if (parliamentFlow.zone === 'engine' && this.view.quest !== undefined) {
-          this.questDossierOpen = true;
-          return;
-        }
-        // …and X on the CAREER reads the track's own dossier.
-        if (parliamentFlow.zone === 'agenda') {
-          this.careerDossierOpen = true;
-          return;
-        }
-        const request = parliamentBrowseInspectRequest(this.view, (this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
-        if (request !== undefined) {
-          this.$emit('inspect', request);
-        }
-        return;
-      }
-      case 'back':
-        this.$emit('close');
-        return;
-      default:
-        return;
-      }
-    },
-    primary(): void {
-      switch (parliamentFlow.zone) {
-      case 'voting':
-        this.voteMode()?.openVote();
-        return;
-      case 'parties':
-      case 'ruler': {
-        // The ruling party's medallion in the government is a party's like the five of the column: the same door —
-        // and, when the party has no action of its own, the ENACTED LAW's action (Open IP Trade) is the ruler's A.
-        const party = this.focusedParty;
-        const index = party === undefined ? -1 : this.view.parties.findIndex((p) => p.party === party.party);
-        const state = index === -1 ? undefined : this.partyActionStates[index];
-        if (party?.actionId === undefined || state === undefined || state.kind === 'none') {
-          if (parliamentFlow.zone === 'ruler' && this.resolutionActionState.kind !== 'none') {
-            this.openResolutionAction();
-            return;
-          }
-          this.$emit('notice', translateText('This party has no action'));
-          return;
-        }
-        this.openAction(party.party, party.actionId, state);
-        return;
-      }
-      case 'engine':
-      case 'agenda':
-        // Nothing to decide on the edge: the quest is the player's play, the track moves by itself.
-        return;
-      case 'effects':
-        this.openEffectsStep();
-        return;
-      case 'government':
-        this.$emit('notice', translateText(this.view.enacted === undefined ?
-          'No resolution is enacted yet — the Greens rule by the starting rule' :
-          'The enacted resolution has no action of its own'));
-        return;
-      default:
-        return;
-      }
-    },
-    /** The stages' own verbs: B folds the vote / collapses the seat and the sitting; everything else is the stage's. */
-    handleStageIntent(intent: GamepadIntent): void {
-      const f = parliamentFlow;
-      if (f.stage === 'sitting') {
-        this.handleSittingIntent(intent);
-        return;
-      }
-      if (f.stage === 'quest') {
-        this.handleQuestIntent(intent);
-        return;
-      }
-      if (f.stage === 'effects') {
-        this.handleEffectsIntent(intent);
-        return;
-      }
-      if (consoleActionOf(intent) === 'back') {
-        if (f.stage === 'seat') {
-          this.$emit('collapse');
-          return;
-        }
-        if (f.stage === 'support') {
-          // «САНКЦИИ» (TR12): a STAGED door is ONE reversible level — back to the play composer, every capture
-          // intact; a LIVE door is mandatory («Свернуть» — the whole hosting stack parks); past the press a beat
-          // is in flight and B says nothing.
-          if (f.supportCommitted) {
-            return;
-          }
-          this.$emit(this.bridge.supportPick?.staged === true ? 'staged-back' : 'collapse');
-          return;
-        }
-        if (f.stage === 'banner') {
-          // «ЗНАМЯ»: the first action is mandatory and already confirmed — B «Свернуть» (the whole hosting stack parks);
-          // past the press a beat is in flight and B says nothing.
-          if (!f.bannerCommitted) {
-            this.$emit('collapse');
-          }
-          return;
-        }
-        if (f.stage === 'delegate') {
-          // «ИЗГНАНИЕ» (TR72): the support pick's law — a STAGED door is one reversible level back to the play composer,
-          // a LIVE door «Свернуть», past the press B says nothing.
-          if (f.delegateCommitted) {
-            return;
-          }
-          this.$emit(this.bridge.delegatePick?.staged === true ? 'staged-back' : 'collapse');
-          return;
-        }
-        if (f.stage === 'vote') {
-          // A STAGED door (a card's own play — nothing sent yet): B is ONE
-          // reversible level — back to the play composer, every capture intact.
-          // The shell owns the way back (the frame leaves, the composer returns).
-          if (this.bridge.grant?.staged === true) {
-            this.$emit('staged-back');
-            return;
-          }
-          // A DELEGATE GRANT is mandatory and stands past the commit of the
-          // flow that paid it: there is no browse layer to fold back to — B
-          // is «Свернуть», the whole hosting stack parks (the board-home
-          // card is the way back). The player's own vote folds home.
-          if (this.bridge.grant !== undefined) {
-            rememberGrantCursor(this.pv.waitingFor?.promptId, this.focusedSlot?.instance);
-            this.$emit('collapse');
-            return;
-          }
-          this.voteMode()?.closeVote();
-          return;
-        }
-        this.closeStage();
-        return;
-      }
-      // L3 «ИСТОЧНИК» — the CARD whose play (or effect) places this delegate: opened over the mode, which
-      // stays mounted under it (X belongs to the selected resolution — the staged dossier's own split).
-      if (f.stage === 'vote' && intent.kind === 'press' && intent.button === 'stickL') {
-        const card = this.bridge.grant?.card;
-        if (card !== undefined) {
-          this.$emit('inspect-source', card);
-        }
-        return;
-      }
-      switch (f.stage) {
-      case 'vote':
-        this.voteMode()?.handleIntent(intent);
-        return;
-      case 'support':
-        ((this.$refs.supportMode ?? undefined) as InstanceType<typeof ConsoleParliamentSupportMode> | undefined)?.handleIntent(intent);
-        return;
-      case 'delegate':
-        ((this.$refs.delegateMode ?? undefined) as InstanceType<typeof ConsoleParliamentDelegateMode> | undefined)?.handleIntent(intent);
-        return;
-      case 'banner':
-        ((this.$refs.bannerMode ?? undefined) as InstanceType<typeof ConsoleParliamentBannerMode> | undefined)?.handleIntent(intent);
-        return;
-      case 'seat':
-        ((this.$refs.seatPick ?? undefined) as InstanceType<typeof ConsoleParliamentSeatPick> | undefined)?.handleIntent(intent);
-        return;
-      case 'walk':
-        // A beat in flight: nothing to confirm, nothing to go back to — the flow leaves by its own hand. A = «дожать»
-        // (К-W1): the walk's waits collapse, its legs and rewards play whole.
-        if (consoleActionOf(intent) === 'primary') {
-          this.hurryOwedWalk();
-        }
-        return;
-      case 'rally':
-        // A beat in flight: nothing to confirm, nothing to go back to — the flow leaves by its own hand.
-        return;
-      default:
-        return;
-      }
-    },
-    /**
-     * THE SITTING'S GRAMMAR (the soft gates): the walk turns every page from the
-     * VERDICT on by itself — nothing to press until the results; A on the
-     * reward's PLACEMENT step is the ONE door to the board («К полю»); A on the
-     * RESULTS answers the confirmation («Закрыть заседание» — the seat's own
-     * close, its door into the next generation); A during a beat = «дожать»
-     * (never a skipped stage); X inspects the enacted
-     * resolution; B obeys the workspace phase — «свернуть» past the commit
-     * (the whole stack parks, the board-home card restores this very page),
-     * nothing on the terminal results page.
-     */
-    handleSittingIntent(intent: GamepadIntent): void {
-      const position = this.sitting;
-      if (position === undefined) {
-        return;
-      }
-      if (this.payoutDetailsDoor && this.handlePayoutDetailsIntent(intent)) {
-        return;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'primary': {
-        if (sittingMotionActive()) {
-          finishSittingMotion();
-          return;
-        }
-        const stage = this.sittingStage;
-        if (stage === 'reward' && position.rewardStep === 'placement' && this.sittingPrimary !== undefined) {
-          this.$emit('to-board');
-          return;
-        }
-        if (stage === 'results' && position.gateStanding) {
-          // «К ДРАФТУ»: the shell takes the press's answer as the door into the next workspace (its falling edge).
-          consoleParliamentUi.closeInto = this.sittingCloseLeadsTo;
-          this.send({type: 'option'}, 'sitting');
-          return;
-        }
-        // THE EARLY CLOSE (the soft gates): the chain waits on another seat, nothing is asked of this one — A leaves.
-        if (stage === 'reward' && position.earlyClose === true && !this.sittingStepOpen) {
-          this.send({type: 'option'}, 'sitting');
-        }
-        return;
-      }
-      case 'inspect':
-        this.inspectSitting();
-        return;
-      case 'back':
-        if (backVerbFor(sittingWorkspacePhase(this.sittingStage, false)) === 'collapse') {
-          this.$emit('collapse');
-        }
-        return;
-      default:
-        return;
-      }
-    },
-    /**
-     * «ПОДРОБНОСТИ ВЫПЛАТ» on the results page — true when the press was its own. The console's inspection grammar
-     * (the owner, 2026-10-24): X INSPECTS the current object — on the results page that is the payouts, so X opens the
-     * step (and X / B fold it back); L3 reads the SOURCE that produced them, the enacted law; A keeps its one meaning,
-     * onward (the sitting closes — from inside the step too). Inside, ↑/↓ and the right stick scroll the table.
-     */
-    handlePayoutDetailsIntent(intent: GamepadIntent): boolean {
-      const details = sittingPayoutDetails;
-      const sitting = (this.$refs.sitting ?? undefined) as {scrollDetails?: (dy: number) => void} | undefined;
-      if (intent.kind === 'press' && intent.button === 'stickL') {
-        this.inspectSitting();
-        return true;
-      }
-      const action = consoleActionOf(intent);
-      if (!details.open) {
-        if (action === 'inspect') {
-          if (sittingMotionActive()) {
-            finishSittingMotion();
-          }
-          details.open = true;
-          return true;
-        }
-        return false;
-      }
-      if (intent.kind === 'scroll') {
-        sitting?.scrollDetails?.(Math.sign(intent.dy) * PAYOUT_DETAILS_SCROLL_PX * conUiScale());
-        return true;
-      }
-      if (intent.kind === 'nav') {
-        if (intent.dir === 'up' || intent.dir === 'down') {
-          sitting?.scrollDetails?.((intent.dir === 'up' ? -1 : 1) * PAYOUT_DETAILS_SCROLL_PX * conUiScale());
-        }
-        return true;
-      }
-      if (action === 'inspect' || action === 'back') {
-        details.open = false;
-        return true;
-      }
-      // A — onward, as on the card (the sitting's own handler answers the gate).
-      return false;
-    },
-    /**
-     * «ПРЕДСЕДАТЕЛЬСТВО»: A «дожать» while a beat is in flight, A «Закрыть»
-     * once everything has landed. B says nothing for the whole flow — it is
-     * past the commit and there is no reversible level to go back to; a beat
-     * in flight absorbs input by construction (the phase is `executing`).
-     */
-    handleQuestIntent(intent: GamepadIntent): void {
-      const action = consoleActionOf(intent);
-      // THE FLOW HOLDS FOR THE TABLE'S QUESTION (TR78) and the press reached the Parliament — so no pick on the answer
-      // stage took it (the shell routes a standing pick first). Never a deaf screen (wait graph R3): B closes the flow as
-      // a finished one closes (the question, if it still stands, is then served where any live pick is); A «дожать» —
-      // the flow ends at once when the question is gone, settles when it stands with nothing serving it.
-      if (chairmanQuestAwaitsReaction()) {
-        if (action === 'back') {
-          this.endQuestFlow();
-        } else if (action === 'primary' && hurryChairmanQuestReaction() && chairmanQuestFlow.beat === 'done') {
-          this.endQuestFlow();
-        }
-        return;
-      }
-      // B CLOSES A FINISHED (or stalled) FLOW — the one logical level there is past the commit; during a beat it says
-      // nothing (the beat absorbs it), and the bar never advertises a B it would not honour.
-      if (action === 'back' && (chairmanQuestFlow.beat === 'done' || chairmanQuestStalled())) {
-        this.endQuestFlow();
-        return;
-      }
-      if (action !== 'primary') {
-        return;
-      }
-      if (chairmanQuestStalled()) {
-        // Nothing will ever play the office and the step (the beats never started, or were cut): the flow ends
-        // honestly — the holds let go, the counters tick now — instead of a stage A and B both ignore.
-        settleChairmanQuestBeats('no run of the beats');
-        this.endQuestFlow();
-        return;
-      }
-      if (!chairmanQuestFlow.answered && !chairmanQuestFlow.sent && this.questGate !== undefined) {
-        // A refused or silenced submit gave the stage back: the gate still
-        // stands, so A means what it meant — send it again.
-        chairmanQuestFlow.sent = true;
-        this.send({type: 'option'}, 'quest');
-        return;
-      }
-      if (chairmanQuestBeatActive()) {
-        finishChairmanQuestBeats();
-        return;
-      }
-      if (chairmanQuestFlow.beat === 'done') {
-        this.endQuestFlow();
-      }
-    },
-    /**
-     * OPEN the chairmanship flow: arm it from the model as it stands BEFORE
-     * the answer (the office, the delegate's own place), unfold the stage,
-     * start the reading beat and send the gate's confirm under it.
-     */
-    openQuestFlow(): void {
-      armChairmanQuestFlow(this.model, this.viewerColor);
-      parliamentFlow.zone = 'government';
-      this.openStage('quest');
-      this.startQuestBeatsWhenMounted(8);
-      if (this.questGate !== undefined) {
-        chairmanQuestFlow.sent = true;
-        this.send({type: 'option'}, 'quest');
-      }
-    },
-    /**
-     * The beats start on the MOUNTED DOM — a tick and a probe tick after the open. A root that is not there yet (the
-     * section opened at setup, its transition still entering) is asked again; one that never comes leaves the flow
-     * STALLED, never silent: the bar offers A «Закрыть» and the flow ends honestly (`chairmanQuestStalled`).
-     */
-    startQuestBeatsWhenMounted(tries: number): void {
-      void this.$nextTick(() => probeTick(() => {
-        if (!chairmanQuestFlow.live) {
-          return;
-        }
-        const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-        if (root === undefined) {
-          if (tries > 1) {
-            this.startQuestBeatsWhenMounted(tries - 1);
-          } else {
-            console.warn('[parliament] chairmanship: no mounted root to play the beats on');
-          }
-          return;
-        }
-        startChairmanQuestBeats({
-          root,
-          viewer: this.viewerColor,
-          generation: this.pv.game.generation,
-          playAgendaWalk: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => {
-            const agenda = (this.$refs.agenda ?? undefined) as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
-            if (agenda === undefined) {
-              hooks.onLanded();
-              return;
-            }
-            void agenda.playAgendaWalk(record, hooks);
-          },
-          owesSeatPick: () => this.bridge.seat !== undefined,
-          // A card of the viewer's table answers the step (TR78 Arwind Inc.) — its stage word, when its question stands.
-          owesReaction: () => {
-            const wf = this.pv.waitingFor;
-            return questReactionOf(wf) !== undefined ? agendaReactionStageKey(wf) : undefined;
-          },
-          // …SERVED only once this section has asked it on the quest's answer stage (the shell teleports the pick there):
-          // a question that never reaches the stage is a pick nobody can press — the director bounds that wait (R3).
-          reactionServed: () => this.hostedAnswerAskKey.startsWith('quest|'),
-          // …and its RECEIPT (the units landed on the asker — no question): played on the section's own answer stage.
-          playTableAnswer: (answer: TableAnswer, done: () => void) => this.playHostedAnswer(answer, () => chairmanQuestFlow.live, done),
-          onStage: () => {
-            setWorkspaceFrameStage('parliament', this.crumbStage);
-          },
-          onDone: () => undefined,
-        });
-      }));
-    },
-    /**
-     * «КАРЬЕРА» — OPEN the walk pose on the record the answer carried: the
-     * track is the hero, the tiers recede, the band grows a chip per landing.
-     * Started on the mounted DOM (a tick + a probe tick, as the quest's beats
-     * are): the tier walks the marker leg by leg, each INTERMEDIATE step's
-     * reward delivered from that very step and waited for; the LAST step's
-     * reward follows the settle; then one read beat, and the flow ends by its
-     * own hand (the shell takes the hosted step and its hand down as ONE
-     * surface). Every release is a real callback or a beat on the motion
-     * clock; the whole walk holds an animation hold sized to its steps.
-     */
-    openWalkFlow(): void {
-      const seat = agendaWalkFlow.owed?.seat;
-      this.startOwedWalk(seat === undefined ? 'walk' : 'seat');
-      parliamentFlow.zone = 'government';
-      if (seat !== undefined) {
-        // The new chairman's delegate leaves the RESERVE (printed «from the reserve»): its stack keeps painting it and
-        // saying its count from the first frame of the pose until it has visibly left (the handover clears both).
-        parliamentFlow.sourceHold = 'reserve';
-        parliamentFlow.sourceLeaving = 'reserve';
-      }
-      this.openStage('walk');
-      void this.$nextTick(() => probeTick(() => (seat === undefined ?
-        this.playOwedWalk(() => this.endWalkFlow()) :
-        this.playWalkSeat(() => this.playOwedWalk(() => this.endWalkFlow())))));
-    },
-    /**
-     * «КРЕСЛО» (TR76 Vote Of No Confidence:redux) — the office the play took, BEFORE the walk it pays for (the quest's
-     * order: причина раньше следствия). The quest's own phrase (`playChairHandover`): the outgoing delegate goes home to
-     * its owner's reserve first, then the player's own leaves the reserve stack and sits down; the chair answers on the
-     * touchdown, and only then does the crumb's tail advance to «КАРЬЕРА» and the marker walk. The waits ride the
-     * hurriable clock (A = «дожать»); a section with nothing to measure lets the beat go and walks at once.
-     */
-    playWalkSeat(onSeated: () => void): void {
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-      const owed = agendaWalkFlow.owed;
-      const seat = owed?.seat;
-      // THE RUN'S OWN IDENTITY (wait graph R5): every ending below is keyed on the record this beat started on, never
-      // on the global `live` another walk's start raises again.
-      const seq = owed?.seq;
-      const beat = (ms: number, fn: () => void): void => {
-        this.walkSeatBeats.push(scheduleHurriedParliamentBeat(ms, fn));
-      };
-      const seated = (): void => {
-        if (seq === undefined ? !agendaWalkFlow.live : !this.walkRunAlive(seq)) {
-          return;
-        }
-        agendaWalkFlow.beat = 'walk';
-        beat(CHAIRMAN_QUEST_BUDGET.gap, onSeated);
-      };
-      if (root === undefined || owed === undefined || seat === undefined || !agendaWalkFlow.live) {
-        parliamentHolds.chairAwaits = undefined;
-        parliamentFlow.sourceHold = undefined;
-        parliamentFlow.sourceLeaving = undefined;
-        seated();
-        return;
-      }
-      this.raiseWalkHold(agendaWalkHoldMs(owed) + CHAIRMAN_QUEST_BUDGET.seatRead + CHAIRMAN_QUEST_BUDGET.seat + CHAIRMAN_QUEST_BUDGET.gap);
-      setParliamentFlightsHurried(false);
-      // THE LEAD: the chair is READ with its holder before anything moves — the pose rises through its own entry, and a
-      // cube lifting off inside that fade is a beat the player never saw start (the law «ни один такт не начинается,
-      // пока сцена не видна»). On the walk's hurriable clock: A «дожать» cuts it like every other wait.
-      beat(CHAIRMAN_QUEST_BUDGET.seatRead, () => {
-        if (this.walkRunAlive(owed.seq)) {
-          playChairHandover({root, change: seat, viewer: this.viewerColor, source: 'reserve', beat, onSeated: seated});
-        }
+      return;
+    }
+    // The chairman's delegate leaves the card for the seat.
+    const wasSeat = f.stageBeforeSubmit === 'seat';
+    if (wasSeat && chairmanQuestFlow.live) {
+      // …and inside the chairmanship flow it goes back to it: the office
+      // beat plays the cube onto the chair, then the Agenda step.
+      f.stage = 'quest';
+      setWorkspaceFramePhase('parliament', 'committed');
+      seatFrom.value = undefined;
+      noteChairmanQuestAnswer();
+      return;
+    }
+    f.stage = 'browse';
+    setWorkspaceFramePhase('parliament', 'browse');
+    if (wasSeat) {
+      void nextTick(() => {
+        const from = seatFrom.value;
+        seatFrom.value = undefined;
+        flySeatDelegate(rootEl.value ?? undefined, viewerColor.value, from, () => pulseParliamentChair());
       });
-    },
-    /**
-     * IS THE WALK RUN `seq` STILL THE ONE PLAYING? (wait graph R5) The run's own record is still the owed one and the
-     * flow still plays it — a callback of a run that was released, or replaced by the next queued record, ends nothing.
-     */
-    walkRunAlive(seq: number): boolean {
-      return agendaWalkFlow.live && agendaWalkFlow.owed?.seq === seq;
-    },
-    /** The walk the answer carried becomes the section's subject (the band grows its chips, the conclusion reads it live). */
-    startOwedWalk(beat: 'seat' | 'walk' = 'walk'): void {
-      agendaWalkFlow.live = true;
-      agendaWalkFlow.beat = beat;
-      agendaWalkFlow.landed = [];
-    },
-    /**
-     * «САНКЦИИ»'s SECOND BEAT (TR12): the card's Agenda step after its cubes have left the area — the SAME walk,
-     * played on the support pose as it stands (no pose change between the two beats: law 8). `done` is the
-     * mode's continuation once the step's reward has landed and been read.
-     */
-    playSupportWalk(done: () => void): void {
-      this.startOwedWalk();
-      this.playOwedWalk(() => {
-        this.finishOwedWalk();
-        // A walk queued behind this one is owed now; the overview's door opens it once the support mode is done.
-        takeQueuedAgendaWalk();
-        done();
-      });
-    },
-    /**
-     * THE ONE WALK of an owed card record, on the mounted DOM: the tier walks the marker leg by leg, each
-     * INTERMEDIATE step's reward delivered from that very step and waited for; the LAST step's reward follows the
-     * settle; then one read beat, and `onDone` — the caller decides what the end of the walk means (the walk pose
-     * ends its flow, the support-area mode its own).
-     */
-    playOwedWalk(onDone: () => void): void {
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-      const agenda = (this.$refs.agenda ?? undefined) as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
-      const owed = agendaWalkFlow.owed;
-      if (root === undefined || agenda === undefined || owed === undefined || !agendaWalkFlow.live) {
-        onDone();
+    }
+    emit('flow-complete', f.stageBeforeSubmit);
+  }
+}
+function voteModeNow(): InstanceType<typeof ConsoleParliamentVoteMode> | undefined {
+  return voteMode.value ?? undefined;
+}
+/**
+ * THE STEP'S DOOR, published (see the `sittingStepOpen` watcher): the shell's teleports read
+ * `fieldStanding`; a step that is a workspace FRAME (the hand) reads the Parliament frame's slot.
+ * Both retract together — a door left open names a zone the pose has already closed.
+ */
+function publishStepDoor(on: boolean): void {
+  const open = on && parliamentFlow.stage === 'sitting';
+  consoleParliamentUi.fieldStanding = open;
+  setWorkspaceFrameSlot('parliament', open ? STAGE_ZONE_SELECTOR : '');
+}
+/**
+ * THE MIDDLE TIER'S OFFSETS inside the field, as px tokens on the field —
+ * what the stage's FIELD pose grows by (`.con-parl__stage--field`, one
+ * element, two poses). Measured, never assumed: the top tier's height is
+ * the grid's own answer.
+ */
+function publishMidOffsets(): void {
+  const field = fieldEl.value ?? undefined;
+  const mid = midEl.value ?? undefined;
+  const zone = mid?.querySelector<HTMLElement>('.con-parl__bodyzone') ?? undefined;
+  if (field === undefined || zone === undefined) {
+    return;
+  }
+  // Парламент v8: the stage stands in the TABLE's body zone, and the field pose grows it over the whole floor —
+  // left over the (receded) chamber, down over the career — never up over the table's head (the reading line
+  // stands there). Rects, never `offsetTop`: the chamber row is a positioned box now, so an offset would be
+  // relative to it, not to the field. Layout boxes (no FLIP is on these elements).
+  const f = field.getBoundingClientRect();
+  const z = zone.getBoundingClientRect();
+  field.style.setProperty('--con-parl-mid-top', `${Math.max(0, Math.round(z.top - f.top))}px`);
+  field.style.setProperty('--con-parl-mid-bottom', `${Math.max(0, Math.round(f.bottom - z.bottom))}px`);
+  field.style.setProperty('--con-parl-mid-left', `${Math.max(0, Math.round(z.left - f.left))}px`);
+  // THE CHAMBER'S RECT (v8 § 5): the hall's vote panel unfolds exactly on it. LAYOUT offsets up the offsetParent
+  // chain, never a painted rect — the vote mode RECEDES this very plate (a transform), and a re-publish while it
+  // stands receded (a resize mid-vote) must still name the place it recedes FROM.
+  const pal = field.querySelector<HTMLElement>('[data-parl-palata]');
+  if (pal !== null) {
+    let x = 0;
+    let y = 0;
+    let el: HTMLElement | null = pal;
+    while (el !== null && el !== field) {
+      x += el.offsetLeft;
+      y += el.offsetTop;
+      el = el.offsetParent as HTMLElement | null;
+    }
+    if (el === field) {
+      field.style.setProperty('--con-parl-pal-l', `${Math.round(x)}px`);
+      field.style.setProperty('--con-parl-pal-t', `${Math.round(y)}px`);
+      field.style.setProperty('--con-parl-pal-w', `${Math.round(pal.offsetWidth)}px`);
+      field.style.setProperty('--con-parl-pal-h', `${Math.round(pal.offsetHeight)}px`);
+    }
+  }
+}
+// ── input ──────────────────────────────────────────────────────────
+function handleIntent(intent: GamepadIntent): void {
+  const f = parliamentFlow;
+  // THE QUEST'S DOSSIER is a read-only layer: B or X closes it, nothing else reaches the hall under it.
+  if (questDossierOpen.value || careerDossierOpen.value) {
+    const action = consoleActionOf(intent);
+    if (action === 'back' || action === 'inspect') {
+      questDossierOpen.value = false;
+      careerDossierOpen.value = false;
+    }
+    return;
+  }
+  // A beat in flight absorbs input by phase; a hosted step owns the pad
+  // while it stands in the sitting's zone (the shell routes to it first).
+  if (f.stage === 'submitting' || f.stage === 'landed' || f.stage === 'paying' || f.stage === 'access' || (f.stage === 'sitting' && sittingStepOpen.value)) {
+    return;
+  }
+  if (f.stage === 'browse') {
+    handleBrowseIntent(intent);
+    return;
+  }
+  handleStageIntent(intent);
+}
+function handleBrowseIntent(intent: GamepadIntent): void {
+  if (intent.kind === 'nav') {
+    navigateParliamentZones(intent.dir, view.value);
+    return;
+  }
+  switch (consoleActionOf(intent)) {
+  case 'primary':
+    primary();
+    return;
+  case 'inspect': {
+    // X on the QUEST opens the quest's own dossier (Парламент v8 § 7 — the owner's point 5), never its law's.
+    if (parliamentFlow.zone === 'engine' && view.value.quest !== undefined) {
+      questDossierOpen.value = true;
+      return;
+    }
+    // …and X on the CAREER reads the track's own dossier.
+    if (parliamentFlow.zone === 'agenda') {
+      careerDossierOpen.value = true;
+      return;
+    }
+    const request = parliamentBrowseInspectRequest(view.value, rootEl.value ?? undefined);
+    if (request !== undefined) {
+      emit('inspect', request);
+    }
+    return;
+  }
+  case 'back':
+    emit('close');
+    return;
+  default:
+    return;
+  }
+}
+function primary(): void {
+  switch (parliamentFlow.zone) {
+  case 'voting':
+    voteModeNow()?.openVote();
+    return;
+  case 'parties':
+  case 'ruler': {
+    // The ruling party's medallion in the government is a party's like the five of the column: the same door —
+    // and, when the party has no action of its own, the ENACTED LAW's action (Open IP Trade) is the ruler's A.
+    const party = focusedParty.value;
+    const index = party === undefined ? -1 : view.value.parties.findIndex((p) => p.party === party.party);
+    const state = index === -1 ? undefined : partyActionStates.value[index];
+    if (party?.actionId === undefined || state === undefined || state.kind === 'none') {
+      if (parliamentFlow.zone === 'ruler' && resolutionActionState.value.kind !== 'none') {
+        openResolutionAction();
         return;
       }
-      // THE RUN'S OWN IDENTITY (wait graph R5): every inner ending below is keyed on the record this run started on —
-      // never on the global `live`, which the next walk's start raises again (a stale callback of a released or
-      // replaced run would otherwise read the next walk's flag and end, or advance, THAT walk).
-      const seq = owed.seq;
-      const alive = (): boolean => this.walkRunAlive(seq);
-      // ONE end for this run, whoever reaches it first — its own last beat or the hold's ceiling (ledger HC).
-      let ended = false;
-      const finish = (): void => {
-        if (!ended) {
-          ended = true;
-          this.walkExpire = undefined;
-          onDone();
-        }
-      };
-      this.walkExpire = finish;
-      // …the table's answer to the walk (TR78 — «ОТВЕТ СТОЛА») adds its own budget to the walk's hold.
-      this.raiseWalkHold(agendaWalkHoldMs(owed) + (tableAnswerOwedTo('walk') ? TABLE_ANSWER_BUDGET_MS : 0));
-      const generation = owed.generation;
-      // «ДОЖАТЬ» (К-W1, the owner's decision 2026-10-10): the walk's own WAITS — the lead before each leg, the gap
-      // after each landed reward, the read — ride the sitting's hurriable clock, so A during the walk pose moves the
-      // marker NOW (`hurryOwedWalk`); the legs and the rewards' flights are never cut. A fresh walk starts unhurried.
-      setParliamentFlightsHurried(false);
-      void agenda.playAgendaWalk(owed, {
-        beat: scheduleHurriedParliamentBeat,
-        rewardStep: (leg: AgendaWalkLeg, done: () => void) => deliverAgendaStepReward(root, generation, leg.to, done),
-        onStep: (leg: AgendaWalkLeg) => {
-          if (alive()) {
-            agendaWalkFlow.landed.push(leg.step);
-          }
-        },
-        onLanded: () => {
-          // The LAST step's reward, off the settled marker; then the read.
-          deliverAgendaStepReward(root, generation, owed.to, () => {
-            if (!alive()) {
-              return;
-            }
-            // Every reward has landed: the chairman quest the walk's TR closed reads its answer NOW — inside the
-            // read beat, where the player sees the consequence of the walk on the very surface it played on.
-            releaseAgendaWalkQuest();
-            agendaWalkFlow.beat = 'read';
-            this.walkReadBeat?.kill();
-            this.walkReadBeat = scheduleHurriedParliamentBeat(AGENDA_WALK_READ_MS, () => {
-              this.walkReadBeat = undefined;
-              if (alive()) {
-                // «ОТВЕТ СТОЛА» (TR78): the table's receipt of the walk plays on the section's own stage before the end.
-                this.playWalkAnswer(seq, finish);
-              }
-            });
-          });
-        },
-      });
-    },
-    /** «ОТВЕТ СТОЛА» (TR78): a receipt owed to the flow on screen plays on the answer stage; `done` once the stage has folded. */
-    playHostedAnswer(answer: TableAnswer, alive: () => boolean, done: () => void): void {
-      void playTableAnswer(answer, {alive}).then(done, done);
-    },
-    /** …after a card's walk: the table's receipt plays on the section's own stage before the walk reads «done». */
-    playWalkAnswer(seq: number, onDone: () => void): void {
-      // A run that is no longer the one playing ends nothing (and takes no receipt that belongs to the next walk).
-      if (!this.walkRunAlive(seq)) {
+      emit('notice', translateText('This party has no action'));
+      return;
+    }
+    openAction(party.party, party.actionId, state);
+    return;
+  }
+  case 'engine':
+  case 'agenda':
+    // Nothing to decide on the edge: the quest is the player's play, the track moves by itself.
+    return;
+  case 'effects':
+    openEffectsStep();
+    return;
+  case 'government':
+    emit('notice', translateText(view.value.enacted === undefined ?
+      'No resolution is enacted yet — the Greens rule by the starting rule' :
+      'The enacted resolution has no action of its own'));
+    return;
+  default:
+    return;
+  }
+}
+/** The stages' own verbs: B folds the vote / collapses the seat and the sitting; everything else is the stage's. */
+function handleStageIntent(intent: GamepadIntent): void {
+  const f = parliamentFlow;
+  if (f.stage === 'sitting') {
+    handleSittingIntent(intent);
+    return;
+  }
+  if (f.stage === 'quest') {
+    handleQuestIntent(intent);
+    return;
+  }
+  if (f.stage === 'effects') {
+    handleEffectsIntent(intent);
+    return;
+  }
+  if (consoleActionOf(intent) === 'back') {
+    if (f.stage === 'seat') {
+      emit('collapse');
+      return;
+    }
+    if (f.stage === 'support') {
+      // «САНКЦИИ» (TR12): a STAGED door is ONE reversible level — back to the play composer, every capture
+      // intact; a LIVE door is mandatory («Свернуть» — the whole hosting stack parks); past the press a beat
+      // is in flight and B says nothing.
+      if (f.supportCommitted) {
         return;
       }
-      const answer = tableAnswerOwedTo('walk') ? takeTableAnswer('walk') : undefined;
-      if (answer === undefined) {
-        onDone();
+      emit(bridge.value.supportPick?.staged === true ? 'staged-back' : 'collapse');
+      return;
+    }
+    if (f.stage === 'banner') {
+      // «ЗНАМЯ»: the first action is mandatory and already confirmed — B «Свернуть» (the whole hosting stack parks);
+      // past the press a beat is in flight and B says nothing.
+      if (!f.bannerCommitted) {
+        emit('collapse');
+      }
+      return;
+    }
+    if (f.stage === 'delegate') {
+      // «ИЗГНАНИЕ» (TR72): the support pick's law — a STAGED door is one reversible level back to the play composer,
+      // a LIVE door «Свернуть», past the press B says nothing.
+      if (f.delegateCommitted) {
         return;
       }
-      agendaWalkFlow.beat = 'answer';
-      this.playHostedAnswer(answer, () => this.walkRunAlive(seq), () => {
-        if (this.walkRunAlive(seq)) {
-          onDone();
-        }
-      });
-    },
-    /** THE QUESTION THE TABLE ASKS right now, with its host — undefined until that host stands ready for it. */
-    hostedAnswerAsk(): TableAnswerAsk | undefined {
-      const ask = tableAnswerAskOf(this.pv.waitingFor);
-      if (ask === undefined) {
-        return undefined;
-      }
-      if (ask.cause === 'quest') {
-        return chairmanQuestFlow.live && chairmanQuestFlow.beat === 'reaction' ? {...ask, host: 'quest'} : undefined;
-      }
-      if (!this.sittingUp || (ask.cause === 'phase' && !careerAgendaTold(this.sittingKey))) {
-        return undefined;
-      }
-      return {...ask, host: 'sitting'};
-    },
-    /**
-     * «ДОЖАТЬ» the card's walk (К-W1): every wait still ahead — the next lead, the gaps, the read — fires at once,
-     * a pending one now; the marker's legs and every reward's flight play whole (a reward is a cause the player must
-     * see land). Unadvertised, as the sitting's: the bar stays the walk's status (`parliamentCommandsOf`).
-     */
-    hurryOwedWalk(): void {
-      if (!agendaWalkFlow.live) {
+      emit(bridge.value.delegatePick?.staged === true ? 'staged-back' : 'collapse');
+      return;
+    }
+    if (f.stage === 'vote') {
+      // A STAGED door (a card's own play — nothing sent yet): B is ONE
+      // reversible level — back to the play composer, every capture intact.
+      // The shell owns the way back (the frame leaves, the composer returns).
+      if (bridge.value.grant?.staged === true) {
+        emit('staged-back');
         return;
       }
-      setParliamentFlightsHurried(true);
-      finishParliamentFlights();
-    },
-    /**
-     * THE WALK'S HOLD, with its owner's recovery (ledger HC): a run that outlives its ceiling ENDS through the run's own
-     * end (`walkExpire` — the walk pose's flow ending, the support mode's continuation), or — before the run took its
-     * end (the КРЕСЛО beat) — the walk pose's ending. Never a hold dropped from the count over a frame left `executing`.
-     */
-    raiseWalkHold(maxHoldMs: number): void {
-      this.walkHold?.release();
-      const seq = agendaWalkFlow.owed?.seq;
-      this.walkHold = beginAnimationHold('parliament-agenda-walk', {
-        maxHoldMs,
-        expire: () => {
-          if (!agendaWalkFlow.live || agendaWalkFlow.owed?.seq !== seq) {
-            return;
-          }
-          console.warn(`[parliament] walk #${seq ?? '?'}: outlived its ceiling — ended`);
-          const end = this.walkExpire;
-          if (end !== undefined) {
-            end();
-          } else {
-            this.endWalkFlow();
-          }
-        },
-      });
-    },
-    /** The owed walk is over: its hold lets go, its read beat is cut, the flow reads «done». */
-    finishOwedWalk(): void {
-      setParliamentFlightsHurried(false);
-      for (const beat of this.walkSeatBeats.splice(0)) {
-        beat.kill();
-      }
-      this.walkReadBeat?.kill();
-      this.walkReadBeat = undefined;
-      this.walkHold?.release();
-      this.walkHold = undefined;
-      this.walkExpire = undefined;
-      agendaWalkFlow.beat = 'done';
-    },
-    /** The walk is over (or could not play): the hold lets go, and the workspace's ONE guarded ending is asked. */
-    endWalkFlow(): void {
-      this.finishOwedWalk();
-      // THE NEXT WALK PLAYS IN PLACE (ledger HC): a record that arrived while this one played waited its turn.
-      if (takeQueuedAgendaWalk()) {
-        this.openWalkFlow();
+      // A DELEGATE GRANT is mandatory and stands past the commit of the
+      // flow that paid it: there is no browse layer to fold back to — B
+      // is «Свернуть», the whole hosting stack parks (the board-home
+      // card is the way back). The player's own vote folds home.
+      if (bridge.value.grant !== undefined) {
+        rememberGrantCursor(pv.value.waitingFor?.promptId, focusedSlot.value?.instance);
+        emit('collapse');
         return;
       }
-      this.$emit('flow-complete', 'walk');
-    },
-    /**
-     * «ДЕЛЕГАТЫ» — OPEN the rally pose on the record the answer carried (TR31): the voting area and the party
-     * plaques are the objects, the Agenda track and the government's blocks recede, the band grows a chip per
-     * touchdown. Started on the mounted DOM (a tick + a probe tick, as the walk is): the director flies the
-     * votes, then the support, runs the recount mark by mark, births the coin at the kicker's counter; then one
-     * read beat, and the flow ends by its own hand (the shell takes the hosted step and its hand down as ONE
-     * surface). Every wait is a real callback or a beat on the motion clock; the whole rally holds an animation
-     * hold sized to its cubes and marks.
-     */
-    openRallyFlow(): void {
-      neutralRallyFlow.live = true;
-      neutralRallyFlow.beat = 'votes';
-      // The voting area even for a support-only rally (a Prelude campaign): a cursor on the PARTIES zone opens the
-      // focused party's dossier over the column — over the very plaques the cubes land on.
-      parliamentFlow.zone = 'voting';
-      this.openStage('rally');
-      void this.$nextTick(() => probeTick(() => this.playOwedRally()));
-    },
-    /** THE ONE RALLY of an owed card record, on the mounted DOM. */
-    playOwedRally(): void {
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-      const owed = neutralRallyFlow.owed;
-      if (owed === undefined || !neutralRallyFlow.live) {
-        this.endRallyFlow();
-        return;
+      voteModeNow()?.closeVote();
+      return;
+    }
+    closeStage();
+    return;
+  }
+  // L3 «ИСТОЧНИК» — the CARD whose play (or effect) places this delegate: opened over the mode, which
+  // stays mounted under it (X belongs to the selected resolution — the staged dossier's own split).
+  if (f.stage === 'vote' && intent.kind === 'press' && intent.button === 'stickL') {
+    const card = bridge.value.grant?.card;
+    if (card !== undefined) {
+      emit('inspect-source', card);
+    }
+    return;
+  }
+  switch (f.stage) {
+  case 'vote':
+    voteModeNow()?.handleIntent(intent);
+    return;
+  case 'support':
+    supportMode.value?.handleIntent(intent);
+    return;
+  case 'delegate':
+    delegateMode.value?.handleIntent(intent);
+    return;
+  case 'banner':
+    bannerMode.value?.handleIntent(intent);
+    return;
+  case 'seat':
+    seatPick.value?.handleIntent(intent);
+    return;
+  case 'walk':
+    // A beat in flight: nothing to confirm, nothing to go back to — the flow leaves by its own hand. A = «дожать»
+    // (К-W1): the walk's waits collapse, its legs and rewards play whole.
+    if (consoleActionOf(intent) === 'primary') {
+      hurryOwedWalk();
+    }
+    return;
+  case 'rally':
+    // A beat in flight: nothing to confirm, nothing to go back to — the flow leaves by its own hand.
+    return;
+  default:
+    return;
+  }
+}
+/**
+ * THE SITTING'S GRAMMAR (the soft gates): the walk turns every page from the
+ * VERDICT on by itself — nothing to press until the results; A on the
+ * reward's PLACEMENT step is the ONE door to the board («К полю»); A on the
+ * RESULTS answers the confirmation («Закрыть заседание» — the seat's own
+ * close, its door into the next generation); A during a beat = «дожать»
+ * (never a skipped stage); X inspects the enacted
+ * resolution; B obeys the workspace phase — «свернуть» past the commit
+ * (the whole stack parks, the board-home card restores this very page),
+ * nothing on the terminal results page.
+ */
+function handleSittingIntent(intent: GamepadIntent): void {
+  const position = sitting.value;
+  if (position === undefined) {
+    return;
+  }
+  if (payoutDetailsDoor.value && handlePayoutDetailsIntent(intent)) {
+    return;
+  }
+  switch (consoleActionOf(intent)) {
+  case 'primary': {
+    if (sittingMotionActive()) {
+      finishSittingMotion();
+      return;
+    }
+    const stage = sittingStage.value;
+    if (stage === 'reward' && position.rewardStep === 'placement' && sittingPrimary.value !== undefined) {
+      emit('to-board');
+      return;
+    }
+    if (stage === 'results' && position.gateStanding) {
+      // «К ДРАФТУ»: the shell takes the press's answer as the door into the next workspace (its falling edge).
+      consoleParliamentUi.closeInto = sittingCloseLeadsTo.value;
+      send({type: 'option'}, 'sitting');
+      return;
+    }
+    // THE EARLY CLOSE (the soft gates): the chain waits on another seat, nothing is asked of this one — A leaves.
+    if (stage === 'reward' && position.earlyClose === true && !sittingStepOpen.value) {
+      send({type: 'option'}, 'sitting');
+    }
+    return;
+  }
+  case 'inspect':
+    inspectSitting();
+    return;
+  case 'back':
+    if (backVerbFor(sittingWorkspacePhase(sittingStage.value, false)) === 'collapse') {
+      emit('collapse');
+    }
+    return;
+  default:
+    return;
+  }
+}
+/**
+ * «ПОДРОБНОСТИ ВЫПЛАТ» on the results page — true when the press was its own. The console's inspection grammar
+ * (the owner, 2026-10-24): X INSPECTS the current object — on the results page that is the payouts, so X opens the
+ * step (and X / B fold it back); L3 reads the SOURCE that produced them, the enacted law; A keeps its one meaning,
+ * onward (the sitting closes — from inside the step too). Inside, ↑/↓ and the right stick scroll the table.
+ */
+function handlePayoutDetailsIntent(intent: GamepadIntent): boolean {
+  const details = sittingPayoutDetails;
+  const sitting = sittingEl.value ?? undefined;
+  if (intent.kind === 'press' && intent.button === 'stickL') {
+    inspectSitting();
+    return true;
+  }
+  const action = consoleActionOf(intent);
+  if (!details.open) {
+    if (action === 'inspect') {
+      if (sittingMotionActive()) {
+        finishSittingMotion();
       }
-      this.rallyHold?.release();
-      // The owner's recovery (ledger HC): a run that outlives its ceiling ENDS — the flow's own ending, never a hold
-      // dropped from the count while the frame stands `executing` with nothing left to play.
-      this.rallyHold = beginAnimationHold('parliament-neutral-rally', {
-        maxHoldMs: neutralRallyHoldMs(owed),
-        expire: () => {
-          if (neutralRallyFlow.owed?.seq === owed.seq) {
-            console.warn(`[parliament] rally #${owed.seq}: outlived its ceiling — ended`);
-            this.endRallyFlow();
-          }
-        },
-      });
-      const measure = (selector: string) => (root === undefined ? undefined : placeFigureRect(root, selector));
-      this.rallyHandle?.skip();
-      this.rallyHandle = runNeutralRally(owed, {
-        pool: () => measure('[data-parl-neutral-cube]'),
-        votePlace: (vote) => measure(`.con-parl__slot[data-instance="${vote.instance}"] [data-seq="${vote.seq}"]`),
-        supportPlace: (party, place) => measure(plaquePlaceSelector(party, place)),
-        fly: (from, to, onLanded, onLifted) => flyDelegate('neutral', from, to, 0, onLanded, {onLifted}),
-        coinOrigin: () => {
-          const node = root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"] .con-band__num`) ??
-            root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"]`);
-          const r = node?.getBoundingClientRect();
-          return r === undefined || r.width < 2 ? undefined : {x: r.left + r.width / 2, y: r.top + r.height / 2};
-        },
-        // The coin: the M€ row held since the answer (`seedNeutralRallyHolds`) ticks on the touchdown; a hold
-        // nobody seeded (reduced motion, a standalone host without the price known) resolves at once — honestly early.
-        // …born on the count chip as an OBJECT (ledger HC): the flight's own verdict judges it painted at the birth — a
-        // section leaving under a B degrades the coin to the counter's tick, never a token born over nothing.
-        coin: (origin) => {
-          const chip = root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"] .con-band__num`) ??
-            root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"]`) ?? undefined;
-          return flyRailReward(NEUTRAL_RALLY_RAIL_KEY, () => (chip !== undefined ? {el: chip, fx: 0.5, fy: 0.5} : origin));
-        },
-        onBeat: (beat) => {
-          neutralRallyFlow.beat = beat;
-        },
-        onLifted: () => rallyCubeLifted(),
-        onVoteLanded: (vote) => rallyVoteLanded(vote),
-        onSupportLanded: (entry) => rallySupportLanded(entry),
-        onSupportRead: (entry) => rallySupportRead(entry),
-        onCounted: (item) => rallyCounted(item.key),
-        onDegraded: (why) => {
-          if (neutralRallyFlow.degraded === '') {
-            neutralRallyFlow.degraded = why;
-            console.warn(`[parliament] rally: ${why} — settled without a flight`);
-          }
-        },
-        // THE RUN OWNS ITS END (ledger HC): keyed on its own record, never on the global flag — a second record
-        // arriving mid-run waits in the queue and plays after this one ends.
-        onDone: () => {
-          if (neutralRallyFlow.live && neutralRallyFlow.owed?.seq === owed.seq) {
-            this.endRallyFlow();
-          }
-        },
-      });
-    },
-    /** The owed rally is over: its hold lets go, its beats are cut, the flow reads «done». */
-    finishOwedRally(): void {
-      this.rallyHandle?.skip();
-      this.rallyHandle = undefined;
-      this.rallyHold?.release();
-      this.rallyHold = undefined;
-      neutralRallyFlow.beat = 'done';
-    },
-    /** The rally is over (or could not play): the hold lets go, and the workspace's ONE guarded ending is asked. */
-    endRallyFlow(): void {
-      this.finishOwedRally();
-      // THE NEXT RALLY PLAYS IN PLACE (ledger HC — two Prelude campaigns back to back): same stage, same frame, its
-      // pieces already hidden; the flow ends only after the last one.
-      if (takeQueuedNeutralRally()) {
-        neutralRallyFlow.live = true;
-        neutralRallyFlow.beat = 'votes';
-        void this.$nextTick(() => probeTick(() => this.playOwedRally()));
-        return;
-      }
-      this.$emit('flow-complete', 'rally');
-    },
-    /** The flow is over: the holds are gone with their beats, and the workspace concludes. */
-    endQuestFlow(): void {
-      this.retireQuestFlow();
-      this.$emit('flow-complete', 'quest');
-    },
-    /** The chairmanship's teardown without the report (the question door folds a finished flow in place). */
-    retireQuestFlow(): void {
-      killChairmanQuestBeats();
-      releaseChairmanQuestHolds('quest-closed');
-      resetChairmanQuestFlow();
-      this.closeStage();
-    },
-    /** X: the enacted resolution lifts out of the government's card (or the stage's hero, while carried). */
-    inspectSitting(): void {
-      const id = this.model?.phase?.summary?.enacted.resolution;
-      if (id === undefined) {
-        return;
-      }
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-      const request: ParliamentInspectRequest = {
-        kind: 'resolution', ids: [id], index: 0,
-        origin: () => root?.querySelector<HTMLElement>('.con-parl__gov-card .pcard') ?? root?.querySelector<HTMLElement>('.con-parl__gov-card') ?? null,
-      };
-      this.$emit('inspect', request);
-    },
-    /**
-     * A PARTY ACTION from its plaque — the Parliament's door into the ONE
-     * execution point (the action workspace, nested inside this screen). The
-     * pressed plaque is the descent's origin; a closed door names its reason.
-     */
-    // ── «ВАШИ ЭФФЕКТЫ», the inner step (Парламент v8 § 6) ──────────────
-    openEffectsStep(): void {
-      if (openParliamentEffectsHost(this.effectsHostGroups.length, this.effectsHostEntries.length)) {
-        parliamentFlow.stage = 'effects';
-      }
-    },
-    closeEffectsStep(): void {
-      closeParliamentEffectsHost();
-      parliamentFlow.stage = 'browse';
-      parliamentFlow.zone = 'effects';
-    },
-    /** The DOM tile of an action group of the step — the descent's origin and the inspector's lift. */
-    effectsTileOf(key: string): HTMLElement | undefined {
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-      return root?.querySelector<HTMLElement>('[data-parl-fx-entry="' + key + '"]') ?? undefined;
-    },
-    /**
-     * «ВАШИ ЭФФЕКТЫ» (ONE FRAMEWORK С6): the ACTIONS zone is the section's own (↑↓ walk the tiles, → crosses into the
-     * explorer, A is the bench's door, X inspects the source); the EFFECTS zone is the explorer's — every intent goes to
-     * it, and ← at its first column (the cursor did not move) comes back to the actions. B folds the explorer's detail
-     * first, then the step.
-     */
-    handleEffectsIntent(intent: GamepadIntent): void {
-      const host = parliamentEffectsHost;
-      const groups = this.effectsHostGroups;
-      const entries = this.effectsHostEntries;
-      if (host.zone === 'effects') {
-        const explorer = ((this.$refs.effectsStep ?? undefined) as InstanceType<typeof ConsoleParliamentEffectsStep> | undefined)?.explorer();
-        if (consoleActionOf(intent) === 'back') {
-          if (explorer?.consumeEffectsBack() !== true) {
-            this.closeEffectsStep();
-          }
-          return;
-        }
-        const before = parliamentEffectsExplorerUi.focusKey;
-        explorer?.handleIntent(intent);
-        if (intent.kind === 'nav' && intent.dir === 'left' && groups.length > 0 && parliamentEffectsExplorerUi.detail === undefined &&
-            parliamentEffectsExplorerUi.focusKey === before) {
-          host.zone = 'actions';
-        }
-        return;
-      }
-      if (intent.kind === 'nav') {
-        const next = actionsZoneStep(host.actionCursor, groups.length, entries.length, intent.dir);
-        host.zone = next.zone;
-        host.actionCursor = next.cursor;
-        return;
-      }
-      const group = this.effectsFocusedGroup;
-      switch (consoleActionOf(intent)) {
-      case 'back':
-        this.closeEffectsStep();
-        return;
-      case 'primary': {
-        if (group === undefined) {
-          return;
-        }
-        if (group.resolutionAction !== undefined) {
-          this.openResolutionAction();
-          return;
-        }
-        const party = group.party;
-        const index = this.view.parties.findIndex((p) => p.party === party);
-        const state = this.partyActionStates[index];
-        const actionId = party === undefined ? undefined : partyActionOf(party);
-        if (party === undefined || actionId === undefined || state === undefined) {
-          return;
-        }
-        this.openAction(party, actionId, state, this.effectsTileOf(group.key));
-        return;
-      }
-      case 'inspect': {
-        if (group === undefined) {
-          return;
-        }
-        const origin = () => this.effectsTileOf(group.key)?.querySelector<HTMLElement>('.con-cardactions__plate-seal, img') ?? null;
-        const law = group.resolutionAction !== undefined ? this.effectsInput.enacted : undefined;
-        const party = group.party ?? group.resolutionParty;
-        if (law !== undefined) {
-          this.$emit('inspect', {kind: 'resolution', ids: [law.resolutionId], index: 0, origin} as ParliamentInspectRequest);
-        } else if (party !== undefined) {
-          this.$emit('inspect', {kind: 'party', party, origin} as ParliamentInspectRequest);
-        }
-        return;
-      }
-      default:
-        return;
-      }
-    },
-    openAction(party: ReduxParty, id: PartyActionId, state: PartyActionStateVm, from?: HTMLElement): void {
-      const refusal = partyActionRefusal(state, id === 'unity-trade' || this.bridge.actions[id] !== undefined, this.awaitingInput);
-      if (refusal !== undefined) {
-        this.$emit('notice', refusal);
-        return;
-      }
-      armPartyActionDescent((this.$refs.rootEl ?? undefined) as HTMLElement | undefined, party, from);
-      this.$emit('open-action', party);
-    },
-    /**
-     * THE ENACTED RESOLUTION'S ACTION from the government (Open IP Trade) —
-     * the party door's twin: the law's card is the descent's origin; a closed
-     * door names its reason (the server's own, the state's word).
-     */
-    openResolutionAction(): void {
-      const action = this.pv.game.parliament?.viewer?.resolutionAction;
-      const state = this.resolutionActionState;
-      if (action === undefined || state.kind === 'none') {
-        this.$emit('notice', translateText('The enacted resolution has no action of its own'));
-        return;
-      }
-      const offered = this.bridge.resolutionAction !== undefined && this.bridge.resolutionAction.resolution === action.resolution;
-      const refusal = resolutionActionRefusal(state, offered, this.awaitingInput);
-      if (refusal !== undefined) {
-        this.$emit('notice', refusal);
-        return;
-      }
-      armResolutionActionDescent((this.$refs.rootEl ?? undefined) as HTMLElement | undefined);
-      this.$emit('open-resolution-action', {resolution: action.resolution, party: action.party});
-    },
-    // ── the seat / sitting stage phrase ─────────────────────────────────
-    openStage(stage: ParliamentStage): void {
-      const tier = (this.$refs.tableTierEl ?? undefined) as HTMLElement | undefined;
-      const rect = tier?.getBoundingClientRect();
-      this.stageFromRect = rect !== undefined && rect.width > 0 ? {left: rect.left, top: rect.top, width: rect.width, height: rect.height} : undefined;
-      parliamentFlow.stage = stage;
-      // A WALK is a transient beat, never a navigation destination (the workspace flow's commit boundary):
-      // its frame is `executing` — B and A are `none` for its length, and a double press is impossible.
-      setWorkspaceFramePhase('parliament', stage === 'sitting' ? sittingWorkspacePhase(this.sittingStage, false) : stage === 'walk' || stage === 'rally' ? 'executing' : 'configure');
-    },
-    closeStage(): void {
-      killSittingMotion();
-      this.walkOwed = false;
-      // The retired government zone (a sitting, a quest, a walk park the cursor there) folds onto the tile that
-      // replaced it — never a ring on the government plate until the first d-pad press (PL-509).
-      if (parliamentFlow.zone === 'government') {
-        parliamentFlow.zone = 'ruler';
-      }
-      parliamentFlow.stage = 'browse';
-      setWorkspaceFramePhase('parliament', 'browse');
-    },
-    /**
-     * THE PHASE IS OVER. A PHASE-anchored root leaves WITH its stage standing
-     * (the shell's `closeWorkspaceRoot` on the falling edge — one motion of
-     * the whole surface, never a stage folding to browse under a leaving
-     * frame); a Parliament the player walked into on their own stays, so its
-     * stage folds back to the browse layer.
-     */
-    /**
-     * IS THIS ROOT ON ITS WAY OUT? (v3 В1) The phase's end closes a PHASE-anchored Parliament — and the
-     * SHELL's own watcher gets there FIRST, in the same flush, so by the time this section is asked the
-     * frame is already gone and its anchor with it. Both facts mean the same thing and both must count:
-     * the frame no longer renders, or it still does and is the phase's. A Parliament the player walked
-     * into on their own (an `always` anchor, still in the stack) is NOT closing — it folds back to browse
-     * and goes on living on the live view.
-     */
-    rootIsClosing(): boolean {
-      return !workspaceFrameRenders('parliament') || workspaceFrameAnchor('parliament')?.type === 'phase';
-    },
-    endSitting(): void {
-      killSittingMotion();
-      if (this.rootIsClosing()) {
-        // The surface leaves WITH its stage: folding to browse under a leaving frame shows the player the
-        // overview for the length of a dissolve — a screen they never asked for (v3 В1).
-        this.walkOwed = false;
+      details.open = true;
+      return true;
+    }
+    return false;
+  }
+  if (intent.kind === 'scroll') {
+    sitting?.scrollDetails?.(Math.sign(intent.dy) * PAYOUT_DETAILS_SCROLL_PX * conUiScale());
+    return true;
+  }
+  if (intent.kind === 'nav') {
+    if (intent.dir === 'up' || intent.dir === 'down') {
+      sitting?.scrollDetails?.((intent.dir === 'up' ? -1 : 1) * PAYOUT_DETAILS_SCROLL_PX * conUiScale());
+    }
+    return true;
+  }
+  if (action === 'inspect' || action === 'back') {
+    details.open = false;
+    return true;
+  }
+  // A — onward, as on the card (the sitting's own handler answers the gate).
+  return false;
+}
+/**
+ * «ПРЕДСЕДАТЕЛЬСТВО»: A «дожать» while a beat is in flight, A «Закрыть»
+ * once everything has landed. B says nothing for the whole flow — it is
+ * past the commit and there is no reversible level to go back to; a beat
+ * in flight absorbs input by construction (the phase is `executing`).
+ */
+function handleQuestIntent(intent: GamepadIntent): void {
+  const action = consoleActionOf(intent);
+  // THE FLOW HOLDS FOR THE TABLE'S QUESTION (TR78) and the press reached the Parliament — so no pick on the answer
+  // stage took it (the shell routes a standing pick first). Never a deaf screen (wait graph R3): B closes the flow as
+  // a finished one closes (the question, if it still stands, is then served where any live pick is); A «дожать» —
+  // the flow ends at once when the question is gone, settles when it stands with nothing serving it.
+  if (chairmanQuestAwaitsReaction()) {
+    if (action === 'back') {
+      endQuestFlow();
+    } else if (action === 'primary' && hurryChairmanQuestReaction() && chairmanQuestFlow.beat === 'done') {
+      endQuestFlow();
+    }
+    return;
+  }
+  // B CLOSES A FINISHED (or stalled) FLOW — the one logical level there is past the commit; during a beat it says
+  // nothing (the beat absorbs it), and the bar never advertises a B it would not honour.
+  if (action === 'back' && (chairmanQuestFlow.beat === 'done' || chairmanQuestStalled())) {
+    endQuestFlow();
+    return;
+  }
+  if (action !== 'primary') {
+    return;
+  }
+  if (chairmanQuestStalled()) {
+    // Nothing will ever play the office and the step (the beats never started, or were cut): the flow ends
+    // honestly — the holds let go, the counters tick now — instead of a stage A and B both ignore.
+    settleChairmanQuestBeats('no run of the beats');
+    endQuestFlow();
+    return;
+  }
+  if (!chairmanQuestFlow.answered && !chairmanQuestFlow.sent && questGate.value !== undefined) {
+    // A refused or silenced submit gave the stage back: the gate still
+    // stands, so A means what it meant — send it again.
+    chairmanQuestFlow.sent = true;
+    send({type: 'option'}, 'quest');
+    return;
+  }
+  if (chairmanQuestBeatActive()) {
+    finishChairmanQuestBeats();
+    return;
+  }
+  if (chairmanQuestFlow.beat === 'done') {
+    endQuestFlow();
+  }
+}
+/**
+ * OPEN the chairmanship flow: arm it from the model as it stands BEFORE
+ * the answer (the office, the delegate's own place), unfold the stage,
+ * start the reading beat and send the gate's confirm under it.
+ */
+function openQuestFlow(): void {
+  armChairmanQuestFlow(model.value, viewerColor.value);
+  parliamentFlow.zone = 'government';
+  openStage('quest');
+  startQuestBeatsWhenMounted(8);
+  if (questGate.value !== undefined) {
+    chairmanQuestFlow.sent = true;
+    send({type: 'option'}, 'quest');
+  }
+}
+/**
+ * The beats start on the MOUNTED DOM — a tick and a probe tick after the open. A root that is not there yet (the
+ * section opened at setup, its transition still entering) is asked again; one that never comes leaves the flow
+ * STALLED, never silent: the bar offers A «Закрыть» and the flow ends honestly (`chairmanQuestStalled`).
+ */
+function startQuestBeatsWhenMounted(tries: number): void {
+  void nextTick(() => probeTick(() => {
+    if (!chairmanQuestFlow.live) {
+      return;
+    }
+    const root = rootEl.value ?? undefined;
+    if (root === undefined) {
+      if (tries > 1) {
+        startQuestBeatsWhenMounted(tries - 1);
       } else {
-        this.closeStage();
+        console.warn('[parliament] chairmanship: no mounted root to play the beats on');
       }
-      this.$emit('flow-complete', 'sitting');
-    },
-    /**
-     * THE OPENING (the section mounts with the sitting standing, or the stage
-     * unfolds over the browse layer): where the walk starts and what it plays.
-     *  · a sitting whose chain this session SAW arrive (the transport seeded its
-     *    holds from the table as it stood — `sittingSeededLive`) and that no
-     *    page of has played yet: the VERDICT page, and the walk goes on from it;
-     *  · with NO memory of this sitting (a reload inside the sequence): the
-     *    step's last page in its final poses — nothing replays, the holds are
-     *    dropped;
-     *  · past the barrier with a memory (a collapsed sitting coming back, the
-     *    frame back from the board): the first unplayed page, with the holds
-     *    the transport seeded while the section was away — the walk goes on
-     *    from there (the tile's RECEIPT is read first when one is owed).
-     */
-    planOpening(position: SittingPosition): void {
-      const key = this.sittingKey;
-      const played = (stage: SittingStage) => sittingStagePlayed(key, stage);
-      if (verdictStandsAt(position.step) || (sittingSeededLive(key) && !sittingSessionKnown(key))) {
-        parliamentFlow.sittingPage = 0;
-        // A CARD'S ANSWER TO THE CHANGE OF POWER (TR62) is owed to the enactment's tail: its batch rides the response
-        // that brought the chain and waits for the seals to change places (`rulingChangeDraw.ts` — the seed opened
-        // the park in that response's apply block; opening it again is idempotent).
-        openRulingChangePark(key);
-        return;
-      }
-      if (!sittingSessionKnown(key)) {
-        for (const stage of position.pages) {
-          notePlayedSittingStage(key, stage);
+      return;
+    }
+    startChairmanQuestBeats({
+      root,
+      viewer: viewerColor.value,
+      generation: pv.value.game.generation,
+      playAgendaWalk: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => {
+        const agendaNow = agenda.value ?? undefined;
+        if (agendaNow === undefined) {
+          hooks.onLanded();
+          return;
         }
-        // …and the results card is simply STANDING for a sitting re-read at its final poses: nothing will play,
-        // so nothing will reveal it, and `resultsHidden` (which keeps the panel off the table while the renewal
-        // moves) must not hold it hidden for ever.
-        sittingMotion.resultsRevealed = true;
-        resetParliamentHolds();
-        // …and a rating owed to the enactment's tail (TR63) has no tail left to ride: it ticks now.
-        releaseUntoldRulingRatings('re-read');
-        parliamentRewardState.receiptShowing = false;
-        parliamentFlow.sittingPage = position.pages.length - 1;
+        void agendaNow.playAgendaWalk(record, hooks);
+      },
+      owesSeatPick: () => bridge.value.seat !== undefined,
+      // A card of the viewer's table answers the step (TR78 Arwind Inc.) — its stage word, when its question stands.
+      owesReaction: () => {
+        const wf = pv.value.waitingFor;
+        return questReactionOf(wf) !== undefined ? agendaReactionStageKey(wf) : undefined;
+      },
+      // …SERVED only once this section has asked it on the quest's answer stage (the shell teleports the pick there):
+      // a question that never reaches the stage is a pick nobody can press — the director bounds that wait (R3).
+      reactionServed: () => hostedAnswerAskKey.value.startsWith('quest|'),
+      // …and its RECEIPT (the units landed on the asker — no question): played on the section's own answer stage.
+      playTableAnswer: (answer: TableAnswer, done: () => void) => playHostedAnswer(answer, () => chairmanQuestFlow.live, done),
+      onStage: () => {
+        setWorkspaceFrameStage('parliament', crumbStage.value);
+      },
+      onDone: () => undefined,
+    });
+  }));
+}
+/**
+ * «КАРЬЕРА» — OPEN the walk pose on the record the answer carried: the
+ * track is the hero, the tiers recede, the band grows a chip per landing.
+ * Started on the mounted DOM (a tick + a probe tick, as the quest's beats
+ * are): the tier walks the marker leg by leg, each INTERMEDIATE step's
+ * reward delivered from that very step and waited for; the LAST step's
+ * reward follows the settle; then one read beat, and the flow ends by its
+ * own hand (the shell takes the hosted step and its hand down as ONE
+ * surface). Every release is a real callback or a beat on the motion
+ * clock; the whole walk holds an animation hold sized to its steps.
+ */
+function openWalkFlow(): void {
+  const seat = agendaWalkFlow.owed?.seat;
+  startOwedWalk(seat === undefined ? 'walk' : 'seat');
+  parliamentFlow.zone = 'government';
+  if (seat !== undefined) {
+    // The new chairman's delegate leaves the RESERVE (printed «from the reserve»): its stack keeps painting it and
+    // saying its count from the first frame of the pose until it has visibly left (the handover clears both).
+    parliamentFlow.sourceHold = 'reserve';
+    parliamentFlow.sourceLeaving = 'reserve';
+  }
+  openStage('walk');
+  void nextTick(() => probeTick(() => (seat === undefined ?
+    playOwedWalk(() => endWalkFlow()) :
+    playWalkSeat(() => playOwedWalk(() => endWalkFlow())))));
+}
+/**
+ * «КРЕСЛО» (TR76 Vote Of No Confidence:redux) — the office the play took, BEFORE the walk it pays for (the quest's
+ * order: причина раньше следствия). The quest's own phrase (`playChairHandover`): the outgoing delegate goes home to
+ * its owner's reserve first, then the player's own leaves the reserve stack and sits down; the chair answers on the
+ * touchdown, and only then does the crumb's tail advance to «КАРЬЕРА» and the marker walk. The waits ride the
+ * hurriable clock (A = «дожать»); a section with nothing to measure lets the beat go and walks at once.
+ */
+function playWalkSeat(onSeated: () => void): void {
+  const root = rootEl.value ?? undefined;
+  const owed = agendaWalkFlow.owed;
+  const seat = owed?.seat;
+  // THE RUN'S OWN IDENTITY (wait graph R5): every ending below is keyed on the record this beat started on, never
+  // on the global `live` another walk's start raises again.
+  const seq = owed?.seq;
+  const beat = (ms: number, fn: () => void): void => {
+    walkSeatBeats.push(scheduleHurriedParliamentBeat(ms, fn));
+  };
+  const seated = (): void => {
+    if (seq === undefined ? !agendaWalkFlow.live : !walkRunAlive(seq)) {
+      return;
+    }
+    agendaWalkFlow.beat = 'walk';
+    beat(CHAIRMAN_QUEST_BUDGET.gap, onSeated);
+  };
+  if (root === undefined || owed === undefined || seat === undefined || !agendaWalkFlow.live) {
+    parliamentHolds.chairAwaits = undefined;
+    parliamentFlow.sourceHold = undefined;
+    parliamentFlow.sourceLeaving = undefined;
+    seated();
+    return;
+  }
+  raiseWalkHold(agendaWalkHoldMs(owed) + CHAIRMAN_QUEST_BUDGET.seatRead + CHAIRMAN_QUEST_BUDGET.seat + CHAIRMAN_QUEST_BUDGET.gap);
+  setParliamentFlightsHurried(false);
+  // THE LEAD: the chair is READ with its holder before anything moves — the pose rises through its own entry, and a
+  // cube lifting off inside that fade is a beat the player never saw start (the law «ни один такт не начинается,
+  // пока сцена не видна»). On the walk's hurriable clock: A «дожать» cuts it like every other wait.
+  beat(CHAIRMAN_QUEST_BUDGET.seatRead, () => {
+    if (walkRunAlive(owed.seq)) {
+      playChairHandover({root, change: seat, viewer: viewerColor.value, source: 'reserve', beat, onSeated: seated});
+    }
+  });
+}
+function walkRunAlive(seq: number): boolean {
+  return walkRunAliveOf(seq);
+}
+/** The walk the answer carried becomes the section's subject (the band grows its chips, the conclusion reads it live). */
+function startOwedWalk(beat: 'seat' | 'walk' = 'walk'): void {
+  agendaWalkFlow.live = true;
+  agendaWalkFlow.beat = beat;
+  agendaWalkFlow.landed = [];
+}
+/**
+ * «САНКЦИИ»'s SECOND BEAT (TR12): the card's Agenda step after its cubes have left the area — the SAME walk,
+ * played on the support pose as it stands (no pose change between the two beats: law 8). `done` is the
+ * mode's continuation once the step's reward has landed and been read.
+ */
+function playSupportWalk(done: () => void): void {
+  startOwedWalk();
+  playOwedWalk(() => {
+    finishOwedWalk();
+    // A walk queued behind this one is owed now; the overview's door opens it once the support mode is done.
+    takeQueuedAgendaWalk();
+    done();
+  });
+}
+/**
+ * THE ONE WALK of an owed card record, on the mounted DOM: the tier walks the marker leg by leg, each
+ * INTERMEDIATE step's reward delivered from that very step and waited for; the LAST step's reward follows the
+ * settle; then one read beat, and `onDone` — the caller decides what the end of the walk means (the walk pose
+ * ends its flow, the support-area mode its own).
+ */
+function playOwedWalk(onDone: () => void): void {
+  const root = rootEl.value ?? undefined;
+  const agendaNow = agenda.value ?? undefined;
+  const owed = agendaWalkFlow.owed;
+  if (root === undefined || agendaNow === undefined || owed === undefined || !agendaWalkFlow.live) {
+    onDone();
+    return;
+  }
+  // THE RUN'S OWN IDENTITY (wait graph R5): every inner ending below is keyed on the record this run started on —
+  // never on the global `live`, which the next walk's start raises again (a stale callback of a released or
+  // replaced run would otherwise read the next walk's flag and end, or advance, THAT walk).
+  const seq = owed.seq;
+  const alive = (): boolean => walkRunAlive(seq);
+  // ONE end for this run, whoever reaches it first — its own last beat or the hold's ceiling (ledger HC).
+  let ended = false;
+  const finish = (): void => {
+    if (!ended) {
+      ended = true;
+      walkExpire = undefined;
+      onDone();
+    }
+  };
+  walkExpire = finish;
+  // …the table's answer to the walk (TR78 — «ОТВЕТ СТОЛА») adds its own budget to the walk's hold.
+  raiseWalkHold(agendaWalkHoldMs(owed) + (tableAnswerOwedTo('walk') ? TABLE_ANSWER_BUDGET_MS : 0));
+  const generation = owed.generation;
+  // «ДОЖАТЬ» (К-W1, the owner's decision 2026-10-10): the walk's own WAITS — the lead before each leg, the gap
+  // after each landed reward, the read — ride the sitting's hurriable clock, so A during the walk pose moves the
+  // marker NOW (`hurryOwedWalk`); the legs and the rewards' flights are never cut. A fresh walk starts unhurried.
+  setParliamentFlightsHurried(false);
+  void agendaNow.playAgendaWalk(owed, {
+    beat: scheduleHurriedParliamentBeat,
+    rewardStep: (leg: AgendaWalkLeg, done: () => void) => deliverAgendaStepReward(root, generation, leg.to, done),
+    onStep: (leg: AgendaWalkLeg) => {
+      if (alive()) {
+        agendaWalkFlow.landed.push(leg.step);
+      }
+    },
+    onLanded: () => {
+      // The LAST step's reward, off the settled marker; then the read.
+      deliverAgendaStepReward(root, generation, owed.to, () => {
+        if (!alive()) {
+          return;
+        }
+        // Every reward has landed: the chairman quest the walk's TR closed reads its answer NOW — inside the
+        // read beat, where the player sees the consequence of the walk on the very surface it played on.
+        releaseAgendaWalkQuest();
+        agendaWalkFlow.beat = 'read';
+        walkReadBeat?.kill();
+        walkReadBeat = scheduleHurriedParliamentBeat(AGENDA_WALK_READ_MS, () => {
+          walkReadBeat = undefined;
+          if (alive()) {
+            // «ОТВЕТ СТОЛА» (TR78): the table's receipt of the walk plays on the section's own stage before the end.
+            playWalkAnswer(seq, finish);
+          }
+        });
+      });
+    },
+  });
+}
+/** «ОТВЕТ СТОЛА» (TR78): a receipt owed to the flow on screen plays on the answer stage; `done` once the stage has folded. */
+function playHostedAnswer(answer: TableAnswer, alive: () => boolean, done: () => void): void {
+  void playTableAnswer(answer, {alive}).then(done, done);
+}
+function playWalkAnswer(seq: number, onDone: () => void): void {
+  playWalkAnswerOf(port, seq, onDone);
+}
+/** THE QUESTION THE TABLE ASKS right now, with its host — undefined until that host stands ready for it. */
+function hostedAnswerAsk(): TableAnswerAsk | undefined {
+  const ask = tableAnswerAskOf(pv.value.waitingFor);
+  if (ask === undefined) {
+    return undefined;
+  }
+  if (ask.cause === 'quest') {
+    return chairmanQuestFlow.live && chairmanQuestFlow.beat === 'reaction' ? {...ask, host: 'quest'} : undefined;
+  }
+  if (!sittingUp.value || (ask.cause === 'phase' && !careerAgendaTold(sittingKey.value))) {
+    return undefined;
+  }
+  return {...ask, host: 'sitting'};
+}
+/**
+ * «ДОЖАТЬ» the card's walk (К-W1): every wait still ahead — the next lead, the gaps, the read — fires at once,
+ * a pending one now; the marker's legs and every reward's flight play whole (a reward is a cause the player must
+ * see land). Unadvertised, as the sitting's: the bar stays the walk's status (`parliamentCommandsOf`).
+ */
+function hurryOwedWalk(): void {
+  if (!agendaWalkFlow.live) {
+    return;
+  }
+  setParliamentFlightsHurried(true);
+  finishParliamentFlights();
+}
+/**
+ * THE WALK'S HOLD, with its owner's recovery (ledger HC): a run that outlives its ceiling ENDS through the run's own
+ * end (`walkExpire` — the walk pose's flow ending, the support mode's continuation), or — before the run took its
+ * end (the КРЕСЛО beat) — the walk pose's ending. Never a hold dropped from the count over a frame left `executing`.
+ */
+function raiseWalkHold(maxHoldMs: number): void {
+  walkHold?.release();
+  const seq = agendaWalkFlow.owed?.seq;
+  walkHold = beginAnimationHold('parliament-agenda-walk', {
+    maxHoldMs,
+    expire: () => {
+      if (!agendaWalkFlow.live || agendaWalkFlow.owed?.seq !== seq) {
         return;
       }
-      // Past an enactment this session already told: the tail will not replay — an owed rating ticks now.
-      if (played('enact')) {
-        releaseUntoldRulingRatings('enact-told');
+      console.warn(`[parliament] walk #${seq ?? '?'}: outlived its ceiling — ended`);
+      const end = walkExpire;
+      if (end !== undefined) {
+        end();
+      } else {
+        endWalkFlow();
       }
-      const receipt = takeTileReceipt(key);
-      // …and the WORLD's own receipt: the frame is back from the board and the
-      // reward page owes one read of the planet line before the walk goes on
-      // (the tile's receipt grammar, for a move that belongs to no seat).
-      const worldReceipt = takeWorldReceipt(key);
-      const worldOwed = worldReceipt !== undefined || worldMoveOwed(key);
-      parliamentFlow.sittingPage = sittingStartPage(position, played, receipt !== undefined || worldOwed);
-      // «ИСТРЕБИТЕЛЬ» (TR78): the enactment page held for a table's answer and the answer let the chain through — it
-      // owes its ПОДДЕРЖКА and ПРИНЯТИЕ before anything past it.
-      if (careerResumeOwed(key, this.model?.phase) && position.pages.includes('enact')) {
-        parliamentFlow.sittingPage = position.pages.indexOf('enact');
-      }
-      const onReward = position.pages[parliamentFlow.sittingPage] === 'reward';
-      // The receipt is READ on the reward page; a walk that cannot start there (the gate already answered) owes no read.
-      parliamentRewardState.receiptShowing = receipt !== undefined && onReward;
-      parliamentWorldBeatState.receiptShowing = worldReceipt !== undefined && onReward;
     },
-    /** A new server step: the walk re-seats on the step's first unplayed page and goes on. */
-    enterServerStep(): void {
-      const position = this.sitting;
-      if (position === undefined) {
+  });
+}
+/** The owed walk is over: its hold lets go, its read beat is cut, the flow reads «done». */
+function finishOwedWalk(): void {
+  setParliamentFlightsHurried(false);
+  for (const beat of walkSeatBeats.splice(0)) {
+    beat.kill();
+  }
+  walkReadBeat?.kill();
+  walkReadBeat = undefined;
+  walkHold?.release();
+  walkHold = undefined;
+  walkExpire = undefined;
+  agendaWalkFlow.beat = 'done';
+}
+/** The walk is over (or could not play): the hold lets go, and the workspace's ONE guarded ending is asked. */
+function endWalkFlow(): void {
+  finishOwedWalk();
+  // THE NEXT WALK PLAYS IN PLACE (ledger HC): a record that arrived while this one played waited its turn.
+  if (takeQueuedAgendaWalk()) {
+    openWalkFlow();
+    return;
+  }
+  emit('flow-complete', 'walk');
+}
+/**
+ * «ДЕЛЕГАТЫ» — OPEN the rally pose on the record the answer carried (TR31): the voting area and the party
+ * plaques are the objects, the Agenda track and the government's blocks recede, the band grows a chip per
+ * touchdown. Started on the mounted DOM (a tick + a probe tick, as the walk is): the director flies the
+ * votes, then the support, runs the recount mark by mark, births the coin at the kicker's counter; then one
+ * read beat, and the flow ends by its own hand (the shell takes the hosted step and its hand down as ONE
+ * surface). Every wait is a real callback or a beat on the motion clock; the whole rally holds an animation
+ * hold sized to its cubes and marks.
+ */
+function openRallyFlow(): void {
+  neutralRallyFlow.live = true;
+  neutralRallyFlow.beat = 'votes';
+  // The voting area even for a support-only rally (a Prelude campaign): a cursor on the PARTIES zone opens the
+  // focused party's dossier over the column — over the very plaques the cubes land on.
+  parliamentFlow.zone = 'voting';
+  openStage('rally');
+  void nextTick(() => probeTick(() => playOwedRally()));
+}
+/** THE ONE RALLY of an owed card record, on the mounted DOM. */
+function playOwedRally(): void {
+  const root = rootEl.value ?? undefined;
+  const owed = neutralRallyFlow.owed;
+  if (owed === undefined || !neutralRallyFlow.live) {
+    endRallyFlow();
+    return;
+  }
+  rallyHold?.release();
+  // The owner's recovery (ledger HC): a run that outlives its ceiling ENDS — the flow's own ending, never a hold
+  // dropped from the count while the frame stands `executing` with nothing left to play.
+  rallyHold = beginAnimationHold('parliament-neutral-rally', {
+    maxHoldMs: neutralRallyHoldMs(owed),
+    expire: () => {
+      if (neutralRallyFlow.owed?.seq === owed.seq) {
+        console.warn(`[parliament] rally #${owed.seq}: outlived its ceiling — ended`);
+        endRallyFlow();
+      }
+    },
+  });
+  const measure = (selector: string) => (root === undefined ? undefined : placeFigureRect(root, selector));
+  rallyHandle?.skip();
+  rallyHandle = runNeutralRally(owed, {
+    pool: () => measure('[data-parl-neutral-cube]'),
+    votePlace: (vote) => measure(`.con-parl__slot[data-instance="${vote.instance}"] [data-seq="${vote.seq}"]`),
+    supportPlace: (party, place) => measure(plaquePlaceSelector(party, place)),
+    fly: (from, to, onLanded, onLifted) => flyDelegate('neutral', from, to, 0, onLanded, {onLifted}),
+    coinOrigin: () => {
+      const node = root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"] .con-band__num`) ??
+        root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"]`);
+      const r = node?.getBoundingClientRect();
+      return r === undefined || r.width < 2 ? undefined : {x: r.left + r.width / 2, y: r.top + r.height / 2};
+    },
+    // The coin: the M€ row held since the answer (`seedNeutralRallyHolds`) ticks on the touchdown; a hold
+    // nobody seeded (reduced motion, a standalone host without the price known) resolves at once — honestly early.
+    // …born on the count chip as an OBJECT (ledger HC): the flight's own verdict judges it painted at the birth — a
+    // section leaving under a B degrades the coin to the counter's tick, never a token born over nothing.
+    coin: (origin) => {
+      const chip = root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"] .con-band__num`) ??
+        root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"]`) ?? undefined;
+      return flyRailReward(NEUTRAL_RALLY_RAIL_KEY, () => (chip !== undefined ? {el: chip, fx: 0.5, fy: 0.5} : origin));
+    },
+    onBeat: (beat) => {
+      neutralRallyFlow.beat = beat;
+    },
+    onLifted: () => rallyCubeLifted(),
+    onVoteLanded: (vote) => rallyVoteLanded(vote),
+    onSupportLanded: (entry) => rallySupportLanded(entry),
+    onSupportRead: (entry) => rallySupportRead(entry),
+    onCounted: (item) => rallyCounted(item.key),
+    onDegraded: (why) => {
+      if (neutralRallyFlow.degraded === '') {
+        neutralRallyFlow.degraded = why;
+        console.warn(`[parliament] rally: ${why} — settled without a flight`);
+      }
+    },
+    // THE RUN OWNS ITS END (ledger HC): keyed on its own record, never on the global flag — a second record
+    // arriving mid-run waits in the queue and plays after this one ends.
+    onDone: () => {
+      if (neutralRallyFlow.live && neutralRallyFlow.owed?.seq === owed.seq) {
+        endRallyFlow();
+      }
+    },
+  });
+}
+/** The owed rally is over: its hold lets go, its beats are cut, the flow reads «done». */
+function finishOwedRally(): void {
+  rallyHandle?.skip();
+  rallyHandle = undefined;
+  rallyHold?.release();
+  rallyHold = undefined;
+  neutralRallyFlow.beat = 'done';
+}
+/** The rally is over (or could not play): the hold lets go, and the workspace's ONE guarded ending is asked. */
+function endRallyFlow(): void {
+  finishOwedRally();
+  // THE NEXT RALLY PLAYS IN PLACE (ledger HC — two Prelude campaigns back to back): same stage, same frame, its
+  // pieces already hidden; the flow ends only after the last one.
+  if (takeQueuedNeutralRally()) {
+    neutralRallyFlow.live = true;
+    neutralRallyFlow.beat = 'votes';
+    void nextTick(() => probeTick(() => playOwedRally()));
+    return;
+  }
+  emit('flow-complete', 'rally');
+}
+/** The flow is over: the holds are gone with their beats, and the workspace concludes. */
+function endQuestFlow(): void {
+  retireQuestFlow();
+  emit('flow-complete', 'quest');
+}
+function retireQuestFlow(): void {
+  retireQuestFlowOf(port);
+}
+/** X: the enacted resolution lifts out of the government's card (or the stage's hero, while carried). */
+function inspectSitting(): void {
+  const id = model.value?.phase?.summary?.enacted.resolution;
+  if (id === undefined) {
+    return;
+  }
+  const root = rootEl.value ?? undefined;
+  const request: ParliamentInspectRequest = {
+    kind: 'resolution', ids: [id], index: 0,
+    origin: () => root?.querySelector<HTMLElement>('.con-parl__gov-card .pcard') ?? root?.querySelector<HTMLElement>('.con-parl__gov-card') ?? null,
+  };
+  emit('inspect', request);
+}
+/**
+ * A PARTY ACTION from its plaque — the Parliament's door into the ONE
+ * execution point (the action workspace, nested inside this screen). The
+ * pressed plaque is the descent's origin; a closed door names its reason.
+ */
+// ── «ВАШИ ЭФФЕКТЫ», the inner step (Парламент v8 § 6) ──────────────
+function openEffectsStep(): void {
+  if (openParliamentEffectsHost(effectsHostGroups.value.length, effectsHostEntries.value.length)) {
+    parliamentFlow.stage = 'effects';
+  }
+}
+function closeEffectsStep(): void {
+  closeParliamentEffectsHost();
+  parliamentFlow.stage = 'browse';
+  parliamentFlow.zone = 'effects';
+}
+/** The DOM tile of an action group of the step — the descent's origin and the inspector's lift. */
+function effectsTileOf(key: string): HTMLElement | undefined {
+  const root = rootEl.value ?? undefined;
+  return root?.querySelector<HTMLElement>('[data-parl-fx-entry="' + key + '"]') ?? undefined;
+}
+/**
+ * «ВАШИ ЭФФЕКТЫ» (ONE FRAMEWORK С6): the ACTIONS zone is the section's own (↑↓ walk the tiles, → crosses into the
+ * explorer, A is the bench's door, X inspects the source); the EFFECTS zone is the explorer's — every intent goes to
+ * it, and ← at its first column (the cursor did not move) comes back to the actions. B folds the explorer's detail
+ * first, then the step.
+ */
+function handleEffectsIntent(intent: GamepadIntent): void {
+  const host = parliamentEffectsHost;
+  const groups = effectsHostGroups.value;
+  const entries = effectsHostEntries.value;
+  if (host.zone === 'effects') {
+    const explorer = effectsStep.value?.explorer();
+    if (consoleActionOf(intent) === 'back') {
+      if (explorer?.consumeEffectsBack() !== true) {
+        closeEffectsStep();
+      }
+      return;
+    }
+    const before = parliamentEffectsExplorerUi.focusKey;
+    explorer?.handleIntent(intent);
+    if (intent.kind === 'nav' && intent.dir === 'left' && groups.length > 0 && parliamentEffectsExplorerUi.detail === undefined &&
+        parliamentEffectsExplorerUi.focusKey === before) {
+      host.zone = 'actions';
+    }
+    return;
+  }
+  if (intent.kind === 'nav') {
+    const next = actionsZoneStep(host.actionCursor, groups.length, entries.length, intent.dir);
+    host.zone = next.zone;
+    host.actionCursor = next.cursor;
+    return;
+  }
+  const group = effectsFocusedGroup.value;
+  switch (consoleActionOf(intent)) {
+  case 'back':
+    closeEffectsStep();
+    return;
+  case 'primary': {
+    if (group === undefined) {
+      return;
+    }
+    if (group.resolutionAction !== undefined) {
+      openResolutionAction();
+      return;
+    }
+    const party = group.party;
+    const index = view.value.parties.findIndex((p) => p.party === party);
+    const state = partyActionStates.value[index];
+    const actionId = party === undefined ? undefined : partyActionOf(party);
+    if (party === undefined || actionId === undefined || state === undefined) {
+      return;
+    }
+    openAction(party, actionId, state, effectsTileOf(group.key));
+    return;
+  }
+  case 'inspect': {
+    if (group === undefined) {
+      return;
+    }
+    const origin = () => effectsTileOf(group.key)?.querySelector<HTMLElement>('.con-cardactions__plate-seal, img') ?? null;
+    const law = group.resolutionAction !== undefined ? effectsInput.value.enacted : undefined;
+    const party = group.party ?? group.resolutionParty;
+    if (law !== undefined) {
+      emit('inspect', {kind: 'resolution', ids: [law.resolutionId], index: 0, origin} as ParliamentInspectRequest);
+    } else if (party !== undefined) {
+      emit('inspect', {kind: 'party', party, origin} as ParliamentInspectRequest);
+    }
+    return;
+  }
+  default:
+    return;
+  }
+}
+function openAction(party: ReduxParty, id: PartyActionId, state: PartyActionStateVm, from?: HTMLElement): void {
+  const refusal = partyActionRefusal(state, id === 'unity-trade' || bridge.value.actions[id] !== undefined, props.awaitingInput);
+  if (refusal !== undefined) {
+    emit('notice', refusal);
+    return;
+  }
+  armPartyActionDescent(rootEl.value ?? undefined, party, from);
+  emit('open-action', party);
+}
+/**
+ * THE ENACTED RESOLUTION'S ACTION from the government (Open IP Trade) —
+ * the party door's twin: the law's card is the descent's origin; a closed
+ * door names its reason (the server's own, the state's word).
+ */
+function openResolutionAction(): void {
+  const action = pv.value.game.parliament?.viewer?.resolutionAction;
+  const state = resolutionActionState.value;
+  if (action === undefined || state.kind === 'none') {
+    emit('notice', translateText('The enacted resolution has no action of its own'));
+    return;
+  }
+  const offered = bridge.value.resolutionAction !== undefined && bridge.value.resolutionAction.resolution === action.resolution;
+  const refusal = resolutionActionRefusal(state, offered, props.awaitingInput);
+  if (refusal !== undefined) {
+    emit('notice', refusal);
+    return;
+  }
+  armResolutionActionDescent(rootEl.value ?? undefined);
+  emit('open-resolution-action', {resolution: action.resolution, party: action.party});
+}
+// ── the seat / sitting stage phrase ─────────────────────────────────
+function openStage(stage: ParliamentStage): void {
+  const tier = tableTierEl.value ?? undefined;
+  const rect = tier?.getBoundingClientRect();
+  stageFromRect.value = rect !== undefined && rect.width > 0 ? {left: rect.left, top: rect.top, width: rect.width, height: rect.height} : undefined;
+  parliamentFlow.stage = stage;
+  // A WALK is a transient beat, never a navigation destination (the workspace flow's commit boundary):
+  // its frame is `executing` — B and A are `none` for its length, and a double press is impossible.
+  setWorkspaceFramePhase('parliament', stage === 'sitting' ? sittingWorkspacePhase(sittingStage.value, false) : stage === 'walk' || stage === 'rally' ? 'executing' : 'configure');
+}
+function closeStage(): void {
+  closeStageOf(port);
+}
+/**
+ * THE PHASE IS OVER. A PHASE-anchored root leaves WITH its stage standing
+ * (the shell's `closeWorkspaceRoot` on the falling edge — one motion of
+ * the whole surface, never a stage folding to browse under a leaving
+ * frame); a Parliament the player walked into on their own stays, so its
+ * stage folds back to the browse layer.
+ */
+/**
+ * IS THIS ROOT ON ITS WAY OUT? (v3 В1) The phase's end closes a PHASE-anchored Parliament — and the
+ * SHELL's own watcher gets there FIRST, in the same flush, so by the time this section is asked the
+ * frame is already gone and its anchor with it. Both facts mean the same thing and both must count:
+ * the frame no longer renders, or it still does and is the phase's. A Parliament the player walked
+ * into on their own (an `always` anchor, still in the stack) is NOT closing — it folds back to browse
+ * and goes on living on the live view.
+ */
+function rootIsClosing(): boolean {
+  return !workspaceFrameRenders('parliament') || workspaceFrameAnchor('parliament')?.type === 'phase';
+}
+function endSitting(): void {
+  killSittingMotion();
+  if (rootIsClosing()) {
+    // The surface leaves WITH its stage: folding to browse under a leaving frame shows the player the
+    // overview for the length of a dissolve — a screen they never asked for (v3 В1).
+    walkOwed.value = false;
+  } else {
+    closeStage();
+  }
+  emit('flow-complete', 'sitting');
+}
+/**
+ * THE OPENING (the section mounts with the sitting standing, or the stage
+ * unfolds over the browse layer): where the walk starts and what it plays.
+ *  · a sitting whose chain this session SAW arrive (the transport seeded its
+ *    holds from the table as it stood — `sittingSeededLive`) and that no
+ *    page of has played yet: the VERDICT page, and the walk goes on from it;
+ *  · with NO memory of this sitting (a reload inside the sequence): the
+ *    step's last page in its final poses — nothing replays, the holds are
+ *    dropped;
+ *  · past the barrier with a memory (a collapsed sitting coming back, the
+ *    frame back from the board): the first unplayed page, with the holds
+ *    the transport seeded while the section was away — the walk goes on
+ *    from there (the tile's RECEIPT is read first when one is owed).
+ */
+function planOpening(position: SittingPosition): void {
+  const key = sittingKey.value;
+  const played = (stage: SittingStage) => sittingStagePlayed(key, stage);
+  if (verdictStandsAt(position.step) || (sittingSeededLive(key) && !sittingSessionKnown(key))) {
+    parliamentFlow.sittingPage = 0;
+    // A CARD'S ANSWER TO THE CHANGE OF POWER (TR62) is owed to the enactment's tail: its batch rides the response
+    // that brought the chain and waits for the seals to change places (`rulingChangeDraw.ts` — the seed opened
+    // the park in that response's apply block; opening it again is idempotent).
+    openRulingChangePark(key);
+    return;
+  }
+  if (!sittingSessionKnown(key)) {
+    for (const stage of position.pages) {
+      notePlayedSittingStage(key, stage);
+    }
+    // …and the results card is simply STANDING for a sitting re-read at its final poses: nothing will play,
+    // so nothing will reveal it, and `resultsHidden` (which keeps the panel off the table while the renewal
+    // moves) must not hold it hidden for ever.
+    sittingMotion.resultsRevealed = true;
+    resetParliamentHolds();
+    // …and a rating owed to the enactment's tail (TR63) has no tail left to ride: it ticks now.
+    releaseUntoldRulingRatings('re-read');
+    parliamentRewardState.receiptShowing = false;
+    parliamentFlow.sittingPage = position.pages.length - 1;
+    return;
+  }
+  // Past an enactment this session already told: the tail will not replay — an owed rating ticks now.
+  if (played('enact')) {
+    releaseUntoldRulingRatings('enact-told');
+  }
+  const receipt = takeTileReceipt(key);
+  // …and the WORLD's own receipt: the frame is back from the board and the
+  // reward page owes one read of the planet line before the walk goes on
+  // (the tile's receipt grammar, for a move that belongs to no seat).
+  const worldReceipt = takeWorldReceipt(key);
+  const worldOwed = worldReceipt !== undefined || worldMoveOwed(key);
+  parliamentFlow.sittingPage = sittingStartPage(position, played, receipt !== undefined || worldOwed);
+  // «ИСТРЕБИТЕЛЬ» (TR78): the enactment page held for a table's answer and the answer let the chain through — it
+  // owes its ПОДДЕРЖКА and ПРИНЯТИЕ before anything past it.
+  if (careerResumeOwed(key, model.value?.phase) && position.pages.includes('enact')) {
+    parliamentFlow.sittingPage = position.pages.indexOf('enact');
+  }
+  const onReward = position.pages[parliamentFlow.sittingPage] === 'reward';
+  // The receipt is READ on the reward page; a walk that cannot start there (the gate already answered) owes no read.
+  parliamentRewardState.receiptShowing = receipt !== undefined && onReward;
+  parliamentWorldBeatState.receiptShowing = worldReceipt !== undefined && onReward;
+}
+/** A new server step: the walk re-seats on the step's first unplayed page and goes on. */
+function enterServerStep(): void {
+  const position = sitting.value;
+  if (position === undefined) {
+    return;
+  }
+  const key = sittingKey.value;
+  // THE LEDGER'S READ IS OWED ACROSS A STEP CHANGE (Colonial Affairs): the last hosted step's answer carries the
+  // server straight to the sitting's end, and the walk would re-seat past the reward page — the page whose ledger
+  // now reads what every step paid. A step that was open a flush ago (`stepOpenMirror` — the post-flush door
+  // watcher has not run yet) and is open no more seats the walk on the reward page first, like a tile's receipt.
+  const ledgerRead = sittingLedger.value !== undefined && stepOpenMirror.value && !sittingStepOpen.value;
+  if (ledgerRead) {
+    ledgerReadOwed.value = true;
+  }
+  // A hosted FRAME still standing IN THE OPEN ZONE (the colonies of the winner's free colony — the server moved
+  // to the sitting's end the moment the pick was answered, the cube is still flying) seats the walk on the
+  // reward page too: the step is where the player is, and the page holds until the frame has left. The door
+  // must have been OPEN (`stepOpenMirror`): the frame is pushed the moment its prompt is admitted — in the very
+  // update that brings the enactment — and a frame merely PUSHED must not skip the enactment's own beats.
+  const hostedFrameStands = stepOpenMirror.value && stepFrameNested.value;
+  // The WORLD's move (and the read of its result) is owed on the reward page too — a move STILL TO PLAY only
+  // once the enactment has played: seated straight on the reward page at the step's ENTRY, the walk skipped
+  // ПРИНЯТИЕ (the enacted card never reached the hero slot) and the seat's wave was released as «nothing to
+  // fly from» — measured on Mohole Contest (the same step change Gas Export / Heat Capture arrive by). An
+  // unplayed enactment starts the walk anyway, and the reward page follows it by itself.
+  const worldOwed = (worldMoveOwed(key) && sittingStagePlayed(key, 'enact')) || worldReceiptOwed(key) || parliamentWorldBeatState.receiptShowing;
+  // …and a RECEIPT OF THE TABLE still owed (the seat's take answered as the last ask of the step): the reward page first.
+  parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead || hostedFrameStands || worldOwed || tableReceiptsOwed());
+  // «ИСТРЕБИТЕЛЬ» (TR78): the answer let the chain through — the walk goes BACK to nothing: it stands on the enactment
+  // page it held, which now owes its ПОДДЕРЖКА and ПРИНЯТИЕ (never the reward page past them).
+  if (careerResumeOwed(key, model.value?.phase) && position.pages.includes('enact')) {
+    parliamentFlow.sittingPage = position.pages.indexOf('enact');
+  }
+  queueWalk();
+}
+// ── the director's walk ─────────────────────────────────────────────
+/** Run the walk once the DOM (and the stage's unfold) stands — idempotent. */
+function queueWalk(): void {
+  if (walkQueued.value) {
+    return;
+  }
+  walkQueued.value = true;
+  void nextTick(() => probeTick(() => {
+    walkQueued.value = false;
+    void runWalk();
+  }));
+}
+function directorContext(): SittingDirectorContext | undefined {
+  const root = rootEl.value ?? undefined;
+  const summary = model.value?.phase?.summary;
+  if (root === undefined || summary === undefined) {
+    return undefined;
+  }
+  const key = sittingKey.value;
+  return {
+    root, view: view.value, model: model.value, summary, viewer: viewerColor.value,
+    // «ИСТРЕБИТЕЛЬ» (TR78): the chain waits on a table's answer to the winner's step — read LIVE, the server's.
+    careerPaused: () => careerPausedAt(model.value?.phase),
+    agendaTold: careerAgendaTold(key),
+    onCareerTold: () => noteCareerAgendaTold(key),
+    playAgendaWalk: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => {
+      const agendaNow = agenda.value ?? undefined;
+      if (agendaNow === undefined) {
+        hooks.onLanded();
         return;
       }
-      const key = this.sittingKey;
-      // THE LEDGER'S READ IS OWED ACROSS A STEP CHANGE (Colonial Affairs): the last hosted step's answer carries the
-      // server straight to the sitting's end, and the walk would re-seat past the reward page — the page whose ledger
-      // now reads what every step paid. A step that was open a flush ago (`stepOpenMirror` — the post-flush door
-      // watcher has not run yet) and is open no more seats the walk on the reward page first, like a tile's receipt.
-      const ledgerRead = this.sittingLedger !== undefined && this.stepOpenMirror && !this.sittingStepOpen;
-      if (ledgerRead) {
-        this.ledgerReadOwed = true;
-      }
-      // A hosted FRAME still standing IN THE OPEN ZONE (the colonies of the winner's free colony — the server moved
-      // to the sitting's end the moment the pick was answered, the cube is still flying) seats the walk on the
-      // reward page too: the step is where the player is, and the page holds until the frame has left. The door
-      // must have been OPEN (`stepOpenMirror`): the frame is pushed the moment its prompt is admitted — in the very
-      // update that brings the enactment — and a frame merely PUSHED must not skip the enactment's own beats.
-      const hostedFrameStands = this.stepOpenMirror && this.stepFrameNested;
-      // The WORLD's move (and the read of its result) is owed on the reward page too — a move STILL TO PLAY only
-      // once the enactment has played: seated straight on the reward page at the step's ENTRY, the walk skipped
-      // ПРИНЯТИЕ (the enacted card never reached the hero slot) and the seat's wave was released as «nothing to
-      // fly from» — measured on Mohole Contest (the same step change Gas Export / Heat Capture arrive by). An
-      // unplayed enactment starts the walk anyway, and the reward page follows it by itself.
-      const worldOwed = (worldMoveOwed(key) && sittingStagePlayed(key, 'enact')) || worldReceiptOwed(key) || parliamentWorldBeatState.receiptShowing;
-      // …and a RECEIPT OF THE TABLE still owed (the seat's take answered as the last ask of the step): the reward page first.
-      parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead || hostedFrameStands || worldOwed || tableReceiptsOwed());
-      // «ИСТРЕБИТЕЛЬ» (TR78): the answer let the chain through — the walk goes BACK to nothing: it stands on the enactment
-      // page it held, which now owes its ПОДДЕРЖКА and ПРИНЯТИЕ (never the reward page past them).
-      if (careerResumeOwed(key, this.model?.phase) && position.pages.includes('enact')) {
-        parliamentFlow.sittingPage = position.pages.indexOf('enact');
-      }
-      this.queueWalk();
+      void agendaNow.playAgendaWalk(record, hooks);
     },
-    // ── the director's walk ─────────────────────────────────────────────
-    /** Run the walk once the DOM (and the stage's unfold) stands — idempotent. */
-    queueWalk(): void {
-      if (this.walkQueued) {
-        return;
+  };
+}
+/**
+ * MAY THE SITTING STEP ASIDE FOR THE PLANET right now? Only once nothing of
+ * this seat's is standing in the stage: the wave has landed, no ask of the
+ * viewer's is open, no hosted frame is still inside. The world's move is a
+ * beat of the sitting, never an interruption of the player's own work.
+ */
+/** The readiness net fired: the stage never entered for `id` — the ordinary reveal takes the batch. */
+function onDrawNet(id: number): void {
+  cancelDrawNet = undefined;
+  if (drawAwaitingZone.value === id) {
+    refuseParliamentDraw(id, 'stage-never-entered');
+  }
+}
+function mayYieldForWorld(position: SittingPosition): boolean {
+  // …or the seat's own step set off a placement on the board (the ocean of 0 °C — a TAIL, never a door):
+  // the planet's story and that placement share ONE trip to the board, so the frame steps aside now and
+  // the placement takes over there (`runWorldMoveBeat` leaves the stack aside while the board is busy).
+  const settled = sittingRewardSettled(position) || (position.rewardStep === 'placement' && position.tail === true) ||
+    // …or ANOTHER SEAT placed its tile BEFORE this seat in the law's order (PL-764 — the bot first): the board shows
+    // that tile land BEFORE this seat's own door is offered (the door stays shut while the frame is away).
+    (position.rewardStep === 'placement' && seatTileOwed(sittingKey.value) && !consoleParliamentUi.boardDoorOpen);
+  return settled && !rewardPending.value && !parliamentRewardState.receiptShowing &&
+    !ledgerReadOwed.value && !stepFrameNested.value && !sittingStepOpen.value && !tableReceiptOwed.value && !parliamentDrawStanding();
+}
+/** May the walk leave `stage` by itself? The verdict (read — the soft gates), the enactment and the renewal always; the reward once nothing of this seat's is open there. */
+function mayLeave(stage: SittingStage, position: SittingPosition): boolean {
+  if (stage === 'verdict' || stage === 'renewal') {
+    return true;
+  }
+  // «ПРИЁМКА»: a card the sitting drew stands for the player — the walk waits for the take, on the page that drew it.
+  if (stage === 'enact') {
+    return !parliamentDrawStanding();
+  }
+  if (stage === 'reward') {
+    // …and never while a hosted FRAME still stands in the zone (the colonies' build chain after the pick).
+    return sittingRewardSettled(position) && !rewardPending.value && !parliamentRewardState.receiptShowing && !ledgerReadOwed.value && !tableReceiptOwed.value &&
+      // …and never while the PLANET's own move is still owed to the board, or its read to the page.
+      !worldMoveOwed(sittingKey.value) && !parliamentWorldBeatState.receiptShowing && !stepFrameNested.value && !parliamentDrawStanding();
+  }
+  return false;
+}
+/**
+ * THE WALK — the director turns the sitting's pages: every page's beats
+ * play ONCE per session (a page turned back and forth replays nothing),
+ * the reward page replays for what arrived since (a wave owed, the tile's
+ * receipt), and the walk advances by itself over the auto pages until a
+ * STOP: the verdict, an ask of this seat, a wait on another, the results.
+ * The position is re-read after every beat, so a step that arrived
+ * mid-beat (a poll, the viewer's own answer) is picked up where it lands.
+ */
+async function runWalk(): Promise<void> {
+  if (walking.value) {
+    // A walk queued while one is RUNNING is OWED, never dropped: the running loop may already have passed the
+    // check its trigger changed (a reward that arrived mid-beat — the API answering the last pairs of Colonial
+    // Affairs while the ledger read), and only the `finally` below re-queues on `walkOwed`.
+    walkOwed.value = true;
+    return;
+  }
+  if (stageEntering.value || !sittingUp.value) {
+    return;
+  }
+  walking.value = true;
+  try {
+    for (let guard = 0; guard < 16; guard++) {
+      const position = sitting.value;
+      if (position === undefined || !sittingUp.value) {
+        break;
       }
-      this.walkQueued = true;
-      void this.$nextTick(() => probeTick(() => {
-        this.walkQueued = false;
-        void this.runWalk();
-      }));
-    },
-    directorContext(): SittingDirectorContext | undefined {
-      const root = (this.$refs.rootEl ?? undefined) as HTMLElement | undefined;
-      const summary = this.model?.phase?.summary;
-      if (root === undefined || summary === undefined) {
-        return undefined;
+      const cursor = Math.max(0, Math.min(position.pages.length - 1, parliamentFlow.sittingPage));
+      parliamentFlow.sittingPage = cursor;
+      const stage = position.pages[cursor];
+      const ctx = directorContext();
+      if (ctx === undefined) {
+        break;
       }
-      const key = this.sittingKey;
-      return {
-        root, view: this.view, model: this.model, summary, viewer: this.viewerColor,
-        // «ИСТРЕБИТЕЛЬ» (TR78): the chain waits on a table's answer to the winner's step — read LIVE, the server's.
-        careerPaused: () => careerPausedAt(this.model?.phase),
-        agendaTold: careerAgendaTold(key),
-        onCareerTold: () => noteCareerAgendaTold(key),
-        playAgendaWalk: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => {
-          const agenda = (this.$refs.agenda ?? undefined) as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
-          if (agenda === undefined) {
-            hooks.onLanded();
-            return;
-          }
-          void agenda.playAgendaWalk(record, hooks);
-        },
-      };
-    },
-    /**
-     * MAY THE SITTING STEP ASIDE FOR THE PLANET right now? Only once nothing of
-     * this seat's is standing in the stage: the wave has landed, no ask of the
-     * viewer's is open, no hosted frame is still inside. The world's move is a
-     * beat of the sitting, never an interruption of the player's own work.
-     */
-    /** The readiness net fired: the stage never entered for `id` — the ordinary reveal takes the batch. */
-    onDrawNet(id: number): void {
-      this.cancelDrawNet = undefined;
-      if (this.drawAwaitingZone === id) {
-        refuseParliamentDraw(id, 'stage-never-entered');
+      // A BEAT IS PLAYED ONLY ON ITS OWN SURFACE (v4, kept): a beat whose objects live in the BODY may
+      // not start while the body is still swapping, and a beat that measures inside a panel may not
+      // start before that panel stands. One flush is what starts the swap (the page changed in this very
+      // loop, with no patch in between), so the walk asks for it and then reads the leave; the swap's
+      // completion re-queues the walk, and nothing is marked played, so nothing is skipped. Measured in
+      // v4: without it the renewal's first beat played under a panel still fading over the very table it
+      // was moving things on, and the reward's wave measured a hidden panel — its hold then sat to the
+      // 12 s ceiling, `rewardPending` never cleared, and the walk never left the reward at all.
+      await nextTick();
+      if (sittingBody.value === 'parties' && stageLeaving.value) {
+        break;
       }
-    },
-    mayYieldForWorld(position: SittingPosition): boolean {
-      // …or the seat's own step set off a placement on the board (the ocean of 0 °C — a TAIL, never a door):
-      // the planet's story and that placement share ONE trip to the board, so the frame steps aside now and
-      // the placement takes over there (`runWorldMoveBeat` leaves the stack aside while the board is busy).
-      const settled = sittingRewardSettled(position) || (position.rewardStep === 'placement' && position.tail === true) ||
-        // …or ANOTHER SEAT placed its tile BEFORE this seat in the law's order (PL-764 — the bot first): the board shows
-        // that tile land BEFORE this seat's own door is offered (the door stays shut while the frame is away).
-        (position.rewardStep === 'placement' && seatTileOwed(this.sittingKey) && !consoleParliamentUi.boardDoorOpen);
-      return settled && !this.rewardPending && !parliamentRewardState.receiptShowing &&
-        !this.ledgerReadOwed && !this.stepFrameNested && !this.sittingStepOpen && !this.tableReceiptOwed && !parliamentDrawStanding();
-    },
-    /** May the walk leave `stage` by itself? The verdict (read — the soft gates), the enactment and the renewal always; the reward once nothing of this seat's is open there. */
-    mayLeave(stage: SittingStage, position: SittingPosition): boolean {
-      if (stage === 'verdict' || stage === 'renewal') {
-        return true;
+      // …and a beat whose objects live in a body still UNFOLDING (the ledger's rows, the card landing on
+      // its hero slot) waits for the entrance to end — its end re-queues the walk (nothing is marked
+      // played, so nothing is skipped). A wave measured mid-unfold leaves a row that is still moving.
+      if (stageEntering.value || fieldSettling.value) {
+        break;
       }
-      // «ПРИЁМКА»: a card the sitting drew stands for the player — the walk waits for the take, on the page that drew it.
-      if (stage === 'enact') {
-        return !parliamentDrawStanding();
-      }
-      if (stage === 'reward') {
-        // …and never while a hosted FRAME still stands in the zone (the colonies' build chain after the pick).
-        return sittingRewardSettled(position) && !this.rewardPending && !parliamentRewardState.receiptShowing && !this.ledgerReadOwed && !this.tableReceiptOwed &&
-          // …and never while the PLANET's own move is still owed to the board, or its read to the page.
-          !worldMoveOwed(this.sittingKey) && !parliamentWorldBeatState.receiptShowing && !this.stepFrameNested && !parliamentDrawStanding();
-      }
-      return false;
-    },
-    /**
-     * THE WALK — the director turns the sitting's pages: every page's beats
-     * play ONCE per session (a page turned back and forth replays nothing),
-     * the reward page replays for what arrived since (a wave owed, the tile's
-     * receipt), and the walk advances by itself over the auto pages until a
-     * STOP: the verdict, an ask of this seat, a wait on another, the results.
-     * The position is re-read after every beat, so a step that arrived
-     * mid-beat (a poll, the viewer's own answer) is picked up where it lands.
-     */
-    async runWalk(): Promise<void> {
-      if (this.walking) {
-        // A walk queued while one is RUNNING is OWED, never dropped: the running loop may already have passed the
-        // check its trigger changed (a reward that arrived mid-beat — the API answering the last pairs of Colonial
-        // Affairs while the ledger read), and only the `finally` below re-queues on `walkOwed`.
-        this.walkOwed = true;
-        return;
-      }
-      if (this.stageEntering || !this.sittingUp) {
-        return;
-      }
-      this.walking = true;
-      try {
-        for (let guard = 0; guard < 16; guard++) {
-          const position = this.sitting;
-          if (position === undefined || !this.sittingUp) {
-            break;
-          }
-          const cursor = Math.max(0, Math.min(position.pages.length - 1, parliamentFlow.sittingPage));
-          parliamentFlow.sittingPage = cursor;
-          const stage = position.pages[cursor];
-          const ctx = this.directorContext();
-          if (ctx === undefined) {
-            break;
-          }
-          // A BEAT IS PLAYED ONLY ON ITS OWN SURFACE (v4, kept): a beat whose objects live in the BODY may
-          // not start while the body is still swapping, and a beat that measures inside a panel may not
-          // start before that panel stands. One flush is what starts the swap (the page changed in this very
-          // loop, with no patch in between), so the walk asks for it and then reads the leave; the swap's
-          // completion re-queues the walk, and nothing is marked played, so nothing is skipped. Measured in
-          // v4: without it the renewal's first beat played under a panel still fading over the very table it
-          // was moving things on, and the reward's wave measured a hidden panel — its hold then sat to the
-          // 12 s ceiling, `rewardPending` never cleared, and the walk never left the reward at all.
-          await this.$nextTick();
-          if (this.sittingBody === 'parties' && this.stageLeaving) {
-            break;
-          }
-          // …and a beat whose objects live in a body still UNFOLDING (the ledger's rows, the card landing on
-          // its hero slot) waits for the entrance to end — its end re-queues the walk (nothing is marked
-          // played, so nothing is skipped). A wave measured mid-unfold leaves a row that is still moving.
-          if (this.stageEntering || this.fieldSettling) {
-            break;
-          }
-          const key = this.sittingKey;
-          const receipt = stage === 'reward' && parliamentRewardState.receiptShowing;
-          // The ledger's READ after a hosted step (Colonial Affairs): a beat of its own, like the tile's receipt.
-          const ledgerRead = stage === 'reward' && this.ledgerReadOwed;
-          // …and the PLANET's own read, once the frame is back from the board.
-          const worldRead = stage === 'reward' && parliamentWorldBeatState.receiptShowing;
-          // «ИСТРЕБИТЕЛЬ» (TR78): the enactment page held after its ПОВЕСТКА while the chain waited on a table's answer —
-          // the answer has let the support and the enactment through, and the page plays them now (the same page).
-          const careerResume = stage === 'enact' && careerResumeOwed(key, this.model?.phase);
-          if (!sittingStagePlayed(key, stage) || receipt || ledgerRead || worldRead || careerResume || (stage === 'reward' && (this.rewardPending || this.tableReceiptOwed))) {
-            notePlayedSittingStage(key, stage);
-            if (await playSittingStage(stage, this.sittingBeatList, ctx, {compact: false}) === 'killed') {
-              // THE PLAY WAS CUT (a close, the phase's end, a newer play — wait graph R4): it RESOLVED, so this walk
-              // ends here and its `finally` lowers `walking`; whoever cut it owns what comes next (`walkOwed` re-queues).
-              break;
-            }
-            if (stage === 'enact' && careerAgendaTold(key) && !careerPausedAt(this.model?.phase)) {
-              noteCareerResumed(key);
-            }
-            // «ПРИЁМКА»: a card this page drew (the ПОВЕСТКА's card step, released at the page's rest) stands in the
-            // Parliament's draw stage — the walk waits for the player's take before the next beat.
-            await parliamentDrawsSettled();
-            if (stage === 'enact') {
-              // THE ENACTMENT'S TAIL (TR62): the seals have changed places — a card that answered the change of power is
-              // handed to the draw stage now (off the deck into the reveal), and the walk goes on from the player's take.
-              await deliverRulingChangeDraws();
-            }
-            if (receipt) {
-              parliamentRewardState.receiptShowing = false;
-            }
-            if (ledgerRead) {
-              this.ledgerReadOwed = false;
-            }
-            if (worldRead) {
-              parliamentWorldBeatState.receiptShowing = false;
-            }
-          }
-          // THE ENGINE'S TAIL of the seat's own step (the 0 °C ocean the winner's temperature step set off —
-          // Mohole Contest) stands behind the same door as the winner's tile, and the WALK opens it — once
-          // the page is quiet (the wave landed, nothing hosted, nothing still to read) — never a press: the
-          // shell's `placementActive` edge then yields the stack, or the planet beat below does first and the
-          // placement takes over on the board (one trip for the glide and the ocean).
-          if (stage === 'reward' && position.rewardStep === 'placement' && position.tail === true && !this.rewardPending &&
-              !parliamentRewardState.receiptShowing && !this.ledgerReadOwed && !this.stepFrameNested && !this.sittingStepOpen) {
-            consoleParliamentUi.boardDoorOpen = true;
-          }
-          // THE WORLD MOVES ON THE BOARD, so the sitting steps aside for it —
-          // the winner-tile door's own grammar, driven by the walk instead of
-          // by a press (nobody chose this; the law did). The frame unmounts
-          // here, so the walk stops: the board-beat park tells the planet's
-          // story, the module puts the stack back, and the section's own mount
-          // re-queues the walk on the reward page with the receipt owed.
-          if (stage === 'reward' && worldMoveOwed(key) && this.mayYieldForWorld(position)) {
-            if (trackMoveOwed(key)) {
-              // THE COLONY TABLE MOVES ON THE COLONIES SCREEN (Unity Budget), so the sitting HOSTS that screen
-              // as its own SHOW step — the winner's-colony frame, pushed by the record instead of a question.
-              // The frame stands in the stage zone (`stepFrameNested` opens the field), the wave rolls over
-              // every track, the frame leaves by itself, and its departure re-queues this walk on the reward
-              // page with the colonies line owed a read. The walk stops here for exactly that.
-              void runTrackMoveBeat(key);
-            } else {
-              // A beat the stack REFUSED (no root that steps aside) is over at once — the records are marked
-              // shown, the results' planet line states the move — and the walk must go on from here: it once
-              // stood on the reward page for good, waiting for a remount that never came (an observer whose
-              // sitting stood over its start root, Water Export's ocean).
-              // The board keeps the seat's business only for a TAIL placement (the 0 °C ocean): a DOOR placement standing
-              // behind «К полю» (PL-764 — the trip went before it) is the stage's, so the frame comes back for it.
-              const doorStands = position.rewardStep === 'placement' && position.tail !== true;
-              void runWorldMoveBeat(key, {boardBusy: () => !doorStands && this.pv.waitingFor?.type === 'space'}).then((played) => {
-                if (!played && parliamentFlow.stage === 'sitting') {
-                  this.queueWalk();
-                }
-              });
-            }
-            break;
-          }
-          if (!this.sittingUp) {
-            break;
-          }
-          const now = this.sitting;
-          if (now === undefined) {
-            break;
-          }
-          const idx = Math.min(cursor, now.pages.length - 1);
-          if (now.pages[idx] !== stage) {
-            // The step changed under the walk: re-seat on the first unplayed page of the new step.
-            parliamentFlow.sittingPage = sittingStartPage(now, (st) => sittingStagePlayed(key, st));
-            continue;
-          }
-          if (idx < now.pages.length - 1 && sittingPageAuto(stage) && this.mayLeave(stage, now)) {
-            if (now.pages[idx + 1] === 'results') {
-              // The results' rows wait for their own cascade: hidden from the frame the panel opens.
-              sittingMotion.resultsRevealed = false;
-            }
-            parliamentFlow.sittingPage = idx + 1;
-            continue;
-          }
+      const key = sittingKey.value;
+      const receipt = stage === 'reward' && parliamentRewardState.receiptShowing;
+      // The ledger's READ after a hosted step (Colonial Affairs): a beat of its own, like the tile's receipt.
+      const ledgerRead = stage === 'reward' && ledgerReadOwed.value;
+      // …and the PLANET's own read, once the frame is back from the board.
+      const worldRead = stage === 'reward' && parliamentWorldBeatState.receiptShowing;
+      // «ИСТРЕБИТЕЛЬ» (TR78): the enactment page held after its ПОВЕСТКА while the chain waited on a table's answer —
+      // the answer has let the support and the enactment through, and the page plays them now (the same page).
+      const careerResume = stage === 'enact' && careerResumeOwed(key, model.value?.phase);
+      if (!sittingStagePlayed(key, stage) || receipt || ledgerRead || worldRead || careerResume || (stage === 'reward' && (rewardPending.value || tableReceiptOwed.value))) {
+        notePlayedSittingStage(key, stage);
+        if (await playSittingStage(stage, sittingBeatList.value, ctx, {compact: false}) === 'killed') {
+          // THE PLAY WAS CUT (a close, the phase's end, a newer play — wait graph R4): it RESOLVED, so this walk
+          // ends here and its `finally` lowers `walking`; whoever cut it owns what comes next (`walkOwed` re-queues).
           break;
         }
-      } finally {
-        this.walking = false;
-      }
-      if (this.walkOwed) {
-        this.walkOwed = false;
-        this.queueWalk();
-      }
-    },
-    /**
-     * СМЕНА ТЕЛА (v5 §3): the row is pushed shut downward as one group while the new body unfolds from
-     * under the band, and the carrier card gives its one impulse — the cause of the work that is opening.
-     * The band itself does not take part: it stands still and changes only its text.
-     */
-    onStageEnter(el: Element, done: () => void): void {
-      this.stageEntering = true;
-      pulseCarrier(this.$refs.rootEl instanceof HTMLElement ?
-        this.$refs.rootEl.querySelector<HTMLElement>('[data-parl-gov-carry] .con-parl__gov-card') ?? undefined : undefined);
-      playBodyUnfold(el as HTMLElement, (this.$refs.tableTierEl ?? undefined) as HTMLElement | undefined, this.stageFromRect, () => {
-        this.stageEntering = false;
-        done();
-        if (parliamentFlow.stage === 'sitting') {
-          this.queueWalk();
+        if (stage === 'enact' && careerAgendaTold(key) && !careerPausedAt(model.value?.phase)) {
+          noteCareerResumed(key);
         }
-        // «ОТВЕТ СТОЛА» on the section's own stage (TR78): it has entered — the flight may measure, the picker may come.
-        if (this.answerStageUp) {
-          noteTableAnswerPaneIn();
+        // «ПРИЁМКА»: a card this page drew (the ПОВЕСТКА's card step, released at the page's rest) stands in the
+        // Parliament's draw stage — the walk waits for the player's take before the next beat.
+        await parliamentDrawsSettled();
+        if (stage === 'enact') {
+          // THE ENACTMENT'S TAIL (TR62): the seals have changed places — a card that answered the change of power is
+          // handed to the draw stage now (off the deck into the reveal), and the walk goes on from the player's take.
+          await deliverRulingChangeDraws();
         }
-        // «ПРИЁМКА» on the section's own stage: it has entered — the reveal may be teleported into its zone.
-        if (this.drawStageUp) {
-          noteParliamentDrawPaneIn();
+        if (receipt) {
+          parliamentRewardState.receiptShowing = false;
         }
-      });
-    },
-    onStageLeave(el: Element, done: () => void): void {
-      this.stageLeaving = true;
-      playBodyFold(el as HTMLElement, (this.$refs.tableTierEl ?? undefined) as HTMLElement | undefined, () => {
-        this.stageLeaving = false;
-        done();
-        // The row is back: a beat whose objects live in it can play now.
-        if (parliamentFlow.stage === 'sitting') {
-          this.queueWalk();
+        if (ledgerRead) {
+          ledgerReadOwed.value = false;
         }
-      });
-    },
-    onStageEnterCancelled(el: Element): void {
-      (el as HTMLElement).style.clipPath = '';
-      settleRow((this.$refs.tableTierEl ?? undefined) as HTMLElement | undefined, !this.stagePanelUp);
-    },
-    onStageLeaveCancelled(): void {
-      this.stageLeaving = false;
-      settleRow((this.$refs.tableTierEl ?? undefined) as HTMLElement | undefined, !this.stagePanelUp);
-    },
-    /** A layer of the STANDING stage rises from inside (the zone's layer phrase); its end is the pane's readiness. */
-    onStageLayerEnter(el: Element, done: () => void): void {
-      const kind = (el as HTMLElement).dataset.parlStageLayer;
-      playZoneLayerEnter(el as HTMLElement, () => {
-        if (kind === 'answer') {
-          noteTableAnswerPaneIn();
-        } else if (kind === 'draw') {
-          noteParliamentDrawPaneIn();
+        if (worldRead) {
+          parliamentWorldBeatState.receiptShowing = false;
         }
-        done();
-      });
-    },
-    /** …and the leaving one folds down IN PLACE — out of the flow, so the entering layer keeps its box. */
-    onStageLayerLeave(el: Element, done: () => void): void {
-      const layer = el as HTMLElement;
-      layer.style.position = 'absolute';
-      layer.style.inset = '0';
-      playBodyFold(layer, undefined, done);
-    },
-    onStageLayerCancelled(el: Element): void {
-      const layer = el as HTMLElement;
-      layer.style.position = '';
-      layer.style.inset = '';
-      layer.style.opacity = '';
-    },
-    // ── submits (byte-identical to the live prompt) ─────────────────────
-    /** The seat pick's A — `from` is the rect of the cube that leaves the card (the flight's source after the answer). */
-    submitSeat(from: Rect | undefined): void {
-      const slot = this.focusedSlot;
-      if (slot === undefined) {
-        return;
       }
-      this.seatFrom = from;
-      this.send(seatResponse(this.bridge, slot.party), 'seat');
-    },
-    send(response: InputResponse | undefined, from: ParliamentStage): void {
-      if (response === undefined) {
-        this.$emit('notice', translateText('This option is no longer offered'));
-        if (from === 'vote') {
-          parliamentFlow.voteSnapshot = undefined;
-        } else if (from !== 'sitting') {
-          this.closeStage();
+      // THE ENGINE'S TAIL of the seat's own step (the 0 °C ocean the winner's temperature step set off —
+      // Mohole Contest) stands behind the same door as the winner's tile, and the WALK opens it — once
+      // the page is quiet (the wave landed, nothing hosted, nothing still to read) — never a press: the
+      // shell's `placementActive` edge then yields the stack, or the planet beat below does first and the
+      // placement takes over on the board (one trip for the glide and the ocean).
+      if (stage === 'reward' && position.rewardStep === 'placement' && position.tail === true && !rewardPending.value &&
+          !parliamentRewardState.receiptShowing && !ledgerReadOwed.value && !stepFrameNested.value && !sittingStepOpen.value) {
+        consoleParliamentUi.boardDoorOpen = true;
+      }
+      // THE WORLD MOVES ON THE BOARD, so the sitting steps aside for it —
+      // the winner-tile door's own grammar, driven by the walk instead of
+      // by a press (nobody chose this; the law did). The frame unmounts
+      // here, so the walk stops: the board-beat park tells the planet's
+      // story, the module puts the stack back, and the section's own mount
+      // re-queues the walk on the reward page with the receipt owed.
+      if (stage === 'reward' && worldMoveOwed(key) && mayYieldForWorld(position)) {
+        if (trackMoveOwed(key)) {
+          // THE COLONY TABLE MOVES ON THE COLONIES SCREEN (Unity Budget), so the sitting HOSTS that screen
+          // as its own SHOW step — the winner's-colony frame, pushed by the record instead of a question.
+          // The frame stands in the stage zone (`stepFrameNested` opens the field), the wave rolls over
+          // every track, the frame leaves by itself, and its departure re-queues this walk on the reward
+          // page with the colonies line owed a read. The walk stops here for exactly that.
+          void runTrackMoveBeat(key);
+        } else {
+          // A beat the stack REFUSED (no root that steps aside) is over at once — the records are marked
+          // shown, the results' planet line states the move — and the walk must go on from here: it once
+          // stood on the reward page for good, waiting for a remount that never came (an observer whose
+          // sitting stood over its start root, Water Export's ocean).
+          // The board keeps the seat's business only for a TAIL placement (the 0 °C ocean): a DOOR placement standing
+          // behind «К полю» (PL-764 — the trip went before it) is the stage's, so the frame comes back for it.
+          const doorStands = position.rewardStep === 'placement' && position.tail !== true;
+          void runWorldMoveBeat(key, {boardBusy: () => !doorStands && pv.value.waitingFor?.type === 'space'}).then((played) => {
+            if (!played && parliamentFlow.stage === 'sitting') {
+              queueWalk();
+            }
+          });
         }
-        return;
+        break;
       }
-      parliamentFlow.stageBeforeSubmit = from;
-      this.submittedKey = this.answerKey;
-      parliamentFlow.stage = 'submitting';
-      setWorkspaceFramePhase('parliament', from === 'sitting' ? 'executing' : 'committed');
-      if (transportRequestInProgress()) {
-        // The funnel would DROP it: park it, it goes out the moment the funnel is free (the stage already reads its
-        // commit — the press is not lost, it is late by one presentation).
-        this.parkedSubmit = response;
-        // …and the parked answer is bounded from HERE (P4 — a funnel that never frees would hold it with no timer at all).
-        this.submitSafetySince = Date.now();
-        this.armSubmitSafety();
-        return;
+      if (!sittingUp.value) {
+        break;
       }
-      this.emitSubmit(response);
-    },
-    /** The ONE place a Parliament answer leaves for the wire — the key and the safety are taken HERE, at the real send. */
-    emitSubmit(response: InputResponse): void {
-      this.parkedSubmit = undefined;
-      this.submitSafetySince = Date.now();
-      // The key the answer is told apart from is the one standing NOW: a previous answer applied while this one was
-      // parked must never read as this one's.
-      this.submittedKey = this.answerKey;
-      this.$emit('submit', response);
-      this.armSubmitSafety();
-    },
-    /**
-     * THE SAFETY gives the stage back only to a submit nothing is answering. While the funnel still carries a
-     * request the answer IS coming (or its refusal, which the shell's refusal watcher hands back) — a reset then
-     * left a slow answer to land on a stage that no longer waited for it (a vote re-opened under its own landed
-     * cube; the chairmanship's office never played), so the safety re-arms instead.
-     */
-    armSubmitSafety(): void {
-      this.clearSubmitTimer();
-      this.cancelSubmitSafety = this.flowScope.after(SUBMIT_SAFETY_MS, 'the Parliament submit\'s safety', () => this.onSubmitSafety());
-    },
-    onSubmitSafety(): void {
-      this.cancelSubmitSafety = undefined;
-      if (parliamentFlow.stage === 'submitting' && (transportRequestInProgress() || this.parkedSubmit !== undefined)) {
-        if (Date.now() - this.submitSafetySince < SUBMIT_SAFETY_MAX_MS) {
-          this.armSubmitSafety();
-          return;
+      const now = sitting.value;
+      if (now === undefined) {
+        break;
+      }
+      const idx = Math.min(cursor, now.pages.length - 1);
+      if (now.pages[idx] !== stage) {
+        // The step changed under the walk: re-seat on the first unplayed page of the new step.
+        parliamentFlow.sittingPage = sittingStartPage(now, (st) => sittingStagePlayed(key, st));
+        continue;
+      }
+      if (idx < now.pages.length - 1 && sittingPageAuto(stage) && mayLeave(stage, now)) {
+        if (now.pages[idx + 1] === 'results') {
+          // The results' rows wait for their own cascade: hidden from the frame the panel opens.
+          sittingMotion.resultsRevealed = false;
         }
-        // P4: the answer never left the funnel (or never came back) in 30 s — a wait on gates that read this stage. The
-        // stage goes back to the player, the line names it.
-        beginCeilingWait({id: 'parliament:submit', owner: 'parliamentSection', what: 'the Parliament answer leaving the funnel and answered',
-          maxMs: SUBMIT_SAFETY_MAX_MS, detail: this.parkedSubmit !== undefined ? 'parked behind the funnel' : 'on the wire'}).ceiling();
+        parliamentFlow.sittingPage = idx + 1;
+        continue;
       }
-      this.resetSubmitting();
-    },
-    /** A REFUSED submit gives the stage back (the shell calls it on a transport error too). */
-    resetSubmitting(): void {
-      this.clearSubmitTimer();
-      this.parkedSubmit = undefined;
-      // A refused close leads nowhere: the next press asks again.
-      consoleParliamentUi.closeInto = undefined;
-      const f = parliamentFlow;
-      if (f.stage === 'submitting') {
-        f.stage = f.stageBeforeSubmit === 'seat' ? 'seat' : f.stageBeforeSubmit;
-        f.voteSnapshot = undefined;
-        f.supportSnapshot = undefined;
-        f.delegateSnapshot = undefined;
-        this.seatFrom = undefined;
-        if (f.stage !== 'landed' && f.stage !== 'paying') {
-          freezeParliamentFit(false);
-        }
-        if (f.stage === 'quest' || (f.stage === 'seat' && chairmanQuestFlow.live)) {
-          // The chairmanship's answer never left (or was refused): A means what it meant — send it again. Kept
-          // `sent`, the re-send branch could never run and the flow stood on its reading for good.
-          chairmanQuestFlow.sent = false;
-        }
-        setWorkspaceFramePhase('parliament', this.phaseAfterRefusal(f.stage));
-      }
-    },
-    /**
-     * The phase a stage stands in once its submit is handed back — the one it had BEFORE the press. A LIVE door (a
-     * mandatory pick, the chairmanship) is past its commit and parks the stack on B; only a staged door or a
-     * voluntary vote is reversible again (`configure`).
-     */
-    phaseAfterRefusal(stage: ParliamentStage): WorkspacePhase {
-      switch (stage) {
-      case 'browse':
-        return 'browse';
-      case 'sitting':
-        return sittingWorkspacePhase(this.sittingStage, false);
-      case 'quest':
-      case 'seat':
-      case 'banner':
-        return 'committed';
-      case 'support':
-        return this.bridge.supportPick?.staged === true ? 'configure' : 'committed';
-      case 'delegate':
-        return this.bridge.delegatePick?.staged === true ? 'configure' : 'committed';
-      case 'vote':
-        return this.bridge.grant !== undefined && this.bridge.grant.staged !== true ? 'committed' : 'configure';
-      default:
-        return 'configure';
-      }
-    },
-    clearSubmitTimer(): void {
-      if (this.cancelSubmitSafety !== undefined) {
-        this.cancelSubmitSafety();
-        this.cancelSubmitSafety = undefined;
-      }
-    },
-  },
+      break;
+    }
+  } finally {
+    walking.value = false;
+  }
+  if (walkOwed.value) {
+    walkOwed.value = false;
+    queueWalk();
+  }
+}
+/**
+ * СМЕНА ТЕЛА (v5 §3): the row is pushed shut downward as one group while the new body unfolds from
+ * under the band, and the carrier card gives its one impulse — the cause of the work that is opening.
+ * The band itself does not take part: it stands still and changes only its text.
+ */
+function onStageEnter(el: Element, done: () => void): void {
+  stageEntering.value = true;
+  pulseCarrier(rootEl.value instanceof HTMLElement ?
+    rootEl.value.querySelector<HTMLElement>('[data-parl-gov-carry] .con-parl__gov-card') ?? undefined : undefined);
+  playBodyUnfold(el as HTMLElement, tableTierEl.value ?? undefined, stageFromRect.value, () => {
+    stageEntering.value = false;
+    done();
+    if (parliamentFlow.stage === 'sitting') {
+      queueWalk();
+    }
+    // «ОТВЕТ СТОЛА» on the section's own stage (TR78): it has entered — the flight may measure, the picker may come.
+    if (answerStageUp.value) {
+      noteTableAnswerPaneIn();
+    }
+    // «ПРИЁМКА» on the section's own stage: it has entered — the reveal may be teleported into its zone.
+    if (drawStageUp.value) {
+      noteParliamentDrawPaneIn();
+    }
+  });
+}
+function onStageLeave(el: Element, done: () => void): void {
+  stageLeaving.value = true;
+  playBodyFold(el as HTMLElement, tableTierEl.value ?? undefined, () => {
+    stageLeaving.value = false;
+    done();
+    // The row is back: a beat whose objects live in it can play now.
+    if (parliamentFlow.stage === 'sitting') {
+      queueWalk();
+    }
+  });
+}
+function onStageEnterCancelled(el: Element): void {
+  (el as HTMLElement).style.clipPath = '';
+  settleRow(tableTierEl.value ?? undefined, !stagePanelUp.value);
+}
+function onStageLeaveCancelled(): void {
+  stageLeaving.value = false;
+  settleRow(tableTierEl.value ?? undefined, !stagePanelUp.value);
+}
+/** A layer of the STANDING stage rises from inside (the zone's layer phrase); its end is the pane's readiness. */
+function onStageLayerEnter(el: Element, done: () => void): void {
+  const kind = (el as HTMLElement).dataset.parlStageLayer;
+  playZoneLayerEnter(el as HTMLElement, () => {
+    if (kind === 'answer') {
+      noteTableAnswerPaneIn();
+    } else if (kind === 'draw') {
+      noteParliamentDrawPaneIn();
+    }
+    done();
+  });
+}
+/** …and the leaving one folds down IN PLACE — out of the flow, so the entering layer keeps its box. */
+function onStageLayerLeave(el: Element, done: () => void): void {
+  const layer = el as HTMLElement;
+  layer.style.position = 'absolute';
+  layer.style.inset = '0';
+  playBodyFold(layer, undefined, done);
+}
+function onStageLayerCancelled(el: Element): void {
+  const layer = el as HTMLElement;
+  layer.style.position = '';
+  layer.style.inset = '';
+  layer.style.opacity = '';
+}
+// ── submits (byte-identical to the live prompt) ─────────────────────
+/** The seat pick's A — `from` is the rect of the cube that leaves the card (the flight's source after the answer). */
+function submitSeat(from: Rect | undefined): void {
+  const slot = focusedSlot.value;
+  if (slot === undefined) {
+    return;
+  }
+  seatFrom.value = from;
+  send(seatResponse(bridge.value, slot.party), 'seat');
+}
+function send(response: InputResponse | undefined, from: ParliamentStage): void {
+  if (response === undefined) {
+    emit('notice', translateText('This option is no longer offered'));
+    if (from === 'vote') {
+      parliamentFlow.voteSnapshot = undefined;
+    } else if (from !== 'sitting') {
+      closeStage();
+    }
+    return;
+  }
+  parliamentFlow.stageBeforeSubmit = from;
+  submittedKey.value = answerKey.value;
+  parliamentFlow.stage = 'submitting';
+  setWorkspaceFramePhase('parliament', from === 'sitting' ? 'executing' : 'committed');
+  if (transportRequestInProgress()) {
+    // The funnel would DROP it: park it, it goes out the moment the funnel is free (the stage already reads its
+    // commit — the press is not lost, it is late by one presentation).
+    parkedSubmit.value = response;
+    // …and the parked answer is bounded from HERE (P4 — a funnel that never frees would hold it with no timer at all).
+    submitSafetySince.value = Date.now();
+    armSubmitSafety();
+    return;
+  }
+  emitSubmit(response);
+}
+/** The ONE place a Parliament answer leaves for the wire — the key and the safety are taken HERE, at the real send. */
+function emitSubmit(response: InputResponse): void {
+  parkedSubmit.value = undefined;
+  submitSafetySince.value = Date.now();
+  // The key the answer is told apart from is the one standing NOW: a previous answer applied while this one was
+  // parked must never read as this one's.
+  submittedKey.value = answerKey.value;
+  emit('submit', response);
+  armSubmitSafety();
+}
+/**
+ * THE SAFETY gives the stage back only to a submit nothing is answering. While the funnel still carries a
+ * request the answer IS coming (or its refusal, which the shell's refusal watcher hands back) — a reset then
+ * left a slow answer to land on a stage that no longer waited for it (a vote re-opened under its own landed
+ * cube; the chairmanship's office never played), so the safety re-arms instead.
+ */
+function armSubmitSafety(): void {
+  clearSubmitTimer();
+  cancelSubmitSafety = flowScope.after(SUBMIT_SAFETY_MS, 'the Parliament submit\'s safety', () => onSubmitSafety());
+}
+function onSubmitSafety(): void {
+  cancelSubmitSafety = undefined;
+  if (parliamentFlow.stage === 'submitting' && (transportRequestInProgress() || parkedSubmit.value !== undefined)) {
+    if (Date.now() - submitSafetySince.value < SUBMIT_SAFETY_MAX_MS) {
+      armSubmitSafety();
+      return;
+    }
+    // P4: the answer never left the funnel (or never came back) in 30 s — a wait on gates that read this stage. The
+    // stage goes back to the player, the line names it.
+    beginCeilingWait({id: 'parliament:submit', owner: 'parliamentSection', what: 'the Parliament answer leaving the funnel and answered',
+      maxMs: SUBMIT_SAFETY_MAX_MS, detail: parkedSubmit.value !== undefined ? 'parked behind the funnel' : 'on the wire'}).ceiling();
+  }
+  resetSubmitting();
+}
+/** A REFUSED submit gives the stage back (the shell calls it on a transport error too). */
+function resetSubmitting(): void {
+  clearSubmitTimer();
+  parkedSubmit.value = undefined;
+  // A refused close leads nowhere: the next press asks again.
+  consoleParliamentUi.closeInto = undefined;
+  const f = parliamentFlow;
+  if (f.stage === 'submitting') {
+    f.stage = f.stageBeforeSubmit === 'seat' ? 'seat' : f.stageBeforeSubmit;
+    f.voteSnapshot = undefined;
+    f.supportSnapshot = undefined;
+    f.delegateSnapshot = undefined;
+    seatFrom.value = undefined;
+    if (f.stage !== 'landed' && f.stage !== 'paying') {
+      freezeParliamentFit(false);
+    }
+    if (f.stage === 'quest' || (f.stage === 'seat' && chairmanQuestFlow.live)) {
+      // The chairmanship's answer never left (or was refused): A means what it meant — send it again. Kept
+      // `sent`, the re-send branch could never run and the flow stood on its reading for good.
+      chairmanQuestFlow.sent = false;
+    }
+    setWorkspaceFramePhase('parliament', phaseAfterRefusal(f.stage));
+  }
+}
+/**
+ * The phase a stage stands in once its submit is handed back — the one it had BEFORE the press. A LIVE door (a
+ * mandatory pick, the chairmanship) is past its commit and parks the stack on B; only a staged door or a
+ * voluntary vote is reversible again (`configure`).
+ */
+function phaseAfterRefusal(stage: ParliamentStage): WorkspacePhase {
+  switch (stage) {
+  case 'browse':
+    return 'browse';
+  case 'sitting':
+    return sittingWorkspacePhase(sittingStage.value, false);
+  case 'quest':
+  case 'seat':
+  case 'banner':
+    return 'committed';
+  case 'support':
+    return bridge.value.supportPick?.staged === true ? 'configure' : 'committed';
+  case 'delegate':
+    return bridge.value.delegatePick?.staged === true ? 'configure' : 'committed';
+  case 'vote':
+    return bridge.value.grant !== undefined && bridge.value.grant.staged !== true ? 'committed' : 'configure';
+  default:
+    return 'configure';
+  }
+}
+function clearSubmitTimer(): void {
+  if (cancelSubmitSafety !== undefined) {
+    cancelSubmitSafety();
+    cancelSubmitSafety = undefined;
+  }
+}
+
+/**
+ * A BEAT NEVER WAITS ON A SCENE THE PLAYER CANNOT SEE (inventory R16 — the monkey's DUO walk of
+ * `arwind-chairman-quest`: B collapsed the Parliament mid-quest, the office / the step's flights could not land on a
+ * hidden section, and the quest's BLOCKING hold kept every prompt waiting to its 20 s ceiling). The scene leaving the
+ * screen DRIVES the quest's beats to their end — «ДОЖАТЬ», the A path: every flight lands, every step is taken — and a
+ * run that still cannot end is settled honestly. The counters the holds kept tick now; the return shows the outcome.
+ */
+watch(() => sceneHidden.value, (hidden: boolean): void => {
+  if (!hidden) {
+    return;
+  }
+  // Every figure in the air lands where it is going (a vote's landing hold expired at its 4 s ceiling behind a
+  // collapse — the monkey's DUO shard 2): the hidden section never keeps a flight waiting for frames it cannot see.
+  if (parliamentFlightsAirborne()) {
+    finishParliamentFlights();
+  }
+  if (!chairmanQuestFlow.live) {
+    return;
+  }
+  if (chairmanQuestBeatActive()) {
+    finishChairmanQuestBeats();
+  }
+  if (chairmanQuestBeatActive() || chairmanQuestStalled()) {
+    settleChairmanQuestBeats('the scene left the screen mid-beat');
+  }
 });
+/** «ПРИЁМКА»: the section publishes whether it may host a draw (the ownership half — `parliamentDraw.ts`). */
+watch(() => drawHostable.value, (on: boolean): void => {
+  setParliamentDrawHost(drawHostId, on);
+}, {immediate: true});
+/**
+ * …the section's own stage that was ALREADY standing (another kind folded into it, no body swap played) has entered
+ * by construction — read a tick later, after the transition hooks of this very patch have run.
+ */
+watch(() => drawStageUp.value, (on: boolean): void => {
+  if (on) {
+    void nextTick(() => {
+      if (drawStageUp.value && !stageEntering.value) {
+        noteParliamentDrawPaneIn();
+      }
+    });
+  }
+}, {flush: 'post'});
+/**
+ * THE READINESS NET: a batch the Parliament claimed waits NOWHERE for a stage that has not entered — bounded. A
+ * stage that never comes (a pose nobody foresaw) lets the batch go to the ordinary reveal, named; never a card
+ * lost behind a zone that does not exist.
+ */
+watch(() => drawAwaitingZone.value, (id: number | undefined): void => {
+  if (cancelDrawNet !== undefined) {
+    cancelDrawNet();
+    cancelDrawNet = undefined;
+  }
+  if (id !== undefined && typeof window !== 'undefined') {
+    cancelDrawNet = flowScope.after(PARLIAMENT_DRAW_READY_NET_MS, 'the draw stage\'s readiness net', () => onDrawNet(id));
+  }
+}, {immediate: true});
+watch(() => liveCellGiver.value, (source: ChoiceContextSource | undefined): void => {
+  if (source !== undefined) {
+    cellGiverLatch.value = source;
+  }
+}, {immediate: true});
+/**
+ * A read-only dossier never outlives the browse layer it was opened from (a sitting, a vote, a step take the hall).
+ * …and BACK ON THE BROWSE LAYER WITH A MANDATORY PROMPT STANDING: the doors below open their stage only from
+ * browse, and a value that did not change never fires again — so a gate that arrived DURING another stage (the vote
+ * that completed the chairman quest — the gate rides the vote's own answer; a grant raised by a party action taken
+ * from «ВАШИ ЭФФЕКТЫ») stood unanswered over an overview nothing on screen served. One pass per server position.
+ */
+watch(() => flow.stage, (stage: ParliamentStage): void => {
+  if (stage !== 'vote') {
+    cellGiverLatch.value = undefined; // the cell's grant is over — the head stops naming it
+  }
+  if (stage !== 'browse') {
+    questDossierOpen.value = false;
+    careerDossierOpen.value = false;
+    return;
+  }
+  void nextTick(() => reconcileStandingPrompts());
+});
+/**
+ * ANOTHER SEAT'S DELEGATE ARRIVED (a rival's vote, MarsBot's Party Politics / Lobbying): the seed hid its
+ * ribbon cube in the apply block; now that the table has rendered, its flight is flown from the seat's
+ * real place — one cube after another (`parliamentRivalVotes`).
+ */
+watch(() => rivalQueue.value, (count: number): void => {
+  if (count > 0) {
+    void nextTick(() => runRivalVotes());
+  }
+});
+/**
+ * THE PHASE'S END IS THE SURFACE'S END (v3 В1): the response that carries the sitting's data away is
+ * the one that closes the frame (the shell's `parliamentSittingFrameLive` watcher) — the surface must
+ * never render THAT view. Pre-flush, before this very render: latch the view the sitting stood with.
+ * Declared first: the `leaving` watcher below keeps whatever this one froze.
+ */
+watch(() => props.playerView, (now: PlayerViewModel, was: PlayerViewModel | undefined): void => {
+  if (frozenView.value === undefined && was !== undefined && parliamentSittingLive(was) && !parliamentSittingLive(now) && rootIsClosing()) {
+    frozenView.value = was;
+  }
+});
+/**
+ * СТОЛ → ЧТЕНИЕ (v4 §1): the panel unfolds FROM THE ROW'S OWN RECT, so that rect is read at the
+ * handoff and not at `openStage` — the sitting's panel goes up stages later (the reward, the results
+ * card), by which time the row has been re-fitted at least once (the tile token, a profile change).
+ * A `pre`-flush watcher runs BEFORE this render, so the row is still standing when it is measured.
+ */
+watch(() => stagePanelUp.value, (up: boolean): void => {
+  if (!up) {
+    return;
+  }
+  const tier = tableTierEl.value ?? undefined;
+  const rect = tier?.getBoundingClientRect();
+  if (rect !== undefined && rect.width > 0) {
+    stageFromRect.value = {left: rect.left, top: rect.top, width: rect.width, height: rect.height};
+  }
+});
+/** The shell plays the leave: freeze on the live view (a flow's conclusion, «свернуть», the yield); a cancelled leave lets go. */
+watch(() => props.leaving, (on: boolean): void => {
+  if (on) {
+    frozenView.value ??= props.playerView;
+  } else {
+    frozenView.value = undefined;
+    // A leave that is over (or cancelled) with the frame gone: the head latch has served; a frame still standing
+    // (the leave was cancelled — a restore) keeps reading the live stack and re-latches on its next change.
+    if (!sceneStepOfStartLive.value) {
+      sceneStepLatch.value = false;
+      headLatch.value = undefined;
+      seriesLatch.value = undefined;
+    }
+  }
+});
+/**
+ * THE HEAD'S LEAVE LATCH, taken SYNCHRONOUSLY while the frame stands (TRP1): the pop that starts the leave and
+ * the `leaving` prop land in one flush, and a latch taken by an ordinary (post-flush) watcher would read the
+ * stack AFTER the frame has left it — the standalone words, exactly what the latch exists to keep out.
+ */
+watch(() => sceneStepOfStartLive.value, (on: boolean): void => {
+  if (on) {
+    sceneStepLatch.value = true;
+  }
+}, {immediate: true, flush: 'sync'});
+watch(() => headSeriesLive.value, (series: GrantSeries | undefined): void => {
+  if (series !== undefined) {
+    seriesLatch.value = series;
+  } else if (stackCrumbLive.value !== undefined) {
+    // The frame stands and counts nothing (a lone grant, a later stage): no count to keep for its leave.
+    seriesLatch.value = undefined;
+  }
+}, {immediate: true, flush: 'sync'});
+watch(() => stackCrumbLive.value, (crumb: ReturnType<typeof workspaceStackCrumb>): void => {
+  if (crumb !== undefined) {
+    headLatch.value = crumb;
+  }
+}, {immediate: true, flush: 'sync'});
+watch(() => commands.value, (cmds: ReadonlyArray<ConsoleCommand>): void => {
+  consoleParliamentUi.commands = [...cmds];
+}, {immediate: true});
+/** THE HALL (v8 § 5): a Parliament that is its own screen keeps the bills on the table for the vote. */
+watch(() => hall.value, (on: boolean): void => {
+  consoleParliamentUi.hall = on;
+}, {immediate: true});
+/** The vote mode's PAYMENT zone — published once the mode's DOM stands (post-flush: a teleport into a zone not yet rendered drops its content). */
+watch(() => voteUp.value, (on: boolean): void => {
+  consoleParliamentUi.voteStanding = on;
+}, {immediate: true, flush: 'post'});
+/** The SITTING's stage zone — published on the same terms (the picker / the take teleport into it only once it is in the DOM). */
+watch(() => sittingUp.value, (on: boolean): void => {
+  consoleParliamentUi.stageStanding = on;
+  // The sitting STANDS: one on its way up no longer covers the board or holds the door — the stage does now (the soft
+  // gates). The same edge as the stage's own, so no frame lies between the two holders.
+  if (on && !props.warm) {
+    sittingRiseStood();
+  }
+  // The stage STANDS again: the door the world trip held shut is the stage's again (PL-764). Only on the rising
+  // edge — a section re-mounting after the trip reads «not up» for a flush first, and an open door there admitted
+  // the seat's own placement under the returning sitting.
+  if (on) {
+    consoleParliamentUi.worldTripHoldsDoor = false;
+  }
+}, {immediate: true, flush: 'post'});
+/**
+ * A REWARD ARRIVED while the sitting stands (the ledger seeded its hold in
+ * the transport's own commit block): the walk plays its wave on the reward
+ * page. The door is the STANDING of the sitting (its stage, or its gate
+ * answer in flight — `parliamentSittingUp`), never the section's transient
+ * flow stage: the viewer's own answer comes back while the stage is still
+ * `submitting`, the other seat's through the poll while it is `sitting`,
+ * and both must reach the same walk.
+ */
+watch(() => rewardsOwed.value, (n: number, was: number): void => {
+  if (n > 0 && n > was && parliamentSittingUp()) {
+    queueWalk();
+  }
+});
+/** A receipt of the table became owed (the response to the seat's take, a poll): the walk plays it on the reward page. */
+watch(() => tableReceiptOwed.value, (on: boolean, was: boolean): void => {
+  if (on && !was && parliamentSittingUp()) {
+    queueWalk();
+  }
+});
+/**
+ * THE SITTING OPENS WITH THE PHASE and closes with it. The position's
+ * rising edge unfolds the stage from the parties tier (from the browse
+ * layer only — a vote in flight finishes its own phrase first, then the
+ * answer-key watcher lands here); the falling edge (the phase is over) is
+ * the flow's ending: the shell's ONE guarded conclusion decides whether
+ * the workspace leaves. Never a title, never a client memory — the
+ * server's phase record is the only witness.
+ */
+watch(() => sitting.value, (position: SittingPosition | undefined): void => {
+  if (position !== undefined) {
+    if (parliamentFlow.stage === 'browse') {
+      parliamentFlow.zone = 'government';
+      planOpening(position);
+      openStage('sitting');
+    }
+    if (parliamentFlow.stage === 'sitting') {
+      setWorkspaceFramePhase('parliament', sittingWorkspacePhase(sittingStage.value, false));
+    }
+  } else if (parliamentFlow.stage === 'sitting') {
+    endSitting();
+  }
+}, {immediate: true});
+/** A new server step re-seats the walk: from its first unplayed page (a gate this seat already answered: its wait pose). */
+watch(() => sittingStepKey.value, (_now: string, was: string): void => {
+  if (was === '' || !parliamentSittingUp()) {
+    return;
+  }
+  if (walking.value) {
+    // The walk's own loop re-reads the position after every beat; a step that arrives mid-beat is picked up there.
+    walkOwed.value = true;
+    return;
+  }
+  enterServerStep();
+});
+watch(() => sittingStage.value, (stage: SittingStage): void => {
+  if (parliamentFlow.stage === 'sitting') {
+    setWorkspaceFramePhase('parliament', sittingWorkspacePhase(stage, false));
+  }
+  // «ПОДРОБНОСТИ ВЫПЛАТ» belong to the results page alone — leaving it leaves them (never a stale «open»).
+  if (stage !== 'results') {
+    resetSittingPayoutDetails();
+  }
+});
+watch(() => payoutDetailsDoor.value, (on: boolean): void => {
+  if (!on) {
+    resetSittingPayoutDetails();
+  }
+});
+/**
+ * THE REWARD STAGE TAKES THE FIELD for a hosted step — the overview recedes
+ * and the enacted card FLIPs onto the stage's hero slot (its government
+ * rect is read BEFORE the teleport moves it); when the step is answered
+ * the card FLIPs home and the overview breathes back. The flow record
+ * mirrors it synchronously for the tiers (the carry) and the stylesheet
+ * (the pose); the motion follows on the next tick, after the layout.
+ */
+/** Mirrored SYNCHRONOUSLY beside the field (pre-flush): the government reads it to keep the card home, in the same render. */
+watch(() => sittingFullStep.value, (on: boolean): void => {
+  parliamentFlow.sittingFullStep = on;
+}, {immediate: true});
+watch(() => sittingField.value, (on: boolean): void => {
+  parliamentFlow.sittingField = on;
+  const root = rootEl.value ?? undefined;
+  const cardFrom = enactCarryRect(root);
+  publishMidOffsets();
+  void nextTick(() => {
+    if (root === undefined) {
+      return;
+    }
+    fitParliamentCards();
+    if (on) {
+      // A wave that leaves the ledger waits for the card to LAND on its hero slot (the cause before the effect).
+      fieldSettling.value = true;
+      playParliamentEnactEnter({root, cardFrom, onDone: () => {
+        fieldSettling.value = false;
+        if (parliamentFlow.stage === 'sitting') {
+          queueWalk();
+        }
+      }});
+    } else {
+      fieldSettling.value = false;
+      playParliamentEnactFold({root, cardFrom});
+    }
+  });
+});
+/**
+ * THE STEP'S DOOR (Colonial Affairs, block C): a hosted step may teleport into the zone — published
+ * POST-FLUSH (the zone node is in the DOM) as `fieldStanding` for the shell's teleports (the picker, the
+ * take) and as the Parliament FRAME's slot for a step that is a workspace FRAME (the hand in its
+ * discard mode). For every step but the ledger's the door flips WITH the pose; with a ledger body the
+ * field stands from the page's start and the door opens only once the wave has landed.
+ */
+watch(() => sittingStepOpen.value, (on: boolean, was: boolean): void => {
+  publishStepDoor(on);
+  stepOpenMirror.value = on;
+  // The step left and the LEDGER returns under it: its updated rows are read for a beat before the walk goes on.
+  if (!on && was && sittingStage.value === 'reward' && sittingLedger.value !== undefined) {
+    ledgerReadOwed.value = true;
+    queueWalk();
+  }
+}, {flush: 'post'});
+/**
+ * THE HOSTED FRAME LEFT (Colony Contest): the shell popped the colonies once the build chain finished. The
+ * position moved on long ago (the response after the build), so nothing else re-queues the walk — the
+ * stage's door closes with the frame (`sittingStepOpen` falls), the hero card folds home, and the walk
+ * goes on from the reward page: «получено», the renewal, the results. The sitting is never concluded here.
+ */
+/** The reward page's stop lifted (every term the walk waited on has let go): the walk goes on from it. */
+watch(() => rewardPageLeavable.value, (on: boolean, was: boolean): void => {
+  if (on && !was && parliamentFlow.stage === 'sitting') {
+    queueWalk();
+  }
+});
+watch(() => stepFrameNested.value, (on: boolean, was: boolean): void => {
+  if (!on && was && parliamentFlow.stage === 'sitting') {
+    queueWalk();
+  }
+});
+watch(() => sceneHandedOver.value, (on: boolean): void => {
+  if (!on && parliamentFlow.stage === 'browse') {
+    // (the falling edge of a SCENE hand-over — the browse layer republishes its own crumb)
+    setWorkspaceFrameSubject('parliament', crumbSubject.value);
+    setWorkspaceFrameStage('parliament', crumbStage.value);
+    setWorkspaceFramePhase('parliament', 'browse');
+    void nextTick(() => fitParliamentCards());
+  }
+});
+watch(() => view.value, (): void => {
+  void nextTick(() => fitParliamentCards());
+});
+/**
+ * The server answered: the stage it committed is over — a vote LANDS first, a paid vote PAYS first, a gate answer stays on its stage.
+ * POST-flush on purpose: the answer is read by the vote-mode CHILD off its `playerView` PROP, and a parent's pre-flush
+ * watcher runs one patch BEFORE that prop is updated — the child then read the OLD prompt, saw no bill, closed the vote
+ * and reported the flow complete, and the shell concluded the workspace out from under the payment (the stranded
+ * «Выберите, как оплатить …» over the board). The Э0 split moved `paymentStands` from this component into the child;
+ * this is the seam it crossed.
+ */
+watch(() => answerKey.value, (key: string): void => {
+  onAnswerKey(key);
+}, {flush: 'post'});
+/** The funnel is free: an answer parked behind it goes out now (post — after the applied view's own flush). */
+watch(() => transportBusy.value, (busy: boolean): void => {
+  const parked = parkedSubmit.value;
+  if (!busy && parked !== undefined && parliamentFlow.stage === 'submitting') {
+    emitSubmit(parked);
+  }
+}, {flush: 'post'});
+/**
+ * THE CHAIRMAN-QUEST GATE takes the stage the moment it stands. The
+ * player has ALREADY pressed A — on the mandatory announce plate, which is
+ * what mounted this section — so the flow opens, starts its reading beat
+ * and sends the answer under it: the reading is the minimum beat a fast
+ * server never cuts, and everything past it waits for the response.
+ */
+watch(() => questGate.value, (gate: {generation: number} | undefined): void => {
+  whenQuestGateChanges(gate);
+}, {immediate: true});
+/**
+ * «КАРЬЕРА» (TR04): the section was pushed INTO the hand's zone with a walk
+ * owed to it — the pose opens on the record, at SETUP (so the first name
+ * this surface publishes is the walk's stage, never «Обзор» for a render),
+ * and its beats start on the mounted DOM.
+ */
+watch(() => walkOwedSeq.value, (seq: number): void => {
+  if (seq > 0 && parliamentFlow.stage === 'browse' && !agendaWalkFlow.live) {
+    openWalkFlow();
+  }
+}, {immediate: true});
+/**
+ * A CARD STEP'S TAKE (TR37): the walk's hold stands DOWN while the card is
+ * the player's to take (the cover scene and the viewer own that moment —
+ * a ceiling over a player's reading would fire as a «leaked hold») and
+ * stands UP again, with the walk's own budget, once the card has landed.
+ */
+watch(() => walkAwaitingCard.value, (waiting: boolean): void => {
+  const owed = agendaWalkFlow.owed;
+  if (!agendaWalkFlow.live || owed === undefined || agendaWalkFlow.beat !== 'walk') {
+    return;
+  }
+  if (waiting) {
+    walkHold?.release();
+    walkHold = undefined;
+  } else if (walkHold === undefined) {
+    raiseWalkHold(agendaWalkHoldMs(owed));
+  }
+});
+/**
+ * «ДЕЛЕГАТЫ» (TR31): the section was pushed INTO the hand's zone with a rally owed to it — the pose opens
+ * on the record at SETUP (declared before `frameCrumb`, so the first name this surface publishes is the
+ * rally's stage, never «Обзор» for a render), and its beats start on the mounted DOM.
+ */
+watch(() => rallyOwedSeq.value, (seq: number): void => {
+  if (seq > 0 && parliamentFlow.stage === 'browse' && !neutralRallyFlow.live) {
+    openRallyFlow();
+  }
+}, {immediate: true});
+/**
+ * «ОТВЕТ СТОЛА» (TR78): the table's QUESTION stands with its host ready → the answer stage asks it (the shell
+ * teleports the pick / the layout in once the stage has entered); the prompt falls (the receive scene played with
+ * the commit held, so it falls only once the units are on their cards) → the stage folds, and the quest's flow —
+ * which held for it — goes on.
+ */
+watch(() => hostedAnswerAskKey.value, (key: string, was: string | undefined): void => {
+  if (key !== '') {
+    const ask = hostedAnswerAsk();
+    if (ask !== undefined) {
+      askTableAnswer(ask);
+    }
+    return;
+  }
+  if (was !== undefined && was !== '') {
+    endTableAnswerAsk();
+    if (was.startsWith('quest|') && chairmanQuestAwaitsReaction()) {
+      noteChairmanQuestReactionAnswered();
+    }
+  }
+}, {immediate: true});
+/**
+ * THE CHAIRMANSHIP FLOW HOLDS FOR THE DELEGATE PICK (the corner case: every
+ * delegate of this seat stands on a resolution). The DIRECTOR decides that
+ * — not the prompt's arrival — so the picker opens on its own beat, and the
+ * crumb keeps «ПРЕДСЕДАТЕЛЬСТВО» with only the tail advancing.
+ */
+watch(() => questSeatStep.value, (open: boolean): void => {
+  if (!open || parliamentStageKind() !== 'quest') {
+    return;
+  }
+  const seat = bridge.value.seat;
+  const parties = seat === undefined ? [] : (seat as {parties: Array<PartyName>}).parties;
+  const idx = view.value.slots.findIndex((slot) => parties.includes(slot.party));
+  parliamentFlow.slotIndex = idx >= 0 ? idx : 0;
+  parliamentFlow.zone = 'voting';
+  openStage('seat');
+});
+/** A stand-alone chairman-seat pick is MANDATORY: it takes the stage as soon as it stands. */
+watch(() => bridge.value.seat, (seat: PlayerInputModel | undefined): void => {
+  whenBridgeSeatChanges(seat);
+}, {immediate: true});
+/**
+ * A DELEGATE GRANT is MANDATORY too (Turmoil Redux — the Venus tile): the
+ * vote mode opens on it as soon as it stands. At SETUP (the section
+ * mounting FOR the grant — hosted inside the colonies, or re-entered after
+ * a reload) the mode is ARMED before the first render, so the surface is
+ * born in its vote pose and the overview never shows (`armGrantVoteFlow` →
+ * the mode's own `mounted` plays the fresh entrance). Arriving LATER, over
+ * a standing overview, it opens with the ordinary phrase — the cards FLIP
+ * out of the table into the row. The mode opens on the card the viewer's
+ * own delegates already stand on (the likeliest address), else the first.
+ */
+watch(() => grantCursorInstance.value, (instance: string | undefined): void => {
+  if (instance !== undefined) {
+    rememberGrantCursor(pv.value.waitingFor?.promptId, instance);
+  }
+});
+watch(() => bridge.value.grant, (grant: ParliamentPromptBridge['grant']): void => {
+  whenBridgeGrantChanges(grant);
+}, {immediate: true});
+/**
+ * THE WARM MOUNT UNVEILED (P72 · CZ): the play's live grant was asked while this surface was still warming under the
+ * landing (invisible, inert) — the step rises NOW, born in its vote pose like a section mounted for the grant, the
+ * mode playing its fresh entrance (never the overview's cards flipping into the row: the overview was never seen).
+ */
+watch(() => props.warm, (now: boolean, was: boolean): void => {
+  const grant = bridge.value.grant;
+  if (was && !now && grant !== undefined && grant.staged !== true && parliamentFlow.stage === 'browse') {
+    openGrant(grant, true);
+  }
+});
+/**
+ * A SUPPORT-AREA PICK (TR12 Party Sanctions) — staged (the card's door, hosted in the hand) or live (re-asked,
+ * a reload): the mode opens on it. At SETUP the flow is ARMED before the first render, so the surface is born
+ * in its pose and the overview never shows; arriving over a standing overview it opens there. The cursor
+ * starts on the ring's first area on offer — a cursor, never a selection.
+ */
+watch(() => bridge.value.supportPick, (pick: ParliamentPromptBridge['supportPick']): void => {
+  whenBridgeSupportPickChanges(pick);
+}, {immediate: true});
+/**
+ * A BANNER PICK (Septem Tribus:redux — the first action's cube): the mode opens on it, ARMED before the first
+ * render like the support pick; the cursor starts on the ring's first banner on offer — a cursor, never a selection.
+ * Mandatory and LIVE: the frame stands past its commit (B «Свернуть»).
+ */
+watch(() => bridge.value.bannerPick, (pick: ParliamentPromptBridge['bannerPick']): void => {
+  whenBridgeBannerPickChanges(pick);
+}, {immediate: true});
+/**
+ * A DELEGATE PICK (TR72 Banned Delegate:redux) — staged (the card's door, hosted in the hand) or live (re-asked, a
+ * reload): the mode opens on it, ARMED before the first render like the support pick. The cursor starts on the
+ * ring's first figure — a cursor, never a selection.
+ */
+watch(() => bridge.value.delegatePick, (pick: ParliamentPromptBridge['delegatePick']): void => {
+  whenBridgeDelegatePickChanges(pick);
+}, {immediate: true});
+/**
+ * THE CRUMB, handed UP. Declared LAST on purpose: every `immediate` watcher
+ * above that opens a stage at SETUP (the sitting, a seat pick, a delegate
+ * grant's vote) has already done so, and the first name this surface
+ * publishes is the stage it is BORN on. Published earlier, a step mounting
+ * for a grant named itself «Обзор» for one render before «Голосование» —
+ * the host's crumb animated its tail twice, through a stage nobody entered.
+ */
+watch(() => frameCrumb.value, (crumb: {subject: string, stage: string}): void => {
+  // A scene step of the START carries the corporation as its subject (pushed by the shell) — never overwritten.
+  if (!sceneStepOfStart.value) {
+    setWorkspaceFrameSubject('parliament', crumb.subject);
+  }
+  setWorkspaceFrameStage('parliament', crumb.stage);
+}, {immediate: true, deep: true});
+
+onMounted(() => {
+  setParliamentRootEl(rootEl.value ?? undefined);
+  // «САНКЦИИ» (TR12): the apply block seeds a discard's holds only while this section's support-area mode
+  // stands to fly them.
+  registerSupportDiscardHost(() => parliamentSupportUp());
+  // «ИЗГНАНИЕ» (TR72): the apply block owes a removal's flight only while the delegate mode stands to fly it.
+  registerDelegateRemovalHost(() => parliamentDelegateUp());
+  // A finished flow held for a question THIS screen serves hands the screen to it in place (ledger HC).
+  stopQuestionDoor = registerFrameQuestionDoor('parliament', () => serveStandingQuestion());
+  // A sitting already holding the field at mount (a reload, a restore) has
+  // no entrance to play — the overview is parked at once.
+  parliamentFlow.sittingField = sittingField.value;
+  // A step's door already open at mount is published from the mounted DOM
+  // (the watcher above cannot fire for a value that never changed).
+  publishStepDoor(sittingStepOpen.value);
+  stepOpenMirror.value = sittingStepOpen.value;
+  publishMidOffsets();
+  if (sittingField.value) {
+    parkParliamentForEnact(rootEl.value ?? undefined);
+  }
+  fitParliamentCards();
+  const field = fieldEl.value ?? undefined;
+  if (field !== undefined) {
+    stopFitObs = useResizeObserver(field, () => {
+      publishMidOffsets();
+      fitParliamentCards();
+    }).stop;
+  }
+  // A SITTING STANDING AT MOUNT (the usual door — the plate's A mounts the
+  // section with the stage already in its first render): the stage's
+  // `<transition>` never plays an enter for an element present at the
+  // initial render, so the walk starts here, on the mounted DOM.
+  if (parliamentFlow.stage === 'sitting' && !stageEntering.value) {
+    queueWalk();
+  }
+});
+onBeforeUnmount(() => {
+  stopFitObs?.();
+  stopQuestionDoor?.();
+  parkedSubmit.value = undefined;
+  resetSittingDirector();
+  // «ПРЕДСЕДАТЕЛЬСТВО» ends with its section: a beat has nowhere to play and
+  // a hold nobody would consume would freeze the track for the rest of the
+  // game (its counters tick with this block instead — honestly late).
+  if (chairmanQuestFlow.live) {
+    killChairmanQuestBeats();
+    releaseChairmanQuestHolds('unmount');
+    resetChairmanQuestFlow();
+  }
+  // «КАРЬЕРА» ends with its section too: the beats are cut, the poses go to their end, every hold the walk
+  // seeded is released (the rail ticks with this block — honestly late, never lost).
+  if (agendaWalkFlow.owed !== undefined || agendaWalkFlow.live) {
+    walkReadBeat?.kill();
+    walkReadBeat = undefined;
+    walkHold?.release();
+    walkHold = undefined;
+    agenda.value?.stopAgendaGlide();
+    releaseAgendaWalkHolds('unmount');
+  }
+  // «ДЕЛЕГАТЫ» ends with its section too (TR31): the beats are cut, every hold the rally seeded is released (the
+  // cubes show, the plaques and the pool read the server, the rail ticks with this block — honestly late, never lost).
+  if (neutralRallyFlow.owed !== undefined || neutralRallyFlow.live) {
+    rallyHandle?.skip();
+    rallyHandle = undefined;
+    rallyHold?.release();
+    rallyHold = undefined;
+    releaseNeutralRallyHolds('unmount');
+  }
+  // The phase is over (the section unmounts after its latched leave — v3 В1): the sitting's display
+  // holds end here, never in the apply block that carried the phase away (the surface still needed
+  // them for its leave). A park / a yield keeps them: the walk resumes over them.
+  if (!parliamentSittingLive(props.playerView)) {
+    resetParliamentHolds();
+  }
+  // A reward whose wave has not left with the sitting leaving (a park, the
+  // board taking the screen, the phase's end) is announced by its counter
+  // now — never held for a stage that is gone. The DISPLAY holds stay: the
+  // walk resumes over them when the section comes back.
+  releaseParliamentRewards('unmount');
+  // A rival's cube still queued or in the air settles where the model says: the table is leaving.
+  settleRivalVotes();
+  killParliamentFlights();
+  killParliamentVoteMotion(rootEl.value ?? undefined);
+  killParliamentEnactMotion(rootEl.value ?? undefined);
+  freezeParliamentFit(false);
+  consoleParliamentUi.commands = [];
+  consoleParliamentUi.hall = false;
+  consoleParliamentUi.voteStanding = false;
+  consoleParliamentUi.stageStanding = false;
+  consoleParliamentUi.fieldStanding = false;
+  consoleParliamentUi.answerZone = false;
+  // «ПРИЁМКА»: no stage stands any more — a batch still owed takes the ordinary reveal (the ownership falls with it).
+  setParliamentDrawHost(drawHostId, false);
+  noteParliamentDrawPaneOut();
+  // «ОТВЕТ СТОЛА» (TR78): a receipt no stage will play ticks now, honestly late; a question's stage is gone with the section.
+  releaseTableAnswers();
+  endTableAnswerAsk();
+  // …and a rating owed to the enactment's tail (TR63), under the same law as the rewards above: never held for a
+  // stage that is gone (a delivery in flight finishes its own touchdowns).
+  releaseOrphanRulingRatings('unmount');
+  // The zone's host retracts its frame slot unconditionally (the embed contract): a nested frame
+  // pointed at a destroyed node would mount outside the document.
+  setWorkspaceFrameSlot('parliament', '');
+  setWorkspaceFrameSubject('parliament', '');
+  setWorkspaceFrameStage('parliament', '');
+});
+onUnmounted(() => {
+  registerSupportDiscardHost(undefined);
+  registerDelegateRemovalHost(undefined);
+  setParliamentRootEl(undefined);
+  resetParliamentFlow();
+});
+// What the shell's controllers reach through the surface registry (`'parliamentSection'`): the pad router hands it every
+// intent (`handleIntent`), the start opens a walk owed to its scene step (`openWalkFlow`), a refused staged vote gives
+// the stage back (`resetSubmitting`) — and nothing else.
+defineExpose({handleIntent, openWalkFlow, resetSubmitting});
 </script>

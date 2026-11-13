@@ -32,6 +32,8 @@ const TREES = [
   path.join('src', 'client', 'console', 'parliament'),
   path.join('src', 'client', 'components', 'console', 'parliament'),
   path.join('src', 'client', 'components', 'console', 'ConsoleParliamentSection.vue'),
+  // …and the section's sibling module: the question door's bodies moved there with its conversion (RECIPES § 3).
+  path.join('src', 'client', 'components', 'console', 'consoleParliamentSectionLogic.ts'),
 ];
 
 /** Glossary canon: EN key → the one RU line. */
@@ -268,6 +270,10 @@ function listFiles(dir: string): Array<string> {
 describe('parliament glossary — one word per concept (static guard)', () => {
   const ru = JSON.parse(fs.readFileSync(RU_PATH, 'utf8')) as Record<string, string>;
   const sources = TREES.flatMap(listFiles).map((p) => ({p: path.relative(ROOT, p), text: fs.readFileSync(p, 'utf8')}));
+
+  it('every tree and file the guard reads is there (a path that moved would be read as «nothing to check»)', () => {
+    expect(TREES.filter((tree) => listFiles(tree).length === 0), 'a parliament tree / file that is gone or empty').to.deep.equal([]);
+  });
 
   it('every pinned key prints its canonical RU line', () => {
     const wrong = Object.entries(CANON)

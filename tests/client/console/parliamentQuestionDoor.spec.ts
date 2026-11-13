@@ -1,7 +1,10 @@
 import {expect} from 'chai';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
-import ConsoleParliamentSection from '@/client/components/console/ConsoleParliamentSection.vue';
+import {
+  closeStage, foldFinishedStage, overviewServesQuestion, ParliamentSectionPort, playWalkAnswer, retireFinishedFlows, retireQuestFlow, serveStandingQuestion,
+  standingDoorOwed, standingQuestionServed, walkRunAlive,
+} from '@/client/components/console/consoleParliamentSectionLogic';
 import {AgendaWalkBeat, agendaWalkFlow, resetAgendaWalkFlow} from '@/client/console/parliament/agendaWalk';
 import {armChairmanQuestFlow, chairmanQuestFlow, resetChairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {killChairmanQuestBeats} from '@/client/console/parliament/chairmanQuestDirector';
@@ -23,20 +26,20 @@ import {resetNeutralRallyFlow} from '@/client/console/parliament/neutralRally';
  *
  * And R5 — the walk's inner endings are keyed on the run's own record, never the global `live`.
  *
- * Methods run against a stub `this` (the point is what the door decides and touches, not the mount of the section).
+ * The door's bodies stand in the section's sibling module (`consoleParliamentSectionLogic.ts` — the component is their
+ * one-line delegates over its PORT) and run here against a stub port (the point is what the door decides and touches,
+ * not the mount of the section).
  */
-type Fn = (this: unknown, ...args: Array<unknown>) => unknown;
-const methods = (ConsoleParliamentSection as unknown as {methods: Record<string, Fn>}).methods;
 const BLUE = 'blue' as Color;
 
-type Stub = Record<string, unknown> & {
+type Stub = ParliamentSectionPort & Record<string, unknown> & {
   calls: Array<string>;
   ticks: Array<() => void>;
 };
 
-/** A section stub: the real door methods, the overview's doors simulated by `reconcileStandingPrompts`. */
+/** A section stub: the real door members, the overview's doors simulated by `reconcileStandingPrompts`. */
 function section(over: Record<string, unknown> = {}): Stub {
-  const stub: Stub = {
+  const stub = {
     calls: [],
     ticks: [],
     warm: false,
@@ -48,18 +51,26 @@ function section(over: Record<string, unknown> = {}): Stub {
     reconciledKey: 'k',
     answerKey: 'k',
     walkOwed: false,
-    $refs: {},
+    refs: {},
     ...over,
-  };
-  for (const name of ['serveStandingQuestion', 'standingDoorOwed', 'standingQuestionServed', 'overviewServesQuestion', 'foldFinishedStage',
-    'retireFinishedFlows', 'retireQuestFlow', 'closeStage', 'walkRunAlive', 'playWalkAnswer']) {
-    stub[name] = (...args: Array<unknown>) => methods[name].call(stub, ...args);
-  }
+  } as unknown as Stub;
+  // The real members, each reading the stub as its port — a member another one calls THROUGH the port is the real one
+  // too (the two that read nothing of the section take no port).
+  stub.serveStandingQuestion = () => serveStandingQuestion(stub);
+  stub.standingDoorOwed = () => standingDoorOwed(stub);
+  stub.standingQuestionServed = () => standingQuestionServed(stub);
+  stub.overviewServesQuestion = () => overviewServesQuestion(stub);
+  stub.foldFinishedStage = () => foldFinishedStage(stub);
+  stub.retireFinishedFlows = retireFinishedFlows;
+  stub.retireQuestFlow = () => retireQuestFlow(stub);
+  stub.closeStage = () => closeStage(stub);
+  stub.walkRunAlive = walkRunAlive;
+  stub.playWalkAnswer = (seq: number, onDone: () => void) => playWalkAnswer(stub, seq, onDone);
   stub.$nextTick = (fn: () => void) => {
     stub.ticks.push(fn);
     return Promise.resolve();
   };
-  stub.voteMode = () => ({closeVote: () => {
+  stub.voteModeNow = () => ({closeVote: () => {
     stub.calls.push('closeVote');
     parliamentFlow.stage = 'browse';
   }});
@@ -86,7 +97,7 @@ function finishedMode(stub: Stub, mode: 'support' | 'banner' | 'delegate'): void
   } else {
     parliamentFlow.delegateBeat = 'done';
   }
-  (stub.$refs as Record<string, unknown>)[`${mode}Mode`] = {closeFinished: () => stub.calls.push(`closeFinished:${mode}`)};
+  (stub.refs as Record<string, unknown>)[`${mode}Mode`] = {closeFinished: () => stub.calls.push(`closeFinished:${mode}`)};
 }
 
 function owedWalk(beat: AgendaWalkBeat, live: boolean): void {
@@ -110,10 +121,10 @@ describe('ConsoleParliamentSection — wait graph R1 / W2: the question door say
   afterEach(resetAll);
 
   it('nothing owed, or a door that cannot serve (embedded / warm / leaving): `false`, nothing touched', () => {
-    expect(methods.serveStandingQuestion.call(section())).is.false;
+    expect(serveStandingQuestion(section())).is.false;
     for (const flag of ['embedded', 'warm', 'leaving']) {
       const stub = section({questGate: {generation: 3}, [flag]: true});
-      expect(methods.serveStandingQuestion.call(stub), flag).is.false;
+      expect(serveStandingQuestion(stub), flag).is.false;
       expect(stub.calls, flag).deep.eq([]);
     }
   });
@@ -123,7 +134,7 @@ describe('ConsoleParliamentSection — wait graph R1 / W2: the question door say
       resetAll();
       const stub = section({questGate: {generation: 3}});
       finishedMode(stub, mode);
-      expect(methods.serveStandingQuestion.call(stub), mode).is.true;
+      expect(serveStandingQuestion(stub), mode).is.true;
       expect(stub.calls, mode).deep.eq([`closeFinished:${mode}`]);
       expect(parliamentFlow.stage, `${mode}: folded to the overview`).eq('browse');
       stub.ticks.splice(0).forEach((fn) => fn());
@@ -136,7 +147,7 @@ describe('ConsoleParliamentSection — wait graph R1 / W2: the question door say
     const stub = section({questGate: {generation: 3}});
     finishedMode(stub, 'support');
     parliamentFlow.supportBeat = 'discard';
-    expect(methods.serveStandingQuestion.call(stub)).is.false;
+    expect(serveStandingQuestion(stub)).is.false;
     expect(stub.calls).deep.eq([]);
     expect(parliamentFlow.stage).eq('support');
   });
@@ -145,40 +156,40 @@ describe('ConsoleParliamentSection — wait graph R1 / W2: the question door say
     const pick = section({bridge: {supportPick: {staged: false, meta: {}}}});
     parliamentFlow.stage = 'support';
     parliamentFlow.supportBeat = '';
-    expect(methods.serveStandingQuestion.call(pick)).is.true;
+    expect(serveStandingQuestion(pick)).is.true;
     expect(pick.calls).deep.eq([]);
 
     resetAll();
     const quest = section({questGate: {generation: 3}});
     armChairmanQuestFlow(undefined, BLUE);
     parliamentFlow.stage = 'quest';
-    expect(methods.serveStandingQuestion.call(quest)).is.true;
+    expect(serveStandingQuestion(quest)).is.true;
     expect(quest.calls).deep.eq([]);
   });
 
   it('W2 — the overview whose quest door stays SHUT behind an owed walk: `false`, and the finished mode is NOT folded either', () => {
     const browse = section({questGate: {generation: 3}});
     owedWalk('', false);
-    expect(methods.serveStandingQuestion.call(browse), 'browse: the quest gate waits for the walk').is.false;
+    expect(serveStandingQuestion(browse), 'browse: the quest gate waits for the walk').is.false;
     expect(browse.calls).deep.eq([]);
 
     const mode = section({questGate: {generation: 3}});
     finishedMode(mode, 'banner');
-    expect(methods.serveStandingQuestion.call(mode)).is.false;
+    expect(serveStandingQuestion(mode)).is.false;
     expect(mode.calls).deep.eq([]);
     expect(parliamentFlow.stage).eq('banner');
   });
 
   it('W2 — the overview\'s doors are asked and the door answers what they DID: a reconcile that opened nothing is `false`', () => {
     const stub = section({bridge: {seat: {type: 'party'}}});
-    expect(methods.serveStandingQuestion.call(stub), 'the seat door opened nothing in this stub').is.false;
+    expect(serveStandingQuestion(stub), 'the seat door opened nothing in this stub').is.false;
     expect(stub.calls).deep.eq(['reconcile']);
   });
 
   it('a FINISHED walk\'s record no longer shuts the quest door: it is retired, the quest opens in place → `true`', () => {
     const stub = section({questGate: {generation: 3}});
     owedWalk('done', true);
-    expect(methods.serveStandingQuestion.call(stub)).is.true;
+    expect(serveStandingQuestion(stub)).is.true;
     expect(agendaWalkFlow.owed, 'the finished walk is retired').is.undefined;
     expect(parliamentFlow.stage).eq('quest');
   });
@@ -186,7 +197,7 @@ describe('ConsoleParliamentSection — wait graph R1 / W2: the question door say
   it('a finished vote (`landed`) folds by its own leave and asks the doors on the next tick → `true`', () => {
     const stub = section({questGate: {generation: 3}});
     parliamentFlow.stage = 'landed';
-    expect(methods.serveStandingQuestion.call(stub)).is.true;
+    expect(serveStandingQuestion(stub)).is.true;
     expect(stub.calls).deep.eq(['closeVote']);
     stub.ticks.splice(0).forEach((fn) => fn());
     expect(parliamentFlow.stage).eq('quest');
@@ -198,21 +209,20 @@ describe('ConsoleParliamentSection — wait graph R5: a walk run\'s endings are 
   afterEach(resetAll);
 
   it('`walkRunAlive` reads the run\'s own seq — a released or replaced run is dead even while ANOTHER walk is live', () => {
-    const stub = section();
     owedWalk('walk', true);
-    expect(methods.walkRunAlive.call(stub, 7)).is.true;
-    expect(methods.walkRunAlive.call(stub, 6), 'an older run: the global `live` is the next walk\'s').is.false;
+    expect(walkRunAlive(7)).is.true;
+    expect(walkRunAlive(6), 'an older run: the global `live` is the next walk\'s').is.false;
     agendaWalkFlow.live = false;
-    expect(methods.walkRunAlive.call(stub, 7)).is.false;
+    expect(walkRunAlive(7)).is.false;
   });
 
   it('a stale run\'s read beat ends NOTHING — the next walk\'s flow is never ended by it', () => {
     const stub = section();
     owedWalk('read', true);
     let ended = 0;
-    methods.playWalkAnswer.call(stub, 6, () => ended++);
+    playWalkAnswer(stub, 6, () => ended++);
     expect(ended, 'run #6 is not the one playing').eq(0);
-    methods.playWalkAnswer.call(stub, 7, () => ended++);
+    playWalkAnswer(stub, 7, () => ended++);
     expect(ended, 'the live run #7 ends (no receipt owed)').eq(1);
   });
 });
