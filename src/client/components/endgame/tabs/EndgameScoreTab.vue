@@ -75,13 +75,15 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed, ref} from 'vue';
 import {Color} from '@/common/Color';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import {buildVictoryPointsModel, VictoryPointsModel, VPScale, VPSegment} from '@/client/components/overview/victoryPointsModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
+import {$t} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 
 type Column = {
   color: Color;
@@ -125,184 +127,176 @@ const SCALE_LABEL: Record<string, string> = {
   ev: 'Escape Velocity',
 };
 
-export default defineComponent({
-  name: 'EndgameScoreTab',
-  props: {
-    model: {type: Object as () => EndgameModel, required: true},
-    view: {type: Object as () => ViewModel, required: true},
-    viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
-  },
-  data() {
-    return {
-      // The segment family under the pointer (legend chip OR bar segment) —
-      // drives the cross-column highlight.
-      hoverKey: null as string | null,
-      tip: null as Tip | null,
-    };
-  },
-  computed: {
-    columns(): Array<Column> {
-      const opts = {
-        hasMoon: this.view.game.moon !== undefined,
-        hasPathfinders: this.view.game.pathfinders !== undefined,
-        hasEscapeVelocity: this.view.game.gameOptions.escapeVelocity !== undefined,
-      };
-      return this.model.players.map((p: EndgamePlayerScore) => ({
-        color: p.color,
-        name: p.name,
-        place: p.place,
-        total: p.total,
-        isWinner: p.isWinner,
-        vp: buildVictoryPointsModel(p.breakdown, opts),
-      }));
-    },
-    // Shared px-per-VP scale across ALL players so bar lengths are comparable
-    // between columns, not just within one.
-    scaleMax(): number {
-      return this.columns.reduce((m, c) => Math.max(m, c.vp.maxScalePositive), 1);
-    },
-    // Only render scale rows that ANY player has — keeps columns aligned.
-    scaleOrder(): Array<string> {
-      return SCALE_ORDER.filter((key) => this.columns.some((c) => c.vp.scales.some((s) => s.key === key)));
-    },
-    // For the ▲ leader marker: the highest positiveTotal per scale.
-    leaders(): Record<string, Set<Color>> {
-      const out: Record<string, Set<Color>> = {};
-      for (const key of SCALE_ORDER) {
-        let max = 0;
-        for (const c of this.columns) {
-          max = Math.max(max, this.scaleObj(c, key)?.positiveTotal ?? 0);
-        }
-        const set = new Set<Color>();
-        if (max > 0) {
-          for (const c of this.columns) {
-            if ((this.scaleObj(c, key)?.positiveTotal ?? 0) === max) {
-              set.add(c.color);
-            }
-          }
-        }
-        out[key] = set;
-      }
-      return out;
-    },
-    // The union of segment families per scale, with each player's value —
-    // the data behind both the legend chips and the tooltip rows.
-    legendRows(): Array<LegendRow> {
-      const rows: Array<LegendRow> = [];
-      for (const scaleKey of this.scaleOrder) {
-        const segs: Array<LegendSegment> = [];
-        const seen = new Map<string, LegendSegment>();
-        for (const col of this.columns) {
-          for (const seg of this.scaleObj(col, scaleKey)?.segments ?? []) {
-            let entry = seen.get(seg.key);
-            if (entry === undefined) {
-              entry = {key: seg.key, accent: seg.accent, label: seg.label, values: []};
-              seen.set(seg.key, entry);
-              segs.push(entry);
-            }
-          }
-        }
-        // Per-player values in column order (0 when the player lacks the segment).
-        for (const entry of segs) {
-          entry.values = this.columns.map((col) => ({
-            color: col.color,
-            value: (this.scaleObj(col, scaleKey)?.segments ?? []).find((s) => s.key === entry.key)?.value ?? 0,
-          }));
-        }
-        if (segs.length > 0) {
-          rows.push({scaleKey, scaleLabel: SCALE_LABEL[scaleKey] ?? scaleKey, segments: segs});
-        }
-      }
-      return rows;
-    },
-    // Inline values fit comfortably up to a duel; bigger tables read them in
-    // the tooltip instead.
-    showChipValues(): boolean {
-      return this.columns.length <= 2;
-    },
-    tipRows(): Array<{color: Color; name: string; value: number}> {
-      if (this.tip === null) {
-        return [];
-      }
-      const key = this.tip.key;
-      const seg = this.legendRows.flatMap((r) => r.segments).find((s) => s.key === key);
-      if (seg === undefined) {
-        return [];
-      }
-      return seg.values.map((v) => ({
-        color: v.color,
-        name: this.columns.find((c) => c.color === v.color)?.name ?? '',
-        value: v.value,
-      }));
-    },
-  },
-  methods: {
-    hex(color: Color): string {
-      return endgamePlayerHex(color);
-    },
-    isViewer(color: Color): boolean {
-      return this.viewerColor === color;
-    },
-    scaleLabel(key: string): string {
-      return SCALE_LABEL[key] ?? key;
-    },
-    scaleObj(col: Column, key: string): VPScale | undefined {
-      return col.vp.scales.find((s) => s.key === key);
-    },
-    scaleTotal(col: Column, key: string): number {
-      return this.scaleObj(col, key)?.total ?? 0;
-    },
-    positiveSegments(col: Column, key: string): Array<VPSegment> {
-      return (this.scaleObj(col, key)?.segments ?? []).filter((s) => s.value > 0);
-    },
-    penaltySegments(col: Column, key: string): Array<VPSegment> {
-      return (this.scaleObj(col, key)?.segments ?? []).filter((s) => s.value < 0);
-    },
-    isCategoryLeader(color: Color, key: string): boolean {
-      return this.leaders[key]?.has(color) ?? false;
-    },
-    segWidth(value: number): string {
-      const max = this.scaleMax;
-      if (max <= 0) {
-        return '0%';
-      }
-      return `${(Math.abs(value) / max) * 100}%`;
-    },
-    formatVp(n: number): string {
-      return n > 0 ? `+${n}` : String(n);
-    },
-    segClass(seg: VPSegment): Record<string, boolean> {
-      return {
-        ['vp-accent--' + seg.accent]: true,
-        ...this.segHotClass(seg),
-      };
-    },
-    segHotClass(seg: VPSegment): Record<string, boolean> {
-      return {
-        'eg-score__seg--hot': this.hoverKey === seg.key,
-        'eg-score__seg--dim': this.hoverKey !== null && this.hoverKey !== seg.key,
-      };
-    },
-    chipClass(seg: LegendSegment): Record<string, boolean> {
-      return {
-        'eg-score__legend-chip--hot': this.hoverKey === seg.key,
-        'eg-score__legend-chip--dim': this.hoverKey !== null && this.hoverKey !== seg.key,
-      };
-    },
-    onSegEnter(seg: VPSegment, col: Column, evt: MouseEvent): void {
-      this.hoverKey = seg.key;
-      const el = evt.currentTarget as HTMLElement;
-      const rect = el.getBoundingClientRect();
-      // Above the segment, horizontally centred, clamped to the viewport.
-      const width = 190;
-      const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.left + rect.width / 2 - width / 2));
-      const top = Math.max(8, rect.top - 12);
-      this.tip = {key: seg.key, accent: seg.accent, label: seg.label, color: col.color, left, top};
-    },
-    onSegLeave(): void {
-      this.hoverKey = null;
-      this.tip = null;
-    },
-  },
+defineOptions({name: 'EndgameScoreTab'});
+const props = defineProps({
+  model: {type: Object as () => EndgameModel, required: true},
+  view: {type: Object as () => ViewModel, required: true},
+  viewerColor: {type: String as () => Color | undefined, required: false, default: undefined},
 });
+
+// The segment family under the pointer (legend chip OR bar segment) —
+// drives the cross-column highlight.
+const hoverKey = ref<string | null>(null);
+const tip = ref<Tip | null>(null);
+const columns = computed((): Array<Column> => {
+  const opts = {
+    hasMoon: props.view.game.moon !== undefined,
+    hasPathfinders: props.view.game.pathfinders !== undefined,
+    hasEscapeVelocity: props.view.game.gameOptions.escapeVelocity !== undefined,
+  };
+  return props.model.players.map((p: EndgamePlayerScore) => ({
+    color: p.color,
+    name: p.name,
+    place: p.place,
+    total: p.total,
+    isWinner: p.isWinner,
+    vp: buildVictoryPointsModel(p.breakdown, opts),
+  }));
+});
+// Shared px-per-VP scale across ALL players so bar lengths are comparable
+// between columns, not just within one.
+const scaleMax = computed((): number => {
+  return columns.value.reduce((m, c) => Math.max(m, c.vp.maxScalePositive), 1);
+});
+// Only render scale rows that ANY player has — keeps columns aligned.
+const scaleOrder = computed((): Array<string> => {
+  return SCALE_ORDER.filter((key) => columns.value.some((c) => c.vp.scales.some((s) => s.key === key)));
+});
+// For the ▲ leader marker: the highest positiveTotal per scale.
+const leaders = computed((): Record<string, Set<Color>> => {
+  const out: Record<string, Set<Color>> = {};
+  for (const key of SCALE_ORDER) {
+    let max = 0;
+    for (const c of columns.value) {
+      max = Math.max(max, scaleObj(c, key)?.positiveTotal ?? 0);
+    }
+    const set = new Set<Color>();
+    if (max > 0) {
+      for (const c of columns.value) {
+        if ((scaleObj(c, key)?.positiveTotal ?? 0) === max) {
+          set.add(c.color);
+        }
+      }
+    }
+    out[key] = set;
+  }
+  return out;
+});
+// The union of segment families per scale, with each player's value —
+// the data behind both the legend chips and the tooltip rows.
+const legendRows = computed((): Array<LegendRow> => {
+  const rows: Array<LegendRow> = [];
+  for (const scaleKey of scaleOrder.value) {
+    const segs: Array<LegendSegment> = [];
+    const seen = new Map<string, LegendSegment>();
+    for (const col of columns.value) {
+      for (const seg of scaleObj(col, scaleKey)?.segments ?? []) {
+        let entry = seen.get(seg.key);
+        if (entry === undefined) {
+          entry = {key: seg.key, accent: seg.accent, label: seg.label, values: []};
+          seen.set(seg.key, entry);
+          segs.push(entry);
+        }
+      }
+    }
+    // Per-player values in column order (0 when the player lacks the segment).
+    for (const entry of segs) {
+      entry.values = columns.value.map((col) => ({
+        color: col.color,
+        value: (scaleObj(col, scaleKey)?.segments ?? []).find((s) => s.key === entry.key)?.value ?? 0,
+      }));
+    }
+    if (segs.length > 0) {
+      rows.push({scaleKey, scaleLabel: SCALE_LABEL[scaleKey] ?? scaleKey, segments: segs});
+    }
+  }
+  return rows;
+});
+// Inline values fit comfortably up to a duel; bigger tables read them in
+// the tooltip instead.
+const showChipValues = computed((): boolean => {
+  return columns.value.length <= 2;
+});
+const tipRows = computed((): Array<{color: Color; name: string; value: number}> => {
+  if (tip.value === null) {
+    return [];
+  }
+  const key = tip.value.key;
+  const seg = legendRows.value.flatMap((r) => r.segments).find((s) => s.key === key);
+  if (seg === undefined) {
+    return [];
+  }
+  return seg.values.map((v) => ({
+    color: v.color,
+    name: columns.value.find((c) => c.color === v.color)?.name ?? '',
+    value: v.value,
+  }));
+});
+
+function hex(color: Color): string {
+  return endgamePlayerHex(color);
+}
+function isViewer(color: Color): boolean {
+  return props.viewerColor === color;
+}
+function scaleLabel(key: string): string {
+  return SCALE_LABEL[key] ?? key;
+}
+function scaleObj(col: Column, key: string): VPScale | undefined {
+  return col.vp.scales.find((s) => s.key === key);
+}
+function scaleTotal(col: Column, key: string): number {
+  return scaleObj(col, key)?.total ?? 0;
+}
+function positiveSegments(col: Column, key: string): Array<VPSegment> {
+  return (scaleObj(col, key)?.segments ?? []).filter((s) => s.value > 0);
+}
+function penaltySegments(col: Column, key: string): Array<VPSegment> {
+  return (scaleObj(col, key)?.segments ?? []).filter((s) => s.value < 0);
+}
+function isCategoryLeader(color: Color, key: string): boolean {
+  return leaders.value[key]?.has(color) ?? false;
+}
+function segWidth(value: number): string {
+  const max = scaleMax.value;
+  if (max <= 0) {
+    return '0%';
+  }
+  return `${(Math.abs(value) / max) * 100}%`;
+}
+function formatVp(n: number): string {
+  return n > 0 ? `+${n}` : String(n);
+}
+function segClass(seg: VPSegment): Record<string, boolean> {
+  return {
+    ['vp-accent--' + seg.accent]: true,
+    ...segHotClass(seg),
+  };
+}
+function segHotClass(seg: VPSegment): Record<string, boolean> {
+  return {
+    'eg-score__seg--hot': hoverKey.value === seg.key,
+    'eg-score__seg--dim': hoverKey.value !== null && hoverKey.value !== seg.key,
+  };
+}
+function chipClass(seg: LegendSegment): Record<string, boolean> {
+  return {
+    'eg-score__legend-chip--hot': hoverKey.value === seg.key,
+    'eg-score__legend-chip--dim': hoverKey.value !== null && hoverKey.value !== seg.key,
+  };
+}
+function onSegEnter(seg: VPSegment, col: Column, evt: MouseEvent): void {
+  hoverKey.value = seg.key;
+  const el = evt.currentTarget as HTMLElement;
+  const rect = el.getBoundingClientRect();
+  // Above the segment, horizontally centred, clamped to the viewport.
+  const width = 190;
+  const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.left + rect.width / 2 - width / 2));
+  const top = Math.max(8, rect.top - 12);
+  tip.value = {key: seg.key, accent: seg.accent, label: seg.label, color: col.color, left, top};
+}
+function onSegLeave(): void {
+  hoverKey.value = null;
+  tip.value = null;
+}
 </script>
