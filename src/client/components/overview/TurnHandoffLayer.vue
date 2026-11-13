@@ -36,8 +36,9 @@
   </Teleport>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, onBeforeUnmount, onMounted, PropType, ref, watch} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
 import {generationPhaseOf} from '@/common/game/generationPhase';
@@ -57,14 +58,6 @@ type BeamGeom = {top: number; left: number; height: number};
 // turn_handoff.less) — used to vertically centre the pill on the status chip.
 const HINT_HEIGHT = 40;
 
-type DataModel = {
-  beamGeom: BeamGeom | undefined;
-  lastBeamId: number | undefined;
-  hintRect: {top: number; left: number} | undefined;
-  /** The pending resize debounce's cancel (a beat of the layer's own scope — taken back with it). */
-  reposTimer: (() => void) | undefined;
-};
-
 /**
  * TurnHandoffLayer — App-level driver for the TurnHandoff presentation. Mounted
  * as a sibling of <player-home> (like NotificationLayer) so it survives the
@@ -76,175 +69,159 @@ type DataModel = {
  * It writes NO game state — purely presentation, fully reversible, and never
  * blocks modals / action selection / placement.
  */
-export default defineComponent({
-  name: 'TurnHandoffLayer',
-  props: {
-    playerView: {
-      type: Object as PropType<PlayerViewModel>,
-      required: true,
-    },
+defineOptions({name: 'TurnHandoffLayer'});
+const props = defineProps({
+  playerView: {
+    type: Object as PropType<PlayerViewModel>,
+    required: true,
   },
-  setup() {
-    return {flow: useFlowScope('turn-handoff-layer')};
-  },
-  data(): DataModel {
-    return {
-      beamGeom: undefined,
-      lastBeamId: undefined,
-      hintRect: undefined,
-      reposTimer: undefined,
-    };
-  },
-  computed: {
-    owner(): Color | undefined {
-      const game = this.playerView.game;
-      if (generationPhaseOf(game) !== Phase.ACTION) {
-        return undefined;
-      }
-      return this.playerView.players.find((p) => p.isActive)?.color;
-    },
-    localColor(): Color | undefined {
-      return this.playerView.thisPlayer?.color;
-    },
-    beam() {
-      return turnHandoffState.beam;
-    },
-    idleHintActive(): boolean {
-      return turnHandoffState.idleHintActive;
-    },
-    beamStyle(): Record<string, string> | undefined {
-      if (this.beamGeom === undefined) {
-        return undefined;
-      }
-      return {
-        top: `${this.beamGeom.top}px`,
-        left: `${this.beamGeom.left}px`,
-        height: `${this.beamGeom.height}px`,
-      };
-    },
-    hintStyle(): Record<string, string> | undefined {
-      if (!this.idleHintActive || this.hintRect === undefined) {
-        return undefined;
-      }
-      return {
-        top: `${this.hintRect.top}px`,
-        left: `${this.hintRect.left}px`,
-      };
-    },
-  },
-  watch: {
-    // Any server response replaces playerView — re-evaluate the turn owner.
-    playerView: {
-      handler(): void {
-        this.update();
-      },
-      deep: false,
-    },
-    beam: {
-      handler(): void {
-        this.refreshBeamGeometry();
-      },
-    },
-    idleHintActive(active: boolean): void {
-      if (active) {
-        this.captureHintAnchor();
-      } else {
-        this.hintRect = undefined;
-      }
-    },
-  },
-  mounted(): void {
-    installTurnInputTracking();
-    window.addEventListener('resize', this.onReposition, {passive: true});
-    this.update();
-  },
-  beforeUnmount(): void {
-    uninstallTurnInputTracking();
-    window.removeEventListener('resize', this.onReposition);
+});
+
+const flow = useFlowScope('turn-handoff-layer');
+const beamGeom = ref<BeamGeom | undefined>(undefined);
+const lastBeamId = ref<number | undefined>(undefined);
+const hintRect = ref<{top: number; left: number} | undefined>(undefined);
+/** The pending resize debounce's cancel (a beat of the layer's own scope — taken back with it). */
+let reposTimer: (() => void) | undefined;
+const owner = computed((): Color | undefined => {
+  const game = props.playerView.game;
+  if (generationPhaseOf(game) !== Phase.ACTION) {
+    return undefined;
+  }
+  return props.playerView.players.find((p) => p.isActive)?.color;
+});
+const localColor = computed((): Color | undefined => {
+  return props.playerView.thisPlayer?.color;
+});
+const beam = computed(() => {
+  return turnHandoffState.beam;
+});
+const idleHintActive = computed((): boolean => {
+  return turnHandoffState.idleHintActive;
+});
+const beamStyle = computed((): Record<string, string> | undefined => {
+  if (beamGeom.value === undefined) {
+    return undefined;
+  }
+  return {
+    top: `${beamGeom.value.top}px`,
+    left: `${beamGeom.value.left}px`,
+    height: `${beamGeom.value.height}px`,
+  };
+});
+const hintStyle = computed((): Record<string, string> | undefined => {
+  if (!idleHintActive.value || hintRect.value === undefined) {
+    return undefined;
+  }
+  return {
+    top: `${hintRect.value.top}px`,
+    left: `${hintRect.value.left}px`,
+  };
+});
+function update(): void {
+  // The endgame experience owns the screen — silence the handoff entirely.
+  if (props.playerView.game.phase === Phase.END) {
     resetTurnHandoff();
-  },
-  methods: {
-    update(): void {
-      // The endgame experience owns the screen — silence the handoff entirely.
-      if (this.playerView.game.phase === Phase.END) {
-        resetTurnHandoff();
-        return;
-      }
-      noteTurnState({localColor: this.localColor, owner: this.owner});
-    },
-    cardRect(color: Color): DOMRect | undefined {
-      const el = document.querySelector(`.left-panel-card[data-player-color="${color}"]`);
-      return el instanceof HTMLElement ? el.getBoundingClientRect() : undefined;
-    },
-    refreshBeamGeometry(): void {
-      const beam = turnHandoffState.beam;
-      if (beam === undefined) {
-        this.beamGeom = undefined;
-        this.lastBeamId = undefined;
-        return;
-      }
-      if (beam.id === this.lastBeamId) {
-        return;
-      }
-      this.lastBeamId = beam.id;
-      const from = this.cardRect(beam.from);
-      const to = this.cardRect(beam.to);
-      if (from === undefined || to === undefined) {
-        this.beamGeom = undefined; // a card not on-screen — skip the trace gracefully
-        return;
-      }
-      // The cards stack vertically in the panel — draw a slim trace along the
-      // left edge spanning from the source card's centre to the target's.
-      const x = Math.min(from.left, to.left) + 3;
-      const y1 = from.top + from.height / 2;
-      const y2 = to.top + to.height / 2;
-      this.beamGeom = {
-        top: Math.min(y1, y2),
-        left: x,
-        height: Math.max(Math.abs(y2 - y1), 2),
-      };
-    },
-    captureHintAnchor(): void {
-      const color = this.localColor;
-      if (color === undefined) {
-        this.hintRect = undefined;
-        return;
-      }
-      const card = document.querySelector(`.left-panel-card[data-player-color="${color}"]`);
-      if (!(card instanceof HTMLElement)) {
-        this.hintRect = undefined;
-        return;
-      }
-      const cardRect = card.getBoundingClientRect();
-      // Anchor to the RIGHT of the card (so it never overlaps the next player
-      // card), vertically centred on the status-chip row — the connector then
-      // points right at the "● ДЕЙСТВИЕ X/Y" capsule. Fall back to the lower
-      // third of the card if the chip isn't found.
-      const chip = card.querySelector('.player-status-chip');
-      let anchorY: number;
-      if (chip instanceof HTMLElement) {
-        const cr = chip.getBoundingClientRect();
-        anchorY = cr.top + cr.height / 2;
-      } else {
-        anchorY = cardRect.top + cardRect.height * 0.62;
-      }
-      this.hintRect = {
-        top: Math.max(8, Math.round(anchorY - HINT_HEIGHT / 2)),
-        left: Math.round(cardRect.right + 8),
-      };
-    },
-    onReposition(): void {
-      // Keep the hint glued to the card across resize (debounced).
-      if (this.reposTimer !== undefined) {
-        this.reposTimer();
-      }
-      this.reposTimer = this.flow.after(120, 'the idle hint re-anchors after a resize', () => {
-        if (this.idleHintActive) {
-          this.captureHintAnchor();
-        }
-        this.reposTimer = undefined;
-      });
-    },
-  },
+    return;
+  }
+  noteTurnState({localColor: localColor.value, owner: owner.value});
+}
+function cardRect(color: Color): DOMRect | undefined {
+  const el = document.querySelector(`.left-panel-card[data-player-color="${color}"]`);
+  return el instanceof HTMLElement ? el.getBoundingClientRect() : undefined;
+}
+function refreshBeamGeometry(): void {
+  const beam = turnHandoffState.beam;
+  if (beam === undefined) {
+    beamGeom.value = undefined;
+    lastBeamId.value = undefined;
+    return;
+  }
+  if (beam.id === lastBeamId.value) {
+    return;
+  }
+  lastBeamId.value = beam.id;
+  const from = cardRect(beam.from);
+  const to = cardRect(beam.to);
+  if (from === undefined || to === undefined) {
+    beamGeom.value = undefined; // a card not on-screen — skip the trace gracefully
+    return;
+  }
+  // The cards stack vertically in the panel — draw a slim trace along the
+  // left edge spanning from the source card's centre to the target's.
+  const x = Math.min(from.left, to.left) + 3;
+  const y1 = from.top + from.height / 2;
+  const y2 = to.top + to.height / 2;
+  beamGeom.value = {
+    top: Math.min(y1, y2),
+    left: x,
+    height: Math.max(Math.abs(y2 - y1), 2),
+  };
+}
+function captureHintAnchor(): void {
+  const color = localColor.value;
+  if (color === undefined) {
+    hintRect.value = undefined;
+    return;
+  }
+  const card = document.querySelector(`.left-panel-card[data-player-color="${color}"]`);
+  if (!(card instanceof HTMLElement)) {
+    hintRect.value = undefined;
+    return;
+  }
+  const cardRect = card.getBoundingClientRect();
+  // Anchor to the RIGHT of the card (so it never overlaps the next player
+  // card), vertically centred on the status-chip row — the connector then
+  // points right at the "● ДЕЙСТВИЕ X/Y" capsule. Fall back to the lower
+  // third of the card if the chip isn't found.
+  const chip = card.querySelector('.player-status-chip');
+  let anchorY: number;
+  if (chip instanceof HTMLElement) {
+    const cr = chip.getBoundingClientRect();
+    anchorY = cr.top + cr.height / 2;
+  } else {
+    anchorY = cardRect.top + cardRect.height * 0.62;
+  }
+  hintRect.value = {
+    top: Math.max(8, Math.round(anchorY - HINT_HEIGHT / 2)),
+    left: Math.round(cardRect.right + 8),
+  };
+}
+function onReposition(): void {
+  // Keep the hint glued to the card across resize (debounced).
+  if (reposTimer !== undefined) {
+    reposTimer();
+  }
+  reposTimer = flow.after(120, 'the idle hint re-anchors after a resize', () => {
+    if (idleHintActive.value) {
+      captureHintAnchor();
+    }
+    reposTimer = undefined;
+  });
+}
+
+// Any server response replaces playerView — re-evaluate the turn owner.
+watch(() => props.playerView, (): void => {
+  update();
+}, {deep: false});
+watch(() => beam.value, (): void => {
+  refreshBeamGeometry();
+});
+watch(() => idleHintActive.value, (active: boolean): void => {
+  if (active) {
+    captureHintAnchor();
+  } else {
+    hintRect.value = undefined;
+  }
+});
+onMounted((): void => {
+  installTurnInputTracking();
+  window.addEventListener('resize', onReposition, {passive: true});
+  update();
+});
+onBeforeUnmount((): void => {
+  uninstallTurnInputTracking();
+  window.removeEventListener('resize', onReposition);
+  resetTurnHandoff();
 });
 </script>
