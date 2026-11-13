@@ -1,18 +1,4 @@
 <template>
-  <!-- THE PARLIAMENT'S FLIGHT LAYER — the SHELL-mounted stage of every proxy
-       the Parliament flies (a delegate cube from a real place to a real place,
-       a resolution being DEALT, the enacted card moving, a parked card): a
-       body-level fixed layer, so a flight survives the section's own
-       transforms, its stage's clip and its unmount (a flight layer inside a
-       teleported / receding surface inherits its containing block —
-       docs/claude/console/workspace-band.md § A FLYING CARD). The specs come
-       from `parliamentFlights.ts`; the sitting director launches and lands them.
-
-       A CARD WITH A FACE IS A PHYSICAL BODY (Card3DInner): the premium face
-       (the SAME lightweight vm the slot draws — face parity), the deck's back
-       and a lit paper edge on a `preserve-3d` body under a perspective owner —
-       a dealt card is born face-down and TURNS in flight; a moving enacted
-       card is born face-up. Never `opacity` on the body (it flattens the 3D). -->
   <div class="con-parl-flightlayer" aria-hidden="true">
     <div v-for="f in flights.flights" :key="f.id" class="con-parl__flight" :ref="(el) => setFlightEl(f.id, el as HTMLElement | null)" :data-parl-flight="f.id">
       <!-- A PLAYER'S CUBE onto a party's banner (Septem Tribus:redux): the cube itself, its body lifting off the floor
@@ -77,31 +63,40 @@
     </div>
   </div>
 </template>
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+/*
+ * THE PARLIAMENT'S FLIGHT LAYER — the SHELL-mounted stage of every proxy
+ *       the Parliament flies (a delegate cube from a real place to a real place,
+ *       a resolution being DEALT, the enacted card moving, a parked card): a
+ *       body-level fixed layer, so a flight survives the section's own
+ *       transforms, its stage's clip and its unmount (a flight layer inside a
+ *       teleported / receding surface inherits its containing block —
+ *       docs/claude/console/workspace-band.md § A FLYING CARD). The specs come
+ *       from `parliamentFlights.ts`; the sitting director launches and lands them.
+ *
+ *       A CARD WITH A FACE IS A PHYSICAL BODY (Card3DInner): the premium face
+ *       (the SAME lightweight vm the slot draws — face parity), the deck's back
+ *       and a lit paper edge on a `preserve-3d` body under a perspective owner —
+ *       a dealt card is born face-down and TURNS in flight; a moving enacted
+ *       card is born face-up. Never `opacity` on the body (it flattens the 3D).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed} from 'vue';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {parliamentFlights, setFlightEl} from '@/client/console/parliament/parliamentFlights';
 import {parliamentArtTier} from '@/client/console/parliament/parliamentArtTier';
 import {CardArtTier} from '@/client/cards/cardArt';
+import {PremiumCardFace} from '@/client/components/asyncComponents';
 
 /** The proxies of the Parliament's flights, rendered by the SHELL from the flight module's reactive specs. */
-export default defineComponent({
-  name: 'ConsoleParliamentFlightLayer',
-  components: {PlayerDelegate, PlayerCube},
-  computed: {
-    flights() {
-      return parliamentFlights;
-    },
-    /** The surface's ONE art tier — a proxy paints the very picture its slot does (`parliamentArtTier`). */
-    artTier(): CardArtTier {
-      return parliamentArtTier();
-    },
-  },
-  methods: {
-    setFlightEl(id: string, el: HTMLElement | null): void {
-      setFlightEl(id, el);
-    },
-  },
+defineOptions({name: 'ConsoleParliamentFlightLayer'});
+
+const flights = parliamentFlights;
+/** The surface's ONE art tier — a proxy paints the very picture its slot does (`parliamentArtTier`). */
+const artTier = computed((): CardArtTier => {
+  return parliamentArtTier();
 });
 </script>
