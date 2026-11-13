@@ -6,16 +6,6 @@ here cannot affect console. Fix only what breaks the shared layer or play.
 See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
 -->
 <template>
-  <!--
-    The static RIGHT panel — PER EFFECT (not per card). For the SELECTED effect it
-    shows: a mini-context header, the effect's OWN icon graphic, the effect's OWN
-    full text DESCRIPTION (which lives ONLY here — the left grid is icons-only), a
-    per-game summary ("what this effect did this game": trigger count + impact lines
-    + live current value + last-trigger gen) or a thematic NOTE, and the source card
-    preview. A multi-effect card shows EACH effect's own description; the per-game
-    stats are aggregated at the source-card level (the event stream attributes to the
-    card), so a small caption says so. Read-only (effects are passive). ⤢ → fullscreen.
-  -->
   <aside class="effect-detail"
          :class="{
            'effect-detail--empty': entry === undefined,
@@ -142,8 +132,21 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
   </aside>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * The static RIGHT panel — PER EFFECT (not per card). For the SELECTED effect it
+ * shows: a mini-context header, the effect's OWN icon graphic, the effect's OWN
+ * full text DESCRIPTION (which lives ONLY here — the left grid is icons-only), a
+ * per-game summary ("what this effect did this game": trigger count + impact lines
+ * + live current value + last-trigger gen) or a thematic NOTE, and the source card
+ * preview. A multi-effect card shows EACH effect's own description; the per-game
+ * stats are aggregated at the source-card level (the event stream attributes to the
+ * card), so a small caption says so. Read-only (effects are passive). ⤢ → fullscreen.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+
+import {computed, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
 import {Units} from '@/common/Units';
@@ -153,10 +156,11 @@ import {EffectEntry} from '@/client/components/effects/effectExtraction';
 import {getEffectSummary, EffectSummaryViewModel, EffectSummaryContext} from '@/client/components/effects/effectSummary';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {stripEffectPrefix} from '@/client/directives/stripEffectPrefix';
 import Card from '@/client/components/card/CardFace.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
+import {$t} from '@/client/directives/i18n';
+import {vI18n, vStripEffectPrefix} from '@/client/directives/vDirectives';
 
 // A synthesized all-zero stat for a source with no recorded events yet — so the
 // summary shows its thematic note (never a dead panel).
@@ -182,109 +186,101 @@ function emptyStat(cardName: CardName | undefined, isCorporation: boolean): Effe
   };
 }
 
-export default defineComponent({
-  name: 'EffectDetailsPanel',
-  components: {Card, CardRenderEffectBoxComponent, CardRenderData},
-  directives: {stripEffectPrefix},
-  props: {
-    // The SELECTED effect (per-effect, not per-card).
-    entry: {
-      type: Object as PropType<EffectEntry>,
-      default: undefined,
-    },
-    // How many effects the source card grants (>1 → scope the stats per effect).
-    effectCount: {
-      type: Number,
-      default: 1,
-    },
-    // The union of the OTHER same-card effects' result icons — lets the summary hide
-    // a metric that belongs only to a sibling effect (genuinely per-effect stats).
-    siblingIcons: {
-      type: Array as PropType<ReadonlyArray<string>>,
-      default: () => [],
-    },
-    // The whole-game aggregate for this source (undefined → no events yet / loading).
-    stat: {
-      type: Object as PropType<EffectOverlayStat>,
-      default: undefined,
-    },
-    // The live tableau model (carries the current resource count).
-    card: {
-      type: Object as PropType<CardModel>,
-      default: undefined,
-    },
-    loading: {
-      type: Boolean,
-      default: false,
-    },
-    // Hidden height-probe mode: render a card SPACER instead of the heavy <Card>.
-    measuring: {
-      type: Boolean,
-      default: false,
-    },
+defineOptions({name: 'EffectDetailsPanel'});
+const props = defineProps({
+  // The SELECTED effect (per-effect, not per-card).
+  entry: {
+    type: Object as PropType<EffectEntry>,
+    default: undefined,
   },
-  emits: ['open'],
-  methods: {
-    iconClassFor,
+  // How many effects the source card grants (>1 → scope the stats per effect).
+  effectCount: {
+    type: Number,
+    default: 1,
   },
-  computed: {
-    cardName(): CardName | undefined {
-      return this.entry?.cardName;
-    },
-    isCorporation(): boolean {
-      return this.entry?.isCorporation ?? false;
-    },
-    isDisabled(): boolean {
-      return this.entry?.isDisabled ?? false;
-    },
-    multiEffect(): boolean {
-      return this.effectCount > 1;
-    },
-    hasDescription(): boolean {
-      return this.entry?.description !== undefined && this.entry.description !== '';
-    },
-    cardModel(): CardModel {
-      return this.card ?? ({name: this.cardName} as CardModel);
-    },
-    // The card resource this source holds (Animal / Microbe / Floater / …), if any.
-    resourceType(): CardResource | undefined {
-      return this.cardName !== undefined ? getCard(this.cardName)?.resourceType : undefined;
-    },
-    resourceChip(): boolean {
-      return this.resourceType !== undefined;
-    },
-    resourceCount(): number {
-      return this.card?.resources ?? 0;
-    },
-    resIconClass(): string {
-      return this.resourceType !== undefined ? iconClassFor(String(this.resourceType)) : '';
-    },
-    ctx(): EffectSummaryContext {
-      return {
-        sourceName: this.cardName ?? ('' as CardName),
-        sourceKind: this.isCorporation ? 'corporation' : 'card',
-        cardResourceType: this.resourceType,
-        currentCardResource: this.resourceType !== undefined ? this.resourceCount : undefined,
-        effectIndex: this.entry?.effectIndex,
-        effectCount: this.effectCount,
-        signature: this.entry?.signature,
-        siblingIcons: this.siblingIcons,
-      };
-    },
-    vm(): EffectSummaryViewModel {
-      const stat = this.stat ?? emptyStat(this.cardName, this.isCorporation);
-      return getEffectSummary(stat, this.ctx);
-    },
-    // A short i18n key for the confidence chip ('' → no chip). Exact = a precise
-    // tally, Partial = exact facts but no M€ valuation, Rule effect = no numeric delta.
-    confidenceLabel(): string {
-      switch (this.vm.confidence) {
-      case 'exact': return 'Exact';
-      case 'partial': return 'Partial';
-      case 'ruleOnly': return 'Rule effect';
-      default: return '';
-      }
-    },
+  // The union of the OTHER same-card effects' result icons — lets the summary hide
+  // a metric that belongs only to a sibling effect (genuinely per-effect stats).
+  siblingIcons: {
+    type: Array as PropType<ReadonlyArray<string>>,
+    default: () => [],
   },
+  // The whole-game aggregate for this source (undefined → no events yet / loading).
+  stat: {
+    type: Object as PropType<EffectOverlayStat>,
+    default: undefined,
+  },
+  // The live tableau model (carries the current resource count).
+  card: {
+    type: Object as PropType<CardModel>,
+    default: undefined,
+  },
+  loading: {
+    type: Boolean,
+    default: false,
+  },
+  // Hidden height-probe mode: render a card SPACER instead of the heavy <Card>.
+  measuring: {
+    type: Boolean,
+    default: false,
+  },
+});
+defineEmits(['open']);
+
+const cardName = computed((): CardName | undefined => {
+  return props.entry?.cardName;
+});
+const isCorporation = computed((): boolean => {
+  return props.entry?.isCorporation ?? false;
+});
+const isDisabled = computed((): boolean => {
+  return props.entry?.isDisabled ?? false;
+});
+const multiEffect = computed((): boolean => {
+  return props.effectCount > 1;
+});
+const hasDescription = computed((): boolean => {
+  return props.entry?.description !== undefined && props.entry.description !== '';
+});
+const cardModel = computed((): CardModel => {
+  return props.card ?? ({name: cardName.value} as CardModel);
+});
+// The card resource this source holds (Animal / Microbe / Floater / …), if any.
+const resourceType = computed((): CardResource | undefined => {
+  return cardName.value !== undefined ? getCard(cardName.value)?.resourceType : undefined;
+});
+const resourceChip = computed((): boolean => {
+  return resourceType.value !== undefined;
+});
+const resourceCount = computed((): number => {
+  return props.card?.resources ?? 0;
+});
+const resIconClass = computed((): string => {
+  return resourceType.value !== undefined ? iconClassFor(String(resourceType.value)) : '';
+});
+const ctx = computed((): EffectSummaryContext => {
+  return {
+    sourceName: cardName.value ?? ('' as CardName),
+    sourceKind: isCorporation.value ? 'corporation' : 'card',
+    cardResourceType: resourceType.value,
+    currentCardResource: resourceType.value !== undefined ? resourceCount.value : undefined,
+    effectIndex: props.entry?.effectIndex,
+    effectCount: props.effectCount,
+    signature: props.entry?.signature,
+    siblingIcons: props.siblingIcons,
+  };
+});
+const vm = computed((): EffectSummaryViewModel => {
+  const stat = props.stat ?? emptyStat(cardName.value, isCorporation.value);
+  return getEffectSummary(stat, ctx.value);
+});
+// A short i18n key for the confidence chip ('' → no chip). Exact = a precise
+// tally, Partial = exact facts but no M€ valuation, Rule effect = no numeric delta.
+const confidenceLabel = computed((): string => {
+  switch (vm.value.confidence) {
+  case 'exact': return 'Exact';
+  case 'partial': return 'Partial';
+  case 'ruleOnly': return 'Rule effect';
+  default: return '';
+  }
 });
 </script>
