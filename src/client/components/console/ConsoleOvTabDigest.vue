@@ -1,11 +1,4 @@
 <template>
-  <!--
-    ОБЗОР — the landing tab. Continues the ceremony's story instead of
-    replaying it: a compact result strip (the scoring rows' quiet echo), the
-    finish VERDICT, the composed editorial lead, then 2–4 strong deduped
-    headline facts and a quiet observation rail. Everything fits one TV
-    viewport — depth lives in the other tabs.
-  -->
   <div class="con-ovd" :class="{'con-ovd--enter': enterFx}">
     <!-- The compact result strip — the ceremony rows fold into this echo. -->
     <div class="con-ovd__rank" :style="{'--ov-n': vm.digest.ranking.length}">
@@ -78,8 +71,17 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ОБЗОР — the landing tab. Continues the ceremony's story instead of
+ * replaying it: a compact result strip (the scoring rows' quiet echo), the
+ * finish VERDICT, the composed editorial lead, then 2–4 strong deduped
+ * headline facts and a quiet observation rail. Everything fits one TV
+ * viewport — depth lives in the other tabs.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType, ref} from 'vue';
 import {Color} from '@/common/Color';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
@@ -89,58 +91,50 @@ import type {ConsoleOverviewVm, OvFactCard} from '@/client/console/endgame/conso
 import {consoleOverviewUi} from '@/client/console/endgame/consoleOverviewState';
 import ConsoleOvRich from '@/client/components/console/ConsoleOvRich.vue';
 
-export default defineComponent({
-  name: 'ConsoleOvTabDigest',
-  components: {ConsoleOvRich},
-  props: {
-    vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
-  },
-  data() {
-    return {
-      /** LATCHED at mount: the staggered entrance belongs to the SCENE's own
-       *  arrival. A later tab-swap remount lands settled instantly (the pane
-       *  slide is the only motion) — and a latch never CANCELS a running
-       *  animation the way removing a phase class would. */
-      enterFx: consoleOverviewUi.phase === 'entering',
-    };
-  },
-  computed: {
-    ui() {
-      return consoleOverviewUi;
-    },
-    focusCount(): number {
-      return this.vm.digest.headline.length + this.vm.digest.observations.length;
-    },
-  },
-  methods: {
-    hex(color: Color): string {
-      return endgamePlayerHex(color);
-    },
-    isFocused(i: number): boolean {
-      return this.focusCount > 0 && this.ui.digestFocus === i;
-    },
-    factStyle(fact: OvFactCard, i: number): Record<string, string> {
-      const style: Record<string, string> = {'--ov-i': String(i)};
-      if (fact.color !== undefined) {
-        style['--ov-pc'] = endgamePlayerHex(fact.color);
-      }
-      return style;
-    },
-    chipText(ch: EvidenceChip): string {
-      const value = ch.t === 'raw' ? ch.v : $t(ch.v);
-      return ch.label !== undefined ? `${value} ${$t(ch.label)}` : value;
-    },
-    // ── pane API (driven by the overview root) ────────────────────────────
-    nav(dir: NavDirection): void {
-      if (this.focusCount === 0) {
-        return;
-      }
-      const delta = dir === 'down' || dir === 'right' ? 1 : -1;
-      this.ui.digestFocus = Math.min(Math.max(this.ui.digestFocus + delta, 0), this.focusCount - 1);
-    },
-    primary(): void {
-      // The digest is a reading surface — depth lives in the other tabs.
-    },
-  },
+defineOptions({name: 'ConsoleOvTabDigest'});
+const props = defineProps({
+  vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
 });
+
+/** LATCHED at mount: the staggered entrance belongs to the SCENE's own
+ *  arrival. A later tab-swap remount lands settled instantly (the pane
+ *  slide is the only motion) — and a latch never CANCELS a running
+ *  animation the way removing a phase class would. */
+const enterFx = ref(consoleOverviewUi.phase === 'entering');
+const ui = consoleOverviewUi;
+const focusCount = computed((): number => {
+  return props.vm.digest.headline.length + props.vm.digest.observations.length;
+});
+function hex(color: Color): string {
+  return endgamePlayerHex(color);
+}
+function isFocused(i: number): boolean {
+  return focusCount.value > 0 && ui.digestFocus === i;
+}
+function factStyle(fact: OvFactCard, i: number): Record<string, string> {
+  const style: Record<string, string> = {'--ov-i': String(i)};
+  if (fact.color !== undefined) {
+    style['--ov-pc'] = endgamePlayerHex(fact.color);
+  }
+  return style;
+}
+function chipText(ch: EvidenceChip): string {
+  const value = ch.t === 'raw' ? ch.v : $t(ch.v);
+  return ch.label !== undefined ? `${value} ${$t(ch.label)}` : value;
+}
+// ── pane API (driven by the overview root) ────────────────────────────
+function nav(dir: NavDirection): void {
+  if (focusCount.value === 0) {
+    return;
+  }
+  const delta = dir === 'down' || dir === 'right' ? 1 : -1;
+  ui.digestFocus = Math.min(Math.max(ui.digestFocus + delta, 0), focusCount.value - 1);
+}
+function primary(): void {
+  // The digest is a reading surface — depth lives in the other tabs.
+}
+
+// The pane API — what `ConsoleEndgameOverview` reaches through its `ref="pane"` (`nav` on a d-pad step, `primary`
+// on A), and nothing else.
+defineExpose({nav, primary});
 </script>
