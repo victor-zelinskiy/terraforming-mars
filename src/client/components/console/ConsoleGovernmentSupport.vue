@@ -1,6 +1,4 @@
 <template>
-  <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
-       director — no own backdrop. -->
   <div class="con-govsupport con-ws" role="dialog" :aria-label="$t('Government Support')" data-motion-surface="gov-support">
 
     <!-- A plate of the PROMPT-MODAL FAMILY (`console_prompt.less`), the `l` tier (a 2×2 briefing): a free choice —
@@ -67,7 +65,13 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+ * director — no own backdrop.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * ConsoleGovernmentSupport — the console-native premium DECISION BRIEFING
  * for World Government Terraforming (the "Правительственная поддержка"
@@ -88,12 +92,12 @@
  *   D-pad / L-stick = navigate the 2×2 · A / X = apply the focused action
  *   (ocean → go to board placement) · B = minimize (inspect the board).
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, onBeforeUnmount, PropType, ref, watch} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {OrOptionsModel, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {Message} from '@/common/logs/Message';
-import {translateMessage, translateText} from '@/client/directives/i18n';
+import {$t, translateMessage, translateText} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
@@ -124,165 +128,148 @@ function textOf(v: string | Message | undefined): string {
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
 }
 
-export default defineComponent({
-  name: 'ConsoleGovernmentSupport',
-  components: {GamepadGlyph, ConsolePromptHead},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-  },
-  emits: ['submit', 'defer', 'space-pick', 'gov-confirm'],
-  data() {
-    return {
-      focusIdx: 0,
-      /** Blocks a duplicate leaf submit between the emit and the next response. */
-      submitting: false,
-    };
-  },
-  computed: {
-    options(): ReadonlyArray<PlayerInputModel> {
-      const wf = this.playerView.waitingFor;
-      return wf?.type === 'or' ? (wf as OrOptionsModel).options : [];
-    },
-    cards(): Array<GovCard> {
-      const game = this.playerView.game;
-      return buildGovSupportCards(this.options, {
-        temperature: game.temperature,
-        oxygenLevel: game.oxygenLevel,
-        oceans: game.oceans,
-        venusScaleLevel: game.venusScaleLevel,
-        venusInGame: game.gameOptions.expansions.venus === true,
-        maxima: getGlobalParameterMaximums(game.gameOptions.boardName),
-      });
-    },
-    /** The decision's identity in the press's sequence (`promptSequence.ts`). */
-    sequenceKey(): string {
-      const wf = this.playerView.waitingFor;
-      return wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
-    },
-    /** Prompt identity — a change is a genuinely new server ask (reset focus). */
-    promptKey(): string {
-      const wf = this.playerView.waitingFor;
-      return `${textOf(wf?.title)}|${this.options.length}`;
-    },
-    focusedCard(): GovCard | undefined {
-      return this.cards[this.focusIdx];
-    },
-    focusedDetail(): string {
-      const card = this.focusedCard;
-      if (card === undefined) {
-        return '';
-      }
-      if (!card.available) {
-        return translateText(card.disabledReason);
-      }
-      const key = DETAIL_KEY[card.param];
-      return key !== undefined ?
-        translateText(key) :
-        translateText('A planetary initiative will raise one global parameter.');
-    },
-    /** The live command contract — published to the shell's ONE bottom
-     *  command bar through consolePanelUi (the footCommands watch below). */
-    footCommands(): Array<ConsoleCommand> {
-      const card = this.focusedCard;
-      const applyLabel = card?.isSpace === true && card.available ? 'Select ocean space' : 'Apply';
-      return [
-        {control: 'dpad', label: 'Navigate'},
-        {control: 'confirm', label: applyLabel, enabled: card?.available === true},
-        {control: 'back', label: 'Minimize'},
-      ];
-    },
-  },
-  watch: {
-    promptKey: {
-      immediate: true,
-      handler() {
-        this.focusIdx = firstAvailableIndex(this.cards);
-        this.submitting = false;
-      },
-    },
-    /** Every server response re-arms submission (root identity always changes). */
-    playerView() {
-      this.submitting = false;
-    },
-    /** Publish the CONTEXTUAL command contract to the shell's ONE bottom
-     *  command bar (consolePanelUi) — hints live only there, never in a
-     *  panel-local footer (CONSOLE_TV_PREMIUM_PLAN §3.2). */
-    footCommands: {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>) {
-        setPanelCommands('govSupport', cmds);
-      },
-    },
-  },
-  beforeUnmount() {
-    clearPanelCommands('govSupport');
-  },
-  methods: {
-    textOf(v: string | Message | undefined): string {
-      return textOf(v);
-    },
-    /** The shell routes every intent here while the panel is active.
-     *  Foundation: presses resolve to SEMANTIC actions (no raw button names). */
-    handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        this.onNav(intent.dir);
-        return;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'primary':
-      case 'inspect': // X mirrors A (forgiving; no separate confirm step)
-        this.apply();
-        return;
-      case 'back':
-        this.$emit('defer');
-        return;
-      default:
-        return;
-      }
-    },
-    onNav(dir: NavDirection): void {
-      const n = this.cards.length;
-      if (n === 0) {
-        return;
-      }
-      let next = this.focusIdx;
-      switch (dir) {
-      case 'left': next = this.focusIdx - 1; break;
-      case 'right': next = this.focusIdx + 1; break;
-      case 'up': next = this.focusIdx - COLS; break;
-      case 'down': next = this.focusIdx + COLS; break;
-      }
-      if (next >= 0 && next < n) {
-        this.focusIdx = next;
-      }
-    },
-    apply(): void {
-      const card = this.focusedCard;
-      if (card === undefined || !card.available) {
-        return; // a maxed/disabled card is readable, never applied
-      }
-      if (card.isSpace && card.option !== undefined) {
-        // Ocean / hazard: hand off to the board placement flow (the shell
-        // mounts the headless SelectSpace + shows the placement banner).
-        this.$emit('space-pick', {index: card.optionIndex, spacePrompt: card.option});
-        return;
-      }
-      if (this.submitting) {
-        return; // guard rapid A presses — no double submit
-      }
-      this.submitting = true;
-      const response = orOptionResponse(card.optionIndex);
-      // Scale params (temp/oxygen/venus): hand the shell the CHOREOGRAPHED
-      // path — close this modal FIRST, then submit, so the board scale glide
-      // + accent play on a clean board before the next modal opens. Other
-      // leaf options (Moon rates) submit immediately (no arc scale to accent).
-      if (SCALE_FOCUS_PARAMS.has(card.param)) {
-        this.$emit('gov-confirm', {response, param: card.param});
-      } else {
-        this.$emit('submit', response);
-      }
-    },
-  },
+defineOptions({name: 'ConsoleGovernmentSupport'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
 });
+const emit = defineEmits(['submit', 'defer', 'space-pick', 'gov-confirm']);
+
+const focusIdx = ref(0);
+/** Blocks a duplicate leaf submit between the emit and the next response. */
+const submitting = ref(false);
+const options = computed((): ReadonlyArray<PlayerInputModel> => {
+  const wf = props.playerView.waitingFor;
+  return wf?.type === 'or' ? (wf as OrOptionsModel).options : [];
+});
+const cards = computed((): Array<GovCard> => {
+  const game = props.playerView.game;
+  return buildGovSupportCards(options.value, {
+    temperature: game.temperature,
+    oxygenLevel: game.oxygenLevel,
+    oceans: game.oceans,
+    venusScaleLevel: game.venusScaleLevel,
+    venusInGame: game.gameOptions.expansions.venus === true,
+    maxima: getGlobalParameterMaximums(game.gameOptions.boardName),
+  });
+});
+/** The decision's identity in the press's sequence (`promptSequence.ts`). */
+const sequenceKey = computed((): string => {
+  const wf = props.playerView.waitingFor;
+  return wf === undefined ? '' : promptSequenceKey(wf, promptIdentityKey(wf));
+});
+/** Prompt identity — a change is a genuinely new server ask (reset focus). */
+const promptKey = computed((): string => {
+  const wf = props.playerView.waitingFor;
+  return `${textOf(wf?.title)}|${options.value.length}`;
+});
+const focusedCard = computed((): GovCard | undefined => {
+  return cards.value[focusIdx.value];
+});
+const focusedDetail = computed((): string => {
+  const card = focusedCard.value;
+  if (card === undefined) {
+    return '';
+  }
+  if (!card.available) {
+    return translateText(card.disabledReason);
+  }
+  const key = DETAIL_KEY[card.param];
+  return key !== undefined ?
+    translateText(key) :
+    translateText('A planetary initiative will raise one global parameter.');
+});
+/** The live command contract — published to the shell's ONE bottom
+ *  command bar through consolePanelUi (the footCommands watch below). */
+const footCommands = computed((): Array<ConsoleCommand> => {
+  const card = focusedCard.value;
+  const applyLabel = card?.isSpace === true && card.available ? 'Select ocean space' : 'Apply';
+  return [
+    {control: 'dpad', label: 'Navigate'},
+    {control: 'confirm', label: applyLabel, enabled: card?.available === true},
+    {control: 'back', label: 'Minimize'},
+  ];
+});
+
+/** The shell routes every intent here while the panel is active.
+ *  Foundation: presses resolve to SEMANTIC actions (no raw button names). */
+function handleIntent(intent: GamepadIntent): void {
+  if (intent.kind === 'nav') {
+    onNav(intent.dir);
+    return;
+  }
+  switch (consoleActionOf(intent)) {
+  case 'primary':
+  case 'inspect': // X mirrors A (forgiving; no separate confirm step)
+    apply();
+    return;
+  case 'back':
+    emit('defer');
+    return;
+  default:
+    return;
+  }
+}
+function onNav(dir: NavDirection): void {
+  const n = cards.value.length;
+  if (n === 0) {
+    return;
+  }
+  let next = focusIdx.value;
+  switch (dir) {
+  case 'left': next = focusIdx.value - 1; break;
+  case 'right': next = focusIdx.value + 1; break;
+  case 'up': next = focusIdx.value - COLS; break;
+  case 'down': next = focusIdx.value + COLS; break;
+  }
+  if (next >= 0 && next < n) {
+    focusIdx.value = next;
+  }
+}
+function apply(): void {
+  const card = focusedCard.value;
+  if (card === undefined || !card.available) {
+    return; // a maxed/disabled card is readable, never applied
+  }
+  if (card.isSpace && card.option !== undefined) {
+    // Ocean / hazard: hand off to the board placement flow (the shell
+    // mounts the headless SelectSpace + shows the placement banner).
+    emit('space-pick', {index: card.optionIndex, spacePrompt: card.option});
+    return;
+  }
+  if (submitting.value) {
+    return; // guard rapid A presses — no double submit
+  }
+  submitting.value = true;
+  const response = orOptionResponse(card.optionIndex);
+  // Scale params (temp/oxygen/venus): hand the shell the CHOREOGRAPHED
+  // path — close this modal FIRST, then submit, so the board scale glide
+  // + accent play on a clean board before the next modal opens. Other
+  // leaf options (Moon rates) submit immediately (no arc scale to accent).
+  if (SCALE_FOCUS_PARAMS.has(card.param)) {
+    emit('gov-confirm', {response, param: card.param});
+  } else {
+    emit('submit', response);
+  }
+}
+
+watch(() => promptKey.value, () => {
+  focusIdx.value = firstAvailableIndex(cards.value);
+  submitting.value = false;
+}, {immediate: true});
+/** Every server response re-arms submission (root identity always changes). */
+watch(() => props.playerView, () => {
+  submitting.value = false;
+});
+/** Publish the CONTEXTUAL command contract to the shell's ONE bottom
+ *  command bar (consolePanelUi) — hints live only there, never in a
+ *  panel-local footer (CONSOLE_TV_PREMIUM_PLAN §3.2). */
+watch(() => footCommands.value, (cmds: ReadonlyArray<ConsoleCommand>) => {
+  setPanelCommands('govSupport', cmds);
+}, {immediate: true, deep: true});
+onBeforeUnmount(() => {
+  clearPanelCommands('govSupport');
+});
+// What the shell's pad router reaches through the surface registry (`surfaces.at('govSupport')` → `handedTo`): the
+// pad's entry — and nothing else.
+defineExpose({handleIntent});
 </script>
