@@ -17,8 +17,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed} from 'vue';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import Bonus from '@/client/components/Bonus.vue';
 import {TileView} from '../board/TileView';
@@ -26,62 +26,53 @@ import BoardSpaceTile from '@/client/components/board/BoardSpaceTile.vue';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {getSpaceName} from '@/common/boards/spaces';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
+import {vI18n} from '@/client/directives/vDirectives';
 
-export default defineComponent({
-  name: 'MoonSpace',
-  props: {
-    space: {
-      type: Object as () => SpaceModel,
-      required: true,
-    },
-    text: {
-      type: String,
-      required: false,
-    },
-    tileView: {
-      type: String as () => TileView,
-      default: 'show',
-    },
+defineOptions({name: 'MoonSpace'});
+const props = defineProps({
+  space: {
+    type: Object as () => SpaceModel,
+    required: true,
   },
-  components: {
-    Bonus,
-    'board-space-tile': BoardSpaceTile,
+  text: {
+    type: String,
+    required: false,
   },
-  computed: {
-    mainClass(): string {
-      let css = 'board-space moon-space-' + this.space.id.toString();
-      css += ' board-space-selectable';
+  tileView: {
+    type: String as () => TileView,
+    default: 'show',
+  },
+});
 
-      if (this.space.spaceType === 'lunar_mine') {
-        css += ' moon-space-type-mine';
-      } else {
-        css += ' moon-space-type-other';
-      }
+const mainClass = computed((): string => {
+  let css = 'board-space moon-space-' + props.space.id.toString();
+  css += ' board-space-selectable';
 
-      return css;
-    },
-    playerColorCss(): string {
-      if (this.space?.color === undefined) {
-        return '';
-      }
-      const css = 'board-cube board-cube--' + this.space.color;
-      return getPreferences().symbol_overlay ? css + ' overlay' : css;
-    },
-    coOwnerColorCss(): string {
-      if (this.space?.coOwner === undefined) {
-        return '';
-      }
-      const css = 'board-cube-coOwner board-cube--' + this.space.coOwner;
-      return getPreferences().symbol_overlay ? css + ' overlay' : css;
-    },
-    // True while this mine cell is a remove-and-replace target (Lunar Mine
-    // Urbanization): hide the doomed mine graphic and show its bonus instead.
-    placementCleared(): boolean {
-      return placementRenderState.hiddenTiles.has(this.space.id);
-    },
-    getSpaceName(): typeof getSpaceName {
-      return getSpaceName;
-    },
-  },
+  if (props.space.spaceType === 'lunar_mine') {
+    css += ' moon-space-type-mine';
+  } else {
+    css += ' moon-space-type-other';
+  }
+
+  return css;
+});
+const playerColorCss = computed((): string => {
+  if (props.space?.color === undefined) {
+    return '';
+  }
+  const css = 'board-cube board-cube--' + props.space.color;
+  return getPreferences().symbol_overlay ? css + ' overlay' : css;
+});
+const coOwnerColorCss = computed((): string => {
+  if (props.space?.coOwner === undefined) {
+    return '';
+  }
+  const css = 'board-cube-coOwner board-cube--' + props.space.coOwner;
+  return getPreferences().symbol_overlay ? css + ' overlay' : css;
+});
+// True while this mine cell is a remove-and-replace target (Lunar Mine
+// Urbanization): hide the doomed mine graphic and show its bonus instead.
+const placementCleared = computed((): boolean => {
+  return placementRenderState.hiddenTiles.has(props.space.id);
 });
 </script>
