@@ -1,15 +1,4 @@
 <template>
-  <!--
-    ONE CARD'S ACTIONS — the card PLATE and its action SLOTS, the «Действия карт» tile (TR60, decision 6a: one markup,
-    two hosts). The workspace that ACTS (ConsoleCardActions) drives the cursor, the shake and the descent through its
-    props; the Information workspace's «Действия» zone hosts the SAME markup `readonly` — no cursor, no verb, the turn
-    gate read as the rules allow it (`readonlyTileVerdict`), never a submit by construction (this component emits
-    nothing). Everything a tile SAYS is `console/actionTileView.ts`.
-    The CARD is the group and is never split: the plate leads on TOP (the source is what the eye scans first: the
-    name + everything the whole card owns — stored resource, accrued VP), the slots follow under it. A slot keeps a
-    FIXED three-zone anatomy (service row · action canvas · diagnostics), so every canvas across the screen sits at
-    the same height and the «или» joint can anchor to the canvas' true centre (the `--act-*` slot tokens).
-  -->
   <div class="con-cardactions__group"
        :class="[
          'con-cardactions__group--' + group.status,
@@ -153,8 +142,22 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+/*
+ * ONE CARD'S ACTIONS — the card PLATE and its action SLOTS, the «Действия карт» tile (TR60, decision 6a: one markup,
+ * two hosts). The workspace that ACTS (ConsoleCardActions) drives the cursor, the shake and the descent through its
+ * props; the Information workspace's «Действия» zone hosts the SAME markup `readonly` — no cursor, no verb, the turn
+ * gate read as the rules allow it (`readonlyTileVerdict`), never a submit by construction (this component emits
+ * nothing). Everything a tile SAYS is `console/actionTileView.ts`.
+ * The CARD is the group and is never split: the plate leads on TOP (the source is what the eye scans first: the
+ * name + everything the whole card owns — stored resource, accrued VP), the slots follow under it. A slot keeps a
+ * FIXED three-zone anatomy (service row · action canvas · diagnostics), so every canvas across the screen sits at
+ * the same height and the «или» joint can anchor to the canvas' true centre (the `--act-*` slot tokens).
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
+import {computed, PropType} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {CardResource} from '@/common/CardResource';
 import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {ConsoleActionGroup, ConsoleActionTile, ParliamentActionSource, actionDescTier, ActionDescTier} from '@/client/console/consoleCardActions';
@@ -165,71 +168,65 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
-import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
+import {vI18n, vStripActionPrefix} from '@/client/directives/vDirectives';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 
-export default defineComponent({
-  name: 'ConsoleActionGroupView',
-  components: {ConsolePartyFormula, CardRenderEffectBoxComponent, CardRenderData},
-  directives: {stripActionPrefix},
-  props: {
-    group: {type: Object as PropType<ConsoleActionGroup>, required: true},
-    /** The acting host's cursor / shake / descent (empty for a read-only host). */
-    focusKey: {type: String, default: ''},
-    shakeKey: {type: String, default: ''},
-    descendKey: {type: String, default: ''},
-    /** The Parliament's sources (a party / law tile's «uses this generation»). */
-    parliamentActionSources: {type: Array as PropType<ReadonlyArray<ParliamentActionSource>>, default: () => []},
-    /** A host that only READS (the Information workspace): no cursor, no verb, the turn gate is no news. */
-    readonly: {type: Boolean, default: false},
-  },
-  computed: {
-    groupHasFocus(): boolean {
-      return !this.readonly && this.group.tiles.some((t) => t.key === this.focusKey);
-    },
-  },
-  methods: {
-    resIconClass(icon: string | CardResource): string {
-      return iconClassFor(String(icon).toLowerCase().replace(/\s+/g, '-'));
-    },
-    statusLabel(status: TileVerdict): string {
-      return TILE_STATUS_LABEL[status];
-    },
-    isFutile(tile: ConsoleActionTile): boolean {
-      return tileFutile(tile);
-    },
-    verdictOf(tile: ConsoleActionTile): TileVerdict {
-      return this.readonly ? readonlyTileVerdict(tile) : tileVerdict(tile);
-    },
-    /** The status class a read-only host paints (the turn gate reads as the rules allow it). */
-    readonlyStatus(tile: ConsoleActionTile): string {
-      return tile.status === 'soft' ? 'available' : tile.status;
-    },
-    ruleText(tile: ConsoleActionTile): string {
-      return slotRuleText(tile);
-    },
-    descTier(text: string): ActionDescTier {
-      return actionDescTier(text);
-    },
-    metaOf(tile: ConsoleActionTile): SlotMeta {
-      return slotMeta(tile, this.readonly);
-    },
-    usesText(tile: ConsoleActionTile): string {
-      return sourceUsesText(tile, this.parliamentActionSources);
-    },
-    partyEmblemOf(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
-    /** The law's printed name (an i18n key) for its plate — never the catalog id. */
-    resolutionNameOf(id: ResolutionId | undefined): string | undefined {
-      return id === undefined ? undefined : (getResolution(id)?.text.name ?? id);
-    },
-    /** A party's name KEY — the parliament's glossary key («Учёные», never the bare upstream one, PL-110). */
-    partyNameKeyOf(party: string | undefined): string | undefined {
-      return party === undefined ? undefined : partyNameKey(party);
-    },
-  },
+defineOptions({name: 'ConsoleActionGroupView'});
+const props = defineProps({
+  group: {type: Object as PropType<ConsoleActionGroup>, required: true},
+  /** The acting host's cursor / shake / descent (empty for a read-only host). */
+  focusKey: {type: String, default: ''},
+  shakeKey: {type: String, default: ''},
+  descendKey: {type: String, default: ''},
+  /** The Parliament's sources (a party / law tile's «uses this generation»). */
+  parliamentActionSources: {type: Array as PropType<ReadonlyArray<ParliamentActionSource>>, default: () => []},
+  /** A host that only READS (the Information workspace): no cursor, no verb, the turn gate is no news. */
+  readonly: {type: Boolean, default: false},
 });
+
+const groupHasFocus = computed((): boolean => {
+  return !props.readonly && props.group.tiles.some((t) => t.key === props.focusKey);
+});
+
+function resIconClass(icon: string | CardResource): string {
+  return iconClassFor(String(icon).toLowerCase().replace(/\s+/g, '-'));
+}
+function statusLabel(status: TileVerdict): string {
+  return TILE_STATUS_LABEL[status];
+}
+function isFutile(tile: ConsoleActionTile): boolean {
+  return tileFutile(tile);
+}
+function verdictOf(tile: ConsoleActionTile): TileVerdict {
+  return props.readonly ? readonlyTileVerdict(tile) : tileVerdict(tile);
+}
+/** The status class a read-only host paints (the turn gate reads as the rules allow it). */
+function readonlyStatus(tile: ConsoleActionTile): string {
+  return tile.status === 'soft' ? 'available' : tile.status;
+}
+function ruleText(tile: ConsoleActionTile): string {
+  return slotRuleText(tile);
+}
+function descTier(text: string): ActionDescTier {
+  return actionDescTier(text);
+}
+function metaOf(tile: ConsoleActionTile): SlotMeta {
+  return slotMeta(tile, props.readonly);
+}
+function usesText(tile: ConsoleActionTile): string {
+  return sourceUsesText(tile, props.parliamentActionSources);
+}
+function partyEmblemOf(party: ReduxParty): string {
+  return partyEmblemUrl(party);
+}
+/** The law's printed name (an i18n key) for its plate — never the catalog id. */
+function resolutionNameOf(id: ResolutionId | undefined): string | undefined {
+  return id === undefined ? undefined : (getResolution(id)?.text.name ?? id);
+}
+/** A party's name KEY — the parliament's glossary key («Учёные», never the bare upstream one, PL-110). */
+function partyNameKeyOf(party: string | undefined): string | undefined {
+  return party === undefined ? undefined : partyNameKey(party);
+}
 </script>
