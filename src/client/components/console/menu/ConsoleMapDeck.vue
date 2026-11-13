@@ -1,12 +1,4 @@
 <template>
-  <!-- THE MAP SHOWCASE (P44 · ledger ER — the owner: «сетка, а не ряд»): the «Карта» deck on the grammar of «Мои
-       партии» — a GRID SOLVED FROM THE MEASURED STAGE (`mapGridPlan`: 4 × 3 for the eleven maps on the TV and FHD, strict
-       PAGES on the Deck), the cursor inside the stage BY CONSTRUCTION (no clip, no transform carousel), the d-pad the
-       lobby's (`showcaseStep`: ◀ ▶ the ring, ▲ ▼ a row with a wall). A tile is the board's fingerprint + its name (the
-       loudest voice) + its state in MATERIAL: «ТЕКУЩАЯ» a gold kant, «ФАН» a fan-made board, the MarsBot mark BEFORE the
-       pick (a board the seated bot cannot play recedes with its reason — never a red ring after A). The DOSSIER of the
-       cursored map stands beside the grid on the wide creator (the hero fingerprint with its bonus legend, the
-       description, the chips, the bot's blocker in words); the Deck keeps one detail line under the grid. -->
   <div class="cm-deckbody cm-maps cm-maps--grid" :class="{'cm-maps--wide': wide}" ref="stageEl"
        data-map-showcase :data-map-cols="plan.cols" :data-map-rows="plan.rows" :data-map-pages="plan.pages">
     <div class="cm-maps__stage" ref="gridEl">
@@ -72,14 +64,27 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * THE MAP SHOWCASE (P44 · ledger ER — the owner: «сетка, а не ряд»): the «Карта» deck on the grammar of «Мои
+ * партии» — a GRID SOLVED FROM THE MEASURED STAGE (`mapGridPlan`: 4 × 3 for the eleven maps on the TV and FHD, strict
+ * PAGES on the Deck), the cursor inside the stage BY CONSTRUCTION (no clip, no transform carousel), the d-pad the
+ * lobby's (`showcaseStep`: ◀ ▶ the ring, ▲ ▼ a row with a wall). A tile is the board's fingerprint + its name (the
+ * loudest voice) + its state in MATERIAL: «ТЕКУЩАЯ» a gold kant, «ФАН» a fan-made board, the MarsBot mark BEFORE the
+ * pick (a board the seated bot cannot play recedes with its reason — never a red ring after A). The DOSSIER of the
+ * cursored map stands beside the grid on the wide creator (the hero fingerprint with its bonus legend, the
+ * description, the chips, the bot's blocker in words); the Deck keeps one detail line under the grid.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * MAP deck renderer (console create) — the SHOWCASE GRID (P44 · ledger ER). The plan is solved from the stage's own
  * measured box (`mapGridPlan`) on every resize and published UP (`layout` — the cursor's walk needs the columns); the
  * page shown is DERIVED from the cursor (no second page state). Pure presentation: the selection, the conflicts and
  * the persistence stay the model's (`consoleCreateModel.mapRows` / `selectMap`).
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {$t} from '@/client/directives/i18n';
 import {MapRow} from '@/client/console/menu/consoleCreateModel';
 import {automaBlockerText, botSeatedInState} from '@/client/components/create/premium/createGameState';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
@@ -95,111 +100,99 @@ const TILE_GAP_REM = 1;
 const TILE_ASPECT = 0.62;
 const TILE_CHROME_REM = 6;
 
-export default defineComponent({
-  name: 'ConsoleMapDeck',
-  components: {PremiumMapFingerprint},
-  props: {
-    rows: {type: Array as PropType<ReadonlyArray<MapRow>>, required: true},
-    cursor: {type: Number, required: true},
-    shakeRow: {type: Number, default: -1},
-    /** The wide creator (`CREATE_WIDE_MIN_WIDTH`): the dossier stands beside the grid. */
-    wide: {type: Boolean, default: false},
-  },
-  emits: ['activate', 'hover', 'layout'],
-  data() {
-    return {
-      stageW: 0,
-      stageH: 0,
-      remPx: 16,
-      observer: undefined as ResizeObserver | undefined,
-    };
-  },
-  computed: {
-    cursorRow(): MapRow | undefined {
-      return this.rows[this.cursor];
-    },
-    boardBlocker(): string {
-      return automaBlockerText('board');
-    },
-    plan(): MapGridPlan {
-      const r = this.remPx;
-      return mapGridPlan(this.stageW, this.stageH, this.rows.length, {
-        gap: TILE_GAP_REM * r, minW: TILE_MIN_REM * r, maxW: TILE_MAX_REM * r, aspect: TILE_ASPECT, chromeH: TILE_CHROME_REM * r,
-      });
-    },
-    page(): number {
-      return Math.floor(Math.max(0, this.cursor) / Math.max(1, this.plan.perPage));
-    },
-    pageTiles(): ReadonlyArray<{row: MapRow, index: number}> {
-      const start = this.page * this.plan.perPage;
-      return this.rows.slice(start, start + this.plan.perPage).map((row, i) => ({row, index: start + i}));
-    },
-    gridStyle(): Record<string, string> {
-      if (this.stageW <= 0) {
-        return {};
-      }
-      return {
-        'gridTemplateColumns': `repeat(${this.plan.cols}, ${this.plan.tileW}px)`,
-        'gridAutoRows': `${this.plan.tileH}px`,
-        '--cm-map-tile-w': `${this.plan.tileW}px`,
-      };
-    },
-  },
-  watch: {
-    'plan.cols': {
-      immediate: true,
-      handler(cols: number): void {
-        this.$emit('layout', {cols, perPage: this.plan.perPage});
-      },
-    },
-  },
-  mounted(): void {
-    this.measure();
-    if (typeof ResizeObserver !== 'undefined') {
-      this.observer = new ResizeObserver(() => this.measure());
-      const el = (this.$refs.gridEl ?? undefined) as HTMLElement | undefined;
-      if (el !== undefined) {
-        this.observer.observe(el);
-      }
+defineOptions({name: 'ConsoleMapDeck'});
+const props = defineProps({
+  rows: {type: Array as PropType<ReadonlyArray<MapRow>>, required: true},
+  cursor: {type: Number, required: true},
+  shakeRow: {type: Number, default: -1},
+  /** The wide creator (`CREATE_WIDE_MIN_WIDTH`): the dossier stands beside the grid. */
+  wide: {type: Boolean, default: false},
+});
+const emit = defineEmits(['activate', 'hover', 'layout']);
+
+const gridEl = useTemplateRef<HTMLElement>('gridEl');
+const stageW = ref(0);
+const stageH = ref(0);
+const remPx = ref(16);
+let observer: ResizeObserver | undefined;
+const cursorRow = computed((): MapRow | undefined => {
+  return props.rows[props.cursor];
+});
+const boardBlocker = computed((): string => {
+  return automaBlockerText('board');
+});
+const plan = computed((): MapGridPlan => {
+  const r = remPx.value;
+  return mapGridPlan(stageW.value, stageH.value, props.rows.length, {
+    gap: TILE_GAP_REM * r, minW: TILE_MIN_REM * r, maxW: TILE_MAX_REM * r, aspect: TILE_ASPECT, chromeH: TILE_CHROME_REM * r,
+  });
+});
+const page = computed((): number => {
+  return Math.floor(Math.max(0, props.cursor) / Math.max(1, plan.value.perPage));
+});
+const pageTiles = computed((): ReadonlyArray<{row: MapRow, index: number}> => {
+  const start = page.value * plan.value.perPage;
+  return props.rows.slice(start, start + plan.value.perPage).map((row, i) => ({row, index: start + i}));
+});
+const gridStyle = computed((): Record<string, string> => {
+  if (stageW.value <= 0) {
+    return {};
+  }
+  return {
+    'gridTemplateColumns': `repeat(${plan.value.cols}, ${plan.value.tileW}px)`,
+    'gridAutoRows': `${plan.value.tileH}px`,
+    '--cm-map-tile-w': `${plan.value.tileW}px`,
+  };
+});
+
+function measure(): void {
+  const el = gridEl.value;
+  if (el === null) {
+    return;
+  }
+  remPx.value = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  // The page spine's own row is reserved out of the height (a page count can never push a tile off the stage).
+  const spine = 2.2 * remPx.value;
+  stageW.value = el.clientWidth;
+  stageH.value = Math.max(0, el.clientHeight - spine);
+}
+function boardId(meta: PremiumMapMeta): BoardName | undefined {
+  return meta.random ? undefined : meta.id as BoardName;
+}
+/** The MarsBot mark BEFORE the pick — only while the bot is seated (`yes` its board exists, `no` it has none). */
+function botMark(row: MapRow): 'yes' | 'no' | undefined {
+  if (!botSeatedInState() || row.meta.random) {
+    return undefined;
+  }
+  return AUTOMA_SUPPORTED_BOARDS.includes(row.meta.id as BoardName) ? 'yes' : 'no';
+}
+/** A board the seated bot cannot play — it recedes with its reason (and the SELECTED one is the model's conflict). */
+function botBlocked(row: MapRow): boolean {
+  return row.conflict || botMark(row) === 'no';
+}
+function descKeyFor(row: MapRow): string {
+  // With MarsBot seated the random pool narrows to the boards the bot has
+  // an adaptation for — say so instead of the generic rotation line.
+  if (row.meta.id === 'random-all' && botSeatedInState()) {
+    return 'One of the maps adapted for MarsBot will be chosen at game start.';
+  }
+  return row.meta.descKey;
+}
+
+watch(() => plan.value.cols, (cols: number): void => {
+  emit('layout', {cols, perPage: plan.value.perPage});
+}, {immediate: true});
+onMounted((): void => {
+  measure();
+  if (typeof ResizeObserver !== 'undefined') {
+    observer = new ResizeObserver(() => measure());
+    const el = gridEl.value;
+    if (el !== null) {
+      observer.observe(el);
     }
-  },
-  beforeUnmount(): void {
-    this.observer?.disconnect();
-  },
-  methods: {
-    measure(): void {
-      const el = (this.$refs.gridEl ?? undefined) as HTMLElement | undefined;
-      if (el === undefined) {
-        return;
-      }
-      this.remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      // The page spine's own row is reserved out of the height (a page count can never push a tile off the stage).
-      const spine = 2.2 * this.remPx;
-      this.stageW = el.clientWidth;
-      this.stageH = Math.max(0, el.clientHeight - spine);
-    },
-    boardId(meta: PremiumMapMeta): BoardName | undefined {
-      return meta.random ? undefined : meta.id as BoardName;
-    },
-    /** The MarsBot mark BEFORE the pick — only while the bot is seated (`yes` its board exists, `no` it has none). */
-    botMark(row: MapRow): 'yes' | 'no' | undefined {
-      if (!botSeatedInState() || row.meta.random) {
-        return undefined;
-      }
-      return AUTOMA_SUPPORTED_BOARDS.includes(row.meta.id as BoardName) ? 'yes' : 'no';
-    },
-    /** A board the seated bot cannot play — it recedes with its reason (and the SELECTED one is the model's conflict). */
-    botBlocked(row: MapRow): boolean {
-      return row.conflict || this.botMark(row) === 'no';
-    },
-    descKeyFor(row: MapRow): string {
-      // With MarsBot seated the random pool narrows to the boards the bot has
-      // an adaptation for — say so instead of the generic rotation line.
-      if (row.meta.id === 'random-all' && botSeatedInState()) {
-        return 'One of the maps adapted for MarsBot will be chosen at game start.';
-      }
-      return row.meta.descKey;
-    },
-  },
+  }
+});
+onBeforeUnmount((): void => {
+  observer?.disconnect();
 });
 </script>
