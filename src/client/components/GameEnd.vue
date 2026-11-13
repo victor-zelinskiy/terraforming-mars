@@ -217,9 +217,9 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 
-import {defineComponent} from 'vue';
+import {computed, onMounted} from 'vue';
 import * as constants from '@/common/constants';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {gameDocumentTitle} from '@/client/utils/documentTitle';
@@ -244,6 +244,7 @@ import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {$t, translateTextWithParams, translateMessage} from '@/client/directives/i18n';
+import {vI18n} from '@/client/directives/vDirectives';
 import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {MADetail} from '@/common/game/VictoryPointsBreakdown';
@@ -256,225 +257,207 @@ function getViewModel(playerView: ViewModel | undefined): ViewModel {
   throw new Error('playerView is not defined');
 }
 
-export default defineComponent({
-  name: 'game-end',
-  props: {
-    playerView: {
-      type: Object as () => PlayerViewModel | undefined,
-      required: true,
-    },
+defineOptions({name: 'game-end'});
+const props = defineProps({
+  playerView: {
+    type: Object as () => PlayerViewModel | undefined,
+    required: true,
   },
-  computed: {
-    viewModel(): ViewModel {
-      return getViewModel(this.playerView);
-    },
-    game(): GameModel {
-      return getViewModel(this.playerView).game;
-    },
-    players(): Array<PublicPlayerModel> {
-      return getViewModel(this.playerView).players;
-    },
-    // Read-only premium Гидросеть track for the end screen (final positions, no
-    // action-zone). Built from the public positions; no server preview needed.
-    hydroStages(): ReadonlyArray<HydroStageVM> {
-      const players = this.players.map((p) => ({
-        color: p.color,
-        name: p.name,
-        position: p.deltaProject?.position ?? 0,
-        isViewer: false,
-        isMarsBot: p.isMarsBot === true,
-        stops: p.deltaProject?.stops ?? [],
-      }));
-      return buildHydroModel({
-        preview: undefined,
-        players,
-        viewerColor: undefined,
-        selectedPosition: -1,
-        rewardChoice: undefined,
-        selectedCard: undefined,
-        actionAvailable: false,
-      }).stages;
-    },
-    color(): Color {
-      if (this.playerView !== undefined) {
-        return this.playerView.thisPlayer.color;
-      }
-      throw new Error('playerView is not defined');
-    },
-    downloadLogUrl() {
-      const id = this.playerView?.id;
-      if (id === undefined) {
-        return undefined;
-      }
-      return `${apiUrl(paths.API_GAME_LOGS)}?id=${id}&full=true`;
-    },
-    playersInPlace(): Array<PublicPlayerModel> {
-      const copy = [...this.viewModel.players];
-      copy.sort(function(a:PublicPlayerModel, b:PublicPlayerModel) {
-        if (a.victoryPointsBreakdown.total < b.victoryPointsBreakdown.total) {
-          return -1;
-        }
-        if (a.victoryPointsBreakdown.total > b.victoryPointsBreakdown.total) {
-          return 1;
-        }
-        if (a.megacredits < b.megacredits) {
-          return -1;
-        }
-        if (a.megacredits > b.megacredits) {
-          return 1;
-        }
-        return 0;
-      });
-      return copy.reverse();
-    },
-    winners() {
-      const sortedPlayers = this.playersInPlace;
-      const firstWinner = sortedPlayers[0];
-      const winners: PublicPlayerModel[] = [firstWinner];
-      for (let i = 1; i < sortedPlayers.length; i++) {
-        if (sortedPlayers[i].victoryPointsBreakdown.total === firstWinner.victoryPointsBreakdown.total &&
-                    sortedPlayers[i].megacredits === firstWinner.megacredits) {
-          winners.push(sortedPlayers[i]);
-        }
-      }
-      return winners;
-    },
-    isSoloGame(): boolean {
-      return this.players.length === 1;
-    },
-    vpDataset(): ReadonlyArray<DataSet> {
-      return this.players.map((player) => {
-        return {
-          label: this.displayName(player),
-          data: player.victoryPointsByGeneration,
-          color: player.color,
-        };
-      });
-    },
-    globalsDataset(): ReadonlyArray<DataSet> {
-      const dataset: Array<DataSet> = [];
+});
 
-      const gpg = this.game.globalsPerGeneration;
-      function getValues(param: GlobalParameter, min: number, max: number): ReadonlyArray<number> {
-        return gpg.map((entry) => {
-          const val = entry[param] ?? min;
-          return 100 * (val - min) / (max - min);
-        });
-      }
-
-      dataset.push({label: $t('Temperature'), color: 'red', data: getValues(GlobalParameter.TEMPERATURE, -30, 8)});
-      dataset.push({label: $t('Oxygen'), color: 'green', data: getValues(GlobalParameter.OXYGEN, 0, 14)});
-      dataset.push({label: $t('Oceans'), color: 'blue', data: getValues(GlobalParameter.OCEANS, 0, 9)});
-      if (this.game.gameOptions.expansions.venus === true) {
-        dataset.push({label: $t('Venus'), color: 'yellow', data: getValues(GlobalParameter.VENUS, 0, 30)});
-      }
-      if (this.game.gameOptions.expansions.moon === true) {
-        dataset.push({label: $t('L. Habitat'), color: 'orange', data: getValues(GlobalParameter.MOON_HABITAT_RATE, 0, 8)});
-        dataset.push({label: $t('L. Mining'), color: 'pink', data: getValues(GlobalParameter.MOON_MINING_RATE, 0, 8)});
-        dataset.push({label: $t('L. Logistic'), color: 'purple', data: getValues(GlobalParameter.MOON_LOGISTIC_RATE, 0, 8)});
-      }
-      return dataset;
-    },
-    playerContributionsData(): Array<{player: string, color: Color, temp: number, oxygen: number, oceans: number, venus?: number, moonHabitat?: number, moonMining?: number, moonLogistic?: number, total: number}> {
-      return this.players.map((player) => {
-        const steps = player.globalParameterSteps || {};
-        const temp = steps[GlobalParameter.TEMPERATURE] || 0;
-        const oxygen = steps[GlobalParameter.OXYGEN] || 0;
-        const oceans = steps[GlobalParameter.OCEANS] || 0;
-        const venus = steps[GlobalParameter.VENUS] || 0;
-        const moonHabitat = steps[GlobalParameter.MOON_HABITAT_RATE] || 0;
-        const moonMining = steps[GlobalParameter.MOON_MINING_RATE] || 0;
-        const moonLogistic = steps[GlobalParameter.MOON_LOGISTIC_RATE] || 0;
-
-        return {
-          player: this.displayName(player),
-          color: player.color,
-          temp,
-          oxygen,
-          oceans,
-          venus,
-          moonHabitat,
-          moonMining,
-          moonLogistic: moonLogistic,
-          total: temp + oxygen + oceans + venus + moonHabitat + moonMining + moonLogistic,
-        };
-      });
-    },
-  },
-  data() {
-    return {
-      constants,
-    };
-  },
-  components: {
-    'board': Board,
-    'log-panel': LogPanel,
-    AppButton,
-    MoonBoard,
-    PlanetaryTracks,
-    HydroTrack,
-    VictoryPointChart,
-  },
-  mounted() {
-    document.title = '🏁 | ' + gameDocumentTitle(this.game);
-    if (getPreferences().experimental_ui) {
-      setFaviconStatus('ended');
+const viewModel = computed((): ViewModel => {
+  return getViewModel(props.playerView);
+});
+const game = computed((): GameModel => {
+  return getViewModel(props.playerView).game;
+});
+const players = computed((): Array<PublicPlayerModel> => {
+  return getViewModel(props.playerView).players;
+});
+// Read-only premium Гидросеть track for the end screen (final positions, no
+// action-zone). Built from the public positions; no server preview needed.
+const hydroStages = computed((): ReadonlyArray<HydroStageVM> => {
+  const playersNow = players.value.map((p) => ({
+    color: p.color,
+    name: p.name,
+    position: p.deltaProject?.position ?? 0,
+    isViewer: false,
+    isMarsBot: p.isMarsBot === true,
+    stops: p.deltaProject?.stops ?? [],
+  }));
+  return buildHydroModel({
+    preview: undefined,
+    players: playersNow,
+    viewerColor: undefined,
+    selectedPosition: -1,
+    rewardChoice: undefined,
+    selectedCard: undefined,
+    actionAvailable: false,
+  }).stages;
+});
+const color = computed((): Color => {
+  if (props.playerView !== undefined) {
+    return props.playerView.thisPlayer.color;
+  }
+  throw new Error('playerView is not defined');
+});
+const downloadLogUrl = computed(() => {
+  const id = props.playerView?.id;
+  if (id === undefined) {
+    return undefined;
+  }
+  return `${apiUrl(paths.API_GAME_LOGS)}?id=${id}&full=true`;
+});
+const playersInPlace = computed((): Array<PublicPlayerModel> => {
+  const copy = [...viewModel.value.players];
+  copy.sort(function(a:PublicPlayerModel, b:PublicPlayerModel) {
+    if (a.victoryPointsBreakdown.total < b.victoryPointsBreakdown.total) {
+      return -1;
     }
-  },
-  methods: {
-    // Resolve the MarsBot seat to «Бот» (never the raw «MarsBot»).
-    displayName(p: {name: string, isMarsBot?: boolean}): string {
-      return participantDisplayName(p);
-    },
-    getEndGamePlayerRowColorClass(color: Color): string {
-      return playerColorClass(color, 'bg_transparent');
-    },
-    getTimer(p: PublicPlayerModel): string {
-      return Timer.toString(p.timer);
-    },
-    getCorporationName(p: PublicPlayerModel): string[] {
-      const cards = p.tableau;
-      const corporationCards = cards
-        .filter((card) => getCard(card.name)?.type === CardType.CORPORATION)
-        .map((card) => card.name);
-      return corporationCards.length === 0 ? [''] : corporationCards;
-    },
-    translateMilestoneDetails(data: MADetail): string {
-      const args = (data.messageArgs || []).map($t);
-      return translateTextWithParams(data.message, args);
-    },
-    translateAwardDetails(data: MADetail): string {
-      if ( ! data.messageArgs || data.messageArgs.length < 3) {
-        console.error( // data.message: ${0} place for ${1} award (funded by ${2})
-          `Award detail has not enought data.
+    if (a.victoryPointsBreakdown.total > b.victoryPointsBreakdown.total) {
+      return 1;
+    }
+    if (a.megacredits < b.megacredits) {
+      return -1;
+    }
+    if (a.megacredits > b.megacredits) {
+      return 1;
+    }
+    return 0;
+  });
+  return copy.reverse();
+});
+const winners = computed(() => {
+  const sortedPlayers = playersInPlace.value;
+  const firstWinner = sortedPlayers[0];
+  const winners: PublicPlayerModel[] = [firstWinner];
+  for (let i = 1; i < sortedPlayers.length; i++) {
+    if (sortedPlayers[i].victoryPointsBreakdown.total === firstWinner.victoryPointsBreakdown.total &&
+                sortedPlayers[i].megacredits === firstWinner.megacredits) {
+      winners.push(sortedPlayers[i]);
+    }
+  }
+  return winners;
+});
+const isSoloGame = computed((): boolean => {
+  return players.value.length === 1;
+});
+const vpDataset = computed((): ReadonlyArray<DataSet> => {
+  return players.value.map((player) => {
+    return {
+      label: displayName(player),
+      data: player.victoryPointsByGeneration,
+      color: player.color,
+    };
+  });
+});
+const globalsDataset = computed((): ReadonlyArray<DataSet> => {
+  const dataset: Array<DataSet> = [];
+
+  const gpg = game.value.globalsPerGeneration;
+  function getValues(param: GlobalParameter, min: number, max: number): ReadonlyArray<number> {
+    return gpg.map((entry) => {
+      const val = entry[param] ?? min;
+      return 100 * (val - min) / (max - min);
+    });
+  }
+
+  dataset.push({label: $t('Temperature'), color: 'red', data: getValues(GlobalParameter.TEMPERATURE, -30, 8)});
+  dataset.push({label: $t('Oxygen'), color: 'green', data: getValues(GlobalParameter.OXYGEN, 0, 14)});
+  dataset.push({label: $t('Oceans'), color: 'blue', data: getValues(GlobalParameter.OCEANS, 0, 9)});
+  if (game.value.gameOptions.expansions.venus === true) {
+    dataset.push({label: $t('Venus'), color: 'yellow', data: getValues(GlobalParameter.VENUS, 0, 30)});
+  }
+  if (game.value.gameOptions.expansions.moon === true) {
+    dataset.push({label: $t('L. Habitat'), color: 'orange', data: getValues(GlobalParameter.MOON_HABITAT_RATE, 0, 8)});
+    dataset.push({label: $t('L. Mining'), color: 'pink', data: getValues(GlobalParameter.MOON_MINING_RATE, 0, 8)});
+    dataset.push({label: $t('L. Logistic'), color: 'purple', data: getValues(GlobalParameter.MOON_LOGISTIC_RATE, 0, 8)});
+  }
+  return dataset;
+});
+const playerContributionsData = computed((): Array<{player: string, color: Color, temp: number, oxygen: number, oceans: number, venus?: number, moonHabitat?: number, moonMining?: number, moonLogistic?: number, total: number}> => {
+  return players.value.map((player) => {
+    const steps = player.globalParameterSteps || {};
+    const temp = steps[GlobalParameter.TEMPERATURE] || 0;
+    const oxygen = steps[GlobalParameter.OXYGEN] || 0;
+    const oceans = steps[GlobalParameter.OCEANS] || 0;
+    const venus = steps[GlobalParameter.VENUS] || 0;
+    const moonHabitat = steps[GlobalParameter.MOON_HABITAT_RATE] || 0;
+    const moonMining = steps[GlobalParameter.MOON_MINING_RATE] || 0;
+    const moonLogistic = steps[GlobalParameter.MOON_LOGISTIC_RATE] || 0;
+
+    return {
+      player: displayName(player),
+      color: player.color,
+      temp,
+      oxygen,
+      oceans,
+      venus,
+      moonHabitat,
+      moonMining,
+      moonLogistic: moonLogistic,
+      total: temp + oxygen + oceans + venus + moonHabitat + moonMining + moonLogistic,
+    };
+  });
+});
+// Resolve the MarsBot seat to «Бот» (never the raw «MarsBot»).
+function displayName(p: {name: string, isMarsBot?: boolean}): string {
+  return participantDisplayName(p);
+}
+function getEndGamePlayerRowColorClass(color: Color): string {
+  return playerColorClass(color, 'bg_transparent');
+}
+function getTimer(p: PublicPlayerModel): string {
+  return Timer.toString(p.timer);
+}
+function getCorporationName(p: PublicPlayerModel): string[] {
+  const cards = p.tableau;
+  const corporationCards = cards
+    .filter((card) => getCard(card.name)?.type === CardType.CORPORATION)
+    .map((card) => card.name);
+  return corporationCards.length === 0 ? [''] : corporationCards;
+}
+function translateMilestoneDetails(data: MADetail): string {
+  const args = (data.messageArgs || []).map($t);
+  return translateTextWithParams(data.message, args);
+}
+function translateAwardDetails(data: MADetail): string {
+  if ( ! data.messageArgs || data.messageArgs.length < 3) {
+    console.error( // data.message: ${0} place for ${1} award (funded by ${2})
+      `Award detail has not enought data.
           It must contain at least 3 arguments:
           1) a Player's place in the race for the award
           2) translatable Award name
           3) not translatable Player name
           `,
-        );
-        return this.translateMilestoneDetails(data);
-      }
-      const message: Message = {
-        message: data.message,
-        data: [
-          {
-            type: LogMessageDataType.STRING,
-            value: data.messageArgs[0],
-          },
-          {
-            type: LogMessageDataType.AWARD,
-            value: data.messageArgs[1] as AwardName,
-          },
-          {
-            type: LogMessageDataType.PLAYER,
-            value: data.messageArgs[2] as Color,
-          },
-        ],
-      };
-      return translateMessage(message);
-    },
-  },
+    );
+    return translateMilestoneDetails(data);
+  }
+  const message: Message = {
+    message: data.message,
+    data: [
+      {
+        type: LogMessageDataType.STRING,
+        value: data.messageArgs[0],
+      },
+      {
+        type: LogMessageDataType.AWARD,
+        value: data.messageArgs[1] as AwardName,
+      },
+      {
+        type: LogMessageDataType.PLAYER,
+        value: data.messageArgs[2] as Color,
+      },
+    ],
+  };
+  return translateMessage(message);
+}
+
+onMounted(() => {
+  document.title = '🏁 | ' + gameDocumentTitle(game.value);
+  if (getPreferences().experimental_ui) {
+    setFaviconStatus('ended');
+  }
 });
 
 </script>
