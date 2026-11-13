@@ -98,202 +98,193 @@
   </teleport>
 </template>
 
-<script lang="ts">
-import {defineComponent} from 'vue';
+<script setup lang="ts">
+import {computed} from 'vue';
 import {boardInfoState} from '@/client/components/board/boardInfoState';
 import {placementRenderState} from '@/client/components/board/placementRenderState';
 import {BoardCellInfo, BoardCellStatus, BoardFact} from '@/common/boards/BoardInformationFacts';
 import {Color} from '@/common/Color';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {getSpecialCellInfo, SpecialCellInfo} from '@/client/components/board/specialCellInfo';
+import {vI18n} from '@/client/directives/vDirectives';
 import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
 import BoardFactRow from '@/client/components/board/BoardFactRow.vue';
 
-export default defineComponent({
-  name: 'BoardCellInfoPopover',
-  components: {BoardFactGroups, BoardFactRow},
-  data() {
-    return {
-      boardInfoState,
-    };
-  },
-  computed: {
-    info(): BoardCellInfo | undefined {
-      return boardInfoState.info;
-    },
-    cfg() {
-      return boardInfoState.cfg;
-    },
-    status(): BoardCellStatus {
-      return this.info?.status ?? {content: 'empty'};
-    },
-    // A tile (real or hazard) covers the cell — terrain lore / placement-restriction
-    // rules are stale once occupied (the engine already drops the zone facts; this
-    // gates the client-only curated lore the same way).
-    occupied(): boolean {
-      return this.status.content !== 'empty';
-    },
-    facts(): ReadonlyArray<BoardFact> {
-      return this.info?.facts ?? [];
-    },
-    description(): string | undefined {
-      const d = this.info?.description;
-      return typeof d === 'string' ? d : undefined;
-    },
-    // Section partitions — passive framing for placement hints, recipient
-    // grouping only for endgame scoring.
-    placeHereFacts(): ReadonlyArray<BoardFact> {
-      return this.facts.filter((f) => f.category === 'printed-placement-bonus' || f.category === 'placement-effect');
-    },
-    adjacentFacts(): ReadonlyArray<BoardFact> {
-      return this.facts.filter((f) => f.category === 'ocean-adjacency-bonus');
-    },
-    scoringFacts(): ReadonlyArray<BoardFact> {
-      return this.facts.filter((f) => f.category === 'city-greenery-scoring' || f.category === 'future-scoring');
-    },
-    zoneFacts(): ReadonlyArray<BoardFact> {
-      // The per-seat status facts are the console dossier's rows; here they are the status block below.
-      return this.facts.filter((f) => f.category === 'map-special-zone' && !f.id.startsWith('deflection-status-'));
-    },
-    externalFacts(): ReadonlyArray<BoardFact> {
-      return this.facts.filter((f) => f.category === 'external-area');
-    },
-    reservedFacts(): ReadonlyArray<BoardFact> {
-      return this.facts.filter((f) => f.category === 'reserved-area' || f.category === 'restriction');
-    },
-    // Ares hazard facts (identity / cleanup / adjacency penalty) — own section.
-    hazardFacts(): ReadonlyArray<BoardFact> {
-      return this.facts.filter((f) => f.category === 'hazard-penalty' || f.category === 'hazard-cleanup');
-    },
-    // Ares adjacency-SOURCE facts (what neighbours / the owner earn) — own section.
-    adjacencyBonusFacts(): ReadonlyArray<BoardFact> {
-      return this.facts.filter((f) => f.category === 'ares-adjacency-bonus' || f.category === 'tile-owner-benefit');
-    },
-    shouldShow(): boolean {
-      if (this.info === undefined || boardInfoState.spaceId === undefined) {
-        return false;
-      }
-      // A tile-placement prompt owns whole-cell hover (SelectSpace's reason /
-      // preview popovers) — don't double up. Read the reactive placement flag
-      // (BRD-3) — also makes this computed re-evaluate on placement toggle,
-      // which the old `document.querySelector` (non-reactive) never did.
-      if (placementRenderState.highlightActive) {
-        return false;
-      }
-      // Every cell now carries a header → the inspector is always meaningful.
-      return true;
-    },
-    ownerColor(): Color | undefined {
-      return this.status.ownerColor;
-    },
-    ownerName(): string | undefined {
-      const color = this.status.ownerColor;
-      if (color === undefined) {
-        return undefined;
-      }
-      return displayNameForColor(this.cfg.players, color);
-    },
-    tileName(): string | undefined {
-      // Name a SPECIAL / composite tile (Capital, New Holland, volcanoes, …) or a
-      // standalone special-tile cell. An ORDINARY city/ocean/greenery (special !==
-      // true) stays nameless so the city tooltip reads exactly as before.
-      if (this.status.special !== true && this.status.content !== 'special-tile') {
-        return undefined;
-      }
-      const label = this.status.tileLabel;
-      return typeof label === 'string' && label !== '' ? label : undefined;
-    },
-    // What a SPECIAL / composite tile counts AS for rules/scoring (Capital → city;
-    // New Holland → city + ocean). An ORDINARY tile — a plain city/ocean/greenery,
-    // INCLUDING one built over a lore cell (a city on "Гора Аполлинарис") — is just
-    // itself: "counts as: City" on a City is redundant noise, so gate on `special`.
-    countsAsLabels(): ReadonlyArray<string> {
-      if (this.status.special !== true) {
-        return [];
-      }
-      const map: Record<string, string> = {city: 'City', ocean: 'Ocean', greenery: 'Greenery'};
-      return (this.status.countsAs ?? []).map((c) => map[c]).filter((s) => s !== undefined);
-    },
-    // Per-player Asteroid-Deflection-Zone plant-protection status.
-    zoneProtection() {
-      return this.info?.zoneProtection;
-    },
-    // Curated named-cell lore (volcanoes / Noctis / off-Mars colonies), folded
-    // into the unified inspector so a named cell shows BOTH its identity AND its
-    // tile bonuses / owner / scoring (instead of a separate lore-only overlay).
-    loreInfo(): SpecialCellInfo | undefined {
-      const spaceId = boardInfoState.spaceId;
-      const boardName = this.cfg.boardName;
-      if (spaceId === undefined || boardName === undefined) {
-        return undefined;
-      }
-      return getSpecialCellInfo(spaceId, boardName);
-    },
-    headerTitle(): string {
-      // A named cell's curated LORE title (e.g. "Гора Аполлинарис") wins the
-      // header ONLY while the cell is EMPTY — the geographic identity matters when
-      // you're deciding to build there. Once ANY tile COVERS it the cell is just
-      // that tile (a plain city, …), so fall back to the ordinary tile header.
-      // A genuine composite special tile (New Holland / Capital) carries its own
-      // name via `tileName` (it has no loreInfo) and is unaffected.
-      if (this.loreInfo !== undefined && this.status.external !== true && !this.occupied) {
-        return this.loreInfo.title;
-      }
-      const h = this.status.header;
-      if (typeof h === 'string' && h !== '') {
-        return h;
-      }
-      return 'Empty space';
-    },
-    cellRect(): DOMRect | undefined {
-      const spaceId = boardInfoState.spaceId;
-      if (spaceId === undefined || typeof document === 'undefined') {
-        return undefined;
-      }
-      // BRD-3: prefer the rect captured at hover-enter (no query, no layout
-      // read). Fall back to a query for callers that didn't supply one (the
-      // `i` badge in SpecialCellMarker).
-      if (boardInfoState.cellRect !== undefined) {
-        return boardInfoState.cellRect;
-      }
-      const el = document.querySelector(`[data_space_id="${spaceId}"]`);
-      return el === null ? undefined : el.getBoundingClientRect();
-    },
-    below(): boolean {
-      const rect = this.cellRect;
-      return rect !== undefined && rect.top <= 240;
-    },
-    popoverStyle(): Record<string, string> {
-      const rect = this.cellRect;
-      if (rect === undefined) {
-        return {};
-      }
-      const vw = window.innerWidth;
-      const cx = Math.min(Math.max(rect.left + rect.width / 2, 160), vw - 160);
-      if (this.below) {
-        return {left: `${cx}px`, top: `${rect.bottom + 10}px`, transform: 'translate(-50%, 0)'};
-      }
-      return {left: `${cx}px`, top: `${rect.top - 10}px`, transform: 'translate(-50%, -100%)'};
-    },
-  },
-  methods: {
-    playerName(color: Color): string {
-      return displayNameForColor(this.cfg.players, color);
-    },
-    statusLabel(status: string): string {
-      switch (status) {
-      case 'active': return 'Protected';
-      case 'inactive-has-tiles-outside': return 'Tiles outside the zone';
-      default: return 'No tiles in the zone';
-      }
-    },
-    statusClass(status: string): string {
-      return status === 'active' ?
-        'board-cell-popover__zone-badge--active' :
-        'board-cell-popover__zone-badge--inactive';
-    },
-  },
+defineOptions({name: 'BoardCellInfoPopover'});
+
+const info = computed((): BoardCellInfo | undefined => {
+  return boardInfoState.info;
 });
+const cfg = computed(() => {
+  return boardInfoState.cfg;
+});
+const status = computed((): BoardCellStatus => {
+  return info.value?.status ?? {content: 'empty'};
+});
+// A tile (real or hazard) covers the cell — terrain lore / placement-restriction
+// rules are stale once occupied (the engine already drops the zone facts; this
+// gates the client-only curated lore the same way).
+const occupied = computed((): boolean => {
+  return status.value.content !== 'empty';
+});
+const facts = computed((): ReadonlyArray<BoardFact> => {
+  return info.value?.facts ?? [];
+});
+const description = computed((): string | undefined => {
+  const d = info.value?.description;
+  return typeof d === 'string' ? d : undefined;
+});
+// Section partitions — passive framing for placement hints, recipient
+// grouping only for endgame scoring.
+const placeHereFacts = computed((): ReadonlyArray<BoardFact> => {
+  return facts.value.filter((f) => f.category === 'printed-placement-bonus' || f.category === 'placement-effect');
+});
+const adjacentFacts = computed((): ReadonlyArray<BoardFact> => {
+  return facts.value.filter((f) => f.category === 'ocean-adjacency-bonus');
+});
+const scoringFacts = computed((): ReadonlyArray<BoardFact> => {
+  return facts.value.filter((f) => f.category === 'city-greenery-scoring' || f.category === 'future-scoring');
+});
+const zoneFacts = computed((): ReadonlyArray<BoardFact> => {
+  // The per-seat status facts are the console dossier's rows; here they are the status block below.
+  return facts.value.filter((f) => f.category === 'map-special-zone' && !f.id.startsWith('deflection-status-'));
+});
+const externalFacts = computed((): ReadonlyArray<BoardFact> => {
+  return facts.value.filter((f) => f.category === 'external-area');
+});
+const reservedFacts = computed((): ReadonlyArray<BoardFact> => {
+  return facts.value.filter((f) => f.category === 'reserved-area' || f.category === 'restriction');
+});
+// Ares hazard facts (identity / cleanup / adjacency penalty) — own section.
+const hazardFacts = computed((): ReadonlyArray<BoardFact> => {
+  return facts.value.filter((f) => f.category === 'hazard-penalty' || f.category === 'hazard-cleanup');
+});
+// Ares adjacency-SOURCE facts (what neighbours / the owner earn) — own section.
+const adjacencyBonusFacts = computed((): ReadonlyArray<BoardFact> => {
+  return facts.value.filter((f) => f.category === 'ares-adjacency-bonus' || f.category === 'tile-owner-benefit');
+});
+const shouldShow = computed((): boolean => {
+  if (info.value === undefined || boardInfoState.spaceId === undefined) {
+    return false;
+  }
+  // A tile-placement prompt owns whole-cell hover (SelectSpace's reason /
+  // preview popovers) — don't double up. Read the reactive placement flag
+  // (BRD-3) — also makes this computed re-evaluate on placement toggle,
+  // which the old `document.querySelector` (non-reactive) never did.
+  if (placementRenderState.highlightActive) {
+    return false;
+  }
+  // Every cell now carries a header → the inspector is always meaningful.
+  return true;
+});
+const ownerColor = computed((): Color | undefined => {
+  return status.value.ownerColor;
+});
+const ownerName = computed((): string | undefined => {
+  const color = status.value.ownerColor;
+  if (color === undefined) {
+    return undefined;
+  }
+  return displayNameForColor(cfg.value.players, color);
+});
+const tileName = computed((): string | undefined => {
+  // Name a SPECIAL / composite tile (Capital, New Holland, volcanoes, …) or a
+  // standalone special-tile cell. An ORDINARY city/ocean/greenery (special !==
+  // true) stays nameless so the city tooltip reads exactly as before.
+  if (status.value.special !== true && status.value.content !== 'special-tile') {
+    return undefined;
+  }
+  const label = status.value.tileLabel;
+  return typeof label === 'string' && label !== '' ? label : undefined;
+});
+// What a SPECIAL / composite tile counts AS for rules/scoring (Capital → city;
+// New Holland → city + ocean). An ORDINARY tile — a plain city/ocean/greenery,
+// INCLUDING one built over a lore cell (a city on "Гора Аполлинарис") — is just
+// itself: "counts as: City" on a City is redundant noise, so gate on `special`.
+const countsAsLabels = computed((): ReadonlyArray<string> => {
+  if (status.value.special !== true) {
+    return [];
+  }
+  const map: Record<string, string> = {city: 'City', ocean: 'Ocean', greenery: 'Greenery'};
+  return (status.value.countsAs ?? []).map((c) => map[c]).filter((s) => s !== undefined);
+});
+// Per-player Asteroid-Deflection-Zone plant-protection status.
+const zoneProtection = computed(() => {
+  return info.value?.zoneProtection;
+});
+// Curated named-cell lore (volcanoes / Noctis / off-Mars colonies), folded
+// into the unified inspector so a named cell shows BOTH its identity AND its
+// tile bonuses / owner / scoring (instead of a separate lore-only overlay).
+const loreInfo = computed((): SpecialCellInfo | undefined => {
+  const spaceId = boardInfoState.spaceId;
+  const boardName = cfg.value.boardName;
+  if (spaceId === undefined || boardName === undefined) {
+    return undefined;
+  }
+  return getSpecialCellInfo(spaceId, boardName);
+});
+const headerTitle = computed((): string => {
+  // A named cell's curated LORE title (e.g. "Гора Аполлинарис") wins the
+  // header ONLY while the cell is EMPTY — the geographic identity matters when
+  // you're deciding to build there. Once ANY tile COVERS it the cell is just
+  // that tile (a plain city, …), so fall back to the ordinary tile header.
+  // A genuine composite special tile (New Holland / Capital) carries its own
+  // name via `tileName` (it has no loreInfo) and is unaffected.
+  if (loreInfo.value !== undefined && status.value.external !== true && !occupied.value) {
+    return loreInfo.value.title;
+  }
+  const h = status.value.header;
+  if (typeof h === 'string' && h !== '') {
+    return h;
+  }
+  return 'Empty space';
+});
+const cellRect = computed((): DOMRect | undefined => {
+  const spaceId = boardInfoState.spaceId;
+  if (spaceId === undefined || typeof document === 'undefined') {
+    return undefined;
+  }
+  // BRD-3: prefer the rect captured at hover-enter (no query, no layout
+  // read). Fall back to a query for callers that didn't supply one (the
+  // `i` badge in SpecialCellMarker).
+  if (boardInfoState.cellRect !== undefined) {
+    return boardInfoState.cellRect;
+  }
+  const el = document.querySelector(`[data_space_id="${spaceId}"]`);
+  return el === null ? undefined : el.getBoundingClientRect();
+});
+const below = computed((): boolean => {
+  const rect = cellRect.value;
+  return rect !== undefined && rect.top <= 240;
+});
+const popoverStyle = computed((): Record<string, string> => {
+  const rect = cellRect.value;
+  if (rect === undefined) {
+    return {};
+  }
+  const vw = window.innerWidth;
+  const cx = Math.min(Math.max(rect.left + rect.width / 2, 160), vw - 160);
+  if (below.value) {
+    return {left: `${cx}px`, top: `${rect.bottom + 10}px`, transform: 'translate(-50%, 0)'};
+  }
+  return {left: `${cx}px`, top: `${rect.top - 10}px`, transform: 'translate(-50%, -100%)'};
+});
+
+function playerName(color: Color): string {
+  return displayNameForColor(cfg.value.players, color);
+}
+function statusLabel(status: string): string {
+  switch (status) {
+  case 'active': return 'Protected';
+  case 'inactive-has-tiles-outside': return 'Tiles outside the zone';
+  default: return 'No tiles in the zone';
+  }
+}
+function statusClass(status: string): string {
+  return status === 'active' ?
+    'board-cell-popover__zone-badge--active' :
+    'board-cell-popover__zone-badge--inactive';
+}
 </script>
 
 <style scoped lang="less">
