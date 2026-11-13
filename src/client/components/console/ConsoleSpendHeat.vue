@@ -1,22 +1,4 @@
 <template>
-  <!--
-    SPEND HEAT — Stormcraft Incorporated's «pay N heat» prompt, console-native.
-
-    It is a PAYMENT, and it is presented as one: a coverage meter that reads
-    like the payment panel's status line, two source lanes, and a confirm that
-    is only live when the bill is covered EXACTLY (the rules reject an
-    overpayment, so the surface must never offer one). The desktop modal this
-    replaces was a pair of bare number steppers with no idea what they added up
-    to — on a TV it was unreadable and unplayable with a pad.
-
-    …and when ONE step covers the bill (`budgetSingleStep`) the dials go away
-    too: A picks the source, X pays. Same rule, same engine and same gesture as
-    the Venus bonus's single-resource mode — the two halves of this chassis
-    always answer the same question the same way.
-
-    data-motion-*: rides the shared `.con-shade` dim + the surface-motion
-    director — no own backdrop.
-  -->
   <div class="con-lanes con-heat con-ws" role="dialog" :aria-label="titleText" data-motion-surface="spend-heat">
     <!-- A plate of the PROMPT-MODAL FAMILY (`console_prompt.less`). A bill the player chose to pay is a free choice —
          the NEUTRAL tone (the quiet crest, the ◈ emblem); its coverage («ПОКРЫТО N / M») is the footer's meter. -->
@@ -87,7 +69,27 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+/*
+ * SPEND HEAT — Stormcraft Incorporated's «pay N heat» prompt, console-native.
+ *
+ * It is a PAYMENT, and it is presented as one: a coverage meter that reads
+ * like the payment panel's status line, two source lanes, and a confirm that
+ * is only live when the bill is covered EXACTLY (the rules reject an
+ * overpayment, so the surface must never offer one). The desktop modal this
+ * replaces was a pair of bare number steppers with no idea what they added up
+ * to — on a TV it was unreadable and unplayable with a pad.
+ *
+ * …and when ONE step covers the bill (`budgetSingleStep`) the dials go away
+ * too: A picks the source, X pays. Same rule, same engine and same gesture as
+ * the Venus bonus's single-resource mode — the two halves of this chassis
+ * always answer the same question the same way.
+ *
+ * data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+ * director — no own backdrop.
+ *
+ * (This comment opened the template; the template starts with its root now.)
+ */
 /**
  * Presentation + the pad contract. Every rule (what a step may do, when the
  * bill is covered, when it overpays, what the blocker is) lives in the pure
@@ -95,19 +97,22 @@
  * distribution screens can never drift, and the rules are unit-tested without
  * mounting anything.
  */
-import {defineComponent, PropType} from 'vue';
+import {computed, onBeforeUnmount, PropType, ref, useTemplateRef, watch} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {AndOptionsModel} from '@/common/models/PlayerInputModel';
 import {Message} from '@/common/logs/Message';
 import {CardName} from '@/common/cards/CardName';
-import {translateMessage, translateText} from '@/client/directives/i18n';
+import {$t, translateMessage, translateText} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {clearPanelCommands, setPanelCommands} from '@/client/console/consolePanelUi';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
+// `<console-source-dock>` is one of the three components that are ASYNC ON PURPOSE: the template's tag resolves to
+// this lazy binding (the same one main.ts registers by name) — see the note in asyncComponents.ts.
+import {ConsoleSourceDock} from '@/client/components/asyncComponents';
 import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
 import ConsolePromptOutcome, {PromptOutcomeItem} from '@/client/components/console/foundation/ConsolePromptOutcome.vue';
 import {PromptTone, promptToneOf} from '@/client/console/promptTone';
@@ -126,247 +131,232 @@ function textOf(v: string | Message | undefined): string {
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
 }
 
-export default defineComponent({
-  name: 'ConsoleSpendHeat',
-  // `console-source-dock` is GLOBAL (main.ts) — see the note there.
-  components: {GamepadGlyph, ConsolePromptHead, ConsolePromptOutcome},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-  },
-  emits: ['submit', 'defer'],
-  data() {
-    return {
-      focusIdx: 0,
-      picks: {} as BudgetState,
-      submitting: false,
-    };
-  },
-  computed: {
-    model(): AndOptionsModel | undefined {
-      const wf = this.playerView.waitingFor;
-      return wf?.spendHeatPrompt !== undefined && wf.type === 'and' ? (wf as AndOptionsModel) : undefined;
-    },
-    target(): number {
-      return this.model?.spendHeatPrompt?.amount ?? 0;
-    },
-    rule(): BudgetRule {
-      return {kind: 'cover', target: this.target};
-    },
-    lanes(): Array<BudgetLane> {
-      return this.model === undefined ? [] : spendHeatLanes(this.model);
-    },
-    /**
-     * A bill one step covers (one heat OR one floater): the dials mean nothing,
-     * so the surface becomes a RADIO — A picks the source / takes it back. The
-     * SAME question the Venus bonus asks, off the same pure engine, so the two
-     * halves of this chassis can never drift apart. The BILL itself stays on
-     * screen: a payment always states what it costs.
-     */
-    singleStep(): boolean {
-      return budgetSingleStep(this.lanes, this.rule);
-    },
-    /** The lane under the cursor is the chosen source — A takes it back. */
-    focusedPicked(): boolean {
-      const lane = this.lanes[this.focusIdx];
-      return lane !== undefined && laneValue(this.picks, lane.key) > 0;
-    },
-    covered(): number {
-      return budgetTotal(this.lanes, this.picks);
-    },
-    ready(): boolean {
-      return budgetValid(this.lanes, this.picks, this.rule);
-    },
-    /** Covered, but with a step that could be taken back — the server would
-     *  refuse it, so it is called out BEFORE the player presses confirm. */
-    overpaying(): boolean {
-      return !this.ready && this.covered >= this.target;
-    },
-    blockedText(): string {
-      const key = budgetBlockedKey(this.lanes, this.picks, this.rule);
-      return key === undefined ? '' : translateText(key);
-    },
-    titleText(): string {
-      return textOf(this.model?.title);
-    },
-    /** The decision's character (`promptTone.ts`) — a bill the player chose to pay reads NEUTRAL. */
-    tone(): PromptTone {
-      return promptToneOf(this.model).tone;
-    },
-    /** The decision's identity in the press's sequence (`promptSequence.ts`). */
-    sequenceKey(): string {
-      return this.model === undefined ? '' : promptSequenceKey(this.model, promptIdentityKey(this.model));
-    },
-    /** The footer: what leaves each chosen source (`owned → left`). */
-    outcomeItems(): Array<PromptOutcomeItem> {
-      return this.lanes
-        .filter((lane) => this.valueOf(lane) > 0)
-        .map((lane) => ({
-          key: lane.key,
-          iconClass: lane.iconClass,
-          delta: -this.valueOf(lane),
-          from: String(lane.max),
-          to: String(lane.max - this.valueOf(lane)),
-        }));
-    },
-    sourceView(): PromptSourceView | undefined {
-      return promptSourceView(this.model);
-    },
-    sourceCard(): CardName | undefined {
-      return this.sourceView?.inspectable === true ? this.sourceView.card : undefined;
-    },
-    /** A genuinely new bill resets the dials. */
-    promptKey(): string {
-      return `${this.target}|${this.lanes.map((l) => l.max).join(',')}`;
-    },
-    footCommands(): Array<ConsoleCommand> {
-      // One step covers the bill → one verb, and the confirm right beside it.
-      const cmds: Array<ConsoleCommand> = this.singleStep ? [
-        {control: 'dpad', label: 'Navigate'},
-        {control: 'confirm', label: this.focusedPicked ? 'Remove here' : 'Add here'},
-        {control: 'secondary', label: 'Pay', enabled: this.ready},
-      ] : [
-        {control: 'dpad', label: 'Navigate'},
-        {control: 'bumperL', label: '−1'},
-        {control: 'bumperR', label: '+1'},
-        {control: 'triggerR', label: 'MAX'},
-        {control: 'secondary', label: 'Pay', enabled: this.ready},
-      ];
-      if (this.sourceCard !== undefined) {
-        cmds.push({control: 'stickL', label: 'Source', priority: 1});
-      }
-      cmds.push({control: 'back', label: 'Minimize'});
-      return cmds;
-    },
-  },
-  watch: {
-    promptKey: {
-      immediate: true,
-      handler() {
-        this.reset();
-      },
-    },
-    playerView() {
-      this.submitting = false;
-    },
-    footCommands: {
-      immediate: true,
-      deep: true,
-      handler(cmds: ReadonlyArray<ConsoleCommand>) {
-        setPanelCommands('spendHeat', cmds);
-      },
-    },
-  },
-  beforeUnmount() {
-    clearPanelCommands('spendHeat');
-  },
-  methods: {
-    valueOf(lane: BudgetLane): number {
-      return laneValue(this.picks, lane.key);
-    },
-    /** What this lane contributes to the bill, in heat. */
-    paysOf(lane: BudgetLane): number {
-      return this.valueOf(lane) * lane.weight;
-    },
-    reset(): void {
-      this.submitting = false;
-      this.focusIdx = 0;
-      // Only ONE way to pay → it is a confirmation, not a puzzle. Same rule the
-      // production-loss surface applies to a lone reducible row.
-      this.picks = forcedAllocation(this.lanes, this.rule) ?? {};
-    },
-    handleIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        if (intent.dir === 'up' || intent.dir === 'down') {
-          this.focusIdx = stepFocus(this.lanes, this.focusIdx, intent.dir === 'down' ? 1 : -1);
-        }
-        return;
-      }
-      if (intent.kind === 'press' && intent.button === 'stickL' && this.sourceCard !== undefined) {
-        this.zoomSource();
-        return;
-      }
-      switch (consoleActionOf(intent)) {
-      case 'primary': // A — the single-step gesture (free in the dial layout)
-        if (this.singleStep) {
-          this.toggleFocused();
-        }
-        return;
-      case 'prevSection': // LB
-        this.step(-1);
-        return;
-      case 'nextSection': // RB
-        this.step(1);
-        return;
-      case 'nextTab': // RT — pour the rest onto the focused lane
-        this.maxOnto();
-        return;
-      case 'inspect': // X — pay
-        this.confirm();
-        return;
-      case 'back':
-        this.$emit('defer');
-        return;
-      default:
-        return;
-      }
-    },
-    /** The single-step gesture: pay with this source, or take it back. */
-    toggleFocused(): void {
-      const lane = this.lanes[this.focusIdx];
-      if (lane !== undefined) {
-        this.picks = toggleSoleStep(this.lanes, this.picks, this.rule, lane.key);
-      }
-    },
-    step(delta: number): void {
-      const lane = this.lanes[this.focusIdx];
-      if (lane === undefined) {
-        return;
-      }
-      // SINGLE-STEP mode doesn't advertise the stepper verbs, but they still
-      // land on its one gesture — muscle memory must never meet a dead button.
-      // LB takes the unit off this lane, RB puts it here (MOVING it: a plain
-      // `+1` on top of a covered bill is refused by the engine, as it must be).
-      if (this.singleStep) {
-        this.picks = delta < 0 ?
-          (this.focusedPicked ? {} : this.picks) :
-          stepLane(this.lanes, {}, this.rule, lane.key, 1);
-        return;
-      }
-      this.picks = stepLane(this.lanes, this.picks, this.rule, lane.key, delta);
-    },
-    maxOnto(): void {
-      const lane = this.lanes[this.focusIdx];
-      if (lane === undefined) {
-        return;
-      }
-      this.picks = this.singleStep ?
-        stepLane(this.lanes, {}, this.rule, lane.key, 1) :
-        maxOntoLane(this.lanes, this.picks, this.rule, lane.key);
-    },
-    confirm(): void {
-      if (!this.ready || this.submitting) {
-        return;
-      }
-      this.submitting = true;
-      this.$emit('submit', spendHeatResponse(this.lanes, this.picks));
-    },
-    /** L3 — the source card fullscreen; the dials survive the round trip. */
-    zoomSource(): void {
-      const name = this.sourceCard;
-      if (name === undefined) {
-        return;
-      }
-      openConsoleCardZoom([{name}], 0, undefined, undefined, {
-        statusLabel: 'Source',
-        origin: {
-          kind: 'physical',
-          resolve: () => {
-            const dock = (this.$refs.sourceDock ?? undefined) as {$el?: HTMLElement} | undefined;
-            return dock?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
-          },
-        },
-      });
-    },
-  },
+defineOptions({name: 'ConsoleSpendHeat'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
 });
+const emit = defineEmits(['submit', 'defer']);
+
+// The source dock's ref — read for its root element only (`$el`: the physical origin of the L3 zoom).
+const sourceDock = useTemplateRef<{$el?: HTMLElement}>('sourceDock');
+const focusIdx = ref(0);
+const picks = ref<BudgetState>({});
+const submitting = ref(false);
+
+const model = computed((): AndOptionsModel | undefined => {
+  const wf = props.playerView.waitingFor;
+  return wf?.spendHeatPrompt !== undefined && wf.type === 'and' ? (wf as AndOptionsModel) : undefined;
+});
+const target = computed((): number => {
+  return model.value?.spendHeatPrompt?.amount ?? 0;
+});
+const rule = computed((): BudgetRule => {
+  return {kind: 'cover', target: target.value};
+});
+const lanes = computed((): Array<BudgetLane> => {
+  return model.value === undefined ? [] : spendHeatLanes(model.value);
+});
+/**
+ * A bill one step covers (one heat OR one floater): the dials mean nothing,
+ * so the surface becomes a RADIO — A picks the source / takes it back. The
+ * SAME question the Venus bonus asks, off the same pure engine, so the two
+ * halves of this chassis can never drift apart. The BILL itself stays on
+ * screen: a payment always states what it costs.
+ */
+const singleStep = computed((): boolean => {
+  return budgetSingleStep(lanes.value, rule.value);
+});
+/** The lane under the cursor is the chosen source — A takes it back. */
+const focusedPicked = computed((): boolean => {
+  const lane = lanes.value[focusIdx.value];
+  return lane !== undefined && laneValue(picks.value, lane.key) > 0;
+});
+const covered = computed((): number => {
+  return budgetTotal(lanes.value, picks.value);
+});
+const ready = computed((): boolean => {
+  return budgetValid(lanes.value, picks.value, rule.value);
+});
+const blockedText = computed((): string => {
+  const key = budgetBlockedKey(lanes.value, picks.value, rule.value);
+  return key === undefined ? '' : translateText(key);
+});
+const titleText = computed((): string => {
+  return textOf(model.value?.title);
+});
+/** The decision's character (`promptTone.ts`) — a bill the player chose to pay reads NEUTRAL. */
+const tone = computed((): PromptTone => {
+  return promptToneOf(model.value).tone;
+});
+/** The decision's identity in the press's sequence (`promptSequence.ts`). */
+const sequenceKey = computed((): string => {
+  return model.value === undefined ? '' : promptSequenceKey(model.value, promptIdentityKey(model.value));
+});
+/** The footer: what leaves each chosen source (`owned → left`). */
+const outcomeItems = computed((): Array<PromptOutcomeItem> => {
+  return lanes.value
+    .filter((lane) => valueOf(lane) > 0)
+    .map((lane) => ({
+      key: lane.key,
+      iconClass: lane.iconClass,
+      delta: -valueOf(lane),
+      from: String(lane.max),
+      to: String(lane.max - valueOf(lane)),
+    }));
+});
+const sourceView = computed((): PromptSourceView | undefined => {
+  return promptSourceView(model.value);
+});
+const sourceCard = computed((): CardName | undefined => {
+  return sourceView.value?.inspectable === true ? sourceView.value.card : undefined;
+});
+/** A genuinely new bill resets the dials. */
+const promptKey = computed((): string => {
+  return `${target.value}|${lanes.value.map((l) => l.max).join(',')}`;
+});
+const footCommands = computed((): Array<ConsoleCommand> => {
+  // One step covers the bill → one verb, and the confirm right beside it.
+  const cmds: Array<ConsoleCommand> = singleStep.value ? [
+    {control: 'dpad', label: 'Navigate'},
+    {control: 'confirm', label: focusedPicked.value ? 'Remove here' : 'Add here'},
+    {control: 'secondary', label: 'Pay', enabled: ready.value},
+  ] : [
+    {control: 'dpad', label: 'Navigate'},
+    {control: 'bumperL', label: '−1'},
+    {control: 'bumperR', label: '+1'},
+    {control: 'triggerR', label: 'MAX'},
+    {control: 'secondary', label: 'Pay', enabled: ready.value},
+  ];
+  if (sourceCard.value !== undefined) {
+    cmds.push({control: 'stickL', label: 'Source', priority: 1});
+  }
+  cmds.push({control: 'back', label: 'Minimize'});
+  return cmds;
+});
+
+function valueOf(lane: BudgetLane): number {
+  return laneValue(picks.value, lane.key);
+}
+/** What this lane contributes to the bill, in heat. */
+function paysOf(lane: BudgetLane): number {
+  return valueOf(lane) * lane.weight;
+}
+function reset(): void {
+  submitting.value = false;
+  focusIdx.value = 0;
+  // Only ONE way to pay → it is a confirmation, not a puzzle. Same rule the
+  // production-loss surface applies to a lone reducible row.
+  picks.value = forcedAllocation(lanes.value, rule.value) ?? {};
+}
+function handleIntent(intent: GamepadIntent): void {
+  if (intent.kind === 'nav') {
+    if (intent.dir === 'up' || intent.dir === 'down') {
+      focusIdx.value = stepFocus(lanes.value, focusIdx.value, intent.dir === 'down' ? 1 : -1);
+    }
+    return;
+  }
+  if (intent.kind === 'press' && intent.button === 'stickL' && sourceCard.value !== undefined) {
+    zoomSource();
+    return;
+  }
+  switch (consoleActionOf(intent)) {
+  case 'primary': // A — the single-step gesture (free in the dial layout)
+    if (singleStep.value) {
+      toggleFocused();
+    }
+    return;
+  case 'prevSection': // LB
+    step(-1);
+    return;
+  case 'nextSection': // RB
+    step(1);
+    return;
+  case 'nextTab': // RT — pour the rest onto the focused lane
+    maxOnto();
+    return;
+  case 'inspect': // X — pay
+    confirm();
+    return;
+  case 'back':
+    emit('defer');
+    return;
+  default:
+    return;
+  }
+}
+/** The single-step gesture: pay with this source, or take it back. */
+function toggleFocused(): void {
+  const lane = lanes.value[focusIdx.value];
+  if (lane !== undefined) {
+    picks.value = toggleSoleStep(lanes.value, picks.value, rule.value, lane.key);
+  }
+}
+function step(delta: number): void {
+  const lane = lanes.value[focusIdx.value];
+  if (lane === undefined) {
+    return;
+  }
+  // SINGLE-STEP mode doesn't advertise the stepper verbs, but they still
+  // land on its one gesture — muscle memory must never meet a dead button.
+  // LB takes the unit off this lane, RB puts it here (MOVING it: a plain
+  // `+1` on top of a covered bill is refused by the engine, as it must be).
+  if (singleStep.value) {
+    picks.value = delta < 0 ?
+      (focusedPicked.value ? {} : picks.value) :
+      stepLane(lanes.value, {}, rule.value, lane.key, 1);
+    return;
+  }
+  picks.value = stepLane(lanes.value, picks.value, rule.value, lane.key, delta);
+}
+function maxOnto(): void {
+  const lane = lanes.value[focusIdx.value];
+  if (lane === undefined) {
+    return;
+  }
+  picks.value = singleStep.value ?
+    stepLane(lanes.value, {}, rule.value, lane.key, 1) :
+    maxOntoLane(lanes.value, picks.value, rule.value, lane.key);
+}
+function confirm(): void {
+  if (!ready.value || submitting.value) {
+    return;
+  }
+  submitting.value = true;
+  emit('submit', spendHeatResponse(lanes.value, picks.value));
+}
+/** L3 — the source card fullscreen; the dials survive the round trip. */
+function zoomSource(): void {
+  const name = sourceCard.value;
+  if (name === undefined) {
+    return;
+  }
+  openConsoleCardZoom([{name}], 0, undefined, undefined, {
+    statusLabel: 'Source',
+    origin: {
+      kind: 'physical',
+      resolve: () => {
+        const dock = sourceDock.value;
+        return dock?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
+      },
+    },
+  });
+}
+
+watch(() => promptKey.value, () => {
+  reset();
+}, {immediate: true});
+watch(() => props.playerView, () => {
+  submitting.value = false;
+});
+watch(() => footCommands.value, (cmds: ReadonlyArray<ConsoleCommand>) => {
+  setPanelCommands('spendHeat', cmds);
+}, {immediate: true, deep: true});
+
+onBeforeUnmount(() => {
+  clearPanelCommands('spendHeat');
+});
+
+// What the shell's pad router reaches through the surface registry (`shell.surfaces.at('spendHeat')` → `handedTo`):
+// `handleIntent` — and nothing else.
+defineExpose({handleIntent});
 </script>
