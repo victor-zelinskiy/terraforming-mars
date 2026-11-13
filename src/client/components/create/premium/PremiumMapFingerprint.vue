@@ -49,8 +49,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
 import {BoardName} from '@/common/boards/BoardName';
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import {SpaceType} from '@/common/boards/SpaceType';
@@ -112,165 +112,160 @@ function glyphTransform(dx: number, dy: number, k: number): string {
   return `translate(${(dx - 12 * k).toFixed(2)} ${(dy - 12 * k).toFixed(2)}) scale(${k})`;
 }
 
-export default defineComponent({
-  name: 'PremiumMapFingerprint',
-  props: {
-    mapId: {type: String as PropType<BoardName | undefined>, default: undefined},
-    random: {type: Boolean, default: false},
-    accent: {type: String, default: '240,168,80'},
-    variant: {type: String as PropType<'hero' | 'card' | 'thumb'>, default: 'card'},
-    /** Play the board-reveal choreography (surface wave; glyphs bloom in). */
-    reveal: {type: Boolean, default: false},
-    /** Extra delay before the reveal starts (stagger between mission cards). */
-    revealDelayMs: {type: Number, default: 0},
-  },
-  computed: {
-    layout(): ReadonlyArray<BoardLayoutSpace> {
-      if (this.random || this.mapId === undefined) {
-        return [];
-      }
-      return clientBoardLayout(this.mapId);
-    },
-    bounds() {
-      return miniLayoutBounds(this.layout);
-    },
-    viewBox(): string {
-      const b = this.bounds;
-      return `${(b.minX - FRAME_PAD).toFixed(1)} ${(b.minY - FRAME_PAD).toFixed(1)} ` +
-        `${(b.width + 2 * FRAME_PAD).toFixed(1)} ${(b.height + 2 * FRAME_PAD).toFixed(1)}`;
-    },
-    hexOutline(): string {
-      return miniHexPoints();
-    },
-    /** The LEFT half of the hex (top · bottom · the two left vertices) — a cove's ocean half. */
-    hexLeftHalf(): string {
-      const pts = miniHexPoints().split(' ');
-      return [pts[0], pts[3], pts[4], pts[5]].join(' ');
-    },
-    /** Reveal wave: distance from the surface's own centre, normalized. */
-    waveCenter(): {x: number, y: number, max: number} {
-      const b = this.bounds;
-      const x = (b.minX + b.maxX) / 2;
-      const y = (b.minY + b.maxY) / 2;
-      return {x, y, max: Math.max(1, Math.hypot(b.width / 2, b.height / 2))};
-    },
-    cells(): ReadonlyArray<CellRender> {
-      const showGlyphs = this.variant !== 'thumb';
-      const wave = this.waveCenter;
-      const rows = miniRowsOf(this.layout);
-      const maxLen = Math.max(...rows);
-      return this.layout.map((s) => {
-        const rowLen = rows[s.y] ?? maxLen;
-        const {cx, cy} = miniCellCenter(s.x, s.y, rowLen, maxLen);
-        const style: Record<string, string> = {};
-        if (this.reveal) {
-          const d = Math.hypot(cx - wave.x, cy - wave.y) / wave.max;
-          style['--d'] = `${Math.round(this.revealDelayMs + d * HEX_WAVE_MS)}ms`;
-        }
-        const glyphs: Array<CellGlyph> = [];
-        if (showGlyphs) {
-          // The compact card tier draws the BOLD stroke build of the same
-          // shapes — at ≈10 px per glyph the printed weight dissolves.
-          const art = this.variant === 'card' ? SPACE_BONUS_GLYPHS_BOLD : SPACE_BONUS_GLYPHS;
-          const printed = s.b.slice(0, 3);
-          const slots = glyphSlots(printed.length);
-          printed.forEach((bonus, i) => {
-            const slot = slots[i];
-            if (slot === undefined || art[bonus] === undefined) {
-              return;
-            }
-            glyphs.push({
-              transform: glyphTransform(slot.dx, slot.dy, slot.k),
-              paths: art[bonus],
-              color: `rgb(${SPACE_BONUS_RGB[bonus]})`,
-            });
-          });
-          if (s.v === true) {
-            // Volcanic site: a small caldera mark in the upper corner —
-            // never displacing the printed bonuses.
-            glyphs.push({transform: glyphTransform(4.6, -5.2, 0.26), paths: VOLCANO_PATHS, color: VOLCANO_COLOR});
-          }
-          if (s.t === SpaceType.RESTRICTED && printed.length === 0) {
-            glyphs.push({transform: glyphTransform(0, 0, 0.34), paths: RESTRICTED_PATHS, color: 'rgba(180, 150, 140, 0.8)'});
-          }
-        }
-        return {
-          key: `${s.x}-${s.y}`,
-          transform: `translate(${cx.toFixed(2)} ${cy.toFixed(2)})`,
-          style,
-          cls: {
-            'map-fp__hex--ocean': s.t === SpaceType.OCEAN,
-            'map-fp__hex--cove': s.t === SpaceType.COVE,
-            'map-fp__hex--special': s.t === SpaceType.RESTRICTED,
-            'map-fp__hex--zone': s.t === SpaceType.DEFLECTION_ZONE,
-          },
-          fill: this.hexFill(s),
-          ...(s.t === SpaceType.COVE ? {half: 'rgba(56, 126, 208, 0.52)'} : {}),
-          glyphs,
-        };
-      });
-    },
-    legend(): ReadonlyArray<SpaceBonus> {
-      const counts = new Map<SpaceBonus, number>();
-      for (const s of this.layout) {
-        for (const b of s.b) {
-          if (b === SpaceBonus.OCEAN) {
-            continue;
-          }
-          counts.set(b, (counts.get(b) ?? 0) + 1);
-        }
-      }
-      return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([b]) => b);
-    },
-    // Random-preview ghost: the standard silhouette through the same grid.
-    ghostLayout(): ReadonlyArray<string> {
-      const out: Array<string> = [];
-      MINI_ROWS.forEach((n, y) => {
-        for (let i = 0; i < n; i++) {
-          const {cx, cy} = miniCellCenter((9 - n) + i, y, n);
-          out.push(miniHexPoints().split(' ').map((p) => {
-            const [px, py] = p.split(',').map(Number);
-            return `${(px + cx).toFixed(1)},${(py + cy).toFixed(1)}`;
-          }).join(' '));
-        }
-      });
-      return out;
-    },
-    ghostViewBox(): string {
-      const w = 9 * MINI_HEX_W;
-      const h = 8 * MINI_V_STEP + 2 * MINI_HEX_R;
-      return `${(-MINI_HEX_W / 2).toFixed(1)} ${-MINI_HEX_R} ${w.toFixed(1)} ${h}`;
-    },
-  },
-  methods: {
-    /**
-     * The SURFACE is calm — Mars-toned land, the recognisable blue ocean
-     * reserves, coves in their two halves, the special areas. Printed bonuses are GLYPHS
-     * inside their cells (like the real board), never a colour fill: a
-     * plant bonus must not read as a placed greenery tile.
-     */
-    hexFill(s: BoardLayoutSpace): string {
-      switch (s.t) {
-      case SpaceType.OCEAN:
-        return 'rgba(56, 126, 208, 0.52)';
-      case SpaceType.COVE:
-        // The LAND half's tone (volcanic or plain) — the ocean half is its own polygon over the left (`half`).
-        return s.v === true ? 'rgba(206, 112, 62, 0.26)' : 'rgba(186, 100, 62, 0.15)';
-      case SpaceType.RESTRICTED:
-        return 'rgba(16, 10, 9, 0.72)';
-      case SpaceType.DEFLECTION_ZONE:
-        // The field's own violet ground (`board-space-type-deflection-zone`) — one hue for the zone wherever it is drawn.
-        return 'rgba(148, 108, 236, 0.30)';
-      default:
-        return s.v === true ? 'rgba(206, 112, 62, 0.26)' : 'rgba(186, 100, 62, 0.15)';
-      }
-    },
-    bonusRgb(b: SpaceBonus): string {
-      return SPACE_BONUS_RGB[b] ?? this.accent;
-    },
-    glyphSvg(b: SpaceBonus): string {
-      return spaceBonusGlyphSvg(b);
-    },
-  },
+defineOptions({name: 'PremiumMapFingerprint'});
+const props = defineProps({
+  mapId: {type: String as PropType<BoardName | undefined>, default: undefined},
+  random: {type: Boolean, default: false},
+  accent: {type: String, default: '240,168,80'},
+  variant: {type: String as PropType<'hero' | 'card' | 'thumb'>, default: 'card'},
+  /** Play the board-reveal choreography (surface wave; glyphs bloom in). */
+  reveal: {type: Boolean, default: false},
+  /** Extra delay before the reveal starts (stagger between mission cards). */
+  revealDelayMs: {type: Number, default: 0},
 });
+
+const layout = computed((): ReadonlyArray<BoardLayoutSpace> => {
+  if (props.random || props.mapId === undefined) {
+    return [];
+  }
+  return clientBoardLayout(props.mapId);
+});
+const bounds = computed(() => {
+  return miniLayoutBounds(layout.value);
+});
+const viewBox = computed((): string => {
+  const b = bounds.value;
+  return `${(b.minX - FRAME_PAD).toFixed(1)} ${(b.minY - FRAME_PAD).toFixed(1)} ` +
+    `${(b.width + 2 * FRAME_PAD).toFixed(1)} ${(b.height + 2 * FRAME_PAD).toFixed(1)}`;
+});
+const hexOutline = computed((): string => {
+  return miniHexPoints();
+});
+/** The LEFT half of the hex (top · bottom · the two left vertices) — a cove's ocean half. */
+const hexLeftHalf = computed((): string => {
+  const pts = miniHexPoints().split(' ');
+  return [pts[0], pts[3], pts[4], pts[5]].join(' ');
+});
+/** Reveal wave: distance from the surface's own centre, normalized. */
+const waveCenter = computed((): {x: number, y: number, max: number} => {
+  const b = bounds.value;
+  const x = (b.minX + b.maxX) / 2;
+  const y = (b.minY + b.maxY) / 2;
+  return {x, y, max: Math.max(1, Math.hypot(b.width / 2, b.height / 2))};
+});
+const cells = computed((): ReadonlyArray<CellRender> => {
+  const showGlyphs = props.variant !== 'thumb';
+  const wave = waveCenter.value;
+  const rows = miniRowsOf(layout.value);
+  const maxLen = Math.max(...rows);
+  return layout.value.map((s) => {
+    const rowLen = rows[s.y] ?? maxLen;
+    const {cx, cy} = miniCellCenter(s.x, s.y, rowLen, maxLen);
+    const style: Record<string, string> = {};
+    if (props.reveal) {
+      const d = Math.hypot(cx - wave.x, cy - wave.y) / wave.max;
+      style['--d'] = `${Math.round(props.revealDelayMs + d * HEX_WAVE_MS)}ms`;
+    }
+    const glyphs: Array<CellGlyph> = [];
+    if (showGlyphs) {
+      // The compact card tier draws the BOLD stroke build of the same
+      // shapes — at ≈10 px per glyph the printed weight dissolves.
+      const art = props.variant === 'card' ? SPACE_BONUS_GLYPHS_BOLD : SPACE_BONUS_GLYPHS;
+      const printed = s.b.slice(0, 3);
+      const slots = glyphSlots(printed.length);
+      printed.forEach((bonus, i) => {
+        const slot = slots[i];
+        if (slot === undefined || art[bonus] === undefined) {
+          return;
+        }
+        glyphs.push({
+          transform: glyphTransform(slot.dx, slot.dy, slot.k),
+          paths: art[bonus],
+          color: `rgb(${SPACE_BONUS_RGB[bonus]})`,
+        });
+      });
+      if (s.v === true) {
+        // Volcanic site: a small caldera mark in the upper corner —
+        // never displacing the printed bonuses.
+        glyphs.push({transform: glyphTransform(4.6, -5.2, 0.26), paths: VOLCANO_PATHS, color: VOLCANO_COLOR});
+      }
+      if (s.t === SpaceType.RESTRICTED && printed.length === 0) {
+        glyphs.push({transform: glyphTransform(0, 0, 0.34), paths: RESTRICTED_PATHS, color: 'rgba(180, 150, 140, 0.8)'});
+      }
+    }
+    return {
+      key: `${s.x}-${s.y}`,
+      transform: `translate(${cx.toFixed(2)} ${cy.toFixed(2)})`,
+      style,
+      cls: {
+        'map-fp__hex--ocean': s.t === SpaceType.OCEAN,
+        'map-fp__hex--cove': s.t === SpaceType.COVE,
+        'map-fp__hex--special': s.t === SpaceType.RESTRICTED,
+        'map-fp__hex--zone': s.t === SpaceType.DEFLECTION_ZONE,
+      },
+      fill: hexFill(s),
+      ...(s.t === SpaceType.COVE ? {half: 'rgba(56, 126, 208, 0.52)'} : {}),
+      glyphs,
+    };
+  });
+});
+const legend = computed((): ReadonlyArray<SpaceBonus> => {
+  const counts = new Map<SpaceBonus, number>();
+  for (const s of layout.value) {
+    for (const b of s.b) {
+      if (b === SpaceBonus.OCEAN) {
+        continue;
+      }
+      counts.set(b, (counts.get(b) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([b]) => b);
+});
+// Random-preview ghost: the standard silhouette through the same grid.
+const ghostLayout = computed((): ReadonlyArray<string> => {
+  const out: Array<string> = [];
+  MINI_ROWS.forEach((n, y) => {
+    for (let i = 0; i < n; i++) {
+      const {cx, cy} = miniCellCenter((9 - n) + i, y, n);
+      out.push(miniHexPoints().split(' ').map((p) => {
+        const [px, py] = p.split(',').map(Number);
+        return `${(px + cx).toFixed(1)},${(py + cy).toFixed(1)}`;
+      }).join(' '));
+    }
+  });
+  return out;
+});
+const ghostViewBox = computed((): string => {
+  const w = 9 * MINI_HEX_W;
+  const h = 8 * MINI_V_STEP + 2 * MINI_HEX_R;
+  return `${(-MINI_HEX_W / 2).toFixed(1)} ${-MINI_HEX_R} ${w.toFixed(1)} ${h}`;
+});
+/**
+ * The SURFACE is calm — Mars-toned land, the recognisable blue ocean
+ * reserves, coves in their two halves, the special areas. Printed bonuses are GLYPHS
+ * inside their cells (like the real board), never a colour fill: a
+ * plant bonus must not read as a placed greenery tile.
+ */
+function hexFill(s: BoardLayoutSpace): string {
+  switch (s.t) {
+  case SpaceType.OCEAN:
+    return 'rgba(56, 126, 208, 0.52)';
+  case SpaceType.COVE:
+    // The LAND half's tone (volcanic or plain) — the ocean half is its own polygon over the left (`half`).
+    return s.v === true ? 'rgba(206, 112, 62, 0.26)' : 'rgba(186, 100, 62, 0.15)';
+  case SpaceType.RESTRICTED:
+    return 'rgba(16, 10, 9, 0.72)';
+  case SpaceType.DEFLECTION_ZONE:
+    // The field's own violet ground (`board-space-type-deflection-zone`) — one hue for the zone wherever it is drawn.
+    return 'rgba(148, 108, 236, 0.30)';
+  default:
+    return s.v === true ? 'rgba(206, 112, 62, 0.26)' : 'rgba(186, 100, 62, 0.15)';
+  }
+}
+function bonusRgb(b: SpaceBonus): string {
+  return SPACE_BONUS_RGB[b] ?? props.accent;
+}
+function glyphSvg(b: SpaceBonus): string {
+  return spaceBonusGlyphSvg(b);
+}
 </script>
