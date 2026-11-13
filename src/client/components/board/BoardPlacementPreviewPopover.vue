@@ -14,8 +14,9 @@
   </teleport>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, PropType} from 'vue';
+import {vI18n} from '@/client/directives/vDirectives';
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -36,51 +37,47 @@ const KIND_TITLE: Record<string, string> = {
  * board is scaled/translated), teleported to body, flips above/below + clamps.
  * The illegal-cell twin is `PlacementReasonPopover`.
  */
-export default defineComponent({
-  name: 'BoardPlacementPreviewPopover',
-  components: {BoardPlacementPreviewContent},
-  props: {
-    preview: {
-      type: Object as PropType<BoardPlacementPreview | undefined>,
-      default: undefined,
-    },
-    anchor: {
-      type: Object as PropType<DOMRect | undefined>,
-      default: undefined,
-    },
-    viewerColor: {
-      type: String as PropType<Color | undefined>,
-      default: undefined,
-    },
-    players: {
-      type: Array as PropType<ReadonlyArray<PublicPlayerModel>>,
-      default: () => [],
-    },
+defineOptions({name: 'BoardPlacementPreviewPopover'});
+const props = defineProps({
+  preview: {
+    type: Object as PropType<BoardPlacementPreview | undefined>,
+    default: undefined,
   },
-  computed: {
-    titleKey(): string {
-      return KIND_TITLE[this.preview?.kind ?? ''] ?? 'Place a tile';
-    },
-    hostStyle(): Record<string, string> {
-      const a = this.anchor;
-      if (a === undefined) {
-        return {display: 'none'};
-      }
-      const maxW = 330;
-      const margin = 8;
-      const cx = a.left + a.width / 2;
-      const left = Math.min(
-        Math.max(cx, maxW / 2 + margin),
-        window.innerWidth - maxW / 2 - margin);
-      const above = a.top > 280;
-      const top = above ? a.top - 10 : a.bottom + 10;
-      return {
-        left: `${Math.round(left)}px`,
-        top: `${Math.round(top)}px`,
-        transform: `translate(-50%, ${above ? '-100%' : '0'})`,
-      };
-    },
+  anchor: {
+    type: Object as PropType<DOMRect | undefined>,
+    default: undefined,
   },
+  viewerColor: {
+    type: String as PropType<Color | undefined>,
+    default: undefined,
+  },
+  players: {
+    type: Array as PropType<ReadonlyArray<PublicPlayerModel>>,
+    default: () => [],
+  },
+});
+
+const titleKey = computed((): string => {
+  return KIND_TITLE[props.preview?.kind ?? ''] ?? 'Place a tile';
+});
+const hostStyle = computed((): Record<string, string> => {
+  const a = props.anchor;
+  if (a === undefined) {
+    return {display: 'none'};
+  }
+  const maxW = 330;
+  const margin = 8;
+  const cx = a.left + a.width / 2;
+  const left = Math.min(
+    Math.max(cx, maxW / 2 + margin),
+    window.innerWidth - maxW / 2 - margin);
+  const above = a.top > 280;
+  const top = above ? a.top - 10 : a.bottom + 10;
+  return {
+    left: `${Math.round(left)}px`,
+    top: `${Math.round(top)}px`,
+    transform: `translate(-50%, ${above ? '-100%' : '0'})`,
+  };
 });
 </script>
 
