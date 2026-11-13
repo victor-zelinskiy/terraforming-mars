@@ -39,6 +39,7 @@
  * (This comment opened the template; the template starts with its root now.)
  */
 import {computed, onBeforeUnmount, onMounted, useTemplateRef} from 'vue';
+import {RootElHolder} from '@/client/components/rootEl';
 import {Color} from '@/common/Color';
 import {colonyCityState, registerColonyCityStage} from '@/client/console/colonyCity/consoleColonyCity';
 import {ColonyCityStageEls} from '@/client/console/colonyCity/colonyCityDirector';
@@ -50,9 +51,9 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 defineOptions({name: 'ConsoleColonyCityLayer'});
 
 const shadow = useTemplateRef<HTMLElement>('shadow');
-const tile = useTemplateRef<{$el?: HTMLElement}>('tile');
+const tile = useTemplateRef<RootElHolder>('tile');
 const cubeRoot = useTemplateRef<HTMLElement>('cubeRoot');
-const cube = useTemplateRef<{$el?: HTMLElement}>('cube');
+const cube = useTemplateRef<RootElHolder>('cube');
 const ring = useTemplateRef<HTMLElement>('ring');
 let unregister: (() => void) | undefined;
 const cubeColor = computed((): Color | undefined => {
@@ -88,7 +89,7 @@ const ringStyle = computed((): Record<string, string> => {
 onMounted(() => {
   unregister = registerColonyCityStage({
     els: (): ColonyCityStageEls | undefined => {
-      const proxy = tileProxyEls(tile.value?.$el);
+      const proxy = tileProxyEls(tile.value?.rootEl);
       const shadowNow = shadow.value;
       if (proxy === undefined || !shadowNow || !shadowNow.isConnected) {
         return undefined;
@@ -98,7 +99,7 @@ onMounted(() => {
     cube: (): ColonyBuildStageEls | undefined => {
       const root = cubeRoot.value;
       const ringNow = ring.value;
-      const cubeEl = cube.value?.$el;
+      const cubeEl = cube.value?.rootEl;
       if (!root || !root.isConnected || !ringNow || !cubeEl) {
         return undefined;
       }

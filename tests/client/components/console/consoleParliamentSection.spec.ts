@@ -55,14 +55,18 @@ const A: GamepadIntent = {kind: 'press', button: 'confirm'};
 const B: GamepadIntent = {kind: 'press', button: 'back'};
 const X: GamepadIntent = {kind: 'press', button: 'secondary'};
 
-/** The sheet's MUST EXPOSE list (`node scripts/vapor/inventory.mjs --component …`) — `$el` aside (R12: step A keeps it). */
-const EXPOSED = ['handleIntent', 'openWalkFlow', 'resetSubmitting'];
+/**
+ * The sheet's MUST EXPOSE list (`node scripts/vapor/inventory.mjs --component …`) — the three doors, and the section's
+ * ROOT by the one name a parent reads it by (`rootEl` — a Vapor child's ref answers no `$el`, components/rootEl.ts).
+ */
+const EXPOSED = ['handleIntent', 'openWalkFlow', 'resetSubmitting', 'rootEl'];
 
 /** What the shell's controllers reach through the surface registry (`'parliamentSection'`). */
 type Exposed = {
   handleIntent(intent: GamepadIntent): void,
   openWalkFlow(): void,
   resetSubmitting(): void,
+  readonly rootEl: HTMLElement | null,
 };
 
 /** What the section asked of the tiers it holds a ref on. */
@@ -303,11 +307,12 @@ describe('ConsoleParliamentSection — the Parliament\'s root: its browse layer,
     expect(consoleParliamentUi.hall, 'a warming mount holds no vote').to.eq(false);
   });
 
-  it('a PARENT\'s ref sees the three doors the shell opens and nothing else — the pad, a refused submit, a walk owed to it', async () => {
+  it('a PARENT\'s ref sees the three doors the shell opens and its root, nothing else — the pad, a refused submit, a walk owed to it', async () => {
     const {wrapper, held, heard} = underHost();
     const root = () => wrapper.find('.con-parl');
     expect(held.value, 'the parent\'s ref is set').to.not.eq(null);
     expect(Object.keys(held.value!).sort(), 'exactly what the section exposes').to.deep.eq([...EXPOSED].sort());
+    expect(held.value!.rootEl, 'the section\'s root element').to.eq(root().element);
     const leaked = ['send', 'closeStage', 'serveStandingQuestion', 'voteModeNow', 'reconcileStandingPrompts', 'port', 'view', 'bridge', 'flow', 'stageUp', 'walking']
       .filter((key) => (held.value as unknown as Record<string, unknown>)[key] !== undefined);
     expect(leaked).to.deep.eq([]);

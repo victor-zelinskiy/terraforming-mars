@@ -661,6 +661,7 @@
  */
 
 import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {RootElHolder} from '@/client/components/rootEl';
 import {choiceSeriesOf} from '@/client/console/promptSeries';
 /**
  * CONSOLE TASK HOST — CTS T1–T3 (docs/CONSOLE_MODE_CONCEPT.md §CTS-1). The
@@ -1050,7 +1051,7 @@ const port: TaskHostPort = {
 const flow = useFlowScope('console-task-host');
 const cardStrip = useTemplateRef<HTMLElement>('cardStrip');
 const dealLayer = useTemplateRef<InstanceType<typeof ConsoleCardDealLayer>>('dealLayer');
-const sourceCard = useTemplateRef<{$el?: HTMLElement}>('sourceCard');
+const sourceCard = useTemplateRef<RootElHolder>('sourceCard');
 const body = useTemplateRef<HTMLElement>('body');
 const focusedCardSlot = useTemplateRef<HTMLElement | Array<HTMLElement>>('focusedCardSlot');
 const root = useTemplateRef<HTMLElement>('root');
@@ -2866,9 +2867,9 @@ function zoomSourceCard(): void {
     origin: {
       kind: 'physical',
       resolve: () => {
-        // The dock is a COMPONENT now — reach its root element.
+        // The dock is a COMPONENT — it hands its root over (`rootEl`).
         const dock = sourceCard.value ?? undefined;
-        return dock?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
+        return dock?.rootEl?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
       },
     },
   });

@@ -31,7 +31,7 @@ type StepReach = {
   cells: () => ReadonlyArray<PlayedTargetCell>,
   ensureFocusVisible: () => void,
   payloadEl: () => HTMLElement | undefined,
-  rootEl: () => HTMLElement | undefined,
+  rootEl: HTMLElement | null,
   scrollBy: (dy: number) => void,
   navigate: (focus: PlayedTargetFocus, dir: PlayedTargetNavDir) => PlayedTargetFocus | undefined,
   turnPage: (focus: PlayedTargetFocus, delta: number) => PlayedTargetFocus | undefined,
@@ -166,7 +166,7 @@ describe('ConsolePlayedTargetStep — the embedded played-card target step', () 
     expect(Object.keys(reach)).to.deep.eq(['cells', 'ensureFocusVisible', 'payloadEl', 'rootEl', 'scrollBy', 'navigate', 'turnPage']);
 
     const root = host.find('.con-ptsel').element as HTMLElement;
-    expect(reach.rootEl(), 'the step\'s root element').to.eq(root);
+    expect(reach.rootEl, 'the step\'s root element').to.eq(root);
     expect(reach.payloadEl(), 'no payload on the contract line').to.eq(undefined);
 
     // THE GEOMETRY PULL: the cells' real boxes, measured once and cached until the layout changes.

@@ -3971,6 +3971,6 @@ onUnmounted(() => {
 });
 // What the shell's controllers reach through the surface registry (`'parliamentSection'`): the pad router hands it every
 // intent (`handleIntent`), the start opens a walk owed to its scene step (`openWalkFlow`), a refused staged vote gives
-// the stage back (`resetSubmitting`) — and nothing else.
-defineExpose({handleIntent, openWalkFlow, resetSubmitting});
+// the stage back (`resetSubmitting`), the leave's motion takes the section's root (`rootEl`) — and nothing else.
+defineExpose({handleIntent, openWalkFlow, resetSubmitting, rootEl});
 </script>

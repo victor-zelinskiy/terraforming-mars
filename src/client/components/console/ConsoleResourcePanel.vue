@@ -1,5 +1,5 @@
 <template>
-  <div class="con-res-host">
+  <div ref="root" class="con-res-host">
     <!-- data-insp-fade: the Information-Workspace player switch (LB/RB)
          answers here with a soft value dip (inspectSwitchMotion) — the rail
          is the mode's ANCHOR: it recolors + re-reads, it never travels. -->
@@ -400,7 +400,7 @@
  * and the premium tag cluster (reuses the shared TagCount holders).
  * Read-only; data straight from the PublicPlayerModel.
  */
-import {computed, PropType, ref, watch} from 'vue';
+import {computed, PropType, ref, useTemplateRef, watch} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
@@ -1232,4 +1232,7 @@ watch(() => props.player.color, (): void => {
     auxSwapMode.value = false;
   });
 });
+// Its root: the shell measures the rail's edge for the workspace band's opening (components/rootEl.ts).
+const root = useTemplateRef<HTMLElement>('root');
+defineExpose({rootEl: root});
 </script>

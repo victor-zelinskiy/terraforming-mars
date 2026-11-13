@@ -817,6 +817,7 @@
  * payment math).
  */
 import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {RootElHolder, rootElOf} from '@/client/components/rootEl';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {SettledColumn} from '@/client/console/settledColumn';
 import Card from '@/client/components/card/CardFace.vue';
@@ -1173,12 +1174,12 @@ const emit = defineEmits(['confirm', 'cancel']);
 
 const flow = useFlowScope('console-play-card-confirm');
 const rootEl = useTemplateRef<HTMLElement>('rootEl');
-const variantsEl = useTemplateRef<{$el?: unknown} | HTMLElement>('variantsEl');
+const variantsEl = useTemplateRef<RootElHolder | HTMLElement>('variantsEl');
 const forecastExplorer = useTemplateRef<InstanceType<typeof ConsoleEffectsExplorer>>('forecastExplorer');
 const playstage = useTemplateRef<HTMLElement>('playstage');
 const venusStep = useTemplateRef<VenusBonusStepApi>('venusStep');
-const scroll = useTemplateRef<{scrollByPx?: (d: number) => void} & {$el?: unknown, ensureVisible?: (el: Element | null | undefined) => void}>('scroll');
-const targetStep = useTemplateRef<{rootEl?: () => HTMLElement | undefined, payloadEl?: () => HTMLElement | undefined} & {cells?: () => ReadonlyArray<PlayedTargetCell>} & {ensureFocusVisible?: () => void}>('targetStep');
+const scroll = useTemplateRef<{scrollByPx?: (d: number) => void} & {rootEl?: HTMLElement | null, ensureVisible?: (el: Element | null | undefined) => void}>('scroll');
+const targetStep = useTemplateRef<{rootEl?: HTMLElement | null, payloadEl?: () => HTMLElement | undefined} & {cells?: () => ReadonlyArray<PlayedTargetCell>} & {ensureFocusVisible?: () => void}>('targetStep');
 const focusedEl = useTemplateRef<HTMLElement | Array<HTMLElement>>('focusedEl');
 const playBlock = useTemplateRef<HTMLElement>('playBlock');
 const playRight = useTemplateRef<HTMLElement>('playRight');
@@ -2876,9 +2877,7 @@ function variantReactions(pos: number): VariantReaction {
  */
 /** The radiogroup's root element (the ref is a component). */
 function variantsRoot(): HTMLElement | undefined {
-  const ref = variantsEl.value ?? undefined;
-  const el = ref instanceof HTMLElement ? ref : (ref as {$el?: unknown} | undefined | null)?.$el;
-  return el instanceof HTMLElement ? el : undefined;
+  return rootElOf(variantsEl.value);
 }
 function measureVariantAxis(): void {
   const el = variantsRoot();
@@ -5943,7 +5942,7 @@ function scrollFocused(): void {
     // THE DOCK (P81 · DJ): the payment and the commit stand on the sheet's bottom line, outside the scroll — there
     // is nothing to bring into view (and asking the scroller to reach them would scroll the result away).
     const scrollNow = scroll.value ?? undefined;
-    const inScroll = (el: Element | null | undefined): boolean => el !== null && el !== undefined && (scrollNow?.$el as HTMLElement | undefined)?.contains(el) === true;
+    const inScroll = (el: Element | null | undefined): boolean => el !== null && el !== undefined && scrollNow?.rootEl?.contains(el) === true;
     if (payExpanded.value) {
       const row = (composerRootEl())?.querySelector('.con-payrow--focused');
       if (inScroll(row)) {
@@ -5991,7 +5990,7 @@ watch(() => playedTargetStepOpen.value, (now: boolean, was: boolean) => {
     const carry = armPayloadCarry(root.querySelector('.con-composer__variants'));
     void nextTick(() => {
       const step = targetStep.value ?? undefined;
-      playPayloadCarry(step?.rootEl?.(), step?.payloadEl?.(), carry);
+      playPayloadCarry(step?.rootEl ?? undefined, step?.payloadEl?.(), carry);
     });
     return;
   }

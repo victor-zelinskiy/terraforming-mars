@@ -227,6 +227,7 @@
  */
 
 import {computed, onBeforeUnmount, onMounted, ref, useTemplateRef} from 'vue';
+import {RootElHolder} from '@/client/components/rootEl';
 import {tilePlacementState, registerTilePlacementStage, BonusProxy, AresSourceWake} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {
   oceanBeatState, registerOceanBeatStage, OceanCoinProxy, OceanStageEls,
@@ -248,7 +249,7 @@ function connected(el: HTMLElement | undefined): HTMLElement | undefined {
 
 defineOptions({name: 'ConsoleTilePlacementLayer'});
 
-const tile = useTemplateRef<{$el?: HTMLElement}>('tile');
+const tile = useTemplateRef<RootElHolder>('tile');
 const shadow = useTemplateRef<HTMLElement>('shadow');
 const splash = useTemplateRef<HTMLElement>('splash');
 const depart = useTemplateRef<HTMLElement>('depart');
@@ -256,7 +257,7 @@ const departEdge = useTemplateRef<HTMLElement>('departEdge');
 const departTouch = useTemplateRef<HTMLElement>('departTouch');
 const cover = useTemplateRef<HTMLElement>('cover');
 const dust = useTemplateRef<HTMLElement>('dust');
-const remoteTile = useTemplateRef<{$el?: HTMLElement}>('remoteTile');
+const remoteTile = useTemplateRef<RootElHolder>('remoteTile');
 const remoteShadow = useTemplateRef<HTMLElement>('remoteShadow');
 const remoteSplash = useTemplateRef<HTMLElement>('remoteSplash');
 const remoteBeacon = useTemplateRef<HTMLElement>('remoteBeacon');
@@ -457,7 +458,7 @@ onMounted(() => {
       // no real tile art (St. Joseph's cathedral lands on an existing city,
       // so `artClass === ''` and the tile div is not rendered). `!tile`
       // covers both null and undefined; a bare `=== undefined` NPE'd.
-      const proxy = tileProxyEls(tile.value?.$el);
+      const proxy = tileProxyEls(tile.value?.rootEl);
       if (proxy === undefined) {
         return undefined;
       }
@@ -492,7 +493,7 @@ onMounted(() => {
       };
     },
     remoteEls: (): TileStageEls | undefined => {
-      const proxy = tileProxyEls(remoteTile.value?.$el);
+      const proxy = tileProxyEls(remoteTile.value?.rootEl);
       if (proxy === undefined) {
         return undefined;
       }

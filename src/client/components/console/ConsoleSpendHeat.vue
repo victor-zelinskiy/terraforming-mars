@@ -98,6 +98,7 @@
  * mounting anything.
  */
 import {computed, onBeforeUnmount, PropType, ref, useTemplateRef, watch} from 'vue';
+import {RootElHolder} from '@/client/components/rootEl';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {AndOptionsModel} from '@/common/models/PlayerInputModel';
@@ -138,7 +139,7 @@ const props = defineProps({
 const emit = defineEmits(['submit', 'defer']);
 
 // The source dock's ref — read for its root element only (`$el`: the physical origin of the L3 zoom).
-const sourceDock = useTemplateRef<{$el?: HTMLElement}>('sourceDock');
+const sourceDock = useTemplateRef<RootElHolder>('sourceDock');
 const focusIdx = ref(0);
 const picks = ref<BudgetState>({});
 const submitting = ref(false);
@@ -336,7 +337,7 @@ function zoomSource(): void {
       kind: 'physical',
       resolve: () => {
         const dock = sourceDock.value;
-        return dock?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
+        return dock?.rootEl?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
       },
     },
   });

@@ -1,5 +1,5 @@
 <template>
-  <div class="con-scroll-area" :class="rootClasses">
+  <div ref="root" class="con-scroll-area" :class="rootClasses">
     <div ref="viewport" class="con-scroll-area__viewport" @scroll.passive="onScroll">
       <div ref="content" class="con-scroll-area__content" :class="contentClass">
         <slot />
@@ -32,7 +32,7 @@
  * changes) without manual listeners; scroll position rides the passive
  * scroll event. All measurement work is rAF-coalesced.
  */
-import {computed, CSSProperties, onBeforeUnmount, ref} from 'vue';
+import {computed, CSSProperties, onBeforeUnmount, ref, useTemplateRef} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -224,5 +224,7 @@ const ensureVisible = (el: Element | null | undefined, margin: number = 12, opts
   }
 };
 
-defineExpose({scrollByPx, scrollToStart, scrollToEnd, ensureVisible, measure});
+// (`rootEl`: a host asks «is this node inside the scroller» / measures a delta against its box — components/rootEl.ts.)
+const root = useTemplateRef<HTMLElement>('root');
+defineExpose({scrollByPx, scrollToStart, scrollToEnd, ensureVisible, measure, rootEl: root});
 </script>

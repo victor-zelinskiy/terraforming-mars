@@ -12,7 +12,7 @@
  */
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
-import {defineComponent, h, nextTick} from 'vue';
+import {defineComponent, h, nextTick, ref} from 'vue';
 import {globalConfig} from '../../getLocalVue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
@@ -38,27 +38,29 @@ const ZoomStub = defineComponent({
     navCounter: Boolean, consoleMotion: Boolean, annotationsSuppressed: Boolean, flankMotion: Boolean, lore: Boolean,
   },
   emits: ['navigate', 'close'],
-  methods: {
-    // jsdom: no landing geometry → the host opens vanilla (`show()`, no proxy flight).
-    async measureLanding(): Promise<undefined> {
-      return undefined;
-    },
-    show(): void {
-      asked.push('show');
-    },
-    prev(): void {
-      asked.push('prev');
-    },
-    next(): void {
-      asked.push('next');
-    },
-    close(): void {
-      asked.push('close');
-      this.$emit('close');
-    },
-  },
-  render() {
-    return h('div', {class: 'zoom-stub'}, [this.$slots.side?.({nonce: 1, closing: false}), this.$slots.actions?.()]);
+  // Exposes what the real viewer does: its members and its ROOT by the one name the host reads it by (`rootEl` — a
+  // Vapor child's ref answers no `$el`, components/rootEl.ts); the host opens only once it finds that element.
+  setup(_, {emit, expose, slots}) {
+    const root = ref<HTMLElement | null>(null);
+    expose({
+      // jsdom: no landing geometry → the host opens vanilla (`show()`, no proxy flight).
+      measureLanding: async (): Promise<undefined> => undefined,
+      show: (): void => {
+        asked.push('show');
+      },
+      prev: (): void => {
+        asked.push('prev');
+      },
+      next: (): void => {
+        asked.push('next');
+      },
+      close: (): void => {
+        asked.push('close');
+        emit('close');
+      },
+      rootEl: root,
+    });
+    return () => h('div', {ref: root, class: 'zoom-stub'}, [slots.side?.({nonce: 1, closing: false}), slots.actions?.()]);
   },
 });
 

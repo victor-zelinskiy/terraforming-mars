@@ -8,7 +8,7 @@
  */
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
-import {defineComponent, h, nextTick, shallowRef} from 'vue';
+import {defineComponent, h, nextTick, ref, shallowRef} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {$t} from '@/client/directives/i18n';
 import {closeConsoleCardZoom, consoleCardZoom} from '@/client/console/consoleCardZoom';
@@ -53,11 +53,16 @@ function billOf(source: CardName, amount: number, heatMax: number, floaterMax: n
 }
 
 // `<console-source-dock>` is the lazy binding of `asyncComponents.ts` — it answers to the wrapper's name, which is the
-// stub's key (RECIPES § 3). The stub stands a card face where the real dock stands one.
+// stub's key (RECIPES § 3). The stub stands a card face where the real dock stands one, and — like the real dock —
+// exposes its root as `rootEl` (components/rootEl.ts), the element the surface finds the face under.
 const DockStub = defineComponent({
   name: 'AsyncComponentWrapper',
   props: {view: {type: Object, required: true}, compact: {type: Boolean, default: false}},
-  render: () => h('div', {class: 'con-src'}, [h('div', {class: 'pcard'})]),
+  setup(_, {expose}) {
+    const root = ref<HTMLElement | null>(null);
+    expose({rootEl: root});
+    return () => h('div', {ref: root, class: 'con-src'}, [h('div', {class: 'pcard'})]);
+  },
 });
 
 function mountUnderHost(first: PlayerViewModel) {

@@ -460,7 +460,7 @@ async function closeViewer(): Promise<void> {
   if (zoom === undefined) {
     return;
   }
-  const dialogEl = zoom.$el as HTMLDialogElement | undefined;
+  const dialogEl = zoom.rootEl ?? undefined;
   // Closed during the OPEN flight (dialog never shown): abort the flight
   // and unwind directly — dialog.close() would no-op and the 'close'
   // event (the normal state unwinder) would never fire.
@@ -518,7 +518,7 @@ watch(() => consoleCardZoom.card, (card: ZoomCard | undefined, prev: ZoomCard | 
         return; // closed before it ever opened
       }
       const zoom = cardZoom.value ?? undefined;
-      const el = zoom?.$el as HTMLElement | undefined;
+      const el = zoom?.rootEl ?? undefined;
       if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
         if (attempt < 10) {
           probeTick(() => tryOpen(attempt + 1));

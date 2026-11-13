@@ -385,4 +385,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   unregisterTarget?.();
 });
+// Its root: the start scene folds and returns the whole shelf (components/rootEl.ts).
+defineExpose({rootEl: root});
 </script>

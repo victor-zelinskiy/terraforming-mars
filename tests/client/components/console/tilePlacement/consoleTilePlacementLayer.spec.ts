@@ -5,7 +5,7 @@
  * its whole output, besides the DOM, is the element set it LENDS the directors (`registerTilePlacementStage` and the
  * two beat stages, taken back when it unmounts). The directors and the scenes have specs and e2e of their own; this
  * one is the layer: it mounts silent and warning-free, renders each stage for its state and follows it, hands the
- * remote director the parts of its proxy (through the child's `$el` — the proxy is `<script setup>` too), and keeps
+ * remote director the parts of its proxy (through the child's exposed `rootEl` — a Vapor child's ref answers no `$el`, components/rootEl.ts), and keeps
  * the template ref `remoteDust` apart from the computed of the same name (its const is the twin `remoteDustEl` — R11).
  */
 import {expect} from 'chai';
@@ -178,7 +178,7 @@ describe('ConsoleTilePlacementLayer — the stage of a tile landing on Mars', ()
     const tile = w.find('.con-tileplace__tile--remote');
     expect(tile.classes(), 'the shared proxy, marked remote by its parent').to.deep.eq(['con-tileplace__tile', 'con-tileplace__tile--remote']);
     const els = tileStageRemoteEls();
-    expect(els?.tile, 'the proxy\'s root, read through the ref on the child').to.eq(tile.element);
+    expect(els?.tile, 'the proxy\'s root, read through the ref on the child (its `rootEl`)').to.eq(tile.element);
     expect(els?.edge).to.eq(tile.find('.con-tileplace__edge').element);
     expect(els?.touch).to.eq(tile.find('.con-tileplace__touch').element);
     expect(els?.shadow).to.eq(w.find('.con-tileplace__shadow').element);

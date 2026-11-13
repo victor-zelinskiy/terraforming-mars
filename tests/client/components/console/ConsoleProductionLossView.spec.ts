@@ -1,5 +1,5 @@
 import {mount} from '@vue/test-utils';
-import {defineComponent, h} from 'vue';
+import {defineComponent, h, ref} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {expect} from 'chai';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
@@ -44,10 +44,16 @@ function mountWith(v: PlayerViewModel) {
 }
 
 /** Mirrors the real dock's root classes so the layout assertions still mean
- *  something without dragging the card renderer into this bundle. */
+ *  something without dragging the card renderer into this bundle — and, like the
+ *  real dock, exposes its root as `rootEl` (components/rootEl.ts). */
 const ConsoleSourceDockStub = {
   props: {view: {type: Object, required: true}, compact: Boolean},
-  template: `<div class="con-src" :class="{
+  setup(_: unknown, {expose}: {expose: (exposed: Record<string, unknown>) => void}) {
+    const root = ref<HTMLElement | null>(null);
+    expose({rootEl: root});
+    return {root};
+  },
+  template: `<div ref="root" class="con-src" :class="{
       'con-src--compact': compact,
       'con-src--plate': view.card === undefined,
       'con-src--hazard': view.tone === 'hazard',
@@ -201,10 +207,14 @@ describe('ConsoleProductionLoss (view)', () => {
   });
 
   it('L3 on a card cause opens the source card read-only, lifted out of the dock — the card\'s own element under the dock\'s ref', () => {
-    /** A dock that carries a card face (the real one renders `.pcard` inside its root). */
+    /** A dock that carries a card face (the real one renders `.pcard` inside its root) and exposes that root as `rootEl`. */
     const DockWithFace = defineComponent({
       props: {view: {type: Object, required: true}, compact: Boolean},
-      render: () => h('div', {class: 'con-src'}, [h('div', {class: 'pcard'})]),
+      setup(_, {expose}) {
+        const root = ref<HTMLElement | null>(null);
+        expose({rootEl: root});
+        return () => h('div', {ref: root, class: 'con-src'}, [h('div', {class: 'pcard'})]);
+      },
     });
     const w = mount(ConsoleProductionLoss, {
       global: {...globalConfig.global, stubs: {GamepadGlyph: true, AsyncComponentWrapper: DockWithFace}},

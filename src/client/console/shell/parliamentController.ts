@@ -4,6 +4,7 @@
  * THE PARLIAMENT CONTROLLER — taken out of ConsoleShell.vue (architecture v2).
  */
 import type {UnwrapRef} from 'vue';
+import {RootElHolder} from '@/client/components/rootEl';
 import {computed, ref} from 'vue';
 import {scopedState} from '@/client/console/session/scopedState';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
@@ -1313,7 +1314,7 @@ export function createParliamentController(shell: ParliamentPort) {
     // Every edge retires the leave before it: a release still owed by an older leave answers for a section that is
     // no longer leaving.
     const token = ++parliamentLeaveToken.value;
-    const el = (shell.surfaces.at<{$el?: unknown}>('parliamentSection'))?.$el;
+    const el = shell.surfaces.at<RootElHolder>('parliamentSection')?.rootEl;
     if (shown) {
       // RE-SHOWN MID-LEAVE (B, then A again inside the step's dissolve — the same instance is still mounted, the
       // `v-if` never fell): the leave's WAAPI fade keeps its `fill: 'forwards'` and would finish the re-entered step

@@ -1,9 +1,9 @@
 /*
  * ConsoleTileProxy — the ONE anatomy of a tile that lands (edge · art · touch), shared by the Mars landing layer and
  * the colony city layer. A `<script setup>` component (step A of docs/claude/vapor/RECIPES.md): one prop, no emits,
- * and no `defineExpose` — its parents stand a ref on it only for its ELEMENT (`ref.$el`, which a `<script setup>`
- * child still answers at step A — R12) and hand that to `tileProxyEls` (the sibling `consoleTileProxyModel.ts`, where
- * the value export moved — R25). So the spec is: what it renders for its prop, that the root takes what a parent
+ * and ONE exposed member — its parents stand a ref on it only for its ELEMENT, read by the one name `rootEl` (a Vapor
+ * child's ref answers no `$el` — R12, components/rootEl.ts) and handed to `tileProxyEls` (the sibling
+ * `consoleTileProxyModel.ts`, where the value export moved — R25). So the spec is: what it renders for its prop, that the root takes what a parent
  * lets fall through (the template starts with its root — R24), and that a parent's ref resolves its parts.
  */
 import {expect} from 'chai';
@@ -51,18 +51,18 @@ describe('ConsoleTileProxy — the flying tile\'s anatomy', () => {
     expect(wrapper.attributes('data-colony-city-proxy')).to.eq('');
   });
 
-  it('exposes nothing — a parent\'s ref answers its element, and `tileProxyEls` resolves the parts off it', () => {
+  it('exposes its root and nothing else — a parent\'s ref answers `rootEl`, and `tileProxyEls` resolves the parts off it', () => {
     const stand = document.createElement('div');
     document.body.appendChild(stand);
     try {
       const wrapper = mountUnderHost(stand);
-      const ref = wrapper.vm.$refs.tile as {$el?: HTMLElement};
+      const ref = wrapper.vm.$refs.tile as {rootEl?: HTMLElement | null};
 
-      expect(Object.keys(ref), 'no defineExpose: the ref carries no member of the component').to.deep.eq([]);
-      expect(ref.$el, 'the ref still answers the root element (step A)').to.eq(wrapper.find('.con-tileplace__tile').element);
+      expect(Object.keys(ref), 'the ref carries the root and no other member of the component').to.deep.eq(['rootEl']);
+      expect(ref.rootEl, 'the ref answers the root element').to.eq(wrapper.find('.con-tileplace__tile').element);
 
-      const parts = tileProxyEls(ref.$el);
-      expect(parts?.tile).to.eq(ref.$el);
+      const parts = tileProxyEls(ref.rootEl);
+      expect(parts?.tile).to.eq(ref.rootEl);
       expect(parts?.edge?.className).to.eq('con-tileplace__edge board-space-tile--city');
       expect(parts?.art?.className).to.eq('con-tileplace__art board-space-tile--city');
       expect(parts?.touch?.className).to.eq('con-tileplace__touch');
@@ -73,10 +73,10 @@ describe('ConsoleTileProxy — the flying tile\'s anatomy', () => {
 
   it('`tileProxyEls` answers nothing for a proxy that is not in the document', () => {
     const wrapper = mountUnderHost();
-    const ref = wrapper.vm.$refs.tile as {$el?: HTMLElement};
+    const ref = wrapper.vm.$refs.tile as {rootEl?: HTMLElement | null};
 
-    expect(ref.$el?.isConnected, 'mounted detached').to.eq(false);
-    expect(tileProxyEls(ref.$el)).to.eq(undefined);
+    expect(ref.rootEl?.isConnected, 'mounted detached').to.eq(false);
+    expect(tileProxyEls(ref.rootEl)).to.eq(undefined);
     expect(tileProxyEls(null)).to.eq(undefined);
     expect(tileProxyEls(undefined)).to.eq(undefined);
   });

@@ -37,7 +37,10 @@ const BLUE: Color = 'blue';
 
 const A: GamepadIntent = {kind: 'press', button: 'confirm'};
 
-/** The sheet's MUST EXPOSE list (`node scripts/vapor/inventory.mjs --component …`) — `$el` aside (R12: step A keeps it). */
+/**
+ * The sheet's MUST EXPOSE list (`node scripts/vapor/inventory.mjs --component …`) — the functions; the section's ROOT
+ * is exposed beside them as `rootEl` (a Vapor child's ref answers no `$el` — components/rootEl.ts).
+ */
 const EXPOSED = [
   'completeFlow', 'enterDockFocus', 'enterFocus', 'enterFocusFromInspect', 'handleFocusIntent', 'holdDockStage',
   'holdFocusStage', 'releaseFocusInPlace', 'releaseFocusStage', 'reseatRosterLevel', 'retargetFocusHome',
@@ -337,12 +340,13 @@ describe('ConsoleColoniesSection — the colony workspace', () => {
       return {host, section: host.vm.$refs.section as Exposed};
     }
 
-    it('exposes exactly the members the controllers call', () => {
-      const {section} = mountUnderHost();
-      expect(Object.keys(section).sort()).to.deep.eq([...EXPOSED].sort());
+    it('exposes exactly the members the controllers call, and its root', () => {
+      const {host, section} = mountUnderHost();
+      expect(Object.keys(section).sort()).to.deep.eq([...EXPOSED, 'rootEl'].sort());
       for (const name of EXPOSED) {
         expect(typeof (section as unknown as Record<string, unknown>)[name], name).to.eq('function');
       }
+      expect((section as unknown as {rootEl?: unknown}).rootEl, 'the root element').to.eq(host.find('.con-colonies').element);
     });
 
     it('`enterFocus` descends into the colony under the cursor, and the pad, the hold and the release reach the stage that stands', async () => {

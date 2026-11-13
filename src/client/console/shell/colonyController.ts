@@ -2301,7 +2301,7 @@ export function createColonyController(shell: ColonyPort) {
         await new Promise<void>((resolve) => {
           let left = 80;
           const look = () => {
-            const stage = (section.$el as HTMLElement | undefined)?.querySelector?.('.con-colfocus');
+            const stage = section.rootEl?.querySelector('.con-colfocus');
             if (stage === null || stage === undefined || --left <= 0) {
               resolve();
               return;

@@ -30,26 +30,20 @@
  */
 import {computed, onBeforeUnmount, onMounted, Ref, watch} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
+import {RootElHolder, rootElOf} from '@/client/components/rootEl';
 
 /** The four properties this mirror owns — declared once so teardown is exact. */
 const STAGE_VARS = ['--con-stage-t', '--con-stage-b', '--con-stage-l', '--con-stage-r'] as const;
 
 /**
- * A host this mirror can measure: a plain element or a COMPONENT INSTANCE (both
- * rails are components, and a template ref on one yields the instance). Resolved
- * here rather than at the call site, so the shell never has to reach for `$el`.
+ * A host this mirror can measure: a plain element or a COMPONENT (both rails are
+ * components, and a template ref on one yields what it exposes — its root as
+ * `rootEl`, components/rootEl.ts). Resolved here rather than at the call site.
  */
-export type StageHost = HTMLElement | {$el?: unknown};
+export type StageHost = HTMLElement | RootElHolder;
 
 function elementOf(host: StageHost | undefined): HTMLElement | null {
-  if (host === undefined || host === null) {
-    return null;
-  }
-  if (host instanceof HTMLElement) {
-    return host;
-  }
-  const el = (host as {$el?: unknown}).$el;
-  return el instanceof HTMLElement ? el : null;
+  return rootElOf(host) ?? null;
 }
 
 /** A rail's contribution to the opening's inset: 0 when it is not on screen. */

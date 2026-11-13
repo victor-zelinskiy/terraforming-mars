@@ -119,6 +119,7 @@ import {choiceSeriesOf} from '@/client/console/promptSeries';
  * game logic and no text heuristics.
  */
 import {computed, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {RootElHolder} from '@/client/components/rootEl';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
@@ -177,7 +178,7 @@ const props = defineProps({
 const emit = defineEmits(['submit', 'defer', 'hand-pick']);
 
 // The dock is a COMPONENT — its ref is read for its root element (`inspectSource`).
-const sourceCard = useTemplateRef<{$el?: HTMLElement}>('sourceCard');
+const sourceCard = useTemplateRef<RootElHolder>('sourceCard');
 /** Restored on re-entry from an overlay, so B lands the player back on
  *  the very action card they opened. */
 const focusIdx = ref(0);
@@ -350,8 +351,8 @@ function inspectSource(name: CardName): void {
     statusLabel: 'Source',
     origin: {
       kind: 'physical',
-      // The dock is a COMPONENT — reach its root element.
-      resolve: () => sourceCard.value?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null,
+      // The dock is a COMPONENT — it hands its root over (`rootEl`).
+      resolve: () => sourceCard.value?.rootEl?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null,
     },
   });
 }

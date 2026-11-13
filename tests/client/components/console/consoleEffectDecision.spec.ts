@@ -10,7 +10,7 @@
  */
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
-import {defineComponent, h, nextTick, PropType, shallowReactive} from 'vue';
+import {defineComponent, h, nextTick, PropType, ref, shallowReactive} from 'vue';
 import {globalConfig} from '../getLocalVue';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -86,11 +86,18 @@ const ChipStub = defineComponent({
   },
 });
 
-/** The dock stands a card face where the real one stands it — the node X hands the fullscreen viewer as its origin. */
+/**
+ * The dock stands a card face where the real one stands it — the node X hands the fullscreen viewer as its origin —
+ * and, like the real one, exposes its root as `rootEl` (components/rootEl.ts): the screen finds the face under it.
+ */
 const DockStub = defineComponent({
   name: 'AsyncComponentWrapper',
   props: {view: {type: Object, required: true}},
-  render: () => h('aside', {'class': 'dock-stub'}, [h('div', {'class': 'pcard'})]),
+  setup(_, {expose}) {
+    const root = ref<HTMLElement | null>(null);
+    expose({rootEl: root});
+    return () => h('aside', {'ref': root, 'class': 'dock-stub'}, [h('div', {'class': 'pcard'})]);
+  },
 });
 
 const stubs = {

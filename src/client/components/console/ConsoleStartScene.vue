@@ -1358,6 +1358,7 @@
  */
 
 import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {RootElHolder} from '@/client/components/rootEl';
 import {campaignFinalePicksCorporation} from '@/common/campaign/CampaignTypes';
 
 /**
@@ -1759,7 +1760,7 @@ const focusedCardSlot = useTemplateRef<HTMLElement | Array<HTMLElement>>('focuse
 const ceremonyBody = useTemplateRef<HTMLElement>('ceremonyBody');
 const freezeHost = useTemplateRef<HTMLElement>('freezeHost');
 const flowHost = useTemplateRef<HTMLElement>('flowHost');
-const playedDockEl = useTemplateRef<{$el?: HTMLElement}>('playedDockEl');
+const playedDockEl = useTemplateRef<RootElHolder>('playedDockEl');
 const payGrid = useTemplateRef<HTMLElement>('payGrid');
 const legacyGrid = useTemplateRef<HTMLElement>('legacyGrid');
 const dockLayer = useTemplateRef<HTMLElement>('dockLayer');
@@ -9224,10 +9225,10 @@ async function runPlayedDockReturn(): Promise<void> {
     });
   });
 }
-/** The shelf's root element (it is a component, so reach through `$el`). */
+/** The shelf's root element (it is a component: it hands its root over as `rootEl`). */
 function playedDockRoot(): HTMLElement | null {
   const dock = playedDockEl.value ?? undefined;
-  const el = dock?.$el;
+  const el = dock?.rootEl;
   return el !== undefined && el !== null && el.isConnected ? el : null;
 }
 /** THE QUEUE RETURN — the reverse of the same phrase: the (already

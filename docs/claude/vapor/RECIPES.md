@@ -478,11 +478,18 @@ root ref it runs everywhere (two converted surfaces gained behaviour in unit mou
 And `this.$el` outlived the unmount (a detached node) while a root ref is `null` after it: a getter handed to a
 module that outlives the component (`slotZoomOrigin(() => this.$el)`) answers «no element» then — the callee's own
 guard is the contract.
-(The one edit a template may need besides R24.) **A parent that reads a CHILD's `$el` through its ref**
-(`(this.$refs.dock as {$el?: HTMLElement})?.$el` — the sheet prints `$el ← Parent` in MUST EXPOSE): at step A nothing
-changes — the ref of a `<script setup>` child still answers `$el` (`SetupElProbe.vue`); at step B it is `undefined`
-(a Vapor child's ref is its exposed object), so the child's step B exposes its root (`defineExpose({root})`) and the
-parent reads that — or, better, asks the child for what it wanted the element for. ✔ Vapor.
+(The one edit a template may need besides R24.) **A parent NEVER reads a CHILD's `$el` through its ref** — the ref
+of a `<script setup>` child still answers it on the virtual DOM (`SetupElProbe.vue`), and a Vapor child's ref is its
+exposed object: `undefined`, silently (the whole client flipped lost its fullscreen viewer, the band's rail edge and
+every flying tile's proxy that way — ROADMAP § 4c). The contract is ONE name (`src/client/components/rootEl.ts`):
+the child puts a template ref on its root element and exposes it — `const root = useTemplateRef<HTMLElement>('root');
+defineExpose({rootEl: root /* , …its other members */})`; the parent types its ref `RootElHolder` (or the child's
+instance type) and reads `child.value?.rootEl` — the same value in both runtimes (an exposed ref is unwrapped by
+either expose proxy); a ref that may hold an element OR a component goes through `rootElOf(held)`. Prefer not needing
+it: a parent that wants «the card inside my own stage» asks its OWN element (`CardZoomModal.runSlide` — the child's
+root is one of a `v-if` chain's), and one that wants something DONE with the child's element asks the child to do
+it. Guard: `tests/console/childRootEl.spec.ts` — no `.$el` under `src/client`, and an exposed `rootEl` is the ref of
+the template's first tag. ✔ both runtimes.
 
 ### R13 — slots and attrs (`$slots`, `$attrs`, `inheritAttrs`)
 `$slots.x` / `$attrs` in the TEMPLATE stay as they are (✔ both runtimes). In the script: `const slots = useSlots()`,

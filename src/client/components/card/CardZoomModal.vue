@@ -110,7 +110,7 @@
           during the slide while the entering card defines the stage size.
           The actions panel below therefore never jumps as cards swap.
         -->
-        <div class="card-zoom-stage">
+        <div ref="stage" class="card-zoom-stage">
           <!--
             perf (Steam Deck / console LB-RB browsing): the card is a
             PERSISTENT instance. Navigating re-points `:card` — a cheap Vue
@@ -123,8 +123,7 @@
             competes with a mount for the frame. This mirrors exactly why the
             hand carousel is smooth: mount once, move — never remount per step.
           -->
-          <CardZoomCard ref="stageCard"
-                        :card="activeCard"
+          <CardZoomCard :card="activeCard"
                         :selected="selected" />
         </div>
 
@@ -399,7 +398,9 @@ onUnmounted(() => {
 const flow = useFlowScope('card-zoom-modal');
 const viewerGone = (): boolean => gone;
 const dialog = useTemplateRef<HTMLDialogElement>('dialog');
-const stageCard = useTemplateRef<{$el?: HTMLElement}>('stageCard');
+// The stage that holds the ONE persistent card. The card's own element is asked of this element, never of the
+// card component's ref: its root is one of a `v-if` chain's, and a component's ref answers no element under Vapor.
+const stage = useTemplateRef<HTMLElement>('stage');
 const currentIndex = ref(0);
 // True while a slide is mid-flight — blocks rapid arrow/key re-entry so
 // transitions never pile up and the index never races. (In consoleMotion
@@ -776,8 +777,8 @@ function cancelSettle() {
  * (JSDOM under test), so behaviour is unchanged there.
  */
 function runSlide(dir: SlideDir) {
-  const host = stageCard.value?.$el;
-  if (host === undefined || host === null || typeof host.animate !== 'function') {
+  const host = stage.value?.querySelector<HTMLElement>(':scope > .card-zoom-card') ?? undefined;
+  if (host === undefined || typeof host.animate !== 'function') {
     releaseAnimGuard();
     refreshPreload();
     scheduleSettle(0);
@@ -1203,6 +1204,7 @@ onBeforeUnmount(() => {
 // What its hosts reach through a ref, and nothing else: `show` (every host — the card face, the journal chip, the
 // target picker, the resource overlay); the console viewer's controller and the menu's zoom host drive the rest —
 // `measureLanding` before the open flight, `prev` / `next` on LB / RB, `fitCardToViewport` after a swap, `close`.
-// (Both also read its root through `$el`, which a ref of a `<script setup>` component still answers — RECIPES § R12.)
-defineExpose({close, fitCardToViewport, measureLanding, next, prev, show});
+// Both also take its root — the `<dialog>` itself: its `open`, the swap / depart / hand-off motions that own the whole
+// viewer — as `rootEl` (components/rootEl.ts: a ref answers no `$el` under Vapor).
+defineExpose({close, fitCardToViewport, measureLanding, next, prev, rootEl: dialog, show});
 </script>

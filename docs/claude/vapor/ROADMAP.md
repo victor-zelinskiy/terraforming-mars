@@ -407,7 +407,7 @@ order it has to be done, each with its number and the tool that prints it:
 | B2 | The four templates the Vapor compiler refuses: «`v-if`/`else` branches must use unique keys» — `ConsoleActionComposer`, `ConsoleCardActions`, `ConsoleEffectsExplorer`, `ConsoleStartScene`. | 4 | give the branches distinct keys (a template edit — each proven by its surface's e2e) |
 | B3 | `v-memo` — ignored by the Vapor compiler. | 11 uses in 2 components (ledger row `v-memo`) | delete at B (R23) — a Vapor update is per binding already |
 | B4 | `ConsoleTeleport` — a render function over the previous vnode. | 1 (ledger `render-function: 4` = its four `h(`) | the REWRITE on the Vapor `<Teleport>` (R18): a template, `v-if="targetStands"` + `:key="generation"` |
-| B5 | **A parent that reads a CHILD's `$el` through its ref.** A Vapor child's ref is its `defineExpose` object — no `$el`. | 25 reads in 17 files (`grep '\.\$el\b' src/client`): the viewer controller ×5, the flight layers' tile / cube proxies, the source docks, the stage geometry's hull members | the child exposes its root (R12), or the parent asks the child for what it wanted the element for; done WITH the child's step B |
+| B5 | **A parent that reads a CHILD's `$el` through its ref.** A Vapor child's ref is its `defineExpose` object — no `$el`. | 25 reads in 17 files (`grep '\.\$el\b' src/client`): the viewer controller ×5, the flight layers' tile / cube proxies, the source docks, the stage geometry's hull members | **CLOSED 2026-11-13, ahead of the flips** (it works on the virtual DOM too, so it did not have to wait for them): ONE contract — a child whose root a parent needs exposes `rootEl` (`src/client/components/rootEl.ts`), twelve components do, and nothing in the client reads `$el` (guard `tests/console/childRootEl.spec.ts`). Why first: on the whole client flipped (§ 4c) it was ~70 % of the e2e reds — the fullscreen viewer never opened, the band lost the rail's edge, the flying tile its proxy |
 | B6 | **The unit suite.** `mount(<a Vapor component>)` as the ROOT throws; `stubs` do not reach the children of a Vapor parent; `findComponent` into a Vapor child fails; `wrapper.vm` has nothing to show. | 918 client spec files: **494 mount a component** · 254 use `stubs` · 224 `findComponent` · 208 `setProps` / `setData` · 64 `shallowMount` · 61 read `wrapper.vm` | **CLOSED 2026-11-13 — by a LAYER, not a codemod: no spec was rewritten** (§ 4b). The unit bundle's `@vue/test-utils` and `vue` are the suite's own (`tests/client/testing/`): a Vapor root is mounted under a host and wrapped, the mount's stub rule reaches what a Vapor render creates, `findComponent` walks one tree over both runtimes. A converted component is compiled AS WRITTEN in the unit bundle (`scripts/vapor/unitVaporPolicy.cjs`; the valve `tests/client/vaporUnit.json` is empty) |
 | B7 | **Order-dependent watcher pairs** — two watchers of one source / one collection whose order matters are ONE `watch` before their component is Vapor (§ 2 rule 6; a Vapor effect has no «component render» to order against). | named by the wave's reviewers: `ConsoleMaScreen` (`kind` → `items`), `ConsoleHandSection` (`index` → `modeKey` → `entries`); the full list is a review of the 122 former `watch:` blocks | merged per component, in the commit before its `vapor` |
 | B8 | **`onUpdated` / «after every parent re-render» logic** and reads through `wrapper.vm` of the dev shape. | per sheet (R9 «trap at B») | a `watch` of what is measured |
@@ -469,6 +469,23 @@ component meets its specs under the runtime that ships. The valve (`tests/client
 ceiling only falls (`tests/console/vaporUnitPolicy.spec.ts`), and V4 takes it empty. One run: `npm run
 test:client:vapor[:one]` (the valve ignored) · `npm run test:client:vdom:one -- <spec>` (nothing of `src/client` as
 Vapor — «is this red about the runtime at all?»).
+
+## 4c. The whole client flipped, on the box (2026-11-13) — the product worklist
+
+The same side worktree (448 of 455 components `vapor`, the product built as written, `vaporInteropPlugin` on),
+the whole functional e2e list on the Steam Machine: **1125 passed · 270 failed** in 126 spec files. Classified by the
+first error of each failure (`tm-arch-tools/e2e_classify.py` over the run's log):
+
+| Cause | Tests | Closed by |
+| --- | --- | --- |
+| the fullscreen viewer does not open / close (`dialog.con-zoom[open]`, `.con-zoom .card-zoom-stage .pcard`, «X opens …», «the viewer shows …») — `viewerController` read `zoom.$el` | ≈ 170 | B5 |
+| a workspace band overlaps the player rail («band left N must clear the rail right N», «the surface starts right of the player rail») — the stage geometry read the rails' `$el` | ≈ 11 | B5 |
+| a tile / a cube flight «degraded» or never flew (the tile proxy, the colony cube) — the flight layers read the proxies' `$el` | ≈ 8 | B5 |
+| a composer's variant axis reads `row` for a stacked group — `variantsEl.$el` | ≥ 1 | B5 |
+| everything else — the terraformed scene's arm, a Parliament walk's beats, the draw search's refusal line, single rows | ≈ 80 | read again on the re-run over B5 |
+
+One cause, read off a child's ref, took most of the product down without one type error or one red unit spec —
+which is why it is closed BEFORE the flips, by a contract with a guard, and why the next move is the same run again.
 
 **What the layer does NOT hide** — and a spec still has to know: a Vapor `<Transition>` asked for by `stubs:
 {transition: false}` is the real one and needs a frame source (`tests/client/vapor/lendFrames.ts`); a slot given as a

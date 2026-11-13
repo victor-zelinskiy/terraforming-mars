@@ -2564,5 +2564,5 @@ onBeforeUnmount(() => {
   resetColonyDockCursor();
   resetColonyFocusMotion();
 });
-defineExpose({completeFlow, enterDockFocus, enterFocus, enterFocusFromInspect, handleFocusIntent, holdDockStage, holdFocusStage, releaseFocusInPlace, releaseFocusStage, reseatRosterLevel, retargetFocusHome});
+defineExpose({completeFlow, enterDockFocus, enterFocus, enterFocusFromInspect, handleFocusIntent, holdDockStage, holdFocusStage, releaseFocusInPlace, releaseFocusStage, reseatRosterLevel, retargetFocusHome, rootEl: root});
 </script>

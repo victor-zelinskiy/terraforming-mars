@@ -1,5 +1,5 @@
 <template>
-  <div class="con-vchoice"
+  <div ref="root" class="con-vchoice"
        :class="['con-vchoice--' + layout, {'con-vchoice--decided': decided}]"
        role="radiogroup"
        :aria-label="label">
@@ -113,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import {computed, PropType, useSlots} from 'vue';
+import {computed, PropType, useSlots, useTemplateRef} from 'vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {
@@ -194,4 +194,7 @@ function hasText(opt: VariantChoiceOption): boolean {
   return opt.title !== '' || opt.color !== undefined || opt.door === true || slots.body !== undefined ||
     (opt.state.off && opt.reason !== undefined && opt.reason !== '') || variantQuiet(opt);
 }
+// Its root: the host reads the group's AXIS off the rendered tiles (components/rootEl.ts).
+const root = useTemplateRef<HTMLElement>('root');
+defineExpose({rootEl: root});
 </script>

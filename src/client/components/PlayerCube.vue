@@ -1,5 +1,5 @@
 <template>
-  <span class="player-cube" :class="rootClass" :style="styleVars" role="img" :aria-label="color" :data-player-token="resolvedColor">
+  <span ref="root" class="player-cube" :class="rootClass" :style="styleVars" role="img" :aria-label="color" :data-player-token="resolvedColor">
     <!-- Per-instance gradient defs (uid-suffixed ids so many cubes on one page
          can't collide). Lifted out of the 3D scene; never lays out. -->
     <svg class="player-cube__defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -115,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import {computed, PropType, ref} from 'vue';
+import {computed, PropType, ref, useTemplateRef} from 'vue';
 import {Color} from '@/common/Color';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {tokenStyleVars, tokenSymbol} from '@/client/components/playerToken/playerTokenPalette';
@@ -227,4 +227,7 @@ const symbolGlyph = computed((): string => {
 function fillUrl(id: string): string {
   return `url(#${id})`;
 }
+// Its root, for the parents that measure / fly / search it (components/rootEl.ts — a ref answers no `$el` under Vapor).
+const root = useTemplateRef<HTMLElement>('root');
+defineExpose({rootEl: root});
 </script>

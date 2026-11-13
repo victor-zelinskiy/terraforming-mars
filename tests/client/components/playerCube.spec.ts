@@ -1,8 +1,8 @@
 /*
  * PlayerCube — the premium player cube (the board, the colonies, the Parliament, the card faces, the flight proxies).
- * A `<script setup>` component (step A of docs/claude/vapor/RECIPES.md): eight props in, nothing out. Its tones are
+ * A `<script setup>` component (step A of docs/claude/vapor/RECIPES.md): eight props in, its root out. Its tones are
  * the palette's and are pinned by `playerTokenPalette.spec.ts`; this spec is the rest of what it renders for its
- * props, what a parent's ref still reaches (`$el` — the two colony layers measure the cube through it), and that the
+ * props, what a parent's ref reaches (`rootEl` — the two colony layers measure the cube through it), and that the
  * gradient ids stay ONE count per page: the counter lives in `playerCubeState.ts` (R25 — inside `<script setup>` it
  * would start again in every cube, and every cube on a page would paint with the first one's gradients).
  */
@@ -109,14 +109,17 @@ describe('PlayerCube — the premium player cube', () => {
     expect(paintedIds(second.element as Element).sort()).to.deep.eq([...b].sort());
   });
 
-  it('a parent\'s ref still answers `$el` — the cube\'s root — and what a host puts on the cube lands on that root', () => {
-    // The cube the way the colony layers mount it: under a host with the string ref `cube`, measured through `$el`.
+  it('a parent\'s ref answers `rootEl` — the cube\'s root, and nothing else — and what a host puts on the cube lands on that root', () => {
+    // The cube the way the colony layers mount it: under a host with the string ref `cube`, measured through `rootEl`
+    // (a Vapor child's ref answers no `$el` — components/rootEl.ts).
     const Host = defineComponent({
       render: () => h('div', [h(PlayerCube, {'ref': 'cube', 'color': 'purple', 'class': 'con-colonybuild__cube', 'data-from-host': 'yes'})]),
     });
     const host = mount(Host, {global: {config: globalConfig.global.config}});
     const root = host.find('.player-cube').element;
-    expect((host.vm.$refs.cube as {$el?: HTMLElement}).$el).to.eq(root);
+    const cube = host.vm.$refs.cube as {rootEl?: HTMLElement | null};
+    expect(Object.keys(cube), 'exposes its root and nothing else').to.deep.eq(['rootEl']);
+    expect(cube.rootEl).to.eq(root);
     expect(Array.from(root.classList)).to.include.members(['player-cube', 'player-cube--purple', 'con-colonybuild__cube']);
     expect(root.getAttribute('data-from-host')).to.eq('yes');
   });

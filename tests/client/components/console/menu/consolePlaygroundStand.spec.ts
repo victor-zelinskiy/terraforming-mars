@@ -7,7 +7,7 @@
  */
 import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
-import {defineComponent, h, nextTick} from 'vue';
+import {defineComponent, h, nextTick, ref} from 'vue';
 import {globalConfig} from '../../getLocalVue';
 import {$t} from '@/client/directives/i18n';
 import {CardName} from '@/common/cards/CardName';
@@ -28,17 +28,22 @@ const GlyphStub = defineComponent({
   render: () => h('i', {class: 'glyph-stub'}),
 });
 
-/** The scroll area's stand-in: its slot, and a record of every distance it was asked to scroll. */
+/**
+ * The scroll area's stand-in: its slot, a record of every distance it was asked to scroll, and its ROOT exposed by the
+ * one name the stand reads it by (`rootEl` — a Vapor child's ref answers no `$el`, components/rootEl.ts).
+ */
 const scrolled: Array<number> = [];
 const ScrollStub = defineComponent({
   name: 'ConsoleScrollArea',
-  methods: {
-    scrollByPx(dy: number): void {
-      scrolled.push(dy);
-    },
-  },
-  render() {
-    return h('div', {class: 'scroll-stub'}, this.$slots.default?.());
+  setup(_, {expose, slots}) {
+    const root = ref<HTMLElement | null>(null);
+    expose({
+      scrollByPx: (dy: number): void => {
+        scrolled.push(dy);
+      },
+      rootEl: root,
+    });
+    return () => h('div', {ref: root, class: 'scroll-stub'}, slots.default?.());
   },
 });
 

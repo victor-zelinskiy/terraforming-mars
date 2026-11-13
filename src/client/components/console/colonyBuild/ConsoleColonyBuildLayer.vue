@@ -42,6 +42,7 @@
  * (These comments stood between the template's roots; each names the root it stood before.)
  */
 import {computed, onBeforeUnmount, onMounted, useTemplateRef} from 'vue';
+import {RootElHolder} from '@/client/components/rootEl';
 import {Color} from '@/common/Color';
 import {colonyBuildState, registerColonyBuildStage} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {ColonyBuildStageEls} from '@/client/console/colonyBuild/colonyBuildDirector';
@@ -51,7 +52,7 @@ import ConsoleColonyBuildWitness from '@/client/components/console/colonyBuild/C
 defineOptions({name: 'ConsoleColonyBuildLayer'});
 
 const root = useTemplateRef<HTMLElement>('root');
-const cube = useTemplateRef<{$el?: HTMLElement}>('cube');
+const cube = useTemplateRef<RootElHolder>('cube');
 const ring = useTemplateRef<HTMLElement>('ring');
 let unregister: (() => void) | undefined;
 /** The builder's colour ('' while idle → nothing mounts). */
@@ -106,7 +107,7 @@ onMounted(() => {
       const rootNow = root.value;
       const ringNow = ring.value;
       const cubeNow = cube.value;
-      const cubeEl = cubeNow?.$el;
+      const cubeEl = cubeNow?.rootEl ?? undefined;
       // `!rootNow` also catches the template ref's `null` (a ref the `v-if` took away).
       if (!rootNow || !rootNow.isConnected || ringNow === null || cubeEl === undefined) {
         return undefined;

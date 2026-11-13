@@ -1063,6 +1063,7 @@
  * hands off via `repeat-pick`.
  */
 import {computed, markRaw, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
+import {RootElHolder, rootElOf} from '@/client/components/rootEl';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {setConsoleActionComposerCommands, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import {focusCommandRun, FocusRowKind} from '@/client/console/consoleActionFlow';
@@ -1585,7 +1586,7 @@ const root = useAppRoot();
 const flow = useFlowScope('action-composer');
 const rootEl = useTemplateRef<HTMLElement>('rootEl');
 const forecastExplorer = useTemplateRef<InstanceType<typeof ConsoleEffectsExplorer>>('forecastExplorer');
-const targetStep = useTemplateRef<{rootEl?: () => HTMLElement | undefined, payloadEl?: () => HTMLElement | undefined} & {scrollBy?: (d: number) => void} & {cells?: () => ReadonlyArray<PlayedTargetCell>} & {ensureFocusVisible?: () => void}>('targetStep');
+const targetStep = useTemplateRef<{rootEl?: HTMLElement | null, payloadEl?: () => HTMLElement | undefined} & {scrollBy?: (d: number) => void} & {cells?: () => ReadonlyArray<PlayedTargetCell>} & {ensureFocusVisible?: () => void}>('targetStep');
 const scroll = useTemplateRef<{scrollByPx?: (d: number) => void} & {ensureVisible?: (el: Element | null | undefined) => void}>('scroll');
 const venusStep = useTemplateRef<VenusBonusStepApi>('venusStep');
 const wildTargetStep = useTemplateRef<{cells?: () => ReadonlyArray<PlayedTargetCell>, ensureFocusVisible?: () => void}>('wildTargetStep');
@@ -1601,7 +1602,7 @@ const batchFlips = useTemplateRef('batchFlips');
 const beatSlots = useTemplateRef('beatSlots');
 const verdictSlot = useTemplateRef<HTMLElement>('verdictSlot');
 const focusedEl = useTemplateRef<HTMLElement | Array<HTMLElement>>('focusedEl');
-const branchesEl = useTemplateRef<{$el?: unknown} | HTMLElement>('branchesEl');
+const branchesEl = useTemplateRef<RootElHolder | HTMLElement>('branchesEl');
 const actRight = useTemplateRef<HTMLElement>('actRight');
 const lawPlaystage = useTemplateRef<HTMLElement>('lawPlaystage');
 /** The decision column that stops re-centring once the player presses (`settledColumn.ts`). */
@@ -7506,9 +7507,7 @@ function scrollFocused(): void {
 }
 /** The variant group's root element (the ref is a component). */
 function branchesRoot(): HTMLElement | undefined {
-  const ref = branchesEl.value ?? undefined;
-  const el = ref instanceof HTMLElement ? ref : (ref as {$el?: unknown} | undefined | null)?.$el;
-  return el instanceof HTMLElement ? el : undefined;
+  return rootElOf(branchesEl.value);
 }
 /**
  * The group's AXIS, read off the rendered geometry: every tile at the same `offsetTop` ⇒ one row (←→ switch),
@@ -7615,7 +7614,7 @@ watch(() => playedTargetStepOpen.value, (now: boolean, was: boolean) => {
     const carry = armPayloadCarry(root.querySelector('.con-composer__branches'));
     void nextTick(() => {
       const step = targetStep.value ?? undefined;
-      playPayloadCarry(step?.rootEl?.(), step?.payloadEl?.(), carry);
+      playPayloadCarry(step?.rootEl ?? undefined, step?.payloadEl?.(), carry);
     });
     return;
   }

@@ -241,22 +241,22 @@ describe('ConsoleStartPlayedDock (the compact «РАЗЫГРАНО · owner» de
 
   /**
    * WHAT THE SCENE REACHES THROUGH ITS REF. `ConsoleStartScene.playedDockRoot` reads the shelf's root element off the
-   * dock's ref (`(this.$refs.playedDockEl ?? undefined) as {$el?: HTMLElement}`) — the descent's recede / return
-   * animate that node. The dock is a `<script setup>` component (step A of docs/claude/vapor/RECIPES.md § R12): it
-   * exposes NOTHING of its script, and its ref still answers `$el` — the ONE root the template starts with (a
-   * top-level comment before it would make that a fragment's anchor instead of the shelf).
+   * dock's ref (`playedDockEl.rootEl`) — the descent's recede / return animate that node. A Vapor child's ref answers
+   * no `$el`, so the dock exposes its root by the ONE name `rootEl` (components/rootEl.ts) and nothing else of its
+   * script — the ONE root the template starts with (a top-level comment before it would make that a fragment's
+   * anchor instead of the shelf).
    */
-  it('a PARENT\'s ref answers `$el` — the shelf\'s root element — and carries nothing of the script', () => {
+  it('a PARENT\'s ref answers `rootEl` — the shelf\'s root element — and carries nothing else of the script', () => {
     const Host = defineComponent({
       render: () => h('div', [h(ConsoleStartPlayedDock, {ref: 'playedDockEl', playerView: view([CardName.THARSIS_REPUBLIC])})]),
     });
     const wrapper = mount(Host, {global: {stubs: {ConsolePlayedCardLite: true}}});
-    const dock = (wrapper.vm.$refs.playedDockEl ?? undefined) as {$el?: HTMLElement} | undefined;
+    const dock = (wrapper.vm.$refs.playedDockEl ?? undefined) as {rootEl?: HTMLElement | null} | undefined;
     expect(dock, 'the host holds a ref to the dock').to.not.be.undefined;
-    expect(Object.keys(dock ?? {}), 'nothing is exposed').to.deep.eq([]);
+    expect(Object.keys(dock ?? {}), 'exposes its root and nothing else').to.deep.eq(['rootEl']);
     const shelf = wrapper.find('.con-start__played').element;
-    expect(dock?.$el).to.eq(shelf);
-    expect(dock?.$el?.tagName).to.eq('ASIDE');
+    expect(dock?.rootEl).to.eq(shelf);
+    expect(dock?.rootEl?.tagName).to.eq('ASIDE');
     expect((wrapper.element as Element).firstChild, 'the shelf is the dock\'s first and only node').to.eq(shelf);
     expect((wrapper.element as Element).childNodes).to.have.length(1);
     wrapper.unmount();

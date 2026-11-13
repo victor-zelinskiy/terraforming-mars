@@ -94,6 +94,7 @@
  * MOVES the single −1 there.
  */
 import {computed, onBeforeUnmount, PropType, ref, useTemplateRef, watch} from 'vue';
+import {RootElHolder} from '@/client/components/rootEl';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectProductionToLoseModel} from '@/common/models/PlayerInputModel';
@@ -134,7 +135,7 @@ const props = defineProps({
 });
 const emit = defineEmits(['submit', 'defer']);
 
-const sourceDock = useTemplateRef<{$el?: HTMLElement}>('sourceDock');
+const sourceDock = useTemplateRef<RootElHolder>('sourceDock');
 const focusIdx = ref(0);
 /** The chosen loss per resource (fills up to `cost`). */
 const units = ref<Partial<Record<keyof Units, number>>>({});
@@ -350,7 +351,7 @@ function zoomSource(): void {
       kind: 'physical',
       resolve: () => {
         const dock = sourceDock.value;
-        return dock?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
+        return dock?.rootEl?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
       },
     },
   });

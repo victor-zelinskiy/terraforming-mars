@@ -27,7 +27,7 @@ import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import CardAnnotationsLayer from '@/client/components/cardAnnotations/CardAnnotationsLayer.vue';
 
-/** What a host reads through its ref on the viewer: the exposed list, plus the root a `<script setup>` ref still answers. */
+/** What a host reads through its ref on the viewer: the exposed list, its root (`rootEl` — components/rootEl.ts) among it. */
 type Viewer = {
   show(): void,
   close(): void,
@@ -35,7 +35,7 @@ type Viewer = {
   next(): void,
   fitCardToViewport(cardRoot?: HTMLElement): void,
   measureLanding(): Promise<{rect: {left: number, top: number, width: number, height: number}, zoom: number} | undefined>,
-  $el: HTMLElement,
+  readonly rootEl: HTMLElement | null,
 };
 
 const HACKERS: CardModel = {name: CardName.HACKERS};
@@ -166,12 +166,13 @@ describe('CardZoomModal', () => {
   });
 
   describe('what a host reaches through its ref', () => {
-    it('the six members and nothing else of the script — and the root, through `$el`', () => {
+    it('the six members and its root (`rootEl`) — nothing else of the script', () => {
       const {viewer, dialog} = stand({});
       expect(Object.keys(viewer).sort(), 'the exposed list is the contract').to.deep.eq(
-        ['close', 'fitCardToViewport', 'measureLanding', 'next', 'prev', 'show']);
-      // The console's flights (swap, depart, hand-off, dive) take the dialog off the ref.
-      expect(viewer.$el).to.eq(dialog);
+        ['close', 'fitCardToViewport', 'measureLanding', 'next', 'prev', 'rootEl', 'show']);
+      // The console's flights (swap, depart, hand-off, dive) take the dialog off the ref — by the one name a child's
+      // root is read by (components/rootEl.ts), never `$el`: a Vapor child's ref answers none.
+      expect(viewer.rootEl).to.eq(dialog);
     });
 
     it('`show()` opens the dialog as a modal; `close()` closes an OPEN one and tells the host — once', () => {

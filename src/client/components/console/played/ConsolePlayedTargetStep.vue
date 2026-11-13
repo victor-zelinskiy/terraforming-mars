@@ -751,7 +751,7 @@ function impactTail(imp: PlayedTargetQuickImpact): string {
  * host's candidates out at the fallback zoom. The template starts with its
  * root now, and both routes name that element in every build.)
  */
-function rootEl(): HTMLElement | undefined {
+function ownRoot(): HTMLElement | undefined {
   const zoneNow = zone.value ?? undefined;
   const viaZone = typeof zoneNow?.closest === 'function' ?
     zoneNow.closest<HTMLElement>('.con-ptsel') :
@@ -771,7 +771,7 @@ function cells(): ReadonlyArray<PlayedTargetCell> {
   if (cellCache.value !== undefined) {
     return cellCache.value;
   }
-  const root = rootEl();
+  const root = ownRoot();
   const out: Array<PlayedTargetCell> = [];
   for (const el of Array.from(root?.querySelectorAll<HTMLElement>('[data-ptsel-cell]') ?? [])) {
     const ownerId = el.dataset.owner;
@@ -808,7 +808,7 @@ function invalidateGeometry(): void {
 function ensureFocusVisible(): void {
   void nextTick(() => {
     const area = viewport.value ?? undefined;
-    const el = rootEl()?.querySelector('[data-ptsel-cell][data-focused]');
+    const el = ownRoot()?.querySelector('[data-ptsel-cell][data-focused]');
     area?.ensureVisible?.(el);
   });
 }
@@ -833,7 +833,7 @@ function scrollBy(dy: number): void {
  */
 function measureSizing(): void {
   const zoneNow = zone.value ?? undefined;
-  const root = rootEl();
+  const root = ownRoot();
   if (zoneNow === undefined || root === undefined) {
     return;
   }
@@ -1145,5 +1145,6 @@ onBeforeUnmount(() => {
   stopResizeObs = undefined;
   resetPlayedTargetSelf();
 });
-defineExpose({cells, ensureFocusVisible, payloadEl, rootEl, scrollBy, navigate, turnPage});
+// (`rootEl` is the root's own ref — the one name a parent reads a child's root by, components/rootEl.ts.)
+defineExpose({cells, ensureFocusVisible, payloadEl, rootEl: root, scrollBy, navigate, turnPage});
 </script>

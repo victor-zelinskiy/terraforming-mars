@@ -1,4 +1,4 @@
-import {defineComponent, h, nextTick} from 'vue';
+import {defineComponent, h, nextTick, ref} from 'vue';
 import {mount} from '@vue/test-utils';
 import {expect} from 'chai';
 import {globalConfig} from '../getLocalVue';
@@ -42,19 +42,21 @@ const CardZoomModalStub = defineComponent({
     lore: {type: Boolean, default: false},
   },
   emits: ['navigate', 'close'],
-  methods: {
-    // JSDOM path: no landing geometry → the host opens vanilla (show()).
-    async measureLanding(): Promise<undefined> {
-      return undefined;
-    },
-    show(): void {},
-    prev(): void {},
-    next(): void {},
-    close(): void {
-      this.$emit('close');
-    },
+  // Exposes what the real viewer does: its members and its ROOT by the one name a host reads it by (`rootEl` — a
+  // Vapor child's ref answers no `$el`, components/rootEl.ts); the host opens only once it finds that element.
+  setup(_, {emit, expose, slots}) {
+    const root = ref<HTMLElement | null>(null);
+    expose({
+      // JSDOM path: no landing geometry → the host opens vanilla (show()).
+      measureLanding: async (): Promise<undefined> => undefined,
+      show: (): void => {},
+      prev: (): void => {},
+      next: (): void => {},
+      close: (): void => emit('close'),
+      rootEl: root,
+    });
+    return () => h('div', {ref: root, class: 'zoom-stub'}, [slots.side?.({nonce: 1, closing: false}), slots.actions?.()]);
   },
-  template: '<div class="zoom-stub"><slot name="side" :nonce="1" :closing="false" /><slot name="actions" /></div>',
 });
 
 const ConsoleCardRulesPanelStub = defineComponent({
@@ -71,12 +73,16 @@ const ConsoleCardRulesPanelStub = defineComponent({
 const kept: Array<Element | null> = [];
 const ConsoleScrollAreaStub = defineComponent({
   name: 'ConsoleScrollArea',
-  methods: {
-    ensureVisible(el: Element | null): void {
-      kept.push(el);
-    },
+  setup(_, {expose, slots}) {
+    const root = ref<HTMLElement | null>(null);
+    expose({
+      ensureVisible: (el: Element | null): void => {
+        kept.push(el);
+      },
+      rootEl: root,
+    });
+    return () => h('div', {ref: root}, slots.default?.());
   },
-  template: '<div><slot /></div>',
 });
 
 type PickerVm = {

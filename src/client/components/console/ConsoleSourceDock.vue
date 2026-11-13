@@ -1,5 +1,5 @@
 <template>
-  <div class="con-src" :class="{
+  <div ref="root" class="con-src" :class="{
          'con-src--compact': compact,
          'con-src--chip': chip,
          'con-src--plate': plateOnly,
@@ -94,7 +94,7 @@
  * marker knowledge and no text heuristics — and a new server marker is wired
  * in exactly one place.
  */
-import {computed, PropType} from 'vue';
+import {computed, PropType, useTemplateRef} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import {BonusCardId} from '@/common/automa/AutomaTypes';
@@ -176,4 +176,7 @@ const nameText = computed((): string => {
   }
   return typeof name === 'string' ? translateText(name) : translateMessage(name);
 });
+// Its root: a host hands the card standing in it to the viewer as the zoom's physical origin (components/rootEl.ts).
+const root = useTemplateRef<HTMLElement>('root');
+defineExpose({rootEl: root});
 </script>

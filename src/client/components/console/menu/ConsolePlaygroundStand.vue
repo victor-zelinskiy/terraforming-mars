@@ -88,7 +88,7 @@ const props = defineProps({
 });
 const emit = defineEmits(['close']);
 
-const scroll = useTemplateRef<{$el?: HTMLElement, scrollByPx: (dy: number) => void, ensureVisible: (el: Element | null, margin?: number) => void, scrollToStart: () => void}>('scroll');
+const scroll = useTemplateRef<{rootEl: HTMLElement | null, scrollByPx: (dy: number) => void, ensureVisible: (el: Element | null, margin?: number) => void, scrollToStart: () => void}>('scroll');
 const body = useTemplateRef<HTMLElement>('body');
 /** The fullscreen inspector's state — the stand's hint line yields to its footer. */
 const zoom = consoleCardZoom;
@@ -115,7 +115,7 @@ function jumpSection(dir: 1 | -1): void {
   // Land the header at the viewport top. ConsoleScrollArea's contract
   // forbids scrollIntoView (it may walk into outer containers) — compute
   // the delta against the scroll area's own box and drive its API.
-  const scrollEl = scroll.value?.$el;
+  const scrollEl = scroll.value?.rootEl ?? undefined;
   if (scrollEl !== undefined) {
     const delta = target.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top - 16;
     scrollApi()?.scrollByPx(delta);

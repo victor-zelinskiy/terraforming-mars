@@ -491,7 +491,7 @@ describe('ConsoleStrategyRail', () => {
     });
   });
 
-  it('a PARENT\'s ref sees no member of the script — the shell holds the rail for its ROOT alone (the stage geometry measures `$el`)', () => {
+  it('a PARENT\'s ref sees only the rail\'s root — the shell holds the rail for its ROOT alone (the stage geometry measures `rootEl`)', () => {
     const Host = defineComponent({
       render: () => h('div', [h(ConsoleStrategyRail, {
         ref: 'conStratEl',
@@ -502,11 +502,12 @@ describe('ConsoleStrategyRail', () => {
       })]),
     });
     const host = mount(Host, {global: {...globalConfig.global, stubs: {GamepadGlyph: true}}});
-    // Exactly the shell's read: `useWorkspaceBandGeometry` resolves the host's `$el` itself.
-    const rail = (host.vm.$refs.conStratEl ?? undefined) as {$el?: unknown} | undefined;
+    // Exactly the shell's read: `useWorkspaceBandGeometry` resolves the host's `rootEl` (a Vapor child's ref answers
+    // no `$el` — components/rootEl.ts).
+    const rail = (host.vm.$refs.conStratEl ?? undefined) as {rootEl?: unknown} | undefined;
     expect(rail, 'the host\'s ref stands').to.not.eq(undefined);
-    expect(Object.keys(rail ?? {}), 'no `defineExpose` — nothing of the script leaves it').to.deep.eq([]);
-    expect(rail?.$el, 'the root the right edge of the central opening is measured from').to.eq(host.find('aside.con-strat').element);
+    expect(Object.keys(rail ?? {}), 'exposes its root and nothing else of the script').to.deep.eq(['rootEl']);
+    expect(rail?.rootEl, 'the root the right edge of the central opening is measured from').to.eq(host.find('aside.con-strat').element);
     for (const inner of ['reseed', 'later', 'flushSeals', 'pending', 'ledgers', 'zoneViews']) {
       expect((rail as unknown as Record<string, unknown>)[inner], `«${inner}» stays inside`).to.eq(undefined);
     }

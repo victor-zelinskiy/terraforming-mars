@@ -215,12 +215,14 @@ describe('ConsoleScrollArea — what a parent\'s ref reaches', () => {
     };
   }
 
-  it('sees exactly the five functions the component exposed — nothing else of the script', () => {
-    const {reach} = mountUnderHost();
+  it('sees exactly the five functions the component exposed and its root — nothing else of the script', () => {
+    const {host, reach} = mountUnderHost();
     const scroll = reach();
     expect(scroll, 'the host\'s ref stands').to.not.eq(undefined);
     expect(Object.keys(scroll ?? {}), 'the exposed list is the contract')
-      .to.deep.eq(['scrollByPx', 'scrollToStart', 'scrollToEnd', 'ensureVisible', 'measure']);
+      .to.deep.eq(['scrollByPx', 'scrollToStart', 'scrollToEnd', 'ensureVisible', 'measure', 'rootEl']);
+    // The root by the ONE name a parent reads it by (a Vapor child's ref answers no `$el` — components/rootEl.ts).
+    expect((scroll as unknown as {rootEl?: unknown}).rootEl, 'the root element').to.eq(host.find('.con-scroll-area').element);
     // `overflowing` among them: the component never exposed it (RECIPES R8 — its own `expose` wins over a parent's read).
     for (const inner of ['viewport', 'content', 'overflowing', 'progress', 'ratio', 'thumbStyle', 'rootClasses', 'onScroll', 'stopScroll', 'flow']) {
       expect((scroll as unknown as Record<string, unknown>)[inner], `«${inner}» stays inside`).to.eq(undefined);

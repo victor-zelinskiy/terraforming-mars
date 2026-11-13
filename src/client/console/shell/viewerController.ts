@@ -839,7 +839,7 @@ export function createViewerController(shell: ViewerPort) {
     }
     const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
     zoomSwapping.value = true;
-    void playZoomSwap(zoom?.$el as HTMLElement | undefined, () => swap.swap(), () => zoom?.fitCardToViewport())
+    void playZoomSwap(zoom?.rootEl ?? undefined, () => swap.swap(), () => zoom?.fitCardToViewport())
       .then(() => {
         zoomSwapping.value = false;
       });
@@ -884,7 +884,7 @@ export function createViewerController(shell: ViewerPort) {
       }
       zoomFlight.value = true;
       zoomClosing.value = true;
-      void playZoomDepart(zoom?.$el as HTMLElement | undefined, card.name as CardName, () => r.takeAt(idx), () => zoom?.close());
+      void playZoomDepart(zoom?.rootEl ?? undefined, card.name as CardName, () => r.takeAt(idx), () => zoom?.close());
       return;
     }
     // MULTI-CARD: close back to the strip slot first, then the reveal modal's
@@ -913,7 +913,7 @@ export function createViewerController(shell: ViewerPort) {
       action.execute(card.name as CardName);
       zoomFlight.value = true;
       zoomClosing.value = true;
-      void playZoomHandoff(zoom.$el as HTMLElement | undefined, () => document.querySelector<HTMLElement>(handoffSel))
+      void playZoomHandoff(zoom.rootEl ?? undefined, () => document.querySelector<HTMLElement>(handoffSel))
         .then(() => zoom.close());
       return;
     }
@@ -957,7 +957,7 @@ export function createViewerController(shell: ViewerPort) {
     if (zoom === undefined) {
       return;
     }
-    const dialogEl = zoom.$el as HTMLDialogElement | undefined;
+    const dialogEl = zoom.rootEl ?? undefined;
     // Closed during the OPEN flight (dialog never shown): abort the flight
     // and unwind directly — `dialog.close()` would no-op and the 'close'
     // event (the normal state unwinder) would never fire.
@@ -1020,7 +1020,7 @@ export function createViewerController(shell: ViewerPort) {
           return; // closed before it ever opened
         }
         const zoom = shell.surfaces.at<InstanceType<typeof CardZoomModal>>('cardZoom');
-        const el = zoom?.$el as HTMLElement | undefined;
+        const el = zoom?.rootEl ?? undefined;
         if (zoom === undefined || el === undefined || typeof el.querySelector !== 'function') {
           if (attempt < 10) {
             probeTick(() => tryOpen(attempt + 1));

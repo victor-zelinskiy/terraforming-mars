@@ -1,5 +1,5 @@
 <template>
-  <aside v-show="shown" class="con-strat" :aria-label="$t('Milestones') + ' · ' + $t('Awards')">
+  <aside ref="root" v-show="shown" class="con-strat" :aria-label="$t('Milestones') + ' · ' + $t('Awards')">
     <!-- `v-show` lives HERE, on the root, fed by the `shown` prop — never on
          the component's vnode in the shell: a directive on a component vnode
          makes Vue re-render the child on EVERY parent render
@@ -250,7 +250,7 @@
  * minutes later. Leadership changes FLIP the two units of a row's duel and
  * tick the numbers — only on a REAL diff, never on a poll re-render.
  */
-import {computed, markRaw, onMounted, PropType, ref, watch} from 'vue';
+import {computed, markRaw, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {Color} from '@/common/Color';
@@ -923,4 +923,7 @@ onMounted(() => {
     everNow: [...ledgers.everNow],
   });
 });
+// Its root: the shell measures the rail's edge for the workspace band's opening (components/rootEl.ts).
+const root = useTemplateRef<HTMLElement>('root');
+defineExpose({rootEl: root});
 </script>
