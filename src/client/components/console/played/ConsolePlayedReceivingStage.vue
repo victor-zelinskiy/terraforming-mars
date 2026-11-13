@@ -1,5 +1,5 @@
 <template>
-  <div class="con-recv" :class="{'con-recv--engaged': presenting, 'con-recv--revealed': revealed}" aria-hidden="true">
+  <div ref="root" class="con-recv" :class="{'con-recv--engaged': presenting, 'con-recv--revealed': revealed}" aria-hidden="true">
     <!--
       THE PLAYED TABLEAU RECEIVING & EFFECT RESOLUTION STAGE — the specialized
       final scene of the Card Play Workspace (played-hero host 'workspace').
@@ -29,7 +29,7 @@
       Pre-mounted hidden from the submit's arm (prewarm); the composer's layer
       class is the reveal. Read-only and input-inert — the transaction gates
       the pad. NB the comment lives INSIDE the root: a top-level template
-      comment makes the dev build a fragment and $el a comment node.
+      comment makes the dev build a fragment (the template starts with its root).
     -->
     <!-- Owner context — one compact chip, never a second surface title. -->
     <div class="con-recv__owner" data-recv-group>
@@ -155,8 +155,8 @@
   </div>
 </template>
 
-<script lang="ts">
-import {defineComponent, PropType} from 'vue';
+<script setup lang="ts">
+import {computed, nextTick, onBeforeUnmount, onMounted, PropType, ref, useTemplateRef, watch} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
@@ -185,19 +185,26 @@ import {HeroRect} from '@/client/console/played/playedHeroModel';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 import {span, whenPainted} from '@/client/console/session/sessionWaits';
 import {useFlowScope} from '@/client/console/session/useFlowScope';
+import {$t} from '@/client/directives/i18n';
 
 /** Emergence flight (ms @ motion scale 1) — strip → forward presentation. */
 const EMERGE_MS = 260;
+
 /** The return leg — a touch quicker (the story is already told). */
 const RETURN_MS = 220;
+
 /** The target's confirmation response after its gain arrives. */
 const TARGET_SETTLE_MS = 150;
+
 /** A WAVE of several targets (PL-1146): each rises / returns this much after its left neighbour — one gesture, read in order. */
 const WAVE_STAGGER_MS = 50;
+
 /** The smallest a presented card may be scaled so a wave fits the stage (below it the row overlaps — still every card shown). */
 const WAVE_MIN_SCALE = 0.6;
+
 /** The stage emergence (the shelf rises; the destination leads). */
 const STAGE_IN_MS = 230;
+
 /** Fallback stage box before the first measure (logical px). */
 const FALLBACK_W = 1400;
 const FALLBACK_H = 620;
@@ -214,622 +221,615 @@ type RowEntry =
   {kind: 'dest', key: string} |
   {kind: 'mini', key: string, mini: ReceivingMini};
 
-export default defineComponent({
-  name: 'ConsolePlayedReceivingStage',
-  components: {ConsolePlayedCardLite},
-  props: {
-    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-  },
-  setup() {
-    return {flow: useFlowScope('played-receiving-stage')};
-  },
-  data() {
-    return {
-      heroState: playedHeroState,
-      box: {w: 0, h: 0},
-      /** The targets currently OUT of their stacks (the emergence layer) — one, or a WAVE of several (PL-1146). */
-      emerged: [] as Array<EmergedTarget>,
-      /** The prev-top accent for a target that needs no emergence. */
-      targetAccent: undefined as CardName | undefined,
-      unregisterTarget: undefined as (() => void) | undefined,
-      unregisterHooks: undefined as (() => void) | undefined,
-      /** One-shot latches per transaction nonce. */
-      emergenceRan: false,
-      /**
-       * THE SETTLED TABLEAU, FROZEN — the arrived card, kept past the end of
-       * the hero transaction.
-       *
-       * The transaction ends when the card has landed and its rewards have
-       * resolved, and it CLEARS its own state there (`card`, `revealed`). But
-       * the workspace legitimately keeps this scene on screen afterwards while
-       * what the play DREW is still coming off the deck (`playLandingHolding`)
-       * — and read live, the stage would answer «nothing is arriving» in that
-       * window: the front anchor would empty and the card would jump back into
-       * the strips behind it, re-laying out a tableau the player is looking at.
-       * Reset with the nonce, so a new play never inherits the last one's.
-       */
-      latchedIncoming: undefined as CardModel | undefined,
-      /** …and that it had ARRIVED. Separate from the card on purpose: the card
-       *  is known from the lift, the arrival only at the dock, and conflating
-       *  them showed the tableau already holding a card that was still in the
-       *  air (a filled front anchor and a ticked count on the first frame). */
-      latchedRevealed: false,
-      /**
-       * Per-card totals of THIS play's card-resource gains, latched at the
-       * arm (the transaction empties its own copy when the wave starts). A
-       * visible target's stored-resource capsule renders `committed − still
-       * in flight` and ticks at each chip's own touchdown — the count changes
-       * AT the contact, never before the flight.
-       */
-      latchedGainTotals: {} as Readonly<Record<string, number>>,
-      /**
-       * Until when the stage's own ENTRY tween (the destination's grounded
-       * rise) is shaping the front anchor's rect. A GSAP tween on an ANCESTOR
-       * is invisible to `restingRectOf`, so the synchronous peek answers
-       * «not readable» for that window instead of handing the flight a rect
-       * the slot is only passing through.
-       */
-      emergenceUntil: 0,
-    };
-  },
-  computed: {
-    viewer(): PublicPlayerModel {
-      return this.playerView.thisPlayer;
-    },
-    ownerName(): string {
-      return participantDisplayName(this.viewer);
-    },
-    presenting(): boolean {
-      // SHOWING, not holding: the scene keeps its content while it dissolves
-      // off the stage (the deck has begun dealing) — read live, the front
-      // anchor would empty and the card would jump back into the strips
-      // mid-fade, which is a re-layout the player watches happen.
-      return playLandingShowing();
-    },
-    revealed(): boolean {
-      return this.heroState.revealed || (this.latchedRevealed && this.presenting);
-    },
-    /** The front card pulses as the EFFECT SOURCE through the result beat. */
-    sourcePulse(): boolean {
-      return this.heroState.revealed && this.heroState.phase === 'showing-result';
-    },
-    /** The card the hero is bringing (or has brought — see `latchedIncoming`). */
-    incoming(): CardModel | undefined {
-      return (playedHeroIncomingCard() as CardModel | undefined) ?? this.latchedIncoming;
-    },
-    zones(): PlayedZones {
-      return buildPlayedZones(this.viewer.tableau);
-    },
-    /** Destination from the card's TYPE — known before the commit. */
-    destKey(): PlayedCategoryKey {
-      const name = this.incoming?.name ?? this.heroState.card;
-      return familyForCardType(name !== undefined ? getCard(name)?.type : undefined) ?? 'automated';
-    },
-    destLabel(): string {
-      return PLAYED_CATEGORY_LABEL[this.destKey];
-    },
-    /** Cards LYING in the destination (the incoming excluded — stable across
-     *  the commit; see receivingStackView). */
-    destCards(): ReadonlyArray<CardModel> {
-      const name = this.incoming?.name ?? this.heroState.card;
-      return zoneCards(this.zones, this.destKey).filter((c) => c.name !== name);
-    },
-    stackCount(): number {
-      return this.destCards.length;
-    },
-    /** The caption count — ticks to N+1 exactly at the dock (re-keyed pulse). */
-    destCount(): number {
-      return this.stackCount + (this.revealed ? 1 : 0);
-    },
-    plan(): ReceivingPlan {
-      return planReceivingStage({
-        availW: this.box.w > 0 ? this.box.w : FALLBACK_W * conUiScale(),
-        availH: this.box.h > 0 ? this.box.h : FALLBACK_H * conUiScale(),
-        stackCount: this.stackCount,
-        miniCount: this.minis.length,
-        uiScale: conUiScale(),
-      });
-    },
-    view(): ReceivingStackView {
-      const name = (this.incoming?.name ?? this.heroState.card ?? '') as CardName;
-      return receivingStackView(this.destCards, name, this.plan.maxStrips);
-    },
-    /** The effect targets of THIS play — from the LATCHED totals, so a
-     *  foreign owner's pile stands through the whole scene (the transaction
-     *  clears its own copy before the latched view lets go). */
-    effectTargets(): ReadonlyArray<CardName> {
-      const played = this.incoming?.name ?? this.heroState.card;
-      return (Object.keys(this.latchedGainTotals) as Array<CardName>).filter((n) => n !== played);
-    },
-    /** Peripheral piles: the viewer's other families + foreign owners of
-     *  effect targets (known at arm — prepared before anything moves). */
-    minis(): ReadonlyArray<ReceivingMini> {
-      const own = receivingMinis(this.zones, this.destKey);
-      const foreign = foreignTargetMinis(
-        this.playerView.players, this.viewer.color, this.effectTargets, buildPlayedZones);
-      return [...own, ...foreign];
-    },
-    /** The shelf row: canonical family order with the DESTINATION inline in
-     *  its own slot; foreign owners' piles close the row past a seam. */
-    rowEntries(): ReadonlyArray<RowEntry> {
-      const out: Array<RowEntry> = [];
-      const byFamily = new Map(this.minis.filter((m) => m.ownerColor === undefined).map((m) => [m.family, m]));
-      for (const key of PLAYED_CATEGORY_ORDER) {
-        if (key === this.destKey) {
-          out.push({kind: 'dest', key: 'dest'});
-          continue;
-        }
-        const mini = byFamily.get(key);
-        if (mini !== undefined) {
-          out.push({kind: 'mini', key: mini.id, mini});
-        }
-      }
-      for (const mini of this.minis) {
-        if (mini.ownerColor !== undefined) {
-          out.push({kind: 'mini', key: mini.id, mini});
-        }
-      }
-      return out;
-    },
-    emergedMiniIds(): ReadonlyArray<string> {
-      return this.emerged.map((e) => e.miniId).filter((id) => id !== '');
-    },
-  },
-  watch: {
-    /** THE STAGE EMERGENCE — the prepared scene surfaces: the shelf rises as
-     *  one table, the destination leads, its strips cascade open. One-shot
-     *  per transaction; reduced motion keeps the visibility flip. */
-    presenting(now: boolean) {
-      if (now && !this.emergenceRan) {
-        this.emergenceRan = true;
-        void this.$nextTick(() => this.runStageEmergence());
-      }
-    },
-    'heroState.nonce'() {
-      this.emergenceRan = false;
-      this.emerged = [];
-      this.targetAccent = undefined;
-      this.latchedIncoming = undefined;
-      this.latchedRevealed = false;
-      this.latchGainTotals();
-    },
-    /** Freeze the arrived card while the transaction still knows it. */
-    'incoming': {
-      immediate: true,
-      handler(now: CardModel | undefined) {
-        if (now !== undefined) {
-          this.latchedIncoming = now;
-        }
-      },
-    },
-    'heroState.revealed': {
-      immediate: true,
-      handler(now: boolean) {
-        if (now) {
-          this.latchedRevealed = true;
-        }
-      },
-    },
-  },
-  mounted() {
-    this.measure();
-    this.latchGainTotals();
-    this.unregisterTarget = providePlayedHeroTarget(() => this.measureFrontAnchor(), () => this.peekFrontAnchor());
-    this.unregisterHooks = provideReceivingEffectHooks({
-      emergeTarget: (card) => this.emergeTarget(card),
-      settleTarget: (card) => this.settleTarget(card),
-      emergeTargets: (cards) => this.emergeTargets(cards),
-      settleTargets: (cards) => this.settleTargets(cards),
-      // «СРАБАТЫВАНИЕ КАРТЫ»: a reactor this stage holds rises OUT OF ITS PLACE (the open previous top, a strip, a mini) —
-      // and its tokens are born on the emerged face's effect row.
-      // Only a CARD of a tableau this stage presents (iteration 6: a party's / a law's record names no card — the
-      // anchor ladder's catch-all, the destination slivers, must not claim it as this stage's).
-      holdsCard: (card) => this.tableauHolds(card) && (this.findTargetAnchor(card) !== undefined || (this.view.prevTop === card && !this.revealed)),
-      emergedFaceEl: (card) => {
-        const out = this.emergedEl(card);
-        if (out !== undefined) {
-          return out;
-        }
-        // The open previous top lies under the played card — its own face on the stage is the birth place.
-        if (this.targetAccent !== card) {
-          return undefined;
-        }
-        const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
-        return (this.$el as HTMLElement).querySelector<HTMLElement>(`[data-played-key="${esc}"]`) ?? undefined;
-      },
-    });
-  },
-  beforeUnmount() {
-    this.unregisterTarget?.();
-    this.unregisterHooks?.();
-    const root = this.$el as HTMLElement | undefined;
-    if (root !== undefined && typeof root.querySelectorAll === 'function') {
-      gsap.killTweensOf(root.querySelectorAll('[data-recv-group], [data-recv-strip], .con-recv__mini, .con-recv__emerge'));
+defineOptions({name: 'ConsolePlayedReceivingStage'});
+const props = defineProps({
+  playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+});
+
+const flow = useFlowScope('played-receiving-stage');
+const dest = useTemplateRef<HTMLElement | ReadonlyArray<HTMLElement>>('dest');
+const row = useTemplateRef<HTMLElement>('row');
+const root = useTemplateRef<HTMLElement>('root');
+const heroState = playedHeroState;
+const box = ref({w: 0, h: 0});
+/** The targets currently OUT of their stacks (the emergence layer) — one, or a WAVE of several (PL-1146). */
+const emerged = ref<Array<EmergedTarget>>([]);
+/** The prev-top accent for a target that needs no emergence. */
+const targetAccent = ref<CardName | undefined>(undefined);
+let unregisterTarget: (() => void) | undefined;
+let unregisterHooks: (() => void) | undefined;
+/** One-shot latches per transaction nonce. */
+const emergenceRan = ref(false);
+/**
+ * THE SETTLED TABLEAU, FROZEN — the arrived card, kept past the end of
+ * the hero transaction.
+ *
+ * The transaction ends when the card has landed and its rewards have
+ * resolved, and it CLEARS its own state there (`card`, `revealed`). But
+ * the workspace legitimately keeps this scene on screen afterwards while
+ * what the play DREW is still coming off the deck (`playLandingHolding`)
+ * — and read live, the stage would answer «nothing is arriving» in that
+ * window: the front anchor would empty and the card would jump back into
+ * the strips behind it, re-laying out a tableau the player is looking at.
+ * Reset with the nonce, so a new play never inherits the last one's.
+ */
+const latchedIncoming = ref<CardModel | undefined>(undefined);
+/** …and that it had ARRIVED. Separate from the card on purpose: the card
+ *  is known from the lift, the arrival only at the dock, and conflating
+ *  them showed the tableau already holding a card that was still in the
+ *  air (a filled front anchor and a ticked count on the first frame). */
+const latchedRevealed = ref(false);
+/**
+ * Per-card totals of THIS play's card-resource gains, latched at the
+ * arm (the transaction empties its own copy when the wave starts). A
+ * visible target's stored-resource capsule renders `committed − still
+ * in flight` and ticks at each chip's own touchdown — the count changes
+ * AT the contact, never before the flight.
+ */
+const latchedGainTotals = ref<Readonly<Record<string, number>>>({});
+/**
+ * Until when the stage's own ENTRY tween (the destination's grounded
+ * rise) is shaping the front anchor's rect. A GSAP tween on an ANCESTOR
+ * is invisible to `restingRectOf`, so the synchronous peek answers
+ * «not readable» for that window instead of handing the flight a rect
+ * the slot is only passing through.
+ */
+const emergenceUntil = ref(0);
+
+const viewer = computed((): PublicPlayerModel => {
+  return props.playerView.thisPlayer;
+});
+const ownerName = computed((): string => {
+  return participantDisplayName(viewer.value);
+});
+const presenting = computed((): boolean => {
+  // SHOWING, not holding: the scene keeps its content while it dissolves
+  // off the stage (the deck has begun dealing) — read live, the front
+  // anchor would empty and the card would jump back into the strips
+  // mid-fade, which is a re-layout the player watches happen.
+  return playLandingShowing();
+});
+const revealed = computed((): boolean => {
+  return heroState.revealed || (latchedRevealed.value && presenting.value);
+});
+/** The front card pulses as the EFFECT SOURCE through the result beat. */
+const sourcePulse = computed((): boolean => {
+  return heroState.revealed && heroState.phase === 'showing-result';
+});
+/** The card the hero is bringing (or has brought — see `latchedIncoming`). */
+const incoming = computed((): CardModel | undefined => {
+  return (playedHeroIncomingCard() as CardModel | undefined) ?? latchedIncoming.value;
+});
+const zones = computed((): PlayedZones => {
+  return buildPlayedZones(viewer.value.tableau);
+});
+/** Destination from the card's TYPE — known before the commit. */
+const destKey = computed((): PlayedCategoryKey => {
+  const name = incoming.value?.name ?? heroState.card;
+  return familyForCardType(name !== undefined ? getCard(name)?.type : undefined) ?? 'automated';
+});
+const destLabel = computed((): string => {
+  return PLAYED_CATEGORY_LABEL[destKey.value];
+});
+/** Cards LYING in the destination (the incoming excluded — stable across
+ *  the commit; see receivingStackView). */
+const destCards = computed((): ReadonlyArray<CardModel> => {
+  const name = incoming.value?.name ?? heroState.card;
+  return zoneCards(zones.value, destKey.value).filter((c) => c.name !== name);
+});
+const stackCount = computed((): number => {
+  return destCards.value.length;
+});
+/** The caption count — ticks to N+1 exactly at the dock (re-keyed pulse). */
+const destCount = computed((): number => {
+  return stackCount.value + (revealed.value ? 1 : 0);
+});
+const plan = computed((): ReceivingPlan => {
+  return planReceivingStage({
+    availW: box.value.w > 0 ? box.value.w : FALLBACK_W * conUiScale(),
+    availH: box.value.h > 0 ? box.value.h : FALLBACK_H * conUiScale(),
+    stackCount: stackCount.value,
+    miniCount: minis.value.length,
+    uiScale: conUiScale(),
+  });
+});
+const view = computed((): ReceivingStackView => {
+  const name = (incoming.value?.name ?? heroState.card ?? '') as CardName;
+  return receivingStackView(destCards.value, name, plan.value.maxStrips);
+});
+/** The effect targets of THIS play — from the LATCHED totals, so a
+ *  foreign owner's pile stands through the whole scene (the transaction
+ *  clears its own copy before the latched view lets go). */
+const effectTargets = computed((): ReadonlyArray<CardName> => {
+  const played = incoming.value?.name ?? heroState.card;
+  return (Object.keys(latchedGainTotals.value) as Array<CardName>).filter((n) => n !== played);
+});
+/** Peripheral piles: the viewer's other families + foreign owners of
+ *  effect targets (known at arm — prepared before anything moves). */
+const minis = computed((): ReadonlyArray<ReceivingMini> => {
+  const own = receivingMinis(zones.value, destKey.value);
+  const foreign = foreignTargetMinis(
+    props.playerView.players, viewer.value.color, effectTargets.value, buildPlayedZones);
+  return [...own, ...foreign];
+});
+/** The shelf row: canonical family order with the DESTINATION inline in
+ *  its own slot; foreign owners' piles close the row past a seam. */
+const rowEntries = computed((): ReadonlyArray<RowEntry> => {
+  const out: Array<RowEntry> = [];
+  const byFamily = new Map(minis.value.filter((m) => m.ownerColor === undefined).map((m) => [m.family, m]));
+  for (const key of PLAYED_CATEGORY_ORDER) {
+    if (key === destKey.value) {
+      out.push({kind: 'dest', key: 'dest'});
+      continue;
     }
-  },
-  methods: {
-    miniLabel(m: ReceivingMini): string {
-      return PLAYED_CATEGORY_LABEL[m.family];
-    },
-    /** The destination column element — the `ref` sits inside the row's
-     *  `v-for`, so Vue 3 collects it as an ARRAY of one. */
-    destEl(): HTMLElement | undefined {
-      const r = (this.$refs.dest ?? undefined) as HTMLElement | ReadonlyArray<HTMLElement> | undefined;
-      const el = Array.isArray(r) ? r[0] : r;
-      return el === null ? undefined : (el as HTMLElement | undefined);
-    },
-    miniStripKey(m: ReceivingMini, name: CardName): string {
-      return `${m.id}|${name}`;
-    },
-    /**
-     * Latch this play's card-gain totals + WARM the effect targets' arts.
-     * The emergence mounts a FULL face for a card the screen has never shown
-     * — without the prewarm its art would start decoding on the very frame
-     * the flight starts (a guaranteed hitch on 4K), and the prewarm window
-     * (the submit round trip) is exactly where that cost is free.
-     */
-    latchGainTotals(): void {
-      this.latchedGainTotals = playedHeroCardGainTotals();
-      const targets = playedHeroCardTargets();
-      if (targets.length > 0) {
-        // The stage's faces are lightweight: the THUMB tier is what an emerged target paints.
-        preloadPremiumCardArt(targets, ['thumb']);
-      }
-    },
-    /**
-     * The LIVE MODEL of a visible effect target / the landed card — with its
-     * stored-resource capsule showing `committed − still in flight`, so the
-     * count ticks exactly at each chip's touchdown (`cardResourceLanded` is
-     * bumped at the contact beat). Pre-commit the committed view IS the
-     * pre-play truth and renders untouched. Undefined for a card that is not
-     * in any visible tableau (the face falls back to the printed name-only
-     * face — never a wrong number).
-     */
-    capsuleModelFor(name: CardName | string | undefined): CardModel | undefined {
-      if (name === undefined) {
-        return undefined;
-      }
-      const model = this.viewer.tableau.find((c) => c.name === name) ??
-        this.playerView.players.flatMap((p) => p.color === this.viewer.color ? [] : p.tableau)
-          .find((c) => c.name === name);
-      if (model === undefined) {
-        return undefined;
-      }
-      if (!this.revealed) {
-        return model;
-      }
-      const total = this.latchedGainTotals[name] ?? 0;
-      if (total <= 0) {
-        return model;
-      }
-      const remaining = Math.max(0, total - cardResourceLanded(name));
-      if (remaining <= 0) {
-        return model;
-      }
-      return {...model, resources: Math.max(0, (model.resources ?? 0) - remaining)};
-    },
-    measure(): void {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.getBoundingClientRect !== 'function') {
-        return;
-      }
-      const r = root.getBoundingClientRect();
-      if (r.width > 40 && r.height > 40) {
-        this.box = {w: r.width, h: r.height};
-      }
-    },
-    // ── the hero target: the reserved front anchor ─────────────────────
-    async measureFrontAnchor(): Promise<HeroRect | undefined> {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
-        return undefined;
-      }
-      this.measure(); // the box may have settled since the prewarm mount
-      await this.$nextTick();
-      const el = root.querySelector<HTMLElement>('[data-recv-front]');
-      if (el === null) {
-        return undefined;
-      }
-      // Stability loop — the arc flies into settled geometry (the stage
-      // emergence tween must have finished shaping the rect).
-      let last: HeroRect | undefined = undefined;
-      for (let i = 0; i < 30; i++) {
-        await this.frame();
-        const r = el.getBoundingClientRect();
-        if (r.width > 4 && last !== undefined &&
-            Math.abs(r.left - last.x) < 0.5 && Math.abs(r.top - last.y) < 0.5 &&
-            Math.abs(r.width - last.w) < 0.5 && Math.abs(r.height - last.h) < 0.5) {
-          return last;
-        }
-        last = r.width > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
-      }
+    const mini = byFamily.get(key);
+    if (mini !== undefined) {
+      out.push({kind: 'mini', key: mini.id, mini});
+    }
+  }
+  for (const mini of minis.value) {
+    if (mini.ownerColor !== undefined) {
+      out.push({kind: 'mini', key: mini.id, mini});
+    }
+  }
+  return out;
+});
+const emergedMiniIds = computed((): ReadonlyArray<string> => {
+  return emerged.value.map((e) => e.miniId).filter((id) => id !== '');
+});
+
+function miniLabel(m: ReceivingMini): string {
+  return PLAYED_CATEGORY_LABEL[m.family];
+}
+/** The destination column element — the `ref` sits inside the row's
+ *  `v-for`, so Vue 3 collects it as an ARRAY of one. */
+function destEl(): HTMLElement | undefined {
+  const r = dest.value ?? undefined;
+  const el = Array.isArray(r) ? r[0] : r;
+  return el === null ? undefined : (el as HTMLElement | undefined);
+}
+function miniStripKey(m: ReceivingMini, name: CardName): string {
+  return `${m.id}|${name}`;
+}
+/**
+ * Latch this play's card-gain totals + WARM the effect targets' arts.
+ * The emergence mounts a FULL face for a card the screen has never shown
+ * — without the prewarm its art would start decoding on the very frame
+ * the flight starts (a guaranteed hitch on 4K), and the prewarm window
+ * (the submit round trip) is exactly where that cost is free.
+ */
+function latchGainTotals(): void {
+  latchedGainTotals.value = playedHeroCardGainTotals();
+  const targets = playedHeroCardTargets();
+  if (targets.length > 0) {
+    // The stage's faces are lightweight: the THUMB tier is what an emerged target paints.
+    preloadPremiumCardArt(targets, ['thumb']);
+  }
+}
+/**
+ * The LIVE MODEL of a visible effect target / the landed card — with its
+ * stored-resource capsule showing `committed − still in flight`, so the
+ * count ticks exactly at each chip's touchdown (`cardResourceLanded` is
+ * bumped at the contact beat). Pre-commit the committed view IS the
+ * pre-play truth and renders untouched. Undefined for a card that is not
+ * in any visible tableau (the face falls back to the printed name-only
+ * face — never a wrong number).
+ */
+function capsuleModelFor(name: CardName | string | undefined): CardModel | undefined {
+  if (name === undefined) {
+    return undefined;
+  }
+  const model = viewer.value.tableau.find((c) => c.name === name) ??
+    props.playerView.players.flatMap((p) => p.color === viewer.value.color ? [] : p.tableau)
+      .find((c) => c.name === name);
+  if (model === undefined) {
+    return undefined;
+  }
+  if (!revealed.value) {
+    return model;
+  }
+  const total = latchedGainTotals.value[name] ?? 0;
+  if (total <= 0) {
+    return model;
+  }
+  const remaining = Math.max(0, total - cardResourceLanded(name));
+  if (remaining <= 0) {
+    return model;
+  }
+  return {...model, resources: Math.max(0, (model.resources ?? 0) - remaining)};
+}
+function measure(): void {
+  const rootNow = root.value ?? undefined;
+  if (rootNow === undefined || typeof rootNow.getBoundingClientRect !== 'function') {
+    return;
+  }
+  const r = rootNow.getBoundingClientRect();
+  if (r.width > 40 && r.height > 40) {
+    box.value = {w: r.width, h: r.height};
+  }
+}
+// ── the hero target: the reserved front anchor ─────────────────────
+async function measureFrontAnchor(): Promise<HeroRect | undefined> {
+  const rootNow = root.value ?? undefined;
+  if (rootNow === undefined || typeof rootNow.querySelector !== 'function') {
+    return undefined;
+  }
+  measure(); // the box may have settled since the prewarm mount
+  await nextTick();
+  const el = rootNow.querySelector<HTMLElement>('[data-recv-front]');
+  if (el === null) {
+    return undefined;
+  }
+  // Stability loop — the arc flies into settled geometry (the stage
+  // emergence tween must have finished shaping the rect).
+  let last: HeroRect | undefined = undefined;
+  for (let i = 0; i < 30; i++) {
+    await frame();
+    const r = el.getBoundingClientRect();
+    if (r.width > 4 && last !== undefined &&
+        Math.abs(r.left - last.x) < 0.5 && Math.abs(r.top - last.y) < 0.5 &&
+        Math.abs(r.width - last.w) < 0.5 && Math.abs(r.height - last.h) < 0.5) {
       return last;
-    },
-    /**
-     * The front anchor's REST rect, synchronously — the flight's final-approach
-     * retarget and the pre-reveal control measure. `undefined` while the
-     * stage's own entry tween is still shaping it (see `emergenceUntil`).
-     */
-    peekFrontAnchor(): HeroRect | undefined {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
-        return undefined;
-      }
-      if (typeof performance !== 'undefined' && performance.now() < this.emergenceUntil) {
-        return undefined;
-      }
-      const el = root.querySelector<HTMLElement>('[data-recv-front]');
-      if (el === null) {
-        return undefined;
-      }
-      const r = restingRectOf(el);
-      return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
-    },
-    /** One tick of the stability loop: the next painted frame, or shortly (a quiet compositor), or the stage left. */
-    frame(): Promise<void> {
-      return whenPainted(1, 50, this.flow);
-    },
-    // ── the stage emergence ────────────────────────────────────────────
-    /**
-     * The shelf rises as ONE table: the destination leads (a grounded rise
-     * out of its own slot — origin at its shelf line, never a float), its
-     * strips cascade open from the front, and the neighbour piles follow
-     * outward from the destination's position. Transform/opacity only, one
-     * bounded set of elements; reduced motion keeps the visibility flip.
-     */
-    runStageEmergence(): void {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelectorAll !== 'function' || consoleReducedMotionActive()) {
-        return; // the layer's visibility flip is the whole entrance
-      }
-      const dur = motionMs(STAGE_IN_MS) / 1000;
-      const ui = conUiScale();
-      const dest = this.destEl();
-      // The peek refuses to answer while the rise is shaping the anchor (the
-      // strips' stagger trails the destination by a few frames).
-      this.emergenceUntil = (typeof performance !== 'undefined' ? performance.now() : 0) + motionMs(STAGE_IN_MS) + 160;
-      if (dest !== undefined) {
-        gsap.fromTo(dest,
-          {autoAlpha: 0, y: 16 * ui, scale: 0.955},
-          {autoAlpha: 1, y: 0, scale: 1, transformOrigin: '50% 100%', duration: dur, ease: 'power3.out', clearProps: 'transform,opacity,visibility'});
-        const strips = Array.from(dest.querySelectorAll<HTMLElement>('[data-recv-strip]'));
-        if (strips.length > 0) {
-          // The stack unfolds from the front upward — newest first, a quiet
-          // cascade that reads as the pile splaying open, never a re-layout.
-          gsap.fromTo(strips.reverse(),
-            {y: 7 * ui, opacity: 0},
-            {y: 0, opacity: 1, duration: dur * 0.9, ease: 'power2.out', stagger: 0.024, delay: 0.05, clearProps: 'transform,opacity'});
-        }
-      }
-      const minis = Array.from(root.querySelectorAll<HTMLElement>('.con-recv__mini'));
-      if (minis.length > 0) {
-        // Neighbours follow OUTWARD from the destination's slot — the table
-        // spreads from where the eye already is.
-        const row = (this.$refs.row ?? undefined) as HTMLElement | undefined;
-        const destIdx = row !== undefined && dest !== undefined ?
-          Math.max(0, Array.from(row.children).indexOf(dest)) : 0;
-        gsap.fromTo(minis,
-          {autoAlpha: 0, y: 10 * ui},
-          {
-            autoAlpha: 1, y: 0, duration: dur, ease: 'power2.out', delay: 0.05,
-            stagger: {each: 0.035, from: Math.min(destIdx, Math.max(0, minis.length - 1))},
-            clearProps: 'transform,opacity,visibility',
-          });
-      }
-    },
-    // ── effect delivery: target emergence / settle ─────────────────────
-    /** The physical anchor a target would emerge FROM (its strip in the
-     *  destination stack, its head band in a mini, or the mini block itself
-     *  when the card lies deeper than the visible band). */
-    findTargetAnchor(card: CardName): {el: HTMLElement, miniId: string} | undefined {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
-        return undefined;
-      }
-      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
-        CSS.escape(card) : card.replace(/"/g, '\\"');
-      const strip = root.querySelector<HTMLElement>(`[data-recv-strip="${esc}"]`);
-      if (strip !== null) {
-        return {el: strip, miniId: ''};
-      }
-      // Suffix-matched in JS, not with a `$=` attribute selector — the value
-      // embeds `|`, which CSS engines disagree about.
-      const miniStrip = Array.from(root.querySelectorAll<HTMLElement>('[data-recv-ministrip]'))
-        .find((el) => (el.dataset.recvMinistrip ?? '').endsWith(`|${card}`));
-      if (miniStrip !== undefined) {
-        const mini = miniStrip.closest<HTMLElement>('[data-recv-mini]');
-        return {el: miniStrip, miniId: mini?.dataset.recvMini ?? ''};
-      }
-      // The card is not among the visible bands — it emerges from the DEPTH
-      // of its family: the owning mini block (or the destination slivers).
-      const mini = this.findOwningMini(card);
-      if (mini !== undefined) {
-        const el = root.querySelector<HTMLElement>(`[data-recv-mini="${CSS.escape(mini.id)}"]`);
-        if (el !== null) {
-          return {el, miniId: mini.id};
-        }
-      }
-      const dest = this.destEl();
-      return dest !== undefined ? {el: dest, miniId: ''} : undefined;
-    },
-    /** The name is a card of some seat's tableau (a party's / a resolution's face key never is). */
-    tableauHolds(card: CardName): boolean {
-      return this.playerView.players.some((p) => p.tableau.some((c) => c.name === card));
-    },
-    findOwningMini(card: CardName): ReceivingMini | undefined {
-      return this.minis.find((m) => {
-        const owner = m.ownerColor !== undefined ?
-          this.playerView.players.find((p) => p.color === m.ownerColor) : this.viewer;
-        if (owner === undefined) {
-          return false;
-        }
-        const zones = buildPlayedZones(owner.tableau);
-        return receivingFamilyOf(zones, card) === m.family &&
-          zoneCards(zones, m.family).some((c) => c.name === card);
+    }
+    last = r.width > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+  }
+  return last;
+}
+/**
+ * The front anchor's REST rect, synchronously — the flight's final-approach
+ * retarget and the pre-reveal control measure. `undefined` while the
+ * stage's own entry tween is still shaping it (see `emergenceUntil`).
+ */
+function peekFrontAnchor(): HeroRect | undefined {
+  const rootNow = root.value ?? undefined;
+  if (rootNow === undefined || typeof rootNow.querySelector !== 'function') {
+    return undefined;
+  }
+  if (typeof performance !== 'undefined' && performance.now() < emergenceUntil.value) {
+    return undefined;
+  }
+  const el = rootNow.querySelector<HTMLElement>('[data-recv-front]');
+  if (el === null) {
+    return undefined;
+  }
+  const r = restingRectOf(el);
+  return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+}
+/** One tick of the stability loop: the next painted frame, or shortly (a quiet compositor), or the stage left. */
+function frame(): Promise<void> {
+  return whenPainted(1, 50, flow);
+}
+// ── the stage emergence ────────────────────────────────────────────
+/**
+ * The shelf rises as ONE table: the destination leads (a grounded rise
+ * out of its own slot — origin at its shelf line, never a float), its
+ * strips cascade open from the front, and the neighbour piles follow
+ * outward from the destination's position. Transform/opacity only, one
+ * bounded set of elements; reduced motion keeps the visibility flip.
+ */
+function runStageEmergence(): void {
+  const rootNow = root.value ?? undefined;
+  if (rootNow === undefined || typeof rootNow.querySelectorAll !== 'function' || consoleReducedMotionActive()) {
+    return; // the layer's visibility flip is the whole entrance
+  }
+  const dur = motionMs(STAGE_IN_MS) / 1000;
+  const ui = conUiScale();
+  const dest = destEl();
+  // The peek refuses to answer while the rise is shaping the anchor (the
+  // strips' stagger trails the destination by a few frames).
+  emergenceUntil.value = (typeof performance !== 'undefined' ? performance.now() : 0) + motionMs(STAGE_IN_MS) + 160;
+  if (dest !== undefined) {
+    gsap.fromTo(dest,
+      {autoAlpha: 0, y: 16 * ui, scale: 0.955},
+      {autoAlpha: 1, y: 0, scale: 1, transformOrigin: '50% 100%', duration: dur, ease: 'power3.out', clearProps: 'transform,opacity,visibility'});
+    const strips = Array.from(dest.querySelectorAll<HTMLElement>('[data-recv-strip]'));
+    if (strips.length > 0) {
+      // The stack unfolds from the front upward — newest first, a quiet
+      // cascade that reads as the pile splaying open, never a re-layout.
+      gsap.fromTo(strips.reverse(),
+        {y: 7 * ui, opacity: 0},
+        {y: 0, opacity: 1, duration: dur * 0.9, ease: 'power2.out', stagger: 0.024, delay: 0.05, clearProps: 'transform,opacity'});
+    }
+  }
+  const minis = Array.from(rootNow.querySelectorAll<HTMLElement>('.con-recv__mini'));
+  if (minis.length > 0) {
+    // Neighbours follow OUTWARD from the destination's slot — the table
+    // spreads from where the eye already is.
+    const rowNow = row.value ?? undefined;
+    const destIdx = rowNow !== undefined && dest !== undefined ?
+      Math.max(0, Array.from(rowNow.children).indexOf(dest)) : 0;
+    gsap.fromTo(minis,
+      {autoAlpha: 0, y: 10 * ui},
+      {
+        autoAlpha: 1, y: 0, duration: dur, ease: 'power2.out', delay: 0.05,
+        stagger: {each: 0.035, from: Math.min(destIdx, Math.max(0, minis.length - 1))},
+        clearProps: 'transform,opacity,visibility',
       });
-    },
-    /** ONE target forward — a wave of one (the reactor's and the single gain's door). */
-    emergeTarget(card: CardName): Promise<void> {
-      return this.emergeTargets([card]);
-    },
-    /** ONE target home. */
-    settleTarget(card: CardName): Promise<void> {
-      return this.settleTargets([card]);
-    },
-    /** The card is out of its stack right now (one of the emerged). */
-    isEmerged(card: CardName | undefined): boolean {
-      return card !== undefined && this.emerged.some((e) => e.name === card);
-    },
-    /** The emerged face of `card` on the emergence layer (undefined while it is not out). */
-    emergedEl(card: CardName): HTMLElement | undefined {
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
+  }
+}
+// ── effect delivery: target emergence / settle ─────────────────────
+/** The physical anchor a target would emerge FROM (its strip in the
+ *  destination stack, its head band in a mini, or the mini block itself
+ *  when the card lies deeper than the visible band). */
+function findTargetAnchor(card: CardName): {el: HTMLElement, miniId: string} | undefined {
+  const rootNow = root.value ?? undefined;
+  if (rootNow === undefined || typeof rootNow.querySelector !== 'function') {
+    return undefined;
+  }
+  const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
+    CSS.escape(card) : card.replace(/"/g, '\\"');
+  const strip = rootNow.querySelector<HTMLElement>(`[data-recv-strip="${esc}"]`);
+  if (strip !== null) {
+    return {el: strip, miniId: ''};
+  }
+  // Suffix-matched in JS, not with a `$=` attribute selector — the value
+  // embeds `|`, which CSS engines disagree about.
+  const miniStrip = Array.from(rootNow.querySelectorAll<HTMLElement>('[data-recv-ministrip]'))
+    .find((el) => (el.dataset.recvMinistrip ?? '').endsWith(`|${card}`));
+  if (miniStrip !== undefined) {
+    const mini = miniStrip.closest<HTMLElement>('[data-recv-mini]');
+    return {el: miniStrip, miniId: mini?.dataset.recvMini ?? ''};
+  }
+  // The card is not among the visible bands — it emerges from the DEPTH
+  // of its family: the owning mini block (or the destination slivers).
+  const mini = findOwningMini(card);
+  if (mini !== undefined) {
+    const el = rootNow.querySelector<HTMLElement>(`[data-recv-mini="${CSS.escape(mini.id)}"]`);
+    if (el !== null) {
+      return {el, miniId: mini.id};
+    }
+  }
+  const dest = destEl();
+  return dest !== undefined ? {el: dest, miniId: ''} : undefined;
+}
+/** The name is a card of some seat's tableau (a party's / a resolution's face key never is). */
+function tableauHolds(card: CardName): boolean {
+  return props.playerView.players.some((p) => p.tableau.some((c) => c.name === card));
+}
+function findOwningMini(card: CardName): ReceivingMini | undefined {
+  return minis.value.find((m) => {
+    const owner = m.ownerColor !== undefined ?
+      props.playerView.players.find((p) => p.color === m.ownerColor) : viewer.value;
+    if (owner === undefined) {
+      return false;
+    }
+    const zones = buildPlayedZones(owner.tableau);
+    return receivingFamilyOf(zones, card) === m.family &&
+      zoneCards(zones, m.family).some((c) => c.name === card);
+  });
+}
+/** ONE target forward — a wave of one (the reactor's and the single gain's door). */
+function emergeTarget(card: CardName): Promise<void> {
+  return emergeTargets([card]);
+}
+/** ONE target home. */
+function settleTarget(card: CardName): Promise<void> {
+  return settleTargets([card]);
+}
+/** The card is out of its stack right now (one of the emerged). */
+function isEmerged(card: CardName | undefined): boolean {
+  return card !== undefined && emerged.value.some((e) => e.name === card);
+}
+/** The emerged face of `card` on the emergence layer (undefined while it is not out). */
+function emergedEl(card: CardName): HTMLElement | undefined {
+  const rootNow = root.value ?? undefined;
+  if (rootNow === undefined || typeof rootNow.querySelector !== 'function') {
+    return undefined;
+  }
+  const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
+  return rootNow.querySelector<HTMLElement>(`[data-emerge-name="${esc}"]`) ?? undefined;
+}
+/**
+ * TARGET EMERGENCE — the effect targets come physically forward:
+ *  - the OPEN previous top needs no emergence (an accent marks it);
+ *  - a strip / mini-band target rises out of its band (clip opens
+ *    band → card) and PRESENTS above the shelf, over its own pile;
+ *  - a depth/mini target rises out of its family block the same way.
+ * SEVERAL targets of ONE play (PL-1146 — P78's three holders) rise TOGETHER, a short stagger apart, and stand SIDE
+ * BY SIDE over the shelf in the order of their homes (no two paths cross), the row scaled down only as much as the
+ * stage needs — one gesture for the whole wave, never one card after another.
+ * Resolves when every card stands at its presentation anchor.
+ */
+async function emergeTargets(cards: ReadonlyArray<CardName>): Promise<void> {
+  targetAccent.value = undefined;
+  const rising: Array<EmergedTarget> = [];
+  for (const card of cards) {
+    if (view.value.prevTop === card && !isEmerged(card) && !revealed.value) {
+      // Already lying open right under the played card — no emergence. Once the landed card COVERS it (the
+      // reveal turned its face into a strip), it emerges like any strip: its capsule is the counter that ticks
+      // (К-S1 — a holder under the card that woke it).
+      targetAccent.value = card;
+      continue;
+    }
+    const anchor = findTargetAnchor(card);
+    if (anchor === undefined) {
+      continue; // degraded: the chips still fly (the aux satellite fallback)
+    }
+    const measured = anchor.el.getBoundingClientRect();
+    rising.push({name: card, miniId: anchor.miniId, home: {x: measured.left, y: measured.top, w: measured.width, h: measured.height}});
+  }
+  if (rising.length === 0) {
+    if (targetAccent.value !== undefined) {
+      await wait(motionMs(120));
+    }
+    return;
+  }
+  emerged.value = [...emerged.value.filter((e) => !rising.some((r) => r.name === e.name)), ...rising];
+  await nextTick();
+  // Left to right by where each comes from — the wave never crosses its own paths.
+  const ordered = [...rising].sort((a, b) => a.home.x - b.home.x);
+  const els = ordered.map((t) => emergedEl(t.name));
+  if (els.some((el) => el === undefined) || root.value === null) {
+    return;
+  }
+  const slots = emergePresentationRow(els as Array<HTMLElement>, ordered.map((t) => t.home));
+  await Promise.all(ordered.map((target, i) => {
+    const el = els[i] as HTMLElement;
+    const to = slots[i];
+    const home = target.home;
+    // Reduced motion / unmeasurable geometry: the card still PRESENTS at
+    // its anchor (one controlled step, no flight) — the story survives.
+    if (consoleReducedMotionActive() || home.w < 4 || home.h < 4) {
+      gsap.set(el, {x: to.x, y: to.y, scale: to.scale, transformOrigin: '0 0', autoAlpha: 1});
+      return Promise.resolve();
+    }
+    // Band → card: the proxy starts ON the band (clipped to it,
+    // width-matched via scale), rises forward and opens to the full face.
+    const startScale = home.w > 4 ? home.w / el.offsetWidth : 1;
+    const clipFrom = `inset(0 0 ${Math.max(0, 100 - (home.h / Math.max(1, el.offsetHeight * startScale)) * 100)}% 0)`;
+    return new Promise<void>((resolve) => {
+      gsap.timeline({onComplete: resolve, delay: motionMs(WAVE_STAGGER_MS * i) / 1000})
+        .set(el, {x: home.x, y: home.y, scale: startScale, transformOrigin: '0 0', clipPath: clipFrom, autoAlpha: 1})
+        .to(el, {
+          x: to.x, y: to.y, scale: to.scale, clipPath: 'inset(0 0 0% 0)',
+          duration: motionMs(EMERGE_MS) / 1000, ease: 'power3.out', clearProps: 'clipPath',
+        });
+    });
+  }));
+}
+/**
+ * Where the emerged targets PRESENT (viewport px, top-left of each, and the scale they stand at): ABOVE THE SHELF,
+ * over the piles they came out of — ONE card centred over its home (the single-target reading, unchanged); a WAVE
+ * as one row centred over its homes' middle, clamped to the stage, scaled down only if the row would not fit
+ * (never below `WAVE_MIN_SCALE`).
+ */
+function emergePresentationRow(els: ReadonlyArray<HTMLElement>, homes: ReadonlyArray<{x: number, y: number, w: number, h: number}>): Array<{x: number, y: number, scale: number}> {
+  // The root stands: the one caller (`emergeTargets`) has asked it in this very turn, past its last `await`.
+  const rootNow = (root.value as HTMLElement).getBoundingClientRect();
+  const rowNow = row.value?.getBoundingClientRect();
+  const w = els[0].offsetWidth;
+  const h = els[0].offsetHeight;
+  const gap = 22 * conUiScale();
+  const room = Math.max(1, rootNow.width - 16);
+  const natural = els.length * w + (els.length - 1) * gap;
+  const scale = els.length > 1 ? Math.max(WAVE_MIN_SCALE, Math.min(1, room / natural)) : 1;
+  const cw = w * scale;
+  const ch = h * scale;
+  const span = els.length * cw + (els.length - 1) * gap;
+  const centre = homes.reduce((sum, home) => sum + home.x + home.w / 2, 0) / homes.length;
+  const left = Math.max(rootNow.left + 8, Math.min(centre - span / 2, rootNow.right - span - 8));
+  const shelfTop = rowNow !== undefined ? rowNow.top : rootNow.bottom - ch - gap;
+  const y = Math.max(rootNow.top + 8, shelfTop - ch - gap);
+  return els.map((_, i) => ({x: left + i * (cw + gap), y, scale}));
+}
+/**
+ * TARGET SETTLE — the gain has arrived: a short confirmation press, then
+ * the card returns along the same physical path into its band; the
+ * placeholder becomes its real band again in the handoff frame. A WAVE settles together (the same stagger as its
+ * rise) — one read for the whole row, never one card after another.
+ */
+async function settleTargets(cards: ReadonlyArray<CardName>): Promise<void> {
+  if (targetAccent.value !== undefined && cards.includes(targetAccent.value)) {
+    // The open previous top: the accent releases after a beat.
+    const accent = targetAccent.value;
+    await wait(motionMs(TARGET_SETTLE_MS));
+    if (targetAccent.value === accent) {
+      targetAccent.value = undefined;
+    }
+  }
+  const leaving = emerged.value.filter((e) => cards.includes(e.name)).sort((a, b) => a.home.x - b.home.x);
+  if (leaving.length === 0) {
+    return;
+  }
+  await Promise.all(leaving.map((state, i) => {
+    const el = emergedEl(state.name);
+    if (el === undefined) {
+      return Promise.resolve();
+    }
+    if (consoleReducedMotionActive() || state.home.w < 4 || state.home.h < 4) {
+      gsap.set(el, {autoAlpha: 0});
+      return Promise.resolve();
+    }
+    const startScale = state.home.w > 4 ? state.home.w / el.offsetWidth : 1;
+    const clipTo = `inset(0 0 ${Math.max(0, 100 - (state.home.h / Math.max(1, el.offsetHeight * startScale)) * 100)}% 0)`;
+    const presented = Number(gsap.getProperty(el, 'scale')) || 1;
+    return new Promise<void>((resolve) => {
+      gsap.timeline({onComplete: resolve, delay: motionMs(WAVE_STAGGER_MS * i) / 1000})
+        // The confirmation press — the card takes its gain.
+        .to(el, {scale: presented * 1.03, duration: motionMs(TARGET_SETTLE_MS) / 2000, ease: 'power1.out'})
+        .to(el, {scale: presented, duration: motionMs(TARGET_SETTLE_MS) / 2000, ease: 'power2.out'})
+        // The return leg — back into the very band it came out of.
+        .to(el, {
+          x: state.home.x, y: state.home.y, scale: startScale, clipPath: clipTo,
+          duration: motionMs(RETURN_MS) / 1000, ease: 'power3.inOut',
+        })
+        .to(el, {autoAlpha: 0, duration: 0.08});
+    });
+  }));
+  emerged.value = emerged.value.filter((e) => !cards.includes(e.name));
+}
+function wait(ms: number): Promise<void> {
+  return span(ms);
+}
+
+/** THE STAGE EMERGENCE — the prepared scene surfaces: the shelf rises as
+ *  one table, the destination leads, its strips cascade open. One-shot
+ *  per transaction; reduced motion keeps the visibility flip. */
+watch(() => presenting.value, (now: boolean) => {
+  if (now && !emergenceRan.value) {
+    emergenceRan.value = true;
+    void nextTick(() => runStageEmergence());
+  }
+});
+watch(() => heroState.nonce, () => {
+  emergenceRan.value = false;
+  emerged.value = [];
+  targetAccent.value = undefined;
+  latchedIncoming.value = undefined;
+  latchedRevealed.value = false;
+  latchGainTotals();
+});
+/** Freeze the arrived card while the transaction still knows it. */
+watch(() => incoming.value, (now: CardModel | undefined) => {
+  if (now !== undefined) {
+    latchedIncoming.value = now;
+  }
+}, {immediate: true});
+watch(() => heroState.revealed, (now: boolean) => {
+  if (now) {
+    latchedRevealed.value = true;
+  }
+}, {immediate: true});
+
+onMounted(() => {
+  measure();
+  latchGainTotals();
+  unregisterTarget = providePlayedHeroTarget(() => measureFrontAnchor(), () => peekFrontAnchor());
+  unregisterHooks = provideReceivingEffectHooks({
+    emergeTarget: (card) => emergeTarget(card),
+    settleTarget: (card) => settleTarget(card),
+    emergeTargets: (cards) => emergeTargets(cards),
+    settleTargets: (cards) => settleTargets(cards),
+    // «СРАБАТЫВАНИЕ КАРТЫ»: a reactor this stage holds rises OUT OF ITS PLACE (the open previous top, a strip, a mini) —
+    // and its tokens are born on the emerged face's effect row.
+    // Only a CARD of a tableau this stage presents (iteration 6: a party's / a law's record names no card — the
+    // anchor ladder's catch-all, the destination slivers, must not claim it as this stage's).
+    holdsCard: (card) => tableauHolds(card) && (findTargetAnchor(card) !== undefined || (view.value.prevTop === card && !revealed.value)),
+    emergedFaceEl: (card) => {
+      const out = emergedEl(card);
+      if (out !== undefined) {
+        return out;
+      }
+      // The open previous top lies under the played card — its own face on the stage is the birth place.
+      if (targetAccent.value !== card) {
+        return undefined;
+      }
+      // The hooks are handed to the transaction, which may ask after the stage left: no root, no face.
+      const rootNow = root.value;
+      if (rootNow === null) {
         return undefined;
       }
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
-      return root.querySelector<HTMLElement>(`[data-emerge-name="${esc}"]`) ?? undefined;
+      return rootNow.querySelector<HTMLElement>(`[data-played-key="${esc}"]`) ?? undefined;
     },
-    /**
-     * TARGET EMERGENCE — the effect targets come physically forward:
-     *  - the OPEN previous top needs no emergence (an accent marks it);
-     *  - a strip / mini-band target rises out of its band (clip opens
-     *    band → card) and PRESENTS above the shelf, over its own pile;
-     *  - a depth/mini target rises out of its family block the same way.
-     * SEVERAL targets of ONE play (PL-1146 — P78's three holders) rise TOGETHER, a short stagger apart, and stand SIDE
-     * BY SIDE over the shelf in the order of their homes (no two paths cross), the row scaled down only as much as the
-     * stage needs — one gesture for the whole wave, never one card after another.
-     * Resolves when every card stands at its presentation anchor.
-     */
-    async emergeTargets(cards: ReadonlyArray<CardName>): Promise<void> {
-      this.targetAccent = undefined;
-      const rising: Array<EmergedTarget> = [];
-      for (const card of cards) {
-        if (this.view.prevTop === card && !this.isEmerged(card) && !this.revealed) {
-          // Already lying open right under the played card — no emergence. Once the landed card COVERS it (the
-          // reveal turned its face into a strip), it emerges like any strip: its capsule is the counter that ticks
-          // (К-S1 — a holder under the card that woke it).
-          this.targetAccent = card;
-          continue;
-        }
-        const anchor = this.findTargetAnchor(card);
-        if (anchor === undefined) {
-          continue; // degraded: the chips still fly (the aux satellite fallback)
-        }
-        const measured = anchor.el.getBoundingClientRect();
-        rising.push({name: card, miniId: anchor.miniId, home: {x: measured.left, y: measured.top, w: measured.width, h: measured.height}});
-      }
-      if (rising.length === 0) {
-        if (this.targetAccent !== undefined) {
-          await this.wait(motionMs(120));
-        }
-        return;
-      }
-      this.emerged = [...this.emerged.filter((e) => !rising.some((r) => r.name === e.name)), ...rising];
-      await this.$nextTick();
-      // Left to right by where each comes from — the wave never crosses its own paths.
-      const ordered = [...rising].sort((a, b) => a.home.x - b.home.x);
-      const els = ordered.map((t) => this.emergedEl(t.name));
-      if (els.some((el) => el === undefined) || this.$el === undefined) {
-        return;
-      }
-      const slots = this.emergePresentationRow(els as Array<HTMLElement>, ordered.map((t) => t.home));
-      await Promise.all(ordered.map((target, i) => {
-        const el = els[i] as HTMLElement;
-        const to = slots[i];
-        const home = target.home;
-        // Reduced motion / unmeasurable geometry: the card still PRESENTS at
-        // its anchor (one controlled step, no flight) — the story survives.
-        if (consoleReducedMotionActive() || home.w < 4 || home.h < 4) {
-          gsap.set(el, {x: to.x, y: to.y, scale: to.scale, transformOrigin: '0 0', autoAlpha: 1});
-          return Promise.resolve();
-        }
-        // Band → card: the proxy starts ON the band (clipped to it,
-        // width-matched via scale), rises forward and opens to the full face.
-        const startScale = home.w > 4 ? home.w / el.offsetWidth : 1;
-        const clipFrom = `inset(0 0 ${Math.max(0, 100 - (home.h / Math.max(1, el.offsetHeight * startScale)) * 100)}% 0)`;
-        return new Promise<void>((resolve) => {
-          gsap.timeline({onComplete: resolve, delay: motionMs(WAVE_STAGGER_MS * i) / 1000})
-            .set(el, {x: home.x, y: home.y, scale: startScale, transformOrigin: '0 0', clipPath: clipFrom, autoAlpha: 1})
-            .to(el, {
-              x: to.x, y: to.y, scale: to.scale, clipPath: 'inset(0 0 0% 0)',
-              duration: motionMs(EMERGE_MS) / 1000, ease: 'power3.out', clearProps: 'clipPath',
-            });
-        });
-      }));
-    },
-    /**
-     * Where the emerged targets PRESENT (viewport px, top-left of each, and the scale they stand at): ABOVE THE SHELF,
-     * over the piles they came out of — ONE card centred over its home (the single-target reading, unchanged); a WAVE
-     * as one row centred over its homes' middle, clamped to the stage, scaled down only if the row would not fit
-     * (never below `WAVE_MIN_SCALE`).
-     */
-    emergePresentationRow(els: ReadonlyArray<HTMLElement>, homes: ReadonlyArray<{x: number, y: number, w: number, h: number}>): Array<{x: number, y: number, scale: number}> {
-      const root = (this.$el as HTMLElement).getBoundingClientRect();
-      const row = ((this.$refs.row ?? undefined) as HTMLElement | undefined)?.getBoundingClientRect();
-      const w = els[0].offsetWidth;
-      const h = els[0].offsetHeight;
-      const gap = 22 * conUiScale();
-      const room = Math.max(1, root.width - 16);
-      const natural = els.length * w + (els.length - 1) * gap;
-      const scale = els.length > 1 ? Math.max(WAVE_MIN_SCALE, Math.min(1, room / natural)) : 1;
-      const cw = w * scale;
-      const ch = h * scale;
-      const span = els.length * cw + (els.length - 1) * gap;
-      const centre = homes.reduce((sum, home) => sum + home.x + home.w / 2, 0) / homes.length;
-      const left = Math.max(root.left + 8, Math.min(centre - span / 2, root.right - span - 8));
-      const shelfTop = row !== undefined ? row.top : root.bottom - ch - gap;
-      const y = Math.max(root.top + 8, shelfTop - ch - gap);
-      return els.map((_, i) => ({x: left + i * (cw + gap), y, scale}));
-    },
-    /**
-     * TARGET SETTLE — the gain has arrived: a short confirmation press, then
-     * the card returns along the same physical path into its band; the
-     * placeholder becomes its real band again in the handoff frame. A WAVE settles together (the same stagger as its
-     * rise) — one read for the whole row, never one card after another.
-     */
-    async settleTargets(cards: ReadonlyArray<CardName>): Promise<void> {
-      if (this.targetAccent !== undefined && cards.includes(this.targetAccent)) {
-        // The open previous top: the accent releases after a beat.
-        const accent = this.targetAccent;
-        await this.wait(motionMs(TARGET_SETTLE_MS));
-        if (this.targetAccent === accent) {
-          this.targetAccent = undefined;
-        }
-      }
-      const leaving = this.emerged.filter((e) => cards.includes(e.name)).sort((a, b) => a.home.x - b.home.x);
-      if (leaving.length === 0) {
-        return;
-      }
-      await Promise.all(leaving.map((state, i) => {
-        const el = this.emergedEl(state.name);
-        if (el === undefined) {
-          return Promise.resolve();
-        }
-        if (consoleReducedMotionActive() || state.home.w < 4 || state.home.h < 4) {
-          gsap.set(el, {autoAlpha: 0});
-          return Promise.resolve();
-        }
-        const startScale = state.home.w > 4 ? state.home.w / el.offsetWidth : 1;
-        const clipTo = `inset(0 0 ${Math.max(0, 100 - (state.home.h / Math.max(1, el.offsetHeight * startScale)) * 100)}% 0)`;
-        const presented = Number(gsap.getProperty(el, 'scale')) || 1;
-        return new Promise<void>((resolve) => {
-          gsap.timeline({onComplete: resolve, delay: motionMs(WAVE_STAGGER_MS * i) / 1000})
-            // The confirmation press — the card takes its gain.
-            .to(el, {scale: presented * 1.03, duration: motionMs(TARGET_SETTLE_MS) / 2000, ease: 'power1.out'})
-            .to(el, {scale: presented, duration: motionMs(TARGET_SETTLE_MS) / 2000, ease: 'power2.out'})
-            // The return leg — back into the very band it came out of.
-            .to(el, {
-              x: state.home.x, y: state.home.y, scale: startScale, clipPath: clipTo,
-              duration: motionMs(RETURN_MS) / 1000, ease: 'power3.inOut',
-            })
-            .to(el, {autoAlpha: 0, duration: 0.08});
-        });
-      }));
-      this.emerged = this.emerged.filter((e) => !cards.includes(e.name));
-    },
-    wait(ms: number): Promise<void> {
-      return span(ms);
-    },
-  },
+  });
+});
+onBeforeUnmount(() => {
+  unregisterTarget?.();
+  unregisterHooks?.();
+  const rootNow = root.value ?? undefined;
+  if (rootNow !== undefined && typeof rootNow.querySelectorAll === 'function') {
+    gsap.killTweensOf(rootNow.querySelectorAll('[data-recv-group], [data-recv-strip], .con-recv__mini, .con-recv__emerge'));
+  }
 });
 </script>

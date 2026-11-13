@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {defineComponent, h} from 'vue';
 import {mount} from '@vue/test-utils';
 import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
 import {armPlayedHero, abortPlayedHero, playedHeroState} from '@/client/console/played/consolePlayedHero';
@@ -312,5 +313,32 @@ describe('ConsolePlayedReceivingStage (the receiving & effect resolution stage)'
     await wrapper.vm.$nextTick();
     expect(wrapper.find('.con-recv__emerge').exists(), 'settled back').to.be.false;
     wrapper.unmount();
+  });
+
+  it('an emergence that OUTLIVES the stage ends quietly — the root is gone, nothing is measured or flown', async () => {
+    armPlayedHero(CardName.TREES, false, {manualTableOpen: false, host: 'workspace'});
+    playedHeroState.phase = 'showing-result';
+    playedHeroState.revealed = true;
+    const wrapper = make(view([CardName.TARDIGRADES, CardName.BUSHES, CardName.TREES]));
+    await wrapper.vm.$nextTick();
+    // The wave has measured its homes and stands at its own tick when the workspace takes the stage down.
+    const promise: Promise<void> = wrapper.vm.emergeTarget(CardName.TARDIGRADES);
+    wrapper.unmount();
+    // Resolved — a rejection here would be the transaction's unhandled one (the wave's tail reads the root).
+    expect(await promise.then(() => 'ended', (error: unknown) => error)).to.eq('ended');
+  });
+
+  it('a parent\'s ref reaches nothing — the transaction drives the stage through the hooks it registers', async () => {
+    armPlayedHero(CardName.TREES, false, {manualTableOpen: false, host: 'workspace'});
+    playedHeroState.phase = 'preparing';
+    const playerView = view([CardName.BUSHES, CardName.GRASS]);
+    const Host = defineComponent({
+      render: () => h('div', [h(ConsolePlayedReceivingStage, {ref: 'stage', playerView})]),
+    });
+    const host = mount(Host, {global: {stubs: {ConsolePlayedCardLite: true}}});
+    await host.vm.$nextTick();
+    expect(host.find('.con-recv [data-recv-front]').exists(), 'the stage stands under the host').to.be.true;
+    expect(Object.keys((host.vm.$refs.stage ?? {}) as object), 'no `defineExpose`: both composers mount it and stand no ref on it').to.deep.eq([]);
+    host.unmount();
   });
 });
